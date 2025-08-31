@@ -20,7 +20,8 @@
       "WebFetch(domain:www.sigmasight.io)",
       "Bash(npx playwright-core:*)",
       "Bash(npm install:*)",
-      "Bash(npx playwright:*)"
+      "Bash(npx playwright:*)",
+      "Bash(node:*)"
     ],
     "additionalDirectories": [
       "C:\\c\\Users\\BenBalbale\\CascadeProjects\\SigmaSight-BE"
