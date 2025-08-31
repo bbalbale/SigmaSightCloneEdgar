@@ -27,7 +27,11 @@
       "mcp__playwright__browser_take_screenshot",
       "mcp__playwright__browser_click",
       "mcp__playwright__browser_evaluate",
-      "Bash(docker-compose up:*)"
+      "Bash(docker-compose up:*)",
+      "Bash(dir:*)",
+      "Bash(robocopy:*)",
+      "Bash(xcopy:*)",
+      "mcp__playwright__browser_snapshot"
     ],
     "additionalDirectories": [
       "C:\\c\\Users\\BenBalbale\\CascadeProjects\\SigmaSight-BE"
