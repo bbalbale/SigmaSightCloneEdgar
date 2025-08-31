@@ -22,7 +22,10 @@
       "Bash(npm install:*)",
       "Bash(npx playwright:*)",
       "Bash(node:*)",
-      "Bash(start msedge http://localhost:3005)"
+      "Bash(start msedge http://localhost:3005)",
+      "mcp__playwright__browser_navigate",
+      "mcp__playwright__browser_take_screenshot",
+      "mcp__playwright__browser_click"
     ],
     "additionalDirectories": [
       "C:\\c\\Users\\BenBalbale\\CascadeProjects\\SigmaSight-BE"
