@@ -1,0 +1,123 @@
+[
+  {
+    "text": "SigmaSightProductPricingResourcesCompanyLoginDo you know the risks in your portfolio?Get AI driven institutional grade portfolio analysis in plain EnglishTry it for freeChoose Your PlanQuick ActionsTry these common portfolio analysis tasksWhat are my biggest risks?Identify concentration, correlation, and sector risks in your portfolioHow correlated are my positions?See which positions move together and hidden dependenciesWhat if tech drops 20%?Stress test your portfolio against market scenariosS",
+    "rect": {
+      "x": 0,
+      "y": -940,
+      "width": 1400,
+      "height": 2203
+    },
+    "tagName": "DIV",
+    "className": "flex min-h-screen flex-col"
+  },
+  {
+    "text": "SigmaSightProductPricingResourcesCompanyLoginDo you know the risks in your portfolio?Get AI driven institutional grade portfolio analysis in plain EnglishTry it for freeChoose Your PlanQuick ActionsTry these common portfolio analysis tasksWhat are my biggest risks?Identify concentration, correlation, and sector risks in your portfolioHow correlated are my positions?See which positions move together and hidden dependenciesWhat if tech drops 20%?Stress test your portfolio against market scenariosS",
+    "rect": {
+      "x": 0,
+      "y": -940,
+      "width": 1400,
+      "height": 2203
+    },
+    "tagName": "DIV",
+    "className": "min-h-screen bg-background"
+  },
+  {
+    "text": "Choose Your Experience LevelTailored portfolio analytics for every type of investorBasicSimple PortfoliosTraditional stock and bond portfolios with basic risk analysisFree/foreverPortfolio risk analysisBasic metrics & reportingEmail supportSingle portfolioCommunity supportGet StartedMost PopularStandardMulti-Asset PortfoliosPrivate funds, RSUs, employee stock options, and complex holdings$9/monthEverything in BasicAdvanced risk analyticsFactor exposure analysisUp to 10 portfoliosPriority support",
+    "rect": {
+      "x": 0,
+      "y": 370,
+      "width": 1400,
+      "height": 768
+    },
+    "tagName": "SECTION",
+    "className": "py-16 px-4"
+  },
+  {
+    "text": "Choose Your Experience LevelTailored portfolio analytics for every type of investorBasicSimple PortfoliosTraditional stock and bond portfolios with basic risk analysisFree/foreverPortfolio risk analysisBasic metrics & reportingEmail supportSingle portfolioCommunity supportGet StartedMost PopularStandardMulti-Asset PortfoliosPrivate funds, RSUs, employee stock options, and complex holdings$9/monthEverything in BasicAdvanced risk analyticsFactor exposure analysisUp to 10 portfoliosPriority support",
+    "rect": {
+      "x": 16,
+      "y": 434,
+      "width": 1368,
+      "height": 640
+    },
+    "tagName": "DIV",
+    "className": "container mx-auto"
+  },
+  {
+    "text": "BasicSimple PortfoliosTraditional stock and bond portfolios with basic risk analysisFree/foreverPortfolio risk analysisBasic metrics & reportingEmail supportSingle portfolioCommunity supportGet StartedMost PopularStandardMulti-Asset PortfoliosPrivate funds, RSUs, employee stock options, and complex holdings$9/monthEverything in BasicAdvanced risk analyticsFactor exposure analysisUp to 10 portfoliosPriority supportGet StartedProfessionalAdvanced StrategiesMost comprehensive analytics with long/sh",
+    "rect": {
+      "x": 252,
+      "y": 554,
+      "width": 896,
+      "height": 520
+    },
+    "tagName": "DIV",
+    "className": "grid md:grid-cols-3 lg:grid-cols-3 gap-6 max-w-4xl mx-auto"
+  },
+  {
+    "text": "BasicSimple PortfoliosTraditional stock and bond portfolios with basic risk analysisFree/foreverPortfolio risk analysisBasic metrics & reportingEmail supportSingle portfolioCommunity supportGet Started",
+    "rect": {
+      "x": 252,
+      "y": 554,
+      "width": 282.65625,
+      "height": 520
+    },
+    "tagName": "DIV",
+    "className": "flex flex-col p-6 bg-card border border-border rounded-lg hover:bg-accent hover:text-accent-foreground transition-colors cursor-pointer h-[520px]"
+  },
+  {
+    "text": "BasicSimple PortfoliosTraditional stock and bond portfolios with basic risk analysisFree/forever",
+    "rect": {
+      "x": 277,
+      "y": 579,
+      "width": 232.65625,
+      "height": 184
+    },
+    "tagName": "DIV",
+    "className": "text-center mb-6"
+  },
+  {
+    "text": "Most PopularStandardMulti-Asset PortfoliosPrivate funds, RSUs, employee stock options, and complex holdings$9/monthEverything in BasicAdvanced risk analyticsFactor exposure analysisUp to 10 portfoliosPriority supportGet Started",
+    "rect": {
+      "x": 558.65625,
+      "y": 554,
+      "width": 282.671875,
+      "height": 520
+    },
+    "tagName": "DIV",
+    "className": "flex flex-col p-6 bg-card border-2 border-primary rounded-lg hover:bg-accent hover:text-accent-foreground transition-colors cursor-pointer relative h-[520px]"
+  },
+  {
+    "text": "StandardMulti-Asset PortfoliosPrivate funds, RSUs, employee stock options, and complex holdings$9/month",
+    "rect": {
+      "x": 584.65625,
+      "y": 580,
+      "width": 230.671875,
+      "height": 184
+    },
+    "tagName": "DIV",
+    "className": "text-center mb-6"
+  },
+  {
+    "text": "ProfessionalAdvanced StrategiesMost comprehensive analytics with long/short portfolio analysis$29/monthEverything in StandardStress testing & scenariosOptions & derivatives modelingUnlimited portfoliosDedicated supportGet Started",
+    "rect": {
+      "x": 865.328125,
+      "y": 554,
+      "width": 282.65625,
+      "height": 520
+    },
+    "tagName": "DIV",
+    "className": "flex flex-col p-6 bg-card border border-border rounded-lg hover:bg-accent hover:text-accent-foreground transition-colors cursor-pointer h-[520px]"
+  },
+  {
+    "text": "ProfessionalAdvanced StrategiesMost comprehensive analytics with long/short portfolio analysis$29/month",
+    "rect": {
+      "x": 890.328125,
+      "y": 579,
+      "width": 232.65625,
+      "height": 184
+    },
+    "tagName": "DIV",
+    "className": "text-center mb-6"
+  }
+]
