@@ -92,7 +92,7 @@ function PortfolioPageContent() {
       }`}>
         <div className="container mx-auto px-4 py-3">
           <div className="flex items-center justify-between">
-            <Link href="/" className="flex items-center gap-3 hover:opacity-80 transition-opacity">
+            <Link href="/landing" className="flex items-center gap-3 hover:opacity-80 transition-opacity">
               <div className="text-emerald-400 text-xl font-bold">$</div>
               <h1 className={`text-xl font-semibold transition-colors duration-300 ${
                 theme === 'dark' ? 'text-white' : 'text-gray-900'
