@@ -1,42 +1,14 @@
 "use client"
 
 import React from 'react'
+import { Header } from './Header'
+import { ChatInput } from './ChatInput'
 
 export function BasicDemoPage() {
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
-      <header className="border-b border-border bg-card">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-4">
-              <div className="flex items-center text-xl font-semibold text-primary">
-                <div className="w-2 h-2 bg-primary rounded-full mr-2"></div>
-                SigmaSight
-              </div>
-              <nav className="hidden md:flex items-center space-x-6">
-                <a href="#" className="text-muted-foreground hover:text-foreground transition-colors">
-                  Product
-                </a>
-                <a href="#" className="text-muted-foreground hover:text-foreground transition-colors">
-                  Pricing
-                </a>
-                <a href="#" className="text-muted-foreground hover:text-foreground transition-colors">
-                  Resources
-                </a>
-                <a href="#" className="text-muted-foreground hover:text-foreground transition-colors">
-                  Company
-                </a>
-              </nav>
-            </div>
-            <div className="flex items-center space-x-4">
-              <button className="px-4 py-2 text-sm text-foreground hover:text-primary transition-colors font-medium">
-                Login
-              </button>
-            </div>
-          </div>
-        </div>
-      </header>
+      <Header />
 
       {/* Hero Section */}
       <section className="py-24 px-4">
@@ -47,13 +19,7 @@ export function BasicDemoPage() {
           <p className="text-lg text-muted-foreground mb-8 max-w-3xl mx-auto">
             Get AI driven institutional grade portfolio analysis in plain English
           </p>
-          <div className="max-w-lg mx-auto mb-8">
-            <input
-              type="text"
-              placeholder="What are my biggest risks? How correlated are my positions?"
-              className="w-full px-4 py-3 border border-blue-200 rounded-lg text-foreground placeholder:text-blue-400 bg-background focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            />
-          </div>
+          <ChatInput className="mb-8" />
           <div className="flex justify-center space-x-4">
             <button className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium">
               Try it for free
