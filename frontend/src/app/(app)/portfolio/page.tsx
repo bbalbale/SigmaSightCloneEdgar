@@ -2,13 +2,12 @@
 
 import React from 'react'
 import Link from 'next/link'
-import { Header } from '@/components/Header'
-import { ChatInput } from '@/components/ChatInput'
+import { ChatInput } from '../components/ChatInput'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { ThemeProvider, useTheme } from '@/contexts/ThemeContext'
-import { ThemeToggle } from '@/components/ThemeToggle'
+import { ThemeToggle } from '../components/ThemeToggle'
 
 // Mock data matching the v0 reference design exactly
 const portfolioSummaryMetrics = [
