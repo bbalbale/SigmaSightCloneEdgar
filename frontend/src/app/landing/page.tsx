@@ -6,7 +6,7 @@ import { PortfolioSelectionDialog } from '@/components/PortfolioSelectionDialog'
 
 export default function HomePage() {
   const [searchQuery, setSearchQuery] = useState("")
-  const [selectedTier, setSelectedTier] = useState(null)
+  const [selectedTier, setSelectedTier] = useState<string | null>(null)
 
   const handleTryFree = () => {
     window.location.href = "/signup"
@@ -16,11 +16,11 @@ export default function HomePage() {
     document.getElementById("user-tiers")?.scrollIntoView({ behavior: "smooth" })
   }
 
-  const handleActionCard = (action) => {
+  const handleActionCard = (action: string) => {
     alert(`${action} feature coming soon!`)
   }
 
-  const handleTierSelect = (tier) => {
+  const handleTierSelect = (tier: string) => {
     setSelectedTier(tier)
     document.getElementById(`${tier.toLowerCase()}-section`)?.scrollIntoView({ behavior: "smooth" })
   }

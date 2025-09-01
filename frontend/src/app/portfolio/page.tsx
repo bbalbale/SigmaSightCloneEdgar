@@ -1,16 +1,18 @@
 "use client"
 
-import React from 'react'
+import React, { useEffect, useState } from 'react'
 import Link from 'next/link'
+import { useSearchParams } from 'next/navigation'
 import { ChatInput } from '../components/ChatInput'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { ThemeProvider, useTheme } from '@/contexts/ThemeContext'
 import { ThemeToggle } from '../components/ThemeToggle'
+import { loadPortfolioData, PortfolioType } from '../../services/portfolioService'
 
-// Mock data matching the v0 reference design exactly
-const portfolioSummaryMetrics = [
+// Default mock data (used for individual and hedge-fund portfolios)
+const defaultPortfolioSummaryMetrics = [
   { title: 'Long Exposure', value: '1.1M', subValue: '91.7%', description: 'Notional exposure', positive: true },
   { title: 'Short Exposure', value: '(567K)', subValue: '47.3%', description: 'Notional exposure', positive: false },
   { title: 'Gross Exposure', value: '1.7M', subValue: '141.7%', description: 'Notional total', positive: true },
@@ -81,6 +83,53 @@ const formatPrice = (price: number) => {
 
 function PortfolioPageContent() {
   const { theme } = useTheme()
+  const searchParams = useSearchParams()
+  const portfolioType = searchParams.get('type') as PortfolioType | null
+  
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [portfolioSummaryMetrics, setPortfolioSummaryMetrics] = useState(defaultPortfolioSummaryMetrics)
+  const [positions, setPositions] = useState(longPositions)
+  const [portfolioName, setPortfolioName] = useState('Demo Portfolio')
+  
+  useEffect(() => {
+    if (portfolioType === 'high-net-worth') {
+      setLoading(true)
+      setError(null)
+      
+      loadPortfolioData('high-net-worth')
+        .then(data => {
+          if (data) {
+            console.log('Loaded portfolio data:', data)
+            // Update metrics
+            setPortfolioSummaryMetrics(data.exposures)
+            
+            // Update positions (only long positions for now)
+            const longPos = data.positions.filter(p => p.type === 'LONG')
+            console.log('Filtered long positions:', longPos)
+            setPositions(longPos)
+            
+            // Update portfolio name
+            setPortfolioName(data.portfolioInfo.name)
+          }
+          setLoading(false)
+        })
+        .catch(err => {
+          console.error('Failed to load portfolio:', err)
+          setError('Failed to load portfolio data')
+          setLoading(false)
+        })
+    } else {
+      // Use default mock data for other portfolio types
+      setPortfolioSummaryMetrics(defaultPortfolioSummaryMetrics)
+      setPositions(longPositions)
+      setPortfolioName(
+        portfolioType === 'individual' ? 'Individual Investor Portfolio' :
+        portfolioType === 'hedge-fund' ? 'Hedge Fund Style Portfolio' :
+        'Demo Portfolio'
+      )
+    }
+  }, [portfolioType])
   
   return (
     <div className={`min-h-screen transition-colors duration-300 ${
@@ -112,7 +161,7 @@ function PortfolioPageContent() {
             <div>
               <h2 className={`text-2xl font-semibold transition-colors duration-300 ${
                 theme === 'dark' ? 'text-white' : 'text-gray-900'
-              }`}>Demo Portfolio</h2>
+              }`}>{portfolioName}</h2>
               <p className={`transition-colors duration-300 ${
                 theme === 'dark' ? 'text-slate-400' : 'text-gray-600'
               }`}>Live positions and performance metrics - 39 total positions</p>
@@ -151,7 +200,30 @@ function PortfolioPageContent() {
         </div>
       </section>
 
+      {/* Loading State */}
+      {loading && (
+        <section className="px-4 py-12">
+          <div className="container mx-auto text-center">
+            <p className={`text-lg ${theme === 'dark' ? 'text-slate-400' : 'text-gray-600'}`}>
+              Loading portfolio data...
+            </p>
+          </div>
+        </section>
+      )}
+      
+      {/* Error State */}
+      {error && (
+        <section className="px-4 py-12">
+          <div className="container mx-auto text-center">
+            <p className={`text-lg text-red-500`}>
+              {error}
+            </p>
+          </div>
+        </section>
+      )}
+      
       {/* Portfolio Summary Metrics Cards */}
+      {!loading && !error && (
       <section className="px-4 pb-6">
         <div className="container mx-auto">
           <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-8">
@@ -180,6 +252,7 @@ function PortfolioPageContent() {
           </div>
         </div>
       </section>
+      )}
 
       {/* Filter & Sort Bar */}
       <section className="px-4 pb-4">
@@ -227,11 +300,11 @@ function PortfolioPageContent() {
                 <Badge variant="secondary" className={`transition-colors duration-300 ${
                   theme === 'dark' ? 'bg-slate-700 text-slate-300' : 'bg-gray-200 text-gray-700'
                 }`}>
-                  {longPositions.length}
+                  {positions.length}
                 </Badge>
               </div>
               <div className="space-y-3">
-                {longPositions.slice(0, 15).map((position, index) => (
+                {positions.slice(0, 15).map((position, index) => (
                   <Card key={index} className={`transition-colors cursor-pointer ${
                     theme === 'dark' 
                       ? 'bg-slate-800 border-slate-700 hover:bg-slate-750' 

@@ -47,8 +47,8 @@ export function PortfolioSelectionDialog({ trigger }: PortfolioSelectionDialogPr
     setSelectedType(portfolioType)
     setOpen(false)
     
-    // Navigate to portfolio page (will use dummy data for now)
-    router.push('/portfolio')
+    // Navigate to portfolio page with type parameter
+    router.push(`/portfolio?type=${portfolioType}`)
   }
 
   return (

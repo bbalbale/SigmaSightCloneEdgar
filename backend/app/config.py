@@ -57,6 +57,7 @@ class Settings(BaseSettings):
     # CORS settings
     ALLOWED_ORIGINS: List[str] = [
         "http://localhost:3000",  # React dev server
+        "http://localhost:3005",  # Next.js dev server
         "http://localhost:5173",  # Vite dev server
         "https://sigmasight-frontend.vercel.app",  # Production frontend
     ]
