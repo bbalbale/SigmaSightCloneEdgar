@@ -4,6 +4,7 @@ import React, { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import { ChatInput } from '../components/ChatInput'
+import { openChatSheet, sendChatMessage } from '@/components/chat/ChatInterface'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -206,7 +207,14 @@ function PortfolioPageContent() {
             <h3 className={`text-lg font-semibold whitespace-nowrap transition-colors duration-300 ${
               theme === 'dark' ? 'text-white' : 'text-gray-900'
             }`}>Ask SigmaSight</h3>
-            <ChatInput placeholder="What are my biggest risks? How correlated are my positions?" className="flex-1" />
+            <ChatInput 
+              placeholder="What are my biggest risks? How correlated are my positions?" 
+              className="flex-1"
+              onFocus={() => openChatSheet()}
+              onSubmit={(message) => {
+                sendChatMessage(message)
+              }}
+            />
           </div>
         </div>
       </section>
