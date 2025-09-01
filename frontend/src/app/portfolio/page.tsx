@@ -88,46 +88,53 @@ function PortfolioPageContent() {
   
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [portfolioSummaryMetrics, setPortfolioSummaryMetrics] = useState(defaultPortfolioSummaryMetrics)
-  const [positions, setPositions] = useState(longPositions)
+  const [portfolioSummaryMetrics, setPortfolioSummaryMetrics] = useState<any[]>(defaultPortfolioSummaryMetrics)
+  const [positions, setPositions] = useState<any[]>(longPositions)
+  const [shortPositionsState, setShortPositionsState] = useState<any[]>(shortPositions)
   const [portfolioName, setPortfolioName] = useState('Demo Portfolio')
   
   useEffect(() => {
+    let isCancelled = false;
+    
     if (portfolioType === 'high-net-worth') {
       setLoading(true)
       setError(null)
       
       loadPortfolioData('high-net-worth')
         .then(data => {
-          if (data) {
+          if (!isCancelled && data) {
             console.log('Loaded portfolio data:', data)
-            // Update metrics
+            
+            // Update all state with real data
             setPortfolioSummaryMetrics(data.exposures)
-            
-            // Update positions (only long positions for now)
-            const longPos = data.positions.filter(p => p.type === 'LONG')
-            console.log('Filtered long positions:', longPos)
-            setPositions(longPos)
-            
-            // Update portfolio name
+            setPositions(data.positions.filter(p => p.type === 'LONG' || !p.type))
+            setShortPositionsState([]) // No shorts in real data
             setPortfolioName(data.portfolioInfo.name)
+            setLoading(false)
           }
-          setLoading(false)
         })
         .catch(err => {
-          console.error('Failed to load portfolio:', err)
-          setError('Failed to load portfolio data')
-          setLoading(false)
+          if (!isCancelled) {
+            console.error('Failed to load portfolio:', err)
+            setError('Failed to load portfolio data')
+            setLoading(false)
+            // Keep dummy data on error
+          }
         })
     } else {
-      // Use default mock data for other portfolio types
+      // Use dummy data for other portfolios
       setPortfolioSummaryMetrics(defaultPortfolioSummaryMetrics)
       setPositions(longPositions)
+      setShortPositionsState(shortPositions)
       setPortfolioName(
         portfolioType === 'individual' ? 'Individual Investor Portfolio' :
         portfolioType === 'hedge-fund' ? 'Hedge Fund Style Portfolio' :
         'Demo Portfolio'
       )
+    }
+    
+    return () => {
+      isCancelled = true;
     }
   }, [portfolioType])
   
@@ -304,7 +311,7 @@ function PortfolioPageContent() {
                 </Badge>
               </div>
               <div className="space-y-3">
-                {positions.slice(0, 15).map((position, index) => (
+                {positions.map((position, index) => (
                   <Card key={index} className={`transition-colors cursor-pointer ${
                     theme === 'dark' 
                       ? 'bg-slate-800 border-slate-700 hover:bg-slate-750' 
@@ -354,11 +361,11 @@ function PortfolioPageContent() {
                 <Badge variant="secondary" className={`transition-colors duration-300 ${
                   theme === 'dark' ? 'bg-slate-700 text-slate-300' : 'bg-gray-200 text-gray-700'
                 }`}>
-                  {shortPositions.length}
+                  {shortPositionsState.length}
                 </Badge>
               </div>
               <div className="space-y-3">
-                {shortPositions.slice(0, 19).map((position, index) => (
+                {shortPositionsState.map((position, index) => (
                   <Card key={index} className={`transition-colors cursor-pointer ${
                     theme === 'dark' 
                       ? 'bg-slate-800 border-slate-700 hover:bg-slate-750' 

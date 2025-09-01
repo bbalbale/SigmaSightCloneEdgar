@@ -160,6 +160,13 @@ function calculateExposures(data: PortfolioData) {
       subValue: `${((data.portfolio.cash_balance / totalValue) * 100).toFixed(1)}%`,
       description: `Total Value: ${formatCurrency(totalValue)}`,
       positive: true
+    },
+    {
+      title: 'Total P&L',
+      value: 'Data Not Available',
+      subValue: 'N/A',
+      description: 'P&L data not available in this endpoint',
+      positive: true
     }
   ]
 }
