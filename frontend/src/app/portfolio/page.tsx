@@ -104,12 +104,20 @@ function PortfolioPageContent() {
         .then(data => {
           if (!isCancelled && data) {
             console.log('Loaded portfolio data:', data)
+            console.log('Portfolio name from backend:', data.portfolioInfo.name)
             
             // Update all state with real data
             setPortfolioSummaryMetrics(data.exposures)
             setPositions(data.positions.filter(p => p.type === 'LONG' || !p.type))
             setShortPositionsState([]) // No shorts in real data
-            setPortfolioName(data.portfolioInfo.name)
+            
+            // Use descriptive name if backend returns generic "Demo Portfolio"
+            if (data.portfolioInfo.name === 'Demo Portfolio' && portfolioType === 'individual') {
+              setPortfolioName('Demo Individual Investor Portfolio')
+            } else {
+              setPortfolioName(data.portfolioInfo.name)
+            }
+            
             setLoading(false)
           }
         })
