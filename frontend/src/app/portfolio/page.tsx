@@ -96,11 +96,11 @@ function PortfolioPageContent() {
   useEffect(() => {
     let isCancelled = false;
     
-    if (portfolioType === 'high-net-worth') {
+    if (portfolioType === 'high-net-worth' || portfolioType === 'individual') {
       setLoading(true)
       setError(null)
       
-      loadPortfolioData('high-net-worth')
+      loadPortfolioData(portfolioType)
         .then(data => {
           if (!isCancelled && data) {
             console.log('Loaded portfolio data:', data)
@@ -122,12 +122,11 @@ function PortfolioPageContent() {
           }
         })
     } else {
-      // Use dummy data for other portfolios
+      // Use dummy data for hedge-fund portfolio only
       setPortfolioSummaryMetrics(defaultPortfolioSummaryMetrics)
       setPositions(longPositions)
       setShortPositionsState(shortPositions)
       setPortfolioName(
-        portfolioType === 'individual' ? 'Individual Investor Portfolio' :
         portfolioType === 'hedge-fund' ? 'Hedge Fund Style Portfolio' :
         'Demo Portfolio'
       )

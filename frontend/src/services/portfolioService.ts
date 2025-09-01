@@ -72,11 +72,11 @@ async function authenticate(portfolioType: PortfolioType): Promise<string> {
 
 /**
  * Load portfolio data for a specific portfolio type
- * For now, only 'high-net-worth' returns real data
+ * Now loading real data for both 'individual' and 'high-net-worth'
  */
 export async function loadPortfolioData(portfolioType: PortfolioType) {
-  // Only fetch real data for high-net-worth
-  if (portfolioType !== 'high-net-worth') {
+  // Only fetch real data for individual and high-net-worth
+  if (portfolioType !== 'high-net-worth' && portfolioType !== 'individual') {
     return null // Will use dummy data in the UI
   }
 
