@@ -1,17 +1,19 @@
-# Frontend TODO: Portfolio Data Integration (COMPLETED)
+# Frontend TODO: Portfolio Data Integration
 
 > **Last Updated**: 2025-09-01  
-> **Status**: ✅ COMPLETED - Real data loading for High Net Worth portfolio
-> **Implementation**: Used existing backend endpoints with Next.js proxy
+> **Status**: ✅ Phase 1 COMPLETED - Real data loading for all three portfolios
+> **Implementation**: Using backend endpoints with Next.js proxy
 
-## ✅ What Was Accomplished
+## ✅ Phase 1 Completed (Real Data Integration)
 
 ### Successfully Implemented
 1. **Portfolio Selection Dialog** - Passes portfolio type via URL parameter
-2. **Authentication System** - JWT token-based auth with demo credentials
+2. **Authentication System** - JWT token-based auth with demo credentials  
 3. **Data Loading Service** - Fetches real portfolio data from backend
 4. **CORS Solution** - Next.js proxy route bypasses CORS in development
-5. **Real Data Display** - High Net Worth portfolio shows actual database data
+5. **Real Data Display** - All three portfolios now show actual database data
+6. **Portfolio Name Fix** - Individual portfolio displays correct name
+7. **Layout Update** - 6 cards across top for better visual balance
 
 ### Implementation Details
 See `IMPLEMENTATION_NOTES.md` for full technical documentation.
@@ -22,17 +24,21 @@ See `IMPLEMENTATION_NOTES.md` for full technical documentation.
 - ✅ Portfolio selection (Individual, High Net Worth, Hedge Fund)
 - ✅ URL-based portfolio type routing (`/portfolio?type=high-net-worth`)
 - ✅ Backend authentication with demo users
-- ✅ Real data loading for High Net Worth portfolio ($1.4M, 17 positions)
-- ✅ Dummy data fallback for Individual and Hedge Fund portfolios
+- ✅ Real data loading for all portfolios:
+  - Individual: $152K, 9 positions
+  - High Net Worth: $1.4M, 17 positions  
+  - Hedge Fund: $11.6M, 37 positions
 - ✅ Exposure metrics calculation from real position data
-- ✅ Portfolio name and metadata from database
+- ✅ Portfolio name fixes for generic names
+- ✅ 6-card layout for exposure metrics
+- ✅ P&L card with "Data Not Available" fallback
 
 ### Data Sources
 | Portfolio Type | Data Source | Status |
 |---------------|-------------|---------|
-| Individual | Dummy data | ✅ Working (as requested) |
+| Individual | Backend database | ✅ Working with real data |
 | High Net Worth | Backend database | ✅ Working with real data |
-| Hedge Fund | Dummy data | ✅ Working (as requested) |
+| Hedge Fund | Backend database | ✅ Working with real data |
 
 ## 🏗️ Architecture Implemented
 
@@ -60,11 +66,12 @@ User Selection → URL Parameter → Portfolio Service → API Proxy → Backend
 
 1. User clicks portfolio type in selection dialog
 2. Frontend navigates to `/portfolio?type={selected-type}`
-3. If type is 'high-net-worth':
-   - Authenticate with backend (`demo_hnw@sigmasight.com`)
-   - Fetch portfolio data using JWT token
-   - Display real data (17 positions, $1.4M total)
-4. Otherwise: Display dummy data
+3. Portfolio service authenticates with appropriate demo user:
+   - Individual: `demo_individual@sigmasight.com`
+   - High Net Worth: `demo_hnw@sigmasight.com`
+   - Hedge Fund: `demo_hf@sigmasight.com`
+4. Fetch portfolio data using JWT token
+5. Display real data from backend database
 
 ## 📝 Lessons Learned
 
@@ -80,28 +87,52 @@ User Selection → URL Parameter → Portfolio Service → API Proxy → Backend
 3. **API Documentation Mismatch** → Found only 23% implemented
 4. **Portfolio ID Mapping** → Located database UUIDs
 
-## 🚀 Next Steps (Future Enhancements)
+## 🚀 Phase 2: Next Priority Tasks
 
-### For Production
-- [ ] Configure backend CORS for production frontend URL
-- [ ] Remove proxy route, use direct API calls
-- [ ] Add proper error handling and retry logic
-- [ ] Implement data caching strategy
-- [ ] Add loading skeletons for better UX
+### High Priority - Core Functionality
+- [ ] **Risk Analytics Page** - Display VaR, stress tests, factor exposures
+- [ ] **Holdings Page** - Detailed position list with sorting/filtering
+- [ ] **Performance Page** - Charts and metrics for portfolio performance
+- [ ] **Reports Page** - Generate and download PDF reports
+- [ ] **Data Refresh** - Add manual refresh button for portfolio data
 
-### For Full Implementation
-- [ ] Load real data for Individual portfolio
-- [ ] Load real data for Hedge Fund portfolio
-- [ ] Implement portfolio switching without page reload
-- [ ] Add real-time data updates via WebSocket
-- [ ] Implement portfolio performance calculations
+### Medium Priority - Enhanced Features  
+- [ ] **Real-time Updates** - WebSocket connection for live data
+- [ ] **Portfolio Comparison** - Compare metrics across portfolios
+- [ ] **Historical Charts** - Time series visualization of portfolio metrics
+- [ ] **Search & Filter** - Global search across positions and metrics
+- [ ] **Export Functionality** - CSV/Excel export for all data tables
+
+### Low Priority - Polish & Production
+- [ ] **Loading States** - Skeleton screens and progress indicators
+- [ ] **Error Boundaries** - Graceful error handling with fallbacks
+- [ ] **Performance Optimization** - Data caching and lazy loading
+- [ ] **Accessibility** - ARIA labels and keyboard navigation
+- [ ] **Dark Mode** - Theme switching support
+
+## 🔧 Technical Debt & Improvements
+
+### Backend Integration
+- [ ] Remove proxy route for production deployment
+- [ ] Configure proper CORS settings on backend
+- [ ] Implement refresh token rotation
+- [ ] Add request retry logic with exponential backoff
+- [ ] Cache API responses with proper invalidation
+
+### Code Quality
+- [ ] Add comprehensive error handling
+- [ ] Implement proper TypeScript types for all API responses
+- [ ] Add unit tests for portfolio service
+- [ ] Add E2E tests for critical user flows
+- [ ] Document component APIs and service methods
 
 ## 🔧 Maintenance Notes
 
-### To Switch Other Portfolios to Real Data
-1. Remove the conditional in `loadPortfolioData()` 
-2. Update portfolio ID mappings if needed
-3. Ensure demo users exist for each portfolio type
+### Current Implementation Status
+- ✅ All portfolios load real data from backend
+- ✅ Portfolio name override logic in place for generic names
+- ✅ 6-card layout implemented for exposure metrics
+- ✅ P&L card shows "Data Not Available" when no data
 
 ### To Deploy to Production
 1. Update backend CORS settings for production URL
@@ -121,23 +152,41 @@ User Selection → URL Parameter → Portfolio Service → API Proxy → Backend
 - ✅ No console errors
 - ✅ Responsive layout maintained
 
-## 🎯 Success Metrics Achieved
+## 🎯 Phase 1 Success Metrics Achieved
 
 1. **Real Data Integration** ✅ 
-   - High Net Worth portfolio shows database data
-   - 17 real positions with actual values
-   - Total portfolio value: $1.4M
+   - All three portfolios show database data
+   - 63 total real positions across portfolios
+   - Combined portfolio value: $13.2M
 
 2. **User Experience** ✅
    - Seamless portfolio selection
-   - Fast data loading
+   - Fast data loading  
    - Clear visual feedback
+   - Improved 6-card layout
 
 3. **Code Quality** ✅
    - Clean service architecture
    - Proper error handling
    - Type-safe implementation
+   - Reusable components
+
+## 📋 Ready for Phase 2
+
+### Immediate Next Steps
+1. **Risk Analytics** - Implement risk metrics page with VaR calculations
+2. **Holdings Detail** - Create detailed holdings page with position breakdown
+3. **Performance Charts** - Add time series visualizations
+4. **Report Generation** - Enable PDF export functionality
+
+### Prerequisites Complete
+- ✅ Authentication working
+- ✅ Data loading established
+- ✅ Portfolio structure defined
+- ✅ Component architecture in place
 
 ---
 
-**Status**: This phase of the project is COMPLETE. The High Net Worth portfolio successfully loads and displays real data from the backend database.
+**Phase 1 Status**: COMPLETE ✅  
+**Phase 2 Status**: READY TO BEGIN  
+**Next Action**: Choose a high-priority feature from Phase 2 to implement
