@@ -31,7 +31,17 @@
       "Bash(dir:*)",
       "Bash(robocopy:*)",
       "Bash(xcopy:*)",
-      "mcp__playwright__browser_snapshot"
+      "mcp__playwright__browser_snapshot",
+      "Bash(copy \"app\\api\\v1\\data\\demo.py\" \"app\\api\\v1\\data_endpoints\\demo.py\")",
+      "Bash(del backendappapiv1datademo.py)",
+      "Bash(npm run dev:*)",
+      "mcp__playwright__browser_close",
+      "Bash(npm run build:*)",
+      "Bash(npx prettier:*)",
+      "Bash(taskkill:*)",
+      "mcp__playwright__browser_console_messages",
+      "mcp__playwright__browser_handle_dialog",
+      "mcp__playwright__browser_wait_for"
     ],
     "additionalDirectories": [
       "C:\\c\\Users\\BenBalbale\\CascadeProjects\\SigmaSight-BE"

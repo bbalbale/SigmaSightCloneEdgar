@@ -698,6 +698,12 @@ async def get_factor_etf_prices(
         }
 
 
+@router.get("/test-demo")
+async def test_demo():
+    """Simple test endpoint"""
+    return {"message": "Demo endpoint works!"}
+
+
 @router.get("/positions/top/{portfolio_id}")
 async def get_top_positions(
     portfolio_id: UUID,
@@ -750,3 +756,101 @@ async def get_top_positions(
         except Exception as e:
             logger.error(f"Error getting top positions: {e}")
             raise HTTPException(status_code=500, detail="Internal server error")
+
+
+# Demo Portfolio Bridge Endpoint
+# Note: This endpoint doesn't require authentication for testing
+@router.get("/demo/{portfolio_type}", tags=["raw-data"])
+async def get_demo_portfolio(portfolio_type: str):
+    """
+    Get demo portfolio data from report files.
+    Currently only supports 'high-net-worth' portfolio.
+    """
+    import json
+    import csv
+    from pathlib import Path
+    
+    # For now, only support high-net-worth
+    if portfolio_type != 'high-net-worth':
+        raise HTTPException(
+            status_code=404, 
+            detail=f"Portfolio type '{portfolio_type}' not implemented. Only 'high-net-worth' is currently supported."
+        )
+    
+    # Map portfolio type to folder name
+    folder_map = {
+        'high-net-worth': 'demo-high-net-worth-portfolio_2025-08-23'
+    }
+    
+    folder_name = folder_map.get(portfolio_type)
+    if not folder_name:
+        raise HTTPException(status_code=404, detail="Portfolio type not found")
+    
+    # Construct path to reports folder
+    current_file = Path(__file__)
+    backend_dir = current_file.parent.parent.parent.parent  # Up to backend/
+    reports_dir = backend_dir / "reports" / folder_name
+    
+    # Debug logging
+    logger.info(f"Looking for reports in: {reports_dir}")
+    logger.info(f"Directory exists: {reports_dir.exists()}")
+    
+    if not reports_dir.exists():
+        raise HTTPException(
+            status_code=500, 
+            detail=f"Report directory not found: {reports_dir}"
+        )
+    
+    # Read JSON file
+    json_path = reports_dir / "portfolio_report.json"
+    if not json_path.exists():
+        raise HTTPException(
+            status_code=500,
+            detail=f"JSON report file not found: {json_path}"
+        )
+    
+    try:
+        with open(json_path, 'r', encoding='utf-8') as f:
+            json_data = json.load(f)
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to read JSON file: {str(e)}"
+        )
+    
+    # Read CSV file
+    csv_path = reports_dir / "portfolio_report.csv"
+    if not csv_path.exists():
+        raise HTTPException(
+            status_code=500,
+            detail=f"CSV report file not found: {csv_path}"
+        )
+    
+    positions = []
+    try:
+        with open(csv_path, 'r', encoding='utf-8') as f:
+            reader = csv.DictReader(f)
+            positions = list(reader)
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to read CSV file: {str(e)}"
+        )
+    
+    # Extract relevant data
+    portfolio_info = json_data.get("portfolio_info", {})
+    position_exposures = json_data.get("calculation_engines", {}).get("position_exposures", {}).get("data", {})
+    portfolio_snapshot = json_data.get("calculation_engines", {}).get("portfolio_snapshot", {}).get("data", {})
+    
+    return {
+        "portfolio_type": portfolio_type,
+        "portfolio_info": portfolio_info,
+        "exposures": position_exposures,
+        "snapshot": portfolio_snapshot,
+        "positions": positions,
+        "metadata": {
+            "source": "report_files",
+            "report_date": json_data.get("metadata", {}).get("report_date", ""),
+            "position_count": len(positions)
+        }
+    }

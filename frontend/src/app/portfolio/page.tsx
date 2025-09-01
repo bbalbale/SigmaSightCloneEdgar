@@ -237,7 +237,7 @@ function PortfolioPageContent() {
       {!loading && !error && (
       <section className="px-4 pb-6">
         <div className="container mx-auto">
-          <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-8">
+          <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-8">
             {portfolioSummaryMetrics.map((metric, index) => (
               <Card key={index} className={`transition-colors duration-300 ${
                 theme === 'dark' ? 'bg-slate-800 border-slate-700' : 'bg-white border-gray-200'
