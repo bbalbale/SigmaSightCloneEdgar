@@ -1,6 +1,15 @@
 # Frontend Feature Specifications
 
+> **Updated for V1.1 Chat Implementation - Split Stores & Enhanced UX**  
 > **Complete feature requirements for SigmaSight Chat Frontend**
+
+**V1.1 Updates**:
+- **Authentication**: Mixed strategy (JWT for portfolio, HttpOnly cookies for chat)
+- **State Management**: Split store architecture for better performance
+- **Message Queue**: One in-flight per conversation with queue cap=1
+- **Error Handling**: Enhanced taxonomy with retryable classification
+- **Mobile Support**: iOS Safari keyboard fixes and safe area handling
+- **Performance**: TTFB metrics and observability hooks
 
 ## Core Features
 
@@ -13,25 +22,29 @@
 - **Loading states** during authentication
 - **Auto-redirect** to chat after successful login
 
-#### Authentication State
-- **JWT token management** (localStorage or secure cookie)
+#### V1.1 Mixed Authentication State
+- **JWT tokens**: Stored in localStorage for portfolio API calls
+- **HttpOnly cookies**: Set automatically for secure chat streaming
+- **Dual auth support**: Bearer tokens as fallback, cookies for streaming
 - **Auto token refresh** before expiration
-- **Logout functionality** with state cleanup
+- **Logout functionality** with state cleanup (both tokens and cookies)
 - **401 error handling** with auto-relogin prompt
 
 ```tsx
-interface AuthFeatures {
+interface V1_1_AuthFeatures {
   // Required components
   LoginForm: React.FC;
   LogoutButton: React.FC;
   
-  // Required hooks
+  // V1.1 Enhanced auth hook
   useAuth: () => {
     user: User | null;
     token: string | null;
+    hasCookieAuth: boolean; // V1.1: Cookie presence check
     login: (email: string, password: string) => Promise<void>;
     logout: () => void;
     isLoading: boolean;
+    authMethod: 'jwt' | 'cookie' | 'both'; // V1.1: Current method
   };
 }
 ```
@@ -119,25 +132,36 @@ interface ModeFeatures {
 - **File upload** (future feature)
 
 ```tsx
-interface ChatFeatures {
-  // Required components
+interface V1_1_ChatFeatures {
+  // V1.1 Enhanced components
   MessageList: React.FC<{
-    messages: ChatMessage[];
+    conversationId: string; // V1.1: For split store
     isStreaming: boolean;
+    queuedCount: number; // V1.1: Show queued messages
   }>;
   
   MessageInput: React.FC<{
     onSend: (text: string) => void;
     disabled: boolean;
+    queuedCount: number; // V1.1: Queue indicator
     placeholder?: string;
   }>;
   
-  StreamingIndicator: React.FC;
+  StreamingIndicator: React.FC<{
+    runId?: string; // V1.1: For debugging
+    tokensPerSecond?: number; // V1.1: Performance metric
+  }>;
+  
+  QueueIndicator: React.FC<{ // V1.1: New component
+    queuedCount: number;
+    processing: boolean;
+  }>;
   
   ToolExecutionBadge: React.FC<{
     toolName: string;
     duration?: number;
     status: 'running' | 'completed' | 'error';
+    runId?: string; // V1.1: For tracing
   }>;
 }
 ```
@@ -159,19 +183,32 @@ interface ChatFeatures {
 - **Response time display** (optional)
 
 ```tsx
-interface StreamingFeatures {
-  // Required hooks
+interface V1_1_StreamingFeatures {
+  // V1.1 Enhanced streaming hooks with split stores
   useStreaming: () => {
     isConnected: boolean;
     isStreaming: boolean;
+    processing: boolean; // V1.1: Queue processing state
     connectionStatus: 'connected' | 'disconnected' | 'reconnecting';
-    startStream: (text: string) => void;
+    currentRunId: string | null; // V1.1: For deduplication
+    tokensPerSecond: number; // V1.1: Performance metric
+    startStream: (conversationId: string, text: string) => void;
     stopStream: () => void;
+    clearQueue: (conversationId?: string) => void; // V1.1: Queue management
   };
   
-  // Required components  
+  useMessageQueue: () => { // V1.1: New queue hook
+    queuedCount: number;
+    isProcessing: boolean;
+    addToQueue: (conversationId: string, text: string) => void;
+    removeFromQueue: () => void;
+  };
+  
+  // V1.1 Enhanced components with observability
   ConnectionStatus: React.FC<{
     status: 'connected' | 'disconnected' | 'reconnecting';
+    runId?: string;
+    performance?: PerformanceMetrics;
   }>;
 }
 ```

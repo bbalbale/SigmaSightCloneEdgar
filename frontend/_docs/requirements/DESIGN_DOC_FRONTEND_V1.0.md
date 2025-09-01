@@ -1,9 +1,13 @@
 # DESIGN\_DOC\_FRONTEND\_V1.0.md — Frontend (Next.js) for SigmaSight Agent
 
-**Date:** 2025-08-28 (Revised)
-**Owners:** Frontend Engineering
-**Audience:** AI coding agent  
-**Status:** Ready for implementation with complete backend integration
+> **🚨 UPDATED TO V1.1 CHAT IMPLEMENTATION (2025-09-01)**  
+> **DIRECT V1.1 IMPLEMENTATION - No prior frontend version existed**  
+> **Note**: File name reflects original planning, but this documents the V1.1 implementation
+
+**Date:** 2025-08-28 (Revised) → **V1.1: 2025-09-01**  
+**Owners:** Frontend Engineering  
+**Audience:** AI coding agent    
+**Status:** ~~Ready for implementation with complete backend integration~~ → **V1.1 Implementation Ready**
 
 > **🚨 CRITICAL REFERENCES**: This document must be read alongside the comprehensive agent documentation:
 > 
@@ -21,6 +25,26 @@
 
 ---
 
+## 🔄 V1.1 Implementation Summary
+
+**Note**: This is a **direct V1.1 implementation** - there was no prior v1.0 frontend. V1.1 represents the initial chat frontend implementation with advanced architectural decisions from the start.
+
+**V1.1 Core Architecture:**
+- **Mixed Authentication**: JWT for portfolio APIs + HttpOnly cookies for chat streaming
+- **fetch() POST streaming**: Enhanced SSE with credentials:'include' and run_id deduplication
+- **Split store architecture**: chatStore (persistent) + streamStore (runtime) for performance
+- **Enhanced error taxonomy**: Retryable classification with specific UI behaviors
+- **Message queue management**: One in-flight per conversation with queue cap=1
+- **Enhanced observability**: run_id tracing, sequence numbers, TTFB metrics
+
+**V1.1 Advanced Features:**
+- **Mobile-first optimizations** (iOS Safari keyboard fixes, safe area support)
+- **Performance instrumentation** (TTFB, tokens-per-second tracking)
+- **Production deployment checklist** with streaming configurations
+- **Enhanced security** with HttpOnly cookies and mixed auth strategy
+
+---
+
 ## 1) Overview & Scope
 
 **Goal:** Build a Next.js frontend that integrates with the fully-implemented SigmaSight chat backend to provide professional portfolio analysis powered by GPT-4o with Raw Data tools.
@@ -33,13 +57,16 @@
 
 **Scope (Phase 1):**
 
-* **Single-step SSE streaming**: `POST /chat/send` → direct SSE stream (not two-step)
-* JWT Bearer token authentication (stored in localStorage)
-* Tool execution indicators + real-time streaming
-* 4 conversation modes: green (educational), blue (quantitative), indigo (strategic), violet (risk-focused)
-* Mode switching via `/mode` commands or UI selector
-* CORS configured for localhost development
-* Mobile‑responsive UI
+* **V1.1 fetch() POST streaming**: `POST /chat/send` → fetch() with credentials:'include'
+* **V1.1 Mixed authentication**: JWT (portfolio) + HttpOnly cookies (chat streaming)  
+* **V1.1 Enhanced streaming**: run_id deduplication + sequence numbering
+* **V1.1 Split state management**: chatStore + streamStore architecture
+* **V1.1 Message queue**: One in-flight per conversation with queue cap=1
+* Tool execution indicators + real-time streaming ✅ (unchanged)
+* 4 conversation modes: green (educational), blue (quantitative), indigo (strategic), violet (risk-focused) ✅ (unchanged)
+* Mode switching via `/mode` commands or UI selector ✅ (unchanged) 
+* CORS configured for localhost development ✅ (unchanged)
+* **V1.1 Mobile optimization**: iOS Safari keyboard fixes + safe area support
 
 **✅ Available Features:**
 - Complete conversation management (create/delete/list/history)
@@ -98,15 +125,23 @@ frontend/
 │   │   └── CodeInterpreterResult.tsx
 │   └── ui/{LoadingSpinner,ErrorDisplay}.tsx
 ├── src/hooks/
-│   ├── useAuth.ts
-│   ├── useSSEChat.ts            # two‑step EventSource flow
-│   └── useSlashCommands.ts
+│   ├── useAuth.ts               # ✅ (enhanced with cookie detection)
+│   ├── ~~useSSEChat.ts~~        # 🗑️ Replaced by V1.1 hooks
+│   ├── useChat.ts               # 🆕 V1.1: Persistent data management
+│   ├── useStreaming.ts          # 🆕 V1.1: Runtime streaming state
+│   ├── useMessageQueue.ts       # 🆕 V1.1: Queue with cap=1
+│   └── useSlashCommands.ts      # ✅ (unchanged)
+├── src/stores/                  # 🆕 V1.1: Split store architecture
+│   ├── chatStore.ts             # Conversations, messages by ID
+│   └── streamStore.ts           # Streaming, queue, buffer, abort
 ├── src/lib/
-│   ├── api.ts                   # login, conversations, send, telemetry
-│   └── types.ts                 # ChatMessage, ToolExecution, CodeResult, SSE events
+│   ├── api.ts                   # 🔄 V1.1: Enhanced with mixed auth
+│   └── types.ts                 # 🔄 V1.1: Enhanced with run_id, sequences
 ├── src/utils/
-│   ├── sse.ts                   # multi‑line data frame parser
-│   └── slashCommands.ts
+│   ├── ~~sse.ts~~               # 🗑️ Replaced by fetch() streaming
+│   ├── streamParser.ts          # 🆕 V1.1: ReadableStream parser
+│   ├── errorTaxonomy.ts         # 🆕 V1.1: Enhanced error handling
+│   └── slashCommands.ts         # ✅ (unchanged)
 ├── public/assets/sigmasight-logo.png
 ├── globals.css  tailwind.config.js  postcss.config.js  tsconfig.json
 └── package.json
@@ -319,7 +354,7 @@ Developer logging: log type, original error, and request context to console (dev
 ## 9) Performance & UX
 
 * **Connection start** < 3s p50; **answer complete** < 8–10s p95 (one or two tool calls)
-* Only one live EventSource at a time (close previous on new send)
+* ~~Only one live EventSource at a time~~ → **V1.1**: One in-flight request per conversation with queue cap=1
 * Keyboard: `Enter` send, `Shift+Enter` newline
 * Accessibility: streamed container has `aria-live="polite"`
 
@@ -334,20 +369,26 @@ Developer logging: log type, original error, and request context to console (dev
 * `deleteConversation(id)` → DELETE `/api/v1/chat/conversations/{id}`
 * `sendMessage({ conversation_id, text })` → POST `/api/v1/chat/send` → SSE stream
 
-**Single-Step SSE (No run_id needed):**
+**~~Single-Step SSE (No run_id needed)~~ → V1.1 Enhanced Streaming:**
 ```typescript
-// Direct streaming response from /chat/send
+// V1.1: fetch() POST with credentials and run_id
 const response = await fetch('/api/v1/chat/send', {
   method: 'POST',
   headers: {
-    'Authorization': `Bearer ${token}`,
+    'Content-Type': 'application/json',
     'Accept': 'text/event-stream'
+    // No Authorization header for chat
   },
-  body: JSON.stringify({ conversation_id, text })
+  credentials: 'include', // V1.1: HttpOnly cookies
+  body: JSON.stringify({ 
+    conversation_id, 
+    text,
+    run_id: crypto.randomUUID() // V1.1: Required for deduplication
+  })
 });
 ```
 
-**🔗 Reference**: Complete API client implementation in `../../agent/_docs/FRONTEND_DEV_SETUP.md`
+**🔗 V1.1 Reference**: Complete **enhanced API client** with mixed auth in `../../agent/_docs/FRONTEND_DEV_SETUP.md`
 
 ---
 
@@ -369,7 +410,7 @@ type SSEEventData =
 * `ConversationSummary`: Conversation list item
 * `User`, `LoginResponse`, `CurrentUserResponse`: Auth types
 
-**🔗 Reference**: All TypeScript interfaces in `../../agent/_docs/API_CONTRACTS.md`
+**🔗 V1.1 Reference**: All **enhanced TypeScript interfaces** with run_id and sequencing in `../../agent/_docs/API_CONTRACTS.md`
 
 ---
 
@@ -398,7 +439,7 @@ export function useSSE(options: UseSSEOptions = {}) {
 - Automatic reconnection with exponential backoff
 - AbortController for cleanup
 
-**🔗 Reference**: Production-ready implementation in `../../agent/_docs/SSE_STREAMING_GUIDE.md`
+**🔗 V1.1 Reference**: **Updated fetch() POST implementation** in `../../agent/_docs/SSE_STREAMING_GUIDE.md`
 
 ---
 
@@ -454,7 +495,7 @@ const loadConversations = async () => {
 };
 ```
 
-**🔗 Reference**: Complete state management patterns in `../../agent/_docs/FRONTEND_DEV_SETUP.md`
+**🔗 V1.1 Reference**: Complete **split store patterns** in `../../agent/_docs/FRONTEND_DEV_SETUP.md`
 
 ---
 
@@ -484,7 +525,7 @@ const loadConversations = async () => {
 
 ## 16) Responsive Design (minimal)
 
-* Use legacy `globals.css` breakpoints and spacing
+* Use existing `globals.css` breakpoints and spacing
 * On mobile: input full width; breadcrumbs collapsed; header compact
 
 ---
@@ -542,104 +583,79 @@ const loadConversations = async () => {
 * ✅ **CORS configuration** for localhost development
 * ✅ **Mobile-responsive design** requirements
 
-**🚀 Ready for Frontend Development**: All backend APIs documented and working
+**🚀 V1.1 Ready for Implementation**: All backend APIs enhanced for mixed auth and advanced streaming
 
 ---
 
-## 3A) Legacy Frontend Reuse Strategy (how we reuse vs. re‑implement)
+## 🆕 V1.1 Implementation Guide
 
-This section maps the **legacy implementation** to our new SSE architecture so an AI coding agent knows what to **copy**, what to **use as inspiration**, and what to **avoid**.
+### V1.1 Critical Architecture Changes
 
-### A. High‑priority — **Direct Copy** (unchanged)
+**1. Split Store Pattern (Performance Optimization)**
+```typescript
+// chatStore.ts - Persistent data
+interface ChatState {
+  conversations: ConversationSummary[];
+  currentConversationId: string | null;
+  messages: Record<string, ChatMessage[]>; // By conversationId
+}
 
-* **Branding assets**
-
-  * `frontend/public/assets/sigmasight-logo.png` → same path
-  * `frontend/src/assets/SigmaSight Logo.png` → same path (if used by any pages)
-* **Styling system**
-
-  * `frontend/src/app/globals.css`
-  * `frontend/tailwind.config.js`
-  * `frontend/postcss.config.js`
-* **TypeScript config**
-
-  * `frontend/tsconfig.json`
-  * `frontend/next-env.d.ts`
-* **Package config**
-
-  * Start from new **curated `package.json`**; selectively carry over only vetted deps from legacy (do **not** copy lockfile). After install, let a fresh lockfile be generated.
-
-> **Value:** preserves visual identity, responsive system, and known‑good TS/Next config without dragging in legacy runtime assumptions.
-
-### B. Medium‑priority — **Extract Patterns** (design inspiration, not code)
-
-* **Layout components**
-
-  * Reuse **metadata/title/description** pattern from legacy `layout.tsx`
-  * Keep `<body className="antialiased">` and general spacing rhythm
-* **Chat UI patterns** (from legacy `chat/page.tsx`)
-  **KEEP (structure only):**
-
-  * Header with logo + connection status area
-  * Message container column layout
-  * Input area placement (textarea + send button, absolute‑positioned button on the right)
-  * Responsive breakpoints/classes used in legacy CSS
-    **DO NOT COPY:**
-  * Any `fetch()` calls
-  * Message state handling
-  * Client‑side auth logic
-  * Static request/response flows (we use **two‑step SSE**)
-
-> **Why:** legacy logic is incompatible with SSE + cookie auth; but the visual/layout patterns are good.
-
-### C. Low‑priority — **Reference Only**
-
-* `frontend/next.config.js` — consult for ideas, but **do not** port blindly; SSE needs its own proxy/timeouts.
-* Legacy docs (e.g., `frontend/frontendsetup.md`, `docs/ClaudeInstructions.md`) — archive as a reference, create a new `LEGACY_REFERENCE.md` summarizing what was reused.
-
-### D. **Do Not Migrate** — incompatible with new architecture
-
-* **Chat logic & API integration** from legacy `chat/page.tsx` (request/response, no streaming)
-* **Legacy authentication patterns** (client‑managed JWTs, bearer headers) - Now using server-side JWT with localStorage
-
-> **Reason:** New design uses **JWT Bearer tokens** and **single-step EventSource SSE**; porting the legacy logic would introduce bugs and security risks.
-
-### E. Migration checklist & script (for humans/agents)
-
-1. Create a **legacy branch & tag** to freeze the prior state (use your `git show`/`git tag` steps).
-2. Copy assets/configs exactly as listed in **A**.
-3. Create new curated `package.json`; install fresh to generate a new lockfile.
-4. Build new app scaffolding per **§3 File Structure** of this FE design doc.
-5. Add `LEGACY_REFERENCE.md` documenting what was copied vs. referenced.
-6. Implement **SSE first** (two‑step flow), then auth guards, then chat UI.
-
-> **Compatibility notes:**
->
-> * Keep **Next 15.x**; React 18/19 both work but ensure versions match your dependencies.
-> * Ensure **same‑origin** deployment so cookies attach automatically.
-> * Configure proxy for SSE: `proxy_buffering off;` `X-Accel-Buffering: no` and longer read timeouts.
-> * Use `react-markdown` + `rehype-sanitize` (do not render raw HTML from model).
-
-### Appendix — Quick migration commands (adapt to your repo)
-** Note: thes are not the actual legacy files, it's just an example **
-```bash
-# 1) Freeze legacy
-git checkout -b legacy/frontend-gpt-agent-v1
-git push origin legacy/frontend-gpt-agent-v1
-git tag -a legacy-v1.0 -m "Legacy frontend implementation"
-git push origin legacy-v1.0
-
-# 2) Copy assets/configs (examples)
-mkdir -p frontend/src/app frontend/public/assets frontend/src/assets
-git show legacy-v1.0:frontend/src/app/globals.css > frontend/src/app/globals.css
-git show legacy-v1.0:frontend/tailwind.config.js > frontend/tailwind.config.js
-git show legacy-v1.0:frontend/postcss.config.js > frontend/postcss.config.js
-git show legacy-v1.0:frontend/tsconfig.json > frontend/tsconfig.json
-git show legacy-v1.0:frontend/next-env.d.ts > frontend/next-env.d.ts
-git show legacy-v1.0:frontend/public/assets/sigmasight-logo.png > frontend/public/assets/sigmasight-logo.png
-
-# 3) Create curated package.json; npm install
+// streamStore.ts - Runtime state  
+interface StreamState {
+  isStreaming: boolean;
+  currentRunId: string | null;
+  streamBuffer: string;
+  messageQueue: Array<{conversationId: string; text: string}>; // Cap=1
+  processing: boolean;
+  abortController: AbortController | null;
+}
 ```
+
+**2. Enhanced fetch() POST Streaming**
+```typescript
+// V1.1 Implementation
+const response = await fetch('/api/v1/chat/send', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+    'Accept': 'text/event-stream'
+  },
+  credentials: 'include', // HttpOnly cookies
+  body: JSON.stringify({
+    conversation_id: conversationId,
+    text,
+    run_id: crypto.randomUUID() // Client-generated
+  })
+});
+```
+
+**3. Enhanced Error Taxonomy**
+```typescript
+interface V1_1_ErrorHandling {
+  RATE_LIMITED: { retry: true, delay: 30000, message: 'Rate limited' };
+  AUTH_EXPIRED: { retry: false, redirect: '/login' };
+  NETWORK_ERROR: { retry: true, delay: 5000, message: 'Connection issue' };
+  SERVER_ERROR: { retry: true, delay: 10000, message: 'Server issue' };
+  CLIENT_ERROR: { retry: false, message: 'Validation error' };
+}
+```
+
+**4. Mobile-First Enhancements**
+```css
+/* V1.1 iOS Safari fixes */
+.chat-input {
+  padding-bottom: env(safe-area-inset-bottom);
+  scroll-margin-bottom: 120px;
+}
+
+@supports (-webkit-touch-callout: none) {
+  .ios-safari-fixes {
+    /* iOS-specific keyboard handling */
+  }
+}
+```
+
+**🔗 V1.1 References**: All implementation patterns updated in `/agent/_docs/` files
 
 ---
 
@@ -661,7 +677,7 @@ git show legacy-v1.0:frontend/public/assets/sigmasight-logo.png > frontend/publi
 - `../../agent/_docs/FRONTEND_FEATURES.md` - UI/UX specifications
 - `../../agent/_docs/FRONTEND_DEV_SETUP.md` - Next.js setup and configuration
 
-### 🎯 AI Agent Implementation Guide
+### 🎯 V1.1 AI Agent Implementation Guide
 
 **Step 1: Project Setup**
 ```bash
@@ -669,30 +685,42 @@ npx create-next-app@latest sigmasight-frontend --typescript --tailwind --eslint 
 cd sigmasight-frontend
 ```
 
-**Step 2: Install Dependencies** (from FRONTEND_DEV_SETUP.md)
+**Step 2: V1.1 Dependencies** (from updated FRONTEND_DEV_SETUP.md)
 ```bash
 npm install @tanstack/react-query zustand react-hook-form zod lucide-react
+npm install zustand/middleware # For persist in split stores
 ```
 
-**Step 3: Environment Configuration**
+**Step 3: V1.1 Environment Configuration**
 ```bash
 NEXT_PUBLIC_API_URL=http://localhost:8000/api/v1
+NEXT_PUBLIC_V1_1_FEATURES=true # Enable V1.1 features
 ```
 
-**Step 4: Implement Core Features**
-1. Authentication with JWT Bearer tokens
-2. SSE chat implementation using provided hooks
-3. Conversation management UI  
-4. Mode switching (4 modes: green/blue/indigo/violet)
+**Step 4: V1.1 Core Features Implementation**
+1. **Mixed Authentication**: JWT (localStorage) + HttpOnly cookies
+2. **fetch() POST streaming**: Replace EventSource with ReadableStream parsing
+3. **Split store architecture**: chatStore + streamStore
+4. **Enhanced message queue**: One in-flight per conversation, cap=1
+5. **Mobile optimizations**: iOS Safari keyboard fixes
+6. Mode switching (4 modes: green/blue/indigo/violet) ✅ (unchanged)
 
-### 📋 Success Criteria Checklist
+### 📋 V1.1 Success Criteria Checklist
 
+**Core Functionality:**
 - [ ] User can login with demo credentials (demo_growth@sigmasight.com / demo12345)
-- [ ] Chat interface streams responses in real-time
-- [ ] Tool execution shows live progress indicators
-- [ ] Mode switching works (slash commands + UI selector)
-- [ ] Conversation management (create/list/delete)
-- [ ] Mobile responsive design
-- [ ] Error handling with reconnection logic
+- [ ] Login sets both JWT (localStorage) AND HttpOnly cookies
+- [ ] Chat interface streams responses via fetch() POST (not EventSource)
+- [ ] Tool execution shows live progress indicators ✅ (unchanged)
+- [ ] Mode switching works (slash commands + UI selector) ✅ (unchanged)
+- [ ] Conversation management (create/list/delete) ✅ (unchanged)
 
-**🏁 Ready for Frontend Development**: All documentation complete, backend APIs working, test data available.
+**V1.1 Enhancements:**
+- [ ] **Split stores**: chatStore (persistent) + streamStore (runtime) working
+- [ ] **Message queue**: One in-flight per conversation with queue cap=1
+- [ ] **Enhanced errors**: Error taxonomy with retryable classification
+- [ ] **Mobile optimization**: iOS Safari keyboard fixes and safe area support
+- [ ] **Observability**: run_id tracing and performance metrics (TTFB)
+- [ ] **Production ready**: Deployment checklist with streaming configurations
+
+**🏁 V1.1 Ready for Implementation**: All V1.1 documentation updated, enhanced backend compatibility, split store patterns ready.

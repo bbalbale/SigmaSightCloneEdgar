@@ -1,6 +1,15 @@
 # CLAUDE.md
 
+> **Updated for V1.1 Chat Implementation - Mixed Auth & fetch() Streaming**
+
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+**V1.1 Critical Updates**:
+- **Authentication**: Mixed strategy (JWT for portfolio, HttpOnly cookies for chat streaming)
+- **Streaming**: fetch() POST with credentials:'include' instead of EventSource
+- **State Management**: Frontend uses split store architecture (chatStore + streamStore)
+- **Message Queue**: One in-flight per conversation with queue cap=1
+- **Error Handling**: Enhanced taxonomy with retryable classification
 
 ## 🚨 CRITICAL: Autonomous Development Guidelines
 
@@ -27,13 +36,17 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 2. **API Contract Changes**
    - ❌ Modifying existing backend Pydantic models in app/schemas/
    - ❌ Changing existing endpoint signatures
-   - ✅ OK: Adding optional parameters with defaults
+   - ⚠️ V1.1: Login endpoint MUST set both JWT and HttpOnly cookies
+   - ⚠️ V1.1: Chat endpoints MUST support credentials:'include' for cookies
+   - ✅ OK: Adding optional run_id parameter for deduplication
    - ✅ OK: Creating new /api/v1/chat/* endpoints
 
-3. **Authentication & Security**
-   - ❌ ANY changes to JWT token generation/validation
-   - ❌ Modifying authentication flow
-   - ✅ OK: Using existing auth dependencies as-is
+3. **Authentication & Security** (V1.1 Mixed Strategy)
+   - ❌ Breaking changes to JWT token generation/validation
+   - ⚠️ V1.1: Login MUST set HttpOnly cookies for chat in addition to JWT
+   - ⚠️ V1.1: Chat endpoints MUST validate both Bearer tokens AND cookies
+   - ✅ OK: Mixed auth - JWT for portfolio APIs, cookies for streaming
+   - ✅ OK: Using existing auth dependencies with cookie support
 
 4. **External Service Integration**
    - ❌ Adding new paid API dependencies
@@ -177,31 +190,52 @@ Create in `backend/app/agent/prompts/`:
 7. **Docker required**: PostgreSQL runs in Docker, ensure Docker Desktop is running
 8. **Service layer pattern**: New agent endpoints need service layer (PortfolioDataService)
 
-### OpenAI Integration Issues (Learned from Phase 5.5)
-9. **OpenAI Model Compatibility**:
+### V1.1 Frontend Integration Issues
+9. **Authentication Flow Changes**:
+   - Login response MUST include both access_token AND set HttpOnly cookies
+   - Frontend uses JWT for portfolio APIs, cookies automatically for chat streaming
+   - Chat endpoints receive credentials:'include' in fetch requests
+   - Logout must clear both localStorage JWT AND HttpOnly cookies
+
+10. **OpenAI Model Compatibility**:
    - Use `gpt-4o` for production streaming (gpt-4o-turbo also available)
    - Use `max_completion_tokens` not `max_tokens` parameter
    - Don't set `temperature` parameter (only default value 1.0 supported)
    - Check `.env` file MODEL_DEFAULT - it overrides config.py defaults!
 
-10. **Critical Import Paths** (These WILL trip you up):
+11. **Critical Import Paths** (These WILL trip you up):
    - ✅ `from app.services.portfolio_data_service import PortfolioDataService`
    - ❌ ~~`from app.agent.services.portfolio_data_service`~~ (doesn't exist)
    - ✅ `from app.agent.tools.tool_registry import tool_registry`
    - ❌ ~~`from app.agent.services.tool_registry`~~ (wrong location)
    - ⚠️ Tool registry needs singleton instance: Add `tool_registry = ToolRegistry()` at module level
 
-11. **Conversation Model Specifics**:
+12. **Conversation Model Specifics**:
    - No `portfolio_id` field on Conversation model
    - Portfolio context stored in metadata: `conversation.meta_data.get("portfolio_id")`
    - PromptManager.get_system_prompt() expects `user_context` not `portfolio_context`
 
-12. **Demo User Credentials** (for testing):
+13. **Demo User Credentials** (for testing):
    - Email: `demo_growth@sigmasight.com` (NOT john.demo@sigmasight.com)
    - Password: `demo12345`
    - Other demo users: demo_value@, demo_balanced@, etc.
 
-13. **SSE Response Parsing**:
+14. **V1.1 Enhanced SSE Response Parsing**:
+   ```python
+   # V1.1: Enhanced SSE format with run_id and sequence
+   # Format: "event: type\nrun_id: uuid\nsequence: 1\ndata: json\n\n"
+   async for line in response.content:
+       line_text = line.decode('utf-8').strip()
+       if line_text.startswith('event:'):
+           event_type = line_text.split(':', 1)[1].strip()
+       elif line_text.startswith('run_id:'):
+           run_id = line_text.split(':', 1)[1].strip()
+       elif line_text.startswith('data:'):
+           data = json.loads(line_text.split(':', 1)[1])
+           # V1.1: Include run_id for deduplication
+   ```
+
+15. **Original SSE Response Parsing**:
    ```python
    # SSE format: "event: type\ndata: json\n\n"
    async for line in response.content:
@@ -212,12 +246,18 @@ Create in `backend/app/agent/prompts/`:
            data = json.loads(line_text.split(':', 1)[1])
    ```
 
-14. **OpenAI Function Definitions**:
+16. **OpenAI Function Definitions**:
    - Tool registry doesn't auto-generate OpenAI schemas
    - Must manually define in `_get_tool_definitions()` with proper OpenAI format
    - Each tool needs: name, description, parameters (with type, properties, required)
 
-15. **Missing SSE Event Types**:
+17. **V1.1 Enhanced SSE Event Types**:
+   - Add run_id field to all SSE events for deduplication
+   - Add sequence field for event ordering
+   - Enhanced error events with retryable taxonomy
+   - Add performance metrics (TTFB, tokens-per-second)
+
+18. **Missing SSE Event Types**:
    - If you see missing SSE events, add to `app/agent/schemas/sse.py`:
      - SSEToolStartedEvent
      - SSEToolFinishedEvent

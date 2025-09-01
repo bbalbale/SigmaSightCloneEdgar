@@ -1,6 +1,13 @@
 # Frontend Development Setup Guide
 
+> **Updated for V1.1 Chat Implementation - HttpOnly Cookies & Split Stores**  
 > **Complete setup instructions for AI coding agents building the SigmaSight frontend**
+
+**V1.1 Updates**:
+- **Authentication**: Mixed strategy requiring cookie support for streaming
+- **State Management**: Split store architecture for performance
+- **API Client**: Enhanced with credential support and error taxonomy
+- **Mobile Support**: iOS Safari specific configurations
 
 ## Prerequisites
 
@@ -132,6 +139,11 @@ class SigmaSightAPI {
     }
   }
 
+  // V1.1: Mixed auth - also sets HttpOnly cookies
+  setCredentials(include: boolean = true) {
+    return include ? 'include' : 'same-origin';
+  }
+
   private async request<T>(
     endpoint: string,
     options: RequestInit = {}
@@ -161,14 +173,23 @@ class SigmaSightAPI {
     return response.json();
   }
 
-  // Auth methods
+  // V1.1 Auth methods with cookie support
   async login(email: string, password: string) {
-    const response = await this.request<LoginResponse>('/auth/login', {
+    const response = await fetch(`${this.baseURL}/auth/login`, {
       method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include', // V1.1: Sets HttpOnly cookies
       body: JSON.stringify({ email, password }),
     });
-    this.setToken(response.access_token);
-    return response;
+    
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail);
+    }
+    
+    const data = await response.json();
+    this.setToken(data.access_token);
+    return data;
   }
 
   async getCurrentUser() {
@@ -198,19 +219,21 @@ class SigmaSightAPI {
     });
   }
 
-  // SSE streaming method
-  async sendMessage(conversationId: string, text: string): Promise<Response> {
+  // V1.1 SSE streaming with cookies and run_id
+  async sendMessage(conversationId: string, text: string, runId?: string): Promise<Response> {
     const url = `${this.baseURL}/chat/send`;
     const response = await fetch(url, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${this.token}`,
         'Content-Type': 'application/json',
         'Accept': 'text/event-stream',
+        ...(this.token && { 'Authorization': `Bearer ${this.token}` }) // Fallback
       },
+      credentials: 'include', // V1.1: HttpOnly cookies
       body: JSON.stringify({
         conversation_id: conversationId,
         text,
+        run_id: runId || crypto.randomUUID() // V1.1: Deduplication
       }),
     });
 
@@ -301,65 +324,118 @@ export const useAuthStore = create<AuthState>()(
 );
 ```
 
-### Chat Store (`src/stores/chatStore.ts`)
+### V1.1 Split Store Architecture
+
+#### Chat Store - Persistent Data (`src/stores/chatStore.ts`)
 
 ```typescript
 import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
 
 interface ChatState {
   conversations: ConversationSummary[];
   currentConversationId: string | null;
-  messages: ChatMessage[];
-  isStreaming: boolean;
-  error: string | null;
+  messages: Record<string, ChatMessage[]>; // V1.1: By conversationId
 
   setConversations: (conversations: ConversationSummary[]) => void;
   selectConversation: (id: string) => void;
-  addMessage: (message: ChatMessage) => void;
-  updateStreamingMessage: (delta: string) => void;
-  setStreaming: (streaming: boolean) => void;
-  setError: (error: string | null) => void;
-  clearMessages: () => void;
+  addMessage: (conversationId: string, message: ChatMessage) => void;
+  clearMessages: (conversationId?: string) => void;
 }
 
-export const useChatStore = create<ChatState>((set) => ({
-  conversations: [],
-  currentConversationId: null,
-  messages: [],
+export const useChatStore = create<ChatState>()(persist(
+  (set) => ({
+    conversations: [],
+    currentConversationId: null,
+    messages: {},
+
+    setConversations: (conversations) => set({ conversations }),
+
+    selectConversation: (id) => 
+      set({ currentConversationId: id }),
+
+    addMessage: (conversationId, message) =>
+      set((state) => ({
+        messages: {
+          ...state.messages,
+          [conversationId]: [...(state.messages[conversationId] || []), message]
+        }
+      })),
+
+    clearMessages: (conversationId) => 
+      set((state) => {
+        if (conversationId) {
+          const { [conversationId]: _, ...rest } = state.messages;
+          return { messages: rest };
+        }
+        return { messages: {} };
+      })
+  }),
+  { name: 'sigmasight-chat' }
+));
+```
+
+#### Stream Store - Runtime State (`src/stores/streamStore.ts`)
+
+```typescript
+import { create } from 'zustand';
+
+interface StreamState {
+  isStreaming: boolean;
+  currentRunId: string | null;
+  streamBuffer: string;
+  abortController: AbortController | null;
+  messageQueue: Array<{ conversationId: string; text: string }>;
+  processing: boolean;
+  error: string | null;
+
+  setStreaming: (streaming: boolean, runId?: string) => void;
+  setBuffer: (buffer: string) => void;
+  clearBuffer: () => void;
+  setAbortController: (controller: AbortController | null) => void;
+  addToQueue: (conversationId: string, text: string) => void;
+  removeFromQueue: () => void;
+  clearQueue: (conversationId?: string) => void;
+  setProcessing: (processing: boolean) => void;
+  setError: (error: string | null) => void;
+}
+
+export const useStreamStore = create<StreamState>((set, get) => ({
   isStreaming: false,
+  currentRunId: null,
+  streamBuffer: '',
+  abortController: null,
+  messageQueue: [],
+  processing: false,
   error: null,
 
-  setConversations: (conversations) => set({ conversations }),
+  setStreaming: (streaming, runId = null) => 
+    set({ isStreaming: streaming, currentRunId: runId }),
 
-  selectConversation: (id) => 
-    set({ currentConversationId: id, messages: [] }),
+  setBuffer: (buffer) => set({ streamBuffer: buffer }),
+  clearBuffer: () => set({ streamBuffer: '' }),
 
-  addMessage: (message) =>
-    set((state) => ({ messages: [...state.messages, message] })),
+  setAbortController: (controller) => set({ abortController: controller }),
 
-  updateStreamingMessage: (delta) =>
+  addToQueue: (conversationId, text) => 
     set((state) => {
-      const messages = [...state.messages];
-      const lastMessage = messages[messages.length - 1];
-      
-      if (lastMessage?.streaming) {
-        lastMessage.content += delta;
-      } else {
-        messages.push({
-          id: crypto.randomUUID(),
-          role: 'assistant',
-          content: delta,
-          timestamp: new Date(),
-          streaming: true,
-        });
-      }
-      
-      return { messages };
+      // V1.1: Queue cap=1, replace if exists for same conversation
+      const filtered = state.messageQueue.filter(m => m.conversationId !== conversationId);
+      return { messageQueue: [...filtered, { conversationId, text }] };
     }),
 
-  setStreaming: (streaming) => set({ isStreaming: streaming }),
-  setError: (error) => set({ error }),
-  clearMessages: () => set({ messages: [] }),
+  removeFromQueue: () => 
+    set((state) => ({ messageQueue: state.messageQueue.slice(1) })),
+
+  clearQueue: (conversationId) => 
+    set((state) => ({
+      messageQueue: conversationId 
+        ? state.messageQueue.filter(m => m.conversationId !== conversationId)
+        : []
+    })),
+
+  setProcessing: (processing) => set({ processing }),
+  setError: (error) => set({ error })
 }));
 ```
 

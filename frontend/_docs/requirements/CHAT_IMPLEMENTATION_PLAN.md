@@ -1,58 +1,155 @@
 # Chat Integration Implementation Plan
 
 **Created:** 2025-01-09  
-**Status:** Planning Phase  
+**Updated:** 2025-09-01  
+**Status:** Implementation Phase  
 **Target:** SigmaSight Portfolio Chat Assistant  
-**Architecture:** Sheet Overlay Pattern with SSE Streaming  
+**Architecture:** Sheet Overlay with fetch() Streaming + HttpOnly Cookies
 
-## Executive Summary
+## 1.0 Version Summary
 
-Implement a chat interface that overlays the current page using shadcn Sheet component, connecting to the existing backend OpenAI integration via Server-Sent Events (SSE). The chat will provide contextual portfolio analysis while preserving the user's current view.
+### 1.1 Current Version (V1.1) - Updated 2025-09-01
+Major architectural decisions and feedback integration based on technical review and backend analysis.
 
-## Current State Analysis
+**Key Changes from Original (v1.0 - commit 2363b54):**
 
-### Backend (95% Complete)
-- ✅ **Database**: `agent_conversations`, `agent_messages` tables exist
-- ✅ **Authentication**: JWT Bearer + Cookie support for SSE
+#### 1.1.1 🔄 **Major Architectural Decisions**
+1. **Streaming Approach**: Changed from EventSource to fetch() POST for better control and JSON payload support
+2. **Authentication Model**: Switched from JWT localStorage to HttpOnly cookies for security and SSE compatibility
+3. **Backend Integration**: Updated to leverage existing agent backend UUID system (no new backend changes needed)
+
+#### 1.1.2 ✅ **Feedback Integration** 
+Added 5 high-priority features from technical review:
+- **1.1.2.1**: Split Store Architecture (performance - separate persistent vs runtime state)
+- **1.1.2.2**: Client-Side Message Queue (UX - prevent spam, visual feedback)  
+- **1.1.2.3**: Mobile Input Handling (mobile UX - keyboard management, safe areas)
+- **1.1.2.4**: Deployment Checklist (production - nginx configs, CDN settings)
+- **1.1.2.5**: Observability & Debugging (maintainability - trace IDs using existing backend UUIDs)
+
+#### 1.1.3 🎯 **Implementation Readiness**
+- **Backend Status**: Upgraded from "95% Complete" to "100% Ready for V1.1"
+- **Frontend Status**: Upgraded from "5%" to "25% Complete" (UI components done)
+- **Timeline**: Compressed from vague multi-phase to concrete 2-week implementation plan
+- **Risk Mitigation**: Solved major failure points (auth expiration, CORS issues, deduplication)
+
+#### 1.1.4 📋 **Scope Clarification**
+- **V1.1 Simplifications**: Clear list of features deferred to maintain 2-week timeline
+- **Mixed Auth Strategy**: Keep JWT for portfolio pages, cookies for chat (minimize risk)
+- **Production Focus**: Added comprehensive deployment considerations
+
+**Original Focus**: Architectural exploration and EventSource streaming  
+**Current Focus**: Production-ready implementation with concrete timeline and risk mitigation  
+
+## 2.0 Implementation Decisions (V1.1)
+
+Based on technical analysis and backend capabilities review, we've made two key architectural decisions that prioritize **simplicity, safety, and speed to prototype** for our V1 serving ~50 users:
+
+### 2.1 Streaming Mechanism: fetch() POST
+
+**Decision:** Use `fetch()` with `POST /api/v1/chat/send` for streaming assistant responses.
+
+**Rationale:**
+- **Single-call flow**: Send prompt, mode, metadata, or small JSON files in the same request that starts the stream
+- **Easy to reason about**: Both users and developers understand "send → stream back" flow
+- **Future flexibility**: Unlike EventSource, `fetch()` supports POST and custom headers if needed later
+- **Clean architecture**: Avoids the two-step EventSource workaround pattern
+- **Trade-off accepted**: Slightly more code (manual stream parsing) but keeps implementation straightforward
+
+### 2.2 Authentication Model: HttpOnly Cookies
+
+**Decision:** Use HttpOnly session cookies for all chat endpoints, including streaming.
+
+**Rationale:**
+- **Simplified auth flow**: No tokens in localStorage, no JWT headers required for streaming
+- **Automatic handling**: Cookies are sent with `fetch()` requests automatically, no special logic needed
+- **XSS protection**: JavaScript cannot read HttpOnly cookies, mitigating token theft risks
+- **Perfect compatibility**: Works seamlessly with `fetch()` POST approach, no JWT vs cookie juggling
+- **V1.1 appropriate**: Simplest and safest option for prototype scale
+
+**Implementation Details:**
+
+**Backend Requirements (Already Supported):**
+```python
+# Backend already supports dual auth per CLAUDE.md:
+# "Auth uses dual support: Both Bearer tokens (existing) AND cookies (for SSE)"
+
+# Cookie configuration in backend response:
+Set-Cookie: session_id=abc123; HttpOnly; Secure; SameSite=Strict; Max-Age=86400
+```
+
+**Frontend Transition:**
+```typescript
+// Phase 1: Keep existing JWT for portfolio pages
+// Phase 2: Chat endpoints use cookies only
+// Phase 3: (Future) Migrate all endpoints to cookies
+
+// Chat login (new approach)
+await fetch('/api/proxy/auth/login', {
+  method: 'POST',
+  credentials: 'include',
+  body: JSON.stringify({ email, password })
+})
+
+// All chat requests automatically include cookies
+await fetch('/api/proxy/chat/send', {
+  credentials: 'include' // No Authorization header needed
+})
+```
+
+#### 2.2.1 Development vs Production:
+- **Development**: Cookies work with localhost proxy
+- **Production**: Requires proper domain and HTTPS for Secure flag
+
+## 3.0 Executive Summary
+
+Implement a chat interface that overlays the current page using shadcn Sheet component, connecting to the existing backend OpenAI integration via fetch() streaming. The chat provides contextual portfolio analysis while preserving the user's current view.
+
+## 4.0 Current State Analysis
+
+### 4.1 Backend (100% Ready for V1.1)
+- ✅ **Database**: `agent_conversations`, `agent_messages` tables with UUID conversation IDs
+- ✅ **Authentication**: HttpOnly cookie support ready for streaming endpoints
 - ✅ **Chat Endpoints**: 
   - `POST /api/v1/chat/conversations` - Create conversation
   - `GET /api/v1/chat/conversations` - List conversations
   - `DELETE /api/v1/chat/conversations/{id}` - Delete conversation
-  - `GET /api/v1/chat/conversations/{id}/messages` - Get history
-  - `POST /api/v1/chat/send` - Send message (SSE response)
-- ✅ **OpenAI Integration**: GPT-4o with function calling
-- ✅ **Portfolio Tools**: 6 analysis tools ready
-- ✅ **Conversation Modes**: green/blue/indigo/violet
-- ✅ **SSE Infrastructure**: Streaming with heartbeats
+  - `GET /api/v1/chat/conversations/{id}/messages` - Get history with pagination
+  - `POST /api/v1/chat/send` - Send message (fetch() streaming response)
+- ✅ **OpenAI Integration**: GPT-4o with 6 portfolio analysis function tools
+- ✅ **Conversation Modes**: green/blue/indigo/violet prompt personalities
+- ✅ **Streaming Infrastructure**: fetch()-compatible SSE with heartbeats
+- ✅ **Deduplication**: Conversation and message UUIDs prevent duplicates
 
-### Frontend (5% Complete)
-- ✅ **Authentication**: JWT working from portfolio implementation
-- ✅ **API Proxy**: `/api/proxy/[...path]` bypasses CORS
-- ✅ **ChatInput Component**: Basic input exists
-- ❌ **No Sheet UI**: Need to implement overlay
-- ❌ **No SSE Client**: Need streaming parser
-- ❌ **No Conversation State**: Need state management
-- ❌ **No Message Display**: Need chat UI components
+### 4.2 Frontend (25% Complete - UI Done)
+- ✅ **Sheet UI**: ChatInterface with Sheet overlay pattern implemented
+- ✅ **State Management**: Zustand chatStore with message history
+- ✅ **ChatInput Component**: Basic input with send functionality
+- ✅ **API Proxy**: `/api/proxy/[...path]` ready for cookie forwarding
+- ✅ **Authentication Flow**: Portfolio auth system ready for cookie conversion
+- ❌ **fetch() Streaming**: Need to implement POST streaming parser
+- ❌ **Cookie Auth**: Need to switch from localStorage JWT to cookies
+- ❌ **Message Display**: Need real backend integration
 
-## Architecture Decision
+## 5.0 Architecture Decision
 
-### UI Pattern: Sheet Overlay
+### 5.1 UI Pattern: Sheet Overlay
 **Rationale:**
 - Preserves user context (stays on current page)
 - Progressive disclosure (chat bar → full conversation)
 - Mobile-friendly (bottom sheet on mobile, sidebar on desktop)
 - Non-intrusive user experience
 
-### Technical Stack
-- **UI Library**: shadcn/ui Sheet component
-- **State Management**: Zustand (lightweight, TypeScript-friendly)
-- **Streaming**: Native EventSource API with fallback to fetch
+### 5.2 Technical Stack (Updated for V1)
+- **UI Library**: shadcn/ui Sheet component (already implemented)
+- **State Management**: Zustand split stores (chat state + stream state)
+- **Streaming**: fetch() POST with manual SSE parsing
+- **Authentication**: HttpOnly session cookies (no localStorage)
 - **Markdown**: react-markdown with rehype-sanitize
 - **Styling**: Tailwind CSS (existing)
 
-## Implementation Phases
+## 6.0 Implementation Phases
 
-### Phase 1: Sheet UI Infrastructure (Day 1)
+### 6.1 Phase 1: Sheet UI Infrastructure (Day 1)
 
 #### 1.1 Install Dependencies
 ```bash
@@ -139,94 +236,133 @@ export class ChatService {
 }
 ```
 
-#### 2.2 Authentication Integration
+#### 2.2 Authentication Integration (Updated)
 ```typescript
-// Reuse existing auth from portfolioService.ts
-- Get JWT token from localStorage
-- Add Bearer token to headers
-- Handle 401 errors (redirect to login)
-```
-
-#### 2.3 Conversation Lifecycle
-```typescript
-// On app mount:
-1. Check for existing conversations
-2. Load most recent or create new
-3. Fetch message history
-4. Set current conversation in store
-
-// On message send:
-1. Ensure conversation exists
-2. Add user message to UI optimistically
-3. Start SSE connection
-4. Handle response streaming
-```
-
-**Potential Failure Points:**
-- ⚠️ Token expiration during long conversations
-- ⚠️ Race condition: multiple conversation creates
-- ⚠️ Conversation ID mismatch between frontend/backend
-- ⚠️ Message history pagination not implemented
-
-### Phase 3: SSE Streaming Implementation (Day 2-3)
-
-#### 3.1 SSE Client Hook
-```typescript
-// frontend/src/hooks/useSSEChat.ts
-export function useSSEChat() {
-  const connectSSE = async (conversationId: string, message: string) => {
-    // Option 1: EventSource API (cleaner but less flexible)
-    const eventSource = new EventSource(
-      `/api/proxy/chat/send?conversation_id=${conversationId}&text=${message}`,
-      { withCredentials: true }
-    )
-    
-    // Option 2: Fetch with ReadableStream (more control)
-    const response = await fetch('/api/proxy/chat/send', {
+// Switch to HttpOnly cookie auth
+// frontend/src/services/chatService.ts
+export class ChatService {
+  async loginWithCookies(email: string, password: string) {
+    const response = await fetch('/api/proxy/auth/login', {
       method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json',
-        'Accept': 'text/event-stream'
-      },
-      body: JSON.stringify({ conversation_id, text })
+      credentials: 'include', // Send cookies
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password })
     })
-    
-    const reader = response.body.getReader()
-    const decoder = new TextDecoder()
-    
-    // Parse SSE format: "event: type\ndata: json\n\n"
+    // Backend sets HttpOnly cookie automatically
+    return response.json()
   }
 }
 ```
 
-#### 3.2 SSE Event Handling
+#### 2.3 Conversation Lifecycle (Simplified)
 ```typescript
-// Event types from backend
+// On app mount:
+1. Check cookie auth status (/auth/me)
+2. Load existing conversations (cookies sent automatically)
+3. Create conversation if needed
+4. Load last 50 messages with backend pagination
+
+// On message send:
+1. Generate client run_id (UUID) for deduplication
+2. Add user message to UI optimistically
+3. POST to /chat/send with fetch() streaming
+4. Parse streaming response and update UI
+```
+
+**Reduced Failure Points:**
+- ✅ No token expiration (session cookies)
+- ✅ Backend prevents duplicate conversations by user_id
+- ✅ Backend provides UUID conversation IDs
+- ✅ Backend has message pagination with cursor
+
+### Phase 3: fetch() Streaming Implementation (Day 2-3)
+
+#### 3.1 fetch() Streaming Hook
+```typescript
+// frontend/src/hooks/useFetchStreaming.ts
+export function useFetchStreaming() {
+  const streamChatMessage = async (conversationId: string, message: string, runId: string) => {
+    const response = await fetch('/api/proxy/chat/send', {
+      method: 'POST',
+      credentials: 'include', // Cookies sent automatically
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'text/event-stream'
+      },
+      body: JSON.stringify({ 
+        conversation_id: conversationId, 
+        text: message,
+        run_id: runId // Client-generated for dedup
+      })
+    })
+    
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+    }
+    
+    const reader = response.body!.getReader()
+    const decoder = new TextDecoder()
+    
+    try {
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        
+        const chunk = decoder.decode(value, { stream: true })
+        const events = parseSSEChunk(chunk)
+        
+        for (const event of events) {
+          yield event
+        }
+      }
+    } finally {
+      reader.releaseLock()
+    }
+  }
+}
+```
+
+#### 3.2 SSE Event Handling (Updated)
+```typescript
+// Event types from backend (same as before)
 type SSEEventType = 
-  | 'start'           // { conversation_id, mode, model }
-  | 'message'         // { delta, role }
-  | 'tool_started'    // { tool_name, arguments }
-  | 'tool_finished'   // { tool_name, result, duration_ms }
-  | 'done'           // { tool_calls_count, latency_ms }
-  | 'error'          // { message, retryable }
+  | 'start'           // { conversation_id, mode, model, run_id }
+  | 'message'         // { delta, role, run_id }
+  | 'tool_started'    // { tool_name, arguments, run_id }
+  | 'tool_finished'   // { tool_name, result, duration_ms, run_id }
+  | 'done'           // { tool_calls_count, latency_ms, run_id }
+  | 'error'          // { message, retryable, run_id }
   | 'heartbeat'      // { timestamp }
 
-// Parser implementation
-function parseSSEMessage(data: string): SSEEvent {
-  const lines = data.split('\n')
-  let event = ''
-  let jsonData = ''
+// Parser implementation for fetch() chunks
+function parseSSEChunk(chunk: string): SSEEvent[] {
+  const events: SSEEvent[] = []
+  const lines = chunk.split('\n')
+  let currentEvent = ''
+  let currentData = ''
   
   for (const line of lines) {
     if (line.startsWith('event:')) {
-      event = line.slice(6).trim()
+      currentEvent = line.slice(6).trim()
     } else if (line.startsWith('data:')) {
-      jsonData = line.slice(5).trim()
+      currentData = line.slice(5).trim()
+    } else if (line === '' && currentEvent && currentData) {
+      // Complete event found
+      try {
+        events.push({
+          event: currentEvent,
+          data: JSON.parse(currentData)
+        })
+      } catch (e) {
+        console.warn('Failed to parse SSE event:', currentData)
+      }
+      // Reset for next event
+      currentEvent = ''
+      currentData = ''
     }
   }
   
-  return { event, data: JSON.parse(jsonData) }
+  return events
 }
 ```
 
@@ -366,60 +502,59 @@ const sheetSize = useMediaQuery({
 - ⚠️ Sheet gesture conflicts with scroll
 - ⚠️ Safe area insets (iPhone notch)
 
-## Critical Failure Points & Mitigations
+## Critical Failure Points & Mitigations (Updated for V1)
 
-### 1. Authentication Failures
-**Issue:** JWT token expires during conversation  
-**Mitigation:** 
-- Implement token refresh before SSE connection
-- Store refresh token securely
-- Auto-retry with new token on 401
+### 1. Authentication Failures ✅ SOLVED
+**Old Issue:** JWT token expires during conversation  
+**V1 Solution:** HttpOnly session cookies eliminate token expiration issues
+- Cookies managed by browser automatically
+- No localStorage or token refresh needed
+- Session length controlled by backend
 
-### 2. SSE Connection Issues
-**Issue:** Proxy/CORS blocking SSE  
-**Mitigation:**
+### 2. Streaming Connection Issues ✅ MOSTLY SOLVED
+**Old Issue:** EventSource CORS/proxy complications  
+**V1 Solution:** fetch() POST with credentials:'include'
 ```typescript
-// Next.js proxy configuration
-// app/api/proxy/[...path]/route.ts modifications:
-export async function POST(request: Request) {
-  // Special handling for SSE
-  if (request.headers.get('accept') === 'text/event-stream') {
-    return new Response(stream, {
-      headers: {
-        'Content-Type': 'text/event-stream',
-        'Cache-Control': 'no-cache',
-        'Connection': 'keep-alive',
-        'X-Accel-Buffering': 'no' // Disable nginx buffering
-      }
-    })
+// Simplified proxy handling for fetch() streaming
+const response = await fetch('/api/proxy/chat/send', {
+  method: 'POST',
+  credentials: 'include', // Cookies sent automatically
+  headers: {
+    'Content-Type': 'application/json',
+    'Accept': 'text/event-stream'
   }
-}
+})
 ```
+**Remaining concern:** Nginx buffering in production (deployment checklist)
 
-### 3. State Synchronization
-**Issue:** Message history out of sync  
-**Mitigation:**
-- Optimistic updates with rollback
-- Message IDs for deduplication
-- Periodic sync with backend
+### 3. Message Deduplication ✅ SOLVED
+**Old Issue:** Duplicate/overlapping message processing  
+**V1 Solution:** Client-generated run_id + backend UUIDs
+- Frontend generates UUID for each message send
+- Backend conversation/message UUIDs prevent database duplicates  
+- Stream events tagged with run_id for client-side buffering
 
-### 4. Network Interruptions
+### 4. Network Interruptions (Simplified Mitigation)
 **Issue:** Lost messages during streaming  
-**Mitigation:**
-- Message sequence numbers
-- Automatic reconnection
-- Resume from last received message
+**V1 Mitigation:**
+- Simple retry with exponential backoff (3 attempts max)
+- Show "connection lost" indicator
+- No complex resume logic for V1 (full conversation reload on failure)
 
-### 5. Memory Leaks
-**Issue:** Unclosed SSE connections  
-**Mitigation:**
+### 5. Memory Leaks ✅ ADDRESSED
+**Issue:** Unclosed streaming connections  
+**V1 Solution:**
 ```typescript
+// Cleanup with AbortController
+const abortController = new AbortController()
+const response = await fetch('/api/proxy/chat/send', {
+  signal: abortController.signal,
+  // ... other options
+})
+
 // Cleanup on unmount
 useEffect(() => {
-  return () => {
-    eventSource?.close()
-    abortController?.abort()
-  }
+  return () => abortController?.abort()
 }, [])
 ```
 
@@ -534,32 +669,275 @@ useEffect(() => {
 - < 10% abandonment rate
 - > 4.0 satisfaction score
 
-## Timeline
+## 7.0 Timeline (Updated for V1.1 Simplified Approach)
 
-### Week 1
-- Day 1: Sheet UI implementation
-- Day 2: API integration
-- Day 3: SSE streaming
-- Day 4: Testing & bug fixes
-- Day 5: Mobile optimization
+### 7.1 Week 1 - V1.1 Implementation
+- **Day 1**: Switch authentication to HttpOnly cookies (modify auth endpoints)
+- **Day 2**: Split store architecture (8.1) + Implement fetch() streaming hook with run_id deduplication
+- **Day 3**: Connect existing ChatInterface UI to real backend endpoints  
+- **Day 4**: Client-side message queue (8.2) + error handling improvements
+- **Day 5**: Mobile input CSS fixes (8.3) + basic testing
 
-### Week 2
-- Refinement and polish
-- Performance optimization
-- Extended testing
-- Documentation
-- Deployment preparation
+### 7.2 Week 2 - Polish & Deploy  
+- **Day 1-2**: Fix bugs + Observability/debugging system (8.5) with trace IDs
+- **Day 3**: Create deployment checklist (8.4) for streaming infrastructure
+- **Day 4**: Performance testing with real conversations
+- **Day 5**: Deploy to staging, gather team feedback
 
-## Appendix: Code References
+**Key Simplifications for V1.1:**
+- ✅ No complex token refresh (cookies handle this)
+- ✅ No EventSource complications (fetch() streaming)
+- ✅ No custom pagination (use backend's limit=50)
+- ✅ Minimal reconnection logic (simple retry)
+- ✅ No virtual scrolling (fine for ~50 messages)
 
-### Existing Files to Modify
-- `/frontend/src/app/components/ChatInput.tsx` - Enhance to trigger Sheet
-- `/frontend/src/app/layout.tsx` - Add ChatInterface wrapper
-- `/frontend/src/services/portfolioService.ts` - Reuse auth pattern
+## 8.0 Additional Priority Features (From Feedback Review)
 
-### New Files to Create
-- `/frontend/src/components/chat/ChatInterface.tsx` - Main container
-- `/frontend/src/components/chat/ChatSheet.tsx` - Sheet wrapper
+### 8.1 Split Store Architecture (Week 1, Day 2)
+**Problem:** Mixing UI state and streaming state causes unnecessary re-renders  
+**Solution:** Split Zustand stores into persistent vs runtime data
+
+```typescript
+// chatStore.ts - Persistent data only
+interface ChatStore {
+  conversations: Conversation[]
+  messages: Record<string, Message[]>
+  currentConversationId: string | null
+  isSheetOpen: boolean
+}
+
+// streamStore.ts - Runtime state only  
+interface StreamStore {
+  isStreaming: boolean
+  currentRunId: string | null
+  streamBuffer: Map<string, string>
+  abortController: AbortController | null
+}
+```
+
+**Benefits:** Better performance, cleaner separation, easier debugging
+
+### 8.2 Client-Side Message Queue (Week 1, Day 4)
+**Problem:** Users can spam "send" button causing overlapping requests  
+**Solution:** Implement message queue with visual feedback
+
+```typescript
+class MessageQueue {
+  private queue: QueuedMessage[] = []
+  private processing = false
+  
+  async add(message: string) {
+    if (this.processing) {
+      this.queue.push({ message, status: 'queued' })
+      // Show "queued" badge in UI
+      return
+    }
+    await this.sendMessage(message)
+  }
+}
+```
+
+**Benefits:** Prevents backend overload, better UX, clear user feedback
+
+### 8.3 Mobile Input Handling (Week 1, Day 5)
+**Problem:** Mobile keyboards cover input field, poor mobile UX  
+**Solution:** CSS environment variables and scroll management
+
+```css
+.chat-input-container {
+  padding-bottom: env(safe-area-inset-bottom);
+  position: sticky;
+  bottom: 0;
+}
+
+.chat-input:focus {
+  scroll-margin-bottom: 20px;
+}
+
+/* iOS Safari specific fixes */
+@supports (-webkit-touch-callout: none) {
+  .chat-sheet {
+    height: calc(100vh - env(safe-area-inset-bottom));
+  }
+}
+```
+
+**Benefits:** Mobile-first experience, keyboard doesn't block input, iPhone notch support
+
+### 8.4 Deployment Checklist (Week 2, Day 3)
+**Problem:** Infrastructure defaults break SSE streaming in production  
+**Solution:** Comprehensive deployment checklist with nginx/proxy configs
+
+**Create:** `deployment/STREAMING_CHECKLIST.md`
+
+```nginx
+# nginx.conf for streaming endpoints
+location /api/v1/chat/send {
+    proxy_buffering off;
+    proxy_cache off;
+    proxy_set_header Connection '';
+    proxy_http_version 1.1;
+    proxy_read_timeout 300s;
+    proxy_send_timeout 300s;
+}
+
+# Cloudflare settings
+- Disable "Rocket Loader" for streaming endpoints
+- Set "Browser Cache TTL" to "Respect Existing Headers"
+- Enable "Always Online" = OFF for real-time endpoints
+```
+
+**Additional Items:**
+- Environment-specific CORS settings
+- CDN/proxy buffer configurations  
+- Timeout configurations (2+ minutes)
+- Heartbeat intervals (≤15 seconds)
+- Production monitoring setup
+
+**Benefits:** Prevents production streaming failures, systematic deployment process
+
+### 8.5 Observability & Debugging (Week 2, Day 1-2)
+**Problem:** No way to debug when users report "it stopped working"  
+**Solution:** Comprehensive trace IDs using existing backend ID system + structured logging
+
+**Backend IDs Already Available:**
+```typescript
+// From backend agent system
+interface TraceContext {
+  conversation_id: string  // Backend conversation UUID
+  message_id: string       // Backend message UUID  
+  request_id: string       // Tool execution UUID (auto-generated)
+  user_id: string         // User UUID
+  run_id?: string         // Client-generated for dedup
+}
+```
+
+**Frontend Implementation:**
+```typescript
+// Enhanced logging with trace context
+class ChatLogger {
+  static debug(event: string, context: TraceContext, data?: any) {
+    const traceId = `${context.conversation_id.slice(0,8)}-${context.message_id?.slice(0,8) || 'none'}`
+    
+    console.debug(`[Chat:${event}]`, {
+      traceId,
+      timestamp: new Date().toISOString(),
+      conversation_id: context.conversation_id,
+      message_id: context.message_id,
+      request_id: context.request_id,
+      run_id: context.run_id,
+      ...data
+    })
+  }
+  
+  static error(error: Error, context: TraceContext, retryable: boolean) {
+    const errorEvent = {
+      error: error.message,
+      stack: error.stack,
+      retryable,
+      ...context
+    }
+    
+    console.error('[Chat:Error]', errorEvent)
+    
+    // Send to monitoring in production
+    if (process.env.NODE_ENV === 'production') {
+      // analytics.track('chat_error', errorEvent)
+    }
+  }
+}
+
+// Usage in streaming hook
+const streamMessage = async (text: string) => {
+  const runId = uuidv4()
+  const context = {
+    conversation_id: currentConversation.id,
+    message_id: null, // Will be set when message is created
+    request_id: null, // Backend generates this
+    user_id: currentUser.id,
+    run_id: runId
+  }
+  
+  ChatLogger.debug('stream_start', context, { text_length: text.length })
+  
+  try {
+    // ... streaming logic
+    ChatLogger.debug('stream_complete', context, { tokens: response.tokens })
+  } catch (error) {
+    ChatLogger.error(error, context, error.retryable || false)
+  }
+}
+```
+
+**Error Classification:**
+```typescript
+interface ErrorDetails {
+  code: string
+  retryable: boolean
+  category: 'network' | 'auth' | 'server' | 'client' | 'rate_limit'
+  context: TraceContext
+}
+
+// Distinguish error types for better debugging
+const classifyError = (error: any): ErrorDetails => {
+  if (error.status === 401) {
+    return { code: 'AUTH_EXPIRED', retryable: false, category: 'auth' }
+  }
+  if (error.status === 429) {
+    return { code: 'RATE_LIMITED', retryable: true, category: 'rate_limit' }
+  }
+  if (error.name === 'NetworkError') {
+    return { code: 'NETWORK_ERROR', retryable: true, category: 'network' }
+  }
+  // ... more classifications
+}
+```
+
+**Development Debugging:**
+```typescript
+// Add to chat store for debugging
+interface DebugStore {
+  lastError: ErrorDetails | null
+  requestHistory: TraceContext[]
+  streamingEvents: SSEEvent[]
+  
+  // Actions
+  addTraceEvent: (context: TraceContext, event: string) => void
+  getDebugInfo: () => DebugInfo
+}
+
+// Debug panel (development only)
+const DebugPanel = () => (
+  <div className="debug-panel">
+    <h3>Chat Debug Info</h3>
+    <pre>{JSON.stringify(useDebugStore().getDebugInfo(), null, 2)}</pre>
+  </div>
+)
+```
+
+**Benefits:** 
+- Complete request traceability using existing backend UUIDs
+- Distinguish retryable vs fatal errors  
+- Development debugging tools
+- Production error monitoring ready
+- No new backend changes needed (leverages existing ID system)
+
+## 9.0 V1 Code References (Updated)
+
+### 9.1 Files Already Implemented ✅
+- `/frontend/src/components/chat/ChatInterface.tsx` - Sheet UI complete
+- `/frontend/src/stores/chatStore.ts` - State management done  
+- `/frontend/src/app/components/ChatInput.tsx` - Input component ready
+
+### 9.2 Files to Create 🔨
+- `/frontend/src/hooks/useFetchStreaming.ts` - fetch() streaming implementation
+- `/frontend/src/services/chatService.ts` - Cookie-based API client  
+- `/frontend/src/stores/streamStore.ts` - Separate streaming state store (8.1)
+- `/frontend/src/hooks/useMessageQueue.ts` - Message queue management (8.2)
+- `/frontend/src/styles/mobile-chat.css` - Mobile input handling styles (8.3)
+- `/deployment/STREAMING_CHECKLIST.md` - Production deployment guide (8.4)
+- `/frontend/src/utils/chatLogger.ts` - Observability with trace IDs (8.5)
+- `/frontend/src/stores/debugStore.ts` - Development debugging tools (8.5)
 - `/frontend/src/components/chat/MessageList.tsx` - Message display
 - `/frontend/src/components/chat/MessageBubble.tsx` - Individual messages
 - `/frontend/src/components/chat/ToolExecution.tsx` - Tool status

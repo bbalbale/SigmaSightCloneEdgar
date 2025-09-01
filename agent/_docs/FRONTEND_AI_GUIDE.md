@@ -203,16 +203,31 @@ const useChatStore = create((set) => ({
 
 ## Error Handling
 
-### Network Errors
+### V1.1 Enhanced Error Taxonomy
 ```javascript
 try {
   const response = await fetch(...);
   if (!response.ok) {
     const error = await response.json();
-    // Handle: { detail: "Error message" }
+    
+    // V1.1: Error taxonomy with UI behaviors
+    switch (response.status) {
+      case 429: // RATE_LIMITED
+        showError('Rate limited. Retrying in 30s...', { retry: true, delay: 30000 });
+        break;
+      case 401: // AUTH_EXPIRED  
+        showError('Session expired', { retry: false, redirect: '/login' });
+        break;
+      case 500: // SERVER_ERROR
+        showError('Server issue. Retrying...', { retry: true, delay: 10000 });
+        break;
+      default:
+        showError(error.detail || 'Request failed');
+    }
   }
 } catch (err) {
-  // Network error - show retry UI
+  // NETWORK_ERROR
+  showError('Connection issue. Retrying...', { retry: true, delay: 5000 });
 }
 ```
 

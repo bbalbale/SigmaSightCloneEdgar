@@ -1,6 +1,13 @@
 # SSE Streaming Implementation Guide
 
+> **Updated for V1.1 Chat Implementation - fetch() POST Streaming**  
 > **Complete implementation patterns for Server-Sent Events in React/Next.js**
+
+**V1.1 Updates**:
+- Migrated from EventSource to fetch() POST for better control and JSON payloads
+- Added HttpOnly cookie authentication support
+- Enhanced error handling with retryable taxonomy
+- Added run_id for event deduplication
 
 ## Overview
 
@@ -8,7 +15,7 @@ The SigmaSight API uses Server-Sent Events (SSE) for streaming chat responses. U
 
 ## Basic SSE Implementation
 
-### React Hook for SSE
+### React Hook for fetch() POST Streaming (V1.1)
 
 ```typescript
 import { useRef, useCallback, useEffect } from 'react';
@@ -37,6 +44,7 @@ export function useSSE(options: UseSSEOptions = {}) {
 
   const connect = useCallback(async (
     url: string,
+    payload: Record<string, any>,
     headers: Record<string, string> = {}
   ) => {
     // Cancel any existing connection
@@ -49,11 +57,12 @@ export function useSSE(options: UseSSEOptions = {}) {
         headers: {
           'Accept': 'text/event-stream',
           'Cache-Control': 'no-cache',
+          'Content-Type': 'application/json',
           ...headers
         },
+        credentials: 'include', // V1.1: HttpOnly cookies
         signal: abortControllerRef.current.signal,
-        body: headers['Content-Type']?.includes('json') ? 
-          JSON.stringify(headers.body) : undefined
+        body: JSON.stringify(payload)
       });
 
       if (!response.ok) {
@@ -285,15 +294,21 @@ export function useChat(conversationId: string, token: string) {
     setMessages(prev => [...prev, userMessage]);
     setError(null);
 
-    // Start SSE connection
-    await connect('http://localhost:8000/api/v1/chat/send', {
-      'Authorization': `Bearer ${token}`,
-      'Content-Type': 'application/json',
-      body: JSON.stringify({
+    // V1.1: Generate run_id for deduplication
+    const runId = crypto.randomUUID();
+
+    // Start SSE connection with fetch() POST
+    await connect(
+      'http://localhost:8000/api/v1/chat/send',
+      {
         conversation_id: conversationId,
-        text
-      })
-    });
+        text,
+        run_id: runId // V1.1: Client-generated for dedup
+      },
+      {
+        'Authorization': `Bearer ${token}` // Fallback for JWT
+      }
+    );
   }, [conversationId, token, connect]);
 
   const stopStreaming = useCallback(() => {

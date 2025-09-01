@@ -1,5 +1,14 @@
 # API Contracts & TypeScript Interfaces
 
+> **Updated for V1.1 Chat Implementation - Enhanced Events & Auth**
+
+**V1.1 Updates**:
+- **Authentication**: Mixed strategy (JWT + HttpOnly cookies)
+- **SSE Events**: Enhanced with run_id and sequence numbering
+- **Error Taxonomy**: Retryable classification added
+- **Message Queue**: Run-time state management
+- **Performance Metrics**: TTFB and tokens-per-second tracking
+
 ## Authentication Types
 
 ```typescript
@@ -76,6 +85,7 @@ interface ConversationSummary {
 interface SendMessageRequest {
   conversation_id: string;
   text: string;
+  run_id?: string; // V1.1: Client-generated for deduplication
 }
 
 interface Message {
@@ -101,17 +111,21 @@ interface MessageHistoryResponse {
 ## SSE Event Types
 
 ```typescript
-// Base SSE Event
+// V1.1 Enhanced SSE Event with sequencing
 interface SSEEvent<T = any> {
   event: string;
   data: T;
+  run_id?: string; // V1.1: For event deduplication
+  sequence?: number; // V1.1: For event ordering
 }
 
-// Start Event
+// V1.1 Enhanced Start Event
 interface SSEStartData {
   conversation_id: string;
   mode: ConversationMode;
   model: string;  // e.g., "gpt-4o"
+  run_id: string; // V1.1: For tracing this request
+  timestamp: string; // V1.1: ISO 8601 with Z
 }
 
 // Message Event (streaming text)
@@ -141,11 +155,13 @@ interface SSEDoneData {
   latency_ms?: number;
 }
 
-// Error Event
+// V1.1 Enhanced Error Event with taxonomy
 interface SSEErrorData {
   message: string;
   code?: string;
   retryable: boolean;
+  error_type: 'RATE_LIMITED' | 'AUTH_EXPIRED' | 'NETWORK_ERROR' | 'SERVER_ERROR' | 'CLIENT_ERROR'; // V1.1
+  retry_delay_ms?: number; // V1.1: Suggested delay
   details?: any;
 }
 
@@ -215,7 +231,7 @@ interface ToolResponse<T = any> {
 }
 ```
 
-## API Client Class Example
+## V1.1 API Client with Mixed Auth
 
 ```typescript
 class SigmaSightAPI {
@@ -226,6 +242,7 @@ class SigmaSightAPI {
     const response = await fetch(`${this.baseURL}/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
+      credentials: 'include', // V1.1: Sets HttpOnly cookies
       body: JSON.stringify({ email, password })
     });
     
@@ -250,17 +267,21 @@ class SigmaSightAPI {
   async sendMessage(
     conversationId: string, 
     text: string,
-    onEvent: (event: SSEEventData) => void
+    onEvent: (event: SSEEventData) => void,
+    runId?: string // V1.1: Optional client-generated ID
   ): Promise<void> {
     const response = await fetch(`${this.baseURL}/chat/send`, {
       method: 'POST',
       headers: {
-        ...this.getHeaders(),
-        'Accept': 'text/event-stream'
+        'Content-Type': 'application/json',
+        'Accept': 'text/event-stream',
+        ...(this.token && { 'Authorization': `Bearer ${this.token}` }) // V1.1: Fallback
       },
+      credentials: 'include', // V1.1: HttpOnly cookies
       body: JSON.stringify({
         conversation_id: conversationId,
-        text
+        text,
+        run_id: runId || crypto.randomUUID() // V1.1: Deduplication
       })
     });
 
