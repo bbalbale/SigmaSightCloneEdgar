@@ -5,9 +5,51 @@
 **Target:** SigmaSight Portfolio Chat Assistant  
 **Reference:** `_docs/requirements/CHAT_IMPLEMENTATION_PLAN.md`
 
+## 🎯 Current Implementation Status
+
+### ✅ What's Currently Working
+- **Portfolio System**: Fully functional with real backend data integration
+- **Authentication**: JWT-based auth working for portfolio APIs (`demo_growth@sigmasight.com` / `demo12345`)
+- **Backend Agent System**: 100% complete with OpenAI GPT-4o integration and 6 function tools
+- **Chat UI Foundation**: Sheet overlay pattern implemented with mock responses
+- **Next.js Proxy**: CORS proxy setup for development (`/api/proxy/[...path]`)
+
+### 🔧 Development Environment Setup
+**Backend Prerequisites:**
+- **Backend Server**: Must be running on `localhost:8000` (`cd ../backend && uv run python run.py`)
+- **Database**: PostgreSQL via Docker (`docker-compose up -d`)
+- **Agent Tables**: `agent_conversations` and `agent_messages` tables exist and ready
+- **OpenAI Integration**: GPT-4o configured with portfolio analysis tools
+- **Demo Data**: 3 portfolios with 63 positions loaded for testing
+
+**Frontend Prerequisites:**  
+- **Development Server**: Running on port 3005 (`npm run dev`)
+- **Portfolio Page**: `http://localhost:3005/portfolio?type=high-net-worth` (working with real data)
+- **Chat Interface**: Accessible via sheet overlay from portfolio page (currently mock responses)
+
+### 🚀 Ready for V1.1 Implementation
+**Next Immediate Action**: Section 1.0 Authentication Migration
+- Replace JWT localStorage with HttpOnly cookies for chat streaming
+- Enable `credentials: 'include'` for fetch() POST streaming
+- Backend login endpoint ready to set both JWT + HttpOnly cookies
+- Backend chat endpoints ready to validate both Bearer tokens and cookies
+
+**V1.1 Architectural Decisions Finalized:**
+- **Streaming**: fetch() POST with manual SSE parsing (not EventSource)
+- **Authentication**: Mixed strategy - JWT for portfolio, HttpOnly cookies for chat
+- **State Management**: Split architecture - `chatStore` (persistent) + `streamStore` (runtime)
+- **Message Queue**: One in-flight per conversation with queue cap=1
+- **Error Taxonomy**: Enhanced with retryable classification (RATE_LIMITED, AUTH_EXPIRED, etc.)
+
+**Demo Testing Context:**
+- **User**: `demo_growth@sigmasight.com` / `demo12345`
+- **Portfolio ID**: Maps to actual portfolio data in backend
+- **Chat Modes**: 4 conversation modes ready (/mode green|blue|indigo|violet)
+- **Working Endpoints**: All 6 Raw Data APIs function properly for AI agent tools
+
 ## Overview
 
-This TODO tracks the implementation of the chat functionality based on the comprehensive Chat Implementation Plan V1.1. The plan includes 5 high-priority feedback features integrated into a 2-week implementation timeline.
+This TODO tracks the implementation of the chat functionality based on the comprehensive Chat Implementation Plan V1.1. All architectural decisions have been finalized and backend integration is complete. The focus is now on frontend implementation to connect the working UI components with the ready backend chat system.
 
 ## Current Status
 
@@ -29,16 +71,16 @@ This TODO tracks the implementation of the chat functionality based on the compr
 - ✅ **OpenAI Integration** - GPT-4o with 6 portfolio analysis function tools
 - ✅ **SSE Infrastructure** - Server-sent events with heartbeats ready
 
-## 🚀 **WEEK 1 - V1.1 Implementation**
+## 1.0 **V1.1 Implementation**
 
-### **Day 1: Authentication Migration** ⏳
-- [ ] **2.1** Switch from JWT localStorage to HttpOnly cookies
-  - [ ] **2.1.1** Create cookie-based auth service (`src/services/chatAuthService.ts`)
-  - [ ] **2.1.2** Modify login flow to set HttpOnly cookies
-  - [ ] **2.1.3** Update API proxy to forward cookies correctly
-  - [ ] **2.1.4** Test cookie auth with `/api/v1/auth/me` endpoint
-  - [ ] **2.1.5** Implement logout with cookie clearing
-  - [ ] **2.1.6** Test authentication persistence across browser refresh
+### 1.1 **Authentication Migration**
+- [ ] **1.1.1** Switch from JWT localStorage to HttpOnly cookies
+  - [ ] **1.1.1.1** Create cookie-based auth service (`src/services/chatAuthService.ts`)
+  - [ ] **1.1.1.2** Modify login flow to set HttpOnly cookies
+  - [ ] **1.1.1.3** Update API proxy to forward cookies correctly
+  - [ ] **1.1.1.4** Test cookie auth with `/api/v1/auth/me` endpoint
+  - [ ] **1.1.1.5** Implement logout with cookie clearing
+  - [ ] **1.1.1.6** Test authentication persistence across browser refresh
 
 ### **Day 2: Split Store Architecture + Streaming** ⏳
 - [ ] **8.1** Split Store Architecture (From Feedback)
