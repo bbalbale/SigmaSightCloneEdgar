@@ -120,6 +120,7 @@ export function ChatInterface({ className }: ChatInterfaceProps) {
     
     // Ensure we have a conversation on the backend
     let conversationId = currentConversationId
+    
     if (!conversationId) {
       try {
         // Create conversation on backend first
@@ -153,7 +154,7 @@ export function ChatInterface({ className }: ChatInterfaceProps) {
     addMessage({
       conversationId,
       role: 'assistant',
-      content: '', // Will be updated as stream comes in
+      content: 'Thinking...', // Show placeholder text while streaming
     })
     
     try {
@@ -196,7 +197,7 @@ export function ChatInterface({ className }: ChatInterfaceProps) {
         onDone: (finalText: string) => {
           if (currentAssistantMessageId.current) {
             updateMessage(currentAssistantMessageId.current, {
-              content: finalText,
+              content: finalText || 'No response received.',
               runId,
             })
           }
@@ -205,6 +206,22 @@ export function ChatInterface({ className }: ChatInterfaceProps) {
       })
     } catch (error: any) {
       console.error('Failed to send message:', error)
+      
+      // If we get a 422 error, the conversation doesn't exist on backend
+      // Clear the local conversation and prompt user to try again
+      if (error.detail && conversationId && conversationId.startsWith('conv_')) {
+        // Clear the invalid local conversation
+        setOpen(false)
+        setTimeout(() => {
+          // Reset the chat store completely
+          const { reset } = useChatStore.getState()
+          reset()
+          setOpen(true)
+        }, 100)
+        
+        return
+      }
+      
       if (currentAssistantMessageId.current) {
         updateMessage(currentAssistantMessageId.current, {
           content: 'Failed to send message. Please try again.',
