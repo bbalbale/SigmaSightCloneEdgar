@@ -187,18 +187,27 @@ async def send_message(
     )
     session.add(assistant_message)
     
-    await session.commit()
-    await session.refresh(user_message)
-    await session.refresh(assistant_message)
+    # Use transaction to ensure both messages created or neither
+    try:
+        await session.commit()
+        await session.refresh(user_message)
+        await session.refresh(assistant_message)
+    except Exception as e:
+        await session.rollback()
+        logger.error(f"Failed to create messages: {e}")
+        yield f"event: error\n"
+        yield f"data: {{\"error\": \"Failed to create messages\"}}\n\n"
+        return
     
     # EMIT message_created event with both IDs
+    # SSE Format Specification:
     yield f"event: message_created\n"
-    yield f"data: {{\n"
-    yield f"  \"user_message_id\": \"{user_message.id}\",\n"
-    yield f"  \"assistant_message_id\": \"{assistant_message.id}\",\n"
-    yield f"  \"conversation_id\": \"{request.conversation_id}\",\n"
-    yield f"  \"run_id\": \"{run_id}\"\n"
-    yield f"}}\n\n"
+    yield f"data: {json.dumps({\n"
+    yield f"  'user_message_id': str(user_message.id),\n"
+    yield f"  'assistant_message_id': str(assistant_message.id),\n"
+    yield f"  'conversation_id': str(request.conversation_id),\n"
+    yield f"  'run_id': run_id\n"
+    yield f"})}\n\n"
     
     # Track metrics
     first_token_time = None
@@ -386,7 +395,40 @@ const handleSendMessage = async () => {
 };
 ```
 
-#### C. Update Stream Store for Backend Coordination
+#### C. Frontend SSE Parsing Logic
+**File**: `frontend/src/components/chat/ChatInterface.tsx` (MODIFY EXISTING)
+
+```typescript
+// Parse message_created event to get backend IDs
+const reader = response.body?.getReader();
+const decoder = new TextDecoder();
+
+while (reader) {
+  const { done, value } = await reader.read();
+  if (done) break;
+  
+  const chunk = decoder.decode(value);
+  const lines = chunk.split('\n');
+  
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim();
+    
+    if (line.startsWith('event: message_created')) {
+      // Next line should be data
+      const dataLine = lines[i + 1];
+      if (dataLine?.startsWith('data: ')) {
+        const data = JSON.parse(dataLine.substring(6));
+        const { user_message_id, assistant_message_id, run_id } = data;
+        
+        // Use these IDs for all subsequent operations
+        streamStore.startStreaming(conversationId, run_id, assistant_message_id);
+      }
+    }
+  }
+}
+```
+
+#### D. Update Stream Store for Backend Coordination
 **File**: `frontend/src/stores/streamStore.ts` (MODIFY EXISTING)
 
 ```typescript

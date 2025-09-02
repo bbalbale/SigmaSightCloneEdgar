@@ -2010,7 +2010,8 @@ See `backend/OPENAI_STREAMING_BUG_REPORT.md` for the detailed implementation out
 ### 10.1 Backend Message ID Management (Day 12) ⏳ **IN PROGRESS**
 - [ ] **10.1.1** Create Messages Upfront and Emit IDs ⚠️ **CRITICAL**
   - [ ] Create both user and assistant messages before streaming
-  - [ ] Emit "event: message_created" with both message IDs
+  - [ ] Use database transaction to ensure both created or neither (rollback on failure)
+  - [ ] Emit "event: message_created" with proper JSON format for IDs
   - [ ] Include run_id and conversation_id in message_created event
   - [ ] Update assistant message content during streaming
   - **Files**: `backend/app/api/v1/chat/send.py` lines 127-137
