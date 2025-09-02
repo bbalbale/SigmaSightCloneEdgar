@@ -15,7 +15,7 @@ class ConversationCreate(AgentBaseSchema):
 
 class ConversationResponse(AgentBaseSchema):
     """Response schema for conversation creation"""
-    conversation_id: UUID
+    id: UUID
     mode: str
     created_at: datetime
     provider: str = "openai"
@@ -44,7 +44,7 @@ class ModeChangeRequest(AgentBaseSchema):
 
 class ModeChangeResponse(AgentBaseSchema):
     """Response schema for mode change"""
-    conversation_id: UUID
+    id: UUID
     previous_mode: str
     new_mode: str
     changed_at: datetime

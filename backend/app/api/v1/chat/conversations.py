@@ -60,7 +60,7 @@ async def create_conversation(
         logger.info(f"Created conversation {conversation.id} for user {current_user.id}")
         
         return ConversationResponse(
-            conversation_id=conversation.id,
+            id=conversation.id,
             mode=conversation.mode,
             created_at=conversation.created_at,
             provider=conversation.provider,
@@ -112,7 +112,7 @@ async def get_conversation(
             )
         
         return ConversationResponse(
-            conversation_id=conversation.id,
+            id=conversation.id,
             mode=conversation.mode,
             created_at=conversation.created_at,
             provider=conversation.provider,
@@ -160,7 +160,7 @@ async def list_conversations(
         
         return [
             ConversationResponse(
-                conversation_id=conv.id,
+                id=conv.id,
                 mode=conv.mode,
                 created_at=conv.created_at,
                 provider=conv.provider,
@@ -223,7 +223,7 @@ async def change_conversation_mode(
         logger.info(f"Changed mode for conversation {conversation_id} from {previous_mode} to {request.mode}")
         
         return ModeChangeResponse(
-            conversation_id=conversation.id,
+            id=conversation.id,
             previous_mode=previous_mode,
             new_mode=request.mode,
             changed_at=conversation.updated_at

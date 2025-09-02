@@ -533,13 +533,18 @@ This implementation follows an **automated test-driven development cycle** using
     - [x] Includes id, name, total_value, created_at, updated_at, position_count ✅
     - [x] Proper user filtering for security ✅
     - [x] Updated frontend to use new endpoint (removed hints) ✅
-  - [ ] **3.0.5** Fix API ID field inconsistency ❗ **Backend Task**
-    - [ ] **Issue**: Chat endpoints return `conversation_id` instead of standard `id` field
-    - [ ] **Analysis**: Documented in `/frontend/API_INCONSISTENCIES.md` - confirmed zero semantic risk
-    - [ ] **Backend Work**: Tracked in `/agent/TODO.md` § "API Consistency Fix - Conversation ID Field Naming"
-    - [ ] **Frontend Cleanup**: Remove defensive coding (`response.id || response.conversation_id`)
-    - [ ] **Benefits**: REST compliance, cleaner code, consistent API design
-    - [ ] **Cross-Reference**: See `/agent/TODO.md` for implementation details
+  - [x] **3.0.5** Fix API ID field inconsistency ✅ **COMPLETED**
+    - [x] **Issue**: Chat endpoints return `conversation_id` instead of standard `id` field ✅
+    - [x] **Analysis**: Documented in `/frontend/API_INCONSISTENCIES.md` - confirmed zero semantic risk ✅
+    - [x] **Backend Work**: Tracked in `/agent/TODO.md` § "API Consistency Fix - Conversation ID Field Naming" ✅
+      - Changed `ConversationResponse` schema from `conversation_id` to `id`
+      - Updated all response constructions in `conversations.py`
+      - Tested all endpoints - working correctly
+    - [x] **Frontend Cleanup**: Remove defensive coding (`response.id || response.conversation_id`) ✅
+      - Updated `test-chat-service.js` to use only `id` field
+      - Removed fallback logic for `conversation_id`
+    - [x] **Benefits**: REST compliance, cleaner code, consistent API design ✅
+    - [x] **Cross-Reference**: See `/agent/TODO.md` for implementation details ✅
 
 - [x] **3.1** Create Chat Service ✅ COMPLETED
   - [x] **3.1.1** Build `chatService.ts` with cookie-based API client ✅

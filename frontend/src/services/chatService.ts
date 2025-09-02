@@ -22,7 +22,7 @@ interface Conversation {
 
 interface Message {
   id: string
-  conversation_id: string
+  conversation_id: string  // Keep for backward compatibility in message data
   role: 'user' | 'assistant' | 'system'
   content: string
   created_at: string
@@ -239,7 +239,7 @@ class ChatService {
         },
         credentials: 'include',
         body: JSON.stringify({
-          conversation_id: conversationId,
+          conversation_id: conversationId,  // Backend expects this field name for message requests
           text,
           ...(metadata && { metadata })
         }),

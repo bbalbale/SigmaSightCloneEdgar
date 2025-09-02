@@ -47,7 +47,7 @@ async function testChatService() {
   }
   
   const conversation = await createResponse.json();
-  const conversationId = conversation.id || conversation.conversation_id;
+  const conversationId = conversation.id;
   console.log(`✅ Created conversation: ${conversationId}`);
   console.log(`   Mode: ${conversation.mode}\n`);
   
@@ -90,7 +90,7 @@ async function testChatService() {
     if (conversations.length > 0) {
       console.log('   Recent conversations:');
       conversations.slice(0, 3).forEach(conv => {
-        const id = conv.id || conv.conversation_id || 'unknown';
+        const id = conv.id || 'unknown';
         console.log(`   - ${String(id).substring(0, 8)}... (mode: ${conv.mode})`);
       });
     }
