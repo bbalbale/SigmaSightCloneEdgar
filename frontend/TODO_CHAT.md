@@ -592,6 +592,16 @@ This implementation follows an **automated test-driven development cycle** using
     - Backend integration working (conversation creation, mode switching)
     - SSE streaming functional but OpenAI integration has JSON parsing issue
     - Ready for frontend testing despite OpenAI error (will show error state)
+    
+  - **OpenAI Streaming Error Details:**
+    - **Error**: `OpenAI streaming error: Expecting value: line 1 column 1 (char 0)`
+    - **Location**: Backend `/app/agent/services/openai_service.py`
+    - **Cause**: Backend is attempting to JSON parse OpenAI's streaming response incorrectly
+    - **Impact**: Chat messages fail to stream, but error is caught and sent to frontend
+    - **Frontend Handling**: Error state properly displayed to users with retry options
+    - **Fix Required**: Backend needs to handle OpenAI's SSE format properly (likely parsing issue with `data: [DONE]` or chunk boundaries)
+    - **Workaround**: Frontend gracefully handles the error, shows appropriate message to user
+    - **Test Result**: SSE infrastructure works (events flow properly), just OpenAI parsing needs fix
 
 ### 4. **Message Queue + Error Handling**
 
