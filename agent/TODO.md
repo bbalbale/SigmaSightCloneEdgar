@@ -2050,7 +2050,23 @@ See `backend/OPENAI_STREAMING_BUG_REPORT.md` for the detailed implementation out
   - **Risk**: Low - Enhances debugging capabilities
 
 ### 10.2 Frontend Store Modifications (Day 12-13) ⏳ **IN PROGRESS**
-- [ ] **10.2.1** Remove Frontend ID Generation
+- [ ] **10.2.1** Design and Build Comprehensive Tests ⚠️ **DO FIRST - RISK MITIGATION**
+  - [ ] Create test plan document for all 10.2 changes
+  - [ ] Build unit tests for ID coordination logic
+  - [ ] Create integration tests for SSE message_created event handling
+  - [ ] Implement E2E tests for complete chat flow with backend IDs
+  - [ ] Add rollback tests to verify safe reversion if needed
+  - [ ] Create performance tests to ensure no degradation
+  - [ ] Document expected behaviors and edge cases
+  - **Files**: 
+    - `frontend/src/stores/__tests__/chatStore.test.ts` (NEW)
+    - `frontend/src/stores/__tests__/streamStore.test.ts` (NEW)
+    - `frontend/src/components/chat/__tests__/ChatInterface.test.tsx` (NEW)
+    - `agent/_docs/testing/PHASE_10_2_TEST_PLAN.md` (NEW)
+  - **Purpose**: Validate all changes before implementation, ensure safe rollback
+  - **Risk**: Zero - Pure testing, no production changes
+
+- [ ] **10.2.2** Remove Frontend ID Generation
   - [ ] Modify `chatStore.ts` addMessage to call backend API for ID generation
   - [ ] Remove all fallback ID generation logic
   - [ ] Update addMessage to be async and return backend-provided ID
@@ -2058,7 +2074,7 @@ See `backend/OPENAI_STREAMING_BUG_REPORT.md` for the detailed implementation out
   - **Files**: `frontend/src/stores/chatStore.ts` (MODIFY EXISTING)
   - **Risk**: High - Removes existing functionality, requires careful testing
 
-- [ ] **10.2.2** Update Chat Interface for Backend Coordination
+- [ ] **10.2.3** Update Chat Interface for Backend Coordination
   - [ ] Modify `ChatInterface.tsx` to parse message IDs from SSE events
   - [ ] Update streaming logic to use backend-provided assistant message ID
   - [ ] Remove frontend message creation, rely on SSE message_created events
@@ -2066,7 +2082,7 @@ See `backend/OPENAI_STREAMING_BUG_REPORT.md` for the detailed implementation out
   - **Files**: `frontend/src/components/chat/ChatInterface.tsx` (MODIFY EXISTING)
   - **Risk**: High - Changes core streaming logic
 
-- [ ] **10.2.3** Update Stream Store for Backend Coordination
+- [ ] **10.2.4** Update Stream Store for Backend Coordination
   - [ ] Remove frontend run ID generation from `streamStore.ts`
   - [ ] Use backend-provided message ID as buffer key instead of run ID
   - [ ] Add currentMessageId tracking to coordinate with chatStore
