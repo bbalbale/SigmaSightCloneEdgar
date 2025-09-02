@@ -77,6 +77,15 @@ This TODO tracks the implementation of the chat functionality based on the compr
 
 This implementation follows an **automated test-driven development cycle** using MCP agents:
 
+#### 🚨 **CRITICAL CONSTRAINTS - DO NOT VIOLATE**
+- **❌ NO BACKEND CHANGES**: Do not modify ANY code in `/backend/` or `/agent/` folders without explicit user approval
+- **❌ NO DATABASE CHANGES**: Do not create or modify database tables without explicit user approval
+  - If approved, MUST use Alembic migrations (`alembic revision --autogenerate`)
+  - Never create tables manually or modify schema directly
+- **❌ NO MODEL CHANGES**: Do not modify existing data models used by `/backend/` and `/agent/` without approval
+  - This includes Pydantic schemas, SQLAlchemy models, and API contracts
+- **✅ FRONTEND ONLY**: This implementation is frontend-only, connecting to existing backend APIs
+
 #### Development Loop Process:
 1. **Plan** → Define feature requirements and acceptance criteria
 2. **Test First** → Write failing automated tests using MCP tools (Playwright/Puppeteer)
