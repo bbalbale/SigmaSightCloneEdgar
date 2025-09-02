@@ -28,6 +28,50 @@ router = APIRouter(prefix="/data", tags=["raw-data"])
 
 # Portfolio Raw Data Endpoints
 
+@router.get("/portfolios")
+async def get_user_portfolios(
+    current_user: CurrentUser = Depends(get_current_user),
+    db: AsyncSession = Depends(get_async_session)
+):
+    """
+    Get list of portfolios for the authenticated user.
+    
+    Returns:
+        List of portfolios with basic information (id, name, total_value, created_at)
+        
+    Note: Currently each user has exactly one portfolio, but this endpoint
+    returns a list for future compatibility.
+    """
+    async with db as session:
+        # Get all portfolios for the current user with positions loaded
+        stmt = select(Portfolio).where(
+            Portfolio.user_id == (UUID(str(current_user.id)) if not isinstance(current_user.id, UUID) else current_user.id)
+        ).options(selectinload(Portfolio.positions))
+        
+        result = await session.execute(stmt)
+        portfolios = result.scalars().all()
+        
+        # Format response
+        portfolio_list = []
+        for portfolio in portfolios:
+            # Calculate total value (sum of all positions)
+            total_value = 0
+            if portfolio.positions:
+                for position in portfolio.positions:
+                    if position.last_price and position.quantity:
+                        total_value += float(position.last_price) * float(position.quantity)
+            
+            portfolio_list.append({
+                "id": str(portfolio.id),
+                "name": portfolio.name,
+                "total_value": total_value,
+                "created_at": to_utc_iso8601(portfolio.created_at) if portfolio.created_at else None,
+                "updated_at": to_utc_iso8601(portfolio.updated_at) if portfolio.updated_at else None,
+                "position_count": len(portfolio.positions) if portfolio.positions else 0
+            })
+        
+        return portfolio_list
+
 @router.get("/portfolio/{portfolio_id}/complete")
 async def get_portfolio_complete(
     portfolio_id: UUID,
