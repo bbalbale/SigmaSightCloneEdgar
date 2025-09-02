@@ -34,6 +34,8 @@ class OpenAIService:
         self.prompt_manager = PromptManager()
         self.model = settings.MODEL_DEFAULT
         self.fallback_model = settings.MODEL_FALLBACK
+        # Track tool call IDs for correlation between OpenAI and our system
+        self.tool_call_id_map: Dict[str, Dict[str, Any]] = {}
         
     def _get_tool_definitions(self) -> List[ChatCompletionToolParam]:
         """Convert our tool definitions to OpenAI format"""
@@ -367,6 +369,8 @@ class OpenAIService:
                         tool_call_id = tool_call_delta.id
                         
                         if tool_call_id not in tool_call_chunks:
+                            # Log new tool call ID for tracking
+                            logger.debug(f"🔧 New tool call started - OpenAI ID: {tool_call_id}")
                             tool_call_chunks[tool_call_id] = {
                                 "id": tool_call_id,
                                 "type": "function",
@@ -374,6 +378,14 @@ class OpenAIService:
                                     "name": tool_call_delta.function.name if tool_call_delta.function else "",
                                     "arguments": ""
                                 }
+                            }
+                            # Track in ID mapping for correlation
+                            self.tool_call_id_map[tool_call_id] = {
+                                "openai_id": tool_call_id,
+                                "run_id": run_id,
+                                "conversation_id": conversation_id,
+                                "started_at": int(time.time() * 1000),
+                                "status": "streaming"
                             }
                         
                         # Accumulate function arguments
@@ -400,6 +412,17 @@ class OpenAIService:
                             logger.warning(f"Unexpected error parsing tool arguments: {e}")
                             function_args = {"__parse_error__": str(e)}
                         
+                        # Update ID mapping with tool details
+                        if tool_call_id in self.tool_call_id_map:
+                            self.tool_call_id_map[tool_call_id].update({
+                                "tool_name": function_name,
+                                "tool_args": function_args,
+                                "status": "executing"
+                            })
+                        
+                        # Log tool call execution for ID correlation
+                        logger.info(f"🔧 Executing tool call - ID: {tool_call_id}, Tool: {function_name}, Args: {json.dumps(function_args)[:100]}...")
+                        
                         # Emit standardized tool_call event
                         tool_call_payload = {
                             "type": "tool_call",
@@ -422,14 +445,27 @@ class OpenAIService:
                                 result = await tool_registry.dispatch(function_name, **function_args)
                                 duration_ms = int((time.time() - tool_start_time) * 1000)
                                 
-                                # Emit standardized tool_result event
+                                # Update ID mapping with completion
+                                if tool_call_id in self.tool_call_id_map:
+                                    self.tool_call_id_map[tool_call_id].update({
+                                        "status": "completed",
+                                        "duration_ms": duration_ms,
+                                        "completed_at": int(time.time() * 1000)
+                                    })
+                                
+                                # Log tool result with ID correlation
+                                logger.info(f"✅ Tool call completed - ID: {tool_call_id}, Tool: {function_name}, Duration: {duration_ms}ms")
+                                
+                                # Emit standardized tool_result event with tool_call_id for correlation
                                 tool_result_payload = {
                                     "type": "tool_result",
                                     "run_id": run_id,
                                     "seq": seq,
                                     "data": {
+                                        "tool_call_id": tool_call_id,  # Include ID for correlation
                                         "tool_name": function_name,
-                                        "tool_result": result
+                                        "tool_result": result,
+                                        "duration_ms": duration_ms
                                     },
                                     "timestamp": int(time.time() * 1000)
                                 }
@@ -506,6 +542,10 @@ class OpenAIService:
             }
             yield f"event: done\ndata: {json.dumps(done_payload)}\n\n"
             
+            # Log tool call summary if any tools were called
+            if tool_call_chunks:
+                self.log_tool_call_summary(conversation_id)
+            
         except Exception as e:
             logger.error(f"OpenAI streaming error: {e}")
             
@@ -538,6 +578,37 @@ class OpenAIService:
                 "timestamp": int(time.time() * 1000)
             }
             yield f"event: error\ndata: {json.dumps(error_payload)}\n\n"
+    
+    def get_tool_call_mappings(self, conversation_id: Optional[str] = None) -> Dict[str, Dict[str, Any]]:
+        """
+        Get tool call ID mappings for debugging and correlation.
+        
+        Args:
+            conversation_id: Filter by specific conversation (optional)
+            
+        Returns:
+            Dictionary of tool call ID mappings
+        """
+        if conversation_id:
+            return {
+                tool_id: mapping 
+                for tool_id, mapping in self.tool_call_id_map.items()
+                if mapping.get("conversation_id") == conversation_id
+            }
+        return self.tool_call_id_map.copy()
+    
+    def log_tool_call_summary(self, conversation_id: str):
+        """Log a summary of all tool calls for a conversation"""
+        mappings = self.get_tool_call_mappings(conversation_id)
+        if mappings:
+            logger.info(f"📊 Tool Call Summary for conversation {conversation_id}:")
+            for tool_id, mapping in mappings.items():
+                status = mapping.get("status", "unknown")
+                tool_name = mapping.get("tool_name", "unknown")
+                duration = mapping.get("duration_ms", "N/A")
+                logger.info(f"  - {tool_id[:8]}... | {tool_name} | Status: {status} | Duration: {duration}ms")
+        else:
+            logger.info(f"📊 No tool calls recorded for conversation {conversation_id}")
 
 
 # Singleton instance
