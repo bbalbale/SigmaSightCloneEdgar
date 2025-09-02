@@ -79,6 +79,7 @@ This implementation follows an **automated test-driven development cycle** using
 
 #### 🚨 **CRITICAL CONSTRAINTS - DO NOT VIOLATE**
 - **❌ NO BACKEND CHANGES**: Do not modify ANY code in `/backend/` or `/agent/` folders without explicit user approval
+  - **Exception**: The CORS fix in Section 2.1.0 is PRE-APPROVED
 - **❌ NO DATABASE CHANGES**: Do not create or modify database tables without explicit user approval
   - If approved, MUST use Alembic migrations (`alembic revision --autogenerate`)
   - Never create tables manually or modify schema directly
@@ -120,6 +121,21 @@ This implementation follows an **automated test-driven development cycle** using
 - ✅ **Precedence Logic**: Bearer token takes priority when both provided
 - ✅ **Logging**: Tracks which auth method is being used ("method: bearer" vs "method: cookie")
 - ✅ **Demo Credentials**: Working with `demo_growth@sigmasight.com` / `demo12345`
+
+**🔧 Pre-Approved Backend Fix Required:**
+- [ ] **2.1.0** Fix CORS headers for SSE streaming with credentials (PRE-APPROVED)
+  - **File**: `/backend/app/api/v1/chat/send.py` line 261
+  - **Issue**: Wildcard `*` origin incompatible with `credentials: 'include'`
+  - **Fix**: Change SSE response headers from:
+    ```python
+    "Access-Control-Allow-Origin": "*",  # CORS for SSE
+    ```
+    To:
+    ```python
+    "Access-Control-Allow-Origin": request.headers.get('origin', 'http://localhost:3005'),
+    "Access-Control-Allow-Credentials": "true",
+    ```
+  - **Status**: ✅ PRE-APPROVED - This is the only backend change needed for V1.1
 
 **Frontend Implementation Tasks:**
 - [ ] **2.1.1** Switch from JWT localStorage to HttpOnly cookies
