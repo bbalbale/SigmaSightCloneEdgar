@@ -158,13 +158,18 @@ async def sse_generator(
                         assistant_content += data["delta"]
                 except:
                     pass
-            elif "event: tool_finished" in sse_event:
+            elif "event: tool_result" in sse_event:
                 try:
                     data_line = sse_event.split("\ndata: ")[1].split("\n")[0]
                     data = json.loads(data_line)
+                    # Store tool calls in OpenAI-compatible format for history reconstruction
                     tool_calls_made.append({
-                        "name": data.get("tool_name"),
-                        "duration_ms": data.get("duration_ms")
+                        "id": f"call_{uuid4().hex[:24]}",  # Generate OpenAI-compatible ID
+                        "type": "function", 
+                        "function": {
+                            "name": data.get("tool_name"),
+                            "arguments": json.dumps(data.get("tool_args", {}))
+                        }
                     })
                 except:
                     pass

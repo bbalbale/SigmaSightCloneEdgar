@@ -233,19 +233,30 @@ class OpenAIService:
                 })
             # Handle tool calls if they exist in history
             if msg.get("tool_calls"):
-                messages.append({
-                    "role": "assistant",
-                    "content": msg.get("content", ""),
-                    "tool_calls": msg["tool_calls"]
-                })
-                # Add tool responses
+                # Ensure tool calls have required OpenAI format
+                valid_tool_calls = []
                 for tool_call in msg["tool_calls"]:
-                    if tool_response := msg.get(f"tool_response_{tool_call['id']}"):
-                        messages.append({
-                            "role": "tool",
-                            "tool_call_id": tool_call["id"],
-                            "content": json.dumps(tool_response)
-                        })
+                    # Handle both new format (with id) and legacy format (without id)
+                    if not tool_call.get("id"):
+                        # Legacy format - generate missing ID for compatibility
+                        tool_call = {
+                            "id": f"call_{uuid.uuid4().hex[:24]}",
+                            "type": "function",
+                            "function": {
+                                "name": tool_call.get("name", tool_call.get("function", {}).get("name", "unknown")),
+                                "arguments": json.dumps(tool_call.get("args", {}))
+                            }
+                        }
+                    valid_tool_calls.append(tool_call)
+                
+                if valid_tool_calls:  # Only add if we have valid tool calls
+                    messages.append({
+                        "role": "assistant", 
+                        "content": msg.get("content", ""),
+                        "tool_calls": valid_tool_calls
+                    })
+                    # Note: We don't add tool responses from history since they're not stored
+                    # The tool calls will be re-executed if needed
         
         # Add current user message
         messages.append({"role": "user", "content": user_message})

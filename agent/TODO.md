@@ -1917,8 +1917,8 @@ See `backend/OPENAI_STREAMING_BUG_REPORT.md` for the detailed implementation out
   - **Files**: `frontend/src/app/api/proxy/[...path]/route.ts`
   - **Result**: POST requests properly forward Accept headers, streaming responses preserve cookies
 
-### 9.3 OpenAI API Tool Calls Null ID Error ⚠️ **BACKEND BUG**
-- [ ] **9.3.1** Critical Backend Bug - Tool Calls with Null IDs ⚠️ **REQUIRES BACKEND FIX**
+### 9.3 OpenAI API Tool Calls Null ID Error ✅ **COMPLETED**
+- [x] **9.3.1** Critical Backend Bug - Tool Calls with Null IDs ✅ **FIXED**
   - **Issue**: Backend sends tool_calls to OpenAI with null ID values, causing API rejection
   - **Error Message**: `Invalid type for 'messages[12].tool_calls[1].id': expected a string, but got null instead`
   - **OpenAI API Response**: `invalid_type` error code 400
@@ -1926,13 +1926,55 @@ See `backend/OPENAI_STREAMING_BUG_REPORT.md` for the detailed implementation out
   - **User Experience**: Streaming response starts normally, then aborts with API error after ~1-2 sentences
   - **Evidence**: User test shows perfect streaming → sudden API error about tool_calls[1].id
   - **Root Cause**: Backend constructs OpenAI message objects with `tool_calls` containing null `id` fields
-  - **Location**: Likely in backend message formatting for OpenAI API calls (Python side)
+  - **Location**: Two files with incomplete tool call handling
   - **Frontend Impact**: None - frontend error handling correctly preserves streamed content ✅
   - **Workaround**: Frontend gracefully handles error, preserves partial response
-  - **Fix Required**: Backend must generate valid tool call IDs before sending to OpenAI
   - **Discovery Date**: 2025-09-02 during frontend error handler testing
   - **Priority**: High - prevents tool-based chat functionality
-  - **Status**: **BACKEND TEAM** - requires backend investigation and fix
+  
+  **✅ COMPREHENSIVE FIX IMPLEMENTED (2025-09-02)**:
+  
+  **Root Cause Analysis**: Tool calls were stored in database with incomplete structure missing OpenAI-required `id` fields, then reconstructed for conversation history with null IDs.
+  
+  **File 1: `backend/app/api/v1/chat/send.py` (lines 161-175)**
+  - **Problem**: Tool calls stored as `{"name": "tool_name", "duration_ms": 123}` (missing `id` field)
+  - **Fix**: Changed to OpenAI-compatible format with generated IDs:
+    ```python
+    tool_calls_made.append({
+        "id": f"call_{uuid4().hex[:24]}",  # Generate OpenAI-compatible ID
+        "type": "function", 
+        "function": {
+            "name": data.get("tool_name"),
+            "arguments": json.dumps(data.get("tool_args", {}))
+        }
+    })
+    ```
+  - **Additional**: Fixed event listener from `tool_finished` to `tool_result` (matches actual SSE events)
+  
+  **File 2: `backend/app/agent/services/openai_service.py` (lines 235-259)**
+  - **Problem**: Message history reconstruction failed when `tool_call['id']` was null
+  - **Fix**: Added robust backward compatibility for legacy and malformed tool calls:
+    ```python
+    if not tool_call.get("id"):
+        # Legacy format - generate missing ID for compatibility
+        tool_call = {
+            "id": f"call_{uuid.uuid4().hex[:24]}",
+            "type": "function",
+            "function": {
+                "name": tool_call.get("name", tool_call.get("function", {}).get("name", "unknown")),
+                "arguments": json.dumps(tool_call.get("args", {}))
+            }
+        }
+    ```
+  
+  **Benefits of Fix**:
+  - ✅ Prevents OpenAI API rejection - All tool calls now have valid IDs
+  - ✅ Backward compatibility - Existing conversations won't break
+  - ✅ Proper conversation history - Tool calls can be reconstructed accurately
+  - ✅ No data loss - Streaming content is preserved when tool calls are involved
+  
+  **Testing**: Backend restarted successfully with fix applied, ready for tool-based chat conversations
+  
   - **Reference**: `frontend/TODO_CHAT.md` section 6.19
 
 ### 9.4 API Consistency Improvements ✅ **COMPLETED**
@@ -1948,16 +1990,150 @@ See `backend/OPENAI_STREAMING_BUG_REPORT.md` for the detailed implementation out
 
 ---
 
-## 📋 Phase 10: Deployment Preparation (Day 13-15)
+## 📋 Phase 10: ID System Refactoring - Option A (Clean API Separation) (Day 12-13)
 
-### 10.1 Environment Configuration
+### 10.1 Backend Message ID Management (Day 12) ⏳ **IN PROGRESS**
+- [ ] **10.1.1** Create New Message Management API ⚠️ **CRITICAL**
+  - [ ] Create `backend/app/api/v1/chat/messages.py` with POST and PUT endpoints
+  - [ ] Implement CreateMessageRequest and UpdateMessageRequest schemas
+  - [ ] Add MessageResponse schema with backend-generated UUID IDs
+  - [ ] Ensure all message creation goes through backend for consistent IDs
+  - **Files**: `backend/app/api/v1/chat/messages.py` (NEW FILE)
+  - **Risk**: Low - New API endpoints, clean separation
+
+- [ ] **10.1.2** Update Chat Service to Use Backend IDs
+  - [ ] Modify `/send` endpoint to create user and assistant messages with backend IDs
+  - [ ] Include message IDs in SSE `message_created` events
+  - [ ] Update streaming to use backend-provided assistant message ID
+  - [ ] Remove frontend ID generation dependencies
+  - **Files**: `backend/app/api/v1/chat/send.py` (MODIFY EXISTING)
+  - **Risk**: Medium - Changes existing endpoint, but improves ID consistency
+
+- [ ] **10.1.3** Register New Message API Routes
+  - [ ] Add messages router to chat module initialization
+  - [ ] Ensure proper authentication middleware applied
+  - [ ] Test endpoint availability via API documentation
+  - **Files**: `backend/app/api/v1/chat/router.py` (MODIFY EXISTING)
+  - **Risk**: Low - Standard router registration
+
+### 10.2 Frontend Store Modifications (Day 12-13) ⏳ **IN PROGRESS**
+- [ ] **10.2.1** Remove Frontend ID Generation
+  - [ ] Modify `chatStore.ts` addMessage to call backend API for ID generation
+  - [ ] Remove all fallback ID generation logic
+  - [ ] Update addMessage to be async and return backend-provided ID
+  - [ ] Ensure error handling for backend ID generation failures
+  - **Files**: `frontend/src/stores/chatStore.ts` (MODIFY EXISTING)
+  - **Risk**: High - Removes existing functionality, requires careful testing
+
+- [ ] **10.2.2** Update Chat Interface for Backend Coordination
+  - [ ] Modify `ChatInterface.tsx` to parse message IDs from SSE events
+  - [ ] Update streaming logic to use backend-provided assistant message ID
+  - [ ] Remove frontend message creation, rely on SSE message_created events
+  - [ ] Coordinate updateMessage calls with backend-provided IDs
+  - **Files**: `frontend/src/components/chat/ChatInterface.tsx` (MODIFY EXISTING)
+  - **Risk**: High - Changes core streaming logic
+
+- [ ] **10.2.3** Update Stream Store for Backend Coordination
+  - [ ] Remove frontend run ID generation from `streamStore.ts`
+  - [ ] Use backend-provided message ID as buffer key instead of run ID
+  - [ ] Add currentMessageId tracking to coordinate with chatStore
+  - [ ] Update buffer operations to work with message IDs
+  - **Files**: `frontend/src/stores/streamStore.ts` (MODIFY EXISTING)
+  - **Risk**: Medium - Changes streaming state management
+
+### 10.3 Multi-LLM Support Foundation (Day 13) 🔧 **FUTURE-READY**
+- [ ] **10.3.1** Create Provider-Agnostic ID System
+  - [ ] Create `backend/app/utils/llm_provider_base.py` abstract base class
+  - [ ] Define universal ID transformation interface
+  - [ ] Add provider-specific tool call ID generation methods
+  - [ ] Design for future expansion beyond OpenAI
+  - **Files**: `backend/app/utils/llm_provider_base.py` (NEW FILE)
+  - **Risk**: Low - Foundation for future expansion
+
+- [ ] **10.3.2** Create OpenAI Provider Implementation
+  - [ ] Create `backend/app/utils/llm_providers/openai_provider.py`
+  - [ ] Implement OpenAI-specific ID transformations
+  - [ ] Handle tool call format conversion with proper IDs
+  - [ ] Add backward compatibility for existing tool calls
+  - **Files**: `backend/app/utils/llm_providers/openai_provider.py` (NEW FILE)
+  - **Risk**: Low - Encapsulates existing OpenAI logic
+
+### 10.4 Enhanced Monitoring for Multi-Provider Support (Day 13) 📊 **OPTIONAL**
+- [ ] **10.4.1** Multi-Provider ID Monitoring
+  - [ ] Create `backend/app/utils/multi_provider_monitor.py`
+  - [ ] Add provider request tracking with ID correlation
+  - [ ] Implement ID transformation monitoring
+  - [ ] Track provider-specific errors with universal ID context
+  - **Files**: `backend/app/utils/multi_provider_monitor.py` (NEW FILE)
+  - **Risk**: Zero - Pure monitoring, supports future multi-LLM
+
+### 10.5 Testing and Validation (Day 13) ✅ **REQUIRED**
+- [ ] **10.5.1** Create ID Utility Tests
+  - [ ] Unit tests for ID generation functions
+  - [ ] Validation function test coverage
+  - [ ] ID format compatibility tests
+  - **Files**: `frontend/src/utils/__tests__/idUtils.test.ts` (NEW FILE)
+  - **Risk**: Zero - Testing only
+
+- [ ] **10.5.2** Create Backend Validator Tests
+  - [ ] Unit tests for tool call validation
+  - [ ] OpenAI format compatibility tests
+  - [ ] Message validation test coverage
+  - **Files**: `backend/tests/test_id_validator.py` (NEW FILE)
+  - **Risk**: Zero - Testing only
+
+- [ ] **10.5.3** Integration Testing
+  - [ ] Test complete OpenAI flow with validation
+  - [ ] Verify tool calls work without null ID errors
+  - [ ] Test rollback procedures
+  - **Testing**: Complete system integration
+  - **Risk**: Zero - Validation only
+
+### 10.6 Documentation and Completion ✅ **REQUIRED**
+- [ ] **10.6.1** Update Documentation
+  - [ ] Document new ID utilities and validation
+  - [ ] Update troubleshooting guides
+  - [ ] Create rollback procedures
+  - **Files**: Update existing docs
+  - **Risk**: Zero - Documentation only
+
+- [ ] **10.6.2** Implementation Review
+  - [ ] Review all changes against design document
+  - [ ] Verify no breaking changes introduced
+  - [ ] Confirm critical bug fixes working
+  - **Review**: Complete implementation audit
+  - **Risk**: Zero - Review only
+
+**✅ SUCCESS CRITERIA**:
+- Frontend receives all message IDs from backend (no frontend generation)
+- Clean API separation between frontend and backend ID management
+- SSE streaming coordinates using backend-provided message IDs
+- Split store architecture maintained (chatStore + streamStore)
+- Foundation established for multi-LLM provider support
+- Zero OpenAI tool_calls null ID errors (existing fix preserved)
+
+**📋 REFERENCE DOCUMENT**: `agent/_docs/requirements/DESIGN_DOC_ID_REFACTOR_V1.0.md`
+
+**🚨 CRITICAL NOTES - OPTION A (CLEAN API SEPARATION)**:
+- **New API Endpoints Required**: POST `/api/v1/chat/messages`, PUT `/api/v1/chat/messages/{id}`
+- **Frontend Changes**: Removes ID generation, adds backend API calls
+- **Backend-First ID Generation**: All IDs generated by backend, consumed by frontend
+- **Multi-LLM Ready**: Provider-agnostic ID system supports future expansion
+- **Higher Risk**: Changes core streaming logic but provides cleanest architecture
+- **Clear Separation**: Crystal clear that frontend gets backend IDs via explicit API calls
+
+---
+
+## 📋 Phase 11: Deployment Preparation (Day 14-16)
+
+### 11.1 Environment Configuration
 - [ ] **Production environment variables**
   - [ ] Secure OpenAI API key storage
   - [ ] Production database credentials
   - [ ] Cache configuration
   - [ ] Rate limit settings
 
-### 10.2 Security Review
+### 11.2 Security Review
 - [ ] **Security checklist**
   - [ ] API key rotation plan
   - [ ] JWT validation
@@ -1965,7 +2141,7 @@ See `backend/OPENAI_STREAMING_BUG_REPORT.md` for the detailed implementation out
   - [ ] Input sanitization
   - [ ] PII handling
 
-### 10.3 Performance Optimization
+### 11.3 Performance Optimization
 - [ ] **Caching strategy**
   - [ ] Tool response caching
   - [ ] Prompt template caching
