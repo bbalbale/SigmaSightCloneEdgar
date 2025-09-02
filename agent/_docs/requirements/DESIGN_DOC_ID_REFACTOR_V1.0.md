@@ -114,141 +114,130 @@ The chosen architecture supports future expansion to multiple LLM providers:
 
 ## Implementation Plan: Option A (Clean API Separation)
 
-### New API Endpoints Required
+### ⚠️ Critical SSE Contract Fixes Required First
 
-**POST /api/v1/chat/messages**
-- Creates message record with backend-generated ID
-- Returns message object with ID for frontend coordination
-- Supports both user and assistant message creation
+**MUST FIX BEFORE ID REFACTOR** - Code review revealed fundamental SSE mismatches:
+1. **Event Type Mismatch**: `send.py` expects "event: message" but `openai_service.py` emits "event: token"
+2. **Tool Call Parsing**: `send.py` parses from "event: tool_result" but should use "event: tool_call"
+3. **Missing ID Emission**: Message IDs created but never sent to frontend
 
-**PUT /api/v1/chat/messages/{id}**
-- Updates message content during streaming
-- Accepts partial updates to avoid overwriting during concurrent operations
-- Returns updated message object
+### Phase 0: Fix SSE Contract Issues (1-2 hours, CRITICAL)
 
-### Phase 1: Backend Message ID Management (2-3 days, Low Risk)
-
-#### A. Create New Message Management API
-**File**: `backend/app/api/v1/chat/messages.py` (NEW FILE)
-
+#### 0.1 Fix Event Type Mismatches
+**File**: `backend/app/api/v1/chat/send.py`
 ```python
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.ext.asyncio import AsyncSession
-from app.database import get_async_session
-from app.models.conversations import Message
-from app.core.dependencies import get_current_user_from_token
-from app.models.users import User
-from pydantic import BaseModel, Field
-from uuid import UUID
-from typing import Optional
+# Change from:
+if "event: message" in sse_event:
+    # Parse content
 
-router = APIRouter(prefix="/messages", tags=["chat-messages"])
-
-class CreateMessageRequest(BaseModel):
-    conversation_id: UUID
-    content: str
-    role: str = Field(..., pattern="^(user|assistant)$")
-    
-class UpdateMessageRequest(BaseModel):
-    content: Optional[str] = None
-    
-class MessageResponse(BaseModel):
-    id: UUID
-    conversation_id: UUID
-    content: str
-    role: str
-    created_at: str
-    
-@router.post("/", response_model=MessageResponse)
-async def create_message(
-    request: CreateMessageRequest,
-    session: AsyncSession = Depends(get_async_session),
-    user: User = Depends(get_current_user_from_token)
-):
-    """Create message with backend-generated ID"""
-    message = Message(
-        conversation_id=request.conversation_id,
-        content=request.content,
-        role=request.role
-    )
-    
-    session.add(message)
-    await session.commit()
-    await session.refresh(message)
-    
-    return MessageResponse(
-        id=message.id,
-        conversation_id=message.conversation_id,
-        content=message.content,
-        role=message.role,
-        created_at=message.created_at.isoformat()
-    )
-    
-@router.put("/{message_id}", response_model=MessageResponse)
-async def update_message(
-    message_id: UUID,
-    request: UpdateMessageRequest,
-    session: AsyncSession = Depends(get_async_session),
-    user: User = Depends(get_current_user_from_token)
-):
-    """Update message content during streaming"""
-    message = await session.get(Message, message_id)
-    if not message:
-        raise HTTPException(status_code=404, detail="Message not found")
-    
-    if request.content is not None:
-        message.content = request.content
-    
-    await session.commit()
-    await session.refresh(message)
-    
-    return MessageResponse(
-        id=message.id,
-        conversation_id=message.conversation_id,
-        content=message.content,
-        role=message.role,
-        created_at=message.created_at.isoformat()
-    )
+# To:
+if "event: token" in sse_event:
+    # Parse delta from SSETokenEvent
+    data = json.loads(data_line)
+    assistant_content += data.get("delta", "")
+    if not first_token_time:
+        first_token_time = time.time()
 ```
 
-#### B. Update Chat Service to Use Backend IDs
+#### 0.2 Fix Tool Call Event Parsing  
+**File**: `backend/app/api/v1/chat/send.py`
+```python
+# Change from:
+if "event: tool_result" in sse_event:
+    # Incorrectly parsing tool args here
+
+# To:
+if "event: tool_call" in sse_event:
+    # Parse tool name and args from SSEToolCallEvent
+    data = json.loads(data_line)
+    tool_calls_made.append({
+        "id": data.get("tool_call_id", f"call_{uuid4().hex[:24]}"),
+        "type": "function",
+        "function": {
+            "name": data.get("tool_name"),
+            "arguments": json.dumps(data.get("tool_args", {}))
+        }
+    })
+```
+
+### Phase 1: Backend Message ID Management (2-3 days, Medium Risk)
+
+#### A. Create Messages Upfront and Emit IDs
 **File**: `backend/app/api/v1/chat/send.py` (MODIFY EXISTING)
 
 ```python
-# Import message management
-from app.api.v1.chat.messages import CreateMessageRequest
-
 @router.post("/send")
 async def send_message(
     request: SendMessageRequest,
     session: AsyncSession = Depends(get_async_session),
     user: User = Depends(get_current_user_from_token)
 ):
-    # Create user message with backend-generated ID
-    user_message = Message(
+    # Create BOTH messages upfront with backend-generated IDs
+    user_message = ConversationMessage(
         conversation_id=request.conversation_id,
         content=request.message,
         role="user"
     )
     session.add(user_message)
-    await session.commit()
-    await session.refresh(user_message)
     
-    # Create assistant message placeholder with backend-generated ID
-    assistant_message = Message(
+    assistant_message = ConversationMessage(
         conversation_id=request.conversation_id,
         content="",  # Will be updated during streaming
         role="assistant"
     )
     session.add(assistant_message)
+    
     await session.commit()
+    await session.refresh(user_message)
     await session.refresh(assistant_message)
     
-    # Include message IDs in SSE events for frontend coordination
+    # EMIT message_created event with both IDs
     yield f"event: message_created\n"
-    yield f"data: {{\"user_message_id\": \"{user_message.id}\", \"assistant_message_id\": \"{assistant_message.id}\"}}\n\n"
+    yield f"data: {{\n"
+    yield f"  \"user_message_id\": \"{user_message.id}\",\n"
+    yield f"  \"assistant_message_id\": \"{assistant_message.id}\",\n"
+    yield f"  \"conversation_id\": \"{request.conversation_id}\",\n"
+    yield f"  \"run_id\": \"{run_id}\"\n"
+    yield f"}}\n\n"
     
-    # Rest of streaming logic uses assistant_message.id for updates
+    # Track metrics
+    first_token_time = None
+    start_time = time.time()
+    
+    # Rest of streaming logic...
+    # Update assistant_message with content and metrics during streaming
+```
+
+#### B. Add Metrics Persistence
+**File**: `backend/app/api/v1/chat/send.py` (MODIFY EXISTING)
+
+```python
+# After streaming completes, update assistant message with metrics
+if assistant_message:
+    assistant_message.content = assistant_content
+    assistant_message.tool_calls = tool_calls_made if tool_calls_made else None
+    
+    # Add metrics (these fields already exist in the model)
+    if first_token_time:
+        assistant_message.first_token_ms = int((first_token_time - start_time) * 1000)
+    assistant_message.latency_ms = int((time.time() - start_time) * 1000)
+    
+    await session.commit()
+    await session.refresh(assistant_message)
+```
+
+#### C. Include Tool Call IDs in SSE
+**File**: `backend/app/agent/services/openai_service.py` (MODIFY EXISTING)
+
+```python
+# When emitting tool_call event, include the tool_call_id
+async def _emit_sse(self, event_type: str, data: dict):
+    if event_type == "tool_call":
+        # Include tool_call_id for correlation
+        data["tool_call_id"] = self.current_tool_call_id
+    
+    yield f"event: {event_type}\n"
+    yield f"data: {json.dumps(data)}\n\n"
 ```
 
 ### Phase 2: Frontend Store Modifications (2-3 days, Medium Risk)
@@ -757,79 +746,101 @@ export const IDConfig = {
 }
 ```
 
-## Testing Strategy
+## Prerequisites for Implementation
 
-### Unit Tests
-```python
-# backend/tests/test_id_validator.py
-def test_validate_tool_calls_adds_missing_ids():
-    incomplete_calls = [{"name": "test_tool", "args": {}}]
-    validated = IDValidator.validate_tool_calls(incomplete_calls)
-    
-    assert len(validated) == 1
-    assert validated[0]['id'].startswith('call_')
-    assert validated[0]['type'] == 'function'
+- **Backend**: Running with existing authentication working
+- **Frontend**: Current chat functionality operational  
+- **Test Credentials**: demo_growth@sigmasight.com / demo12345
+- **Database**: conversations, messages tables must exist
+- **Environment**: OPENAI_API_KEY configured in backend/.env
 
-def test_validate_tool_calls_preserves_existing_ids():
-    complete_calls = [{"id": "call_existing123", "type": "function", "function": {...}}]
-    validated = IDValidator.validate_tool_calls(complete_calls)
-    
-    assert validated[0]['id'] == "call_existing123"
+## Implementation Testing Strategy
+
+### Backend API Validation
+```bash
+# Test new endpoints
+curl -X POST /api/v1/chat/messages -H "Authorization: Bearer $TOKEN" \
+  -d '{"conversation_id":"uuid","content":"test","role":"user"}'
+  
+curl -X PUT /api/v1/chat/messages/{id} -H "Authorization: Bearer $TOKEN" \
+  -d '{"content":"updated text"}'
 ```
 
-### Integration Tests
-```python
-# Test the complete flow
-async def test_openai_service_with_tool_calls():
-    # Create conversation with tool calls that would previously fail
-    service = OpenAIService()
-    messages = service._build_messages(
-        "green", 
-        [{"role": "assistant", "tool_calls": [{"name": "test"}]}],  # Missing ID
-        "test message"
-    )
-    
-    # Should not raise OpenAI API error
-    # Should have valid tool_call IDs
+### Frontend Integration Tests
+```typescript
+// Verify backend ID usage
+const messageId = await chatStore.addMessage({content: "test", role: "user"});
+assert(messageId && messageId !== messageId.startsWith('msg_')); // Backend UUID
+
+// Verify SSE coordination
+const response = await fetch('/api/proxy/api/v1/chat/send', {method: 'POST'});
+// Check for message_created event with user_message_id and assistant_message_id
 ```
 
-## Rollback Strategy
+### End-to-End Validation
+1. **Complete conversation** → Verify all IDs from backend
+2. **Tool call streaming** → Verify no null ID errors  
+3. **Message editing** → Verify PUT API updates
+4. **Error recovery** → Verify fallback behavior
 
-### Immediate Rollback
-All changes are additive and feature-flagged:
+## Migration & Rollback Strategy
 
-```python
-# Disable all ID improvements instantly
-settings.ID_VALIDATION_ENABLED = False
-settings.ID_MONITORING_ENABLED = False
+### Implementation Phases
+1. **Parallel**: New APIs alongside existing system
+2. **Gradual**: Switch new conversations to backend IDs
+3. **Cleanup**: Remove frontend ID generation
+
+### Rollback Plan
+```bash
+# Emergency rollback
+git revert df57b2d  # Revert to pre-implementation state
+
+# Gradual rollback
+# 1. Switch feature flag to use frontend IDs
+# 2. Remove new API endpoints
+# 3. Restore original store logic
 ```
 
-### Gradual Rollback
-1. Disable strict validation (warnings only)
-2. Disable validation layer 
-3. Remove wrapper classes
-4. Remove utility files
+### Monitoring During Implementation
+- Log all ID generation with context
+- Track new API response times
+- Monitor SSE connection stability
+- Alert on OpenAI API errors
 
-### Emergency Rollback
-- All new files can be deleted without affecting core functionality
-- All modified files have clear `# ADD: ` comments for easy removal
+## Success Validation
 
-## Success Metrics
+### Acceptance Criteria
+- ✅ SSE events correctly parsed (token, tool_call, tool_result)
+- ✅ Message IDs emitted via message_created event at stream start
+- ✅ All message IDs generated by backend (no frontend fallbacks)
+- ✅ Tool calls parsed from correct event type
+- ✅ Metrics persisted (first_token_ms, latency_ms)
+- ✅ Split store architecture preserved
+- ✅ Zero OpenAI tool_calls null ID errors
+- ✅ Existing conversations remain functional
 
-### Bug Prevention Metrics
-- **Zero OpenAI tool_calls ID errors** after implementation
-- **Zero message coordination failures** during streaming
-- **Reduced ID-related support tickets** (baseline: 1 critical bug fixed)
+### Common Issues & Solutions
+- **No content accumulating**: Check "event: token" parsing (not "event: message")
+- **Tool calls missing**: Parse from "event: tool_call" (not "event: tool_result")
+- **Frontend missing IDs**: Verify message_created event emitted
+- **Metrics not saved**: Ensure first_token_time tracked and persisted
 
-### Monitoring Metrics
-- ID validation success rate > 99%
-- OpenAI API error rate related to IDs < 0.1%
-- Average ID format consistency score > 95%
+## Items Considered But Not Implemented
 
-### Developer Experience Metrics
-- ID-related debugging time reduced by 50%
-- New developer onboarding time (ID system understanding) < 30 minutes
-- Code review comments on ID issues reduced by 75%
+### 1. Separate POST/PUT Message API Endpoints
+**Rationale for exclusion**: SSE coordination via message_created event is sufficient. Adding REST endpoints for message management creates unnecessary complexity when SSE already handles the coordination.
+
+### 2. Legacy Event Compatibility Layer  
+**Rationale for exclusion**: Since the system is pre-production, we can fix the SSE contract directly rather than maintaining dual event formats. This reduces complexity.
+
+### 3. Database Schema Changes
+**Rationale for exclusion**: Existing ConversationMessage model already has all needed fields (first_token_ms, latency_ms, tool_calls). No migration required.
+
+### 4. Complex Feature Flags
+**Rationale for exclusion**: Simple environment variable toggle is sufficient for pre-production rollout. Complex feature flag system adds unnecessary overhead.
+
+### 5. Backward Compatibility for Old Event Format
+**Rationale for exclusion**: Since streaming is currently broken due to event mismatch, there's no working system to maintain compatibility with. Fix it correctly once.
 
 ## Risk Mitigation
 

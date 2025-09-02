@@ -1992,29 +1992,43 @@ See `backend/OPENAI_STREAMING_BUG_REPORT.md` for the detailed implementation out
 
 ## 📋 Phase 10: ID System Refactoring - Option A (Clean API Separation) (Day 12-13)
 
+### 🔥 10.0 Critical SSE Contract Fixes (1-2 hours) ⚠️ **MUST DO FIRST**
+- [ ] **10.0.1** Fix Event Type Mismatch ⚠️ **BLOCKING**
+  - [ ] Change `send.py` to parse "event: token" instead of "event: message"
+  - [ ] Accumulate content from `data.delta` field in SSETokenEvent
+  - [ ] Track first_token_time when first token arrives
+  - **Files**: `backend/app/api/v1/chat/send.py` lines 153-160
+  - **Risk**: CRITICAL - Streaming is currently broken without this fix
+
+- [ ] **10.0.2** Fix Tool Call Event Parsing ⚠️ **BLOCKING**
+  - [ ] Parse tool calls from "event: tool_call" not "event: tool_result"
+  - [ ] Extract tool_name and tool_args from correct event
+  - [ ] Include tool_call_id if present in event data
+  - **Files**: `backend/app/api/v1/chat/send.py` lines 161-175
+  - **Risk**: CRITICAL - Tool calls not captured correctly
+
 ### 10.1 Backend Message ID Management (Day 12) ⏳ **IN PROGRESS**
-- [ ] **10.1.1** Create New Message Management API ⚠️ **CRITICAL**
-  - [ ] Create `backend/app/api/v1/chat/messages.py` with POST and PUT endpoints
-  - [ ] Implement CreateMessageRequest and UpdateMessageRequest schemas
-  - [ ] Add MessageResponse schema with backend-generated UUID IDs
-  - [ ] Ensure all message creation goes through backend for consistent IDs
-  - **Files**: `backend/app/api/v1/chat/messages.py` (NEW FILE)
-  - **Risk**: Low - New API endpoints, clean separation
+- [ ] **10.1.1** Create Messages Upfront and Emit IDs ⚠️ **CRITICAL**
+  - [ ] Create both user and assistant messages before streaming
+  - [ ] Emit "event: message_created" with both message IDs
+  - [ ] Include run_id and conversation_id in message_created event
+  - [ ] Update assistant message content during streaming
+  - **Files**: `backend/app/api/v1/chat/send.py` lines 127-137
+  - **Risk**: Medium - Core ID refactor implementation
 
-- [ ] **10.1.2** Update Chat Service to Use Backend IDs
-  - [ ] Modify `/send` endpoint to create user and assistant messages with backend IDs
-  - [ ] Include message IDs in SSE `message_created` events
-  - [ ] Update streaming to use backend-provided assistant message ID
-  - [ ] Remove frontend ID generation dependencies
-  - **Files**: `backend/app/api/v1/chat/send.py` (MODIFY EXISTING)
-  - **Risk**: Medium - Changes existing endpoint, but improves ID consistency
+- [ ] **10.1.2** Add Metrics Persistence
+  - [ ] Calculate and store first_token_ms from first token time
+  - [ ] Calculate and store latency_ms on completion
+  - [ ] Update assistant message with final content and metrics
+  - **Files**: `backend/app/api/v1/chat/send.py` lines 177-189
+  - **Risk**: Low - Fields already exist in model
 
-- [ ] **10.1.3** Register New Message API Routes
-  - [ ] Add messages router to chat module initialization
-  - [ ] Ensure proper authentication middleware applied
-  - [ ] Test endpoint availability via API documentation
-  - **Files**: `backend/app/api/v1/chat/router.py` (MODIFY EXISTING)
-  - **Risk**: Low - Standard router registration
+- [ ] **10.1.3** Include Tool Call IDs in SSE
+  - [ ] Modify OpenAI service to include tool_call_id in events
+  - [ ] Add tool_call_id to both tool_call and tool_result events
+  - [ ] Ensure correlation between OpenAI and our tool call IDs
+  - **Files**: `backend/app/agent/services/openai_service.py`
+  - **Risk**: Low - Enhances debugging capabilities
 
 ### 10.2 Frontend Store Modifications (Day 12-13) ⏳ **IN PROGRESS**
 - [ ] **10.2.1** Remove Frontend ID Generation
@@ -2067,27 +2081,30 @@ See `backend/OPENAI_STREAMING_BUG_REPORT.md` for the detailed implementation out
   - **Files**: `backend/app/utils/multi_provider_monitor.py` (NEW FILE)
   - **Risk**: Zero - Pure monitoring, supports future multi-LLM
 
-### 10.5 Testing and Validation (Day 13) ✅ **REQUIRED**
-- [ ] **10.5.1** Create ID Utility Tests
-  - [ ] Unit tests for ID generation functions
-  - [ ] Validation function test coverage
-  - [ ] ID format compatibility tests
-  - **Files**: `frontend/src/utils/__tests__/idUtils.test.ts` (NEW FILE)
-  - **Risk**: Zero - Testing only
+### 10.5 Implementation Testing (Day 13) ✅ **REQUIRED**
+- [ ] **10.5.1** Backend API Validation
+  - [ ] Test POST /api/v1/chat/messages returns valid UUIDs
+  - [ ] Test PUT /api/v1/chat/messages/{id} updates content
+  - [ ] Verify authentication works for both endpoints
+  - [ ] Test error handling for invalid UUIDs
+  - **Commands**: `curl -X POST/PUT` tests with demo user token
+  - **Risk**: Zero - API validation only
 
-- [ ] **10.5.2** Create Backend Validator Tests
-  - [ ] Unit tests for tool call validation
-  - [ ] OpenAI format compatibility tests
-  - [ ] Message validation test coverage
-  - **Files**: `backend/tests/test_id_validator.py` (NEW FILE)
-  - **Risk**: Zero - Testing only
+- [ ] **10.5.2** Frontend Integration Validation
+  - [ ] Verify chatStore.addMessage() calls backend API
+  - [ ] Test SSE events include message IDs from backend
+  - [ ] Confirm no frontend ID generation remains
+  - [ ] Test error fallback when backend API fails
+  - **Files**: Browser dev tools, network tab verification
+  - **Risk**: Zero - Integration testing only
 
-- [ ] **10.5.3** Integration Testing
-  - [ ] Test complete OpenAI flow with validation
-  - [ ] Verify tool calls work without null ID errors
-  - [ ] Test rollback procedures
-  - **Testing**: Complete system integration
-  - **Risk**: Zero - Validation only
+- [ ] **10.5.3** End-to-End Scenarios
+  - [ ] Complete conversation with backend IDs → Success
+  - [ ] Tool call streaming without null ID errors → Success  
+  - [ ] Message editing during streaming → PUT API works
+  - [ ] Multiple concurrent conversations → No ID collisions
+  - **Testing**: Real user flows with demo credentials
+  - **Risk**: Zero - User acceptance testing
 
 ### 10.6 Documentation and Completion ✅ **REQUIRED**
 - [ ] **10.6.1** Update Documentation
@@ -2121,6 +2138,17 @@ See `backend/OPENAI_STREAMING_BUG_REPORT.md` for the detailed implementation out
 - **Multi-LLM Ready**: Provider-agnostic ID system supports future expansion
 - **Higher Risk**: Changes core streaming logic but provides cleanest architecture
 - **Clear Separation**: Crystal clear that frontend gets backend IDs via explicit API calls
+
+**📋 IMPLEMENTATION ESSENTIALS**:
+- **Test Credentials**: demo_growth@sigmasight.com / demo12345
+- **Prerequisites**: Backend + Frontend running, OPENAI_API_KEY configured
+- **Rollback**: `git revert df57b2d` for emergency rollback
+- **Validation**: All message IDs must be UUIDs from backend (no msg_ prefixes)
+
+**🔴 CRITICAL BUGS TO FIX FIRST**:
+1. SSE event type mismatch (token vs message) - **Streaming broken without this**
+2. Tool call parsing from wrong event - **Tool calls not captured**
+3. Message IDs not emitted - **Frontend can't coordinate without this**
 
 ---
 
