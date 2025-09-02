@@ -2203,7 +2203,7 @@ See `backend/OPENAI_STREAMING_BUG_REPORT.md` for the detailed implementation out
 - **Clear Separation**: Crystal clear that frontend gets backend IDs via explicit API calls
 
 **📋 IMPLEMENTATION ESSENTIALS**:
-- **Test Credentials**: demo@example.com / demo12345
+- **Test Credentials**: demo_hnw@sigmasight.com / demo12345
 - **Prerequisites**: Backend + Frontend running, OPENAI_API_KEY configured
 - **Rollback**: `git revert df57b2d` for emergency rollback
 - **Validation**: All message IDs must be UUIDs from backend (no msg_ prefixes)
