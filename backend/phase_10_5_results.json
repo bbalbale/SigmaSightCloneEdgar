@@ -1,0 +1,24 @@
+{
+  "10.5.1": {
+    "conversation_creation": "PASS",
+    "conversation_id": "851c9af1-9401-4881-8235-32614bdbf4a2",
+    "message_created_event": "PASS",
+    "backend_ids_valid": "PASS",
+    "invalid_id_handling": "PASS"
+  },
+  "10.5.2": {
+    "backend_provides_ids": "PASS",
+    "sse_includes_ids": "PASS",
+    "tool_call_ids": "PASS"
+  },
+  "10.5.3": {
+    "complete_conversation": "PASS",
+    "concurrent_conversations": "PASS"
+  },
+  "summary": {
+    "total_tests": 9,
+    "passed_tests": 9,
+    "success_rate": 100.0,
+    "criteria_met": true
+  }
+}
