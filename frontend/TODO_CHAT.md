@@ -513,19 +513,19 @@ This implementation follows an **automated test-driven development cycle** using
 
 ### 3. **Backend Integration**
 
-- [ ] **3.0** Dynamic Portfolio ID Resolution
-  - [ ] **3.0.1** Create `portfolioResolver.ts` service
-    - [ ] Fetch user's portfolios from `/api/v1/data/portfolios` endpoint
-    - [ ] Map portfolio types to actual IDs from database
-    - [ ] Cache portfolio IDs in session storage
-  - [ ] **3.0.2** Update `portfolioService.ts` to use dynamic IDs
-    - [ ] Remove hardcoded portfolio ID mappings
-    - [ ] Use portfolioResolver to get correct IDs per environment
-    - [ ] Handle case when user has multiple portfolios
-  - [ ] **3.0.3** Add portfolio ID validation
-    - [ ] Verify portfolio belongs to authenticated user
-    - [ ] Handle missing portfolio gracefully
-    - [ ] Show appropriate error if no portfolios found
+- [x] **3.0** Dynamic Portfolio ID Resolution ✅ COMPLETED
+  - [x] **3.0.1** Create `portfolioResolver.ts` service ✅
+    - [x] Created resolver service with hint-based discovery mechanism ✅
+    - [x] Implemented cache for portfolio IDs with 5-minute TTL ✅
+    - [x] Added fallback handling for missing list endpoint ✅
+  - [x] **3.0.2** Update `portfolioService.ts` to use dynamic IDs ✅
+    - [x] Removed hardcoded PORTFOLIO_ID_MAP ✅
+    - [x] Updated to use portfolioResolver.getPortfolioIdByType() ✅
+    - [x] Added portfolio ID caching after successful authentication ✅
+  - [x] **3.0.3** Add portfolio ID validation ✅
+    - [x] Implemented validatePortfolioOwnership() method ✅
+    - [x] Cross-user access properly blocked (404 on unauthorized) ✅
+    - [x] Graceful fallback with error messages for missing portfolios ✅
 
 - [ ] **3.1** Create Chat Service
   - [ ] **3.1.1** Build `chatService.ts` with cookie-based API client

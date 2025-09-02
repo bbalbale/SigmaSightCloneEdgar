@@ -2,14 +2,7 @@
  * Portfolio Service - Fetches real portfolio data from backend
  */
 
-// Map portfolio types to backend portfolio IDs
-// TODO: These should be fetched dynamically (Section 3.0)
-// TEMPORARY FIX: Using actual IDs from current database
-const PORTFOLIO_ID_MAP = {
-  'individual': '51134ffd-2f13-49bd-b1f5-0c327e801b69',  // demo_individual@sigmasight.com
-  'high-net-worth': 'c0510ab8-c6b5-433c-adbc-3f74e1dbdb5e',  // demo_hnw@sigmasight.com
-  'hedge-fund': '2ee7435f-379f-4606-bdb7-dadce587a182'  // demo_hedgefundstyle@sigmasight.com
-}
+import { portfolioResolver } from './portfolioResolver'
 
 // Demo user credentials for authentication
 const DEMO_CREDENTIALS = {
@@ -86,8 +79,17 @@ export async function loadPortfolioData(portfolioType: PortfolioType) {
     // Get authentication token
     const token = await authenticate(portfolioType)
     
-    // Get portfolio ID
-    const portfolioId = PORTFOLIO_ID_MAP[portfolioType]
+    // Dynamically resolve portfolio ID
+    const portfolioId = await portfolioResolver.getPortfolioIdByType(portfolioType)
+    if (!portfolioId) {
+      throw new Error(`Could not resolve portfolio ID for type: ${portfolioType}`)
+    }
+    
+    // Store email for future resolution
+    const credentials = DEMO_CREDENTIALS[portfolioType]
+    if (credentials) {
+      portfolioResolver.setUserPortfolioId(portfolioId, credentials.email)
+    }
     
     // Fetch portfolio data
     const response = await fetch(

@@ -4,6 +4,8 @@
  * Uses HttpOnly cookies with credentials:'include'
  */
 
+import { portfolioResolver } from './portfolioResolver';
+
 interface LoginResponse {
   access_token: string;
   token_type: string;
@@ -61,6 +63,17 @@ class ChatAuthService {
       // Store auth state in sessionStorage for persistence check
       if (typeof window !== 'undefined') {
         sessionStorage.setItem('auth_user', JSON.stringify(data.user));
+        // Store access token for portfolio API calls (not for chat)
+        localStorage.setItem('access_token', data.access_token);
+        localStorage.setItem('user_email', email);
+      }
+      
+      // Try to discover and cache the portfolio ID
+      // This is a best-effort operation - don't fail login if it doesn't work
+      try {
+        await portfolioResolver.getUserPortfolioId(true); // Force refresh to discover ID
+      } catch (error) {
+        console.warn('Could not discover portfolio ID after login:', error);
       }
 
       return data;
