@@ -2,52 +2,6 @@
   "session_start": "2025-09-02T06:49:27.680541",
   "status_checks": [
     {
-      "timestamp": "2025-09-02T12:25:50.915143",
-      "frontend": {
-        "status": "running",
-        "response_time": 26.95
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 3.36
-      }
-    },
-    {
-      "timestamp": "2025-09-02T12:25:50.946074",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 196.58,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 4.03
-      }
-    },
-    {
-      "timestamp": "2025-09-02T12:26:21.150514",
-      "frontend": {
-        "status": "running",
-        "response_time": 29.58
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 3.14
-      }
-    },
-    {
-      "timestamp": "2025-09-02T12:26:21.183779",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 205.5,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 4.1
-      }
-    },
-    {
       "timestamp": "2025-09-02T12:26:51.395816",
       "frontend": {
         "status": "running",
@@ -1172,6 +1126,52 @@
       "me_endpoint": {
         "status": 200,
         "response_time": 4.21
+      }
+    },
+    {
+      "timestamp": "2025-09-02T12:51:33.174528",
+      "frontend": {
+        "status": "running",
+        "response_time": 33.13
+      },
+      "backend": {
+        "status": "running",
+        "response_time": 2.82
+      }
+    },
+    {
+      "timestamp": "2025-09-02T12:51:33.210863",
+      "login_endpoint": {
+        "status": 200,
+        "response_time": 202.49,
+        "has_token": true
+      },
+      "me_endpoint": {
+        "status": 200,
+        "response_time": 4.68
+      }
+    },
+    {
+      "timestamp": "2025-09-02T12:52:03.421296",
+      "frontend": {
+        "status": "running",
+        "response_time": 16.73
+      },
+      "backend": {
+        "status": "running",
+        "response_time": 1.49
+      }
+    },
+    {
+      "timestamp": "2025-09-02T12:52:03.439814",
+      "login_endpoint": {
+        "status": 200,
+        "response_time": 180.06,
+        "has_token": true
+      },
+      "me_endpoint": {
+        "status": 200,
+        "response_time": 4.82
       }
     }
   ],
