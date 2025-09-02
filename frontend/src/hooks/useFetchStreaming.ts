@@ -12,7 +12,7 @@ import { chatAuthService } from '@/services/chatAuthService';
 interface SSEEvent {
   run_id: string;
   seq: number;
-  type: 'token' | 'tool_call' | 'tool_result' | 'error' | 'done' | 'heartbeat';
+  type: 'token' | 'tool_call' | 'tool_result' | 'error' | 'done' | 'heartbeat' | 'message_created';
   data: {
     delta?: string;
     tool_name?: string;
@@ -21,6 +21,10 @@ interface SSEEvent {
     error?: string;
     error_type?: 'AUTH_EXPIRED' | 'RATE_LIMITED' | 'NETWORK_ERROR' | 'SERVER_ERROR' | 'FATAL_ERROR';
     final_text?: string;
+    // message_created event data
+    user_message_id?: string;
+    assistant_message_id?: string;
+    conversation_id?: string;
   };
   timestamp: number;
 }
@@ -32,6 +36,12 @@ interface StreamingOptions {
   onError?: (error: any) => void;
   onDone?: (finalText: string) => void;
   onHeartbeat?: () => void;
+  onMessageCreated?: (event: {
+    user_message_id: string;
+    assistant_message_id: string;
+    conversation_id: string;
+    run_id: string;
+  }) => void;
 }
 
 export function useFetchStreaming() {
@@ -154,6 +164,26 @@ export function useFetchStreaming() {
           }
           
           console.log('Parsed event:', { eventType, dataStr });
+          
+          // Handle message_created event specially (different format)
+          if (eventType === 'message_created' && dataStr) {
+            try {
+              const messageData = JSON.parse(dataStr);
+              console.log('Processing message_created event:', messageData);
+              
+              // Update the runId with the one from message_created event
+              if (messageData.run_id) {
+                // Store the backend-provided runId for future reference
+                const backendRunId = messageData.run_id;
+                // We may need to update our local runId mapping here
+              }
+              
+              options.onMessageCreated?.(messageData);
+              continue; // Skip to next event
+            } catch (e) {
+              console.error('Failed to parse message_created event:', e, dataStr);
+            }
+          }
           
           // Process the event if we have both type and data
           if (eventType && dataStr) {

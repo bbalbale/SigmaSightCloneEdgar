@@ -48,10 +48,19 @@ interface ChatStore {
   updateConversationTitle: (conversationId: string, title: string) => void
   
   // Actions for Messages
-  addMessage: (message: Omit<Message, 'id' | 'timestamp'>) => void
+  addMessage: (message: Omit<Message, 'id' | 'timestamp'>, backendId?: string) => void
   updateMessage: (messageId: string, updates: Partial<Message>) => void
+  getMessage: (messageId: string) => Message | undefined
   getMessages: (conversationId?: string) => Message[]
   clearMessages: (conversationId?: string) => void
+  
+  // Backend ID coordination
+  handleMessageCreated: (event: {
+    user_message_id: string
+    assistant_message_id: string
+    conversation_id: string
+    run_id: string
+  }) => void
   
   // UI Actions
   setOpen: (open: boolean) => void
@@ -150,8 +159,8 @@ export const useChatStore = create<ChatStore>()(
         })
       },
       
-      // Add message to conversation
-      addMessage: (messageData, customId?: string) => {
+      // Add message to conversation (requires backend ID)
+      addMessage: (messageData, backendId?: string) => {
         const state = get()
         let conversationId = messageData.conversationId || state.currentConversationId
         
@@ -160,9 +169,15 @@ export const useChatStore = create<ChatStore>()(
           conversationId = state.createConversation(state.currentMode)
         }
         
+        // CRITICAL: Require backend ID - no frontend generation
+        if (!backendId) {
+          console.error('[chatStore] Cannot add message without backend ID')
+          return
+        }
+        
         const message: Message = {
           ...messageData,
-          id: customId || `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+          id: backendId, // Use backend-provided ID
           conversationId,
           timestamp: new Date(),
         }
@@ -212,6 +227,17 @@ export const useChatStore = create<ChatStore>()(
         })
       },
       
+      // Get single message by ID
+      getMessage: (messageId: string) => {
+        const state = get()
+        // Search through all conversations for the message
+        for (const [, messages] of state.messages.entries()) {
+          const message = messages.find(m => m.id === messageId)
+          if (message) return message
+        }
+        return undefined
+      },
+      
       // Get messages for current or specific conversation
       getMessages: (conversationId?: string) => {
         const state = get()
@@ -244,6 +270,36 @@ export const useChatStore = create<ChatStore>()(
           
           return state
         })
+      },
+      
+      // Handle message_created event from backend SSE
+      handleMessageCreated: (event) => {
+        const state = get()
+        const { user_message_id, assistant_message_id, conversation_id, run_id } = event
+        
+        // Check if messages already exist (avoid duplicates)
+        const existingUser = state.getMessage(user_message_id)
+        const existingAssistant = state.getMessage(assistant_message_id)
+        
+        if (existingUser && existingAssistant) {
+          console.log('[chatStore] Messages already exist, skipping creation')
+          return
+        }
+        
+        // If messages don't exist, they should be created via addMessage
+        // This handler is primarily for coordinating with streamStore
+        console.log('[chatStore] Message IDs received from backend:', {
+          user_message_id,
+          assistant_message_id,
+          conversation_id,
+          run_id
+        })
+        
+        // Store the run_id reference if needed
+        if (assistant_message_id && run_id) {
+          // Update assistant message with run_id
+          state.updateMessage(assistant_message_id, { runId: run_id })
+        }
       },
       
       // UI Actions

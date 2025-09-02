@@ -33,6 +33,7 @@ interface StreamStore {
   isStreaming: boolean;
   currentRunId: string | null;
   currentConversationId: string | null;
+  currentAssistantMessageId: string | null; // Backend-provided ID
   abortController: AbortController | null;
   
   // Actions
@@ -46,6 +47,7 @@ interface StreamStore {
   setAbortController: (controller: AbortController) => void;
   clearBuffer: (runId: string) => void;
   isConversationLocked: (conversationId: string) => boolean;
+  setAssistantMessageId: (messageId: string) => void;
   reset: () => void;
 }
 
@@ -59,6 +61,7 @@ export const useStreamStore = create<StreamStore>((set, get) => ({
   isStreaming: false,
   currentRunId: null,
   currentConversationId: null,
+  currentAssistantMessageId: null,
   abortController: null,
 
   // Start streaming for a conversation
@@ -114,6 +117,7 @@ export const useStreamStore = create<StreamStore>((set, get) => ({
       isStreaming: false,
       currentRunId: null,
       currentConversationId: null,
+      currentAssistantMessageId: null,
       processing: false,
       abortController: null,
     });
@@ -251,6 +255,11 @@ export const useStreamStore = create<StreamStore>((set, get) => ({
     return state.conversationLocks.get(conversationId) || false;
   },
 
+  // Set the current assistant message ID from backend
+  setAssistantMessageId: (messageId: string) => {
+    set({ currentAssistantMessageId: messageId });
+  },
+
   // Reset entire store
   reset: () => {
     const state = get();
@@ -267,6 +276,7 @@ export const useStreamStore = create<StreamStore>((set, get) => ({
       isStreaming: false,
       currentRunId: null,
       currentConversationId: null,
+      currentAssistantMessageId: null,
       abortController: null,
     });
   },

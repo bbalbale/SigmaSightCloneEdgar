@@ -31,8 +31,10 @@ export function ChatInterface({ className }: ChatInterfaceProps) {
     setMode,
     addMessage,
     updateMessage,
+    getMessage,
     getMessages,
     createConversation,
+    handleMessageCreated,
   } = useChatStore()
   
   // Runtime streaming state from streamStore
@@ -43,6 +45,8 @@ export function ChatInterface({ className }: ChatInterfaceProps) {
     messageQueue,
     queueMessage,
     processQueue,
+    setAssistantMessageId,
+    currentAssistantMessageId: storeAssistantMessageId,
   } = useStreamStore()
   
   // Force re-render when streamBuffers change
@@ -106,12 +110,12 @@ export function ChatInterface({ className }: ChatInterfaceProps) {
         }
       }
       
-      // Add system message about mode change
+      // Add system message about mode change with a system-generated ID
       addMessage({
         conversationId: currentConversationId || 'temp',
         role: 'system',
         content: `Mode switched to ${newMode} (${modeDescriptions[newMode]})`,
-      })
+      }, 'system-mode-' + Date.now()) // System messages don't need backend IDs
       return
     }
     
@@ -133,50 +137,62 @@ export function ChatInterface({ className }: ChatInterfaceProps) {
         createConversation(currentMode, conversationId)
       } catch (error) {
         console.error('Failed to create conversation:', error)
-        // Show error message to user
+        // Show error message to user with a system-generated ID
         addMessage({
           conversationId: 'temp',
           role: 'system',
           content: 'Failed to create conversation. Please check your connection and try again.',
-        })
+        }, 'error-conv-' + Date.now()) // Error messages don't need backend IDs
         return
       }
     }
     
-    // Add user message to persistent store
-    addMessage({
+    // DON'T add messages yet - wait for backend IDs via message_created event
+    // Store the user message temporarily
+    const tempUserMessage = {
       conversationId,
-      role: 'user',
+      role: 'user' as const,
       content: text,
-    })
-    
-    // Create placeholder for assistant message
-    const assistantMessageId = `msg_${Date.now()}_assistant`
-    currentAssistantMessageId.current = assistantMessageId
-    
-    addMessage({
-      conversationId,
-      role: 'assistant',
-      content: 'Thinking...', // Show placeholder text while streaming
-    }, assistantMessageId)
+    }
     
     try {
       // Check authentication
       const isAuthenticated = await chatAuthService.refreshIfNeeded()
       if (!isAuthenticated) {
-        updateMessage(assistantMessageId, {
+        // Add error message directly since we don't have backend IDs yet
+        addMessage({
+          conversationId,
+          role: 'assistant',
           content: 'Please log in to use the chat assistant.',
           error: {
             message: 'Authentication required',
             error_type: 'AUTH_EXPIRED',
           },
-        })
+        }, 'error-auth-' + Date.now()) // Use a temporary ID for error
         return
       }
       
-      // Start streaming - declare runId first
+      // Start streaming - backend will provide all IDs
       let runId: string | null = null
       runId = await streamMessage(conversationId, text, {
+        onMessageCreated: (event) => {
+          console.log('Received message_created event:', event)
+          
+          // Add both messages with backend IDs
+          addMessage(tempUserMessage, event.user_message_id)
+          addMessage({
+            conversationId,
+            role: 'assistant',
+            content: '', // Start with empty content for streaming
+          }, event.assistant_message_id)
+          
+          // Update stream store with assistant message ID
+          setAssistantMessageId(event.assistant_message_id)
+          currentAssistantMessageId.current = event.assistant_message_id
+          
+          // Handle the event in chatStore for additional coordination
+          handleMessageCreated(event)
+        },
         onToken: (token: string, runIdFromEvent?: string) => {
           console.log('ChatInterface onToken received:', token, 'runId:', runIdFromEvent);
           // Use the runId from the event, not the local variable
