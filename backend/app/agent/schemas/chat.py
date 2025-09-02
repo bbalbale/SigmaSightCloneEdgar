@@ -37,6 +37,32 @@ class MessageResponse(AgentBaseSchema):
     tool_calls: Optional[list] = None
 
 
+class MessageCreateRequest(AgentBaseSchema):
+    """Request to pre-create messages (backend-first ID generation)"""
+    conversation_id: UUID
+    text: str = Field(..., min_length=1, max_length=4000)
+
+
+class MessageCreatedResponse(AgentBaseSchema):
+    """Response containing created user and assistant message IDs"""
+    conversation_id: UUID
+    user_message_id: UUID
+    assistant_message_id: UUID
+
+
+class MessageUpdateRequest(AgentBaseSchema):
+    """Incremental message update payload"""
+    content: Optional[str] = None
+    tool_calls: Optional[list] = None
+    first_token_ms: Optional[int] = None
+    latency_ms: Optional[int] = None
+    prompt_tokens: Optional[int] = None
+    completion_tokens: Optional[int] = None
+    total_tokens: Optional[int] = None
+    provider_message_id: Optional[str] = None
+    error: Optional[dict] = None
+
+
 class ModeChangeRequest(AgentBaseSchema):
     """Request schema for changing conversation mode"""
     mode: str = Field(..., pattern="^(green|blue|indigo|violet)$")

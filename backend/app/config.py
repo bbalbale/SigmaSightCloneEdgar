@@ -53,6 +53,9 @@ class Settings(BaseSettings):
     CHAT_MAX_TOKENS: int = Field(default=4000, env="CHAT_MAX_TOKENS")
     CHAT_TIMEOUT_SECONDS: int = Field(default=300, env="CHAT_TIMEOUT_SECONDS")
     CHAT_RATE_LIMIT_PER_MINUTE: int = Field(default=10, env="CHAT_RATE_LIMIT_PER_MINUTE")
+    # Feature flags for agent chat rollout
+    SSE_EMIT_MESSAGE_CREATED: bool = Field(default=True, env="SSE_EMIT_MESSAGE_CREATED")
+    API_MESSAGES_ENABLED: bool = Field(default=False, env="API_MESSAGES_ENABLED")
     
     # JWT settings
     SECRET_KEY: str = Field(..., env="SECRET_KEY")

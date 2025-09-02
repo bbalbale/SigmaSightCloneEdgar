@@ -181,8 +181,13 @@ async def sse_generator(
             message_history=message_history,
             portfolio_context=portfolio_context
         ):
-            # Forward the SSE event
-            yield sse_event
+            # Filter out service 'done' to avoid duplicate finalization
+            if "event: done" in sse_event:
+                # Skip forwarding; we'll emit a unified 'done' after DB commit
+                pass
+            else:
+                # Forward the SSE event
+                yield sse_event
             
             # Parse event to track content and tool calls
             # FIXED: Changed from "event: message" to "event: token" to match OpenAI service
@@ -193,6 +198,17 @@ async def sse_generator(
                     if data.get("delta"):
                         assistant_content += data["delta"]
                         # Track first token time for metrics
+                        if not first_token_time:
+                            first_token_time = time.time()
+                except:
+                    pass
+            # Backward-compatibility: handle legacy 'message' events (deprecated)
+            elif "event: message" in sse_event:
+                try:
+                    data_line = sse_event.split("\ndata: ")[1].split("\n")[0]
+                    data = json.loads(data_line)
+                    if data.get("delta"):
+                        assistant_content += data["delta"]
                         if not first_token_time:
                             first_token_time = time.time()
                 except:

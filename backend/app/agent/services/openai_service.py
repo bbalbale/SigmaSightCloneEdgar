@@ -271,14 +271,15 @@ class OpenAIService:
         conversation_mode: str,
         message_text: str,
         message_history: List[Dict[str, Any]] = None,
-        portfolio_context: Optional[Dict[str, Any]] = None
+        portfolio_context: Optional[Dict[str, Any]] = None,
+        run_id: Optional[str] = None
     ) -> AsyncGenerator[str, None]:
         """
         Stream chat completion with tool calling support
         
         Yields SSE formatted events with standardized contract (type, run_id, seq fields)
         """
-        run_id = str(uuid.uuid4())
+        run_id = run_id or str(uuid.uuid4())
         seq = 0
         final_content_parts = []
         

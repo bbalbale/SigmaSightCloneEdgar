@@ -20,6 +20,7 @@ class SSEStartEvent(AgentBaseSchema):
 
 
 class SSEMessageEvent(AgentBaseSchema):
+    # DEPRECATED: Prefer SSETokenEvent with standardized envelope.
     """SSE message event data (text delta)"""
     delta: str = Field(..., description="Text chunk")
     role: str = "assistant"
@@ -28,14 +29,14 @@ class SSEMessageEvent(AgentBaseSchema):
 class SSEToolCallEvent(AgentBaseSchema):
     """SSE tool call event data"""
     tool_name: str
-    tool_id: str
-    arguments: Dict[str, Any]
+    tool_call_id: str
+    tool_args: Dict[str, Any]
 
 
 class SSEToolResultEvent(AgentBaseSchema):
     """SSE tool result event data"""
     tool_name: str
-    tool_id: str
+    tool_call_id: str
     result: Optional[Dict[str, Any]] = None
     error: Optional[str] = None
     meta: Dict[str, Any] = Field(default_factory=dict)
@@ -92,3 +93,11 @@ class SSEDoneEvent(AgentBaseSchema):
     completion_tokens: Optional[int] = None
     latency_ms: Optional[int] = None
     tool_calls_count: int = 0
+
+
+class SSEMessageCreatedEvent(AgentBaseSchema):
+    """SSE event emitted when backend creates user and assistant messages upfront"""
+    user_message_id: str
+    assistant_message_id: str
+    conversation_id: str
+    run_id: str
