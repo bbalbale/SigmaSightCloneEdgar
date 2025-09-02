@@ -128,9 +128,12 @@ export const useStreamStore = create<StreamStore>((set, get) => ({
     if (buffer) {
       // Check sequence number for deduplication
       if (seq > buffer.lastSeq) {
-        buffer.text += text;
-        buffer.lastSeq = seq;
-        buffers.set(runId, buffer);
+        // Create new buffer object instead of mutating
+        buffers.set(runId, {
+          text: buffer.text + text,
+          lastSeq: seq,
+          startTime: buffer.startTime,
+        });
         set({ streamBuffers: buffers });
       }
       // Ignore out-of-order or duplicate sequences

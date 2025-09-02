@@ -26,7 +26,7 @@ interface SSEEvent {
 }
 
 interface StreamingOptions {
-  onToken?: (token: string) => void;
+  onToken?: (token: string, runId?: string) => void;
   onToolCall?: (toolName: string, args: any) => void;
   onToolResult?: (toolName: string, result: any) => void;
   onError?: (error: any) => void;
@@ -71,6 +71,7 @@ export function useFetchStreaming() {
 
     try {
       // Make authenticated request
+      console.log('Starting chat stream request:', { conversationId, message });
       const response = await chatAuthService.authenticatedFetch(
         '/api/proxy/api/v1/chat/send',
         {
@@ -86,6 +87,13 @@ export function useFetchStreaming() {
           signal: abortController.signal,
         }
       );
+      
+      console.log('Response received:', {
+        ok: response.ok,
+        status: response.status,
+        contentType: response.headers.get('content-type'),
+        headers: Object.fromEntries(response.headers.entries())
+      });
 
       if (!response.ok) {
         const error = await response.json();
@@ -123,75 +131,82 @@ export function useFetchStreaming() {
         const chunk = decoder.decode(value, { stream: true });
         buffer += chunk;
 
-        // Process complete events
-        const lines = buffer.split('\n');
-        buffer = lines[lines.length - 1]; // Keep incomplete line in buffer
+        // Process complete SSE events (separated by double newlines)
+        const events = buffer.split('\n\n');
+        buffer = events.pop() || ''; // Keep incomplete event in buffer
 
-        for (let i = 0; i < lines.length - 1; i++) {
-          const line = lines[i].trim();
-
-          if (line.startsWith('event:')) {
-            const eventType = line.slice(6).trim();
-            
-            // Get the data line (should be next)
-            if (i + 1 < lines.length - 1) {
-              const dataLine = lines[i + 1].trim();
-              if (dataLine.startsWith('data:')) {
-                const dataStr = dataLine.slice(5).trim();
-                
-                try {
-                  const eventData = JSON.parse(dataStr) as SSEEvent;
-                  
-                  // Process based on event type
-                  switch (eventData.type) {
-                    case 'token':
-                      if (eventData.data.delta) {
-                        addToBuffer(runId, eventData.data.delta, eventData.seq);
-                        options.onToken?.(eventData.data.delta);
-                      }
-                      break;
-                      
-                    case 'tool_call':
-                      if (eventData.data.tool_name && eventData.data.tool_args) {
-                        options.onToolCall?.(eventData.data.tool_name, eventData.data.tool_args);
-                      }
-                      break;
-                      
-                    case 'tool_result':
-                      if (eventData.data.tool_name && eventData.data.tool_result) {
-                        options.onToolResult?.(eventData.data.tool_name, eventData.data.tool_result);
-                      }
-                      break;
-                      
-                    case 'heartbeat':
-                      lastHeartbeat = Date.now();
-                      options.onHeartbeat?.();
-                      break;
-                      
-                    case 'error':
-                      const error = {
-                        message: eventData.data.error || 'Unknown error',
-                        error_type: eventData.data.error_type,
-                        run_id: eventData.run_id,
-                      };
-                      options.onError?.(error);
-                      break;
-                      
-                    case 'done':
-                      const finalText = sealBuffer(runId);
-                      options.onDone?.(eventData.data.final_text || finalText);
-                      break;
-                  }
-                } catch (e) {
-                  console.error('Failed to parse SSE event:', e, dataStr);
-                }
-                
-                i++; // Skip the data line since we processed it
-              }
+        for (const event of events) {
+          if (!event.trim()) continue;
+          
+          const lines = event.split('\n').map(line => line.trim()).filter(line => line);
+          let eventType = '';
+          let dataStr = '';
+          
+          console.log('Processing SSE event:', { event, lines });
+          
+          // Parse event/data pairs
+          for (const line of lines) {
+            if (line.startsWith('event:')) {
+              eventType = line.slice(6).trim();
+            } else if (line.startsWith('data:')) {
+              dataStr = line.slice(5).trim();
             }
-          } else if (line.startsWith('data:')) {
+          }
+          
+          console.log('Parsed event:', { eventType, dataStr });
+          
+          // Process the event if we have both type and data
+          if (eventType && dataStr) {
+            try {
+              const eventData = JSON.parse(dataStr) as SSEEvent;
+              
+              // Process based on event type
+              switch (eventData.type) {
+                case 'token':
+                  if (eventData.data.delta) {
+                    console.log('Adding token to buffer:', { runId, delta: eventData.data.delta, seq: eventData.seq });
+                    addToBuffer(runId, eventData.data.delta, eventData.seq);
+                    console.log('Calling onToken callback with:', eventData.data.delta, 'runId:', runId);
+                    options.onToken?.(eventData.data.delta, runId);
+                  }
+                  break;
+                  
+                case 'tool_call':
+                  if (eventData.data.tool_name && eventData.data.tool_args) {
+                    options.onToolCall?.(eventData.data.tool_name, eventData.data.tool_args);
+                  }
+                  break;
+                  
+                case 'tool_result':
+                  if (eventData.data.tool_name && eventData.data.tool_result) {
+                    options.onToolResult?.(eventData.data.tool_name, eventData.data.tool_result);
+                  }
+                  break;
+                  
+                case 'heartbeat':
+                  lastHeartbeat = Date.now();
+                  options.onHeartbeat?.();
+                  break;
+                  
+                case 'error':
+                  const error = {
+                    message: eventData.data.error || 'Unknown error',
+                    error_type: eventData.data.error_type,
+                    run_id: eventData.run_id,
+                  };
+                  options.onError?.(error);
+                  break;
+                  
+                case 'done':
+                  const finalText = sealBuffer(runId);
+                  options.onDone?.(eventData.data.final_text || finalText);
+                  break;
+              }
+            } catch (e) {
+              console.error('Failed to parse SSE event:', e, dataStr);
+            }
+          } else if (dataStr && !eventType) {
             // Handle data-only lines (legacy format)
-            const dataStr = line.slice(5).trim();
             if (dataStr === '[DONE]') {
               const finalText = sealBuffer(runId);
               options.onDone?.(finalText);
@@ -205,7 +220,7 @@ export function useFetchStreaming() {
               if (data.delta) {
                 // Simple delta format
                 addToBuffer(runId, data.delta, data.seq || 0);
-                options.onToken?.(data.delta);
+                options.onToken?.(data.delta, runId);
               } else if (data.type === 'heartbeat') {
                 lastHeartbeat = Date.now();
                 options.onHeartbeat?.();
@@ -216,7 +231,7 @@ export function useFetchStreaming() {
               // Not JSON, might be plain text
               if (dataStr && dataStr !== '[DONE]') {
                 addToBuffer(runId, dataStr, 0);
-                options.onToken?.(dataStr);
+                options.onToken?.(dataStr, runId);
               }
             }
           }

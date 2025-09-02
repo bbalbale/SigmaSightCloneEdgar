@@ -45,6 +45,9 @@ export function ChatInterface({ className }: ChatInterfaceProps) {
     processQueue,
   } = useStreamStore()
   
+  // Force re-render when streamBuffers change
+  const streamBuffersSize = streamBuffers.size
+  
   // Streaming hook
   const { streamMessage, abortStream } = useFetchStreaming()
   
@@ -171,15 +174,24 @@ export function ChatInterface({ className }: ChatInterfaceProps) {
         return
       }
       
-      // Start streaming
-      const runId = await streamMessage(conversationId, text, {
-        onToken: (token: string) => {
-          // Get accumulated text from stream buffer
-          const buffer = streamBuffers.get(runId || '')
+      // Start streaming - declare runId first
+      let runId: string | null = null
+      runId = await streamMessage(conversationId, text, {
+        onToken: (token: string, runIdFromEvent?: string) => {
+          console.log('ChatInterface onToken received:', token, 'runId:', runIdFromEvent);
+          // Use the runId from the event, not the local variable
+          const actualRunId = runIdFromEvent || runId || ''
+          console.log('All stream buffers:', Array.from(streamBuffers.entries()));
+          console.log('Looking for buffer with runId:', actualRunId);
+          const buffer = streamBuffers.get(actualRunId)
+          console.log('Stream buffer for runId:', actualRunId, buffer);
           if (buffer && currentAssistantMessageId.current) {
+            console.log('Updating message with buffer text:', buffer.text);
             updateMessage(currentAssistantMessageId.current, {
               content: buffer.text,
             })
+          } else {
+            console.log('No buffer or messageId:', { buffer, messageId: currentAssistantMessageId.current });
           }
         },
         onError: (error: any) => {
