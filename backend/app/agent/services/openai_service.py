@@ -406,6 +406,7 @@ class OpenAIService:
                             "run_id": run_id,
                             "seq": seq,
                             "data": {
+                                "tool_call_id": tool_call_id,  # Include the tool call ID
                                 "tool_name": function_name,
                                 "tool_args": function_args
                             },

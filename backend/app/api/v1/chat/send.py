@@ -8,6 +8,7 @@ from sqlalchemy import select, and_
 from sqlalchemy.orm import selectinload
 import asyncio
 import json
+import time
 from typing import AsyncGenerator, List, Dict, Any
 from uuid import uuid4
 from datetime import datetime
@@ -124,7 +125,7 @@ async def sse_generator(
             except Exception as e:
                 logger.warning(f"Could not load portfolio context: {e}")
         
-        # Store user message
+        # Create BOTH messages upfront with backend-generated IDs
         user_message = ConversationMessage(
             id=uuid4(),
             conversation_id=conversation.id,
@@ -133,11 +134,45 @@ async def sse_generator(
             created_at=utc_now()
         )
         db.add(user_message)
-        await db.commit()
+        
+        # Create assistant message placeholder that will be updated during streaming
+        assistant_message = ConversationMessage(
+            id=uuid4(),
+            conversation_id=conversation.id,
+            role="assistant",
+            content="",  # Will be updated during streaming
+            created_at=utc_now()
+        )
+        db.add(assistant_message)
+        
+        # Use transaction to ensure both messages created or neither
+        try:
+            await db.commit()
+            await db.refresh(user_message)
+            await db.refresh(assistant_message)
+        except Exception as e:
+            await db.rollback()
+            logger.error(f"Failed to create messages: {e}")
+            yield f"event: error\ndata: {json.dumps({'error': 'Failed to create messages'})}\n\n"
+            return
+        
+        # Generate run_id for this streaming session
+        run_id = f"run_{uuid4().hex[:12]}"
+        
+        # EMIT message_created event with both IDs
+        message_created_event = {
+            "user_message_id": str(user_message.id),
+            "assistant_message_id": str(assistant_message.id),
+            "conversation_id": str(conversation.id),
+            "run_id": run_id
+        }
+        yield f"event: message_created\ndata: {json.dumps(message_created_event)}\n\n"
         
         # Stream OpenAI response
         assistant_content = ""
         tool_calls_made = []
+        first_token_time = None
+        start_time = time.time()
         
         async for sse_event in openai_service.stream_chat_completion(
             conversation_id=str(conversation.id),
@@ -150,21 +185,27 @@ async def sse_generator(
             yield sse_event
             
             # Parse event to track content and tool calls
-            if "event: message" in sse_event:
+            # FIXED: Changed from "event: message" to "event: token" to match OpenAI service
+            if "event: token" in sse_event:
                 try:
                     data_line = sse_event.split("\ndata: ")[1].split("\n")[0]
                     data = json.loads(data_line)
                     if data.get("delta"):
                         assistant_content += data["delta"]
+                        # Track first token time for metrics
+                        if not first_token_time:
+                            first_token_time = time.time()
                 except:
                     pass
-            elif "event: tool_result" in sse_event:
+            # FIXED: Changed from "event: tool_result" to "event: tool_call" to capture tool details
+            elif "event: tool_call" in sse_event:
                 try:
                     data_line = sse_event.split("\ndata: ")[1].split("\n")[0]
                     data = json.loads(data_line)
                     # Store tool calls in OpenAI-compatible format for history reconstruction
+                    tool_call_id = data.get("tool_call_id", f"call_{uuid4().hex[:24]}")
                     tool_calls_made.append({
-                        "id": f"call_{uuid4().hex[:24]}",  # Generate OpenAI-compatible ID
+                        "id": tool_call_id,  # Use provided ID or generate OpenAI-compatible ID
                         "type": "function", 
                         "function": {
                             "name": data.get("tool_name"),
@@ -174,18 +215,16 @@ async def sse_generator(
                 except:
                     pass
         
-        # Store assistant message
-        assistant_message = ConversationMessage(
-            id=uuid4(),
-            conversation_id=conversation.id,
-            role="assistant",
-            content=assistant_content,
-            created_at=utc_now()
-        )
-        if tool_calls_made:
-            assistant_message.tool_calls = tool_calls_made
+        # Update assistant message with final content and metrics
+        assistant_message.content = assistant_content
+        assistant_message.tool_calls = tool_calls_made if tool_calls_made else None
         
-        db.add(assistant_message)
+        # Add metrics (these fields should exist in the model)
+        if first_token_time:
+            assistant_message.first_token_ms = int((first_token_time - start_time) * 1000)
+        assistant_message.latency_ms = int((time.time() - start_time) * 1000)
+        
+        # Commit the updated assistant message
         await db.commit()
         
         # Calculate latency
