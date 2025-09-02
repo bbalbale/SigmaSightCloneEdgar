@@ -3,10 +3,12 @@
  */
 
 // Map portfolio types to backend portfolio IDs
+// TODO: These should be fetched dynamically (Section 3.0)
+// TEMPORARY FIX: Using actual IDs from current database
 const PORTFOLIO_ID_MAP = {
-  'individual': '52110fe1-ca52-42ff-abaa-c0c90e8e21be',
-  'high-net-worth': '7ec9dab7-b709-4a3a-b7b6-2399e53ac3eb',
-  'hedge-fund': '1341a9f2-5ef1-4acb-a480-2dca21a7d806'
+  'individual': '51134ffd-2f13-49bd-b1f5-0c327e801b69',  // demo_individual@sigmasight.com
+  'high-net-worth': 'c0510ab8-c6b5-433c-adbc-3f74e1dbdb5e',  // demo_hnw@sigmasight.com
+  'hedge-fund': '2ee7435f-379f-4606-bdb7-dadce587a182'  // demo_hedgefundstyle@sigmasight.com
 }
 
 // Demo user credentials for authentication

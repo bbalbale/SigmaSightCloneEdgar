@@ -1647,6 +1647,46 @@ While we have all the building blocks (API key, tool handlers, prompts, SSE infr
 
 ---
 
+## 🔧 Phase 5.6: Fix CORS Headers Bug in Chat Send Endpoint
+
+> **Issue Found**: 2025-09-02 during frontend integration testing
+> **Error**: `'MessageSend' object has no attribute 'headers'` when sending chat messages
+
+### Problem
+The `/api/v1/chat/send` endpoint has a bug where it's trying to access `request.headers` for CORS origin handling, but `request` at that point is actually the `MessageSend` Pydantic model, not the FastAPI Request object.
+
+### Tasks
+- [ ] **5.6.1** Fix the chat/send endpoint to properly inject Request object
+  - [ ] Import FastAPI Request: `from fastapi import Request`
+  - [ ] Add Request parameter to endpoint function signature
+  - [ ] Update CORS headers to use injected Request object:
+    ```python
+    async def send_message(
+        request: Request,  # Add this parameter
+        message_data: MessageSend,  # This is the Pydantic model
+        current_user: User = Depends(get_current_user)
+    ):
+        # Now can access request.headers for CORS
+        origin = request.headers.get('origin', 'http://localhost:3005')
+    ```
+  - [ ] Ensure SSE response headers include proper CORS:
+    ```python
+    headers = {
+        "Access-Control-Allow-Origin": origin,
+        "Access-Control-Allow-Credentials": "true",
+    }
+    ```
+
+- [ ] **5.6.2** Test the fix
+  - [ ] Verify chat messages can be sent without errors
+  - [ ] Confirm SSE streaming works with credentials
+  - [ ] Test with frontend at `http://localhost:3005`
+  - [ ] Verify cookies are properly forwarded
+
+**Impact**: This blocks all frontend chat functionality as messages cannot be sent to the backend.
+
+---
+
 ## 📋 Phase 6: Testing & Validation (Day 9-10)
 
 > Reference: TDD §14 (Testing), PRD §9 (Performance Targets), §13 (Golden Set)

@@ -161,4 +161,61 @@ The changes require:
 
 ---
 
+## Backend Issues Found During Frontend Integration Testing (2025-09-02)
+
+### Critical Backend Bug: CORS Headers in Chat Send Endpoint
+
+**Issue**: `/api/v1/chat/send` endpoint crashes with error:
+```
+'MessageSend' object has no attribute 'headers'
+```
+
+**Root Cause**: 
+- The endpoint tries to access `request.headers` for CORS origin handling
+- But `request` at that point is the `MessageSend` Pydantic model, not the FastAPI Request object
+- This was introduced when adding CORS support for SSE streaming
+
+**Impact**: 
+- Complete blocker for frontend chat functionality
+- 500 error prevents any messages from being sent
+- SSE streaming cannot be tested until this is fixed
+
+**Fix Required**:
+```python
+# In backend/app/api/v1/chat/send.py
+from fastapi import Request
+
+async def send_message(
+    request: Request,  # Add this parameter
+    message_data: MessageSend,  # This is the Pydantic model
+    current_user: User = Depends(get_current_user)
+):
+    # Now can access request.headers for CORS
+    origin = request.headers.get('origin', 'http://localhost:3005')
+    
+    # In SSE response headers:
+    headers = {
+        "Access-Control-Allow-Origin": origin,
+        "Access-Control-Allow-Credentials": "true",
+    }
+```
+
+**Documentation**: Added as Phase 5.6 in `/agent/TODO.md` (lines 1650-1686)
+
+### Backend Configuration Issues
+
+**Portfolio IDs**:
+- Frontend was using hardcoded portfolio IDs that don't match database
+- Each database installation generates unique UUIDs for portfolios
+- Must run `uv run python scripts/list_portfolios.py` to get actual IDs
+
+**Current Database Portfolio Mappings** (environment-specific):
+- `demo_individual@sigmasight.com` → `51134ffd-2f13-49bd-b1f5-0c327e801b69`
+- `demo_hnw@sigmasight.com` → `c0510ab8-c6b5-433c-adbc-3f74e1dbdb5e`
+- `demo_hedgefundstyle@sigmasight.com` → `2ee7435f-379f-4606-bdb7-dadce587a182`
+
+---
+
 **Branch Status**: `frontendtest` is safe to use for frontend development while preserving all backend and agent functionality from `main`.
+
+**Backend Fix Priority**: The CORS headers bug in `/api/v1/chat/send` must be fixed before chat functionality can work.

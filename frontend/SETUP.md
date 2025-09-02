@@ -106,7 +106,7 @@ NEXT_PUBLIC_ENABLE_BACKEND_INTEGRATION=true
 npm run dev
 ```
 
-The application will be available at: **http://localhost:3000**
+The application will be available at: **http://localhost:3005**
 
 ## Project Structure
 
@@ -191,11 +191,11 @@ The frontend includes:
 
 ### Port Already in Use
 
-If port 3000 is busy, Next.js will automatically try the next available port:
+If port 3005 is busy, Next.js will automatically try the next available port:
 
 ```bash
 # Force a specific port
-npm run dev -- -p 3001
+npm run dev -- -p 3006
 ```
 
 ### Missing Dependencies
@@ -264,7 +264,7 @@ For issues or questions:
 
 After setup, you can:
 
-- Explore the landing page at `http://localhost:3000`
+- Explore the landing page at `http://localhost:3005`
 - Connect to the backend for full functionality
 - Customize the design in `src/components/BasicDemoPage.tsx`
 - Add new features using the existing architecture
