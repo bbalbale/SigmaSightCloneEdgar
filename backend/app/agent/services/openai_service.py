@@ -2,10 +2,12 @@
 OpenAI service for agent chat functionality
 """
 import json
+import time
 from typing import AsyncGenerator, Dict, Any, List, Optional
 from openai import AsyncOpenAI
 from openai.types.chat import ChatCompletionMessageParam, ChatCompletionToolParam
 import asyncio
+import uuid
 
 from app.config import settings
 from app.core.logging import get_logger
@@ -14,6 +16,7 @@ from app.agent.prompts.prompt_manager import PromptManager
 from app.agent.schemas.sse import (
     SSEStartEvent,
     SSEMessageEvent,
+    SSETokenEvent,
     SSEToolStartedEvent,
     SSEToolFinishedEvent,
     SSEDoneEvent,
@@ -260,8 +263,12 @@ class OpenAIService:
         """
         Stream chat completion with tool calling support
         
-        Yields SSE formatted events with heartbeat to prevent timeouts
+        Yields SSE formatted events with standardized contract (type, run_id, seq fields)
         """
+        run_id = str(uuid.uuid4())
+        seq = 0
+        final_content_parts = []
+        
         try:
             # Build messages
             messages = self._build_messages(
@@ -274,13 +281,20 @@ class OpenAIService:
             # Get tool definitions
             tools = self._get_tool_definitions()
             
-            # Yield start event
-            start_event = SSEStartEvent(
-                conversation_id=conversation_id,
-                mode=conversation_mode,
-                model=self.model
-            )
-            yield f"event: start\ndata: {json.dumps(start_event.model_dump())}\n\n"
+            # Yield start event with standardized format
+            start_payload = {
+                "type": "start",
+                "run_id": run_id,
+                "seq": seq,
+                "data": {
+                    "conversation_id": conversation_id,
+                    "mode": conversation_mode,
+                    "model": self.model
+                },
+                "timestamp": int(time.time() * 1000)
+            }
+            yield f"event: start\ndata: {json.dumps(start_payload)}\n\n"
+            seq += 1
             
             # Call OpenAI with streaming
             stream = await self.client.chat.completions.create(
@@ -299,25 +313,44 @@ class OpenAIService:
             heartbeat_interval = settings.SSE_HEARTBEAT_INTERVAL_MS / 1000.0
             
             async for chunk in stream:
+                # Debug: Log chunk details
+                logger.info(f"OpenAI chunk received: {chunk}")
+                
                 # Check if we need to send a heartbeat
                 current_time = asyncio.get_event_loop().time()
                 if current_time - last_heartbeat > heartbeat_interval:
-                    yield f"event: heartbeat\ndata: {json.dumps({'type': 'heartbeat'})}\n\n"
+                    heartbeat_payload = {
+                        "type": "heartbeat",
+                        "run_id": run_id,
+                        "seq": 0,  # Heartbeats don't increment sequence
+                        "data": {},
+                        "timestamp": int(time.time() * 1000)
+                    }
+                    yield f"event: heartbeat\ndata: {json.dumps(heartbeat_payload)}\n\n"
                     last_heartbeat = current_time
+                
                 delta = chunk.choices[0].delta if chunk.choices else None
+                logger.info(f"Delta extracted: {delta}")
                 if not delta:
                     continue
                 
-                # Handle content streaming
+                # Handle content streaming with standardized token events
                 if delta.content:
                     current_content += delta.content
-                    message_event = SSEMessageEvent(
-                        delta=delta.content,
-                        role="assistant"
-                    )
-                    yield f"event: message\ndata: {json.dumps(message_event.model_dump())}\n\n"
+                    final_content_parts.append(delta.content)
+                    
+                    # Emit standardized token event
+                    token_payload = {
+                        "type": "token",
+                        "run_id": run_id,
+                        "seq": seq,
+                        "data": {"delta": delta.content},
+                        "timestamp": int(time.time() * 1000)
+                    }
+                    yield f"event: token\ndata: {json.dumps(token_payload)}\n\n"
+                    seq += 1
                 
-                # Handle tool calls
+                # Handle tool calls with JSON parsing guards
                 if delta.tool_calls:
                     for tool_call_delta in delta.tool_calls:
                         tool_call_id = tool_call_delta.id
@@ -341,42 +374,77 @@ class OpenAIService:
                     # Execute tool calls
                     for tool_call_id, tool_call in tool_call_chunks.items():
                         function_name = tool_call["function"]["name"]
-                        function_args = json.loads(tool_call["function"]["arguments"])
                         
-                        # Yield tool started event
-                        tool_started = SSEToolStartedEvent(
-                            tool_name=function_name,
-                            arguments=function_args
-                        )
-                        yield f"event: tool_started\ndata: {json.dumps(tool_started.model_dump())}\n\n"
-                        
-                        # Execute tool
+                        # Parse function arguments with error guard
                         try:
-                            result = await tool_registry.dispatch(function_name, **function_args)
-                            
-                            # Yield tool finished event
-                            tool_finished = SSEToolFinishedEvent(
-                                tool_name=function_name,
-                                result=result,
-                                duration_ms=100  # TODO: Track actual duration
-                            )
-                            yield f"event: tool_finished\ndata: {json.dumps(tool_finished.model_dump())}\n\n"
-                            
-                            # Add tool response to messages for next iteration
-                            messages.append({
-                                "role": "tool",
-                                "tool_call_id": tool_call_id,
-                                "content": json.dumps(result)
-                            })
-                            
+                            raw_args = tool_call["function"]["arguments"]
+                            if isinstance(raw_args, str) and raw_args.strip():
+                                function_args = json.loads(raw_args)
+                            else:
+                                function_args = {}
+                        except json.JSONDecodeError as e:
+                            logger.warning(f"Failed to parse tool arguments: {e}. Raw: {raw_args}")
+                            function_args = {"__parse_error__": str(e), "raw": raw_args}
                         except Exception as e:
-                            logger.error(f"Tool execution error: {e}")
-                            tool_finished = SSEToolFinishedEvent(
-                                tool_name=function_name,
-                                result={"error": str(e)},
-                                duration_ms=0
-                            )
-                            yield f"event: tool_finished\ndata: {json.dumps(tool_finished.model_dump())}\n\n"
+                            logger.warning(f"Unexpected error parsing tool arguments: {e}")
+                            function_args = {"__parse_error__": str(e)}
+                        
+                        # Emit standardized tool_call event
+                        tool_call_payload = {
+                            "type": "tool_call",
+                            "run_id": run_id,
+                            "seq": seq,
+                            "data": {
+                                "tool_name": function_name,
+                                "tool_args": function_args
+                            },
+                            "timestamp": int(time.time() * 1000)
+                        }
+                        yield f"event: tool_call\ndata: {json.dumps(tool_call_payload)}\n\n"
+                        seq += 1
+                        
+                        # Execute tool if arguments parsed successfully
+                        if "__parse_error__" not in function_args:
+                            try:
+                                tool_start_time = time.time()
+                                result = await tool_registry.dispatch(function_name, **function_args)
+                                duration_ms = int((time.time() - tool_start_time) * 1000)
+                                
+                                # Emit standardized tool_result event
+                                tool_result_payload = {
+                                    "type": "tool_result",
+                                    "run_id": run_id,
+                                    "seq": seq,
+                                    "data": {
+                                        "tool_name": function_name,
+                                        "tool_result": result
+                                    },
+                                    "timestamp": int(time.time() * 1000)
+                                }
+                                yield f"event: tool_result\ndata: {json.dumps(tool_result_payload)}\n\n"
+                                seq += 1
+                                
+                                # Add tool response to messages for next iteration
+                                messages.append({
+                                    "role": "tool",
+                                    "tool_call_id": tool_call_id,
+                                    "content": json.dumps(result)
+                                })
+                                
+                            except Exception as e:
+                                logger.error(f"Tool execution error: {e}")
+                                error_result_payload = {
+                                    "type": "tool_result",
+                                    "run_id": run_id,
+                                    "seq": seq,
+                                    "data": {
+                                        "tool_name": function_name,
+                                        "tool_result": {"error": str(e)}
+                                    },
+                                    "timestamp": int(time.time() * 1000)
+                                }
+                                yield f"event: tool_result\ndata: {json.dumps(error_result_payload)}\n\n"
+                                seq += 1
                     
                     # Continue conversation with tool results
                     if tool_call_chunks:
@@ -395,22 +463,36 @@ class OpenAIService:
                             max_completion_tokens=settings.CHAT_MAX_TOKENS
                         )
                         
-                        # Stream the continuation
+                        # Stream the continuation with standardized token events
                         async for cont_chunk in continuation_stream:
                             cont_delta = cont_chunk.choices[0].delta if cont_chunk.choices else None
                             if cont_delta and cont_delta.content:
-                                message_event = SSEMessageEvent(
-                                    delta=cont_delta.content,
-                                    role="assistant"
-                                )
-                                yield f"event: message\ndata: {json.dumps(message_event.model_dump())}\n\n"
+                                final_content_parts.append(cont_delta.content)
+                                
+                                token_payload = {
+                                    "type": "token",
+                                    "run_id": run_id,
+                                    "seq": seq,
+                                    "data": {"delta": cont_delta.content},
+                                    "timestamp": int(time.time() * 1000)
+                                }
+                                yield f"event: token\ndata: {json.dumps(token_payload)}\n\n"
+                                seq += 1
             
-            # Send done event
-            done_event = SSEDoneEvent(
-                tool_calls_count=len(tool_call_chunks),
-                total_tokens=0  # TODO: Track token usage
-            )
-            yield f"event: done\ndata: {json.dumps(done_event.model_dump())}\n\n"
+            # Send standardized done event
+            final_text = "".join(final_content_parts)
+            done_payload = {
+                "type": "done",
+                "run_id": run_id,
+                "seq": seq,
+                "data": {
+                    "final_text": final_text,
+                    "tool_calls_count": len(tool_call_chunks),
+                    "total_tokens": 0  # TODO: Track token usage
+                },
+                "timestamp": int(time.time() * 1000)
+            }
+            yield f"event: done\ndata: {json.dumps(done_payload)}\n\n"
             
         except Exception as e:
             logger.error(f"OpenAI streaming error: {e}")
@@ -430,13 +512,20 @@ class OpenAIService:
             elif "network" in error_msg or "connection" in error_msg:
                 error_type = "NETWORK_ERROR"
             
-            error_event = SSEErrorEvent(
-                message=str(e),
-                error_type=error_type,
-                retryable=retryable,
-                retry_after=retry_after
-            )
-            yield f"event: error\ndata: {json.dumps(error_event.model_dump())}\n\n"
+            # Emit standardized error event
+            error_payload = {
+                "type": "error",
+                "run_id": run_id,
+                "seq": 0,  # Errors don't increment sequence
+                "data": {
+                    "error": str(e),
+                    "error_type": error_type,
+                    "retryable": retryable,
+                    "retry_after": retry_after
+                },
+                "timestamp": int(time.time() * 1000)
+            }
+            yield f"event: error\ndata: {json.dumps(error_payload)}\n\n"
 
 
 # Singleton instance

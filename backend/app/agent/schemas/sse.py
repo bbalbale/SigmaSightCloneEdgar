@@ -71,6 +71,15 @@ class SSEToolFinishedEvent(AgentBaseSchema):
     duration_ms: Optional[int] = None
 
 
+class SSETokenEvent(AgentBaseSchema):
+    """SSE token event data with standardized format for frontend"""
+    type: str = "token"
+    run_id: str
+    seq: int
+    data: Dict[str, Any]  # Contains {"delta": "..."}
+    timestamp: int  # milliseconds since epoch
+
+
 class SSEHeartbeatEvent(AgentBaseSchema):
     """SSE heartbeat event for keeping connection alive"""
     timestamp: str

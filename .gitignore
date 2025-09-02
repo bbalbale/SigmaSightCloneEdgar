@@ -13,6 +13,11 @@
 **/*SECRET*
 **/*secret*
 
+# Allow OpenAI service source file to be tracked
+!backend/app/agent/services/openai_service.py
+# Allow OpenAI streaming bug report to be tracked
+!backend/OPENAI_STREAMING_BUG_REPORT.md
+
 # Python
 __pycache__/
 *.py[cod]

@@ -142,8 +142,13 @@ class ChatAuthService {
     // First check if we have a stored user
     if (!this.currentUser && typeof window !== 'undefined') {
       const stored = sessionStorage.getItem('auth_user');
-      if (stored) {
-        this.currentUser = JSON.parse(stored);
+      if (stored && stored !== 'undefined') {
+        try {
+          this.currentUser = JSON.parse(stored);
+        } catch (error) {
+          console.warn('Failed to parse stored auth user:', error);
+          sessionStorage.removeItem('auth_user'); // Clean up bad data
+        }
       }
     }
 

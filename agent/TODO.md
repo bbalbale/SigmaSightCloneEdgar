@@ -1690,6 +1690,26 @@ The `/api/v1/chat/send` endpoint has a bug where it's trying to access `request.
 
 ---
 
+## 📋 Phase 5.7: OpenAI Streaming Parser Fix (Day 9)
+- [ ] Backend SSE normalization
+  - Emit `event: token` with JSON `{ type: 'token', run_id, seq, data: { delta }, timestamp }`.
+  - Maintain `tool_call`, `tool_result`, `heartbeat`, `error`, and `done` events with documented payloads.
+- [ ] OpenAI stream parsing
+  - Consume provider stream chunk-by-chunk; handle `[DONE]`; accumulate `final_text`.
+  - Guard tool-call `arguments` with try/except; include `__parse_error__` on failure without aborting stream.
+- [ ] SSE endpoint & proxy
+  - Ensure CORS/credentials on SSE, forward `Authorization` and `Accept: text/event-stream`, and propagate `Set-Cookie` in streaming responses.
+- [ ] Tests (summary)
+  - Backend unit: chunk parser, tool-args guard, error event shape.
+  - E2E: live tokens visible in UI, final text, tool-call path.
+  - Manual: curl via proxy to verify SSE frames.
+- [ ] Success criteria
+  - No backend JSON parsing errors; steady token `seq`; UI replaces “Thinking...” with streamed text.
+
+See `backend/OPENAI_STREAMING_BUG_REPORT.md` for the detailed implementation outline, precise SSE contract, and complete testing plan.
+
+---
+
 ## 📋 Phase 6: Testing & Validation (Day 9-10)
 
 > Reference: TDD §14 (Testing), PRD §9 (Performance Targets), §13 (Golden Set)

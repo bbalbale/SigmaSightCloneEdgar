@@ -143,6 +143,22 @@ class PortfolioResolver {
     this.clearCache()
     return this.getUserPortfolioId(true)
   }
+
+  /**
+   * Set user portfolio ID with email association (for backward compatibility)
+   * This is called by portfolioService.ts after successful authentication
+   */
+  setUserPortfolioId(portfolioId: string, email: string): void {
+    // Store in cache for immediate use
+    const cacheKey = `portfolio_${email}`
+    const portfolioInfo: PortfolioInfo = {
+      id: portfolioId,
+      name: `Portfolio for ${email}`
+    }
+    
+    this.portfolioCache.set(cacheKey, portfolioInfo)
+    this.cacheExpiry.set(cacheKey, Date.now() + this.CACHE_DURATION)
+  }
 }
 
 // Export singleton instance
