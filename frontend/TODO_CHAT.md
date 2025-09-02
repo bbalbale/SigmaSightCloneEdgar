@@ -990,6 +990,27 @@ This implementation follows an **automated test-driven development cycle** using
   - **Files**: `backend/app/agent/services/openai_service.py`
   - **Result**: Complete tool call lifecycle monitoring with ID mapping
 
+### 6.35 **Tool Registry Missing 'dispatch' Method** ❌
+- **Issue**: Tool registry object doesn't have 'dispatch' method causing tool execution failures
+- **Error**: `'ToolRegistry' object has no attribute 'dispatch'`
+- **Cross-reference**: Related to Phase 10 ID refactoring in `/agent/TODO.md`
+- **Impact**: All tool calls fail after OpenAI requests them
+- **Status**: Needs fix in backend/app/agent/tools/tool_registry.py
+
+### 6.36 **Token Streaming Not Forwarded to Client** ❌
+- **Issue**: Content tokens received from OpenAI but not sent via SSE to frontend
+- **Observed**: Manual testing shows no 'token' events in SSE stream
+- **Expected**: Each content token should generate SSE event with token data
+- **Cross-reference**: Phase 10.5 testing in `/agent/TODO.md`
+- **Status**: Needs investigation in OpenAI service streaming handler
+
+### 6.37 **Failed Tool Calls Stored with Null IDs** ❌
+- **Issue**: When tool execution fails, null tool_call_id is stored causing OpenAI API errors
+- **Error**: OpenAI 400 - "Invalid value for 'tool_call_id': expected a string, but got null"
+- **Cross-reference**: Phase 10 backend-first ID generation in `/agent/TODO.md`
+- **Impact**: Subsequent messages fail due to malformed conversation history
+- **Status**: Needs validation before storing tool call results
+
 ## 7. **Enhanced Observability**
 
 #### 7.1 **Structured Logging (See Technical Specifications Section 8)**
