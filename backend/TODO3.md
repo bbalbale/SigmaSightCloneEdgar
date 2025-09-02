@@ -119,6 +119,12 @@ This document tracks Phase 3.0 (API Development) and future phases of the SigmaS
 - See [API_IMPLEMENTATION_STATUS.md](API_IMPLEMENTATION_STATUS.md) for details
 
 #### Portfolio Raw Data ✅
+- [ ] **GET /api/v1/data/portfolios** - List user's portfolios (Added 2025-09-02)
+  - [ ] Return list of portfolios for authenticated user
+  - [ ] Include portfolio ID, name, total value, created_at
+  - [ ] Implement proper user filtering (user can only see their own)
+  - [ ] Test with demo users (each has one portfolio)
+  - [ ] Update frontend portfolioResolver to use this endpoint
 - [x] **GET /api/v1/data/portfolio/{portfolio_id}/complete** - Complete portfolio data ✅
   - [x] Return positions, market values, cash balance ✅ (cash = 5% of portfolio)
   - [x] Include data quality indicators ✅
