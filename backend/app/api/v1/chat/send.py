@@ -204,7 +204,8 @@ async def sse_generator(
 
 @router.post("/send")
 async def send_message(
-    request: MessageSend,
+    http_request: Request,  # FastAPI Request object for headers
+    message_data: MessageSend,  # Renamed to avoid confusion
     db: AsyncSession = Depends(get_db),
     current_user: CurrentUser = Depends(get_current_user)
 ) -> StreamingResponse:
@@ -212,7 +213,8 @@ async def send_message(
     Send a message to a conversation and stream the response via SSE.
     
     Args:
-        request: MessageSend schema with conversation_id and text
+        http_request: FastAPI Request object for accessing headers
+        message_data: MessageSend schema with conversation_id and text
         db: Database session
         current_user: Authenticated user
         
@@ -224,7 +226,7 @@ async def send_message(
         result = await db.execute(
             select(Conversation)
             .where(
-                Conversation.id == request.conversation_id
+                Conversation.id == message_data.conversation_id
             )
         )
         conversation = result.scalar_one_or_none()
@@ -244,7 +246,7 @@ async def send_message(
         
         # Create SSE generator
         generator = sse_generator(
-            request.text,
+            message_data.text,
             conversation,
             db,
             current_user
@@ -258,7 +260,7 @@ async def send_message(
                 "Cache-Control": "no-cache",
                 "Connection": "keep-alive",
                 "X-Accel-Buffering": "no",  # Disable nginx buffering
-                "Access-Control-Allow-Origin": request.headers.get('origin', 'http://localhost:3005'),
+                "Access-Control-Allow-Origin": http_request.headers.get('origin', 'http://localhost:3005'),
                 "Access-Control-Allow-Credentials": "true",  # Enable credentials for SSE
             }
         )
