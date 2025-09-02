@@ -79,7 +79,7 @@ export function ChatInterface({ className }: ChatInterfaceProps) {
     violet: 'bg-violet-500'
   }
 
-  const modeDescriptions = {
+  const modeDescriptions: Record<typeof currentMode, string> = {
     green: 'Educational & Detailed',
     blue: 'Concise & Quantitative',
     indigo: 'Strategic & Narrative',
@@ -88,6 +88,36 @@ export function ChatInterface({ className }: ChatInterfaceProps) {
   
   // Handle sending messages with streaming
   const handleSendMessage = useCallback(async (text: string) => {
+    // Check for mode switch command
+    const modeSwitchMatch = text.match(/^\/mode\s+(green|blue|indigo|violet)$/i)
+    if (modeSwitchMatch) {
+      const newMode = modeSwitchMatch[1].toLowerCase() as typeof currentMode
+      setMode(newMode)
+      
+      // Update backend if conversation exists
+      if (currentConversationId) {
+        try {
+          await chatService.updateConversationMode(currentConversationId, newMode)
+        } catch (error) {
+          console.error('Failed to update mode on backend:', error)
+        }
+      }
+      
+      // Add system message about mode change
+      addMessage({
+        conversationId: currentConversationId || 'temp',
+        role: 'system',
+        content: `Mode switched to ${newMode} (${modeDescriptions[newMode]})`,
+      })
+      return
+    }
+    
+    // Check if we're already streaming - queue if so
+    if (isStreaming && currentConversationId) {
+      queueMessage(currentConversationId, text)
+      return
+    }
+    
     // Ensure we have a conversation on the backend
     let conversationId = currentConversationId
     if (!conversationId) {
@@ -99,8 +129,13 @@ export function ChatInterface({ className }: ChatInterfaceProps) {
         createConversation(currentMode, conversationId)
       } catch (error) {
         console.error('Failed to create conversation:', error)
-        // Fallback to local conversation ID if backend fails
-        conversationId = createConversation(currentMode)
+        // Show error message to user
+        addMessage({
+          conversationId: 'temp',
+          role: 'system',
+          content: 'Failed to create conversation. Please check your connection and try again.',
+        })
+        return
       }
     }
     
@@ -180,7 +215,7 @@ export function ChatInterface({ className }: ChatInterfaceProps) {
         })
       }
     }
-  }, [currentConversationId, currentMode, createConversation, addMessage, updateMessage, streamMessage, streamBuffers])
+  }, [currentConversationId, currentMode, createConversation, addMessage, updateMessage, streamMessage, streamBuffers, isStreaming, queueMessage, setMode, modeDescriptions])
   
   // Handle abort
   const handleAbort = useCallback(() => {

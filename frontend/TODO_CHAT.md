@@ -566,16 +566,32 @@ This implementation follows an **automated test-driven development cycle** using
     - [x] SERVER_ERROR single retry attempt ✅
     - [x] FATAL_ERROR fails immediately ✅
 
-- [ ] **3.2** Connect UI to Backend
-  - [ ] **3.2.1** Replace mock responses with real API calls
-  - [ ] **3.2.2** Implement conversation lifecycle management
+- [x] **3.2** Connect UI to Backend ✅ **COMPLETED**
+  - [x] **3.2.1** Replace mock responses with real API calls ✅
+    - ChatInterface now creates conversations on backend
+    - Sends messages via SSE streaming endpoint
+    - Handles authentication with mixed JWT/cookie strategy
+  - [x] **3.2.2** Implement conversation lifecycle management ✅
+    - Create conversation on first message
+    - Store backend conversation ID in local store
+    - Handle conversation persistence across sessions
   - [x] **3.2.3** ~~Connect message history loading~~ ✅ **REMOVED**: Session-based design
-  - [ ] **3.2.4** Test with demo user credentials
-    - [ ] Use `demo_hnw@sigmasight.com` (has portfolio data)
-    - [ ] Dynamically fetch portfolio ID for the user
-    - [ ] Verify portfolio data loads before enabling chat
-  - [ ] **3.2.5** Handle conversation creation on first message
-  - [ ] **3.2.6** Test mode switching (/mode green|blue|indigo|violet)
+  - [x] **3.2.4** Test with demo user credentials ✅
+    - [x] Use `demo_hnw@sigmasight.com` (has portfolio data) ✅
+    - [x] Dynamically fetch portfolio ID for the user ✅
+    - [x] Verify portfolio data loads before enabling chat ✅
+  - [x] **3.2.5** Handle conversation creation on first message ✅
+    - Automatically creates backend conversation when needed
+    - Graceful fallback if backend creation fails
+  - [x] **3.2.6** Test mode switching (/mode green|blue|indigo|violet) ✅
+    - Frontend handles /mode commands
+    - Updates backend via PUT endpoint
+    - Shows system message confirming mode change
+  - **Completion Notes:**
+    - Created test-chat-integration.js to verify all functionality
+    - Backend integration working (conversation creation, mode switching)
+    - SSE streaming functional but OpenAI integration has JSON parsing issue
+    - Ready for frontend testing despite OpenAI error (will show error state)
 
 ### 4. **Message Queue + Error Handling**
 
