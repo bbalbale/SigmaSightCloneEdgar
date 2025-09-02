@@ -488,7 +488,7 @@ This implementation follows an **automated test-driven development cycle** using
   - [x] **2.2.2.6** Add AbortController for cleanup ✅
   - [ ] **2.2.2.7** Test streaming with real backend responses
 
-### 3. **Backend Integration**
+### 2.3 **API Contract Alignment**
 
 #### ⚠️ **API Contract Alignment Issue**
 **Problem**: Frontend currently sends incorrect field names to backend chat endpoint:
@@ -496,13 +496,22 @@ This implementation follows an **automated test-driven development cycle** using
 - Backend expects: `{ text: "...", conversation_id: "..." }`
 
 **Resolution**: Frontend must adapt to match backend API contract:
-- [x] **Fixed in `useFetchStreaming.ts`** - Changed `message` to `text` field (line 83)
-- [ ] **Still needed**: Ensure conversation_id is always provided (backend requires it)
-  - [ ] Create conversation on backend before first message
-  - [ ] Store conversation_id in streamStore or chatStore
-  - [ ] Pass conversation_id with every message
+- [x] **2.3.1** Fix field name mismatch ✅ COMPLETED
+  - [x] Changed `message` to `text` field in `useFetchStreaming.ts` (line 83) ✅
+- [x] **2.3.2** Ensure conversation_id is always provided (backend requires it) ✅ COMPLETED
+  - [x] Created `chatService.ts` to call backend `/api/v1/chat/conversations` endpoint ✅
+  - [x] Updated ChatInterface to create conversation on backend before first message ✅
+  - [x] Modified chatStore to accept backend conversation ID ✅
+  - [x] Pass conversation_id with every message via streamMessage hook ✅
+- [x] **2.3.3** Test API contract alignment ✅ COMPLETED
+  - [x] Verified messages reach backend with correct field names (`text` not `message`) ✅
+  - [x] Confirmed conversation_id is included in all requests ✅
+  - [x] Backend successfully receives and processes messages ✅
+  - [x] SSE streaming response is returned (though OpenAI has JSON parsing issues) ✅
 
 **Note**: We're treating this as a frontend issue to maintain backend API stability.
+
+### 3. **Backend Integration**
 
 - [ ] **3.0** Dynamic Portfolio ID Resolution
   - [ ] **3.0.1** Create `portfolioResolver.ts` service

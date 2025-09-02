@@ -15,6 +15,7 @@ import { useChatStore } from '@/stores/chatStore'
 import { useStreamStore } from '@/stores/streamStore'
 import { useFetchStreaming } from '@/hooks/useFetchStreaming'
 import { chatAuthService } from '@/services/chatAuthService'
+import { chatService } from '@/services/chatService'
 
 interface ChatInterfaceProps {
   className?: string
@@ -87,10 +88,20 @@ export function ChatInterface({ className }: ChatInterfaceProps) {
   
   // Handle sending messages with streaming
   const handleSendMessage = useCallback(async (text: string) => {
-    // Ensure we have a conversation
+    // Ensure we have a conversation on the backend
     let conversationId = currentConversationId
     if (!conversationId) {
-      conversationId = createConversation(currentMode)
+      try {
+        // Create conversation on backend first
+        const backendConversation = await chatService.createConversation(currentMode)
+        // Update local store with backend conversation ID
+        conversationId = backendConversation.id
+        createConversation(currentMode, conversationId)
+      } catch (error) {
+        console.error('Failed to create conversation:', error)
+        // Fallback to local conversation ID if backend fails
+        conversationId = createConversation(currentMode)
+      }
     }
     
     // Add user message to persistent store

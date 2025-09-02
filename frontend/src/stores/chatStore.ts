@@ -42,7 +42,7 @@ interface ChatStore {
   isOpen: boolean
   
   // Actions for Conversations
-  createConversation: (mode?: 'green' | 'blue' | 'indigo' | 'violet') => string
+  createConversation: (mode?: 'green' | 'blue' | 'indigo' | 'violet', backendId?: string) => string
   loadConversation: (conversationId: string) => void
   deleteConversation: (conversationId: string) => void
   updateConversationTitle: (conversationId: string, title: string) => void
@@ -77,8 +77,9 @@ export const useChatStore = create<ChatStore>()(
       ...initialState,
       
       // Create new conversation
-      createConversation: (mode = 'green') => {
-        const conversationId = `conv_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+      createConversation: (mode = 'green', backendId?: string) => {
+        // Use backend ID if provided, otherwise generate local ID
+        const conversationId = backendId || `conv_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
         const conversation: Conversation = {
           id: conversationId,
           title: 'New Conversation',
