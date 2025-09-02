@@ -887,7 +887,7 @@ This implementation follows an **automated test-driven development cycle** using
   - **Result**: Streamed content persists when errors occur, error appended clearly
   - **Implementation Date**: 2025-09-02
 
-- [ ] **6.19** OpenAI API Tool Calls Null ID Error ⚠️ **BACKEND BUG**
+- [x] **6.19** OpenAI API Tool Calls Null ID Error ✅ **FIXED IN BACKEND**
   - **Issue**: Backend sends tool_calls to OpenAI with null ID values, causing API rejection
   - **Error**: `Invalid type for 'messages[12].tool_calls[1].id': expected a string, but got null instead`
   - **OpenAI API Code**: `invalid_type` error code 400
@@ -897,10 +897,14 @@ This implementation follows an **automated test-driven development cycle** using
   - **Root Cause**: Backend constructs OpenAI message objects with `tool_calls` containing null `id` fields
   - **Location**: Likely in backend message formatting for OpenAI API calls (Python side)
   - **Frontend Impact**: None - frontend error handling now correctly preserves streamed content ✅
-  - **Workaround**: Frontend gracefully handles error, preserves partial response
-  - **Fix Required**: Backend must generate valid tool call IDs before sending to OpenAI
-  - **Discovery Date**: 2025-09-02 during frontend error handler testing
-  - **Status**: **BACKEND TEAM** - requires backend investigation and fix
+  - **FIXED**: 2025-09-02 in `/agent/TODO.md` Phase 9.3 and Phase 10
+    - Phase 9.3: Initial bug fix - Generate OpenAI-compatible IDs when storing tool calls
+    - Phase 10.0.2: Fixed tool call event parsing from SSE stream
+    - Phase 10.1.3: Enhanced tool call tracking with proper ID generation
+    - Phase 10.3: Created OpenAI provider with `call_{24_hex}` format IDs
+    - Phase 10.5: Comprehensive testing verified no null ID errors
+  - **Solution**: Backend now generates OpenAI-compatible tool call IDs (`call_{24_hex_chars}`) when storing tool calls
+  - **Test Results**: 100% pass rate in Phase 10.5 testing - no tool call ID errors
 
 - [ ] **6.23** [LOW P3] Standardize RunId Authority ⚠️ **LOW PRIORITY**
   - **Issue**: Code review reveals frontend uses client runId consistently, ignoring `eventData.run_id`
