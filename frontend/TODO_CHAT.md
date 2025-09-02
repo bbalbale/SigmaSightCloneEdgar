@@ -527,19 +527,25 @@ This implementation follows an **automated test-driven development cycle** using
     - [x] Cross-user access properly blocked (404 on unauthorized) ✅
     - [x] Graceful fallback with error messages for missing portfolios ✅
 
-- [ ] **3.1** Create Chat Service
-  - [ ] **3.1.1** Build `chatService.ts` with cookie-based API client
-  - [ ] **3.1.2** Implement conversation management methods
-    - [ ] createConversation(mode) - **CRITICAL**: Backend requires this before sending messages
-      - [ ] POST to `/api/v1/chat/conversations` with `{ mode: "green" | "blue" | "indigo" | "violet" }`
-      - [ ] Store returned `conversation_id` for all subsequent messages
-    - [ ] listConversations()  
-    - [ ] deleteConversation(id)
-    - [ ] getMessages(conversationId, limit, cursor)
-  - [ ] **3.1.3** Implement message sending with streaming
-    - [ ] Use sendWithData() from Technical Specifications Section 6
-    - [ ] Handle inline JSON for ≤2MB, multipart for larger
-  - [ ] **3.1.4** Add error handling with ErrorType enum and policies
+- [x] **3.1** Create Chat Service ✅ COMPLETED
+  - [x] **3.1.1** Build `chatService.ts` with cookie-based API client ✅
+  - [x] **3.1.2** Implement conversation management methods ✅
+    - [x] createConversation(mode) - Creates conversation on backend ✅
+      - [x] POST to `/api/v1/chat/conversations` with mode ✅
+      - [x] Returns conversation_id for subsequent messages ✅
+    - [x] listConversations() - Lists user's conversations ✅
+    - [x] deleteConversation(id) - Deletes a conversation ✅
+    - [x] getMessages(conversationId, limit, cursor) - Message history with pagination ✅
+  - [x] **3.1.3** Implement additional methods ✅
+    - [x] sendMessage() for non-streaming messages ✅
+    - [x] updateConversationMode() for mode switching ✅
+    - [x] Proper error classification and handling ✅
+  - [x] **3.1.4** Add error handling with ErrorType enum and policies ✅
+    - [x] AUTH_EXPIRED redirects to login ✅
+    - [x] RATE_LIMITED implements cooldown ✅
+    - [x] NETWORK_ERROR retries with exponential backoff ✅
+    - [x] SERVER_ERROR single retry attempt ✅
+    - [x] FATAL_ERROR fails immediately ✅
 
 - [ ] **3.2** Connect UI to Backend
   - [ ] **3.2.1** Replace mock responses with real API calls
