@@ -49,6 +49,11 @@ class Settings(BaseSettings):
     AGENT_CACHE_TTL: int = Field(default=600, env="AGENT_CACHE_TTL")
     SSE_HEARTBEAT_INTERVAL_MS: int = Field(default=15000, env="SSE_HEARTBEAT_INTERVAL_MS")
     
+    # Chat configuration
+    CHAT_MAX_TOKENS: int = Field(default=4000, env="CHAT_MAX_TOKENS")
+    CHAT_TIMEOUT_SECONDS: int = Field(default=300, env="CHAT_TIMEOUT_SECONDS")
+    CHAT_RATE_LIMIT_PER_MINUTE: int = Field(default=10, env="CHAT_RATE_LIMIT_PER_MINUTE")
+    
     # JWT settings
     SECRET_KEY: str = Field(..., env="SECRET_KEY")
     ALGORITHM: str = "HS256"

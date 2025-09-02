@@ -258,7 +258,8 @@ async def send_message(
                 "Cache-Control": "no-cache",
                 "Connection": "keep-alive",
                 "X-Accel-Buffering": "no",  # Disable nginx buffering
-                "Access-Control-Allow-Origin": "*",  # CORS for SSE
+                "Access-Control-Allow-Origin": request.headers.get('origin', 'http://localhost:3005'),
+                "Access-Control-Allow-Credentials": "true",  # Enable credentials for SSE
             }
         )
         

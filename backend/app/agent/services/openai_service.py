@@ -260,7 +260,7 @@ class OpenAIService:
         """
         Stream chat completion with tool calling support
         
-        Yields SSE formatted events
+        Yields SSE formatted events with heartbeat to prevent timeouts
         """
         try:
             # Build messages
@@ -288,15 +288,22 @@ class OpenAIService:
                 messages=messages,
                 tools=tools if tools else None,
                 stream=True,
-                max_completion_tokens=2000
+                max_completion_tokens=settings.CHAT_MAX_TOKENS
             )
             
             # Track state for streaming
             current_content = ""
             current_tool_calls = []
             tool_call_chunks = {}
+            last_heartbeat = asyncio.get_event_loop().time()
+            heartbeat_interval = settings.SSE_HEARTBEAT_INTERVAL_MS / 1000.0
             
             async for chunk in stream:
+                # Check if we need to send a heartbeat
+                current_time = asyncio.get_event_loop().time()
+                if current_time - last_heartbeat > heartbeat_interval:
+                    yield f"event: heartbeat\ndata: {json.dumps({'type': 'heartbeat'})}\n\n"
+                    last_heartbeat = current_time
                 delta = chunk.choices[0].delta if chunk.choices else None
                 if not delta:
                     continue
@@ -385,7 +392,7 @@ class OpenAIService:
                             model=self.model,
                             messages=messages,
                             stream=True,
-                            max_completion_tokens=2000
+                            max_completion_tokens=settings.CHAT_MAX_TOKENS
                         )
                         
                         # Stream the continuation
@@ -407,9 +414,27 @@ class OpenAIService:
             
         except Exception as e:
             logger.error(f"OpenAI streaming error: {e}")
+            
+            # Classify error type
+            error_type = "SERVER_ERROR"  # Default
+            retryable = True
+            retry_after = None
+            
+            error_msg = str(e).lower()
+            if "rate" in error_msg and "limit" in error_msg:
+                error_type = "RATE_LIMITED"
+                retry_after = 30  # 30 seconds default
+            elif "auth" in error_msg or "unauthorized" in error_msg:
+                error_type = "AUTH_EXPIRED"
+                retryable = False
+            elif "network" in error_msg or "connection" in error_msg:
+                error_type = "NETWORK_ERROR"
+            
             error_event = SSEErrorEvent(
                 message=str(e),
-                retryable=True
+                error_type=error_type,
+                retryable=retryable,
+                retry_after=retry_after
             )
             yield f"event: error\ndata: {json.dumps(error_event.model_dump())}\n\n"
 

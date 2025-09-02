@@ -1,7 +1,7 @@
 """
 Server-Sent Events (SSE) schemas for Agent streaming
 """
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional, List, Literal
 from pydantic import BaseModel, Field
 from app.agent.schemas.base import AgentBaseSchema
 
@@ -42,10 +42,18 @@ class SSEToolResultEvent(AgentBaseSchema):
 
 
 class SSEErrorEvent(AgentBaseSchema):
-    """SSE error event data"""
+    """SSE error event data with standardized error types"""
     message: str
+    error_type: Optional[Literal[
+        "AUTH_EXPIRED",
+        "RATE_LIMITED", 
+        "NETWORK_ERROR",
+        "SERVER_ERROR",
+        "FATAL_ERROR"
+    ]] = None
     code: Optional[str] = None
     retryable: bool = True
+    retry_after: Optional[int] = None  # For RATE_LIMITED errors (seconds)
     details: Optional[Dict[str, Any]] = None
 
 
