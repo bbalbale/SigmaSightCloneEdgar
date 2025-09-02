@@ -22,6 +22,7 @@ from app.agent.schemas.sse import (
     SSEDoneEvent,
     SSEErrorEvent
 )
+from app.utils.llm_providers import OpenAIProvider
 
 logger = get_logger(__name__)
 
@@ -36,6 +37,8 @@ class OpenAIService:
         self.fallback_model = settings.MODEL_FALLBACK
         # Track tool call IDs for correlation between OpenAI and our system
         self.tool_call_id_map: Dict[str, Dict[str, Any]] = {}
+        # Initialize OpenAI provider for ID generation
+        self.provider = OpenAIProvider()
         
     def _get_tool_definitions(self) -> List[ChatCompletionToolParam]:
         """Convert our tool definitions to OpenAI format"""
@@ -240,15 +243,8 @@ class OpenAIService:
                 for tool_call in msg["tool_calls"]:
                     # Handle both new format (with id) and legacy format (without id)
                     if not tool_call.get("id"):
-                        # Legacy format - generate missing ID for compatibility
-                        tool_call = {
-                            "id": f"call_{uuid.uuid4().hex[:24]}",
-                            "type": "function",
-                            "function": {
-                                "name": tool_call.get("name", tool_call.get("function", {}).get("name", "unknown")),
-                                "arguments": json.dumps(tool_call.get("args", {}))
-                            }
-                        }
+                        # Legacy format - use provider to fix malformed tool call
+                        tool_call = self.provider.fix_malformed_tool_call(tool_call)
                     valid_tool_calls.append(tool_call)
                 
                 if valid_tool_calls:  # Only add if we have valid tool calls
