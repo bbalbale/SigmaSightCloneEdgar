@@ -51,6 +51,291 @@
 
 This TODO tracks the implementation of the chat functionality based on the comprehensive Chat Implementation Plan V1.1. All architectural decisions have been finalized and backend integration is complete. The focus is now on frontend implementation to connect the working UI components with the ready backend chat system.
 
+## Technical Specifications
+
+### Code Guidelines
+**Important**: Code examples in this document are illustrative pseudocode unless marked as "Production Code". All implementations should be in TypeScript (React + Zustand) following the existing codebase patterns.
+
+### 1. Stream Buffer Architecture
+
+**Production Code - Stream Buffer Structure:**
+```typescript
+// StreamStore state structure
+interface StreamStore {
+  // Map of run_id to buffer state
+  streamBuffers: Map<string, StreamBuffer>;
+  activeRuns: Set<string>;
+  processing: boolean;
+}
+
+interface StreamBuffer {
+  text: string;        // Accumulated message text
+  lastSeq: number;     // Last processed sequence number
+  startTime: number;   // Timestamp for timeout detection
+}
+```
+
+### 2. SSE Event Schema
+
+**Production Code - Complete SSE Event Structure:**
+```typescript
+interface SSEEvent {
+  run_id: string;      // Unique identifier for this streaming run
+  seq: number;         // Sequence number for ordering/deduplication
+  type: 'token' | 'tool_call' | 'tool_result' | 'error' | 'done';
+  data: {
+    delta?: string;        // For token events (incremental text)
+    tool_name?: string;    // For tool_call events
+    tool_args?: any;       // For tool_call events
+    tool_result?: any;     // For tool_result events
+    error?: string;        // For error events
+    error_type?: ErrorType; // For typed error handling
+    final_text?: string;   // For done events (complete message)
+  };
+  timestamp: number;   // Server timestamp for ordering
+}
+
+// Example SSE stream:
+// {"run_id":"abc-123","seq":1,"type":"token","data":{"delta":"Hello"},"timestamp":1234567890}
+// {"run_id":"abc-123","seq":2,"type":"token","data":{"delta":" there"},"timestamp":1234567891}
+// {"run_id":"abc-123","seq":3,"type":"done","data":{"final_text":"Hello there"},"timestamp":1234567892}
+```
+
+### 3. Message Queue Specification
+
+**Production Code - Queue Behavior:**
+```typescript
+interface MessageQueueConfig {
+  maxQueued: 1;                    // Only one pending message allowed
+  policy: 'last-write-wins';       // Latest input replaces queued message
+  cancellation: 'clear-all';       // Cancel clears both active and queued
+}
+
+class MessageQueue {
+  private pending: Message | null = null;
+  private processing: boolean = false;
+  private conversationLocks: Map<string, boolean> = new Map();
+  
+  add(conversationId: string, message: Message): void {
+    if (this.processing) {
+      // Last write wins - replace any pending message
+      this.pending = message;
+      this.showQueuedIndicator();
+    } else {
+      this.process(conversationId, message);
+    }
+  }
+  
+  cancel(conversationId: string): void {
+    // Clear both active and queued for this conversation
+    this.pending = null;
+    this.processing = false;
+    this.conversationLocks.set(conversationId, false);
+    this.abortController?.abort();
+  }
+}
+```
+
+### 4. Error Taxonomy and Policies
+
+**Production Code - Error Classification:**
+```typescript
+enum ErrorType {
+  AUTH_EXPIRED = 'AUTH_EXPIRED',     // Authentication token/cookie expired
+  RATE_LIMITED = 'RATE_LIMITED',     // Rate limit exceeded
+  NETWORK_ERROR = 'NETWORK_ERROR',   // Network connectivity issue
+  SERVER_ERROR = 'SERVER_ERROR',     // Backend server error (5xx)
+  FATAL_ERROR = 'FATAL_ERROR'        // Unrecoverable error
+}
+
+interface ErrorPolicy {
+  action: 'redirect' | 'cooldown' | 'retry' | 'fail';
+  maxAttempts?: number;
+  delay?: number | number[];  // Single delay or backoff array
+  target?: string;            // For redirect action
+  duration?: number;          // For cooldown action
+  showToast?: boolean;
+}
+
+const ERROR_POLICIES: Record<ErrorType, ErrorPolicy> = {
+  AUTH_EXPIRED: { 
+    action: 'redirect', 
+    target: '/login',
+    showToast: true 
+  },
+  RATE_LIMITED: { 
+    action: 'cooldown', 
+    duration: 30000, // 30 seconds
+    showToast: true 
+  },
+  NETWORK_ERROR: { 
+    action: 'retry', 
+    maxAttempts: 3, 
+    delay: [1000, 2000, 4000], // Exponential backoff
+    showToast: false // Only show after all retries fail
+  },
+  SERVER_ERROR: { 
+    action: 'retry', 
+    maxAttempts: 1, 
+    delay: 1000,
+    showToast: true 
+  },
+  FATAL_ERROR: { 
+    action: 'fail', 
+    showToast: true 
+  }
+};
+```
+
+### 5. Mobile Configuration
+
+**Production Code - Required Mobile Setup:**
+```html
+<!-- In _document.tsx or layout.tsx -->
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+```
+
+```css
+/* mobile-chat.css */
+.chat-input-container {
+  position: sticky;
+  bottom: 0;
+  padding-bottom: env(safe-area-inset-bottom, 0);
+  background: white;
+  z-index: 100;
+}
+
+/* iOS-specific fixes */
+@supports (-webkit-touch-callout: none) {
+  .chat-input {
+    font-size: 16px; /* Prevent zoom on focus */
+  }
+  
+  .chat-messages {
+    -webkit-overflow-scrolling: touch;
+    scroll-behavior: smooth;
+  }
+}
+```
+
+```typescript
+// Mobile keyboard handling
+const handleInputFocus = () => {
+  if (/iPhone|iPad|iPod/.test(navigator.userAgent)) {
+    setTimeout(() => {
+      inputRef.current?.scrollIntoView({ 
+        behavior: 'smooth', 
+        block: 'center' 
+      });
+    }, 300);
+  }
+};
+```
+
+### 6. File/Data Upload Strategy
+
+**Production Code - Upload Handling:**
+```typescript
+interface UploadStrategy {
+  smallJSON: {  // ≤ 2MB
+    method: 'inline',
+    location: 'request-body'
+  },
+  mediumFile: { // 2-10MB
+    method: 'multipart',
+    field: 'file'
+  },
+  largeFile: {  // > 10MB
+    method: 'pre-upload',
+    endpoint: '/api/v1/upload',
+    passPointer: true
+  }
+}
+
+// Implementation example
+const sendWithData = async (message: string, data?: any) => {
+  const dataSize = JSON.stringify(data).length;
+  
+  if (dataSize <= 2 * 1024 * 1024) {
+    // Send inline in POST body
+    return fetch('/api/v1/chat/send', {
+      method: 'POST',
+      body: JSON.stringify({ message, data }),
+      credentials: 'include'
+    });
+  } else {
+    // Use multipart or pre-upload based on size
+    // Implementation details...
+  }
+};
+```
+
+### 7. Nginx Production Configuration
+
+**Production Code - Complete Nginx Config:**
+```nginx
+# Full nginx configuration for SSE streaming
+location /api/v1/chat/send {
+    proxy_pass http://backend:8000;
+    
+    # Critical SSE settings
+    proxy_buffering off;
+    proxy_cache off;
+    gzip off;  # IMPORTANT: Compression breaks SSE
+    
+    # Timeouts for long-running connections
+    proxy_read_timeout 300s;
+    proxy_connect_timeout 60s;
+    proxy_send_timeout 300s;
+    
+    # Headers for SSE
+    proxy_set_header Connection '';
+    proxy_http_version 1.1;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    
+    # CORS headers (if not handled by backend)
+    add_header 'Access-Control-Allow-Origin' $http_origin always;
+    add_header 'Access-Control-Allow-Credentials' 'true' always;
+}
+```
+
+### 8. Observability Schema
+
+**Production Code - Logging Structure:**
+```typescript
+interface ChatLogEvent {
+  traceId: string;      // Same as run_id for correlation
+  conversationId: string;
+  messageId?: string;
+  event: 'request' | 'stream-start' | 'stream-chunk' | 'stream-end' | 'error';
+  data: {
+    timestamp: number;
+    duration?: number;   // For completed events
+    error?: ErrorType;
+    metrics?: {
+      ttfb?: number;      // Time to first byte
+      tokensPerSecond?: number;
+      totalTokens?: number;
+    };
+  };
+}
+
+// Usage
+const logger = {
+  trace: (event: ChatLogEvent) => {
+    if (process.env.NODE_ENV === 'development') {
+      console.debug('[Chat]', event);
+      debugStore.addEvent(event);
+    }
+    // In production, send to monitoring service
+  }
+};
+```
+
+---
+
 ## Current Status
 
 ### ✅ **COMPLETED** (Pre-Implementation - Already Done)
@@ -147,24 +432,27 @@ This implementation follows an **automated test-driven development cycle** using
   - [ ] **2.1.1.6** Test authentication persistence across browser refresh
 
 ### 2.2 **Split Store Architecture + Streaming**
-- [ ] **2.2.1** Split Store Architecture (From Feedback)
+- [ ] **2.2.1** Split Store Architecture (See Technical Specifications Section 1)
   - [ ] **2.2.1.1** Create separate `streamStore.ts` for runtime state
-    - [ ] isStreaming, currentRunId, streamBuffer
-    - [ ] abortController, messageQueue, processing flags
+    - [ ] Implement StreamStore interface from Technical Specs
+    - [ ] Use Map<string, StreamBuffer> structure as specified
+    - [ ] Include activeRuns Set and processing flag
   - [ ] **2.2.1.2** Refactor `chatStore.ts` for persistent data only
     - [ ] conversations, messages (by conversationId), currentConversationId
     - [ ] Remove streaming state (isStreaming, streamingMessage)
   - [ ] **2.2.1.3** Update ChatInterface to use both stores
-  - [ ] **2.2.1.4** Define comprehensive stream event schema with run_id + seq
-    - [ ] Add sequence numbering for event ordering
-    - [ ] Ensure all events include run_id for tracing
+  - [ ] **2.2.1.4** Implement SSE Event Schema (See Technical Specifications Section 2)
+    - [ ] Use complete SSEEvent interface with all fields
+    - [ ] Include proper type discrimination for event types
+    - [ ] Add timestamp for client-side ordering
   - [ ] **2.2.1.5** Implement buffer → seal reconciliation on 'done' event
-    - [ ] Buffer streaming content by run_id until 'done' event
-    - [ ] Seal final message content on completion
-  - [ ] **2.2.1.6** Enforce one in-flight per conversation with queue cap=1
-    - [ ] Add conversation locks to prevent race conditions
-    - [ ] Limit queue to 1 pending message per conversation
-    - [ ] Clear queue on cancel/error
+    - [ ] Use StreamBuffer structure with text, lastSeq, startTime
+    - [ ] Validate sequence numbers for deduplication
+    - [ ] Seal final message content on 'done' event
+  - [ ] **2.2.1.6** Implement Message Queue (See Technical Specifications Section 3)
+    - [ ] Use MessageQueue class with last-write-wins policy
+    - [ ] Implement conversation locks Map
+    - [ ] Enforce maxQueued: 1 configuration
   - [ ] **2.2.1.7** Test performance improvement (fewer re-renders)
 
 - [ ] **2.2.2** Implement fetch() Streaming Hook
@@ -185,7 +473,9 @@ This implementation follows an **automated test-driven development cycle** using
     - [ ] deleteConversation(id)
     - [ ] getMessages(conversationId, limit, cursor)
   - [ ] **3.1.3** Implement message sending with streaming
-  - [ ] **3.1.4** Add error handling with retryable classification
+    - [ ] Use sendWithData() from Technical Specifications Section 6
+    - [ ] Handle inline JSON for ≤2MB, multipart for larger
+  - [ ] **3.1.4** Add error handling with ErrorType enum and policies
 
 - [ ] **3.2** Connect UI to Backend
   - [ ] **3.2.1** Replace mock responses with real API calls
@@ -197,40 +487,43 @@ This implementation follows an **automated test-driven development cycle** using
 
 ### 4. **Message Queue + Error Handling**
 
-#### 4.1 **Client-Side Message Queue (Enhanced)**
-- [ ] **4.1.1** Create `useMessageQueue.ts` hook
-- [ ] **4.1.2** Implement enhanced queue management with visual feedback
-  - [ ] Only one message processing at a time per conversation
-  - [ ] Show "queued" badge for waiting messages
-  - [ ] Display processing status
-  - [ ] Enforce queue cap=1 (replace queued message if new one sent)
+#### 4.1 **Client-Side Message Queue (See Technical Specifications Section 3)**
+- [ ] **4.1.1** Create `useMessageQueue.ts` hook using MessageQueue class
+- [ ] **4.1.2** Implement queue with specified behavior:
+  - [ ] maxQueued: 1 configuration
+  - [ ] last-write-wins policy for pending messages
+  - [ ] Show "queued" badge using showQueuedIndicator()
+  - [ ] Display processing status from queue state
 - [ ] **4.1.3** Integrate with streamStore for queue state
-- [ ] **4.1.4** Add conversation-level locking mechanism
+- [ ] **4.1.4** Use conversationLocks Map from specification
 - [ ] **4.1.5** Test spam prevention (rapid send button clicks)
-- [ ] **4.1.6** Test queue clearing on conversation cancel/error
+- [ ] **4.1.6** Test cancel() method clears both active and queued
 
-#### 4.2 **Enhanced Error Handling with Taxonomy**
-- [ ] **4.2.1** Implement comprehensive error taxonomy with UI behaviors
-  - [ ] RATE_LIMITED: retry=true, delay=30s, show rate limit message
-  - [ ] AUTH_EXPIRED: retry=false, redirect to login
-  - [ ] NETWORK_ERROR: retry=true, delay=5s, show connection issue
-  - [ ] SERVER_ERROR: retry=true, delay=10s, show server issue
-  - [ ] CLIENT_ERROR: retry=false, show user-friendly validation message
-- [ ] **4.2.2** Add retry logic with exponential backoff per error type
-- [ ] **4.2.3** Implement error-specific UI behaviors and messages
-- [ ] **4.2.4** Handle connection lost scenarios with reconnection
-- [ ] **4.2.5** Test error recovery flows for each error type
+#### 4.2 **Enhanced Error Handling (See Technical Specifications Section 4)**
+- [ ] **4.2.1** Implement ErrorType enum and ERROR_POLICIES from specification
+  - [ ] AUTH_EXPIRED: action='redirect', target='/login'
+  - [ ] RATE_LIMITED: action='cooldown', duration=30000ms
+  - [ ] NETWORK_ERROR: action='retry', backoff=[1000, 2000, 4000]
+  - [ ] SERVER_ERROR: action='retry', maxAttempts=1, delay=1000
+  - [ ] FATAL_ERROR: action='fail', showToast=true
+- [ ] **4.2.2** Implement handleStreamError function with policy execution
+- [ ] **4.2.3** Add toast notifications based on showToast flags
+- [ ] **4.2.4** Handle connection lost with NETWORK_ERROR retry policy
+- [ ] **4.2.5** Test error recovery flows for each ErrorType
 
 ### 5. **Mobile Optimization + Testing**
 
-#### 5.1 **Mobile Input Handling (From Feedback)**
-- [ ] **5.1.1** Create `mobile-chat.css` with environment variables
-  - [ ] Use `env(safe-area-inset-bottom)` for iOS safe areas
-  - [ ] Implement `scroll-margin-bottom` for input visibility
-- [ ] **5.1.2** Add iOS Safari specific fixes with `@supports`
+#### 5.1 **Mobile Input Handling (See Technical Specifications Section 5)**
+- [ ] **5.1.1** Implement mobile configuration from specification
+  - [ ] Add viewport meta tag with viewport-fit=cover
+  - [ ] Create mobile-chat.css with env(safe-area-inset-bottom)
+  - [ ] Use position: sticky for input container
+- [ ] **5.1.2** Add iOS Safari fixes from specification
+  - [ ] 16px font-size to prevent zoom
+  - [ ] -webkit-overflow-scrolling: touch for smooth scroll
 - [ ] **5.1.3** Test keyboard behavior on iOS/Android devices
-- [ ] **5.1.4** Implement scroll-into-view on input focus
-- [ ] **5.1.5** Test iPhone notch compatibility
+- [ ] **5.1.4** Implement handleInputFocus() with scrollIntoView
+- [ ] **5.1.5** Test iPhone notch compatibility with safe areas
 
 #### 5.2 **Automated Testing & Validation**
 
@@ -273,20 +566,20 @@ This implementation follows an **automated test-driven development cycle** using
 ## 6. **Polish & Deploy**
 
 ### 6.1 **Debugging + Bug Fixes**
-#### 6.1.1 **Enhanced Observability & Performance Instrumentation**
-- [ ] **6.1.1.1** Create `chatLogger.ts` with comprehensive trace context
-  - [ ] Use existing backend UUIDs (conversation_id, message_id, request_id)
-  - [ ] Implement structured logging with timestamps
-  - [ ] Add error classification and retryable flags
+#### 6.1.1 **Enhanced Observability (See Technical Specifications Section 8)**
+- [ ] **6.1.1.1** Create `chatLogger.ts` using ChatLogEvent interface
+  - [ ] Use traceId (same as run_id) for correlation
+  - [ ] Implement structured logging with event types
+  - [ ] Include ErrorType enum for classification
 - [ ] **6.1.1.2** Create `debugStore.ts` for development debugging
-  - [ ] Store request history and streaming events
+  - [ ] Store ChatLogEvent history
   - [ ] Implement debug info aggregation
   - [ ] Add development debug panel (conditional)
-- [ ] **6.1.1.3** Implement performance instrumentation tied to run_id
-  - [ ] Track TTFB (time to first byte) per streaming request
-  - [ ] Measure tokens-per-second during streaming
-  - [ ] Record total duration per conversation turn
-  - [ ] Link all metrics to run_id for tracing
+- [ ] **6.1.1.3** Implement performance metrics in ChatLogEvent.data.metrics
+  - [ ] Track ttfb (time to first byte) per request
+  - [ ] Calculate tokensPerSecond during streaming
+  - [ ] Record duration per conversation turn
+  - [ ] Link all metrics to traceId/run_id
 - [ ] **6.1.1.4** Integrate logging and metrics throughout chat flow
 - [ ] **6.1.1.5** Test debugging and metrics in development mode
 - [ ] **6.1.1.6** Prepare production monitoring hooks with performance data
@@ -301,11 +594,11 @@ This implementation follows an **automated test-driven development cycle** using
 ### 6.2 **Deployment Checklist**
 - [ ] **6.2.1** Enhanced Deployment Checklist
   - [ ] **6.2.1.1** Create comprehensive `deployment/STREAMING_CHECKLIST.md`
-    - [ ] Enhanced nginx configuration for SSE endpoints
-      - [ ] proxy_buffering off, proxy_cache off
-      - [ ] gzip off (disable compression for streaming)
-      - [ ] proxy_read_timeout 300s, proxy_connect_timeout 60s
-      - [ ] proxy_send_timeout 300s
+    - [ ] Use complete nginx config from Technical Specifications Section 7
+      - [ ] proxy_buffering off, proxy_cache off, gzip off
+      - [ ] All timeout settings (read: 300s, connect: 60s, send: 300s)
+      - [ ] Proper HTTP/1.1 and Connection headers
+      - [ ] CORS headers with credentials support
     - [ ] Load balancer configurations (no buffering, no gzip, timeouts)
     - [ ] Cloudflare/CDN settings for streaming
     - [ ] Environment-specific CORS configurations
