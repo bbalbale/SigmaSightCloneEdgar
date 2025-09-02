@@ -513,11 +513,12 @@ This implementation follows an **automated test-driven development cycle** using
 
 ### 3. **Backend Integration**
 
-- [x] **3.0** Dynamic Portfolio ID Resolution ✅ COMPLETED
+- [x] **3.0** Dynamic Portfolio ID Resolution ✅ COMPLETED (Updated 2025-09-02)
   - [x] **3.0.1** Create `portfolioResolver.ts` service ✅
-    - [x] Created resolver service with hint-based discovery mechanism ✅
+    - [x] ~~Created resolver service with hint-based discovery mechanism~~ ✅
+    - [x] **UPDATED**: Now uses proper `/api/v1/data/portfolios` endpoint ✅
     - [x] Implemented cache for portfolio IDs with 5-minute TTL ✅
-    - [x] Added fallback handling for missing list endpoint ✅
+    - [x] Removed hint-based mechanism completely ✅
   - [x] **3.0.2** Update `portfolioService.ts` to use dynamic IDs ✅
     - [x] Removed hardcoded PORTFOLIO_ID_MAP ✅
     - [x] Updated to use portfolioResolver.getPortfolioIdByType() ✅
@@ -526,6 +527,19 @@ This implementation follows an **automated test-driven development cycle** using
     - [x] Implemented validatePortfolioOwnership() method ✅
     - [x] Cross-user access properly blocked (404 on unauthorized) ✅
     - [x] Graceful fallback with error messages for missing portfolios ✅
+  - [x] **3.0.4** Implement backend `/api/v1/data/portfolios` endpoint ✅ **NEW**
+    - [x] Created endpoint in backend/app/api/v1/data.py ✅
+    - [x] Returns list of portfolios for authenticated user ✅
+    - [x] Includes id, name, total_value, created_at, updated_at, position_count ✅
+    - [x] Proper user filtering for security ✅
+    - [x] Updated frontend to use new endpoint (removed hints) ✅
+  - [ ] **3.0.5** Fix API ID field inconsistency ❗ **Backend Task**
+    - [ ] **Issue**: Chat endpoints return `conversation_id` instead of standard `id` field
+    - [ ] **Analysis**: Documented in `/frontend/API_INCONSISTENCIES.md` - confirmed zero semantic risk
+    - [ ] **Backend Work**: Tracked in `/agent/TODO.md` § "API Consistency Fix - Conversation ID Field Naming"
+    - [ ] **Frontend Cleanup**: Remove defensive coding (`response.id || response.conversation_id`)
+    - [ ] **Benefits**: REST compliance, cleaner code, consistent API design
+    - [ ] **Cross-Reference**: See `/agent/TODO.md` for implementation details
 
 - [x] **3.1** Create Chat Service ✅ COMPLETED
   - [x] **3.1.1** Build `chatService.ts` with cookie-based API client ✅
@@ -535,7 +549,7 @@ This implementation follows an **automated test-driven development cycle** using
       - [x] Returns conversation_id for subsequent messages ✅
     - [x] listConversations() - Lists user's conversations ✅
     - [x] deleteConversation(id) - Deletes a conversation ✅
-    - [x] getMessages(conversationId, limit, cursor) - Message history with pagination ✅
+    - [x] ~~getMessages(conversationId, limit, cursor)~~ - ✅ **REMOVED**: Session-based chat design
   - [x] **3.1.3** Implement additional methods ✅
     - [x] sendMessage() for non-streaming messages ✅
     - [x] updateConversationMode() for mode switching ✅
@@ -550,7 +564,7 @@ This implementation follows an **automated test-driven development cycle** using
 - [ ] **3.2** Connect UI to Backend
   - [ ] **3.2.1** Replace mock responses with real API calls
   - [ ] **3.2.2** Implement conversation lifecycle management
-  - [ ] **3.2.3** Connect message history loading
+  - [x] **3.2.3** ~~Connect message history loading~~ ✅ **REMOVED**: Session-based design
   - [ ] **3.2.4** Test with demo user credentials
     - [ ] Use `demo_hnw@sigmasight.com` (has portfolio data)
     - [ ] Dynamically fetch portfolio ID for the user
@@ -716,7 +730,7 @@ This implementation follows an **automated test-driven development cycle** using
 
 ### 7.2 **Advanced Features** (Post V1.1)
 - [ ] **7.2.1** Tool Result Rendering - Native table rendering instead of markdown
-- [ ] **7.2.2** Conversation History Pagination - Load more with cursor pagination
+- [x] **7.2.2** ~~Conversation History Pagination~~ ✅ **REMOVED**: Session-based design
 - [ ] **7.2.3** Portfolio Context Integration - Auto-inject portfolio context
 - [ ] **7.2.4** Smart Suggestions - Page-aware query suggestions
 - [ ] **7.2.5** Real-time Typing Indicators - Show when assistant is thinking

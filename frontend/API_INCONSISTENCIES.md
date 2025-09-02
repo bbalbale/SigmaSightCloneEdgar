@@ -34,18 +34,58 @@ const id = response.id || response.conversation_id;
 - Forces defensive coding throughout frontend
 - Inconsistent with other resources (portfolios, positions use `id`)
 
-## 2. Missing Endpoints ⚠️
+### **Detailed Analysis (2025-09-02)**
 
-**Issue**: Several expected endpoints don't exist
+**Root Cause**: Intentional design decision in backend schemas
+- Location: `/backend/app/agent/schemas/chat.py`
+- Comment in model: "Our canonical ID - returned as conversation_id to frontend"
+- Affects: `ConversationResponse`, `ModeChangeResponse`, `MessageSend` schemas
 
-- `GET /api/v1/chat/conversations/{id}/messages` - Message history (needed for chat history)
-- `GET /api/v1/data/portfolios` - **Documented but NOT implemented** (returns 404)
-- `PATCH /api/v1/chat/conversations/{id}/mode` - Update conversation mode
+**Semantic Analysis**: ✅ **SAFE TO CHANGE**
+After analyzing all layers of the stack, confirmed there is **NO semantic difference** between conversation `id` and other resource `id` fields:
 
-**Frontend Workaround**: 
-- Return empty data on 404
-- Use hint-based discovery for portfolios
-- Mode changes only through new conversations
+1. **Database Layer**: All `id` fields use identical pattern
+   ```python
+   # Same for conversations, portfolios, positions, etc.
+   id: Mapped[UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid4)
+   ```
+
+2. **OpenAI Integration**: Conversation ID is only metadata
+   - Not passed to OpenAI API (OpenAI doesn't know about our conversation IDs)
+   - Only used for client-side correlation in SSE events
+   - Provider IDs stored separately (`provider_thread_id`, `provider_run_id`)
+
+3. **Analytics Services**: Same UUID pattern across all services
+   ```python
+   async def calculate_correlations(portfolio_id: UUID, ...)
+   async def stream_chat_completion(conversation_id: str, ...)
+   ```
+
+4. **Foreign Keys**: Same referential pattern
+   ```python
+   portfolio_id: Mapped[UUID] = mapped_column(ForeignKey("portfolios.id"))
+   conversation_id: Mapped[UUID] = mapped_column(ForeignKey("agent_conversations.id"))
+   ```
+
+**Risk Assessment**: ✅ **ZERO RISK**
+- Same data type, generation method, constraints, and purpose
+- Clear separation from provider-specific IDs
+- Purely cosmetic naming inconsistency
+
+**Fix Strategy**: Change backend schemas to use standard `id` field name
+
+## 2. Missing Endpoints ✅ **RESOLVED**
+
+**Issue**: ~~Several expected endpoints don't exist~~ **DESIGN ALIGNMENT COMPLETE**
+
+- ~~`GET /api/v1/chat/conversations/{id}/messages`~~ - ✅ **REMOVED**: Not needed for session-based chat design
+- ~~`GET /api/v1/data/portfolios`~~ - ✅ **FIXED 2025-09-02**: Now implemented and working
+- ~~`PATCH /api/v1/chat/conversations/{id}/mode`~~ - ✅ **IMPLEMENTED as PUT**: Backend uses `PUT /conversations/{id}/mode`
+
+**Resolution**:
+- ✅ **Portfolio endpoint**: Fixed by implementing missing endpoint
+- ✅ **Mode changes**: Backend implemented as PUT (functionally equivalent to PATCH)
+- ✅ **Message history**: Removed from requirements - SigmaSight uses session-based chat, not persistent history
 
 ## 3. Error Response Format Inconsistency ⚠️
 
@@ -81,12 +121,20 @@ const errorMessage = error.detail || error.message || error.error || 'Unknown er
 - `Authorization: Bearer ${token}` header
 - `credentials: 'include'` for cookies
 
+## Resolution History
+
+### ✅ Fixed Issues
+- **2025-09-02**: Implemented `GET /api/v1/data/portfolios` endpoint
+  - Backend: Added endpoint in `/backend/app/api/v1/data.py`
+  - Frontend: Removed hint-based discovery mechanism
+  - Result: Proper REST-compliant portfolio listing
+
 ## Recommendations
 
 1. **Backend should standardize on `id` field** for all primary resource identifiers
 2. **Error responses should use consistent format** (recommend `detail` as FastAPI standard)
 3. **Document which auth method each endpoint expects**
-4. **Add missing endpoints or document alternatives**
+4. ~~Add missing endpoints or document alternatives~~ **Partially addressed**
 
 ## Testing Impact
 

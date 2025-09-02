@@ -1930,6 +1930,55 @@ The `/api/v1/chat/send` endpoint has a bug where it's trying to access `request.
 4. **Risk Areas**: Historical prices symbol filtering complexity, SSE connection stability
 5. **Quick Wins**: UTC standardization already complete, some APIs already return real data
 
+## 🔧 Additional Tasks (Added 2025-09-02)
+
+### API Consistency Fix - Conversation ID Field Naming
+**Priority**: Medium | **Risk**: Low | **Effort**: 2-4 hours
+
+**Problem**: Chat endpoints return `conversation_id` instead of standard REST `id` field, breaking API consistency.
+
+**Analysis**: Confirmed ZERO semantic risk - all `id` fields use identical UUID primary key pattern across all resources (conversations, portfolios, positions). The conversation ID is only used for internal correlation, not passed to OpenAI API.
+
+**Files to Change**:
+1. `/backend/app/agent/schemas/chat.py` - Change Pydantic response schemas:
+   ```python
+   # Change from:
+   class ConversationResponse(AgentBaseSchema):
+       conversation_id: UUID
+   
+   # Change to:  
+   class ConversationResponse(AgentBaseSchema):
+       id: UUID
+   ```
+   - Affects: `ConversationResponse`, `ModeChangeResponse` 
+   - Keep: `MessageSend` still needs `conversation_id` field for requests
+
+2. `/backend/app/api/v1/chat/conversations.py` - Update response construction:
+   ```python
+   # Change from:
+   return ConversationResponse(conversation_id=conversation.id, ...)
+   
+   # Change to:
+   return ConversationResponse(id=conversation.id, ...)
+   ```
+
+3. **Frontend cleanup** - Remove defensive coding in chat services:
+   ```javascript
+   // Remove: const id = response.id || response.conversation_id;
+   // Use: const id = response.id;
+   ```
+
+**Benefits**:
+- Standardizes API to follow REST conventions
+- Eliminates frontend defensive coding
+- Improves developer experience
+- Makes API consistent with portfolios/positions endpoints
+
+**Testing**:
+- Test conversation creation/retrieval endpoints
+- Verify frontend chat flows still work
+- Check API documentation alignment
+
 ---
 
 ## 🔄 Daily Standup Checklist

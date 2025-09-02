@@ -29,11 +29,6 @@ interface Message {
   tool_calls?: any[]
 }
 
-interface MessageListResponse {
-  messages: Message[]
-  has_more: boolean
-  cursor?: string
-}
 
 // Error types for retry policies
 export enum ErrorType {
@@ -226,54 +221,6 @@ class ChatService {
     }
   }
   
-  /**
-   * Get messages for a conversation with pagination
-   */
-  async getMessages(
-    conversationId: string,
-    limit = 50,
-    cursor?: string
-  ): Promise<MessageListResponse> {
-    const operation = async () => {
-      const params = new URLSearchParams({
-        limit: limit.toString(),
-        ...(cursor && { cursor })
-      })
-      
-      const response = await fetch(
-        `/api/proxy/api/v1/chat/conversations/${conversationId}/messages?${params}`,
-        {
-          method: 'GET',
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
-          },
-          credentials: 'include',
-        }
-      )
-      
-      if (!response.ok) {
-        const error = await response.json().catch(() => ({}))
-        throw { status: response.status, ...error }
-      }
-      
-      return await response.json()
-    }
-    
-    try {
-      return await operation()
-    } catch (error) {
-      console.error('Failed to get messages:', error)
-      const errorType = this.classifyError(error)
-      
-      // For message history, we might want to return empty instead of retrying
-      if (errorType === ErrorType.AUTH_EXPIRED) {
-        return { messages: [], has_more: false }
-      }
-      
-      // Don't retry for message fetching - just return empty
-      return { messages: [], has_more: false }
-    }
-  }
   
   /**
    * Send a non-streaming message (for system messages or fallback)
@@ -367,4 +314,4 @@ class ChatService {
 export const chatService = new ChatService()
 
 // Export types for use in other components
-export type { Conversation, Message, MessageListResponse, ErrorPolicy }
+export type { Conversation, Message, ErrorPolicy }
