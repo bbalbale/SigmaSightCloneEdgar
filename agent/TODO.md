@@ -2162,7 +2162,7 @@ See `backend/OPENAI_STREAMING_BUG_REPORT.md` for the detailed implementation out
 - [x] **10.6.1** Update Documentation ✅ **COMPLETED**
   - [x] Document new ID utilities and validation ✅
   - [x] Update troubleshooting guides ✅
-  - **Files**: Created `backend/docs/ID_SYSTEM_DOCUMENTATION.md`
+  - **Files**: Created `agent/_docs/ID_SYSTEM_DOCUMENTATION.md`
   - **Result**: Comprehensive documentation with architecture, troubleshooting, and migration notes
 
 **✅ SUCCESS CRITERIA** (All Met - 2025-09-02):
