@@ -73,6 +73,7 @@ export async function POST(
     method: 'POST',
     headers: {
       'Content-Type': contentType || 'application/json',
+      'Accept': request.headers.get('accept') || 'application/json',
       ...(cookieHeader && { cookie: cookieHeader }),
     },
     body: typeof body === 'string' ? body : JSON.stringify(body),
@@ -81,8 +82,8 @@ export async function POST(
   
   // Handle streaming responses (SSE)
   if (response.headers.get('content-type')?.includes('text/event-stream')) {
-    // Return streaming response directly
-    return new NextResponse(response.body, {
+    // Create streaming response
+    const streamingResponse = new NextResponse(response.body, {
       status: response.status,
       headers: {
         'Content-Type': 'text/event-stream',
@@ -91,6 +92,14 @@ export async function POST(
         'X-Accel-Buffering': 'no',
       },
     })
+    
+    // Forward Set-Cookie headers from backend to client
+    const setCookieHeaders = response.headers.getSetCookie()
+    setCookieHeaders.forEach(cookie => {
+      streamingResponse.headers.append('Set-Cookie', cookie)
+    })
+    
+    return streamingResponse
   }
   
   const data = await response.text()

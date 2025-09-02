@@ -151,7 +151,7 @@ export const useChatStore = create<ChatStore>()(
       },
       
       // Add message to conversation
-      addMessage: (messageData) => {
+      addMessage: (messageData, customId?: string) => {
         const state = get()
         let conversationId = messageData.conversationId || state.currentConversationId
         
@@ -162,7 +162,7 @@ export const useChatStore = create<ChatStore>()(
         
         const message: Message = {
           ...messageData,
-          id: `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+          id: customId || `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
           conversationId,
           timestamp: new Date(),
         }

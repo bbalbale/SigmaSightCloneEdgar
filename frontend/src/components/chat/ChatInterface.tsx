@@ -158,7 +158,7 @@ export function ChatInterface({ className }: ChatInterfaceProps) {
       conversationId,
       role: 'assistant',
       content: 'Thinking...', // Show placeholder text while streaming
-    })
+    }, assistantMessageId)
     
     try {
       // Check authentication
@@ -181,9 +181,12 @@ export function ChatInterface({ className }: ChatInterfaceProps) {
           console.log('ChatInterface onToken received:', token, 'runId:', runIdFromEvent);
           // Use the runId from the event, not the local variable
           const actualRunId = runIdFromEvent || runId || ''
-          console.log('All stream buffers:', Array.from(streamBuffers.entries()));
+          
+          // Get fresh streamBuffers from store instead of stale closure
+          const { streamBuffers: currentStreamBuffers } = useStreamStore.getState()
+          console.log('All stream buffers:', Array.from(currentStreamBuffers.entries()));
           console.log('Looking for buffer with runId:', actualRunId);
-          const buffer = streamBuffers.get(actualRunId)
+          const buffer = currentStreamBuffers.get(actualRunId)
           console.log('Stream buffer for runId:', actualRunId, buffer);
           if (buffer && currentAssistantMessageId.current) {
             console.log('Updating message with buffer text:', buffer.text);
@@ -197,8 +200,20 @@ export function ChatInterface({ className }: ChatInterfaceProps) {
         onError: (error: any) => {
           console.error('Streaming error:', error)
           if (currentAssistantMessageId.current) {
+            // Get current message content to preserve streamed text
+            const currentMessages = getMessages()
+            const currentMessage = currentMessages.find(m => m.id === currentAssistantMessageId.current)
+            const currentContent = currentMessage?.content || ''
+            
+            // Only append error if we have streamed content, otherwise replace "Thinking..."
+            const shouldAppend = currentContent && currentContent !== 'Thinking...'
+            const errorText = error.message || 'An error occurred while processing your request.'
+            const finalContent = shouldAppend 
+              ? `${currentContent}\n\n[Error: ${errorText}]`
+              : `Error: ${errorText}`
+            
             updateMessage(currentAssistantMessageId.current, {
-              content: error.message || 'An error occurred while processing your request.',
+              content: finalContent,
               error: {
                 message: error.message,
                 error_type: error.error_type,
