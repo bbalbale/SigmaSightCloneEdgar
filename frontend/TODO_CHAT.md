@@ -953,6 +953,43 @@ This implementation follows an **automated test-driven development cycle** using
   - **Implementation Date**: 2025-09-02
   - **Result**: Chat streaming functionality now working correctly
 
+## 6.X **Additional Backend Bugs Fixed (Cross-Reference)**
+
+- [x] **6.30** SSE Event Type Mismatch ✅ **FIXED IN BACKEND**
+  - **Issue**: Backend emits "event: message" but send.py expects "event: token"
+  - **Impact**: Content tokens not being accumulated from SSE stream
+  - **Fixed**: `/agent/TODO.md` Phase 10.0.1 - Changed to parse "event: token"
+  - **Files**: `backend/app/api/v1/chat/send.py` lines 153-160
+  - **Result**: Streaming content now accumulates correctly
+
+- [x] **6.31** Tool Call Event Parsing Error ✅ **FIXED IN BACKEND**
+  - **Issue**: Backend tries to parse tool info from "event: tool_result" instead of "event: tool_call"
+  - **Impact**: Tool execution information not captured correctly
+  - **Fixed**: `/agent/TODO.md` Phase 10.0.2 - Parse from correct event type
+  - **Files**: `backend/app/api/v1/chat/send.py` lines 161-175
+  - **Result**: Tool calls now tracked with proper IDs
+
+- [x] **6.32** Message ID Generation Missing ✅ **FIXED IN BACKEND**
+  - **Issue**: Backend didn't emit message IDs for frontend coordination
+  - **Impact**: Frontend had to generate its own IDs, causing mismatches
+  - **Fixed**: `/agent/TODO.md` Phase 10.1.1 - Added message_created SSE event
+  - **Files**: `backend/app/api/v1/chat/send.py` lines 127-137
+  - **Result**: Frontend receives backend-generated UUIDs for all messages
+
+- [x] **6.33** Metrics Not Persisted ✅ **FIXED IN BACKEND**
+  - **Issue**: first_token_ms and latency_ms calculated but not saved
+  - **Impact**: Performance metrics lost after streaming completes
+  - **Fixed**: `/agent/TODO.md` Phase 10.1.2 - Added metrics persistence
+  - **Files**: `backend/app/api/v1/chat/send.py` lines 177-189
+  - **Result**: Metrics now saved to database for analysis
+
+- [x] **6.34** Tool Call ID Lifecycle Not Tracked ✅ **FIXED IN BACKEND**
+  - **Issue**: Tool call IDs not correlated throughout execution lifecycle
+  - **Impact**: Difficult to debug tool execution failures
+  - **Fixed**: `/agent/TODO.md` Phase 10.1.3 - Enhanced tool call tracking
+  - **Files**: `backend/app/agent/services/openai_service.py`
+  - **Result**: Complete tool call lifecycle monitoring with ID mapping
+
 ## 7. **Enhanced Observability**
 
 #### 7.1 **Structured Logging (See Technical Specifications Section 8)**
