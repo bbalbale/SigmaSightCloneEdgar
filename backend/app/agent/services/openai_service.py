@@ -626,7 +626,7 @@ class OpenAIService:
                             
                     elif event.type == "response.function_call_arguments.delta":
                         # Function call arguments streaming - accumulate deltas
-                        tool_call_id = event.function_call_id  # Use function_call_id from Responses API
+                        tool_call_id = event.item_id  # Use item_id from Responses API
                         
                         # Initialize tool call if not exists
                         if tool_call_id not in accumulated_tool_calls:
@@ -658,7 +658,7 @@ class OpenAIService:
                             
                     elif event.type == "response.function_call_arguments.done":
                         # Tool call ready for execution
-                        tool_call_id = event.function_call_id  # Use function_call_id from Responses API
+                        tool_call_id = event.item_id  # Use item_id from Responses API
                         if tool_call_id in accumulated_tool_calls:
                             tool_call = accumulated_tool_calls[tool_call_id]
                             function_name = tool_call["function"]["name"]
