@@ -448,6 +448,20 @@ class OpenAIService:
                         yield f"event: response_id\ndata: {json.dumps(response_id_payload)}\n\n"
                         seq += 1
                         
+                    elif event.type == "response.output_item.added":
+                        # Phase 5.9.5.1: Early capture of function name and tool call metadata for better correlation
+                        if hasattr(event, 'item') and hasattr(event.item, 'type') and event.item.type == "function_call":
+                            function_name = event.item.name  # Fixed: name is directly on ResponseFunctionToolCall
+                            tool_call_id = event.item.id
+                            
+                            # Store function name for later delta accumulation (prevents frontend 400 errors)
+                            accumulated_tool_calls[tool_call_id] = {
+                                "id": tool_call_id,
+                                "type": "function",
+                                "function": {"name": str(function_name), "arguments": ""}  # Ensure string type
+                            }
+                            logger.debug(f"🔧 Tool call item added - ID: {tool_call_id}, Function: {function_name}")
+                        
                     elif event.type == "response.output_text.delta":
                         # Handle streaming text content -> emit token event
                         if hasattr(event, 'delta') and event.delta:
@@ -465,6 +479,11 @@ class OpenAIService:
                             yield f"event: token\ndata: {json.dumps(token_payload)}\n\n"
                             seq += 1
                             
+                    elif event.type == "response.output_text.done":
+                        # Phase 5.9.5.3: Text output completed - useful for responses without tool calls
+                        logger.debug(f"Text output completed for response {response_id}")
+                        # Continue processing, don't break - might have more events
+                            
                     elif event.type == "response.function_call_arguments.delta":
                         # Function call arguments streaming - accumulate deltas
                         tool_call_id = event.item_id  # Use item_id from Responses API
@@ -473,13 +492,15 @@ class OpenAIService:
                         if tool_call_id not in accumulated_tool_calls:
                             # Need to get function name from event (assuming it's available)
                             function_name = getattr(event, 'function_name', 'unknown_function')
+                            # Phase 5.9.5.4: Ensure function name is always a string (prevents frontend 400s)
+                            function_name = str(function_name) if function_name else 'unknown_function'
                             logger.debug(f"🔧 Tool call arguments started - ID: {tool_call_id}, Tool: {function_name}")
                             
                             accumulated_tool_calls[tool_call_id] = {
                                 "id": tool_call_id,
                                 "type": "function", 
                                 "function": {
-                                    "name": function_name,
+                                    "name": function_name,  # Already ensured to be string above
                                     "arguments": ""
                                 }
                             }
@@ -518,13 +539,15 @@ class OpenAIService:
                                 function_args = {"error": f"Parse error: {str(e)}"}
                             
                             # Emit tool_call event 
+                            # Phase 5.9.5.4: Final validation that tool_name is string (prevents frontend 400s)
+                            validated_function_name = str(function_name) if function_name else 'unknown_function'
                             tool_call_payload = {
                                 "type": "tool_call",
                                 "run_id": run_id,
                                 "seq": seq,
                                 "data": {
                                     "tool_call_id": tool_call_id,
-                                    "tool_name": function_name,
+                                    "tool_name": validated_function_name,  # Ensure string type for frontend
                                     "tool_args": function_args
                                 },
                                 "timestamp": int(time.time() * 1000)
@@ -609,6 +632,43 @@ class OpenAIService:
                     elif event.type == "response.completed":
                         # Response completed
                         logger.info(f"Response completed: {response_id}")
+                        break
+                        
+                    elif event.type == "response.failed":
+                        # Phase 5.9.5.2: Handle API failures gracefully instead of silent failures
+                        error_message = str(getattr(event, 'error', 'Unknown API failure'))
+                        logger.error(f"OpenAI API failure for response {response_id}: {error_message}")
+                        
+                        error_payload = {
+                            "type": "error",
+                            "run_id": run_id,
+                            "seq": seq,
+                            "data": {
+                                "error_type": "api_failure",
+                                "message": error_message,
+                                "retryable": True
+                            },
+                            "timestamp": int(time.time() * 1000)
+                        }
+                        yield f"event: error\ndata: {json.dumps(error_payload)}\n\n"
+                        break
+                        
+                    elif event.type == "response.incomplete":
+                        # Phase 5.9.5.2: Handle timeout/incomplete responses
+                        logger.error(f"OpenAI response incomplete/timed out for response {response_id}")
+                        
+                        error_payload = {
+                            "type": "error",
+                            "run_id": run_id,
+                            "seq": seq,
+                            "data": {
+                                "error_type": "incomplete_response",
+                                "message": "Response timed out or was incomplete",
+                                "retryable": True
+                            },
+                            "timestamp": int(time.time() * 1000)
+                        }
+                        yield f"event: error\ndata: {json.dumps(error_payload)}\n\n"
                         break
                         
                     else:
