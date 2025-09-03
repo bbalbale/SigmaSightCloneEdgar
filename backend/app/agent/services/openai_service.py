@@ -624,38 +624,41 @@ class OpenAIService:
                             yield f"event: token\ndata: {json.dumps(token_payload)}\n\n"
                             seq += 1
                             
-                    elif event.type == "tool_call.start":
-                        # Tool call started - begin accumulating
-                        tool_call_id = event.tool_call.id
-                        logger.debug(f"🔧 Tool call started - ID: {tool_call_id}, Tool: {event.tool_call.function.name}")
+                    elif event.type == "response.function_call_arguments.delta":
+                        # Function call arguments streaming - accumulate deltas
+                        tool_call_id = event.function_call_id  # Use function_call_id from Responses API
                         
-                        accumulated_tool_calls[tool_call_id] = {
-                            "id": tool_call_id,
-                            "type": "function", 
-                            "function": {
-                                "name": event.tool_call.function.name,
-                                "arguments": ""
+                        # Initialize tool call if not exists
+                        if tool_call_id not in accumulated_tool_calls:
+                            # Need to get function name from event (assuming it's available)
+                            function_name = getattr(event, 'function_name', 'unknown_function')
+                            logger.debug(f"🔧 Tool call arguments started - ID: {tool_call_id}, Tool: {function_name}")
+                            
+                            accumulated_tool_calls[tool_call_id] = {
+                                "id": tool_call_id,
+                                "type": "function", 
+                                "function": {
+                                    "name": function_name,
+                                    "arguments": ""
+                                }
                             }
-                        }
+                            
+                            # Track in ID mapping for correlation
+                            self.tool_call_id_map[tool_call_id] = {
+                                "openai_id": tool_call_id,
+                                "run_id": run_id,
+                                "conversation_id": conversation_id,
+                                "started_at": int(time.time() * 1000),
+                                "status": "streaming"
+                            }
                         
-                        # Track in ID mapping for correlation
-                        self.tool_call_id_map[tool_call_id] = {
-                            "openai_id": tool_call_id,
-                            "run_id": run_id,
-                            "conversation_id": conversation_id,
-                            "started_at": int(time.time() * 1000),
-                            "status": "streaming"
-                        }
-                        
-                    elif event.type == "tool_call.delta":
-                        # Accumulate tool call arguments
-                        tool_call_id = event.tool_call_id
-                        if tool_call_id in accumulated_tool_calls and event.delta:
+                        # Accumulate arguments delta
+                        if event.delta:
                             accumulated_tool_calls[tool_call_id]["function"]["arguments"] += event.delta
                             
-                    elif event.type == "tool_call.done":
+                    elif event.type == "response.function_call_arguments.done":
                         # Tool call ready for execution
-                        tool_call_id = event.tool_call_id
+                        tool_call_id = event.function_call_id  # Use function_call_id from Responses API
                         if tool_call_id in accumulated_tool_calls:
                             tool_call = accumulated_tool_calls[tool_call_id]
                             function_name = tool_call["function"]["name"]
@@ -766,6 +769,12 @@ class OpenAIService:
                         # Response completed
                         logger.info(f"Response completed: {response_id}")
                         break
+                        
+                    else:
+                        # Unknown event type - log for investigation but don't fail
+                        logger.warning(f"Unknown Responses API event type: {event.type}")
+                        logger.debug(f"Event data: {event}")
+                        continue
                         
                 except Exception as event_error:
                     logger.error(f"Error processing Responses API event: {event_error} - event: {event}")
