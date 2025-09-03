@@ -2581,6 +2581,33 @@ else:
 - Tool call UI not wired (frontend issue, blocked by backend tool formatting)
 - Frontend has robust error handling in place, system degrades gracefully
 
+### 9.7 **Remove Chat Completions Fallback Methods** ⚠️ **MEDIUM PRIORITY**
+
+Since Phase 5.9 confirmed that OpenAI Responses API is working correctly and Phase 5.9 event type fixes are successful, we should remove the Chat Completions fallback methods to ensure fail-fast behavior rather than silent degradation.
+
+- [ ] **9.7.1** Remove Chat Completions Fallback Methods
+  - **Context**: With Responses API working correctly, Chat Completions fallback creates debugging confusion
+  - **User Preference**: "I would rather have it fail entirely" instead of silent fallback to different API
+  - **Files to Modify**:
+    - `backend/app/agent/services/openai_service.py` - Remove `stream_chat_completion()` method (line ~835)
+    - `backend/app/agent/services/openai_service.py` - Remove `stream_chat_completion_legacy()` method (line ~1222) 
+    - Any imports or references to Chat Completions API methods
+  - **Benefits**:
+    - Clearer error messages when Responses API fails
+    - Prevents confusion between API patterns
+    - Forces proper error handling instead of silent degradation
+    - Reduces code maintenance burden
+  - **Test Strategy**:
+    - Verify existing tool calls continue working with Responses API only
+    - Confirm proper error messages when API fails (no silent fallback)
+    - Test edge cases that might have triggered fallback previously
+  - **Success Criteria**:
+    - [ ] All Chat Completions fallback methods removed
+    - [ ] Tool calls work exclusively via Responses API
+    - [ ] Clear error messages when Responses API unavailable
+    - [ ] No references to `/v1/chat/completions` in logs during normal operation
+  - **Priority**: P2 Medium - Code cleanup task, improves reliability
+
 ---
 
 ## 📋 Phase 10: ID System Refactoring - Option A (Clean API Separation) (Day 12-13)
