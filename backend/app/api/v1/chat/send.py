@@ -174,7 +174,7 @@ async def sse_generator(
         first_token_time = None
         start_time = time.time()
         
-        async for sse_event in openai_service.stream_chat_completion(
+        async for sse_event in openai_service.stream_responses(
             conversation_id=str(conversation.id),
             conversation_mode=conversation.mode,
             message_text=message_text,

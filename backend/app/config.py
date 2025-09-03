@@ -49,11 +49,26 @@ class Settings(BaseSettings):
     AGENT_CACHE_TTL: int = Field(default=600, env="AGENT_CACHE_TTL")
     SSE_HEARTBEAT_INTERVAL_MS: int = Field(default=15000, env="SSE_HEARTBEAT_INTERVAL_MS")
     
-    # Chat configuration
-    CHAT_MAX_TOKENS: int = Field(default=4000, env="CHAT_MAX_TOKENS")
-    CHAT_TIMEOUT_SECONDS: int = Field(default=300, env="CHAT_TIMEOUT_SECONDS")
-    CHAT_RATE_LIMIT_PER_MINUTE: int = Field(default=10, env="CHAT_RATE_LIMIT_PER_MINUTE")
-    # Feature flags for agent chat rollout
+    # OpenAI Responses API configuration (formerly Chat configuration)
+    # Renamed to be API-agnostic as per Phase 5.8.4
+    OPENAI_MAX_COMPLETION_TOKENS: int = Field(default=4000, env="OPENAI_MAX_COMPLETION_TOKENS", 
+                                              description="Max completion tokens for OpenAI Responses API")
+    OPENAI_TIMEOUT_SECONDS: int = Field(default=60, env="OPENAI_TIMEOUT_SECONDS",
+                                        description="Timeout for OpenAI API requests")
+    OPENAI_MAX_TOOLS: int = Field(default=10, env="OPENAI_MAX_TOOLS",
+                                  description="Maximum number of tools per Responses API call")
+    OPENAI_RATE_LIMIT_PER_MINUTE: int = Field(default=10, env="OPENAI_RATE_LIMIT_PER_MINUTE",
+                                              description="Rate limit for OpenAI API calls")
+    
+    # Legacy configuration for backward compatibility (Phase 5.8.4 transition)
+    CHAT_MAX_TOKENS: int = Field(default=4000, env="CHAT_MAX_TOKENS", 
+                                 description="LEGACY: Use OPENAI_MAX_COMPLETION_TOKENS instead")
+    CHAT_TIMEOUT_SECONDS: int = Field(default=300, env="CHAT_TIMEOUT_SECONDS",
+                                      description="LEGACY: Use OPENAI_TIMEOUT_SECONDS instead") 
+    CHAT_RATE_LIMIT_PER_MINUTE: int = Field(default=10, env="CHAT_RATE_LIMIT_PER_MINUTE",
+                                            description="LEGACY: Use OPENAI_RATE_LIMIT_PER_MINUTE instead")
+    
+    # Agent feature flags
     SSE_EMIT_MESSAGE_CREATED: bool = Field(default=True, env="SSE_EMIT_MESSAGE_CREATED")
     API_MESSAGES_ENABLED: bool = Field(default=False, env="API_MESSAGES_ENABLED")
     

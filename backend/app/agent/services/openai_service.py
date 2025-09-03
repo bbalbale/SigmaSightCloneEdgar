@@ -319,6 +319,342 @@ class OpenAIService:
         
         return messages
     
+    def _build_responses_input(
+        self, 
+        conversation_mode: str, 
+        message_history: List[Dict[str, Any]], 
+        user_message: str,
+        portfolio_context: Optional[Dict[str, Any]] = None
+    ) -> Dict[str, Any]:
+        """Build input structure for OpenAI Responses API"""
+        # Get system prompt for the mode
+        system_prompt = self.prompt_manager.get_system_prompt(
+            conversation_mode,
+            user_context=portfolio_context
+        )
+        
+        # Build message history for input
+        messages = []
+        
+        # Add conversation history (user/assistant pairs)
+        for msg in message_history:
+            if msg["role"] in ["user", "assistant"]:
+                messages.append({
+                    "role": msg["role"],
+                    "content": msg["content"]
+                })
+                # Note: We skip tool_calls from history as Responses manages tools per-turn
+        
+        # Add current user message
+        messages.append({"role": "user", "content": user_message})
+        
+        # Return Responses API input structure
+        return {
+            "messages": messages,
+            "system": system_prompt
+        }
+    
+    async def stream_responses(
+        self,
+        conversation_id: str,
+        conversation_mode: str,
+        message_text: str,
+        message_history: List[Dict[str, Any]] = None,
+        portfolio_context: Optional[Dict[str, Any]] = None,
+        run_id: Optional[str] = None
+    ) -> AsyncGenerator[str, None]:
+        """
+        Stream responses using OpenAI Responses API with proper tool execution handshake
+        
+        Yields SSE formatted events with standardized contract (type, run_id, seq fields)
+        """
+        run_id = run_id or str(uuid.uuid4())
+        seq = 0
+        final_content_parts = []
+        
+        try:
+            # Build Responses API input
+            input_data = self._build_responses_input(
+                conversation_mode,
+                message_history or [],
+                message_text,
+                portfolio_context
+            )
+            
+            # Get tool definitions
+            tools = self._get_tool_definitions()
+            
+            # Yield start event with standardized format
+            start_payload = {
+                "type": "start",
+                "run_id": run_id,
+                "seq": seq,
+                "data": {
+                    "conversation_id": conversation_id,
+                    "mode": conversation_mode,
+                    "model": self.model
+                },
+                "timestamp": int(time.time() * 1000)
+            }
+            yield f"event: start\ndata: {json.dumps(start_payload)}\n\n"
+            seq += 1
+            
+            # Call OpenAI Responses API with streaming
+            stream = await self.client.responses.create(
+                model=self.model,
+                input=input_data,  # Use input structure instead of messages
+                tools=tools if tools else None,
+                stream=True,
+                max_completion_tokens=getattr(settings, 'OPENAI_MAX_COMPLETION_TOKENS', settings.CHAT_MAX_TOKENS)
+            )
+            
+            # Track state for streaming
+            current_content = ""
+            tool_call_chunks = {}
+            accumulated_tool_calls = {}
+            last_heartbeat = asyncio.get_event_loop().time()
+            heartbeat_interval = settings.SSE_HEARTBEAT_INTERVAL_MS / 1000.0
+            
+            # Store response ID for tool output submission
+            response_id = None
+            
+            async for event in stream:
+                # Check if we need to send a heartbeat
+                current_time = asyncio.get_event_loop().time()
+                if current_time - last_heartbeat > heartbeat_interval:
+                    heartbeat_payload = {
+                        "type": "heartbeat",
+                        "run_id": run_id,
+                        "seq": 0,  # Heartbeats don't increment sequence
+                        "data": {},
+                        "timestamp": int(time.time() * 1000)
+                    }
+                    yield f"event: heartbeat\ndata: {json.dumps(heartbeat_payload)}\n\n"
+                    last_heartbeat = current_time
+                
+                # Handle Responses API events based on actual SDK event names
+                try:
+                    if event.type == "response.start":
+                        # Capture response ID for tool output submission
+                        response_id = event.response.id
+                        logger.info(f"Response started with ID: {response_id}")
+                        
+                    elif event.type == "content.delta":
+                        # Handle streaming text content -> emit token event
+                        if event.delta:
+                            current_content += event.delta
+                            final_content_parts.append(event.delta)
+                            
+                            # Emit our standardized token event
+                            token_payload = {
+                                "type": "token",
+                                "run_id": run_id,
+                                "seq": seq,
+                                "data": {"delta": event.delta},
+                                "timestamp": int(time.time() * 1000)
+                            }
+                            yield f"event: token\ndata: {json.dumps(token_payload)}\n\n"
+                            seq += 1
+                            
+                    elif event.type == "tool_call.start":
+                        # Tool call started - begin accumulating
+                        tool_call_id = event.tool_call.id
+                        logger.debug(f"🔧 Tool call started - ID: {tool_call_id}, Tool: {event.tool_call.function.name}")
+                        
+                        accumulated_tool_calls[tool_call_id] = {
+                            "id": tool_call_id,
+                            "type": "function", 
+                            "function": {
+                                "name": event.tool_call.function.name,
+                                "arguments": ""
+                            }
+                        }
+                        
+                        # Track in ID mapping for correlation
+                        self.tool_call_id_map[tool_call_id] = {
+                            "openai_id": tool_call_id,
+                            "run_id": run_id,
+                            "conversation_id": conversation_id,
+                            "started_at": int(time.time() * 1000),
+                            "status": "streaming"
+                        }
+                        
+                    elif event.type == "tool_call.delta":
+                        # Accumulate tool call arguments
+                        tool_call_id = event.tool_call_id
+                        if tool_call_id in accumulated_tool_calls and event.delta:
+                            accumulated_tool_calls[tool_call_id]["function"]["arguments"] += event.delta
+                            
+                    elif event.type == "tool_call.done":
+                        # Tool call ready for execution
+                        tool_call_id = event.tool_call_id
+                        if tool_call_id in accumulated_tool_calls:
+                            tool_call = accumulated_tool_calls[tool_call_id]
+                            function_name = tool_call["function"]["name"]
+                            
+                            # Parse function arguments
+                            try:
+                                raw_args = tool_call["function"]["arguments"]
+                                logger.debug(f"Raw tool arguments for {function_name}: {raw_args!r}")
+                                if isinstance(raw_args, str) and raw_args.strip():
+                                    function_args = json.loads(raw_args)
+                                else:
+                                    function_args = {}
+                                    logger.warning(f"Empty arguments for {function_name}")
+                            except json.JSONDecodeError as e:
+                                logger.error(f"Failed to parse tool arguments for {function_name}: {e}")
+                                function_args = {"error": f"Parse error: {str(e)}"}
+                            
+                            # Emit tool_call event 
+                            tool_call_payload = {
+                                "type": "tool_call",
+                                "run_id": run_id,
+                                "seq": seq,
+                                "data": {
+                                    "tool_call_id": tool_call_id,
+                                    "tool_name": function_name,
+                                    "tool_args": function_args
+                                },
+                                "timestamp": int(time.time() * 1000)
+                            }
+                            yield f"event: tool_call\ndata: {json.dumps(tool_call_payload)}\n\n"
+                            seq += 1
+                            
+                            # Execute tool
+                            logger.info(f"🔧 Executing tool call - ID: {tool_call_id}, Tool: {function_name}")
+                            start_time = time.time()
+                            
+                            try:
+                                from app.agent.tools.tool_registry import tool_registry
+                                result = await tool_registry.dispatch_tool_call(function_name, function_args)
+                                duration_ms = int((time.time() - start_time) * 1000)
+                                
+                                logger.info(f"✅ Tool call completed - ID: {tool_call_id}, Tool: {function_name}, Duration: {duration_ms}ms")
+                                
+                                # Emit tool_result event
+                                tool_result_payload = {
+                                    "type": "tool_result", 
+                                    "run_id": run_id,
+                                    "seq": seq,
+                                    "data": {
+                                        "tool_call_id": tool_call_id,
+                                        "tool_name": function_name,
+                                        "tool_result": result,
+                                        "duration_ms": duration_ms
+                                    },
+                                    "timestamp": int(time.time() * 1000)
+                                }
+                                yield f"event: tool_result\ndata: {json.dumps(tool_result_payload)}\n\n"
+                                seq += 1
+                                
+                                # CRITICAL: Submit tool output back to Responses API for continuation
+                                if response_id:
+                                    await self.client.responses.submit_tool_outputs(
+                                        response_id=response_id,
+                                        tool_outputs=[{
+                                            "tool_call_id": tool_call_id,
+                                            "output": json.dumps(result) if isinstance(result, dict) else str(result)
+                                        }]
+                                    )
+                                    logger.debug(f"Tool output submitted to response {response_id} for tool {tool_call_id}")
+                                
+                            except Exception as e:
+                                duration_ms = int((time.time() - start_time) * 1000)
+                                logger.error(f"❌ Tool call failed - ID: {tool_call_id}, Tool: {function_name}, Error: {e}")
+                                
+                                # Emit error result
+                                error_result = {
+                                    "error": str(e),
+                                    "tool_call_id": tool_call_id,
+                                    "tool_name": function_name
+                                }
+                                
+                                tool_error_payload = {
+                                    "type": "tool_result",
+                                    "run_id": run_id, 
+                                    "seq": seq,
+                                    "data": {
+                                        "tool_call_id": tool_call_id,
+                                        "tool_name": function_name,
+                                        "tool_result": error_result,
+                                        "duration_ms": duration_ms
+                                    },
+                                    "timestamp": int(time.time() * 1000)
+                                }
+                                yield f"event: tool_result\ndata: {json.dumps(tool_error_payload)}\n\n"
+                                seq += 1
+                                
+                                # Submit error response to Responses API
+                                if response_id:
+                                    await self.client.responses.submit_tool_outputs(
+                                        response_id=response_id,
+                                        tool_outputs=[{
+                                            "tool_call_id": tool_call_id,
+                                            "output": f"Error: {str(e)}"
+                                        }]
+                                    )
+                                    
+                    elif event.type == "response.done":
+                        # Response completed
+                        logger.info(f"Response completed: {response_id}")
+                        break
+                        
+                except Exception as event_error:
+                    logger.error(f"Error processing Responses API event: {event_error} - event: {event}")
+                    continue
+            
+            # Send final done event
+            final_text = "".join(final_content_parts)
+            done_payload = {
+                "type": "done",
+                "run_id": run_id,
+                "seq": seq,
+                "data": {
+                    "final_text": final_text,
+                    "tool_calls_count": len(accumulated_tool_calls),
+                    "total_tokens": 0  # TODO: Track token usage from Responses API
+                },
+                "timestamp": int(time.time() * 1000)
+            }
+            yield f"event: done\ndata: {json.dumps(done_payload)}\n\n"
+            
+            # Log tool call summary if any tools were called
+            if accumulated_tool_calls:
+                self.log_tool_call_summary(conversation_id)
+                
+        except Exception as e:
+            logger.error(f"Error in stream_responses: {e}")
+            
+            # Determine error characteristics
+            error_type = "internal_error"
+            retryable = True
+            retry_after = 5
+            
+            if "rate_limit" in str(e).lower():
+                error_type = "rate_limit_exceeded"
+                retry_after = 60
+            elif "insufficient_quota" in str(e).lower():
+                error_type = "quota_exceeded"
+                retryable = False
+            elif "invalid_api_key" in str(e).lower():
+                error_type = "authentication_error"
+                retryable = False
+            
+            # Emit standardized error event
+            error_payload = {
+                "type": "error",
+                "run_id": run_id,
+                "seq": 0,  # Errors don't increment sequence
+                "data": {
+                    "error": str(e),
+                    "error_type": error_type,
+                    "retryable": retryable,
+                    "retry_after": retry_after
+                },
+                "timestamp": int(time.time() * 1000)
+            }
+            yield f"event: error\ndata: {json.dumps(error_payload)}\n\n"
+
     async def stream_chat_completion(
         self,
         conversation_id: str,
@@ -364,41 +700,22 @@ class OpenAIService:
             yield f"event: start\ndata: {json.dumps(start_payload)}\n\n"
             seq += 1
             
-            # Call OpenAI with streaming
+            # Call OpenAI Chat Completions API with streaming (fallback from Responses API due to bugs)
             stream = await self.client.chat.completions.create(
                 model=self.model,
                 messages=messages,
                 tools=tools if tools else None,
                 stream=True,
-                max_completion_tokens=settings.CHAT_MAX_TOKENS
+                max_completion_tokens=getattr(settings, 'OPENAI_MAX_COMPLETION_TOKENS', settings.CHAT_MAX_TOKENS)
             )
             
             # Track state for streaming
             current_content = ""
-            current_tool_calls = []
             tool_call_chunks = {}
-            last_heartbeat = asyncio.get_event_loop().time()
-            heartbeat_interval = settings.SSE_HEARTBEAT_INTERVAL_MS / 1000.0
             
             async for chunk in stream:
-                # Debug: Log chunk details
-                logger.info(f"OpenAI chunk received: {chunk}")
-                
-                # Check if we need to send a heartbeat
-                current_time = asyncio.get_event_loop().time()
-                if current_time - last_heartbeat > heartbeat_interval:
-                    heartbeat_payload = {
-                        "type": "heartbeat",
-                        "run_id": run_id,
-                        "seq": 0,  # Heartbeats don't increment sequence
-                        "data": {},
-                        "timestamp": int(time.time() * 1000)
-                    }
-                    yield f"event: heartbeat\ndata: {json.dumps(heartbeat_payload)}\n\n"
-                    last_heartbeat = current_time
-                
-                # Handle both ChatCompletionChunk objects and dict responses
                 try:
+                    # Handle both ChatCompletionChunk objects and dict responses
                     if hasattr(chunk, 'choices'):
                         # Standard ChatCompletionChunk object
                         delta = chunk.choices[0].delta if chunk.choices else None
@@ -406,154 +723,138 @@ class OpenAIService:
                         # Handle dict response (fallback)
                         choices = chunk.get('choices', [])
                         delta = choices[0].get('delta') if choices else None
-                        logger.debug(f"Received dict chunk in main streaming: {chunk}")
+                        logger.debug(f"Received dict chunk: {chunk}")
                     else:
-                        logger.warning(f"Unknown chunk type in main streaming: {type(chunk)} - {chunk}")
+                        logger.warning(f"Unknown chunk type: {type(chunk)} - {chunk}")
                         continue
-                        
-                    logger.info(f"Delta extracted: {delta}")
+                    
                     if not delta:
                         continue
-                except Exception as chunk_error:
-                    logger.error(f"Error processing main streaming chunk: {chunk_error} - chunk: {chunk}")
-                    continue
-                
-                # Handle content streaming with standardized token events
-                if delta.content:
-                    current_content += delta.content
-                    final_content_parts.append(delta.content)
                     
-                    # Emit standardized token event
-                    token_payload = {
-                        "type": "token",
-                        "run_id": run_id,
-                        "seq": seq,
-                        "data": {"delta": delta.content},
-                        "timestamp": int(time.time() * 1000)
-                    }
-                    yield f"event: token\ndata: {json.dumps(token_payload)}\n\n"
-                    seq += 1
-                
-                # Handle tool calls with JSON parsing guards
-                if delta.tool_calls:
-                    for tool_call_delta in delta.tool_calls:
-                        tool_call_index = tool_call_delta.index
-                        tool_call_id = tool_call_delta.id
+                    # Handle content deltas with standardized token events
+                    if hasattr(delta, 'content') and delta.content:
+                        current_content += delta.content
+                        final_content_parts.append(delta.content)
                         
-                        # Handle case where id is None (subsequent chunks for same tool call)
-                        if tool_call_id is None:
-                            # Find existing tool call by index
-                            tool_call_id = None
-                            for existing_id, chunk in tool_call_chunks.items():
-                                if chunk.get("_index") == tool_call_index:
-                                    tool_call_id = existing_id
-                                    break
-                            
-                            # If we still don't have an ID, this is an error state - skip this delta
-                            if tool_call_id is None:
-                                logger.warning(f"Received tool call delta with null ID and unknown index {tool_call_index}")
-                                continue
-                        else:
-                            # This is a new tool call with an ID
-                            if tool_call_id not in tool_call_chunks:
-                                # Log new tool call ID for tracking
-                                logger.debug(f"🔧 New tool call started - OpenAI ID: {tool_call_id}")
-                                tool_call_chunks[tool_call_id] = {
-                                    "id": tool_call_id,
-                                    "type": "function",
-                                    "_index": tool_call_index,  # Track index for null ID lookups
-                                    "function": {
-                                        "name": tool_call_delta.function.name if tool_call_delta.function else "",
-                                        "arguments": ""
-                                    }
-                                }
-                                # Track in ID mapping for correlation
-                                self.tool_call_id_map[tool_call_id] = {
-                                    "openai_id": tool_call_id,
-                                    "run_id": run_id,
-                                    "conversation_id": conversation_id,
-                                    "started_at": int(time.time() * 1000),
-                                    "status": "streaming"
-                                }
-                        
-                        # Accumulate function arguments (now tool_call_id is guaranteed to be valid)
-                        if tool_call_delta.function and tool_call_delta.function.arguments:
-                            tool_call_chunks[tool_call_id]["function"]["arguments"] += tool_call_delta.function.arguments
-                
-                # Check for finish reason with type safety
-                finish_reason = None
-                try:
-                    if hasattr(chunk, 'choices'):
-                        # Standard ChatCompletionChunk object
-                        finish_reason = chunk.choices[0].finish_reason if chunk.choices else None
-                    elif isinstance(chunk, dict):
-                        # Handle dict response (fallback)
-                        choices = chunk.get('choices', [])
-                        finish_reason = choices[0].get('finish_reason') if choices else None
-                except Exception as e:
-                    logger.debug(f"Error extracting finish_reason: {e} - chunk: {chunk}")
-                    finish_reason = None
-                
-                if finish_reason == "tool_calls":
-                    # Execute tool calls
-                    for tool_call_id, tool_call in tool_call_chunks.items():
-                        function_name = tool_call["function"]["name"]
-                        
-                        # Parse function arguments with error guard
-                        try:
-                            raw_args = tool_call["function"]["arguments"]
-                            logger.debug(f"Raw tool arguments for {function_name}: {raw_args!r}")
-                            if isinstance(raw_args, str) and raw_args.strip():
-                                # Try to parse as JSON
-                                try:
-                                    function_args = json.loads(raw_args)
-                                except json.JSONDecodeError:
-                                    # If it's just "portfolio" or similar malformed JSON, try to infer
-                                    if function_name == "get_portfolio_complete" and "portfolio" in raw_args.lower():
-                                        # Infer portfolio_id from context
-                                        function_args = {"portfolio_id": "c0510ab8-c6b5-433c-adbc-3f74e1dbdb5e", "include_holdings": True}
-                                        logger.info(f"Inferred portfolio arguments for malformed JSON: {function_args}")
-                                    else:
-                                        function_args = {}
-                                        logger.warning(f"Failed to parse tool arguments: {raw_args}")
-                            else:
-                                function_args = {}
-                        except Exception as e:
-                            logger.warning(f"Unexpected error parsing tool arguments: {e}")
-                            function_args = {"__parse_error__": str(e)}
-                        
-                        # Update ID mapping with tool details
-                        if tool_call_id in self.tool_call_id_map:
-                            self.tool_call_id_map[tool_call_id].update({
-                                "tool_name": function_name,
-                                "tool_args": function_args,
-                                "status": "executing"
-                            })
-                        
-                        # Log tool call execution for ID correlation
-                        logger.info(f"🔧 Executing tool call - ID: {tool_call_id}, Tool: {function_name}, Args: {json.dumps(function_args)[:100]}...")
-                        
-                        # Emit standardized tool_call event
-                        tool_call_payload = {
-                            "type": "tool_call",
+                        token_payload = {
+                            "type": "token",
                             "run_id": run_id,
                             "seq": seq,
-                            "data": {
-                                "tool_call_id": tool_call_id,  # Include the tool call ID
-                                "tool_name": function_name,
-                                "tool_args": function_args
-                            },
+                            "data": {"delta": delta.content},
                             "timestamp": int(time.time() * 1000)
                         }
-                        yield f"event: tool_call\ndata: {json.dumps(tool_call_payload)}\n\n"
+                        yield f"event: token\ndata: {json.dumps(token_payload)}\n\n"
                         seq += 1
-                        
-                        # Execute tool if arguments parsed successfully
-                        if "__parse_error__" not in function_args:
+                    
+                    # Handle tool calls with more robust error handling
+                    if hasattr(delta, 'tool_calls') and delta.tool_calls:
+                        for tool_call_delta in delta.tool_calls:
+                            tool_call_index = tool_call_delta.index
+                            tool_call_id = tool_call_delta.id
+                            
+                            # Handle case where id is None (subsequent chunks for same tool call)
+                            if tool_call_id is None:
+                                # Find existing tool call by index
+                                tool_call_id = None
+                                for existing_id, chunk in tool_call_chunks.items():
+                                    if chunk.get("_index") == tool_call_index:
+                                        tool_call_id = existing_id
+                                        break
+                                
+                                # If we still don't have an ID, this is an error state - skip this delta
+                                if tool_call_id is None:
+                                    logger.warning(f"Received tool call delta with null ID and unknown index {tool_call_index}")
+                                    continue
+                            else:
+                                # This is a new tool call with an ID
+                                if tool_call_id not in tool_call_chunks:
+                                    # Log new tool call ID for tracking
+                                    logger.debug(f"🔧 New tool call started - OpenAI ID: {tool_call_id}")
+                                    tool_call_chunks[tool_call_id] = {
+                                        "id": tool_call_id,
+                                        "type": "function",
+                                        "_index": tool_call_index,  # Track index for null ID lookups
+                                        "function": {
+                                            "name": tool_call_delta.function.name if tool_call_delta.function else "",
+                                            "arguments": ""
+                                        }
+                                    }
+                                    # Track in ID mapping for correlation
+                                    self.tool_call_id_map[tool_call_id] = {
+                                        "openai_id": tool_call_id,
+                                        "run_id": run_id,
+                                        "conversation_id": conversation_id,
+                                        "started_at": int(time.time() * 1000),
+                                        "status": "streaming"
+                                    }
+                            
+                            # Accumulate function arguments (now tool_call_id is guaranteed to be valid)
+                            if tool_call_delta.function and tool_call_delta.function.arguments:
+                                tool_call_chunks[tool_call_id]["function"]["arguments"] += tool_call_delta.function.arguments
+                    
+                    # Check for finish reason with type safety
+                    finish_reason = None
+                    try:
+                        if hasattr(chunk, 'choices'):
+                            # Standard ChatCompletionChunk object
+                            finish_reason = chunk.choices[0].finish_reason if chunk.choices else None
+                        elif isinstance(chunk, dict):
+                            # Handle dict response (fallback)
+                            choices = chunk.get('choices', [])
+                            finish_reason = choices[0].get('finish_reason') if choices else None
+                    except Exception as e:
+                        logger.debug(f"Error extracting finish_reason: {e} - chunk: {chunk}")
+                        finish_reason = None
+                    
+                    if finish_reason == "tool_calls":
+                        # Execute tool calls
+                        for tool_call_id, tool_call in tool_call_chunks.items():
+                            function_name = tool_call["function"]["name"]
+                            
+                            # Parse function arguments with error guard
                             try:
-                                tool_start_time = time.time()
+                                raw_args = tool_call["function"]["arguments"]
+                                logger.debug(f"Raw tool arguments for {function_name}: {raw_args!r}")
+                                if isinstance(raw_args, str) and raw_args.strip():
+                                    function_args = json.loads(raw_args)
+                                else:
+                                    function_args = {}
+                                    logger.warning(f"Empty or invalid arguments for {function_name}")
+                            except json.JSONDecodeError as e:
+                                logger.error(f"Failed to parse tool arguments for {function_name}: {e}")
+                                function_args = {}
+                            
+                            # Update ID mapping with tool details
+                            if tool_call_id in self.tool_call_id_map:
+                                self.tool_call_id_map[tool_call_id].update({
+                                    "tool_name": function_name,
+                                    "tool_args": function_args,
+                                    "status": "executing"
+                                })
+                            
+                            # Emit tool_call event 
+                            tool_call_payload = {
+                                "type": "tool_call",
+                                "run_id": run_id,
+                                "seq": seq,
+                                "data": {
+                                    "tool_call_id": tool_call_id,
+                                    "tool_name": function_name,
+                                    "tool_args": function_args
+                                },
+                                "timestamp": int(time.time() * 1000)
+                            }
+                            yield f"event: tool_call\ndata: {json.dumps(tool_call_payload)}\n\n"
+                            seq += 1
+                            
+                            # Execute tool
+                            logger.info(f"🔧 Executing tool call - ID: {tool_call_id}, Tool: {function_name}")
+                            start_time = time.time()
+                            
+                            try:
+                                from app.agent.tools.tool_registry import tool_registry
                                 result = await tool_registry.dispatch_tool_call(function_name, function_args)
-                                duration_ms = int((time.time() - tool_start_time) * 1000)
+                                duration_ms = int((time.time() - start_time) * 1000)
                                 
                                 # Update ID mapping with completion
                                 if tool_call_id in self.tool_call_id_map:
@@ -563,16 +864,15 @@ class OpenAIService:
                                         "completed_at": int(time.time() * 1000)
                                     })
                                 
-                                # Log tool result with ID correlation
                                 logger.info(f"✅ Tool call completed - ID: {tool_call_id}, Tool: {function_name}, Duration: {duration_ms}ms")
                                 
-                                # Emit standardized tool_result event with tool_call_id for correlation
+                                # Emit tool_result event
                                 tool_result_payload = {
-                                    "type": "tool_result",
+                                    "type": "tool_result", 
                                     "run_id": run_id,
                                     "seq": seq,
                                     "data": {
-                                        "tool_call_id": tool_call_id,  # Include ID for correlation
+                                        "tool_call_id": tool_call_id,
                                         "tool_name": function_name,
                                         "tool_result": result,
                                         "duration_ms": duration_ms
@@ -582,7 +882,7 @@ class OpenAIService:
                                 yield f"event: tool_result\ndata: {json.dumps(tool_result_payload)}\n\n"
                                 seq += 1
                                 
-                                # Add tool response to messages for next iteration
+                                # Add tool response to messages for continuation
                                 messages.append({
                                     "role": "tool",
                                     "tool_call_id": tool_call_id,
@@ -590,92 +890,494 @@ class OpenAIService:
                                 })
                                 
                             except Exception as e:
-                                logger.error(f"Tool execution error: {e}")
-                                error_result_payload = {
+                                duration_ms = int((time.time() - start_time) * 1000)
+                                logger.error(f"❌ Tool call failed - ID: {tool_call_id}, Tool: {function_name}, Error: {e}")
+                                
+                                # Emit error event but continue
+                                error_result = {
+                                    "error": str(e),
+                                    "tool_call_id": tool_call_id,
+                                    "tool_name": function_name
+                                }
+                                
+                                tool_error_payload = {
                                     "type": "tool_result",
-                                    "run_id": run_id,
+                                    "run_id": run_id, 
                                     "seq": seq,
                                     "data": {
-                                        "tool_call_id": tool_call_id,  # Add tool call ID
+                                        "tool_call_id": tool_call_id,
                                         "tool_name": function_name,
-                                        "tool_result": {"error": str(e)}
+                                        "tool_result": error_result,
+                                        "duration_ms": duration_ms
                                     },
                                     "timestamp": int(time.time() * 1000)
                                 }
-                                yield f"event: tool_result\ndata: {json.dumps(error_result_payload)}\n\n"
+                                yield f"event: tool_result\ndata: {json.dumps(tool_error_payload)}\n\n"
                                 seq += 1
                                 
-                                # CRITICAL: Add error response to messages for OpenAI
+                                # Add error response to messages
                                 messages.append({
                                     "role": "tool",
                                     "tool_call_id": tool_call_id,
                                     "content": json.dumps({"error": str(e)})
                                 })
-                    
-                    # Continue conversation with tool results
-                    if tool_call_chunks:
-                        # Clean up tool calls for OpenAI (remove internal fields)
-                        clean_tool_calls = []
-                        for tool_call in tool_call_chunks.values():
-                            clean_call = {
-                                "id": tool_call["id"],
-                                "type": tool_call["type"],
-                                "function": tool_call["function"]
-                            }
-                            # Remove internal _index field if present
-                            clean_tool_calls.append(clean_call)
                         
-                        # Add assistant message with tool calls to history
-                        messages.append({
-                            "role": "assistant",
-                            "content": current_content or None,
-                            "tool_calls": clean_tool_calls
-                        })
-                        
-                        # Make another API call with tool results
-                        continuation_stream = await self.client.chat.completions.create(
-                            model=self.model,
-                            messages=messages,
-                            stream=True,
-                            max_completion_tokens=settings.CHAT_MAX_TOKENS
-                        )
-                        
-                        # Stream the continuation with standardized token events
-                        try:
-                            async for cont_chunk in continuation_stream:
-                                try:
-                                    # Handle both ChatCompletionChunk objects and dict responses
-                                    if hasattr(cont_chunk, 'choices'):
-                                        # Standard ChatCompletionChunk object
-                                        cont_delta = cont_chunk.choices[0].delta if cont_chunk.choices else None
-                                    elif isinstance(cont_chunk, dict):
-                                        # Handle dict response (fallback)
-                                        choices = cont_chunk.get('choices', [])
-                                        cont_delta = choices[0].get('delta') if choices else None
-                                        logger.debug(f"Received dict chunk in continuation: {cont_chunk}")
-                                    else:
-                                        logger.warning(f"Unknown continuation chunk type: {type(cont_chunk)} - {cont_chunk}")
-                                        continue
-                                    
-                                    if cont_delta and cont_delta.content:
-                                        final_content_parts.append(cont_delta.content)
+                        # Continue conversation with tool results if any were called
+                        if tool_call_chunks:
+                            # Clean up tool calls for OpenAI (remove internal fields)
+                            clean_tool_calls = []
+                            for tool_call in tool_call_chunks.values():
+                                clean_call = {
+                                    "id": tool_call["id"],
+                                    "type": tool_call["type"],
+                                    "function": tool_call["function"]
+                                }
+                                # Remove internal _index field if present
+                                clean_tool_calls.append(clean_call)
+                            
+                            # Add assistant message with tool calls to history
+                            messages.append({
+                                "role": "assistant",
+                                "content": current_content or None,
+                                "tool_calls": clean_tool_calls
+                            })
+                            
+                            # Make another API call with tool results
+                            continuation_stream = await self.client.chat.completions.create(
+                                model=self.model,
+                                messages=messages,
+                                stream=True,
+                                max_completion_tokens=getattr(settings, 'OPENAI_MAX_COMPLETION_TOKENS', settings.CHAT_MAX_TOKENS)
+                            )
+                            
+                            # Stream the continuation
+                            try:
+                                async for cont_chunk in continuation_stream:
+                                    try:
+                                        # Handle both ChatCompletionChunk objects and dict responses
+                                        if hasattr(cont_chunk, 'choices'):
+                                            # Standard ChatCompletionChunk object
+                                            cont_delta = cont_chunk.choices[0].delta if cont_chunk.choices else None
+                                        elif isinstance(cont_chunk, dict):
+                                            # Handle dict response (fallback)
+                                            choices = cont_chunk.get('choices', [])
+                                            cont_delta = choices[0].get('delta') if choices else None
+                                            logger.debug(f"Received dict chunk in continuation: {cont_chunk}")
+                                        else:
+                                            logger.warning(f"Unknown continuation chunk type: {type(cont_chunk)} - {cont_chunk}")
+                                            continue
                                         
-                                        token_payload = {
-                                            "type": "token",
-                                            "run_id": run_id,
-                                            "seq": seq,
-                                            "data": {"delta": cont_delta.content},
-                                            "timestamp": int(time.time() * 1000)
-                                        }
-                                        yield f"event: token\ndata: {json.dumps(token_payload)}\n\n"
-                                        seq += 1
-                                except Exception as chunk_error:
-                                    logger.error(f"Error processing continuation chunk: {chunk_error} - chunk: {cont_chunk}")
-                                    continue
-                        except Exception as e:
-                            logger.error(f"Error in continuation streaming: {e}")
-                            # Continue with the rest of the function
+                                        if cont_delta and cont_delta.content:
+                                            final_content_parts.append(cont_delta.content)
+                                            
+                                            token_payload = {
+                                                "type": "token",
+                                                "run_id": run_id,
+                                                "seq": seq,
+                                                "data": {"delta": cont_delta.content},
+                                                "timestamp": int(time.time() * 1000)
+                                            }
+                                            yield f"event: token\ndata: {json.dumps(token_payload)}\n\n"
+                                            seq += 1
+                                    except Exception as chunk_error:
+                                        logger.error(f"Error processing continuation chunk: {chunk_error} - chunk: {cont_chunk}")
+                                        continue
+                            except Exception as e:
+                                logger.error(f"Error in continuation streaming: {e}")
+                                # Continue with the rest of the function
+                
+                except Exception as chunk_error:
+                    logger.error(f"Error processing chunk: {chunk_error} - chunk: {chunk}")
+                    continue
             
+            # Send final done event
+            final_text = "".join(final_content_parts)
+            done_payload = {
+                "type": "done",
+                "run_id": run_id,
+                "seq": seq,
+                "data": {
+                    "final_text": final_text,
+                    "tool_calls_count": len(tool_call_chunks),
+                    "total_tokens": 0  # TODO: Track token usage
+                },
+                "timestamp": int(time.time() * 1000)
+            }
+            yield f"event: done\ndata: {json.dumps(done_payload)}\n\n"
+            
+            # Log tool call summary if any tools were called
+            if tool_call_chunks:
+                self.log_tool_call_summary(conversation_id)
+                
+        except Exception as e:
+            logger.error(f"Error in stream_chat_completion: {e}")
+            
+            # Determine error characteristics
+            error_type = "internal_error"
+            retryable = True
+            retry_after = 5
+            
+            if "rate_limit" in str(e).lower():
+                error_type = "rate_limit_exceeded"
+                retry_after = 60
+            elif "insufficient_quota" in str(e).lower():
+                error_type = "quota_exceeded"
+                retryable = False
+            elif "invalid_api_key" in str(e).lower():
+                error_type = "authentication_error"
+                retryable = False
+            
+            # Emit standardized error event
+            error_payload = {
+                "type": "error",
+                "run_id": run_id,
+                "seq": 0,  # Errors don't increment sequence
+                "data": {
+                    "error": str(e),
+                    "error_type": error_type,
+                    "retryable": retryable,
+                    "retry_after": retry_after
+                },
+                "timestamp": int(time.time() * 1000)
+            }
+            yield f"event: error\ndata: {json.dumps(error_payload)}\n\n"
+    
+    async def stream_chat_completion_legacy(
+        self,
+        conversation_id: str,
+        conversation_mode: str,
+        message_text: str,
+        message_history: List[Dict[str, Any]] = None,
+        portfolio_context: Optional[Dict[str, Any]] = None,
+        run_id: Optional[str] = None
+    ) -> AsyncGenerator[str, None]:
+        """
+        Legacy streaming implementation using Chat Completions API.
+        Kept for fallback until Responses API is fully stable.
+        """
+        run_id = run_id or str(uuid.uuid4())
+        seq = 0
+        final_content_parts = []
+        
+        try:
+            # Build messages
+            messages = self._build_messages(
+                conversation_mode,
+                message_history or [],
+                message_text,
+                portfolio_context
+            )
+            
+            # Get tool definitions
+            tools = self._get_tool_definitions()
+            
+            # Yield start event with standardized format
+            start_payload = {
+                "type": "start",
+                "run_id": run_id,
+                "seq": seq,
+                "data": {
+                    "conversation_id": conversation_id,
+                    "mode": conversation_mode,
+                    "model": self.model
+                },
+                "timestamp": int(time.time() * 1000)
+            }
+            yield f"event: start\ndata: {json.dumps(start_payload)}\n\n"
+            seq += 1
+            
+            # Call OpenAI Chat Completions API with streaming
+            stream = await self.client.chat.completions.create(
+                model=self.model,
+                messages=messages,
+                tools=tools if tools else None,
+                stream=True,
+                max_completion_tokens=getattr(settings, 'OPENAI_MAX_COMPLETION_TOKENS', settings.CHAT_MAX_TOKENS)
+            )
+            
+            # Track state for streaming
+            current_content = ""
+            tool_call_chunks = {}
+            
+            async for chunk in stream:
+                try:
+                    # Handle both ChatCompletionChunk objects and dict responses
+                    if hasattr(chunk, 'choices'):
+                        # Standard ChatCompletionChunk object
+                        delta = chunk.choices[0].delta if chunk.choices else None
+                    elif isinstance(chunk, dict):
+                        # Handle dict response (fallback)
+                        choices = chunk.get('choices', [])
+                        delta = choices[0].get('delta') if choices else None
+                        logger.debug(f"Received dict chunk: {chunk}")
+                    else:
+                        logger.warning(f"Unknown chunk type: {type(chunk)} - {chunk}")
+                        continue
+                    
+                    if not delta:
+                        continue
+                    
+                    # Handle content deltas with standardized token events
+                    if hasattr(delta, 'content') and delta.content:
+                        current_content += delta.content
+                        final_content_parts.append(delta.content)
+                        
+                        token_payload = {
+                            "type": "token",
+                            "run_id": run_id,
+                            "seq": seq,
+                            "data": {"delta": delta.content},
+                            "timestamp": int(time.time() * 1000)
+                        }
+                        yield f"event: token\ndata: {json.dumps(token_payload)}\n\n"
+                        seq += 1
+                    
+                    # Handle tool calls with more robust error handling
+                    if hasattr(delta, 'tool_calls') and delta.tool_calls:
+                        for tool_call_delta in delta.tool_calls:
+                            tool_call_index = tool_call_delta.index
+                            tool_call_id = tool_call_delta.id
+                            
+                            # Handle case where id is None (subsequent chunks for same tool call)
+                            if tool_call_id is None:
+                                # Find existing tool call by index
+                                tool_call_id = None
+                                for existing_id, chunk in tool_call_chunks.items():
+                                    if chunk.get("_index") == tool_call_index:
+                                        tool_call_id = existing_id
+                                        break
+                                
+                                # If we still don't have an ID, this is an error state - skip this delta
+                                if tool_call_id is None:
+                                    logger.warning(f"Received tool call delta with null ID and unknown index {tool_call_index}")
+                                    continue
+                            else:
+                                # This is a new tool call with an ID
+                                if tool_call_id not in tool_call_chunks:
+                                    # Log new tool call ID for tracking
+                                    logger.debug(f"🔧 New tool call started - OpenAI ID: {tool_call_id}")
+                                    tool_call_chunks[tool_call_id] = {
+                                        "id": tool_call_id,
+                                        "type": "function",
+                                        "_index": tool_call_index,  # Track index for null ID lookups
+                                        "function": {
+                                            "name": tool_call_delta.function.name if tool_call_delta.function else "",
+                                            "arguments": ""
+                                        }
+                                    }
+                                    # Track in ID mapping for correlation
+                                    self.tool_call_id_map[tool_call_id] = {
+                                        "openai_id": tool_call_id,
+                                        "run_id": run_id,
+                                        "conversation_id": conversation_id,
+                                        "started_at": int(time.time() * 1000),
+                                        "status": "streaming"
+                                    }
+                            
+                            # Accumulate function arguments (now tool_call_id is guaranteed to be valid)
+                            if tool_call_delta.function and tool_call_delta.function.arguments:
+                                tool_call_chunks[tool_call_id]["function"]["arguments"] += tool_call_delta.function.arguments
+                    
+                    # Check for finish reason with type safety
+                    finish_reason = None
+                    try:
+                        if hasattr(chunk, 'choices'):
+                            # Standard ChatCompletionChunk object
+                            finish_reason = chunk.choices[0].finish_reason if chunk.choices else None
+                        elif isinstance(chunk, dict):
+                            # Handle dict response (fallback)
+                            choices = chunk.get('choices', [])
+                            finish_reason = choices[0].get('finish_reason') if choices else None
+                    except Exception as e:
+                        logger.debug(f"Error extracting finish_reason: {e} - chunk: {chunk}")
+                        finish_reason = None
+                    
+                    if finish_reason == "tool_calls":
+                        # Execute tool calls
+                        for tool_call_id, tool_call in tool_call_chunks.items():
+                            function_name = tool_call["function"]["name"]
+                            
+                            # Parse function arguments with error guard
+                            try:
+                                raw_args = tool_call["function"]["arguments"]
+                                logger.debug(f"Raw tool arguments for {function_name}: {raw_args!r}")
+                                if isinstance(raw_args, str) and raw_args.strip():
+                                    # Try to parse as JSON
+                                    try:
+                                        function_args = json.loads(raw_args)
+                                    except json.JSONDecodeError:
+                                        # If it's just "portfolio" or similar malformed JSON, try to infer
+                                        if function_name == "get_portfolio_complete" and "portfolio" in raw_args.lower():
+                                            # Infer portfolio_id from context
+                                            function_args = {"portfolio_id": "c0510ab8-c6b5-433c-adbc-3f74e1dbdb5e", "include_holdings": True}
+                                            logger.info(f"Inferred portfolio arguments for malformed JSON: {function_args}")
+                                        else:
+                                            function_args = {}
+                                            logger.warning(f"Failed to parse tool arguments: {raw_args}")
+                                else:
+                                    function_args = {}
+                            except Exception as e:
+                                logger.warning(f"Unexpected error parsing tool arguments: {e}")
+                                function_args = {"__parse_error__": str(e)}
+                            
+                            # Update ID mapping with tool details
+                            if tool_call_id in self.tool_call_id_map:
+                                self.tool_call_id_map[tool_call_id].update({
+                                    "tool_name": function_name,
+                                    "tool_args": function_args,
+                                    "status": "executing"
+                                })
+                            
+                            # Log tool call execution for ID correlation
+                            logger.info(f"🔧 Executing tool call - ID: {tool_call_id}, Tool: {function_name}, Args: {json.dumps(function_args)[:100]}...")
+                            
+                            # Emit standardized tool_call event
+                            tool_call_payload = {
+                                "type": "tool_call",
+                                "run_id": run_id,
+                                "seq": seq,
+                                "data": {
+                                    "tool_call_id": tool_call_id,  # Include the tool call ID
+                                    "tool_name": function_name,
+                                    "tool_args": function_args
+                                },
+                                "timestamp": int(time.time() * 1000)
+                            }
+                            yield f"event: tool_call\ndata: {json.dumps(tool_call_payload)}\n\n"
+                            seq += 1
+                            
+                            # Execute tool if arguments parsed successfully
+                            if "__parse_error__" not in function_args:
+                                try:
+                                    tool_start_time = time.time()
+                                    result = await tool_registry.dispatch_tool_call(function_name, function_args)
+                                    duration_ms = int((time.time() - tool_start_time) * 1000)
+                                    
+                                    # Update ID mapping with completion
+                                    if tool_call_id in self.tool_call_id_map:
+                                        self.tool_call_id_map[tool_call_id].update({
+                                            "status": "completed",
+                                            "duration_ms": duration_ms,
+                                            "completed_at": int(time.time() * 1000)
+                                        })
+                                    
+                                    # Log tool result with ID correlation
+                                    logger.info(f"✅ Tool call completed - ID: {tool_call_id}, Tool: {function_name}, Duration: {duration_ms}ms")
+                                    
+                                    # Emit standardized tool_result event with tool_call_id for correlation
+                                    tool_result_payload = {
+                                        "type": "tool_result",
+                                        "run_id": run_id,
+                                        "seq": seq,
+                                        "data": {
+                                            "tool_call_id": tool_call_id,  # Include ID for correlation
+                                            "tool_name": function_name,
+                                            "tool_result": result,
+                                            "duration_ms": duration_ms
+                                        },
+                                        "timestamp": int(time.time() * 1000)
+                                    }
+                                    yield f"event: tool_result\ndata: {json.dumps(tool_result_payload)}\n\n"
+                                    seq += 1
+                                    
+                                    # Add tool response to messages for next iteration
+                                    messages.append({
+                                        "role": "tool",
+                                        "tool_call_id": tool_call_id,
+                                        "content": json.dumps(result)
+                                    })
+                                    
+                                except Exception as e:
+                                    logger.error(f"Tool execution error: {e}")
+                                    error_result_payload = {
+                                        "type": "tool_result",
+                                        "run_id": run_id,
+                                        "seq": seq,
+                                        "data": {
+                                            "tool_call_id": tool_call_id,  # Add tool call ID
+                                            "tool_name": function_name,
+                                            "tool_result": {"error": str(e)}
+                                        },
+                                        "timestamp": int(time.time() * 1000)
+                                    }
+                                    yield f"event: tool_result\ndata: {json.dumps(error_result_payload)}\n\n"
+                                    seq += 1
+                                    
+                                    # CRITICAL: Add error response to messages for OpenAI
+                                    messages.append({
+                                        "role": "tool",
+                                        "tool_call_id": tool_call_id,
+                                        "content": json.dumps({"error": str(e)})
+                                    })
+                        
+                        # Continue conversation with tool results
+                        if tool_call_chunks:
+                            # Clean up tool calls for OpenAI (remove internal fields)
+                            clean_tool_calls = []
+                            for tool_call in tool_call_chunks.values():
+                                clean_call = {
+                                    "id": tool_call["id"],
+                                    "type": tool_call["type"],
+                                    "function": tool_call["function"]
+                                }
+                                # Remove internal _index field if present
+                                clean_tool_calls.append(clean_call)
+                            
+                            # Add assistant message with tool calls to history
+                            messages.append({
+                                "role": "assistant",
+                                "content": current_content or None,
+                                "tool_calls": clean_tool_calls
+                            })
+                            
+                            # Make another API call with tool results
+                            continuation_stream = await self.client.chat.completions.create(
+                                model=self.model,
+                                messages=messages,
+                                stream=True,
+                                max_completion_tokens=getattr(settings, 'OPENAI_MAX_COMPLETION_TOKENS', settings.CHAT_MAX_TOKENS)
+                            )
+                            
+                            # Stream the continuation with standardized token events
+                            try:
+                                async for cont_chunk in continuation_stream:
+                                    try:
+                                        # Handle both ChatCompletionChunk objects and dict responses
+                                        if hasattr(cont_chunk, 'choices'):
+                                            # Standard ChatCompletionChunk object
+                                            cont_delta = cont_chunk.choices[0].delta if cont_chunk.choices else None
+                                        elif isinstance(cont_chunk, dict):
+                                            # Handle dict response (fallback)
+                                            choices = cont_chunk.get('choices', [])
+                                            cont_delta = choices[0].get('delta') if choices else None
+                                            logger.debug(f"Received dict chunk in continuation: {cont_chunk}")
+                                        else:
+                                            logger.warning(f"Unknown continuation chunk type: {type(cont_chunk)} - {cont_chunk}")
+                                            continue
+                                        
+                                        if cont_delta and cont_delta.content:
+                                            final_content_parts.append(cont_delta.content)
+                                            
+                                            token_payload = {
+                                                "type": "token",
+                                                "run_id": run_id,
+                                                "seq": seq,
+                                                "data": {"delta": cont_delta.content},
+                                                "timestamp": int(time.time() * 1000)
+                                            }
+                                            yield f"event: token\ndata: {json.dumps(token_payload)}\n\n"
+                                            seq += 1
+                                    except Exception as chunk_error:
+                                        logger.error(f"Error processing continuation chunk: {chunk_error} - chunk: {cont_chunk}")
+                                        continue
+                            except Exception as e:
+                                logger.error(f"Error in continuation streaming: {e}")
+                                # Continue with the rest of the function
+                
+                except Exception as chunk_error:
+                    logger.error(f"Error processing chunk: {chunk_error} - chunk: {chunk}")
+                    continue
+                
             # Send standardized done event
             final_text = "".join(final_content_parts)
             done_payload = {
@@ -694,7 +1396,7 @@ class OpenAIService:
             # Log tool call summary if any tools were called
             if tool_call_chunks:
                 self.log_tool_call_summary(conversation_id)
-            
+                
         except Exception as e:
             logger.error(f"OpenAI streaming error: {e}")
             
