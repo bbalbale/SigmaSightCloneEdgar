@@ -77,8 +77,8 @@ export async function loadPortfolioData(portfolioType: PortfolioType, abortSigna
       // Use the retry ID
       const portfolioIdFinal = retryId
       
-      // Fetch portfolio data with retry logic
-      const response = await requestManager.authenticatedFetch(
+      // Fetch portfolio data with retry logic and data-level deduplication
+      const data: PortfolioData = await requestManager.authenticatedFetchJson(
         `/api/proxy/api/v1/data/portfolio/${portfolioIdFinal}/complete`,
         refreshedToken,
         {
@@ -88,12 +88,6 @@ export async function loadPortfolioData(portfolioType: PortfolioType, abortSigna
           dedupe: true
         }
       )
-
-      if (!response.ok) {
-        throw new Error(`Failed to load portfolio: ${response.status}`)
-      }
-
-      const data: PortfolioData = await response.json()
       
       // Transform to UI-friendly format
       return {

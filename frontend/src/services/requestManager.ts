@@ -18,6 +18,7 @@ interface RetryConfig {
 
 class RequestManager {
   private activeRequests: Map<string, Promise<Response>> = new Map()
+  private cachedData: Map<string, Promise<any>> = new Map()
   private abortControllers: Map<string, AbortController> = new Map()
   
   private readonly defaultRetryConfig: RetryConfig = {
@@ -160,6 +161,7 @@ class RequestManager {
     this.abortControllers.forEach(controller => controller.abort())
     this.abortControllers.clear()
     this.activeRequests.clear()
+    this.cachedData.clear()
   }
 
   /**
@@ -193,6 +195,55 @@ class RequestManager {
         'Authorization': `Bearer ${token}`
       }
     })
+  }
+
+  /**
+   * Make authenticated JSON request with data-level deduplication
+   */
+  async authenticatedFetchJson<T = any>(
+    url: string,
+    token: string,
+    options: RequestOptions = {}
+  ): Promise<T> {
+    const {
+      dedupe = false,
+      ...fetchOptions
+    } = options
+
+    // Generate request key for data deduplication
+    const requestKey = dedupe ? this.generateRequestKey(url, { ...fetchOptions, headers: { ...fetchOptions.headers, 'Authorization': `Bearer ${token}` } }) : null
+
+    // Check for existing cached data if deduplication is enabled
+    if (requestKey && this.cachedData.has(requestKey)) {
+      console.log(`Data deduplication: Reusing cached data for ${url}`)
+      return this.cachedData.get(requestKey)!
+    }
+
+    // Create the data promise
+    const dataPromise = this.fetchWithRetry(url, {
+      ...fetchOptions,
+      headers: {
+        ...fetchOptions.headers,
+        'Authorization': `Bearer ${token}`
+      }
+    }).then(async (response) => {
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+      }
+      return response.json()
+    }).finally(() => {
+      // Clean up cached data after request completes
+      if (requestKey) {
+        this.cachedData.delete(requestKey)
+      }
+    })
+
+    // Store for deduplication if enabled
+    if (requestKey) {
+      this.cachedData.set(requestKey, dataPromise)
+    }
+
+    return dataPromise
   }
 }
 
