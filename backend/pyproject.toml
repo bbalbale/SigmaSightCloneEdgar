@@ -51,6 +51,7 @@ dependencies = [
     "apscheduler>=3.11.0",
     "openai>=1.102.0",
     "playwright>=1.55.0",
+    "websockets>=14.2",
 ]
 
 [project.optional-dependencies]
