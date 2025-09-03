@@ -434,6 +434,20 @@ class OpenAIService:
                         response_id = event.response.id
                         logger.info(f"Response started with ID: {response_id}")
                         
+                        # Emit response_id event for traceability (Phase 5.8.2.1)
+                        response_id_payload = {
+                            "type": "response_id",
+                            "run_id": run_id,
+                            "seq": seq,
+                            "data": {
+                                "response_id": response_id,
+                                "provider": "openai"
+                            },
+                            "timestamp": int(time.time() * 1000)
+                        }
+                        yield f"event: response_id\ndata: {json.dumps(response_id_payload)}\n\n"
+                        seq += 1
+                        
                     elif event.type == "response.output_text.delta":
                         # Handle streaming text content -> emit token event
                         if hasattr(event, 'delta') and event.delta:

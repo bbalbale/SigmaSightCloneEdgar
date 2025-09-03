@@ -173,6 +173,7 @@ async def sse_generator(
         tool_calls_made = []
         first_token_time = None
         start_time = time.time()
+        openai_response_id = None  # Track OpenAI response ID for traceability
         
         async for sse_event in openai_service.stream_responses(
             conversation_id=str(conversation.id),
@@ -189,9 +190,28 @@ async def sse_generator(
                 # Forward the SSE event
                 yield sse_event
             
-            # Parse event to track content and tool calls
+            # Parse event to track content, tool calls, and response ID (Phase 5.8.2.1)
+            if "event: response_id" in sse_event:
+                try:
+                    data_line = sse_event.split("\ndata: ")[1].split("\n")[0]
+                    data = json.loads(data_line)
+                    openai_response_id = data.get("data", {}).get("response_id")
+                    if openai_response_id:
+                        # Correlation logging: connect request details with OpenAI response ID
+                        logger.info(
+                            f"🔗 OpenAI Response Started - "
+                            f"Response ID: {openai_response_id} | "
+                            f"Conversation: {conversation.id} | "
+                            f"User: {current_user.id} | "
+                            f"Mode: {conversation.mode} | "
+                            f"Run ID: {run_id} | "
+                            f"Message Length: {len(message_text)} chars"
+                        )
+                except Exception as e:
+                    logger.error(f"Failed to parse response_id SSE event: {e}")
+            
             # FIXED: Changed from "event: message" to "event: token" to match OpenAI service
-            if "event: token" in sse_event:
+            elif "event: token" in sse_event:
                 try:
                     data_line = sse_event.split("\ndata: ")[1].split("\n")[0]
                     data = json.loads(data_line)
@@ -242,6 +262,11 @@ async def sse_generator(
         # Update assistant message with final content and metrics
         assistant_message.content = assistant_content
         assistant_message.tool_calls = tool_calls_made if tool_calls_made else None
+        
+        # Store OpenAI response ID for production traceability (Phase 5.8.2.1)
+        if openai_response_id:
+            assistant_message.provider_message_id = openai_response_id
+            logger.info(f"🔗 Stored OpenAI Response ID: {openai_response_id} for message {assistant_message.id} in conversation {conversation.id}")
         
         # Add metrics (these fields should exist in the model)
         if first_token_time:
