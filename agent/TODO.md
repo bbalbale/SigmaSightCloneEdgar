@@ -2078,6 +2078,99 @@ assistant_message.provider_message_id = response_id  # Link to OpenAI's identifi
 
 ---
 
+## 📋 Phase 5.9: Critical Event Type Fixes (Responses API Compatibility) ⚠️ **URGENT**
+
+> **Context**: Agent analysis revealed our event type checks are using Chat Completions API patterns instead of Responses API patterns, causing complete tool call failures.
+
+> **Impact**: Tool-based functionality completely broken - all portfolio analysis queries fail with OpenAI API 400 errors.
+
+> **Root Cause**: `stream_responses()` checks for `"content.delta"` and `"tool_call.*"` instead of official Responses API event types.
+
+### 5.9.1 **Fix Event Type Pattern Matching** ⚠️ **CRITICAL**
+
+**Current Incorrect Patterns** (Chat Completions API):
+```python
+# ❌ WRONG - These don't exist in Responses API
+if event.type == "content.delta":           # Chat Completions pattern
+if event.type.startswith("tool_call."):     # Chat Completions pattern  
+```
+
+**Correct Responses API Patterns** (Per OpenAI SDK):
+```python
+# ✅ CORRECT - Official Responses API event types
+if event.type == "response.output_text.delta":                    # Text streaming
+if event.type == "response.output_text.done":                     # Text completion
+if event.type == "response.function_call_arguments.delta":        # Tool args streaming  
+if event.type == "response.function_call_arguments.done":         # Tool args completion
+```
+
+**Files to Update**:
+- `backend/app/agent/services/openai_service.py:stream_responses()` method
+- Event handling loops around lines 450-550 (approximate)
+
+**Specific Changes Required**:
+1. **Text Token Processing**: Change `"content.delta"` → `"response.output_text.delta"`
+2. **Text Completion**: Add handler for `"response.output_text.done"`  
+3. **Tool Call Arguments**: Change `"tool_call.delta"` → `"response.function_call_arguments.delta"`
+4. **Tool Call Completion**: Add handler for `"response.function_call_arguments.done"`
+5. **Stream Completion**: Verify completion event type (likely `response.completed`)
+
+### 5.9.2 **Validate Tool Call Argument Accumulation** ⚠️ **HIGH**
+
+**Issue**: Function call arguments stream as deltas that must be accumulated before tool execution.
+
+**Implementation Requirements**:
+```python
+# Accumulate tool arguments from deltas
+if event.type == "response.function_call_arguments.delta":
+    tool_call_id = event.function_call_id  # Extract from event
+    if tool_call_id not in accumulated_args:
+        accumulated_args[tool_call_id] = ""
+    accumulated_args[tool_call_id] += event.delta
+
+# Execute tool when arguments complete  
+if event.type == "response.function_call_arguments.done":
+    tool_call_id = event.function_call_id
+    final_args = accumulated_args[tool_call_id]
+    # Parse JSON and execute tool
+```
+
+### 5.9.3 **Integration Test with Portfolio Query** ⚠️ **CRITICAL**
+
+**Test Scenario**: "show me my portfolio pls" 
+- **Expected Flow**:
+  1. ✅ Stream starts with `response.output_text.delta` events
+  2. ✅ Function call arguments stream via `response.function_call_arguments.delta`  
+  3. ✅ Arguments complete with `response.function_call_arguments.done`
+  4. ✅ Tool executes locally (portfolio data retrieval)
+  5. ✅ Tool outputs submitted back to OpenAI
+  6. ✅ Streaming continues with analysis response
+  7. ✅ Stream completes with final done event
+
+**Success Criteria**:
+- [ ] No OpenAI API 400 errors about invalid function.name types
+- [ ] Tool calls execute successfully with portfolio data
+- [ ] Complete response includes both tool results and AI analysis
+- [ ] Frontend receives proper SSE events throughout flow
+
+### 5.9.4 **Error Handling Enhancement**
+
+**Add Debugging for Unknown Event Types**:
+```python
+else:
+    logger.warning(f"Unknown Responses API event type: {event.type}")
+    logger.debug(f"Event data: {event}")
+    # Don't fail - just log for investigation
+```
+
+**COMPLETION STATUS**: ⚠️ **IN PROGRESS** - Critical fix for tool call functionality
+
+**Priority**: P0 - Blocking all tool-based features (portfolio analysis, data queries, etc.)
+
+**Estimated Time**: 2-4 hours (implementation + testing)
+
+---
+
 ## 📋 Phase 6: Testing & Validation (Day 9-10)
 
 > Reference: TDD §14 (Testing), PRD §9 (Performance Targets), §13 (Golden Set)
@@ -2372,6 +2465,121 @@ assistant_message.provider_message_id = response_id  # Link to OpenAI's identifi
     - Frontend defensive coding removed from test files
   - **Testing**: All conversation endpoints working correctly with `id` field
   - **Result**: API now consistent with REST conventions across all resources
+
+### 9.6 Post-Migration Bug Revalidation (Phase 5.8 Impact Assessment) 
+> **Context**: Phase 5.8 migrated from Chat Completions API to Responses API, fundamentally changing tool execution patterns. Several Phase 9 fixes were designed for Chat Completions and need revalidation.
+
+- [ ] **9.6.1** Revalidate Tool Calls with Null IDs (Critical) 
+  - **Original Issue**: Phase 9.3.1 fixed null ID rejection in Chat Completions API
+  - **Migration Impact**: Responses API uses different tool execution flow (`submit_tool_outputs()` handshake vs embedded tool_calls)
+  - **Current Risk**: Tool definitions work, but tool execution handshake unvalidated
+  - **Test Required**: End-to-end tool execution with "show me my portfolio pls" query
+  - **Files to Check**: 
+    - `backend/app/agent/services/openai_service.py` - Responses API tool execution
+    - `backend/app/api/v1/chat/send.py` - Tool result persistence
+  - **Success Criteria**:
+    - [ ] Tools are called successfully via Responses API
+    - [ ] Tool results are processed and returned to user
+    - [ ] No null ID errors in any format
+    - [ ] Tool calls persist correctly in conversation history
+  - **Priority**: P0 Critical - Tool functionality is core feature
+
+- [ ] **9.6.2** Revalidate Continuation Streaming Bug (High)
+  - **Original Issue**: Phase 9.4.1 fixed `'dict' object has no attribute 'choices'` in Chat Completions continuation streams
+  - **Migration Impact**: Responses API doesn't use continuation streams; tools execute via handshake
+  - **Current Risk**: Original error pattern impossible, but new error patterns possible
+  - **Test Required**: Multi-tool scenarios that originally triggered continuation streams
+  - **Files to Check**:
+    - `backend/app/agent/services/openai_service.py` - Event handling in `stream_responses()`
+    - Tool handshake error handling patterns
+  - **Success Criteria**:
+    - [ ] Multi-tool queries complete successfully
+    - [ ] No streaming interruptions during tool execution
+    - [ ] Proper error handling for tool execution failures
+    - [ ] Event parsing works correctly for all Responses API events
+  - **Priority**: P1 High - Affects complex queries with multiple tools
+
+- [ ] **9.6.3** Validate Tool Execution Handshake Implementation
+  - **New Requirement**: Responses API requires `submit_tool_outputs()` handshake
+  - **Implementation Check**: Verify our `stream_responses()` method properly:
+    - [ ] Detects tool call requirements from response events
+    - [ ] Executes tools locally with proper portfolio context  
+    - [ ] Submits tool outputs back to OpenAI via `submit_tool_outputs()`
+    - [ ] Continues streaming after tool execution
+    - [ ] Handles tool execution errors gracefully
+  - **Test Scenarios**:
+    - [ ] Single tool call: "what's my portfolio worth?"
+    - [ ] Multiple tool calls: "compare my portfolio performance to benchmarks"
+    - [ ] Tool errors: Test with invalid portfolio ID
+  - **Priority**: P0 Critical - Core Responses API functionality
+
+- [ ] **9.6.4** Validate Conversation History with Tools
+  - **Migration Impact**: Tool calls now stored in different format for Responses API
+  - **Risk**: Multi-turn conversations with tools may break
+  - **Test Required**: 
+    - [ ] Chat with tools, then continue conversation
+    - [ ] Verify tools from history are properly serialized for Responses API input
+    - [ ] Check tool result persistence in database
+  - **Success Criteria**:
+    - [ ] Tool calls appear correctly in conversation history
+    - [ ] Follow-up questions can reference previous tool results  
+    - [ ] No serialization errors when rebuilding conversation state
+  - **Priority**: P1 High - Affects conversation continuity
+
+- [ ] **9.6.5** Performance Validation Post-Migration
+  - **Baseline**: Original Chat Completions performance metrics
+  - **Current**: Responses API performance with tool handshake overhead
+  - **Metrics to Compare**:
+    - [ ] Time to first token (target: <3s)
+    - [ ] Tool execution latency (new metric)
+    - [ ] Total response completion time
+    - [ ] Memory usage during streaming
+  - **Test Queries**:
+    - [ ] Simple text: "hello" (baseline)
+    - [ ] Single tool: "show my portfolio"  
+    - [ ] Complex tool: "analyze my risk profile"
+  - **Priority**: P2 Medium - Performance regression detection
+
+**Migration Assessment Priority**: 
+1. **P0 Critical** (9.6.1, 9.6.3): Tool execution must work end-to-end
+2. **P1 High** (9.6.2, 9.6.4): Multi-turn and complex scenarios  
+3. **P2 Medium** (9.6.5): Performance validation
+
+**Success Gate**: All P0 and P1 items must pass before Phase 5.8 migration can be considered production-ready.
+
+### 9.6.6 **Frontend-Identified Revalidation Items (Based on TODO_CHAT.md Analysis)**
+
+- [ ] **9.6.6.1** Validate Tool Call Function Name Formatting ⚠️ **HIGH PRIORITY**
+  - **Context**: Frontend reports 400 errors for `tool_calls[0].function.name` invalid type (TODO_CHAT.md 6.42)
+  - **Migration Impact**: Responses API changed tool call argument handling and formatting
+  - **Test**: Send chat message requiring tool calls, verify OpenAI API accepts function.name field
+  - **Files**: `openai_service.py` tool call formatting logic in `stream_responses()` method
+  - **Success Criteria**: No 400 errors from OpenAI API on tool-based conversations
+  - **Priority**: P0 Critical - All portfolio-related chat functionality blocked
+  - **🔗 Cross-Reference**: **LIKELY RESOLVED BY PHASE 5.9** - Event type fixes should restore tool call functionality
+
+- [ ] **9.6.6.2** Verify SSE Event Type Compatibility ⚠️ **MEDIUM PRIORITY**  
+  - **Context**: Frontend expects `token`, `tool_call`, `tool_result`, `done` events (TODO_CHAT.md 6.30-6.34)
+  - **Migration Impact**: Responses API may emit different event types than Chat Completions API
+  - **Test**: Compare SSE event types emitted by `stream_responses()` vs frontend expectations
+  - **Files**: `send.py` SSE event emission logic, `openai_service.py` event parsing
+  - **Success Criteria**: Frontend receives expected event types for proper parsing
+  - **Priority**: P1 High - SSE streaming integration depends on consistent events
+  - **🔗 Cross-Reference**: **DIRECTLY ADDRESSED BY PHASE 5.9.1** - Event type pattern fixes will align backend with frontend expectations
+
+- [ ] **9.6.6.3** Revalidate Tool Call ID Lifecycle ⚠️ **MEDIUM PRIORITY**
+  - **Context**: Extensive tool call ID fixes documented in frontend (TODO_CHAT.md 6.19, 6.30-6.34) 
+  - **Migration Impact**: New Responses API tool handling may affect ID generation patterns
+  - **Test**: Verify tool call IDs are properly generated and tracked end-to-end
+  - **Files**: `openai_service.py` tool execution pipeline, `send.py` tool call persistence
+  - **Success Criteria**: Tool calls have valid OpenAI-compatible IDs throughout lifecycle
+  - **Priority**: P1 High - ID consistency critical for multi-turn conversations
+  - **🔗 Cross-Reference**: **VALIDATE AFTER PHASE 5.9.2** - Tool call argument accumulation may affect ID handling patterns
+
+**Additional Frontend Testing Requirements Identified**:
+- Frontend has architectural gaps that may surface after migration (buffer rekeying, SSE timeouts)  
+- Tool call UI not wired (frontend issue, blocked by backend tool formatting)
+- Frontend has robust error handling in place, system degrades gracefully
 
 ---
 
