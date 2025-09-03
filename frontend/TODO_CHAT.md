@@ -1045,22 +1045,34 @@ This implementation follows an **automated test-driven development cycle** using
 - **Verification**: Tool handlers now receive proper portfolio_id and other parameters
 - **Result**: Tools execute successfully with correct data
 
-### Testing Results
-- **Method**: Automated Playwright browser testing
-- **Performance Metrics**:
-  - Initial response: ~2s (Target: <3s) ✅
-  - Token streaming latency: <100ms ✅
-  - Tool processing: ~1s (Target: <5s) ✅
-- **Success Rate**: 100% - All chat requests now complete successfully
-- **User Experience**: Professional-quality streaming chat with tool execution
+### 6.39 **Critical Frontend Issues (2025-09-03)** ❌
 
-### Production Status
-**CHAT SYSTEM IS NOW PRODUCTION-READY** ✅
-- No JavaScript console errors
-- Proper SSE streaming with tokens
-- Tool calls execute and return data
-- Error handling graceful
-- Performance meets all targets
+#### 6.39.1 **Response Body Stream Already Read Error** ❌ **CRITICAL**
+- **Issue**: `TypeError: Failed to execute 'json' on 'Response': body stream already read`
+- **Location**: `portfolioService.ts:96` and `requestManager.ts:48-50`
+- **Root Cause**: RequestManager caches Response objects for deduplication, but Response streams can only be read once
+- **Impact**: Portfolio data fails to load completely, breaking authentication sequence needed for chat
+- **Evidence**: Console logs show "Request deduplication: Reusing existing request" followed by stream read error
+- **User Experience**: Portfolio page loads partially, chat returns 401 unauthorized errors
+- **Fix Needed**: Cache parsed data instead of Response objects, or clone Response before caching
+- **Priority**: BLOCKER - Prevents entire chat authentication flow
+
+#### 6.39.2 **Chat Conversation 401 Authentication Errors** ❌ **HIGH**
+- **Issue**: `POST /api/proxy/api/v1/chat/conversations 401 Unauthorized`
+- **Root Cause**: Authentication sequence broken due to portfolio data loading failure (see 6.39.1)
+- **Expected Flow**: Portfolio page → auto-auth → localStorage token → chat works
+- **Actual Flow**: Portfolio page → Response stream error → incomplete auth → chat 401s
+- **Impact**: Chat interface completely non-functional for users
+- **Evidence**: Frontend logs show repeated 401 errors for chat endpoints
+- **Dependencies**: Must fix 6.39.1 first to restore authentication flow
+
+#### 6.39.3 **SSE Streaming Processing Errors** ❌ **MEDIUM**
+- **Issue**: Console shows "Streaming error: Object" during SSE event processing
+- **Location**: SSE event parsing in `useFetchStreaming.ts`
+- **Symptoms**: Chat messages start streaming but encounter processing errors mid-stream
+- **Impact**: Inconsistent streaming behavior, potential message corruption
+- **Evidence**: Console logs show successful SSE event parsing followed by streaming errors
+- **Note**: May be secondary to authentication issues above
 
 ## 7. **Enhanced Observability**
 
