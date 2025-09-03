@@ -220,15 +220,23 @@ async def sse_generator(
                     data = json.loads(data_line)
                     # Store tool calls in OpenAI-compatible format for history reconstruction
                     tool_call_id = data.get("tool_call_id", f"call_{uuid4().hex[:24]}")
+                    tool_name = data.get("tool_name")
+                    
+                    # CRITICAL: Ensure function.name is always a string type for OpenAI API
+                    if not tool_name or not isinstance(tool_name, str):
+                        logger.warning(f"Invalid tool_name in SSE event: {tool_name} (type: {type(tool_name)})")
+                        tool_name = "unknown_tool"  # Fallback to valid string
+                    
                     tool_calls_made.append({
                         "id": tool_call_id,  # Use provided ID or generate OpenAI-compatible ID
                         "type": "function", 
                         "function": {
-                            "name": data.get("tool_name"),
+                            "name": tool_name,  # Now guaranteed to be a string
                             "arguments": json.dumps(data.get("tool_args", {}))
                         }
                     })
-                except:
+                except Exception as e:
+                    logger.error(f"Failed to parse tool_call SSE event: {e}")
                     pass
         
         # Update assistant message with final content and metrics

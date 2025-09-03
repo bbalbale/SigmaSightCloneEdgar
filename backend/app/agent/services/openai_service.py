@@ -22,7 +22,6 @@ from app.agent.schemas.sse import (
     SSEDoneEvent,
     SSEErrorEvent
 )
-from app.utils.llm_providers import OpenAIProvider
 
 logger = get_logger(__name__)
 
@@ -37,8 +36,6 @@ class OpenAIService:
         self.fallback_model = settings.MODEL_FALLBACK
         # Track tool call IDs for correlation between OpenAI and our system
         self.tool_call_id_map: Dict[str, Dict[str, Any]] = {}
-        # Initialize OpenAI provider for ID generation
-        self.provider = OpenAIProvider()
         
     def _get_tool_definitions(self) -> List[ChatCompletionToolParam]:
         """Convert our tool definitions to OpenAI format"""
@@ -213,6 +210,72 @@ class OpenAIService:
         ]
         return tools
     
+    def _validate_tool_call_format(self, tool_call: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """
+        Validate and fix tool call format to ensure OpenAI API compliance.
+        
+        Args:
+            tool_call: Tool call dictionary from message history
+            
+        Returns:
+            Fixed tool call dictionary or None if invalid
+        """
+        try:
+            # Ensure required fields exist
+            if not isinstance(tool_call, dict):
+                logger.warning(f"Tool call is not a dictionary: {type(tool_call)}")
+                return None
+            
+            # Generate ID if missing
+            tool_call_id = tool_call.get("id")
+            if not tool_call_id or not isinstance(tool_call_id, str):
+                tool_call_id = f"call_{uuid.uuid4().hex[:24]}"
+                logger.warning(f"Generated missing tool call ID: {tool_call_id}")
+            
+            # Ensure type is 'function'
+            tool_type = tool_call.get("type", "function")
+            if tool_type != "function":
+                logger.warning(f"Invalid tool call type: {tool_type}, setting to 'function'")
+                tool_type = "function"
+            
+            # Validate function object
+            function = tool_call.get("function", {})
+            if not isinstance(function, dict):
+                logger.warning(f"Tool call function is not a dictionary: {type(function)}")
+                function = {}
+            
+            # CRITICAL: Ensure function.name is a string
+            function_name = function.get("name")
+            if not function_name or not isinstance(function_name, str):
+                logger.warning(f"Invalid function name: {function_name} (type: {type(function_name)})")
+                function_name = "unknown_tool"  # Fallback to valid string
+            
+            # Ensure arguments is a string (JSON-encoded)
+            arguments = function.get("arguments")
+            if arguments is None:
+                arguments = "{}"
+            elif not isinstance(arguments, str):
+                # If arguments is a dict, JSON encode it
+                if isinstance(arguments, dict):
+                    arguments = json.dumps(arguments)
+                else:
+                    logger.warning(f"Invalid arguments type: {type(arguments)}, setting to empty dict")
+                    arguments = "{}"
+            
+            # Return validated tool call
+            return {
+                "id": tool_call_id,
+                "type": tool_type,
+                "function": {
+                    "name": function_name,
+                    "arguments": arguments
+                }
+            }
+            
+        except Exception as e:
+            logger.error(f"Error validating tool call format: {e}")
+            return None
+    
     def _build_messages(
         self, 
         conversation_mode: str, 
@@ -236,25 +299,20 @@ class OpenAIService:
                     "role": msg["role"],
                     "content": msg["content"]
                 })
-            # Handle tool calls if they exist in history
+            # Skip tool calls in conversation history to avoid OpenAI validation errors
+            # OpenAI requires every assistant message with tool_calls to be followed by tool responses
+            # Since we don't store tool responses in conversation history, we skip tool calls entirely
+            # The assistant will make new tool calls based on the current context
             if msg.get("tool_calls"):
-                # Ensure tool calls have required OpenAI format
-                valid_tool_calls = []
-                for tool_call in msg["tool_calls"]:
-                    # Handle both new format (with id) and legacy format (without id)
-                    if not tool_call.get("id"):
-                        # Legacy format - use provider to fix malformed tool call
-                        tool_call = self.provider.fix_malformed_tool_call(tool_call)
-                    valid_tool_calls.append(tool_call)
-                
-                if valid_tool_calls:  # Only add if we have valid tool calls
+                logger.debug(f"Skipping tool calls in conversation history to avoid incomplete sequences")
+                # Just add the content without tool calls
+                if msg.get("content"):
                     messages.append({
-                        "role": "assistant", 
-                        "content": msg.get("content", ""),
-                        "tool_calls": valid_tool_calls
+                        "role": "assistant",
+                        "content": msg["content"]
                     })
-                    # Note: We don't add tool responses from history since they're not stored
-                    # The tool calls will be re-executed if needed
+                # Skip empty assistant messages with only tool calls
+                continue
         
         # Add current user message
         messages.append({"role": "user", "content": user_message})
@@ -339,9 +397,25 @@ class OpenAIService:
                     yield f"event: heartbeat\ndata: {json.dumps(heartbeat_payload)}\n\n"
                     last_heartbeat = current_time
                 
-                delta = chunk.choices[0].delta if chunk.choices else None
-                logger.info(f"Delta extracted: {delta}")
-                if not delta:
+                # Handle both ChatCompletionChunk objects and dict responses
+                try:
+                    if hasattr(chunk, 'choices'):
+                        # Standard ChatCompletionChunk object
+                        delta = chunk.choices[0].delta if chunk.choices else None
+                    elif isinstance(chunk, dict):
+                        # Handle dict response (fallback)
+                        choices = chunk.get('choices', [])
+                        delta = choices[0].get('delta') if choices else None
+                        logger.debug(f"Received dict chunk in main streaming: {chunk}")
+                    else:
+                        logger.warning(f"Unknown chunk type in main streaming: {type(chunk)} - {chunk}")
+                        continue
+                        
+                    logger.info(f"Delta extracted: {delta}")
+                    if not delta:
+                        continue
+                except Exception as chunk_error:
+                    logger.error(f"Error processing main streaming chunk: {chunk_error} - chunk: {chunk}")
                     continue
                 
                 # Handle content streaming with standardized token events
@@ -363,34 +437,64 @@ class OpenAIService:
                 # Handle tool calls with JSON parsing guards
                 if delta.tool_calls:
                     for tool_call_delta in delta.tool_calls:
+                        tool_call_index = tool_call_delta.index
                         tool_call_id = tool_call_delta.id
                         
-                        if tool_call_id not in tool_call_chunks:
-                            # Log new tool call ID for tracking
-                            logger.debug(f"🔧 New tool call started - OpenAI ID: {tool_call_id}")
-                            tool_call_chunks[tool_call_id] = {
-                                "id": tool_call_id,
-                                "type": "function",
-                                "function": {
-                                    "name": tool_call_delta.function.name if tool_call_delta.function else "",
-                                    "arguments": ""
+                        # Handle case where id is None (subsequent chunks for same tool call)
+                        if tool_call_id is None:
+                            # Find existing tool call by index
+                            tool_call_id = None
+                            for existing_id, chunk in tool_call_chunks.items():
+                                if chunk.get("_index") == tool_call_index:
+                                    tool_call_id = existing_id
+                                    break
+                            
+                            # If we still don't have an ID, this is an error state - skip this delta
+                            if tool_call_id is None:
+                                logger.warning(f"Received tool call delta with null ID and unknown index {tool_call_index}")
+                                continue
+                        else:
+                            # This is a new tool call with an ID
+                            if tool_call_id not in tool_call_chunks:
+                                # Log new tool call ID for tracking
+                                logger.debug(f"🔧 New tool call started - OpenAI ID: {tool_call_id}")
+                                tool_call_chunks[tool_call_id] = {
+                                    "id": tool_call_id,
+                                    "type": "function",
+                                    "_index": tool_call_index,  # Track index for null ID lookups
+                                    "function": {
+                                        "name": tool_call_delta.function.name if tool_call_delta.function else "",
+                                        "arguments": ""
+                                    }
                                 }
-                            }
-                            # Track in ID mapping for correlation
-                            self.tool_call_id_map[tool_call_id] = {
-                                "openai_id": tool_call_id,
-                                "run_id": run_id,
-                                "conversation_id": conversation_id,
-                                "started_at": int(time.time() * 1000),
-                                "status": "streaming"
-                            }
+                                # Track in ID mapping for correlation
+                                self.tool_call_id_map[tool_call_id] = {
+                                    "openai_id": tool_call_id,
+                                    "run_id": run_id,
+                                    "conversation_id": conversation_id,
+                                    "started_at": int(time.time() * 1000),
+                                    "status": "streaming"
+                                }
                         
-                        # Accumulate function arguments
+                        # Accumulate function arguments (now tool_call_id is guaranteed to be valid)
                         if tool_call_delta.function and tool_call_delta.function.arguments:
                             tool_call_chunks[tool_call_id]["function"]["arguments"] += tool_call_delta.function.arguments
                 
-                # Check for finish reason
-                if chunk.choices and chunk.choices[0].finish_reason == "tool_calls":
+                # Check for finish reason with type safety
+                finish_reason = None
+                try:
+                    if hasattr(chunk, 'choices'):
+                        # Standard ChatCompletionChunk object
+                        finish_reason = chunk.choices[0].finish_reason if chunk.choices else None
+                    elif isinstance(chunk, dict):
+                        # Handle dict response (fallback)
+                        choices = chunk.get('choices', [])
+                        finish_reason = choices[0].get('finish_reason') if choices else None
+                except Exception as e:
+                    logger.debug(f"Error extracting finish_reason: {e} - chunk: {chunk}")
+                    finish_reason = None
+                
+                if finish_reason == "tool_calls":
                     # Execute tool calls
                     for tool_call_id, tool_call in tool_call_chunks.items():
                         function_name = tool_call["function"]["name"]
@@ -510,11 +614,22 @@ class OpenAIService:
                     
                     # Continue conversation with tool results
                     if tool_call_chunks:
+                        # Clean up tool calls for OpenAI (remove internal fields)
+                        clean_tool_calls = []
+                        for tool_call in tool_call_chunks.values():
+                            clean_call = {
+                                "id": tool_call["id"],
+                                "type": tool_call["type"],
+                                "function": tool_call["function"]
+                            }
+                            # Remove internal _index field if present
+                            clean_tool_calls.append(clean_call)
+                        
                         # Add assistant message with tool calls to history
                         messages.append({
                             "role": "assistant",
                             "content": current_content or None,
-                            "tool_calls": list(tool_call_chunks.values())
+                            "tool_calls": clean_tool_calls
                         })
                         
                         # Make another API call with tool results
@@ -526,20 +641,40 @@ class OpenAIService:
                         )
                         
                         # Stream the continuation with standardized token events
-                        async for cont_chunk in continuation_stream:
-                            cont_delta = cont_chunk.choices[0].delta if cont_chunk.choices else None
-                            if cont_delta and cont_delta.content:
-                                final_content_parts.append(cont_delta.content)
-                                
-                                token_payload = {
-                                    "type": "token",
-                                    "run_id": run_id,
-                                    "seq": seq,
-                                    "data": {"delta": cont_delta.content},
-                                    "timestamp": int(time.time() * 1000)
-                                }
-                                yield f"event: token\ndata: {json.dumps(token_payload)}\n\n"
-                                seq += 1
+                        try:
+                            async for cont_chunk in continuation_stream:
+                                try:
+                                    # Handle both ChatCompletionChunk objects and dict responses
+                                    if hasattr(cont_chunk, 'choices'):
+                                        # Standard ChatCompletionChunk object
+                                        cont_delta = cont_chunk.choices[0].delta if cont_chunk.choices else None
+                                    elif isinstance(cont_chunk, dict):
+                                        # Handle dict response (fallback)
+                                        choices = cont_chunk.get('choices', [])
+                                        cont_delta = choices[0].get('delta') if choices else None
+                                        logger.debug(f"Received dict chunk in continuation: {cont_chunk}")
+                                    else:
+                                        logger.warning(f"Unknown continuation chunk type: {type(cont_chunk)} - {cont_chunk}")
+                                        continue
+                                    
+                                    if cont_delta and cont_delta.content:
+                                        final_content_parts.append(cont_delta.content)
+                                        
+                                        token_payload = {
+                                            "type": "token",
+                                            "run_id": run_id,
+                                            "seq": seq,
+                                            "data": {"delta": cont_delta.content},
+                                            "timestamp": int(time.time() * 1000)
+                                        }
+                                        yield f"event: token\ndata: {json.dumps(token_payload)}\n\n"
+                                        seq += 1
+                                except Exception as chunk_error:
+                                    logger.error(f"Error processing continuation chunk: {chunk_error} - chunk: {cont_chunk}")
+                                    continue
+                        except Exception as e:
+                            logger.error(f"Error in continuation streaming: {e}")
+                            # Continue with the rest of the function
             
             # Send standardized done event
             final_text = "".join(final_content_parts)
