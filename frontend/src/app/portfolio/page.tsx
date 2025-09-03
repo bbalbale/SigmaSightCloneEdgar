@@ -89,59 +89,82 @@ function PortfolioPageContent() {
   
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [portfolioSummaryMetrics, setPortfolioSummaryMetrics] = useState<any[]>(defaultPortfolioSummaryMetrics)
-  const [positions, setPositions] = useState<any[]>(longPositions)
-  const [shortPositionsState, setShortPositionsState] = useState<any[]>(shortPositions)
-  const [portfolioName, setPortfolioName] = useState('Demo Portfolio')
+  const [retryCount, setRetryCount] = useState(0)
+  const [portfolioSummaryMetrics, setPortfolioSummaryMetrics] = useState<any[]>([])
+  const [positions, setPositions] = useState<any[]>([])
+  const [shortPositionsState, setShortPositionsState] = useState<any[]>([])
+  const [portfolioName, setPortfolioName] = useState('Loading...')
+  const [dataLoaded, setDataLoaded] = useState(false)
   
   useEffect(() => {
-    let isCancelled = false;
+    const abortController = new AbortController();
     
-    if (portfolioType) {
+    const loadData = async () => {
+      if (!portfolioType) {
+        // Use dummy data when no portfolio type specified
+        setPortfolioSummaryMetrics(defaultPortfolioSummaryMetrics)
+        setPositions(longPositions)
+        setShortPositionsState(shortPositions)
+        setPortfolioName('Demo Portfolio')
+        setDataLoaded(true)
+        return
+      }
+
       setLoading(true)
       setError(null)
       
-      loadPortfolioData(portfolioType)
-        .then(data => {
-          if (!isCancelled && data) {
-            console.log('Loaded portfolio data:', data)
-            console.log('Portfolio name from backend:', data.portfolioInfo.name)
-            
-            // Update all state with real data
-            setPortfolioSummaryMetrics(data.exposures)
-            setPositions(data.positions.filter(p => p.type === 'LONG' || !p.type))
-            setShortPositionsState([]) // No shorts in real data
-            
-            // Use descriptive name if backend returns generic "Demo Portfolio"
-            if (data.portfolioInfo.name === 'Demo Portfolio' && portfolioType === 'individual') {
-              setPortfolioName('Demo Individual Investor Portfolio')
-            } else {
-              setPortfolioName(data.portfolioInfo.name)
-            }
-            
-            setLoading(false)
+      try {
+        const data = await loadPortfolioData(portfolioType, abortController.signal)
+        
+        if (data) {
+          console.log('Loaded portfolio data:', data)
+          console.log('Portfolio name from backend:', data.portfolioInfo.name)
+          
+          // Update all state with real data
+          setPortfolioSummaryMetrics(data.exposures)
+          setPositions(data.positions.filter(p => p.type === 'LONG' || !p.type))
+          setShortPositionsState(data.positions.filter(p => p.type === 'SHORT'))
+          
+          // Use descriptive name if backend returns generic "Demo Portfolio"
+          if (data.portfolioInfo.name === 'Demo Portfolio' && portfolioType === 'individual') {
+            setPortfolioName('Demo Individual Investor Portfolio')
+          } else {
+            setPortfolioName(data.portfolioInfo.name)
           }
-        })
-        .catch(err => {
-          if (!isCancelled) {
-            console.error('Failed to load portfolio:', err)
-            setError('Failed to load portfolio data')
-            setLoading(false)
-            // Keep dummy data on error
+          
+          setDataLoaded(true)
+          setError(null)
+          setRetryCount(0)
+        }
+      } catch (err: any) {
+        if (err.name !== 'AbortError') {
+          console.error('Failed to load portfolio:', err)
+          const errorMessage = err.message || 'Failed to load portfolio data'
+          setError(errorMessage)
+          
+          // If first load failed, use dummy data as fallback
+          if (!dataLoaded) {
+            setPortfolioSummaryMetrics(defaultPortfolioSummaryMetrics)
+            setPositions(longPositions)
+            setShortPositionsState(shortPositions)
+            setPortfolioName(`${portfolioType.replace('-', ' ').toUpperCase()} Portfolio (Offline Mode)`)
           }
-        })
-    } else {
-      // Use dummy data when no portfolio type specified
-      setPortfolioSummaryMetrics(defaultPortfolioSummaryMetrics)
-      setPositions(longPositions)
-      setShortPositionsState(shortPositions)
-      setPortfolioName('Demo Portfolio')
+        }
+      } finally {
+        setLoading(false)
+      }
     }
     
+    loadData()
+    
     return () => {
-      isCancelled = true;
+      abortController.abort()
     }
-  }, [portfolioType])
+  }, [portfolioType, retryCount])
+  
+  const handleRetry = () => {
+    setRetryCount(prev => prev + 1)
+  }
   
   return (
     <div className={`min-h-screen transition-colors duration-300 ${
@@ -164,6 +187,38 @@ function PortfolioPageContent() {
         </div>
       </header>
 
+      {/* Error Banner */}
+      {error && !loading && (
+        <div className={`px-4 py-3 border-b transition-colors duration-300 ${
+          theme === 'dark' ? 'bg-red-900/20 border-red-800' : 'bg-red-50 border-red-200'
+        }`}>
+          <div className="container mx-auto flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className={`text-sm ${theme === 'dark' ? 'text-red-400' : 'text-red-600'}`}>
+                ⚠️ {error}
+              </span>
+              {dataLoaded && (
+                <span className={`text-xs ${theme === 'dark' ? 'text-slate-400' : 'text-gray-500'}`}>
+                  (showing cached data)
+                </span>
+              )}
+            </div>
+            <Button 
+              onClick={handleRetry}
+              size="sm"
+              variant="outline"
+              className={`text-xs ${
+                theme === 'dark' 
+                  ? 'border-red-700 text-red-400 hover:bg-red-900/30' 
+                  : 'border-red-300 text-red-600 hover:bg-red-100'
+              }`}
+            >
+              Retry
+            </Button>
+          </div>
+        </div>
+      )}
+
       {/* Portfolio Header */}
       <section className={`py-6 px-4 transition-colors duration-300 ${
         theme === 'dark' ? 'bg-slate-900' : 'bg-gray-50'
@@ -173,10 +228,22 @@ function PortfolioPageContent() {
             <div>
               <h2 className={`text-2xl font-semibold transition-colors duration-300 ${
                 theme === 'dark' ? 'text-white' : 'text-gray-900'
-              }`}>{portfolioName}</h2>
+              } ${loading ? 'animate-pulse' : ''}`}>
+                {loading && !dataLoaded ? (
+                  <span className="inline-block bg-slate-700 rounded h-8 w-64"></span>
+                ) : (
+                  portfolioName
+                )}
+              </h2>
               <p className={`transition-colors duration-300 ${
                 theme === 'dark' ? 'text-slate-400' : 'text-gray-600'
-              }`}>Live positions and performance metrics - 39 total positions</p>
+              }`}>
+                {loading && !dataLoaded ? (
+                  <span className="inline-block bg-slate-700 rounded h-4 w-48 mt-1"></span>
+                ) : (
+                  `Live positions and performance metrics - ${positions.length + shortPositionsState.length} total positions`
+                )}
+              </p>
             </div>
             <div className="flex gap-1">
               <Button variant="outline" size="sm" className={`transition-colors duration-300 ${

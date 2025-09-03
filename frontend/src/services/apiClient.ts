@@ -208,10 +208,20 @@ export class ApiClient {
       // Check if request was successful
       if (!response.ok) {
         let errorData;
-        try {
-          errorData = await response.json();
-        } catch {
-          errorData = await response.text();
+        const contentType = response.headers.get('content-type');
+        
+        // Read the response body as text first
+        const responseText = await response.text();
+        
+        // Try to parse as JSON if content type indicates JSON
+        if (contentType && contentType.includes('application/json')) {
+          try {
+            errorData = JSON.parse(responseText);
+          } catch {
+            errorData = responseText;
+          }
+        } else {
+          errorData = responseText;
         }
         
         throw new ApiError(response.status, response.statusText, errorData, finalUrl);

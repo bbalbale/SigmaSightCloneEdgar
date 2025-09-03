@@ -3,21 +3,10 @@
  */
 
 import { portfolioResolver } from './portfolioResolver'
-
-// Demo user credentials for authentication
-const DEMO_CREDENTIALS = {
-  'individual': { email: 'demo_individual@sigmasight.com', password: 'demo12345' },
-  'high-net-worth': { email: 'demo_hnw@sigmasight.com', password: 'demo12345' },
-  'hedge-fund': { email: 'demo_hedgefundstyle@sigmasight.com', password: 'demo12345' }
-}
+import { authManager } from './authManager'
+import { requestManager } from './requestManager'
 
 export type PortfolioType = 'individual' | 'high-net-worth' | 'hedge-fund'
-
-interface AuthToken {
-  access_token: string
-  token_type: string
-  expires_in: number
-}
 
 interface PortfolioData {
   portfolio: {
@@ -44,60 +33,85 @@ interface PortfolioData {
 }
 
 /**
- * Authenticate with the backend to get an access token
- */
-async function authenticate(portfolioType: PortfolioType): Promise<string> {
-  const credentials = DEMO_CREDENTIALS[portfolioType]
-  
-  const response = await fetch('/api/proxy/api/v1/auth/login', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(credentials)
-  })
-
-  if (!response.ok) {
-    throw new Error(`Authentication failed: ${response.status}`)
-  }
-
-  const data: AuthToken = await response.json()
-  return data.access_token
-}
-
-/**
  * Load portfolio data for a specific portfolio type
- * Now loading real data for all three portfolio types
+ * Now with centralized auth and retry logic
  */
-export async function loadPortfolioData(portfolioType: PortfolioType) {
+export async function loadPortfolioData(portfolioType: PortfolioType, abortSignal?: AbortSignal) {
   // Fetch real data for all portfolio types
   if (!portfolioType) {
     return null // No portfolio type specified
   }
 
   try {
-    // Get authentication token
-    const token = await authenticate(portfolioType)
+    // Get authentication token from centralized manager
+    const token = await authManager.getToken(portfolioType)
     
-    // Dynamically resolve portfolio ID
-    const portfolioId = await portfolioResolver.getPortfolioIdByType(portfolioType)
-    if (!portfolioId) {
-      throw new Error(`Could not resolve portfolio ID for type: ${portfolioType}`)
+    // Clear portfolio resolver cache to ensure fresh resolution
+    portfolioResolver.clearCache()
+    
+    // Update token and email in localStorage for portfolio resolver
+    localStorage.setItem('access_token', token)
+    
+    // Store the email for portfolio resolver to use
+    const DEMO_CREDENTIALS = {
+      'individual': { email: 'demo_individual@sigmasight.com', password: 'demo12345' },
+      'high-net-worth': { email: 'demo_hnw@sigmasight.com', password: 'demo12345' },
+      'hedge-fund': { email: 'demo_hedgefundstyle@sigmasight.com', password: 'demo12345' }
     }
-    
-    // Store email for future resolution
     const credentials = DEMO_CREDENTIALS[portfolioType]
     if (credentials) {
-      portfolioResolver.setUserPortfolioId(portfolioId, credentials.email)
+      localStorage.setItem('user_email', credentials.email)
     }
     
-    // Fetch portfolio data
-    const response = await fetch(
-      `/api/proxy/api/v1/data/portfolio/${portfolioId}/complete`,
-      {
-        headers: {
-          'Authorization': `Bearer ${token}`
+    // Dynamically resolve portfolio ID with the fresh token
+    const portfolioId = await portfolioResolver.getPortfolioIdByType(portfolioType)
+    if (!portfolioId) {
+      // Try refreshing the token and retrying once
+      const refreshedToken = await authManager.refreshToken(portfolioType)
+      localStorage.setItem('access_token', refreshedToken)
+      const retryId = await portfolioResolver.getPortfolioIdByType(portfolioType)
+      
+      if (!retryId) {
+        throw new Error(`Could not resolve portfolio ID for type: ${portfolioType}`)
+      }
+      // Use the retry ID
+      const portfolioIdFinal = retryId
+      
+      // Fetch portfolio data with retry logic
+      const response = await requestManager.authenticatedFetch(
+        `/api/proxy/api/v1/data/portfolio/${portfolioIdFinal}/complete`,
+        refreshedToken,
+        {
+          signal: abortSignal,
+          maxRetries: 3,
+          timeout: 15000,
+          dedupe: true
         }
+      )
+
+      if (!response.ok) {
+        throw new Error(`Failed to load portfolio: ${response.status}`)
+      }
+
+      const data: PortfolioData = await response.json()
+      
+      // Transform to UI-friendly format
+      return {
+        exposures: calculateExposures(data),
+        positions: transformPositions(data.holdings),
+        portfolioInfo: data.portfolio
+      }
+    }
+    
+    // Fetch portfolio data with retry logic
+    const response = await requestManager.authenticatedFetch(
+      `/api/proxy/api/v1/data/portfolio/${portfolioId}/complete`,
+      token,
+      {
+        signal: abortSignal,
+        maxRetries: 3,
+        timeout: 15000,
+        dedupe: true
       }
     )
 
@@ -113,8 +127,11 @@ export async function loadPortfolioData(portfolioType: PortfolioType) {
       positions: transformPositions(data.holdings),
       portfolioInfo: data.portfolio
     }
-  } catch (error) {
-    console.error(`Failed to load portfolio data for ${portfolioType}:`, error)
+  } catch (error: any) {
+    // Don't log abort errors
+    if (error.name !== 'AbortError') {
+      console.error(`Failed to load portfolio data for ${portfolioType}:`, error)
+    }
     throw error
   }
 }

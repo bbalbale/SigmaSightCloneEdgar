@@ -1,11 +1,56 @@
 import { NextRequest, NextResponse } from 'next/server'
 
 const BACKEND_URL = 'http://localhost:8000'
+const PROXY_TIMEOUT = 30000 // 30 seconds
 
 /**
  * Enhanced proxy to handle cookie-based authentication
  * Forwards cookies in both directions for HttpOnly cookie support
+ * Includes error handling and timeout management
  */
+
+async function handleProxyRequest(
+  url: string,
+  options: RequestInit
+): Promise<Response> {
+  try {
+    // Create AbortController for timeout
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), PROXY_TIMEOUT)
+    
+    const response = await fetch(url, {
+      ...options,
+      signal: controller.signal,
+    })
+    
+    clearTimeout(timeoutId)
+    return response
+  } catch (error: any) {
+    console.error('Proxy request error:', error)
+    
+    // Handle timeout errors
+    if (error.name === 'AbortError') {
+      return new Response(
+        JSON.stringify({ error: 'Request timeout', detail: 'Backend server did not respond in time' }),
+        { status: 504, headers: { 'Content-Type': 'application/json' } }
+      )
+    }
+    
+    // Handle connection errors
+    if (error.code === 'ECONNREFUSED') {
+      return new Response(
+        JSON.stringify({ error: 'Backend unavailable', detail: 'Cannot connect to backend server' }),
+        { status: 503, headers: { 'Content-Type': 'application/json' } }
+      )
+    }
+    
+    // Generic error response
+    return new Response(
+      JSON.stringify({ error: 'Proxy error', detail: error.message }),
+      { status: 500, headers: { 'Content-Type': 'application/json' } }
+    )
+  }
+}
 
 export async function GET(
   request: NextRequest,
@@ -17,7 +62,7 @@ export async function GET(
   // Forward cookies from client to backend
   const cookieHeader = request.headers.get('cookie')
   
-  const response = await fetch(url, {
+  const response = await handleProxyRequest(url, {
     headers: {
       ...Object.fromEntries(request.headers.entries()),
       host: new URL(BACKEND_URL).host,
@@ -69,7 +114,7 @@ export async function POST(
   
   console.log('Proxy POST to:', url)
   
-  const response = await fetch(url, {
+  const response = await handleProxyRequest(url, {
     method: 'POST',
     headers: {
       'Content-Type': contentType || 'application/json',
@@ -131,7 +176,7 @@ export async function PUT(
   const cookieHeader = request.headers.get('cookie')
   const body = await request.json()
   
-  const response = await fetch(url, {
+  const response = await handleProxyRequest(url, {
     method: 'PUT',
     headers: {
       'Content-Type': 'application/json',
@@ -168,7 +213,7 @@ export async function DELETE(
   
   const cookieHeader = request.headers.get('cookie')
   
-  const response = await fetch(url, {
+  const response = await handleProxyRequest(url, {
     method: 'DELETE',
     headers: {
       ...(cookieHeader && { cookie: cookieHeader }),
