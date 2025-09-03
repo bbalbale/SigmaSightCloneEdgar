@@ -54,9 +54,9 @@ class PortfolioResolver {
       // These are the actual portfolio IDs from the database:
       const email = localStorage.getItem('user_email')
       const portfolioMap: Record<string, string> = {
-        'demo_individual@sigmasight.com': '52110fe1-ca52-42ff-abaa-c0c90e8e21be',
-        'demo_hnw@sigmasight.com': '7ec9dab7-b709-4a3a-b7b6-2399e53ac3eb',
-        'demo_hedgefundstyle@sigmasight.com': '1341a9f2-5ef1-4acb-a480-2dca21a7d806'
+        'demo_individual@sigmasight.com': '51134ffd-2f13-49bd-b1f5-0c327e801b69',
+        'demo_hnw@sigmasight.com': 'c0510ab8-c6b5-433c-adbc-3f74e1dbdb5e',
+        'demo_hedgefundstyle@sigmasight.com': '2ee7435f-379f-4606-bdb7-dadce587a182'
       }
       
       if (email && portfolioMap[email]) {

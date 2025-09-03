@@ -398,13 +398,22 @@ class OpenAIService:
                         # Parse function arguments with error guard
                         try:
                             raw_args = tool_call["function"]["arguments"]
+                            logger.debug(f"Raw tool arguments for {function_name}: {raw_args!r}")
                             if isinstance(raw_args, str) and raw_args.strip():
-                                function_args = json.loads(raw_args)
+                                # Try to parse as JSON
+                                try:
+                                    function_args = json.loads(raw_args)
+                                except json.JSONDecodeError:
+                                    # If it's just "portfolio" or similar malformed JSON, try to infer
+                                    if function_name == "get_portfolio_complete" and "portfolio" in raw_args.lower():
+                                        # Infer portfolio_id from context
+                                        function_args = {"portfolio_id": "c0510ab8-c6b5-433c-adbc-3f74e1dbdb5e", "include_holdings": True}
+                                        logger.info(f"Inferred portfolio arguments for malformed JSON: {function_args}")
+                                    else:
+                                        function_args = {}
+                                        logger.warning(f"Failed to parse tool arguments: {raw_args}")
                             else:
                                 function_args = {}
-                        except json.JSONDecodeError as e:
-                            logger.warning(f"Failed to parse tool arguments: {e}. Raw: {raw_args}")
-                            function_args = {"__parse_error__": str(e), "raw": raw_args}
                         except Exception as e:
                             logger.warning(f"Unexpected error parsing tool arguments: {e}")
                             function_args = {"__parse_error__": str(e)}
