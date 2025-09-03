@@ -767,6 +767,16 @@ This implementation follows an **automated test-driven development cycle** using
 
 ## 6. **Debugging + Bug Fixes**
 
+### **🎯 CURRENT STATUS SUMMARY (2025-09-03)**
+- **✅ CRITICAL FRONTEND BUGS**: All resolved (6.39-6.41)
+- **✅ STREAMING FUNCTIONALITY**: Verified working 2025-09-03 (6.36)
+- **❌ CRITICAL BACKEND ISSUE**: Tool call formatting error discovered 2025-09-03 (6.42)
+- **❌ NEW FRONTEND ISSUES**: Architectural gaps identified by code review (6.43-6.46)
+- **⚠️ MINOR ISSUES**: Cosmetic/accessibility warnings only (6.13-6.26)
+- **🔄 OVERALL STATUS**: Basic chat works, tool calls blocked by backend, frontend has architectural debt
+
+### **Detailed Bug History:**
+
 - [x] **6.1** Fix any streaming connection issues ✅ **RESOLVED**
   - [x] OpenAI streaming parser bug fixed (`openai_service.py`)
   - [x] Frontend runId initialization bug fixed (`ChatInterface.tsx`)
@@ -990,26 +1000,26 @@ This implementation follows an **automated test-driven development cycle** using
   - **Files**: `backend/app/agent/services/openai_service.py`
   - **Result**: Complete tool call lifecycle monitoring with ID mapping
 
-### 6.35 **Tool Registry Missing 'dispatch' Method** ❌
+### 6.35 **Tool Registry Missing 'dispatch' Method** ✅ **FIXED**
 - **Issue**: Tool registry object doesn't have 'dispatch' method causing tool execution failures
 - **Error**: `'ToolRegistry' object has no attribute 'dispatch'`
-- **Cross-reference**: Related to Phase 10 ID refactoring in `/agent/TODO.md`
-- **Impact**: All tool calls fail after OpenAI requests them
-- **Status**: Needs fix in backend/app/agent/tools/tool_registry.py
+- **Fix Applied**: 2025-09-02 - Added backward compatibility `dispatch()` alias in tool_registry.py
+- **Files Modified**: `backend/app/agent/services/openai_service.py`, `backend/app/agent/tools/tool_registry.py`
+- **Status**: RESOLVED - Tool execution pipeline now working (see 6.38.1)
 
-### 6.36 **Token Streaming Not Forwarded to Client** ❌
+### 6.36 **Token Streaming Not Forwarded to Client** ✅ **VERIFIED WORKING**
 - **Issue**: Content tokens received from OpenAI but not sent via SSE to frontend
-- **Observed**: Manual testing shows no 'token' events in SSE stream
-- **Expected**: Each content token should generate SSE event with token data
-- **Cross-reference**: Phase 10.5 testing in `/agent/TODO.md`
-- **Status**: Needs investigation in OpenAI service streaming handler
+- **Investigation**: 2025-09-03 - User confirmed token-by-token streaming working perfectly
+- **Evidence**: Manual testing shows complete SSE streaming with real-time token updates
+- **User Report**: "I no longer see thinking. I do see token-by-token updates in the UI. The final message appears complete."
+- **Status**: FUNCTIONAL - Documentation was outdated, streaming actually works correctly
 
-### 6.37 **Failed Tool Calls Stored with Null IDs** ❌
+### 6.37 **Failed Tool Calls Stored with Null IDs** ✅ **FIXED**
 - **Issue**: When tool execution fails, null tool_call_id is stored causing OpenAI API errors
 - **Error**: OpenAI 400 - "Invalid value for 'tool_call_id': expected a string, but got null"
-- **Cross-reference**: Phase 10 backend-first ID generation in `/agent/TODO.md`
-- **Impact**: Subsequent messages fail due to malformed conversation history
-- **Status**: Needs validation before storing tool call results
+- **Fix Applied**: 2025-09-02 - Added tool_call_id preservation in error handling
+- **Files Modified**: `backend/app/agent/services/openai_service.py` (lines 486, 496-500)
+- **Status**: RESOLVED - Proper error recovery and conversation continuation (see 6.38.2)
 
 ## 6.38 **Critical Bug Fixes Completed (2025-09-02)** ✅
 
@@ -1073,6 +1083,57 @@ This implementation follows an **automated test-driven development cycle** using
 - **Automated Monitoring**: Limited visibility into detailed SSE objects (shows generic "Object" placeholders)
 - **Status**: FUNCTIONAL - Minor error persists but doesn't block streaming operation
 - **Priority**: LOW - System working correctly despite console noise
+
+### 6.42 **Tool Call Function Name Invalid Type Error** ❌ **BACKEND CRITICAL**
+- **Issue**: OpenAI API 400 error when backend sends tool calls - `Invalid type for 'tool_calls[0].function.name'`
+- **Date**: 2025-09-03
+- **Error Code**: `invalid_type` from OpenAI API
+- **User Command**: `"show me my portfolio pls"` triggers tool call that fails
+- **Evidence**: Console shows `Error code: 400 - {'error': {'message': "Invalid t...calls[0].function.name', 'code': 'invalid_type'}}`
+- **Impact**: Tool-based functionality completely broken (portfolio queries, analysis, etc.)
+- **Frontend Handling**: Error properly caught and displayed, no UI crashes
+- **Root Cause**: Backend formatting `function.name` field as invalid type (not string) when constructing OpenAI API calls
+- **Cross-Reference**: `/agent/TODO.md` shows Phase 5.7 incomplete - tool-call argument parsing and formatting work still pending
+- **Previous Fixes**: Phase 9.3 and 10.x fixed tool call IDs, but this is a separate `function.name` formatting issue
+- **Recommendation**: Backend team should complete Phase 5.7 work focusing on tool call argument parsing and OpenAI API formatting
+- **Status**: CRITICAL - All portfolio-related chat functionality blocked
+
+### 6.43 **Buffer Rekeying Issue** ❌ **FRONTEND HIGH**
+- **Issue**: Stream buffers keyed to frontend-generated runId, not backend run_id from message_created
+- **Date**: 2025-09-03  
+- **Root Cause**: `useFetchStreaming.ts` generates local runId, but doesn't rekey when backend provides real run_id
+- **Impact**: Future reconciliation, resume, telemetry features will fail to find correct buffer
+- **Files Needed**: `streamStore.ts` (add rekeyBuffer method), `useFetchStreaming.ts` (rekey on message_created)
+- **Implementation**: Add `rekeyBuffer(oldRunId, newRunId)` and call on message_created event
+- **Priority**: HIGH - affects architecture consistency
+
+### 6.44 **Tool Call UI Not Wired** ❌ **FRONTEND MEDIUM**
+- **Issue**: Tool events parsed but not displayed in UI  
+- **Date**: 2025-09-03
+- **Root Cause**: `useFetchStreaming.ts` surfaces onToolCall/onToolResult but `ChatInterface.tsx` doesn't handle them
+- **Impact**: Users won't see tool execution status or results in chat interface
+- **Files Needed**: `ChatInterface.tsx` (add tool event handlers)
+- **Implementation**: Add onToolCall/onToolResult handlers that update message toolCalls array
+- **Dependencies**: Backend tool call formatting fix (6.42) must be completed first
+- **Priority**: MEDIUM - UI functionality blocked until backend fixed
+
+### 6.45 **SSE Timeout Risk in Proxy** ❌ **FRONTEND HIGH**
+- **Issue**: Universal 30s timeout will abort long chat streams prematurely
+- **Date**: 2025-09-03
+- **Location**: `frontend/src/app/api/proxy/[...path]/route.ts` 
+- **Root Cause**: AbortController with 30s timeout applies to all requests including SSE streams
+- **Impact**: Long chat conversations will be cut off mid-stream in production
+- **Implementation**: Detect `Accept: text/event-stream` for POST and bypass timeout
+- **Priority**: HIGH - production blocker for longer conversations
+
+### 6.46 **ChatAuthService Payload Misalignment** ⚠️ **FRONTEND LOW**
+- **Issue**: Secondary send path may use incorrect payload format
+- **Date**: 2025-09-03
+- **Location**: `chatAuthService.sendChatMessage()` potentially uses `{ message }` instead of `{ text }`
+- **Root Cause**: Alternate helper method not updated to current backend contract
+- **Impact**: 4xx errors if this code path is used instead of main streaming path
+- **Implementation**: Audit and align to use `{ text, conversation_id }` format
+- **Priority**: LOW - edge case, main path working correctly
 
 ## 7. **Enhanced Observability**
 

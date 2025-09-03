@@ -1701,21 +1701,37 @@ The `/api/v1/chat/send` endpoint has a bug where it's trying to access `request.
 
 ---
 
-## 📋 Phase 5.7: OpenAI Streaming Parser Fix (Day 9)
+## 📋 Phase 5.7: OpenAI Streaming Parser Fix (Day 9) ⚠️ **URGENT - CRITICAL BUG DISCOVERED**
+
+### **CRITICAL: Tool Call Formatting Error (2025-09-03)**
+- **Issue**: OpenAI API rejecting tool calls with `Invalid type for 'tool_calls[0].function.name'`
+- **User Test**: `"show me my portfolio pls"` triggers 400 error from OpenAI
+- **Root Cause**: Backend formatting `function.name` field as invalid type (not string) when constructing OpenAI requests
+- **Impact**: ALL tool-based functionality blocked (portfolio queries, analysis, etc.)
+- **Priority**: CRITICAL - Must fix before frontend can use tool features
+
+### **Implementation Requirements:**
+- [ ] **Fix tool call formatting for OpenAI API**
+  - [ ] Ensure `tool_calls[0].function.name` is always a string type
+  - [ ] Validate tool call structure matches OpenAI schema before API calls
+  - [ ] Add validation: `{"type": "function", "function": {"name": str, "arguments": str}}`
 - [ ] Backend SSE normalization
   - Emit `event: token` with JSON `{ type: 'token', run_id, seq, data: { delta }, timestamp }`.
   - Maintain `tool_call`, `tool_result`, `heartbeat`, `error`, and `done` events with documented payloads.
 - [ ] OpenAI stream parsing
   - Consume provider stream chunk-by-chunk; handle `[DONE]`; accumulate `final_text`.
   - Guard tool-call `arguments` with try/except; include `__parse_error__` on failure without aborting stream.
+  - **CRITICAL**: Fix tool call construction to match OpenAI format exactly
 - [ ] SSE endpoint & proxy
   - Ensure CORS/credentials on SSE, forward `Authorization` and `Accept: text/event-stream`, and propagate `Set-Cookie` in streaming responses.
 - [ ] Tests (summary)
   - Backend unit: chunk parser, tool-args guard, error event shape.
   - E2E: live tokens visible in UI, final text, tool-call path.
   - Manual: curl via proxy to verify SSE frames.
+  - **NEW**: Test tool call formatting with real portfolio query
 - [ ] Success criteria
-  - No backend JSON parsing errors; steady token `seq`; UI replaces “Thinking...” with streamed text.
+  - No backend JSON parsing errors; steady token `seq`; UI replaces "Thinking..." with streamed text.
+  - **CRITICAL**: Portfolio queries like "show me my portfolio pls" work without 400 errors
 
 See `backend/OPENAI_STREAMING_BUG_REPORT.md` for the detailed implementation outline, precise SSE contract, and complete testing plan.
 
