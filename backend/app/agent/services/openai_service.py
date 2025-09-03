@@ -37,7 +37,8 @@ class OpenAIService:
         # Track tool call IDs for correlation between OpenAI and our system
         self.tool_call_id_map: Dict[str, Dict[str, Any]] = {}
         
-    def _get_tool_definitions(self) -> List[ChatCompletionToolParam]:
+    def _get_tool_definitions_chat(self) -> List[ChatCompletionToolParam]:
+        """Convert our tool definitions to Chat Completions API format"""
         """Convert our tool definitions to OpenAI format"""
         # Define the tools manually with their OpenAI-compatible schemas
         tools = [
@@ -209,6 +210,170 @@ class OpenAIService:
             }
         ]
         return tools
+
+    def _get_tool_definitions_responses(self) -> List[Dict[str, Any]]:
+        """Convert our tool definitions to Responses API format (with full schemas)"""
+        tools = [
+            {
+                "name": "get_portfolio_complete",
+                "type": "function",
+                "description": "Get comprehensive portfolio snapshot with positions, values, and optional data",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "portfolio_id": {
+                            "type": "string",
+                            "description": "Portfolio UUID"
+                        },
+                        "include_holdings": {
+                            "type": "boolean",
+                            "description": "Include position details",
+                            "default": True
+                        },
+                        "include_timeseries": {
+                            "type": "boolean",
+                            "description": "Include historical data",
+                            "default": False
+                        },
+                        "include_attrib": {
+                            "type": "boolean",
+                            "description": "Include attribution analysis",
+                            "default": False
+                        }
+                    },
+                    "required": ["portfolio_id"]
+                }
+            },
+            {
+                "name": "get_portfolio_data_quality",
+                "type": "function", 
+                "description": "Assess portfolio data completeness and quality metrics",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "portfolio_id": {
+                            "type": "string",
+                            "description": "Portfolio UUID"
+                        },
+                        "check_factors": {
+                            "type": "boolean",
+                            "description": "Check factor data availability",
+                            "default": True
+                        },
+                        "check_correlations": {
+                            "type": "boolean",
+                            "description": "Check correlation data",
+                            "default": True
+                        }
+                    },
+                    "required": ["portfolio_id"]
+                }
+            },
+            {
+                "name": "get_positions_details",
+                "type": "function",
+                "description": "Get detailed position information with P&L calculations",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "portfolio_id": {
+                            "type": "string",
+                            "description": "Portfolio UUID"
+                        },
+                        "position_ids": {
+                            "type": "string",
+                            "description": "Comma-separated position IDs"
+                        },
+                        "include_closed": {
+                            "type": "boolean",
+                            "description": "Include closed positions",
+                            "default": False
+                        }
+                    },
+                    "required": []
+                }
+            },
+            {
+                "name": "get_prices_historical",
+                "type": "function",
+                "description": "Retrieve historical price data for portfolio symbols",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "portfolio_id": {
+                            "type": "string",
+                            "description": "Portfolio UUID"
+                        },
+                        "lookback_days": {
+                            "type": "integer",
+                            "description": "Days of history (max 180)",
+                            "default": 90
+                        },
+                        "max_symbols": {
+                            "type": "integer",
+                            "description": "Max symbols to return (max 5)",
+                            "default": 5
+                        },
+                        "include_factor_etfs": {
+                            "type": "boolean",
+                            "description": "Include factor ETF prices",
+                            "default": True
+                        },
+                        "date_format": {
+                            "type": "string",
+                            "description": "Date format: iso or unix",
+                            "default": "iso"
+                        }
+                    },
+                    "required": ["portfolio_id"]
+                }
+            },
+            {
+                "name": "get_current_quotes",
+                "type": "function",
+                "description": "Get real-time market quotes for specified symbols",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "symbols": {
+                            "type": "string",
+                            "description": "Comma-separated symbols (max 5)"
+                        },
+                        "include_options": {
+                            "type": "boolean",
+                            "description": "Include options data",
+                            "default": False
+                        }
+                    },
+                    "required": ["symbols"]
+                }
+            },
+            {
+                "name": "get_factor_etf_prices",
+                "type": "function",
+                "description": "Get ETF prices for factor analysis and correlations",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "lookback_days": {
+                            "type": "integer",
+                            "description": "Days of history (max 180)",
+                            "default": 90
+                        },
+                        "factors": {
+                            "type": "string",
+                            "description": "Comma-separated factor names"
+                        }
+                    },
+                    "required": []
+                }
+            }
+        ]
+        return tools
+    
+    def _get_tool_definitions(self) -> List[ChatCompletionToolParam]:
+        """Default tool definitions method - delegates to Chat API format"""
+        return self._get_tool_definitions_chat()
     
     def _validate_tool_call_format(self, tool_call: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """
@@ -325,16 +490,22 @@ class OpenAIService:
         message_history: List[Dict[str, Any]], 
         user_message: str,
         portfolio_context: Optional[Dict[str, Any]] = None
-    ) -> Dict[str, Any]:
-        """Build input structure for OpenAI Responses API"""
+    ) -> List[Dict[str, Any]]:
+        """Build input structure for OpenAI Responses API (array of messages)"""
         # Get system prompt for the mode
         system_prompt = self.prompt_manager.get_system_prompt(
             conversation_mode,
             user_context=portfolio_context
         )
         
-        # Build message history for input
+        # Build message history for input (starting with system message)
         messages = []
+        
+        # Add system message first (Responses API format)
+        messages.append({
+            "role": "system",
+            "content": system_prompt
+        })
         
         # Add conversation history (user/assistant pairs)
         for msg in message_history:
@@ -348,11 +519,8 @@ class OpenAIService:
         # Add current user message
         messages.append({"role": "user", "content": user_message})
         
-        # Return Responses API input structure
-        return {
-            "messages": messages,
-            "system": system_prompt
-        }
+        # Return array of messages for Responses API
+        return messages
     
     async def stream_responses(
         self,
@@ -381,8 +549,8 @@ class OpenAIService:
                 portfolio_context
             )
             
-            # Get tool definitions
-            tools = self._get_tool_definitions()
+            # Get tool definitions for Responses API
+            tools = self._get_tool_definitions_responses()
             
             # Yield start event with standardized format
             start_payload = {
@@ -404,8 +572,8 @@ class OpenAIService:
                 model=self.model,
                 input=input_data,  # Use input structure instead of messages
                 tools=tools if tools else None,
-                stream=True,
-                max_completion_tokens=getattr(settings, 'OPENAI_MAX_COMPLETION_TOKENS', settings.CHAT_MAX_TOKENS)
+                stream=True
+                # Note: max_completion_tokens is not supported by Responses API
             )
             
             # Track state for streaming
@@ -434,14 +602,14 @@ class OpenAIService:
                 
                 # Handle Responses API events based on actual SDK event names
                 try:
-                    if event.type == "response.start":
+                    if event.type == "response.created":
                         # Capture response ID for tool output submission
                         response_id = event.response.id
                         logger.info(f"Response started with ID: {response_id}")
                         
-                    elif event.type == "content.delta":
+                    elif event.type == "response.output_text.delta":
                         # Handle streaming text content -> emit token event
-                        if event.delta:
+                        if hasattr(event, 'delta') and event.delta:
                             current_content += event.delta
                             final_content_parts.append(event.delta)
                             
@@ -594,7 +762,7 @@ class OpenAIService:
                                         }]
                                     )
                                     
-                    elif event.type == "response.done":
+                    elif event.type == "response.completed":
                         # Response completed
                         logger.info(f"Response completed: {response_id}")
                         break
