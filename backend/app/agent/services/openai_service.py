@@ -439,7 +439,7 @@ class OpenAIService:
                         if "__parse_error__" not in function_args:
                             try:
                                 tool_start_time = time.time()
-                                result = await tool_registry.dispatch(function_name, **function_args)
+                                result = await tool_registry.dispatch_tool_call(function_name, function_args)
                                 duration_ms = int((time.time() - tool_start_time) * 1000)
                                 
                                 # Update ID mapping with completion
@@ -483,6 +483,7 @@ class OpenAIService:
                                     "run_id": run_id,
                                     "seq": seq,
                                     "data": {
+                                        "tool_call_id": tool_call_id,  # Add tool call ID
                                         "tool_name": function_name,
                                         "tool_result": {"error": str(e)}
                                     },
@@ -490,6 +491,13 @@ class OpenAIService:
                                 }
                                 yield f"event: tool_result\ndata: {json.dumps(error_result_payload)}\n\n"
                                 seq += 1
+                                
+                                # CRITICAL: Add error response to messages for OpenAI
+                                messages.append({
+                                    "role": "tool",
+                                    "tool_call_id": tool_call_id,
+                                    "content": json.dumps({"error": str(e)})
+                                })
                     
                     # Continue conversation with tool results
                     if tool_call_chunks:

@@ -252,6 +252,19 @@ class ToolRegistry:
             }
         }
     
+    async def dispatch(self, tool_name: str, **kwargs) -> Dict[str, Any]:
+        """
+        Backward compatibility alias for dispatch_tool_call.
+        
+        Args:
+            tool_name: Name of the tool to execute
+            **kwargs: Tool arguments as keyword arguments
+            
+        Returns:
+            Tool response
+        """
+        return await self.dispatch_tool_call(tool_name, kwargs)
+    
     def get_available_tools(self) -> List[str]:
         """
         Get list of available tool names.
