@@ -1703,7 +1703,7 @@ The `/api/v1/chat/send` endpoint has a bug where it's trying to access `request.
 
 ## 📋 Phase 5.7: OpenAI Streaming Parser Fix (Day 9) ⚠️ **URGENT - CRITICAL BUG DISCOVERED**
 
-### **CRITICAL: Tool Call Formatting Error (2025-09-03)**
+### **5.7.1 Tool Call Formatting Error (2025-09-03)**
 - **Issue**: OpenAI API rejecting tool calls with `Invalid type for 'tool_calls[0].function.name'`
 - **User Test**: `"show me my portfolio pls"` triggers 400 error from OpenAI
 - **Root Cause**: Backend formatting `function.name` field as invalid type (not string) when constructing OpenAI requests
@@ -1740,7 +1740,12 @@ The `/api/v1/chat/send` endpoint has a bug where it's trying to access `request.
 
 **COMPLETION STATUS**: 95% complete ⚠️ - All streaming chunk issues resolved, NEW conversation history bug discovered
 
-### **5.8 🚨 CRITICAL BUG: Invalid Conversation History Structure (2025-09-03 9:57 AM)**
+**Cross-References**: 
+- Related to Phase 5.8 (OpenAI Responses API migration - line 1780)
+- Related to Phase 9.6.1 (tool call revalidation post-migration - line 2556) 
+- Related to Phase 9.12.1 (portfolio ID resolution investigation - line 2988)
+
+### **5.7.2 🚨 CRITICAL BUG: Invalid Conversation History Structure (2025-09-03 9:57 AM)**
 
 **Error**: `Error code: 400 - {'error': {'message': "Invalid parameter: messages with role 'tool' must be a response to a preceeding message with 'tool_calls'.", 'type': 'invalid_request_error', 'param': 'messages.[10].role', 'code': None}}`
 
@@ -1774,6 +1779,26 @@ The `/api/v1/chat/send` endpoint has a bug where it's trying to access `request.
 **Location**: `backend/app/agent/services/openai_service.py` - `_build_messages()` method around line 302-315
 
 See `backend/OPENAI_STREAMING_BUG_REPORT.md` for the detailed implementation outline, precise SSE contract, and complete testing plan.
+
+**COMPLETION STATUS**: ✅ **RESOLVED BY ARCHITECTURE** (2025-09-04)
+
+**Resolution Summary**: 
+- **Current Implementation**: OpenAI Responses API with `_build_responses_input()` method effectively resolves this issue
+- **How Resolved**: Our current architecture excludes tool_calls from message history and never persists `role: "tool"` messages
+- **Prevention**: `assistant_message.tool_calls = None` in send.py (Phase 9.9.1) and history loading excludes tool_calls (Phase 9.9.2)
+- **Result**: The invalid sequence (orphaned tool messages) **cannot occur** with current codebase
+- **Code Review Validation**: External review confirmed current approach is correct and prevents the 400 error
+
+**Technical Details**:
+- ✅ `_build_responses_input()` skips assistant messages with tool_calls 
+- ✅ `load_message_history()` returns only `{"role", "content"}` pairs
+- ✅ Message persistence sets `tool_calls = None` before saving
+- ✅ Continuation strategy uses synthesized user message with tool results
+- ✅ No `role: "tool"` messages ever included in conversation history
+
+**Legacy Notes**: 
+- `_build_messages()` method is unused legacy code (see Phase 9.16.1 for cleanup)
+- Issue was originally discovered with Chat Completions API, resolved by Responses API migration (Phase 5.8)
 
 ---
 
@@ -2912,7 +2937,7 @@ if auth_token:
 
 ---
 
-### 🐛 9.12 Chat Agent Portfolio ID Resolution Failure ✅ **FIXED**
+### 🐛 9.12 Chat Agent Portfolio ID Resolution Failure ⚠️ **PARTIAL FIX APPLIED - STILL FAILING**
 
 **Issue**: Chat agent uses hardcoded placeholder "your-portfolio-id" instead of resolving authenticated user's actual portfolio ID, causing all portfolio-related queries to fail with 422 errors.
 
@@ -2953,25 +2978,106 @@ if auth_token:
 - **Change**: Direct metadata access `conversation.meta_data.get("portfolio_id")`
 - **Result**: Reliable portfolio context passing to tools
 
-### **Verification Results**
+### **❌ TESTING RESULTS (2025-09-04 09:27 AM)**
+
+**✅ SUCCESSES**:
+- Authentication sequence working perfectly
+- Real portfolio data loaded: `c0510ab8-c6b5-433c-adbc-3f74e1dbdb5e`
+- Portfolio page showing 17 positions, $1.7M total value
+- Chat streaming initiated: OpenAI API responding, SSE events processing
+- New conversation created: `a2619aba-3aa1-4fbb-830f-3f051d1a2fbe`
+
+**❌ CRITICAL FAILURE**:
 ```
-BEFORE: Backend logs: GET .../portfolio/your-portfolio-id/complete → 422 Unprocessable Entity
-AFTER:  Backend logs: Auto-resolved portfolio c0510ab8-c6b5-433c-adbc-3f74e1dbdb5e for user X
-        Backend logs: GET .../portfolio/c0510ab8-c6b5-433c-adbc-3f74e1dbdb5e/complete → 200 OK
-        
-BEFORE: Chat response: "I'm sorry, but the portfolio data returned null..."
-AFTER:  Chat response: [Actual portfolio analysis with real data]
+2025-09-04 08:32:54 - httpx - INFO - HTTP Request: GET http://localhost:8000/api/v1/data/portfolio/your-portfolio-id/complete?include_holdings=true&include_timeseries=false&include_attrib=false "HTTP/1.1 422 Unprocessable Entity"
 ```
+
+**Root Cause Analysis**:
+- Chat agent **STILL using "your-portfolio-id" placeholder**
+- System prompt template replacement **NOT WORKING**
+- Portfolio auto-resolution in conversation creation **MAY BE WORKING** but not reaching OpenAI
+- Tool calls failing with same 422 errors as before
 
 ### **Files Modified**:
 - `app/api/v1/chat/conversations.py` - Portfolio auto-resolution
 - `app/agent/prompts/common_instructions.md` - System prompt template
 - `app/api/v1/chat/send.py` - Service instantiation and context extraction
 
-### **Follow-up Issues Identified**:
-- See bugs 9.13, 9.14, 9.15 for architectural improvements needed
+### **Follow-up Investigation Required**:
+- See Phase 9.12.1 for detailed investigation plan
 
-**Priority**: ✅ **RESOLVED** - Chat functionality restored
+**Priority**: 🚨 **STILL FAILING** - Code changes not taking effect
+
+---
+
+### 🔍 9.12.1 Deep Investigation: Why Phase 9.12 Fixes Not Working ❌ **ACTIVE**
+
+**Status**: Code changes applied but system still using "your-portfolio-id" placeholder in tool calls
+
+**Investigation Plan**:
+
+**1. Verify Conversation Creation Flow**
+- Check if new conversations are actually getting portfolio metadata populated
+- Verify conversation `a2619aba-3aa1-4fbb-830f-3f051d1a2fbe` has correct `meta_data`
+- Debug auto-resolution query execution
+
+**2. Trace System Prompt Template Processing**
+- Verify `{portfolio_id}` placeholder is in the system prompt template
+- Check if template replacement logic is executing
+- Debug OpenAI request payload to see if portfolio UUID is included
+
+**3. Check Tool Handler Configuration**
+- Verify chat tools are getting portfolio context from conversation metadata
+- Check if portfolio_context is being passed to OpenAI tool definitions
+- Debug tool call parameter construction
+
+**4. Database State Verification**
+- Check if conversation `a2619aba-3aa1-4fbb-830f-3f051d1a2fbe` exists with correct metadata
+- Verify portfolio ownership for user `d56c83ff-267e-4e2a-b484-bf3849d1fb6d`
+- Check conversation-portfolio linkage
+
+**Potential Root Causes**:
+
+**A. Conversation Metadata Not Populated**
+- Auto-resolution query not executing
+- Portfolio query returning no results
+- Database transaction not committing metadata
+
+**B. System Prompt Template Not Processing**
+- Template replacement logic not running
+- `{portfolio_id}` placeholder not found in template
+- Template loading from wrong file/cache
+
+**C. Tool Context Not Passed to OpenAI**
+- Portfolio context not included in OpenAI request
+- Tool definitions not receiving portfolio UUID
+- Context lost between conversation and tool execution
+
+**D. Using Old/Cached Conversations**
+- Chat UI connecting to old conversation without metadata
+- Frontend caching old conversation ID
+- Backend serving stale conversation data
+
+**Diagnostic Commands**:
+```sql
+-- Check conversation metadata
+SELECT id, meta_data, created_at FROM conversations 
+WHERE id = 'a2619aba-3aa1-4fbb-830f-3f051d1a2fbe';
+
+-- Check portfolio ownership
+SELECT id FROM portfolios 
+WHERE user_id = 'd56c83ff-267e-4e2a-b484-bf3849d1fb6d';
+```
+
+**Next Actions**:
+1. **Database Investigation** - Query conversation and portfolio tables
+2. **Code Path Tracing** - Add debug logging to conversation creation
+3. **System Prompt Debugging** - Log actual prompt sent to OpenAI
+4. **Tool Context Debugging** - Log portfolio_context passed to tools
+
+**Expected Resolution**: Identify where in the flow the portfolio ID is getting lost and fix the specific integration point.
+
+**Priority**: P0 Critical - Must resolve before considering Phase 9.12 complete
 
 ---
 
@@ -3063,6 +3169,79 @@ portfolio = result.scalar_one_or_none()  # Takes first result
 - `app/agent/prompts/common_instructions.md` template format
 
 **Priority**: P3 Technical Debt - Improve when adding more template features
+
+---
+
+## 📋 Phase 9.16: Technical Debt & Code Quality Improvements (Phase 5.7.2 Follow-up) ⚠️ **IDENTIFIED - NOT STARTED**
+
+> **Context**: Based on code review feedback for Phase 5.7.2, several technical debt and improvement opportunities identified for OpenAI service architecture.
+
+### **9.16.1 Legacy Code Cleanup** ❌ **NOT STARTED**
+- [ ] **Deprecate `_build_messages()` method**
+  - **Issue**: Unused legacy method for Chat Completions API (we use Responses API)
+  - **Risk**: Keeping both `_build_messages()` and `_build_responses_input()` creates drift risk
+  - **Action**: Add deprecation warning or remove entirely
+  - **File**: `backend/app/agent/services/openai_service.py` around line 271
+  - **Priority**: P2 Technical Debt - Prevents confusion and future bugs
+
+### **9.16.2 Defensive History Validation** ❌ **NOT STARTED**
+- [ ] **Add defensive logging for tool messages in history**
+  - **Issue**: No protection against future code changes that might reintroduce tool messages
+  - **Action**: In `_build_responses_input()`, log warning and drop any `role: "tool"` messages
+  - **Implementation**: 
+    ```python
+    if msg["role"] == "tool":
+        logger.warning("Dropping tool message from history to prevent OpenAI 400 error")
+        continue
+    ```
+  - **File**: `backend/app/agent/services/openai_service.py` around line 337
+  - **Priority**: P3 Quality - Prevents regression of Phase 5.7.2 bug
+
+### **9.16.3 Enhanced Unit Testing** ❌ **NOT STARTED**
+- [ ] **Add comprehensive history building tests**
+  - **Coverage Gaps**: Missing tests for edge cases in `_build_responses_input()`
+  - **Test Cases Needed**:
+    - Assistant with text + tool_calls followed by tool messages → assert tool messages dropped
+    - Assistant with only tool_calls (no text) → assert dropped entirely
+    - Mixed histories with no tools → assert unchanged
+    - Multiple tool calls in single turn → assert proper summarization
+  - **File**: Create `tests/test_agent/test_openai_service_history.py`
+  - **Priority**: P3 Quality - Prevents regressions
+
+### **9.16.4 Documentation Updates** ❌ **NOT STARTED**
+- [ ] **Document "exclude tool data from history" architectural decision**
+  - **Update**: `backend/OPENAI_STREAMING_BUG_REPORT.md`
+  - **Content**: Explain chosen approach and OpenAI sequence requirements
+  - **Cross-reference**: Link to Phase 5.7.2 resolution
+  - **Priority**: P3 Documentation - Prevents future confusion
+
+### **9.16.5 Performance Optimization (Optional)** ❌ **NOT STARTED**
+- [ ] **Investigate "submit tool outputs" within same response**
+  - **Current**: Use "second create call" continuation with synthesized user message
+  - **Alternative**: Submit tool outputs back to same response for completion
+  - **Benefits**: Potentially lower latency, tighter orchestration
+  - **Risk**: More complex error handling
+  - **Action**: Research and prototype if performance becomes issue
+  - **Priority**: P4 Optimization - Only if latency becomes problematic
+
+### **9.16.6 Memory Management Enhancement** ❌ **NOT STARTED**
+- [ ] **Improve large tool result handling**
+  - **Issue**: Tool results currently truncated to ~1000 characters
+  - **Enhancement**: Smarter summarization for large datasets
+  - **Implementation**: Compress data while preserving key insights
+  - **Priority**: P4 Enhancement - User experience improvement
+
+**COMPLETION STATUS**: 0% complete - All items identified but not prioritized for immediate work
+
+**Cross-References**: 
+- Related to Phase 5.7.2 resolution (tool message history bug - line 1748)
+- Validates current Responses API architecture is correct
+- Separate from Phase 9.12.1 (portfolio ID resolution - line 2988)
+
+**Priority Assessment**:
+- **P2 Items (9.16.1)**: Should address to prevent technical debt accumulation
+- **P3 Items (9.16.2-9.16.4)**: Good engineering practices, implement when bandwidth allows  
+- **P4 Items (9.16.5-9.16.6)**: Nice to have, only if specific issues arise
 
 ---
 
