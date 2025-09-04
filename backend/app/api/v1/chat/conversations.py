@@ -48,6 +48,7 @@ async def create_conversation(
         if request.portfolio_id:
             # Use explicitly provided portfolio ID
             portfolio_id = request.portfolio_id
+            logger.info(f"Using explicit portfolio {portfolio_id} for user {current_user.id}")
         else:
             # Auto-resolve user's portfolio ID
             result = await db.execute(
@@ -58,11 +59,18 @@ async def create_conversation(
             if portfolio:
                 portfolio_id = str(portfolio)
                 logger.info(f"Auto-resolved portfolio {portfolio_id} for user {current_user.id}")
+            else:
+                # No portfolio found - this should not happen for authenticated users
+                logger.error(f"No portfolio found for authenticated user {current_user.id}")
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="No portfolio found for user"
+                )
         
-        # Create metadata with portfolio context
-        meta_data = {}
-        if portfolio_id:
-            meta_data["portfolio_id"] = portfolio_id
+        # Create metadata with portfolio context (always populated)
+        meta_data = {
+            "portfolio_id": portfolio_id
+        }
             
         conversation = Conversation(
             id=uuid4(),  # Our canonical ID
@@ -78,6 +86,8 @@ async def create_conversation(
         await db.commit()
         await db.refresh(conversation)
         
+        # 🔍 TRACE-1 Conversation Created (Phase 9.12.1 investigation)
+        logger.info(f"🔍 TRACE-1 Conversation Created: {conversation.id} | meta_data: {conversation.meta_data}")
         logger.info(f"Created conversation {conversation.id} for user {current_user.id}")
         
         return ConversationResponse(
