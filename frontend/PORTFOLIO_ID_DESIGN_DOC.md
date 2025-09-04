@@ -1,11 +1,12 @@
 # Portfolio ID Design Documentation
 
 ## Document Information
-- **Version**: 1.0
+- **Version**: 1.1
 - **Created**: January 2025
 - **Author**: Claude (AI Assistant)
 - **Last Updated**: January 2025
-- **Status**: Initial Analysis
+- **Status**: Design Review Completed; Level 1 Plan Proposed
+- **Reviewed By**: Cascade (AI Assistant)
 
 ## Executive Summary
 This document analyzes the portfolio ID handling across all system layers in SigmaSight, from frontend authentication through backend data access. It identifies current implementation patterns, potential failure points, and provides recommendations for robust portfolio data access.
@@ -15,9 +16,12 @@ This document analyzes the portfolio ID handling across all system layers in Sig
 1. [System Architecture Overview](#1-system-architecture-overview)
    - 1.1 [Key Components](#11-key-components)
    - 1.2 [Current Portfolio ID Flow Patterns](#12-current-portfolio-id-flow-patterns)
+   - 1.3 [Assumptions & Constraints](#13-assumptions--constraints)
 2. [Authentication & User State Management](#2-authentication--user-state-management)
    - 2.1 [Current Implementation](#21-current-implementation)
    - 2.2 [Authentication Flow Issues](#22-authentication-flow-issues)
+   - 2.3 [Single Source of Truth Principle](#23-single-source-of-truth-principle)
+   - 2.4 [HTTPS & Cookie Guidance for Chat](#24-https--cookie-guidance-for-chat)
 3. [Frontend Website Flow: Login → Portfolio Page](#3-frontend-website-flow-login--portfolio-page)
    - 3.1 [User Journey](#31-user-journey)
    - 3.2 [Current Implementation Problems](#32-current-implementation-problems)
@@ -45,6 +49,8 @@ This document analyzes the portfolio ID handling across all system layers in Sig
    - 9.2 [Level 2 Fixes: Strategic Improvements](#92-level-2-fixes-strategic-improvements)
    - 9.3 [Level 3 Fixes: Complete Redesign](#93-level-3-fixes-complete-redesign)
    - 9.4 [Recommended Implementation Strategy](#94-recommended-implementation-strategy)
+   - 9.5 [Open Questions for Stakeholders](#95-open-questions-for-stakeholders)
+   - 9.6 [Stakeholder Decisions](#96-stakeholder-decisions)
 
 ---
 
@@ -62,6 +68,13 @@ This document analyzes the portfolio ID handling across all system layers in Sig
 2. **Database Lookup Method**: User ID → Portfolio query (Phase 9.12.2)
 3. **Cookie Persistence**: HttpOnly cookies for chat authentication
 4. **Context Passing**: Portfolio context through conversation metadata
+
+### 1.3 Assumptions & Constraints
+- **Single Portfolio Per User (Current State)**: Enforced by database unique constraint (`portfolios.user_id`), per database setup decisions. This simplifies default resolution server-side without user input.
+- **Demo Scope**: V1.4 demo assumes one portfolio per user; multi-portfolio UX can be deferred.
+- **Future Multi-Portfolio Support (Roadmap)**: We intend to support multiple portfolios per user, but this is not a requirement for Level 1/V1.4. Level 2 may introduce optional `X-Portfolio-Id` and early UX scaffolding; Level 3 will make portfolio scope explicit/required.
+- **JWT Expiry**: 24-hour token expiry with refresh endpoint available. Token refresh should be considered for long-lived chat sessions but is out of Level 1 scope.
+- **No Feature Flags Policy**: Changes should be implemented directly rather than gated behind flags for the current prototype phase.
 
 ---
 
@@ -97,6 +110,32 @@ async def get_current_user(token: str = Depends(oauth2_scheme)) -> CurrentUser:
 - **Inconsistent portfolio_id in JWT**: Some tokens have it, some don't
 - **Multiple auth methods**: JWT for API, cookies for chat
 - **State synchronization**: Frontend auth state vs backend session state
+
+### 2.3 Single Source of Truth Principle
+To minimize risk and eliminate race conditions, establish a deterministic portfolio resolution order used consistently across backend, frontend, and chat:
+
+1. Use `conversation.meta_data.portfolio_id` when present (chat flows).
+2. Else use `portfolio_id` from JWT claims as a hint.
+3. Else resolve server-side via DB: `default_portfolio = first(user.portfolios)` (valid given current single-portfolio constraint).
+4. Persist the resolved `portfolio_id` back to durable state wherever possible (e.g., conversation metadata and frontend auth context). Treat the JWT claim as an optimization, not the only source of truth.
+
+### 2.4 HTTPS & Cookie Guidance for Chat
+- **Cookies retained for chat**: We will continue to use HttpOnly cookies for chat authentication. No change in decision.
+- **HTTPS required**: Set the `Secure` attribute on auth cookies in all environments where HTTPS is enabled (staging, production). Do not send cookies over HTTP in production.
+- **Cookie attributes**:
+  - `HttpOnly=true` to prevent JavaScript access.
+  - `Secure=true` when using HTTPS.
+  - `SameSite=Lax` for same-site app flows. If any cross-site embedding (e.g., iframes) is introduced, use `SameSite=None; Secure`.
+  - Set appropriate `Domain` and `Path` to scope cookies to your API/Chat origin.
+- **CORS and credentials**:
+  - Prefer same-origin frontend and API to avoid cross-site cookie issues.
+  - If using subdomains, enable CORS with `Access-Control-Allow-Credentials: true`, explicitly allow the frontend origin, and ensure the browser sends cookies on requests requiring credentials.
+- **SSE specifics**:
+  - `EventSource` will include cookies on same-origin requests. For cross-origin SSE, use `new EventSource(url, { withCredentials: true })` and configure CORS accordingly.
+- **CSRF considerations**:
+  - Because cookies are a browser-ambient credential, add CSRF protection on state-changing chat endpoints (e.g., double-submit token or header-based CSRF token). SSE streams are GET-only and not state-changing.
+- **Browser constraints**:
+  - Safari ITP restricts third-party cookies; avoid third-party contexts. Same-site deployment avoids these limitations.
 
 ---
 
@@ -233,6 +272,7 @@ async def get_portfolio_data(
 - **Context preservation**: Portfolio ID must survive entire chain
 - **Token extraction**: Multiple auth methods (JWT + cookies)
 - **Conversation metadata**: Portfolio context stored in conversation.meta_data
+- **Set-once principle**: Portfolio context should be set at conversation creation and reused to avoid run-time discovery during each message.
 
 ---
 
@@ -441,6 +481,61 @@ const PortfolioPage = () => {
 };
 ```
 
+#### 8.1.4 Fix 1.4: Persist Portfolio ID at Conversation Creation
+Ensure chat conversations capture and persist the resolved `portfolio_id` at creation time (server-side), so subsequent messages and tool calls do not need to re-discover it. This is a minimal-risk change because it only touches conversation initialization logic and leverages the server-side default resolution order.
+
+#### 8.1.5 Fix 1.5: `/api/v1/me` Must Always Return `portfolio_id`
+Guarantee the `GET /api/v1/me` (or equivalent) response always includes a `portfolio_id` for authenticated users. Frontend should call this on auth bootstrap and persist to auth context and `localStorage`. This provides a reliable fallback even if the JWT is missing `portfolio_id`.
+
+#### 8.1.6 Fix 1.6: Backend Implicit Default Resolution
+Where endpoints accept `portfolio_id`, treat it as optional for now. If missing, the backend should resolve the default portfolio using the user ID. This leverages the single-portfolio constraint to reduce client fragility without major refactors.
+ 
+Policy (V1.4): `portfolio_id` remains optional. The server will provide a deterministic default via the SSoT resolution order.
+ 
+Forward path:
+- Level 2: introduce optional `X-Portfolio-Id` header and begin instrumenting usage; optionally require `portfolio_id` for a subset of portfolio-first endpoints.
+- Level 3: adopt portfolio-first REST paths (e.g., `/api/v1/portfolios/{portfolio_id}/...`) and make portfolio scope explicit/required.
+
+#### 8.1.7 Acceptance Criteria (Level 1)
+- 0% "portfolio_id missing" errors on `/portfolio` page after fresh login and page refresh.
+- Chat tool calls succeed 100% for conversations created post-fix (portfolio context persisted on creation).
+- `GET /api/v1/me` includes `portfolio_id` consistently; frontend uses it as fallback.
+- Portfolio context resolution completes within 200ms in 99th percentile.
+
+#### 8.1.8 Rollout & Monitoring
+- Add lightweight logging for portfolio resolution path taken (JWT vs conversation vs DB) to validate assumptions in staging.
+- Create a simple smoke test script: fresh login → `/me` → `/portfolio` fetch → open chat → send message → tool call reads portfolio successfully.
+- Monitor error rates for 3 days post-deploy; if regressions appear, roll back Level 1 changes or disable implicit default resolution on the specific endpoint that regresses.
+
+#### 8.1.9 Portfolio Resolution Log Schema (for Chat Monitoring JSON)
+Emit a JSON record on each portfolio resolution event to your existing chat monitoring pipeline:
+ 
+```json
+{
+  "event": "portfolio_resolution",
+  "timestamp": "2025-09-04T22:59:00Z",
+  "environment": "staging",
+  "request_id": "c0a8017e-1b2c-4a7b-9c3a-123456789abc",
+  "endpoint": "/api/v1/chat/send",
+  "user_id": "9f1d0b0a-aaaa-bbbb-cccc-1234567890ab",
+  "conversation_id": "4d5e6f70-1111-2222-3333-abcdefabcdef",
+  "resolution_path": "conversation|jwt|db|header",
+  "portfolio_id": "11111111-2222-3333-4444-555555555555",
+  "had_jwt_claim": true,
+  "had_conversation_metadata": true,
+  "header_present": false,
+  "latency_ms": 42,
+  "success": true,
+  "error_code": null,
+  "notes": "resolved via conversation metadata"
+}
+```
+ 
+Notes:
+- Minimum fields: `event`, `timestamp`, `environment`, `request_id`, `endpoint`, `user_id`, `resolution_path`, `portfolio_id`, `success`.
+- Use consistent `resolution_path` values: `conversation`, `jwt`, `db`, `header`.
+- Include this log in staging and production to support acceptance criteria and monitoring.
+
 ### 8.2 Level 2: Architectural Improvements (Medium Risk, High Reward)
 **Timeline: 1 week**
 
@@ -502,6 +597,12 @@ async def extract_auth_context(request: Request) -> AuthContext:
     )
 ```
 
+#### 8.2.4 Fix 2.4: Standardize Optional `X-Portfolio-Id` Header
+Introduce a consistent, optional header (e.g., `X-Portfolio-Id`) that clients can set explicitly when a portfolio switcher exists. For current single-portfolio users, the backend continues to auto-resolve if the header is absent. This unifies future multi-portfolio handling with minimal disruption today.
+
+#### 8.2.5 Fix 2.5: Observability and Alerts
+Instrument portfolio resolution with counters by path (JWT/conversation/DB) and surface a weekly report. Add alerts for spikes in DB-based resolution (which may indicate JWT claims missing unexpectedly) and for chat tool failures related to missing portfolio context.
+
 ### 8.3 Level 3: Complete Redesign (High Risk, Very High Reward)
 **Timeline: 2-3 weeks**
 
@@ -554,6 +655,15 @@ class UserSession:
     # All API calls validate against active session
     # Portfolio context always available from session
 ```
+
+#### 8.3.4 Fix 3.4: Portfolio-First REST Contract
+Adopt a portfolio-scoped URI pattern across all data endpoints (e.g., `/api/v1/portfolios/{portfolio_id}/positions`). Make the path parameter the authoritative source, deprecating ad hoc query/body params. This clarifies intent and makes routing and authorization checks straightforward.
+
+#### 8.3.5 Fix 3.5: Portfolio-Scoped Identity and Multi-Portfolio UX
+Issue portfolio-scoped tokens when users explicitly select a portfolio. If a user has multiple portfolios, the login flow must route through a portfolio selection screen before issuing a portfolio-scoped identity. Persist the selection to the session and JWT claims.
+
+#### 8.3.6 Fix 3.6: Conversational Context Contracts
+Define an explicit contract for conversation metadata that always includes `portfolio_id`, creation timestamp, and optional portfolio switch events. Tool handlers consume this contract rather than inferring state, enabling robust replay/debugging.
 
 ---
 
@@ -626,6 +736,16 @@ class UserSession:
 - Portfolio-first architecture
 - Advanced session management
 - Complete system redesign
+
+### 9.5 Open Questions for Stakeholders
+- Multi-portfolio rollout specifics: Target release window and selection point. When users have multiple portfolios, should selection occur at login or via an in-app switcher? (Decision not required for Level 1.)
+- Conversation creation audit: Can we guarantee `conversation.meta_data.portfolio_id` is set at creation for all chat entry points? Identify any code paths that bypass conversation creation and propose mitigation.
+
+### 9.6 Stakeholder Decisions
+- Multi-portfolio support is on the roadmap but is not required for Level 1/V1.4. We will not introduce additional complexity now beyond optional scaffolding in Level 2.
+- `portfolio_id` remains optional in V1.4. The backend will apply deterministic default resolution (SSoT) when it is omitted. Alternative path: in Level 2/3, make portfolio scope explicit via `X-Portfolio-Id` and portfolio-first REST paths.
+- Chat continues to use cookies. With HTTPS, set `Secure`, `HttpOnly`, and appropriate `SameSite` attributes as documented in Section 2.4. No expected issues under same-origin deployment when configured correctly.
+- Telemetry sink: Use logs. Emit the portfolio resolution events to the existing chat monitoring JSON stream using the schema in Section 8.1.9.
 
 ---
 
