@@ -3010,72 +3010,123 @@ if auth_token:
 
 ---
 
-### 🔍 9.12.1 Deep Investigation: Why Phase 9.12 Fixes Not Working ❌ **ACTIVE**
+### 🔍 9.12.1 Deep Investigation: Why Phase 9.12 Fixes Not Working ❌ **ACTIVE - REFINED PLAN**
+
+> **Updated**: Incorporating code review feedback for systematic root cause isolation
 
 **Status**: Code changes applied but system still using "your-portfolio-id" placeholder in tool calls
 
-**Investigation Plan**:
+**CRITICAL FINDING**: Initial search shows "your-portfolio-id" only appears in documentation, not actual code. This suggests the placeholder is coming from a different source or default fallback mechanism.
 
-**1. Verify Conversation Creation Flow**
-- Check if new conversations are actually getting portfolio metadata populated
-- Verify conversation `a2619aba-3aa1-4fbb-830f-3f051d1a2fbe` has correct `meta_data`
-- Debug auto-resolution query execution
+### **Refined Investigation Plan (Priority Order)**
 
-**2. Trace System Prompt Template Processing**
-- Verify `{portfolio_id}` placeholder is in the system prompt template
-- Check if template replacement logic is executing
-- Debug OpenAI request payload to see if portfolio UUID is included
+#### **🔍 Step 1: Find the Placeholder Source (HIGHEST PRIORITY)**
+**Observation**: Repo-wide search for "your-portfolio-id" only found documentation files
+**Action**: Search for alternative hardcoded strings and defaults
+**Commands**:
+```bash
+# Search for potential sources
+grep -r "portfolio.*id.*default\|portfolio.*placeholder\|your.*portfolio\|example.*portfolio" backend/app/agent/
+grep -r "portfolio_id.*=" backend/app/agent/ | grep -v "conversation\|meta_data"
+```
+**Expected**: Find where the actual placeholder originates
 
-**3. Check Tool Handler Configuration**
-- Verify chat tools are getting portfolio context from conversation metadata
-- Check if portfolio_context is being passed to OpenAI tool definitions
-- Debug tool call parameter construction
+#### **🔍 Step 2: 3-Point Minimal Tracing (SYSTEMATIC ISOLATION)**
+Add **exactly 3 debug logs** to isolate where UUID disappears:
 
-**4. Database State Verification**
-- Check if conversation `a2619aba-3aa1-4fbb-830f-3f051d1a2fbe` exists with correct metadata
-- Verify portfolio ownership for user `d56c83ff-267e-4e2a-b484-bf3849d1fb6d`
-- Check conversation-portfolio linkage
-
-**Potential Root Causes**:
-
-**A. Conversation Metadata Not Populated**
-- Auto-resolution query not executing
-- Portfolio query returning no results
-- Database transaction not committing metadata
-
-**B. System Prompt Template Not Processing**
-- Template replacement logic not running
-- `{portfolio_id}` placeholder not found in template
-- Template loading from wrong file/cache
-
-**C. Tool Context Not Passed to OpenAI**
-- Portfolio context not included in OpenAI request
-- Tool definitions not receiving portfolio UUID
-- Context lost between conversation and tool execution
-
-**D. Using Old/Cached Conversations**
-- Chat UI connecting to old conversation without metadata
-- Frontend caching old conversation ID
-- Backend serving stale conversation data
-
-**Diagnostic Commands**:
-```sql
--- Check conversation metadata
-SELECT id, meta_data, created_at FROM conversations 
-WHERE id = 'a2619aba-3aa1-4fbb-830f-3f051d1a2fbe';
-
--- Check portfolio ownership
-SELECT id FROM portfolios 
-WHERE user_id = 'd56c83ff-267e-4e2a-b484-bf3849d1fb6d';
+**A. Conversation Creation Checkpoint** (`backend/app/api/v1/chat/conversations.py`)
+```python
+# After metadata population (around line 60)
+logger.info(f"🔍 TRACE-1 Conversation Created: {conversation.id} | meta_data: {conversation.meta_data}")
 ```
 
-**Next Actions**:
-1. **Database Investigation** - Query conversation and portfolio tables
-2. **Code Path Tracing** - Add debug logging to conversation creation
-3. **System Prompt Debugging** - Log actual prompt sent to OpenAI
-4. **Tool Context Debugging** - Log portfolio_context passed to tools
+**B. Send-Time Context Checkpoint** (`backend/app/api/v1/chat/send.py`)  
+```python
+# Before building OpenAI input (around line 115)
+logger.info(f"🔍 TRACE-2 Send Context: conversation={conversation.id} | portfolio_context={portfolio_context}")
+```
 
-**Expected Resolution**: Identify where in the flow the portfolio ID is getting lost and fix the specific integration point.
+**C. Tool URL Assembly Checkpoint** (`backend/app/agent/tools/handlers.py`)
+```python
+# In get_portfolio_complete before API call (around line 129)
+logger.info(f"🔍 TRACE-3 Tool URL: portfolio_id={portfolio_id} | final_url={endpoint}")
+```
+
+#### **🔍 Step 3: System Prompt Validation**
+**Action**: Log actual system prompt content to verify portfolio ID replacement
+**Location**: `backend/app/agent/services/openai_service.py` in `_build_responses_input()`
+```python
+# After system prompt building (around line 325)
+logger.info(f"🔍 PROMPT-CHECK: {system_prompt[:200]}...")  # First 200 chars
+```
+
+#### **🔍 Step 4: Transaction Boundary Verification**
+**Issue**: Race condition between conversation creation and message send
+**Action**: 
+- Ensure `commit()/flush()` after metadata insertion
+- Verify conversation reloaded in `send.py` with fresh session read
+- Add timestamp logging to detect timing issues
+
+#### **🔍 Step 5: Tool Definition Assembly Investigation**
+**Critical Gap**: Identify exact function that constructs `/api/v1/data/portfolio/{id}/complete`
+**Target**: `backend/app/agent/tools/handlers.py` line 129 - the `endpoint` variable construction
+**Question**: Is `portfolio_id` parameter defaulting to placeholder somewhere?
+
+### **Specific Files to Investigate**
+
+#### **Primary Suspects**:
+1. **`backend/app/agent/tools/handlers.py`** - Tool URL construction (line 129)
+   - **Question**: Where does `portfolio_id` parameter come from?
+   - **Risk**: Default parameter or fallback value
+
+2. **`backend/app/agent/prompts/common_instructions.md`** - Template file
+   - **Question**: Does it contain actual `{portfolio_id}` placeholder?
+   - **Risk**: Template caching preventing updates
+
+3. **`backend/app/agent/tools/tool_registry.py`** - Tool execution flow
+   - **Question**: How are tool arguments passed to handlers?
+   - **Risk**: Parameter transformation or defaults
+
+#### **Configuration/Environment Suspects**:
+- Environment variables with default portfolio ID
+- Configuration files with fallback values  
+- Cached templates preventing updates
+
+### **Systematic Testing Approach**
+
+#### **Validation Sequence**:
+1. **Fresh Conversation Test**: Create brand new conversation, send immediate message
+2. **Database State Check**: Query conversation metadata before/after creation
+3. **System Prompt Inspection**: Log actual prompt sent to OpenAI (both initial & continuation)
+4. **Tool Parameter Trace**: Log exact parameters passed to tool handlers
+
+#### **Race Condition Test**:
+```python
+# In conversations.py after metadata setting
+await db.commit()  # Ensure transaction committed
+await db.refresh(conversation)  # Refresh from DB
+```
+
+### **Expected Outcomes**
+
+**If Step 1 finds source**: Direct fix of hardcoded placeholder
+**If Step 2 isolates gap**: Targeted fix at specific integration point  
+**If Step 3 shows template issue**: Fix prompt template processing
+**If Step 4 shows race condition**: Fix transaction boundaries
+**If Step 5 shows tool config issue**: Fix tool parameter passing
+
+### **Investigation Checklist**
+- [ ] **Search complete**: Found actual source of "your-portfolio-id" or equivalent
+- [ ] **3-point trace**: Added minimal logging at conversation/send/tool levels
+- [ ] **System prompt check**: Verified portfolio ID appears in actual prompt sent to OpenAI
+- [ ] **Transaction boundaries**: Confirmed metadata persisted before message send
+- [ ] **Tool parameter trace**: Verified portfolio UUID reaches tool URL construction
+- [ ] **UI conversation verification**: Confirmed chat uses expected conversation ID
+
+### **Success Criteria**
+**Resolution**: Tool calls use actual portfolio UUID `c0510ab8-c6b5-433c-adbc-3f74e1dbdb5e` instead of placeholder
+**Evidence**: Backend logs show `GET /api/v1/data/portfolio/c0510ab8-.../complete` with 200 response
+**Verification**: Manual test passes with portfolio data returned
 
 **Priority**: P0 Critical - Must resolve before considering Phase 9.12 complete
 
