@@ -17,7 +17,7 @@ Ensure the chat system meets all V1.1 requirements through systematic, automated
 - Start backend server on localhost:8000
 - Start frontend dev server on localhost:3005
 - Configure Playwright for browser automation
-- Set up test user credentials (demo_growth@sigmasight.com / demo12345)
+- Set up test user credentials (demo_hnw@sigmasight.com / demo12345)
 
 ## Phase 1: Authentication Testing
 - Test JWT + HttpOnly cookie dual authentication
@@ -83,7 +83,7 @@ Ensure the chat system meets all V1.1 requirements through systematic, automated
 await mcp__playwright__browser_navigate('http://localhost:3005/portfolio?type=high-net-worth');
 
 // Test authentication
-await mcp__playwright__browser_type('#email', 'demo_growth@sigmasight.com');
+await mcp__playwright__browser_type('#email', 'demo_hnw@sigmasight.com');
 await mcp__playwright__browser_type('#password', 'demo12345');
 await mcp__playwright__browser_click('#login-button');
 

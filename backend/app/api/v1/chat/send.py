@@ -56,8 +56,8 @@ async def load_message_history(
             "role": msg.role,
             "content": msg.content
         }
-        if msg.tool_calls:
-            msg_dict["tool_calls"] = msg.tool_calls
+        # Phase 9.9.2: Do not include tool_calls in history to prevent contamination
+        # Tool calls are handled in fresh context by openai_service filtering
         history.append(msg_dict)
     
     return history
@@ -261,7 +261,7 @@ async def sse_generator(
         
         # Update assistant message with final content and metrics
         assistant_message.content = assistant_content
-        assistant_message.tool_calls = tool_calls_made if tool_calls_made else None
+        assistant_message.tool_calls = None  # Phase 9.9.1: Stop persisting tool calls to prevent history contamination
         
         # Store OpenAI response ID for production traceability (Phase 5.8.2.1)
         if openai_response_id:

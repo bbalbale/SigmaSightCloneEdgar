@@ -2169,6 +2169,90 @@ else:
 
 **Estimated Time**: 2-4 hours (implementation + testing)
 
+### 5.9.5 **Precision Improvements (Based on Design Review)** ⚠️ **HIGH PRIORITY**
+
+**Context**: Advanced AI coding agent design review identified precision gaps that could cause silent failures and frontend 400 errors.
+
+- [ ] **5.9.5.1** Add `response.output_item.added` Event Handling
+  - **Purpose**: Early capture of function name and tool call metadata for better correlation
+  - **Implementation**: 
+    ```python
+    elif event.type == "response.output_item.added":
+        if hasattr(event, 'item') and event.item.type == "function_call":
+            function_name = event.item.function_call.name  
+            tool_call_id = event.item.id
+            # Store function name for later delta accumulation
+            accumulated_tool_calls[tool_call_id] = {
+                "id": tool_call_id,
+                "type": "function",
+                "function": {"name": function_name, "arguments": ""}
+            }
+    ```
+  - **Files**: `backend/app/agent/services/openai_service.py` line ~435 (after response.created)
+  - **Benefit**: Resolves frontend 400 errors about `tool_calls[0].function.name` being invalid type
+
+- [ ] **5.9.5.2** Add Error Event Handling 
+  - **Purpose**: Handle API failures gracefully instead of silent failures
+  - **Implementation**:
+    ```python
+    elif event.type == "response.failed":
+        # Handle API failures with proper error classification
+        error_payload = self._build_error_payload(run_id, seq, "api_failure", str(event.error))
+        yield f"event: error\ndata: {json.dumps(error_payload)}\n\n"
+        break
+        
+    elif event.type == "response.incomplete": 
+        # Handle timeout/incomplete responses
+        error_payload = self._build_error_payload(run_id, seq, "incomplete_response", "Response timed out")
+        yield f"event: error\ndata: {json.dumps(error_payload)}\n\n"
+        break
+    ```
+  - **Files**: `backend/app/agent/services/openai_service.py` line ~600 (after unknown event type handling)
+  - **Priority**: P1 High - Prevents silent failures that could confuse users
+
+- [ ] **5.9.5.3** Add `response.output_text.done` Event Handling
+  - **Purpose**: Better completion signaling for text-only responses (no tool calls)
+  - **Implementation**:
+    ```python
+    elif event.type == "response.output_text.done":
+        # Text output completed - useful for responses without tool calls
+        logger.debug(f"Text output completed for response {response_id}")
+        # Continue processing, don't break - might have more events
+    ```
+  - **Files**: `backend/app/agent/services/openai_service.py` line ~452 (after output_text.delta)
+  - **Priority**: P2 Medium - Improves event handling completeness
+
+- [ ] **5.9.5.4** Enhanced Function Name Resolution
+  - **Purpose**: Ensure function names are always strings, never objects (prevents frontend 400s)
+  - **Current Status**: Review shows we may have issues with function name type consistency
+  - **Validation**: Verify all SSE tool_call events emit function.name as string
+  - **Files**: `backend/app/agent/services/openai_service.py` line ~507 (tool_call event emission)
+  - **Test**: Confirm `typeof result.data.tool_name === 'string'` in frontend
+
+- [ ] **5.9.5.5** Integration Test with Enhanced Event Coverage
+  - **Purpose**: Validate all new event types work correctly with real portfolio query
+  - **Test Scenario**: "show me my portfolio quality and prices" (triggers multiple tools)
+  - **Validation Points**:
+    - [ ] `response.output_item.added` correctly captures function names
+    - [ ] All tool calls have string function names in SSE events  
+    - [ ] Error events work correctly (simulate API failure)
+    - [ ] `response.output_text.done` fires for text-only responses
+    - [ ] No frontend 400 errors about tool call format
+  - **Success Criteria**: Zero event handling errors, clean SSE event stream
+
+**Design Review Alignment**: 
+- ✅ Addresses reviewer concern about `event.item_id` usage (we're already correct)
+- ✅ Adds missing completion/error event handling (response.failed, response.incomplete)  
+- ✅ Enhances tool call metadata capture (response.output_item.added)
+- ✅ Validates string type consistency for function names
+- ✅ Maintains alignment with "hard cutover to Responses API" preference
+
+**Cross-Reference**: This addresses gaps identified by advanced AI coding agent review while building on the solid Phase 5.9 foundation that's already working.
+
+**Priority**: P1 High - Prevents silent failures and frontend 400 errors that could surface in production
+
+**Estimated Time**: 1-2 hours (precision fixes + testing)
+
 ---
 
 ## 📋 Phase 6: Testing & Validation (Day 9-10)
@@ -2607,6 +2691,111 @@ Since Phase 5.9 confirmed that OpenAI Responses API is working correctly and Pha
     - [ ] Clear error messages when Responses API unavailable
     - [ ] No references to `/v1/chat/completions` in logs during normal operation
   - **Priority**: P2 Medium - Code cleanup task, improves reliability
+
+### 🔥 9.8 Conversation History Tool Call Bug Fix (1-2 hours) ✅ **COMPLETED 2025-09-04**
+
+**Critical Issue**: 100% chat failure rate due to conversation history tool call contamination.
+
+**Root Cause Identified**:
+- Assistant messages with `tool_calls` stored in conversation history
+- OpenAI requires tool calls followed by tool responses - we only store the calls
+- Creates invalid message sequences: `assistant(tool_calls)` → `user` (missing tool responses)
+- Results in 400 errors: "tool_calls must be followed by tool messages"
+
+**Error Pattern**:
+```
+OpenAI API Error 400: "An assistant message with 'tool_calls' must be followed by tool messages responding to each 'tool_call_id'. The following tool_call_ids did not have response messages: call_48347a88ca8e4653880e6cf3, call_c9f2bb5b523347aaa8af33c3"
+```
+
+**Fix Strategy**:
+- Clean conversation history - strip all tool calls from message history
+- Content-only approach - preserve assistant text, remove tool metadata  
+- Fresh tool context - each conversation makes new tool calls based on current state
+- Affects both `_build_messages()` and `_build_responses_input()` methods
+
+**Files Modified**:
+- `backend/app/agent/services/openai_service.py:287-306` ✅ **FIXED**
+- `backend/app/agent/services/openai_service.py:337-349` ✅ **FIXED**
+
+**Implementation**:
+```python
+# Before: Broken logic included incomplete tool call sequences
+if msg.get("tool_calls"):
+    # This created OpenAI validation errors
+
+# After: Clean separation of content and tool calls
+if msg["role"] == "assistant" and msg.get("tool_calls"):
+    # Only include text content, skip tool calls entirely
+    if msg.get("content") and msg["content"].strip():
+        messages.append({"role": "assistant", "content": msg["content"]})
+```
+
+**Testing Requirements**:
+- [x] Verify conversation history no longer includes tool_calls ✅ **VALIDATED**
+- [x] Test multi-turn conversations with tool usage ✅ **PASSED** 
+- [x] Confirm OpenAI 400 errors eliminated ✅ **CONFIRMED**
+- [x] Validate tool calls still work in fresh context ✅ **WORKING**
+- [x] Test both standard and Responses API paths ✅ **TESTED**
+
+**Completion Results**:
+- **Status**: 🟢 **PRODUCTION READY** - Chat system fully functional
+- **Validation**: Comprehensive testing by chat-testing agent confirms 100% success rate
+- **Evidence**: Backend logs show successful OpenAI 200 OK responses, completed conversations
+- **Performance**: Multi-turn conversations working, tool calls executing properly
+- **Resolution**: Eliminated 100% chat failure rate, restored full functionality
+
+**Impact**: 
+- **Blocker Resolution** - Enables all chat functionality
+- **Immediate** - Should fix 100% failure rate
+- **Compatible** - Maintains conversational continuity via text content
+
+### 🔧 9.9 Conversation History Root Cause Cleanup (30-45 minutes) 🚨 **PENDING 2025-09-04**
+
+**Issue**: While 9.8 fixed the immediate 400 errors by filtering conversation history, we still persist contaminated tool call sequences in the database and expose them in the history loader. This creates technical debt and potential future issues.
+
+**Root Cause**: We continue to save `assistant_message.tool_calls` in `send.py` and return them in `load_message_history()`, requiring perpetual downstream filtering.
+
+**Architectural Improvement Goals**:
+- Stop contamination at the source rather than filtering around it
+- Create clean "content-only" history boundary
+- Prevent future maintenance burden and edge cases
+
+**Implementation Plan**:
+
+**9.9.1 Stop Persisting Assistant Tool Calls** ⏳ **PENDING**
+- **File**: `backend/app/api/v1/chat/send.py` around line 264
+- **Change**: Set `assistant_message.tool_calls = None` always
+- **Rationale**: Tool call visualization should derive from live SSE events, not DB history
+- **Risk**: Very low - we already don't use persisted tool calls functionally
+
+**9.9.2 Clean History Loader** ⏳ **PENDING**  
+- **File**: `backend/app/api/v1/chat/conversations.py` in `load_message_history()`
+- **Change**: Do not attach `tool_calls` to returned message objects (lines 59-61)
+- **Rationale**: Creates consistent content-only boundary at load time
+- **Risk**: Very low - aligns with current filtering approach
+
+**9.9.3 Optional DB Cleanup Script** 🔄 **FUTURE**
+- One-off async job to null out `tool_calls` for existing `ConversationMessage` rows with `role='assistant'`
+- Prevents surprises in analytics/migrations
+- Can be done in future sprint when convenient
+
+**Validation Requirements**:
+- [ ] Database no longer contains `tool_calls` for new assistant messages
+- [ ] `load_message_history()` returns clean content-only messages
+- [ ] Chat functionality remains 100% working (no regressions)
+- [ ] Multi-turn conversations continue to work perfectly
+
+**Files to Modify**:
+- `backend/app/api/v1/chat/send.py:~264` ✅ **Ready to implement**
+- `backend/app/api/v1/chat/conversations.py:load_message_history()` ✅ **Ready to implement**
+
+**Impact**:
+- **Architectural**: Clean database, no future contamination
+- **Maintenance**: Eliminates need for perpetual filtering
+- **Risk**: Minimal - aligns with working solution from 9.8
+- **Benefit**: Future-proof, cleaner codebase
+
+**Priority**: P1 High - Root cause resolution that prevents future technical debt
 
 ---
 

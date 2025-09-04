@@ -287,24 +287,23 @@ class OpenAIService:
         # Add conversation history
         for msg in message_history:
             if msg["role"] in ["user", "assistant"]:
-                messages.append({
-                    "role": msg["role"],
-                    "content": msg["content"]
-                })
-            # Skip tool calls in conversation history to avoid OpenAI validation errors
-            # OpenAI requires every assistant message with tool_calls to be followed by tool responses
-            # Since we don't store tool responses in conversation history, we skip tool calls entirely
-            # The assistant will make new tool calls based on the current context
-            if msg.get("tool_calls"):
-                logger.debug(f"Skipping tool calls in conversation history to avoid incomplete sequences")
-                # Just add the content without tool calls
-                if msg.get("content"):
+                # Check if this assistant message has tool calls
+                if msg["role"] == "assistant" and msg.get("tool_calls"):
+                    logger.debug(f"Skipping assistant message with tool calls to avoid incomplete sequences")
+                    # Only include the text content, skip tool calls entirely
+                    if msg.get("content") and msg["content"].strip():
+                        messages.append({
+                            "role": "assistant",
+                            "content": msg["content"]
+                        })
+                    # Skip messages that only have tool calls with no content
+                    continue
+                else:
+                    # Regular user message or assistant message without tool calls
                     messages.append({
-                        "role": "assistant",
+                        "role": msg["role"],
                         "content": msg["content"]
                     })
-                # Skip empty assistant messages with only tool calls
-                continue
         
         # Add current user message
         messages.append({"role": "user", "content": user_message})
@@ -337,10 +336,23 @@ class OpenAIService:
         # Add conversation history (user/assistant pairs)
         for msg in message_history:
             if msg["role"] in ["user", "assistant"]:
-                messages.append({
-                    "role": msg["role"],
-                    "content": msg["content"]
-                })
+                # Check if this assistant message has tool calls
+                if msg["role"] == "assistant" and msg.get("tool_calls"):
+                    logger.debug(f"Skipping assistant message with tool calls in Responses API input")
+                    # Only include the text content, skip tool calls entirely
+                    if msg.get("content") and msg["content"].strip():
+                        messages.append({
+                            "role": "assistant",
+                            "content": msg["content"]
+                        })
+                    # Skip messages that only have tool calls with no content
+                    continue
+                else:
+                    # Regular user message or assistant message without tool calls
+                    messages.append({
+                        "role": msg["role"],
+                        "content": msg["content"]
+                    })
                 # Note: We skip tool_calls from history as Responses manages tools per-turn
         
         # Add current user message
