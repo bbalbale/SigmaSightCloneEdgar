@@ -5,6 +5,15 @@
 **Target:** SigmaSight Portfolio Chat Assistant  
 **Reference:** `_docs/requirements/CHAT_IMPLEMENTATION_PLAN.md`
 
+## ✅ **CRITICAL UPDATE (2025-09-04)**: Phase 9.12.2 Portfolio Resolution Completed
+
+**Major Backend Enhancement**: Portfolio ID resolution is now handled entirely by the backend! 
+- ✅ **No frontend portfolio ID management required**
+- ✅ **Backend auto-resolves portfolio metadata** for all authenticated users  
+- ✅ **All sections below marked as SUPERSEDED** where portfolio ID resolution was manual
+- ✅ **Cross-Reference**: `/agent/TODO.md` § 9.12.2 - Complete implementation details
+- ✅ **Testing confirmed**: Portfolio queries working with `demo_hnw@sigmasight.com`
+
 ## 1. Current Implementation Status
 
 ### ✅ What's Currently Working
@@ -26,10 +35,11 @@
 - **Development Server**: Running on port 3005 (`npm run dev`)
 - **Portfolio Page**: `http://localhost:3005/portfolio?type=high-net-worth` (working with real data)
 - **Chat Interface**: Accessible via sheet overlay from portfolio page (currently mock responses)
-- **⚠️ Portfolio IDs**: Run `uv run python scripts/list_portfolios.py` in backend to get actual IDs
-  - Portfolio IDs are **unique per database** and change with each setup
-  - Frontend must dynamically fetch IDs, not hardcode them
-  - Test with actual IDs from your environment
+- **✅ Portfolio IDs**: ~~Run `uv run python scripts/list_portfolios.py` in backend to get actual IDs~~ **RESOLVED**
+  - ~~Portfolio IDs are **unique per database** and change with each setup~~
+  - ~~Frontend must dynamically fetch IDs, not hardcode them~~
+  - ✅ **Phase 9.12.2**: Backend auto-resolves portfolio IDs for authenticated users
+  - ✅ **No manual ID management required** - backend handles portfolio context automatically
 
 ### 🚀 Ready for V1.1 Implementation
 **Next Immediate Action**: Section 1.0 Authentication Migration
@@ -47,10 +57,11 @@
 
 **Demo Testing Context:**
 - **User**: `demo_hnw@sigmasight.com` / `demo12345` (recommended - has portfolio data)
-- **Portfolio ID**: ⚠️ **CRITICAL** - IDs are unique per database installation!
-  - Run `cd backend && uv run python scripts/list_portfolios.py` to get your IDs
-  - Example ID format: `c0510ab8-c6b5-433c-adbc-3f74e1dbdb5e`
-  - Frontend must fetch these dynamically, not hardcode them
+- **Portfolio ID**: ✅ **RESOLVED - Phase 9.12.2** - Backend auto-resolves portfolio IDs!
+  - ~~Run `cd backend && uv run python scripts/list_portfolios.py` to get your IDs~~ **NOT NEEDED**
+  - ~~Example ID format: `c0510ab8-c6b5-433c-adbc-3f74e1dbdb5e`~~ **HANDLED BY BACKEND**
+  - ✅ **Backend enhancement**: Automatically populates portfolio metadata for authenticated users
+  - ✅ **Cross-Reference**: `/agent/TODO.md` § 9.12.2 - Backend portfolio resolution complete
 - **Chat Modes**: 4 conversation modes ready (/mode green|blue|indigo|violet)
 - **Working Endpoints**: All 6 Raw Data APIs function properly for AI agent tools
 
@@ -513,20 +524,21 @@ This implementation follows an **automated test-driven development cycle** using
 
 ### 3. **Backend Integration**
 
-- [x] **3.0** Dynamic Portfolio ID Resolution ✅ COMPLETED (Updated 2025-09-02)
-  - [x] **3.0.1** Create `portfolioResolver.ts` service ✅
-    - [x] ~~Created resolver service with hint-based discovery mechanism~~ ✅
-    - [x] **UPDATED**: Now uses proper `/api/v1/data/portfolios` endpoint ✅
-    - [x] Implemented cache for portfolio IDs with 5-minute TTL ✅
-    - [x] Removed hint-based mechanism completely ✅
-  - [x] **3.0.2** Update `portfolioService.ts` to use dynamic IDs ✅
-    - [x] Removed hardcoded PORTFOLIO_ID_MAP ✅
-    - [x] Updated to use portfolioResolver.getPortfolioIdByType() ✅
-    - [x] Added portfolio ID caching after successful authentication ✅
-  - [x] **3.0.3** Add portfolio ID validation ✅
-    - [x] Implemented validatePortfolioOwnership() method ✅
-    - [x] Cross-user access properly blocked (404 on unauthorized) ✅
-    - [x] Graceful fallback with error messages for missing portfolios ✅
+- [x] **3.0** ~~Dynamic Portfolio ID Resolution~~ **✅ SUPERSEDED by Phase 9.12.2** (Updated 2025-09-04)
+  - [x] **3.0.1** ~~Create `portfolioResolver.ts` service~~ ✅ **NO LONGER NEEDED**
+    - ~~Created resolver service with hint-based discovery mechanism~~
+    - ~~Now uses proper `/api/v1/data/portfolios` endpoint~~
+    - ~~Implemented cache for portfolio IDs with 5-minute TTL~~
+    - ✅ **Phase 9.12.2**: Backend auto-resolution eliminates need for frontend portfolio ID management
+  - [x] **3.0.2** ~~Update `portfolioService.ts` to use dynamic IDs~~ ✅ **SIMPLIFIED**
+    - ~~Removed hardcoded PORTFOLIO_ID_MAP~~
+    - ~~Updated to use portfolioResolver.getPortfolioIdByType()~~
+    - ✅ **Phase 9.12.2**: Portfolio context automatically handled by backend for all chat operations
+  - [x] **3.0.3** ~~Add portfolio ID validation~~ ✅ **HANDLED BY BACKEND**
+    - ~~Implemented validatePortfolioOwnership() method~~
+    - ~~Cross-user access properly blocked (404 on unauthorized)~~
+    - ✅ **Phase 9.12.2**: Backend validates and auto-populates portfolio metadata securely
+    - ✅ **Cross-Reference**: `/agent/TODO.md` § 9.12.2 - Backend portfolio resolution implementation
   - [x] **3.0.4** Implement backend `/api/v1/data/portfolios` endpoint ✅ **NEW**
     - [x] Created endpoint in backend/app/api/v1/data.py ✅
     - [x] Returns list of portfolios for authenticated user ✅
@@ -650,14 +662,17 @@ This implementation follows an **automated test-driven development cycle** using
 #### 5.2 **Automated Testing & Validation**
 
 ##### 5.2.1 **MCP-Powered Automated Testing** ✅ **COMPLETED 2025-09-02**
-- [x] **5.2.1.0** Test Environment Setup ✅ **COMPLETED**
-  - [x] Dynamically fetch portfolio IDs before test run ✅
-    - Used `uv run python scripts/list_portfolios.py` to get actual IDs
-    - Portfolio ID: `c0510ab8-c6b5-433c-adbc-3f74e1dbdb5e` (demo_hnw@sigmasight.com)
-  - [x] Store portfolio mappings in test configuration ✅
-  - [x] Validate test users have required portfolios ✅
-    - Confirmed 8 portfolios in database, demo users have active positions
-  - [x] Handle different portfolio IDs across environments ✅
+- [x] **5.2.1.0** Test Environment Setup ✅ **SUPERSEDED by Phase 9.12.2**
+  - [x] ~~Dynamically fetch portfolio IDs before test run~~ ✅ **NO LONGER NEEDED**
+    - ~~Used `uv run python scripts/list_portfolios.py` to get actual IDs~~
+    - ~~Portfolio ID: `c0510ab8-c6b5-433c-adbc-3f74e1dbdb5e` (demo_hnw@sigmasight.com)~~
+    - ✅ **Phase 9.12.2**: Backend auto-handles portfolio context for authenticated users
+  - [x] ~~Store portfolio mappings in test configuration~~ ✅ **SIMPLIFIED**
+  - [x] ~~Validate test users have required portfolios~~ ✅ **HANDLED BY BACKEND**
+    - ~~Confirmed 8 portfolios in database, demo users have active positions~~
+    - ✅ **Backend validation**: Auto-validates and populates portfolio metadata
+  - [x] ~~Handle different portfolio IDs across environments~~ ✅ **NO LONGER NEEDED**
+    - ✅ **Phase 9.12.2**: Environment-independent portfolio resolution
 - [x] **5.2.1.1** Set up Playwright MCP integration for chat flow testing ✅ **COMPLETED**
   - [x] Configure browser automation for localhost:3005 ✅
   - [x] Create test scenarios for complete chat flows ✅
@@ -750,14 +765,16 @@ This implementation follows an **automated test-driven development cycle** using
    - ✅ Frontend proxy correctly forwards SSE streaming with credentials
    - ✅ Real-time token streaming operational end-to-end
 
-##### 5.2.3 **Manual Testing Scenarios** ⚠️ **PARTIALLY COMPLETED 2025-09-02**
-- [x] **5.2.3.0** Pre-test Setup ✅ **COMPLETED**
-  - [x] Run `uv run python scripts/list_portfolios.py` to get actual portfolio IDs ✅
-    - Portfolio ID: `c0510ab8-c6b5-433c-adbc-3f74e1dbdb5e` (demo_hnw@sigmasight.com)
-    - 17 active positions, $1.66M total value
-  - [x] Verify demo users have portfolios in database ✅
-  - [x] Update test credentials to match existing users ✅
-  - [x] Ensure portfolio service uses dynamic ID resolution ✅ (Fixed missing setUserPortfolioId)
+##### 5.2.3 **Manual Testing Scenarios** ⚠️ **SUPERSEDED by Phase 9.12.2** (Updated 2025-09-04)
+- [x] **5.2.3.0** Pre-test Setup ✅ **SIMPLIFIED**
+  - [x] ~~Run `uv run python scripts/list_portfolios.py` to get actual portfolio IDs~~ **NO LONGER NEEDED**
+    - ~~Portfolio ID: `c0510ab8-c6b5-433c-adbc-3f74e1dbdb5e` (demo_hnw@sigmasight.com)~~
+    - ~~17 active positions, $1.66M total value~~
+    - ✅ **Phase 9.12.2**: Backend auto-populates portfolio metadata from authentication
+  - [x] ~~Verify demo users have portfolios in database~~ ✅ **HANDLED BY BACKEND**
+  - [x] Use `demo_hnw@sigmasight.com` / `demo12345` credentials ✅ **CONFIRMED**
+  - [x] ~~Ensure portfolio service uses dynamic ID resolution~~ ✅ **BACKEND RESOLUTION**
+    - ✅ **Phase 9.12.2**: No frontend portfolio ID management required
 - [x] **5.2.3.1** Test complete message flow (send → stream → display) ✅ **VALIDATED VIA MCP**
 - [ ] **5.2.3.2** Test conversation persistence across page refresh  
 - [ ] **5.2.3.3** Test mode switching functionality
