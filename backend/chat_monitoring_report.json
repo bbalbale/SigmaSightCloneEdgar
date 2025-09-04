@@ -1,160 +1,275 @@
 {
-  "session_start": "2025-09-03T07:46:18.866467",
+  "session_start": "2025-09-04T08:34:15.116926",
   "status_checks": [
     {
-      "timestamp": "2025-09-03T11:44:21.026700",
+      "timestamp": "2025-09-04T08:34:15.129751",
       "frontend": {
         "status": "running",
-        "response_time": 21.8
+        "response_time": 9.87
       },
       "backend": {
         "status": "running",
-        "response_time": 2.56
+        "response_time": 1.03
       }
     },
     {
-      "timestamp": "2025-09-03T11:44:21.051609",
+      "timestamp": "2025-09-04T08:34:15.140807",
       "login_endpoint": {
         "status": 200,
-        "response_time": 194.0,
+        "response_time": 174.38,
         "has_token": true
       },
       "me_endpoint": {
         "status": 200,
-        "response_time": 3.29
+        "response_time": 5.0
       }
     },
     {
-      "timestamp": "2025-09-03T11:44:51.251824",
+      "timestamp": "2025-09-04T08:34:45.325805",
       "frontend": {
         "status": "running",
-        "response_time": 38.25
+        "response_time": 22.83
       },
       "backend": {
         "status": "running",
-        "response_time": 2.25
+        "response_time": 3.21
       }
     },
     {
-      "timestamp": "2025-09-03T11:44:51.293138",
+      "timestamp": "2025-09-04T08:34:45.352508",
       "login_endpoint": {
         "status": 200,
-        "response_time": 213.06,
+        "response_time": 197.58,
         "has_token": true
       },
       "me_endpoint": {
         "status": 200,
-        "response_time": 3.82
+        "response_time": 4.35
       }
     },
     {
-      "timestamp": "2025-09-03T11:45:21.512402",
+      "timestamp": "2025-09-04T08:35:15.555890",
       "frontend": {
         "status": "running",
-        "response_time": 18.24
+        "response_time": 22.41
       },
       "backend": {
         "status": "running",
-        "response_time": 2.61
+        "response_time": 2.85
       }
     },
     {
-      "timestamp": "2025-09-03T11:45:21.533693",
+      "timestamp": "2025-09-04T08:35:15.581652",
       "login_endpoint": {
         "status": 200,
-        "response_time": 195.0,
+        "response_time": 198.03,
         "has_token": true
       },
       "me_endpoint": {
         "status": 200,
-        "response_time": 3.41
+        "response_time": 4.46
       }
     },
     {
-      "timestamp": "2025-09-03T11:45:51.734401",
+      "timestamp": "2025-09-04T08:35:45.787349",
       "frontend": {
         "status": "running",
-        "response_time": 11.44
+        "response_time": 22.82
       },
       "backend": {
         "status": "running",
-        "response_time": 1.0
+        "response_time": 2.78
       }
     },
     {
-      "timestamp": "2025-09-03T11:45:51.747022",
+      "timestamp": "2025-09-04T08:35:45.813490",
       "login_endpoint": {
         "status": 200,
-        "response_time": 175.03,
+        "response_time": 199.97,
         "has_token": true
       },
       "me_endpoint": {
         "status": 200,
-        "response_time": 3.33
+        "response_time": 4.6
       }
     },
     {
-      "timestamp": "2025-09-03T11:46:21.927669",
+      "timestamp": "2025-09-04T08:36:16.021317",
       "frontend": {
         "status": "running",
-        "response_time": 12.43
+        "response_time": 25.05
       },
       "backend": {
         "status": "running",
-        "response_time": 1.06
+        "response_time": 5.1
       }
     },
     {
-      "timestamp": "2025-09-03T11:46:21.941331",
+      "timestamp": "2025-09-04T08:36:16.052125",
       "login_endpoint": {
         "status": 200,
-        "response_time": 175.56,
+        "response_time": 204.82,
         "has_token": true
       },
       "me_endpoint": {
         "status": 200,
-        "response_time": 3.39
+        "response_time": 4.33
       }
     },
     {
-      "timestamp": "2025-09-03T11:46:52.122637",
+      "timestamp": "2025-09-04T08:36:46.264195",
       "frontend": {
         "status": "running",
-        "response_time": 20.87
+        "response_time": 11.01
       },
       "backend": {
         "status": "running",
-        "response_time": 2.31
+        "response_time": 1.19
       }
     },
     {
-      "timestamp": "2025-09-03T11:46:52.146266",
+      "timestamp": "2025-09-04T08:36:46.276566",
       "login_endpoint": {
         "status": 200,
-        "response_time": 195.51,
+        "response_time": 176.46,
         "has_token": true
       },
       "me_endpoint": {
         "status": 200,
-        "response_time": 3.54
+        "response_time": 4.71
       }
     },
     {
-      "timestamp": "2025-09-03T11:47:22.347701",
+      "timestamp": "2025-09-04T08:37:16.460109",
       "frontend": {
         "status": "running",
-        "response_time": 34.55
+        "response_time": 44.06
       },
       "backend": {
         "status": "running",
-        "response_time": 1.84
+        "response_time": 5.01
       }
     },
     {
-      "timestamp": "2025-09-03T11:47:22.384482",
+      "timestamp": "2025-09-04T08:37:16.509629",
       "login_endpoint": {
         "status": 200,
-        "response_time": 191.39,
+        "response_time": 192.34,
+        "has_token": true
+      },
+      "me_endpoint": {
+        "status": 200,
+        "response_time": 2.13
+      }
+    },
+    {
+      "timestamp": "2025-09-04T08:37:46.706407",
+      "frontend": {
+        "status": "running",
+        "response_time": 25.64
+      },
+      "backend": {
+        "status": "running",
+        "response_time": 2.86
+      }
+    },
+    {
+      "timestamp": "2025-09-04T08:37:46.735399",
+      "login_endpoint": {
+        "status": 200,
+        "response_time": 193.96,
+        "has_token": true
+      },
+      "me_endpoint": {
+        "status": 200,
+        "response_time": 4.96
+      }
+    },
+    {
+      "timestamp": "2025-09-04T08:38:16.936721",
+      "frontend": {
+        "status": "running",
+        "response_time": 26.02
+      },
+      "backend": {
+        "status": "running",
+        "response_time": 2.59
+      }
+    },
+    {
+      "timestamp": "2025-09-04T08:38:16.965814",
+      "login_endpoint": {
+        "status": 200,
+        "response_time": 199.62,
+        "has_token": true
+      },
+      "me_endpoint": {
+        "status": 200,
+        "response_time": 5.99
+      }
+    },
+    {
+      "timestamp": "2025-09-04T08:38:47.173802",
+      "frontend": {
+        "status": "running",
+        "response_time": 84.63
+      },
+      "backend": {
+        "status": "running",
+        "response_time": 1.26
+      }
+    },
+    {
+      "timestamp": "2025-09-04T08:38:47.259988",
+      "login_endpoint": {
+        "status": 200,
+        "response_time": 175.77,
+        "has_token": true
+      },
+      "me_endpoint": {
+        "status": 200,
+        "response_time": 4.5
+      }
+    },
+    {
+      "timestamp": "2025-09-04T08:39:17.442598",
+      "frontend": {
+        "status": "running",
+        "response_time": 70.88
+      },
+      "backend": {
+        "status": "running",
+        "response_time": 1.28
+      }
+    },
+    {
+      "timestamp": "2025-09-04T08:39:17.515064",
+      "login_endpoint": {
+        "status": 200,
+        "response_time": 181.2,
+        "has_token": true
+      },
+      "me_endpoint": {
+        "status": 200,
+        "response_time": 5.7
+      }
+    },
+    {
+      "timestamp": "2025-09-04T08:39:47.704311",
+      "frontend": {
+        "status": "running",
+        "response_time": 23.74
+      },
+      "backend": {
+        "status": "running",
+        "response_time": 2.02
+      }
+    },
+    {
+      "timestamp": "2025-09-04T08:39:47.730452",
+      "login_endpoint": {
+        "status": 200,
+        "response_time": 201.45,
         "has_token": true
       },
       "me_endpoint": {
@@ -163,136 +278,21 @@
       }
     },
     {
-      "timestamp": "2025-09-03T11:47:52.582186",
+      "timestamp": "2025-09-04T08:40:17.938159",
       "frontend": {
         "status": "running",
-        "response_time": 29.55
+        "response_time": 28.5
       },
       "backend": {
         "status": "running",
-        "response_time": 2.09
+        "response_time": 2.96
       }
     },
     {
-      "timestamp": "2025-09-03T11:47:52.614246",
+      "timestamp": "2025-09-04T08:40:17.970109",
       "login_endpoint": {
         "status": 200,
-        "response_time": 190.21,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 3.44
-      }
-    },
-    {
-      "timestamp": "2025-09-03T11:48:22.810281",
-      "frontend": {
-        "status": "running",
-        "response_time": 20.32
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 2.88
-      }
-    },
-    {
-      "timestamp": "2025-09-03T11:48:22.833887",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 190.51,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 3.2
-      }
-    },
-    {
-      "timestamp": "2025-09-03T11:48:53.031011",
-      "frontend": {
-        "status": "running",
-        "response_time": 20.37
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 1.16
-      }
-    },
-    {
-      "timestamp": "2025-09-03T11:48:53.054020",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 190.41,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 3.24
-      }
-    },
-    {
-      "timestamp": "2025-09-03T11:49:23.249988",
-      "frontend": {
-        "status": "running",
-        "response_time": 16.67
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 2.07
-      }
-    },
-    {
-      "timestamp": "2025-09-03T11:49:23.269090",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 200.64,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 3.45
-      }
-    },
-    {
-      "timestamp": "2025-09-03T11:49:53.475658",
-      "frontend": {
-        "status": "running",
-        "response_time": 18.21
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 1.84
-      }
-    },
-    {
-      "timestamp": "2025-09-03T11:49:53.496088",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 193.65,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 3.44
-      }
-    },
-    {
-      "timestamp": "2025-09-03T11:50:23.695744",
-      "frontend": {
-        "status": "running",
-        "response_time": 12.34
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 1.99
-      }
-    },
-    {
-      "timestamp": "2025-09-03T11:50:23.710421",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 213.18,
+        "response_time": 195.39,
         "has_token": true
       },
       "me_endpoint": {
@@ -301,596 +301,205 @@
       }
     },
     {
-      "timestamp": "2025-09-03T11:50:53.930154",
+      "timestamp": "2025-09-04T08:40:48.172127",
       "frontend": {
         "status": "running",
-        "response_time": 12.16
+        "response_time": 26.86
       },
       "backend": {
         "status": "running",
-        "response_time": 1.43
+        "response_time": 2.8
       }
     },
     {
-      "timestamp": "2025-09-03T11:50:53.943934",
+      "timestamp": "2025-09-04T08:40:48.202239",
       "login_endpoint": {
         "status": 200,
-        "response_time": 192.21,
+        "response_time": 197.94,
         "has_token": true
       },
       "me_endpoint": {
         "status": 200,
-        "response_time": 3.67
+        "response_time": 4.21
       }
     },
     {
-      "timestamp": "2025-09-03T11:51:24.129443",
+      "timestamp": "2025-09-04T08:41:18.407230",
       "frontend": {
         "status": "running",
-        "response_time": 13.36
+        "response_time": 23.22
       },
       "backend": {
         "status": "running",
-        "response_time": 0.99
+        "response_time": 2.97
       }
     },
     {
-      "timestamp": "2025-09-03T11:51:24.143947",
+      "timestamp": "2025-09-04T08:41:18.434351",
       "login_endpoint": {
         "status": 200,
-        "response_time": 267.52,
+        "response_time": 197.3,
         "has_token": true
       },
       "me_endpoint": {
         "status": 200,
-        "response_time": 6.09
+        "response_time": 4.74
       }
     },
     {
-      "timestamp": "2025-09-03T11:51:54.399281",
+      "timestamp": "2025-09-04T08:41:48.638828",
       "frontend": {
         "status": "running",
-        "response_time": 21.16
+        "response_time": 21.56
       },
       "backend": {
         "status": "running",
-        "response_time": 2.77
+        "response_time": 2.31
       }
     },
     {
-      "timestamp": "2025-09-03T11:51:54.423805",
+      "timestamp": "2025-09-04T08:41:48.663048",
       "login_endpoint": {
         "status": 200,
-        "response_time": 196.93,
+        "response_time": 200.41,
         "has_token": true
       },
       "me_endpoint": {
         "status": 200,
-        "response_time": 2.68
+        "response_time": 3.31
       }
     },
     {
-      "timestamp": "2025-09-03T11:52:24.622932",
+      "timestamp": "2025-09-04T08:42:18.869193",
       "frontend": {
         "status": "running",
-        "response_time": 20.96
+        "response_time": 27.35
       },
       "backend": {
         "status": "running",
-        "response_time": 1.95
+        "response_time": 3.65
       }
     },
     {
-      "timestamp": "2025-09-03T11:52:24.646553",
+      "timestamp": "2025-09-04T08:42:18.900735",
       "login_endpoint": {
         "status": 200,
-        "response_time": 206.9,
+        "response_time": 201.78,
         "has_token": true
       },
       "me_endpoint": {
         "status": 200,
-        "response_time": 4.84
+        "response_time": 4.4
       }
     },
     {
-      "timestamp": "2025-09-03T11:52:54.859844",
+      "timestamp": "2025-09-04T08:42:49.109358",
       "frontend": {
         "status": "running",
-        "response_time": 17.28
+        "response_time": 20.77
       },
       "backend": {
         "status": "running",
-        "response_time": 1.84
+        "response_time": 2.8
       }
     },
     {
-      "timestamp": "2025-09-03T11:52:54.879324",
+      "timestamp": "2025-09-04T08:42:49.133394",
       "login_endpoint": {
         "status": 200,
-        "response_time": 192.4,
+        "response_time": 199.47,
         "has_token": true
       },
       "me_endpoint": {
         "status": 200,
-        "response_time": 3.86
+        "response_time": 4.27
       }
     },
     {
-      "timestamp": "2025-09-03T11:53:25.077523",
+      "timestamp": "2025-09-04T08:43:19.339642",
       "frontend": {
         "status": "running",
-        "response_time": 18.74
+        "response_time": 18.75
       },
       "backend": {
         "status": "running",
-        "response_time": 1.6
+        "response_time": 2.33
       }
     },
     {
-      "timestamp": "2025-09-03T11:53:25.098248",
+      "timestamp": "2025-09-04T08:43:19.361192",
       "login_endpoint": {
         "status": 200,
-        "response_time": 191.31,
+        "response_time": 196.98,
         "has_token": true
       },
       "me_endpoint": {
         "status": 200,
-        "response_time": 3.69
+        "response_time": 5.05
       }
     },
     {
-      "timestamp": "2025-09-03T11:53:55.294270",
+      "timestamp": "2025-09-04T08:43:49.565676",
       "frontend": {
         "status": "running",
-        "response_time": 20.07
+        "response_time": 26.56
       },
       "backend": {
         "status": "running",
-        "response_time": 1.55
+        "response_time": 2.73
       }
     },
     {
-      "timestamp": "2025-09-03T11:53:55.316221",
+      "timestamp": "2025-09-04T08:43:49.595458",
       "login_endpoint": {
         "status": 200,
-        "response_time": 194.34,
+        "response_time": 200.24,
         "has_token": true
       },
       "me_endpoint": {
         "status": 200,
-        "response_time": 4.13
+        "response_time": 3.35
       }
     },
     {
-      "timestamp": "2025-09-03T11:54:25.516653",
+      "timestamp": "2025-09-04T08:44:19.801537",
       "frontend": {
         "status": "running",
-        "response_time": 20.41
+        "response_time": 21.71
       },
       "backend": {
         "status": "running",
-        "response_time": 2.55
+        "response_time": 1.99
       }
     },
     {
-      "timestamp": "2025-09-03T11:54:25.540123",
+      "timestamp": "2025-09-04T08:44:19.825667",
       "login_endpoint": {
         "status": 200,
-        "response_time": 195.87,
+        "response_time": 203.97,
         "has_token": true
       },
       "me_endpoint": {
         "status": 200,
-        "response_time": 3.69
+        "response_time": 4.72
       }
     },
     {
-      "timestamp": "2025-09-03T11:54:55.741699",
+      "timestamp": "2025-09-04T08:44:50.036843",
       "frontend": {
         "status": "running",
-        "response_time": 18.73
+        "response_time": 23.84
       },
       "backend": {
         "status": "running",
-        "response_time": 2.38
+        "response_time": 2.7
       }
     },
     {
-      "timestamp": "2025-09-03T11:54:55.763212",
+      "timestamp": "2025-09-04T08:44:50.063877",
       "login_endpoint": {
         "status": 200,
-        "response_time": 196.09,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 3.54
-      }
-    },
-    {
-      "timestamp": "2025-09-03T11:55:25.964903",
-      "frontend": {
-        "status": "running",
-        "response_time": 20.26
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 3.04
-      }
-    },
-    {
-      "timestamp": "2025-09-03T11:55:25.988682",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 197.13,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 3.83
-      }
-    },
-    {
-      "timestamp": "2025-09-03T11:55:56.191756",
-      "frontend": {
-        "status": "running",
-        "response_time": 23.69
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 2.35
-      }
-    },
-    {
-      "timestamp": "2025-09-03T11:55:56.218192",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 191.4,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 4.24
-      }
-    },
-    {
-      "timestamp": "2025-09-03T11:56:26.415831",
-      "frontend": {
-        "status": "running",
-        "response_time": 20.41
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 2.2
-      }
-    },
-    {
-      "timestamp": "2025-09-03T11:56:26.438892",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 195.46,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 3.82
-      }
-    },
-    {
-      "timestamp": "2025-09-03T11:56:56.640203",
-      "frontend": {
-        "status": "running",
-        "response_time": 20.39
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 2.86
-      }
-    },
-    {
-      "timestamp": "2025-09-03T11:56:56.663949",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 196.3,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 3.56
-      }
-    },
-    {
-      "timestamp": "2025-09-03T11:57:26.865840",
-      "frontend": {
-        "status": "running",
-        "response_time": 19.75
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 2.67
-      }
-    },
-    {
-      "timestamp": "2025-09-03T11:57:26.888732",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 196.7,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 4.06
-      }
-    },
-    {
-      "timestamp": "2025-09-03T11:57:57.091837",
-      "frontend": {
-        "status": "running",
-        "response_time": 20.65
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 2.5
-      }
-    },
-    {
-      "timestamp": "2025-09-03T11:57:57.115713",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 194.55,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 3.57
-      }
-    },
-    {
-      "timestamp": "2025-09-03T11:58:27.315806",
-      "frontend": {
-        "status": "running",
-        "response_time": 17.71
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 1.84
-      }
-    },
-    {
-      "timestamp": "2025-09-03T11:58:27.335852",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 196.21,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 3.94
-      }
-    },
-    {
-      "timestamp": "2025-09-03T11:58:57.537290",
-      "frontend": {
-        "status": "running",
-        "response_time": 19.48
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 3.07
-      }
-    },
-    {
-      "timestamp": "2025-09-03T11:58:57.560212",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 195.52,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 3.98
-      }
-    },
-    {
-      "timestamp": "2025-09-03T11:59:27.761848",
-      "frontend": {
-        "status": "running",
-        "response_time": 17.39
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 2.37
-      }
-    },
-    {
-      "timestamp": "2025-09-03T11:59:27.782032",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 194.67,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 3.57
-      }
-    },
-    {
-      "timestamp": "2025-09-03T11:59:57.981631",
-      "frontend": {
-        "status": "running",
-        "response_time": 20.09
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 2.62
-      }
-    },
-    {
-      "timestamp": "2025-09-03T11:59:58.004928",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 197.01,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 4.06
-      }
-    },
-    {
-      "timestamp": "2025-09-03T12:00:28.208093",
-      "frontend": {
-        "status": "running",
-        "response_time": 21.81
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 2.27
-      }
-    },
-    {
-      "timestamp": "2025-09-03T12:00:28.232548",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 191.39,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 4.02
-      }
-    },
-    {
-      "timestamp": "2025-09-03T12:00:58.431473",
-      "frontend": {
-        "status": "running",
-        "response_time": 30.85
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 1.69
-      }
-    },
-    {
-      "timestamp": "2025-09-03T12:00:58.465705",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 265.95,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 4.75
-      }
-    },
-    {
-      "timestamp": "2025-09-03T12:01:28.738375",
-      "frontend": {
-        "status": "running",
-        "response_time": 11.32
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 1.11
-      }
-    },
-    {
-      "timestamp": "2025-09-03T12:01:28.750987",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 183.06,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 3.75
-      }
-    },
-    {
-      "timestamp": "2025-09-03T12:01:58.939731",
-      "frontend": {
-        "status": "running",
-        "response_time": 20.41
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 2.39
-      }
-    },
-    {
-      "timestamp": "2025-09-03T12:01:58.962886",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 195.29,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 3.68
-      }
-    },
-    {
-      "timestamp": "2025-09-03T12:02:29.164446",
-      "frontend": {
-        "status": "running",
-        "response_time": 22.67
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 1.72
-      }
-    },
-    {
-      "timestamp": "2025-09-03T12:02:29.189410",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 180.19,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 2.99
-      }
-    },
-    {
-      "timestamp": "2025-09-03T12:02:59.374644",
-      "frontend": {
-        "status": "running",
-        "response_time": 23.68
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 1.92
-      }
-    },
-    {
-      "timestamp": "2025-09-03T12:02:59.400724",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 210.86,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 4.08
-      }
-    },
-    {
-      "timestamp": "2025-09-03T12:03:29.619268",
-      "frontend": {
-        "status": "running",
-        "response_time": 15.1
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 1.36
-      }
-    },
-    {
-      "timestamp": "2025-09-03T12:03:29.635998",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 189.19,
+        "response_time": 198.58,
         "has_token": true
       },
       "me_endpoint": {
@@ -899,279 +508,26 @@
       }
     },
     {
-      "timestamp": "2025-09-03T12:03:59.831121",
+      "timestamp": "2025-09-04T08:45:20.274134",
       "frontend": {
         "status": "running",
-        "response_time": 20.99
+        "response_time": 21.69
       },
       "backend": {
         "status": "running",
-        "response_time": 1.55
+        "response_time": 3.12
       }
     },
     {
-      "timestamp": "2025-09-03T12:03:59.854234",
+      "timestamp": "2025-09-04T08:45:20.299428",
       "login_endpoint": {
         "status": 200,
-        "response_time": 182.78,
+        "response_time": 201.77,
         "has_token": true
       },
       "me_endpoint": {
         "status": 200,
-        "response_time": 4.11
-      }
-    },
-    {
-      "timestamp": "2025-09-03T12:04:30.043184",
-      "frontend": {
-        "status": "running",
-        "response_time": 13.09
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 1.38
-      }
-    },
-    {
-      "timestamp": "2025-09-03T12:04:30.057967",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 248.32,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 3.62
-      }
-    },
-    {
-      "timestamp": "2025-09-03T12:05:00.312379",
-      "frontend": {
-        "status": "running",
-        "response_time": 38.52
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 1.75
-      }
-    },
-    {
-      "timestamp": "2025-09-03T12:05:00.353202",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 184.83,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 4.04
-      }
-    },
-    {
-      "timestamp": "2025-09-03T12:05:30.544268",
-      "frontend": {
-        "status": "running",
-        "response_time": 12.64
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 1.49
-      }
-    },
-    {
-      "timestamp": "2025-09-03T12:05:30.558673",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 179.8,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 4.18
-      }
-    },
-    {
-      "timestamp": "2025-09-03T12:06:00.744648",
-      "frontend": {
-        "status": "running",
-        "response_time": 11.97
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 1.08
-      }
-    },
-    {
-      "timestamp": "2025-09-03T12:06:00.757885",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 180.55,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 4.1
-      }
-    },
-    {
-      "timestamp": "2025-09-03T12:06:30.944445",
-      "frontend": {
-        "status": "running",
-        "response_time": 11.4
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 1.0
-      }
-    },
-    {
-      "timestamp": "2025-09-03T12:06:30.957028",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 182.99,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 3.84
-      }
-    },
-    {
-      "timestamp": "2025-09-03T12:07:01.145745",
-      "frontend": {
-        "status": "running",
-        "response_time": 9.64
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 0.91
-      }
-    },
-    {
-      "timestamp": "2025-09-03T12:07:01.156467",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 181.52,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 3.89
-      }
-    },
-    {
-      "timestamp": "2025-09-03T12:07:31.343916",
-      "frontend": {
-        "status": "running",
-        "response_time": 18.98
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 2.3
-      }
-    },
-    {
-      "timestamp": "2025-09-03T12:07:31.365628",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 200.24,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 3.43
-      }
-    },
-    {
-      "timestamp": "2025-09-03T12:08:01.572982",
-      "frontend": {
-        "status": "running",
-        "response_time": 52.57
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 1.52
-      }
-    },
-    {
-      "timestamp": "2025-09-03T12:08:01.628618",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 272.38,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 5.39
-      }
-    },
-    {
-      "timestamp": "2025-09-03T12:08:31.908440",
-      "frontend": {
-        "status": "running",
-        "response_time": 25.92
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 2.13
-      }
-    },
-    {
-      "timestamp": "2025-09-03T12:08:31.936906",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 270.94,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 5.81
-      }
-    },
-    {
-      "timestamp": "2025-09-03T12:09:02.215540",
-      "frontend": {
-        "status": "running",
-        "response_time": 10.82
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 0.99
-      }
-    },
-    {
-      "timestamp": "2025-09-03T12:09:02.227518",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 183.82,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 3.72
-      }
-    },
-    {
-      "timestamp": "2025-09-03T12:09:32.417037",
-      "frontend": {
-        "status": "running",
-        "response_time": 12.1
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 1.12
-      }
-    },
-    {
-      "timestamp": "2025-09-03T12:09:32.430428",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 269.01,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 4.62
+        "response_time": 3.87
       }
     }
   ],
@@ -1179,111 +535,63 @@
   "chat_interactions": [],
   "console_logs": [
     {
-      "timestamp": "2025-09-03T07:46:18.874460",
-      "level": "info",
-      "message": "%cDownload the React DevTools for a better development experience: https://reactjs.org/link/react-devtools font-weight:bold",
-      "location": "react-dom.development.js:38559",
-      "source": "cdp_manual",
-      "category": "ui"
-    },
-    {
-      "timestamp": "2025-09-03T07:46:18.874469",
-      "level": "error",
-      "message": "Uncaught",
-      "location": "webcomponents-ce.js:32",
-      "source": "cdp_manual",
-      "category": "error"
-    },
-    {
-      "timestamp": "2025-09-03T07:46:18.874474",
-      "level": "warning",
-      "message": "Warning: Missing `Description` or `aria-describedby={undefined}` for {DialogContent}.",
-      "location": "index.mjs:467",
-      "source": "cdp_manual",
-      "category": "general"
-    },
-    {
-      "timestamp": "2025-09-03T07:46:18.874477",
-      "level": "warning",
-      "message": "Warning: Missing `Description` or `aria-describedby={undefined}` for {DialogContent}.",
-      "location": "index.mjs:467",
-      "source": "cdp_manual",
-      "category": "general"
-    },
-    {
-      "timestamp": "2025-09-03T07:46:18.874483",
+      "timestamp": "2025-09-04T08:34:15.151527",
       "level": "log",
-      "message": "Portfolio resolved using correct IDs from database: Object",
-      "location": "portfolioResolver.ts:57",
+      "message": "Adding token to buffer: Object",
+      "location": "useFetchStreaming.ts:140",
       "source": "cdp_manual",
-      "category": "general"
+      "category": "auth"
     },
     {
-      "timestamp": "2025-09-03T07:46:18.874488",
+      "timestamp": "2025-09-04T08:34:15.151531",
       "level": "log",
-      "message": "Portfolio resolved using correct IDs from database: Object",
-      "location": "portfolioResolver.ts:57",
+      "message": "Calling onToken callback with:  Quality runId: run_1756999971763_4jbsfa074",
+      "location": "useFetchStreaming.ts:146",
       "source": "cdp_manual",
-      "category": "general"
+      "category": "auth"
     },
     {
-      "timestamp": "2025-09-03T07:46:18.874491",
+      "timestamp": "2025-09-04T08:34:15.151535",
       "level": "log",
-      "message": "Request deduplication: Reusing existing request for /api/proxy/api/v1/data/portfolio/c0510ab8-c6b5-433c-adbc-3f74e1dbdb5e/complete",
-      "location": "requestManager.ts:17",
-      "source": "cdp_manual",
-      "category": "network"
-    },
-    {
-      "timestamp": "2025-09-03T07:46:18.874496",
-      "level": "error",
-      "message": "Failed to load portfolio data for high-net-worth: TypeError: Failed to execute 'json' on 'Response': body stream already read\n    at loadPortfolioData (webpack-internal:///(app-pages-browser)/./src/services/portfolioService.ts:88:37)\n    at async loadData (webpack-internal:///(app-pages-browser)/./src/app/portfolio/page.tsx:462:30)",
-      "location": "app-index.js:32",
+      "message": "ChatInterface onToken received:  Quality runId: run_1756999971763_4jbsfa074",
+      "location": "ChatInterface.tsx:175",
       "source": "cdp_manual",
       "category": "chat"
     },
     {
-      "timestamp": "2025-09-03T07:46:18.874512",
-      "level": "error",
-      "message": "Failed to load portfolio: TypeError: Failed to execute 'json' on 'Response': body stream already read\n    at loadPortfolioData (webpack-internal:///(app-pages-browser)/./src/services/portfolioService.ts:88:37)\n    at async loadData (webpack-internal:///(app-pages-browser)/./src/app/portfolio/page.tsx:462:30)",
-      "location": "app-index.js:32",
+      "timestamp": "2025-09-04T08:34:15.151539",
+      "level": "log",
+      "message": "All stream buffers: Array(1)",
+      "location": "ChatInterface.tsx:180",
       "source": "cdp_manual",
       "category": "chat"
     },
     {
-      "timestamp": "2025-09-03T07:46:18.874516",
+      "timestamp": "2025-09-04T08:34:15.151542",
       "level": "log",
-      "message": "Loaded portfolio data: Object",
-      "location": "page.tsx:463",
+      "message": "Looking for buffer with runId: run_1756999971763_4jbsfa074",
+      "location": "ChatInterface.tsx:181",
       "source": "cdp_manual",
       "category": "general"
     },
     {
-      "timestamp": "2025-09-03T07:46:18.874519",
+      "timestamp": "2025-09-04T08:34:15.151546",
       "level": "log",
-      "message": "Portfolio name from backend: Demo High Net Worth Investor Portfolio",
-      "location": "page.tsx:464",
-      "source": "cdp_manual",
-      "category": "general"
-    },
-    {
-      "timestamp": "2025-09-03T07:46:18.874523",
-      "level": "log",
-      "message": "Starting chat stream request: Object",
-      "location": "useFetchStreaming.ts:37",
+      "message": "Stream buffer for runId: run_1756999971763_4jbsfa074 Object",
+      "location": "ChatInterface.tsx:183",
       "source": "cdp_manual",
       "category": "chat"
     },
     {
-      "timestamp": "2025-09-03T07:46:18.874526",
+      "timestamp": "2025-09-04T08:34:15.151549",
       "level": "log",
-      "message": "Response received: Object",
-      "location": "useFetchStreaming.ts:53",
+      "message": "Updating message with buffer text: It looks like there was an issue retrieving your portfolio data, as it returned null. Let's try an alternative approach to obtain the information.\n\nHere's what we can do:\n\n1. **Retry the Request**: This might clear any transient issues.\n2. **Check for Data Quality",
+      "location": "ChatInterface.tsx:185",
       "source": "cdp_manual",
       "category": "general"
     },
     {
-      "timestamp": "2025-09-03T07:46:18.874614",
+      "timestamp": "2025-09-04T08:34:15.151553",
       "level": "log",
       "message": "Processing SSE event: Object",
       "location": "useFetchStreaming.ts:97",
@@ -1291,7 +599,7 @@
       "category": "chat"
     },
     {
-      "timestamp": "2025-09-03T07:46:18.874619",
+      "timestamp": "2025-09-04T08:34:15.151556",
       "level": "log",
       "message": "Parsed event: Object",
       "location": "useFetchStreaming.ts:109",
@@ -1299,31 +607,63 @@
       "category": "general"
     },
     {
-      "timestamp": "2025-09-03T07:46:18.874626",
+      "timestamp": "2025-09-04T08:34:15.151559",
       "level": "log",
-      "message": "Processing message_created event: Object",
-      "location": "useFetchStreaming.ts:118",
+      "message": "Adding token to buffer: Object",
+      "location": "useFetchStreaming.ts:140",
       "source": "cdp_manual",
-      "category": "general"
+      "category": "auth"
     },
     {
-      "timestamp": "2025-09-03T07:46:18.874630",
+      "timestamp": "2025-09-04T08:34:15.151563",
       "level": "log",
-      "message": "Received message_created event: Object",
-      "location": "ChatInterface.tsx:160",
+      "message": "Calling onToken callback with: ** runId: run_1756999971763_4jbsfa074",
+      "location": "useFetchStreaming.ts:146",
       "source": "cdp_manual",
-      "category": "general"
+      "category": "auth"
     },
     {
-      "timestamp": "2025-09-03T07:46:18.874634",
+      "timestamp": "2025-09-04T08:34:15.151567",
       "level": "log",
-      "message": "[chatStore] Messages already exist, skipping creation",
-      "location": "chatStore.ts:207",
+      "message": "ChatInterface onToken received: ** runId: run_1756999971763_4jbsfa074",
+      "location": "ChatInterface.tsx:175",
       "source": "cdp_manual",
       "category": "chat"
     },
     {
-      "timestamp": "2025-09-03T07:46:18.874637",
+      "timestamp": "2025-09-04T08:34:15.151571",
+      "level": "log",
+      "message": "All stream buffers: Array(1)",
+      "location": "ChatInterface.tsx:180",
+      "source": "cdp_manual",
+      "category": "chat"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.151576",
+      "level": "log",
+      "message": "Looking for buffer with runId: run_1756999971763_4jbsfa074",
+      "location": "ChatInterface.tsx:181",
+      "source": "cdp_manual",
+      "category": "general"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.151579",
+      "level": "log",
+      "message": "Stream buffer for runId: run_1756999971763_4jbsfa074 Object",
+      "location": "ChatInterface.tsx:183",
+      "source": "cdp_manual",
+      "category": "chat"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.151583",
+      "level": "log",
+      "message": "Updating message with buffer text: It looks like there was an issue retrieving your portfolio data, as it returned null. Let's try an alternative approach to obtain the information.\n\nHere's what we can do:\n\n1. **Retry the Request**: This might clear any transient issues.\n2. **Check for Data Quality**",
+      "location": "ChatInterface.tsx:185",
+      "source": "cdp_manual",
+      "category": "general"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.151587",
       "level": "log",
       "message": "Processing SSE event: Object",
       "location": "useFetchStreaming.ts:97",
@@ -1331,7 +671,7 @@
       "category": "chat"
     },
     {
-      "timestamp": "2025-09-03T07:46:18.874640",
+      "timestamp": "2025-09-04T08:34:15.151590",
       "level": "log",
       "message": "Parsed event: Object",
       "location": "useFetchStreaming.ts:109",
@@ -1339,7 +679,63 @@
       "category": "general"
     },
     {
-      "timestamp": "2025-09-03T07:46:18.874643",
+      "timestamp": "2025-09-04T08:34:15.151593",
+      "level": "log",
+      "message": "Adding token to buffer: Object",
+      "location": "useFetchStreaming.ts:140",
+      "source": "cdp_manual",
+      "category": "auth"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.151597",
+      "level": "log",
+      "message": "Calling onToken callback with: : runId: run_1756999971763_4jbsfa074",
+      "location": "useFetchStreaming.ts:146",
+      "source": "cdp_manual",
+      "category": "auth"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.151601",
+      "level": "log",
+      "message": "ChatInterface onToken received: : runId: run_1756999971763_4jbsfa074",
+      "location": "ChatInterface.tsx:175",
+      "source": "cdp_manual",
+      "category": "chat"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.151604",
+      "level": "log",
+      "message": "All stream buffers: Array(1)",
+      "location": "ChatInterface.tsx:180",
+      "source": "cdp_manual",
+      "category": "chat"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.151607",
+      "level": "log",
+      "message": "Looking for buffer with runId: run_1756999971763_4jbsfa074",
+      "location": "ChatInterface.tsx:181",
+      "source": "cdp_manual",
+      "category": "general"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.151611",
+      "level": "log",
+      "message": "Stream buffer for runId: run_1756999971763_4jbsfa074 Object",
+      "location": "ChatInterface.tsx:183",
+      "source": "cdp_manual",
+      "category": "chat"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.151615",
+      "level": "log",
+      "message": "Updating message with buffer text: It looks like there was an issue retrieving your portfolio data, as it returned null. Let's try an alternative approach to obtain the information.\n\nHere's what we can do:\n\n1. **Retry the Request**: This might clear any transient issues.\n2. **Check for Data Quality**:",
+      "location": "ChatInterface.tsx:185",
+      "source": "cdp_manual",
+      "category": "general"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.151618",
       "level": "log",
       "message": "Processing SSE event: Object",
       "location": "useFetchStreaming.ts:97",
@@ -1347,7 +743,7 @@
       "category": "chat"
     },
     {
-      "timestamp": "2025-09-03T07:46:18.874646",
+      "timestamp": "2025-09-04T08:34:15.151622",
       "level": "log",
       "message": "Parsed event: Object",
       "location": "useFetchStreaming.ts:109",
@@ -1355,15 +751,63 @@
       "category": "general"
     },
     {
-      "timestamp": "2025-09-03T07:46:18.874649",
-      "level": "error",
-      "message": "Streaming error: Object",
-      "location": "app-index.js:32",
+      "timestamp": "2025-09-04T08:34:15.151625",
+      "level": "log",
+      "message": "Adding token to buffer: Object",
+      "location": "useFetchStreaming.ts:140",
+      "source": "cdp_manual",
+      "category": "auth"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.151629",
+      "level": "log",
+      "message": "Calling onToken callback with:  See runId: run_1756999971763_4jbsfa074",
+      "location": "useFetchStreaming.ts:146",
+      "source": "cdp_manual",
+      "category": "auth"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.151632",
+      "level": "log",
+      "message": "ChatInterface onToken received:  See runId: run_1756999971763_4jbsfa074",
+      "location": "ChatInterface.tsx:175",
       "source": "cdp_manual",
       "category": "chat"
     },
     {
-      "timestamp": "2025-09-03T07:46:18.874652",
+      "timestamp": "2025-09-04T08:34:15.151636",
+      "level": "log",
+      "message": "All stream buffers: Array(1)",
+      "location": "ChatInterface.tsx:180",
+      "source": "cdp_manual",
+      "category": "chat"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.151639",
+      "level": "log",
+      "message": "Looking for buffer with runId: run_1756999971763_4jbsfa074",
+      "location": "ChatInterface.tsx:181",
+      "source": "cdp_manual",
+      "category": "general"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.151642",
+      "level": "log",
+      "message": "Stream buffer for runId: run_1756999971763_4jbsfa074 Object",
+      "location": "ChatInterface.tsx:183",
+      "source": "cdp_manual",
+      "category": "chat"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.151646",
+      "level": "log",
+      "message": "Updating message with buffer text: It looks like there was an issue retrieving your portfolio data, as it returned null. Let's try an alternative approach to obtain the information.\n\nHere's what we can do:\n\n1. **Retry the Request**: This might clear any transient issues.\n2. **Check for Data Quality**: See",
+      "location": "ChatInterface.tsx:185",
+      "source": "cdp_manual",
+      "category": "general"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.151649",
       "level": "log",
       "message": "Processing SSE event: Object",
       "location": "useFetchStreaming.ts:97",
@@ -1371,10 +815,1322 @@
       "category": "chat"
     },
     {
-      "timestamp": "2025-09-03T07:46:18.874655",
+      "timestamp": "2025-09-04T08:34:15.151653",
       "level": "log",
       "message": "Parsed event: Object",
       "location": "useFetchStreaming.ts:109",
+      "source": "cdp_manual",
+      "category": "general"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.151656",
+      "level": "log",
+      "message": "Adding token to buffer: Object",
+      "location": "useFetchStreaming.ts:140",
+      "source": "cdp_manual",
+      "category": "auth"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.151660",
+      "level": "log",
+      "message": "Calling onToken callback with:  if runId: run_1756999971763_4jbsfa074",
+      "location": "useFetchStreaming.ts:146",
+      "source": "cdp_manual",
+      "category": "auth"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.151664",
+      "level": "log",
+      "message": "ChatInterface onToken received:  if runId: run_1756999971763_4jbsfa074",
+      "location": "ChatInterface.tsx:175",
+      "source": "cdp_manual",
+      "category": "chat"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.151667",
+      "level": "log",
+      "message": "All stream buffers: Array(1)",
+      "location": "ChatInterface.tsx:180",
+      "source": "cdp_manual",
+      "category": "chat"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.151670",
+      "level": "log",
+      "message": "Looking for buffer with runId: run_1756999971763_4jbsfa074",
+      "location": "ChatInterface.tsx:181",
+      "source": "cdp_manual",
+      "category": "general"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.151674",
+      "level": "log",
+      "message": "Stream buffer for runId: run_1756999971763_4jbsfa074 Object",
+      "location": "ChatInterface.tsx:183",
+      "source": "cdp_manual",
+      "category": "chat"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.151684",
+      "level": "log",
+      "message": "Updating message with buffer text: It looks like there was an issue retrieving your portfolio data, as it returned null. Let's try an alternative approach to obtain the information.\n\nHere's what we can do:\n\n1. **Retry the Request**: This might clear any transient issues.\n2. **Check for Data Quality**: See if",
+      "location": "ChatInterface.tsx:185",
+      "source": "cdp_manual",
+      "category": "general"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.151687",
+      "level": "log",
+      "message": "Processing SSE event: Object",
+      "location": "useFetchStreaming.ts:97",
+      "source": "cdp_manual",
+      "category": "chat"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.151691",
+      "level": "log",
+      "message": "Parsed event: Object",
+      "location": "useFetchStreaming.ts:109",
+      "source": "cdp_manual",
+      "category": "general"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.151694",
+      "level": "log",
+      "message": "Adding token to buffer: Object",
+      "location": "useFetchStreaming.ts:140",
+      "source": "cdp_manual",
+      "category": "auth"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.151698",
+      "level": "log",
+      "message": "Calling onToken callback with:  there's runId: run_1756999971763_4jbsfa074",
+      "location": "useFetchStreaming.ts:146",
+      "source": "cdp_manual",
+      "category": "auth"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.152047",
+      "level": "log",
+      "message": "ChatInterface onToken received:  there's runId: run_1756999971763_4jbsfa074",
+      "location": "ChatInterface.tsx:175",
+      "source": "cdp_manual",
+      "category": "chat"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.152052",
+      "level": "log",
+      "message": "All stream buffers: Array(1)",
+      "location": "ChatInterface.tsx:180",
+      "source": "cdp_manual",
+      "category": "chat"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.152056",
+      "level": "log",
+      "message": "Looking for buffer with runId: run_1756999971763_4jbsfa074",
+      "location": "ChatInterface.tsx:181",
+      "source": "cdp_manual",
+      "category": "general"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.152060",
+      "level": "log",
+      "message": "Stream buffer for runId: run_1756999971763_4jbsfa074 Object",
+      "location": "ChatInterface.tsx:183",
+      "source": "cdp_manual",
+      "category": "chat"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.152064",
+      "level": "log",
+      "message": "Updating message with buffer text: It looks like there was an issue retrieving your portfolio data, as it returned null. Let's try an alternative approach to obtain the information.\n\nHere's what we can do:\n\n1. **Retry the Request**: This might clear any transient issues.\n2. **Check for Data Quality**: See if there's",
+      "location": "ChatInterface.tsx:185",
+      "source": "cdp_manual",
+      "category": "general"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.152067",
+      "level": "log",
+      "message": "Processing SSE event: Object",
+      "location": "useFetchStreaming.ts:97",
+      "source": "cdp_manual",
+      "category": "chat"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.152071",
+      "level": "log",
+      "message": "Parsed event: Object",
+      "location": "useFetchStreaming.ts:109",
+      "source": "cdp_manual",
+      "category": "general"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.152076",
+      "level": "log",
+      "message": "Adding token to buffer: Object",
+      "location": "useFetchStreaming.ts:140",
+      "source": "cdp_manual",
+      "category": "auth"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.152080",
+      "level": "log",
+      "message": "Calling onToken callback with:  anything runId: run_1756999971763_4jbsfa074",
+      "location": "useFetchStreaming.ts:146",
+      "source": "cdp_manual",
+      "category": "auth"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.152084",
+      "level": "log",
+      "message": "ChatInterface onToken received:  anything runId: run_1756999971763_4jbsfa074",
+      "location": "ChatInterface.tsx:175",
+      "source": "cdp_manual",
+      "category": "chat"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.152087",
+      "level": "log",
+      "message": "All stream buffers: Array(1)",
+      "location": "ChatInterface.tsx:180",
+      "source": "cdp_manual",
+      "category": "chat"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.152090",
+      "level": "log",
+      "message": "Looking for buffer with runId: run_1756999971763_4jbsfa074",
+      "location": "ChatInterface.tsx:181",
+      "source": "cdp_manual",
+      "category": "general"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.152094",
+      "level": "log",
+      "message": "Stream buffer for runId: run_1756999971763_4jbsfa074 Object",
+      "location": "ChatInterface.tsx:183",
+      "source": "cdp_manual",
+      "category": "chat"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.152097",
+      "level": "log",
+      "message": "Updating message with buffer text: It looks like there was an issue retrieving your portfolio data, as it returned null. Let's try an alternative approach to obtain the information.\n\nHere's what we can do:\n\n1. **Retry the Request**: This might clear any transient issues.\n2. **Check for Data Quality**: See if there's anything",
+      "location": "ChatInterface.tsx:185",
+      "source": "cdp_manual",
+      "category": "general"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.152101",
+      "level": "log",
+      "message": "Processing SSE event: Object",
+      "location": "useFetchStreaming.ts:97",
+      "source": "cdp_manual",
+      "category": "chat"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.152104",
+      "level": "log",
+      "message": "Parsed event: Object",
+      "location": "useFetchStreaming.ts:109",
+      "source": "cdp_manual",
+      "category": "general"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.152107",
+      "level": "log",
+      "message": "Adding token to buffer: Object",
+      "location": "useFetchStreaming.ts:140",
+      "source": "cdp_manual",
+      "category": "auth"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.152111",
+      "level": "log",
+      "message": "Calling onToken callback with:  affecting runId: run_1756999971763_4jbsfa074",
+      "location": "useFetchStreaming.ts:146",
+      "source": "cdp_manual",
+      "category": "auth"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.152114",
+      "level": "log",
+      "message": "ChatInterface onToken received:  affecting runId: run_1756999971763_4jbsfa074",
+      "location": "ChatInterface.tsx:175",
+      "source": "cdp_manual",
+      "category": "chat"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.152117",
+      "level": "log",
+      "message": "All stream buffers: Array(1)",
+      "location": "ChatInterface.tsx:180",
+      "source": "cdp_manual",
+      "category": "chat"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.152120",
+      "level": "log",
+      "message": "Looking for buffer with runId: run_1756999971763_4jbsfa074",
+      "location": "ChatInterface.tsx:181",
+      "source": "cdp_manual",
+      "category": "general"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.152124",
+      "level": "log",
+      "message": "Stream buffer for runId: run_1756999971763_4jbsfa074 Object",
+      "location": "ChatInterface.tsx:183",
+      "source": "cdp_manual",
+      "category": "chat"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.152128",
+      "level": "log",
+      "message": "Updating message with buffer text: It looks like there was an issue retrieving your portfolio data, as it returned null. Let's try an alternative approach to obtain the information.\n\nHere's what we can do:\n\n1. **Retry the Request**: This might clear any transient issues.\n2. **Check for Data Quality**: See if there's anything affecting",
+      "location": "ChatInterface.tsx:185",
+      "source": "cdp_manual",
+      "category": "general"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.152131",
+      "level": "log",
+      "message": "Processing SSE event: Object",
+      "location": "useFetchStreaming.ts:97",
+      "source": "cdp_manual",
+      "category": "chat"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.152134",
+      "level": "log",
+      "message": "Parsed event: Object",
+      "location": "useFetchStreaming.ts:109",
+      "source": "cdp_manual",
+      "category": "general"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.152137",
+      "level": "log",
+      "message": "Adding token to buffer: Object",
+      "location": "useFetchStreaming.ts:140",
+      "source": "cdp_manual",
+      "category": "auth"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.152141",
+      "level": "log",
+      "message": "Calling onToken callback with:  the runId: run_1756999971763_4jbsfa074",
+      "location": "useFetchStreaming.ts:146",
+      "source": "cdp_manual",
+      "category": "auth"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.152144",
+      "level": "log",
+      "message": "ChatInterface onToken received:  the runId: run_1756999971763_4jbsfa074",
+      "location": "ChatInterface.tsx:175",
+      "source": "cdp_manual",
+      "category": "chat"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.152148",
+      "level": "log",
+      "message": "All stream buffers: Array(1)",
+      "location": "ChatInterface.tsx:180",
+      "source": "cdp_manual",
+      "category": "chat"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.152151",
+      "level": "log",
+      "message": "Looking for buffer with runId: run_1756999971763_4jbsfa074",
+      "location": "ChatInterface.tsx:181",
+      "source": "cdp_manual",
+      "category": "general"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.152154",
+      "level": "log",
+      "message": "Stream buffer for runId: run_1756999971763_4jbsfa074 Object",
+      "location": "ChatInterface.tsx:183",
+      "source": "cdp_manual",
+      "category": "chat"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.152157",
+      "level": "log",
+      "message": "Updating message with buffer text: It looks like there was an issue retrieving your portfolio data, as it returned null. Let's try an alternative approach to obtain the information.\n\nHere's what we can do:\n\n1. **Retry the Request**: This might clear any transient issues.\n2. **Check for Data Quality**: See if there's anything affecting the",
+      "location": "ChatInterface.tsx:185",
+      "source": "cdp_manual",
+      "category": "general"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.152161",
+      "level": "log",
+      "message": "Processing SSE event: Object",
+      "location": "useFetchStreaming.ts:97",
+      "source": "cdp_manual",
+      "category": "chat"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.152164",
+      "level": "log",
+      "message": "Parsed event: Object",
+      "location": "useFetchStreaming.ts:109",
+      "source": "cdp_manual",
+      "category": "general"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.152167",
+      "level": "log",
+      "message": "Adding token to buffer: Object",
+      "location": "useFetchStreaming.ts:140",
+      "source": "cdp_manual",
+      "category": "auth"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.152170",
+      "level": "log",
+      "message": "Calling onToken callback with:  data runId: run_1756999971763_4jbsfa074",
+      "location": "useFetchStreaming.ts:146",
+      "source": "cdp_manual",
+      "category": "auth"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.152174",
+      "level": "log",
+      "message": "ChatInterface onToken received:  data runId: run_1756999971763_4jbsfa074",
+      "location": "ChatInterface.tsx:175",
+      "source": "cdp_manual",
+      "category": "chat"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.152177",
+      "level": "log",
+      "message": "All stream buffers: Array(1)",
+      "location": "ChatInterface.tsx:180",
+      "source": "cdp_manual",
+      "category": "chat"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.152180",
+      "level": "log",
+      "message": "Looking for buffer with runId: run_1756999971763_4jbsfa074",
+      "location": "ChatInterface.tsx:181",
+      "source": "cdp_manual",
+      "category": "general"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.152183",
+      "level": "log",
+      "message": "Stream buffer for runId: run_1756999971763_4jbsfa074 Object",
+      "location": "ChatInterface.tsx:183",
+      "source": "cdp_manual",
+      "category": "chat"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.152187",
+      "level": "log",
+      "message": "Updating message with buffer text: It looks like there was an issue retrieving your portfolio data, as it returned null. Let's try an alternative approach to obtain the information.\n\nHere's what we can do:\n\n1. **Retry the Request**: This might clear any transient issues.\n2. **Check for Data Quality**: See if there's anything affecting the data",
+      "location": "ChatInterface.tsx:185",
+      "source": "cdp_manual",
+      "category": "general"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.152190",
+      "level": "log",
+      "message": "Processing SSE event: Object",
+      "location": "useFetchStreaming.ts:97",
+      "source": "cdp_manual",
+      "category": "chat"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.152193",
+      "level": "log",
+      "message": "Parsed event: Object",
+      "location": "useFetchStreaming.ts:109",
+      "source": "cdp_manual",
+      "category": "general"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.152196",
+      "level": "log",
+      "message": "Adding token to buffer: Object",
+      "location": "useFetchStreaming.ts:140",
+      "source": "cdp_manual",
+      "category": "auth"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.152200",
+      "level": "log",
+      "message": "Calling onToken callback with:  availability runId: run_1756999971763_4jbsfa074",
+      "location": "useFetchStreaming.ts:146",
+      "source": "cdp_manual",
+      "category": "auth"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.152203",
+      "level": "log",
+      "message": "ChatInterface onToken received:  availability runId: run_1756999971763_4jbsfa074",
+      "location": "ChatInterface.tsx:175",
+      "source": "cdp_manual",
+      "category": "chat"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.152206",
+      "level": "log",
+      "message": "All stream buffers: Array(1)",
+      "location": "ChatInterface.tsx:180",
+      "source": "cdp_manual",
+      "category": "chat"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.152209",
+      "level": "log",
+      "message": "Looking for buffer with runId: run_1756999971763_4jbsfa074",
+      "location": "ChatInterface.tsx:181",
+      "source": "cdp_manual",
+      "category": "general"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.152213",
+      "level": "log",
+      "message": "Stream buffer for runId: run_1756999971763_4jbsfa074 Object",
+      "location": "ChatInterface.tsx:183",
+      "source": "cdp_manual",
+      "category": "chat"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.152216",
+      "level": "log",
+      "message": "Updating message with buffer text: It looks like there was an issue retrieving your portfolio data, as it returned null. Let's try an alternative approach to obtain the information.\n\nHere's what we can do:\n\n1. **Retry the Request**: This might clear any transient issues.\n2. **Check for Data Quality**: See if there's anything affecting the data availability",
+      "location": "ChatInterface.tsx:185",
+      "source": "cdp_manual",
+      "category": "general"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.152219",
+      "level": "log",
+      "message": "Processing SSE event: Object",
+      "location": "useFetchStreaming.ts:97",
+      "source": "cdp_manual",
+      "category": "chat"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.152222",
+      "level": "log",
+      "message": "Parsed event: Object",
+      "location": "useFetchStreaming.ts:109",
+      "source": "cdp_manual",
+      "category": "general"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.152225",
+      "level": "log",
+      "message": "Adding token to buffer: Object",
+      "location": "useFetchStreaming.ts:140",
+      "source": "cdp_manual",
+      "category": "auth"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.152229",
+      "level": "log",
+      "message": "Calling onToken callback with: .\n\n runId: run_1756999971763_4jbsfa074",
+      "location": "useFetchStreaming.ts:146",
+      "source": "cdp_manual",
+      "category": "auth"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.152232",
+      "level": "log",
+      "message": "ChatInterface onToken received: .\n\n runId: run_1756999971763_4jbsfa074",
+      "location": "ChatInterface.tsx:175",
+      "source": "cdp_manual",
+      "category": "chat"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.152235",
+      "level": "log",
+      "message": "All stream buffers: Array(1)",
+      "location": "ChatInterface.tsx:180",
+      "source": "cdp_manual",
+      "category": "chat"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.152238",
+      "level": "log",
+      "message": "Looking for buffer with runId: run_1756999971763_4jbsfa074",
+      "location": "ChatInterface.tsx:181",
+      "source": "cdp_manual",
+      "category": "general"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.152241",
+      "level": "log",
+      "message": "Stream buffer for runId: run_1756999971763_4jbsfa074 Object",
+      "location": "ChatInterface.tsx:183",
+      "source": "cdp_manual",
+      "category": "chat"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.152245",
+      "level": "log",
+      "message": "Updating message with buffer text: It looks like there was an issue retrieving your portfolio data, as it returned null. Let's try an alternative approach to obtain the information.\n\nHere's what we can do:\n\n1. **Retry the Request**: This might clear any transient issues.\n2. **Check for Data Quality**: See if there's anything affecting the data availability.\n\n",
+      "location": "ChatInterface.tsx:185",
+      "source": "cdp_manual",
+      "category": "general"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.152248",
+      "level": "log",
+      "message": "Processing SSE event: Object",
+      "location": "useFetchStreaming.ts:97",
+      "source": "cdp_manual",
+      "category": "chat"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.152251",
+      "level": "log",
+      "message": "Parsed event: Object",
+      "location": "useFetchStreaming.ts:109",
+      "source": "cdp_manual",
+      "category": "general"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.152254",
+      "level": "log",
+      "message": "Adding token to buffer: Object",
+      "location": "useFetchStreaming.ts:140",
+      "source": "cdp_manual",
+      "category": "auth"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.152257",
+      "level": "log",
+      "message": "Calling onToken callback with: Would runId: run_1756999971763_4jbsfa074",
+      "location": "useFetchStreaming.ts:146",
+      "source": "cdp_manual",
+      "category": "auth"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.152261",
+      "level": "log",
+      "message": "ChatInterface onToken received: Would runId: run_1756999971763_4jbsfa074",
+      "location": "ChatInterface.tsx:175",
+      "source": "cdp_manual",
+      "category": "chat"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.152264",
+      "level": "log",
+      "message": "All stream buffers: Array(1)",
+      "location": "ChatInterface.tsx:180",
+      "source": "cdp_manual",
+      "category": "chat"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.152267",
+      "level": "log",
+      "message": "Looking for buffer with runId: run_1756999971763_4jbsfa074",
+      "location": "ChatInterface.tsx:181",
+      "source": "cdp_manual",
+      "category": "general"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.152270",
+      "level": "log",
+      "message": "Stream buffer for runId: run_1756999971763_4jbsfa074 Object",
+      "location": "ChatInterface.tsx:183",
+      "source": "cdp_manual",
+      "category": "chat"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.152274",
+      "level": "log",
+      "message": "Updating message with buffer text: It looks like there was an issue retrieving your portfolio data, as it returned null. Let's try an alternative approach to obtain the information.\n\nHere's what we can do:\n\n1. **Retry the Request**: This might clear any transient issues.\n2. **Check for Data Quality**: See if there's anything affecting the data availability.\n\nWould",
+      "location": "ChatInterface.tsx:185",
+      "source": "cdp_manual",
+      "category": "general"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.152277",
+      "level": "log",
+      "message": "Processing SSE event: Object",
+      "location": "useFetchStreaming.ts:97",
+      "source": "cdp_manual",
+      "category": "chat"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.152280",
+      "level": "log",
+      "message": "Parsed event: Object",
+      "location": "useFetchStreaming.ts:109",
+      "source": "cdp_manual",
+      "category": "general"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.152283",
+      "level": "log",
+      "message": "Adding token to buffer: Object",
+      "location": "useFetchStreaming.ts:140",
+      "source": "cdp_manual",
+      "category": "auth"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.152286",
+      "level": "log",
+      "message": "Calling onToken callback with:  you runId: run_1756999971763_4jbsfa074",
+      "location": "useFetchStreaming.ts:146",
+      "source": "cdp_manual",
+      "category": "auth"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.152289",
+      "level": "log",
+      "message": "ChatInterface onToken received:  you runId: run_1756999971763_4jbsfa074",
+      "location": "ChatInterface.tsx:175",
+      "source": "cdp_manual",
+      "category": "chat"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.152293",
+      "level": "log",
+      "message": "All stream buffers: Array(1)",
+      "location": "ChatInterface.tsx:180",
+      "source": "cdp_manual",
+      "category": "chat"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.152297",
+      "level": "log",
+      "message": "Looking for buffer with runId: run_1756999971763_4jbsfa074",
+      "location": "ChatInterface.tsx:181",
+      "source": "cdp_manual",
+      "category": "general"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.152300",
+      "level": "log",
+      "message": "Stream buffer for runId: run_1756999971763_4jbsfa074 Object",
+      "location": "ChatInterface.tsx:183",
+      "source": "cdp_manual",
+      "category": "chat"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.152304",
+      "level": "log",
+      "message": "Updating message with buffer text: It looks like there was an issue retrieving your portfolio data, as it returned null. Let's try an alternative approach to obtain the information.\n\nHere's what we can do:\n\n1. **Retry the Request**: This might clear any transient issues.\n2. **Check for Data Quality**: See if there's anything affecting the data availability.\n\nWould you",
+      "location": "ChatInterface.tsx:185",
+      "source": "cdp_manual",
+      "category": "general"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.152307",
+      "level": "log",
+      "message": "Processing SSE event: Object",
+      "location": "useFetchStreaming.ts:97",
+      "source": "cdp_manual",
+      "category": "chat"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.152310",
+      "level": "log",
+      "message": "Parsed event: Object",
+      "location": "useFetchStreaming.ts:109",
+      "source": "cdp_manual",
+      "category": "general"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.152313",
+      "level": "log",
+      "message": "Adding token to buffer: Object",
+      "location": "useFetchStreaming.ts:140",
+      "source": "cdp_manual",
+      "category": "auth"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.152317",
+      "level": "log",
+      "message": "Calling onToken callback with:  like runId: run_1756999971763_4jbsfa074",
+      "location": "useFetchStreaming.ts:146",
+      "source": "cdp_manual",
+      "category": "auth"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.152320",
+      "level": "log",
+      "message": "ChatInterface onToken received:  like runId: run_1756999971763_4jbsfa074",
+      "location": "ChatInterface.tsx:175",
+      "source": "cdp_manual",
+      "category": "chat"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.152323",
+      "level": "log",
+      "message": "All stream buffers: Array(1)",
+      "location": "ChatInterface.tsx:180",
+      "source": "cdp_manual",
+      "category": "chat"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.152326",
+      "level": "log",
+      "message": "Looking for buffer with runId: run_1756999971763_4jbsfa074",
+      "location": "ChatInterface.tsx:181",
+      "source": "cdp_manual",
+      "category": "general"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.152329",
+      "level": "log",
+      "message": "Stream buffer for runId: run_1756999971763_4jbsfa074 Object",
+      "location": "ChatInterface.tsx:183",
+      "source": "cdp_manual",
+      "category": "chat"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.152333",
+      "level": "log",
+      "message": "Updating message with buffer text: It looks like there was an issue retrieving your portfolio data, as it returned null. Let's try an alternative approach to obtain the information.\n\nHere's what we can do:\n\n1. **Retry the Request**: This might clear any transient issues.\n2. **Check for Data Quality**: See if there's anything affecting the data availability.\n\nWould you like",
+      "location": "ChatInterface.tsx:185",
+      "source": "cdp_manual",
+      "category": "general"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.152336",
+      "level": "log",
+      "message": "Processing SSE event: Object",
+      "location": "useFetchStreaming.ts:97",
+      "source": "cdp_manual",
+      "category": "chat"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.152339",
+      "level": "log",
+      "message": "Parsed event: Object",
+      "location": "useFetchStreaming.ts:109",
+      "source": "cdp_manual",
+      "category": "general"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.152342",
+      "level": "log",
+      "message": "Adding token to buffer: Object",
+      "location": "useFetchStreaming.ts:140",
+      "source": "cdp_manual",
+      "category": "auth"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.152345",
+      "level": "log",
+      "message": "Calling onToken callback with:  me runId: run_1756999971763_4jbsfa074",
+      "location": "useFetchStreaming.ts:146",
+      "source": "cdp_manual",
+      "category": "auth"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.152349",
+      "level": "log",
+      "message": "ChatInterface onToken received:  me runId: run_1756999971763_4jbsfa074",
+      "location": "ChatInterface.tsx:175",
+      "source": "cdp_manual",
+      "category": "chat"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.152352",
+      "level": "log",
+      "message": "All stream buffers: Array(1)",
+      "location": "ChatInterface.tsx:180",
+      "source": "cdp_manual",
+      "category": "chat"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.152355",
+      "level": "log",
+      "message": "Looking for buffer with runId: run_1756999971763_4jbsfa074",
+      "location": "ChatInterface.tsx:181",
+      "source": "cdp_manual",
+      "category": "general"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.152358",
+      "level": "log",
+      "message": "Stream buffer for runId: run_1756999971763_4jbsfa074 Object",
+      "location": "ChatInterface.tsx:183",
+      "source": "cdp_manual",
+      "category": "chat"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.152361",
+      "level": "log",
+      "message": "Updating message with buffer text: It looks like there was an issue retrieving your portfolio data, as it returned null. Let's try an alternative approach to obtain the information.\n\nHere's what we can do:\n\n1. **Retry the Request**: This might clear any transient issues.\n2. **Check for Data Quality**: See if there's anything affecting the data availability.\n\nWould you like me",
+      "location": "ChatInterface.tsx:185",
+      "source": "cdp_manual",
+      "category": "general"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.152364",
+      "level": "log",
+      "message": "Processing SSE event: Object",
+      "location": "useFetchStreaming.ts:97",
+      "source": "cdp_manual",
+      "category": "chat"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.152367",
+      "level": "log",
+      "message": "Parsed event: Object",
+      "location": "useFetchStreaming.ts:109",
+      "source": "cdp_manual",
+      "category": "general"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.152370",
+      "level": "log",
+      "message": "Adding token to buffer: Object",
+      "location": "useFetchStreaming.ts:140",
+      "source": "cdp_manual",
+      "category": "auth"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.152374",
+      "level": "log",
+      "message": "Calling onToken callback with:  to runId: run_1756999971763_4jbsfa074",
+      "location": "useFetchStreaming.ts:146",
+      "source": "cdp_manual",
+      "category": "auth"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.152377",
+      "level": "log",
+      "message": "ChatInterface onToken received:  to runId: run_1756999971763_4jbsfa074",
+      "location": "ChatInterface.tsx:175",
+      "source": "cdp_manual",
+      "category": "chat"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.152380",
+      "level": "log",
+      "message": "All stream buffers: Array(1)",
+      "location": "ChatInterface.tsx:180",
+      "source": "cdp_manual",
+      "category": "chat"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.152383",
+      "level": "log",
+      "message": "Looking for buffer with runId: run_1756999971763_4jbsfa074",
+      "location": "ChatInterface.tsx:181",
+      "source": "cdp_manual",
+      "category": "general"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.152386",
+      "level": "log",
+      "message": "Stream buffer for runId: run_1756999971763_4jbsfa074 Object",
+      "location": "ChatInterface.tsx:183",
+      "source": "cdp_manual",
+      "category": "chat"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.152390",
+      "level": "log",
+      "message": "Updating message with buffer text: It looks like there was an issue retrieving your portfolio data, as it returned null. Let's try an alternative approach to obtain the information.\n\nHere's what we can do:\n\n1. **Retry the Request**: This might clear any transient issues.\n2. **Check for Data Quality**: See if there's anything affecting the data availability.\n\nWould you like me to",
+      "location": "ChatInterface.tsx:185",
+      "source": "cdp_manual",
+      "category": "general"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.152393",
+      "level": "log",
+      "message": "Processing SSE event: Object",
+      "location": "useFetchStreaming.ts:97",
+      "source": "cdp_manual",
+      "category": "chat"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.152396",
+      "level": "log",
+      "message": "Parsed event: Object",
+      "location": "useFetchStreaming.ts:109",
+      "source": "cdp_manual",
+      "category": "general"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.152399",
+      "level": "log",
+      "message": "Adding token to buffer: Object",
+      "location": "useFetchStreaming.ts:140",
+      "source": "cdp_manual",
+      "category": "auth"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.152402",
+      "level": "log",
+      "message": "Calling onToken callback with:  proceed runId: run_1756999971763_4jbsfa074",
+      "location": "useFetchStreaming.ts:146",
+      "source": "cdp_manual",
+      "category": "auth"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.152406",
+      "level": "log",
+      "message": "ChatInterface onToken received:  proceed runId: run_1756999971763_4jbsfa074",
+      "location": "ChatInterface.tsx:175",
+      "source": "cdp_manual",
+      "category": "chat"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.152409",
+      "level": "log",
+      "message": "All stream buffers: Array(1)",
+      "location": "ChatInterface.tsx:180",
+      "source": "cdp_manual",
+      "category": "chat"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.152412",
+      "level": "log",
+      "message": "Looking for buffer with runId: run_1756999971763_4jbsfa074",
+      "location": "ChatInterface.tsx:181",
+      "source": "cdp_manual",
+      "category": "general"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.152415",
+      "level": "log",
+      "message": "Stream buffer for runId: run_1756999971763_4jbsfa074 Object",
+      "location": "ChatInterface.tsx:183",
+      "source": "cdp_manual",
+      "category": "chat"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.152419",
+      "level": "log",
+      "message": "Updating message with buffer text: It looks like there was an issue retrieving your portfolio data, as it returned null. Let's try an alternative approach to obtain the information.\n\nHere's what we can do:\n\n1. **Retry the Request**: This might clear any transient issues.\n2. **Check for Data Quality**: See if there's anything affecting the data availability.\n\nWould you like me to proceed",
+      "location": "ChatInterface.tsx:185",
+      "source": "cdp_manual",
+      "category": "general"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.152422",
+      "level": "log",
+      "message": "Processing SSE event: Object",
+      "location": "useFetchStreaming.ts:97",
+      "source": "cdp_manual",
+      "category": "chat"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.152425",
+      "level": "log",
+      "message": "Parsed event: Object",
+      "location": "useFetchStreaming.ts:109",
+      "source": "cdp_manual",
+      "category": "general"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.152428",
+      "level": "log",
+      "message": "Adding token to buffer: Object",
+      "location": "useFetchStreaming.ts:140",
+      "source": "cdp_manual",
+      "category": "auth"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.152431",
+      "level": "log",
+      "message": "Calling onToken callback with:  with runId: run_1756999971763_4jbsfa074",
+      "location": "useFetchStreaming.ts:146",
+      "source": "cdp_manual",
+      "category": "auth"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.152434",
+      "level": "log",
+      "message": "ChatInterface onToken received:  with runId: run_1756999971763_4jbsfa074",
+      "location": "ChatInterface.tsx:175",
+      "source": "cdp_manual",
+      "category": "chat"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.152438",
+      "level": "log",
+      "message": "All stream buffers: Array(1)",
+      "location": "ChatInterface.tsx:180",
+      "source": "cdp_manual",
+      "category": "chat"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.152441",
+      "level": "log",
+      "message": "Looking for buffer with runId: run_1756999971763_4jbsfa074",
+      "location": "ChatInterface.tsx:181",
+      "source": "cdp_manual",
+      "category": "general"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.152444",
+      "level": "log",
+      "message": "Stream buffer for runId: run_1756999971763_4jbsfa074 Object",
+      "location": "ChatInterface.tsx:183",
+      "source": "cdp_manual",
+      "category": "chat"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.152447",
+      "level": "log",
+      "message": "Updating message with buffer text: It looks like there was an issue retrieving your portfolio data, as it returned null. Let's try an alternative approach to obtain the information.\n\nHere's what we can do:\n\n1. **Retry the Request**: This might clear any transient issues.\n2. **Check for Data Quality**: See if there's anything affecting the data availability.\n\nWould you like me to proceed with",
+      "location": "ChatInterface.tsx:185",
+      "source": "cdp_manual",
+      "category": "general"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.152450",
+      "level": "log",
+      "message": "Processing SSE event: Object",
+      "location": "useFetchStreaming.ts:97",
+      "source": "cdp_manual",
+      "category": "chat"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.152453",
+      "level": "log",
+      "message": "Parsed event: Object",
+      "location": "useFetchStreaming.ts:109",
+      "source": "cdp_manual",
+      "category": "general"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.152456",
+      "level": "log",
+      "message": "Adding token to buffer: Object",
+      "location": "useFetchStreaming.ts:140",
+      "source": "cdp_manual",
+      "category": "auth"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.152460",
+      "level": "log",
+      "message": "Calling onToken callback with:  these runId: run_1756999971763_4jbsfa074",
+      "location": "useFetchStreaming.ts:146",
+      "source": "cdp_manual",
+      "category": "auth"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.152463",
+      "level": "log",
+      "message": "ChatInterface onToken received:  these runId: run_1756999971763_4jbsfa074",
+      "location": "ChatInterface.tsx:175",
+      "source": "cdp_manual",
+      "category": "chat"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.152466",
+      "level": "log",
+      "message": "All stream buffers: Array(1)",
+      "location": "ChatInterface.tsx:180",
+      "source": "cdp_manual",
+      "category": "chat"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.152469",
+      "level": "log",
+      "message": "Looking for buffer with runId: run_1756999971763_4jbsfa074",
+      "location": "ChatInterface.tsx:181",
+      "source": "cdp_manual",
+      "category": "general"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.152473",
+      "level": "log",
+      "message": "Stream buffer for runId: run_1756999971763_4jbsfa074 Object",
+      "location": "ChatInterface.tsx:183",
+      "source": "cdp_manual",
+      "category": "chat"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.152476",
+      "level": "log",
+      "message": "Updating message with buffer text: It looks like there was an issue retrieving your portfolio data, as it returned null. Let's try an alternative approach to obtain the information.\n\nHere's what we can do:\n\n1. **Retry the Request**: This might clear any transient issues.\n2. **Check for Data Quality**: See if there's anything affecting the data availability.\n\nWould you like me to proceed with these",
+      "location": "ChatInterface.tsx:185",
+      "source": "cdp_manual",
+      "category": "general"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.152479",
+      "level": "log",
+      "message": "Processing SSE event: Object",
+      "location": "useFetchStreaming.ts:97",
+      "source": "cdp_manual",
+      "category": "chat"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.152482",
+      "level": "log",
+      "message": "Parsed event: Object",
+      "location": "useFetchStreaming.ts:109",
+      "source": "cdp_manual",
+      "category": "general"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.152485",
+      "level": "log",
+      "message": "Adding token to buffer: Object",
+      "location": "useFetchStreaming.ts:140",
+      "source": "cdp_manual",
+      "category": "auth"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.152497",
+      "level": "log",
+      "message": "Calling onToken callback with:  steps runId: run_1756999971763_4jbsfa074",
+      "location": "useFetchStreaming.ts:146",
+      "source": "cdp_manual",
+      "category": "auth"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.152501",
+      "level": "log",
+      "message": "ChatInterface onToken received:  steps runId: run_1756999971763_4jbsfa074",
+      "location": "ChatInterface.tsx:175",
+      "source": "cdp_manual",
+      "category": "chat"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.152504",
+      "level": "log",
+      "message": "All stream buffers: Array(1)",
+      "location": "ChatInterface.tsx:180",
+      "source": "cdp_manual",
+      "category": "chat"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.152507",
+      "level": "log",
+      "message": "Looking for buffer with runId: run_1756999971763_4jbsfa074",
+      "location": "ChatInterface.tsx:181",
+      "source": "cdp_manual",
+      "category": "general"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.152511",
+      "level": "log",
+      "message": "Stream buffer for runId: run_1756999971763_4jbsfa074 Object",
+      "location": "ChatInterface.tsx:183",
+      "source": "cdp_manual",
+      "category": "chat"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.152565",
+      "level": "log",
+      "message": "Updating message with buffer text: It looks like there was an issue retrieving your portfolio data, as it returned null. Let's try an alternative approach to obtain the information.\n\nHere's what we can do:\n\n1. **Retry the Request**: This might clear any transient issues.\n2. **Check for Data Quality**: See if there's anything affecting the data availability.\n\nWould you like me to proceed with these steps",
+      "location": "ChatInterface.tsx:185",
+      "source": "cdp_manual",
+      "category": "general"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.152568",
+      "level": "log",
+      "message": "Processing SSE event: Object",
+      "location": "useFetchStreaming.ts:97",
+      "source": "cdp_manual",
+      "category": "chat"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.152571",
+      "level": "log",
+      "message": "Parsed event: Object",
+      "location": "useFetchStreaming.ts:109",
+      "source": "cdp_manual",
+      "category": "general"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.152574",
+      "level": "log",
+      "message": "Adding token to buffer: Object",
+      "location": "useFetchStreaming.ts:140",
+      "source": "cdp_manual",
+      "category": "auth"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.152578",
+      "level": "log",
+      "message": "Calling onToken callback with: ? runId: run_1756999971763_4jbsfa074",
+      "location": "useFetchStreaming.ts:146",
+      "source": "cdp_manual",
+      "category": "auth"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.152581",
+      "level": "log",
+      "message": "ChatInterface onToken received: ? runId: run_1756999971763_4jbsfa074",
+      "location": "ChatInterface.tsx:175",
+      "source": "cdp_manual",
+      "category": "chat"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.152584",
+      "level": "log",
+      "message": "All stream buffers: Array(1)",
+      "location": "ChatInterface.tsx:180",
+      "source": "cdp_manual",
+      "category": "chat"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.152587",
+      "level": "log",
+      "message": "Looking for buffer with runId: run_1756999971763_4jbsfa074",
+      "location": "ChatInterface.tsx:181",
+      "source": "cdp_manual",
+      "category": "general"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.152591",
+      "level": "log",
+      "message": "Stream buffer for runId: run_1756999971763_4jbsfa074 Object",
+      "location": "ChatInterface.tsx:183",
+      "source": "cdp_manual",
+      "category": "chat"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.152594",
+      "level": "log",
+      "message": "Updating message with buffer text: It looks like there was an issue retrieving your portfolio data, as it returned null. Let's try an alternative approach to obtain the information.\n\nHere's what we can do:\n\n1. **Retry the Request**: This might clear any transient issues.\n2. **Check for Data Quality**: See if there's anything affecting the data availability.\n\nWould you like me to proceed with these steps?",
+      "location": "ChatInterface.tsx:185",
+      "source": "cdp_manual",
+      "category": "general"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.152597",
+      "level": "log",
+      "message": "Processing SSE event: Object",
+      "location": "useFetchStreaming.ts:97",
+      "source": "cdp_manual",
+      "category": "chat"
+    },
+    {
+      "timestamp": "2025-09-04T08:34:15.152601",
+      "level": "log",
+      "message": "Parsed event: Object",
+      "location": "useFetchStreaming.ts:109",
+      "source": "cdp_manual",
+      "category": "general"
+    },
+    {
+      "timestamp": "2025-09-04T08:36:59.467592",
+      "level": "log",
+      "message": "[Fast Refresh] rebuilding",
+      "location": "hot-reloader-client.js:186",
+      "source": "cdp_manual",
+      "category": "general"
+    },
+    {
+      "timestamp": "2025-09-04T08:36:59.471066",
+      "level": "log",
+      "message": "[Fast Refresh] done in 3ms",
+      "location": "hot-reloader-client.js:43",
       "source": "cdp_manual",
       "category": "general"
     }

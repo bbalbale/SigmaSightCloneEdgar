@@ -2912,6 +2912,65 @@ if auth_token:
 
 ---
 
+## 🐛 **BUG REPORT - 2025-09-04**: Chat Agent Portfolio ID Resolution Failure
+
+**Status**: 🔴 **CRITICAL BUG** - Chat system completely non-functional  
+**Reporter**: User testing via CHAT_TESTING_GUIDE.md  
+**Environment**: Development (localhost:3005 frontend, localhost:8000 backend)
+
+### **Issue Description**
+Chat agent is using hardcoded placeholder portfolio ID `"your-portfolio-id"` instead of resolving the authenticated user's actual portfolio ID, causing all portfolio-related chat queries to fail with 422 Unprocessable Entity errors.
+
+### **Symptoms**
+- User asks: "show me my portfolio pls"  
+- Chat responds: "It looks like there was an issue retrieving your portfolio data, as it returned null"
+- Backend logs show: `GET .../portfolio/your-portfolio-id/complete` → `422 Unprocessable Entity`
+
+### **Root Cause Analysis**
+**Backend logs (08:28:38 and 08:32:54)**:
+```
+🔧 Executing tool call - Tool: get_portfolio_complete
+HTTP Request: GET http://localhost:8000/api/v1/data/portfolio/your-portfolio-id/complete
+HTTP/1.1 422 Unprocessable Entity
+Error in get_portfolio_complete: Client error '422 Unprocessable Entity'
+```
+
+**Expected vs Actual**:
+- ❌ **Actual**: `portfolio/your-portfolio-id/complete` (placeholder)
+- ✅ **Expected**: `portfolio/c0510ab8-c6b5-433c-adbc-3f74e1dbdb5e/complete` (real UUID)
+
+### **Technical Details**
+- **Authentication**: ✅ Working (user authenticated successfully via cookies)
+- **Portfolio API**: ✅ Working (direct API test with real UUID succeeds)
+- **Issue Location**: Chat agent tool configuration/portfolio ID resolution logic
+- **User ID**: `d56c83ff-267e-4e2a-b484-bf3849d1fb6d` (demo_hnw@sigmasight.com)
+- **Portfolio ID**: Should resolve to `c0510ab8-c6b5-433c-adbc-3f74e1dbdb5e`
+
+### **Impact**
+- 🔴 **Severity**: P0 Critical
+- 🔴 **Scope**: ALL portfolio-related chat queries fail  
+- 🔴 **User Experience**: Chat system appears completely broken
+
+### **Fix Required**
+The chat agent's `get_portfolio_complete` tool needs to:
+1. **Resolve user's actual portfolio ID** dynamically from authenticated user context
+2. **Remove hardcoded placeholder** `"your-portfolio-id"`  
+3. **Handle portfolio ID resolution** properly in tool handler
+
+### **Files Likely Affected**
+- `backend/app/agent/tools/handlers.py` - Tool implementation
+- `backend/app/agent/tools/tool_registry.py` - Tool configuration  
+- Portfolio ID resolution logic in chat service layer
+
+### **Testing**
+- **Reproduction**: 100% reproducible following CHAT_TESTING_GUIDE.md
+- **Monitoring**: Full console logs captured via Chrome DevTools Protocol
+- **Verification**: Direct portfolio API works with correct UUID
+
+**Priority**: **IMMEDIATE** - Blocking all chat functionality
+
+---
+
 ## 📋 Phase 10: ID System Refactoring - Option A (Clean API Separation) (Day 12-13)
 
 ### 🔥 10.0 Critical SSE Contract Fixes (1-2 hours) ✅ **COMPLETED 2025-09-02**

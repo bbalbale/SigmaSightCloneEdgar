@@ -5,11 +5,12 @@
 ### 🚨 **CRITICAL: Chat testing WILL FAIL with 401 errors unless you follow the authentication sequence!**
 
 **Before ANY chat testing, you MUST:**
-1. Navigate to: `http://localhost:3005/portfolio?type=high-net-worth`
-2. Wait for portfolio data to load (sets JWT token in localStorage)
-3. ONLY THEN test chat functionality
+1. Navigate to: `http://localhost:3005/login`
+2. Login with demo credentials (pre-filled: `demo_hnw@sigmasight.com` / `demo12345`)
+3. Wait for automatic redirect to portfolio page
+4. ONLY THEN test chat functionality
 
-**Why:** Chat system depends on portfolio authentication to set JWT tokens. Skipping this causes 401 authentication failures.
+**Why:** Chat system requires proper authentication context to access portfolio data. Skipping login causes "portfolio data returned null" errors.
 
 ### ✅ **RECENT UPDATE (2025-09-04)**: Authentication Fixes Completed
 
@@ -71,24 +72,29 @@ tail -n 50 backend/chat_monitoring_report.json | grep status
 
 ## 🚨 **CRITICAL: MUST FOLLOW THIS AUTHENTICATION SEQUENCE** 🚨
 
-### **⚠️ WARNING: Chat WILL FAIL with 401 errors if you skip this sequence!**
+### **⚠️ WARNING: Chat WILL FAIL with null portfolio data if you skip this sequence!**
 
 **For ALL testing modes, you MUST do this first:**
 
 ### **🔑 MANDATORY Authentication Sequence**
 
-1. **🌐 FIRST: Navigate to Portfolio Page**
+1. **🌐 FIRST: Navigate to Login Page**
    ```
-   http://localhost:3005/portfolio?type=high-net-worth
+   http://localhost:3005/login
    ```
 
-2. **⏳ WAIT: Let portfolio data load completely** 
-   - This automatically triggers JWT authentication
-   - Sets `access_token` in localStorage
-   - Required for chat system to work
+2. **🔐 LOGIN: Use demo credentials (pre-filled)**
+   - Email: `demo_hnw@sigmasight.com`
+   - Password: `demo12345`
+   - Click "Sign In" button
 
-3. **✅ ONLY THEN: Test chat functionality**
-   - Chat interface will now work without 401 errors
+3. **⏳ WAIT: For automatic redirect to portfolio page** 
+   - Login sets JWT authentication cookies
+   - Redirects to portfolio with proper authentication context
+   - Required for chat system to access portfolio data
+
+4. **✅ ONLY THEN: Test chat functionality**
+   - Chat interface will now work with proper portfolio data
    - Tools can access backend APIs with authentication
 
 **🔍 Quick Check:** Open DevTools → Application → localStorage → look for `access_token`
@@ -151,22 +157,23 @@ tail -n 50 backend/chat_monitoring_report.json | grep status
    
    Once you've completed authentication, then proceed with chat testing:
    
-   **Step 3a: Portfolio Authentication (Required First)**
-   - Navigate to: http://localhost:3005/portfolio?type=high-net-worth
-   - Wait for portfolio data to load (automatic authentication happens)
-   - This stores the JWT token needed for chat system
+   **Step 3a: Login Authentication (Required First)**
+   - Navigate to: http://localhost:3005/login
+   - Login with demo credentials (pre-filled)
+   - Wait for automatic redirect to portfolio page
+   - This establishes proper authentication context for chat
    
    **Step 3b: Chat Testing**
    - Open chat interface (click chat button or navigate to chat)
-   - Test chat interactions - should now work without 401 errors
+   - Test chat interactions - should now work with proper portfolio data
    - ALL console logs captured automatically!
    
    **Why This Sequence Is Required:**
-   - Portfolio system uses `authManager.ts` (auto-authentication)
-   - Chat system uses `chatService.ts` (expects localStorage token)
+   - Login page establishes proper JWT authentication context
+   - Chat system requires authenticated portfolio data access
    - Fresh browser profiles have no stored authentication tokens
-   - Portfolio visit triggers auth and sets `localStorage['access_token']`
-   - Chat system can then use the stored token
+   - Login flow properly sets authentication cookies and localStorage tokens
+   - Chat system can then access portfolio data with proper authentication
 
 ## 📊 Enhanced Monitoring Output
 
@@ -223,14 +230,16 @@ tail -n 50 backend/chat_monitoring_report.json | grep status
 **Solutions:**
 
 1. **For Fresh Browser Sessions (Debug Mode):**
-   - ✅ **Visit portfolio page first**: http://localhost:3005/portfolio?type=high-net-worth  
-   - This triggers automatic authentication and stores the JWT token
-   - Then return to test chat functionality
+   - ✅ **Use login page first**: http://localhost:3005/login  
+   - Login with demo credentials (pre-filled)
+   - Wait for automatic redirect to portfolio page
+   - This establishes proper authentication and stores the JWT token
+   - Then test chat functionality
 
 2. **For Existing Browser Sessions:**
    - Check if token exists: Open DevTools → Application → localStorage → look for `access_token`
-   - If missing, visit portfolio page to re-authenticate
-   - If present but expired, clear localStorage and visit portfolio page
+   - If missing, use login page to re-authenticate: http://localhost:3005/login
+   - If present but expired, clear localStorage and use login page
 
 3. **Verify Backend Authentication Works:**
    ```bash
