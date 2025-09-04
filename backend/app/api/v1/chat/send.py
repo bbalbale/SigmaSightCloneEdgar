@@ -67,7 +67,8 @@ async def sse_generator(
     message_text: str,
     conversation: Conversation,
     db: AsyncSession,
-    current_user: CurrentUser
+    current_user: CurrentUser,
+    request: Request = None
 ) -> AsyncGenerator[str, None]:
     """
     Generate Server-Sent Events for the chat response using OpenAI.
@@ -159,6 +160,26 @@ async def sse_generator(
         # Generate run_id for this streaming session
         run_id = f"run_{uuid4().hex[:12]}"
         
+        # Extract authentication token from request (Bearer header or cookie)
+        auth_context = None
+        auth_token = None
+        
+        if request:
+            # Try Bearer token first (preferred)
+            authorization_header = request.headers.get("authorization")
+            if authorization_header and authorization_header.startswith("Bearer "):
+                auth_token = authorization_header[7:]  # Remove "Bearer " prefix
+            # Fallback to auth cookie (used by chat interface)
+            elif "auth_token" in request.cookies:
+                auth_token = request.cookies["auth_token"]
+        
+        # If we have any valid token, pass it to tools for authentication
+        if auth_token:
+            auth_context = {
+                "auth_token": auth_token,
+                "user_id": str(current_user.id)
+            }
+        
         # EMIT message_created event with both IDs
         message_created_event = {
             "user_message_id": str(user_message.id),
@@ -180,7 +201,8 @@ async def sse_generator(
             conversation_mode=conversation.mode,
             message_text=message_text,
             message_history=message_history,
-            portfolio_context=portfolio_context
+            portfolio_context=portfolio_context,
+            auth_context=auth_context
         ):
             # Filter out service 'done' to avoid duplicate finalization
             if "event: done" in sse_event:
@@ -342,7 +364,8 @@ async def send_message(
             message_data.text,
             conversation,
             db,
-            current_user
+            current_user,
+            http_request
         )
         
         # Return streaming response

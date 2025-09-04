@@ -1,5 +1,28 @@
 # SigmaSight Chat Testing Guide
 
+## ⚠️ **READ THIS FIRST - AUTHENTICATION REQUIRED** ⚠️
+
+### 🚨 **CRITICAL: Chat testing WILL FAIL with 401 errors unless you follow the authentication sequence!**
+
+**Before ANY chat testing, you MUST:**
+1. Navigate to: `http://localhost:3005/portfolio?type=high-net-worth`
+2. Wait for portfolio data to load (sets JWT token in localStorage)
+3. ONLY THEN test chat functionality
+
+**Why:** Chat system depends on portfolio authentication to set JWT tokens. Skipping this causes 401 authentication failures.
+
+### ✅ **RECENT UPDATE (2025-09-04)**: Authentication Fixes Completed
+
+**Good news!** The critical authentication issues that were causing 401 errors have been **RESOLVED**:
+- ✅ Fixed tool authentication context passing (dual Bearer/cookie support)
+- ✅ Fixed OpenAI Responses API continuation message format  
+- ✅ End-to-end chat functionality now working completely
+- ✅ Comprehensive testing validates all fixes
+
+**Result**: Chat system now works reliably with proper authentication flow. However, the authentication sequence below is still **MANDATORY** for initial JWT token setup.
+
+---
+
 ## 🔍 Quick Status Check (For AI Agents)
 
 ### 1. Verify What's Running
@@ -46,20 +69,42 @@ tail -n 50 backend/chat_monitoring_report.json | grep status
 
 ## 📋 Manual Testing Steps
 
+## 🚨 **CRITICAL: MUST FOLLOW THIS AUTHENTICATION SEQUENCE** 🚨
+
+### **⚠️ WARNING: Chat WILL FAIL with 401 errors if you skip this sequence!**
+
+**For ALL testing modes, you MUST do this first:**
+
+### **🔑 MANDATORY Authentication Sequence**
+
+1. **🌐 FIRST: Navigate to Portfolio Page**
+   ```
+   http://localhost:3005/portfolio?type=high-net-worth
+   ```
+
+2. **⏳ WAIT: Let portfolio data load completely** 
+   - This automatically triggers JWT authentication
+   - Sets `access_token` in localStorage
+   - Required for chat system to work
+
+3. **✅ ONLY THEN: Test chat functionality**
+   - Chat interface will now work without 401 errors
+   - Tools can access backend APIs with authentication
+
+**🔍 Quick Check:** Open DevTools → Application → localStorage → look for `access_token`
+
+---
+
 ### Quick Testing (Automated Mode)
-**Prerequisites:** All services running + `--mode automated`
+**Prerequisites:** All services running + `--mode automated` + **AUTHENTICATION SEQUENCE ABOVE**
 
-⚠️ **IMPORTANT:** Follow authentication sequence for fresh browser sessions
-
-1. **Authenticate:** Navigate to http://localhost:3005/portfolio?type=high-net-worth first
-2. **Wait:** For portfolio data to load (this sets localStorage JWT token)
+1. **Start Monitoring:** `uv run python simple_monitor.py --mode automated &`
+2. **Follow Auth Sequence:** Complete the mandatory authentication steps above
 3. **Test Chat:** Open chat interface and send "What is my portfolio performance?"
 4. **Monitor:** Limited console capture from headless browser
 
-**Note:** If using an existing browser session with stored tokens, you can skip step 1.
-
 ### Comprehensive Testing (Manual Mode - Recommended)
-**Prerequisites:** All services running + manual Chrome setup
+**Prerequisites:** All services running + manual Chrome setup + **AUTHENTICATION SEQUENCE ABOVE**
 
 1. **Start Chrome with CDP:**
    
@@ -96,9 +141,15 @@ tail -n 50 backend/chat_monitoring_report.json | grep status
 
 3. **Test in Your Chrome Browser:**
    
-   ⚠️ **CRITICAL: Authentication Sequence** ⚠️
+   ## 🚨 **STOP! MANDATORY AUTHENTICATION FIRST!** 🚨
    
-   The chat system requires portfolio authentication first. Follow this exact sequence:
+   ### **❌ CHAT WILL FAIL WITHOUT THIS SEQUENCE ❌**
+   
+   **You MUST complete the authentication sequence from above BEFORE testing chat!**
+   
+   If you haven't done it yet, go back to the **MANDATORY Authentication Sequence** section above.
+   
+   Once you've completed authentication, then proceed with chat testing:
    
    **Step 3a: Portfolio Authentication (Required First)**
    - Navigate to: http://localhost:3005/portfolio?type=high-net-worth

@@ -121,8 +121,8 @@ class ToolRegistry:
                     request_id=request_id
                 )
             
-            # (c) Call underlying tool
-            handler = self.registry[tool_name]
+            # (c) Get appropriate tool handler with authentication context
+            handler = await self._get_authenticated_handler(tool_name, ctx)
             result = await handler(**payload)
             
             # Check if the result is an error
@@ -273,6 +273,37 @@ class ToolRegistry:
             List of registered tool names
         """
         return list(self.registry.keys())
+    
+    async def _get_authenticated_handler(self, tool_name: str, ctx: Optional[Dict[str, Any]] = None) -> Callable:
+        """
+        Get tool handler with appropriate authentication context.
+        
+        Args:
+            tool_name: Name of the tool
+            ctx: Optional context containing auth information
+            
+        Returns:
+            Callable tool handler with proper authentication
+        """
+        # If no context or no auth token, use default handler
+        if not ctx or "auth_token" not in ctx:
+            return self.registry[tool_name]
+        
+        # Create authenticated PortfolioTools instance
+        auth_token = ctx["auth_token"]
+        authenticated_tools = PortfolioTools(auth_token=auth_token)
+        
+        # Map tool names to authenticated methods
+        authenticated_registry = {
+            "get_portfolio_complete": authenticated_tools.get_portfolio_complete,
+            "get_positions_details": authenticated_tools.get_positions_details,
+            "get_prices_historical": authenticated_tools.get_prices_historical,
+            "get_current_quotes": authenticated_tools.get_current_quotes,
+            "get_portfolio_data_quality": authenticated_tools.get_portfolio_data_quality,
+            "get_factor_etf_prices": authenticated_tools.get_factor_etf_prices,
+        }
+        
+        return authenticated_registry.get(tool_name, self.registry[tool_name])
     
     def get_tool_info(self, tool_name: str) -> Optional[Dict[str, Any]]:
         """

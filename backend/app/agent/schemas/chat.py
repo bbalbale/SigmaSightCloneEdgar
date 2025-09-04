@@ -11,6 +11,7 @@ from app.agent.schemas.base import AgentBaseSchema
 class ConversationCreate(AgentBaseSchema):
     """Request schema for creating a conversation"""
     mode: str = Field(default="green", pattern="^(green|blue|indigo|violet)$")
+    portfolio_id: Optional[str] = Field(None, description="Portfolio ID to associate with conversation")
 
 
 class ConversationResponse(AgentBaseSchema):

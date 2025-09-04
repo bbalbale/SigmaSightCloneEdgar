@@ -42,7 +42,11 @@ async def create_conversation(
         ConversationResponse with conversation_id and metadata
     """
     try:
-        # Create new conversation
+        # Create new conversation with portfolio context
+        meta_data = {}
+        if request.portfolio_id:
+            meta_data["portfolio_id"] = request.portfolio_id
+            
         conversation = Conversation(
             id=uuid4(),  # Our canonical ID
             user_id=current_user.id,
@@ -50,7 +54,7 @@ async def create_conversation(
             provider="openai",
             created_at=utc_now(),
             updated_at=utc_now(),
-            meta_data={}  # Will store model version, settings, etc.
+            meta_data=meta_data  # Store portfolio_id and other metadata
         )
         
         db.add(conversation)

@@ -368,7 +368,8 @@ class OpenAIService:
         message_text: str,
         message_history: List[Dict[str, Any]] = None,
         portfolio_context: Optional[Dict[str, Any]] = None,
-        run_id: Optional[str] = None
+        run_id: Optional[str] = None,
+        auth_context: Optional[Dict[str, Any]] = None
     ) -> AsyncGenerator[str, None]:
         """
         Stream responses using OpenAI Responses API with proper tool execution handshake
@@ -573,7 +574,19 @@ class OpenAIService:
                             
                             try:
                                 from app.agent.tools.tool_registry import tool_registry
-                                result = await tool_registry.dispatch_tool_call(function_name, function_args)
+                                
+                                # Build context for tool execution
+                                tool_context = {
+                                    "conversation_id": conversation_id,
+                                    "portfolio_context": portfolio_context,
+                                    "request_id": f"{conversation_id}_{tool_call_id}"
+                                }
+                                
+                                # Add authentication context if available
+                                if auth_context:
+                                    tool_context.update(auth_context)
+                                
+                                result = await tool_registry.dispatch_tool_call(function_name, function_args, tool_context)
                                 duration_ms = int((time.time() - start_time) * 1000)
                                 
                                 logger.info(f"✅ Tool call completed - ID: {tool_call_id}, Tool: {function_name}, Duration: {duration_ms}ms")
@@ -594,16 +607,8 @@ class OpenAIService:
                                 yield f"event: tool_result\ndata: {json.dumps(tool_result_payload)}\n\n"
                                 seq += 1
                                 
-                                # CRITICAL: Submit tool output back to Responses API for continuation
-                                if response_id:
-                                    await self.client.responses.submit_tool_outputs(
-                                        response_id=response_id,
-                                        tool_outputs=[{
-                                            "tool_call_id": tool_call_id,
-                                            "output": json.dumps(result) if isinstance(result, dict) else str(result)
-                                        }]
-                                    )
-                                    logger.debug(f"Tool output submitted to response {response_id} for tool {tool_call_id}")
+                                # Store tool result for conversation continuation
+                                accumulated_tool_calls[tool_call_id]["result"] = result
                                 
                             except Exception as e:
                                 duration_ms = int((time.time() - start_time) * 1000)
@@ -631,15 +636,8 @@ class OpenAIService:
                                 yield f"event: tool_result\ndata: {json.dumps(tool_error_payload)}\n\n"
                                 seq += 1
                                 
-                                # Submit error response to Responses API
-                                if response_id:
-                                    await self.client.responses.submit_tool_outputs(
-                                        response_id=response_id,
-                                        tool_outputs=[{
-                                            "tool_call_id": tool_call_id,
-                                            "output": f"Error: {str(e)}"
-                                        }]
-                                    )
+                                # Store error result for conversation continuation
+                                accumulated_tool_calls[tool_call_id]["result"] = error_result
                                     
                     elif event.type == "response.completed":
                         # Response completed
@@ -692,6 +690,73 @@ class OpenAIService:
                 except Exception as event_error:
                     logger.error(f"Error processing Responses API event: {event_error} - event: {event}")
                     continue
+            
+            # After stream completes, if tools were called, continue conversation with tool results
+            if accumulated_tool_calls:
+                logger.info(f"🔄 Continuing conversation with {len(accumulated_tool_calls)} tool results")
+                
+                # Build continuation input with tool results
+                continuation_input = input_data.copy()
+                
+                # Add user message asking OpenAI to analyze the tool results
+                tool_summary_parts = []
+                for tool_call in accumulated_tool_calls.values():
+                    tool_name = tool_call["function"]["name"]
+                    tool_result = tool_call.get("result", {})
+                    # Create a summary of what the tool returned
+                    if isinstance(tool_result, dict) and "data" in tool_result:
+                        data_summary = json.dumps(tool_result["data"], indent=2)[:1000]  # Limit size
+                    else:
+                        data_summary = json.dumps(tool_result, indent=2)[:1000]  # Limit size
+                    
+                    tool_summary_parts.append(f"Tool '{tool_name}' returned:\n{data_summary}")
+                
+                tool_summary = "\n\n".join(tool_summary_parts)
+                
+                # For Responses API, we add a follow-up user message with tool results
+                continuation_message = {
+                    "role": "user",
+                    "content": f"Based on the tool results below, please provide a comprehensive analysis and answer to my original question:\n\n{tool_summary}"
+                }
+                continuation_input.append(continuation_message)
+                
+                # Make continuation call to get final response
+                try:
+                    continuation_stream = await self.client.responses.create(
+                        model=self.model,
+                        input=continuation_input,
+                        tools=tools if tools else None,
+                        stream=True
+                    )
+                    
+                    # Process continuation stream events
+                    async for cont_event in continuation_stream:
+                        try:
+                            if cont_event.type == "response.output_text.delta":
+                                if hasattr(cont_event, 'delta') and cont_event.delta:
+                                    current_content += cont_event.delta
+                                    final_content_parts.append(cont_event.delta)
+                                    
+                                    # Emit token event for continuation
+                                    token_payload = {
+                                        "type": "token",
+                                        "run_id": run_id,
+                                        "seq": seq,
+                                        "data": {"delta": cont_event.delta},
+                                        "timestamp": int(time.time() * 1000)
+                                    }
+                                    yield f"event: token\ndata: {json.dumps(token_payload)}\n\n"
+                                    seq += 1
+                            elif cont_event.type == "response.completed":
+                                logger.info(f"Continuation response completed")
+                                break
+                        except Exception as cont_event_error:
+                            logger.error(f"Error processing continuation event: {cont_event_error}")
+                            continue
+                            
+                except Exception as continuation_error:
+                    logger.error(f"Error in conversation continuation: {continuation_error}")
+                    # Continue to send done event even if continuation fails
             
             # Send final done event
             final_text = "".join(final_content_parts)
