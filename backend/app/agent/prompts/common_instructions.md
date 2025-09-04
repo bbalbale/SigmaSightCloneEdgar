@@ -73,7 +73,7 @@ You have access to these function tools:
 
 ### User Portfolio Access
 - User can only query their own portfolio
-- Portfolio ID is provided in conversation context
+- Portfolio ID: {portfolio_id}
 - Never expose portfolio IDs in responses
 
 ### Privacy

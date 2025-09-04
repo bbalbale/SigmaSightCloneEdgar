@@ -111,20 +111,11 @@ async def sse_generator(
         portfolio_context = None
         portfolio_id = conversation.meta_data.get("portfolio_id") if conversation.meta_data else None
         if portfolio_id:
-            portfolio_service = PortfolioDataService(db)
-            try:
-                portfolio_data = await portfolio_service.get_portfolio_complete(
-                    str(portfolio_id),
-                    include_holdings=False
-                )
-                if portfolio_data and not portfolio_data.get("error"):
-                    portfolio_context = {
-                        "portfolio_id": str(portfolio_id),
-                        "total_value": portfolio_data.get("portfolio", {}).get("total_value"),
-                        "position_count": portfolio_data.get("meta", {}).get("positions_count", 0)
-                    }
-            except Exception as e:
-                logger.warning(f"Could not load portfolio context: {e}")
+            # For now, just pass the portfolio_id - we can add more context later
+            portfolio_context = {
+                "portfolio_id": str(portfolio_id)
+            }
+            logger.info(f"Using portfolio context for conversation: portfolio_id={portfolio_id}")
         
         # Create BOTH messages upfront with backend-generated IDs
         user_message = ConversationMessage(

@@ -10,6 +10,7 @@ from typing import List, Optional
 from app.database import get_db
 from app.core.dependencies import get_current_user, CurrentUser
 from app.agent.models.conversations import Conversation, ConversationMessage
+from app.models.users import User, Portfolio
 from app.agent.schemas.chat import (
     ConversationCreate,
     ConversationResponse,
@@ -42,10 +43,26 @@ async def create_conversation(
         ConversationResponse with conversation_id and metadata
     """
     try:
-        # Create new conversation with portfolio context
-        meta_data = {}
+        # Resolve portfolio ID - use provided or auto-resolve user's portfolio
+        portfolio_id = None
         if request.portfolio_id:
-            meta_data["portfolio_id"] = request.portfolio_id
+            # Use explicitly provided portfolio ID
+            portfolio_id = request.portfolio_id
+        else:
+            # Auto-resolve user's portfolio ID
+            result = await db.execute(
+                select(Portfolio.id)
+                .where(Portfolio.user_id == current_user.id)
+            )
+            portfolio = result.scalar_one_or_none()
+            if portfolio:
+                portfolio_id = str(portfolio)
+                logger.info(f"Auto-resolved portfolio {portfolio_id} for user {current_user.id}")
+        
+        # Create metadata with portfolio context
+        meta_data = {}
+        if portfolio_id:
+            meta_data["portfolio_id"] = portfolio_id
             
         conversation = Conversation(
             id=uuid4(),  # Our canonical ID
