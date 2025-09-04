@@ -117,6 +117,9 @@ async def sse_generator(
             }
             logger.info(f"Using portfolio context for conversation: portfolio_id={portfolio_id}")
         
+        # 🔍 TRACE-2 Send Context (Phase 9.12.1 investigation)
+        logger.info(f"🔍 TRACE-2 Send Context: conversation={conversation.id} | portfolio_context={portfolio_context}")
+        
         # Create BOTH messages upfront with backend-generated IDs
         user_message = ConversationMessage(
             id=uuid4(),

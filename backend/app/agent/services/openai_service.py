@@ -324,6 +324,9 @@ class OpenAIService:
             user_context=portfolio_context
         )
         
+        # 🔍 PROMPT-CHECK System Prompt (Phase 9.12.1 investigation)
+        logger.info(f"🔍 PROMPT-CHECK: {system_prompt[:200]}...")
+        
         # Build message history for input (starting with system message)
         messages = []
         
