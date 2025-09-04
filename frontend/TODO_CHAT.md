@@ -1154,30 +1154,93 @@ This implementation follows an **automated test-driven development cycle** using
 - **Implementation**: Audit and align to use `{ text, conversation_id }` format
 - **Priority**: LOW - edge case, main path working correctly
 
-## 7. **Enhanced Observability**
+## 7. **Portfolio ID Improvements (Level 1 - Complete Scope)**
+**Timeline: 1-2 days | Reference: PORTFOLIO_ID_DESIGN_DOC.md Section 8.1**
 
-#### 7.1 **Structured Logging (See Technical Specifications Section 8)**
-- [ ] **7.1.1** Create `chatLogger.ts` using ChatLogEvent interface
+#### 7.1 **Backend JWT Authentication Fix**
+- [ ] **7.1.1** Guaranteed Portfolio ID in JWT (`backend/app/core/auth.py`)
+  - [ ] Modify `create_access_token()` to always include portfolio_id
+  - [ ] Query user portfolios and set default_portfolio = portfolios[0].id
+  - [ ] Add portfolio_id to JWT payload with null fallback handling
+  - [ ] Reference: PORTFOLIO_ID_DESIGN_DOC.md Section 8.1.1
+
+#### 7.2 **Frontend Portfolio Context Fixes**
+- [ ] **7.2.1** Frontend Portfolio Context Fallback (`useAuth` hook)
+  - [ ] Try multiple portfolio ID sources: JWT → localStorage → backend API
+  - [ ] Add `fetchDefaultPortfolio()` method for missing portfolio ID
+  - [ ] Persist resolved portfolio ID to localStorage for session recovery
+  - [ ] Reference: PORTFOLIO_ID_DESIGN_DOC.md Section 8.1.2
+- [ ] **7.2.2** Portfolio Page Error Recovery Component
+  - [ ] Create `<PortfolioIdResolver>` component for missing portfolio ID cases
+  - [ ] Display user-friendly loading state during portfolio resolution
+  - [ ] Provide fallback UI with retry mechanism
+  - [ ] Reference: PORTFOLIO_ID_DESIGN_DOC.md Section 8.1.3
+
+#### 7.3 **Chat System Portfolio Context**
+- [ ] **7.3.1** Persist Portfolio ID at Conversation Creation
+  - [ ] Ensure chat conversations capture portfolio_id at creation time (server-side)
+  - [ ] Store in conversation metadata to avoid re-discovery on subsequent messages
+  - [ ] Touch only conversation initialization logic for minimal risk
+  - [ ] Reference: PORTFOLIO_ID_DESIGN_DOC.md Section 8.1.4
+
+#### 7.4 **Backend API Reliability**
+- [ ] **7.4.1** `/api/v1/me` Must Always Return portfolio_id
+  - [ ] Guarantee GET /api/v1/me response includes portfolio_id for authenticated users
+  - [ ] Frontend should call this on auth bootstrap and persist to auth context
+  - [ ] Use as reliable fallback even if JWT is missing portfolio_id
+  - [ ] Reference: PORTFOLIO_ID_DESIGN_DOC.md Section 8.1.5
+- [ ] **7.4.2** Backend Implicit Default Resolution
+  - [ ] Make portfolio_id optional in endpoints that accept it
+  - [ ] Server resolves default portfolio using user ID when missing
+  - [ ] Leverage single-portfolio constraint to reduce client fragility
+  - [ ] Policy: portfolio_id remains optional, server provides deterministic default
+  - [ ] Reference: PORTFOLIO_ID_DESIGN_DOC.md Section 8.1.6
+
+#### 7.5 **Monitoring & Validation**
+- [ ] **7.5.1** Portfolio Resolution Logging
+  - [ ] Add portfolio_resolution events to chat monitoring JSON pipeline
+  - [ ] Track resolution path: conversation|jwt|db|header
+  - [ ] Monitor latency_ms and success rates
+  - [ ] Include endpoint, user_id, conversation_id, error_code fields
+  - [ ] Reference: PORTFOLIO_ID_DESIGN_DOC.md Section 8.1.9
+- [ ] **7.5.2** Portfolio Context Smoke Test
+  - [ ] Create test script: fresh login → `/me` → `/portfolio` → chat → tool call
+  - [ ] Monitor error rates for 3 days post-deploy
+  - [ ] Roll back if regressions appear on any endpoint
+  - [ ] Reference: PORTFOLIO_ID_DESIGN_DOC.md Section 8.1.8
+
+#### 7.6 **Acceptance Criteria**
+- [ ] **7.6.1** Zero Portfolio ID Missing Errors
+  - [ ] 0% "portfolio_id missing" errors on `/portfolio` page after fresh login
+  - [ ] 0% errors after page refresh
+  - [ ] 100% chat tool call success rate for conversations created post-fix
+  - [ ] Portfolio context resolution completes within 200ms (99th percentile)
+  - [ ] Reference: PORTFOLIO_ID_DESIGN_DOC.md Section 8.1.7
+
+## 8. **Enhanced Observability**
+
+#### 8.1 **Structured Logging (See Technical Specifications Section 8)**
+- [ ] **8.1.1** Create `chatLogger.ts` using ChatLogEvent interface
   - [ ] Use traceId (same as run_id) for correlation
   - [ ] Implement structured logging with event types
   - [ ] Include ErrorType enum for classification
-- [ ] **7.1.2** Create `debugStore.ts` for development debugging
+- [ ] **8.1.2** Create `debugStore.ts` for development debugging
   - [ ] Store ChatLogEvent history
   - [ ] Implement debug info aggregation
   - [ ] Add development debug panel (conditional)
-- [ ] **7.1.3** Implement performance metrics in ChatLogEvent.data.metrics
+- [ ] **8.1.3** Implement performance metrics in ChatLogEvent.data.metrics
   - [ ] Track ttfb (time to first byte) per request
   - [ ] Calculate tokensPerSecond during streaming
   - [ ] Record duration per conversation turn
   - [ ] Link all metrics to traceId/run_id
-- [ ] **7.1.4** Integrate logging and metrics throughout chat flow
-- [ ] **7.1.5** Test debugging and metrics in development mode
-- [ ] **7.1.6** Prepare production monitoring hooks with performance data
+- [ ] **8.1.4** Integrate logging and metrics throughout chat flow
+- [ ] **8.1.5** Test debugging and metrics in development mode
+- [ ] **8.1.6** Prepare production monitoring hooks with performance data
 
-## 8. **Deployment Checklist**
+## 9. **Deployment Checklist**
 
-#### 8.1 **Production Deployment Configuration**
-- [ ] **8.1.1** Create comprehensive `deployment/STREAMING_CHECKLIST.md`
+#### 9.1 **Production Deployment Configuration**
+- [ ] **9.1.1** Create comprehensive `deployment/STREAMING_CHECKLIST.md`
   - [ ] Use complete nginx config from Technical Specifications Section 7
     - [ ] proxy_buffering off, proxy_cache off, gzip off
     - [ ] All timeout settings (read: 300s, connect: 60s, send: 300s)
