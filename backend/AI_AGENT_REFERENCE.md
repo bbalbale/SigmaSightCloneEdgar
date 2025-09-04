@@ -31,7 +31,12 @@ app/
 ├── api/v1/           - FastAPI REST endpoints
 │   ├── auth.py       - Authentication (login, logout, JWT)
 │   ├── data.py       - Raw Data APIs (/data/ namespace) ✅ COMPLETE
+│   ├── chat/         - Chat endpoints (SSE streaming with OpenAI Responses API)
 │   └── router.py     - Main API router
+├── agent/            - AI Agent system (OpenAI Responses API integration)
+│   ├── services/     - OpenAI Responses API service and tool handlers
+│   ├── models/       - Conversation and message models
+│   └── schemas/      - Agent-specific Pydantic schemas
 ├── core/             - Core utilities (config, logging, auth)
 ├── db/               - Database utilities and seeding
 │   └── seed_demo_portfolios.py - Demo data creation
@@ -126,6 +131,46 @@ GET /api/v1/data/factors/etf-prices          # Factor ETF prices (mock)
 # Management APIs (⏳ NOT IMPLEMENTED)
 # Export APIs (⏳ NOT IMPLEMENTED)
 # System APIs (⏳ NOT IMPLEMENTED)
+
+# Chat/Agent APIs (✅ COMPLETE - OpenAI Responses API)
+POST /api/v1/chat/conversations    # Create conversation
+POST /api/v1/chat/send             # SSE streaming chat (OpenAI Responses API)
+GET  /api/v1/chat/conversations    # List conversations
+```
+
+---
+
+## 🤖 AI Agent Architecture (OpenAI Responses API)
+
+### **Critical: OpenAI Responses API (NOT Chat Completions)**
+The SigmaSight agent system uses **OpenAI Responses API** for all AI interactions, not the Chat Completions API. This is a critical architectural distinction.
+
+**Key Implementation Files:**
+- `app/agent/services/openai_service.py` - Main OpenAI Responses API integration
+- `app/api/v1/chat/send.py` - SSE streaming endpoint using Responses API
+- `app/config.py` - Responses API configuration (lines 52-61)
+
+**Responses API vs Chat Completions:**
+```python
+# ✅ CORRECT - What we use (Responses API)
+stream = await self.client.responses.create(
+    model=settings.MODEL_DEFAULT,
+    messages=messages,
+    tools=tools,
+    stream=True
+)
+
+# ❌ WRONG - Chat Completions API (we do NOT use this)
+# stream = await self.client.chat.completions.create(...)
+```
+
+**Configuration:**
+```python
+# OpenAI Responses API configuration (app/config.py)
+MAX_COMPLETION_TOKENS: int = Field(default=4000, description="Max completion tokens for OpenAI Responses API")
+OPENAI_API_TIMEOUT: float = Field(default=30.0, description="Timeout for OpenAI API requests")  
+MAX_TOOLS_PER_CALL: int = Field(default=10, description="Maximum number of tools per Responses API call")
+OPENAI_RATE_LIMIT: int = Field(default=50, description="Rate limit for OpenAI API calls")
 ```
 
 ---

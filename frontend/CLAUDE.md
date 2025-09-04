@@ -4,7 +4,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-SigmaSight Frontend - A Next.js 14 portfolio analytics dashboard with chat assistant integration. The frontend connects to a FastAPI backend and is currently in active development with V1.1 chat implementation planned.
+SigmaSight Frontend - A Next.js 14 portfolio analytics dashboard with chat assistant integration. The frontend connects to a FastAPI backend that uses OpenAI Responses API, and is currently in active development with V1.1 chat implementation planned.
+
+> 🤖 **CRITICAL**: The backend uses **OpenAI Responses API**, NOT Chat Completions API.
 
 **Current Status**: Portfolio functionality working with real backend data; Chat system with mock responses (V1.1 implementation in progress)
 

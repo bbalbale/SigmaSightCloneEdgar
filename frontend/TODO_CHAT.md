@@ -14,12 +14,14 @@
 - ✅ **Cross-Reference**: `/agent/TODO.md` § 9.12.2 - Complete implementation details
 - ✅ **Testing confirmed**: Portfolio queries working with `demo_hnw@sigmasight.com`
 
+> 🤖 **CRITICAL**: The backend uses **OpenAI Responses API**, NOT Chat Completions API. This is a key architectural distinction for all chat-related development.
+
 ## 1. Current Implementation Status
 
 ### ✅ What's Currently Working
 - **Portfolio System**: Fully functional with real backend data integration
 - **Authentication**: JWT-based auth working for portfolio APIs (`demo_growth@sigmasight.com` / `demo12345`)
-- **Backend Agent System**: 100% complete with OpenAI GPT-4o integration and 6 function tools
+- **Backend Agent System**: 100% complete with OpenAI GPT-4o **Responses API** integration and 6 function tools
 - **Chat UI Foundation**: Sheet overlay pattern implemented with mock responses
 - **Next.js Proxy**: CORS proxy setup for development (`/api/proxy/[...path]`)
 

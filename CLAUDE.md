@@ -10,7 +10,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-SigmaSight Backend - A FastAPI-based portfolio risk analytics platform with 8 calculation engines, automated batch processing, and comprehensive financial analytics. The project is structured with the main application code in the `backend/` subdirectory.
+SigmaSight Backend - A FastAPI-based portfolio risk analytics platform with 8 calculation engines, automated batch processing, comprehensive financial analytics, and AI-powered chat interface using OpenAI Responses API. The project is structured with the main application code in the `backend/` subdirectory.
+
+> 🤖 **CRITICAL**: The AI agent system uses **OpenAI Responses API**, NOT Chat Completions API.
 
 ## Common Development Commands
 
