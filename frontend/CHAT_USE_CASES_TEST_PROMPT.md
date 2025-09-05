@@ -350,176 +350,165 @@ fi
 - Database connection issues
 - Data quality problems
 
-## Report Structure
+## Individual Use Case Testing & Reporting
 
+For each use case test, follow this detailed reporting structure:
+
+### For WORKING Use Cases:
 ```markdown
-# Chat Use Cases Testing Report
-**Test Session:** [Timestamp]
-**Environment:** [Development/Staging]
-**Tester:** [Agent/Manual]
+## Test [ID]: [Query]
+**Status**: ✅ WORKING  
+**Response Time**: [X.X]s  
+**Test Executed**: [Timestamp]
 
-## 🔍 Test Environment Status
-- **Backend**: [✅ Running/❌ Failed] (localhost:8000) - Response Time: [X]ms
-- **Frontend**: [✅ Running/❌ Failed] (localhost:3005) - Response Time: [X]ms  
-- **Monitoring**: [✅ Active/❌ Inactive] - Mode: [manual/automated]
-- **Authentication**: [✅ Working/❌ Failed] - JWT Token: [Present/Missing]
-- **Portfolio Context**: [✅ Available/❌ Missing] - Portfolio ID: [UUID/null]
-- **Browser**: [Chrome/Safari/Firefox] - Platform: [Windows/macOS/Linux]
-
-## ✅ Working Use Cases
-| Test ID | Query | Response Quality | Response Time | Notes |
-|---------|-------|------------------|---------------|-------|
-| UC-1.1  | "how can sigmasight help me?" | ✅ Complete | 2.3s | Good platform overview |
-| UC-1.2  | "tell me what apis are available" | ✅ Complete | 1.8s | Full API documentation |
-| UC-1.3  | "TSLA" | ✅ Complete | 3.1s | Real-time quote with analysis |
-
-## ❌ Failing Use Cases (Organized by Team)
-
-### 🎨 Frontend Team Issues
-**FE-001: Chat Input Symbol Validation**
-- **Test**: UC-2.1 - "give me historical prices on AAPL for the last 60 days"
-- **Symptom**: Query accepted but no symbol extracted for API call
-- **Evidence**: Screenshot `fe-001-missing-symbol-parsing.png`
-- **Impact**: User queries with embedded symbols don't trigger correct tool calls
-- **Monitoring**: `jq '.console_logs[] | select(.category=="ui")' backend/chat_monitoring_report.json`
-- **Action**: Implement symbol extraction regex in chat input processing
-
-**FE-002: Loading State for Long Queries**
-- **Test**: UC-2.3 - "calculate the correlation between AAPL and NVDA over the last 60 days"
-- **Symptom**: No loading indicator for 15+ second responses
-- **Evidence**: User sees blank response area during processing
-- **Impact**: Poor UX - users don't know if system is working
-- **Action**: Add streaming indicators and progress states
-
-### 🛠️ Backend API Team Issues  
-**BE-001: Missing Historical Prices Endpoint**
-- **Test**: UC-2.1, UC-2.2 - Historical price queries
-- **Symptom**: 404 Not Found for `/api/v1/data/prices/historical/{portfolio_id}`
-- **Evidence**: `curl -I http://localhost:8000/api/v1/data/prices/historical/test` returns 404
-- **Backend Logs**: `grep "prices/historical" backend/logs/app.log` - No route registered
-- **Impact**: All historical price analysis features non-functional
-- **Action**: Implement missing endpoint following existing `/api/v1/data/` patterns
-
-**BE-002: Position Details Parameter Parsing**  
-- **Test**: UC-3.1 - "give me my position details on NVDA, TSLA"
-- **Symptom**: 400 Bad Request - Invalid position_ids format
-- **Evidence**: `{"error": "position_ids must be comma-separated string"}`
-- **Impact**: Multi-symbol position queries fail
-- **Action**: Update parameter validation to accept comma-separated symbols
-
-### 🤖 Chat Tool Team Issues
-**CT-001: Missing Tool Registration for Historical Prices**
-- **Test**: UC-2.1, UC-2.2 - Historical price requests  
-- **Symptom**: "I don't have access to historical price data" response
-- **Evidence**: `grep -r "get_prices_historical" backend/app/agent/` returns no results
-- **Tool Registry**: Function not found in OpenAI tool definitions
-- **Impact**: Tool exists in handlers.py but not accessible to OpenAI
-- **Action**: Add `get_prices_historical` to tool registry in `openai_service.py`
-
-**CT-002: Factor ETF Tool Missing**
-- **Test**: UC-2.4 - "give me all the factor ETF prices"
-- **Symptom**: "I cannot access factor ETF data" response
-- **Evidence**: Tool call never initiated in monitoring logs
-- **Impact**: Factor analysis completely unavailable
-- **Action**: Implement and register `get_factor_etf_prices` tool
-
-**CT-003: Position Filtering Logic Missing**
-- **Test**: UC-3.3 - "give me detailed breakdown of my top 3 positions"
-- **Symptom**: Returns all positions instead of top 3
-- **Evidence**: Tool calls `get_positions_details` without filtering
-- **Impact**: Response overwhelming, not user-friendly
-- **Action**: Add position ranking and filtering logic to tool handler
-
-### 📊 Database Team Issues
-**DB-001: Missing Factor ETF Data**
-- **Test**: UC-2.4 - Factor ETF price requests
-- **Symptom**: Tool executes but returns "No factor ETF data available"
-- **Database Query**: `SELECT COUNT(*) FROM factor_etfs;` returns 0
-- **Impact**: Factor analysis features non-functional
-- **Action**: Seed database with factor ETF symbols and historical data
-
-**DB-002: Incomplete Historical Price Coverage**
-- **Test**: UC-2.1, UC-2.2 - Historical price requests
-- **Symptom**: "Limited historical data available for AAPL"
-- **Evidence**: Database has < 30 days of price history for test symbols
-- **Impact**: 60-day analysis requests fail or return incomplete data
-- **Action**: Extend historical price data collection to 180+ days
-
-### 🧮 Analytics Team Issues  
-**AN-001: Missing Correlation Calculation Service**
-- **Test**: UC-2.3 - Correlation between stocks
-- **Symptom**: "I cannot calculate correlations at this time"
-- **Evidence**: No correlation calculation logic found in codebase
-- **Dependencies**: Requires BE-001 (historical prices) to be resolved first
-- **Impact**: Advanced analytics features unavailable
-- **Action**: Implement statistical correlation calculation service
-
-**AN-002: Risk Profile Analysis Missing**
-- **Test**: UC-4.1 - "What's the risk profile of my portfolio?"
-- **Symptom**: Generic response without quantitative metrics
-- **Evidence**: No risk calculation tools found in agent handlers
-- **Impact**: Investment decision support limited
-- **Action**: Implement portfolio risk metrics calculation
-
-## ⚠️ Partially Working Use Cases
-| Test ID | Query | Issue | Expected | Actual | Team | Issue ID |
-|---------|-------|-------|----------|---------|------|----------|
-| UC-3.2  | "get portfolio complete" | Incomplete detail | Full position breakdown | Summary only | CT | CT-004 |
-| UC-1.5  | "give me a quote on NVDA" | Context pollution | NVDA focus | Mentions TSLA unnecessarily | CT | CT-005 |
-
-## 📈 Performance Metrics
-- **Average Response Time**: 4.7s (Target: < 5s) ✅
-- **Tool Call Success Rate**: 67% (Target: 90%) ❌
-- **Authentication Success Rate**: 100% (Target: 100%) ✅
-- **Data Retrieval Success Rate**: 45% (Target: 80%) ❌
-- **Cross-Platform Compatibility**: 85% (Windows: 80%, macOS: 90%, Linux: TBD)
-
-## 🔧 Monitoring System Insights
-
-### Console Log Analysis
-```bash
-# Error distribution from monitoring system
-jq '.console_logs | group_by(.category) | map({category: .[0].category, count: length})' backend/chat_monitoring_report.json
-
-# Results:
-# [{"category": "error", "count": 12}, {"category": "chat", "count": 45}, {"category": "auth", "count": 8}]
+### LLM Response:
+```
+[FULL LLM RESPONSE TEXT HERE]
 ```
 
-### Critical Error Patterns
-- **Authentication Failures**: 0 (Authentication system stable)
-- **Network Timeouts**: 3 (All on historical price endpoints)
-- **Tool Handler Exceptions**: 8 (Missing tool registrations)
-- **Database Connection Issues**: 0 (Database layer stable)
+### Notes:
+[Any relevant observations about response quality, tool usage, etc.]
+```
 
-## 🚀 Priority Implementation Roadmap
+### For FAILED Use Cases:
+```markdown
+## Test [ID]: [Query]  
+**Status**: ❌ FAILED  
+**Response Time**: [X.X]s / TIMEOUT  
+**Test Executed**: [Timestamp]
 
-### Phase 1: Critical Fixes (Week 1)
-1. **BE-001**: Implement historical prices endpoint (Backend API Team)
-2. **CT-001**: Register historical price tool (Chat Tool Team)  
-3. **DB-001**: Seed factor ETF data (Database Team)
+### Expected Behavior:
+[What should have happened]
 
-### Phase 2: Enhanced Functionality (Week 2)  
-1. **CT-002**: Implement factor ETF tool (Chat Tool Team)
-2. **BE-002**: Fix position parameter parsing (Backend API Team)
-3. **FE-001**: Add symbol extraction (Frontend Team)
+### Actual Behavior:
+[What actually happened - empty response, error message, wrong response, etc.]
 
-### Phase 3: Advanced Features (Week 3)
-1. **AN-001**: Correlation calculation service (Analytics Team)
-2. **AN-002**: Risk profile analysis (Analytics Team)
-3. **FE-002**: Enhanced loading states (Frontend Team)
+### Frontend Layer Diagnostics:
+- **UI State**: [Input enabled/disabled, loading states, error displays]
+- **Console Logs**: 
+```javascript
+[FILTERED RELEVANT CONSOLE LOGS - ERRORS, SSE EVENTS, NETWORK FAILURES]
+```
+- **Network Requests**: [Failed API calls, status codes, timing]
+- **Screenshots**: 
+  - Before: `test-[ID]-before-[timestamp].png`
+  - After: `test-[ID]-after-[timestamp].png`
 
-## 📋 Bug Tracking References
-**For TODO Documentation:**
-- Frontend issues: FE-001, FE-002
-- Backend issues: BE-001, BE-002  
-- Tool issues: CT-001, CT-002, CT-003, CT-004, CT-005
-- Database issues: DB-001, DB-002
-- Analytics issues: AN-001, AN-002
+### Backend API Layer Diagnostics:
+- **Endpoint Response**: [Status code, response time, headers]
+- **Authentication**: [JWT validation, portfolio context resolution]
+- **API Logs**: 
+```bash
+[RELEVANT BACKEND LOG ENTRIES]
+```
 
-**Evidence Location:**
-- Screenshots: `./.playwright-mcp/[test-id]-[issue].png`
-- Monitoring logs: `backend/chat_monitoring_report.json`
-- Browser console: Captured via CDP in monitoring system
+### Tool Handler Layer Diagnostics:
+- **Tool Execution**: [Which tools were called, parameters passed]
+- **Tool Registry**: [Tool registration status, availability]
+- **Tool Results**: [Success/failure, data returned, execution time]
+- **SSE Event Flow**:
+```javascript
+[SSE EVENTS: message_created → start → tool_call → tool_result → done]
+[IDENTIFY MISSING EVENTS OR GAPS IN THE FLOW]
+```
+
+### Database Layer Diagnostics:
+- **Data Availability**: [Required data exists, query results]
+- **Database Queries**: [SQL executed, results returned, performance]
+- **Connection Status**: [Database connectivity, pool health]
+
+### SSE/Streaming Layer Diagnostics:
+- **Event Pipeline**: [Complete event flow, missing events]
+- **Content Streaming**: [Response content delivery, streaming gaps]
+- **Connection Health**: [SSE connection status, reconnection events]
+
+### Root Cause Analysis:
+[SPECIFIC TECHNICAL ISSUE IDENTIFIED]
+
+### Recommended Action:
+[SPECIFIC STEPS FOR CODING AGENT TO INVESTIGATE/FIX]
+```
+
+## Report Structure
+
+After testing all use cases individually, organize the findings:
+
+```markdown
+# SigmaSight Chat Use Cases Testing Report
+
+**Test Session:** [Timestamp]  
+**Environment:** [Development/Staging]  
+**Tester:** [Agent/Manual]  
+
+## 🔍 Test Environment Status
+- **Backend**: [Status] (localhost:8000) - Response Time: [X]ms
+- **Frontend**: [Status] (localhost:3005) - Response Time: [X]ms  
+- **Monitoring**: [Status] - Mode: [manual/automated]
+- **Authentication**: [Status] - JWT Token: [Present/Missing]
+- **Portfolio Context**: [Status] - Portfolio ID: [UUID/null]
+- **Browser**: [Chrome/Safari/Firefox] - Platform: [Windows/macOS/Linux]
+
+## 📋 Individual Use Case Results
+
+[INSERT ALL INDIVIDUAL USE CASE REPORTS HERE - BOTH WORKING AND FAILED]
+
+## 🚀 Issue Classification & TODO Buckets
+
+### 🎨 Frontend Issues
+**FE-XXX: [Issue Name]**
+- **Affected Tests**: [List of test IDs]
+- **Root Cause**: [Technical description]
+- **Action Required**: [Specific implementation steps]
+- **Priority**: [High/Medium/Low]
+
+### 🛠️ Backend API Issues  
+**BE-XXX: [Issue Name]**
+- **Affected Tests**: [List of test IDs]
+- **Root Cause**: [Technical description]
+- **Action Required**: [Specific implementation steps]
+- **Priority**: [High/Medium/Low]
+
+### 🤖 Tool Handler Issues
+**TH-XXX: [Issue Name]**
+- **Affected Tests**: [List of test IDs]
+- **Root Cause**: [Technical description]
+- **Action Required**: [Specific implementation steps]
+- **Priority**: [High/Medium/Low]
+
+### 📊 Database Issues
+**DB-XXX: [Issue Name]**
+- **Affected Tests**: [List of test IDs]
+- **Root Cause**: [Technical description]
+- **Action Required**: [Specific implementation steps]
+- **Priority**: [High/Medium/Low]
+
+### 🌊 Streaming/SSE Issues
+**SSE-XXX: [Issue Name]**
+- **Affected Tests**: [List of test IDs]
+- **Root Cause**: [Technical description]
+- **Action Required**: [Specific implementation steps]
+- **Priority**: [High/Medium/Low]
+
+### ⚡ Performance Issues
+**PERF-XXX: [Issue Name]**
+- **Affected Tests**: [List of test IDs]
+- **Root Cause**: [Technical description]
+- **Action Required**: [Specific implementation steps]
+- **Priority**: [High/Medium/Low]
+
+## 📈 Overall Metrics
+- **Total Tests**: [X]
+- **Passing**: [X] ([X%])
+- **Failing**: [X] ([X%])
+- **Average Response Time**: [X.X]s
+- **Critical Issues**: [X]
+- **High Priority Issues**: [X]
+
+## 🎯 Implementation Priority
+1. **Critical (Blocking)**: [List critical issues]
+2. **High Priority**: [List high priority issues]
+3. **Medium Priority**: [List medium priority issues]
+4. **Enhancement**: [List enhancement opportunities]
 ```
 
 ## API Reference for Tool Implementation

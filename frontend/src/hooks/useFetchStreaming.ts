@@ -12,15 +12,26 @@ import { chatAuthService } from '@/services/chatAuthService';
 interface SSEEvent {
   run_id: string;
   seq: number;
-  type: 'token' | 'tool_call' | 'tool_result' | 'error' | 'done' | 'heartbeat' | 'message_created';
+  type: 'token' | 'tool_call' | 'tool_result' | 'error' | 'done' | 'heartbeat' | 'message_created' | 'start' | 'response_id' | 'info';
   data: {
     delta?: string;
     tool_name?: string;
     tool_args?: any;
     tool_result?: any;
     error?: string;
-    error_type?: 'AUTH_EXPIRED' | 'RATE_LIMITED' | 'NETWORK_ERROR' | 'SERVER_ERROR' | 'FATAL_ERROR';
+    error_type?: string; // broadened to allow backend-specific values like 'api_failure', 'continuation_failed'
     final_text?: string;
+    token_counts?: { initial?: number; continuation?: number; [k: string]: any };
+    post_tool_first_token_gaps_ms?: number[];
+    event_timeline?: Array<{ type: string; t_ms: number }>;
+    fallback_used?: boolean;
+    // info event fields
+    info_type?: string;
+    retry_in_ms?: number;
+    attempt?: number;
+    max_attempts?: number;
+    from?: string;
+    to?: string;
     // message_created event data
     user_message_id?: string;
     assistant_message_id?: string;
@@ -36,6 +47,7 @@ interface StreamingOptions {
   onError?: (error: any) => void;
   onDone?: (finalText: string) => void;
   onHeartbeat?: () => void;
+  onInfo?: (info: { info_type: string; [k: string]: any }) => void;
   onMessageCreated?: (event: {
     user_message_id: string;
     assistant_message_id: string;
@@ -200,7 +212,24 @@ export function useFetchStreaming() {
                     options.onToken?.(eventData.data.delta, runId);
                   }
                   break;
-                  
+                
+                case 'info':
+                  try {
+                    const infoPayload = {
+                      ...eventData.data,
+                      run_id: eventData.run_id,
+                      seq: eventData.seq,
+                      timestamp: eventData.timestamp,
+                    } as any;
+                    console.log('Info event received:', infoPayload);
+                    if (eventData.data?.info_type) {
+                      options.onInfo?.(infoPayload);
+                    }
+                  } catch (e) {
+                    console.warn('Failed processing info event', e);
+                  }
+                  break;
+                
                 case 'tool_call':
                   if (eventData.data.tool_name && eventData.data.tool_args) {
                     options.onToolCall?.(eventData.data.tool_name, eventData.data.tool_args);
@@ -228,8 +257,39 @@ export function useFetchStreaming() {
                   break;
                   
                 case 'done':
-                  const finalText = sealBuffer(runId);
-                  options.onDone?.(eventData.data.final_text || finalText);
+                  // Log metrics for observability
+                  const tokenCounts = eventData.data?.token_counts;
+                  const gaps = eventData.data?.post_tool_first_token_gaps_ms;
+                  if (tokenCounts || gaps) {
+                    console.log('Done metrics:', {
+                      token_counts: tokenCounts,
+                      post_tool_first_token_gaps_ms: gaps,
+                    });
+                  }
+                  if (Array.isArray(eventData.data?.event_timeline)) {
+                    console.log('Event timeline (ms since start):', eventData.data.event_timeline);
+                  }
+                  if (eventData.data?.fallback_used) {
+                    console.warn('Backend indicated it used upstream final_text fallback.');
+                  }
+                  if (Array.isArray(gaps) && gaps.length > 0) {
+                    const maxGap = Math.max(...gaps);
+                    if (maxGap > 2000) {
+                      console.warn('Detected large post-tool gap (ms):', gaps);
+                    }
+                  }
+                  // Decide final text with precise fallback logic
+                  const bufferedFinal = sealBuffer(runId);
+                  const backendFinal = eventData.data?.final_text || '';
+                  const continuationCount = (tokenCounts && typeof tokenCounts.continuation === 'number')
+                    ? tokenCounts.continuation
+                    : (tokenCounts?.['continuation'] ?? 0);
+                  let finalOut = bufferedFinal;
+                  if ((!bufferedFinal || bufferedFinal.trim().length === 0) && continuationCount === 0 && backendFinal) {
+                    console.warn('Using backend final_text fallback because no streamed tokens after tool_result were received.');
+                    finalOut = backendFinal;
+                  }
+                  options.onDone?.(finalOut);
                   break;
               }
             } catch (e) {

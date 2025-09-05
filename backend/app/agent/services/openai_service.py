@@ -372,7 +372,8 @@ class OpenAIService:
         message_history: List[Dict[str, Any]] = None,
         portfolio_context: Optional[Dict[str, Any]] = None,
         run_id: Optional[str] = None,
-        auth_context: Optional[Dict[str, Any]] = None
+        auth_context: Optional[Dict[str, Any]] = None,
+        model_override: Optional[str] = None
     ) -> AsyncGenerator[str, None]:
         """
         Stream responses using OpenAI Responses API with proper tool execution handshake
@@ -382,6 +383,9 @@ class OpenAIService:
         run_id = run_id or str(uuid.uuid4())
         seq = 0
         final_content_parts = []
+        token_count_initial = 0
+        token_count_continuation = 0
+        model_to_use = model_override or self.model
         
         try:
             # Build Responses API input
@@ -403,7 +407,7 @@ class OpenAIService:
                 "data": {
                     "conversation_id": conversation_id,
                     "mode": conversation_mode,
-                    "model": self.model
+                    "model": model_to_use
                 },
                 "timestamp": int(time.time() * 1000)
             }
@@ -412,7 +416,7 @@ class OpenAIService:
             
             # Call OpenAI Responses API with streaming
             stream = await self.client.responses.create(
-                model=self.model,
+                model=model_to_use,
                 input=input_data,  # Use input structure instead of messages
                 tools=tools if tools else None,
                 stream=True
@@ -483,6 +487,8 @@ class OpenAIService:
                         if hasattr(event, 'delta') and event.delta:
                             current_content += event.delta
                             final_content_parts.append(event.delta)
+                            token_count_initial += 1
+                            logger.debug(f"TOKEN-DEBUG(initial): run_id={run_id} seq={seq} len={len(event.delta)}")
                             
                             # Emit our standardized token event
                             token_payload = {
@@ -657,6 +663,7 @@ class OpenAIService:
                             "run_id": run_id,
                             "seq": seq,
                             "data": {
+                                "error": error_message,
                                 "error_type": "api_failure",
                                 "message": error_message,
                                 "retryable": True
@@ -675,6 +682,7 @@ class OpenAIService:
                             "run_id": run_id,
                             "seq": seq,
                             "data": {
+                                "error": "Response timed out or was incomplete",
                                 "error_type": "incomplete_response",
                                 "message": "Response timed out or was incomplete",
                                 "retryable": True
@@ -726,7 +734,7 @@ class OpenAIService:
                 # Make continuation call to get final response
                 try:
                     continuation_stream = await self.client.responses.create(
-                        model=self.model,
+                        model=model_to_use,
                         input=continuation_input,
                         tools=tools if tools else None,
                         stream=True
@@ -735,10 +743,25 @@ class OpenAIService:
                     # Process continuation stream events
                     async for cont_event in continuation_stream:
                         try:
+                            # Continuation heartbeats to keep connection warm during long reasoning gaps
+                            current_time = asyncio.get_event_loop().time()
+                            if current_time - last_heartbeat > heartbeat_interval:
+                                heartbeat_payload = {
+                                    "type": "heartbeat",
+                                    "run_id": run_id,
+                                    "seq": 0,  # Heartbeats don't increment sequence
+                                    "data": {},
+                                    "timestamp": int(time.time() * 1000)
+                                }
+                                yield f"event: heartbeat\ndata: {json.dumps(heartbeat_payload)}\n\n"
+                                last_heartbeat = current_time
+
                             if cont_event.type == "response.output_text.delta":
                                 if hasattr(cont_event, 'delta') and cont_event.delta:
                                     current_content += cont_event.delta
                                     final_content_parts.append(cont_event.delta)
+                                    token_count_continuation += 1
+                                    logger.debug(f"TOKEN-DEBUG(continuation): run_id={run_id} seq={seq} len={len(cont_event.delta)}")
                                     
                                     # Emit token event for continuation
                                     token_payload = {
@@ -753,13 +776,59 @@ class OpenAIService:
                             elif cont_event.type == "response.completed":
                                 logger.info(f"Continuation response completed")
                                 break
+                            elif cont_event.type == "response.failed":
+                                # Propagate continuation failure as SSE error so frontend can handle gracefully
+                                error_msg = str(getattr(cont_event, 'error', 'Unknown continuation failure'))
+                                logger.error(f"OpenAI continuation failed: {error_msg}")
+                                error_payload = {
+                                    "type": "error",
+                                    "run_id": run_id,
+                                    "seq": 0,
+                                    "data": {
+                                        "error": error_msg,
+                                        "error_type": "continuation_failed",
+                                        "retryable": True
+                                    },
+                                    "timestamp": int(time.time() * 1000)
+                                }
+                                yield f"event: error\ndata: {json.dumps(error_payload)}\n\n"
+                                break
+                            elif cont_event.type == "response.incomplete":
+                                # Timeout/incomplete continuation
+                                logger.error("OpenAI continuation incomplete/timed out")
+                                error_payload = {
+                                    "type": "error",
+                                    "run_id": run_id,
+                                    "seq": 0,
+                                    "data": {
+                                        "error": "Continuation timed out or was incomplete",
+                                        "error_type": "continuation_incomplete",
+                                        "retryable": True
+                                    },
+                                    "timestamp": int(time.time() * 1000)
+                                }
+                                yield f"event: error\ndata: {json.dumps(error_payload)}\n\n"
+                                break
                         except Exception as cont_event_error:
                             logger.error(f"Error processing continuation event: {cont_event_error}")
                             continue
                             
                 except Exception as continuation_error:
                     logger.error(f"Error in conversation continuation: {continuation_error}")
-                    # Continue to send done event even if continuation fails
+                    # Emit error SSE so frontend can show a meaningful message instead of a silent gap
+                    error_payload = {
+                        "type": "error",
+                        "run_id": run_id,
+                        "seq": 0,
+                        "data": {
+                            "error": str(continuation_error),
+                            "error_type": "continuation_exception",
+                            "retryable": True
+                        },
+                        "timestamp": int(time.time() * 1000)
+                    }
+                    yield f"event: error\ndata: {json.dumps(error_payload)}\n\n"
+                    # Continue to send done event afterward
             
             # Send final done event
             final_text = "".join(final_content_parts)
@@ -770,7 +839,11 @@ class OpenAIService:
                 "data": {
                     "final_text": final_text,
                     "tool_calls_count": len(accumulated_tool_calls),
-                    "total_tokens": 0  # TODO: Track token usage from Responses API
+                    "total_tokens": 0,  # TODO: Track token usage from Responses API
+                    "token_counts": {
+                        "initial": token_count_initial,
+                        "continuation": token_count_continuation
+                    }
                 },
                 "timestamp": int(time.time() * 1000)
             }

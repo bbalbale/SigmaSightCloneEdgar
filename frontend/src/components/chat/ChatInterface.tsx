@@ -1,5 +1,6 @@
 "use client"
 
+import React from 'react'
 import { useEffect, useRef, useCallback } from 'react'
 import { 
   Sheet, 
@@ -14,6 +15,7 @@ import { cn } from '@/lib/utils'
 import { useChatStore } from '@/stores/chatStore'
 import { useStreamStore } from '@/stores/streamStore'
 import { useFetchStreaming } from '@/hooks/useFetchStreaming'
+import type { StreamingOptions } from '@/hooks/useFetchStreaming'
 import { chatAuthService } from '@/services/chatAuthService'
 import { chatService } from '@/services/chatService'
 
@@ -61,6 +63,7 @@ export function ChatInterface({ className }: ChatInterfaceProps) {
   // Track current assistant message being streamed
   const currentAssistantMessageId = useRef<string | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const infoMessageCounterRef = useRef(0)
   
   const hasInteracted = messages.length > 0
   
@@ -213,6 +216,36 @@ export function ChatInterface({ className }: ChatInterfaceProps) {
             console.log('No buffer or messageId:', { buffer, messageId: currentAssistantMessageId.current });
           }
         },
+        onInfo: (info: Parameters<NonNullable<StreamingOptions['onInfo']>>[0]) => {
+          try {
+            let content = ''
+            if (info.info_type === 'retry_scheduled') {
+              const attempt = info.attempt
+              const maxAttempts = info.max_attempts
+              const retryMs = info.retry_in_ms
+              const secs = typeof retryMs === 'number' ? Math.round(retryMs / 100) / 10 : undefined
+              content = `Temporary issue detected. Retrying ${attempt}/${maxAttempts}${secs !== undefined ? ` in ${secs}s` : ''}...`
+            } else if (info.info_type === 'model_switch') {
+              const from = info.from || 'primary'
+              const to = info.to || 'fallback'
+              const attempt = info.attempt ?? '?'
+              content = `Switching model from ${from} to ${to} (attempt ${attempt}).`
+            } else if (info.info_type) {
+              content = `[Info: ${info.info_type}]`
+            }
+            if (content) {
+              const uniqueSuffix = `${(info as any).run_id ?? 'run'}-${(info as any).seq ?? 'n'}`
+              const uniqueId = `system-info-${Date.now()}-${infoMessageCounterRef.current++}-${uniqueSuffix}`
+              addMessage({
+                conversationId: conversationId!,
+                role: 'system',
+                content,
+              }, uniqueId)
+            }
+          } catch (e) {
+            console.warn('Failed to handle info event', e, info)
+          }
+        },
         onError: (error: any) => {
           console.error('Streaming error:', error)
           if (currentAssistantMessageId.current) {
@@ -241,7 +274,7 @@ export function ChatInterface({ className }: ChatInterfaceProps) {
           if (currentAssistantMessageId.current) {
             updateMessage(currentAssistantMessageId.current, {
               content: finalText || 'No response received.',
-              runId,
+              runId: runId || undefined,
             })
           }
           currentAssistantMessageId.current = null

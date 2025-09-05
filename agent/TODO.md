@@ -3401,8 +3401,61 @@ portfolio = result.scalar_one_or_none()  # Takes first result
 
 **Priority Assessment**:
 - **P2 Items (9.16.1)**: Should address to prevent technical debt accumulation
-- **P3 Items (9.16.2-9.16.4)**: Good engineering practices, implement when bandwidth allows  
-- **P4 Items (9.16.5-9.16.6)**: Nice to have, only if specific issues arise
+ - **P3 Items (9.16.2-9.16.4)**: Good engineering practices, implement when bandwidth allows  
+ - **P4 Items (9.16.5-9.16.6)**: Nice to have, only if specific issues arise
+
+### **9.17 SSE Continuation Streaming Reliability (Backend Next Steps)** 🟡 **IN PROGRESS**
+- **Goal**: Eliminate cases where no content is streamed between `tool_result` and `done`, ensuring consistent assistant output rendering.
+- **Scope**: `backend/app/agent/services/openai_service.py` (continuation streaming), `backend/app/api/v1/chat/send.py` (SSE assembly and finalization), contract tests.
+- **Priority**: P1 Critical - User-visible correctness.
+
+#### Findings (2025-09-05)
+- __Instrumentation present__: `backend/app/api/v1/chat/send.py` emits `done` payload with `token_counts`, `post_tool_first_token_gaps_ms`, `event_timeline`, `fallback_used`, `model_used`, and `retry_stats` (see `send.py` lines ~486-507). Upstream `done` is parsed for `token_counts`/`final_text` and suppressed (lines ~293-304).
+- __Continuation streaming implemented__: `backend/app/agent/services/openai_service.py` performs a second Responses API call post-tools with `stream=True`, emitting `event: token` for `response.output_text.delta` (lines ~736-775). These are forwarded by `send.py`.
+- __Retry/model fallback info events__: `send.py` emits `event: info` for `retry_scheduled` and `model_switch` with details (lines ~240-262, ~443-456). Frontend now displays these correctly.
+- __Single canonical done__: `send.py` emits one final `event: done` envelope with complete metrics; upstream `done` is not forwarded.
+
+- __Start event suppression__: Only the first upstream `event: start` is forwarded across attempts; subsequent upstream starts are suppressed in `send.py`.
+- __Model switch semantics__: `event: info` with `info_type="model_switch"` is emitted on each retry attempt after the first when no tokens have yet been forwarded (can appear more than once).
+
+#### Root Cause Analysis
+- __Event type mismatch__: Earlier the server parsed/forwarded `event: message` instead of `event: token`, causing missing token deltas. Fixed in Phase 10.0.1 by switching to `event: token` handling in `send.py`.
+- __Two-phase gap after tools__: Using a two-call continuation could yield cases where no post-tool tokens were streamed. This is mitigated by explicit continuation streaming and server-side fallback to upstream `final_text` or accumulated initial tokens; gaps are measured via `post_tool_first_token_gaps_ms` and `event_timeline`.
+- __Tool call parsing__: Mis-parsing of tool call events previously contributed to sequencing issues; corrected in Phase 10.0.2 in `send.py`.
+
+#### Completion Notes
+- __D1: Reliable continuation/fallback__: Implemented. Continuation tokens are streamed when available; otherwise `send.py` falls back to upstream `final_text` or accumulated content, avoiding empty assistant outputs. Minor follow-up: annotate `fallback_used=true` also when only accumulated content is used without upstream `final_text`.
+- __D2: Instrumentation__: Implemented and emitted in the final `done` payload. Metrics include `token_counts`, `post_tool_first_token_gaps_ms`, `event_timeline`, `fallback_used`, `model_used`, and `retry_stats`.
+- __D3: Contract tests__: Implemented in `backend/tests/test_sse_continuation.py` covering: normal continuation, zero-token upstream fallback, retry with fallback then success, non-retryable error (no retry), retry exhaustion with final error, and error after tokens (no retry).
+
+**Deliverables**
+- [x] D1: Reliable continuation streaming after tools with guaranteed content emission or graceful fallback.
+- [x] D2: Instrumentation in `done` payload: `token_counts`, `post_tool_first_token_gaps_ms`, `event_timeline`, `fallback_used`.
+- [x] D3: Contract tests that assert presence of token deltas post-tool or server-side fallback with accurate metrics. Implemented in `backend/tests/test_sse_continuation.py` covering: normal continuation, zero-token upstream fallback, retry with fallback then success, non-retryable error (no retry), retry exhaustion with final error, and error after tokens (no retry).
+
+**Plan of Record**
+1. **Reproduction & Logging Upgrade**
+   - [x] Add detailed `event_timeline` markers for `message_created`, `start`, `tool_call`, `tool_result`, first post-tool token, retries, and `done`.
+   - [x] Log and emit `post_tool_first_token_gaps_ms` array to quantify latency/holes.
+   - [x] Persist `token_counts.initial` and `token_counts.continuation` in the `done` event.
+
+2. **Continuation Pipeline Hardening**
+   - [x] Validate current strategy (secondary Responses API call post-tools) streams token deltas reliably. Ensure `stream=True` and proper pass-through to SSE as `event: token` with `data.delta`.
+   - [ ] Implement single-response alternative (submit tool outputs back to the same response) as an A/B behind a feature flag. See 9.16.5 for background. Measure reliability and latency.
+   - [ ] Add one retry on continuation failure with exponential backoff; emit `error_type: "continuation_failed"` and annotate `fallback_used` when fallback is triggered. (Partial today: `openai_service.py` emits `continuation_failed`/`continuation_exception` errors; retries in `send.py` only occur when no tokens have been forwarded. Follow-up: consider retrying continuation even when initial tokens exist.)
+
+3. **Server-Side Fallback Guarantee**
+   - [ ] If `token_counts.continuation === 0` at `done`, synthesize `final_text` from accumulated tokens (initial phase) or upstream `final_text` and set `fallback_used=true`. (Partial today: `final_text` synthesis via accumulated `assistant_content` or upstream `final_text` is implemented; `fallback_used` is set when upstream `final_text` is used or a model fallback occurs, but not when only accumulated content is used.)
+   - [x] Ensure `send.py` emits a single canonical `done` with complete metrics and `final_text` when fallback occurs.
+
+4. **Contract & Unit Tests**
+   - [ ] Unit tests for `OpenAIService.stream_responses()` covering: normal continuation, delayed first token, zero tokens, retry path, fallback path.
+   - [x] Contract tests asserting SSE sequence semantics: `tool_result` → at least one `token` before `done` OR `done` with `token_counts.continuation===0` and non-empty `final_text` and `fallback_used=true`. Implemented in `tests/test_sse_continuation.py`.
+   - [x] Negative tests: upstream API error mid-continuation should not yield empty frontend content. Implemented cases: non-retryable error (no retry), retry exhaustion final error, and error after tokens (no retry).
+
+**Cross-References**
+- Frontend tracking and mitigation: `frontend/TODO_CHAT.md` §6.47
+- Related: 9.16.5 (Performance Optimization – submit tool outputs in same response)
 
 ---
 

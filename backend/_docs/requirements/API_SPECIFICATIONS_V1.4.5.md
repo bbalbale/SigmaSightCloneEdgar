@@ -1162,7 +1162,7 @@ Returns all portfolios for the authenticated user with real database data.
 }
 ```
 
-### Get Batch Job Summary
+## 20. Get Batch Job Summary
 **Endpoint**: `GET /admin/batch/jobs/summary`  
 **Status**: ✅ Fully Implemented  
 **Authentication**: Required (Admin)  
@@ -1312,7 +1312,7 @@ Returns all portfolios for the authenticated user with real database data.
 }
 ```
 
-### Get Data Quality Status
+## 21. Get Data Quality Status
 **Endpoint**: `GET /admin/batch/data-quality`  
 **Status**: ✅ Fully Implemented  
 **Authentication**: Required (Admin)  
@@ -1428,7 +1428,7 @@ Returns all portfolios for the authenticated user with real database data.
 }
 ```
 
-### Refresh Market Data for Quality
+## 22. Refresh Market Data for Quality
 **Endpoint**: `POST /admin/batch/data-quality/refresh`  
 **Status**: ✅ Fully Implemented  
 **Authentication**: Required (Admin)  
@@ -1579,6 +1579,55 @@ curl -X GET "http://localhost:8000/api/v1/data/prices/historical/AAPL?days=30" \
 
 # Real-time quotes
 curl -X GET "http://localhost:8000/api/v1/data/prices/quotes?symbols=AAPL,MSFT" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+## 23. Portfolio Analytics Overview
+**Endpoint**: `GET /api/v1/analytics/portfolio/{id}/overview`  
+**Authentication**: Required (Bearer Token)  
+**Purpose**: Portfolio aggregate metrics for dashboard cards (exposures, P&L, totals)
+
+**Example**:
+```bash
+curl -X GET "http://localhost:8000/api/v1/analytics/portfolio/e23ab931-a033-edfe-ed4f-9d02474780b4/overview" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+**Response**:
+```json
+{
+  "portfolio_id": "e23ab931-a033-edfe-ed4f-9d02474780b4",
+  "total_value": 1250000.00,
+  "cash_balance": 62500.00,
+  "exposures": {
+    "long_exposure": 1187500.00,
+    "short_exposure": 0.00,
+    "gross_exposure": 1187500.00,
+    "net_exposure": 1187500.00,
+    "long_percentage": 95.0,
+    "short_percentage": 0.0,
+    "gross_percentage": 95.0,
+    "net_percentage": 95.0
+  },
+  "pnl": {
+    "total_pnl": 125432.18,
+    "unrealized_pnl": 98765.43,
+    "realized_pnl": 26666.75
+  },
+  "position_count": {
+    "total_positions": 21,
+    "long_count": 18,
+    "short_count": 0,
+    "option_count": 3
+  },
+  "last_updated": "2025-01-15T10:30:00Z"
+}
+```
+
+### 4. Test Portfolio Analytics
+```bash
+# Portfolio overview metrics
+curl -X GET "http://localhost:8000/api/v1/analytics/portfolio/e23ab931-a033-edfe-ed4f-9d02474780b4/overview" \
   -H "Authorization: Bearer $TOKEN"
 ```
 

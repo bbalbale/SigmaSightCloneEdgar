@@ -7,14 +7,14 @@
 ## Summary
 
 - **Total Endpoints Specified**: 39
-- **Fully Implemented (Real Data)**: **18** (46%)
+- **Fully Implemented (Real Data)**: **19** (49%)
 - **Partially Implemented (Mock/Simulated)**: ~0 (0%)
-- **Unimplemented (Stubs/TODO)**: ~21 (54%)
-- **Code-Verified Database Access**: All 18 endpoints confirmed accessing real database data ✅
+- **Unimplemented (Stubs/TODO)**: ~20 (51%)
+- **Code-Verified Database Access**: All 19 endpoints confirmed accessing real database data ✅
 
 ## Implementation Status Matrix
 
-### ✅ Fully Implemented (Real Data) - 18 Endpoints
+### ✅ Fully Implemented (Real Data) - 19 Endpoints
 
 #### Authentication Endpoints (4 endpoints)
 | Endpoint | Path | Data Source | Service Layer | Notes |
@@ -24,7 +24,7 @@
 | Get Current User | `GET /api/v1/auth/me` | JWT validation | auth core | Current user info |
 | Refresh Token | `POST /api/v1/auth/refresh` | Portfolio table | auth core | New JWT + HTTP cookie |
 
-#### Data Endpoints (13 endpoints)
+#### Data Endpoints (14 endpoints)
 | Endpoint | Path | Data Source | Service Layer | Notes |
 |----------|------|-------------|---------------|-------|
 | Get Portfolios | `GET /api/v1/data/portfolios` | Portfolio table | Direct ORM | User's portfolios |
@@ -40,6 +40,7 @@
 | Get Risk Summary | `GET /api/v1/data/portfolios/{id}/risk-summary` | Position, Greeks, Factors | Direct ORM | Risk calculations |
 | Get Position Summary | `GET /api/v1/data/portfolios/{id}/positions/summary` | Position, MarketDataCache | Direct ORM | Position overview |
 | Get Position by ID | `GET /api/v1/data/positions/{id}/details` | Position, MarketDataCache, Greeks, Factors | Direct ORM | Full position details |
+| Portfolio Overview | `GET /api/v1/analytics/portfolio/{id}/overview` | Position, MarketDataCache, PositionGreeks | PortfolioAnalyticsService | Exposures, P&L, position counts |
 
 #### Administration Endpoints (5 endpoints)  
 | Endpoint | Path | Data Source | Service Layer | Notes |
@@ -61,7 +62,7 @@ All previously mock endpoints have been fixed and moved to "Fully Implemented" c
 | Legacy Portfolio | `/api/v1/portfolio/*` | **STUB** | Returns `{"message": "TODO: Implement..."}` |
 | Legacy Positions | `/api/v1/positions/*` | **STUB** | Returns `{"message": "TODO: Implement..."}` |
 | Legacy Risk | `/api/v1/risk/*` | **STUB** | Returns `{"message": "TODO: Implement..."}` |
-| Analytics Namespace | `/api/v1/analytics/*` | **NOT IMPLEMENTED** | Endpoints don't exist |
+| Analytics Namespace | `/api/v1/analytics/*` | **PARTIAL** | Portfolio overview implemented, other endpoints missing |
 | Management Namespace | `/api/v1/management/*` | **NOT IMPLEMENTED** | Endpoints don't exist |
 | Export Namespace | `/api/v1/export/*` | **NOT IMPLEMENTED** | Endpoints don't exist |
 | System Namespace | `/api/v1/system/*` | **NOT IMPLEMENTED** | Endpoints don't exist |
@@ -92,26 +93,27 @@ All previously mock endpoints have been fixed and moved to "Fully Implemented" c
 
 ## Recommendations for Developers
 
-### What You CAN Use (All 18 Endpoints with REAL Data!)
+### What You CAN Use (All 19 Endpoints with REAL Data!)
 
 #### Authentication (4 endpoints)
 1. **Login/Register**: `/api/v1/auth/login`, `/api/v1/auth/register` - Full JWT + cookie auth
 2. **User Management**: `/api/v1/auth/me`, `/api/v1/auth/refresh` - Complete user session handling
 
-#### Data Access (13 endpoints)  
+#### Data Access (14 endpoints)  
 3. **Portfolio Data**: Complete portfolio data with real calculations
 4. **Position Management**: Detailed position data with P&L calculations
 5. **Market Data**: Historical prices (292+ days), real-time quotes, factor ETF prices
 6. **Risk Analytics**: Greeks data, factor exposures, risk summaries
 7. **Aggregations**: Portfolio-level calculated metrics and summaries
+8. **Portfolio Analytics**: Overview endpoint with exposures, P&L, and position counts
 
 #### Administration (5 endpoints)
-8. **Batch Monitoring**: Full batch job status, statistics, and cancellation
-9. **Data Quality**: Quality metrics and market data refresh capabilities
+9. **Batch Monitoring**: Full batch job status, statistics, and cancellation
+10. **Data Quality**: Quality metrics and market data refresh capabilities
 
 ### What You SHOULD NOT Use
 1. **Legacy Endpoints**: All `/api/v1/portfolio/*`, `/api/v1/positions/*`, `/api/v1/risk/*` return TODO stubs
-2. **Unimplemented Namespaces**: Analytics, Management, Export, System endpoints don't exist
+2. **Unimplemented Namespaces**: Most analytics endpoints (only overview implemented), Management, Export, System endpoints don't exist
 
 ### Testing & Verification
 - Run batch processing to populate all calculation data: `uv run python scripts/run_batch_calculations.py`
@@ -130,10 +132,11 @@ All previously mock endpoints have been fixed and moved to "Fully Implemented" c
 ## Version History
 
 - **2025-09-05**: 🎯 **MAJOR CORRECTION** - Comprehensive source code verification
-  - **DISCOVERED**: 18 database-accessing endpoints (not 9 as previously documented)  
-  - **VERIFIED**: All endpoints through direct code analysis of auth.py, data.py, admin_batch.py
+  - **DISCOVERED**: 19 database-accessing endpoints (not 9 as previously documented)  
+  - **VERIFIED**: All endpoints through direct code analysis of auth.py, data.py, admin_batch.py, analytics.py
   - **DOCUMENTED**: OpenAPI descriptions, parameters, service layer usage for each endpoint
-  - **UPDATED**: Implementation status from 23% to 46% complete
+  - **UPDATED**: Implementation status from 23% to 49% complete
+  - **ADDED**: Portfolio analytics overview endpoint with exposures, P&L, and position counts
   - **REASON**: Previous status relied on incomplete documentation rather than code verification
 - **2025-08-26 18:20 PST**: Major improvements - fixed all mock data endpoints
   - Fixed cash_balance calculation (now 5% of portfolio)

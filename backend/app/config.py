@@ -48,6 +48,13 @@ class Settings(BaseSettings):
     MODEL_FALLBACK: str = Field(default="gpt-4o-mini", env="MODEL_FALLBACK")
     AGENT_CACHE_TTL: int = Field(default=600, env="AGENT_CACHE_TTL")
     SSE_HEARTBEAT_INTERVAL_MS: int = Field(default=15000, env="SSE_HEARTBEAT_INTERVAL_MS")
+    # SSE streaming retry/fallback settings
+    SSE_MAX_STREAM_RETRIES: int = Field(default=2, env="SSE_MAX_STREAM_RETRIES")
+    SSE_RETRY_BACKOFF_BASE_MS: int = Field(default=500, env="SSE_RETRY_BACKOFF_BASE_MS")
+    SSE_RETRY_BACKOFF_MULTIPLIER: float = Field(default=2.0, env="SSE_RETRY_BACKOFF_MULTIPLIER")
+    SSE_RETRY_BACKOFF_MAX_MS: int = Field(default=5000, env="SSE_RETRY_BACKOFF_MAX_MS")
+    SSE_RETRY_JITTER_MS: int = Field(default=250, env="SSE_RETRY_JITTER_MS")
+    SSE_USE_MODEL_FALLBACK: bool = Field(default=True, env="SSE_USE_MODEL_FALLBACK")
     
     # OpenAI Responses API configuration (formerly Chat configuration)
     # Renamed to be API-agnostic as per Phase 5.8.4

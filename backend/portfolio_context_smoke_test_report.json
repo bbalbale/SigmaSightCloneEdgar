@@ -1,0 +1,51 @@
+{
+  "test_suite": "Portfolio Context Smoke Test",
+  "timestamp": "2025-09-05T07:03:04.997463",
+  "summary": {
+    "total_tests": 4,
+    "passed": 3,
+    "failed": 1,
+    "success_rate": "75.0%",
+    "avg_duration_ms": 71
+  },
+  "acceptance_criteria": {
+    "zero_portfolio_missing_errors": true,
+    "portfolio_resolution_under_200ms": true,
+    "me_endpoint_includes_portfolio_id": true,
+    "fallback_resolution_works": false
+  },
+  "test_results": [
+    {
+      "test": "fresh_login",
+      "success": true,
+      "details": "Login successful, portfolio_id will be resolved via /me",
+      "duration_ms": 191,
+      "timestamp": "2025-09-05T07:03:04.899470"
+    },
+    {
+      "test": "me_endpoint",
+      "success": true,
+      "details": "/me returns portfolio_id: c0510ab8-c6b5-433c-adbc-3f74e1dbdb5e",
+      "duration_ms": 4,
+      "timestamp": "2025-09-05T07:03:04.904450"
+    },
+    {
+      "test": "portfolio_fetch",
+      "success": true,
+      "details": "Portfolio 'Demo High Net Worth Investor Portfolio' with 17 positions",
+      "duration_ms": 86,
+      "timestamp": "2025-09-05T07:03:04.991261"
+    },
+    {
+      "test": "fallback_resolution",
+      "success": false,
+      "details": "Fallback resolution failed: 400",
+      "duration_ms": 5,
+      "timestamp": "2025-09-05T07:03:04.997259"
+    }
+  ],
+  "portfolio_context": {
+    "resolved_portfolio_id": "c0510ab8-c6b5-433c-adbc-3f74e1dbdb5e",
+    "demo_user": "demo_hnw@sigmasight.com"
+  }
+}

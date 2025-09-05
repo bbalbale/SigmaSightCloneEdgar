@@ -1,5 +1,6 @@
 "use client"
 
+import React from 'react'
 import { useState, KeyboardEvent } from 'react'
 import { Send } from 'lucide-react'
 

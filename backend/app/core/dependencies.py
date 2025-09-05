@@ -171,6 +171,35 @@ async def require_admin(
     return current_user
 
 
+async def validate_portfolio_ownership(
+    db: AsyncSession,
+    portfolio_id: UUID,
+    user_id: UUID
+) -> None:
+    """
+    Validate that a portfolio belongs to the specified user.
+    
+    Args:
+        db: Database session
+        portfolio_id: Portfolio UUID to validate
+        user_id: User UUID who should own the portfolio
+        
+    Raises:
+        ValueError: If portfolio not found or not owned by user
+    """
+    portfolio_stmt = select(Portfolio).where(
+        and_(
+            Portfolio.id == portfolio_id,
+            Portfolio.user_id == user_id
+        )
+    )
+    portfolio_result = await db.execute(portfolio_stmt)
+    portfolio = portfolio_result.scalar_one_or_none()
+    
+    if not portfolio:
+        raise ValueError(f"Portfolio {portfolio_id} not found or not owned by user {user_id}")
+
+
 async def resolve_portfolio_id(
     portfolio_id: Optional[UUID],
     current_user: CurrentUser,

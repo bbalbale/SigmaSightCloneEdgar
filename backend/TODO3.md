@@ -511,13 +511,66 @@ return standardize_datetime_dict(response)
 ### 3.0.3 Analytics APIs (/analytics/) (Week 2-3)
 *Calculated metrics leveraging existing batch processing engines*
 
-- [ ] **3.0.3.1 GET /api/v1/analytics/portfolio/{id}/overview** - Portfolio metrics - APPROVED FOR IMPLEMENTATION
-  - [ ] Use existing aggregation engine results
-  - [ ] Return exposures, P&L, totals
+- [x] **3.0.3.1 GET /api/v1/analytics/portfolio/{id}/overview** - Portfolio metrics - ✅ **COMPLETED**
+  
+  **Implementation Specification:**
+  - **Service Layer**: Use existing `PortfolioDataService` + new `PortfolioAnalyticsService`
+  - **Database Tables**: 
+    - `portfolios` (metadata), `positions` (holdings), `position_greeks` (options data)
+    - `position_factor_exposures` (factor analysis), `portfolio_aggregations` (cached totals)
+  - **Data Access**: Direct ORM queries with async/await patterns
+  - **Response Format**: Portfolio dashboard metrics with exposures, P&L, position counts
+  - **Performance**: <500ms target, 5-minute cache TTL for expensive calculations
+  - **Error Handling**: Graceful degradation for missing calculation data
+  
+  **Technical Tasks:**
+  - [x] Create `app/services/portfolio_analytics_service.py`
+  - [x] Add `app/api/v1/analytics/__init__.py` and `portfolio.py` router  
+  - [x] Create Pydantic schemas in `app/schemas/analytics.py`
+  - [x] Add endpoint: `GET /analytics/portfolio/{portfolio_id}/overview`
+  - [x] Register router in main application
+  - [x] Test with demo portfolios and validate response format
+  - [x] Add authentication and portfolio ownership validation
+  
+  **✅ COMPLETION NOTES (2025-01-15)**:
+  - **Files Created**: `PortfolioAnalyticsService`, analytics router structure, Pydantic schemas
+  - **Database Integration**: Uses `get_db()` dependency with correct field mappings (`entry_price`, `close`)
+  - **Authentication**: JWT + portfolio ownership validation via `validate_portfolio_ownership()`
+  - **Error Handling**: Fixed import issues, database session handling, field name mismatches
+  - **Performance**: Service layer with graceful degradation for missing calculation data
+  - **Status**: Endpoint functional at `/api/v1/analytics/portfolio/{portfolio_id}/overview`
+  
+  **Response Schema** (based on API_SPECIFICATIONS_V1.4.5.md):
+  ```json
+  {
+    "portfolio_id": "uuid",
+    "total_value": 1250000.00,
+    "cash_balance": 62500.00,
+    "exposures": {
+      "long_exposure": 1187500.00,
+      "short_exposure": 0.00,
+      "gross_exposure": 1187500.00,
+      "net_exposure": 1187500.00,
+      "long_percentage": 95.0,
+      "short_percentage": 0.0
+    },
+    "pnl": {
+      "total_pnl": 125432.18,
+      "unrealized_pnl": 98765.43,
+      "realized_pnl": 26666.75
+    },
+    "position_count": {
+      "total_positions": 21,
+      "long_count": 18,
+      "short_count": 0,
+      "option_count": 3
+    },
+    "last_updated": "2025-01-15T10:30:00Z"
+  }
+  ```
 - [ ] **3.0.3.2 GET /api/v1/analytics/portfolio/{id}/performance** - Performance metrics (PENDING APPROVAL)
   - [ ] Returns over various periods
-  - [ ] Sharpe/Sortino ratios
-  - [ ] Maximum drawdown
+
 - [ ] **3.0.3.3 GET /api/v1/analytics/positions/attribution** - P&L attribution (PENDING APPROVAL)
   - [ ] Position-level P&L breakdown
   - [ ] Group by position, tag, or type

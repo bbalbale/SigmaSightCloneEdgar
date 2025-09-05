@@ -12,6 +12,7 @@ import time
 from typing import AsyncGenerator, List, Dict, Any
 from uuid import uuid4
 from datetime import datetime
+import random
 
 from app.database import get_db
 from app.core.dependencies import get_current_user, CurrentUser
@@ -74,6 +75,10 @@ async def sse_generator(
     Generate Server-Sent Events for the chat response using OpenAI.
     """
     response_start_time = datetime.now()
+    run_id = f"run_{uuid4().hex[:12]}"
+    # Initialize timing and timeline early for use by all events
+    start_time = time.time()
+    event_timeline: List[Dict[str, Any]] = []
     
     try:
         # Handle mode switching
@@ -99,9 +104,18 @@ async def sse_generator(
                 )
                 yield f"event: message\ndata: {json.dumps(mode_change_msg.model_dump())}\n\n"
                 
-                # Send done event
-                done_event = SSEDoneEvent(tool_calls_count=0)
-                yield f"event: done\ndata: {json.dumps(done_event.model_dump())}\n\n"
+                # Send standardized done event envelope
+                done_payload = {
+                    "type": "done",
+                    "run_id": run_id,
+                    "seq": 0,
+                    "data": {
+                        "final_text": f"Mode changed to {new_mode}",
+                        "tool_calls_count": 0
+                    },
+                    "timestamp": int(time.time() * 1000)
+                }
+                yield f"event: done\ndata: {json.dumps(done_payload)}\n\n"
                 return
         
         # Load message history
@@ -148,11 +162,19 @@ async def sse_generator(
         except Exception as e:
             await db.rollback()
             logger.error(f"Failed to create messages: {e}")
-            yield f"event: error\ndata: {json.dumps({'error': 'Failed to create messages'})}\n\n"
+            error_payload = {
+                "type": "error",
+                "run_id": run_id,
+                "seq": 0,
+                "data": {
+                    "error": "Failed to create messages",
+                    "error_type": "SERVER_ERROR",
+                    "retryable": False
+                },
+                "timestamp": int(time.time() * 1000)
+            }
+            yield f"event: error\ndata: {json.dumps(error_payload)}\n\n"
             return
-        
-        # Generate run_id for this streaming session
-        run_id = f"run_{uuid4().hex[:12]}"
         
         # Extract authentication token from request (Bearer header or cookie)
         auth_context = None
@@ -182,133 +204,343 @@ async def sse_generator(
             "run_id": run_id
         }
         yield f"event: message_created\ndata: {json.dumps(message_created_event)}\n\n"
+        # Record timeline: message_created
+        event_timeline.append({
+            "type": "message_created",
+            "t_ms": int((time.time() - start_time) * 1000)
+        })
         
-        # Stream OpenAI response
+        # Stream OpenAI response with retry/backoff and optional fallback model
         assistant_content = ""
         tool_calls_made = []
         first_token_time = None
-        start_time = time.time()
-        openai_response_id = None  # Track OpenAI response ID for traceability
-        
-        async for sse_event in openai_service.stream_responses(
-            conversation_id=str(conversation.id),
-            conversation_mode=conversation.mode,
-            message_text=message_text,
-            message_history=message_history,
-            portfolio_context=portfolio_context,
-            auth_context=auth_context
-        ):
-            # Filter out service 'done' to avoid duplicate finalization
-            if "event: done" in sse_event:
-                # Skip forwarding; we'll emit a unified 'done' after DB commit
-                pass
-            else:
-                # Forward the SSE event
-                yield sse_event
-            
-            # Parse event to track content, tool calls, and response ID (Phase 5.8.2.1)
-            if "event: response_id" in sse_event:
-                try:
-                    data_line = sse_event.split("\ndata: ")[1].split("\n")[0]
-                    data = json.loads(data_line)
-                    openai_response_id = data.get("data", {}).get("response_id")
-                    if openai_response_id:
-                        # Correlation logging: connect request details with OpenAI response ID
-                        logger.info(
-                            f"🔗 OpenAI Response Started - "
-                            f"Response ID: {openai_response_id} | "
-                            f"Conversation: {conversation.id} | "
-                            f"User: {current_user.id} | "
-                            f"Mode: {conversation.mode} | "
-                            f"Run ID: {run_id} | "
-                            f"Message Length: {len(message_text)} chars"
-                        )
-                except Exception as e:
-                    logger.error(f"Failed to parse response_id SSE event: {e}")
-            
-            # FIXED: Changed from "event: message" to "event: token" to match OpenAI service
-            elif "event: token" in sse_event:
-                try:
-                    data_line = sse_event.split("\ndata: ")[1].split("\n")[0]
-                    data = json.loads(data_line)
-                    if data.get("delta"):
-                        assistant_content += data["delta"]
-                        # Track first token time for metrics
-                        if not first_token_time:
-                            first_token_time = time.time()
-                except:
-                    pass
-            # Backward-compatibility: handle legacy 'message' events (deprecated)
-            elif "event: message" in sse_event:
-                try:
-                    data_line = sse_event.split("\ndata: ")[1].split("\n")[0]
-                    data = json.loads(data_line)
-                    if data.get("delta"):
-                        assistant_content += data["delta"]
-                        if not first_token_time:
-                            first_token_time = time.time()
-                except:
-                    pass
-            # FIXED: Changed from "event: tool_result" to "event: tool_call" to capture tool details
-            elif "event: tool_call" in sse_event:
-                try:
-                    data_line = sse_event.split("\ndata: ")[1].split("\n")[0]
-                    data = json.loads(data_line)
-                    # Store tool calls in OpenAI-compatible format for history reconstruction
-                    tool_call_id = data.get("tool_call_id", f"call_{uuid4().hex[:24]}")
-                    tool_name = data.get("tool_name")
-                    
-                    # CRITICAL: Ensure function.name is always a string type for OpenAI API
-                    if not tool_name or not isinstance(tool_name, str):
-                        logger.warning(f"Invalid tool_name in SSE event: {tool_name} (type: {type(tool_name)})")
-                        tool_name = "unknown_tool"  # Fallback to valid string
-                    
-                    tool_calls_made.append({
-                        "id": tool_call_id,  # Use provided ID or generate OpenAI-compatible ID
-                        "type": "function", 
-                        "function": {
-                            "name": tool_name,  # Now guaranteed to be a string
-                            "arguments": json.dumps(data.get("tool_args", {}))
-                        }
+        openai_response_id = None
+        tokens_received_total = 0
+        upstream_token_counts = None
+        last_tool_result_ts = None
+        post_tool_first_token_gaps_ms: list[int] = []
+        upstream_final_text = None
+        start_event_forwarded = False
+        tokens_forwarded_any = False
+
+        max_retries = getattr(settings, "SSE_MAX_STREAM_RETRIES", 2)
+        backoff_base_ms = getattr(settings, "SSE_RETRY_BACKOFF_BASE_MS", 500)
+        backoff_multiplier = getattr(settings, "SSE_RETRY_BACKOFF_MULTIPLIER", 2.0)
+        backoff_max_ms = getattr(settings, "SSE_RETRY_BACKOFF_MAX_MS", 5000)
+        backoff_jitter_ms = getattr(settings, "SSE_RETRY_JITTER_MS", 250)
+        use_model_fallback = getattr(settings, "SSE_USE_MODEL_FALLBACK", True)
+
+        attempts = 0
+        success = False
+        last_error_obj: Dict[str, Any] | None = None
+        final_model_used = settings.MODEL_DEFAULT
+        fallback_model = settings.MODEL_FALLBACK
+        fallback_used_flag = False
+
+        while attempts <= max_retries:
+            model_for_attempt = final_model_used
+            if attempts > 0 and use_model_fallback and fallback_model and not tokens_forwarded_any:
+                # Switch to fallback after first failure (no tokens yet)
+                event_timeline.append({
+                    "type": "fallback_switch",
+                    "t_ms": int((time.time() - start_time) * 1000)
+                })
+                model_for_attempt = fallback_model
+                fallback_used_flag = True
+                info_payload = {
+                    "type": "info",
+                    "run_id": run_id,
+                    "seq": 0,
+                    "data": {
+                        "info_type": "model_switch",
+                        "from": final_model_used,
+                        "to": model_for_attempt,
+                        "attempt": attempts + 1
+                    },
+                    "timestamp": int(time.time() * 1000)
+                }
+                yield f"event: info\ndata: {json.dumps(info_payload)}\n\n"
+
+            # Reset per-attempt state
+            assistant_content = ""
+            first_token_time = None
+            openai_response_id = None
+            upstream_token_counts = None
+            last_tool_result_ts = None
+            post_tool_first_token_gaps_ms = []
+            upstream_final_text = None
+
+            attempt_had_error = False
+            attempt_error_retryable = False
+            attempt_error_message = None
+
+            # Start streaming for this attempt
+            event_timeline.append({
+                "type": "attempt_start",
+                "t_ms": int((time.time() - start_time) * 1000),
+            })
+
+            async for sse_event in openai_service.stream_responses(
+                conversation_id=str(conversation.id),
+                conversation_mode=conversation.mode,
+                message_text=message_text,
+                message_history=message_history,
+                portfolio_context=portfolio_context,
+                auth_context=auth_context,
+                run_id=run_id,
+                model_override=model_for_attempt
+            ):
+                # Intercept service 'done' for metrics only
+                if "event: done" in sse_event:
+                    try:
+                        data_line = sse_event.split("\ndata: ")[1].split("\n")[0]
+                        data_obj = json.loads(data_line)
+                        upstream_token_counts = data_obj.get("data", {}).get("token_counts")
+                        upstream_final_text = data_obj.get("data", {}).get("final_text")
+                    except Exception as e:
+                        logger.warning(f"Failed to parse upstream done event for token_counts: {e}")
+                    # Don't forward upstream done
+                    continue
+
+                # On subsequent attempts, suppress duplicate start events
+                if "event: start" in sse_event:
+                    # Timeline: start event
+                    event_timeline.append({
+                        "type": "start",
+                        "t_ms": int((time.time() - start_time) * 1000)
                     })
-                except Exception as e:
-                    logger.error(f"Failed to parse tool_call SSE event: {e}")
-                    pass
-        
+                    if not start_event_forwarded:
+                        start_event_forwarded = True
+                        yield sse_event
+                    continue
+
+                # Detect upstream error to decide on retry strategy
+                if "event: error" in sse_event:
+                    event_timeline.append({
+                        "type": "error",
+                        "t_ms": int((time.time() - start_time) * 1000)
+                    })
+                    try:
+                        data_line = sse_event.split("\ndata: ")[1].split("\n")[0]
+                        data_obj = json.loads(data_line)
+                        err_data = data_obj.get("data", {})
+                        attempt_had_error = True
+                        attempt_error_retryable = bool(err_data.get("retryable", True))
+                        attempt_error_message = err_data.get("error") or err_data.get("message") or "Unknown error"
+                        last_error_obj = err_data
+                    except Exception:
+                        attempt_had_error = True
+                        attempt_error_retryable = True
+                        attempt_error_message = "Unknown error"
+                    # Do not forward upstream error; we'll handle retry and only emit final error if exhausted
+                    break
+
+                # Forward the SSE event for non-done/non-error
+                yield sse_event
+
+                # Parse for metrics and content accumulation
+                if "event: response_id" in sse_event:
+                    event_timeline.append({
+                        "type": "response_id",
+                        "t_ms": int((time.time() - start_time) * 1000)
+                    })
+                    try:
+                        data_line = sse_event.split("\ndata: ")[1].split("\n")[0]
+                        data = json.loads(data_line)
+                        openai_response_id = data.get("data", {}).get("response_id")
+                        if openai_response_id:
+                            logger.info(
+                                f"🔗 OpenAI Response Started - "
+                                f"Response ID: {openai_response_id} | "
+                                f"Conversation: {conversation.id} | "
+                                f"User: {current_user.id} | "
+                                f"Mode: {conversation.mode} | "
+                                f"Run ID: {run_id} | "
+                                f"Message Length: {len(message_text)} chars"
+                            )
+                    except Exception as e:
+                        logger.error(f"Failed to parse response_id SSE event: {e}")
+                elif "event: token" in sse_event:
+                    try:
+                        data_line = sse_event.split("\ndata: ")[1].split("\n")[0]
+                        event_obj = json.loads(data_line)
+                        delta = event_obj.get("data", {}).get("delta")
+                        if delta:
+                            assistant_content += delta
+                            if not first_token_time:
+                                first_token_time = time.time()
+                                event_timeline.append({
+                                    "type": "token_first",
+                                    "t_ms": int((time.time() - start_time) * 1000)
+                                })
+                            tokens_received_total += 1
+                            tokens_forwarded_any = True
+                            if last_tool_result_ts is not None:
+                                gap_ms = int((time.time() - last_tool_result_ts) * 1000)
+                                post_tool_first_token_gaps_ms.append(gap_ms)
+                                last_tool_result_ts = None
+                    except Exception:
+                        pass
+                elif "event: message" in sse_event:
+                    try:
+                        data_line = sse_event.split("\ndata: ")[1].split("\n")[0]
+                        data = json.loads(data_line)
+                        if data.get("delta"):
+                            assistant_content += data["delta"]
+                            if not first_token_time:
+                                first_token_time = time.time()
+                                event_timeline.append({
+                                    "type": "token_first",
+                                    "t_ms": int((time.time() - start_time) * 1000)
+                                })
+                            tokens_received_total += 1
+                            tokens_forwarded_any = True
+                    except Exception:
+                        pass
+                elif "event: tool_call" in sse_event:
+                    event_timeline.append({
+                        "type": "tool_call",
+                        "t_ms": int((time.time() - start_time) * 1000)
+                    })
+                    try:
+                        data_line = sse_event.split("\ndata: ")[1].split("\n")[0]
+                        event_obj = json.loads(data_line)
+                        inner = event_obj.get("data", {})
+                        tool_call_id = inner.get("tool_call_id", f"call_{uuid4().hex[:24]}")
+                        tool_name = inner.get("tool_name")
+                        if not tool_name or not isinstance(tool_name, str):
+                            logger.warning(f"Invalid tool_name in SSE event: {tool_name} (type: {type(tool_name)})")
+                            tool_name = "unknown_tool"
+                        tool_calls_made.append({
+                            "id": tool_call_id,
+                            "type": "function",
+                            "function": {
+                                "name": tool_name,
+                                "arguments": json.dumps(inner.get("tool_args", {}))
+                            }
+                        })
+                    except Exception as e:
+                        logger.error(f"Failed to parse tool_call SSE event: {e}")
+                elif "event: tool_result" in sse_event:
+                    try:
+                        last_tool_result_ts = time.time()
+                        event_timeline.append({
+                            "type": "tool_result",
+                            "t_ms": int((time.time() - start_time) * 1000)
+                        })
+                    except Exception:
+                        last_tool_result_ts = time.time()
+
+            # After attempt stream ends, decide to retry or finalize
+            if attempt_had_error and attempt_error_retryable and not tokens_forwarded_any and attempts < max_retries:
+                # Schedule retry with exponential backoff
+                delay_ms = min(int(backoff_base_ms * (backoff_multiplier ** attempts)) + random.randint(0, backoff_jitter_ms), backoff_max_ms)
+                event_timeline.append({
+                    "type": "retry_scheduled",
+                    "t_ms": int((time.time() - start_time) * 1000),
+                    "delay_ms": delay_ms
+                })
+                info_payload = {
+                    "type": "info",
+                    "run_id": run_id,
+                    "seq": 0,
+                    "data": {
+                        "info_type": "retry_scheduled",
+                        "attempt": attempts + 1,
+                        "max_attempts": max_retries + 1,
+                        "retry_in_ms": delay_ms,
+                        "retryable": True
+                    },
+                    "timestamp": int(time.time() * 1000)
+                }
+                yield f"event: info\ndata: {json.dumps(info_payload)}\n\n"
+                await asyncio.sleep(delay_ms / 1000.0)
+                attempts += 1
+                continue
+
+            # No retry or success path
+            final_model_used = model_for_attempt
+            success = not attempt_had_error
+            break
+
         # Update assistant message with final content and metrics
         assistant_message.content = assistant_content
-        assistant_message.tool_calls = None  # Phase 9.9.1: Stop persisting tool calls to prevent history contamination
-        
-        # Store OpenAI response ID for production traceability (Phase 5.8.2.1)
+        assistant_message.tool_calls = None
         if openai_response_id:
             assistant_message.provider_message_id = openai_response_id
             logger.info(f"🔗 Stored OpenAI Response ID: {openai_response_id} for message {assistant_message.id} in conversation {conversation.id}")
-        
-        # Add metrics (these fields should exist in the model)
         if first_token_time:
             assistant_message.first_token_ms = int((first_token_time - start_time) * 1000)
         assistant_message.latency_ms = int((time.time() - start_time) * 1000)
-        
-        # Commit the updated assistant message
         await db.commit()
-        
-        # Calculate latency
+
         latency_ms = int((datetime.now() - response_start_time).total_seconds() * 1000)
-        
-        # Send final done event if not already sent
-        done_event = SSEDoneEvent(
-            tool_calls_count=len(tool_calls_made),
-            latency_ms=latency_ms
-        )
-        yield f"event: done\ndata: {json.dumps(done_event.model_dump())}\n\n"
+
+        if success:
+            final_text_out = assistant_content or upstream_final_text or ""
+            fallback_used = (bool(upstream_final_text) and not assistant_content) or fallback_used_flag
+            event_timeline.append({
+                "type": "done_emit",
+                "t_ms": int((time.time() - start_time) * 1000)
+            })
+            done_payload = {
+                "type": "done",
+                "run_id": run_id,
+                "seq": 0,
+                "data": {
+                    "final_text": final_text_out,
+                    "tool_calls_count": len(tool_calls_made),
+                    "latency_ms": latency_ms,
+                    "token_counts": upstream_token_counts or {"initial": tokens_received_total, "continuation": 0},
+                    "post_tool_first_token_gaps_ms": post_tool_first_token_gaps_ms,
+                    "event_timeline": event_timeline,
+                    "fallback_used": fallback_used,
+                    "model_used": final_model_used,
+                    "retry_stats": {
+                        "attempts": attempts + 1,
+                        "max_retries": max_retries,
+                        "used_fallback_model": fallback_used_flag
+                    }
+                },
+                "timestamp": int(time.time() * 1000)
+            }
+            yield f"event: done\ndata: {json.dumps(done_payload)}\n\n"
+            try:
+                logger.info(f"Event timeline (ms since start): {event_timeline}")
+                if fallback_used:
+                    logger.warning("Used upstream final_text or model fallback due to issues in primary attempt")
+            except Exception:
+                pass
+        else:
+            # All attempts failed or non-retryable error
+            error_payload = {
+                "type": "error",
+                "run_id": run_id,
+                "seq": 0,
+                "data": {
+                    "error": last_error_obj.get("error") if last_error_obj else "Streaming failed",
+                    "error_type": (last_error_obj.get("error_type") if last_error_obj else "STREAM_FAILED"),
+                    "retryable": False,
+                    "attempts": attempts + 1
+                },
+                "timestamp": int(time.time() * 1000)
+            }
+            yield f"event: error\ndata: {json.dumps(error_payload)}\n\n"
         
     except Exception as e:
         logger.error(f"SSE generator error: {e}")
-        error_event = SSEErrorEvent(
-            message=str(e),
-            retryable=True
-        )
-        yield f"event: error\ndata: {json.dumps(error_event.model_dump())}\n\n"
+        error_payload = {
+            "type": "error",
+            "run_id": run_id,
+            "seq": 0,
+            "data": {
+                "error": str(e),
+                "error_type": "SERVER_ERROR",
+                "retryable": True
+            },
+            "timestamp": int(time.time() * 1000)
+        }
+        yield f"event: error\ndata: {json.dumps(error_payload)}\n\n"
 
 
 @router.post("/send")
