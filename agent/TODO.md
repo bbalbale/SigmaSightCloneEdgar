@@ -3459,6 +3459,84 @@ portfolio = result.scalar_one_or_none()  # Takes first result
 
 ---
 
+### 🔧 9.17 Implement Tool: get_prices_historical (Priority: HIGH)
+
+**Problem Identified**: Chat use case testing revealed that the `get_prices_historical` tool is not implemented, causing failures for all historical data queries (Test Category 2).
+
+**Implementation Tasks**:
+1. [ ] **Add tool handler in `app/agent/tools/tool_handlers.py`**
+   - [ ] Implement `get_prices_historical` function
+   - [ ] Map to backend endpoint `/api/v1/data/prices/historical/{portfolio_id}`
+   - [ ] Handle parameters: portfolio_id, lookback_days, max_symbols, include_factor_etfs, date_format
+   - [ ] Apply caps: max 180 days lookback, max 5 symbols
+   - [ ] Return structured data with metadata
+
+2. [ ] **Register tool in `app/agent/tools/tool_registry.py`**
+   - [ ] Add to tool definitions with proper OpenAI schema
+   - [ ] Include description: "Retrieves historical price data for portfolio symbols"
+   - [ ] Define parameters schema with types and validation
+
+3. [ ] **Add error handling**
+   - [ ] Handle missing portfolio_id gracefully
+   - [ ] Return informative error messages for invalid parameters
+   - [ ] Implement fallback for when no data available
+
+4. [ ] **Test implementation**
+   - [ ] Verify with query: "give me historical prices on AAPL for the last 60 days"
+   - [ ] Test edge cases: invalid symbols, excessive lookback, missing data
+   - [ ] Ensure proper SSE streaming of results
+
+**Expected Outcome**: Historical price queries should work, enabling correlation calculations and performance analysis.
+
+**References**:
+- Test failures documented in: `frontend/CHAT_USE_CASES_TEST_REPORT_20250905_153000.md` (Test 2.1-2.3)
+- Backend endpoint exists and works: `/api/v1/data/prices/historical/{id}`
+- Similar implementation pattern: See existing `get_current_quotes` tool
+
+---
+
+### 🔍 9.18 Investigate Data Access for get_factor_etf_prices (Priority: HIGH)
+
+**Problem Identified**: The `get_factor_etf_prices` tool is fully implemented but returns educational content instead of actual data, despite data being confirmed in the database.
+
+**Investigation Required**:
+1. [ ] **Verify tool is being called correctly**
+   - [ ] Check if LLM is actually calling the tool vs providing fallback response
+   - [ ] Verify tool parameters are being passed correctly
+   - [ ] Check SSE event stream to see if tool_call events are generated
+
+2. [ ] **Debug data retrieval path**
+   - [ ] Verify MarketDataCache table contains ETF symbols (SPY, VTV, VUG, MTUM, QUAL, SLY, USMV)
+   - [ ] Check if authentication context is properly passed to tool handler
+   - [ ] Verify database query in `/api/v1/data/factors/etf-prices` endpoint is working
+   - [ ] Test endpoint directly with curl to confirm data returns
+
+3. [ ] **Check tool response handling**
+   - [ ] Verify tool response is properly formatted and returned to LLM
+   - [ ] Check if empty/null responses are causing fallback behavior
+   - [ ] Ensure meta object is properly populated
+
+4. [ ] **Test with direct query**
+   - [ ] Test endpoint: `curl -H "Authorization: Bearer TOKEN" http://localhost:8000/api/v1/data/factors/etf-prices`
+   - [ ] Verify response contains actual price data
+   - [ ] Compare with chat response to identify discrepancy
+
+**Implementation Verified**:
+- ✅ Backend endpoint exists: `/api/v1/data/factors/etf-prices` (line 676)
+- ✅ Tool handler implemented: `handlers.py` line 415
+- ✅ Tool registered: `tool_registry.py` line 74  
+- ✅ OpenAI definition present: `openai_adapter.py` line 173
+- ✅ Data confirmed in database
+
+**Expected Outcome**: Tool should return actual factor ETF price data instead of educational content.
+
+**References**:
+- Test failure documented in: `frontend/CHAT_USE_CASES_TEST_REPORT_20250905_153000.md` (Test 2.4)
+- User confirmed data exists in database
+- Tool appears fully implemented but not functioning correctly
+
+---
+
 ## 📋 Phase 10: ID System Refactoring - Option A (Clean API Separation) (Day 12-13)
 
 ### 🔥 10.0 Critical SSE Contract Fixes (1-2 hours) ✅ **COMPLETED 2025-09-02**

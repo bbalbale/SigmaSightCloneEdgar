@@ -1199,8 +1199,72 @@ This implementation follows an **automated test-driven development cycle** using
 **Follow-ups (tracked in separate TODOs):**
 - Add UI indicators for fallback usage and large token gaps.
 - Update docs to describe fallback behavior and new logging/metrics.
-- Continue backend root-cause investigation for post-tool streaming gaps. See `agent/TODO.md` §9.17 “SSE Continuation Streaming Reliability (Backend Next Steps)”.
- 
+- Continue backend root-cause investigation for post-tool streaming gaps. See `agent/TODO.md` §9.17 "SSE Continuation Streaming Reliability (Backend Next Steps)".
+
+### 6.48 **Initialize New Conversation on Login** (Priority: CRITICAL)
+**Problem Identified**: Chat fails with 403 "Not authorized to access this conversation" because frontend persists conversation IDs across sessions.
+
+**Implementation Required**:
+- [ ] **6.48.1** Clear stale conversation state on login (`src/app/login/page.tsx`)
+  - [ ] Remove conversationId from localStorage after successful auth
+  - [ ] Clear chatHistory from localStorage
+  - [ ] Clear any conversation state from chatStore
+  
+- [ ] **6.48.2** Create fresh conversation after login
+  - [ ] Add conversation creation API call in login success handler
+  - [ ] Store new conversation_id in localStorage
+  - [ ] Update chatStore with new conversation_id
+  
+- [ ] **6.48.3** Add conversation validation on chat open
+  - [ ] Check if stored conversation_id belongs to current user
+  - [ ] Create new conversation if validation fails
+  - [ ] Handle 403 errors gracefully with automatic new conversation creation
+
+**Code Implementation**:
+```typescript
+// In src/app/login/page.tsx handleSubmit or auth service
+const handleSuccessfulLogin = async (response: LoginResponse) => {
+  // 1. Store JWT token
+  localStorage.setItem('access_token', response.access_token);
+  
+  // 2. Clear stale conversation state
+  localStorage.removeItem('conversationId');
+  localStorage.removeItem('chatHistory');
+  
+  // 3. Create fresh conversation
+  try {
+    const conversationResponse = await fetch('/api/proxy/api/v1/chat/conversations', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${response.access_token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        title: `Chat Session - ${new Date().toLocaleDateString()}`,
+        mode: 'green'
+      })
+    });
+    
+    if (conversationResponse.ok) {
+      const { conversation_id } = await conversationResponse.json();
+      localStorage.setItem('conversationId', conversation_id);
+    }
+  } catch (error) {
+    console.error('Failed to create initial conversation:', error);
+    // Proceed without conversation - will create on first message
+  }
+  
+  // 4. Navigate to portfolio
+  router.push('/portfolio?type=high-net-worth');
+}
+```
+
+**Expected Outcome**: Eliminates 403 errors by ensuring each login session has its own conversation that the user owns.
+
+**References**: 
+- Issue documented in `CHAT_USE_CASES_TEST_REPORT_20250905_153000.md` (Critical Finding line 157)
+- Root cause: Conversation ID `c1ef6fc0-8dc2-429b-803c-da7d525737c4` from previous session
+
 ## 7. **Portfolio ID Improvements (Level 1 - Complete Scope)**
 **Timeline: 1-2 days | Reference: _docs/requirements/PORTFOLIO_ID_DESIGN_DOC.md Section 8.1**
 

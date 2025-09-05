@@ -162,26 +162,111 @@ Provided educational content about factor ETFs but no actual price data
 ```javascript
 Failed to load resource: 403 (Forbidden)
 Response: {detail: "Not authorized to access this conversation"}
-Streaming error: {message: "Streaming failed", error_type: "SERVER_ERROR"}
+Streaming error: {message: "Streaming failed", error_type: "SERVER_ERROR", run_id: "run_1757085939123"}
 ```
 
-**Frontend Layer Diagnostics:**
+**Detailed Browser Console Evidence:**
+```javascript
+// Initial successful authentication
+[LOG] Starting chat stream request: {conversationId: "c1ef6fc0-8dc2-429b-803c-da7d525737c4", message: "how can sigmasight help me?"}
+
+// Request fails with 403
+[ERROR] Failed to load resource: the server responded with a status of 403 (Forbidden) 
+        @ http://localhost:3005/api/proxy/api/v1/chat/stream
+
+// Response details captured
+[LOG] Response received: {ok: false, status: 403, contentType: "application/json", headers: Object}
+
+// Error cascade
+[ERROR] Streaming error: {detail: "Not authorized to access this conversation"}
+[ERROR] Streaming error: {message: "Streaming failed", error_type: "SERVER_ERROR", run_id: "run_1757085939123"}
+```
+
+**Frontend Layer Diagnostics (Enhanced):**
 - Chat shows "Please log in to use the chat assistant" despite being logged in
-- JWT token exists in localStorage
-- Portfolio page loads correctly
-- Chat interface becomes disconnected from session
+- JWT token exists in localStorage: `localStorage.getItem("access_token")` returns valid token
+- Portfolio page loads correctly with authenticated data
+- Chat interface becomes disconnected from session after first message attempt
+- Conversation ID `c1ef6fc0-8dc2-429b-803c-da7d525737c4` appears to be from a previous session
+- Request deduplication logs show portfolio requests working: `Request deduplication: Reusing existing request for /api/proxy/api/v1/data/portfolio/e23ab931-a033-edfe-ed4f-9d02474780b4/complete`
 
-**Backend API Layer Diagnostics:**
-- 403 Forbidden on `/api/v1/chat/stream`
-- Conversation ID mismatch or ownership issue
-- JWT token not being properly validated for chat endpoints
+**Backend API Layer Diagnostics (Enhanced):**
+- 403 Forbidden specifically on `/api/v1/chat/stream` endpoint
+- Conversation ownership validation failing - conversation belongs to different user/session
+- JWT token validates for portfolio endpoints but not chat endpoints
+- Chat monitoring shows backend healthy: `{"status": 200, "response_time": 195.2, "has_token": true}`
+- `/api/v1/auth/me` endpoint returns 200 with proper user context
 
-**Root Cause Analysis:**
-Mixed authentication strategy causing session inconsistency:
-- Portfolio uses JWT tokens successfully
-- Chat expects HttpOnly cookies (per V1.1 spec)
-- Current implementation has partial JWT support
-- Conversation ownership validation failing
+**Network Request Analysis:**
+```javascript
+// Working portfolio request
+GET /api/proxy/api/v1/data/portfolio/e23ab931-a033-edfe-ed4f-9d02474780b4/complete
+Authorization: Bearer [JWT_TOKEN]
+Status: 200 OK
+
+// Failing chat request  
+POST /api/proxy/api/v1/chat/stream
+Authorization: Bearer [JWT_TOKEN]  // Same token
+Body: {conversationId: "c1ef6fc0-8dc2-429b-803c-da7d525737c4", message: "..."}
+Status: 403 Forbidden
+Response: {detail: "Not authorized to access this conversation"}
+```
+
+**Session State Timeline:**
+1. **T+0**: User logs in successfully, JWT token stored
+2. **T+1**: Portfolio page loads, all data endpoints work
+3. **T+2**: Chat dialog opens, shows previous conversation history
+4. **T+3**: User sends new message to existing conversation
+5. **T+4**: Backend rejects with 403 - conversation ownership check fails
+6. **T+5**: Chat UI shows "Please log in" despite valid JWT
+
+**Root Cause Analysis (Detailed):**
+The critical issue is **conversation persistence without proper session binding**:
+
+1. **Conversation ID Mismatch**: The frontend is trying to continue a conversation (`c1ef6fc0-8dc2-429b-803c-da7d525737c4`) that was created in a different session or by a different user
+   
+   **SOLUTION**: Initialize a new conversation on each login:
+   ```javascript
+   // In login success handler
+   const handleLoginSuccess = async (token) => {
+     // Clear any existing conversation state
+     localStorage.removeItem('conversationId');
+     chatStore.clearConversation();
+     
+     // Create new conversation after login
+     const response = await fetch('/api/proxy/api/v1/chat/conversations', {
+       method: 'POST',
+       headers: {
+         'Authorization': `Bearer ${token}`,
+         'Content-Type': 'application/json'
+       },
+       body: JSON.stringify({
+         title: `Chat - ${new Date().toISOString()}`,
+         mode: 'green'  // default mode
+       })
+     });
+     
+     const { conversation_id } = await response.json();
+     localStorage.setItem('conversationId', conversation_id);
+     chatStore.setConversationId(conversation_id);
+   }
+   ```
+
+2. **Mixed Authentication Strategy**: 
+   - Portfolio APIs use JWT Bearer tokens successfully
+   - Chat expects HttpOnly cookies per V1.1 spec but receives JWT
+   - Login endpoint sets JWT but may not set required HttpOnly cookies
+   - Chat conversation ownership checks fail due to missing/mismatched session
+
+3. **Stale Conversation State**: 
+   - Chat UI loads previous conversation history from local state/cache
+   - Attempts to continue that conversation fail authorization
+   - No mechanism to create new conversation when old one is invalid
+
+4. **Missing Session Recovery**:
+   - No automatic conversation creation when 403 occurs
+   - No clearing of invalid conversation state
+   - No retry with new conversation ID
 
 ## 🚀 Issue Classification & TODO Buckets
 
@@ -194,7 +279,51 @@ Mixed authentication strategy causing session inconsistency:
   1. Ensure JWT token is included in all chat API requests
   2. Add session recovery mechanism
   3. Implement proper token refresh flow
+  4. **Initialize new conversation on each login** - Clear stale conversation IDs
 - **Priority**: HIGH
+
+**FE-003: Conversation Initialization on Login**
+- **Affected Tests**: All chat tests after login
+- **Root Cause**: Frontend persists conversation IDs across sessions
+- **Action Required**:
+  ```typescript
+  // In src/app/login/page.tsx or auth service
+  const handleSuccessfulLogin = async (response: LoginResponse) => {
+    // 1. Store the JWT token
+    localStorage.setItem('access_token', response.access_token);
+    
+    // 2. Clear any stale conversation state
+    localStorage.removeItem('conversationId');
+    localStorage.removeItem('chatHistory');
+    
+    // 3. Create a fresh conversation for this session
+    try {
+      const conversationResponse = await fetch('/api/proxy/api/v1/chat/conversations', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${response.access_token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          title: `New Session - ${new Date().toLocaleDateString()}`,
+          mode: 'green'
+        })
+      });
+      
+      if (conversationResponse.ok) {
+        const { conversation_id } = await conversationResponse.json();
+        localStorage.setItem('conversationId', conversation_id);
+      }
+    } catch (error) {
+      console.error('Failed to create initial conversation:', error);
+      // Proceed without conversation - will create on first message
+    }
+    
+    // 4. Navigate to portfolio
+    router.push('/portfolio?type=high-net-worth');
+  }
+  ```
+- **Priority**: CRITICAL
 
 **FE-002: Empty Response Rendering**
 - **Affected Tests**: 1.6, 2.1, 2.2, 3.2
