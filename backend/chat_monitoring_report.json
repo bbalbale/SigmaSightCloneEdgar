@@ -2,259 +2,6 @@
   "session_start": "2025-09-04T10:10:37.675599",
   "status_checks": [
     {
-      "timestamp": "2025-09-05T08:30:05.781973",
-      "frontend": {
-        "status": "running",
-        "response_time": 20.83
-      },
-      "backend": {
-        "status": "error: Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]",
-        "response_time": 0
-      }
-    },
-    {
-      "timestamp": "2025-09-05T08:30:05.804943",
-      "login_endpoint": {
-        "status": "unknown",
-        "response_time": 0,
-        "error": "Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]"
-      },
-      "me_endpoint": {
-        "status": "unknown",
-        "response_time": 0
-      }
-    },
-    {
-      "timestamp": "2025-09-05T08:30:35.812352",
-      "frontend": {
-        "status": "running",
-        "response_time": 19.61
-      },
-      "backend": {
-        "status": "error: Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]",
-        "response_time": 0
-      }
-    },
-    {
-      "timestamp": "2025-09-05T08:30:35.834100",
-      "login_endpoint": {
-        "status": "unknown",
-        "response_time": 0,
-        "error": "Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]"
-      },
-      "me_endpoint": {
-        "status": "unknown",
-        "response_time": 0
-      }
-    },
-    {
-      "timestamp": "2025-09-05T08:31:05.839766",
-      "frontend": {
-        "status": "running",
-        "response_time": 22.52
-      },
-      "backend": {
-        "status": "error: Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]",
-        "response_time": 0
-      }
-    },
-    {
-      "timestamp": "2025-09-05T08:31:05.864497",
-      "login_endpoint": {
-        "status": "unknown",
-        "response_time": 0,
-        "error": "Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]"
-      },
-      "me_endpoint": {
-        "status": "unknown",
-        "response_time": 0
-      }
-    },
-    {
-      "timestamp": "2025-09-05T08:31:35.872375",
-      "frontend": {
-        "status": "running",
-        "response_time": 27.06
-      },
-      "backend": {
-        "status": "error: Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]",
-        "response_time": 0
-      }
-    },
-    {
-      "timestamp": "2025-09-05T08:31:35.901975",
-      "login_endpoint": {
-        "status": "unknown",
-        "response_time": 0,
-        "error": "Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]"
-      },
-      "me_endpoint": {
-        "status": "unknown",
-        "response_time": 0
-      }
-    },
-    {
-      "timestamp": "2025-09-05T08:32:05.911094",
-      "frontend": {
-        "status": "running",
-        "response_time": 19.01
-      },
-      "backend": {
-        "status": "error: Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]",
-        "response_time": 0
-      }
-    },
-    {
-      "timestamp": "2025-09-05T08:32:05.932579",
-      "login_endpoint": {
-        "status": "unknown",
-        "response_time": 0,
-        "error": "Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]"
-      },
-      "me_endpoint": {
-        "status": "unknown",
-        "response_time": 0
-      }
-    },
-    {
-      "timestamp": "2025-09-05T08:32:35.939263",
-      "frontend": {
-        "status": "running",
-        "response_time": 22.02
-      },
-      "backend": {
-        "status": "error: Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]",
-        "response_time": 0
-      }
-    },
-    {
-      "timestamp": "2025-09-05T08:32:35.963406",
-      "login_endpoint": {
-        "status": "unknown",
-        "response_time": 0,
-        "error": "Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]"
-      },
-      "me_endpoint": {
-        "status": "unknown",
-        "response_time": 0
-      }
-    },
-    {
-      "timestamp": "2025-09-05T08:33:05.970352",
-      "frontend": {
-        "status": "running",
-        "response_time": 15.38
-      },
-      "backend": {
-        "status": "error: Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]",
-        "response_time": 0
-      }
-    },
-    {
-      "timestamp": "2025-09-05T08:33:05.987208",
-      "login_endpoint": {
-        "status": "unknown",
-        "response_time": 0,
-        "error": "Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]"
-      },
-      "me_endpoint": {
-        "status": "unknown",
-        "response_time": 0
-      }
-    },
-    {
-      "timestamp": "2025-09-05T08:33:35.993007",
-      "frontend": {
-        "status": "running",
-        "response_time": 23.93
-      },
-      "backend": {
-        "status": "error: Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]",
-        "response_time": 0
-      }
-    },
-    {
-      "timestamp": "2025-09-05T08:33:36.019071",
-      "login_endpoint": {
-        "status": "unknown",
-        "response_time": 0,
-        "error": "Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]"
-      },
-      "me_endpoint": {
-        "status": "unknown",
-        "response_time": 0
-      }
-    },
-    {
-      "timestamp": "2025-09-05T08:34:06.025677",
-      "frontend": {
-        "status": "running",
-        "response_time": 22.3
-      },
-      "backend": {
-        "status": "error: Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]",
-        "response_time": 0
-      }
-    },
-    {
-      "timestamp": "2025-09-05T08:34:06.050599",
-      "login_endpoint": {
-        "status": "unknown",
-        "response_time": 0,
-        "error": "Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]"
-      },
-      "me_endpoint": {
-        "status": "unknown",
-        "response_time": 0
-      }
-    },
-    {
-      "timestamp": "2025-09-05T08:34:36.060661",
-      "frontend": {
-        "status": "running",
-        "response_time": 21.9
-      },
-      "backend": {
-        "status": "error: Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]",
-        "response_time": 0
-      }
-    },
-    {
-      "timestamp": "2025-09-05T08:34:36.084644",
-      "login_endpoint": {
-        "status": "unknown",
-        "response_time": 0,
-        "error": "Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]"
-      },
-      "me_endpoint": {
-        "status": "unknown",
-        "response_time": 0
-      }
-    },
-    {
-      "timestamp": "2025-09-05T08:35:06.094767",
-      "frontend": {
-        "status": "running",
-        "response_time": 21.33
-      },
-      "backend": {
-        "status": "error: Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]",
-        "response_time": 0
-      }
-    },
-    {
-      "timestamp": "2025-09-05T08:35:06.118152",
-      "login_endpoint": {
-        "status": "unknown",
-        "response_time": 0,
-        "error": "Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]"
-      },
-      "me_endpoint": {
-        "status": "unknown",
-        "response_time": 0
-      }
-    },
-    {
       "timestamp": "2025-09-05T08:35:36.127242",
       "frontend": {
         "status": "running",
@@ -1195,6 +942,236 @@
       "me_endpoint": {
         "status": "unknown",
         "response_time": 0
+      }
+    },
+    {
+      "timestamp": "2025-09-05T08:54:52.376120",
+      "frontend": {
+        "status": "running",
+        "response_time": 21.1
+      },
+      "backend": {
+        "status": "error: Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]",
+        "response_time": 0
+      }
+    },
+    {
+      "timestamp": "2025-09-05T08:54:52.399439",
+      "login_endpoint": {
+        "status": "unknown",
+        "response_time": 0,
+        "error": "Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]"
+      },
+      "me_endpoint": {
+        "status": "unknown",
+        "response_time": 0
+      }
+    },
+    {
+      "timestamp": "2025-09-05T08:55:22.407946",
+      "frontend": {
+        "status": "running",
+        "response_time": 21.43
+      },
+      "backend": {
+        "status": "error: Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]",
+        "response_time": 0
+      }
+    },
+    {
+      "timestamp": "2025-09-05T08:55:22.431492",
+      "login_endpoint": {
+        "status": "unknown",
+        "response_time": 0,
+        "error": "Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]"
+      },
+      "me_endpoint": {
+        "status": "unknown",
+        "response_time": 0
+      }
+    },
+    {
+      "timestamp": "2025-09-05T08:55:52.442292",
+      "frontend": {
+        "status": "running",
+        "response_time": 26.27
+      },
+      "backend": {
+        "status": "error: Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]",
+        "response_time": 0
+      }
+    },
+    {
+      "timestamp": "2025-09-05T08:55:52.471012",
+      "login_endpoint": {
+        "status": "unknown",
+        "response_time": 0,
+        "error": "Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]"
+      },
+      "me_endpoint": {
+        "status": "unknown",
+        "response_time": 0
+      }
+    },
+    {
+      "timestamp": "2025-09-05T08:56:22.477645",
+      "frontend": {
+        "status": "running",
+        "response_time": 62.8
+      },
+      "backend": {
+        "status": "error: Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]",
+        "response_time": 0
+      }
+    },
+    {
+      "timestamp": "2025-09-05T08:56:22.542109",
+      "login_endpoint": {
+        "status": "unknown",
+        "response_time": 0,
+        "error": "Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]"
+      },
+      "me_endpoint": {
+        "status": "unknown",
+        "response_time": 0
+      }
+    },
+    {
+      "timestamp": "2025-09-05T08:56:52.547318",
+      "frontend": {
+        "status": "running",
+        "response_time": 47.85
+      },
+      "backend": {
+        "status": "error: Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]",
+        "response_time": 0
+      }
+    },
+    {
+      "timestamp": "2025-09-05T08:56:52.596563",
+      "login_endpoint": {
+        "status": "unknown",
+        "response_time": 0,
+        "error": "Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]"
+      },
+      "me_endpoint": {
+        "status": "unknown",
+        "response_time": 0
+      }
+    },
+    {
+      "timestamp": "2025-09-05T08:57:22.604062",
+      "frontend": {
+        "status": "running",
+        "response_time": 30.86
+      },
+      "backend": {
+        "status": "error: Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]",
+        "response_time": 0
+      }
+    },
+    {
+      "timestamp": "2025-09-05T08:57:22.636819",
+      "login_endpoint": {
+        "status": "unknown",
+        "response_time": 0,
+        "error": "Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]"
+      },
+      "me_endpoint": {
+        "status": "unknown",
+        "response_time": 0
+      }
+    },
+    {
+      "timestamp": "2025-09-05T08:57:52.643207",
+      "frontend": {
+        "status": "running",
+        "response_time": 17.16
+      },
+      "backend": {
+        "status": "error: Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]",
+        "response_time": 0
+      }
+    },
+    {
+      "timestamp": "2025-09-05T08:57:52.662329",
+      "login_endpoint": {
+        "status": "unknown",
+        "response_time": 0,
+        "error": "Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]"
+      },
+      "me_endpoint": {
+        "status": "unknown",
+        "response_time": 0
+      }
+    },
+    {
+      "timestamp": "2025-09-05T08:58:22.669660",
+      "frontend": {
+        "status": "running",
+        "response_time": 71.89
+      },
+      "backend": {
+        "status": "error: Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]",
+        "response_time": 0
+      }
+    },
+    {
+      "timestamp": "2025-09-05T08:58:22.743165",
+      "login_endpoint": {
+        "status": "unknown",
+        "response_time": 0,
+        "error": "Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]"
+      },
+      "me_endpoint": {
+        "status": "unknown",
+        "response_time": 0
+      }
+    },
+    {
+      "timestamp": "2025-09-05T08:58:52.759858",
+      "frontend": {
+        "status": "running",
+        "response_time": 16.43
+      },
+      "backend": {
+        "status": "running",
+        "response_time": 3.06
+      }
+    },
+    {
+      "timestamp": "2025-09-05T08:58:52.781038",
+      "login_endpoint": {
+        "status": 200,
+        "response_time": 278.77,
+        "has_token": true
+      },
+      "me_endpoint": {
+        "status": 200,
+        "response_time": 4.93
+      }
+    },
+    {
+      "timestamp": "2025-09-05T08:59:23.073391",
+      "frontend": {
+        "status": "running",
+        "response_time": 18.07
+      },
+      "backend": {
+        "status": "running",
+        "response_time": 2.27
+      }
+    },
+    {
+      "timestamp": "2025-09-05T08:59:23.094303",
+      "login_endpoint": {
+        "status": 200,
+        "response_time": 203.96,
+        "has_token": true
+      },
+      "me_endpoint": {
+        "status": 200,
+        "response_time": 3.85
       }
     }
   ],

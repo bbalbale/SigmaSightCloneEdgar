@@ -66,6 +66,15 @@ class ChatAuthService {
         // Store access token for portfolio API calls (not for chat)
         localStorage.setItem('access_token', data.access_token);
         localStorage.setItem('user_email', email);
+        
+        // CRITICAL: Clear any stale conversation state from previous sessions
+        // This prevents 403 "Not authorized to access this conversation" errors
+        localStorage.removeItem('conversationId');
+        localStorage.removeItem('chatHistory');
+        localStorage.removeItem('currentConversationId');
+        sessionStorage.removeItem('conversationId');
+        sessionStorage.removeItem('chatHistory');
+        console.log('[Auth] Cleared stale conversation state on login');
       }
       
       // Try to discover and cache the portfolio ID
@@ -75,11 +84,64 @@ class ChatAuthService {
       } catch (error) {
         console.warn('Could not discover portfolio ID after login:', error);
       }
+      
+      // Initialize a new conversation for this session
+      // This prevents using stale conversation IDs from previous sessions
+      try {
+        const conversationId = await this.initializeConversation();
+        console.log('[Auth] Initialized new conversation:', conversationId);
+      } catch (error) {
+        console.warn('[Auth] Could not initialize conversation on login:', error);
+        // Don't fail login if conversation creation fails
+        // It will be created on first chat message instead
+      }
 
       return data;
     } catch (error) {
       console.error('Login error:', error);
       throw error;
+    }
+  }
+
+  /**
+   * Initialize a new conversation after login
+   * Creates a fresh conversation to avoid stale conversation ID issues
+   */
+  async initializeConversation(): Promise<string | null> {
+    try {
+      const response = await fetch(`${this.baseUrl}/api/v1/chat/conversations`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          title: `Chat Session - ${new Date().toLocaleDateString()}`,
+          mode: 'green', // Default mode
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        console.error('[Auth] Failed to create conversation:', error);
+        return null;
+      }
+
+      const data = await response.json();
+      const conversationId = data.conversation_id || data.id;
+      
+      // Store the new conversation ID
+      if (conversationId && typeof window !== 'undefined') {
+        localStorage.setItem('conversationId', conversationId);
+        localStorage.setItem('currentConversationId', conversationId);
+        console.log('[Auth] Stored new conversation ID:', conversationId);
+      }
+      
+      return conversationId;
+    } catch (error) {
+      console.error('[Auth] Error initializing conversation:', error);
+      return null;
     }
   }
 
@@ -100,6 +162,12 @@ class ChatAuthService {
       this.currentUser = null;
       if (typeof window !== 'undefined') {
         sessionStorage.removeItem('auth_user');
+        // Also clear conversation state on logout
+        localStorage.removeItem('conversationId');
+        localStorage.removeItem('chatHistory');
+        localStorage.removeItem('currentConversationId');
+        sessionStorage.removeItem('conversationId');
+        sessionStorage.removeItem('chatHistory');
       }
     }
   }
