@@ -136,6 +136,17 @@ class ChatAuthService {
         localStorage.setItem('conversationId', conversationId);
         localStorage.setItem('currentConversationId', conversationId);
         console.log('[Auth] Stored new conversation ID:', conversationId);
+        
+        // FIX 6.49: Also update chat store directly
+        try {
+          // Import dynamically to avoid circular dependency
+          const { useChatStore } = await import('@/stores/chatStore');
+          const store = useChatStore.getState();
+          store.loadConversation(conversationId);
+          console.log('[Auth] Updated chat store with new conversation ID');
+        } catch (error) {
+          console.warn('[Auth] Could not update chat store:', error);
+        }
       }
       
       return conversationId;

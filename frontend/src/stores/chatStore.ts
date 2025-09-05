@@ -87,8 +87,9 @@ export const useChatStore = create<ChatStore>()(
       
       // Create new conversation
       createConversation: (mode = 'green', backendId?: string) => {
-        // Use backend ID if provided, otherwise generate local ID
-        const conversationId = backendId || `conv_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+        // Use backend ID if provided, otherwise generate valid UUID
+        // FIX 6.50: Use crypto.randomUUID() for valid UUID format
+        const conversationId = backendId || crypto.randomUUID()
         const conversation: Conversation = {
           id: conversationId,
           title: 'New Conversation',
@@ -330,8 +331,26 @@ export const useChatStore = create<ChatStore>()(
       
       // Hydrate from storage (for persist middleware)
       hydrateFromStorage: () => {
-        // This will be called by persist middleware
-        // Converts stored objects back to Maps if needed
+        // FIX 6.49: Sync with localStorage conversation ID
+        const storedConversationId = localStorage.getItem('conversationId')
+        const currentStoredId = localStorage.getItem('currentConversationId')
+        
+        // Prioritize localStorage over persisted store state
+        if (storedConversationId || currentStoredId) {
+          const validId = storedConversationId || currentStoredId
+          
+          // Validate UUID format (FIX 6.50)
+          const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+          if (validId && uuidRegex.test(validId)) {
+            set({ currentConversationId: validId })
+            console.log('[ChatStore] Synced conversation ID from localStorage:', validId)
+          } else {
+            console.warn('[ChatStore] Invalid conversation ID format in localStorage:', validId)
+            // Clear invalid ID
+            localStorage.removeItem('conversationId')
+            localStorage.removeItem('currentConversationId')
+          }
+        }
       },
     }),
     {

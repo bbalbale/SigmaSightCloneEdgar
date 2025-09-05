@@ -67,6 +67,47 @@ export function ChatInterface({ className }: ChatInterfaceProps) {
   
   const hasInteracted = messages.length > 0
   
+  // FIX 6.49 & 6.50: Sync conversation ID and validate format on mount
+  useEffect(() => {
+    console.log('[ChatInterface] Component mounted, checking conversation sync...')
+    
+    // Check localStorage for conversation ID
+    const storedConversationId = localStorage.getItem('conversationId')
+    const currentStoredId = localStorage.getItem('currentConversationId')
+    const activeId = storedConversationId || currentStoredId
+    
+    // UUID validation regex
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+    
+    if (activeId) {
+      // Check if it's a valid UUID
+      if (!uuidRegex.test(activeId)) {
+        console.warn('[ChatInterface] Invalid conversation ID format detected:', activeId)
+        console.log('[ChatInterface] Clearing invalid conversation ID...')
+        // Clear invalid IDs
+        localStorage.removeItem('conversationId')
+        localStorage.removeItem('currentConversationId')
+        // Reset the store
+        const { reset } = useChatStore.getState()
+        reset()
+      } else if (activeId !== currentConversationId) {
+        // Valid UUID but different from store - sync it
+        console.log('[ChatInterface] Syncing conversation ID from localStorage:', activeId)
+        const { loadConversation } = useChatStore.getState()
+        loadConversation(activeId)
+      }
+    } else if (currentConversationId && !uuidRegex.test(currentConversationId)) {
+      // Store has invalid format ID
+      console.warn('[ChatInterface] Store has invalid conversation ID:', currentConversationId)
+      const { reset } = useChatStore.getState()
+      reset()
+    }
+    
+    // Also call hydrateFromStorage to ensure sync
+    const { hydrateFromStorage } = useChatStore.getState()
+    hydrateFromStorage()
+  }, []) // Run only on mount
+  
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
