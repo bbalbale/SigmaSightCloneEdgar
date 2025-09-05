@@ -512,7 +512,7 @@ return standardize_datetime_dict(response)
 *Calculated metrics leveraging existing batch processing engines*
 
 #### Portfolio Analytics
-- [ ] **GET /api/v1/analytics/portfolio/{id}/overview** - Portfolio metrics
+- [ ] **GET /api/v1/analytics/portfolio/{id}/overview** - Portfolio metrics - APPROVED FOR IMPLEMENTATION
   - [ ] Use existing aggregation engine results
   - [ ] Return exposures, P&L, totals
 - [ ] **GET /api/v1/analytics/portfolio/{id}/performance** - Performance metrics
