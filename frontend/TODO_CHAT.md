@@ -1201,10 +1201,10 @@ This implementation follows an **automated test-driven development cycle** using
 - Update docs to describe fallback behavior and new logging/metrics.
 - Continue backend root-cause investigation for post-tool streaming gaps. See `agent/TODO.md` §9.17 "SSE Continuation Streaming Reliability (Backend Next Steps)".
 
-### 6.48 **Initialize New Conversation on Login** (Priority: CRITICAL) ✅ **COMPLETED**
+### 6.48 **Initialize New Conversation on Login** (Priority: CRITICAL) ⚠️ **INCOMPLETE**
 **Problem Identified**: Chat fails with 403 "Not authorized to access this conversation" because frontend persists conversation IDs across sessions.
 
-**Implementation Completed (2025-09-05)**:
+**Implementation Status (2025-09-05) - PARTIALLY WORKING**:
 - [x] **6.48.1** Clear stale conversation state on login (`src/services/chatAuthService.ts`)
   - [x] Remove conversationId from localStorage after successful auth
   - [x] Clear chatHistory from localStorage
@@ -1213,7 +1213,7 @@ This implementation follows an **automated test-driven development cycle** using
 - [x] **6.48.2** Create fresh conversation after login
   - [x] Add conversation creation API call in login success handler
   - [x] Store new conversation_id in localStorage
-  - [x] Update chatStore with new conversation_id
+  - [ ] ❌ Update chatStore with new conversation_id - **NOT WORKING - See 6.49**
   
 - [ ] **6.48.3** Add conversation validation on chat open (Future enhancement)
   - [ ] Check if stored conversation_id belongs to current user
@@ -1260,6 +1260,85 @@ const handleSuccessfulLogin = async (response: LoginResponse) => {
 ```
 
 **Expected Outcome**: Eliminates 403 errors by ensuring each login session has its own conversation that the user owns.
+
+**References**:
+- Test Report: CHAT_USE_CASES_TEST_REPORT_20250905_160100.md identified chat store sync issue
+
+### 6.49 **Fix Chat Store Conversation ID Sync** (Priority: CRITICAL)
+**Problem Identified**: Chat component uses stale conversation ID from chat store instead of the new conversation ID created during login and stored in localStorage.
+
+**Test Evidence (2025-09-05)**:
+```javascript
+// New conversation created on login:
+[LOG] [Auth] Initialized new conversation: ea87cd9e-e9ee-4247-bbec-c8e169c40e4d
+
+// But chat still uses OLD conversation from store:
+[LOG] Starting chat stream request: {conversationId: c1ef6fc0-8dc2-429b-803c-da7d525737c4, ...}
+
+// Results in 403 error:
+[ERROR] Streaming error: {detail: "Not authorized to access this conversation"}
+```
+
+**Root Cause Analysis**:
+1. Login creates new conversation and stores in localStorage ✅
+2. Chat store is NOT reading/syncing with localStorage ❌
+3. Chat component uses stale conversation ID from store ❌
+4. Backend correctly rejects unauthorized conversation access ✅
+
+**Implementation Required**:
+- [ ] **6.49.1** Update chat store to read conversation ID from localStorage
+  - [ ] On store initialization/hydration
+  - [ ] On chat dialog open
+  - [ ] After login completion
+  
+- [ ] **6.49.2** Update chat component to prioritize localStorage conversation ID
+  - [ ] Check localStorage first before using store value
+  - [ ] Update store if localStorage has newer value
+  
+- [ ] **6.49.3** Add conversation ID validation
+  - [ ] Clear store if conversation ID doesn't match localStorage
+  - [ ] Force new conversation if both are invalid
+
+**Code Implementation Options**:
+
+**Option A: Update Chat Store Hydration**
+```typescript
+// In chatStore.ts hydrateFromStorage()
+hydrateFromStorage: () => {
+  const storedConversationId = localStorage.getItem('conversationId');
+  const currentConversationId = localStorage.getItem('currentConversationId');
+  
+  // Prioritize localStorage over persisted store
+  if (storedConversationId || currentConversationId) {
+    set({
+      currentConversationId: storedConversationId || currentConversationId
+    });
+  }
+}
+```
+
+**Option B: Update Chat Component Mount**
+```typescript
+// In ChatInterface.tsx or useChatStream hook
+useEffect(() => {
+  const conversationId = localStorage.getItem('conversationId');
+  if (conversationId && conversationId !== store.currentConversationId) {
+    store.loadConversation(conversationId);
+  }
+}, []);
+```
+
+**Option C: Direct Auth Service Update**
+```typescript
+// In chatAuthService.ts after creating conversation
+const conversationId = await this.initializeConversation();
+if (conversationId) {
+  // Directly update chat store
+  useChatStore.getState().loadConversation(conversationId);
+}
+```
+
+**Expected Outcome**: Chat will use the correct conversation ID created during login, eliminating 403 errors.
 
 **References**: 
 - Issue documented in `CHAT_USE_CASES_TEST_REPORT_20250905_153000.md` (Critical Finding line 157)
