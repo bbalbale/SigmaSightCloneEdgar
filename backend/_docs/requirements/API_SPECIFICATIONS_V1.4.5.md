@@ -2,20 +2,22 @@
 
 **Version**: 1.4.5  
 **Date**: September 5, 2025  
-**Status**: Production + Development Planning  
-**Source of Truth**: API_IMPLEMENTATION_STATUS.md  
+**Status**: ⚠️ **CODE-VERIFIED CORRECTIONS** - Major discrepancies found  
+**Source of Truth**: **Direct code verification** (API_IMPLEMENTATION_STATUS.md was inaccurate)  
 
 > 📋 **Dual-Purpose Document**
 > 
-> **Part I**: ✅ Production-ready endpoints (18 endpoints) - fully implemented with real data  
+> **Part I**: ✅ **13 verified working endpoints** (corrected from claimed 18)  
 > **Part II**: 🎯 Planned endpoints - development specifications for future implementation  
 
 ## Document Structure
 
-### ✅ **Part I: Production-Ready Endpoints**
-- 18 fully implemented endpoints returning real database data
-- All endpoints tested and verified as working
-- Ready for frontend integration and production use
+### ✅ **Part I: Production-Ready Endpoints** 
+- **13 verified working endpoints** returning real database data
+- **Code-verified implementations** with file/function references 
+- **Analytics endpoint confirmed working** (was previously marked as non-existent)
+- **Admin endpoints exist but not registered** in router
+- Ready for frontend integration
 
 ### 🎯 **Part II: Planned Endpoints** 
 - Development specifications for future API endpoints
@@ -43,7 +45,7 @@
 
 # PART I: PRODUCTION-READY ENDPOINTS ✅
 
-This section documents the **18 fully implemented and production-ready endpoints** in the SigmaSight Backend API. These endpoints have been **code-verified** to access database data through direct ORM queries or service layers and are ready for frontend integration.
+This section documents the **13 fully implemented and production-ready endpoints** in the SigmaSight Backend API. These endpoints have been **code-verified** to access database data through direct ORM queries or service layers and are ready for frontend integration.
 
 ### Complete Endpoint List
 
@@ -52,28 +54,22 @@ This section documents the **18 fully implemented and production-ready endpoints
 - **2.** [`POST /auth/register`](#2-register) - Register a new user
 - **3.** [`GET /auth/me`](#3-get-current-user) - Get current authenticated user information  
 - **4.** [`POST /auth/refresh`](#4-refresh-token) - Refresh JWT token
+- **5.** [`POST /auth/logout`](#5-logout) - Logout and clear auth cookie
 
 #### Data Endpoints
-- **5.** [`GET /data/portfolios`](#5-get-portfolios) - Get all portfolios for authenticated user
-- **6.** [`GET /data/portfolio/{portfolio_id}/complete`](#6-get-complete-portfolio) - Get complete portfolio data with optional sections
-- **7.** [`GET /data/portfolio/{portfolio_id}/data-quality`](#7-get-data-quality) - Get data quality metrics for portfolio
-- **8.** [`GET /data/positions/details`](#8-get-position-details) - Get detailed position information with P&L calculations
-- **9.** [`GET /data/prices/historical/{symbol_or_position_id}`](#9-get-historical-prices) - Get historical price data for symbol or position
-- **10.** [`GET /data/prices/quotes`](#10-get-market-quotes) - Get real-time market quotes for symbols
-- **11.** [`GET /data/factors/etf-prices`](#11-get-factor-etf-prices) - Get current and historical prices for factor ETFs
-- **12.** [`GET /data/greeks/{portfolio_id}`](#12-get-greeks-data) - Get Greeks data for portfolio positions
-- **13.** [`GET /data/factors/{portfolio_id}`](#13-get-factor-exposures) - Get factor exposure data for portfolio
-- **14.** [`GET /data/portfolios/{portfolio_id}/aggregations`](#14-get-portfolio-aggregations) - Get portfolio-level aggregated metrics
-- **15.** [`GET /data/portfolios/{portfolio_id}/risk-summary`](#15-get-risk-summary) - Get comprehensive risk metrics for portfolio
-- **16.** [`GET /data/portfolios/{portfolio_id}/positions/summary`](#16-get-position-summary) - Get position summary with key metrics
-- **17.** [`GET /data/positions/{position_id}/details`](#17-get-position-details-by-id) - Get detailed information for specific position
+- **6.** [`GET /data/portfolios`](#6-get-portfolios) - Get all portfolios for authenticated user
+- **7.** [`GET /data/portfolio/{portfolio_id}/complete`](#7-get-complete-portfolio) - Get complete portfolio data with optional sections
+- **8.** [`GET /data/portfolio/{portfolio_id}/data-quality`](#8-get-data-quality) - Get data quality metrics for portfolio
+- **9.** [`GET /data/positions/details`](#9-get-position-details) - Get detailed position information with P&L calculations
+- **10.** [`GET /data/prices/historical/{symbol_or_position_id}`](#10-get-historical-prices) - Get historical price data for symbol or position
+- **11.** [`GET /data/prices/quotes`](#11-get-market-quotes) - Get real-time market quotes for symbols
+- **12.** [`GET /data/factors/etf-prices`](#12-get-factor-etf-prices) - Get current and historical prices for factor ETFs
 
-#### Administration Endpoints
-- **18.** [`GET /admin/batch/jobs/status`](#18-get-batch-job-status) - Get status of recent batch jobs
-- [`GET /admin/batch/jobs/summary`](#get-batch-job-summary) - Get summary statistics of batch jobs  
-- [`DELETE /admin/batch/jobs/{job_id}/cancel`](#cancel-batch-job) - Cancel a running batch job
-- [`GET /admin/batch/data-quality`](#get-data-quality-status) - Get data quality status and metrics for portfolios
-- [`POST /admin/batch/data-quality/refresh`](#refresh-market-data-for-quality) - Refresh market data to improve data quality scores
+#### Analytics Endpoints  
+- **13.** [`GET /analytics/portfolio/{portfolio_id}/overview`](#13-portfolio-overview) - Get comprehensive portfolio overview with exposures and P&L
+
+#### Administration Endpoints  
+**⚠️ NOTE**: Admin endpoints are implemented in `app/api/v1/endpoints/admin_batch.py` but NOT registered in the router. They are currently inaccessible via the API.
 
 ### Base URL
 ```
@@ -93,10 +89,12 @@ Authorization: Bearer <jwt_token>
 ### 1. Login
 **Endpoint**: `POST /auth/login`  
 **Status**: ✅ Fully Implemented  
+**File**: `app/api/v1/auth.py`  
+**Function**: `login()`  
 **Authentication**: None required  
 **OpenAPI Description**: "Authenticate user and return JWT token (in response body AND cookie)"  
-**Database Access**: Direct ORM queries to `User` and `Portfolio` tables  
-**Service Layer**: Uses `verify_password`, `create_token_response` from auth core  
+**Database Access**: Direct ORM queries to `User` and `Portfolio` tables (lines 27-28, 53-55)  
+**Service Layer**: Uses `verify_password`, `create_token_response` from `app/core/auth.py`  
 
 Authenticates a user and returns JWT token in both response body and HTTP-only cookie.
 
@@ -120,10 +118,12 @@ Authenticates a user and returns JWT token in both response body and HTTP-only c
 ### 2. Register
 **Endpoint**: `POST /auth/register`  
 **Status**: ✅ Fully Implemented  
+**File**: `app/api/v1/auth.py`  
+**Function**: `register()`  
 **Authentication**: None required  
 **OpenAPI Description**: "Register a new user (admin-only initially)"  
-**Database Access**: Direct ORM queries - Creates `User` and `Portfolio` records  
-**Service Layer**: Uses `get_password_hash` from auth core  
+**Database Access**: Direct ORM queries - Creates `User` and `Portfolio` records (lines 107-124)  
+**Service Layer**: Uses `get_password_hash` from `app/core/auth.py`  
 
 **Request Body**:
 ```json
@@ -148,10 +148,12 @@ Authenticates a user and returns JWT token in both response body and HTTP-only c
 ### 3. Get Current User
 **Endpoint**: `GET /auth/me`  
 **Status**: ✅ Fully Implemented  
+**File**: `app/api/v1/auth.py`  
+**Function**: `get_current_user_info()`  
 **Authentication**: Required (Bearer token)  
 **OpenAPI Description**: "Get current authenticated user information"  
-**Database Access**: Via JWT token validation in `get_current_user` dependency  
-**Service Layer**: Uses auth core dependencies  
+**Database Access**: Via JWT token validation in `get_current_user` dependency from `app/core/dependencies.py`  
+**Service Layer**: Uses `get_current_user` dependency (no direct DB queries in endpoint)  
 
 **Response**:
 ```json
@@ -168,10 +170,12 @@ Authenticates a user and returns JWT token in both response body and HTTP-only c
 ### 4. Refresh Token
 **Endpoint**: `POST /auth/refresh`  
 **Status**: ✅ Fully Implemented  
+**File**: `app/api/v1/auth.py`  
+**Function**: `refresh_token()`  
 **Authentication**: Required (Bearer token)  
 **OpenAPI Description**: "Refresh JWT token (returns new token in body AND cookie)"  
-**Database Access**: Direct ORM query to `Portfolio` table for consistent portfolio_id  
-**Service Layer**: Uses `create_token_response` from auth core  
+**Database Access**: Direct ORM query to `Portfolio` table for consistent portfolio_id (lines 153-156)  
+**Service Layer**: Uses `create_token_response` from `app/core/auth.py`  
 
 **Response**:
 ```json
@@ -182,17 +186,39 @@ Authenticates a user and returns JWT token in both response body and HTTP-only c
 }
 ```
 
+### 5. Logout
+**Endpoint**: `POST /auth/logout`  
+**Status**: ✅ Fully Implemented  
+**File**: `app/api/v1/auth.py`  
+**Function**: `logout()` (lines 186-206)  
+**Authentication**: Required (Bearer token)  
+**OpenAPI Description**: "Logout endpoint - clears auth cookie and instructs client to discard token"  
+**Database Access**: None - only clears cookie  
+**Service Layer**: None - cookie management only  
+
+Clears the HTTP-only auth cookie and returns success message. Client should also discard any stored Bearer tokens.
+
+**Response**:
+```json
+{
+  "message": "Successfully logged out",
+  "success": true
+}
+```
+
 ---
 
 ## 2. Data Endpoints
 
-### 5. Get Portfolios
+### 6. Get Portfolios
 **Endpoint**: `GET /data/portfolios`  
 **Status**: ✅ Fully Implemented  
+**File**: `app/api/v1/data.py`  
+**Function**: `get_user_portfolios()`  
 **Authentication**: Required  
 **OpenAPI Description**: "Get all portfolios for authenticated user"  
-**Database Access**: Direct ORM query to `Portfolio` table  
-**Service Layer**: None - direct database access  
+**Database Access**: Direct ORM query to `Portfolio` table with `selectinload(Portfolio.positions)` (lines 47-52)  
+**Service Layer**: None - direct database access with manual calculation of total_value  
 
 Returns all portfolios for the authenticated user with real database data.
 
@@ -215,10 +241,12 @@ Returns all portfolios for the authenticated user with real database data.
 ### 6. Get Complete Portfolio
 **Endpoint**: `GET /data/portfolio/{portfolio_id}/complete`  
 **Status**: ✅ Fully Implemented  
+**File**: `app/api/v1/data.py`  
+**Function**: `get_portfolio_complete()`  
 **Authentication**: Required  
 **OpenAPI Description**: "Get complete portfolio data with optional sections"  
-**Database Access**: Portfolio, Position, MarketDataCache, PositionGreeks, PositionFactorExposure tables  
-**Service Layer**: PortfolioDataService (portfolio overview), MarketDataService (market data), direct ORM queries for positions and calculations  
+**Database Access**: Direct ORM queries to Portfolio, Position, MarketDataCache tables (lines 97-103, 124+)  
+**Service Layer**: **Minimal usage** - Only `PortfolioDataService` for overview section (line 788), most logic is direct ORM  
 
 **Parameters**:
 - `portfolio_id` (path): Portfolio UUID
@@ -539,13 +567,69 @@ Returns all portfolios for the authenticated user with real database data.
 }
 ```
 
-### 12. Get Greeks Data
-**Endpoint**: `GET /data/greeks/{portfolio_id}`  
+---
+
+## 3. Analytics Endpoints
+
+### 12. Portfolio Overview
+**Endpoint**: `GET /analytics/portfolio/{portfolio_id}/overview`  
 **Status**: ✅ Fully Implemented  
-**Authentication**: Required  
-**OpenAPI Description**: "Get Greeks data for portfolio positions"  
-**Database Access**: PositionGreeks table  
-**Service Layer**: Direct ORM queries  
+**File**: `app/api/v1/analytics/portfolio.py`  
+**Function**: `get_portfolio_overview()` (lines 23-75)  
+**Authentication**: Required (Bearer token)  
+**OpenAPI Description**: "Get comprehensive portfolio overview with exposures, P&L, and position metrics"  
+**Database Access**: Direct ORM queries to Portfolio, Position, and MarketDataCache tables  
+**Service Layer**: `app/services/portfolio_analytics_service.py`
+  - Class: `PortfolioAnalyticsService`
+  - Method: `get_portfolio_overview()` (lines 26-86)
+  - Uses async ORM queries with aggregations
+
+Provides portfolio-level analytics for dashboard consumption including total value, exposure metrics, P&L breakdown, and position counts.
+
+**Parameters**:
+- `portfolio_id` (path): Portfolio UUID
+
+**Response**:
+```json
+{
+  "portfolio_id": "c0510ab8-c6b5-433c-adbc-3f74e1dbdb5e",
+  "total_value": 1250000.00,
+  "cash_balance": 62500.00,
+  "exposures": {
+    "long_exposure": 1187500.00,
+    "short_exposure": 0.00,
+    "gross_exposure": 1187500.00,
+    "net_exposure": 1187500.00,
+    "long_percentage": 95.0,
+    "short_percentage": 0.0,
+    "gross_percentage": 95.0,
+    "net_percentage": 95.0
+  },
+  "pnl": {
+    "total_pnl": 125000.00,
+    "unrealized_pnl": 87500.00,
+    "realized_pnl": 37500.00
+  },
+  "position_count": {
+    "total_positions": 21,
+    "long_count": 21,
+    "short_count": 0,
+    "option_count": 0
+  },
+  "last_updated": "2025-09-05T10:30:00Z"
+}
+```
+
+---
+
+## ❌ NON-EXISTENT ENDPOINTS
+
+The following endpoints were documented as "Fully Implemented" but do not exist in the codebase:
+
+### Get Greeks Data (DOES NOT EXIST)
+**Claimed Endpoint**: `GET /data/greeks/{portfolio_id}`  
+**Status**: ❌ Does not exist  
+**Reality**: No such endpoint in `/data/` namespace  
 
 **Parameters**:
 - `portfolio_id` (path): Portfolio UUID
@@ -1582,47 +1666,17 @@ curl -X GET "http://localhost:8000/api/v1/data/prices/quotes?symbols=AAPL,MSFT" 
   -H "Authorization: Bearer $TOKEN"
 ```
 
-## 23. Portfolio Analytics Overview
-**Endpoint**: `GET /api/v1/analytics/portfolio/{id}/overview`  
-**Authentication**: Required (Bearer Token)  
-**Purpose**: Portfolio aggregate metrics for dashboard cards (exposures, P&L, totals)
+## ✅ CORRECTION: Analytics Endpoint IS IMPLEMENTED
+**The analytics endpoint DOES exist and is fully implemented:**
+- `GET /api/v1/analytics/portfolio/{id}/overview` 
+- **File**: `app/api/v1/analytics/portfolio.py`
+- **Function**: `get_portfolio_overview()` (line 23-75)
+- **Service Layer**: `app/services/portfolio_analytics_service.py`
+  - Class: `PortfolioAnalyticsService`
+  - Method: `get_portfolio_overview()` (line 26-86)
+- **Status**: Fully implemented with real database queries
 
-**Example**:
-```bash
-curl -X GET "http://localhost:8000/api/v1/analytics/portfolio/e23ab931-a033-edfe-ed4f-9d02474780b4/overview" \
-  -H "Authorization: Bearer $TOKEN"
-```
-
-**Response**:
-```json
-{
-  "portfolio_id": "e23ab931-a033-edfe-ed4f-9d02474780b4",
-  "total_value": 1250000.00,
-  "cash_balance": 62500.00,
-  "exposures": {
-    "long_exposure": 1187500.00,
-    "short_exposure": 0.00,
-    "gross_exposure": 1187500.00,
-    "net_exposure": 1187500.00,
-    "long_percentage": 95.0,
-    "short_percentage": 0.0,
-    "gross_percentage": 95.0,
-    "net_percentage": 95.0
-  },
-  "pnl": {
-    "total_pnl": 125432.18,
-    "unrealized_pnl": 98765.43,
-    "realized_pnl": 26666.75
-  },
-  "position_count": {
-    "total_positions": 21,
-    "long_count": 18,
-    "short_count": 0,
-    "option_count": 3
-  },
-  "last_updated": "2025-01-15T10:30:00Z"
-}
-```
+**This endpoint provides portfolio overview with exposures, P&L, and position metrics.**
 
 ### 4. Test Portfolio Analytics
 ```bash
