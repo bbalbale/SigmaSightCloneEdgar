@@ -8,12 +8,13 @@ from typing import Optional
 
 
 class CurrentUser(BaseModel):
-    """Schema for the current authenticated user"""
+    """Schema for the current authenticated user with guaranteed portfolio_id"""
     id: UUID
     email: EmailStr
     full_name: str
     is_active: bool
     created_at: datetime
+    portfolio_id: Optional[UUID] = None  # Added portfolio_id for guaranteed fallback
 
     class Config:
         from_attributes = True

@@ -10,6 +10,7 @@ interface AuthToken {
   access_token: string
   token_type: string
   expires_in?: number
+  portfolio_id?: string | null  // Added portfolio_id from backend fix
   user?: {
     id: string
     email: string
@@ -21,6 +22,7 @@ interface CachedToken {
   token: string
   email: string
   expiresAt: number
+  portfolioId?: string | null  // Added portfolio_id caching
   user?: AuthToken['user']
 }
 
@@ -103,19 +105,26 @@ class AuthManager {
       const expiresIn = data.expires_in || (this.DEFAULT_TOKEN_LIFETIME / 1000)
       const expiresAt = Date.now() + (expiresIn * 1000) - this.TOKEN_EXPIRY_BUFFER
 
-      // Cache the token
+      // Cache the token with portfolio_id from backend response
       const cachedToken: CachedToken = {
         token: data.access_token,
         email,
         expiresAt,
+        portfolioId: data.portfolio_id, // Cache portfolio_id from JWT
         user: data.user
       }
       
       this.tokenCache.set(cacheKey, cachedToken)
       
-      // Also update localStorage for backward compatibility
+      // Also update localStorage for backward compatibility and portfolio context fallback
       localStorage.setItem('access_token', data.access_token)
       localStorage.setItem('user_email', email)
+      
+      // Persist resolved portfolio ID to localStorage for session recovery
+      if (data.portfolio_id) {
+        localStorage.setItem('portfolio_id', data.portfolio_id)
+      }
+      
       if (data.user) {
         sessionStorage.setItem('auth_user', JSON.stringify(data.user))
       }
@@ -142,6 +151,86 @@ class AuthManager {
   }
 
   /**
+   * Get portfolio ID with fallback chain: JWT → localStorage → backend API
+   * Implements Frontend Portfolio Context Fallback from PORTFOLIO_ID_DESIGN_DOC Section 8.1.2
+   */
+  async getPortfolioId(portfolioType?: PortfolioType): Promise<string | null> {
+    // Try multiple portfolio ID sources in order
+    
+    // 1. Try JWT claims from cached token
+    if (portfolioType) {
+      const credentials = DEMO_CREDENTIALS[portfolioType]
+      if (credentials) {
+        const cached = this.tokenCache.get(credentials.email)
+        if (cached && this.isTokenValid(cached) && cached.portfolioId) {
+          return cached.portfolioId
+        }
+      }
+    }
+    
+    // 2. Try localStorage fallback
+    const storedPortfolioId = localStorage.getItem('portfolio_id')
+    if (storedPortfolioId) {
+      return storedPortfolioId
+    }
+    
+    // 3. Fallback: fetch from backend API
+    if (portfolioType) {
+      try {
+        const portfolioId = await this.fetchDefaultPortfolio(portfolioType)
+        if (portfolioId) {
+          // Persist resolved portfolio ID to localStorage for session recovery
+          localStorage.setItem('portfolio_id', portfolioId)
+          return portfolioId
+        }
+      } catch (error) {
+        console.error('Failed to fetch default portfolio:', error)
+      }
+    }
+    
+    return null
+  }
+
+  /**
+   * Fetch default portfolio from backend when missing from JWT/localStorage
+   * Implements fetchDefaultPortfolio() method from PORTFOLIO_ID_DESIGN_DOC Section 8.1.2
+   */
+  async fetchDefaultPortfolio(portfolioType: PortfolioType): Promise<string | null> {
+    try {
+      const token = await this.getToken(portfolioType)
+      
+      // Call /api/v1/me endpoint to get user info with portfolio_id
+      const response = await fetch('/api/proxy/api/v1/auth/me', {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        signal: AbortSignal.timeout(10000)
+      })
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch user info: ${response.status}`)
+      }
+
+      const userData = await response.json()
+      
+      // Extract portfolio_id from user data (when backend is updated to include it)
+      if (userData.portfolio_id) {
+        return userData.portfolio_id
+      }
+      
+      // Fallback: use portfolioResolver logic for now
+      const { portfolioResolver } = await import('./portfolioResolver')
+      return portfolioResolver.getPortfolioIdByType(portfolioType)
+      
+    } catch (error) {
+      console.error(`Failed to fetch default portfolio for ${portfolioType}:`, error)
+      return null
+    }
+  }
+
+  /**
    * Clear all cached tokens and stored auth data
    */
   clearAllTokens(): void {
@@ -149,6 +238,7 @@ class AuthManager {
     this.authInProgress.clear()
     localStorage.removeItem('access_token')
     localStorage.removeItem('user_email')
+    localStorage.removeItem('portfolio_id')  // Also clear portfolio_id
     sessionStorage.removeItem('auth_user')
   }
 

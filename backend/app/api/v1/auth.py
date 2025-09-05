@@ -49,9 +49,15 @@ async def login(user_login: UserLogin, db: AsyncSession = Depends(get_db)):
             detail="Incorrect email or password"
         )
     
-    # Create JWT token
-    token_data = create_token_response(str(user.id), user.email)
-    auth_logger.info(f"Login successful for user: {user.email}")
+    # Query user portfolios and set default_portfolio = portfolios[0].id
+    portfolio_stmt = select(Portfolio).where(Portfolio.user_id == user.id)
+    portfolio_result = await db.execute(portfolio_stmt)
+    portfolios = portfolio_result.scalars().all()
+    default_portfolio_id = str(portfolios[0].id) if portfolios else None
+    
+    # Create JWT token with guaranteed portfolio_id in claims
+    token_data = await create_token_response(str(user.id), user.email, default_portfolio_id)
+    auth_logger.info(f"Login successful for user: {user.email}, portfolio: {default_portfolio_id}")
     
     # Create response with token in body (for existing clients)
     response = JSONResponse(content={
@@ -139,12 +145,18 @@ async def get_current_user_info(current_user: CurrentUser = Depends(get_current_
 
 
 @router.post("/refresh")
-async def refresh_token(current_user: CurrentUser = Depends(get_current_user)):
+async def refresh_token(current_user: CurrentUser = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     """Refresh JWT token (returns new token in body AND cookie)"""
     auth_logger.info(f"Token refresh requested: {current_user.email}")
     
-    # Create a new token with the same data
-    token_data = create_token_response(str(current_user.id), current_user.email)
+    # Query user portfolios for consistent portfolio_id in refreshed token
+    portfolio_stmt = select(Portfolio).where(Portfolio.user_id == current_user.id)
+    portfolio_result = await db.execute(portfolio_stmt)
+    portfolios = portfolio_result.scalars().all()
+    default_portfolio_id = str(portfolios[0].id) if portfolios else None
+    
+    # Create a new token with guaranteed portfolio_id in claims
+    token_data = await create_token_response(str(current_user.id), current_user.email, default_portfolio_id)
     
     # Create response with token in body (for existing clients)
     response = JSONResponse(content={

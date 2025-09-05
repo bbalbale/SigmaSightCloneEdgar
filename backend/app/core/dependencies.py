@@ -4,13 +4,13 @@ FastAPI dependencies for authentication and authorization
 from fastapi import Cookie, Depends, HTTPException, Request, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, and_
 from uuid import UUID
 from typing import Optional
 
 from app.core.auth import verify_token
 from app.database import get_db
-from app.models.users import User
+from app.models.users import User, Portfolio
 from app.schemas.auth import CurrentUser
 from app.core.logging import auth_logger
 
@@ -95,8 +95,23 @@ async def get_current_user(
         # Log successful authentication with method used
         auth_logger.info(f"User authenticated successfully: {user.email} (method: {auth_method})")
         
-        # Return CurrentUser schema
-        return CurrentUser.model_validate(user)
+        # Query user portfolios and set default_portfolio_id for guaranteed fallback
+        # Implements PORTFOLIO_ID_DESIGN_DOC Section 8.1.5: /api/v1/me must always return portfolio_id
+        portfolio_stmt = select(Portfolio).where(Portfolio.user_id == user.id)
+        portfolio_result = await db.execute(portfolio_stmt)
+        portfolios = portfolio_result.scalars().all()
+        default_portfolio_id = portfolios[0].id if portfolios else None
+        
+        # Create CurrentUser with guaranteed portfolio_id for consistent auth context
+        user_data = CurrentUser.model_validate(user)
+        user_data.portfolio_id = default_portfolio_id
+        
+        if default_portfolio_id:
+            auth_logger.debug(f"Portfolio context resolved for user {user.email}: {default_portfolio_id}")
+        else:
+            auth_logger.warning(f"No portfolio found for user {user.email}")
+        
+        return user_data
         
     except HTTPException:
         raise
@@ -154,3 +169,63 @@ async def require_admin(
     # TODO: Add proper admin role check
     # For demo stage, any authenticated user can access admin endpoints
     return current_user
+
+
+async def resolve_portfolio_id(
+    portfolio_id: Optional[UUID],
+    current_user: CurrentUser,
+    db: AsyncSession
+) -> UUID:
+    """
+    Helper function for Backend Implicit Default Resolution (PORTFOLIO_ID_DESIGN_DOC Section 8.1.6)
+    
+    Server resolves default portfolio using user ID when portfolio_id is missing.
+    Leverages single-portfolio constraint to reduce client fragility.
+    
+    Args:
+        portfolio_id: Optional portfolio_id from request
+        current_user: Authenticated user from dependency
+        db: Database session
+        
+    Returns:
+        UUID: Resolved portfolio_id (either provided or default for user)
+        
+    Raises:
+        HTTPException: If user has no portfolios
+    """
+    if portfolio_id:
+        # Portfolio ID provided, verify ownership and return
+        portfolio_stmt = select(Portfolio).where(
+            and_(
+                Portfolio.id == portfolio_id,
+                Portfolio.user_id == current_user.id
+            )
+        )
+        portfolio_result = await db.execute(portfolio_stmt)
+        portfolio = portfolio_result.scalar_one_or_none()
+        
+        if not portfolio:
+            auth_logger.warning(f"Portfolio {portfolio_id} not found or not owned by user {current_user.email}")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Portfolio not found or access denied"
+            )
+        
+        return portfolio_id
+    
+    # Portfolio ID not provided, resolve default using user ID
+    portfolio_stmt = select(Portfolio).where(Portfolio.user_id == current_user.id)
+    portfolio_result = await db.execute(portfolio_stmt)
+    portfolios = portfolio_result.scalars().all()
+    
+    if not portfolios:
+        auth_logger.warning(f"No portfolios found for user {current_user.email}")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No portfolios found for user"
+        )
+    
+    default_portfolio_id = portfolios[0].id
+    auth_logger.debug(f"Resolved default portfolio for user {current_user.email}: {default_portfolio_id}")
+    
+    return default_portfolio_id

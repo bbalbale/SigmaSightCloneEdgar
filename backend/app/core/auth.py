@@ -66,11 +66,26 @@ def verify_token(token: str) -> Optional[Dict[str, Any]]:
         return None
 
 
-def create_token_response(user_id: str, email: str) -> Dict[str, Any]:
-    """Create a token response for a user"""
+async def create_token_response(user_id: str, email: str, portfolio_id: str = None) -> Dict[str, Any]:
+    """Create a token response for a user with portfolio_id guaranteed in JWT"""
     access_token_expires = timedelta(hours=24)
+    
+    # JWT payload always includes portfolio_id for consistent auth context
+    payload_data = {
+        "sub": str(user_id), 
+        "email": email
+    }
+    
+    # Add portfolio_id to JWT claims with null fallback handling
+    if portfolio_id:
+        payload_data["portfolio_id"] = str(portfolio_id)
+        auth_logger.debug(f"JWT includes portfolio_id: {portfolio_id} for user: {user_id}")
+    else:
+        payload_data["portfolio_id"] = None
+        auth_logger.warning(f"JWT created without portfolio_id for user: {user_id}")
+    
     access_token = create_access_token(
-        data={"sub": str(user_id), "email": email},
+        data=payload_data,
         expires_delta=access_token_expires
     )
     
@@ -79,5 +94,6 @@ def create_token_response(user_id: str, email: str) -> Dict[str, Any]:
         "token_type": "bearer",
         "expires_in": 24 * 3600,  # 24 hours in seconds
         "user_id": str(user_id),
-        "email": email
+        "email": email,
+        "portfolio_id": str(portfolio_id) if portfolio_id else None
     }
