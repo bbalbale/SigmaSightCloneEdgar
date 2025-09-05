@@ -511,42 +511,33 @@ return standardize_datetime_dict(response)
 ### 3.0.3 Analytics APIs (/analytics/) (Week 2-3)
 *Calculated metrics leveraging existing batch processing engines*
 
-#### Portfolio Analytics
-- [ ] **GET /api/v1/analytics/portfolio/{id}/overview** - Portfolio metrics - APPROVED FOR IMPLEMENTATION
+- [ ] **3.0.3.1 GET /api/v1/analytics/portfolio/{id}/overview** - Portfolio metrics - APPROVED FOR IMPLEMENTATION
   - [ ] Use existing aggregation engine results
   - [ ] Return exposures, P&L, totals
-- [ ] **GET /api/v1/analytics/portfolio/{id}/performance** - Performance metrics
+- [ ] **3.0.3.2 GET /api/v1/analytics/portfolio/{id}/performance** - Performance metrics (PENDING APPROVAL)
   - [ ] Returns over various periods
   - [ ] Sharpe/Sortino ratios
   - [ ] Maximum drawdown
-
-#### Position Analytics
-- [ ] **GET /api/v1/analytics/positions/attribution** - P&L attribution
+- [ ] **3.0.3.3 GET /api/v1/analytics/positions/attribution** - P&L attribution (PENDING APPROVAL)
   - [ ] Position-level P&L breakdown
   - [ ] Group by position, tag, or type
-
-#### Risk Analytics
-- [ ] **GET /api/v1/analytics/risk/{id}/overview** - Risk metrics
+- [ ] **3.0.3.4 GET /api/v1/analytics/risk/{id}/overview** - Risk metrics (PENDING APPROVAL)
   - [ ] Beta, volatility, correlations
   - [ ] Use existing calculation results
-- [ ] **GET /api/v1/analytics/risk/{id}/greeks** - Portfolio Greeks
+- [ ] **3.0.3.5 GET /api/v1/analytics/risk/{id}/greeks** - Portfolio Greeks (PENDING APPROVAL)
   - [ ] Aggregate Greeks from batch calculations
   - [ ] Support after-expiry views
-- [ ] **POST /api/v1/analytics/risk/greeks/calculate** - On-demand Greeks
+- [ ] **3.0.3.6 POST /api/v1/analytics/risk/greeks/calculate** - On-demand Greeks (PENDING APPROVAL)
   - [ ] Real-time calculation using mibian
-- [ ] **GET /api/v1/analytics/risk/{id}/scenarios** - Stress scenarios *(Added in v1.4.4)*
+- [ ] **3.0.3.7 GET /api/v1/analytics/risk/{id}/scenarios** - Stress scenarios *(Added in v1.4.4)* (PENDING APPROVAL)
   - [ ] Use existing stress test engine
   - [ ] Return impacts for standard scenarios
-
-#### Factor Analytics
-- [ ] **GET /api/v1/analytics/factors/{id}/exposures** - Factor exposures
+- [ ] **3.0.3.8 GET /api/v1/analytics/factors/{id}/exposures** - Factor exposures (PENDING APPROVAL)
   - [ ] Return 7-factor model results
   - [ ] Portfolio and position level views
-- [ ] **GET /api/v1/analytics/factors/definitions** - Factor definitions
+- [ ] **3.0.3.9 GET /api/v1/analytics/factors/definitions** - Factor definitions (PENDING APPROVAL)
   - [ ] ETF proxies and descriptions
-
-#### Correlation Analytics
-- [ ] **GET /api/v1/analytics/correlation/{id}/matrix** - Correlation matrix
+- [ ] **3.0.3.10 GET /api/v1/analytics/correlation/{id}/matrix** - Correlation matrix (PENDING APPROVAL)
   - [ ] Position pairwise correlations
   - [ ] Use existing correlation engine
 

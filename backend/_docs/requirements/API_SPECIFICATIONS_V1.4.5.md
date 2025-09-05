@@ -47,33 +47,33 @@ This section documents the **18 fully implemented and production-ready endpoints
 
 ### Complete Endpoint List
 
-#### Authentication Endpoints (4)
-- [`POST /auth/login`](#11-login) - Authenticate user and return JWT token
-- [`POST /auth/register`](#12-register) - Register a new user
-- [`GET /auth/me`](#13-get-current-user) - Get current authenticated user information  
-- [`POST /auth/refresh`](#14-refresh-token) - Refresh JWT token
+#### Authentication Endpoints
+- **1.** [`POST /auth/login`](#1-login) - Authenticate user and return JWT token
+- **2.** [`POST /auth/register`](#2-register) - Register a new user
+- **3.** [`GET /auth/me`](#3-get-current-user) - Get current authenticated user information  
+- **4.** [`POST /auth/refresh`](#4-refresh-token) - Refresh JWT token
 
-#### Data Endpoints (13)
-- [`GET /data/portfolios`](#21-get-portfolios) - Get all portfolios for authenticated user
-- [`GET /data/portfolio/{portfolio_id}/complete`](#22-get-complete-portfolio) - Get complete portfolio data with optional sections
-- [`GET /data/portfolio/{portfolio_id}/data-quality`](#23-get-data-quality) - Get data quality metrics for portfolio
-- [`GET /data/positions/details`](#24-get-position-details) - Get detailed position information with P&L calculations
-- [`GET /data/prices/historical/{symbol_or_position_id}`](#25-get-historical-prices) - Get historical price data for symbol or position
-- [`GET /data/prices/quotes`](#26-get-market-quotes) - Get real-time market quotes for symbols
-- [`GET /data/factors/etf-prices`](#27-get-factor-etf-prices) - Get current and historical prices for factor ETFs
-- [`GET /data/greeks/{portfolio_id}`](#28-get-greeks-data) - Get Greeks data for portfolio positions
-- [`GET /data/factors/{portfolio_id}`](#29-get-factor-exposures) - Get factor exposure data for portfolio
-- [`GET /data/portfolios/{portfolio_id}/aggregations`](#210-get-portfolio-aggregations) - Get portfolio-level aggregated metrics
-- [`GET /data/portfolios/{portfolio_id}/risk-summary`](#211-get-risk-summary) - Get comprehensive risk metrics for portfolio
-- [`GET /data/portfolios/{portfolio_id}/positions/summary`](#212-get-position-summary) - Get position summary with key metrics
-- [`GET /data/positions/{position_id}/details`](#213-get-position-details-by-id) - Get detailed information for specific position
+#### Data Endpoints
+- **5.** [`GET /data/portfolios`](#5-get-portfolios) - Get all portfolios for authenticated user
+- **6.** [`GET /data/portfolio/{portfolio_id}/complete`](#6-get-complete-portfolio) - Get complete portfolio data with optional sections
+- **7.** [`GET /data/portfolio/{portfolio_id}/data-quality`](#7-get-data-quality) - Get data quality metrics for portfolio
+- **8.** [`GET /data/positions/details`](#8-get-position-details) - Get detailed position information with P&L calculations
+- **9.** [`GET /data/prices/historical/{symbol_or_position_id}`](#9-get-historical-prices) - Get historical price data for symbol or position
+- **10.** [`GET /data/prices/quotes`](#10-get-market-quotes) - Get real-time market quotes for symbols
+- **11.** [`GET /data/factors/etf-prices`](#11-get-factor-etf-prices) - Get current and historical prices for factor ETFs
+- **12.** [`GET /data/greeks/{portfolio_id}`](#12-get-greeks-data) - Get Greeks data for portfolio positions
+- **13.** [`GET /data/factors/{portfolio_id}`](#13-get-factor-exposures) - Get factor exposure data for portfolio
+- **14.** [`GET /data/portfolios/{portfolio_id}/aggregations`](#14-get-portfolio-aggregations) - Get portfolio-level aggregated metrics
+- **15.** [`GET /data/portfolios/{portfolio_id}/risk-summary`](#15-get-risk-summary) - Get comprehensive risk metrics for portfolio
+- **16.** [`GET /data/portfolios/{portfolio_id}/positions/summary`](#16-get-position-summary) - Get position summary with key metrics
+- **17.** [`GET /data/positions/{position_id}/details`](#17-get-position-details-by-id) - Get detailed information for specific position
 
-#### Administration Endpoints (5)
-- [`GET /admin/batch/jobs/status`](#31-get-batch-job-status) - Get status of recent batch jobs
-- [`GET /admin/batch/jobs/summary`](#32-get-batch-job-summary) - Get summary statistics of batch jobs  
-- [`DELETE /admin/batch/jobs/{job_id}/cancel`](#33-cancel-batch-job) - Cancel a running batch job
-- [`GET /admin/batch/data-quality`](#34-get-data-quality-status) - Get data quality status and metrics for portfolios
-- [`POST /admin/batch/data-quality/refresh`](#35-refresh-market-data-for-quality) - Refresh market data to improve data quality scores
+#### Administration Endpoints
+- **18.** [`GET /admin/batch/jobs/status`](#18-get-batch-job-status) - Get status of recent batch jobs
+- [`GET /admin/batch/jobs/summary`](#get-batch-job-summary) - Get summary statistics of batch jobs  
+- [`DELETE /admin/batch/jobs/{job_id}/cancel`](#cancel-batch-job) - Cancel a running batch job
+- [`GET /admin/batch/data-quality`](#get-data-quality-status) - Get data quality status and metrics for portfolios
+- [`POST /admin/batch/data-quality/refresh`](#refresh-market-data-for-quality) - Refresh market data to improve data quality scores
 
 ### Base URL
 ```
@@ -90,7 +90,7 @@ Authorization: Bearer <jwt_token>
 
 ## 1. Authentication Endpoints
 
-### 1.1 Login
+### 1. Login
 **Endpoint**: `POST /auth/login`  
 **Status**: ✅ Fully Implemented  
 **Authentication**: None required  
@@ -117,7 +117,7 @@ Authenticates a user and returns JWT token in both response body and HTTP-only c
 }
 ```
 
-### 1.2 Register
+### 2. Register
 **Endpoint**: `POST /auth/register`  
 **Status**: ✅ Fully Implemented  
 **Authentication**: None required  
@@ -145,7 +145,7 @@ Authenticates a user and returns JWT token in both response body and HTTP-only c
 }
 ```
 
-### 1.3 Get Current User
+### 3. Get Current User
 **Endpoint**: `GET /auth/me`  
 **Status**: ✅ Fully Implemented  
 **Authentication**: Required (Bearer token)  
@@ -165,7 +165,7 @@ Authenticates a user and returns JWT token in both response body and HTTP-only c
 }
 ```  
 
-### 1.4 Refresh Token
+### 4. Refresh Token
 **Endpoint**: `POST /auth/refresh`  
 **Status**: ✅ Fully Implemented  
 **Authentication**: Required (Bearer token)  
@@ -186,7 +186,7 @@ Authenticates a user and returns JWT token in both response body and HTTP-only c
 
 ## 2. Data Endpoints
 
-### 2.1 Get Portfolios
+### 5. Get Portfolios
 **Endpoint**: `GET /data/portfolios`  
 **Status**: ✅ Fully Implemented  
 **Authentication**: Required  
@@ -212,7 +212,7 @@ Returns all portfolios for the authenticated user with real database data.
 }
 ```
 
-### 2.2 Get Complete Portfolio
+### 6. Get Complete Portfolio
 **Endpoint**: `GET /data/portfolio/{portfolio_id}/complete`  
 **Status**: ✅ Fully Implemented  
 **Authentication**: Required  
@@ -263,7 +263,7 @@ Returns all portfolios for the authenticated user with real database data.
 }
 ```
 
-### 2.3 Get Data Quality
+### 7. Get Data Quality
 **Endpoint**: `GET /data/portfolio/{portfolio_id}/data-quality`  
 **Status**: ✅ Fully Implemented  
 **Authentication**: Required  
@@ -306,7 +306,7 @@ Returns all portfolios for the authenticated user with real database data.
 }
 ```
 
-### 2.4 Get Position Details
+### 8. Get Position Details
 **Endpoint**: `GET /data/positions/details`  
 **Status**: ✅ Fully Implemented  
 **Authentication**: Required  
@@ -366,7 +366,7 @@ Returns all portfolios for the authenticated user with real database data.
 }
 ```
 
-### 2.5 Get Historical Prices
+### 9. Get Historical Prices
 **Endpoint**: `GET /data/prices/historical/{symbol_or_position_id}`  
 **Status**: ✅ Fully Implemented  
 **Authentication**: Required  
@@ -418,7 +418,7 @@ Returns all portfolios for the authenticated user with real database data.
 }
 ```
 
-### 2.6 Get Market Quotes
+### 10. Get Market Quotes
 **Endpoint**: `GET /data/prices/quotes`  
 **Status**: ✅ Fully Implemented  
 **Authentication**: Required  
@@ -469,7 +469,7 @@ Returns all portfolios for the authenticated user with real database data.
 }
 ```
 
-### 2.7 Get Factor ETF Prices
+### 11. Get Factor ETF Prices
 **Endpoint**: `GET /data/factors/etf-prices`  
 **Status**: ✅ Fully Implemented  
 **Authentication**: Required  
@@ -539,7 +539,7 @@ Returns all portfolios for the authenticated user with real database data.
 }
 ```
 
-### 2.8 Get Greeks Data
+### 12. Get Greeks Data
 **Endpoint**: `GET /data/greeks/{portfolio_id}`  
 **Status**: ✅ Fully Implemented  
 **Authentication**: Required  
@@ -612,7 +612,7 @@ Returns all portfolios for the authenticated user with real database data.
 }
 ```
 
-### 2.9 Get Factor Exposures
+### 13. Get Factor Exposures
 **Endpoint**: `GET /data/factors/{portfolio_id}`  
 **Status**: ✅ Fully Implemented  
 **Authentication**: Required  
@@ -690,7 +690,7 @@ Returns all portfolios for the authenticated user with real database data.
 }
 ```
 
-### 2.10 Get Portfolio Aggregations
+### 14. Get Portfolio Aggregations
 **Endpoint**: `GET /data/portfolios/{portfolio_id}/aggregations`  
 **Status**: ✅ Fully Implemented  
 **Authentication**: Required  
@@ -769,7 +769,7 @@ Returns all portfolios for the authenticated user with real database data.
 }
 ```
 
-### 2.11 Get Risk Summary
+### 15. Get Risk Summary
 **Endpoint**: `GET /data/portfolios/{portfolio_id}/risk-summary`  
 **Status**: ✅ Fully Implemented  
 **Authentication**: Required  
@@ -881,7 +881,7 @@ Returns all portfolios for the authenticated user with real database data.
 }
 ```
 
-### 2.12 Get Position Summary
+### 16. Get Position Summary
 **Endpoint**: `GET /data/portfolios/{portfolio_id}/positions/summary`  
 **Status**: ✅ Fully Implemented  
 **Authentication**: Required  
@@ -969,7 +969,7 @@ Returns all portfolios for the authenticated user with real database data.
 }
 ```
 
-### 2.13 Get Position Details by ID
+### 17. Get Position Details by ID
 **Endpoint**: `GET /data/positions/{position_id}/details`  
 **Status**: ✅ Fully Implemented  
 **Authentication**: Required  
@@ -1075,7 +1075,7 @@ Returns all portfolios for the authenticated user with real database data.
 
 ## 3. Administration Endpoints
 
-### 3.1 Get Batch Job Status
+### 18. Get Batch Job Status
 **Endpoint**: `GET /admin/batch/jobs/status`  
 **Status**: ✅ Fully Implemented  
 **Authentication**: Required (Admin)  
@@ -1162,7 +1162,7 @@ Returns all portfolios for the authenticated user with real database data.
 }
 ```
 
-### 3.2 Get Batch Job Summary
+### Get Batch Job Summary
 **Endpoint**: `GET /admin/batch/jobs/summary`  
 **Status**: ✅ Fully Implemented  
 **Authentication**: Required (Admin)  
@@ -1272,7 +1272,7 @@ Returns all portfolios for the authenticated user with real database data.
 }
 ```
 
-### 3.3 Cancel Batch Job
+### Cancel Batch Job
 **Endpoint**: `DELETE /admin/batch/jobs/{job_id}/cancel`  
 **Status**: ✅ Fully Implemented  
 **Authentication**: Required (Admin)  
@@ -1312,7 +1312,7 @@ Returns all portfolios for the authenticated user with real database data.
 }
 ```
 
-### 3.4 Get Data Quality Status
+### Get Data Quality Status
 **Endpoint**: `GET /admin/batch/data-quality`  
 **Status**: ✅ Fully Implemented  
 **Authentication**: Required (Admin)  
@@ -1428,7 +1428,7 @@ Returns all portfolios for the authenticated user with real database data.
 }
 ```
 
-### 3.5 Refresh Market Data for Quality
+### Refresh Market Data for Quality
 **Endpoint**: `POST /admin/batch/data-quality/refresh`  
 **Status**: ✅ Fully Implemented  
 **Authentication**: Required (Admin)  
