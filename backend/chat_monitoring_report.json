@@ -1,367 +1,68 @@
 {
-  "session_start": "2025-09-04T10:10:37.675599",
+  "session_start": "2025-09-05T10:01:53.446370",
   "status_checks": [
     {
-      "timestamp": "2025-09-05T09:34:25.210363",
+      "timestamp": "2025-09-05T16:24:42.205073",
       "frontend": {
         "status": "running",
-        "response_time": 23.25
+        "response_time": 19.63
       },
       "backend": {
         "status": "running",
-        "response_time": 3.74
+        "response_time": 1.55
       }
     },
     {
-      "timestamp": "2025-09-05T09:34:25.238198",
+      "timestamp": "2025-09-05T16:24:42.226549",
       "login_endpoint": {
         "status": 200,
-        "response_time": 195.97,
+        "response_time": 194.03,
         "has_token": true
       },
       "me_endpoint": {
         "status": 200,
-        "response_time": 6.87
+        "response_time": 4.1
       }
     },
     {
-      "timestamp": "2025-09-05T09:34:55.445991",
+      "timestamp": "2025-09-05T16:25:12.427650",
       "frontend": {
         "status": "running",
-        "response_time": 21.93
+        "response_time": 18.05
       },
       "backend": {
         "status": "running",
-        "response_time": 2.67
+        "response_time": 3.82
       }
     },
     {
-      "timestamp": "2025-09-05T09:34:55.471089",
+      "timestamp": "2025-09-05T16:25:12.450005",
       "login_endpoint": {
         "status": 200,
-        "response_time": 206.54,
+        "response_time": 198.09,
         "has_token": true
       },
       "me_endpoint": {
         "status": 200,
-        "response_time": 2.88
+        "response_time": 3.92
       }
     },
     {
-      "timestamp": "2025-09-05T09:35:25.684837",
+      "timestamp": "2025-09-05T16:25:42.655725",
       "frontend": {
         "status": "running",
-        "response_time": 21.54
+        "response_time": 14.99
       },
       "backend": {
         "status": "running",
-        "response_time": 1.87
+        "response_time": 1.54
       }
     },
     {
-      "timestamp": "2025-09-05T09:35:25.708750",
+      "timestamp": "2025-09-05T16:25:42.672589",
       "login_endpoint": {
         "status": 200,
-        "response_time": 199.19,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 4.48
-      }
-    },
-    {
-      "timestamp": "2025-09-05T09:35:55.918862",
-      "frontend": {
-        "status": "running",
-        "response_time": 17.13
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 1.89
-      }
-    },
-    {
-      "timestamp": "2025-09-05T09:35:55.938216",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 195.09,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 4.73
-      }
-    },
-    {
-      "timestamp": "2025-09-05T09:36:26.143820",
-      "frontend": {
-        "status": "running",
-        "response_time": 27.27
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 2.58
-      }
-    },
-    {
-      "timestamp": "2025-09-05T09:36:26.174276",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 191.9,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 3.5
-      }
-    },
-    {
-      "timestamp": "2025-09-05T09:36:56.374849",
-      "frontend": {
-        "status": "running",
-        "response_time": 24.15
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 2.53
-      }
-    },
-    {
-      "timestamp": "2025-09-05T09:36:56.401909",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 196.23,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 4.22
-      }
-    },
-    {
-      "timestamp": "2025-09-05T09:37:26.608017",
-      "frontend": {
-        "status": "running",
-        "response_time": 22.38
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 2.5
-      }
-    },
-    {
-      "timestamp": "2025-09-05T09:37:26.633463",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 195.96,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 4.27
-      }
-    },
-    {
-      "timestamp": "2025-09-05T09:37:56.842878",
-      "frontend": {
-        "status": "running",
-        "response_time": 22.36
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 1.76
-      }
-    },
-    {
-      "timestamp": "2025-09-05T09:37:56.867400",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 196.65,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 4.52
-      }
-    },
-    {
-      "timestamp": "2025-09-05T09:38:27.075649",
-      "frontend": {
-        "status": "running",
-        "response_time": 55.09
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 2.86
-      }
-    },
-    {
-      "timestamp": "2025-09-05T09:38:27.135251",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 238.2,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 8.95
-      }
-    },
-    {
-      "timestamp": "2025-09-05T09:38:57.391170",
-      "frontend": {
-        "status": "running",
-        "response_time": 15.73
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 2.36
-      }
-    },
-    {
-      "timestamp": "2025-09-05T09:38:57.409649",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 182.65,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 4.74
-      }
-    },
-    {
-      "timestamp": "2025-09-05T09:39:27.604227",
-      "frontend": {
-        "status": "running",
-        "response_time": 14.8
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 3.2
-      }
-    },
-    {
-      "timestamp": "2025-09-05T09:39:27.623376",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 186.81,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 7.06
-      }
-    },
-    {
-      "timestamp": "2025-09-05T09:39:57.822312",
-      "frontend": {
-        "status": "running",
-        "response_time": 17.31
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 2.3
-      }
-    },
-    {
-      "timestamp": "2025-09-05T09:39:57.842405",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 190.52,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 3.47
-      }
-    },
-    {
-      "timestamp": "2025-09-05T09:40:28.042860",
-      "frontend": {
-        "status": "running",
-        "response_time": 28.26
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 3.97
-      }
-    },
-    {
-      "timestamp": "2025-09-05T09:40:28.076610",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 202.92,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 5.7
-      }
-    },
-    {
-      "timestamp": "2025-09-05T09:40:58.292043",
-      "frontend": {
-        "status": "running",
-        "response_time": 45.43
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 2.21
-      }
-    },
-    {
-      "timestamp": "2025-09-05T09:40:58.340141",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 192.67,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 2.72
-      }
-    },
-    {
-      "timestamp": "2025-09-05T09:41:28.544833",
-      "frontend": {
-        "status": "running",
-        "response_time": 26.3
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 2.65
-      }
-    },
-    {
-      "timestamp": "2025-09-05T09:41:28.574530",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 197.39,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 5.25
-      }
-    },
-    {
-      "timestamp": "2025-09-05T09:41:58.785572",
-      "frontend": {
-        "status": "running",
-        "response_time": 39.76
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 3.2
-      }
-    },
-    {
-      "timestamp": "2025-09-05T09:41:58.829179",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 186.73,
+        "response_time": 198.0,
         "has_token": true
       },
       "me_endpoint": {
@@ -370,355 +71,378 @@
       }
     },
     {
-      "timestamp": "2025-09-05T09:42:29.029287",
+      "timestamp": "2025-09-05T16:26:12.879378",
       "frontend": {
         "status": "running",
-        "response_time": 23.46
+        "response_time": 39.8
       },
       "backend": {
         "status": "running",
-        "response_time": 3.21
+        "response_time": 3.72
       }
     },
     {
-      "timestamp": "2025-09-05T09:42:29.056502",
+      "timestamp": "2025-09-05T16:26:12.924637",
       "login_endpoint": {
         "status": 200,
-        "response_time": 195.4,
+        "response_time": 197.27,
         "has_token": true
       },
       "me_endpoint": {
         "status": 200,
-        "response_time": 4.6
+        "response_time": 5.16
       }
     },
     {
-      "timestamp": "2025-09-05T09:42:59.265643",
+      "timestamp": "2025-09-05T16:26:43.130273",
       "frontend": {
         "status": "running",
-        "response_time": 21.35
+        "response_time": 21.31
       },
       "backend": {
         "status": "running",
-        "response_time": 3.86
+        "response_time": 2.76
       }
     },
     {
-      "timestamp": "2025-09-05T09:42:59.291858",
+      "timestamp": "2025-09-05T16:26:43.154817",
       "login_endpoint": {
         "status": 200,
-        "response_time": 192.42,
+        "response_time": 195.19,
         "has_token": true
       },
       "me_endpoint": {
         "status": 200,
-        "response_time": 4.34
+        "response_time": 5.02
       }
     },
     {
-      "timestamp": "2025-09-05T09:43:29.497055",
+      "timestamp": "2025-09-05T16:27:13.359409",
       "frontend": {
         "status": "running",
-        "response_time": 15.91
+        "response_time": 10.22
       },
       "backend": {
         "status": "running",
-        "response_time": 2.12
+        "response_time": 1.1
       }
     },
     {
-      "timestamp": "2025-09-05T09:43:29.515535",
+      "timestamp": "2025-09-05T16:27:13.370921",
       "login_endpoint": {
         "status": 200,
-        "response_time": 180.21,
+        "response_time": 181.4,
         "has_token": true
       },
       "me_endpoint": {
         "status": 200,
-        "response_time": 5.38
+        "response_time": 4.63
       }
     },
     {
-      "timestamp": "2025-09-05T09:43:59.707761",
+      "timestamp": "2025-09-05T16:27:43.561610",
       "frontend": {
         "status": "running",
-        "response_time": 21.24
+        "response_time": 53.13
       },
       "backend": {
         "status": "running",
-        "response_time": 4.04
+        "response_time": 9.59
       }
     },
     {
-      "timestamp": "2025-09-05T09:43:59.733632",
+      "timestamp": "2025-09-05T16:27:43.625981",
       "login_endpoint": {
         "status": 200,
-        "response_time": 194.09,
+        "response_time": 200.23,
         "has_token": true
       },
       "me_endpoint": {
         "status": 200,
-        "response_time": 5.31
+        "response_time": 5.84
       }
     },
     {
-      "timestamp": "2025-09-05T09:44:29.942949",
+      "timestamp": "2025-09-05T16:28:13.836275",
       "frontend": {
         "status": "running",
-        "response_time": 72.53
+        "response_time": 23.01
       },
       "backend": {
         "status": "running",
-        "response_time": 2.73
+        "response_time": 2.85
       }
     },
     {
-      "timestamp": "2025-09-05T09:44:30.019372",
+      "timestamp": "2025-09-05T16:28:13.862689",
       "login_endpoint": {
         "status": 200,
-        "response_time": 196.23,
+        "response_time": 194.85,
         "has_token": true
       },
       "me_endpoint": {
         "status": 200,
-        "response_time": 5.41
+        "response_time": 4.39
       }
     },
     {
-      "timestamp": "2025-09-05T09:45:00.225297",
+      "timestamp": "2025-09-05T16:28:44.064962",
       "frontend": {
         "status": "running",
-        "response_time": 13.05
+        "response_time": 20.14
       },
       "backend": {
         "status": "running",
-        "response_time": 2.4
+        "response_time": 3.02
       }
     },
     {
-      "timestamp": "2025-09-05T09:45:00.241190",
+      "timestamp": "2025-09-05T16:28:44.088656",
       "login_endpoint": {
         "status": 200,
-        "response_time": 190.06,
+        "response_time": 195.38,
         "has_token": true
       },
       "me_endpoint": {
         "status": 200,
-        "response_time": 5.63
+        "response_time": 4.0
       }
     },
     {
-      "timestamp": "2025-09-05T09:45:30.446079",
+      "timestamp": "2025-09-05T16:29:14.293661",
       "frontend": {
         "status": "running",
-        "response_time": 20.49
+        "response_time": 49.29
       },
       "backend": {
         "status": "running",
-        "response_time": 1.98
+        "response_time": 2.79
       }
     },
     {
-      "timestamp": "2025-09-05T09:45:30.469764",
+      "timestamp": "2025-09-05T16:29:14.347373",
       "login_endpoint": {
         "status": 200,
-        "response_time": 197.53,
+        "response_time": 183.77,
         "has_token": true
       },
       "me_endpoint": {
         "status": 200,
-        "response_time": 4.24
+        "response_time": 3.52
       }
     },
     {
-      "timestamp": "2025-09-05T09:46:00.680775",
+      "timestamp": "2025-09-05T16:29:44.538097",
       "frontend": {
         "status": "running",
-        "response_time": 25.97
+        "response_time": 26.98
       },
       "backend": {
         "status": "running",
-        "response_time": 2.0
+        "response_time": 3.12
       }
     },
     {
-      "timestamp": "2025-09-05T09:46:00.709856",
+      "timestamp": "2025-09-05T16:29:44.568805",
       "login_endpoint": {
         "status": 200,
-        "response_time": 195.69,
+        "response_time": 214.75,
         "has_token": true
       },
       "me_endpoint": {
         "status": 200,
-        "response_time": 4.09
+        "response_time": 4.88
       }
     },
     {
-      "timestamp": "2025-09-05T09:46:30.918470",
+      "timestamp": "2025-09-05T16:30:14.791688",
       "frontend": {
         "status": "running",
-        "response_time": 34.88
+        "response_time": 21.17
       },
       "backend": {
         "status": "running",
-        "response_time": 4.01
-      }
-    },
-    {
-      "timestamp": "2025-09-05T09:46:30.959047",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 212.47,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 4.68
-      }
-    },
-    {
-      "timestamp": "2025-09-05T09:47:01.182012",
-      "frontend": {
-        "status": "running",
-        "response_time": 25.63
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 3.38
-      }
-    },
-    {
-      "timestamp": "2025-09-05T09:47:01.211596",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 195.46,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 3.75
-      }
-    },
-    {
-      "timestamp": "2025-09-05T09:47:06.412344",
-      "frontend": {
-        "status": "running",
-        "response_time": 20.97
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 3.23
-      }
-    },
-    {
-      "timestamp": "2025-09-05T09:47:06.437149",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 198.02,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 5.09
-      }
-    },
-    {
-      "timestamp": "2025-09-05T09:47:36.650186",
-      "frontend": {
-        "status": "running",
-        "response_time": 21.46
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 1.73
-      }
-    },
-    {
-      "timestamp": "2025-09-05T09:47:36.674089",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 198.19,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 4.43
-      }
-    },
-    {
-      "timestamp": "2025-09-05T09:48:06.883876",
-      "frontend": {
-        "status": "running",
-        "response_time": 22.39
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 2.93
-      }
-    },
-    {
-      "timestamp": "2025-09-05T09:48:06.909682",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 207.02,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 4.22
-      }
-    },
-    {
-      "timestamp": "2025-09-05T09:48:37.127847",
-      "frontend": {
-        "status": "running",
-        "response_time": 59.92
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 6.91
-      }
-    },
-    {
-      "timestamp": "2025-09-05T09:48:37.195883",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 205.91,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 8.1
-      }
-    },
-    {
-      "timestamp": "2025-09-05T09:49:07.416985",
-      "frontend": {
-        "status": "running",
-        "response_time": 18.84
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 2.34
-      }
-    },
-    {
-      "timestamp": "2025-09-05T09:49:07.438540",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 207.49,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
         "response_time": 3.0
       }
     },
     {
-      "timestamp": "2025-09-05T09:49:37.656145",
+      "timestamp": "2025-09-05T16:30:14.816405",
+      "login_endpoint": {
+        "status": 200,
+        "response_time": 196.69,
+        "has_token": true
+      },
+      "me_endpoint": {
+        "status": 200,
+        "response_time": 4.61
+      }
+    },
+    {
+      "timestamp": "2025-09-05T16:30:45.022250",
       "frontend": {
         "status": "running",
-        "response_time": 19.15
+        "response_time": 55.55
+      },
+      "backend": {
+        "status": "running",
+        "response_time": 3.65
+      }
+    },
+    {
+      "timestamp": "2025-09-05T16:30:45.082520",
+      "login_endpoint": {
+        "status": 200,
+        "response_time": 188.73,
+        "has_token": true
+      },
+      "me_endpoint": {
+        "status": 200,
+        "response_time": 6.17
+      }
+    },
+    {
+      "timestamp": "2025-09-05T16:31:15.280685",
+      "frontend": {
+        "status": "running",
+        "response_time": 20.26
+      },
+      "backend": {
+        "status": "running",
+        "response_time": 2.01
+      }
+    },
+    {
+      "timestamp": "2025-09-05T16:31:15.303427",
+      "login_endpoint": {
+        "status": 200,
+        "response_time": 194.77,
+        "has_token": true
+      },
+      "me_endpoint": {
+        "status": 200,
+        "response_time": 4.86
+      }
+    },
+    {
+      "timestamp": "2025-09-05T16:31:45.505731",
+      "frontend": {
+        "status": "running",
+        "response_time": 18.11
+      },
+      "backend": {
+        "status": "running",
+        "response_time": 2.59
+      }
+    },
+    {
+      "timestamp": "2025-09-05T16:31:45.526880",
+      "login_endpoint": {
+        "status": 200,
+        "response_time": 194.26,
+        "has_token": true
+      },
+      "me_endpoint": {
+        "status": 200,
+        "response_time": 4.16
+      }
+    },
+    {
+      "timestamp": "2025-09-05T16:32:15.729127",
+      "frontend": {
+        "status": "running",
+        "response_time": 16.4
+      },
+      "backend": {
+        "status": "running",
+        "response_time": 1.85
+      }
+    },
+    {
+      "timestamp": "2025-09-05T16:32:15.747690",
+      "login_endpoint": {
+        "status": 200,
+        "response_time": 188.27,
+        "has_token": true
+      },
+      "me_endpoint": {
+        "status": 200,
+        "response_time": 2.28
+      }
+    },
+    {
+      "timestamp": "2025-09-05T16:32:45.942623",
+      "frontend": {
+        "status": "running",
+        "response_time": 74.37
+      },
+      "backend": {
+        "status": "running",
+        "response_time": 4.62
+      }
+    },
+    {
+      "timestamp": "2025-09-05T16:32:46.023044",
+      "login_endpoint": {
+        "status": 200,
+        "response_time": 206.72,
+        "has_token": true
+      },
+      "me_endpoint": {
+        "status": 200,
+        "response_time": 7.49
+      }
+    },
+    {
+      "timestamp": "2025-09-05T16:33:16.240665",
+      "frontend": {
+        "status": "running",
+        "response_time": 15.7
+      },
+      "backend": {
+        "status": "running",
+        "response_time": 1.85
+      }
+    },
+    {
+      "timestamp": "2025-09-05T16:33:16.258544",
+      "login_endpoint": {
+        "status": 200,
+        "response_time": 198.3,
+        "has_token": true
+      },
+      "me_endpoint": {
+        "status": 200,
+        "response_time": 4.27
+      }
+    },
+    {
+      "timestamp": "2025-09-05T16:33:46.465183",
+      "frontend": {
+        "status": "running",
+        "response_time": 39.95
+      },
+      "backend": {
+        "status": "running",
+        "response_time": 2.07
+      }
+    },
+    {
+      "timestamp": "2025-09-05T16:33:46.508397",
+      "login_endpoint": {
+        "status": 200,
+        "response_time": 189.07,
+        "has_token": true
+      },
+      "me_endpoint": {
+        "status": 200,
+        "response_time": 4.56
+      }
+    },
+    {
+      "timestamp": "2025-09-05T16:34:16.705965",
+      "frontend": {
+        "status": "running",
+        "response_time": 19.43
       },
       "backend": {
         "status": "running",
@@ -726,240 +450,148 @@
       }
     },
     {
-      "timestamp": "2025-09-05T09:49:37.678247",
+      "timestamp": "2025-09-05T16:34:16.728368",
       "login_endpoint": {
         "status": 200,
-        "response_time": 200.13,
+        "response_time": 195.36,
         "has_token": true
       },
       "me_endpoint": {
         "status": 200,
-        "response_time": 4.57
+        "response_time": 2.36
       }
     },
     {
-      "timestamp": "2025-09-05T09:50:07.890434",
+      "timestamp": "2025-09-05T16:34:46.929138",
       "frontend": {
         "status": "running",
-        "response_time": 24.77
+        "response_time": 20.58
       },
       "backend": {
         "status": "running",
-        "response_time": 3.34
+        "response_time": 2.4
       }
     },
     {
-      "timestamp": "2025-09-05T09:50:07.919089",
+      "timestamp": "2025-09-05T16:34:46.952576",
       "login_endpoint": {
         "status": 200,
-        "response_time": 197.77,
+        "response_time": 195.38,
         "has_token": true
       },
       "me_endpoint": {
         "status": 200,
-        "response_time": 4.22
+        "response_time": 2.59
       }
     },
     {
-      "timestamp": "2025-09-05T09:50:38.129444",
+      "timestamp": "2025-09-05T16:35:17.153863",
       "frontend": {
         "status": "running",
-        "response_time": 55.55
+        "response_time": 14.22
       },
       "backend": {
         "status": "running",
-        "response_time": 3.6
+        "response_time": 1.15
       }
     },
     {
-      "timestamp": "2025-09-05T09:50:38.190130",
+      "timestamp": "2025-09-05T16:35:17.169503",
       "login_endpoint": {
         "status": 200,
-        "response_time": 190.89,
+        "response_time": 192.46,
         "has_token": true
       },
       "me_endpoint": {
         "status": 200,
-        "response_time": 4.74
+        "response_time": 3.55
       }
     },
     {
-      "timestamp": "2025-09-05T09:51:08.391487",
+      "timestamp": "2025-09-05T16:35:47.368649",
       "frontend": {
         "status": "running",
-        "response_time": 33.62
+        "response_time": 19.21
       },
       "backend": {
         "status": "running",
-        "response_time": 3.52
+        "response_time": 2.36
       }
     },
     {
-      "timestamp": "2025-09-05T09:51:08.429534",
+      "timestamp": "2025-09-05T16:35:47.390633",
       "login_endpoint": {
         "status": 200,
-        "response_time": 191.4,
+        "response_time": 199.95,
         "has_token": true
       },
       "me_endpoint": {
         "status": 200,
-        "response_time": 5.45
+        "response_time": 4.29
       }
     },
     {
-      "timestamp": "2025-09-05T09:51:38.634203",
+      "timestamp": "2025-09-05T16:36:17.597967",
       "frontend": {
         "status": "running",
-        "response_time": 23.37
+        "response_time": 13.66
       },
       "backend": {
         "status": "running",
-        "response_time": 3.51
+        "response_time": 2.05
       }
     },
     {
-      "timestamp": "2025-09-05T09:51:38.661607",
+      "timestamp": "2025-09-05T16:36:17.613975",
       "login_endpoint": {
         "status": 200,
-        "response_time": 198.13,
+        "response_time": 195.07,
         "has_token": true
       },
       "me_endpoint": {
         "status": 200,
-        "response_time": 5.08
+        "response_time": 3.63
       }
     },
     {
-      "timestamp": "2025-09-05T09:52:08.871823",
+      "timestamp": "2025-09-05T16:36:47.816265",
       "frontend": {
         "status": "running",
-        "response_time": 22.11
+        "response_time": 30.85
       },
       "backend": {
         "status": "running",
-        "response_time": 2.77
+        "response_time": 4.16
       }
     },
     {
-      "timestamp": "2025-09-05T09:52:08.897225",
+      "timestamp": "2025-09-05T16:36:47.852224",
       "login_endpoint": {
         "status": 200,
-        "response_time": 197.56,
+        "response_time": 192.3,
         "has_token": true
       },
       "me_endpoint": {
         "status": 200,
-        "response_time": 4.79
+        "response_time": 4.14
       }
     },
     {
-      "timestamp": "2025-09-05T09:52:39.109019",
+      "timestamp": "2025-09-05T16:37:18.051883",
       "frontend": {
         "status": "running",
-        "response_time": 44.84
+        "response_time": 20.61
       },
       "backend": {
         "status": "running",
-        "response_time": 10.06
+        "response_time": 2.35
       }
     },
     {
-      "timestamp": "2025-09-05T09:52:39.165813",
+      "timestamp": "2025-09-05T16:37:18.075343",
       "login_endpoint": {
         "status": 200,
-        "response_time": 195.85,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 3.36
-      }
-    },
-    {
-      "timestamp": "2025-09-05T09:53:09.369746",
-      "frontend": {
-        "status": "running",
-        "response_time": 25.07
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 2.74
-      }
-    },
-    {
-      "timestamp": "2025-09-05T09:53:09.398163",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 210.53,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 3.49
-      }
-    },
-    {
-      "timestamp": "2025-09-05T09:53:39.617087",
-      "frontend": {
-        "status": "running",
-        "response_time": 20.02
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 2.55
-      }
-    },
-    {
-      "timestamp": "2025-09-05T09:53:39.640192",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 194.17,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 3.87
-      }
-    },
-    {
-      "timestamp": "2025-09-05T09:54:09.844997",
-      "frontend": {
-        "status": "running",
-        "response_time": 17.99
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 2.33
-      }
-    },
-    {
-      "timestamp": "2025-09-05T09:54:09.865624",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 198.37,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 5.01
-      }
-    },
-    {
-      "timestamp": "2025-09-05T09:54:40.077619",
-      "frontend": {
-        "status": "running",
-        "response_time": 23.46
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 1.48
-      }
-    },
-    {
-      "timestamp": "2025-09-05T09:54:40.102930",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 190.94,
+        "response_time": 198.06,
         "has_token": true
       },
       "me_endpoint": {
@@ -968,79 +600,309 @@
       }
     },
     {
-      "timestamp": "2025-09-05T09:55:10.304501",
+      "timestamp": "2025-09-05T16:37:48.280712",
       "frontend": {
         "status": "running",
-        "response_time": 31.01
+        "response_time": 23.0
       },
       "backend": {
         "status": "running",
-        "response_time": 4.0
+        "response_time": 2.32
       }
     },
     {
-      "timestamp": "2025-09-05T09:55:10.340401",
+      "timestamp": "2025-09-05T16:37:48.306464",
       "login_endpoint": {
         "status": 200,
-        "response_time": 192.67,
+        "response_time": 194.47,
         "has_token": true
       },
       "me_endpoint": {
         "status": 200,
-        "response_time": 6.01
+        "response_time": 3.76
       }
     },
     {
-      "timestamp": "2025-09-05T09:55:40.547548",
+      "timestamp": "2025-09-05T16:38:18.509271",
       "frontend": {
         "status": "running",
-        "response_time": 22.41
+        "response_time": 53.09
       },
       "backend": {
         "status": "running",
-        "response_time": 2.84
+        "response_time": 7.51
       }
     },
     {
-      "timestamp": "2025-09-05T09:55:40.573476",
+      "timestamp": "2025-09-05T16:38:18.571649",
       "login_endpoint": {
         "status": 200,
-        "response_time": 196.82,
+        "response_time": 189.23,
         "has_token": true
       },
       "me_endpoint": {
         "status": 200,
-        "response_time": 4.35
+        "response_time": 4.7
       }
     },
     {
-      "timestamp": "2025-09-05T09:56:10.783315",
+      "timestamp": "2025-09-05T16:38:48.768838",
       "frontend": {
         "status": "running",
-        "response_time": 23.22
+        "response_time": 22.64
       },
       "backend": {
         "status": "running",
-        "response_time": 3.34
+        "response_time": 2.62
       }
     },
     {
-      "timestamp": "2025-09-05T09:56:10.810319",
+      "timestamp": "2025-09-05T16:38:48.794543",
       "login_endpoint": {
         "status": 200,
-        "response_time": 198.31,
+        "response_time": 195.0,
         "has_token": true
       },
       "me_endpoint": {
         "status": 200,
-        "response_time": 4.62
+        "response_time": 4.22
       }
     },
     {
-      "timestamp": "2025-09-05T09:56:41.022395",
+      "timestamp": "2025-09-05T16:39:18.996789",
       "frontend": {
         "status": "running",
-        "response_time": 42.76
+        "response_time": 17.51
+      },
+      "backend": {
+        "status": "running",
+        "response_time": 1.86
+      }
+    },
+    {
+      "timestamp": "2025-09-05T16:39:19.016497",
+      "login_endpoint": {
+        "status": 200,
+        "response_time": 191.55,
+        "has_token": true
+      },
+      "me_endpoint": {
+        "status": 200,
+        "response_time": 3.16
+      }
+    },
+    {
+      "timestamp": "2025-09-05T16:39:49.215633",
+      "frontend": {
+        "status": "running",
+        "response_time": 49.66
+      },
+      "backend": {
+        "status": "running",
+        "response_time": 3.8
+      }
+    },
+    {
+      "timestamp": "2025-09-05T16:39:49.270975",
+      "login_endpoint": {
+        "status": 200,
+        "response_time": 193.52,
+        "has_token": true
+      },
+      "me_endpoint": {
+        "status": 200,
+        "response_time": 4.59
+      }
+    },
+    {
+      "timestamp": "2025-09-05T16:40:19.472068",
+      "frontend": {
+        "status": "running",
+        "response_time": 14.14
+      },
+      "backend": {
+        "status": "running",
+        "response_time": 1.92
+      }
+    },
+    {
+      "timestamp": "2025-09-05T16:40:19.488420",
+      "login_endpoint": {
+        "status": 200,
+        "response_time": 188.58,
+        "has_token": true
+      },
+      "me_endpoint": {
+        "status": 200,
+        "response_time": 3.08
+      }
+    },
+    {
+      "timestamp": "2025-09-05T16:40:49.683397",
+      "frontend": {
+        "status": "running",
+        "response_time": 13.74
+      },
+      "backend": {
+        "status": "running",
+        "response_time": 1.96
+      }
+    },
+    {
+      "timestamp": "2025-09-05T16:40:49.699442",
+      "login_endpoint": {
+        "status": 200,
+        "response_time": 210.8,
+        "has_token": true
+      },
+      "me_endpoint": {
+        "status": 200,
+        "response_time": 3.88
+      }
+    },
+    {
+      "timestamp": "2025-09-05T16:41:19.918308",
+      "frontend": {
+        "status": "running",
+        "response_time": 36.98
+      },
+      "backend": {
+        "status": "running",
+        "response_time": 2.53
+      }
+    },
+    {
+      "timestamp": "2025-09-05T16:41:19.959114",
+      "login_endpoint": {
+        "status": 200,
+        "response_time": 192.6,
+        "has_token": true
+      },
+      "me_endpoint": {
+        "status": 200,
+        "response_time": 5.06
+      }
+    },
+    {
+      "timestamp": "2025-09-05T16:41:50.160710",
+      "frontend": {
+        "status": "running",
+        "response_time": 44.57
+      },
+      "backend": {
+        "status": "running",
+        "response_time": 7.68
+      }
+    },
+    {
+      "timestamp": "2025-09-05T16:41:50.214253",
+      "login_endpoint": {
+        "status": 200,
+        "response_time": 207.42,
+        "has_token": true
+      },
+      "me_endpoint": {
+        "status": 200,
+        "response_time": 6.73
+      }
+    },
+    {
+      "timestamp": "2025-09-05T16:42:20.433156",
+      "frontend": {
+        "status": "running",
+        "response_time": 47.14
+      },
+      "backend": {
+        "status": "running",
+        "response_time": 1.7
+      }
+    },
+    {
+      "timestamp": "2025-09-05T16:42:20.483446",
+      "login_endpoint": {
+        "status": 200,
+        "response_time": 183.38,
+        "has_token": true
+      },
+      "me_endpoint": {
+        "status": 200,
+        "response_time": 4.39
+      }
+    },
+    {
+      "timestamp": "2025-09-05T16:42:50.674360",
+      "frontend": {
+        "status": "running",
+        "response_time": 24.42
+      },
+      "backend": {
+        "status": "running",
+        "response_time": 3.02
+      }
+    },
+    {
+      "timestamp": "2025-09-05T16:42:50.702347",
+      "login_endpoint": {
+        "status": 200,
+        "response_time": 194.73,
+        "has_token": true
+      },
+      "me_endpoint": {
+        "status": 200,
+        "response_time": 4.09
+      }
+    },
+    {
+      "timestamp": "2025-09-05T16:43:20.905483",
+      "frontend": {
+        "status": "running",
+        "response_time": 45.22
+      },
+      "backend": {
+        "status": "running",
+        "response_time": 2.63
+      }
+    },
+    {
+      "timestamp": "2025-09-05T16:43:20.954854",
+      "login_endpoint": {
+        "status": 200,
+        "response_time": 186.43,
+        "has_token": true
+      },
+      "me_endpoint": {
+        "status": 200,
+        "response_time": 4.29
+      }
+    },
+    {
+      "timestamp": "2025-09-05T16:43:51.148673",
+      "frontend": {
+        "status": "running",
+        "response_time": 20.15
+      },
+      "backend": {
+        "status": "running",
+        "response_time": 2.32
+      }
+    },
+    {
+      "timestamp": "2025-09-05T16:43:51.171572",
+      "login_endpoint": {
+        "status": 200,
+        "response_time": 193.79,
+        "has_token": true
+      },
+      "me_endpoint": {
+        "status": 200,
+        "response_time": 4.26
+      }
+    },
+    {
+      "timestamp": "2025-09-05T16:44:21.373435",
+      "frontend": {
+        "status": "running",
+        "response_time": 19.57
       },
       "backend": {
         "status": "running",
@@ -1048,207 +910,276 @@
       }
     },
     {
-      "timestamp": "2025-09-05T09:56:41.069848",
+      "timestamp": "2025-09-05T16:44:21.396200",
       "login_endpoint": {
         "status": 200,
-        "response_time": 184.81,
+        "response_time": 199.88,
         "has_token": true
       },
       "me_endpoint": {
         "status": 200,
-        "response_time": 4.8
+        "response_time": 3.97
       }
     },
     {
-      "timestamp": "2025-09-05T09:57:11.282876",
+      "timestamp": "2025-09-05T16:44:51.603538",
       "frontend": {
         "status": "running",
-        "response_time": 27.07
+        "response_time": 24.85
       },
       "backend": {
         "status": "running",
-        "response_time": 3.4
+        "response_time": 1.59
       }
     },
     {
-      "timestamp": "2025-09-05T09:57:11.314063",
+      "timestamp": "2025-09-05T16:44:51.630730",
       "login_endpoint": {
         "status": 200,
-        "response_time": 196.08,
+        "response_time": 190.44,
         "has_token": true
       },
       "me_endpoint": {
         "status": 200,
-        "response_time": 3.84
+        "response_time": 3.97
       }
     },
     {
-      "timestamp": "2025-09-05T09:57:41.522772",
+      "timestamp": "2025-09-05T16:45:21.828243",
       "frontend": {
         "status": "running",
-        "response_time": 22.14
+        "response_time": 21.47
       },
       "backend": {
         "status": "running",
-        "response_time": 3.12
+        "response_time": 3.19
       }
     },
     {
-      "timestamp": "2025-09-05T09:57:41.548573",
+      "timestamp": "2025-09-05T16:45:21.853398",
       "login_endpoint": {
         "status": 200,
-        "response_time": 202.11,
+        "response_time": 202.78,
         "has_token": true
       },
       "me_endpoint": {
         "status": 200,
-        "response_time": 3.37
+        "response_time": 3.42
       }
     },
     {
-      "timestamp": "2025-09-05T09:58:11.759975",
+      "timestamp": "2025-09-05T16:45:52.063018",
       "frontend": {
         "status": "running",
-        "response_time": 25.6
+        "response_time": 20.3
       },
       "backend": {
         "status": "running",
-        "response_time": 3.47
+        "response_time": 2.5
       }
     },
     {
-      "timestamp": "2025-09-05T09:58:11.790782",
+      "timestamp": "2025-09-05T16:45:52.086225",
       "login_endpoint": {
         "status": 200,
-        "response_time": 190.21,
+        "response_time": 203.43,
         "has_token": true
       },
       "me_endpoint": {
         "status": 200,
-        "response_time": 4.74
+        "response_time": 4.63
       }
     },
     {
-      "timestamp": "2025-09-05T09:58:41.994229",
+      "timestamp": "2025-09-05T16:46:22.297367",
       "frontend": {
         "status": "running",
-        "response_time": 16.8
+        "response_time": 21.28
       },
       "backend": {
         "status": "running",
-        "response_time": 1.81
+        "response_time": 1.87
       }
     },
     {
-      "timestamp": "2025-09-05T09:58:42.013232",
+      "timestamp": "2025-09-05T16:46:22.320913",
       "login_endpoint": {
         "status": 200,
-        "response_time": 197.6,
+        "response_time": 193.58,
         "has_token": true
       },
       "me_endpoint": {
         "status": 200,
-        "response_time": 3.71
+        "response_time": 4.59
       }
     },
     {
-      "timestamp": "2025-09-05T09:59:12.222147",
+      "timestamp": "2025-09-05T16:46:52.522031",
       "frontend": {
         "status": "running",
-        "response_time": 13.54
+        "response_time": 21.1
       },
       "backend": {
         "status": "running",
-        "response_time": 1.84
+        "response_time": 2.12
       }
     },
     {
-      "timestamp": "2025-09-05T09:59:12.237829",
+      "timestamp": "2025-09-05T16:46:52.545709",
       "login_endpoint": {
         "status": 200,
-        "response_time": 197.99,
+        "response_time": 195.04,
         "has_token": true
       },
       "me_endpoint": {
         "status": 200,
-        "response_time": 4.31
+        "response_time": 4.78
+      }
+    },
+    {
+      "timestamp": "2025-09-05T16:47:22.732950",
+      "frontend": {
+        "status": "running",
+        "response_time": 10.42
+      },
+      "backend": {
+        "status": "running",
+        "response_time": 1.06
+      }
+    },
+    {
+      "timestamp": "2025-09-05T16:47:22.744621",
+      "login_endpoint": {
+        "status": 200,
+        "response_time": 177.29,
+        "has_token": true
+      },
+      "me_endpoint": {
+        "status": 200,
+        "response_time": 4.27
+      }
+    },
+    {
+      "timestamp": "2025-09-05T16:47:52.925434",
+      "frontend": {
+        "status": "running",
+        "response_time": 22.39
+      },
+      "backend": {
+        "status": "running",
+        "response_time": 2.2
+      }
+    },
+    {
+      "timestamp": "2025-09-05T16:47:52.950412",
+      "login_endpoint": {
+        "status": 200,
+        "response_time": 193.96,
+        "has_token": true
+      },
+      "me_endpoint": {
+        "status": 200,
+        "response_time": 4.45
+      }
+    },
+    {
+      "timestamp": "2025-09-05T16:48:23.151472",
+      "frontend": {
+        "status": "running",
+        "response_time": 26.74
+      },
+      "backend": {
+        "status": "running",
+        "response_time": 2.54
+      }
+    },
+    {
+      "timestamp": "2025-09-05T16:48:23.181539",
+      "login_endpoint": {
+        "status": 200,
+        "response_time": 190.03,
+        "has_token": true
+      },
+      "me_endpoint": {
+        "status": 200,
+        "response_time": 4.33
+      }
+    },
+    {
+      "timestamp": "2025-09-05T16:48:53.378648",
+      "frontend": {
+        "status": "running",
+        "response_time": 21.42
+      },
+      "backend": {
+        "status": "running",
+        "response_time": 2.19
+      }
+    },
+    {
+      "timestamp": "2025-09-05T16:48:53.402702",
+      "login_endpoint": {
+        "status": 200,
+        "response_time": 194.37,
+        "has_token": true
+      },
+      "me_endpoint": {
+        "status": 200,
+        "response_time": 4.56
+      }
+    },
+    {
+      "timestamp": "2025-09-05T16:49:23.604359",
+      "frontend": {
+        "status": "running",
+        "response_time": 11.37
+      },
+      "backend": {
+        "status": "running",
+        "response_time": 1.05
+      }
+    },
+    {
+      "timestamp": "2025-09-05T16:49:23.616958",
+      "login_endpoint": {
+        "status": 200,
+        "response_time": 177.99,
+        "has_token": true
+      },
+      "me_endpoint": {
+        "status": 200,
+        "response_time": 4.02
+      }
+    },
+    {
+      "timestamp": "2025-09-05T16:49:53.802248",
+      "frontend": {
+        "status": "running",
+        "response_time": 29.61
+      },
+      "backend": {
+        "status": "running",
+        "response_time": 2.38
+      }
+    },
+    {
+      "timestamp": "2025-09-05T16:49:53.835052",
+      "login_endpoint": {
+        "status": 200,
+        "response_time": 190.71,
+        "has_token": true
+      },
+      "me_endpoint": {
+        "status": 200,
+        "response_time": 4.2
       }
     }
   ],
-  "errors": [
-    {
-      "timestamp": "2025-09-05T07:56:12.008970",
-      "error": "[Errno 32] Broken pipe"
-    },
-    {
-      "timestamp": "2025-09-05T08:25:28.589142",
-      "error": "[Errno 32] Broken pipe"
-    },
-    {
-      "timestamp": "2025-09-05T08:36:06.186235",
-      "error": "[Errno 32] Broken pipe"
-    },
-    {
-      "timestamp": "2025-09-05T08:45:11.760977",
-      "error": "[Errno 32] Broken pipe"
-    },
-    {
-      "timestamp": "2025-09-05T08:54:17.343924",
-      "error": "[Errno 32] Broken pipe"
-    },
-    {
-      "timestamp": "2025-09-05T09:05:56.293931",
-      "error": "[Errno 32] Broken pipe"
-    },
-    {
-      "timestamp": "2025-09-05T09:19:38.014827",
-      "error": "[Errno 32] Broken pipe"
-    },
-    {
-      "timestamp": "2025-09-05T09:33:19.780669",
-      "error": "[Errno 32] Broken pipe"
-    },
-    {
-      "timestamp": "2025-09-05T09:47:01.411227",
-      "error": "[Errno 32] Broken pipe"
-    }
-  ],
+  "errors": [],
   "chat_interactions": [],
   "console_logs": [
     {
-      "timestamp": "2025-09-04T10:16:16.273326",
-      "level": "log",
-      "message": "Stream buffer for runId: run_1757006171907_4j91ll1zz Object",
-      "location": "ChatInterface.tsx:183",
-      "source": "cdp_manual",
-      "category": "chat"
-    },
-    {
-      "timestamp": "2025-09-04T10:16:16.273347",
-      "level": "log",
-      "message": "Updating message with buffer text: It looks like there was an issue retrieving your portfolio details. Let's try a different approach to access the necessary information",
-      "location": "ChatInterface.tsx:185",
-      "source": "cdp_manual",
-      "category": "general"
-    },
-    {
-      "timestamp": "2025-09-04T10:16:16.296418",
-      "level": "log",
-      "message": "Processing SSE event: Object",
-      "location": "useFetchStreaming.ts:97",
-      "source": "cdp_manual",
-      "category": "chat"
-    },
-    {
-      "timestamp": "2025-09-04T10:16:16.296516",
-      "level": "log",
-      "message": "Parsed event: Object",
-      "location": "useFetchStreaming.ts:109",
-      "source": "cdp_manual",
-      "category": "general"
-    },
-    {
-      "timestamp": "2025-09-04T10:16:16.296640",
+      "timestamp": "2025-09-05T10:09:42.615292",
       "level": "log",
       "message": "Adding token to buffer: Object",
       "location": "useFetchStreaming.ts:140",
@@ -1256,55 +1187,55 @@
       "category": "auth"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.296659",
+      "timestamp": "2025-09-05T10:09:42.615299",
       "level": "log",
-      "message": "Calling onToken callback with: .\n\n runId: run_1757006171907_4j91ll1zz",
+      "message": "Calling onToken callback with:  to runId: run_1757092162948_oxbctw5k0",
       "location": "useFetchStreaming.ts:146",
       "source": "cdp_manual",
       "category": "auth"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.296719",
+      "timestamp": "2025-09-05T10:09:42.615306",
       "level": "log",
-      "message": "ChatInterface onToken received: .\n\n runId: run_1757006171907_4j91ll1zz",
-      "location": "ChatInterface.tsx:175",
+      "message": "ChatInterface onToken received:  to runId: run_1757092162948_oxbctw5k0",
+      "location": "ChatInterface.tsx:214",
       "source": "cdp_manual",
       "category": "chat"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.296739",
+      "timestamp": "2025-09-05T10:09:42.615316",
       "level": "log",
-      "message": "All stream buffers: Array(1)",
-      "location": "ChatInterface.tsx:180",
+      "message": "All stream buffers: Array(13)",
+      "location": "ChatInterface.tsx:219",
       "source": "cdp_manual",
       "category": "chat"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.296790",
+      "timestamp": "2025-09-05T10:09:42.615362",
       "level": "log",
-      "message": "Looking for buffer with runId: run_1757006171907_4j91ll1zz",
-      "location": "ChatInterface.tsx:181",
+      "message": "Looking for buffer with runId: run_1757092162948_oxbctw5k0",
+      "location": "ChatInterface.tsx:220",
       "source": "cdp_manual",
       "category": "general"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.296856",
+      "timestamp": "2025-09-05T10:09:42.615375",
       "level": "log",
-      "message": "Stream buffer for runId: run_1757006171907_4j91ll1zz Object",
-      "location": "ChatInterface.tsx:183",
+      "message": "Stream buffer for runId: run_1757092162948_oxbctw5k0 Object",
+      "location": "ChatInterface.tsx:222",
       "source": "cdp_manual",
       "category": "chat"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.296872",
+      "timestamp": "2025-09-05T10:09:42.615398",
       "level": "log",
-      "message": "Updating message with buffer text: It looks like there was an issue retrieving your portfolio details. Let's try a different approach to access the necessary information.\n\n",
-      "location": "ChatInterface.tsx:185",
+      "message": "Updating message with buffer text: ### Top 3 Portfolio Positions Analysis\n\n#### General Overview\n- **Portfolio Name**: Demo High Net Worth Investor Portfolio\n- **Total Value**: $1,393,071.49\n- **Cash Balance**: $66,336.74\n- **Position Count**: 17\n- **As of**: 2025-09-05T17:09:25Z\n\n### Top 3 Holdings\n\n1. **SPY (S&P 500 ETF)**\n   - **Position Type**: Long\n   - **Quantity**: 400 shares\n   - **Entry Date**: 2024-01-05\n   - **Entry Price**: $530.00\n   - **Cost Basis**: $212,000.00\n   - **Current Price**: $530.00\n   - **Market Value**: $212,000.00\n   - **Unrealized P&L**: $0.00 (0% return)\n\n2. **QQQ (NASDAQ-100 ETF)**\n   - **Position Type**: Long\n   - **Quantity**: 450 shares\n   - **Entry Date**: 2024-01-05\n   - **Entry Price**: $420.00\n   - **Cost Basis**: $189,000.00\n   - **Current Price**: $420.00\n   - **Market Value**: $189,000.00\n   - **Unrealized P&L**: $0.00 (0% return)\n\n3. **[Data for third position was truncated]**\n\n### Detailed Analysis\n\n#### SPY (S&P 500 ETF)\n- **Market Exposure**: This ETF tracks the performance of the S&P 500 index, providing broad exposure to U.S. large-cap stocks. It can serve as a core holding that reflects overall market trends.\n- **Stability**: The S&P 500 is often seen as a benchmark for the U.S. equity markets, offering diversification across 500 leading companies.\n- **Performance Insight**: Currently, the position shows no unrealized profit or loss, indicating stable performance since entry.\n\n#### QQQ (NASDAQ-100 ETF)\n- **Growth Potential**: QQQ tracks the NASDAQ-100 index, which includes 100 of the largest non-financial companies listed on NASDAQ. It's known for its tech-heavy composition and growth potential.\n- **Volatility**: While potentially more volatile, this ETF may offer higher returns driven by technology and innovation sectors.\n- **Performance Insight**: Similar to SPY, QQQ's current value reflects no unrealized gains or losses since purchase.\n\n#### Portfolio Strategy Considerations\n- **Diversification**: Both SPY and QQQ provide diversification across large segments of the U.S. market, balancing growth and stability with broad index tracking.\n- **Market Position**: The stable unrealized P&L indicates consistent market conditions since the investment date.\n- **Cash and Liquidity**: With cash comprising around 4.76% of total portfolio value, there's flexibility for additional investments or tactical adjustments as opportunities arise.\n\n### Recommendations\n- **Monitor Market Trends**: Keep an eye on market conditions impacting the S&P 500 and NASDAQ-100 for potential strategic adjustments.\n- **Diversification Strategy**: Ensure the rest of the portfolio complements large-cap U.S. exposure with other asset classes or geographies.\n- **Tactical Opportunities**: Consider deploying some cash reserves into emerging opportunities or sectors showing momentum.\n\nThis analysis provides a glimpse into your top positions and their contributions to",
+      "location": "ChatInterface.tsx:224",
       "source": "cdp_manual",
-      "category": "general"
+      "category": "chat"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.311821",
+      "timestamp": "2025-09-05T10:09:42.652688",
       "level": "log",
       "message": "Processing SSE event: Object",
       "location": "useFetchStreaming.ts:97",
@@ -1312,7 +1243,7 @@
       "category": "chat"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.311946",
+      "timestamp": "2025-09-05T10:09:42.652772",
       "level": "log",
       "message": "Parsed event: Object",
       "location": "useFetchStreaming.ts:109",
@@ -1320,7 +1251,7 @@
       "category": "general"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.311965",
+      "timestamp": "2025-09-05T10:09:42.652781",
       "level": "log",
       "message": "Adding token to buffer: Object",
       "location": "useFetchStreaming.ts:140",
@@ -1328,55 +1259,55 @@
       "category": "auth"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.312063",
+      "timestamp": "2025-09-05T10:09:42.652811",
       "level": "log",
-      "message": "Calling onToken callback with: I'll runId: run_1757006171907_4j91ll1zz",
+      "message": "Calling onToken callback with:  your runId: run_1757092162948_oxbctw5k0",
       "location": "useFetchStreaming.ts:146",
       "source": "cdp_manual",
       "category": "auth"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.312082",
+      "timestamp": "2025-09-05T10:09:42.652818",
       "level": "log",
-      "message": "ChatInterface onToken received: I'll runId: run_1757006171907_4j91ll1zz",
-      "location": "ChatInterface.tsx:175",
+      "message": "ChatInterface onToken received:  your runId: run_1757092162948_oxbctw5k0",
+      "location": "ChatInterface.tsx:214",
       "source": "cdp_manual",
       "category": "chat"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.312142",
+      "timestamp": "2025-09-05T10:09:42.652831",
       "level": "log",
-      "message": "All stream buffers: Array(1)",
-      "location": "ChatInterface.tsx:180",
+      "message": "All stream buffers: Array(13)",
+      "location": "ChatInterface.tsx:219",
       "source": "cdp_manual",
       "category": "chat"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.312216",
+      "timestamp": "2025-09-05T10:09:42.652839",
       "level": "log",
-      "message": "Looking for buffer with runId: run_1757006171907_4j91ll1zz",
-      "location": "ChatInterface.tsx:181",
+      "message": "Looking for buffer with runId: run_1757092162948_oxbctw5k0",
+      "location": "ChatInterface.tsx:220",
       "source": "cdp_manual",
       "category": "general"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.312234",
+      "timestamp": "2025-09-05T10:09:42.652892",
       "level": "log",
-      "message": "Stream buffer for runId: run_1757006171907_4j91ll1zz Object",
-      "location": "ChatInterface.tsx:183",
+      "message": "Stream buffer for runId: run_1757092162948_oxbctw5k0 Object",
+      "location": "ChatInterface.tsx:222",
       "source": "cdp_manual",
       "category": "chat"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.312247",
+      "timestamp": "2025-09-05T10:09:42.652939",
       "level": "log",
-      "message": "Updating message with buffer text: It looks like there was an issue retrieving your portfolio details. Let's try a different approach to access the necessary information.\n\nI'll",
-      "location": "ChatInterface.tsx:185",
+      "message": "Updating message with buffer text: ### Top 3 Portfolio Positions Analysis\n\n#### General Overview\n- **Portfolio Name**: Demo High Net Worth Investor Portfolio\n- **Total Value**: $1,393,071.49\n- **Cash Balance**: $66,336.74\n- **Position Count**: 17\n- **As of**: 2025-09-05T17:09:25Z\n\n### Top 3 Holdings\n\n1. **SPY (S&P 500 ETF)**\n   - **Position Type**: Long\n   - **Quantity**: 400 shares\n   - **Entry Date**: 2024-01-05\n   - **Entry Price**: $530.00\n   - **Cost Basis**: $212,000.00\n   - **Current Price**: $530.00\n   - **Market Value**: $212,000.00\n   - **Unrealized P&L**: $0.00 (0% return)\n\n2. **QQQ (NASDAQ-100 ETF)**\n   - **Position Type**: Long\n   - **Quantity**: 450 shares\n   - **Entry Date**: 2024-01-05\n   - **Entry Price**: $420.00\n   - **Cost Basis**: $189,000.00\n   - **Current Price**: $420.00\n   - **Market Value**: $189,000.00\n   - **Unrealized P&L**: $0.00 (0% return)\n\n3. **[Data for third position was truncated]**\n\n### Detailed Analysis\n\n#### SPY (S&P 500 ETF)\n- **Market Exposure**: This ETF tracks the performance of the S&P 500 index, providing broad exposure to U.S. large-cap stocks. It can serve as a core holding that reflects overall market trends.\n- **Stability**: The S&P 500 is often seen as a benchmark for the U.S. equity markets, offering diversification across 500 leading companies.\n- **Performance Insight**: Currently, the position shows no unrealized profit or loss, indicating stable performance since entry.\n\n#### QQQ (NASDAQ-100 ETF)\n- **Growth Potential**: QQQ tracks the NASDAQ-100 index, which includes 100 of the largest non-financial companies listed on NASDAQ. It's known for its tech-heavy composition and growth potential.\n- **Volatility**: While potentially more volatile, this ETF may offer higher returns driven by technology and innovation sectors.\n- **Performance Insight**: Similar to SPY, QQQ's current value reflects no unrealized gains or losses since purchase.\n\n#### Portfolio Strategy Considerations\n- **Diversification**: Both SPY and QQQ provide diversification across large segments of the U.S. market, balancing growth and stability with broad index tracking.\n- **Market Position**: The stable unrealized P&L indicates consistent market conditions since the investment date.\n- **Cash and Liquidity**: With cash comprising around 4.76% of total portfolio value, there's flexibility for additional investments or tactical adjustments as opportunities arise.\n\n### Recommendations\n- **Monitor Market Trends**: Keep an eye on market conditions impacting the S&P 500 and NASDAQ-100 for potential strategic adjustments.\n- **Diversification Strategy**: Ensure the rest of the portfolio complements large-cap U.S. exposure with other asset classes or geographies.\n- **Tactical Opportunities**: Consider deploying some cash reserves into emerging opportunities or sectors showing momentum.\n\nThis analysis provides a glimpse into your top positions and their contributions to your",
+      "location": "ChatInterface.tsx:224",
       "source": "cdp_manual",
-      "category": "general"
+      "category": "chat"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.319248",
+      "timestamp": "2025-09-05T10:09:42.655434",
       "level": "log",
       "message": "Processing SSE event: Object",
       "location": "useFetchStreaming.ts:97",
@@ -1384,7 +1315,7 @@
       "category": "chat"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.319295",
+      "timestamp": "2025-09-05T10:09:42.655446",
       "level": "log",
       "message": "Parsed event: Object",
       "location": "useFetchStreaming.ts:109",
@@ -1392,7 +1323,7 @@
       "category": "general"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.319358",
+      "timestamp": "2025-09-05T10:09:42.655453",
       "level": "log",
       "message": "Adding token to buffer: Object",
       "location": "useFetchStreaming.ts:140",
@@ -1400,55 +1331,55 @@
       "category": "auth"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.319406",
+      "timestamp": "2025-09-05T10:09:42.655460",
       "level": "log",
-      "message": "Calling onToken callback with:  attempt runId: run_1757006171907_4j91ll1zz",
+      "message": "Calling onToken callback with:  overall runId: run_1757092162948_oxbctw5k0",
       "location": "useFetchStreaming.ts:146",
       "source": "cdp_manual",
       "category": "auth"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.319453",
+      "timestamp": "2025-09-05T10:09:42.655547",
       "level": "log",
-      "message": "ChatInterface onToken received:  attempt runId: run_1757006171907_4j91ll1zz",
-      "location": "ChatInterface.tsx:175",
+      "message": "ChatInterface onToken received:  overall runId: run_1757092162948_oxbctw5k0",
+      "location": "ChatInterface.tsx:214",
       "source": "cdp_manual",
       "category": "chat"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.319510",
+      "timestamp": "2025-09-05T10:09:42.655559",
       "level": "log",
-      "message": "All stream buffers: Array(1)",
-      "location": "ChatInterface.tsx:180",
+      "message": "All stream buffers: Array(13)",
+      "location": "ChatInterface.tsx:219",
       "source": "cdp_manual",
       "category": "chat"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.319524",
+      "timestamp": "2025-09-05T10:09:42.655566",
       "level": "log",
-      "message": "Looking for buffer with runId: run_1757006171907_4j91ll1zz",
-      "location": "ChatInterface.tsx:181",
+      "message": "Looking for buffer with runId: run_1757092162948_oxbctw5k0",
+      "location": "ChatInterface.tsx:220",
       "source": "cdp_manual",
       "category": "general"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.319591",
+      "timestamp": "2025-09-05T10:09:42.655574",
       "level": "log",
-      "message": "Stream buffer for runId: run_1757006171907_4j91ll1zz Object",
-      "location": "ChatInterface.tsx:183",
+      "message": "Stream buffer for runId: run_1757092162948_oxbctw5k0 Object",
+      "location": "ChatInterface.tsx:222",
       "source": "cdp_manual",
       "category": "chat"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.319606",
+      "timestamp": "2025-09-05T10:09:42.655611",
       "level": "log",
-      "message": "Updating message with buffer text: It looks like there was an issue retrieving your portfolio details. Let's try a different approach to access the necessary information.\n\nI'll attempt",
-      "location": "ChatInterface.tsx:185",
+      "message": "Updating message with buffer text: ### Top 3 Portfolio Positions Analysis\n\n#### General Overview\n- **Portfolio Name**: Demo High Net Worth Investor Portfolio\n- **Total Value**: $1,393,071.49\n- **Cash Balance**: $66,336.74\n- **Position Count**: 17\n- **As of**: 2025-09-05T17:09:25Z\n\n### Top 3 Holdings\n\n1. **SPY (S&P 500 ETF)**\n   - **Position Type**: Long\n   - **Quantity**: 400 shares\n   - **Entry Date**: 2024-01-05\n   - **Entry Price**: $530.00\n   - **Cost Basis**: $212,000.00\n   - **Current Price**: $530.00\n   - **Market Value**: $212,000.00\n   - **Unrealized P&L**: $0.00 (0% return)\n\n2. **QQQ (NASDAQ-100 ETF)**\n   - **Position Type**: Long\n   - **Quantity**: 450 shares\n   - **Entry Date**: 2024-01-05\n   - **Entry Price**: $420.00\n   - **Cost Basis**: $189,000.00\n   - **Current Price**: $420.00\n   - **Market Value**: $189,000.00\n   - **Unrealized P&L**: $0.00 (0% return)\n\n3. **[Data for third position was truncated]**\n\n### Detailed Analysis\n\n#### SPY (S&P 500 ETF)\n- **Market Exposure**: This ETF tracks the performance of the S&P 500 index, providing broad exposure to U.S. large-cap stocks. It can serve as a core holding that reflects overall market trends.\n- **Stability**: The S&P 500 is often seen as a benchmark for the U.S. equity markets, offering diversification across 500 leading companies.\n- **Performance Insight**: Currently, the position shows no unrealized profit or loss, indicating stable performance since entry.\n\n#### QQQ (NASDAQ-100 ETF)\n- **Growth Potential**: QQQ tracks the NASDAQ-100 index, which includes 100 of the largest non-financial companies listed on NASDAQ. It's known for its tech-heavy composition and growth potential.\n- **Volatility**: While potentially more volatile, this ETF may offer higher returns driven by technology and innovation sectors.\n- **Performance Insight**: Similar to SPY, QQQ's current value reflects no unrealized gains or losses since purchase.\n\n#### Portfolio Strategy Considerations\n- **Diversification**: Both SPY and QQQ provide diversification across large segments of the U.S. market, balancing growth and stability with broad index tracking.\n- **Market Position**: The stable unrealized P&L indicates consistent market conditions since the investment date.\n- **Cash and Liquidity**: With cash comprising around 4.76% of total portfolio value, there's flexibility for additional investments or tactical adjustments as opportunities arise.\n\n### Recommendations\n- **Monitor Market Trends**: Keep an eye on market conditions impacting the S&P 500 and NASDAQ-100 for potential strategic adjustments.\n- **Diversification Strategy**: Ensure the rest of the portfolio complements large-cap U.S. exposure with other asset classes or geographies.\n- **Tactical Opportunities**: Consider deploying some cash reserves into emerging opportunities or sectors showing momentum.\n\nThis analysis provides a glimpse into your top positions and their contributions to your overall",
+      "location": "ChatInterface.tsx:224",
       "source": "cdp_manual",
-      "category": "general"
+      "category": "chat"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.351160",
+      "timestamp": "2025-09-05T10:09:42.687885",
       "level": "log",
       "message": "Processing SSE event: Object",
       "location": "useFetchStreaming.ts:97",
@@ -1456,7 +1387,7 @@
       "category": "chat"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.351194",
+      "timestamp": "2025-09-05T10:09:42.687972",
       "level": "log",
       "message": "Parsed event: Object",
       "location": "useFetchStreaming.ts:109",
@@ -1464,7 +1395,7 @@
       "category": "general"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.351330",
+      "timestamp": "2025-09-05T10:09:42.688043",
       "level": "log",
       "message": "Adding token to buffer: Object",
       "location": "useFetchStreaming.ts:140",
@@ -1472,55 +1403,55 @@
       "category": "auth"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.351396",
+      "timestamp": "2025-09-05T10:09:42.688120",
       "level": "log",
-      "message": "Calling onToken callback with:  to runId: run_1757006171907_4j91ll1zz",
+      "message": "Calling onToken callback with:  strategy runId: run_1757092162948_oxbctw5k0",
       "location": "useFetchStreaming.ts:146",
       "source": "cdp_manual",
       "category": "auth"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.351442",
+      "timestamp": "2025-09-05T10:09:42.688130",
       "level": "log",
-      "message": "ChatInterface onToken received:  to runId: run_1757006171907_4j91ll1zz",
-      "location": "ChatInterface.tsx:175",
+      "message": "ChatInterface onToken received:  strategy runId: run_1757092162948_oxbctw5k0",
+      "location": "ChatInterface.tsx:214",
       "source": "cdp_manual",
       "category": "chat"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.351528",
+      "timestamp": "2025-09-05T10:09:42.688192",
       "level": "log",
-      "message": "All stream buffers: Array(1)",
-      "location": "ChatInterface.tsx:180",
+      "message": "All stream buffers: Array(13)",
+      "location": "ChatInterface.tsx:219",
       "source": "cdp_manual",
       "category": "chat"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.351603",
+      "timestamp": "2025-09-05T10:09:42.688209",
       "level": "log",
-      "message": "Looking for buffer with runId: run_1757006171907_4j91ll1zz",
-      "location": "ChatInterface.tsx:181",
+      "message": "Looking for buffer with runId: run_1757092162948_oxbctw5k0",
+      "location": "ChatInterface.tsx:220",
       "source": "cdp_manual",
       "category": "general"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.351620",
+      "timestamp": "2025-09-05T10:09:42.688347",
       "level": "log",
-      "message": "Stream buffer for runId: run_1757006171907_4j91ll1zz Object",
-      "location": "ChatInterface.tsx:183",
+      "message": "Stream buffer for runId: run_1757092162948_oxbctw5k0 Object",
+      "location": "ChatInterface.tsx:222",
       "source": "cdp_manual",
       "category": "chat"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.351635",
+      "timestamp": "2025-09-05T10:09:42.688369",
       "level": "log",
-      "message": "Updating message with buffer text: It looks like there was an issue retrieving your portfolio details. Let's try a different approach to access the necessary information.\n\nI'll attempt to",
-      "location": "ChatInterface.tsx:185",
+      "message": "Updating message with buffer text: ### Top 3 Portfolio Positions Analysis\n\n#### General Overview\n- **Portfolio Name**: Demo High Net Worth Investor Portfolio\n- **Total Value**: $1,393,071.49\n- **Cash Balance**: $66,336.74\n- **Position Count**: 17\n- **As of**: 2025-09-05T17:09:25Z\n\n### Top 3 Holdings\n\n1. **SPY (S&P 500 ETF)**\n   - **Position Type**: Long\n   - **Quantity**: 400 shares\n   - **Entry Date**: 2024-01-05\n   - **Entry Price**: $530.00\n   - **Cost Basis**: $212,000.00\n   - **Current Price**: $530.00\n   - **Market Value**: $212,000.00\n   - **Unrealized P&L**: $0.00 (0% return)\n\n2. **QQQ (NASDAQ-100 ETF)**\n   - **Position Type**: Long\n   - **Quantity**: 450 shares\n   - **Entry Date**: 2024-01-05\n   - **Entry Price**: $420.00\n   - **Cost Basis**: $189,000.00\n   - **Current Price**: $420.00\n   - **Market Value**: $189,000.00\n   - **Unrealized P&L**: $0.00 (0% return)\n\n3. **[Data for third position was truncated]**\n\n### Detailed Analysis\n\n#### SPY (S&P 500 ETF)\n- **Market Exposure**: This ETF tracks the performance of the S&P 500 index, providing broad exposure to U.S. large-cap stocks. It can serve as a core holding that reflects overall market trends.\n- **Stability**: The S&P 500 is often seen as a benchmark for the U.S. equity markets, offering diversification across 500 leading companies.\n- **Performance Insight**: Currently, the position shows no unrealized profit or loss, indicating stable performance since entry.\n\n#### QQQ (NASDAQ-100 ETF)\n- **Growth Potential**: QQQ tracks the NASDAQ-100 index, which includes 100 of the largest non-financial companies listed on NASDAQ. It's known for its tech-heavy composition and growth potential.\n- **Volatility**: While potentially more volatile, this ETF may offer higher returns driven by technology and innovation sectors.\n- **Performance Insight**: Similar to SPY, QQQ's current value reflects no unrealized gains or losses since purchase.\n\n#### Portfolio Strategy Considerations\n- **Diversification**: Both SPY and QQQ provide diversification across large segments of the U.S. market, balancing growth and stability with broad index tracking.\n- **Market Position**: The stable unrealized P&L indicates consistent market conditions since the investment date.\n- **Cash and Liquidity**: With cash comprising around 4.76% of total portfolio value, there's flexibility for additional investments or tactical adjustments as opportunities arise.\n\n### Recommendations\n- **Monitor Market Trends**: Keep an eye on market conditions impacting the S&P 500 and NASDAQ-100 for potential strategic adjustments.\n- **Diversification Strategy**: Ensure the rest of the portfolio complements large-cap U.S. exposure with other asset classes or geographies.\n- **Tactical Opportunities**: Consider deploying some cash reserves into emerging opportunities or sectors showing momentum.\n\nThis analysis provides a glimpse into your top positions and their contributions to your overall strategy",
+      "location": "ChatInterface.tsx:224",
       "source": "cdp_manual",
-      "category": "general"
+      "category": "chat"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.381548",
+      "timestamp": "2025-09-05T10:09:42.688377",
       "level": "log",
       "message": "Processing SSE event: Object",
       "location": "useFetchStreaming.ts:97",
@@ -1528,7 +1459,7 @@
       "category": "chat"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.381576",
+      "timestamp": "2025-09-05T10:09:42.688385",
       "level": "log",
       "message": "Parsed event: Object",
       "location": "useFetchStreaming.ts:109",
@@ -1536,7 +1467,7 @@
       "category": "general"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.381660",
+      "timestamp": "2025-09-05T10:09:42.688392",
       "level": "log",
       "message": "Adding token to buffer: Object",
       "location": "useFetchStreaming.ts:140",
@@ -1544,55 +1475,55 @@
       "category": "auth"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.381729",
+      "timestamp": "2025-09-05T10:09:42.688398",
       "level": "log",
-      "message": "Calling onToken callback with:  gather runId: run_1757006171907_4j91ll1zz",
+      "message": "Calling onToken callback with: . runId: run_1757092162948_oxbctw5k0",
       "location": "useFetchStreaming.ts:146",
       "source": "cdp_manual",
       "category": "auth"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.381806",
+      "timestamp": "2025-09-05T10:09:42.688409",
       "level": "log",
-      "message": "ChatInterface onToken received:  gather runId: run_1757006171907_4j91ll1zz",
-      "location": "ChatInterface.tsx:175",
+      "message": "ChatInterface onToken received: . runId: run_1757092162948_oxbctw5k0",
+      "location": "ChatInterface.tsx:214",
       "source": "cdp_manual",
       "category": "chat"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.381838",
+      "timestamp": "2025-09-05T10:09:42.688426",
       "level": "log",
-      "message": "All stream buffers: Array(1)",
-      "location": "ChatInterface.tsx:180",
+      "message": "All stream buffers: Array(13)",
+      "location": "ChatInterface.tsx:219",
       "source": "cdp_manual",
       "category": "chat"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.381853",
+      "timestamp": "2025-09-05T10:09:42.688446",
       "level": "log",
-      "message": "Looking for buffer with runId: run_1757006171907_4j91ll1zz",
-      "location": "ChatInterface.tsx:181",
+      "message": "Looking for buffer with runId: run_1757092162948_oxbctw5k0",
+      "location": "ChatInterface.tsx:220",
       "source": "cdp_manual",
       "category": "general"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.381923",
+      "timestamp": "2025-09-05T10:09:42.688453",
       "level": "log",
-      "message": "Stream buffer for runId: run_1757006171907_4j91ll1zz Object",
-      "location": "ChatInterface.tsx:183",
+      "message": "Stream buffer for runId: run_1757092162948_oxbctw5k0 Object",
+      "location": "ChatInterface.tsx:222",
       "source": "cdp_manual",
       "category": "chat"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.381942",
+      "timestamp": "2025-09-05T10:09:42.688466",
       "level": "log",
-      "message": "Updating message with buffer text: It looks like there was an issue retrieving your portfolio details. Let's try a different approach to access the necessary information.\n\nI'll attempt to gather",
-      "location": "ChatInterface.tsx:185",
+      "message": "Updating message with buffer text: ### Top 3 Portfolio Positions Analysis\n\n#### General Overview\n- **Portfolio Name**: Demo High Net Worth Investor Portfolio\n- **Total Value**: $1,393,071.49\n- **Cash Balance**: $66,336.74\n- **Position Count**: 17\n- **As of**: 2025-09-05T17:09:25Z\n\n### Top 3 Holdings\n\n1. **SPY (S&P 500 ETF)**\n   - **Position Type**: Long\n   - **Quantity**: 400 shares\n   - **Entry Date**: 2024-01-05\n   - **Entry Price**: $530.00\n   - **Cost Basis**: $212,000.00\n   - **Current Price**: $530.00\n   - **Market Value**: $212,000.00\n   - **Unrealized P&L**: $0.00 (0% return)\n\n2. **QQQ (NASDAQ-100 ETF)**\n   - **Position Type**: Long\n   - **Quantity**: 450 shares\n   - **Entry Date**: 2024-01-05\n   - **Entry Price**: $420.00\n   - **Cost Basis**: $189,000.00\n   - **Current Price**: $420.00\n   - **Market Value**: $189,000.00\n   - **Unrealized P&L**: $0.00 (0% return)\n\n3. **[Data for third position was truncated]**\n\n### Detailed Analysis\n\n#### SPY (S&P 500 ETF)\n- **Market Exposure**: This ETF tracks the performance of the S&P 500 index, providing broad exposure to U.S. large-cap stocks. It can serve as a core holding that reflects overall market trends.\n- **Stability**: The S&P 500 is often seen as a benchmark for the U.S. equity markets, offering diversification across 500 leading companies.\n- **Performance Insight**: Currently, the position shows no unrealized profit or loss, indicating stable performance since entry.\n\n#### QQQ (NASDAQ-100 ETF)\n- **Growth Potential**: QQQ tracks the NASDAQ-100 index, which includes 100 of the largest non-financial companies listed on NASDAQ. It's known for its tech-heavy composition and growth potential.\n- **Volatility**: While potentially more volatile, this ETF may offer higher returns driven by technology and innovation sectors.\n- **Performance Insight**: Similar to SPY, QQQ's current value reflects no unrealized gains or losses since purchase.\n\n#### Portfolio Strategy Considerations\n- **Diversification**: Both SPY and QQQ provide diversification across large segments of the U.S. market, balancing growth and stability with broad index tracking.\n- **Market Position**: The stable unrealized P&L indicates consistent market conditions since the investment date.\n- **Cash and Liquidity**: With cash comprising around 4.76% of total portfolio value, there's flexibility for additional investments or tactical adjustments as opportunities arise.\n\n### Recommendations\n- **Monitor Market Trends**: Keep an eye on market conditions impacting the S&P 500 and NASDAQ-100 for potential strategic adjustments.\n- **Diversification Strategy**: Ensure the rest of the portfolio complements large-cap U.S. exposure with other asset classes or geographies.\n- **Tactical Opportunities**: Consider deploying some cash reserves into emerging opportunities or sectors showing momentum.\n\nThis analysis provides a glimpse into your top positions and their contributions to your overall strategy.",
+      "location": "ChatInterface.tsx:224",
       "source": "cdp_manual",
-      "category": "general"
+      "category": "chat"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.427852",
+      "timestamp": "2025-09-05T10:09:42.715071",
       "level": "log",
       "message": "Processing SSE event: Object",
       "location": "useFetchStreaming.ts:97",
@@ -1600,7 +1531,7 @@
       "category": "chat"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.427969",
+      "timestamp": "2025-09-05T10:09:42.715174",
       "level": "log",
       "message": "Parsed event: Object",
       "location": "useFetchStreaming.ts:109",
@@ -1608,7 +1539,7 @@
       "category": "general"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.427988",
+      "timestamp": "2025-09-05T10:09:42.715227",
       "level": "log",
       "message": "Adding token to buffer: Object",
       "location": "useFetchStreaming.ts:140",
@@ -1616,55 +1547,55 @@
       "category": "auth"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.428062",
+      "timestamp": "2025-09-05T10:09:42.715329",
       "level": "log",
-      "message": "Calling onToken callback with:  your runId: run_1757006171907_4j91ll1zz",
+      "message": "Calling onToken callback with:  If runId: run_1757092162948_oxbctw5k0",
       "location": "useFetchStreaming.ts:146",
       "source": "cdp_manual",
       "category": "auth"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.428078",
+      "timestamp": "2025-09-05T10:09:42.715403",
       "level": "log",
-      "message": "ChatInterface onToken received:  your runId: run_1757006171907_4j91ll1zz",
-      "location": "ChatInterface.tsx:175",
+      "message": "ChatInterface onToken received:  If runId: run_1757092162948_oxbctw5k0",
+      "location": "ChatInterface.tsx:214",
       "source": "cdp_manual",
       "category": "chat"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.428094",
+      "timestamp": "2025-09-05T10:09:42.715416",
       "level": "log",
-      "message": "All stream buffers: Array(1)",
-      "location": "ChatInterface.tsx:180",
+      "message": "All stream buffers: Array(13)",
+      "location": "ChatInterface.tsx:219",
       "source": "cdp_manual",
       "category": "chat"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.428108",
+      "timestamp": "2025-09-05T10:09:42.715424",
       "level": "log",
-      "message": "Looking for buffer with runId: run_1757006171907_4j91ll1zz",
-      "location": "ChatInterface.tsx:181",
+      "message": "Looking for buffer with runId: run_1757092162948_oxbctw5k0",
+      "location": "ChatInterface.tsx:220",
       "source": "cdp_manual",
       "category": "general"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.428168",
+      "timestamp": "2025-09-05T10:09:42.715432",
       "level": "log",
-      "message": "Stream buffer for runId: run_1757006171907_4j91ll1zz Object",
-      "location": "ChatInterface.tsx:183",
+      "message": "Stream buffer for runId: run_1757092162948_oxbctw5k0 Object",
+      "location": "ChatInterface.tsx:222",
       "source": "cdp_manual",
       "category": "chat"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.428183",
+      "timestamp": "2025-09-05T10:09:42.715713",
       "level": "log",
-      "message": "Updating message with buffer text: It looks like there was an issue retrieving your portfolio details. Let's try a different approach to access the necessary information.\n\nI'll attempt to gather your",
-      "location": "ChatInterface.tsx:185",
+      "message": "Updating message with buffer text: ### Top 3 Portfolio Positions Analysis\n\n#### General Overview\n- **Portfolio Name**: Demo High Net Worth Investor Portfolio\n- **Total Value**: $1,393,071.49\n- **Cash Balance**: $66,336.74\n- **Position Count**: 17\n- **As of**: 2025-09-05T17:09:25Z\n\n### Top 3 Holdings\n\n1. **SPY (S&P 500 ETF)**\n   - **Position Type**: Long\n   - **Quantity**: 400 shares\n   - **Entry Date**: 2024-01-05\n   - **Entry Price**: $530.00\n   - **Cost Basis**: $212,000.00\n   - **Current Price**: $530.00\n   - **Market Value**: $212,000.00\n   - **Unrealized P&L**: $0.00 (0% return)\n\n2. **QQQ (NASDAQ-100 ETF)**\n   - **Position Type**: Long\n   - **Quantity**: 450 shares\n   - **Entry Date**: 2024-01-05\n   - **Entry Price**: $420.00\n   - **Cost Basis**: $189,000.00\n   - **Current Price**: $420.00\n   - **Market Value**: $189,000.00\n   - **Unrealized P&L**: $0.00 (0% return)\n\n3. **[Data for third position was truncated]**\n\n### Detailed Analysis\n\n#### SPY (S&P 500 ETF)\n- **Market Exposure**: This ETF tracks the performance of the S&P 500 index, providing broad exposure to U.S. large-cap stocks. It can serve as a core holding that reflects overall market trends.\n- **Stability**: The S&P 500 is often seen as a benchmark for the U.S. equity markets, offering diversification across 500 leading companies.\n- **Performance Insight**: Currently, the position shows no unrealized profit or loss, indicating stable performance since entry.\n\n#### QQQ (NASDAQ-100 ETF)\n- **Growth Potential**: QQQ tracks the NASDAQ-100 index, which includes 100 of the largest non-financial companies listed on NASDAQ. It's known for its tech-heavy composition and growth potential.\n- **Volatility**: While potentially more volatile, this ETF may offer higher returns driven by technology and innovation sectors.\n- **Performance Insight**: Similar to SPY, QQQ's current value reflects no unrealized gains or losses since purchase.\n\n#### Portfolio Strategy Considerations\n- **Diversification**: Both SPY and QQQ provide diversification across large segments of the U.S. market, balancing growth and stability with broad index tracking.\n- **Market Position**: The stable unrealized P&L indicates consistent market conditions since the investment date.\n- **Cash and Liquidity**: With cash comprising around 4.76% of total portfolio value, there's flexibility for additional investments or tactical adjustments as opportunities arise.\n\n### Recommendations\n- **Monitor Market Trends**: Keep an eye on market conditions impacting the S&P 500 and NASDAQ-100 for potential strategic adjustments.\n- **Diversification Strategy**: Ensure the rest of the portfolio complements large-cap U.S. exposure with other asset classes or geographies.\n- **Tactical Opportunities**: Consider deploying some cash reserves into emerging opportunities or sectors showing momentum.\n\nThis analysis provides a glimpse into your top positions and their contributions to your overall strategy. If",
+      "location": "ChatInterface.tsx:224",
       "source": "cdp_manual",
-      "category": "general"
+      "category": "chat"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.440230",
+      "timestamp": "2025-09-05T10:09:42.715723",
       "level": "log",
       "message": "Processing SSE event: Object",
       "location": "useFetchStreaming.ts:97",
@@ -1672,7 +1603,7 @@
       "category": "chat"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.440340",
+      "timestamp": "2025-09-05T10:09:42.715730",
       "level": "log",
       "message": "Parsed event: Object",
       "location": "useFetchStreaming.ts:109",
@@ -1680,7 +1611,7 @@
       "category": "general"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.440416",
+      "timestamp": "2025-09-05T10:09:42.715737",
       "level": "log",
       "message": "Adding token to buffer: Object",
       "location": "useFetchStreaming.ts:140",
@@ -1688,55 +1619,55 @@
       "category": "auth"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.440435",
+      "timestamp": "2025-09-05T10:09:42.715829",
       "level": "log",
-      "message": "Calling onToken callback with:  portfolio runId: run_1757006171907_4j91ll1zz",
+      "message": "Calling onToken callback with:  further runId: run_1757092162948_oxbctw5k0",
       "location": "useFetchStreaming.ts:146",
       "source": "cdp_manual",
       "category": "auth"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.440501",
+      "timestamp": "2025-09-05T10:09:42.715857",
       "level": "log",
-      "message": "ChatInterface onToken received:  portfolio runId: run_1757006171907_4j91ll1zz",
-      "location": "ChatInterface.tsx:175",
+      "message": "ChatInterface onToken received:  further runId: run_1757092162948_oxbctw5k0",
+      "location": "ChatInterface.tsx:214",
       "source": "cdp_manual",
       "category": "chat"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.440517",
+      "timestamp": "2025-09-05T10:09:42.715867",
       "level": "log",
-      "message": "All stream buffers: Array(1)",
-      "location": "ChatInterface.tsx:180",
+      "message": "All stream buffers: Array(13)",
+      "location": "ChatInterface.tsx:219",
       "source": "cdp_manual",
       "category": "chat"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.440531",
+      "timestamp": "2025-09-05T10:09:42.715874",
       "level": "log",
-      "message": "Looking for buffer with runId: run_1757006171907_4j91ll1zz",
-      "location": "ChatInterface.tsx:181",
+      "message": "Looking for buffer with runId: run_1757092162948_oxbctw5k0",
+      "location": "ChatInterface.tsx:220",
       "source": "cdp_manual",
       "category": "general"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.440551",
+      "timestamp": "2025-09-05T10:09:42.715881",
       "level": "log",
-      "message": "Stream buffer for runId: run_1757006171907_4j91ll1zz Object",
-      "location": "ChatInterface.tsx:183",
+      "message": "Stream buffer for runId: run_1757092162948_oxbctw5k0 Object",
+      "location": "ChatInterface.tsx:222",
       "source": "cdp_manual",
       "category": "chat"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.440608",
+      "timestamp": "2025-09-05T10:09:42.715895",
       "level": "log",
-      "message": "Updating message with buffer text: It looks like there was an issue retrieving your portfolio details. Let's try a different approach to access the necessary information.\n\nI'll attempt to gather your portfolio",
-      "location": "ChatInterface.tsx:185",
+      "message": "Updating message with buffer text: ### Top 3 Portfolio Positions Analysis\n\n#### General Overview\n- **Portfolio Name**: Demo High Net Worth Investor Portfolio\n- **Total Value**: $1,393,071.49\n- **Cash Balance**: $66,336.74\n- **Position Count**: 17\n- **As of**: 2025-09-05T17:09:25Z\n\n### Top 3 Holdings\n\n1. **SPY (S&P 500 ETF)**\n   - **Position Type**: Long\n   - **Quantity**: 400 shares\n   - **Entry Date**: 2024-01-05\n   - **Entry Price**: $530.00\n   - **Cost Basis**: $212,000.00\n   - **Current Price**: $530.00\n   - **Market Value**: $212,000.00\n   - **Unrealized P&L**: $0.00 (0% return)\n\n2. **QQQ (NASDAQ-100 ETF)**\n   - **Position Type**: Long\n   - **Quantity**: 450 shares\n   - **Entry Date**: 2024-01-05\n   - **Entry Price**: $420.00\n   - **Cost Basis**: $189,000.00\n   - **Current Price**: $420.00\n   - **Market Value**: $189,000.00\n   - **Unrealized P&L**: $0.00 (0% return)\n\n3. **[Data for third position was truncated]**\n\n### Detailed Analysis\n\n#### SPY (S&P 500 ETF)\n- **Market Exposure**: This ETF tracks the performance of the S&P 500 index, providing broad exposure to U.S. large-cap stocks. It can serve as a core holding that reflects overall market trends.\n- **Stability**: The S&P 500 is often seen as a benchmark for the U.S. equity markets, offering diversification across 500 leading companies.\n- **Performance Insight**: Currently, the position shows no unrealized profit or loss, indicating stable performance since entry.\n\n#### QQQ (NASDAQ-100 ETF)\n- **Growth Potential**: QQQ tracks the NASDAQ-100 index, which includes 100 of the largest non-financial companies listed on NASDAQ. It's known for its tech-heavy composition and growth potential.\n- **Volatility**: While potentially more volatile, this ETF may offer higher returns driven by technology and innovation sectors.\n- **Performance Insight**: Similar to SPY, QQQ's current value reflects no unrealized gains or losses since purchase.\n\n#### Portfolio Strategy Considerations\n- **Diversification**: Both SPY and QQQ provide diversification across large segments of the U.S. market, balancing growth and stability with broad index tracking.\n- **Market Position**: The stable unrealized P&L indicates consistent market conditions since the investment date.\n- **Cash and Liquidity**: With cash comprising around 4.76% of total portfolio value, there's flexibility for additional investments or tactical adjustments as opportunities arise.\n\n### Recommendations\n- **Monitor Market Trends**: Keep an eye on market conditions impacting the S&P 500 and NASDAQ-100 for potential strategic adjustments.\n- **Diversification Strategy**: Ensure the rest of the portfolio complements large-cap U.S. exposure with other asset classes or geographies.\n- **Tactical Opportunities**: Consider deploying some cash reserves into emerging opportunities or sectors showing momentum.\n\nThis analysis provides a glimpse into your top positions and their contributions to your overall strategy. If further",
+      "location": "ChatInterface.tsx:224",
       "source": "cdp_manual",
-      "category": "general"
+      "category": "chat"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.469371",
+      "timestamp": "2025-09-05T10:09:42.741191",
       "level": "log",
       "message": "Processing SSE event: Object",
       "location": "useFetchStreaming.ts:97",
@@ -1744,7 +1675,7 @@
       "category": "chat"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.469442",
+      "timestamp": "2025-09-05T10:09:42.741204",
       "level": "log",
       "message": "Parsed event: Object",
       "location": "useFetchStreaming.ts:109",
@@ -1752,7 +1683,7 @@
       "category": "general"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.469532",
+      "timestamp": "2025-09-05T10:09:42.741211",
       "level": "log",
       "message": "Adding token to buffer: Object",
       "location": "useFetchStreaming.ts:140",
@@ -1760,55 +1691,55 @@
       "category": "auth"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.469637",
+      "timestamp": "2025-09-05T10:09:42.741218",
       "level": "log",
-      "message": "Calling onToken callback with:  data runId: run_1757006171907_4j91ll1zz",
+      "message": "Calling onToken callback with:  detailed runId: run_1757092162948_oxbctw5k0",
       "location": "useFetchStreaming.ts:146",
       "source": "cdp_manual",
       "category": "auth"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.469687",
+      "timestamp": "2025-09-05T10:09:42.741225",
       "level": "log",
-      "message": "ChatInterface onToken received:  data runId: run_1757006171907_4j91ll1zz",
-      "location": "ChatInterface.tsx:175",
+      "message": "ChatInterface onToken received:  detailed runId: run_1757092162948_oxbctw5k0",
+      "location": "ChatInterface.tsx:214",
       "source": "cdp_manual",
       "category": "chat"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.469749",
+      "timestamp": "2025-09-05T10:09:42.741516",
       "level": "log",
-      "message": "All stream buffers: Array(1)",
-      "location": "ChatInterface.tsx:180",
+      "message": "All stream buffers: Array(13)",
+      "location": "ChatInterface.tsx:219",
       "source": "cdp_manual",
       "category": "chat"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.469762",
+      "timestamp": "2025-09-05T10:09:42.741594",
       "level": "log",
-      "message": "Looking for buffer with runId: run_1757006171907_4j91ll1zz",
-      "location": "ChatInterface.tsx:181",
+      "message": "Looking for buffer with runId: run_1757092162948_oxbctw5k0",
+      "location": "ChatInterface.tsx:220",
       "source": "cdp_manual",
       "category": "general"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.469778",
+      "timestamp": "2025-09-05T10:09:42.741652",
       "level": "log",
-      "message": "Stream buffer for runId: run_1757006171907_4j91ll1zz Object",
-      "location": "ChatInterface.tsx:183",
+      "message": "Stream buffer for runId: run_1757092162948_oxbctw5k0 Object",
+      "location": "ChatInterface.tsx:222",
       "source": "cdp_manual",
       "category": "chat"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.469825",
+      "timestamp": "2025-09-05T10:09:42.741691",
       "level": "log",
-      "message": "Updating message with buffer text: It looks like there was an issue retrieving your portfolio details. Let's try a different approach to access the necessary information.\n\nI'll attempt to gather your portfolio data",
-      "location": "ChatInterface.tsx:185",
+      "message": "Updating message with buffer text: ### Top 3 Portfolio Positions Analysis\n\n#### General Overview\n- **Portfolio Name**: Demo High Net Worth Investor Portfolio\n- **Total Value**: $1,393,071.49\n- **Cash Balance**: $66,336.74\n- **Position Count**: 17\n- **As of**: 2025-09-05T17:09:25Z\n\n### Top 3 Holdings\n\n1. **SPY (S&P 500 ETF)**\n   - **Position Type**: Long\n   - **Quantity**: 400 shares\n   - **Entry Date**: 2024-01-05\n   - **Entry Price**: $530.00\n   - **Cost Basis**: $212,000.00\n   - **Current Price**: $530.00\n   - **Market Value**: $212,000.00\n   - **Unrealized P&L**: $0.00 (0% return)\n\n2. **QQQ (NASDAQ-100 ETF)**\n   - **Position Type**: Long\n   - **Quantity**: 450 shares\n   - **Entry Date**: 2024-01-05\n   - **Entry Price**: $420.00\n   - **Cost Basis**: $189,000.00\n   - **Current Price**: $420.00\n   - **Market Value**: $189,000.00\n   - **Unrealized P&L**: $0.00 (0% return)\n\n3. **[Data for third position was truncated]**\n\n### Detailed Analysis\n\n#### SPY (S&P 500 ETF)\n- **Market Exposure**: This ETF tracks the performance of the S&P 500 index, providing broad exposure to U.S. large-cap stocks. It can serve as a core holding that reflects overall market trends.\n- **Stability**: The S&P 500 is often seen as a benchmark for the U.S. equity markets, offering diversification across 500 leading companies.\n- **Performance Insight**: Currently, the position shows no unrealized profit or loss, indicating stable performance since entry.\n\n#### QQQ (NASDAQ-100 ETF)\n- **Growth Potential**: QQQ tracks the NASDAQ-100 index, which includes 100 of the largest non-financial companies listed on NASDAQ. It's known for its tech-heavy composition and growth potential.\n- **Volatility**: While potentially more volatile, this ETF may offer higher returns driven by technology and innovation sectors.\n- **Performance Insight**: Similar to SPY, QQQ's current value reflects no unrealized gains or losses since purchase.\n\n#### Portfolio Strategy Considerations\n- **Diversification**: Both SPY and QQQ provide diversification across large segments of the U.S. market, balancing growth and stability with broad index tracking.\n- **Market Position**: The stable unrealized P&L indicates consistent market conditions since the investment date.\n- **Cash and Liquidity**: With cash comprising around 4.76% of total portfolio value, there's flexibility for additional investments or tactical adjustments as opportunities arise.\n\n### Recommendations\n- **Monitor Market Trends**: Keep an eye on market conditions impacting the S&P 500 and NASDAQ-100 for potential strategic adjustments.\n- **Diversification Strategy**: Ensure the rest of the portfolio complements large-cap U.S. exposure with other asset classes or geographies.\n- **Tactical Opportunities**: Consider deploying some cash reserves into emerging opportunities or sectors showing momentum.\n\nThis analysis provides a glimpse into your top positions and their contributions to your overall strategy. If further detailed",
+      "location": "ChatInterface.tsx:224",
       "source": "cdp_manual",
-      "category": "general"
+      "category": "chat"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.479804",
+      "timestamp": "2025-09-05T10:09:42.741836",
       "level": "log",
       "message": "Processing SSE event: Object",
       "location": "useFetchStreaming.ts:97",
@@ -1816,7 +1747,7 @@
       "category": "chat"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.479884",
+      "timestamp": "2025-09-05T10:09:42.741848",
       "level": "log",
       "message": "Parsed event: Object",
       "location": "useFetchStreaming.ts:109",
@@ -1824,7 +1755,7 @@
       "category": "general"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.479948",
+      "timestamp": "2025-09-05T10:09:42.741856",
       "level": "log",
       "message": "Adding token to buffer: Object",
       "location": "useFetchStreaming.ts:140",
@@ -1832,55 +1763,55 @@
       "category": "auth"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.480026",
+      "timestamp": "2025-09-05T10:09:42.741863",
       "level": "log",
-      "message": "Calling onToken callback with:  and runId: run_1757006171907_4j91ll1zz",
+      "message": "Calling onToken callback with:  information runId: run_1757092162948_oxbctw5k0",
       "location": "useFetchStreaming.ts:146",
       "source": "cdp_manual",
       "category": "auth"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.480140",
+      "timestamp": "2025-09-05T10:09:42.741871",
       "level": "log",
-      "message": "ChatInterface onToken received:  and runId: run_1757006171907_4j91ll1zz",
-      "location": "ChatInterface.tsx:175",
+      "message": "ChatInterface onToken received:  information runId: run_1757092162948_oxbctw5k0",
+      "location": "ChatInterface.tsx:214",
       "source": "cdp_manual",
       "category": "chat"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.480239",
+      "timestamp": "2025-09-05T10:09:42.741883",
       "level": "log",
-      "message": "All stream buffers: Array(1)",
-      "location": "ChatInterface.tsx:180",
+      "message": "All stream buffers: Array(13)",
+      "location": "ChatInterface.tsx:219",
       "source": "cdp_manual",
       "category": "chat"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.480255",
+      "timestamp": "2025-09-05T10:09:42.741907",
       "level": "log",
-      "message": "Looking for buffer with runId: run_1757006171907_4j91ll1zz",
-      "location": "ChatInterface.tsx:181",
+      "message": "Looking for buffer with runId: run_1757092162948_oxbctw5k0",
+      "location": "ChatInterface.tsx:220",
       "source": "cdp_manual",
       "category": "general"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.480273",
+      "timestamp": "2025-09-05T10:09:42.741917",
       "level": "log",
-      "message": "Stream buffer for runId: run_1757006171907_4j91ll1zz Object",
-      "location": "ChatInterface.tsx:183",
+      "message": "Stream buffer for runId: run_1757092162948_oxbctw5k0 Object",
+      "location": "ChatInterface.tsx:222",
       "source": "cdp_manual",
       "category": "chat"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.480289",
+      "timestamp": "2025-09-05T10:09:42.742001",
       "level": "log",
-      "message": "Updating message with buffer text: It looks like there was an issue retrieving your portfolio details. Let's try a different approach to access the necessary information.\n\nI'll attempt to gather your portfolio data and",
-      "location": "ChatInterface.tsx:185",
+      "message": "Updating message with buffer text: ### Top 3 Portfolio Positions Analysis\n\n#### General Overview\n- **Portfolio Name**: Demo High Net Worth Investor Portfolio\n- **Total Value**: $1,393,071.49\n- **Cash Balance**: $66,336.74\n- **Position Count**: 17\n- **As of**: 2025-09-05T17:09:25Z\n\n### Top 3 Holdings\n\n1. **SPY (S&P 500 ETF)**\n   - **Position Type**: Long\n   - **Quantity**: 400 shares\n   - **Entry Date**: 2024-01-05\n   - **Entry Price**: $530.00\n   - **Cost Basis**: $212,000.00\n   - **Current Price**: $530.00\n   - **Market Value**: $212,000.00\n   - **Unrealized P&L**: $0.00 (0% return)\n\n2. **QQQ (NASDAQ-100 ETF)**\n   - **Position Type**: Long\n   - **Quantity**: 450 shares\n   - **Entry Date**: 2024-01-05\n   - **Entry Price**: $420.00\n   - **Cost Basis**: $189,000.00\n   - **Current Price**: $420.00\n   - **Market Value**: $189,000.00\n   - **Unrealized P&L**: $0.00 (0% return)\n\n3. **[Data for third position was truncated]**\n\n### Detailed Analysis\n\n#### SPY (S&P 500 ETF)\n- **Market Exposure**: This ETF tracks the performance of the S&P 500 index, providing broad exposure to U.S. large-cap stocks. It can serve as a core holding that reflects overall market trends.\n- **Stability**: The S&P 500 is often seen as a benchmark for the U.S. equity markets, offering diversification across 500 leading companies.\n- **Performance Insight**: Currently, the position shows no unrealized profit or loss, indicating stable performance since entry.\n\n#### QQQ (NASDAQ-100 ETF)\n- **Growth Potential**: QQQ tracks the NASDAQ-100 index, which includes 100 of the largest non-financial companies listed on NASDAQ. It's known for its tech-heavy composition and growth potential.\n- **Volatility**: While potentially more volatile, this ETF may offer higher returns driven by technology and innovation sectors.\n- **Performance Insight**: Similar to SPY, QQQ's current value reflects no unrealized gains or losses since purchase.\n\n#### Portfolio Strategy Considerations\n- **Diversification**: Both SPY and QQQ provide diversification across large segments of the U.S. market, balancing growth and stability with broad index tracking.\n- **Market Position**: The stable unrealized P&L indicates consistent market conditions since the investment date.\n- **Cash and Liquidity**: With cash comprising around 4.76% of total portfolio value, there's flexibility for additional investments or tactical adjustments as opportunities arise.\n\n### Recommendations\n- **Monitor Market Trends**: Keep an eye on market conditions impacting the S&P 500 and NASDAQ-100 for potential strategic adjustments.\n- **Diversification Strategy**: Ensure the rest of the portfolio complements large-cap U.S. exposure with other asset classes or geographies.\n- **Tactical Opportunities**: Consider deploying some cash reserves into emerging opportunities or sectors showing momentum.\n\nThis analysis provides a glimpse into your top positions and their contributions to your overall strategy. If further detailed information",
+      "location": "ChatInterface.tsx:224",
       "source": "cdp_manual",
-      "category": "general"
+      "category": "chat"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.501244",
+      "timestamp": "2025-09-05T10:09:42.800831",
       "level": "log",
       "message": "Processing SSE event: Object",
       "location": "useFetchStreaming.ts:97",
@@ -1888,7 +1819,7 @@
       "category": "chat"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.501353",
+      "timestamp": "2025-09-05T10:09:42.800895",
       "level": "log",
       "message": "Parsed event: Object",
       "location": "useFetchStreaming.ts:109",
@@ -1896,7 +1827,7 @@
       "category": "general"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.501412",
+      "timestamp": "2025-09-05T10:09:42.800903",
       "level": "log",
       "message": "Adding token to buffer: Object",
       "location": "useFetchStreaming.ts:140",
@@ -1904,55 +1835,55 @@
       "category": "auth"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.501477",
+      "timestamp": "2025-09-05T10:09:42.800989",
       "level": "log",
-      "message": "Calling onToken callback with:  check runId: run_1757006171907_4j91ll1zz",
+      "message": "Calling onToken callback with:  or runId: run_1757092162948_oxbctw5k0",
       "location": "useFetchStreaming.ts:146",
       "source": "cdp_manual",
       "category": "auth"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.501496",
+      "timestamp": "2025-09-05T10:09:42.801020",
       "level": "log",
-      "message": "ChatInterface onToken received:  check runId: run_1757006171907_4j91ll1zz",
-      "location": "ChatInterface.tsx:175",
+      "message": "ChatInterface onToken received:  or runId: run_1757092162948_oxbctw5k0",
+      "location": "ChatInterface.tsx:214",
       "source": "cdp_manual",
       "category": "chat"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.501582",
+      "timestamp": "2025-09-05T10:09:42.801107",
       "level": "log",
-      "message": "All stream buffers: Array(1)",
-      "location": "ChatInterface.tsx:180",
+      "message": "All stream buffers: Array(13)",
+      "location": "ChatInterface.tsx:219",
       "source": "cdp_manual",
       "category": "chat"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.501596",
+      "timestamp": "2025-09-05T10:09:42.801185",
       "level": "log",
-      "message": "Looking for buffer with runId: run_1757006171907_4j91ll1zz",
-      "location": "ChatInterface.tsx:181",
+      "message": "Looking for buffer with runId: run_1757092162948_oxbctw5k0",
+      "location": "ChatInterface.tsx:220",
       "source": "cdp_manual",
       "category": "general"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.501613",
+      "timestamp": "2025-09-05T10:09:42.801275",
       "level": "log",
-      "message": "Stream buffer for runId: run_1757006171907_4j91ll1zz Object",
-      "location": "ChatInterface.tsx:183",
+      "message": "Stream buffer for runId: run_1757092162948_oxbctw5k0 Object",
+      "location": "ChatInterface.tsx:222",
       "source": "cdp_manual",
       "category": "chat"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.501627",
+      "timestamp": "2025-09-05T10:09:42.801390",
       "level": "log",
-      "message": "Updating message with buffer text: It looks like there was an issue retrieving your portfolio details. Let's try a different approach to access the necessary information.\n\nI'll attempt to gather your portfolio data and check",
-      "location": "ChatInterface.tsx:185",
+      "message": "Updating message with buffer text: ### Top 3 Portfolio Positions Analysis\n\n#### General Overview\n- **Portfolio Name**: Demo High Net Worth Investor Portfolio\n- **Total Value**: $1,393,071.49\n- **Cash Balance**: $66,336.74\n- **Position Count**: 17\n- **As of**: 2025-09-05T17:09:25Z\n\n### Top 3 Holdings\n\n1. **SPY (S&P 500 ETF)**\n   - **Position Type**: Long\n   - **Quantity**: 400 shares\n   - **Entry Date**: 2024-01-05\n   - **Entry Price**: $530.00\n   - **Cost Basis**: $212,000.00\n   - **Current Price**: $530.00\n   - **Market Value**: $212,000.00\n   - **Unrealized P&L**: $0.00 (0% return)\n\n2. **QQQ (NASDAQ-100 ETF)**\n   - **Position Type**: Long\n   - **Quantity**: 450 shares\n   - **Entry Date**: 2024-01-05\n   - **Entry Price**: $420.00\n   - **Cost Basis**: $189,000.00\n   - **Current Price**: $420.00\n   - **Market Value**: $189,000.00\n   - **Unrealized P&L**: $0.00 (0% return)\n\n3. **[Data for third position was truncated]**\n\n### Detailed Analysis\n\n#### SPY (S&P 500 ETF)\n- **Market Exposure**: This ETF tracks the performance of the S&P 500 index, providing broad exposure to U.S. large-cap stocks. It can serve as a core holding that reflects overall market trends.\n- **Stability**: The S&P 500 is often seen as a benchmark for the U.S. equity markets, offering diversification across 500 leading companies.\n- **Performance Insight**: Currently, the position shows no unrealized profit or loss, indicating stable performance since entry.\n\n#### QQQ (NASDAQ-100 ETF)\n- **Growth Potential**: QQQ tracks the NASDAQ-100 index, which includes 100 of the largest non-financial companies listed on NASDAQ. It's known for its tech-heavy composition and growth potential.\n- **Volatility**: While potentially more volatile, this ETF may offer higher returns driven by technology and innovation sectors.\n- **Performance Insight**: Similar to SPY, QQQ's current value reflects no unrealized gains or losses since purchase.\n\n#### Portfolio Strategy Considerations\n- **Diversification**: Both SPY and QQQ provide diversification across large segments of the U.S. market, balancing growth and stability with broad index tracking.\n- **Market Position**: The stable unrealized P&L indicates consistent market conditions since the investment date.\n- **Cash and Liquidity**: With cash comprising around 4.76% of total portfolio value, there's flexibility for additional investments or tactical adjustments as opportunities arise.\n\n### Recommendations\n- **Monitor Market Trends**: Keep an eye on market conditions impacting the S&P 500 and NASDAQ-100 for potential strategic adjustments.\n- **Diversification Strategy**: Ensure the rest of the portfolio complements large-cap U.S. exposure with other asset classes or geographies.\n- **Tactical Opportunities**: Consider deploying some cash reserves into emerging opportunities or sectors showing momentum.\n\nThis analysis provides a glimpse into your top positions and their contributions to your overall strategy. If further detailed information or",
+      "location": "ChatInterface.tsx:224",
       "source": "cdp_manual",
-      "category": "general"
+      "category": "chat"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.502858",
+      "timestamp": "2025-09-05T10:09:42.801399",
       "level": "log",
       "message": "Processing SSE event: Object",
       "location": "useFetchStreaming.ts:97",
@@ -1960,7 +1891,7 @@
       "category": "chat"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.502933",
+      "timestamp": "2025-09-05T10:09:42.801406",
       "level": "log",
       "message": "Parsed event: Object",
       "location": "useFetchStreaming.ts:109",
@@ -1968,7 +1899,7 @@
       "category": "general"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.503033",
+      "timestamp": "2025-09-05T10:09:42.801413",
       "level": "log",
       "message": "Adding token to buffer: Object",
       "location": "useFetchStreaming.ts:140",
@@ -1976,55 +1907,55 @@
       "category": "auth"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.503105",
+      "timestamp": "2025-09-05T10:09:42.801520",
       "level": "log",
-      "message": "Calling onToken callback with:  its runId: run_1757006171907_4j91ll1zz",
+      "message": "Calling onToken callback with:  analysis runId: run_1757092162948_oxbctw5k0",
       "location": "useFetchStreaming.ts:146",
       "source": "cdp_manual",
       "category": "auth"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.503182",
+      "timestamp": "2025-09-05T10:09:42.801538",
       "level": "log",
-      "message": "ChatInterface onToken received:  its runId: run_1757006171907_4j91ll1zz",
-      "location": "ChatInterface.tsx:175",
+      "message": "ChatInterface onToken received:  analysis runId: run_1757092162948_oxbctw5k0",
+      "location": "ChatInterface.tsx:214",
       "source": "cdp_manual",
       "category": "chat"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.503230",
+      "timestamp": "2025-09-05T10:09:42.801552",
       "level": "log",
-      "message": "All stream buffers: Array(1)",
-      "location": "ChatInterface.tsx:180",
+      "message": "All stream buffers: Array(13)",
+      "location": "ChatInterface.tsx:219",
       "source": "cdp_manual",
       "category": "chat"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.503303",
+      "timestamp": "2025-09-05T10:09:42.801559",
       "level": "log",
-      "message": "Looking for buffer with runId: run_1757006171907_4j91ll1zz",
-      "location": "ChatInterface.tsx:181",
+      "message": "Looking for buffer with runId: run_1757092162948_oxbctw5k0",
+      "location": "ChatInterface.tsx:220",
       "source": "cdp_manual",
       "category": "general"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.503319",
+      "timestamp": "2025-09-05T10:09:42.801568",
       "level": "log",
-      "message": "Stream buffer for runId: run_1757006171907_4j91ll1zz Object",
-      "location": "ChatInterface.tsx:183",
+      "message": "Stream buffer for runId: run_1757092162948_oxbctw5k0 Object",
+      "location": "ChatInterface.tsx:222",
       "source": "cdp_manual",
       "category": "chat"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.503334",
+      "timestamp": "2025-09-05T10:09:42.801589",
       "level": "log",
-      "message": "Updating message with buffer text: It looks like there was an issue retrieving your portfolio details. Let's try a different approach to access the necessary information.\n\nI'll attempt to gather your portfolio data and check its",
-      "location": "ChatInterface.tsx:185",
+      "message": "Updating message with buffer text: ### Top 3 Portfolio Positions Analysis\n\n#### General Overview\n- **Portfolio Name**: Demo High Net Worth Investor Portfolio\n- **Total Value**: $1,393,071.49\n- **Cash Balance**: $66,336.74\n- **Position Count**: 17\n- **As of**: 2025-09-05T17:09:25Z\n\n### Top 3 Holdings\n\n1. **SPY (S&P 500 ETF)**\n   - **Position Type**: Long\n   - **Quantity**: 400 shares\n   - **Entry Date**: 2024-01-05\n   - **Entry Price**: $530.00\n   - **Cost Basis**: $212,000.00\n   - **Current Price**: $530.00\n   - **Market Value**: $212,000.00\n   - **Unrealized P&L**: $0.00 (0% return)\n\n2. **QQQ (NASDAQ-100 ETF)**\n   - **Position Type**: Long\n   - **Quantity**: 450 shares\n   - **Entry Date**: 2024-01-05\n   - **Entry Price**: $420.00\n   - **Cost Basis**: $189,000.00\n   - **Current Price**: $420.00\n   - **Market Value**: $189,000.00\n   - **Unrealized P&L**: $0.00 (0% return)\n\n3. **[Data for third position was truncated]**\n\n### Detailed Analysis\n\n#### SPY (S&P 500 ETF)\n- **Market Exposure**: This ETF tracks the performance of the S&P 500 index, providing broad exposure to U.S. large-cap stocks. It can serve as a core holding that reflects overall market trends.\n- **Stability**: The S&P 500 is often seen as a benchmark for the U.S. equity markets, offering diversification across 500 leading companies.\n- **Performance Insight**: Currently, the position shows no unrealized profit or loss, indicating stable performance since entry.\n\n#### QQQ (NASDAQ-100 ETF)\n- **Growth Potential**: QQQ tracks the NASDAQ-100 index, which includes 100 of the largest non-financial companies listed on NASDAQ. It's known for its tech-heavy composition and growth potential.\n- **Volatility**: While potentially more volatile, this ETF may offer higher returns driven by technology and innovation sectors.\n- **Performance Insight**: Similar to SPY, QQQ's current value reflects no unrealized gains or losses since purchase.\n\n#### Portfolio Strategy Considerations\n- **Diversification**: Both SPY and QQQ provide diversification across large segments of the U.S. market, balancing growth and stability with broad index tracking.\n- **Market Position**: The stable unrealized P&L indicates consistent market conditions since the investment date.\n- **Cash and Liquidity**: With cash comprising around 4.76% of total portfolio value, there's flexibility for additional investments or tactical adjustments as opportunities arise.\n\n### Recommendations\n- **Monitor Market Trends**: Keep an eye on market conditions impacting the S&P 500 and NASDAQ-100 for potential strategic adjustments.\n- **Diversification Strategy**: Ensure the rest of the portfolio complements large-cap U.S. exposure with other asset classes or geographies.\n- **Tactical Opportunities**: Consider deploying some cash reserves into emerging opportunities or sectors showing momentum.\n\nThis analysis provides a glimpse into your top positions and their contributions to your overall strategy. If further detailed information or analysis",
+      "location": "ChatInterface.tsx:224",
       "source": "cdp_manual",
-      "category": "general"
+      "category": "chat"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.531151",
+      "timestamp": "2025-09-05T10:09:42.874244",
       "level": "log",
       "message": "Processing SSE event: Object",
       "location": "useFetchStreaming.ts:97",
@@ -2032,7 +1963,7 @@
       "category": "chat"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.531261",
+      "timestamp": "2025-09-05T10:09:42.874259",
       "level": "log",
       "message": "Parsed event: Object",
       "location": "useFetchStreaming.ts:109",
@@ -2040,7 +1971,7 @@
       "category": "general"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.531330",
+      "timestamp": "2025-09-05T10:09:42.874394",
       "level": "log",
       "message": "Adding token to buffer: Object",
       "location": "useFetchStreaming.ts:140",
@@ -2048,55 +1979,55 @@
       "category": "auth"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.531395",
+      "timestamp": "2025-09-05T10:09:42.874508",
       "level": "log",
-      "message": "Calling onToken callback with:  quality runId: run_1757006171907_4j91ll1zz",
+      "message": "Calling onToken callback with:  on runId: run_1757092162948_oxbctw5k0",
       "location": "useFetchStreaming.ts:146",
       "source": "cdp_manual",
       "category": "auth"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.531465",
+      "timestamp": "2025-09-05T10:09:42.874589",
       "level": "log",
-      "message": "ChatInterface onToken received:  quality runId: run_1757006171907_4j91ll1zz",
-      "location": "ChatInterface.tsx:175",
+      "message": "ChatInterface onToken received:  on runId: run_1757092162948_oxbctw5k0",
+      "location": "ChatInterface.tsx:214",
       "source": "cdp_manual",
       "category": "chat"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.531481",
+      "timestamp": "2025-09-05T10:09:42.874606",
       "level": "log",
-      "message": "All stream buffers: Array(1)",
-      "location": "ChatInterface.tsx:180",
+      "message": "All stream buffers: Array(13)",
+      "location": "ChatInterface.tsx:219",
       "source": "cdp_manual",
       "category": "chat"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.531494",
+      "timestamp": "2025-09-05T10:09:42.874709",
       "level": "log",
-      "message": "Looking for buffer with runId: run_1757006171907_4j91ll1zz",
-      "location": "ChatInterface.tsx:181",
+      "message": "Looking for buffer with runId: run_1757092162948_oxbctw5k0",
+      "location": "ChatInterface.tsx:220",
       "source": "cdp_manual",
       "category": "general"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.531516",
+      "timestamp": "2025-09-05T10:09:42.874748",
       "level": "log",
-      "message": "Stream buffer for runId: run_1757006171907_4j91ll1zz Object",
-      "location": "ChatInterface.tsx:183",
+      "message": "Stream buffer for runId: run_1757092162948_oxbctw5k0 Object",
+      "location": "ChatInterface.tsx:222",
       "source": "cdp_manual",
       "category": "chat"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.531582",
+      "timestamp": "2025-09-05T10:09:42.874927",
       "level": "log",
-      "message": "Updating message with buffer text: It looks like there was an issue retrieving your portfolio details. Let's try a different approach to access the necessary information.\n\nI'll attempt to gather your portfolio data and check its quality",
-      "location": "ChatInterface.tsx:185",
+      "message": "Updating message with buffer text: ### Top 3 Portfolio Positions Analysis\n\n#### General Overview\n- **Portfolio Name**: Demo High Net Worth Investor Portfolio\n- **Total Value**: $1,393,071.49\n- **Cash Balance**: $66,336.74\n- **Position Count**: 17\n- **As of**: 2025-09-05T17:09:25Z\n\n### Top 3 Holdings\n\n1. **SPY (S&P 500 ETF)**\n   - **Position Type**: Long\n   - **Quantity**: 400 shares\n   - **Entry Date**: 2024-01-05\n   - **Entry Price**: $530.00\n   - **Cost Basis**: $212,000.00\n   - **Current Price**: $530.00\n   - **Market Value**: $212,000.00\n   - **Unrealized P&L**: $0.00 (0% return)\n\n2. **QQQ (NASDAQ-100 ETF)**\n   - **Position Type**: Long\n   - **Quantity**: 450 shares\n   - **Entry Date**: 2024-01-05\n   - **Entry Price**: $420.00\n   - **Cost Basis**: $189,000.00\n   - **Current Price**: $420.00\n   - **Market Value**: $189,000.00\n   - **Unrealized P&L**: $0.00 (0% return)\n\n3. **[Data for third position was truncated]**\n\n### Detailed Analysis\n\n#### SPY (S&P 500 ETF)\n- **Market Exposure**: This ETF tracks the performance of the S&P 500 index, providing broad exposure to U.S. large-cap stocks. It can serve as a core holding that reflects overall market trends.\n- **Stability**: The S&P 500 is often seen as a benchmark for the U.S. equity markets, offering diversification across 500 leading companies.\n- **Performance Insight**: Currently, the position shows no unrealized profit or loss, indicating stable performance since entry.\n\n#### QQQ (NASDAQ-100 ETF)\n- **Growth Potential**: QQQ tracks the NASDAQ-100 index, which includes 100 of the largest non-financial companies listed on NASDAQ. It's known for its tech-heavy composition and growth potential.\n- **Volatility**: While potentially more volatile, this ETF may offer higher returns driven by technology and innovation sectors.\n- **Performance Insight**: Similar to SPY, QQQ's current value reflects no unrealized gains or losses since purchase.\n\n#### Portfolio Strategy Considerations\n- **Diversification**: Both SPY and QQQ provide diversification across large segments of the U.S. market, balancing growth and stability with broad index tracking.\n- **Market Position**: The stable unrealized P&L indicates consistent market conditions since the investment date.\n- **Cash and Liquidity**: With cash comprising around 4.76% of total portfolio value, there's flexibility for additional investments or tactical adjustments as opportunities arise.\n\n### Recommendations\n- **Monitor Market Trends**: Keep an eye on market conditions impacting the S&P 500 and NASDAQ-100 for potential strategic adjustments.\n- **Diversification Strategy**: Ensure the rest of the portfolio complements large-cap U.S. exposure with other asset classes or geographies.\n- **Tactical Opportunities**: Consider deploying some cash reserves into emerging opportunities or sectors showing momentum.\n\nThis analysis provides a glimpse into your top positions and their contributions to your overall strategy. If further detailed information or analysis on",
+      "location": "ChatInterface.tsx:224",
       "source": "cdp_manual",
-      "category": "general"
+      "category": "chat"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.551428",
+      "timestamp": "2025-09-05T10:09:42.874937",
       "level": "log",
       "message": "Processing SSE event: Object",
       "location": "useFetchStreaming.ts:97",
@@ -2104,7 +2035,7 @@
       "category": "chat"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.551581",
+      "timestamp": "2025-09-05T10:09:42.874945",
       "level": "log",
       "message": "Parsed event: Object",
       "location": "useFetchStreaming.ts:109",
@@ -2112,7 +2043,7 @@
       "category": "general"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.551614",
+      "timestamp": "2025-09-05T10:09:42.874952",
       "level": "log",
       "message": "Adding token to buffer: Object",
       "location": "useFetchStreaming.ts:140",
@@ -2120,55 +2051,55 @@
       "category": "auth"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.551746",
+      "timestamp": "2025-09-05T10:09:42.874958",
       "level": "log",
-      "message": "Calling onToken callback with: . runId: run_1757006171907_4j91ll1zz",
+      "message": "Calling onToken callback with:  other runId: run_1757092162948_oxbctw5k0",
       "location": "useFetchStreaming.ts:146",
       "source": "cdp_manual",
       "category": "auth"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.551766",
+      "timestamp": "2025-09-05T10:09:42.874965",
       "level": "log",
-      "message": "ChatInterface onToken received: . runId: run_1757006171907_4j91ll1zz",
-      "location": "ChatInterface.tsx:175",
+      "message": "ChatInterface onToken received:  other runId: run_1757092162948_oxbctw5k0",
+      "location": "ChatInterface.tsx:214",
       "source": "cdp_manual",
       "category": "chat"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.551824",
+      "timestamp": "2025-09-05T10:09:42.874976",
       "level": "log",
-      "message": "All stream buffers: Array(1)",
-      "location": "ChatInterface.tsx:180",
+      "message": "All stream buffers: Array(13)",
+      "location": "ChatInterface.tsx:219",
       "source": "cdp_manual",
       "category": "chat"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.551838",
+      "timestamp": "2025-09-05T10:09:42.874997",
       "level": "log",
-      "message": "Looking for buffer with runId: run_1757006171907_4j91ll1zz",
-      "location": "ChatInterface.tsx:181",
+      "message": "Looking for buffer with runId: run_1757092162948_oxbctw5k0",
+      "location": "ChatInterface.tsx:220",
       "source": "cdp_manual",
       "category": "general"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.551897",
+      "timestamp": "2025-09-05T10:09:42.875005",
       "level": "log",
-      "message": "Stream buffer for runId: run_1757006171907_4j91ll1zz Object",
-      "location": "ChatInterface.tsx:183",
+      "message": "Stream buffer for runId: run_1757092162948_oxbctw5k0 Object",
+      "location": "ChatInterface.tsx:222",
       "source": "cdp_manual",
       "category": "chat"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.551912",
+      "timestamp": "2025-09-05T10:09:42.875020",
       "level": "log",
-      "message": "Updating message with buffer text: It looks like there was an issue retrieving your portfolio details. Let's try a different approach to access the necessary information.\n\nI'll attempt to gather your portfolio data and check its quality.",
-      "location": "ChatInterface.tsx:185",
+      "message": "Updating message with buffer text: ### Top 3 Portfolio Positions Analysis\n\n#### General Overview\n- **Portfolio Name**: Demo High Net Worth Investor Portfolio\n- **Total Value**: $1,393,071.49\n- **Cash Balance**: $66,336.74\n- **Position Count**: 17\n- **As of**: 2025-09-05T17:09:25Z\n\n### Top 3 Holdings\n\n1. **SPY (S&P 500 ETF)**\n   - **Position Type**: Long\n   - **Quantity**: 400 shares\n   - **Entry Date**: 2024-01-05\n   - **Entry Price**: $530.00\n   - **Cost Basis**: $212,000.00\n   - **Current Price**: $530.00\n   - **Market Value**: $212,000.00\n   - **Unrealized P&L**: $0.00 (0% return)\n\n2. **QQQ (NASDAQ-100 ETF)**\n   - **Position Type**: Long\n   - **Quantity**: 450 shares\n   - **Entry Date**: 2024-01-05\n   - **Entry Price**: $420.00\n   - **Cost Basis**: $189,000.00\n   - **Current Price**: $420.00\n   - **Market Value**: $189,000.00\n   - **Unrealized P&L**: $0.00 (0% return)\n\n3. **[Data for third position was truncated]**\n\n### Detailed Analysis\n\n#### SPY (S&P 500 ETF)\n- **Market Exposure**: This ETF tracks the performance of the S&P 500 index, providing broad exposure to U.S. large-cap stocks. It can serve as a core holding that reflects overall market trends.\n- **Stability**: The S&P 500 is often seen as a benchmark for the U.S. equity markets, offering diversification across 500 leading companies.\n- **Performance Insight**: Currently, the position shows no unrealized profit or loss, indicating stable performance since entry.\n\n#### QQQ (NASDAQ-100 ETF)\n- **Growth Potential**: QQQ tracks the NASDAQ-100 index, which includes 100 of the largest non-financial companies listed on NASDAQ. It's known for its tech-heavy composition and growth potential.\n- **Volatility**: While potentially more volatile, this ETF may offer higher returns driven by technology and innovation sectors.\n- **Performance Insight**: Similar to SPY, QQQ's current value reflects no unrealized gains or losses since purchase.\n\n#### Portfolio Strategy Considerations\n- **Diversification**: Both SPY and QQQ provide diversification across large segments of the U.S. market, balancing growth and stability with broad index tracking.\n- **Market Position**: The stable unrealized P&L indicates consistent market conditions since the investment date.\n- **Cash and Liquidity**: With cash comprising around 4.76% of total portfolio value, there's flexibility for additional investments or tactical adjustments as opportunities arise.\n\n### Recommendations\n- **Monitor Market Trends**: Keep an eye on market conditions impacting the S&P 500 and NASDAQ-100 for potential strategic adjustments.\n- **Diversification Strategy**: Ensure the rest of the portfolio complements large-cap U.S. exposure with other asset classes or geographies.\n- **Tactical Opportunities**: Consider deploying some cash reserves into emerging opportunities or sectors showing momentum.\n\nThis analysis provides a glimpse into your top positions and their contributions to your overall strategy. If further detailed information or analysis on other",
+      "location": "ChatInterface.tsx:224",
       "source": "cdp_manual",
-      "category": "general"
+      "category": "chat"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.576085",
+      "timestamp": "2025-09-05T10:09:42.901136",
       "level": "log",
       "message": "Processing SSE event: Object",
       "location": "useFetchStreaming.ts:97",
@@ -2176,7 +2107,7 @@
       "category": "chat"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.576157",
+      "timestamp": "2025-09-05T10:09:42.901211",
       "level": "log",
       "message": "Parsed event: Object",
       "location": "useFetchStreaming.ts:109",
@@ -2184,7 +2115,7 @@
       "category": "general"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.576175",
+      "timestamp": "2025-09-05T10:09:42.901220",
       "level": "log",
       "message": "Adding token to buffer: Object",
       "location": "useFetchStreaming.ts:140",
@@ -2192,55 +2123,55 @@
       "category": "auth"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.576227",
+      "timestamp": "2025-09-05T10:09:42.901229",
       "level": "log",
-      "message": "Calling onToken callback with:  Please runId: run_1757006171907_4j91ll1zz",
+      "message": "Calling onToken callback with:  positions runId: run_1757092162948_oxbctw5k0",
       "location": "useFetchStreaming.ts:146",
       "source": "cdp_manual",
       "category": "auth"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.576336",
+      "timestamp": "2025-09-05T10:09:42.901270",
       "level": "log",
-      "message": "ChatInterface onToken received:  Please runId: run_1757006171907_4j91ll1zz",
-      "location": "ChatInterface.tsx:175",
+      "message": "ChatInterface onToken received:  positions runId: run_1757092162948_oxbctw5k0",
+      "location": "ChatInterface.tsx:214",
       "source": "cdp_manual",
       "category": "chat"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.576393",
+      "timestamp": "2025-09-05T10:09:42.901504",
       "level": "log",
-      "message": "All stream buffers: Array(1)",
-      "location": "ChatInterface.tsx:180",
+      "message": "All stream buffers: Array(13)",
+      "location": "ChatInterface.tsx:219",
       "source": "cdp_manual",
       "category": "chat"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.576460",
+      "timestamp": "2025-09-05T10:09:42.901794",
       "level": "log",
-      "message": "Looking for buffer with runId: run_1757006171907_4j91ll1zz",
-      "location": "ChatInterface.tsx:181",
+      "message": "Looking for buffer with runId: run_1757092162948_oxbctw5k0",
+      "location": "ChatInterface.tsx:220",
       "source": "cdp_manual",
       "category": "general"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.576477",
+      "timestamp": "2025-09-05T10:09:42.901803",
       "level": "log",
-      "message": "Stream buffer for runId: run_1757006171907_4j91ll1zz Object",
-      "location": "ChatInterface.tsx:183",
+      "message": "Stream buffer for runId: run_1757092162948_oxbctw5k0 Object",
+      "location": "ChatInterface.tsx:222",
       "source": "cdp_manual",
       "category": "chat"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.576492",
+      "timestamp": "2025-09-05T10:09:42.901822",
       "level": "log",
-      "message": "Updating message with buffer text: It looks like there was an issue retrieving your portfolio details. Let's try a different approach to access the necessary information.\n\nI'll attempt to gather your portfolio data and check its quality. Please",
-      "location": "ChatInterface.tsx:185",
+      "message": "Updating message with buffer text: ### Top 3 Portfolio Positions Analysis\n\n#### General Overview\n- **Portfolio Name**: Demo High Net Worth Investor Portfolio\n- **Total Value**: $1,393,071.49\n- **Cash Balance**: $66,336.74\n- **Position Count**: 17\n- **As of**: 2025-09-05T17:09:25Z\n\n### Top 3 Holdings\n\n1. **SPY (S&P 500 ETF)**\n   - **Position Type**: Long\n   - **Quantity**: 400 shares\n   - **Entry Date**: 2024-01-05\n   - **Entry Price**: $530.00\n   - **Cost Basis**: $212,000.00\n   - **Current Price**: $530.00\n   - **Market Value**: $212,000.00\n   - **Unrealized P&L**: $0.00 (0% return)\n\n2. **QQQ (NASDAQ-100 ETF)**\n   - **Position Type**: Long\n   - **Quantity**: 450 shares\n   - **Entry Date**: 2024-01-05\n   - **Entry Price**: $420.00\n   - **Cost Basis**: $189,000.00\n   - **Current Price**: $420.00\n   - **Market Value**: $189,000.00\n   - **Unrealized P&L**: $0.00 (0% return)\n\n3. **[Data for third position was truncated]**\n\n### Detailed Analysis\n\n#### SPY (S&P 500 ETF)\n- **Market Exposure**: This ETF tracks the performance of the S&P 500 index, providing broad exposure to U.S. large-cap stocks. It can serve as a core holding that reflects overall market trends.\n- **Stability**: The S&P 500 is often seen as a benchmark for the U.S. equity markets, offering diversification across 500 leading companies.\n- **Performance Insight**: Currently, the position shows no unrealized profit or loss, indicating stable performance since entry.\n\n#### QQQ (NASDAQ-100 ETF)\n- **Growth Potential**: QQQ tracks the NASDAQ-100 index, which includes 100 of the largest non-financial companies listed on NASDAQ. It's known for its tech-heavy composition and growth potential.\n- **Volatility**: While potentially more volatile, this ETF may offer higher returns driven by technology and innovation sectors.\n- **Performance Insight**: Similar to SPY, QQQ's current value reflects no unrealized gains or losses since purchase.\n\n#### Portfolio Strategy Considerations\n- **Diversification**: Both SPY and QQQ provide diversification across large segments of the U.S. market, balancing growth and stability with broad index tracking.\n- **Market Position**: The stable unrealized P&L indicates consistent market conditions since the investment date.\n- **Cash and Liquidity**: With cash comprising around 4.76% of total portfolio value, there's flexibility for additional investments or tactical adjustments as opportunities arise.\n\n### Recommendations\n- **Monitor Market Trends**: Keep an eye on market conditions impacting the S&P 500 and NASDAQ-100 for potential strategic adjustments.\n- **Diversification Strategy**: Ensure the rest of the portfolio complements large-cap U.S. exposure with other asset classes or geographies.\n- **Tactical Opportunities**: Consider deploying some cash reserves into emerging opportunities or sectors showing momentum.\n\nThis analysis provides a glimpse into your top positions and their contributions to your overall strategy. If further detailed information or analysis on other positions",
+      "location": "ChatInterface.tsx:224",
       "source": "cdp_manual",
-      "category": "general"
+      "category": "chat"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.596992",
+      "timestamp": "2025-09-05T10:09:42.901830",
       "level": "log",
       "message": "Processing SSE event: Object",
       "location": "useFetchStreaming.ts:97",
@@ -2248,7 +2179,7 @@
       "category": "chat"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.597106",
+      "timestamp": "2025-09-05T10:09:42.901837",
       "level": "log",
       "message": "Parsed event: Object",
       "location": "useFetchStreaming.ts:109",
@@ -2256,7 +2187,7 @@
       "category": "general"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.597186",
+      "timestamp": "2025-09-05T10:09:42.901844",
       "level": "log",
       "message": "Adding token to buffer: Object",
       "location": "useFetchStreaming.ts:140",
@@ -2264,55 +2195,55 @@
       "category": "auth"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.597202",
+      "timestamp": "2025-09-05T10:09:42.901965",
       "level": "log",
-      "message": "Calling onToken callback with:  hold runId: run_1757006171907_4j91ll1zz",
+      "message": "Calling onToken callback with:  is runId: run_1757092162948_oxbctw5k0",
       "location": "useFetchStreaming.ts:146",
       "source": "cdp_manual",
       "category": "auth"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.597218",
+      "timestamp": "2025-09-05T10:09:42.901973",
       "level": "log",
-      "message": "ChatInterface onToken received:  hold runId: run_1757006171907_4j91ll1zz",
-      "location": "ChatInterface.tsx:175",
+      "message": "ChatInterface onToken received:  is runId: run_1757092162948_oxbctw5k0",
+      "location": "ChatInterface.tsx:214",
       "source": "cdp_manual",
       "category": "chat"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.597268",
+      "timestamp": "2025-09-05T10:09:42.901984",
       "level": "log",
-      "message": "All stream buffers: Array(1)",
-      "location": "ChatInterface.tsx:180",
+      "message": "All stream buffers: Array(13)",
+      "location": "ChatInterface.tsx:219",
       "source": "cdp_manual",
       "category": "chat"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.597303",
+      "timestamp": "2025-09-05T10:09:42.901991",
       "level": "log",
-      "message": "Looking for buffer with runId: run_1757006171907_4j91ll1zz",
-      "location": "ChatInterface.tsx:181",
+      "message": "Looking for buffer with runId: run_1757092162948_oxbctw5k0",
+      "location": "ChatInterface.tsx:220",
       "source": "cdp_manual",
       "category": "general"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.597368",
+      "timestamp": "2025-09-05T10:09:42.901998",
       "level": "log",
-      "message": "Stream buffer for runId: run_1757006171907_4j91ll1zz Object",
-      "location": "ChatInterface.tsx:183",
+      "message": "Stream buffer for runId: run_1757092162948_oxbctw5k0 Object",
+      "location": "ChatInterface.tsx:222",
       "source": "cdp_manual",
       "category": "chat"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.597418",
+      "timestamp": "2025-09-05T10:09:42.902011",
       "level": "log",
-      "message": "Updating message with buffer text: It looks like there was an issue retrieving your portfolio details. Let's try a different approach to access the necessary information.\n\nI'll attempt to gather your portfolio data and check its quality. Please hold",
-      "location": "ChatInterface.tsx:185",
+      "message": "Updating message with buffer text: ### Top 3 Portfolio Positions Analysis\n\n#### General Overview\n- **Portfolio Name**: Demo High Net Worth Investor Portfolio\n- **Total Value**: $1,393,071.49\n- **Cash Balance**: $66,336.74\n- **Position Count**: 17\n- **As of**: 2025-09-05T17:09:25Z\n\n### Top 3 Holdings\n\n1. **SPY (S&P 500 ETF)**\n   - **Position Type**: Long\n   - **Quantity**: 400 shares\n   - **Entry Date**: 2024-01-05\n   - **Entry Price**: $530.00\n   - **Cost Basis**: $212,000.00\n   - **Current Price**: $530.00\n   - **Market Value**: $212,000.00\n   - **Unrealized P&L**: $0.00 (0% return)\n\n2. **QQQ (NASDAQ-100 ETF)**\n   - **Position Type**: Long\n   - **Quantity**: 450 shares\n   - **Entry Date**: 2024-01-05\n   - **Entry Price**: $420.00\n   - **Cost Basis**: $189,000.00\n   - **Current Price**: $420.00\n   - **Market Value**: $189,000.00\n   - **Unrealized P&L**: $0.00 (0% return)\n\n3. **[Data for third position was truncated]**\n\n### Detailed Analysis\n\n#### SPY (S&P 500 ETF)\n- **Market Exposure**: This ETF tracks the performance of the S&P 500 index, providing broad exposure to U.S. large-cap stocks. It can serve as a core holding that reflects overall market trends.\n- **Stability**: The S&P 500 is often seen as a benchmark for the U.S. equity markets, offering diversification across 500 leading companies.\n- **Performance Insight**: Currently, the position shows no unrealized profit or loss, indicating stable performance since entry.\n\n#### QQQ (NASDAQ-100 ETF)\n- **Growth Potential**: QQQ tracks the NASDAQ-100 index, which includes 100 of the largest non-financial companies listed on NASDAQ. It's known for its tech-heavy composition and growth potential.\n- **Volatility**: While potentially more volatile, this ETF may offer higher returns driven by technology and innovation sectors.\n- **Performance Insight**: Similar to SPY, QQQ's current value reflects no unrealized gains or losses since purchase.\n\n#### Portfolio Strategy Considerations\n- **Diversification**: Both SPY and QQQ provide diversification across large segments of the U.S. market, balancing growth and stability with broad index tracking.\n- **Market Position**: The stable unrealized P&L indicates consistent market conditions since the investment date.\n- **Cash and Liquidity**: With cash comprising around 4.76% of total portfolio value, there's flexibility for additional investments or tactical adjustments as opportunities arise.\n\n### Recommendations\n- **Monitor Market Trends**: Keep an eye on market conditions impacting the S&P 500 and NASDAQ-100 for potential strategic adjustments.\n- **Diversification Strategy**: Ensure the rest of the portfolio complements large-cap U.S. exposure with other asset classes or geographies.\n- **Tactical Opportunities**: Consider deploying some cash reserves into emerging opportunities or sectors showing momentum.\n\nThis analysis provides a glimpse into your top positions and their contributions to your overall strategy. If further detailed information or analysis on other positions is",
+      "location": "ChatInterface.tsx:224",
       "source": "cdp_manual",
-      "category": "general"
+      "category": "chat"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.612544",
+      "timestamp": "2025-09-05T10:09:42.959553",
       "level": "log",
       "message": "Processing SSE event: Object",
       "location": "useFetchStreaming.ts:97",
@@ -2320,7 +2251,7 @@
       "category": "chat"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.612567",
+      "timestamp": "2025-09-05T10:09:42.959676",
       "level": "log",
       "message": "Parsed event: Object",
       "location": "useFetchStreaming.ts:109",
@@ -2328,7 +2259,7 @@
       "category": "general"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.612611",
+      "timestamp": "2025-09-05T10:09:42.959689",
       "level": "log",
       "message": "Adding token to buffer: Object",
       "location": "useFetchStreaming.ts:140",
@@ -2336,55 +2267,55 @@
       "category": "auth"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.612763",
+      "timestamp": "2025-09-05T10:09:42.959697",
       "level": "log",
-      "message": "Calling onToken callback with:  on runId: run_1757006171907_4j91ll1zz",
+      "message": "Calling onToken callback with:  needed runId: run_1757092162948_oxbctw5k0",
       "location": "useFetchStreaming.ts:146",
       "source": "cdp_manual",
       "category": "auth"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.612821",
+      "timestamp": "2025-09-05T10:09:42.959704",
       "level": "log",
-      "message": "ChatInterface onToken received:  on runId: run_1757006171907_4j91ll1zz",
-      "location": "ChatInterface.tsx:175",
+      "message": "ChatInterface onToken received:  needed runId: run_1757092162948_oxbctw5k0",
+      "location": "ChatInterface.tsx:214",
       "source": "cdp_manual",
       "category": "chat"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.612880",
+      "timestamp": "2025-09-05T10:09:42.959741",
       "level": "log",
-      "message": "All stream buffers: Array(1)",
-      "location": "ChatInterface.tsx:180",
+      "message": "All stream buffers: Array(13)",
+      "location": "ChatInterface.tsx:219",
       "source": "cdp_manual",
       "category": "chat"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.612895",
+      "timestamp": "2025-09-05T10:09:42.959752",
       "level": "log",
-      "message": "Looking for buffer with runId: run_1757006171907_4j91ll1zz",
-      "location": "ChatInterface.tsx:181",
+      "message": "Looking for buffer with runId: run_1757092162948_oxbctw5k0",
+      "location": "ChatInterface.tsx:220",
       "source": "cdp_manual",
       "category": "general"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.612957",
+      "timestamp": "2025-09-05T10:09:42.959814",
       "level": "log",
-      "message": "Stream buffer for runId: run_1757006171907_4j91ll1zz Object",
-      "location": "ChatInterface.tsx:183",
+      "message": "Stream buffer for runId: run_1757092162948_oxbctw5k0 Object",
+      "location": "ChatInterface.tsx:222",
       "source": "cdp_manual",
       "category": "chat"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.612973",
+      "timestamp": "2025-09-05T10:09:42.959872",
       "level": "log",
-      "message": "Updating message with buffer text: It looks like there was an issue retrieving your portfolio details. Let's try a different approach to access the necessary information.\n\nI'll attempt to gather your portfolio data and check its quality. Please hold on",
-      "location": "ChatInterface.tsx:185",
+      "message": "Updating message with buffer text: ### Top 3 Portfolio Positions Analysis\n\n#### General Overview\n- **Portfolio Name**: Demo High Net Worth Investor Portfolio\n- **Total Value**: $1,393,071.49\n- **Cash Balance**: $66,336.74\n- **Position Count**: 17\n- **As of**: 2025-09-05T17:09:25Z\n\n### Top 3 Holdings\n\n1. **SPY (S&P 500 ETF)**\n   - **Position Type**: Long\n   - **Quantity**: 400 shares\n   - **Entry Date**: 2024-01-05\n   - **Entry Price**: $530.00\n   - **Cost Basis**: $212,000.00\n   - **Current Price**: $530.00\n   - **Market Value**: $212,000.00\n   - **Unrealized P&L**: $0.00 (0% return)\n\n2. **QQQ (NASDAQ-100 ETF)**\n   - **Position Type**: Long\n   - **Quantity**: 450 shares\n   - **Entry Date**: 2024-01-05\n   - **Entry Price**: $420.00\n   - **Cost Basis**: $189,000.00\n   - **Current Price**: $420.00\n   - **Market Value**: $189,000.00\n   - **Unrealized P&L**: $0.00 (0% return)\n\n3. **[Data for third position was truncated]**\n\n### Detailed Analysis\n\n#### SPY (S&P 500 ETF)\n- **Market Exposure**: This ETF tracks the performance of the S&P 500 index, providing broad exposure to U.S. large-cap stocks. It can serve as a core holding that reflects overall market trends.\n- **Stability**: The S&P 500 is often seen as a benchmark for the U.S. equity markets, offering diversification across 500 leading companies.\n- **Performance Insight**: Currently, the position shows no unrealized profit or loss, indicating stable performance since entry.\n\n#### QQQ (NASDAQ-100 ETF)\n- **Growth Potential**: QQQ tracks the NASDAQ-100 index, which includes 100 of the largest non-financial companies listed on NASDAQ. It's known for its tech-heavy composition and growth potential.\n- **Volatility**: While potentially more volatile, this ETF may offer higher returns driven by technology and innovation sectors.\n- **Performance Insight**: Similar to SPY, QQQ's current value reflects no unrealized gains or losses since purchase.\n\n#### Portfolio Strategy Considerations\n- **Diversification**: Both SPY and QQQ provide diversification across large segments of the U.S. market, balancing growth and stability with broad index tracking.\n- **Market Position**: The stable unrealized P&L indicates consistent market conditions since the investment date.\n- **Cash and Liquidity**: With cash comprising around 4.76% of total portfolio value, there's flexibility for additional investments or tactical adjustments as opportunities arise.\n\n### Recommendations\n- **Monitor Market Trends**: Keep an eye on market conditions impacting the S&P 500 and NASDAQ-100 for potential strategic adjustments.\n- **Diversification Strategy**: Ensure the rest of the portfolio complements large-cap U.S. exposure with other asset classes or geographies.\n- **Tactical Opportunities**: Consider deploying some cash reserves into emerging opportunities or sectors showing momentum.\n\nThis analysis provides a glimpse into your top positions and their contributions to your overall strategy. If further detailed information or analysis on other positions is needed",
+      "location": "ChatInterface.tsx:224",
       "source": "cdp_manual",
-      "category": "general"
+      "category": "chat"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.621116",
+      "timestamp": "2025-09-05T10:09:42.962711",
       "level": "log",
       "message": "Processing SSE event: Object",
       "location": "useFetchStreaming.ts:97",
@@ -2392,7 +2323,7 @@
       "category": "chat"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.621262",
+      "timestamp": "2025-09-05T10:09:42.962772",
       "level": "log",
       "message": "Parsed event: Object",
       "location": "useFetchStreaming.ts:109",
@@ -2400,7 +2331,7 @@
       "category": "general"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.621300",
+      "timestamp": "2025-09-05T10:09:42.962780",
       "level": "log",
       "message": "Adding token to buffer: Object",
       "location": "useFetchStreaming.ts:140",
@@ -2408,55 +2339,55 @@
       "category": "auth"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.621355",
+      "timestamp": "2025-09-05T10:09:42.962786",
       "level": "log",
-      "message": "Calling onToken callback with:  for runId: run_1757006171907_4j91ll1zz",
+      "message": "Calling onToken callback with: , runId: run_1757092162948_oxbctw5k0",
       "location": "useFetchStreaming.ts:146",
       "source": "cdp_manual",
       "category": "auth"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.621407",
+      "timestamp": "2025-09-05T10:09:42.962794",
       "level": "log",
-      "message": "ChatInterface onToken received:  for runId: run_1757006171907_4j91ll1zz",
-      "location": "ChatInterface.tsx:175",
+      "message": "ChatInterface onToken received: , runId: run_1757092162948_oxbctw5k0",
+      "location": "ChatInterface.tsx:214",
       "source": "cdp_manual",
       "category": "chat"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.621427",
+      "timestamp": "2025-09-05T10:09:42.962805",
       "level": "log",
-      "message": "All stream buffers: Array(1)",
-      "location": "ChatInterface.tsx:180",
+      "message": "All stream buffers: Array(13)",
+      "location": "ChatInterface.tsx:219",
       "source": "cdp_manual",
       "category": "chat"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.621503",
+      "timestamp": "2025-09-05T10:09:42.963236",
       "level": "log",
-      "message": "Looking for buffer with runId: run_1757006171907_4j91ll1zz",
-      "location": "ChatInterface.tsx:181",
+      "message": "Looking for buffer with runId: run_1757092162948_oxbctw5k0",
+      "location": "ChatInterface.tsx:220",
       "source": "cdp_manual",
       "category": "general"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.621519",
+      "timestamp": "2025-09-05T10:09:42.963250",
       "level": "log",
-      "message": "Stream buffer for runId: run_1757006171907_4j91ll1zz Object",
-      "location": "ChatInterface.tsx:183",
+      "message": "Stream buffer for runId: run_1757092162948_oxbctw5k0 Object",
+      "location": "ChatInterface.tsx:222",
       "source": "cdp_manual",
       "category": "chat"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.621534",
+      "timestamp": "2025-09-05T10:09:42.963270",
       "level": "log",
-      "message": "Updating message with buffer text: It looks like there was an issue retrieving your portfolio details. Let's try a different approach to access the necessary information.\n\nI'll attempt to gather your portfolio data and check its quality. Please hold on for",
-      "location": "ChatInterface.tsx:185",
+      "message": "Updating message with buffer text: ### Top 3 Portfolio Positions Analysis\n\n#### General Overview\n- **Portfolio Name**: Demo High Net Worth Investor Portfolio\n- **Total Value**: $1,393,071.49\n- **Cash Balance**: $66,336.74\n- **Position Count**: 17\n- **As of**: 2025-09-05T17:09:25Z\n\n### Top 3 Holdings\n\n1. **SPY (S&P 500 ETF)**\n   - **Position Type**: Long\n   - **Quantity**: 400 shares\n   - **Entry Date**: 2024-01-05\n   - **Entry Price**: $530.00\n   - **Cost Basis**: $212,000.00\n   - **Current Price**: $530.00\n   - **Market Value**: $212,000.00\n   - **Unrealized P&L**: $0.00 (0% return)\n\n2. **QQQ (NASDAQ-100 ETF)**\n   - **Position Type**: Long\n   - **Quantity**: 450 shares\n   - **Entry Date**: 2024-01-05\n   - **Entry Price**: $420.00\n   - **Cost Basis**: $189,000.00\n   - **Current Price**: $420.00\n   - **Market Value**: $189,000.00\n   - **Unrealized P&L**: $0.00 (0% return)\n\n3. **[Data for third position was truncated]**\n\n### Detailed Analysis\n\n#### SPY (S&P 500 ETF)\n- **Market Exposure**: This ETF tracks the performance of the S&P 500 index, providing broad exposure to U.S. large-cap stocks. It can serve as a core holding that reflects overall market trends.\n- **Stability**: The S&P 500 is often seen as a benchmark for the U.S. equity markets, offering diversification across 500 leading companies.\n- **Performance Insight**: Currently, the position shows no unrealized profit or loss, indicating stable performance since entry.\n\n#### QQQ (NASDAQ-100 ETF)\n- **Growth Potential**: QQQ tracks the NASDAQ-100 index, which includes 100 of the largest non-financial companies listed on NASDAQ. It's known for its tech-heavy composition and growth potential.\n- **Volatility**: While potentially more volatile, this ETF may offer higher returns driven by technology and innovation sectors.\n- **Performance Insight**: Similar to SPY, QQQ's current value reflects no unrealized gains or losses since purchase.\n\n#### Portfolio Strategy Considerations\n- **Diversification**: Both SPY and QQQ provide diversification across large segments of the U.S. market, balancing growth and stability with broad index tracking.\n- **Market Position**: The stable unrealized P&L indicates consistent market conditions since the investment date.\n- **Cash and Liquidity**: With cash comprising around 4.76% of total portfolio value, there's flexibility for additional investments or tactical adjustments as opportunities arise.\n\n### Recommendations\n- **Monitor Market Trends**: Keep an eye on market conditions impacting the S&P 500 and NASDAQ-100 for potential strategic adjustments.\n- **Diversification Strategy**: Ensure the rest of the portfolio complements large-cap U.S. exposure with other asset classes or geographies.\n- **Tactical Opportunities**: Consider deploying some cash reserves into emerging opportunities or sectors showing momentum.\n\nThis analysis provides a glimpse into your top positions and their contributions to your overall strategy. If further detailed information or analysis on other positions is needed,",
+      "location": "ChatInterface.tsx:224",
       "source": "cdp_manual",
-      "category": "general"
+      "category": "chat"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.628187",
+      "timestamp": "2025-09-05T10:09:42.968403",
       "level": "log",
       "message": "Processing SSE event: Object",
       "location": "useFetchStreaming.ts:97",
@@ -2464,7 +2395,7 @@
       "category": "chat"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.628217",
+      "timestamp": "2025-09-05T10:09:42.968680",
       "level": "log",
       "message": "Parsed event: Object",
       "location": "useFetchStreaming.ts:109",
@@ -2472,7 +2403,7 @@
       "category": "general"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.628280",
+      "timestamp": "2025-09-05T10:09:42.968736",
       "level": "log",
       "message": "Adding token to buffer: Object",
       "location": "useFetchStreaming.ts:140",
@@ -2480,55 +2411,55 @@
       "category": "auth"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.628401",
+      "timestamp": "2025-09-05T10:09:42.968759",
       "level": "log",
-      "message": "Calling onToken callback with:  a runId: run_1757006171907_4j91ll1zz",
+      "message": "Calling onToken callback with:  feel runId: run_1757092162948_oxbctw5k0",
       "location": "useFetchStreaming.ts:146",
       "source": "cdp_manual",
       "category": "auth"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.628467",
+      "timestamp": "2025-09-05T10:09:42.968776",
       "level": "log",
-      "message": "ChatInterface onToken received:  a runId: run_1757006171907_4j91ll1zz",
-      "location": "ChatInterface.tsx:175",
+      "message": "ChatInterface onToken received:  feel runId: run_1757092162948_oxbctw5k0",
+      "location": "ChatInterface.tsx:214",
       "source": "cdp_manual",
       "category": "chat"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.628489",
+      "timestamp": "2025-09-05T10:09:42.968826",
       "level": "log",
-      "message": "All stream buffers: Array(1)",
-      "location": "ChatInterface.tsx:180",
+      "message": "All stream buffers: Array(13)",
+      "location": "ChatInterface.tsx:219",
       "source": "cdp_manual",
       "category": "chat"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.628580",
+      "timestamp": "2025-09-05T10:09:42.969126",
       "level": "log",
-      "message": "Looking for buffer with runId: run_1757006171907_4j91ll1zz",
-      "location": "ChatInterface.tsx:181",
+      "message": "Looking for buffer with runId: run_1757092162948_oxbctw5k0",
+      "location": "ChatInterface.tsx:220",
       "source": "cdp_manual",
       "category": "general"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.628598",
+      "timestamp": "2025-09-05T10:09:42.969154",
       "level": "log",
-      "message": "Stream buffer for runId: run_1757006171907_4j91ll1zz Object",
-      "location": "ChatInterface.tsx:183",
+      "message": "Stream buffer for runId: run_1757092162948_oxbctw5k0 Object",
+      "location": "ChatInterface.tsx:222",
       "source": "cdp_manual",
       "category": "chat"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.628612",
+      "timestamp": "2025-09-05T10:09:42.969202",
       "level": "log",
-      "message": "Updating message with buffer text: It looks like there was an issue retrieving your portfolio details. Let's try a different approach to access the necessary information.\n\nI'll attempt to gather your portfolio data and check its quality. Please hold on for a",
-      "location": "ChatInterface.tsx:185",
+      "message": "Updating message with buffer text: ### Top 3 Portfolio Positions Analysis\n\n#### General Overview\n- **Portfolio Name**: Demo High Net Worth Investor Portfolio\n- **Total Value**: $1,393,071.49\n- **Cash Balance**: $66,336.74\n- **Position Count**: 17\n- **As of**: 2025-09-05T17:09:25Z\n\n### Top 3 Holdings\n\n1. **SPY (S&P 500 ETF)**\n   - **Position Type**: Long\n   - **Quantity**: 400 shares\n   - **Entry Date**: 2024-01-05\n   - **Entry Price**: $530.00\n   - **Cost Basis**: $212,000.00\n   - **Current Price**: $530.00\n   - **Market Value**: $212,000.00\n   - **Unrealized P&L**: $0.00 (0% return)\n\n2. **QQQ (NASDAQ-100 ETF)**\n   - **Position Type**: Long\n   - **Quantity**: 450 shares\n   - **Entry Date**: 2024-01-05\n   - **Entry Price**: $420.00\n   - **Cost Basis**: $189,000.00\n   - **Current Price**: $420.00\n   - **Market Value**: $189,000.00\n   - **Unrealized P&L**: $0.00 (0% return)\n\n3. **[Data for third position was truncated]**\n\n### Detailed Analysis\n\n#### SPY (S&P 500 ETF)\n- **Market Exposure**: This ETF tracks the performance of the S&P 500 index, providing broad exposure to U.S. large-cap stocks. It can serve as a core holding that reflects overall market trends.\n- **Stability**: The S&P 500 is often seen as a benchmark for the U.S. equity markets, offering diversification across 500 leading companies.\n- **Performance Insight**: Currently, the position shows no unrealized profit or loss, indicating stable performance since entry.\n\n#### QQQ (NASDAQ-100 ETF)\n- **Growth Potential**: QQQ tracks the NASDAQ-100 index, which includes 100 of the largest non-financial companies listed on NASDAQ. It's known for its tech-heavy composition and growth potential.\n- **Volatility**: While potentially more volatile, this ETF may offer higher returns driven by technology and innovation sectors.\n- **Performance Insight**: Similar to SPY, QQQ's current value reflects no unrealized gains or losses since purchase.\n\n#### Portfolio Strategy Considerations\n- **Diversification**: Both SPY and QQQ provide diversification across large segments of the U.S. market, balancing growth and stability with broad index tracking.\n- **Market Position**: The stable unrealized P&L indicates consistent market conditions since the investment date.\n- **Cash and Liquidity**: With cash comprising around 4.76% of total portfolio value, there's flexibility for additional investments or tactical adjustments as opportunities arise.\n\n### Recommendations\n- **Monitor Market Trends**: Keep an eye on market conditions impacting the S&P 500 and NASDAQ-100 for potential strategic adjustments.\n- **Diversification Strategy**: Ensure the rest of the portfolio complements large-cap U.S. exposure with other asset classes or geographies.\n- **Tactical Opportunities**: Consider deploying some cash reserves into emerging opportunities or sectors showing momentum.\n\nThis analysis provides a glimpse into your top positions and their contributions to your overall strategy. If further detailed information or analysis on other positions is needed, feel",
+      "location": "ChatInterface.tsx:224",
       "source": "cdp_manual",
-      "category": "general"
+      "category": "chat"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.661096",
+      "timestamp": "2025-09-05T10:09:42.969235",
       "level": "log",
       "message": "Processing SSE event: Object",
       "location": "useFetchStreaming.ts:97",
@@ -2536,7 +2467,7 @@
       "category": "chat"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.661181",
+      "timestamp": "2025-09-05T10:09:42.969265",
       "level": "log",
       "message": "Parsed event: Object",
       "location": "useFetchStreaming.ts:109",
@@ -2544,7 +2475,7 @@
       "category": "general"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.661267",
+      "timestamp": "2025-09-05T10:09:42.969398",
       "level": "log",
       "message": "Adding token to buffer: Object",
       "location": "useFetchStreaming.ts:140",
@@ -2552,55 +2483,55 @@
       "category": "auth"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.661349",
+      "timestamp": "2025-09-05T10:09:42.969414",
       "level": "log",
-      "message": "Calling onToken callback with:  moment runId: run_1757006171907_4j91ll1zz",
+      "message": "Calling onToken callback with:  free runId: run_1757092162948_oxbctw5k0",
       "location": "useFetchStreaming.ts:146",
       "source": "cdp_manual",
       "category": "auth"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.661365",
+      "timestamp": "2025-09-05T10:09:42.969428",
       "level": "log",
-      "message": "ChatInterface onToken received:  moment runId: run_1757006171907_4j91ll1zz",
-      "location": "ChatInterface.tsx:175",
+      "message": "ChatInterface onToken received:  free runId: run_1757092162948_oxbctw5k0",
+      "location": "ChatInterface.tsx:214",
       "source": "cdp_manual",
       "category": "chat"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.661413",
+      "timestamp": "2025-09-05T10:09:42.969452",
       "level": "log",
-      "message": "All stream buffers: Array(1)",
-      "location": "ChatInterface.tsx:180",
+      "message": "All stream buffers: Array(13)",
+      "location": "ChatInterface.tsx:219",
       "source": "cdp_manual",
       "category": "chat"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.661481",
+      "timestamp": "2025-09-05T10:09:42.969467",
       "level": "log",
-      "message": "Looking for buffer with runId: run_1757006171907_4j91ll1zz",
-      "location": "ChatInterface.tsx:181",
+      "message": "Looking for buffer with runId: run_1757092162948_oxbctw5k0",
+      "location": "ChatInterface.tsx:220",
       "source": "cdp_manual",
       "category": "general"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.661497",
+      "timestamp": "2025-09-05T10:09:42.969484",
       "level": "log",
-      "message": "Stream buffer for runId: run_1757006171907_4j91ll1zz Object",
-      "location": "ChatInterface.tsx:183",
+      "message": "Stream buffer for runId: run_1757092162948_oxbctw5k0 Object",
+      "location": "ChatInterface.tsx:222",
       "source": "cdp_manual",
       "category": "chat"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.661511",
+      "timestamp": "2025-09-05T10:09:42.969523",
       "level": "log",
-      "message": "Updating message with buffer text: It looks like there was an issue retrieving your portfolio details. Let's try a different approach to access the necessary information.\n\nI'll attempt to gather your portfolio data and check its quality. Please hold on for a moment",
-      "location": "ChatInterface.tsx:185",
+      "message": "Updating message with buffer text: ### Top 3 Portfolio Positions Analysis\n\n#### General Overview\n- **Portfolio Name**: Demo High Net Worth Investor Portfolio\n- **Total Value**: $1,393,071.49\n- **Cash Balance**: $66,336.74\n- **Position Count**: 17\n- **As of**: 2025-09-05T17:09:25Z\n\n### Top 3 Holdings\n\n1. **SPY (S&P 500 ETF)**\n   - **Position Type**: Long\n   - **Quantity**: 400 shares\n   - **Entry Date**: 2024-01-05\n   - **Entry Price**: $530.00\n   - **Cost Basis**: $212,000.00\n   - **Current Price**: $530.00\n   - **Market Value**: $212,000.00\n   - **Unrealized P&L**: $0.00 (0% return)\n\n2. **QQQ (NASDAQ-100 ETF)**\n   - **Position Type**: Long\n   - **Quantity**: 450 shares\n   - **Entry Date**: 2024-01-05\n   - **Entry Price**: $420.00\n   - **Cost Basis**: $189,000.00\n   - **Current Price**: $420.00\n   - **Market Value**: $189,000.00\n   - **Unrealized P&L**: $0.00 (0% return)\n\n3. **[Data for third position was truncated]**\n\n### Detailed Analysis\n\n#### SPY (S&P 500 ETF)\n- **Market Exposure**: This ETF tracks the performance of the S&P 500 index, providing broad exposure to U.S. large-cap stocks. It can serve as a core holding that reflects overall market trends.\n- **Stability**: The S&P 500 is often seen as a benchmark for the U.S. equity markets, offering diversification across 500 leading companies.\n- **Performance Insight**: Currently, the position shows no unrealized profit or loss, indicating stable performance since entry.\n\n#### QQQ (NASDAQ-100 ETF)\n- **Growth Potential**: QQQ tracks the NASDAQ-100 index, which includes 100 of the largest non-financial companies listed on NASDAQ. It's known for its tech-heavy composition and growth potential.\n- **Volatility**: While potentially more volatile, this ETF may offer higher returns driven by technology and innovation sectors.\n- **Performance Insight**: Similar to SPY, QQQ's current value reflects no unrealized gains or losses since purchase.\n\n#### Portfolio Strategy Considerations\n- **Diversification**: Both SPY and QQQ provide diversification across large segments of the U.S. market, balancing growth and stability with broad index tracking.\n- **Market Position**: The stable unrealized P&L indicates consistent market conditions since the investment date.\n- **Cash and Liquidity**: With cash comprising around 4.76% of total portfolio value, there's flexibility for additional investments or tactical adjustments as opportunities arise.\n\n### Recommendations\n- **Monitor Market Trends**: Keep an eye on market conditions impacting the S&P 500 and NASDAQ-100 for potential strategic adjustments.\n- **Diversification Strategy**: Ensure the rest of the portfolio complements large-cap U.S. exposure with other asset classes or geographies.\n- **Tactical Opportunities**: Consider deploying some cash reserves into emerging opportunities or sectors showing momentum.\n\nThis analysis provides a glimpse into your top positions and their contributions to your overall strategy. If further detailed information or analysis on other positions is needed, feel free",
+      "location": "ChatInterface.tsx:224",
       "source": "cdp_manual",
-      "category": "general"
+      "category": "chat"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.704398",
+      "timestamp": "2025-09-05T10:09:42.999653",
       "level": "log",
       "message": "Processing SSE event: Object",
       "location": "useFetchStreaming.ts:97",
@@ -2608,7 +2539,7 @@
       "category": "chat"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.704487",
+      "timestamp": "2025-09-05T10:09:42.999780",
       "level": "log",
       "message": "Parsed event: Object",
       "location": "useFetchStreaming.ts:109",
@@ -2616,7 +2547,7 @@
       "category": "general"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.704550",
+      "timestamp": "2025-09-05T10:09:43.000158",
       "level": "log",
       "message": "Adding token to buffer: Object",
       "location": "useFetchStreaming.ts:140",
@@ -2624,55 +2555,55 @@
       "category": "auth"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.704569",
+      "timestamp": "2025-09-05T10:09:43.000178",
       "level": "log",
-      "message": "Calling onToken callback with: . runId: run_1757006171907_4j91ll1zz",
+      "message": "Calling onToken callback with:  to runId: run_1757092162948_oxbctw5k0",
       "location": "useFetchStreaming.ts:146",
       "source": "cdp_manual",
       "category": "auth"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.704634",
+      "timestamp": "2025-09-05T10:09:43.000240",
       "level": "log",
-      "message": "ChatInterface onToken received: . runId: run_1757006171907_4j91ll1zz",
-      "location": "ChatInterface.tsx:175",
+      "message": "ChatInterface onToken received:  to runId: run_1757092162948_oxbctw5k0",
+      "location": "ChatInterface.tsx:214",
       "source": "cdp_manual",
       "category": "chat"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.704726",
+      "timestamp": "2025-09-05T10:09:43.000280",
       "level": "log",
-      "message": "All stream buffers: Array(1)",
-      "location": "ChatInterface.tsx:180",
+      "message": "All stream buffers: Array(13)",
+      "location": "ChatInterface.tsx:219",
       "source": "cdp_manual",
       "category": "chat"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.704743",
+      "timestamp": "2025-09-05T10:09:43.000299",
       "level": "log",
-      "message": "Looking for buffer with runId: run_1757006171907_4j91ll1zz",
-      "location": "ChatInterface.tsx:181",
+      "message": "Looking for buffer with runId: run_1757092162948_oxbctw5k0",
+      "location": "ChatInterface.tsx:220",
       "source": "cdp_manual",
       "category": "general"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.704825",
+      "timestamp": "2025-09-05T10:09:43.000337",
       "level": "log",
-      "message": "Stream buffer for runId: run_1757006171907_4j91ll1zz Object",
-      "location": "ChatInterface.tsx:183",
+      "message": "Stream buffer for runId: run_1757092162948_oxbctw5k0 Object",
+      "location": "ChatInterface.tsx:222",
       "source": "cdp_manual",
       "category": "chat"
     },
     {
-      "timestamp": "2025-09-04T10:16:16.704842",
+      "timestamp": "2025-09-05T10:09:43.000368",
       "level": "log",
-      "message": "Updating message with buffer text: It looks like there was an issue retrieving your portfolio details. Let's try a different approach to access the necessary information.\n\nI'll attempt to gather your portfolio data and check its quality. Please hold on for a moment.",
-      "location": "ChatInterface.tsx:185",
+      "message": "Updating message with buffer text: ### Top 3 Portfolio Positions Analysis\n\n#### General Overview\n- **Portfolio Name**: Demo High Net Worth Investor Portfolio\n- **Total Value**: $1,393,071.49\n- **Cash Balance**: $66,336.74\n- **Position Count**: 17\n- **As of**: 2025-09-05T17:09:25Z\n\n### Top 3 Holdings\n\n1. **SPY (S&P 500 ETF)**\n   - **Position Type**: Long\n   - **Quantity**: 400 shares\n   - **Entry Date**: 2024-01-05\n   - **Entry Price**: $530.00\n   - **Cost Basis**: $212,000.00\n   - **Current Price**: $530.00\n   - **Market Value**: $212,000.00\n   - **Unrealized P&L**: $0.00 (0% return)\n\n2. **QQQ (NASDAQ-100 ETF)**\n   - **Position Type**: Long\n   - **Quantity**: 450 shares\n   - **Entry Date**: 2024-01-05\n   - **Entry Price**: $420.00\n   - **Cost Basis**: $189,000.00\n   - **Current Price**: $420.00\n   - **Market Value**: $189,000.00\n   - **Unrealized P&L**: $0.00 (0% return)\n\n3. **[Data for third position was truncated]**\n\n### Detailed Analysis\n\n#### SPY (S&P 500 ETF)\n- **Market Exposure**: This ETF tracks the performance of the S&P 500 index, providing broad exposure to U.S. large-cap stocks. It can serve as a core holding that reflects overall market trends.\n- **Stability**: The S&P 500 is often seen as a benchmark for the U.S. equity markets, offering diversification across 500 leading companies.\n- **Performance Insight**: Currently, the position shows no unrealized profit or loss, indicating stable performance since entry.\n\n#### QQQ (NASDAQ-100 ETF)\n- **Growth Potential**: QQQ tracks the NASDAQ-100 index, which includes 100 of the largest non-financial companies listed on NASDAQ. It's known for its tech-heavy composition and growth potential.\n- **Volatility**: While potentially more volatile, this ETF may offer higher returns driven by technology and innovation sectors.\n- **Performance Insight**: Similar to SPY, QQQ's current value reflects no unrealized gains or losses since purchase.\n\n#### Portfolio Strategy Considerations\n- **Diversification**: Both SPY and QQQ provide diversification across large segments of the U.S. market, balancing growth and stability with broad index tracking.\n- **Market Position**: The stable unrealized P&L indicates consistent market conditions since the investment date.\n- **Cash and Liquidity**: With cash comprising around 4.76% of total portfolio value, there's flexibility for additional investments or tactical adjustments as opportunities arise.\n\n### Recommendations\n- **Monitor Market Trends**: Keep an eye on market conditions impacting the S&P 500 and NASDAQ-100 for potential strategic adjustments.\n- **Diversification Strategy**: Ensure the rest of the portfolio complements large-cap U.S. exposure with other asset classes or geographies.\n- **Tactical Opportunities**: Consider deploying some cash reserves into emerging opportunities or sectors showing momentum.\n\nThis analysis provides a glimpse into your top positions and their contributions to your overall strategy. If further detailed information or analysis on other positions is needed, feel free to",
+      "location": "ChatInterface.tsx:224",
       "source": "cdp_manual",
-      "category": "general"
+      "category": "chat"
     },
     {
-      "timestamp": "2025-09-04T10:16:18.752877",
+      "timestamp": "2025-09-05T10:09:43.000387",
       "level": "log",
       "message": "Processing SSE event: Object",
       "location": "useFetchStreaming.ts:97",
@@ -2680,7 +2611,7 @@
       "category": "chat"
     },
     {
-      "timestamp": "2025-09-04T10:16:18.752931",
+      "timestamp": "2025-09-05T10:09:43.000430",
       "level": "log",
       "message": "Parsed event: Object",
       "location": "useFetchStreaming.ts:109",
@@ -2688,130 +2619,162 @@
       "category": "general"
     },
     {
-      "timestamp": "2025-09-04T10:31:43.180355",
-      "level": "warning",
-      "message": "Warning: Missing `Description` or `aria-describedby={undefined}` for {DialogContent}.",
-      "location": "index.mjs:467",
-      "source": "cdp_manual",
-      "category": "general"
-    },
-    {
-      "timestamp": "2025-09-04T10:31:43.181378",
-      "level": "warning",
-      "message": "Warning: Missing `Description` or `aria-describedby={undefined}` for {DialogContent}.",
-      "location": "index.mjs:467",
-      "source": "cdp_manual",
-      "category": "general"
-    },
-    {
-      "timestamp": "2025-09-04T10:32:47.058487",
+      "timestamp": "2025-09-05T10:09:43.000449",
       "level": "log",
-      "message": "[Fast Refresh] rebuilding",
-      "location": "hot-reloader-client.js:186",
+      "message": "Adding token to buffer: Object",
+      "location": "useFetchStreaming.ts:140",
       "source": "cdp_manual",
-      "category": "general"
+      "category": "auth"
     },
     {
-      "timestamp": "2025-09-04T10:32:47.484332",
+      "timestamp": "2025-09-05T10:09:43.000462",
       "level": "log",
-      "message": "[Fast Refresh] done in 421ms",
-      "location": "hot-reloader-client.js:43",
+      "message": "Calling onToken callback with:  ask runId: run_1757092162948_oxbctw5k0",
+      "location": "useFetchStreaming.ts:146",
       "source": "cdp_manual",
-      "category": "general"
+      "category": "auth"
     },
     {
-      "timestamp": "2025-09-04T10:32:52.285244",
+      "timestamp": "2025-09-05T10:09:43.000502",
       "level": "log",
-      "message": "[Fast Refresh] rebuilding",
-      "location": "hot-reloader-client.js:186",
+      "message": "ChatInterface onToken received:  ask runId: run_1757092162948_oxbctw5k0",
+      "location": "ChatInterface.tsx:214",
       "source": "cdp_manual",
-      "category": "general"
+      "category": "chat"
     },
     {
-      "timestamp": "2025-09-04T10:32:52.438955",
+      "timestamp": "2025-09-05T10:09:43.000623",
       "level": "log",
-      "message": "[Fast Refresh] done in 153ms",
-      "location": "hot-reloader-client.js:43",
+      "message": "All stream buffers: Array(13)",
+      "location": "ChatInterface.tsx:219",
       "source": "cdp_manual",
-      "category": "general"
+      "category": "chat"
     },
     {
-      "timestamp": "2025-09-04T10:33:06.695786",
+      "timestamp": "2025-09-05T10:09:43.000705",
       "level": "log",
-      "message": "[Fast Refresh] rebuilding",
-      "location": "hot-reloader-client.js:186",
+      "message": "Looking for buffer with runId: run_1757092162948_oxbctw5k0",
+      "location": "ChatInterface.tsx:220",
       "source": "cdp_manual",
       "category": "general"
     },
     {
-      "timestamp": "2025-09-04T10:33:06.899227",
-      "level": "warning",
-      "message": "Warning: Missing `Description` or `aria-describedby={undefined}` for {DialogContent}.",
-      "location": "index.mjs:467",
-      "source": "cdp_manual",
-      "category": "general"
-    },
-    {
-      "timestamp": "2025-09-04T10:33:06.901275",
-      "level": "warning",
-      "message": "Warning: Missing `Description` or `aria-describedby={undefined}` for {DialogContent}.",
-      "location": "index.mjs:467",
-      "source": "cdp_manual",
-      "category": "general"
-    },
-    {
-      "timestamp": "2025-09-04T10:33:06.902119",
+      "timestamp": "2025-09-05T10:09:43.000717",
       "level": "log",
-      "message": "[Fast Refresh] done in 205ms",
-      "location": "hot-reloader-client.js:43",
+      "message": "Stream buffer for runId: run_1757092162948_oxbctw5k0 Object",
+      "location": "ChatInterface.tsx:222",
       "source": "cdp_manual",
-      "category": "general"
+      "category": "chat"
     },
     {
-      "timestamp": "2025-09-04T10:33:14.843226",
+      "timestamp": "2025-09-05T10:09:43.000740",
       "level": "log",
-      "message": "[Fast Refresh] rebuilding",
-      "location": "hot-reloader-client.js:186",
+      "message": "Updating message with buffer text: ### Top 3 Portfolio Positions Analysis\n\n#### General Overview\n- **Portfolio Name**: Demo High Net Worth Investor Portfolio\n- **Total Value**: $1,393,071.49\n- **Cash Balance**: $66,336.74\n- **Position Count**: 17\n- **As of**: 2025-09-05T17:09:25Z\n\n### Top 3 Holdings\n\n1. **SPY (S&P 500 ETF)**\n   - **Position Type**: Long\n   - **Quantity**: 400 shares\n   - **Entry Date**: 2024-01-05\n   - **Entry Price**: $530.00\n   - **Cost Basis**: $212,000.00\n   - **Current Price**: $530.00\n   - **Market Value**: $212,000.00\n   - **Unrealized P&L**: $0.00 (0% return)\n\n2. **QQQ (NASDAQ-100 ETF)**\n   - **Position Type**: Long\n   - **Quantity**: 450 shares\n   - **Entry Date**: 2024-01-05\n   - **Entry Price**: $420.00\n   - **Cost Basis**: $189,000.00\n   - **Current Price**: $420.00\n   - **Market Value**: $189,000.00\n   - **Unrealized P&L**: $0.00 (0% return)\n\n3. **[Data for third position was truncated]**\n\n### Detailed Analysis\n\n#### SPY (S&P 500 ETF)\n- **Market Exposure**: This ETF tracks the performance of the S&P 500 index, providing broad exposure to U.S. large-cap stocks. It can serve as a core holding that reflects overall market trends.\n- **Stability**: The S&P 500 is often seen as a benchmark for the U.S. equity markets, offering diversification across 500 leading companies.\n- **Performance Insight**: Currently, the position shows no unrealized profit or loss, indicating stable performance since entry.\n\n#### QQQ (NASDAQ-100 ETF)\n- **Growth Potential**: QQQ tracks the NASDAQ-100 index, which includes 100 of the largest non-financial companies listed on NASDAQ. It's known for its tech-heavy composition and growth potential.\n- **Volatility**: While potentially more volatile, this ETF may offer higher returns driven by technology and innovation sectors.\n- **Performance Insight**: Similar to SPY, QQQ's current value reflects no unrealized gains or losses since purchase.\n\n#### Portfolio Strategy Considerations\n- **Diversification**: Both SPY and QQQ provide diversification across large segments of the U.S. market, balancing growth and stability with broad index tracking.\n- **Market Position**: The stable unrealized P&L indicates consistent market conditions since the investment date.\n- **Cash and Liquidity**: With cash comprising around 4.76% of total portfolio value, there's flexibility for additional investments or tactical adjustments as opportunities arise.\n\n### Recommendations\n- **Monitor Market Trends**: Keep an eye on market conditions impacting the S&P 500 and NASDAQ-100 for potential strategic adjustments.\n- **Diversification Strategy**: Ensure the rest of the portfolio complements large-cap U.S. exposure with other asset classes or geographies.\n- **Tactical Opportunities**: Consider deploying some cash reserves into emerging opportunities or sectors showing momentum.\n\nThis analysis provides a glimpse into your top positions and their contributions to your overall strategy. If further detailed information or analysis on other positions is needed, feel free to ask",
+      "location": "ChatInterface.tsx:224",
       "source": "cdp_manual",
-      "category": "general"
+      "category": "chat"
     },
     {
-      "timestamp": "2025-09-04T10:33:14.925709",
-      "level": "warning",
-      "message": "Warning: Missing `Description` or `aria-describedby={undefined}` for {DialogContent}.",
-      "location": "index.mjs:467",
-      "source": "cdp_manual",
-      "category": "general"
-    },
-    {
-      "timestamp": "2025-09-04T10:33:14.926183",
-      "level": "warning",
-      "message": "Warning: Missing `Description` or `aria-describedby={undefined}` for {DialogContent}.",
-      "location": "index.mjs:467",
-      "source": "cdp_manual",
-      "category": "general"
-    },
-    {
-      "timestamp": "2025-09-04T10:33:14.932575",
+      "timestamp": "2025-09-05T10:09:43.018333",
       "level": "log",
-      "message": "[Fast Refresh] done in 86ms",
-      "location": "hot-reloader-client.js:43",
+      "message": "Processing SSE event: Object",
+      "location": "useFetchStreaming.ts:97",
+      "source": "cdp_manual",
+      "category": "chat"
+    },
+    {
+      "timestamp": "2025-09-05T10:09:43.018570",
+      "level": "log",
+      "message": "Parsed event: Object",
+      "location": "useFetchStreaming.ts:109",
       "source": "cdp_manual",
       "category": "general"
     },
     {
-      "timestamp": "2025-09-04T10:33:36.481238",
+      "timestamp": "2025-09-05T10:09:43.018648",
       "level": "log",
-      "message": "[Fast Refresh] rebuilding",
-      "location": "hot-reloader-client.js:186",
+      "message": "Adding token to buffer: Object",
+      "location": "useFetchStreaming.ts:140",
+      "source": "cdp_manual",
+      "category": "auth"
+    },
+    {
+      "timestamp": "2025-09-05T10:09:43.018708",
+      "level": "log",
+      "message": "Calling onToken callback with: ! runId: run_1757092162948_oxbctw5k0",
+      "location": "useFetchStreaming.ts:146",
+      "source": "cdp_manual",
+      "category": "auth"
+    },
+    {
+      "timestamp": "2025-09-05T10:09:43.018768",
+      "level": "log",
+      "message": "ChatInterface onToken received: ! runId: run_1757092162948_oxbctw5k0",
+      "location": "ChatInterface.tsx:214",
+      "source": "cdp_manual",
+      "category": "chat"
+    },
+    {
+      "timestamp": "2025-09-05T10:09:43.018869",
+      "level": "log",
+      "message": "All stream buffers: Array(13)",
+      "location": "ChatInterface.tsx:219",
+      "source": "cdp_manual",
+      "category": "chat"
+    },
+    {
+      "timestamp": "2025-09-05T10:09:43.019188",
+      "level": "log",
+      "message": "Looking for buffer with runId: run_1757092162948_oxbctw5k0",
+      "location": "ChatInterface.tsx:220",
       "source": "cdp_manual",
       "category": "general"
     },
     {
-      "timestamp": "2025-09-04T10:33:36.613670",
+      "timestamp": "2025-09-05T10:09:43.019275",
       "level": "log",
-      "message": "[Fast Refresh] done in 132ms",
-      "location": "hot-reloader-client.js:43",
+      "message": "Stream buffer for runId: run_1757092162948_oxbctw5k0 Object",
+      "location": "ChatInterface.tsx:222",
+      "source": "cdp_manual",
+      "category": "chat"
+    },
+    {
+      "timestamp": "2025-09-05T10:09:43.019352",
+      "level": "log",
+      "message": "Updating message with buffer text: ### Top 3 Portfolio Positions Analysis\n\n#### General Overview\n- **Portfolio Name**: Demo High Net Worth Investor Portfolio\n- **Total Value**: $1,393,071.49\n- **Cash Balance**: $66,336.74\n- **Position Count**: 17\n- **As of**: 2025-09-05T17:09:25Z\n\n### Top 3 Holdings\n\n1. **SPY (S&P 500 ETF)**\n   - **Position Type**: Long\n   - **Quantity**: 400 shares\n   - **Entry Date**: 2024-01-05\n   - **Entry Price**: $530.00\n   - **Cost Basis**: $212,000.00\n   - **Current Price**: $530.00\n   - **Market Value**: $212,000.00\n   - **Unrealized P&L**: $0.00 (0% return)\n\n2. **QQQ (NASDAQ-100 ETF)**\n   - **Position Type**: Long\n   - **Quantity**: 450 shares\n   - **Entry Date**: 2024-01-05\n   - **Entry Price**: $420.00\n   - **Cost Basis**: $189,000.00\n   - **Current Price**: $420.00\n   - **Market Value**: $189,000.00\n   - **Unrealized P&L**: $0.00 (0% return)\n\n3. **[Data for third position was truncated]**\n\n### Detailed Analysis\n\n#### SPY (S&P 500 ETF)\n- **Market Exposure**: This ETF tracks the performance of the S&P 500 index, providing broad exposure to U.S. large-cap stocks. It can serve as a core holding that reflects overall market trends.\n- **Stability**: The S&P 500 is often seen as a benchmark for the U.S. equity markets, offering diversification across 500 leading companies.\n- **Performance Insight**: Currently, the position shows no unrealized profit or loss, indicating stable performance since entry.\n\n#### QQQ (NASDAQ-100 ETF)\n- **Growth Potential**: QQQ tracks the NASDAQ-100 index, which includes 100 of the largest non-financial companies listed on NASDAQ. It's known for its tech-heavy composition and growth potential.\n- **Volatility**: While potentially more volatile, this ETF may offer higher returns driven by technology and innovation sectors.\n- **Performance Insight**: Similar to SPY, QQQ's current value reflects no unrealized gains or losses since purchase.\n\n#### Portfolio Strategy Considerations\n- **Diversification**: Both SPY and QQQ provide diversification across large segments of the U.S. market, balancing growth and stability with broad index tracking.\n- **Market Position**: The stable unrealized P&L indicates consistent market conditions since the investment date.\n- **Cash and Liquidity**: With cash comprising around 4.76% of total portfolio value, there's flexibility for additional investments or tactical adjustments as opportunities arise.\n\n### Recommendations\n- **Monitor Market Trends**: Keep an eye on market conditions impacting the S&P 500 and NASDAQ-100 for potential strategic adjustments.\n- **Diversification Strategy**: Ensure the rest of the portfolio complements large-cap U.S. exposure with other asset classes or geographies.\n- **Tactical Opportunities**: Consider deploying some cash reserves into emerging opportunities or sectors showing momentum.\n\nThis analysis provides a glimpse into your top positions and their contributions to your overall strategy. If further detailed information or analysis on other positions is needed, feel free to ask!",
+      "location": "ChatInterface.tsx:224",
+      "source": "cdp_manual",
+      "category": "chat"
+    },
+    {
+      "timestamp": "2025-09-05T10:09:43.137471",
+      "level": "log",
+      "message": "Processing SSE event: Object",
+      "location": "useFetchStreaming.ts:97",
+      "source": "cdp_manual",
+      "category": "chat"
+    },
+    {
+      "timestamp": "2025-09-05T10:09:43.137544",
+      "level": "log",
+      "message": "Parsed event: Object",
+      "location": "useFetchStreaming.ts:109",
+      "source": "cdp_manual",
+      "category": "general"
+    },
+    {
+      "timestamp": "2025-09-05T10:09:43.137568",
+      "level": "log",
+      "message": "Done metrics: Object",
+      "location": "useFetchStreaming.ts:200",
+      "source": "cdp_manual",
+      "category": "general"
+    },
+    {
+      "timestamp": "2025-09-05T10:09:43.137594",
+      "level": "log",
+      "message": "Event timeline (ms since start): Array(10)",
+      "location": "useFetchStreaming.ts:206",
       "source": "cdp_manual",
       "category": "general"
     }
