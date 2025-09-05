@@ -84,7 +84,7 @@ Authorization: Bearer <jwt_token>
 
 ---
 
-## 1. Authentication Endpoints
+## A. Authentication Endpoints
 
 ### 1. Login
 **Endpoint**: `POST /auth/login`  
@@ -94,7 +94,9 @@ Authorization: Bearer <jwt_token>
 **Authentication**: None required  
 **OpenAPI Description**: "Authenticate user and return JWT token (in response body AND cookie)"  
 **Database Access**: Direct ORM queries to `User` and `Portfolio` tables (lines 27-28, 53-55)  
-**Service Layer**: Uses `verify_password`, `create_token_response` from `app/core/auth.py`  
+**Service Layer**: Uses authentication utilities:
+  - File: `app/core/auth.py`
+  - Functions: `verify_password()` (line 16), `create_token_response()` (line 69)  
 
 Authenticates a user and returns JWT token in both response body and HTTP-only cookie.
 
@@ -123,7 +125,9 @@ Authenticates a user and returns JWT token in both response body and HTTP-only c
 **Authentication**: None required  
 **OpenAPI Description**: "Register a new user (admin-only initially)"  
 **Database Access**: Direct ORM queries - Creates `User` and `Portfolio` records (lines 107-124)  
-**Service Layer**: Uses `get_password_hash` from `app/core/auth.py`  
+**Service Layer**: Uses authentication utilities:
+  - File: `app/core/auth.py`
+  - Function: `get_password_hash()` (line 25)  
 
 **Request Body**:
 ```json
@@ -153,7 +157,10 @@ Authenticates a user and returns JWT token in both response body and HTTP-only c
 **Authentication**: Required (Bearer token)  
 **OpenAPI Description**: "Get current authenticated user information"  
 **Database Access**: Via JWT token validation in `get_current_user` dependency from `app/core/dependencies.py`  
-**Service Layer**: Uses `get_current_user` dependency (no direct DB queries in endpoint)  
+**Service Layer**: Uses dependency injection:
+  - File: `app/core/dependencies.py`
+  - Function: `get_current_user()` dependency
+  - Note: No direct DB queries in endpoint itself  
 
 **Response**:
 ```json
@@ -175,7 +182,9 @@ Authenticates a user and returns JWT token in both response body and HTTP-only c
 **Authentication**: Required (Bearer token)  
 **OpenAPI Description**: "Refresh JWT token (returns new token in body AND cookie)"  
 **Database Access**: Direct ORM query to `Portfolio` table for consistent portfolio_id (lines 153-156)  
-**Service Layer**: Uses `create_token_response` from `app/core/auth.py`  
+**Service Layer**: Uses authentication utilities:
+  - File: `app/core/auth.py`
+  - Function: `create_token_response()` (line 69)  
 
 **Response**:
 ```json
@@ -208,7 +217,7 @@ Clears the HTTP-only auth cookie and returns success message. Client should also
 
 ---
 
-## 2. Data Endpoints
+## B. Data Endpoints
 
 ### 6. Get Portfolios
 **Endpoint**: `GET /data/portfolios`  
@@ -246,7 +255,11 @@ Returns all portfolios for the authenticated user with real database data.
 **Authentication**: Required  
 **OpenAPI Description**: "Get complete portfolio data with optional sections"  
 **Database Access**: Direct ORM queries to Portfolio, Position, MarketDataCache tables (lines 97-103, 124+)  
-**Service Layer**: **Minimal usage** - Only `PortfolioDataService` for overview section (line 788), most logic is direct ORM  
+**Service Layer**: **Minimal usage** - Only uses:
+  - File: `app/services/portfolio_data_service.py`
+  - Class: `PortfolioDataService`
+  - Method: `get_portfolio_overview()` (called at line 788)
+  - Note: Most logic uses direct ORM queries, not service layer  
 
 **Parameters**:
 - `portfolio_id` (path): Portfolio UUID
@@ -400,7 +413,10 @@ Returns all portfolios for the authenticated user with real database data.
 **Authentication**: Required  
 **OpenAPI Description**: "Get historical price data for symbol or position"  
 **Database Access**: MarketDataCache table  
-**Service Layer**: MarketDataService  
+**Service Layer**: Uses market data service:
+  - File: `app/services/market_data_service.py`
+  - Class: `MarketDataService`
+  - Method: `get_historical_prices()`  
 
 **Parameters**:
 - `symbol_or_position_id` (path): Symbol or position UUID
@@ -452,7 +468,10 @@ Returns all portfolios for the authenticated user with real database data.
 **Authentication**: Required  
 **OpenAPI Description**: "Get real-time market quotes for symbols"  
 **Database Access**: MarketDataCache table (latest prices)  
-**Service Layer**: MarketDataService  
+**Service Layer**: Uses market data service:
+  - File: `app/services/market_data_service.py`
+  - Class: `MarketDataService`
+  - Method: `get_real_time_quotes()`  
 
 **Parameters**:
 - `symbols` (query): Comma-separated list of symbols
@@ -503,7 +522,10 @@ Returns all portfolios for the authenticated user with real database data.
 **Authentication**: Required  
 **OpenAPI Description**: "Get current and historical prices for factor ETFs"  
 **Database Access**: MarketDataCache table  
-**Service Layer**: MarketDataService  
+**Service Layer**: Uses market data service:
+  - File: `app/services/market_data_service.py`
+  - Class: `MarketDataService`
+  - Method: `get_factor_etf_prices()`  
 
 **Parameters**:
 - `symbols` (query, optional): Specific ETF symbols to retrieve
@@ -569,7 +591,7 @@ Returns all portfolios for the authenticated user with real database data.
 
 ---
 
-## 3. Analytics Endpoints
+## C. Analytics Endpoints
 
 ### 12. Portfolio Overview
 **Endpoint**: `GET /analytics/portfolio/{portfolio_id}/overview`  
@@ -584,7 +606,13 @@ Returns all portfolios for the authenticated user with real database data.
   - Method: `get_portfolio_overview()` (lines 26-86)
   - Uses async ORM queries with aggregations
 
-Provides portfolio-level analytics for dashboard consumption including total value, exposure metrics, P&L breakdown, and position counts.
+**Purpose**: Portfolio aggregate metrics for dashboard cards (exposures, P&L, totals)  
+**Implementation Notes**: 
+- Uses existing aggregation engine results from batch processing
+- Returns calculated exposures (long/short/gross/net)
+- Includes P&L metrics and portfolio totals
+- Leverages existing calculation data with graceful degradation
+- **Frontend Integration**: Required for portfolio page aggregate cards at `http://localhost:3005/portfolio`
 
 **Parameters**:
 - `portfolio_id` (path): Portfolio UUID
@@ -622,546 +650,14 @@ Provides portfolio-level analytics for dashboard consumption including total val
 
 ---
 
-## ❌ NON-EXISTENT ENDPOINTS
 
-The following endpoints were documented as "Fully Implemented" but do not exist in the codebase:
-
-### Get Greeks Data (DOES NOT EXIST)
-**Claimed Endpoint**: `GET /data/greeks/{portfolio_id}`  
-**Status**: ❌ Does not exist  
-**Reality**: No such endpoint in `/data/` namespace  
-
-**Parameters**:
-- `portfolio_id` (path): Portfolio UUID
-- `position_id` (query, optional): Filter by specific position
-
-**Response**:
-```json
-{
-  "portfolio_id": "c0510ab8-c6b5-433c-adbc-3f74e1dbdb5e",
-  "greeks_data": [
-    {
-      "position_id": "b2c3d4e5-f6g7-8901-bcde-f23456789012",
-      "symbol": "SPY_240920C00550000",
-      "position_type": "CALL",
-      "quantity": 5.0,
-      "greeks": {
-        "delta": 0.65,
-        "gamma": 0.012,
-        "theta": -0.08,
-        "vega": 0.15,
-        "rho": 0.032,
-        "implied_volatility": 0.185
-      },
-      "underlying_price": 550.25,
-      "strike_price": 550.0,
-      "expiration_date": "2024-09-20",
-      "days_to_expiry": 15,
-      "last_updated": "2025-09-05T15:30:00Z"
-    },
-    {
-      "position_id": "c3d4e5f6-g7h8-9012-cdef-345678901234",
-      "symbol": "QQQ_241018P00380000",
-      "position_type": "PUT",
-      "quantity": -3.0,
-      "greeks": {
-        "delta": -0.35,
-        "gamma": 0.008,
-        "theta": -0.06,
-        "vega": 0.12,
-        "rho": -0.025,
-        "implied_volatility": 0.195
-      },
-      "underlying_price": 385.42,
-      "strike_price": 380.0,
-      "expiration_date": "2024-10-18",
-      "days_to_expiry": 43,
-      "last_updated": "2025-09-05T15:30:00Z"
-    }
-  ],
-  "portfolio_greeks": {
-    "total_delta": 2.20,
-    "total_gamma": 0.056,
-    "total_theta": -0.42,
-    "total_vega": 0.81,
-    "total_rho": 0.071,
-    "net_delta_exposure": 385420.00
-  },
-  "summary": {
-    "options_positions": 8,
-    "positions_with_greeks": 7,
-    "coverage_percentage": 87.5,
-    "last_updated": "2025-09-05T15:30:00Z"
-  }
-}
-```
-
-### 13. Get Factor Exposures
-**Endpoint**: `GET /data/factors/{portfolio_id}`  
-**Status**: ✅ Fully Implemented  
-**Authentication**: Required  
-**OpenAPI Description**: "Get factor exposure data for portfolio"  
-**Database Access**: PositionFactorExposure table  
-**Service Layer**: Direct ORM queries  
-
-**Parameters**:
-- `portfolio_id` (path): Portfolio UUID
-- `position_id` (query, optional): Filter by specific position
-
-**Response**:
-```json
-{
-  "portfolio_id": "c0510ab8-c6b5-433c-adbc-3f74e1dbdb5e",
-  "factor_exposures": [
-    {
-      "position_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
-      "symbol": "AAPL",
-      "market_value": 17525.00,
-      "weight": 0.1054,
-      "exposures": {
-        "market": 1.12,
-        "size": -0.25,
-        "value": 0.08,
-        "momentum": 0.35,
-        "quality": 0.42,
-        "low_volatility": -0.18,
-        "dividend_yield": 0.12
-      },
-      "last_updated": "2025-09-05T10:00:00Z"
-    },
-    {
-      "position_id": "b2c3d4e5-f6g7-8901-bcde-f23456789012",
-      "symbol": "MSFT",
-      "market_value": 85036.00,
-      "weight": 0.5117,
-      "exposures": {
-        "market": 1.08,
-        "size": -0.22,
-        "value": -0.15,
-        "momentum": 0.28,
-        "quality": 0.58,
-        "low_volatility": -0.12,
-        "dividend_yield": 0.18
-      },
-      "last_updated": "2025-09-05T10:00:00Z"
-    }
-  ],
-  "portfolio_exposures": {
-    "market": 0.98,
-    "size": -0.185,
-    "value": 0.045,
-    "momentum": 0.225,
-    "quality": 0.385,
-    "low_volatility": -0.095,
-    "dividend_yield": 0.165
-  },
-  "risk_attribution": {
-    "systematic_risk": 0.78,
-    "idiosyncratic_risk": 0.22,
-    "factor_concentration": {
-      "market": 0.45,
-      "quality": 0.18,
-      "momentum": 0.12,
-      "other": 0.25
-    }
-  },
-  "summary": {
-    "total_positions": 21,
-    "positions_with_exposures": 19,
-    "coverage_percentage": 90.5,
-    "last_updated": "2025-09-05T10:00:00Z"
-  }
-}
-```
-
-### 14. Get Portfolio Aggregations
-**Endpoint**: `GET /data/portfolios/{portfolio_id}/aggregations`  
-**Status**: ✅ Fully Implemented  
-**Authentication**: Required  
-**OpenAPI Description**: "Get portfolio-level aggregated metrics"  
-**Database Access**: Position, MarketDataCache, PositionGreeks, PositionFactorExposure tables  
-**Service Layer**: Direct ORM queries with aggregation calculations  
-
-**Parameters**:
-- `portfolio_id` (path): Portfolio UUID
-- `include_greeks` (query, optional): Include Greeks aggregations
-- `include_factors` (query, optional): Include factor aggregations
-
-**Response**:
-```json
-{
-  "portfolio_id": "c0510ab8-c6b5-433c-adbc-3f74e1dbdb5e",
-  "basic_aggregations": {
-    "total_value": 1662126.38,
-    "cash_balance": 83106.32,
-    "invested_value": 1579020.06,
-    "total_pnl": 125432.18,
-    "total_pnl_percent": 8.63,
-    "day_change": -8942.15,
-    "day_change_percent": -0.54
-  },
-  "position_breakdown": {
-    "by_type": {
-      "LONG": {"count": 15, "value": 1425680.50, "percentage": 90.29},
-      "SHORT": {"count": 2, "value": -45250.00, "percentage": -2.87},
-      "CALL": {"count": 3, "value": 126450.00, "percentage": 8.01},
-      "PUT": {"count": 1, "value": 72139.56, "percentage": 4.57}
-    },
-    "by_sector": {
-      "Technology": {"count": 8, "value": 845250.00, "percentage": 53.54},
-      "Healthcare": {"count": 4, "value": 285640.00, "percentage": 18.09},
-      "Financial": {"count": 3, "value": 195320.00, "percentage": 12.37},
-      "Consumer": {"count": 3, "value": 142580.00, "percentage": 9.03},
-      "Other": {"count": 3, "value": 110230.06, "percentage": 6.98}
-    }
-  },
-  "concentration_metrics": {
-    "top_5_positions_weight": 0.68,
-    "herfindahl_index": 0.125,
-    "effective_positions": 8.7,
-    "largest_position_weight": 0.189
-  },
-  "greeks_aggregations": {
-    "total_delta": 2.20,
-    "total_gamma": 0.056,
-    "total_theta": -0.42,
-    "total_vega": 0.81,
-    "net_delta_exposure": 385420.00,
-    "options_notional": 198589.56
-  },
-  "factor_aggregations": {
-    "portfolio_beta": 0.98,
-    "factor_loadings": {
-      "market": 0.98,
-      "size": -0.185,
-      "value": 0.045,
-      "momentum": 0.225,
-      "quality": 0.385,
-      "low_volatility": -0.095,
-      "dividend_yield": 0.165
-    },
-    "r_squared": 0.785
-  },
-  "performance_metrics": {
-    "ytd_return": 0.142,
-    "trailing_30d_return": 0.035,
-    "trailing_90d_return": 0.089,
-    "sharpe_ratio_30d": 1.42,
-    "max_drawdown_30d": -0.048
-  },
-  "last_updated": "2025-09-05T15:30:00Z"
-}
-```
-
-### 15. Get Risk Summary
-**Endpoint**: `GET /data/portfolios/{portfolio_id}/risk-summary`  
-**Status**: ✅ Fully Implemented  
-**Authentication**: Required  
-**OpenAPI Description**: "Get comprehensive risk metrics for portfolio"  
-**Database Access**: Position, PositionGreeks, PositionFactorExposure tables  
-**Service Layer**: Direct ORM queries with risk calculations  
-
-**Parameters**:
-- `portfolio_id` (path): Portfolio UUID
-- `confidence_level` (query, optional): VaR confidence level (default 95)
-
-**Response**:
-```json
-{
-  "portfolio_id": "c0510ab8-c6b5-433c-adbc-3f74e1dbdb5e",
-  "risk_summary": {
-    "portfolio_value": 1662126.38,
-    "confidence_level": 95,
-    "calculation_date": "2025-09-05",
-    "lookback_period": 252
-  },
-  "value_at_risk": {
-    "1_day": {
-      "absolute": -42350.85,
-      "percentage": -2.55
-    },
-    "5_day": {
-      "absolute": -94720.15,
-      "percentage": -5.70
-    },
-    "10_day": {
-      "absolute": -133852.45,
-      "percentage": -8.05
-    }
-  },
-  "expected_shortfall": {
-    "1_day": {
-      "absolute": -56420.75,
-      "percentage": -3.39
-    },
-    "5_day": {
-      "absolute": -126185.25,
-      "percentage": -7.59
-    },
-    "10_day": {
-      "absolute": -178450.85,
-      "percentage": -10.74
-    }
-  },
-  "risk_metrics": {
-    "portfolio_beta": 1.15,
-    "correlation_with_spy": 0.78,
-    "tracking_error": 0.125,
-    "information_ratio": 0.35,
-    "sortino_ratio": 1.89,
-    "maximum_drawdown": -0.185,
-    "volatility_30d": 0.164,
-    "volatility_90d": 0.189
-  },
-  "component_var": [
-    {
-      "symbol": "MSFT",
-      "position_weight": 0.512,
-      "component_var": -18650.25,
-      "marginal_var": -36420.15,
-      "percentage_contribution": 44.1
-    },
-    {
-      "symbol": "AAPL",
-      "position_weight": 0.105,
-      "component_var": -8945.75,
-      "marginal_var": -85185.42,
-      "percentage_contribution": 21.1
-    }
-  ],
-  "stress_scenarios": {
-    "2008_financial_crisis": {
-      "scenario_return": -0.385,
-      "portfolio_impact": -639748.66
-    },
-    "covid_march_2020": {
-      "scenario_return": -0.285,
-      "portfolio_impact": -473806.02
-    },
-    "interest_rate_shock": {
-      "scenario_return": -0.125,
-      "portfolio_impact": -207765.80
-    }
-  },
-  "greeks_risk": {
-    "delta_equivalent": 385420.00,
-    "gamma_risk": {
-      "1_percent_move": 1925.50,
-      "2_percent_move": 7702.00
-    },
-    "vega_risk": {
-      "1_vol_point_move": 810.00
-    },
-    "theta_decay": {
-      "1_day": -420.00
-    }
-  },
-  "risk_warnings": [
-    "High concentration in technology sector (53.5%)",
-    "Options positions have 15 days average to expiry",
-    "Portfolio beta above 1.0 indicates higher market sensitivity"
-  ],
-  "last_updated": "2025-09-05T18:00:00Z"
-}
-```
-
-### 16. Get Position Summary
-**Endpoint**: `GET /data/portfolios/{portfolio_id}/positions/summary`  
-**Status**: ✅ Fully Implemented  
-**Authentication**: Required  
-**OpenAPI Description**: "Get position summary with key metrics"  
-**Database Access**: Position, MarketDataCache tables  
-**Service Layer**: Direct ORM queries  
-
-**Parameters**:
-- `portfolio_id` (path): Portfolio UUID
-- `group_by` (query, optional): Group positions by field
-- `include_closed` (query, optional): Include closed positions
-
-**Response**:
-```json
-{
-  "portfolio_id": "c0510ab8-c6b5-433c-adbc-3f74e1dbdb5e",
-  "summary_statistics": {
-    "total_positions": 21,
-    "active_positions": 21,
-    "closed_positions": 0,
-    "total_market_value": 1662126.38,
-    "total_cost_basis": 1536694.20,
-    "total_unrealized_pnl": 125432.18,
-    "total_unrealized_pnl_percent": 8.16
-  },
-  "position_summary": [
-    {
-      "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
-      "symbol": "AAPL",
-      "position_type": "LONG",
-      "quantity": 100.0,
-      "market_value": 17525.00,
-      "weight": 0.1054,
-      "unrealized_pnl": 1525.00,
-      "unrealized_pnl_percent": 9.53,
-      "day_change": 285.00,
-      "day_change_percent": 1.65
-    },
-    {
-      "id": "b2c3d4e5-f6g7-8901-bcde-f23456789012",
-      "symbol": "MSFT",
-      "position_type": "LONG",
-      "quantity": 200.0,
-      "market_value": 85036.00,
-      "weight": 0.5117,
-      "unrealized_pnl": 8536.00,
-      "unrealized_pnl_percent": 11.16,
-      "day_change": -484.00,
-      "day_change_percent": -0.57
-    }
-  ],
-  "groupings": {
-    "by_asset_type": {
-      "stocks": {"count": 17, "value": 1463426.38, "percentage": 88.04},
-      "options": {"count": 4, "value": 198700.00, "percentage": 11.96}
-    },
-    "by_sector": {
-      "Technology": {"count": 8, "value": 845250.00, "percentage": 50.86},
-      "Healthcare": {"count": 4, "value": 285640.00, "percentage": 17.18},
-      "Financial": {"count": 3, "value": 195320.00, "percentage": 11.75},
-      "Consumer": {"count": 3, "value": 142580.00, "percentage": 8.58},
-      "Industrial": {"count": 2, "value": 98156.38, "percentage": 5.90},
-      "Energy": {"count": 1, "value": 95180.00, "percentage": 5.73}
-    },
-    "by_position_type": {
-      "LONG": {"count": 15, "value": 1425680.50, "percentage": 85.77},
-      "SHORT": {"count": 2, "value": -45250.00, "percentage": -2.72},
-      "CALL": {"count": 3, "value": 126450.00, "percentage": 7.61},
-      "PUT": {"count": 1, "value": 155245.88, "percentage": 9.34}
-    }
-  },
-  "performance_metrics": {
-    "winners": 15,
-    "losers": 6,
-    "best_performer": {
-      "symbol": "NVDA",
-      "unrealized_pnl_percent": 28.45
-    },
-    "worst_performer": {
-      "symbol": "TSLA",
-      "unrealized_pnl_percent": -12.85
-    }
-  },
-  "last_updated": "2025-09-05T15:30:00Z"
-}
-```
-
-### 17. Get Position Details by ID
-**Endpoint**: `GET /data/positions/{position_id}/details`  
-**Status**: ✅ Fully Implemented  
-**Authentication**: Required  
-**OpenAPI Description**: "Get detailed information for specific position"  
-**Database Access**: Position, MarketDataCache, PositionGreeks, PositionFactorExposure tables  
-**Service Layer**: Direct ORM queries  
-
-**Parameters**:
-- `position_id` (path): Position UUID
-- `include_history` (query, optional): Include historical data
-
-**Response**:
-```json
-{
-  "position": {
-    "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
-    "symbol": "AAPL",
-    "position_type": "LONG",
-    "quantity": 100.0,
-    "cost_basis": 160.00,
-    "current_price": 175.25,
-    "market_value": 17525.00,
-    "weight_in_portfolio": 0.1054,
-    "created_at": "2025-08-15T10:30:00Z",
-    "updated_at": "2025-09-05T15:30:00Z",
-    "is_active": true
-  },
-  "pnl_analysis": {
-    "unrealized_pnl": 1525.00,
-    "unrealized_pnl_percent": 9.53,
-    "day_change": 285.00,
-    "day_change_percent": 1.65,
-    "total_cost": 16000.00,
-    "total_proceeds": 0.00
-  },
-  "market_data": {
-    "current_price": 175.25,
-    "bid": 175.20,
-    "ask": 175.30,
-    "volume": 58432100,
-    "day_high": 176.15,
-    "day_low": 174.25,
-    "year_high": 199.62,
-    "year_low": 164.08,
-    "last_updated": "2025-09-05T20:00:00Z"
-  },
-  "fundamentals": {
-    "market_cap": 2658745000000,
-    "pe_ratio": 28.5,
-    "dividend_yield": 0.0045,
-    "beta": 1.25,
-    "sector": "Technology",
-    "industry": "Consumer Electronics"
-  },
-  "greeks": null,
-  "factor_exposures": {
-    "market": 1.12,
-    "size": -0.25,
-    "value": 0.08,
-    "momentum": 0.35,
-    "quality": 0.42,
-    "low_volatility": -0.18,
-    "dividend_yield": 0.12,
-    "last_updated": "2025-09-05T10:00:00Z"
-  },
-  "risk_metrics": {
-    "position_var_95": -1250.85,
-    "position_var_99": -1875.25,
-    "component_var": -8945.75,
-    "marginal_var": -85185.42,
-    "beta_to_portfolio": 0.85,
-    "correlation_to_portfolio": 0.62
-  },
-  "historical_performance": {
-    "returns": [
-      {"date": "2025-09-05", "return": 0.0165},
-      {"date": "2025-09-04", "return": -0.0089},
-      {"date": "2025-09-03", "return": 0.0234}
-    ],
-    "volatility_30d": 0.285,
-    "sharpe_ratio_30d": 1.15,
-    "max_drawdown_30d": -0.078
-  },
-  "transactions": [
-    {
-      "date": "2025-08-15",
-      "type": "BUY",
-      "quantity": 100.0,
-      "price": 160.00,
-      "value": 16000.00,
-      "fees": 4.95
-    }
-  ],
-  "alerts": [
-    "Position weight above 10% of portfolio",
-    "Strong positive momentum factor exposure"
-  ],
-  "last_updated": "2025-09-05T15:30:00Z"
-}
-```
-
----
-
-## 3. Administration Endpoints
+## D. Administration Endpoints
 
 ### 18. Get Batch Job Status
 **Endpoint**: `GET /admin/batch/jobs/status`  
-**Status**: ✅ Fully Implemented  
+**Status**: ⚠️ Implemented but NOT registered in router  
+**File**: `app/api/v1/endpoints/admin_batch.py`  
+**Function**: `get_batch_job_status()` (lines 212-255)  
 **Authentication**: Required (Admin)  
 **OpenAPI Description**: "Get status of recent batch jobs"  
 **Database Access**: BatchJob table  
@@ -1246,9 +742,11 @@ The following endpoints were documented as "Fully Implemented" but do not exist 
 }
 ```
 
-## 20. Get Batch Job Summary
+### 20. Get Batch Job Summary
 **Endpoint**: `GET /admin/batch/jobs/summary`  
-**Status**: ✅ Fully Implemented  
+**Status**: ⚠️ Implemented but NOT registered in router  
+**File**: `app/api/v1/endpoints/admin_batch.py`  
+**Function**: `get_batch_job_summary()` (lines 258-313)  
 **Authentication**: Required (Admin)  
 **OpenAPI Description**: "Get summary statistics of batch jobs"  
 **Database Access**: BatchJob table  
@@ -1358,7 +856,9 @@ The following endpoints were documented as "Fully Implemented" but do not exist 
 
 ### Cancel Batch Job
 **Endpoint**: `DELETE /admin/batch/jobs/{job_id}/cancel`  
-**Status**: ✅ Fully Implemented  
+**Status**: ⚠️ Implemented but NOT registered in router  
+**File**: `app/api/v1/endpoints/admin_batch.py`  
+**Function**: `cancel_batch_job()` (lines 383-420)  
 **Authentication**: Required (Admin)  
 **OpenAPI Description**: "Cancel a running batch job"  
 **Database Access**: BatchJob table (UPDATE operation)  
@@ -1396,13 +896,17 @@ The following endpoints were documented as "Fully Implemented" but do not exist 
 }
 ```
 
-## 21. Get Data Quality Status
+### 21. Get Data Quality Status
 **Endpoint**: `GET /admin/batch/data-quality`  
-**Status**: ✅ Fully Implemented  
+**Status**: ⚠️ Implemented but NOT registered in router  
+**File**: `app/api/v1/endpoints/admin_batch.py`  
+**Function**: `get_data_quality_status()` (lines 423-455)  
 **Authentication**: Required (Admin)  
 **OpenAPI Description**: "Get data quality status and metrics for portfolios"  
 **Database Access**: Portfolio, Position, MarketDataCache tables  
-**Service Layer**: Uses pre_flight_validation function  
+**Service Layer**: Uses batch validation:
+  - File: `app/batch/data_quality.py`
+  - Function: `pre_flight_validation()` (async function)  
 
 **Parameters**:
 - `portfolio_id` (query, optional): Specific portfolio ID or all portfolios
@@ -1512,13 +1016,19 @@ The following endpoints were documented as "Fully Implemented" but do not exist 
 }
 ```
 
-## 22. Refresh Market Data for Quality
+### 22. Refresh Market Data for Quality
 **Endpoint**: `POST /admin/batch/data-quality/refresh`  
-**Status**: ✅ Fully Implemented  
+**Status**: ⚠️ Implemented but NOT registered in router  
+**File**: `app/api/v1/endpoints/admin_batch.py`  
+**Function**: `refresh_market_data_for_quality()` (lines 458-502)  
 **Authentication**: Required (Admin)  
 **OpenAPI Description**: "Refresh market data to improve data quality scores"  
 **Database Access**: Uses pre_flight_validation and batch orchestrator  
-**Service Layer**: Background task execution via batch_orchestrator._update_market_data  
+**Service Layer**: Uses batch orchestration:
+  - File: `app/batch/batch_orchestrator_v2.py`
+  - Object: `batch_orchestrator_v2` (imported as `batch_orchestrator`)
+  - Method: `_update_market_data()` (private method)
+  - Execution: Via BackgroundTasks for async processing  
 
 **Parameters**:
 - `portfolio_id` (query, optional): Specific portfolio ID or all portfolios
@@ -1713,56 +1223,55 @@ This section provides development specifications for future API endpoints. These
 
 ---
 
+## Data Endpoints (/data/) - Non-Existent but Previously Documented
+
+**Status**: ❌ These endpoints were incorrectly documented as implemented but do not exist  
+**Priority**: To be determined based on actual requirements
+
+### Greeks Data
+**Planned Endpoint**: `GET /data/greeks/{portfolio_id}`  
+**Status**: Does not exist - was incorrectly marked as implemented  
+**Purpose**: Would provide Greeks calculations for options positions  
+**Note**: Greeks calculations exist in database but no API endpoint
+
+### Factor Exposures
+**Planned Endpoint**: `GET /data/factors/{portfolio_id}`  
+**Status**: Does not exist - was incorrectly marked as implemented  
+**Purpose**: Would provide factor exposure data for portfolio positions  
+**Note**: Factor calculations exist in database but no API endpoint
+
+### Portfolio Aggregations  
+**Planned Endpoint**: `GET /data/portfolios/{portfolio_id}/aggregations`  
+**Status**: Does not exist - was incorrectly marked as implemented  
+**Purpose**: Would provide portfolio-level aggregated metrics  
+**Note**: Some aggregations available via analytics endpoint
+
+### Risk Summary
+**Planned Endpoint**: `GET /data/portfolios/{portfolio_id}/risk-summary`  
+**Status**: Does not exist - was incorrectly marked as implemented  
+**Purpose**: Would provide comprehensive risk metrics for portfolio  
+**Note**: Risk calculations not yet implemented
+
+### Position Summary
+**Planned Endpoint**: `GET /data/portfolios/{portfolio_id}/positions/summary`  
+**Status**: Does not exist - was incorrectly marked as implemented  
+**Purpose**: Would provide position summary with key metrics  
+**Note**: Some position data available via existing endpoints
+
+### Position Details by ID
+**Planned Endpoint**: `GET /data/positions/{position_id}/details`  
+**Status**: Does not exist - was incorrectly marked as implemented  
+**Purpose**: Would provide detailed information for specific position  
+**Note**: Basic position details available via portfolio endpoints
+
+---
+
 ## Analytics Endpoints (/analytics/) 🧮
 
 **Status**: 📋 Planned - Not Yet Implemented  
 **Priority**: High - Core calculations and derived metrics
 
-### Portfolio Analytics
-
-#### A1. Portfolio Overview **✅ APPROVED FOR IMPLEMENTATION**
-```http
-GET /api/v1/analytics/portfolio/{id}/overview
-```
-
-**Purpose**: Portfolio aggregate metrics for dashboard cards (exposures, P&L, totals)  
-**Implementation Notes**: 
-- Uses existing aggregation engine results from batch processing
-- Returns calculated exposures (long/short/gross/net)
-- Includes P&L metrics and portfolio totals
-- Leverages existing calculation data with graceful degradation
-- **Frontend Integration**: Required for portfolio page aggregate cards at `http://localhost:3005/portfolio`
-
-**Response Format**:
-```json
-{
-  "portfolio_id": "uuid",
-  "total_value": 1250000.00,
-  "cash_balance": 62500.00,
-  "exposures": {
-    "long_exposure": 1187500.00,
-    "short_exposure": 0.00,
-    "gross_exposure": 1187500.00,
-    "net_exposure": 1187500.00,
-    "long_percentage": 95.0,
-    "short_percentage": 0.0,
-    "gross_percentage": 95.0,
-    "net_percentage": 95.0
-  },
-  "pnl": {
-    "total_pnl": "Data Not Available",
-    "unrealized_pnl": "Data Not Available",
-    "realized_pnl": "Data Not Available"
-  },
-  "position_count": {
-    "total_positions": 21,
-    "long_count": 21,
-    "short_count": 0,
-    "option_count": 0
-  },
-  "last_updated": "2025-01-15T10:30:00Z"
-}
-```
+**Note**: Portfolio Overview endpoint (`/analytics/portfolio/{id}/overview`) is already implemented - see Part I, Section C.12
 
 ### Risk Analytics
 
