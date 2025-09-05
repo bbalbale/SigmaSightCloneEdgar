@@ -9,9 +9,12 @@ import { useChatStore } from '../chatStore'
 
 // Mock crypto.randomUUID for consistent testing
 const mockUUID = '550e8400-e29b-41d4-a716-446655440000'
-global.crypto = {
-  randomUUID: vi.fn(() => mockUUID)
-} as any
+Object.defineProperty(global, 'crypto', {
+  value: {
+    randomUUID: vi.fn(() => mockUUID)
+  },
+  writable: true
+})
 
 describe('ChatStore - Conversation ID Management', () => {
   beforeEach(() => {
@@ -68,6 +71,88 @@ describe('ChatStore - Conversation ID Management', () => {
       expect(localStorage.getItem('conversationId')).toBeNull()
       
       consoleSpy.mockRestore()
+    })
+
+    test('should reject old format conversation IDs (conv_timestamp_random)', () => {
+      const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+      const oldFormatId = 'conv_1756914328783_fd5o8vldb'
+      localStorage.setItem('conversationId', oldFormatId)
+      
+      const { result } = renderHook(() => useChatStore())
+      
+      act(() => {
+        result.current.hydrateFromStorage()
+      })
+      
+      // Should detect and clear old format
+      expect(consoleSpy).toHaveBeenCalledWith(
+        '[ChatStore] Invalid conversation ID format in localStorage:',
+        oldFormatId
+      )
+      expect(localStorage.getItem('conversationId')).toBeNull()
+      expect(result.current.currentConversationId).toBeNull()
+      
+      consoleSpy.mockRestore()
+    })
+
+    test('should validate various UUID formats', () => {
+      const { result } = renderHook(() => useChatStore())
+      
+      const validUUIDs = [
+        '550e8400-e29b-41d4-a716-446655440000',
+        'f47ac10b-58cc-4372-a567-0e02b2c3d479',
+        '6ba7b810-9dad-11d1-80b4-00c04fd430c8',
+        '00000000-0000-0000-0000-000000000000',
+      ]
+      
+      const invalidUUIDs = [
+        'conv_1234567890_abc123', // Old format
+        'not-a-uuid',
+        '550e8400-e29b-41d4-a716', // Too short
+        '550e8400-e29b-41d4-a716-446655440000-extra', // Too long
+        'XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX', // Invalid characters
+        '',
+        null,
+        undefined,
+      ]
+      
+      // Test valid UUIDs
+      validUUIDs.forEach(uuid => {
+        localStorage.setItem('conversationId', uuid)
+        act(() => {
+          result.current.hydrateFromStorage()
+        })
+        expect(result.current.currentConversationId).toBe(uuid)
+      })
+      
+      // Test invalid UUIDs
+      const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+      invalidUUIDs.forEach(uuid => {
+        if (uuid) {
+          localStorage.setItem('conversationId', uuid)
+          act(() => {
+            result.current.hydrateFromStorage()
+          })
+          expect(localStorage.getItem('conversationId')).toBeNull()
+        }
+      })
+      consoleSpy.mockRestore()
+    })
+
+    test('should handle backend 422 error scenario', () => {
+      const { result } = renderHook(() => useChatStore())
+      
+      // Simulate creating conversation with old format (should not happen anymore)
+      const oldFormatId = 'conv_1756914328783_fd5o8vldb'
+      
+      // Verify new format is always used
+      act(() => {
+        const conversationId = result.current.createConversation('blue')
+        expect(conversationId).not.toMatch(/^conv_/)
+        expect(conversationId).toMatch(
+          /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+        )
+      })
     })
   })
 
