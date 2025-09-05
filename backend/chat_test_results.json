@@ -1,14 +1,14 @@
 {
-  "timestamp": "2025-09-03T05:53:24.971Z",
+  "timestamp": "2025-09-05T14:51:38.084Z",
   "testsPassed": [
     {
       "test": "Page Navigation",
-      "details": "Page loaded successfully in 868ms",
+      "details": "Page loaded successfully in 1019ms",
       "evidence": "initial_page_load screenshot"
     },
     {
       "test": "TTFB Performance",
-      "details": "Time to first byte: 868ms (target: <3000ms)",
+      "details": "Time to first byte: 1019ms (target: <3000ms)",
       "evidence": "Performance metrics"
     }
   ],
@@ -44,10 +44,10 @@
     }
   ],
   "performanceMetrics": {
-    "initialLoadTime": 868,
-    "domContentLoaded": 0,
-    "loadComplete": 0,
-    "firstContentfulPaint": 852,
+    "initialLoadTime": 1019,
+    "domContentLoaded": 0.10000002384185791,
+    "loadComplete": 0.10000002384185791,
+    "firstContentfulPaint": 400,
     "largestContentfulPaint": 0
   },
   "consoleErrors": [
@@ -59,7 +59,7 @@
         "lineNumber": 38559,
         "columnNumber": 16
       },
-      "timestamp": "2025-09-03T05:53:27.742Z"
+      "timestamp": "2025-09-05T14:51:40.643Z"
     },
     {
       "type": "error",
@@ -67,17 +67,37 @@
       "location": {
         "url": "http://localhost:3005/favicon.ico"
       },
-      "timestamp": "2025-09-03T05:53:27.799Z"
+      "timestamp": "2025-09-05T14:51:40.692Z"
     },
     {
-      "type": "error",
-      "text": "No authentication token found",
+      "type": "log",
+      "text": "Portfolio resolved using correct IDs from database: JSHandle@object",
       "location": {
-        "url": "webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/app-index.js",
-        "lineNumber": 32,
-        "columnNumber": 21
+        "url": "webpack-internal:///(app-pages-browser)/./src/services/portfolioResolver.ts",
+        "lineNumber": 57,
+        "columnNumber": 24
       },
-      "timestamp": "2025-09-03T05:53:28.294Z"
+      "timestamp": "2025-09-05T14:51:41.147Z"
+    },
+    {
+      "type": "log",
+      "text": "Portfolio resolved using correct IDs from database: JSHandle@object",
+      "location": {
+        "url": "webpack-internal:///(app-pages-browser)/./src/services/portfolioResolver.ts",
+        "lineNumber": 57,
+        "columnNumber": 24
+      },
+      "timestamp": "2025-09-05T14:51:41.147Z"
+    },
+    {
+      "type": "log",
+      "text": "Request deduplication: Reusing existing request for /api/proxy/api/v1/data/portfolio/e23ab931-a033-edfe-ed4f-9d02474780b4/complete",
+      "location": {
+        "url": "webpack-internal:///(app-pages-browser)/./src/services/requestManager.ts",
+        "lineNumber": 17,
+        "columnNumber": 20
+      },
+      "timestamp": "2025-09-05T14:51:41.148Z"
     },
     {
       "type": "error",
@@ -87,7 +107,7 @@
         "lineNumber": 32,
         "columnNumber": 21
       },
-      "timestamp": "2025-09-03T05:53:28.294Z"
+      "timestamp": "2025-09-05T14:51:41.222Z"
     },
     {
       "type": "error",
@@ -97,27 +117,27 @@
         "lineNumber": 32,
         "columnNumber": 21
       },
-      "timestamp": "2025-09-03T05:53:28.294Z"
+      "timestamp": "2025-09-05T14:51:41.223Z"
     },
     {
-      "type": "error",
-      "text": "No authentication token found",
+      "type": "log",
+      "text": "Loaded portfolio data: JSHandle@object",
       "location": {
-        "url": "webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/app-index.js",
-        "lineNumber": 32,
-        "columnNumber": 21
+        "url": "webpack-internal:///(app-pages-browser)/./src/app/portfolio/page.tsx",
+        "lineNumber": 463,
+        "columnNumber": 28
       },
-      "timestamp": "2025-09-03T05:53:28.294Z"
+      "timestamp": "2025-09-05T14:51:41.227Z"
     },
     {
-      "type": "error",
-      "text": "Failed to load portfolio data for high-net-worth: JSHandle@error",
+      "type": "log",
+      "text": "Portfolio name from backend: Demo High Net Worth Investor Portfolio",
       "location": {
-        "url": "webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/app-index.js",
-        "lineNumber": 32,
-        "columnNumber": 21
+        "url": "webpack-internal:///(app-pages-browser)/./src/app/portfolio/page.tsx",
+        "lineNumber": 464,
+        "columnNumber": 28
       },
-      "timestamp": "2025-09-03T05:53:28.294Z"
+      "timestamp": "2025-09-05T14:51:41.227Z"
     }
   ],
   "networkRequests": [
@@ -125,93 +145,93 @@
       "url": "http://localhost:3005/portfolio?type=high-net-worth",
       "status": 200,
       "method": "GET",
-      "timestamp": "2025-09-03T05:53:27.491Z",
+      "timestamp": "2025-09-05T14:51:40.453Z",
       "timing": {}
     },
     {
-      "url": "http://localhost:3005/_next/static/css/app/layout.css?v=1756878807469",
+      "url": "http://localhost:3005/_next/static/css/app/layout.css?v=1757083900413",
       "status": 200,
       "method": "GET",
-      "timestamp": "2025-09-03T05:53:27.505Z",
+      "timestamp": "2025-09-05T14:51:40.466Z",
       "timing": {}
     },
     {
       "url": "http://localhost:3005/_next/static/media/e4af272ccee01ff0-s.p.woff2",
       "status": 200,
       "method": "GET",
-      "timestamp": "2025-09-03T05:53:27.515Z",
+      "timestamp": "2025-09-05T14:51:40.475Z",
       "timing": {}
     },
     {
-      "url": "http://localhost:3005/_next/static/chunks/webpack.js?v=1756878807469",
+      "url": "http://localhost:3005/_next/static/chunks/webpack.js?v=1757083900413",
       "status": 200,
       "method": "GET",
-      "timestamp": "2025-09-03T05:53:27.516Z",
+      "timestamp": "2025-09-05T14:51:40.475Z",
       "timing": {}
     },
     {
       "url": "http://localhost:3005/_next/static/chunks/app-pages-internals.js",
       "status": 200,
       "method": "GET",
-      "timestamp": "2025-09-03T05:53:27.517Z",
+      "timestamp": "2025-09-05T14:51:40.475Z",
       "timing": {}
     },
     {
       "url": "http://localhost:3005/_next/static/chunks/app/error.js",
       "status": 200,
       "method": "GET",
-      "timestamp": "2025-09-03T05:53:27.520Z",
+      "timestamp": "2025-09-05T14:51:40.476Z",
       "timing": {}
     },
     {
       "url": "http://localhost:3005/_next/static/chunks/app/layout.js",
       "status": 200,
       "method": "GET",
-      "timestamp": "2025-09-03T05:53:27.549Z",
+      "timestamp": "2025-09-05T14:51:40.495Z",
       "timing": {}
     },
     {
       "url": "http://localhost:3005/_next/static/chunks/app/portfolio/page.js",
       "status": 200,
       "method": "GET",
-      "timestamp": "2025-09-03T05:53:27.556Z",
+      "timestamp": "2025-09-05T14:51:40.501Z",
       "timing": {}
     },
     {
-      "url": "http://localhost:3005/_next/static/chunks/main-app.js?v=1756878807469",
+      "url": "http://localhost:3005/_next/static/chunks/main-app.js?v=1757083900413",
       "status": 200,
       "method": "GET",
-      "timestamp": "2025-09-03T05:53:27.659Z",
+      "timestamp": "2025-09-05T14:51:40.570Z",
       "timing": {}
     },
     {
       "url": "http://localhost:3005/favicon.ico",
       "status": 404,
       "method": "GET",
-      "timestamp": "2025-09-03T05:53:27.799Z",
+      "timestamp": "2025-09-05T14:51:40.692Z",
       "timing": {}
     },
     {
       "url": "http://localhost:3005/api/proxy/api/v1/auth/login",
       "status": 200,
       "method": "POST",
-      "timestamp": "2025-09-03T05:53:28.291Z",
+      "timestamp": "2025-09-05T14:51:41.146Z",
       "timing": {}
     },
     {
-      "url": "http://localhost:3005/api/proxy/api/v1/auth/login",
+      "url": "http://localhost:3005/api/proxy/api/v1/data/portfolio/e23ab931-a033-edfe-ed4f-9d02474780b4/complete",
       "status": 200,
-      "method": "POST",
-      "timestamp": "2025-09-03T05:53:28.294Z",
+      "method": "GET",
+      "timestamp": "2025-09-05T14:51:41.222Z",
       "timing": {}
     }
   ],
   "screenshots": [
     {
       "name": "initial_page_load",
-      "filename": "chat_test_initial_page_load_1756878808312.png",
-      "filepath": "/Users/elliottng/CascadeProjects/SigmaSight-BE/backend/test_screenshots/chat_test_initial_page_load_1756878808312.png"
+      "filename": "chat_test_initial_page_load_1757083901129.png",
+      "filepath": "/Users/elliottng/CascadeProjects/SigmaSight-BE/backend/test_screenshots/chat_test_initial_page_load_1757083901129.png"
     }
   ],
-  "totalTestTime": 3750
+  "totalTestTime": 3323
 }
