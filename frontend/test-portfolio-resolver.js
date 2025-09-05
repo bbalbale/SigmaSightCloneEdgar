@@ -25,9 +25,9 @@ async function testPortfolioResolver() {
   const token = loginData.access_token;
   console.log('✅ Login successful\n');
   
-  // Step 2: Try to fetch portfolio with hardcoded ID (should work)
-  console.log('2. Testing with known portfolio ID...');
-  const knownId = 'c0510ab8-c6b5-433c-adbc-3f74e1dbdb5e';
+  // Step 2: Try to fetch portfolio with deterministic ID (should work)
+  console.log('2. Testing with known deterministic portfolio ID...');
+  const knownId = 'e23ab931-a033-edfe-ed4f-9d02474780b4';
   
   const knownResponse = await fetch(`http://localhost:3005/api/proxy/api/v1/data/portfolio/${knownId}/complete`, {
     method: 'GET',
@@ -101,7 +101,7 @@ async function testPortfolioResolver() {
   
   // Step 6: Fetch individual's own portfolio
   console.log('6. Fetching individual user portfolio...');
-  const individualId = '51134ffd-2f13-49bd-b1f5-0c327e801b69';
+  const individualId = '1d8ddd95-3b45-0ac5-35bf-cf81af94a5fe';
   
   const individualResponse = await fetch(`http://localhost:3005/api/proxy/api/v1/data/portfolio/${individualId}/complete`, {
     method: 'GET',

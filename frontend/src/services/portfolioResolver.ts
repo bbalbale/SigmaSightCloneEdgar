@@ -49,14 +49,14 @@ class PortfolioResolver {
 
     // Fetch portfolios from the backend with retry logic
     try {
-      // TEMPORARY WORKAROUND: Use hardcoded mapping with CORRECT portfolio IDs
+      // TEMPORARY WORKAROUND: Use hardcoded mapping with DETERMINISTIC portfolio IDs
       // The /portfolios endpoint exists in code but isn't available in the running backend
-      // These are the actual portfolio IDs from the database:
+      // These are deterministic UUIDs that match across all developer machines:
       const email = localStorage.getItem('user_email')
       const portfolioMap: Record<string, string> = {
-        'demo_individual@sigmasight.com': '51134ffd-2f13-49bd-b1f5-0c327e801b69',
-        'demo_hnw@sigmasight.com': 'c0510ab8-c6b5-433c-adbc-3f74e1dbdb5e',
-        'demo_hedgefundstyle@sigmasight.com': '2ee7435f-379f-4606-bdb7-dadce587a182'
+        'demo_individual@sigmasight.com': '1d8ddd95-3b45-0ac5-35bf-cf81af94a5fe',
+        'demo_hnw@sigmasight.com': 'e23ab931-a033-edfe-ed4f-9d02474780b4',
+        'demo_hedgefundstyle@sigmasight.com': 'fcd71196-e93e-f000-5a74-31a9eead3118'
       }
       
       if (email && portfolioMap[email]) {

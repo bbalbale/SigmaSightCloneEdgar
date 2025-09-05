@@ -5,7 +5,8 @@ Creates the 3 demo portfolios from Ben Mock Portfolios.md with complete position
 import asyncio
 from datetime import date, datetime
 from decimal import Decimal
-from uuid import uuid4
+from uuid import uuid4, UUID
+import hashlib
 from typing import List, Dict, Any
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -16,6 +17,26 @@ from app.models.users import User, Portfolio
 from app.models.positions import Position, PositionType, Tag, TagType
 
 logger = get_logger(__name__)
+
+def generate_deterministic_uuid(seed_string: str) -> UUID:
+    """Generate consistent UUID from seed string - DEVELOPMENT ONLY
+    
+    Creates the same UUID on every machine for the same input string.
+    This ensures all developers get identical portfolio IDs for demo data.
+    
+    Args:
+        seed_string: String to use as seed for UUID generation
+        
+    Returns:
+        UUID object that will be identical across all machines
+        
+    Note:
+        This is for development consistency only. Production should use uuid4() 
+        for proper randomization and security.
+    """
+    # Create MD5 hash of seed string and format as UUID
+    hash_hex = hashlib.md5(seed_string.encode()).hexdigest()
+    return UUID(hash_hex)
 
 # Demo users as specified in DATABASE_DESIGN_ADDENDUM_V1.4.1.md
 DEMO_USERS = [
@@ -168,10 +189,10 @@ async def create_demo_users(db: AsyncSession) -> None:
             logger.info(f"Demo user already exists: {user_data['email']}")
             continue
         
-        # Create new demo user
+        # Create new demo user with deterministic ID for development consistency
         hashed_password = get_password_hash(user_data["password"])
         user = User(
-            id=uuid4(),
+            id=generate_deterministic_uuid(f"{user_data['email']}_user"),
             email=user_data["email"],
             full_name=user_data["full_name"],
             hashed_password=hashed_password,
@@ -203,7 +224,7 @@ async def get_or_create_tag(db: AsyncSession, user_id: str, tag_name: str) -> Ta
     
     if not tag:
         tag = Tag(
-            id=uuid4(),
+            id=generate_deterministic_uuid(f"{user_id}_{tag_name}_tag"),
             user_id=user_id,
             name=tag_name,
             tag_type=TagType.STRATEGY if tag_name in ["Long Momentum", "Short Value Traps", "Options Overlay"] else TagType.REGULAR
@@ -239,9 +260,9 @@ async def _add_positions_to_portfolio(db: AsyncSession, portfolio: Portfolio, po
         # Determine position type
         position_type = determine_position_type(symbol, pos_data["quantity"])
         
-        # Create position
+        # Create position with deterministic ID for development consistency
         position = Position(
-            id=uuid4(),
+            id=generate_deterministic_uuid(f"{portfolio.id}_{symbol}_{pos_data['entry_date']}"),
             portfolio_id=portfolio.id,
             symbol=symbol,
             position_type=position_type,
@@ -259,15 +280,19 @@ async def _add_positions_to_portfolio(db: AsyncSession, portfolio: Portfolio, po
         db.add(position)
         await db.flush()  # Get position ID
         
-        # Create and associate tags (async-safe approach)
+        # Create and associate tags (manual relationship via association table)
         if pos_data.get("tags"):
             await db.flush()  # Ensure position is saved first
             for tag_name in pos_data.get("tags", []):
                 tag = await get_or_create_tag(db, user.id, tag_name)
                 await db.flush()  # Ensure tag is saved
                 
-                # Use async-safe relationship assignment
-                position.tags.append(tag)
+                # Manually insert into association table to avoid async issues
+                from sqlalchemy import text
+                await db.execute(
+                    text("INSERT INTO position_tags (position_id, tag_id) VALUES (:pos_id, :tag_id) ON CONFLICT DO NOTHING"),
+                    {"pos_id": position.id, "tag_id": tag.id}
+                )
             
             await db.flush()  # Commit the tag relationships
         
@@ -317,9 +342,9 @@ async def create_demo_portfolio(db: AsyncSession, portfolio_data: Dict[str, Any]
             
         return existing_portfolio
     
-    # Create portfolio
+    # Create portfolio with deterministic ID for development consistency
     portfolio = Portfolio(
-        id=uuid4(),
+        id=generate_deterministic_uuid(f"{user.email}_portfolio"),
         user_id=user.id,
         name=portfolio_data["portfolio_name"],
         description=portfolio_data["description"]
