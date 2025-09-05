@@ -1344,6 +1344,82 @@ if (conversationId) {
 - Issue documented in `CHAT_USE_CASES_TEST_REPORT_20250905_153000.md` (Critical Finding line 157)
 - Root cause: Conversation ID `c1ef6fc0-8dc2-429b-803c-da7d525737c4` from previous session
 
+### 6.50 **Fix Invalid Conversation UUID Format** (Priority: CRITICAL)
+**Problem Identified**: Frontend generates invalid conversation IDs that don't match backend UUID requirements, causing 422 Unprocessable Entity errors.
+
+**Discovery Credit**: Partner's debugging identified UUID format mismatch as root cause of conversation creation failures.
+
+**Error Pattern**:
+```
+Frontend generated: conv_1756914328783_fd5o8vldb (custom format)
+Backend requires:   90dc71ae-606c-4ef1-b5a1-c070b26fdc03 (valid UUID v4)
+Result: 422 Unprocessable Entity - Invalid conversation_id format
+```
+
+**Root Cause**:
+Chat store was creating conversation IDs with custom format instead of valid UUIDs that backend expects.
+
+**Implementation Required**:
+- [ ] **6.50.1** Fix conversation ID generation in chat store
+  - [ ] Replace custom format with `crypto.randomUUID()`
+  - [ ] Location: `frontend/src/stores/chatStore.ts` line 91
+  
+- [ ] **6.50.2** Add UUID format validation on mount
+  - [ ] Detect and reset invalid conversation IDs
+  - [ ] Location: `frontend/src/components/chat/ChatInterface.tsx`
+  
+- [ ] **6.50.3** Clean up any persisted invalid IDs
+  - [ ] Clear localStorage/sessionStorage of old format IDs
+  - [ ] Force regeneration with valid UUID
+
+**Code Implementation**:
+
+**Fix 1: Update Chat Store ID Generation**
+```typescript
+// In frontend/src/stores/chatStore.ts line 91
+// BEFORE (generates invalid format):
+const conversationId = backendId || `conv_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+
+// AFTER (generates valid UUID):
+const conversationId = backendId || crypto.randomUUID()
+```
+
+**Fix 2: Add Validation and Auto-Reset**
+```typescript
+// In frontend/src/components/chat/ChatInterface.tsx
+useEffect(() => {
+  console.log('[ChatInterface] Component mounted, checking conversation ID format...')
+  if (currentConversationId && !currentConversationId.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)) {
+    console.log('[ChatInterface] Invalid conversation ID format detected:', currentConversationId)
+    console.log('[ChatInterface] Resetting conversation...')
+    // Reset the conversation if it has invalid format
+    const { reset } = useChatStore.getState()
+    reset()
+  }
+}, [])
+```
+
+**Testing Validation**:
+1. Hard refresh browser (Ctrl+Shift+R / Cmd+Shift+R)
+2. Open Developer Console
+3. Navigate to portfolio page
+4. Open chat dialog
+5. Verify logs show proper UUID format
+
+**Relationship to Other Issues**:
+- **Different from 6.49**: This fixes UUID format (422 errors), while 6.49 fixes ID synchronization (403 errors)
+- **Both needed**: Format fix ensures valid IDs, sync fix ensures correct ID is used
+- **Complementary**: Together they create a robust conversation management system
+
+**Expected Outcome**: 
+- No more 422 errors when creating conversations
+- All conversation IDs will be valid UUID v4 format
+- Backend will accept and process all conversation requests
+
+**References**: 
+- Partner's debugging session identified UUID format mismatch
+- Backend requires UUID v4 format per OpenAI Responses API specification
+
 ## 7. **Portfolio ID Improvements (Level 1 - Complete Scope)**
 **Timeline: 1-2 days | Reference: _docs/requirements/PORTFOLIO_ID_DESIGN_DOC.md Section 8.1**
 
