@@ -373,8 +373,15 @@ For each use case test, follow this detailed reporting structure:
 [FULL LLM RESPONSE TEXT HERE]
 ```
 
+### System Response (if different from LLM):
+```
+[FULL SYSTEM RESPONSE TEXT IF APPLICABLE]
+```
+
 ### Notes:
 [Any relevant observations about response quality, tool usage, etc.]
+
+**⚠️ CRITICAL DEBUGGING NOTE**: Always capture the COMPLETE LLM response text and System Response text, including ALL error messages, stack traces, and diagnostic information. Partial or truncated responses make root cause analysis impossible. If an error occurs, document the ENTIRE error message verbatim.
 ```
 
 ### For FAILED Use Cases:
@@ -389,6 +396,18 @@ For each use case test, follow this detailed reporting structure:
 
 ### Actual Behavior:
 [What actually happened - empty response, error message, wrong response, etc.]
+
+### LLM Response:
+```
+[FULL LLM RESPONSE TEXT - DO NOT TRUNCATE]
+```
+
+### System Response (if error occurred):
+```
+[FULL SYSTEM ERROR/RESPONSE TEXT - INCLUDE ALL ERROR DETAILS]
+```
+
+**⚠️ CRITICAL**: Document the COMPLETE response text, including ALL error messages, stack traces, and diagnostic information. Never truncate or summarize error messages.
 
 ### Frontend Layer Diagnostics:
 - **UI State**: [Input enabled/disabled, loading states, error displays]
