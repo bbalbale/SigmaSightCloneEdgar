@@ -16,7 +16,37 @@ SigmaSight Backend - A FastAPI-based portfolio risk analytics platform with 8 ca
 
 ## Common Development Commands
 
-### Server & Development
+### Quick Start - Full Stack
+```bash
+# Start frontend (Docker)
+cd frontend && docker build -t sigmasight-frontend . && docker run -d -p 3005:3005 --name frontend sigmasight-frontend
+
+# Start backend
+cd backend && uv run python run.py
+
+# Frontend is now at http://localhost:3005
+# Backend API at http://localhost:8000
+```
+
+### Frontend (Docker Preferred)
+```bash
+# Build and run frontend
+cd frontend
+docker build -t sigmasight-frontend .
+docker run -d -p 3005:3005 --name frontend sigmasight-frontend
+
+# Quick restart (if image exists)
+docker stop frontend && docker rm frontend
+docker run -d -p 3005:3005 --name frontend sigmasight-frontend
+
+# Check health
+curl http://localhost:3005/api/health
+
+# Traditional npm (fallback)
+cd frontend && npm run dev
+```
+
+### Backend & Database
 ```bash
 # Start development server
 cd backend

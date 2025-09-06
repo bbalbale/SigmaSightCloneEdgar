@@ -335,7 +335,7 @@ export const portfolioApiUtils = {
    * Extract symbols from positions for market data requests
    */
   extractSymbols(positions: Position[]): string[] {
-    return [...new Set(positions.map(p => p.symbol))];
+    return Array.from(new Set(positions.map(p => p.symbol)));
   },
 };
 

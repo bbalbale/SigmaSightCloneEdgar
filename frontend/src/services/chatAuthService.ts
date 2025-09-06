@@ -70,7 +70,9 @@ class ChatAuthService {
           console.log('[Auth] Different user detected, clearing all user-specific data');
           // Clear all chat-related persisted data for the previous user
           const keepItems = ['cache_version']; // Items to preserve across users
-          const saved = keepItems.map(k => [k, localStorage.getItem(k)]).filter(([_, v]) => v !== null);
+          const saved: [string, string][] = keepItems
+            .map(k => [k, localStorage.getItem(k)] as [string, string | null])
+            .filter((item): item is [string, string] => item[1] !== null);
           
           // Clear localStorage except critical system items
           const keysToRemove = [];
@@ -89,7 +91,7 @@ class ChatAuthService {
           localStorage.removeItem('chat-storage');
           
           // Restore preserved items
-          saved.forEach(([k, v]) => v && localStorage.setItem(k, v));
+          saved.forEach(([k, v]) => localStorage.setItem(k, v));
         }
         
         sessionStorage.setItem('auth_user', JSON.stringify(data.user));

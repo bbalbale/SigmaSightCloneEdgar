@@ -42,7 +42,13 @@
       "mcp__playwright__browser_console_messages",
       "mcp__playwright__browser_handle_dialog",
       "mcp__playwright__browser_wait_for",
-      "Bash(git checkout:*)"
+      "Bash(git checkout:*)",
+      "Bash(tree:*)",
+      "Bash(docker build:*)",
+      "Bash(docker run:*)",
+      "Bash(docker images:*)",
+      "Bash(docker stop:*)",
+      "Bash(docker rm:*)"
     ],
     "additionalDirectories": [
       "C:\\c\\Users\\BenBalbale\\CascadeProjects\\SigmaSight-BE"

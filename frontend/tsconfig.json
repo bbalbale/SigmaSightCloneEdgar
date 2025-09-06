@@ -27,6 +27,7 @@
       "@/utils/*": ["./src/utils/*"]
     },
     "target": "es5",
+    "downlevelIteration": true,
     "forceConsistentCasingInFileNames": true
   },
   "include": [

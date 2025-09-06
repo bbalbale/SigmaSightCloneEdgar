@@ -88,7 +88,7 @@ const formatPrice = (price: number) => {
 function PortfolioPageContent() {
   const { theme } = useTheme()
   const searchParams = useSearchParams()
-  const portfolioType = searchParams.get('type') as PortfolioType | null
+  const portfolioType = searchParams?.get('type') as PortfolioType | null
   
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)

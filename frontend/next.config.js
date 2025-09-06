@@ -1,5 +1,8 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // Docker optimization - creates standalone output
+  output: 'standalone',
+  
   experimental: {
     serverComponentsExternalPackages: []
   },
@@ -10,6 +13,11 @@ const nextConfig = {
   env: {
     CUSTOM_KEY: 'sigmasight-frontend',
   },
+  
+  // Performance optimizations for Docker
+  compress: true,
+  poweredByHeader: false,
+  
   async headers() {
     return [
       {
@@ -27,13 +35,22 @@ const nextConfig = {
       },
     ]
   },
-  webpack: (config, { isServer }) => {
+  webpack: (config, { dev, isServer }) => {
     if (!isServer) {
       config.resolve.fallback = {
         ...config.resolve.fallback,
         fs: false,
       }
     }
+    
+    // Add polling for Windows Docker development
+    if (dev && !isServer && process.env.DOCKER_ENV === 'development') {
+      config.watchOptions = {
+        poll: 1000,
+        aggregateTimeout: 300,
+      }
+    }
+    
     return config
   },
 }
