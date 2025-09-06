@@ -562,6 +562,11 @@ class MarketDataService:
         """
         Update market data cache with latest price and GICS data
         
+        ENHANCED BEHAVIOR (6.1 Implementation):
+        - Preserves existing historical data (no overwriting)
+        - Only inserts new records that don't exist
+        - Accumulates history over time
+        
         Args:
             db: Database session
             symbols: List of symbols to update
@@ -584,6 +589,8 @@ class MarketDataService:
         
         total_records = 0
         updated_symbols = 0
+        inserted_records = 0
+        skipped_records = 0
         
         for symbol, prices in price_data.items():
             if not prices:
@@ -592,43 +599,41 @@ class MarketDataService:
             # Get GICS data for this symbol
             symbol_gics = gics_data.get(symbol, {})
             
-            # Prepare records for upsert
-            records_to_upsert = []
+            # Prepare records for INSERT (not UPSERT)
+            records_to_insert = []
             for price_record in prices:
                 record = {
                     **price_record,
                     'sector': symbol_gics.get('sector'),
                     'industry': symbol_gics.get('industry')
                 }
-                records_to_upsert.append(record)
+                records_to_insert.append(record)
             
-            if records_to_upsert:
-                # Use PostgreSQL UPSERT (ON CONFLICT DO UPDATE)
-                stmt = pg_insert(MarketDataCache).values(records_to_upsert)
-                stmt = stmt.on_conflict_do_update(
-                    constraint='uq_market_data_cache_symbol_date',
-                    set_={
-                        'open': stmt.excluded.open,
-                        'high': stmt.excluded.high,
-                        'low': stmt.excluded.low,
-                        'close': stmt.excluded.close,
-                        'volume': stmt.excluded.volume,
-                        'sector': stmt.excluded.sector,
-                        'industry': stmt.excluded.industry,
-                        'updated_at': datetime.utcnow()
-                    }
+            if records_to_insert:
+                # CRITICAL CHANGE: Use INSERT with ON CONFLICT DO NOTHING
+                # This preserves existing historical data instead of overwriting it
+                stmt = pg_insert(MarketDataCache).values(records_to_insert)
+                stmt = stmt.on_conflict_do_nothing(  # <-- KEY CHANGE from on_conflict_do_update
+                    constraint='uq_market_data_cache_symbol_date'
                 )
                 
-                await db.execute(stmt)
-                total_records += len(records_to_upsert)
-                updated_symbols += 1
+                result = await db.execute(stmt)
+                inserted = result.rowcount  # Number of rows actually inserted
+                inserted_records += inserted
+                skipped_records += len(records_to_insert) - inserted
+                
+                total_records += len(records_to_insert)
+                if inserted > 0:
+                    updated_symbols += 1
         
         await db.commit()
         
         stats = {
             'symbols_processed': len(symbols),
             'symbols_updated': updated_symbols,
-            'total_records': total_records
+            'total_records_attempted': total_records,
+            'records_inserted': inserted_records,
+            'records_skipped': skipped_records  # Already existed, preserved
         }
         
         logger.info(f"Market data cache update complete: {stats}")
@@ -674,6 +679,113 @@ class MarketDataService:
                 prices[symbol] = None
         
         return prices
+    
+    async def _get_cached_dates(self, db: AsyncSession, symbol: str) -> set:
+        """
+        Get all dates we have data for this symbol in the cache
+        
+        Args:
+            db: Database session
+            symbol: Symbol to check
+            
+        Returns:
+            Set of dates with cached data
+        """
+        from sqlalchemy import select
+        stmt = select(MarketDataCache.date).where(
+            MarketDataCache.symbol == symbol.upper()
+        ).distinct()
+        result = await db.execute(stmt)
+        return set(row[0] for row in result.fetchall())
+    
+    async def _count_cached_days(self, db: AsyncSession, symbol: str) -> int:
+        """
+        Count the number of days of cached data for a symbol
+        
+        Args:
+            db: Database session
+            symbol: Symbol to check
+            
+        Returns:
+            Number of days with cached data
+        """
+        from sqlalchemy import func
+        stmt = select(func.count(MarketDataCache.date)).where(
+            MarketDataCache.symbol == symbol.upper()
+        )
+        result = await db.execute(stmt)
+        return result.scalar() or 0
+    
+    def _find_missing_trading_days(
+        self, 
+        existing_dates: set, 
+        start_date: date, 
+        end_date: date
+    ) -> List[date]:
+        """
+        Find trading days we don't have data for
+        
+        Args:
+            existing_dates: Set of dates we already have
+            start_date: Start of range to check
+            end_date: End of range to check
+            
+        Returns:
+            List of missing trading days
+        """
+        missing_days = []
+        current = start_date
+        
+        while current <= end_date:
+            # Skip weekends (Saturday=5, Sunday=6)
+            if current.weekday() < 5:  # Monday=0, Friday=4
+                if current not in existing_dates:
+                    missing_days.append(current)
+            current = current + timedelta(days=1)
+        
+        return missing_days
+    
+    async def ensure_data_coverage(
+        self,
+        db: AsyncSession,
+        symbol: str,
+        min_days: int = 90
+    ) -> bool:
+        """
+        Ensures minimum data coverage for a specific symbol (on-demand)
+        Used by API endpoints when user requests data NOW
+        
+        Args:
+            db: Database session
+            symbol: Single symbol to check/fetch
+            min_days: Minimum days of history required
+            
+        Returns:
+            True if minimum coverage is met (after fetching if needed)
+        """
+        # Check current coverage
+        existing_count = await self._count_cached_days(db, symbol)
+        
+        if existing_count >= min_days:
+            logger.info(f"Symbol {symbol} already has {existing_count} days (>= {min_days})")
+            return True
+        
+        # Need more data - fetch it now
+        logger.info(f"Symbol {symbol} has {existing_count} days, fetching to reach {min_days}")
+        
+        # Fetch the data
+        await self.bulk_fetch_and_cache(db, [symbol], days_back=min_days)
+        
+        # Verify we now have enough
+        new_count = await self._count_cached_days(db, symbol)
+        success = new_count >= min_days
+        
+        if success:
+            logger.info(f"Symbol {symbol} now has {new_count} days of data")
+        else:
+            logger.warning(f"Symbol {symbol} only has {new_count} days after fetch (wanted {min_days})")
+        
+        return success
     
     async def bulk_fetch_and_cache(
         self, 
