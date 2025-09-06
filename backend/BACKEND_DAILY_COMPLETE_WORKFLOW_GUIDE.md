@@ -135,10 +135,12 @@ uv run python scripts/check_database_content.py
 # Get portfolio IDs for today's work
 uv run python scripts/list_portfolios.py --verbose
 
-# Save these IDs - you'll need them for:
-# - Batch processing specific portfolios
-# - API testing
-# - Report generation
+# These should be the deterministic IDs (same on all machines):
+# demo_individual@sigmasight.com: 1d8ddd95-3b45-0ac5-35bf-cf81af94a5fe
+# demo_hnw@sigmasight.com: e23ab931-a033-edfe-ed4f-9d02474780b4
+# demo_hedgefundstyle@sigmasight.com: fcd71196-e93e-f000-5a74-31a9eead3118
+
+# If IDs don't match, see SETUP_DETERMINISTIC_IDS.md for fix
 ```
 
 ### 3. Check Market Data Cache
@@ -551,12 +553,15 @@ tail -f logs/app.log
 docker exec -it backend_postgres_1 psql -U sigmasight -d sigmasight
 ```
 
-### Portfolio IDs (Update with your actual IDs)
+### Portfolio IDs (Deterministic - Same on All Machines)
 ```
 Individual: 1d8ddd95-3b45-0ac5-35bf-cf81af94a5fe
 High Net Worth: e23ab931-a033-edfe-ed4f-9d02474780b4
 Hedge Fund: fcd71196-e93e-f000-5a74-31a9eead3118
 ```
+**Note**: These are deterministic UUIDs generated from email hashes.
+If your IDs differ, run: `uv run python scripts/reset_and_seed.py reset --confirm`
+See [SETUP_DETERMINISTIC_IDS.md](../SETUP_DETERMINISTIC_IDS.md) for details.
 
 ### API Authentication
 ```bash
