@@ -101,11 +101,30 @@ docker run -d -p 3005:3005 --name frontend sigmasight-frontend
 
 **The current Docker setup is NOT recommended for local development or end-to-end testing.**
 
-Why not use Docker for development?
+#### Why We're Deferring Development Docker (Railway Strategy)
+
+**Key Insight**: We're deploying to Railway.app, which fundamentally changes the Docker equation:
+
+1. **Railway Auto-Builds Containers** - Railway detects your framework and builds optimized containers automatically
+   - No need to learn Docker networking, volumes, or multi-stage builds
+   - Railway handles Python/Node.js detection and optimization
+   - Production containers are created from your code, not your Dockerfiles
+
+2. **Traditional Path** (without Railway):
+   - Dev Docker → Learn patterns → Write production Docker → Deploy
+   - Total time: 5-7 days of Docker work
+   
+3. **Our Railway Path**:
+   - Skip dev Docker → Continue npm/uv → Railway auto-containerizes → Deploy
+   - Total time: 1 day configuration
+
+#### Additional Reasons to Avoid Docker for Development
+
 - **No hot reload** - Every code change requires full rebuild (2-3 minutes)
 - **Production-only build** - Uses static Next.js standalone output
 - **No volume mounts** - Cannot edit code and see changes instantly
 - **Optimized for deployment** - Multi-stage build focused on size (210MB), not dev experience
+- **Productivity killer** - 10-20x slower iteration cycles vs npm run dev
 
 ### Option 1: Recommended for Development (npm + uv)
 
