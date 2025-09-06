@@ -1355,10 +1355,10 @@ The Raw Data APIs were specifically designed to enable immediate frontend/agent 
 ## Phase 6: Backend Issues Driven by Frontend & Agent Dev
 
 ### 6.1 Fix Historical Price Data Gaps in Batch Processing
-**Issue**: Chat requests for historical price data return insufficient data (only 1 day instead of 20-150 days needed)
+**Issue**: Chat requests for historical price data return insufficient data (only 1 day instead of 20-252 days needed)
 **Discovered**: 2025-09-06 during agent chat testing
 **Cross-Reference**: See `agent/TODO.md` Section 9.19 for investigation summary
-**Priority**: HIGH - Blocks chat functionality
+**Priority**: HIGH - Blocks chat functionality and portfolio analytics
 
 #### Root Cause
 **Primary Issue**: MarketDataCache table contained only 1 day of data per symbol
@@ -1376,76 +1376,195 @@ missing_symbols = symbols - cached_symbols  # Incorrectly excludes partial data
 
 #### Implementation Requirements
 
-##### Task 1: Fix Batch Processing Logic
+##### Task 1: Fix Gap Detection Logic in Batch Processing
 **File**: `app/batch/market_data_sync.py`
 **Function**: `fetch_missing_historical_data()`
 
 **Required Implementation**:
 ```python
-async def fetch_missing_historical_data(days_back: int = 90):
-    """Enhanced version with gap detection"""
+async def fetch_missing_historical_data(days_back: int = 252):  # Target 1 year
+    """
+    Enhanced version with proper gap detection and incremental backfill.
+    Preserves existing older data while filling gaps.
+    """
     # For each symbol:
-    # 1. Check existing date range
-    # 2. Identify gaps in historical data
-    # 3. Fetch only missing date ranges
-    # 4. Handle partial failures gracefully
+    # 1. Query MIN(date) and MAX(date) from MarketDataCache
+    # 2. Build date range needed: [today - days_back, today]
+    # 3. Find gaps between existing data points
+    # 4. Fetch ONLY missing date ranges from provider
+    # 5. Never delete/overwrite existing older data
+    # 6. Handle API limits (FMP ~5000 calls/day free tier)
 ```
 
-##### Task 2: Add Data Completeness Monitoring
-**New Function Needed**:
+##### Task 2: Implement Incremental Data Accumulation
+**New Function**:
 ```python
-async def check_data_completeness(symbol: str, required_days: int) -> dict:
+async def accumulate_historical_data(
+    db: AsyncSession,
+    symbol: str,
+    target_days: int = 252,  # 1 trading year
+    max_fetch_days: int = 180  # FMP typical limit
+) -> dict:
     """
+    Builds up historical data over time without overwriting.
+    
+    Strategy:
+    1. Check existing date range for symbol
+    2. If we have old data (e.g., from 6 months ago), preserve it
+    3. Fetch newer data to fill gap to present
+    4. On next run, if provider window shifts, fetch older data
+    5. Over time, accumulate full 252-day history
+    
     Returns:
-    - total_days_available
-    - gaps_detected
-    - oldest_date
-    - newest_date
-    - completeness_percentage
+    - existing_days: Days already in cache
+    - fetched_days: New days added
+    - total_days: Total after update
+    - oldest_date: Earliest data point
+    - newest_date: Latest data point
+    - gaps: List of date ranges still missing
     """
 ```
 
-##### Task 3: Implement Smart Backfill Strategy
-**Requirements**:
-1. **Gap Detection**: Identify missing date ranges per symbol
-2. **Incremental Fetching**: Only fetch missing dates, not entire history
-3. **Priority System**: 
-   - Priority 1: Portfolio positions (user's actual holdings)
-   - Priority 2: Factor ETFs (needed for analysis)
-   - Priority 3: Benchmark indices (SPY, QQQ)
-4. **Rate Limit Handling**: Respect API limits for FMP/Polygon
-5. **Error Recovery**: Continue with other symbols if one fails
+##### Task 3: Add Data Completeness Monitoring
+```python
+async def analyze_data_completeness(db: AsyncSession) -> dict:
+    """
+    Comprehensive analysis of MarketDataCache coverage.
+    
+    Returns per symbol:
+    - total_trading_days_available
+    - continuous_days_from_today
+    - gaps_detected: [(start_date, end_date), ...]
+    - completeness_pct: (actual_days / target_days) * 100
+    - last_update: When data was last refreshed
+    
+    Categories:
+    - Portfolio positions (all symbols in active portfolios)
+    - Factor ETFs (XLB, XLE, XLF, XLI, XLK, XLP, XLU, XLV, XLY, XLRE, XLC)
+    - Benchmarks (SPY, QQQ, IWM, DIA)
+    """
+```
 
-##### Task 4: Schedule Regular Maintenance
+##### Task 4: Integrate All Batch Processing Components
+**Components to Include** (from `batch_orchestrator_v2.py`):
+1. **Market Data Sync** (`sync_market_data`)
+   - Daily quotes for active symbols
+   - Historical backfill with gap detection
+   - Factor ETF validation
+2. **Portfolio Aggregation** (`_calculate_portfolio_aggregation`)
+   - Position-level calculations
+   - Portfolio totals and exposures
+3. **Greeks Calculation** (`_calculate_greeks`)
+   - Options sensitivities (Delta, Gamma, Theta, Vega)
+4. **Factor Analysis** (`_calculate_factors`)
+   - 7-factor model exposures
+   - Requires 90+ days for correlations
+5. **Market Risk Scenarios** (`_calculate_market_risk`)
+   - VaR calculations
+   - Requires 150+ days for volatility
+6. **Stress Testing** (`_run_stress_tests`)
+   - 15 extreme scenarios
+7. **Portfolio Snapshot** (`_create_snapshot`)
+   - Daily state capture
+8. **Correlations** (optional)
+   - Position-level correlations
+
+**Note**: Report generation (`generate_all_reports.py`) is EXCLUDED per user request
+
+##### Task 5: Implement Smart Scheduling Strategy
 **Add to `batch_orchestrator_v2.py`**:
 ```python
-# Daily: Sync last 5 trading days
-# Weekly: Check and fill gaps up to 30 days
-# Monthly: Ensure 90-day history for all active symbols
-# On-demand: Full backfill for new positions
+class DataMaintenanceSchedule:
+    """
+    Progressive data accumulation strategy
+    """
+    
+    async def daily_maintenance(self):
+        """Run every market day at 6 PM ET"""
+        # 1. Fetch today's closing prices
+        # 2. Fill any gaps in last 5 trading days
+        # 3. Update portfolio calculations
+    
+    async def weekly_maintenance(self):
+        """Run Sunday nights"""
+        # 1. Ensure 30-day history for all active symbols
+        # 2. Backfill gaps up to 90 days for factor analysis
+        # 3. Run data completeness report
+    
+    async def monthly_maintenance(self):
+        """Run on 1st of month"""
+        # 1. Attempt to extend history to 252 days
+        # 2. Fetch oldest available data within provider limits
+        # 3. Clean up orphaned data (positions no longer active)
+```
+
+##### Task 6: Handle Provider Limitations Gracefully
+```python
+# FMP Free Tier: ~250 API calls/day
+# FMP Developer: ~750 API calls/day  
+# Strategy: Prioritize by importance and spread over time
+
+PROVIDER_LIMITS = {
+    'FMP': {
+        'free': {'daily_calls': 250, 'history_days': 180},
+        'developer': {'daily_calls': 750, 'history_days': 180},
+        'professional': {'daily_calls': 3000, 'history_days': 365}
+    },
+    'Polygon': {
+        'free': {'daily_calls': 5, 'history_days': 2},  # Very limited
+        'developer': {'daily_calls': 'unlimited', 'history_days': 730}
+    }
+}
 ```
 
 #### Implementation Checklist
-- [ ] Fix `fetch_missing_historical_data()` logic with gap detection
-- [ ] Create `ensure_historical_data()` function for smart backfill
-- [ ] Add scheduling to `batch_orchestrator_v2.py`
-- [ ] Implement monitoring and alerting for data completeness
-- [ ] Add historical backfill to seed script
-- [ ] Implement retry logic and error handling
+- [ ] Fix `fetch_missing_historical_data()` to detect and fill gaps properly
+- [ ] Create `accumulate_historical_data()` for incremental building
+- [ ] Implement `analyze_data_completeness()` monitoring
+- [ ] Update `batch_orchestrator_v2` to include all engines except reports
+- [ ] Add progressive scheduling (daily/weekly/monthly)
+- [ ] Implement rate limit management for providers
+- [ ] Add data preservation logic (never overwrite old data)
+- [ ] Create manual trigger for immediate backfill
+- [ ] Add logging for data coverage improvements over time
 
-#### Data Requirements
-- Chat tools: 20-30 days minimum
-- Factor analysis: 90 days for correlations
-- Risk calculations: 150 days for volatility
-- Portfolio analytics: 252 days (1 year) ideal
+#### Data Requirements by Use Case
+- **Chat/Agent queries**: 20-30 days minimum
+- **Factor analysis**: 90 days (correlation calculations)
+- **Risk metrics**: 150 days (volatility, VaR)
+- **Full analytics**: 252 days (1 trading year ideal)
+- **Long-term goal**: 500+ days (2 years for advanced analytics)
 
 #### Key Files
-- `app/batch/market_data_sync.py` - Main implementation
-- `app/services/market_data_service.py` - Data fetching
-- `app/models/market_data.py` - Database model
-- `app/batch/batch_orchestrator_v2.py` - Scheduling
-- `app/clients/fmp_client.py` - FMP provider
-- `app/clients/polygon_client.py` - Polygon provider
+- `app/batch/market_data_sync.py` - Main gap detection/filling logic
+- `app/batch/batch_orchestrator_v2.py` - All calculation engines
+- `app/services/market_data_service.py` - Provider interface
+- `app/models/market_data.py` - MarketDataCache model
+- `app/clients/fmp_client.py` - FMP API (primary provider)
+- `app/clients/polygon_client.py` - Polygon API (backup)
+- `scripts/run_batch_calculations.py` - Manual batch trigger
+
+#### Testing Strategy
+```bash
+# 1. Test gap detection
+uv run python -c "from app.batch.market_data_sync import analyze_gaps; ..."
+
+# 2. Test incremental fetch (won't overwrite old data)
+uv run python scripts/test_incremental_backfill.py
+
+# 3. Run full batch with all engines
+uv run python scripts/run_batch_calculations.py --all-engines
+
+# 4. Verify data completeness
+uv run python scripts/check_data_coverage.py
+```
+
+#### Expected Outcomes
+1. **Week 1**: 30-day history for all active symbols
+2. **Week 2**: 90-day history for factor analysis
+3. **Month 1**: 180-day history (FMP limit)
+4. **Month 2+**: Gradual accumulation toward 252 days
+5. **Long-term**: Historical data grows beyond provider window
 
 #### Success Metrics
 - All portfolio positions have minimum 30 days history
