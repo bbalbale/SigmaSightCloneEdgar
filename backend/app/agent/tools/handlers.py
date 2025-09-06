@@ -464,6 +464,90 @@ class PortfolioTools:
                 "error": str(e),
                 "retryable": isinstance(e, (httpx.TimeoutException, httpx.HTTPStatusError))
             }
+    
+    async def get_prices_historical(
+        self,
+        portfolio_id: str,
+        lookback_days: int = 60,
+        max_symbols: int = 5,
+        include_factor_etfs: bool = False,
+        **kwargs
+    ) -> Dict[str, Any]:
+        """
+        Get historical price data for portfolio positions.
+        
+        Business logic:
+        - Validates portfolio_id format
+        - Applies lookback_days cap (max 180)
+        - Applies max_symbols cap (max 5)
+        - Returns OHLCV data with metadata
+        
+        Args:
+            portfolio_id: Portfolio UUID
+            lookback_days: Days of history to retrieve (max 180)
+            max_symbols: Maximum number of symbols to return (max 5)
+            include_factor_etfs: Include factor ETF prices
+            
+        Returns:
+            Historical price data with metadata
+        """
+        try:
+            # Validate portfolio_id
+            if not portfolio_id:
+                return {
+                    "error": "portfolio_id is required",
+                    "error_type": "validation",
+                    "retryable": False
+                }
+            
+            # Apply caps
+            lookback_days = min(lookback_days, 180)
+            max_symbols = min(max_symbols, 5)
+            
+            # Build parameters
+            params = {
+                "lookback_days": lookback_days,
+                "max_symbols": max_symbols,
+                "include_factor_etfs": include_factor_etfs
+            }
+            
+            # Call API endpoint
+            endpoint = f"/api/v1/data/prices/historical/{portfolio_id}"
+            response = await self._make_request(
+                method="GET",
+                endpoint=endpoint,
+                params=params
+            )
+            
+            # Add meta information
+            if isinstance(response, dict):
+                if "metadata" not in response:
+                    response["metadata"] = {}
+                response["metadata"]["parameters_used"] = {
+                    "portfolio_id": portfolio_id,
+                    "lookback_days": lookback_days,
+                    "max_symbols": max_symbols,
+                    "include_factor_etfs": include_factor_etfs
+                }
+                
+                # Count data points
+                if "symbols" in response:
+                    total_points = sum(
+                        symbol_data.get("data_points", 0) 
+                        for symbol_data in response["symbols"].values()
+                    )
+                    response["metadata"]["total_data_points"] = total_points
+                    response["metadata"]["symbols_returned"] = len(response["symbols"])
+            
+            return response
+            
+        except Exception as e:
+            logger.error(f"Error in get_prices_historical: {e}")
+            return {
+                "error": str(e),
+                "error_type": "api",
+                "retryable": isinstance(e, (httpx.TimeoutException, httpx.HTTPStatusError))
+            }
 
 
 # Import asyncio for retry logic

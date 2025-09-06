@@ -710,6 +710,48 @@ return standardize_datetime_dict(response)
 
 ---
 
+## Phase 3.1: API Issues and Bug Fixing
+
+### 3.1.1 Fix max_symbols Parameter in Historical Prices API ⚠️ **IDENTIFIED**
+*The /api/v1/data/prices/historical endpoint ignores max_symbols parameter*
+
+**Issue**: API returns all portfolio symbols regardless of max_symbols parameter value
+**Impact**: Excessive data transfer, potential performance issues with large portfolios
+**Example**: `max_symbols=3` returns 17 symbols instead of 3
+
+**Implementation Tasks**:
+- [ ] Locate the historical prices endpoint handler
+- [ ] Add logic to slice symbols list based on max_symbols parameter
+- [ ] Ensure the most relevant symbols are selected (by market value or alphabetical)
+- [ ] Update metadata to indicate if truncation occurred
+
+**Files to Modify**:
+- `app/api/v1/data.py` - Historical prices endpoint
+- Related service layer if applicable
+
+**Test Case**:
+```bash
+curl "http://localhost:8000/api/v1/data/prices/historical/{id}?max_symbols=3"
+# Should return exactly 3 symbols, not all 17
+```
+
+### 3.1.2 Fix date_format Parameter Handling 🔴 **CRITICAL**
+*The date_format parameter causes 500 errors with datetime.date objects*
+
+**Issue**: `AttributeError: 'datetime.date' object has no attribute 'timestamp'`
+**Impact**: Tool handler had to remove date_format parameter entirely
+**Root Cause**: Backend trying to call .timestamp() on date objects instead of datetime
+
+**Implementation Tasks**:
+- [ ] Fix date serialization in historical prices endpoint
+- [ ] Support both 'ISO' and 'unix' date formats properly
+- [ ] Handle date vs datetime objects correctly
+- [ ] Add proper error handling for invalid date_format values
+
+**Current Workaround**: Tool handler omits date_format parameter entirely
+
+---
+
 ## Phase 4: Additional Features
 
 ### 4.0.1 Dual Authentication Strategy (JWT Bearer + HTTP-only Cookies) ✅ **COMPLETED**

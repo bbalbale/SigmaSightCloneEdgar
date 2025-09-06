@@ -148,12 +148,7 @@ class OpenAIService:
                         "include_factor_etfs": {
                             "type": "boolean",
                             "description": "Include factor ETF prices",
-                            "default": True
-                        },
-                        "date_format": {
-                            "type": "string",
-                            "description": "Date format: iso or unix",
-                            "default": "iso"
+                            "default": False
                         }
                     },
                     "required": ["portfolio_id"]
