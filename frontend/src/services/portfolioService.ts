@@ -103,8 +103,8 @@ export async function loadPortfolioData(
       }
     }
     
-    // Fetch portfolio data with retry logic
-    const response = await requestManager.authenticatedFetch(
+    // Fetch portfolio data with retry logic - use authenticatedFetchJson to avoid double-read
+    const data: PortfolioData = await requestManager.authenticatedFetchJson(
       `/api/proxy/api/v1/data/portfolio/${portfolioId}/complete`,
       token,
       {
@@ -114,12 +114,6 @@ export async function loadPortfolioData(
         dedupe: true
       }
     )
-
-    if (!response.ok) {
-      throw new Error(`Failed to load portfolio: ${response.status}`)
-    }
-
-    const data: PortfolioData = await response.json()
     
     // Phase 3: Try to use API positions if enabled
     let positionsData = transformPositions(data.holdings)
