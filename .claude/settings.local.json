@@ -52,7 +52,10 @@
       "Bash(docker ps:*)",
       "Bash(docker logs:*)",
       "Bash(docker exec:*)",
-      "Bash(copy:*)"
+      "Bash(copy:*)",
+      "mcp__playwright__browser_network_requests",
+      "mcp__playwright__browser_type",
+      "Bash(cmd /c:*)"
     ],
     "additionalDirectories": [
       "C:\\c\\Users\\BenBalbale\\CascadeProjects\\SigmaSight-BE"
