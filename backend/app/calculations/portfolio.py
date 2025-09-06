@@ -18,7 +18,7 @@ import pandas as pd
 from functools import lru_cache, wraps
 from datetime import datetime, timedelta
 import logging
-from app.core.datetime_utils import utc_now
+from app.core.datetime_utils import utc_now, to_utc_iso8601
 
 from app.constants.portfolio import (
     OPTIONS_POSITION_TYPES,
