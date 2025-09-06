@@ -1623,6 +1623,52 @@ curl -X GET "http://localhost:8000/api/v1/analytics/portfolio/{id}/overview" \
 
 **Status**: ✅ Router registration FIXED
 
+### 6.3 Fix Portfolio Analytics Service Implementation Bug
+**Issue**: Portfolio Analytics Service has undefined variable error
+**Discovered**: 2025-09-06 during endpoint testing after fixing registration
+**Priority**: P0 - Blocks portfolio overview functionality
+
+#### Problem Details
+**Endpoint**: `/api/v1/analytics/portfolio/{id}/overview`  
+**Error**: `name 'cost_basis' is not defined`
+**Location**: `app/services/portfolio_analytics_service.py`
+**Impact**: Endpoint returns 500 Internal Server Error
+
+#### Error Context
+```
+2025-09-06 13:04:22 - sigmasight.app.services.portfolio_analytics_service - ERROR - 
+Error calculating portfolio overview for e23ab931-a033-edfe-ed4f-9d02474780b4: 
+name 'cost_basis' is not defined
+```
+
+#### Investigation Required
+1. Check `portfolio_analytics_service.py` for undefined `cost_basis` variable
+2. Determine if it should be a local variable, class attribute, or imported
+3. Review calculation logic for cost basis calculations
+4. Check if related variables are also undefined
+
+#### Implementation Tasks
+- [ ] Locate the undefined `cost_basis` reference
+- [ ] Implement proper cost basis calculation or retrieval
+- [ ] Check for other undefined variables in the service
+- [ ] Add proper error handling and defaults
+- [ ] Test with demo portfolio data
+
+#### Expected Behavior
+The service should calculate and return:
+- Portfolio total value
+- Cost basis for P&L calculations
+- Exposure metrics (long/short/gross/net)
+- Position counts by type
+- Realized and unrealized P&L
+
+#### Key Files
+- `app/services/portfolio_analytics_service.py` - Main service implementation
+- `app/schemas/analytics.py` - Response model definition
+- `app/models/positions.py` - Position model with cost basis field
+
+**Status**: Investigation needed
+
 ---
 
 ## Phase 7: Testing & Deployment (Future)
