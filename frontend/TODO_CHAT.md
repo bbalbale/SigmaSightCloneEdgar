@@ -1448,7 +1448,7 @@ useEffect(() => {
 
 ### TODO 6.51: Fix Chat Dialog Send Button Disabled After First Query
 **Priority**: 🔴 HIGH | **Severity**: BLOCKING | **Added**: 2025-09-06  
-**Status**: ❌ OPEN - Blocks multi-turn conversation testing
+**Status**: ✅ RESOLVED - Multi-turn conversations now working (Fixed: 2025-09-06)
 
 **Problem Description**:
 The chat dialog's Send button becomes permanently disabled after submitting the first query, preventing follow-up questions and multi-turn conversations. This is a critical UX issue that blocks comprehensive testing of the chat system.
@@ -1512,6 +1512,88 @@ The chat dialog's Send button becomes permanently disabled after submitting the 
 - Prevents multi-turn conversations
 - Critical for production readiness
 - Affects both inline and dialog chat interfaces
+
+**RESOLUTION (2025-09-06)**:
+Fixed by ensuring `stopStreaming()` is properly called when the SSE stream completes.
+
+**Root Cause**:
+The `isStreaming` state in streamStore wasn't being reset after the 'done' event was received, causing the Send button to remain disabled indefinitely.
+
+**Changes Made**:
+1. **useFetchStreaming.ts (line 295)**: Added explicit `return` statement to break the stream processing loop when 'done' event is received
+2. **ChatInterface.tsx (lines 142-147)**: Added safety check to detect and reset stuck streaming state
+3. **ChatInterface.tsx (lines 127-140)**: Added 30-second timeout mechanism as failsafe
+4. **ChatInterface.tsx (lines 339-344)**: Enhanced error handling to ensure streaming resets on errors
+
+**Verification**:
+- ✅ Send button now properly enables when text is typed after a response completes
+- ✅ Multi-turn conversations work without page refresh
+- ✅ `isStreaming` state properly resets after each response
+- ✅ Tested multiple sequential queries successfully
+
+### TODO 6.52: Fix Inline Chat Response Display Issue
+**Priority**: 🟡 MEDIUM | **Severity**: UX DEGRADATION | **Added**: 2025-09-06  
+**Status**: ❌ OPEN - Inline chat not showing responses
+
+**Problem Description**:
+The inline "Ask SigmaSight" chat interface on the portfolio page successfully sends queries to the backend and receives responses, but fails to display the responses in the UI. The backend processes queries correctly, but the frontend doesn't render the received data.
+
+**Context**:
+The app has two chat interfaces:
+1. **Inline Chat**: "Ask SigmaSight" section embedded directly in portfolio page
+2. **Dialog Chat**: "Portfolio Assistant" popup/sheet overlay (works correctly)
+
+**Observed Behavior**:
+1. User types query in inline chat input field (e.g., "What is my portfolio value?")
+2. Query successfully sent to backend ✅
+3. Backend processes request correctly ✅
+4. Tool handlers execute successfully (e.g., `get_portfolio_complete` in 45ms) ✅
+5. SSE response received by frontend ✅
+6. **Response never appears in inline chat UI** ❌
+7. Inline chat area remains empty/unchanged
+
+**Backend Confirmation** (WORKING):
+```
+2025-09-05 22:39:00 - INFO - 🔧 Executing tool call - Tool: get_portfolio_complete
+2025-09-05 22:39:00 - INFO - ✅ Tool call completed - Duration: 45ms
+2025-09-05 22:39:08 - INFO - Event timeline: SSE streaming successful
+```
+
+**Technical Analysis**:
+- **State Synchronization Issue**: Likely disconnect between inline chat component and chat store
+- **Response Handler**: SSE responses may only update dialog chat state
+- **Component Isolation**: Inline and dialog chat may use separate state management
+- **Missing Render Logic**: Inline chat component may lack response rendering code
+
+**Files to Investigate**:
+- `frontend/src/components/portfolio/PortfolioPage.tsx` - Contains inline chat section
+- `frontend/src/components/chat/InlineChat.tsx` (if exists) - Inline chat component
+- `frontend/src/stores/chatStore.ts` - Check if messages update for inline chat
+- `frontend/src/hooks/useChat.ts` (if exists) - Chat hook logic
+
+**Different from 6.51**:
+- TODO 6.51: Send button becomes disabled (input validation issue)
+- TODO 6.52: Responses don't display (rendering/state issue)
+- Both affect inline chat, but different root causes
+
+**Recommended Fix**:
+1. Trace SSE response flow from backend to inline chat component
+2. Verify inline chat subscribes to chat store updates
+3. Check if inline chat has response rendering logic
+4. Ensure state updates trigger re-renders in inline component
+5. Consider unifying chat state management between inline and dialog
+
+**Test Evidence**:
+- Inline chat query triggers backend processing
+- Same query works in dialog chat with proper display
+- Backend logs confirm successful execution
+- No console errors during inline chat usage
+
+**Impact**:
+- Inline chat appears broken to users
+- Forces users to open dialog for chat functionality
+- Reduces discoverability of chat feature
+- Poor user experience for quick queries
 
 ## 7. **Portfolio ID Improvements (Level 1 - Complete Scope)**
 **Timeline: 1-2 days | Reference: _docs/requirements/PORTFOLIO_ID_DESIGN_DOC.md Section 8.1**

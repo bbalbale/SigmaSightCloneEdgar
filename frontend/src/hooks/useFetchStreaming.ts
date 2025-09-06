@@ -290,6 +290,9 @@ export function useFetchStreaming() {
                     finalOut = backendFinal;
                   }
                   options.onDone?.(finalOut);
+                  // IMPORTANT: Break the while loop when done event is received
+                  console.log('[useFetchStreaming] Done event received, breaking stream loop');
+                  return; // Exit the inner for loop and outer while loop
                   break;
               }
             } catch (e) {

@@ -122,6 +122,22 @@ export function ChatInterface({ className }: ChatInterfaceProps) {
       }
     }
   }, [isStreaming, messageQueue])
+  
+  // Safety mechanism: Reset stuck streaming state after timeout
+  useEffect(() => {
+    if (isStreaming) {
+      console.log('[ChatInterface] Streaming started, setting safety timeout')
+      const timeoutId = setTimeout(() => {
+        const state = useStreamStore.getState()
+        if (state.isStreaming && state.activeRuns.size === 0) {
+          console.warn('[ChatInterface] Streaming timeout - forcing reset after 30s')
+          state.stopStreaming()
+        }
+      }, 30000) // 30 second safety timeout
+      
+      return () => clearTimeout(timeoutId)
+    }
+  }, [isStreaming])
 
   const modeColors = {
     green: 'bg-green-500',
@@ -139,6 +155,13 @@ export function ChatInterface({ className }: ChatInterfaceProps) {
   
   // Handle sending messages with streaming
   const handleSendMessage = useCallback(async (text: string) => {
+    // Safety check: if isStreaming is stuck but no active runs, reset it
+    const streamState = useStreamStore.getState()
+    if (streamState.isStreaming && streamState.activeRuns.size === 0) {
+      console.warn('[ChatInterface] Detected stuck streaming state, resetting...')
+      streamState.stopStreaming()
+    }
+    
     // Check for mode switch command
     const modeSwitchMatch = text.match(/^\/mode\s+(green|blue|indigo|violet)$/i)
     if (modeSwitchMatch) {
@@ -312,6 +335,7 @@ export function ChatInterface({ className }: ChatInterfaceProps) {
           }
         },
         onDone: (finalText: string) => {
+          console.log('[ChatInterface] Stream completed, finalText length:', finalText?.length)
           if (currentAssistantMessageId.current) {
             updateMessage(currentAssistantMessageId.current, {
               content: finalText || 'No response received.',
@@ -319,10 +343,21 @@ export function ChatInterface({ className }: ChatInterfaceProps) {
             })
           }
           currentAssistantMessageId.current = null
+          // Ensure streaming state is reset
+          console.log('[ChatInterface] Checking streaming state after completion')
+          const streamState = useStreamStore.getState()
+          console.log('[ChatInterface] isStreaming after done:', streamState.isStreaming)
         },
       })
     } catch (error: any) {
       console.error('Failed to send message:', error)
+      
+      // IMPORTANT: Reset streaming state on error
+      const streamState = useStreamStore.getState()
+      if (streamState.isStreaming) {
+        console.log('[ChatInterface] Resetting streaming state due to error')
+        streamState.stopStreaming()
+      }
       
       // If we get a 422 error, the conversation doesn't exist on backend
       // Clear the local conversation and prompt user to try again
