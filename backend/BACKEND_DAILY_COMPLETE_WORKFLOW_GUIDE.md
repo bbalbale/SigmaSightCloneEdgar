@@ -278,26 +278,46 @@ curl -X POST "http://localhost:8000/api/v1/auth/login" \
   -d '{"email": "demo_individual@sigmasight.com", "password": "demo12345"}'
 ```
 
-### Common API Endpoints
+### Common API Endpoints (13 Verified Working)
+**Reference**: See `backend/_docs/requirements/API_SPECIFICATIONS_V1.4.5.md` for complete documentation
+
 ```bash
 # Set your auth token (from login response)
 TOKEN="your_jwt_token_here"
 
-# Get portfolios
+# DATA ENDPOINTS
+# Get all portfolios for user
 curl -H "Authorization: Bearer $TOKEN" \
   http://localhost:8000/api/v1/data/portfolios
 
-# Get portfolio overview
+# Get complete portfolio data with all sections
 curl -H "Authorization: Bearer $TOKEN" \
-  http://localhost:8000/api/v1/analytics/portfolios/<PORTFOLIO_ID>/overview
+  http://localhost:8000/api/v1/data/portfolio/e23ab931-a033-edfe-ed4f-9d02474780b4/complete
 
-# Get positions
+# Get data quality metrics
 curl -H "Authorization: Bearer $TOKEN" \
-  http://localhost:8000/api/v1/data/portfolios/<PORTFOLIO_ID>/positions
+  http://localhost:8000/api/v1/data/portfolio/e23ab931-a033-edfe-ed4f-9d02474780b4/data-quality
 
-# Get factor exposures
+# Get position details with P&L calculations
 curl -H "Authorization: Bearer $TOKEN" \
-  http://localhost:8000/api/v1/data/portfolios/<PORTFOLIO_ID>/factor_exposures
+  http://localhost:8000/api/v1/data/positions/details?portfolio_id=e23ab931-a033-edfe-ed4f-9d02474780b4
+
+# Get historical prices for a symbol
+curl -H "Authorization: Bearer $TOKEN" \
+  http://localhost:8000/api/v1/data/prices/historical/AAPL?days=30
+
+# Get market quotes for multiple symbols
+curl -H "Authorization: Bearer $TOKEN" \
+  http://localhost:8000/api/v1/data/prices/quotes?symbols=AAPL,MSFT,GOOGL
+
+# Get factor ETF prices
+curl -H "Authorization: Bearer $TOKEN" \
+  http://localhost:8000/api/v1/data/factors/etf-prices
+
+# ANALYTICS ENDPOINTS
+# Get portfolio overview with exposures and P&L
+curl -H "Authorization: Bearer $TOKEN" \
+  http://localhost:8000/api/v1/analytics/portfolio/e23ab931-a033-edfe-ed4f-9d02474780b4/overview
 ```
 
 ---
