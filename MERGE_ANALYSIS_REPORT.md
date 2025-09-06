@@ -18,19 +18,92 @@ The 11 merged commits represent a comprehensive frontend enhancement project foc
 Based on commit analysis, the work appears to have followed this structured plan:
 
 ### Phase 1: Backend Agent Tool Development (5 commits)
-- Implement missing tool handlers for OpenAI agent
-- Debug and fix existing tools (factor ETF prices)
-- Add comprehensive testing framework
+
+**Commit 1: 9dd7657 - Add IMPLEMENT_TOOL_PROMPT.md template for tool handler implementation** (Author: Elliott Ng)
+- Created comprehensive template for implementing new tool handlers (240 lines)
+- Added structured prompt templates for both backend and frontend
+- Updated CHAT_USE_CASES_TEST_PROMPT.md with expanded test scenarios
+- Established standardized approach for tool development
+
+**Commit 2: da1c574 - Implement get_prices_historical tool handler and document API issues** (Author: Elliott Ng)
+- Implemented historical price retrieval tool in `app/agent/tools/handlers.py`
+- Added comprehensive implementation report documenting API behavior
+- Captured Playwright screenshots of chat testing sessions
+- Updated TODO3.md with implementation status and known issues
+- Modified OpenAI service to handle new tool properly
+
+**Commit 3: ceadbbc - Simplify get_prices_historical tool and update to GPT-5 models** (Author: Elliott Ng)
+- Removed unnecessary debug logging from tool implementation
+- Updated config to use GPT-5 models (gpt-5-complete-16k)
+- Cleaned up tool handler code for production readiness
+- Simplified error handling in OpenAI service
+
+**Commit 4: a7c669f - Update documentation for get_prices_historical tool completion** (Author: Elliott Ng)
+- Updated agent/TODO.md with completion status (41 line changes)
+- Enhanced implementation report with additional findings
+- Documented data gaps and API limitations discovered during testing
+- Added recommendations for handling missing market data
+
+**Commit 5: b2acf37 - Fix get_factor_etf_prices tool and document factor ETF data gaps** (Author: Elliott Ng)
+- Fixed factor ETF price retrieval tool implementation
+- Created FACTOR_ETF_REFERENCE.md documenting available ETFs
+- Added TODO_9_18_DEBUG_REPORT.md with detailed debugging analysis
+- Created test_factor_etf_tool.py for validation
+- Updated chat monitoring report with test results
 
 ### Phase 2: Frontend Docker Implementation (3 commits)
-- Design Docker architecture matching backend approach
-- Implement production-ready multi-stage Docker build
-- Fix TypeScript compilation and authentication issues
+
+**Commit 1: 5fe0e11 - Add comprehensive Docker implementation plan for frontend** (Author: bbalbale)
+- Created `frontend/_docs/docker-implementation-plan.md` (844 lines)
+- Designed 4-phase Docker strategy: Basic containerization → Optimized builds → Development setup → Production deployment
+- Planned multi-stage builds, security hardening, and monitoring integration
+- Established testing strategy and rollback procedures
+
+**Commit 2: 31a906c - Implement Docker containerization for frontend (Phase 1)** (Author: bbalbale)
+- Created production `Dockerfile` with 3-stage build (deps/builder/runner)
+- Added `.dockerignore` to exclude 68 file patterns (node_modules, .env, etc.)
+- Modified `next.config.js` for standalone output mode
+- Added health check endpoint at `/app/api/health/route.ts`
+- Updated `tsconfig.json` with `downlevelIteration: true` for ES5 compatibility
+- Cleaned up unused test files and utilities (testPhase1.ts, testApiWithAuth.ts)
+- Result: Production Docker container working, image size optimized
+
+**Commit 3: b4b1236 - Fix Docker build - Consolidate app directory structure** (Author: bbalbale)
+- Moved components to proper `app/` directory structure for Next.js 13+ App Router
+- Created new proxy route at `app/api/proxy/[...path]/route.ts` for backend communication
+- Added landing page, login page, and portfolio page in app directory
+- Created reusable components (Header, ChatInput, ThemeToggle)
+- Fixed module resolution issues with consolidated structure
+- Removed conflicting vitest.config.ts
+
+**Commit 4: 4840e85 - Fix Docker frontend auth and CORS issues** (Author: bbalbale)
+- Updated Dockerfile to include backend URL environment variable
+- Modified proxy route to handle CORS and authentication headers correctly
+- Fixed chatAuthService to use proper API endpoints
+- Created diagnostic plan document for troubleshooting Docker issues
+- Ensured container can communicate with host backend via `host.docker.internal`
 
 ### Phase 3: Portfolio API Integration (3 commits)
-- Create phased migration plan from mock to live data
-- Implement shadow mode testing
-- Add data source indicators and fallback strategies
+
+**Commit 1: 8cb992c - docs: Update Portfolio API Integration Plan with P&L findings** (Author: bbalbale)
+- Created Portfolio_API_Integration_Plan.md with 4-phase migration strategy
+- Documented P&L calculation discrepancies between mock and live data
+- Added detailed analysis of position data structures
+- Outlined shadow mode testing approach for gradual migration
+
+**Commit 2: e0fa80d - fix: Fix body stream already read error in portfolioService** (Author: bbalbale)
+- Fixed critical error where response body was being read twice
+- Simplified portfolioService.ts error handling
+- Removed redundant response.json() calls causing stream errors
+- Ensured proper async/await patterns in service layer
+
+**Commit 3: a30a651 - feat: Implement Phases 1-3 of Portfolio API Integration** (Author: bbalbale)
+- Created DataSourceIndicator.tsx component for visual data source feedback
+- Implemented positionApiService.ts with shadow mode capabilities (240 lines)
+- Enhanced portfolioService.ts with fallback strategies
+- Modified portfolio page to display data source indicators (dots)
+- Added comprehensive error handling and logging for API failures
+- Established gradual migration path from mock to live data
 
 ## Major Features Implemented
 

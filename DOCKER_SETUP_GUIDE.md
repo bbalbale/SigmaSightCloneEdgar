@@ -97,40 +97,64 @@ docker run -d -p 3005:3005 --name frontend sigmasight-frontend
 
 ## Development Workflow
 
-### Option 1: Docker for Production Testing
+### ⚠️ IMPORTANT: Docker is for Production Testing Only
 
-Use Docker when you want to test the production build:
+**The current Docker setup is NOT recommended for local development or end-to-end testing.**
+
+Why not use Docker for development?
+- **No hot reload** - Every code change requires full rebuild (2-3 minutes)
+- **Production-only build** - Uses static Next.js standalone output
+- **No volume mounts** - Cannot edit code and see changes instantly
+- **Optimized for deployment** - Multi-stage build focused on size (210MB), not dev experience
+
+### Option 1: Recommended for Development (npm + uv)
+
+**Use this for all local development and end-to-end testing:**
 
 ```bash
-# Frontend in Docker (production mode)
+# Frontend with npm (development mode with hot reload)
+cd frontend
+npm run dev  # Hot reload enabled, instant changes
+
+# Backend with uv (development mode)
+cd backend
+uv run python run.py
+```
+
+✅ **Best for:**
+- Active development
+- Debugging
+- End-to-end testing
+- Quick iteration cycles
+
+### Option 2: Docker for Production Verification Only
+
+**Only use Docker when you need to verify the production build:**
+
+```bash
+# Frontend in Docker (production mode - NO hot reload)
 cd frontend
 docker build -t sigmasight-frontend .
 docker run -d -p 3005:3005 --name frontend sigmasight-frontend
 
-# Backend with uv (development mode)
+# Backend with uv
 cd backend
 uv run python run.py
 ```
 
-### Option 2: Traditional Development (Hot Reload)
+✅ **Use Docker only for:**
+- Final production build verification before deployment
+- Testing Docker-specific issues (networking, env variables)
+- Ensuring production build works correctly
+- Pre-deployment checks
 
-For active development with hot reload, you can still use npm:
+### Option 3: Future Development Docker (Not Yet Implemented)
 
-```bash
-# Frontend with npm (development mode)
-cd frontend
-npm run dev
-
-# Backend with uv (development mode)
-cd backend
-uv run python run.py
-```
-
-### Option 3: Hybrid Approach (Recommended)
-
-- Use npm for active frontend development (hot reload)
-- Use Docker to test production builds before committing
-- Always test with Docker before pushing to GitHub
+📋 **Planned in Phase 1 of Dockerization Plan:**
+- Development Docker with volume mounts
+- Hot reload support in containers
+- Docker Compose for full stack
+- See `backend/_docs/requirements/Dockerization_and_Deployment_Plan_v1.1.md`
 
 ## Docker Compose (Future)
 
