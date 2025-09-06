@@ -1576,6 +1576,54 @@ uv run python scripts/check_data_coverage.py
 **Status**: Ready for implementation
 **Temporary Fix Applied**: 2025-09-06 - Manually backfilled 30 days for demo
 
+### 6.2 Fix Portfolio Overview Endpoint Registration
+**Issue**: Portfolio Overview endpoint returns 404 despite being implemented in code
+**Discovered**: 2025-09-06 during frontend integration testing
+**Priority**: P0 - Critical for frontend portfolio display
+
+#### Problem Details
+**Endpoint**: `/api/v1/analytics/portfolio/{id}/overview`  
+**Method**: GET  
+**Current Status**: ❌ 404 Not Found  
+**Root Cause**: Endpoint exists in code but not registered in router
+
+#### Investigation Required
+1. Check if endpoint is implemented in `app/api/v1/endpoints/analytics.py`
+2. Verify router registration in `app/api/v1/router.py`
+3. Confirm endpoint is included in the API prefix mapping
+4. Check for any conditional registration or feature flags
+
+#### Implementation Tasks
+- [ ] Locate the implemented endpoint code
+- [ ] Add proper router registration
+- [ ] Verify endpoint authentication requirements
+- [ ] Test with demo portfolio IDs
+- [ ] Update API documentation
+
+#### Expected Response Format
+```json
+{
+  "portfolio_id": "uuid",
+  "name": "Portfolio Name",
+  "total_value": 1000000.00,
+  "total_return": 15.5,
+  "daily_change": 1.2,
+  "risk_metrics": {
+    "var_95": 5000.00,
+    "sharpe_ratio": 1.8
+  },
+  "last_updated": "2025-09-06T12:00:00Z"
+}
+```
+
+#### Key Files to Check
+- `app/api/v1/endpoints/analytics.py` - Endpoint implementation
+- `app/api/v1/router.py` - Router registration
+- `app/api/v1/__init__.py` - API module exports
+- `app/main.py` - FastAPI app router inclusion
+
+**Status**: Investigation needed
+
 ---
 
 ## Phase 7: Testing & Deployment (Future)
