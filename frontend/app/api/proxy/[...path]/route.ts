@@ -1,7 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 
-const BACKEND_URL = 'http://localhost:8000'
+// Use environment variable or detect Docker environment
+const BACKEND_URL = process.env.BACKEND_URL || 
+  (process.env.DOCKER_ENV === 'true' ? 'http://host.docker.internal:8000' : 'http://localhost:8000')
 const PROXY_TIMEOUT = 30000 // 30 seconds
+
+console.log('Proxy Backend URL:', BACKEND_URL)
+console.log('Docker Environment:', process.env.DOCKER_ENV)
 
 /**
  * Enhanced proxy to handle cookie-based authentication

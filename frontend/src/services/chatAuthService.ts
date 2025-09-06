@@ -28,10 +28,9 @@ class ChatAuthService {
   private currentUser: AuthUser | null = null;
 
   constructor() {
-    // Use proxy in development, direct URL in production
-    this.baseUrl = process.env.NODE_ENV === 'development' 
-      ? '/api/proxy' 
-      : process.env.NEXT_PUBLIC_API_URL || '';
+    // Always use proxy for now (both dev and Docker)
+    // TODO: Update for production deployment with proper API URL
+    this.baseUrl = '/api/proxy';
   }
 
   /**
