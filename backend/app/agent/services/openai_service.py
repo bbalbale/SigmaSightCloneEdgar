@@ -714,11 +714,31 @@ class OpenAIService:
                 for tool_call in accumulated_tool_calls.values():
                     tool_name = tool_call["function"]["name"]
                     tool_result = tool_call.get("result", {})
+                    
+                    # Determine truncation limit based on tool type
+                    # Portfolio tools get larger limits for complete data visibility
+                    portfolio_tools = ["get_portfolio_complete", "get_positions_details", "get_portfolio_data_quality"]
+                    
+                    if settings.TOOL_RESPONSE_TRUNCATE_ENABLED:
+                        if tool_name in portfolio_tools:
+                            max_chars = settings.TOOL_RESPONSE_PORTFOLIO_MAX_CHARS
+                        else:
+                            max_chars = settings.TOOL_RESPONSE_MAX_CHARS
+                    else:
+                        # Truncation disabled - pass full response
+                        max_chars = None
+                    
                     # Create a summary of what the tool returned
                     if isinstance(tool_result, dict) and "data" in tool_result:
-                        data_summary = json.dumps(tool_result["data"], indent=2)[:1000]  # Limit size
+                        data_json = json.dumps(tool_result["data"], indent=2)
+                        data_summary = data_json[:max_chars] if max_chars else data_json
                     else:
-                        data_summary = json.dumps(tool_result, indent=2)[:1000]  # Limit size
+                        result_json = json.dumps(tool_result, indent=2)
+                        data_summary = result_json[:max_chars] if max_chars else result_json
+                    
+                    # Log truncation info for debugging
+                    if max_chars and len(data_summary) == max_chars:
+                        logger.info(f"Tool response truncated: {tool_name} - {len(data_json if 'data' in locals() else result_json)} chars -> {max_chars} chars")
                     
                     tool_summary_parts.append(f"Tool '{tool_name}' returned:\n{data_summary}")
                 

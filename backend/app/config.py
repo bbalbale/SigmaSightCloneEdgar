@@ -67,6 +67,14 @@ class Settings(BaseSettings):
     OPENAI_RATE_LIMIT_PER_MINUTE: int = Field(default=10, env="OPENAI_RATE_LIMIT_PER_MINUTE",
                                               description="Rate limit for OpenAI API calls")
     
+    # Tool response truncation limits
+    TOOL_RESPONSE_MAX_CHARS: int = Field(default=10000, env="TOOL_RESPONSE_MAX_CHARS",
+                                         description="Maximum characters for tool responses sent to LLM (default: 10000 supports ~50 positions)")
+    TOOL_RESPONSE_PORTFOLIO_MAX_CHARS: int = Field(default=15000, env="TOOL_RESPONSE_PORTFOLIO_MAX_CHARS",
+                                                   description="Maximum characters for portfolio-specific tools (default: 15000 for complex portfolios)")
+    TOOL_RESPONSE_TRUNCATE_ENABLED: bool = Field(default=True, env="TOOL_RESPONSE_TRUNCATE_ENABLED",
+                                                 description="Enable tool response truncation (set False to disable all truncation)")
+    
     # Legacy configuration for backward compatibility (Phase 5.8.4 transition)
     CHAT_MAX_TOKENS: int = Field(default=4000, env="CHAT_MAX_TOKENS", 
                                  description="LEGACY: Use OPENAI_MAX_COMPLETION_TOKENS instead")
