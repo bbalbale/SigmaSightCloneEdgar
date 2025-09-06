@@ -2,1110 +2,6 @@
   "session_start": "2025-09-06T10:03:25.773722",
   "status_checks": [
     {
-      "timestamp": "2025-09-06T14:01:46.834025",
-      "frontend": {
-        "status": "running",
-        "response_time": 45.74
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 5.5
-      }
-    },
-    {
-      "timestamp": "2025-09-06T14:01:46.886934",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 202.78,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 4.9
-      }
-    },
-    {
-      "timestamp": "2025-09-06T14:02:17.097079",
-      "frontend": {
-        "status": "running",
-        "response_time": 20.38
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 2.28
-      }
-    },
-    {
-      "timestamp": "2025-09-06T14:02:17.120182",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 195.31,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 4.03
-      }
-    },
-    {
-      "timestamp": "2025-09-06T14:02:47.321745",
-      "frontend": {
-        "status": "running",
-        "response_time": 21.19
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 2.85
-      }
-    },
-    {
-      "timestamp": "2025-09-06T14:02:47.346269",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 197.2,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 4.11
-      }
-    },
-    {
-      "timestamp": "2025-09-06T14:03:17.549891",
-      "frontend": {
-        "status": "running",
-        "response_time": 18.57
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 2.87
-      }
-    },
-    {
-      "timestamp": "2025-09-06T14:03:17.571821",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 201.36,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 2.85
-      }
-    },
-    {
-      "timestamp": "2025-09-06T14:03:47.778355",
-      "frontend": {
-        "status": "running",
-        "response_time": 21.08
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 2.71
-      }
-    },
-    {
-      "timestamp": "2025-09-06T14:03:47.802645",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 206.06,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 3.12
-      }
-    },
-    {
-      "timestamp": "2025-09-06T14:04:18.016167",
-      "frontend": {
-        "status": "running",
-        "response_time": 42.28
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 3.8
-      }
-    },
-    {
-      "timestamp": "2025-09-06T14:04:18.064172",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 193.32,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 3.65
-      }
-    },
-    {
-      "timestamp": "2025-09-06T14:04:48.263411",
-      "frontend": {
-        "status": "running",
-        "response_time": 12.06
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 1.94
-      }
-    },
-    {
-      "timestamp": "2025-09-06T14:04:48.277695",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 197.54,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 4.24
-      }
-    },
-    {
-      "timestamp": "2025-09-06T14:05:18.481654",
-      "frontend": {
-        "status": "running",
-        "response_time": 20.99
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 1.77
-      }
-    },
-    {
-      "timestamp": "2025-09-06T14:05:18.504748",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 193.76,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 4.02
-      }
-    },
-    {
-      "timestamp": "2025-09-06T14:05:48.705853",
-      "frontend": {
-        "status": "running",
-        "response_time": 20.47
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 2.06
-      }
-    },
-    {
-      "timestamp": "2025-09-06T14:05:48.728780",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 201.58,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 2.8
-      }
-    },
-    {
-      "timestamp": "2025-09-06T14:06:18.936766",
-      "frontend": {
-        "status": "running",
-        "response_time": 23.46
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 2.43
-      }
-    },
-    {
-      "timestamp": "2025-09-06T14:06:18.963509",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 205.26,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 3.09
-      }
-    },
-    {
-      "timestamp": "2025-09-06T14:06:49.175062",
-      "frontend": {
-        "status": "running",
-        "response_time": 28.5
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 2.11
-      }
-    },
-    {
-      "timestamp": "2025-09-06T14:06:49.206089",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 198.0,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 2.88
-      }
-    },
-    {
-      "timestamp": "2025-09-06T14:07:19.410227",
-      "frontend": {
-        "status": "running",
-        "response_time": 27.43
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 5.82
-      }
-    },
-    {
-      "timestamp": "2025-09-06T14:07:19.444067",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 195.14,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 3.68
-      }
-    },
-    {
-      "timestamp": "2025-09-06T14:07:49.646129",
-      "frontend": {
-        "status": "running",
-        "response_time": 21.46
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 2.79
-      }
-    },
-    {
-      "timestamp": "2025-09-06T14:07:49.670919",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 195.74,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 4.67
-      }
-    },
-    {
-      "timestamp": "2025-09-06T14:08:19.874527",
-      "frontend": {
-        "status": "running",
-        "response_time": 17.59
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 2.94
-      }
-    },
-    {
-      "timestamp": "2025-09-06T14:08:19.895498",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 194.83,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 4.75
-      }
-    },
-    {
-      "timestamp": "2025-09-06T14:08:50.098225",
-      "frontend": {
-        "status": "running",
-        "response_time": 16.88
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 2.77
-      }
-    },
-    {
-      "timestamp": "2025-09-06T14:08:50.118401",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 197.44,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 4.11
-      }
-    },
-    {
-      "timestamp": "2025-09-06T14:09:20.323131",
-      "frontend": {
-        "status": "running",
-        "response_time": 25.01
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 2.44
-      }
-    },
-    {
-      "timestamp": "2025-09-06T14:09:20.351071",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 197.0,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 4.28
-      }
-    },
-    {
-      "timestamp": "2025-09-06T14:09:50.556866",
-      "frontend": {
-        "status": "running",
-        "response_time": 49.51
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 4.49
-      }
-    },
-    {
-      "timestamp": "2025-09-06T14:09:50.612432",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 193.66,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 3.54
-      }
-    },
-    {
-      "timestamp": "2025-09-06T14:14:52.836324",
-      "frontend": {
-        "status": "running",
-        "response_time": 18.92
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 1.58
-      }
-    },
-    {
-      "timestamp": "2025-09-06T14:14:52.857333",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 194.25,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 4.36
-      }
-    },
-    {
-      "timestamp": "2025-09-06T14:15:23.059907",
-      "frontend": {
-        "status": "running",
-        "response_time": 20.96
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 2.45
-      }
-    },
-    {
-      "timestamp": "2025-09-06T14:15:23.083778",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 195.57,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 4.05
-      }
-    },
-    {
-      "timestamp": "2025-09-06T14:31:29.962823",
-      "frontend": {
-        "status": "running",
-        "response_time": 43.52
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 2.69
-      }
-    },
-    {
-      "timestamp": "2025-09-06T14:31:30.010690",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 185.33,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 4.26
-      }
-    },
-    {
-      "timestamp": "2025-09-06T14:32:00.206002",
-      "frontend": {
-        "status": "running",
-        "response_time": 21.96
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 3.19
-      }
-    },
-    {
-      "timestamp": "2025-09-06T14:32:00.231655",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 195.76,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 3.8
-      }
-    },
-    {
-      "timestamp": "2025-09-06T14:49:22.893109",
-      "frontend": {
-        "status": "running",
-        "response_time": 31.07
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 2.86
-      }
-    },
-    {
-      "timestamp": "2025-09-06T14:49:22.927871",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 192.0,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 4.5
-      }
-    },
-    {
-      "timestamp": "2025-09-06T14:49:53.132705",
-      "frontend": {
-        "status": "running",
-        "response_time": 19.96
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 3.08
-      }
-    },
-    {
-      "timestamp": "2025-09-06T14:49:53.156224",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 197.06,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 4.2
-      }
-    },
-    {
-      "timestamp": "2025-09-06T14:50:23.361579",
-      "frontend": {
-        "status": "running",
-        "response_time": 18.38
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 2.2
-      }
-    },
-    {
-      "timestamp": "2025-09-06T14:50:23.382586",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 196.27,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 4.59
-      }
-    },
-    {
-      "timestamp": "2025-09-06T14:50:53.587187",
-      "frontend": {
-        "status": "running",
-        "response_time": 18.94
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 1.62
-      }
-    },
-    {
-      "timestamp": "2025-09-06T14:50:53.608133",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 195.04,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 2.84
-      }
-    },
-    {
-      "timestamp": "2025-09-06T15:02:21.519660",
-      "frontend": {
-        "status": "running",
-        "response_time": 19.94
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 2.65
-      }
-    },
-    {
-      "timestamp": "2025-09-06T15:02:21.542633",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 195.84,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 3.41
-      }
-    },
-    {
-      "timestamp": "2025-09-06T15:02:51.745323",
-      "frontend": {
-        "status": "running",
-        "response_time": 18.64
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 2.85
-      }
-    },
-    {
-      "timestamp": "2025-09-06T15:02:51.767306",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 207.32,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 4.48
-      }
-    },
-    {
-      "timestamp": "2025-09-06T15:03:21.982624",
-      "frontend": {
-        "status": "running",
-        "response_time": 22.6
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 3.15
-      }
-    },
-    {
-      "timestamp": "2025-09-06T15:03:22.008984",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 208.64,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 4.52
-      }
-    },
-    {
-      "timestamp": "2025-09-06T15:03:52.225558",
-      "frontend": {
-        "status": "running",
-        "response_time": 20.76
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 2.49
-      }
-    },
-    {
-      "timestamp": "2025-09-06T15:03:52.249238",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 205.44,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 2.96
-      }
-    },
-    {
-      "timestamp": "2025-09-06T15:04:22.461559",
-      "frontend": {
-        "status": "running",
-        "response_time": 25.44
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 2.12
-      }
-    },
-    {
-      "timestamp": "2025-09-06T15:04:22.489906",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 195.95,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 3.1
-      }
-    },
-    {
-      "timestamp": "2025-09-06T15:04:52.693860",
-      "frontend": {
-        "status": "running",
-        "response_time": 21.21
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 1.67
-      }
-    },
-    {
-      "timestamp": "2025-09-06T15:04:52.717168",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 195.75,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 4.48
-      }
-    },
-    {
-      "timestamp": "2025-09-06T15:08:13.267066",
-      "frontend": {
-        "status": "running",
-        "response_time": 40.83
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 3.71
-      }
-    },
-    {
-      "timestamp": "2025-09-06T15:08:13.313035",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 187.73,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 4.87
-      }
-    },
-    {
-      "timestamp": "2025-09-06T15:08:43.501124",
-      "frontend": {
-        "status": "running",
-        "response_time": 68.27
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 4.32
-      }
-    },
-    {
-      "timestamp": "2025-09-06T15:08:43.575275",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 210.39,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 6.62
-      }
-    },
-    {
-      "timestamp": "2025-09-06T15:09:13.793937",
-      "frontend": {
-        "status": "running",
-        "response_time": 27.54
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 2.38
-      }
-    },
-    {
-      "timestamp": "2025-09-06T15:09:13.824546",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 193.84,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 3.33
-      }
-    },
-    {
-      "timestamp": "2025-09-06T15:09:44.023824",
-      "frontend": {
-        "status": "running",
-        "response_time": 14.68
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 3.27
-      }
-    },
-    {
-      "timestamp": "2025-09-06T15:09:44.042127",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 195.71,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 3.91
-      }
-    },
-    {
-      "timestamp": "2025-09-06T15:10:14.244497",
-      "frontend": {
-        "status": "running",
-        "response_time": 23.78
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 2.38
-      }
-    },
-    {
-      "timestamp": "2025-09-06T15:10:14.271470",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 197.19,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 4.06
-      }
-    },
-    {
-      "timestamp": "2025-09-06T15:10:44.475055",
-      "frontend": {
-        "status": "running",
-        "response_time": 21.17
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 2.42
-      }
-    },
-    {
-      "timestamp": "2025-09-06T15:10:44.499115",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 194.11,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 4.06
-      }
-    },
-    {
-      "timestamp": "2025-09-06T15:11:14.699611",
-      "frontend": {
-        "status": "running",
-        "response_time": 23.41
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 2.49
-      }
-    },
-    {
-      "timestamp": "2025-09-06T15:11:14.725999",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 194.6,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 3.8
-      }
-    },
-    {
-      "timestamp": "2025-09-06T15:11:44.926590",
-      "frontend": {
-        "status": "running",
-        "response_time": 11.1
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 1.08
-      }
-    },
-    {
-      "timestamp": "2025-09-06T15:11:44.938954",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 179.26,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 3.59
-      }
-    },
-    {
-      "timestamp": "2025-09-06T15:12:15.124581",
-      "frontend": {
-        "status": "running",
-        "response_time": 27.65
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 3.08
-      }
-    },
-    {
-      "timestamp": "2025-09-06T15:12:15.156142",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 193.02,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 3.7
-      }
-    },
-    {
-      "timestamp": "2025-09-06T15:12:45.355203",
-      "frontend": {
-        "status": "running",
-        "response_time": 22.95
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 2.82
-      }
-    },
-    {
-      "timestamp": "2025-09-06T15:12:45.381468",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 197.19,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 4.27
-      }
-    },
-    {
-      "timestamp": "2025-09-06T15:13:15.586662",
-      "frontend": {
-        "status": "running",
-        "response_time": 35.39
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 2.26
-      }
-    },
-    {
-      "timestamp": "2025-09-06T15:13:15.626089",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 196.85,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 4.35
-      }
-    },
-    {
-      "timestamp": "2025-09-06T15:13:45.829527",
-      "frontend": {
-        "status": "running",
-        "response_time": 13.22
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 1.1
-      }
-    },
-    {
-      "timestamp": "2025-09-06T15:13:45.844070",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 183.02,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 4.17
-      }
-    },
-    {
-      "timestamp": "2025-09-06T15:14:16.034009",
-      "frontend": {
-        "status": "running",
-        "response_time": 23.95
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 2.94
-      }
-    },
-    {
-      "timestamp": "2025-09-06T15:14:16.061740",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 200.82,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 3.06
-      }
-    },
-    {
-      "timestamp": "2025-09-06T15:14:46.268148",
-      "frontend": {
-        "status": "running",
-        "response_time": 23.26
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 2.39
-      }
-    },
-    {
-      "timestamp": "2025-09-06T15:14:46.294255",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 215.01,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 4.38
-      }
-    },
-    {
-      "timestamp": "2025-09-06T15:15:16.515885",
-      "frontend": {
-        "status": "running",
-        "response_time": 8.98
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 1.14
-      }
-    },
-    {
-      "timestamp": "2025-09-06T15:15:16.526200",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 286.83,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 6.03
-      }
-    },
-    {
-      "timestamp": "2025-09-06T15:15:46.821335",
-      "frontend": {
-        "status": "running",
-        "response_time": 13.0
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 1.37
-      }
-    },
-    {
-      "timestamp": "2025-09-06T15:15:46.835958",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 284.29,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 6.08
-      }
-    },
-    {
-      "timestamp": "2025-09-06T15:16:17.128544",
-      "frontend": {
-        "status": "running",
-        "response_time": 14.29
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 1.34
-      }
-    },
-    {
-      "timestamp": "2025-09-06T15:16:17.144386",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 188.08,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 4.81
-      }
-    },
-    {
       "timestamp": "2025-09-06T15:16:47.340400",
       "frontend": {
         "status": "running",
@@ -1172,6 +68,1110 @@
       "me_endpoint": {
         "status": 200,
         "response_time": 4.17
+      }
+    },
+    {
+      "timestamp": "2025-09-06T15:18:18.059806",
+      "frontend": {
+        "status": "running",
+        "response_time": 11.59
+      },
+      "backend": {
+        "status": "running",
+        "response_time": 1.38
+      }
+    },
+    {
+      "timestamp": "2025-09-06T15:18:18.072994",
+      "login_endpoint": {
+        "status": 200,
+        "response_time": 187.47,
+        "has_token": true
+      },
+      "me_endpoint": {
+        "status": 200,
+        "response_time": 5.19
+      }
+    },
+    {
+      "timestamp": "2025-09-06T15:18:48.268624",
+      "frontend": {
+        "status": "running",
+        "response_time": 32.87
+      },
+      "backend": {
+        "status": "running",
+        "response_time": 2.87
+      }
+    },
+    {
+      "timestamp": "2025-09-06T15:18:48.305131",
+      "login_endpoint": {
+        "status": 200,
+        "response_time": 189.12,
+        "has_token": true
+      },
+      "me_endpoint": {
+        "status": 200,
+        "response_time": 5.25
+      }
+    },
+    {
+      "timestamp": "2025-09-06T15:19:18.501998",
+      "frontend": {
+        "status": "running",
+        "response_time": 33.58
+      },
+      "backend": {
+        "status": "running",
+        "response_time": 2.4
+      }
+    },
+    {
+      "timestamp": "2025-09-06T15:19:18.538499",
+      "login_endpoint": {
+        "status": 200,
+        "response_time": 216.73,
+        "has_token": true
+      },
+      "me_endpoint": {
+        "status": 200,
+        "response_time": 4.2
+      }
+    },
+    {
+      "timestamp": "2025-09-06T15:19:48.762276",
+      "frontend": {
+        "status": "running",
+        "response_time": 31.93
+      },
+      "backend": {
+        "status": "running",
+        "response_time": 1.72
+      }
+    },
+    {
+      "timestamp": "2025-09-06T15:19:48.797839",
+      "login_endpoint": {
+        "status": 200,
+        "response_time": 195.21,
+        "has_token": true
+      },
+      "me_endpoint": {
+        "status": 200,
+        "response_time": 3.17
+      }
+    },
+    {
+      "timestamp": "2025-09-06T15:20:18.998741",
+      "frontend": {
+        "status": "running",
+        "response_time": 17.0
+      },
+      "backend": {
+        "status": "running",
+        "response_time": 4.16
+      }
+    },
+    {
+      "timestamp": "2025-09-06T15:20:19.020424",
+      "login_endpoint": {
+        "status": 200,
+        "response_time": 194.33,
+        "has_token": true
+      },
+      "me_endpoint": {
+        "status": 200,
+        "response_time": 4.31
+      }
+    },
+    {
+      "timestamp": "2025-09-06T15:20:49.221411",
+      "frontend": {
+        "status": "running",
+        "response_time": 16.47
+      },
+      "backend": {
+        "status": "running",
+        "response_time": 2.42
+      }
+    },
+    {
+      "timestamp": "2025-09-06T15:20:49.240702",
+      "login_endpoint": {
+        "status": 200,
+        "response_time": 200.55,
+        "has_token": true
+      },
+      "me_endpoint": {
+        "status": 200,
+        "response_time": 4.13
+      }
+    },
+    {
+      "timestamp": "2025-09-06T15:21:19.447724",
+      "frontend": {
+        "status": "running",
+        "response_time": 25.15
+      },
+      "backend": {
+        "status": "running",
+        "response_time": 2.02
+      }
+    },
+    {
+      "timestamp": "2025-09-06T15:21:19.475299",
+      "login_endpoint": {
+        "status": 200,
+        "response_time": 193.21,
+        "has_token": true
+      },
+      "me_endpoint": {
+        "status": 200,
+        "response_time": 6.28
+      }
+    },
+    {
+      "timestamp": "2025-09-06T15:21:49.677127",
+      "frontend": {
+        "status": "running",
+        "response_time": 20.08
+      },
+      "backend": {
+        "status": "running",
+        "response_time": 2.64
+      }
+    },
+    {
+      "timestamp": "2025-09-06T15:21:49.700277",
+      "login_endpoint": {
+        "status": 200,
+        "response_time": 198.78,
+        "has_token": true
+      },
+      "me_endpoint": {
+        "status": 200,
+        "response_time": 4.17
+      }
+    },
+    {
+      "timestamp": "2025-09-06T15:22:19.906076",
+      "frontend": {
+        "status": "running",
+        "response_time": 19.64
+      },
+      "backend": {
+        "status": "running",
+        "response_time": 4.65
+      }
+    },
+    {
+      "timestamp": "2025-09-06T15:22:19.931494",
+      "login_endpoint": {
+        "status": 200,
+        "response_time": 200.53,
+        "has_token": true
+      },
+      "me_endpoint": {
+        "status": 200,
+        "response_time": 3.09
+      }
+    },
+    {
+      "timestamp": "2025-09-06T15:22:50.137496",
+      "frontend": {
+        "status": "running",
+        "response_time": 20.04
+      },
+      "backend": {
+        "status": "running",
+        "response_time": 1.65
+      }
+    },
+    {
+      "timestamp": "2025-09-06T15:22:50.159592",
+      "login_endpoint": {
+        "status": 200,
+        "response_time": 200.5,
+        "has_token": true
+      },
+      "me_endpoint": {
+        "status": 200,
+        "response_time": 3.48
+      }
+    },
+    {
+      "timestamp": "2025-09-06T15:23:20.365985",
+      "frontend": {
+        "status": "running",
+        "response_time": 33.91
+      },
+      "backend": {
+        "status": "running",
+        "response_time": 1.81
+      }
+    },
+    {
+      "timestamp": "2025-09-06T15:23:20.402165",
+      "login_endpoint": {
+        "status": 200,
+        "response_time": 189.14,
+        "has_token": true
+      },
+      "me_endpoint": {
+        "status": 200,
+        "response_time": 4.42
+      }
+    },
+    {
+      "timestamp": "2025-09-06T15:23:50.598617",
+      "frontend": {
+        "status": "running",
+        "response_time": 23.61
+      },
+      "backend": {
+        "status": "running",
+        "response_time": 3.75
+      }
+    },
+    {
+      "timestamp": "2025-09-06T15:23:50.626904",
+      "login_endpoint": {
+        "status": 200,
+        "response_time": 193.44,
+        "has_token": true
+      },
+      "me_endpoint": {
+        "status": 200,
+        "response_time": 4.12
+      }
+    },
+    {
+      "timestamp": "2025-09-06T15:24:20.826731",
+      "frontend": {
+        "status": "running",
+        "response_time": 8.78
+      },
+      "backend": {
+        "status": "running",
+        "response_time": 1.09
+      }
+    },
+    {
+      "timestamp": "2025-09-06T15:24:20.836770",
+      "login_endpoint": {
+        "status": 200,
+        "response_time": 178.85,
+        "has_token": true
+      },
+      "me_endpoint": {
+        "status": 200,
+        "response_time": 3.69
+      }
+    },
+    {
+      "timestamp": "2025-09-06T15:24:51.021493",
+      "frontend": {
+        "status": "running",
+        "response_time": 12.81
+      },
+      "backend": {
+        "status": "running",
+        "response_time": 1.26
+      }
+    },
+    {
+      "timestamp": "2025-09-06T15:24:51.035813",
+      "login_endpoint": {
+        "status": 200,
+        "response_time": 184.24,
+        "has_token": true
+      },
+      "me_endpoint": {
+        "status": 200,
+        "response_time": 2.74
+      }
+    },
+    {
+      "timestamp": "2025-09-06T15:25:21.225092",
+      "frontend": {
+        "status": "running",
+        "response_time": 18.38
+      },
+      "backend": {
+        "status": "running",
+        "response_time": 2.65
+      }
+    },
+    {
+      "timestamp": "2025-09-06T15:25:21.246580",
+      "login_endpoint": {
+        "status": 200,
+        "response_time": 209.46,
+        "has_token": true
+      },
+      "me_endpoint": {
+        "status": 200,
+        "response_time": 2.67
+      }
+    },
+    {
+      "timestamp": "2025-09-06T15:25:51.461129",
+      "frontend": {
+        "status": "running",
+        "response_time": 28.86
+      },
+      "backend": {
+        "status": "running",
+        "response_time": 2.43
+      }
+    },
+    {
+      "timestamp": "2025-09-06T15:25:51.492890",
+      "login_endpoint": {
+        "status": 200,
+        "response_time": 201.65,
+        "has_token": true
+      },
+      "me_endpoint": {
+        "status": 200,
+        "response_time": 4.09
+      }
+    },
+    {
+      "timestamp": "2025-09-06T15:26:21.700820",
+      "frontend": {
+        "status": "running",
+        "response_time": 18.06
+      },
+      "backend": {
+        "status": "running",
+        "response_time": 2.17
+      }
+    },
+    {
+      "timestamp": "2025-09-06T15:26:21.721349",
+      "login_endpoint": {
+        "status": 200,
+        "response_time": 198.54,
+        "has_token": true
+      },
+      "me_endpoint": {
+        "status": 200,
+        "response_time": 4.77
+      }
+    },
+    {
+      "timestamp": "2025-09-06T15:26:51.926861",
+      "frontend": {
+        "status": "running",
+        "response_time": 10.61
+      },
+      "backend": {
+        "status": "running",
+        "response_time": 1.04
+      }
+    },
+    {
+      "timestamp": "2025-09-06T15:26:51.938696",
+      "login_endpoint": {
+        "status": 200,
+        "response_time": 181.56,
+        "has_token": true
+      },
+      "me_endpoint": {
+        "status": 200,
+        "response_time": 3.99
+      }
+    },
+    {
+      "timestamp": "2025-09-06T15:27:22.126419",
+      "frontend": {
+        "status": "running",
+        "response_time": 9.33
+      },
+      "backend": {
+        "status": "running",
+        "response_time": 1.18
+      }
+    },
+    {
+      "timestamp": "2025-09-06T15:27:22.137107",
+      "login_endpoint": {
+        "status": 200,
+        "response_time": 178.04,
+        "has_token": true
+      },
+      "me_endpoint": {
+        "status": 200,
+        "response_time": 4.15
+      }
+    },
+    {
+      "timestamp": "2025-09-06T15:27:52.321768",
+      "frontend": {
+        "status": "running",
+        "response_time": 10.71
+      },
+      "backend": {
+        "status": "running",
+        "response_time": 3.15
+      }
+    },
+    {
+      "timestamp": "2025-09-06T15:27:52.336191",
+      "login_endpoint": {
+        "status": 200,
+        "response_time": 190.09,
+        "has_token": true
+      },
+      "me_endpoint": {
+        "status": 200,
+        "response_time": 4.07
+      }
+    },
+    {
+      "timestamp": "2025-09-06T15:28:22.532685",
+      "frontend": {
+        "status": "running",
+        "response_time": 12.89
+      },
+      "backend": {
+        "status": "running",
+        "response_time": 1.1
+      }
+    },
+    {
+      "timestamp": "2025-09-06T15:28:22.546863",
+      "login_endpoint": {
+        "status": 200,
+        "response_time": 181.01,
+        "has_token": true
+      },
+      "me_endpoint": {
+        "status": 200,
+        "response_time": 3.99
+      }
+    },
+    {
+      "timestamp": "2025-09-06T15:28:52.734197",
+      "frontend": {
+        "status": "running",
+        "response_time": 18.72
+      },
+      "backend": {
+        "status": "running",
+        "response_time": 1.19
+      }
+    },
+    {
+      "timestamp": "2025-09-06T15:28:52.754335",
+      "login_endpoint": {
+        "status": 200,
+        "response_time": 181.55,
+        "has_token": true
+      },
+      "me_endpoint": {
+        "status": 200,
+        "response_time": 4.67
+      }
+    },
+    {
+      "timestamp": "2025-09-06T15:29:22.946443",
+      "frontend": {
+        "status": "running",
+        "response_time": 36.39
+      },
+      "backend": {
+        "status": "running",
+        "response_time": 89.34
+      }
+    },
+    {
+      "timestamp": "2025-09-06T15:29:23.074671",
+      "login_endpoint": {
+        "status": 200,
+        "response_time": 303.77,
+        "has_token": true
+      },
+      "me_endpoint": {
+        "status": 200,
+        "response_time": 5.69
+      }
+    },
+    {
+      "timestamp": "2025-09-06T15:29:53.387628",
+      "frontend": {
+        "status": "running",
+        "response_time": 17.36
+      },
+      "backend": {
+        "status": "running",
+        "response_time": 1.29
+      }
+    },
+    {
+      "timestamp": "2025-09-06T15:29:53.406552",
+      "login_endpoint": {
+        "status": 200,
+        "response_time": 192.04,
+        "has_token": true
+      },
+      "me_endpoint": {
+        "status": 200,
+        "response_time": 3.32
+      }
+    },
+    {
+      "timestamp": "2025-09-06T15:30:23.604254",
+      "frontend": {
+        "status": "running",
+        "response_time": 10.27
+      },
+      "backend": {
+        "status": "running",
+        "response_time": 1.34
+      }
+    },
+    {
+      "timestamp": "2025-09-06T15:30:23.616137",
+      "login_endpoint": {
+        "status": 200,
+        "response_time": 189.81,
+        "has_token": true
+      },
+      "me_endpoint": {
+        "status": 200,
+        "response_time": 3.12
+      }
+    },
+    {
+      "timestamp": "2025-09-06T15:30:53.811366",
+      "frontend": {
+        "status": "running",
+        "response_time": 23.54
+      },
+      "backend": {
+        "status": "running",
+        "response_time": 2.91
+      }
+    },
+    {
+      "timestamp": "2025-09-06T15:30:53.838322",
+      "login_endpoint": {
+        "status": 200,
+        "response_time": 201.53,
+        "has_token": true
+      },
+      "me_endpoint": {
+        "status": 200,
+        "response_time": 3.56
+      }
+    },
+    {
+      "timestamp": "2025-09-06T15:31:24.045690",
+      "frontend": {
+        "status": "running",
+        "response_time": 18.89
+      },
+      "backend": {
+        "status": "running",
+        "response_time": 1.78
+      }
+    },
+    {
+      "timestamp": "2025-09-06T15:31:24.066621",
+      "login_endpoint": {
+        "status": 200,
+        "response_time": 194.75,
+        "has_token": true
+      },
+      "me_endpoint": {
+        "status": 200,
+        "response_time": 3.98
+      }
+    },
+    {
+      "timestamp": "2025-09-06T15:31:54.267774",
+      "frontend": {
+        "status": "running",
+        "response_time": 27.97
+      },
+      "backend": {
+        "status": "running",
+        "response_time": 1.94
+      }
+    },
+    {
+      "timestamp": "2025-09-06T15:31:54.298144",
+      "login_endpoint": {
+        "status": 200,
+        "response_time": 198.29,
+        "has_token": true
+      },
+      "me_endpoint": {
+        "status": 200,
+        "response_time": 5.09
+      }
+    },
+    {
+      "timestamp": "2025-09-06T15:32:24.505089",
+      "frontend": {
+        "status": "running",
+        "response_time": 30.99
+      },
+      "backend": {
+        "status": "running",
+        "response_time": 4.77
+      }
+    },
+    {
+      "timestamp": "2025-09-06T15:32:24.541928",
+      "login_endpoint": {
+        "status": 200,
+        "response_time": 208.52,
+        "has_token": true
+      },
+      "me_endpoint": {
+        "status": 200,
+        "response_time": 4.15
+      }
+    },
+    {
+      "timestamp": "2025-09-06T15:32:54.757055",
+      "frontend": {
+        "status": "running",
+        "response_time": 23.38
+      },
+      "backend": {
+        "status": "running",
+        "response_time": 2.73
+      }
+    },
+    {
+      "timestamp": "2025-09-06T15:32:54.783617",
+      "login_endpoint": {
+        "status": 200,
+        "response_time": 198.95,
+        "has_token": true
+      },
+      "me_endpoint": {
+        "status": 200,
+        "response_time": 3.93
+      }
+    },
+    {
+      "timestamp": "2025-09-06T15:33:24.988853",
+      "frontend": {
+        "status": "running",
+        "response_time": 15.08
+      },
+      "backend": {
+        "status": "running",
+        "response_time": 2.32
+      }
+    },
+    {
+      "timestamp": "2025-09-06T15:33:25.006623",
+      "login_endpoint": {
+        "status": 200,
+        "response_time": 209.19,
+        "has_token": true
+      },
+      "me_endpoint": {
+        "status": 200,
+        "response_time": 4.01
+      }
+    },
+    {
+      "timestamp": "2025-09-06T15:33:55.222492",
+      "frontend": {
+        "status": "running",
+        "response_time": 17.35
+      },
+      "backend": {
+        "status": "running",
+        "response_time": 2.26
+      }
+    },
+    {
+      "timestamp": "2025-09-06T15:33:55.242541",
+      "login_endpoint": {
+        "status": 200,
+        "response_time": 198.53,
+        "has_token": true
+      },
+      "me_endpoint": {
+        "status": 200,
+        "response_time": 4.35
+      }
+    },
+    {
+      "timestamp": "2025-09-06T15:34:25.448793",
+      "frontend": {
+        "status": "running",
+        "response_time": 11.82
+      },
+      "backend": {
+        "status": "running",
+        "response_time": 2.08
+      }
+    },
+    {
+      "timestamp": "2025-09-06T15:34:25.463197",
+      "login_endpoint": {
+        "status": 200,
+        "response_time": 186.34,
+        "has_token": true
+      },
+      "me_endpoint": {
+        "status": 200,
+        "response_time": 4.04
+      }
+    },
+    {
+      "timestamp": "2025-09-06T15:34:55.656011",
+      "frontend": {
+        "status": "running",
+        "response_time": 13.92
+      },
+      "backend": {
+        "status": "running",
+        "response_time": 1.22
+      }
+    },
+    {
+      "timestamp": "2025-09-06T15:34:55.671415",
+      "login_endpoint": {
+        "status": 200,
+        "response_time": 185.42,
+        "has_token": true
+      },
+      "me_endpoint": {
+        "status": 200,
+        "response_time": 4.2
+      }
+    },
+    {
+      "timestamp": "2025-09-06T15:35:25.867583",
+      "frontend": {
+        "status": "running",
+        "response_time": 35.8
+      },
+      "backend": {
+        "status": "running",
+        "response_time": 3.51
+      }
+    },
+    {
+      "timestamp": "2025-09-06T15:35:25.910599",
+      "login_endpoint": {
+        "status": 200,
+        "response_time": 199.46,
+        "has_token": true
+      },
+      "me_endpoint": {
+        "status": 200,
+        "response_time": 3.58
+      }
+    },
+    {
+      "timestamp": "2025-09-06T15:35:56.116436",
+      "frontend": {
+        "status": "running",
+        "response_time": 16.55
+      },
+      "backend": {
+        "status": "running",
+        "response_time": 1.86
+      }
+    },
+    {
+      "timestamp": "2025-09-06T15:35:56.135223",
+      "login_endpoint": {
+        "status": 200,
+        "response_time": 198.89,
+        "has_token": true
+      },
+      "me_endpoint": {
+        "status": 200,
+        "response_time": 5.49
+      }
+    },
+    {
+      "timestamp": "2025-09-06T15:36:26.342155",
+      "frontend": {
+        "status": "running",
+        "response_time": 18.68
+      },
+      "backend": {
+        "status": "running",
+        "response_time": 2.07
+      }
+    },
+    {
+      "timestamp": "2025-09-06T15:36:26.363354",
+      "login_endpoint": {
+        "status": 200,
+        "response_time": 197.52,
+        "has_token": true
+      },
+      "me_endpoint": {
+        "status": 200,
+        "response_time": 4.0
+      }
+    },
+    {
+      "timestamp": "2025-09-06T15:36:56.567117",
+      "frontend": {
+        "status": "running",
+        "response_time": 14.26
+      },
+      "backend": {
+        "status": "running",
+        "response_time": 1.85
+      }
+    },
+    {
+      "timestamp": "2025-09-06T15:36:56.583513",
+      "login_endpoint": {
+        "status": 200,
+        "response_time": 198.46,
+        "has_token": true
+      },
+      "me_endpoint": {
+        "status": 200,
+        "response_time": 4.2
+      }
+    },
+    {
+      "timestamp": "2025-09-06T15:37:26.788517",
+      "frontend": {
+        "status": "running",
+        "response_time": 18.68
+      },
+      "backend": {
+        "status": "running",
+        "response_time": 1.52
+      }
+    },
+    {
+      "timestamp": "2025-09-06T15:37:26.809045",
+      "login_endpoint": {
+        "status": 200,
+        "response_time": 185.22,
+        "has_token": true
+      },
+      "me_endpoint": {
+        "status": 200,
+        "response_time": 4.4
+      }
+    },
+    {
+      "timestamp": "2025-09-06T15:37:57.001098",
+      "frontend": {
+        "status": "running",
+        "response_time": 22.27
+      },
+      "backend": {
+        "status": "running",
+        "response_time": 2.99
+      }
+    },
+    {
+      "timestamp": "2025-09-06T15:37:57.026809",
+      "login_endpoint": {
+        "status": 200,
+        "response_time": 198.85,
+        "has_token": true
+      },
+      "me_endpoint": {
+        "status": 200,
+        "response_time": 4.01
+      }
+    },
+    {
+      "timestamp": "2025-09-06T15:38:27.232000",
+      "frontend": {
+        "status": "running",
+        "response_time": 21.57
+      },
+      "backend": {
+        "status": "running",
+        "response_time": 2.33
+      }
+    },
+    {
+      "timestamp": "2025-09-06T15:38:27.256389",
+      "login_endpoint": {
+        "status": 200,
+        "response_time": 198.33,
+        "has_token": true
+      },
+      "me_endpoint": {
+        "status": 200,
+        "response_time": 4.33
+      }
+    },
+    {
+      "timestamp": "2025-09-06T15:38:57.461334",
+      "frontend": {
+        "status": "running",
+        "response_time": 22.57
+      },
+      "backend": {
+        "status": "running",
+        "response_time": 2.44
+      }
+    },
+    {
+      "timestamp": "2025-09-06T15:38:57.486857",
+      "login_endpoint": {
+        "status": 200,
+        "response_time": 196.78,
+        "has_token": true
+      },
+      "me_endpoint": {
+        "status": 200,
+        "response_time": 4.31
+      }
+    },
+    {
+      "timestamp": "2025-09-06T15:39:27.690308",
+      "frontend": {
+        "status": "running",
+        "response_time": 21.77
+      },
+      "backend": {
+        "status": "running",
+        "response_time": 2.04
+      }
+    },
+    {
+      "timestamp": "2025-09-06T15:39:27.714623",
+      "login_endpoint": {
+        "status": 200,
+        "response_time": 193.63,
+        "has_token": true
+      },
+      "me_endpoint": {
+        "status": 200,
+        "response_time": 3.03
+      }
+    },
+    {
+      "timestamp": "2025-09-06T15:39:57.913574",
+      "frontend": {
+        "status": "running",
+        "response_time": 23.67
+      },
+      "backend": {
+        "status": "running",
+        "response_time": 2.3
+      }
+    },
+    {
+      "timestamp": "2025-09-06T15:39:57.939998",
+      "login_endpoint": {
+        "status": 200,
+        "response_time": 195.36,
+        "has_token": true
+      },
+      "me_endpoint": {
+        "status": 200,
+        "response_time": 4.12
+      }
+    },
+    {
+      "timestamp": "2025-09-06T15:40:28.126207",
+      "frontend": {
+        "status": "running",
+        "response_time": 12.9
+      },
+      "backend": {
+        "status": "running",
+        "response_time": 1.06
+      }
+    },
+    {
+      "timestamp": "2025-09-06T15:40:28.140348",
+      "login_endpoint": {
+        "status": 200,
+        "response_time": 181.05,
+        "has_token": true
+      },
+      "me_endpoint": {
+        "status": 200,
+        "response_time": 4.28
+      }
+    },
+    {
+      "timestamp": "2025-09-06T15:40:58.320838",
+      "frontend": {
+        "status": "running",
+        "response_time": 15.54
+      },
+      "backend": {
+        "status": "running",
+        "response_time": 1.92
+      }
+    },
+    {
+      "timestamp": "2025-09-06T15:40:58.339000",
+      "login_endpoint": {
+        "status": 200,
+        "response_time": 188.83,
+        "has_token": true
+      },
+      "me_endpoint": {
+        "status": 200,
+        "response_time": 3.89
+      }
+    },
+    {
+      "timestamp": "2025-09-06T15:41:28.532759",
+      "frontend": {
+        "status": "running",
+        "response_time": 18.13
+      },
+      "backend": {
+        "status": "running",
+        "response_time": 2.06
+      }
+    },
+    {
+      "timestamp": "2025-09-06T15:41:28.553301",
+      "login_endpoint": {
+        "status": 200,
+        "response_time": 198.58,
+        "has_token": true
+      },
+      "me_endpoint": {
+        "status": 200,
+        "response_time": 4.33
+      }
+    },
+    {
+      "timestamp": "2025-09-06T15:41:58.758199",
+      "frontend": {
+        "status": "running",
+        "response_time": 23.09
+      },
+      "backend": {
+        "status": "running",
+        "response_time": 2.32
+      }
+    },
+    {
+      "timestamp": "2025-09-06T15:41:58.784059",
+      "login_endpoint": {
+        "status": 200,
+        "response_time": 201.07,
+        "has_token": true
+      },
+      "me_endpoint": {
+        "status": 200,
+        "response_time": 3.04
       }
     }
   ],

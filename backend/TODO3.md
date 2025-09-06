@@ -1360,7 +1360,7 @@ The Raw Data APIs were specifically designed to enable immediate frontend/agent 
 **Cross-Reference**: See `agent/TODO.md` Section 9.19 for investigation summary
 **Priority**: HIGH - Blocks chat functionality and portfolio analytics
 
-#### Root Cause
+#### 6.1.1 Root Cause
 **Primary Issue**: MarketDataCache table contained only 1 day of data per symbol
 **Secondary Issue**: Batch processing logic incorrectly skips symbols with ANY existing data
 
@@ -1374,12 +1374,18 @@ cached_symbols = set(result.scalars().all())
 missing_symbols = symbols - cached_symbols  # Incorrectly excludes partial data
 ```
 
-#### Implementation Requirements - REVISED PLAN
+#### 6.1.2 Implementation Requirements - REVISED PLAN v2
 
-##### Core Strategy: Enhance `bulk_fetch_and_cache()` Instead of Replacing
-**Rationale**: Keep the existing function name and signature for zero breaking changes. All 10+ callers continue to work without modification.
+##### 6.1.2.1 Core Problem: Data Overwriting, NOT Provider Limitations
+**Key Insight**: The provider layer (`fetch_historical_data_hybrid`) already handles API limitations transparently:
+- If you request 252 days but FMP only provides 180, you get 180
+- The provider returns whatever it can fetch within its limits
+- **The real issue**: We're using UPSERT (ON CONFLICT DO UPDATE) which OVERWRITES existing data
 
-##### Current Callers of `bulk_fetch_and_cache()` (Must Continue Working)
+##### 6.1.2.2 Core Strategy: Fix Data Preservation in `bulk_fetch_and_cache()`
+**Rationale**: Keep the existing function name and signature. Focus on changing HOW we store data, not how we fetch it.
+
+##### 6.1.2.3 Current Callers of `bulk_fetch_and_cache()` (Must Continue Working)
 1. **Production Code**:
    - `app/batch/market_data_sync.py` - 3 calls (sync_market_data, fetch_missing_historical_data, validate_and_ensure)
    - `app/api/v1/market_data.py` - 1 call (API endpoint)
@@ -1392,9 +1398,19 @@ missing_symbols = symbols - cached_symbols  # Incorrectly excludes partial data
    - `scripts/test_polygon_connection.py`
    - `scripts/backfill_position_symbols.py`
 
-##### Task 1: Enhance `bulk_fetch_and_cache()` with Smart Gap Detection
-**File**: `app/services/market_data_service.py`
-**Function**: Keep `bulk_fetch_and_cache()` name, replace internals
+##### 6.1.2.4 Task 1: Change from UPSERT to Smart INSERT in `bulk_fetch_and_cache()`
+**File**: `app/services/market_data_service.py`  
+**Function**: Modify data storage logic in `update_market_data_cache()`
+
+**Current Problem** (line ~607):
+```python
+# Current code OVERWRITES existing data:
+stmt = pg_insert(MarketDataCache).values(records_to_upsert)
+stmt = stmt.on_conflict_do_update(  # <-- THIS IS THE PROBLEM!
+    constraint='uq_market_data_cache_symbol_date',
+    set_={...}  # Replaces ALL fields even if we have older data
+)
+```
 
 **Enhanced Implementation**:
 ```python
@@ -1424,23 +1440,29 @@ async def bulk_fetch_and_cache(
     results = {}
     
     for symbol in symbols:
-        # NEW: Check what we already have
-        existing_dates = await self._get_cached_date_range(db, symbol)
-        target_date = date.today() - timedelta(days=days_back)
+        # Step 1: Check what dates we already have cached
+        existing_dates = await self._get_cached_dates(db, symbol)
         
-        if not existing_dates:
-            # First time - fetch everything available
-            date_ranges_to_fetch = [(target_date, date.today())]
-        else:
-            # Find gaps in existing data
-            date_ranges_to_fetch = await self._identify_gaps(
-                db, symbol, target_date, date.today()
+        # Step 2: Determine target date range
+        target_start = date.today() - timedelta(days=days_back)
+        target_end = date.today()
+        
+        # Step 3: Find missing dates (not in cache)
+        missing_dates = self._find_missing_trading_days(
+            existing_dates, target_start, target_end
+        )
+        
+        # Step 4: Fetch ONLY missing dates from provider
+        if missing_dates:
+            # Provider handles its own limits (180 days for FMP, etc.)
+            new_data = await self.fetch_historical_data_hybrid(
+                [symbol], 
+                start_date=min(missing_dates),
+                end_date=max(missing_dates)
             )
-        
-        # Fetch only missing data
-        if date_ranges_to_fetch:
-            new_data = await self._fetch_date_ranges(symbol, date_ranges_to_fetch)
-            await self._insert_new_market_data(db, symbol, new_data)  # INSERT only!
+            
+            # Step 5: INSERT only - preserve existing data!
+            await self._insert_only_new_records(db, symbol, new_data[symbol])
             
         results[symbol] = {
             "fetched_records": len(new_data) if date_ranges_to_fetch else 0,
@@ -1450,31 +1472,50 @@ async def bulk_fetch_and_cache(
     return {"symbols_processed": len(symbols), "details": results}
 ```
 
-##### Task 2: Add New Helper Methods (Private)
+##### 6.1.2.5 Task 2: Add New Helper Methods (Private)
 **New Internal Functions**:
 ```python
-async def _get_cached_date_range(self, db: AsyncSession, symbol: str) -> List[date]:
+async def _get_cached_dates(self, db: AsyncSession, symbol: str) -> Set[date]:
     """Get all dates we have data for this symbol"""
+    stmt = select(MarketDataCache.date).where(
+        MarketDataCache.symbol == symbol
+    )
+    result = await db.execute(stmt)
+    return set(result.scalars().all())
     
-async def _identify_gaps(
-    self, db: AsyncSession, symbol: str, 
+def _find_missing_trading_days(
+    self, existing_dates: Set[date], 
     start_date: date, end_date: date
-) -> List[Tuple[date, date]]:
-    """Find missing date ranges in the cache"""
+) -> List[date]:
+    """Find trading days we don't have data for"""
+    # Generate all weekdays in range (approximate trading days)
+    all_days = []
+    current = start_date
+    while current <= end_date:
+        if current.weekday() < 5:  # Monday=0, Friday=4
+            all_days.append(current)
+        current += timedelta(days=1)
     
-async def _fetch_date_ranges(
-    self, symbol: str, 
-    date_ranges: List[Tuple[date, date]]
-) -> List[Dict]:
-    """Fetch specific date ranges from provider"""
+    # Return days we don't have
+    return [d for d in all_days if d not in existing_dates]
     
-async def _insert_new_market_data(
+async def _insert_only_new_records(
     self, db: AsyncSession, symbol: str, data: List[Dict]
 ):
-    """INSERT only new records - no UPSERT/overwrite"""
+    """INSERT only - skip conflicts instead of updating"""
+    if not data:
+        return
+        
+    # Use ON CONFLICT DO NOTHING instead of DO UPDATE
+    stmt = pg_insert(MarketDataCache).values(data)
+    stmt = stmt.on_conflict_do_nothing(  # <-- KEY CHANGE!
+        constraint='uq_market_data_cache_symbol_date'
+    )
+    await db.execute(stmt)
+    await db.commit()
 ```
 
-##### Task 3: Add On-Demand Coverage Function
+##### 6.1.2.6 Task 3: Add On-Demand Coverage Function
 **New Public Function**:
 ```python
 async def ensure_data_coverage(
@@ -1505,7 +1546,7 @@ async def ensure_data_coverage(
     return len(existing) >= min_days
 ```
 
-##### Task 4: Add Data Coverage Analysis
+##### 6.1.2.7 Task 4: Add Data Coverage Analysis
 ```python
 async def analyze_data_coverage(db: AsyncSession) -> dict:
     """
@@ -1521,7 +1562,7 @@ async def analyze_data_coverage(db: AsyncSession) -> dict:
     """
 ```
 
-##### Task 5: Update Batch Processing Integration
+##### 6.1.2.8 Task 5: Update Batch Processing Integration
 **Components to Include** (from `batch_orchestrator_v2.py`):
 1. **Market Data Sync** (`sync_market_data`)
    - Daily quotes for active symbols
@@ -1531,7 +1572,7 @@ async def analyze_data_coverage(db: AsyncSession) -> dict:
    - Position-level calculations
    - Portfolio totals and exposures
 3. **Greeks Calculation** (`_calculate_greeks`)
-   - Options sensitivities (Delta, Gamma, Theta, Vega)
+   - ** do not implement this right now, deferrred until greeks data is available**
 4. **Factor Analysis** (`_calculate_factors`)
    - 7-factor model exposures
    - Requires 90+ days for correlations
@@ -1542,112 +1583,83 @@ async def analyze_data_coverage(db: AsyncSession) -> dict:
    - 15 extreme scenarios
 7. **Portfolio Snapshot** (`_create_snapshot`)
    - Daily state capture
-8. **Correlations** (optional)
+8. **Correlations**
    - Position-level correlations
 
-**Note**: Report generation (`generate_all_reports.py`) is EXCLUDED per user request
+**Note**: Report generation (`generate_all_reports.py`) is EXCLUDED and will be deleted from the project in the near feature.
 
-##### Task 5: Implement Smart Scheduling Strategy
-**Add to `batch_orchestrator_v2.py`**:
-```python
-class DataMaintenanceSchedule:
-    """
-    Progressive data accumulation strategy
-    """
-    
-    async def daily_maintenance(self):
-        """Run every market day at 6 PM ET"""
-        # 1. Fetch today's closing prices
-        # 2. Fill any gaps in last 5 trading days
-        # 3. Update portfolio calculations
-    
-    async def weekly_maintenance(self):
-        """Run Sunday nights"""
-        # 1. Ensure 30-day history for all active symbols
-        # 2. Backfill gaps up to 90 days for factor analysis
-        # 3. Run data completeness report
-    
-    async def monthly_maintenance(self):
-        """Run on 1st of month"""
-        # 1. Attempt to extend history to 252 days
-        # 2. Fetch oldest available data within provider limits
-        # 3. Clean up orphaned data (positions no longer active)
-```
+##### 6.1.2.9 Task 6: Implement Smart Scheduling Strategy
+**deferred**
 
-##### Task 6: Handle Provider Limitations Gracefully
-```python
-# FMP Free Tier: ~250 API calls/day
-# FMP Developer: ~750 API calls/day  
-# Strategy: Prioritize by importance and spread over time
+##### 6.1.2.10 Task 7: [REMOVED - Provider limitations already handled]
+**Note**: The provider abstraction layer (FMP and Polygon providers) already handles:
+- Rate limiting with automatic backoff and retries
+- API quota management with built-in tracking
+- Error handling and graceful degradation
+- Transparent fallback between providers
 
-PROVIDER_LIMITS = {
-    'FMP': {
-        'free': {'daily_calls': 250, 'history_days': 180},
-        'developer': {'daily_calls': 750, 'history_days': 180},
-        'professional': {'daily_calls': 3000, 'history_days': 365}
-    },
-    'Polygon': {
-        'free': {'daily_calls': 5, 'history_days': 2},  # Very limited
-        'developer': {'daily_calls': 'unlimited', 'history_days': 730}
-    }
-}
-```
+The real issue is data preservation - see Task 3 for the UPSERT fix that prevents overwriting historical data.
 
-#### Implementation Checklist
-- [ ] Fix `fetch_missing_historical_data()` to detect and fill gaps properly
-- [ ] Create `accumulate_historical_data()` for incremental building
-- [ ] Implement `analyze_data_completeness()` monitoring
-- [ ] Update `batch_orchestrator_v2` to include all engines except reports
-- [ ] Add progressive scheduling (daily/weekly/monthly)
-- [ ] Implement rate limit management for providers
-- [ ] Add data preservation logic (never overwrite old data)
-- [ ] Create manual trigger for immediate backfill
-- [ ] Add logging for data coverage improvements over time
+#### 6.1.3 Implementation Checklist
+- [ ] Modify `bulk_fetch_and_cache()` to preserve historical data (change UPSERT to INSERT)
+- [ ] Update conflict handling: Use `on_conflict_do_nothing()` instead of `on_conflict_do_update()`
+- [ ] Add `ensure_coverage()` for on-demand single-symbol fetching
+- [ ] Implement `analyze_data_completeness()` monitoring function
+- [x] Update `batch_orchestrator_v2` to skip Greeks and reports (✅ COMPLETED in 6.4)
+- [ ] Add progressive scheduling (daily for recent, weekly for older data)
+- [ ] Create manual trigger script for immediate backfill needs
+- [ ] Add logging to track data coverage improvements over time
 
-#### Data Requirements by Use Case
-- **Chat/Agent queries**: 20-30 days minimum
+#### 6.1.4 Data Requirements by Use Case
+- **Chat/Agent queries**: 20 days minimum
 - **Factor analysis**: 90 days (correlation calculations)
-- **Risk metrics**: 150 days (volatility, VaR)
+- **Risk metrics**: 150 days (volatility)
 - **Full analytics**: 252 days (1 trading year ideal)
 - **Long-term goal**: 500+ days (2 years for advanced analytics)
 
-#### Key Files
-- `app/batch/market_data_sync.py` - Main gap detection/filling logic
-- `app/batch/batch_orchestrator_v2.py` - All calculation engines
-- `app/services/market_data_service.py` - Provider interface
-- `app/models/market_data.py` - MarketDataCache model
-- `app/clients/fmp_client.py` - FMP API (primary provider)
-- `app/clients/polygon_client.py` - Polygon API (backup)
-- `scripts/run_batch_calculations.py` - Manual batch trigger
+#### 6.1.5 Key Files to Modify
+- `app/services/market_data_service.py` - Change UPSERT to INSERT (line ~607)
+- `app/batch/market_data_sync.py` - Add gap detection and filling logic
+- `app/batch/batch_orchestrator_v2.py` - ✅ Already updated in 6.4
+- `scripts/run_batch_calculations.py` - Add manual backfill trigger
 
-#### Testing Strategy
+#### 6.1.6 Related Files (Reference Only)
+- `app/models/market_data.py` - MarketDataCache model definition
+- `app/clients/fmp_client.py` - FMP provider (handles own rate limits)
+- `app/clients/polygon_client.py` - Polygon provider (handles own rate limits)
+
+#### 6.1.7 Testing Strategy
 ```bash
-# 1. Test gap detection
-uv run python -c "from app.batch.market_data_sync import analyze_gaps; ..."
+# 1. Check current data coverage
+uv run python scripts/check_database_content.py
 
-# 2. Test incremental fetch (won't overwrite old data)
-uv run python scripts/test_incremental_backfill.py
+# 2. Test data preservation (after implementing INSERT change)
+uv run python -c "from app.services.market_data_service import MarketDataService; # test preservation"
 
-# 3. Run full batch with all engines
-uv run python scripts/run_batch_calculations.py --all-engines
+# 3. Run batch without Greeks/reports (already working)
+uv run python scripts/run_batch_calculations.py
 
-# 4. Verify data completeness
-uv run python scripts/check_data_coverage.py
+# 4. Verify historical data not overwritten
+psql $DATABASE_URL -c "SELECT symbol, date, close FROM market_data_cache WHERE symbol='AAPL' ORDER BY date DESC LIMIT 10;"
+
+# 5. Test on-demand single symbol fetch
+uv run python -c "from app.services.market_data_service import MarketDataService; await service.ensure_coverage('AAPL', 30)"
 ```
 
-#### Expected Outcomes
+#### 6.1.8 Expected Outcomes
 1. **Week 1**: 30-day history for all active symbols
 2. **Week 2**: 90-day history for factor analysis
 3. **Month 1**: 180-day history (FMP limit)
 4. **Month 2+**: Gradual accumulation toward 252 days
 5. **Long-term**: Historical data grows beyond provider window
 
-#### Success Metrics
-- All portfolio positions have minimum 30 days history
-- Factor ETFs maintain 90 days history
-- Gap detection identifies and fills missing ranges
-- Batch processing completes in <5 minutes
-- API rate limits never exceeded
+#### 6.1.9 Success Metrics
+- Historical data preserved (never overwritten by new fetches)
+- All portfolio positions maintain 30+ days history
+- Factor ETFs maintain 90+ days for correlation calculations
+- Batch processing completes without Greeks failures
+- Progressive data accumulation over time (not all at once)
+- Provider rate limits handled transparently (already working)
 
 **Status**: Ready for implementation
 **Temporary Fix Applied**: 2025-09-06 - Manually backfilled 30 days for demo
