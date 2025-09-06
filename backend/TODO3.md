@@ -1352,9 +1352,116 @@ The Raw Data APIs were specifically designed to enable immediate frontend/agent 
 
 ---
 
-## Phase 6: Testing & Deployment (Future)
+## Phase 6: Backend Issues Driven by Frontend & Agent Dev
 
-### 6.1 Testing
+### 6.1 Fix Historical Price Data Gaps in Batch Processing
+**Issue**: Chat requests for historical price data return insufficient data (only 1 day instead of 20-150 days needed)
+**Discovered**: 2025-09-06 during agent chat testing
+**Cross-Reference**: See `agent/TODO.md` Section 9.19 for investigation summary
+**Priority**: HIGH - Blocks chat functionality
+
+#### Root Cause
+**Primary Issue**: MarketDataCache table contained only 1 day of data per symbol
+**Secondary Issue**: Batch processing logic incorrectly skips symbols with ANY existing data
+
+**Problem in `app/batch/market_data_sync.py:102-110`:**
+```python
+# FLAWED LOGIC - Skips symbols with ANY data in date range
+stmt = select(distinct(MarketDataCache.symbol)).where(
+    MarketDataCache.date >= start_date
+)
+cached_symbols = set(result.scalars().all())
+missing_symbols = symbols - cached_symbols  # Incorrectly excludes partial data
+```
+
+#### Implementation Requirements
+
+##### Task 1: Fix Batch Processing Logic
+**File**: `app/batch/market_data_sync.py`
+**Function**: `fetch_missing_historical_data()`
+
+**Required Implementation**:
+```python
+async def fetch_missing_historical_data(days_back: int = 90):
+    """Enhanced version with gap detection"""
+    # For each symbol:
+    # 1. Check existing date range
+    # 2. Identify gaps in historical data
+    # 3. Fetch only missing date ranges
+    # 4. Handle partial failures gracefully
+```
+
+##### Task 2: Add Data Completeness Monitoring
+**New Function Needed**:
+```python
+async def check_data_completeness(symbol: str, required_days: int) -> dict:
+    """
+    Returns:
+    - total_days_available
+    - gaps_detected
+    - oldest_date
+    - newest_date
+    - completeness_percentage
+    """
+```
+
+##### Task 3: Implement Smart Backfill Strategy
+**Requirements**:
+1. **Gap Detection**: Identify missing date ranges per symbol
+2. **Incremental Fetching**: Only fetch missing dates, not entire history
+3. **Priority System**: 
+   - Priority 1: Portfolio positions (user's actual holdings)
+   - Priority 2: Factor ETFs (needed for analysis)
+   - Priority 3: Benchmark indices (SPY, QQQ)
+4. **Rate Limit Handling**: Respect API limits for FMP/Polygon
+5. **Error Recovery**: Continue with other symbols if one fails
+
+##### Task 4: Schedule Regular Maintenance
+**Add to `batch_orchestrator_v2.py`**:
+```python
+# Daily: Sync last 5 trading days
+# Weekly: Check and fill gaps up to 30 days
+# Monthly: Ensure 90-day history for all active symbols
+# On-demand: Full backfill for new positions
+```
+
+#### Implementation Checklist
+- [ ] Fix `fetch_missing_historical_data()` logic with gap detection
+- [ ] Create `ensure_historical_data()` function for smart backfill
+- [ ] Add scheduling to `batch_orchestrator_v2.py`
+- [ ] Implement monitoring and alerting for data completeness
+- [ ] Add historical backfill to seed script
+- [ ] Implement retry logic and error handling
+
+#### Data Requirements
+- Chat tools: 20-30 days minimum
+- Factor analysis: 90 days for correlations
+- Risk calculations: 150 days for volatility
+- Portfolio analytics: 252 days (1 year) ideal
+
+#### Key Files
+- `app/batch/market_data_sync.py` - Main implementation
+- `app/services/market_data_service.py` - Data fetching
+- `app/models/market_data.py` - Database model
+- `app/batch/batch_orchestrator_v2.py` - Scheduling
+- `app/clients/fmp_client.py` - FMP provider
+- `app/clients/polygon_client.py` - Polygon provider
+
+#### Success Metrics
+- All portfolio positions have minimum 30 days history
+- Factor ETFs maintain 90 days history
+- Gap detection identifies and fills missing ranges
+- Batch processing completes in <5 minutes
+- API rate limits never exceeded
+
+**Status**: Ready for implementation
+**Temporary Fix Applied**: 2025-09-06 - Manually backfilled 30 days for demo
+
+---
+
+## Phase 7: Testing & Deployment (Future)
+
+### 7.1 Testing
 - [ ] Write unit tests for all services
 - [ ] Create integration tests for API endpoints
 - [ ] Add performance tests for critical operations
@@ -1362,14 +1469,14 @@ The Raw Data APIs were specifically designed to enable immediate frontend/agent 
 - [ ] Test authentication flows
 - [ ] Create API documentation with examples
 
-### 6.2 Frontend Integration
+### 7.2 Frontend Integration
 - [ ] Test with deployed Next.js prototype
 - [ ] Adjust API responses to match frontend expectations
 - [ ] Implement any missing endpoints discovered during integration
 - [ ] Add proper CORS configuration
 - [ ] Optimize response formats for frontend consumption
 
-### 6.3 Railway Deployment
+### 7.3 Railway Deployment
 - [ ] Create railway.json configuration
 - [ ] Set up PostgreSQL on Railway
 - [ ] Configure environment variables
@@ -1378,7 +1485,7 @@ The Raw Data APIs were specifically designed to enable immediate frontend/agent 
 - [ ] Configure custom domain (if needed)
 - [ ] Set up monitoring and logging
 
-### 5.4 Documentation
+### 7.4 Documentation
 - [ ] Create comprehensive README
 - [ ] Document all API endpoints
 - [ ] Create deployment guide
@@ -1386,16 +1493,16 @@ The Raw Data APIs were specifically designed to enable immediate frontend/agent 
 - [ ] Document data models and schemas
 - [ ] Create troubleshooting guide
 
-## Phase 6: Demo Preparation (Week 8)
+## Phase 8: Demo Preparation (Week 8)
 
-### 6.1 Demo Data Quality
+### 8.1 Demo Data Quality
 - [ ] Generate realistic 90-day portfolio history
 - [ ] Create compelling demo scenarios
 - [ ] Ensure smooth user flows
 - [ ] Pre-calculate all analytics for demo period
 - [ ] Test all demo script scenarios
 
-### 6.2 Performance Tuning
+### 8.2 Performance Tuning
 - [ ] Ensure all API responses < 200ms
 - [ ] Optimize database queries
 - [ ] Cache all demo data

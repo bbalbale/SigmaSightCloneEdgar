@@ -3548,6 +3548,121 @@ portfolio = result.scalar_one_or_none()  # Takes first result
 
 ---
 
+## ✅ 9.19 Historical Price Data Gaps - Investigation Complete
+
+**Issue**: Chat requests for historical price data (e.g., "AAPL 20 days") return insufficient data
+**Discovered**: 2025-09-06 10:15:54 during chat testing
+**Investigation Completed**: 2025-09-06 10:27
+**Status**: Temporary fix applied (30 days backfilled), permanent solution needed
+
+### Investigation Summary
+
+#### Root Cause
+- **Primary**: MarketDataCache table only had 1 day of data instead of 20-150 days needed
+- **Secondary**: Batch processing logic at `app/batch/market_data_sync.py:102-110` incorrectly skips symbols with ANY existing data
+
+#### Quick Fix Applied
+- Manually backfilled 30 days of historical data for portfolio symbols and factor ETFs
+- Total 662 records added (AAPL now has data from 2025-07-25 to 2025-09-05)
+
+#### Files Investigated
+- `app/api/v1/data.py:490-592` - Historical prices endpoint
+- `app/models/market_data.py:14-45` - MarketDataCache model
+- `app/batch/market_data_sync.py` - Batch sync logic (has the bug)
+- `app/services/market_data_service.py` - Market data fetching from providers
+- `app/clients/fmp_client.py` & `polygon_client.py` - Data providers
+
+### Backend Implementation Required
+
+**📌 Cross-Reference**: See `backend/TODO3.md` **Section 6.1** for detailed implementation plan
+
+The backend team needs to:
+1. Fix the flawed `fetch_missing_historical_data()` logic to detect gaps
+2. Implement smart backfill that only fetches missing date ranges
+3. Add regular scheduling for data maintenance
+4. Ensure minimum data requirements (30 days for chat, 90 for analysis, 150 for risk)
+
+**Key Issue to Fix**: The current logic treats any symbol with even 1 day of data as "complete" and skips it during backfill operations.
+  - Solution: Adjust query logic for shared market data
+
+#### Step 6: Implementation Fix (2-3 hours)
+Based on root cause, implement one of:
+
+- [ ] **6.1** Option A: Fix service layer queries
+  ```python
+  # In PortfolioDataService
+  async def get_historical_prices(symbol: str, days: int):
+      # Query from market_data table instead of position-specific
+      query = select(MarketData).where(
+          MarketData.symbol == symbol,
+          MarketData.date >= datetime.now() - timedelta(days=days)
+      )
+  ```
+
+- [ ] **6.2** Option B: Create data population script
+  ```python
+  # Manual backfill script
+  async def backfill_historical_prices():
+      symbols = await get_unique_symbols_from_positions()
+      for symbol in symbols:
+          prices = await fetch_from_fmp(symbol, days=365)
+          await save_to_market_data(prices)
+  ```
+
+- [ ] **6.3** Option C: Add symbol-based endpoint
+  ```python
+  @router.get("/api/v1/data/prices/historical/symbol/{symbol}")
+  async def get_prices_by_symbol(symbol: str, days: int = 30):
+      # New endpoint for symbol-based queries
+  ```
+
+#### Step 7: Testing & Validation (1 hour)
+- [ ] **7.1** Unit tests for service layer
+- [ ] **7.2** Integration test with real data
+- [ ] **7.3** End-to-end chat test with monitoring
+- [ ] **7.4** Verify other symbols (not just AAPL)
+
+### Clarifying Questions Needed:
+
+1. **Database Schema**: What tables exist for storing historical prices? Is there a `market_data` table separate from position-specific data?
+
+2. **Data Population**: Is there an existing batch job that should be populating historical prices? When did it last run successfully?
+
+3. **API Design Intent**: Should the historical prices endpoint work with both position IDs and symbols, or just one?
+
+4. **Data Scope**: Are historical prices meant to be:
+   - Global (same AAPL price for all users)
+   - Position-specific (prices from when user bought)
+   - Portfolio-filtered (only symbols in user's portfolio)
+
+5. **Provider Configuration**: Which data provider (FMP/Polygon) is configured for historical prices? Are the API keys valid?
+
+### Expected Outcome
+- Historical price queries return complete data for any symbol
+- Clear documentation of data model (position-specific vs global)
+- Batch processing reliably populates price data
+- Tool handler correctly maps chat requests to API calls
+
+### Success Criteria
+- [ ] AAPL 20-day query returns 20 data points
+- [ ] Works for all symbols in demo portfolios
+- [ ] Response time < 2 seconds
+- [ ] No empty responses for valid symbols
+
+### Files to Review
+- `backend/app/api/v1/data/endpoints.py` - Historical price endpoint
+- `backend/app/services/portfolio_data_service.py` - Service layer implementation
+- `backend/app/models/market_data.py` - Database models
+- `backend/app/batch/tasks/market_data_task.py` - Batch processing
+- `backend/app/agent/tools/handlers.py` - Tool handler implementation
+
+### References
+- Original implementation: Phase 9.17 `get_prices_historical` tool
+- Chat testing timestamp: 2025-09-06 10:15:54
+- Related: `TOOL_IMPLEMENTATION_REPORT_get_prices_historical.md`
+
+---
+
 ## 📋 Phase 10: ID System Refactoring - Option A (Clean API Separation) (Day 12-13)
 
 ### 🔥 10.0 Critical SSE Contract Fixes (1-2 hours) ✅ **COMPLETED 2025-09-02**
