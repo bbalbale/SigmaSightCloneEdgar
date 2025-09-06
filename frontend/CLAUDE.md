@@ -12,10 +12,28 @@ SigmaSight Frontend - A Next.js 14 portfolio analytics dashboard with chat assis
 
 ## Development Commands
 
-### Essential Commands
+### 🐳 Docker Commands (Preferred)
+```bash
+# Start frontend server (production)
+cd frontend && docker build -t sigmasight-frontend . && docker run -d -p 3005:3005 --name frontend sigmasight-frontend
+
+# Quick start (if image already built)
+docker run -d -p 3005:3005 --name frontend sigmasight-frontend
+
+# Stop frontend
+docker stop frontend && docker rm frontend
+
+# Check health
+curl http://localhost:3005/api/health
+
+# View logs
+docker logs -f frontend
+```
+
+### Traditional NPM Commands
 ```bash
 # Development server (runs on port 3005)
-npm run dev
+cd frontend && npm run dev
 
 # Production build
 npm run build
@@ -31,6 +49,7 @@ npm install
 
 ### Key Configuration
 - **Port**: 3005 (configured to avoid conflicts)
+- **Docker Image**: sigmasight-frontend (~210MB optimized)
 - **Backend API**: Proxies through `/api/proxy/` to `localhost:8000`
 - **Authentication**: JWT tokens for portfolio data, HttpOnly cookies planned for chat
 

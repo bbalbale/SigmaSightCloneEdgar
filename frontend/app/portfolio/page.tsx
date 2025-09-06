@@ -10,10 +10,10 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { ThemeProvider, useTheme } from '@/contexts/ThemeContext'
 import { ThemeToggle } from '../components/ThemeToggle'
-import { loadPortfolioData, PortfolioType } from '../../services/portfolioService'
+import { loadPortfolioData, PortfolioType } from '@/services/portfolioService'
 import { DataSourceIndicator, DataSourceStatus } from '@/components/DataSourceIndicator'
-import { positionApiService } from '../../services/positionApiService'
-import { portfolioResolver } from '../../services/portfolioResolver'
+import { positionApiService } from '@/services/positionApiService'
+import { portfolioResolver } from '@/services/portfolioResolver'
 
 // Default mock data (used for individual and hedge-fund portfolios)
 const defaultPortfolioSummaryMetrics = [

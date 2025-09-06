@@ -118,7 +118,7 @@ export class ApiClient {
     const timeout = config?.timeout || this.defaultTimeout;
     const retries = config?.retries !== undefined ? config.retries : this.defaultRetries;
 
-    let lastError: Error;
+    let lastError: Error = new Error('Request failed');
     
     // Retry logic with exponential backoff
     for (let attempt = 0; attempt <= retries; attempt++) {

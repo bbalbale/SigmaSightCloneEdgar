@@ -28,10 +28,9 @@ class ChatAuthService {
   private currentUser: AuthUser | null = null;
 
   constructor() {
-    // Use proxy in development, direct URL in production
-    this.baseUrl = process.env.NODE_ENV === 'development' 
-      ? '/api/proxy' 
-      : process.env.NEXT_PUBLIC_API_URL || '';
+    // Always use proxy for now (both dev and Docker)
+    // TODO: Update for production deployment with proper API URL
+    this.baseUrl = '/api/proxy';
   }
 
   /**
@@ -62,12 +61,44 @@ class ChatAuthService {
       
       // Store auth state in sessionStorage for persistence check
       if (typeof window !== 'undefined') {
+        // Option 6: User-specific cache clearing - check if different user is logging in
+        const previousUser = localStorage.getItem('user_email');
+        const isDifferentUser = previousUser && previousUser !== email;
+        
+        if (isDifferentUser) {
+          console.log('[Auth] Different user detected, clearing all user-specific data');
+          // Clear all chat-related persisted data for the previous user
+          const keepItems = ['cache_version']; // Items to preserve across users
+          const saved: [string, string][] = keepItems
+            .map(k => [k, localStorage.getItem(k)] as [string, string | null])
+            .filter((item): item is [string, string] => item[1] !== null);
+          
+          // Clear localStorage except critical system items
+          const keysToRemove = [];
+          for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            if (key && !keepItems.includes(key)) {
+              keysToRemove.push(key);
+            }
+          }
+          keysToRemove.forEach(key => localStorage.removeItem(key));
+          
+          // Clear sessionStorage completely
+          sessionStorage.clear();
+          
+          // Clear Zustand persisted stores
+          localStorage.removeItem('chat-storage');
+          
+          // Restore preserved items
+          saved.forEach(([k, v]) => localStorage.setItem(k, v));
+        }
+        
         sessionStorage.setItem('auth_user', JSON.stringify(data.user));
         // Store access token for portfolio API calls (not for chat)
         localStorage.setItem('access_token', data.access_token);
         localStorage.setItem('user_email', email);
         
-        // CRITICAL: Clear any stale conversation state from previous sessions
+        // Option 1: Clear specific conversation state (always do this, even for same user)
         // This prevents 403 "Not authorized to access this conversation" errors
         localStorage.removeItem('conversationId');
         localStorage.removeItem('chatHistory');
