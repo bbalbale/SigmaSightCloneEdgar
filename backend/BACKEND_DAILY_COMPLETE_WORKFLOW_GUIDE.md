@@ -170,6 +170,7 @@ asyncio.run(check())
 ### 1. Update Market Data (Required Daily)
 ```bash
 # Sync latest market prices (last 5 trading days)
+# NOTE: Preserves existing historical data (won't overwrite)
 uv run python -c "
 import asyncio
 from app.batch.market_data_sync import sync_market_data
@@ -177,6 +178,7 @@ asyncio.run(sync_market_data())
 "
 
 # Backfill missing historical data if needed (90 days)
+# NOTE: Now checks per-symbol coverage with 80% threshold
 uv run python -c "
 import asyncio
 from app.batch.market_data_sync import fetch_missing_historical_data
@@ -184,6 +186,7 @@ asyncio.run(fetch_missing_historical_data(days_back=90))
 "
 
 # Ensure factor analysis data (252 days) - ONLY if doing factor analysis
+# NOTE: Automatically backfills any symbols with insufficient data
 uv run python -c "
 import asyncio
 from app.batch.market_data_sync import validate_and_ensure_factor_analysis_data
@@ -198,6 +201,12 @@ async def validate():
 asyncio.run(validate())
 "
 ```
+
+**Important Changes (Section 6.1.10 Fixes):**
+- ✅ Historical data is now **preserved**, not overwritten
+- ✅ Coverage checked **per-symbol** (80% threshold for trading days)
+- ✅ GICS fetching now **optional** (defaults to False for performance)
+- ✅ Metadata rows filtered (only counts actual price data)
 
 ### 2. Run Batch Calculations
 ```bash
