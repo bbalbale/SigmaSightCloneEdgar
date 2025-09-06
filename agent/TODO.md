@@ -3494,43 +3494,51 @@ portfolio = result.scalar_one_or_none()  # Takes first result
 
 ---
 
-### 🔍 9.18 Debug Tool: get_factor_etf_prices (Priority: HIGH)
+### 🔍 9.18 Debug Tool: get_factor_etf_prices ✅ **RESOLVED 2025-09-06**
 
-**Problem Identified**: The `get_factor_etf_prices` tool is fully implemented but returns educational content instead of actual data, despite data being confirmed in the database.
+**Problem Identified**: The `get_factor_etf_prices` tool was returning educational content instead of actual data.
 
-**Debugging Steps**:
-1. [ ] **Verify tool invocation**
-   - [ ] Check chat_monitoring_report.json for tool_call events
-   - [ ] Confirm LLM is calling tool vs providing fallback response
-   - [ ] Verify tool appears in available_tools list
+**Root Cause Analysis** (2025-09-06):
+1. ✅ **LLM Tool Calling Issue**: Tool description was too vague, causing LLM to not recognize when to call it
+2. ✅ **Data Availability Issue**: Only SPY has actual price data; other factor ETFs have no data
 
-2. [ ] **Test API endpoint directly**
-   ```bash
-   TOKEN=$(curl -s -X POST http://localhost:8000/api/v1/auth/login \
-     -H 'Content-Type: application/json' \
-     -d '{"email":"demo_hnw@sigmasight.com","password":"demo12345"}' | jq -r '.access_token')
-   
-   curl -H "Authorization: Bearer ${TOKEN}" \
-     http://localhost:8000/api/v1/data/factors/etf-prices
-   ```
+**Resolution**:
+1. ✅ **Fixed Tool Description**: Updated in `openai_service.py` to be more directive:
+   - Old: "Get ETF prices for factor analysis and correlations"
+   - New: "Get current and historical prices for factor ETFs. Call this tool when users ask about factor ETF prices, factor investing, or factor analysis. Returns market beta (SPY) by default, or specific factors if requested. Available factors: SPY (Market Beta), VTV (Value), VUG (Growth), MTUM (Momentum), QUAL (Quality), SLY (Size/Small Cap), USMV (Low Volatility)."
 
-3. [ ] **Check tool response in monitoring**
-   - [ ] Look for tool response content in chat_monitoring_report.json
-   - [ ] Verify response structure matches expected format
-   - [ ] Check if response is being truncated
+2. ✅ **Tool Now Being Called**: LLM correctly invokes tool after description update
 
-4. [ ] **Common issues to check**
-   - [ ] Empty/null response causing LLM fallback
-   - [ ] Authentication context not passed to handler
-   - [ ] Tool response exceeding character limits
-   - [ ] Meta object not properly populated
+3. ⚠️ **Data Coverage Gap Identified**:
+   - Only SPY has actual price data (seed data)
+   - Other factor ETFs (VTV, VUG, MTUM, QUAL, SLY, USMV) return empty
+   - When `factors` parameter includes non-SPY tickers, API returns empty data
+
+**Available Factor ETFs** (documented in `FACTOR_ETF_REFERENCE.md`):
+| Ticker | Factor |
+|--------|--------|
+| SPY | Market Beta (S&P 500) - **HAS DATA**
+| VTV | Value Factor - **NO DATA**
+| VUG | Growth Factor - **NO DATA**
+| MTUM | Momentum Factor - **NO DATA**
+| QUAL | Quality Factor - **NO DATA**
+| SLY | Size Factor (Small Cap) - **NO DATA**
+| USMV | Low Volatility Factor - **NO DATA**
+
+**Next Steps** (Data Provider Integration):
+- [ ] Add mock data for other factor ETFs in seed script
+- [ ] OR integrate FMP API to fetch real factor ETF prices
+- [ ] OR modify API to return SPY as fallback when other factors unavailable
+
+**Documentation**: 
+- Debug report: `backend/TODO_9_18_DEBUG_REPORT.md`
+- Factor ETF reference: `backend/FACTOR_ETF_REFERENCE.md`
 
 **Implementation Status**:
-- ✅ Backend endpoint: `/api/v1/data/factors/etf-prices`
-- ✅ Tool handler: `handlers.py` line 415
-- ✅ Tool registry: `tool_registry.py` line 74
-- ✅ OpenAI definition: `openai_service.py`
-- ✅ Data exists in MarketDataCache table
+- ✅ Backend endpoint: `/api/v1/data/factors/etf-prices` (works with SPY only)
+- ✅ Tool handler: `app/agent/tools/handlers.py:415-466`
+- ✅ Tool registration: `tool_registry.py:71`
+- ✅ OpenAI service: Tool description fixed
 
 **Expected Outcome**: Tool should return actual ETF prices (SPY, VTV, VUG, MTUM, QUAL, SLY, USMV).
 

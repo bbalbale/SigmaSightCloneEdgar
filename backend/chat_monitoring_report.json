@@ -1,586 +1,34 @@
 {
-  "session_start": "2025-09-05T10:01:53.446370",
+  "session_start": "2025-09-05T22:16:57.418733",
   "status_checks": [
     {
-      "timestamp": "2025-09-05T20:55:58.374953",
+      "timestamp": "2025-09-05T22:16:57.430946",
       "frontend": {
         "status": "running",
-        "response_time": 20.76
+        "response_time": 936.69
       },
       "backend": {
         "status": "running",
-        "response_time": 3.09
+        "response_time": 1.96
       }
     },
     {
-      "timestamp": "2025-09-05T20:55:58.399317",
+      "timestamp": "2025-09-05T22:16:58.369827",
       "login_endpoint": {
         "status": 200,
-        "response_time": 195.73,
+        "response_time": 273.75,
         "has_token": true
       },
       "me_endpoint": {
         "status": 200,
-        "response_time": 4.16
+        "response_time": 6.63
       }
     },
     {
-      "timestamp": "2025-09-05T20:56:28.602175",
+      "timestamp": "2025-09-05T22:17:28.652388",
       "frontend": {
         "status": "running",
-        "response_time": 20.2
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 2.47
-      }
-    },
-    {
-      "timestamp": "2025-09-05T20:56:28.625305",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 198.77,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 3.06
-      }
-    },
-    {
-      "timestamp": "2025-09-05T20:56:58.830233",
-      "frontend": {
-        "status": "running",
-        "response_time": 17.62
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 1.59
-      }
-    },
-    {
-      "timestamp": "2025-09-05T20:56:58.849771",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 205.41,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 3.2
-      }
-    },
-    {
-      "timestamp": "2025-09-05T20:57:29.061395",
-      "frontend": {
-        "status": "running",
-        "response_time": 19.37
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 2.99
-      }
-    },
-    {
-      "timestamp": "2025-09-05T20:57:29.084264",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 197.44,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 3.79
-      }
-    },
-    {
-      "timestamp": "2025-09-05T20:57:59.288394",
-      "frontend": {
-        "status": "running",
-        "response_time": 17.6
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 2.84
-      }
-    },
-    {
-      "timestamp": "2025-09-05T20:57:59.309287",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 189.99,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 3.5
-      }
-    },
-    {
-      "timestamp": "2025-09-05T20:58:04.504265",
-      "frontend": {
-        "status": "running",
-        "response_time": 19.55
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 2.69
-      }
-    },
-    {
-      "timestamp": "2025-09-05T20:58:04.527020",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 197.5,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 3.89
-      }
-    },
-    {
-      "timestamp": "2025-09-05T20:58:34.732180",
-      "frontend": {
-        "status": "running",
-        "response_time": 14.63
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 1.53
-      }
-    },
-    {
-      "timestamp": "2025-09-05T20:58:34.748641",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 193.03,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 4.26
-      }
-    },
-    {
-      "timestamp": "2025-09-05T20:59:04.948873",
-      "frontend": {
-        "status": "running",
-        "response_time": 19.47
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 2.81
-      }
-    },
-    {
-      "timestamp": "2025-09-05T20:59:04.971606",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 196.45,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 2.98
-      }
-    },
-    {
-      "timestamp": "2025-09-05T20:59:35.177946",
-      "frontend": {
-        "status": "running",
-        "response_time": 18.39
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 2.69
-      }
-    },
-    {
-      "timestamp": "2025-09-05T20:59:35.199512",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 195.28,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 4.32
-      }
-    },
-    {
-      "timestamp": "2025-09-05T21:00:05.403403",
-      "frontend": {
-        "status": "running",
-        "response_time": 43.47
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 7.29
-      }
-    },
-    {
-      "timestamp": "2025-09-05T21:00:05.455672",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 190.51,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 5.09
-      }
-    },
-    {
-      "timestamp": "2025-09-05T21:00:35.654416",
-      "frontend": {
-        "status": "running",
-        "response_time": 18.15
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 2.71
-      }
-    },
-    {
-      "timestamp": "2025-09-05T21:00:35.675765",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 196.61,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 4.1
-      }
-    },
-    {
-      "timestamp": "2025-09-05T21:01:05.879411",
-      "frontend": {
-        "status": "running",
-        "response_time": 13.19
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 1.3
-      }
-    },
-    {
-      "timestamp": "2025-09-05T21:01:05.894155",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 182.73,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 2.63
-      }
-    },
-    {
-      "timestamp": "2025-09-05T21:01:36.082150",
-      "frontend": {
-        "status": "running",
-        "response_time": 14.36
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 1.4
-      }
-    },
-    {
-      "timestamp": "2025-09-05T21:01:36.098190",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 281.66,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 4.97
-      }
-    },
-    {
-      "timestamp": "2025-09-05T21:02:06.387732",
-      "frontend": {
-        "status": "running",
-        "response_time": 13.53
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 1.53
-      }
-    },
-    {
-      "timestamp": "2025-09-05T21:02:06.403036",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 189.71,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 4.01
-      }
-    },
-    {
-      "timestamp": "2025-09-05T21:02:36.599632",
-      "frontend": {
-        "status": "running",
-        "response_time": 19.23
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 1.51
-      }
-    },
-    {
-      "timestamp": "2025-09-05T21:02:36.620725",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 191.51,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 3.78
-      }
-    },
-    {
-      "timestamp": "2025-09-05T21:03:06.818834",
-      "frontend": {
-        "status": "running",
-        "response_time": 15.63
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 2.0
-      }
-    },
-    {
-      "timestamp": "2025-09-05T21:03:06.836822",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 271.05,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 5.32
-      }
-    },
-    {
-      "timestamp": "2025-09-05T21:03:37.116105",
-      "frontend": {
-        "status": "running",
-        "response_time": 16.47
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 3.51
-      }
-    },
-    {
-      "timestamp": "2025-09-05T21:03:37.136575",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 273.57,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 4.84
-      }
-    },
-    {
-      "timestamp": "2025-09-05T21:04:07.418281",
-      "frontend": {
-        "status": "running",
-        "response_time": 18.98
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 2.6
-      }
-    },
-    {
-      "timestamp": "2025-09-05T21:04:07.440346",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 197.09,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 4.09
-      }
-    },
-    {
-      "timestamp": "2025-09-05T21:04:37.644436",
-      "frontend": {
-        "status": "running",
-        "response_time": 14.62
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 1.3
-      }
-    },
-    {
-      "timestamp": "2025-09-05T21:04:37.660640",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 201.79,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 4.43
-      }
-    },
-    {
-      "timestamp": "2025-09-05T21:05:07.871443",
-      "frontend": {
-        "status": "running",
-        "response_time": 18.36
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 1.93
-      }
-    },
-    {
-      "timestamp": "2025-09-05T21:05:07.892116",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 190.58,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 4.35
-      }
-    },
-    {
-      "timestamp": "2025-09-05T21:05:38.089975",
-      "frontend": {
-        "status": "running",
-        "response_time": 23.83
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 2.3
-      }
-    },
-    {
-      "timestamp": "2025-09-05T21:05:38.116555",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 194.56,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 4.05
-      }
-    },
-    {
-      "timestamp": "2025-09-05T21:06:08.319610",
-      "frontend": {
-        "status": "running",
-        "response_time": 25.35
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 2.29
-      }
-    },
-    {
-      "timestamp": "2025-09-05T21:06:08.348099",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 193.97,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 4.46
-      }
-    },
-    {
-      "timestamp": "2025-09-05T21:06:38.550570",
-      "frontend": {
-        "status": "running",
-        "response_time": 20.66
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 2.5
-      }
-    },
-    {
-      "timestamp": "2025-09-05T21:06:38.574190",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 194.34,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 4.12
-      }
-    },
-    {
-      "timestamp": "2025-09-05T21:07:08.778063",
-      "frontend": {
-        "status": "running",
-        "response_time": 18.66
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 2.1
-      }
-    },
-    {
-      "timestamp": "2025-09-05T21:07:08.799216",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 195.18,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 3.01
-      }
-    },
-    {
-      "timestamp": "2025-09-05T21:07:39.001292",
-      "frontend": {
-        "status": "running",
-        "response_time": 17.46
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 2.84
-      }
-    },
-    {
-      "timestamp": "2025-09-05T21:07:39.022092",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 196.67,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 2.88
-      }
-    },
-    {
-      "timestamp": "2025-09-05T21:08:09.225547",
-      "frontend": {
-        "status": "running",
-        "response_time": 20.04
+        "response_time": 67.16
       },
       "backend": {
         "status": "running",
@@ -588,56 +36,79 @@
       }
     },
     {
-      "timestamp": "2025-09-05T21:08:09.247361",
+      "timestamp": "2025-09-05T22:17:28.721425",
       "login_endpoint": {
         "status": 200,
-        "response_time": 195.97,
+        "response_time": 186.91,
         "has_token": true
       },
       "me_endpoint": {
         "status": 200,
-        "response_time": 2.66
+        "response_time": 3.43
       }
     },
     {
-      "timestamp": "2025-09-05T21:08:39.449881",
+      "timestamp": "2025-09-05T22:17:58.913282",
       "frontend": {
         "status": "running",
-        "response_time": 18.69
+        "response_time": 32.97
       },
       "backend": {
         "status": "running",
-        "response_time": 2.13
+        "response_time": 2.55
       }
     },
     {
-      "timestamp": "2025-09-05T21:08:39.471224",
+      "timestamp": "2025-09-05T22:17:58.949402",
       "login_endpoint": {
         "status": 200,
-        "response_time": 194.91,
+        "response_time": 193.14,
         "has_token": true
       },
       "me_endpoint": {
         "status": 200,
-        "response_time": 4.74
+        "response_time": 4.66
       }
     },
     {
-      "timestamp": "2025-09-05T21:09:09.674730",
+      "timestamp": "2025-09-05T22:18:29.149054",
       "frontend": {
         "status": "running",
-        "response_time": 16.07
+        "response_time": 16.79
       },
       "backend": {
         "status": "running",
-        "response_time": 2.09
+        "response_time": 1.15
       }
     },
     {
-      "timestamp": "2025-09-05T21:09:09.693310",
+      "timestamp": "2025-09-05T22:18:29.167294",
       "login_endpoint": {
         "status": 200,
-        "response_time": 200.14,
+        "response_time": 188.13,
+        "has_token": true
+      },
+      "me_endpoint": {
+        "status": 200,
+        "response_time": 4.28
+      }
+    },
+    {
+      "timestamp": "2025-09-05T22:18:59.361653",
+      "frontend": {
+        "status": "running",
+        "response_time": 19.45
+      },
+      "backend": {
+        "status": "running",
+        "response_time": 2.3
+      }
+    },
+    {
+      "timestamp": "2025-09-05T22:18:59.383797",
+      "login_endpoint": {
+        "status": 200,
+        "response_time": 194.17,
         "has_token": true
       },
       "me_endpoint": {
@@ -646,125 +117,56 @@
       }
     },
     {
-      "timestamp": "2025-09-05T21:09:39.901826",
+      "timestamp": "2025-09-05T22:19:29.584355",
       "frontend": {
         "status": "running",
-        "response_time": 14.15
+        "response_time": 20.97
       },
       "backend": {
         "status": "running",
-        "response_time": 3.49
+        "response_time": 2.55
       }
     },
     {
-      "timestamp": "2025-09-05T21:09:39.919783",
+      "timestamp": "2025-09-05T22:19:29.608356",
       "login_endpoint": {
         "status": 200,
-        "response_time": 198.0,
+        "response_time": 194.72,
         "has_token": true
       },
       "me_endpoint": {
         "status": 200,
-        "response_time": 3.95
+        "response_time": 3.25
       }
     },
     {
-      "timestamp": "2025-09-05T21:10:10.126799",
+      "timestamp": "2025-09-05T22:19:59.808272",
       "frontend": {
         "status": "running",
-        "response_time": 19.68
+        "response_time": 22.7
       },
       "backend": {
         "status": "running",
-        "response_time": 2.53
+        "response_time": 2.4
       }
     },
     {
-      "timestamp": "2025-09-05T21:10:10.149448",
+      "timestamp": "2025-09-05T22:19:59.833804",
       "login_endpoint": {
         "status": 200,
-        "response_time": 192.28,
+        "response_time": 195.29,
         "has_token": true
       },
       "me_endpoint": {
         "status": 200,
-        "response_time": 4.29
+        "response_time": 3.99
       }
     },
     {
-      "timestamp": "2025-09-05T21:12:02.673517",
+      "timestamp": "2025-09-05T22:20:30.035021",
       "frontend": {
         "status": "running",
-        "response_time": 44.58
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 1.54
-      }
-    },
-    {
-      "timestamp": "2025-09-05T21:12:02.720629",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 185.02,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 4.79
-      }
-    },
-    {
-      "timestamp": "2025-09-05T21:12:32.917560",
-      "frontend": {
-        "status": "running",
-        "response_time": 23.75
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 1.81
-      }
-    },
-    {
-      "timestamp": "2025-09-05T21:12:32.943524",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 192.74,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 5.49
-      }
-    },
-    {
-      "timestamp": "2025-09-05T21:17:21.839847",
-      "frontend": {
-        "status": "running",
-        "response_time": 15.85
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 2.81
-      }
-    },
-    {
-      "timestamp": "2025-09-05T21:17:21.858905",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 206.45,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 4.1
-      }
-    },
-    {
-      "timestamp": "2025-09-05T21:17:27.071847",
-      "frontend": {
-        "status": "running",
-        "response_time": 13.62
+        "response_time": 24.04
       },
       "backend": {
         "status": "running",
@@ -772,122 +174,7 @@
       }
     },
     {
-      "timestamp": "2025-09-05T21:17:27.087745",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 193.57,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 4.47
-      }
-    },
-    {
-      "timestamp": "2025-09-05T21:17:59.851773",
-      "frontend": {
-        "status": "running",
-        "response_time": 15.17
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 2.62
-      }
-    },
-    {
-      "timestamp": "2025-09-05T21:17:59.870016",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 203.6,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 3.66
-      }
-    },
-    {
-      "timestamp": "2025-09-05T21:18:30.081291",
-      "frontend": {
-        "status": "running",
-        "response_time": 22.53
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 2.93
-      }
-    },
-    {
-      "timestamp": "2025-09-05T21:18:30.107214",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 205.25,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 3.17
-      }
-    },
-    {
-      "timestamp": "2025-09-05T21:31:14.547102",
-      "frontend": {
-        "status": "running",
-        "response_time": 26.58
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 2.16
-      }
-    },
-    {
-      "timestamp": "2025-09-05T21:31:14.576726",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 199.58,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 3.35
-      }
-    },
-    {
-      "timestamp": "2025-09-05T21:31:44.780794",
-      "frontend": {
-        "status": "running",
-        "response_time": 22.18
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 2.59
-      }
-    },
-    {
-      "timestamp": "2025-09-05T21:31:44.806004",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 195.04,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 4.09
-      }
-    },
-    {
-      "timestamp": "2025-09-05T21:36:51.879078",
-      "frontend": {
-        "status": "running",
-        "response_time": 20.09
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 2.37
-      }
-    },
-    {
-      "timestamp": "2025-09-05T21:36:51.901978",
+      "timestamp": "2025-09-05T22:20:30.061440",
       "login_endpoint": {
         "status": 200,
         "response_time": 192.82,
@@ -895,140 +182,71 @@
       },
       "me_endpoint": {
         "status": 200,
-        "response_time": 4.94
+        "response_time": 4.03
       }
     },
     {
-      "timestamp": "2025-09-05T21:39:25.567314",
+      "timestamp": "2025-09-05T22:21:00.261666",
       "frontend": {
         "status": "running",
-        "response_time": 18.35
+        "response_time": 21.0
       },
       "backend": {
         "status": "running",
-        "response_time": 4.54
+        "response_time": 1.5
       }
     },
     {
-      "timestamp": "2025-09-05T21:39:25.591980",
+      "timestamp": "2025-09-05T22:21:00.284673",
       "login_endpoint": {
         "status": 200,
-        "response_time": 195.67,
+        "response_time": 188.35,
         "has_token": true
       },
       "me_endpoint": {
         "status": 200,
-        "response_time": 2.48
+        "response_time": 4.28
       }
     },
     {
-      "timestamp": "2025-09-05T21:39:55.794126",
+      "timestamp": "2025-09-05T22:21:30.479256",
       "frontend": {
         "status": "running",
-        "response_time": 15.54
+        "response_time": 23.76
       },
       "backend": {
         "status": "running",
-        "response_time": 2.45
+        "response_time": 1.69
       }
     },
     {
-      "timestamp": "2025-09-05T21:39:55.812519",
+      "timestamp": "2025-09-05T22:21:30.505025",
       "login_endpoint": {
         "status": 200,
-        "response_time": 197.2,
+        "response_time": 192.21,
         "has_token": true
       },
       "me_endpoint": {
         "status": 200,
-        "response_time": 3.94
+        "response_time": 4.4
       }
     },
     {
-      "timestamp": "2025-09-05T21:41:10.859780",
+      "timestamp": "2025-09-05T22:22:00.703279",
       "frontend": {
         "status": "running",
-        "response_time": 20.15
+        "response_time": 22.1
       },
       "backend": {
         "status": "running",
-        "response_time": 3.38
+        "response_time": 1.85
       }
     },
     {
-      "timestamp": "2025-09-05T21:41:10.883838",
+      "timestamp": "2025-09-05T22:22:00.727629",
       "login_endpoint": {
         "status": 200,
-        "response_time": 195.43,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 3.83
-      }
-    },
-    {
-      "timestamp": "2025-09-05T21:41:41.088395",
-      "frontend": {
-        "status": "running",
-        "response_time": 52.58
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 6.23
-      }
-    },
-    {
-      "timestamp": "2025-09-05T21:41:41.148985",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 187.4,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 5.98
-      }
-    },
-    {
-      "timestamp": "2025-09-05T21:42:11.347913",
-      "frontend": {
-        "status": "running",
-        "response_time": 25.29
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 2.04
-      }
-    },
-    {
-      "timestamp": "2025-09-05T21:42:11.375668",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 191.55,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 5.0
-      }
-    },
-    {
-      "timestamp": "2025-09-05T21:42:41.575062",
-      "frontend": {
-        "status": "running",
-        "response_time": 16.79
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 2.66
-      }
-    },
-    {
-      "timestamp": "2025-09-05T21:42:41.594958",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 198.38,
+        "response_time": 193.69,
         "has_token": true
       },
       "me_endpoint": {
@@ -1037,33 +255,355 @@
       }
     },
     {
-      "timestamp": "2025-09-05T21:43:11.800386",
+      "timestamp": "2025-09-05T22:22:30.927500",
       "frontend": {
         "status": "running",
-        "response_time": 17.73
+        "response_time": 21.7
       },
       "backend": {
         "status": "running",
-        "response_time": 2.94
+        "response_time": 2.49
       }
     },
     {
-      "timestamp": "2025-09-05T21:43:11.821538",
+      "timestamp": "2025-09-05T22:22:30.952195",
       "login_endpoint": {
         "status": 200,
-        "response_time": 196.75,
+        "response_time": 277.14,
         "has_token": true
       },
       "me_endpoint": {
         "status": 200,
-        "response_time": 3.1
+        "response_time": 6.34
       }
     },
     {
-      "timestamp": "2025-09-05T21:43:42.024536",
+      "timestamp": "2025-09-05T22:23:01.236891",
       "frontend": {
         "status": "running",
-        "response_time": 20.68
+        "response_time": 22.96
+      },
+      "backend": {
+        "status": "running",
+        "response_time": 2.31
+      }
+    },
+    {
+      "timestamp": "2025-09-05T22:23:01.262597",
+      "login_endpoint": {
+        "status": 200,
+        "response_time": 197.43,
+        "has_token": true
+      },
+      "me_endpoint": {
+        "status": 200,
+        "response_time": 3.14
+      }
+    },
+    {
+      "timestamp": "2025-09-05T22:23:31.465247",
+      "frontend": {
+        "status": "running",
+        "response_time": 22.71
+      },
+      "backend": {
+        "status": "running",
+        "response_time": 2.05
+      }
+    },
+    {
+      "timestamp": "2025-09-05T22:23:31.490380",
+      "login_endpoint": {
+        "status": 200,
+        "response_time": 199.2,
+        "has_token": true
+      },
+      "me_endpoint": {
+        "status": 200,
+        "response_time": 4.17
+      }
+    },
+    {
+      "timestamp": "2025-09-05T22:24:01.695746",
+      "frontend": {
+        "status": "running",
+        "response_time": 22.42
+      },
+      "backend": {
+        "status": "running",
+        "response_time": 2.08
+      }
+    },
+    {
+      "timestamp": "2025-09-05T22:24:01.720648",
+      "login_endpoint": {
+        "status": 200,
+        "response_time": 266.4,
+        "has_token": true
+      },
+      "me_endpoint": {
+        "status": 200,
+        "response_time": 5.65
+      }
+    },
+    {
+      "timestamp": "2025-09-05T22:24:31.994423",
+      "frontend": {
+        "status": "running",
+        "response_time": 19.31
+      },
+      "backend": {
+        "status": "running",
+        "response_time": 1.88
+      }
+    },
+    {
+      "timestamp": "2025-09-05T22:24:32.016195",
+      "login_endpoint": {
+        "status": 200,
+        "response_time": 205.84,
+        "has_token": true
+      },
+      "me_endpoint": {
+        "status": 200,
+        "response_time": 5.15
+      }
+    },
+    {
+      "timestamp": "2025-09-05T22:25:02.229319",
+      "frontend": {
+        "status": "running",
+        "response_time": 18.64
+      },
+      "backend": {
+        "status": "running",
+        "response_time": 2.84
+      }
+    },
+    {
+      "timestamp": "2025-09-05T22:25:02.251259",
+      "login_endpoint": {
+        "status": 200,
+        "response_time": 197.29,
+        "has_token": true
+      },
+      "me_endpoint": {
+        "status": 200,
+        "response_time": 3.24
+      }
+    },
+    {
+      "timestamp": "2025-09-05T22:25:32.453834",
+      "frontend": {
+        "status": "running",
+        "response_time": 14.19
+      },
+      "backend": {
+        "status": "running",
+        "response_time": 2.44
+      }
+    },
+    {
+      "timestamp": "2025-09-05T22:25:32.470825",
+      "login_endpoint": {
+        "status": 200,
+        "response_time": 200.08,
+        "has_token": true
+      },
+      "me_endpoint": {
+        "status": 200,
+        "response_time": 4.12
+      }
+    },
+    {
+      "timestamp": "2025-09-05T22:26:02.677380",
+      "frontend": {
+        "status": "running",
+        "response_time": 18.47
+      },
+      "backend": {
+        "status": "running",
+        "response_time": 2.23
+      }
+    },
+    {
+      "timestamp": "2025-09-05T22:26:02.698569",
+      "login_endpoint": {
+        "status": 200,
+        "response_time": 195.74,
+        "has_token": true
+      },
+      "me_endpoint": {
+        "status": 200,
+        "response_time": 2.36
+      }
+    },
+    {
+      "timestamp": "2025-09-05T22:26:32.898860",
+      "frontend": {
+        "status": "running",
+        "response_time": 33.02
+      },
+      "backend": {
+        "status": "running",
+        "response_time": 2.54
+      }
+    },
+    {
+      "timestamp": "2025-09-05T22:26:32.935262",
+      "login_endpoint": {
+        "status": 200,
+        "response_time": 188.06,
+        "has_token": true
+      },
+      "me_endpoint": {
+        "status": 200,
+        "response_time": 4.15
+      }
+    },
+    {
+      "timestamp": "2025-09-05T22:27:03.129673",
+      "frontend": {
+        "status": "running",
+        "response_time": 19.25
+      },
+      "backend": {
+        "status": "running",
+        "response_time": 2.35
+      }
+    },
+    {
+      "timestamp": "2025-09-05T22:27:03.151747",
+      "login_endpoint": {
+        "status": 200,
+        "response_time": 194.64,
+        "has_token": true
+      },
+      "me_endpoint": {
+        "status": 200,
+        "response_time": 4.17
+      }
+    },
+    {
+      "timestamp": "2025-09-05T22:27:33.353451",
+      "frontend": {
+        "status": "running",
+        "response_time": 21.5
+      },
+      "backend": {
+        "status": "running",
+        "response_time": 2.73
+      }
+    },
+    {
+      "timestamp": "2025-09-05T22:27:33.378180",
+      "login_endpoint": {
+        "status": 200,
+        "response_time": 197.18,
+        "has_token": true
+      },
+      "me_endpoint": {
+        "status": 200,
+        "response_time": 3.79
+      }
+    },
+    {
+      "timestamp": "2025-09-05T22:28:03.581388",
+      "frontend": {
+        "status": "running",
+        "response_time": 21.17
+      },
+      "backend": {
+        "status": "running",
+        "response_time": 2.85
+      }
+    },
+    {
+      "timestamp": "2025-09-05T22:28:03.605995",
+      "login_endpoint": {
+        "status": 200,
+        "response_time": 195.72,
+        "has_token": true
+      },
+      "me_endpoint": {
+        "status": 200,
+        "response_time": 3.21
+      }
+    },
+    {
+      "timestamp": "2025-09-05T22:28:33.807039",
+      "frontend": {
+        "status": "running",
+        "response_time": 21.56
+      },
+      "backend": {
+        "status": "running",
+        "response_time": 2.71
+      }
+    },
+    {
+      "timestamp": "2025-09-05T22:28:33.831798",
+      "login_endpoint": {
+        "status": 200,
+        "response_time": 197.59,
+        "has_token": true
+      },
+      "me_endpoint": {
+        "status": 200,
+        "response_time": 2.98
+      }
+    },
+    {
+      "timestamp": "2025-09-05T22:29:04.033989",
+      "frontend": {
+        "status": "running",
+        "response_time": 16.61
+      },
+      "backend": {
+        "status": "running",
+        "response_time": 2.34
+      }
+    },
+    {
+      "timestamp": "2025-09-05T22:29:04.053400",
+      "login_endpoint": {
+        "status": 200,
+        "response_time": 202.49,
+        "has_token": true
+      },
+      "me_endpoint": {
+        "status": 200,
+        "response_time": 3.76
+      }
+    },
+    {
+      "timestamp": "2025-09-05T22:29:34.262037",
+      "frontend": {
+        "status": "running",
+        "response_time": 38.66
+      },
+      "backend": {
+        "status": "running",
+        "response_time": 2.85
+      }
+    },
+    {
+      "timestamp": "2025-09-05T22:29:34.304511",
+      "login_endpoint": {
+        "status": 200,
+        "response_time": 188.15,
+        "has_token": true
+      },
+      "me_endpoint": {
+        "status": 200,
+        "response_time": 5.54
+      }
+    },
+    {
+      "timestamp": "2025-09-05T22:30:04.500322",
+      "frontend": {
+        "status": "running",
+        "response_time": 15.54
       },
       "backend": {
         "status": "running",
@@ -1071,1753 +611,42 @@
       }
     },
     {
-      "timestamp": "2025-09-05T21:43:42.048068",
+      "timestamp": "2025-09-05T22:30:04.518665",
       "login_endpoint": {
         "status": 200,
-        "response_time": 200.4,
+        "response_time": 184.65,
         "has_token": true
       },
       "me_endpoint": {
         "status": 200,
-        "response_time": 3.95
+        "response_time": 2.62
       }
     },
     {
-      "timestamp": "2025-09-05T21:44:12.255217",
+      "timestamp": "2025-09-05T22:30:34.708182",
       "frontend": {
         "status": "running",
-        "response_time": 21.69
+        "response_time": 20.54
       },
       "backend": {
         "status": "running",
-        "response_time": 2.56
+        "response_time": 2.23
       }
     },
     {
-      "timestamp": "2025-09-05T21:44:12.279950",
+      "timestamp": "2025-09-05T22:30:34.731414",
       "login_endpoint": {
         "status": 200,
-        "response_time": 198.37,
+        "response_time": 194.74,
         "has_token": true
       },
       "me_endpoint": {
         "status": 200,
-        "response_time": 4.24
-      }
-    },
-    {
-      "timestamp": "2025-09-05T21:44:42.485364",
-      "frontend": {
-        "status": "running",
-        "response_time": 16.82
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 2.45
-      }
-    },
-    {
-      "timestamp": "2025-09-05T21:44:42.505071",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 191.34,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 3.19
-      }
-    },
-    {
-      "timestamp": "2025-09-05T21:45:12.702657",
-      "frontend": {
-        "status": "running",
-        "response_time": 15.29
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 3.15
-      }
-    },
-    {
-      "timestamp": "2025-09-05T21:45:12.721481",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 198.56,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 4.25
-      }
-    },
-    {
-      "timestamp": "2025-09-05T21:45:42.927201",
-      "frontend": {
-        "status": "running",
-        "response_time": 20.35
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 3.5
-      }
-    },
-    {
-      "timestamp": "2025-09-05T21:45:42.951615",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 196.9,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 4.16
+        "response_time": 4.2
       }
     }
   ],
-  "errors": [
-    {
-      "timestamp": "2025-09-05T18:24:05.195031",
-      "error": "[Errno 32] Broken pipe"
-    },
-    {
-      "timestamp": "2025-09-05T18:39:35.808420",
-      "error": "[Errno 32] Broken pipe"
-    },
-    {
-      "timestamp": "2025-09-05T18:48:45.887488",
-      "error": "[Errno 32] Broken pipe"
-    },
-    {
-      "timestamp": "2025-09-05T19:02:27.413193",
-      "error": "[Errno 32] Broken pipe"
-    },
-    {
-      "timestamp": "2025-09-05T19:14:37.064646",
-      "error": "[Errno 32] Broken pipe"
-    },
-    {
-      "timestamp": "2025-09-05T20:01:48.261162",
-      "error": "[Errno 32] Broken pipe"
-    },
-    {
-      "timestamp": "2025-09-05T20:30:36.912988",
-      "error": "[Errno 32] Broken pipe"
-    },
-    {
-      "timestamp": "2025-09-05T20:44:18.193774",
-      "error": "[Errno 32] Broken pipe"
-    },
-    {
-      "timestamp": "2025-09-05T20:57:59.503015",
-      "error": "[Errno 32] Broken pipe"
-    },
-    {
-      "timestamp": "2025-09-05T21:17:22.069671",
-      "error": "[Errno 32] Broken pipe"
-    }
-  ],
+  "errors": [],
   "chat_interactions": [],
-  "console_logs": [
-    {
-      "timestamp": "2025-09-05T10:09:42.615292",
-      "level": "log",
-      "message": "Adding token to buffer: Object",
-      "location": "useFetchStreaming.ts:140",
-      "source": "cdp_manual",
-      "category": "auth"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:42.615299",
-      "level": "log",
-      "message": "Calling onToken callback with:  to runId: run_1757092162948_oxbctw5k0",
-      "location": "useFetchStreaming.ts:146",
-      "source": "cdp_manual",
-      "category": "auth"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:42.615306",
-      "level": "log",
-      "message": "ChatInterface onToken received:  to runId: run_1757092162948_oxbctw5k0",
-      "location": "ChatInterface.tsx:214",
-      "source": "cdp_manual",
-      "category": "chat"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:42.615316",
-      "level": "log",
-      "message": "All stream buffers: Array(13)",
-      "location": "ChatInterface.tsx:219",
-      "source": "cdp_manual",
-      "category": "chat"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:42.615362",
-      "level": "log",
-      "message": "Looking for buffer with runId: run_1757092162948_oxbctw5k0",
-      "location": "ChatInterface.tsx:220",
-      "source": "cdp_manual",
-      "category": "general"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:42.615375",
-      "level": "log",
-      "message": "Stream buffer for runId: run_1757092162948_oxbctw5k0 Object",
-      "location": "ChatInterface.tsx:222",
-      "source": "cdp_manual",
-      "category": "chat"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:42.615398",
-      "level": "log",
-      "message": "Updating message with buffer text: ### Top 3 Portfolio Positions Analysis\n\n#### General Overview\n- **Portfolio Name**: Demo High Net Worth Investor Portfolio\n- **Total Value**: $1,393,071.49\n- **Cash Balance**: $66,336.74\n- **Position Count**: 17\n- **As of**: 2025-09-05T17:09:25Z\n\n### Top 3 Holdings\n\n1. **SPY (S&P 500 ETF)**\n   - **Position Type**: Long\n   - **Quantity**: 400 shares\n   - **Entry Date**: 2024-01-05\n   - **Entry Price**: $530.00\n   - **Cost Basis**: $212,000.00\n   - **Current Price**: $530.00\n   - **Market Value**: $212,000.00\n   - **Unrealized P&L**: $0.00 (0% return)\n\n2. **QQQ (NASDAQ-100 ETF)**\n   - **Position Type**: Long\n   - **Quantity**: 450 shares\n   - **Entry Date**: 2024-01-05\n   - **Entry Price**: $420.00\n   - **Cost Basis**: $189,000.00\n   - **Current Price**: $420.00\n   - **Market Value**: $189,000.00\n   - **Unrealized P&L**: $0.00 (0% return)\n\n3. **[Data for third position was truncated]**\n\n### Detailed Analysis\n\n#### SPY (S&P 500 ETF)\n- **Market Exposure**: This ETF tracks the performance of the S&P 500 index, providing broad exposure to U.S. large-cap stocks. It can serve as a core holding that reflects overall market trends.\n- **Stability**: The S&P 500 is often seen as a benchmark for the U.S. equity markets, offering diversification across 500 leading companies.\n- **Performance Insight**: Currently, the position shows no unrealized profit or loss, indicating stable performance since entry.\n\n#### QQQ (NASDAQ-100 ETF)\n- **Growth Potential**: QQQ tracks the NASDAQ-100 index, which includes 100 of the largest non-financial companies listed on NASDAQ. It's known for its tech-heavy composition and growth potential.\n- **Volatility**: While potentially more volatile, this ETF may offer higher returns driven by technology and innovation sectors.\n- **Performance Insight**: Similar to SPY, QQQ's current value reflects no unrealized gains or losses since purchase.\n\n#### Portfolio Strategy Considerations\n- **Diversification**: Both SPY and QQQ provide diversification across large segments of the U.S. market, balancing growth and stability with broad index tracking.\n- **Market Position**: The stable unrealized P&L indicates consistent market conditions since the investment date.\n- **Cash and Liquidity**: With cash comprising around 4.76% of total portfolio value, there's flexibility for additional investments or tactical adjustments as opportunities arise.\n\n### Recommendations\n- **Monitor Market Trends**: Keep an eye on market conditions impacting the S&P 500 and NASDAQ-100 for potential strategic adjustments.\n- **Diversification Strategy**: Ensure the rest of the portfolio complements large-cap U.S. exposure with other asset classes or geographies.\n- **Tactical Opportunities**: Consider deploying some cash reserves into emerging opportunities or sectors showing momentum.\n\nThis analysis provides a glimpse into your top positions and their contributions to",
-      "location": "ChatInterface.tsx:224",
-      "source": "cdp_manual",
-      "category": "chat"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:42.652688",
-      "level": "log",
-      "message": "Processing SSE event: Object",
-      "location": "useFetchStreaming.ts:97",
-      "source": "cdp_manual",
-      "category": "chat"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:42.652772",
-      "level": "log",
-      "message": "Parsed event: Object",
-      "location": "useFetchStreaming.ts:109",
-      "source": "cdp_manual",
-      "category": "general"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:42.652781",
-      "level": "log",
-      "message": "Adding token to buffer: Object",
-      "location": "useFetchStreaming.ts:140",
-      "source": "cdp_manual",
-      "category": "auth"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:42.652811",
-      "level": "log",
-      "message": "Calling onToken callback with:  your runId: run_1757092162948_oxbctw5k0",
-      "location": "useFetchStreaming.ts:146",
-      "source": "cdp_manual",
-      "category": "auth"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:42.652818",
-      "level": "log",
-      "message": "ChatInterface onToken received:  your runId: run_1757092162948_oxbctw5k0",
-      "location": "ChatInterface.tsx:214",
-      "source": "cdp_manual",
-      "category": "chat"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:42.652831",
-      "level": "log",
-      "message": "All stream buffers: Array(13)",
-      "location": "ChatInterface.tsx:219",
-      "source": "cdp_manual",
-      "category": "chat"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:42.652839",
-      "level": "log",
-      "message": "Looking for buffer with runId: run_1757092162948_oxbctw5k0",
-      "location": "ChatInterface.tsx:220",
-      "source": "cdp_manual",
-      "category": "general"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:42.652892",
-      "level": "log",
-      "message": "Stream buffer for runId: run_1757092162948_oxbctw5k0 Object",
-      "location": "ChatInterface.tsx:222",
-      "source": "cdp_manual",
-      "category": "chat"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:42.652939",
-      "level": "log",
-      "message": "Updating message with buffer text: ### Top 3 Portfolio Positions Analysis\n\n#### General Overview\n- **Portfolio Name**: Demo High Net Worth Investor Portfolio\n- **Total Value**: $1,393,071.49\n- **Cash Balance**: $66,336.74\n- **Position Count**: 17\n- **As of**: 2025-09-05T17:09:25Z\n\n### Top 3 Holdings\n\n1. **SPY (S&P 500 ETF)**\n   - **Position Type**: Long\n   - **Quantity**: 400 shares\n   - **Entry Date**: 2024-01-05\n   - **Entry Price**: $530.00\n   - **Cost Basis**: $212,000.00\n   - **Current Price**: $530.00\n   - **Market Value**: $212,000.00\n   - **Unrealized P&L**: $0.00 (0% return)\n\n2. **QQQ (NASDAQ-100 ETF)**\n   - **Position Type**: Long\n   - **Quantity**: 450 shares\n   - **Entry Date**: 2024-01-05\n   - **Entry Price**: $420.00\n   - **Cost Basis**: $189,000.00\n   - **Current Price**: $420.00\n   - **Market Value**: $189,000.00\n   - **Unrealized P&L**: $0.00 (0% return)\n\n3. **[Data for third position was truncated]**\n\n### Detailed Analysis\n\n#### SPY (S&P 500 ETF)\n- **Market Exposure**: This ETF tracks the performance of the S&P 500 index, providing broad exposure to U.S. large-cap stocks. It can serve as a core holding that reflects overall market trends.\n- **Stability**: The S&P 500 is often seen as a benchmark for the U.S. equity markets, offering diversification across 500 leading companies.\n- **Performance Insight**: Currently, the position shows no unrealized profit or loss, indicating stable performance since entry.\n\n#### QQQ (NASDAQ-100 ETF)\n- **Growth Potential**: QQQ tracks the NASDAQ-100 index, which includes 100 of the largest non-financial companies listed on NASDAQ. It's known for its tech-heavy composition and growth potential.\n- **Volatility**: While potentially more volatile, this ETF may offer higher returns driven by technology and innovation sectors.\n- **Performance Insight**: Similar to SPY, QQQ's current value reflects no unrealized gains or losses since purchase.\n\n#### Portfolio Strategy Considerations\n- **Diversification**: Both SPY and QQQ provide diversification across large segments of the U.S. market, balancing growth and stability with broad index tracking.\n- **Market Position**: The stable unrealized P&L indicates consistent market conditions since the investment date.\n- **Cash and Liquidity**: With cash comprising around 4.76% of total portfolio value, there's flexibility for additional investments or tactical adjustments as opportunities arise.\n\n### Recommendations\n- **Monitor Market Trends**: Keep an eye on market conditions impacting the S&P 500 and NASDAQ-100 for potential strategic adjustments.\n- **Diversification Strategy**: Ensure the rest of the portfolio complements large-cap U.S. exposure with other asset classes or geographies.\n- **Tactical Opportunities**: Consider deploying some cash reserves into emerging opportunities or sectors showing momentum.\n\nThis analysis provides a glimpse into your top positions and their contributions to your",
-      "location": "ChatInterface.tsx:224",
-      "source": "cdp_manual",
-      "category": "chat"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:42.655434",
-      "level": "log",
-      "message": "Processing SSE event: Object",
-      "location": "useFetchStreaming.ts:97",
-      "source": "cdp_manual",
-      "category": "chat"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:42.655446",
-      "level": "log",
-      "message": "Parsed event: Object",
-      "location": "useFetchStreaming.ts:109",
-      "source": "cdp_manual",
-      "category": "general"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:42.655453",
-      "level": "log",
-      "message": "Adding token to buffer: Object",
-      "location": "useFetchStreaming.ts:140",
-      "source": "cdp_manual",
-      "category": "auth"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:42.655460",
-      "level": "log",
-      "message": "Calling onToken callback with:  overall runId: run_1757092162948_oxbctw5k0",
-      "location": "useFetchStreaming.ts:146",
-      "source": "cdp_manual",
-      "category": "auth"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:42.655547",
-      "level": "log",
-      "message": "ChatInterface onToken received:  overall runId: run_1757092162948_oxbctw5k0",
-      "location": "ChatInterface.tsx:214",
-      "source": "cdp_manual",
-      "category": "chat"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:42.655559",
-      "level": "log",
-      "message": "All stream buffers: Array(13)",
-      "location": "ChatInterface.tsx:219",
-      "source": "cdp_manual",
-      "category": "chat"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:42.655566",
-      "level": "log",
-      "message": "Looking for buffer with runId: run_1757092162948_oxbctw5k0",
-      "location": "ChatInterface.tsx:220",
-      "source": "cdp_manual",
-      "category": "general"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:42.655574",
-      "level": "log",
-      "message": "Stream buffer for runId: run_1757092162948_oxbctw5k0 Object",
-      "location": "ChatInterface.tsx:222",
-      "source": "cdp_manual",
-      "category": "chat"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:42.655611",
-      "level": "log",
-      "message": "Updating message with buffer text: ### Top 3 Portfolio Positions Analysis\n\n#### General Overview\n- **Portfolio Name**: Demo High Net Worth Investor Portfolio\n- **Total Value**: $1,393,071.49\n- **Cash Balance**: $66,336.74\n- **Position Count**: 17\n- **As of**: 2025-09-05T17:09:25Z\n\n### Top 3 Holdings\n\n1. **SPY (S&P 500 ETF)**\n   - **Position Type**: Long\n   - **Quantity**: 400 shares\n   - **Entry Date**: 2024-01-05\n   - **Entry Price**: $530.00\n   - **Cost Basis**: $212,000.00\n   - **Current Price**: $530.00\n   - **Market Value**: $212,000.00\n   - **Unrealized P&L**: $0.00 (0% return)\n\n2. **QQQ (NASDAQ-100 ETF)**\n   - **Position Type**: Long\n   - **Quantity**: 450 shares\n   - **Entry Date**: 2024-01-05\n   - **Entry Price**: $420.00\n   - **Cost Basis**: $189,000.00\n   - **Current Price**: $420.00\n   - **Market Value**: $189,000.00\n   - **Unrealized P&L**: $0.00 (0% return)\n\n3. **[Data for third position was truncated]**\n\n### Detailed Analysis\n\n#### SPY (S&P 500 ETF)\n- **Market Exposure**: This ETF tracks the performance of the S&P 500 index, providing broad exposure to U.S. large-cap stocks. It can serve as a core holding that reflects overall market trends.\n- **Stability**: The S&P 500 is often seen as a benchmark for the U.S. equity markets, offering diversification across 500 leading companies.\n- **Performance Insight**: Currently, the position shows no unrealized profit or loss, indicating stable performance since entry.\n\n#### QQQ (NASDAQ-100 ETF)\n- **Growth Potential**: QQQ tracks the NASDAQ-100 index, which includes 100 of the largest non-financial companies listed on NASDAQ. It's known for its tech-heavy composition and growth potential.\n- **Volatility**: While potentially more volatile, this ETF may offer higher returns driven by technology and innovation sectors.\n- **Performance Insight**: Similar to SPY, QQQ's current value reflects no unrealized gains or losses since purchase.\n\n#### Portfolio Strategy Considerations\n- **Diversification**: Both SPY and QQQ provide diversification across large segments of the U.S. market, balancing growth and stability with broad index tracking.\n- **Market Position**: The stable unrealized P&L indicates consistent market conditions since the investment date.\n- **Cash and Liquidity**: With cash comprising around 4.76% of total portfolio value, there's flexibility for additional investments or tactical adjustments as opportunities arise.\n\n### Recommendations\n- **Monitor Market Trends**: Keep an eye on market conditions impacting the S&P 500 and NASDAQ-100 for potential strategic adjustments.\n- **Diversification Strategy**: Ensure the rest of the portfolio complements large-cap U.S. exposure with other asset classes or geographies.\n- **Tactical Opportunities**: Consider deploying some cash reserves into emerging opportunities or sectors showing momentum.\n\nThis analysis provides a glimpse into your top positions and their contributions to your overall",
-      "location": "ChatInterface.tsx:224",
-      "source": "cdp_manual",
-      "category": "chat"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:42.687885",
-      "level": "log",
-      "message": "Processing SSE event: Object",
-      "location": "useFetchStreaming.ts:97",
-      "source": "cdp_manual",
-      "category": "chat"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:42.687972",
-      "level": "log",
-      "message": "Parsed event: Object",
-      "location": "useFetchStreaming.ts:109",
-      "source": "cdp_manual",
-      "category": "general"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:42.688043",
-      "level": "log",
-      "message": "Adding token to buffer: Object",
-      "location": "useFetchStreaming.ts:140",
-      "source": "cdp_manual",
-      "category": "auth"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:42.688120",
-      "level": "log",
-      "message": "Calling onToken callback with:  strategy runId: run_1757092162948_oxbctw5k0",
-      "location": "useFetchStreaming.ts:146",
-      "source": "cdp_manual",
-      "category": "auth"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:42.688130",
-      "level": "log",
-      "message": "ChatInterface onToken received:  strategy runId: run_1757092162948_oxbctw5k0",
-      "location": "ChatInterface.tsx:214",
-      "source": "cdp_manual",
-      "category": "chat"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:42.688192",
-      "level": "log",
-      "message": "All stream buffers: Array(13)",
-      "location": "ChatInterface.tsx:219",
-      "source": "cdp_manual",
-      "category": "chat"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:42.688209",
-      "level": "log",
-      "message": "Looking for buffer with runId: run_1757092162948_oxbctw5k0",
-      "location": "ChatInterface.tsx:220",
-      "source": "cdp_manual",
-      "category": "general"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:42.688347",
-      "level": "log",
-      "message": "Stream buffer for runId: run_1757092162948_oxbctw5k0 Object",
-      "location": "ChatInterface.tsx:222",
-      "source": "cdp_manual",
-      "category": "chat"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:42.688369",
-      "level": "log",
-      "message": "Updating message with buffer text: ### Top 3 Portfolio Positions Analysis\n\n#### General Overview\n- **Portfolio Name**: Demo High Net Worth Investor Portfolio\n- **Total Value**: $1,393,071.49\n- **Cash Balance**: $66,336.74\n- **Position Count**: 17\n- **As of**: 2025-09-05T17:09:25Z\n\n### Top 3 Holdings\n\n1. **SPY (S&P 500 ETF)**\n   - **Position Type**: Long\n   - **Quantity**: 400 shares\n   - **Entry Date**: 2024-01-05\n   - **Entry Price**: $530.00\n   - **Cost Basis**: $212,000.00\n   - **Current Price**: $530.00\n   - **Market Value**: $212,000.00\n   - **Unrealized P&L**: $0.00 (0% return)\n\n2. **QQQ (NASDAQ-100 ETF)**\n   - **Position Type**: Long\n   - **Quantity**: 450 shares\n   - **Entry Date**: 2024-01-05\n   - **Entry Price**: $420.00\n   - **Cost Basis**: $189,000.00\n   - **Current Price**: $420.00\n   - **Market Value**: $189,000.00\n   - **Unrealized P&L**: $0.00 (0% return)\n\n3. **[Data for third position was truncated]**\n\n### Detailed Analysis\n\n#### SPY (S&P 500 ETF)\n- **Market Exposure**: This ETF tracks the performance of the S&P 500 index, providing broad exposure to U.S. large-cap stocks. It can serve as a core holding that reflects overall market trends.\n- **Stability**: The S&P 500 is often seen as a benchmark for the U.S. equity markets, offering diversification across 500 leading companies.\n- **Performance Insight**: Currently, the position shows no unrealized profit or loss, indicating stable performance since entry.\n\n#### QQQ (NASDAQ-100 ETF)\n- **Growth Potential**: QQQ tracks the NASDAQ-100 index, which includes 100 of the largest non-financial companies listed on NASDAQ. It's known for its tech-heavy composition and growth potential.\n- **Volatility**: While potentially more volatile, this ETF may offer higher returns driven by technology and innovation sectors.\n- **Performance Insight**: Similar to SPY, QQQ's current value reflects no unrealized gains or losses since purchase.\n\n#### Portfolio Strategy Considerations\n- **Diversification**: Both SPY and QQQ provide diversification across large segments of the U.S. market, balancing growth and stability with broad index tracking.\n- **Market Position**: The stable unrealized P&L indicates consistent market conditions since the investment date.\n- **Cash and Liquidity**: With cash comprising around 4.76% of total portfolio value, there's flexibility for additional investments or tactical adjustments as opportunities arise.\n\n### Recommendations\n- **Monitor Market Trends**: Keep an eye on market conditions impacting the S&P 500 and NASDAQ-100 for potential strategic adjustments.\n- **Diversification Strategy**: Ensure the rest of the portfolio complements large-cap U.S. exposure with other asset classes or geographies.\n- **Tactical Opportunities**: Consider deploying some cash reserves into emerging opportunities or sectors showing momentum.\n\nThis analysis provides a glimpse into your top positions and their contributions to your overall strategy",
-      "location": "ChatInterface.tsx:224",
-      "source": "cdp_manual",
-      "category": "chat"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:42.688377",
-      "level": "log",
-      "message": "Processing SSE event: Object",
-      "location": "useFetchStreaming.ts:97",
-      "source": "cdp_manual",
-      "category": "chat"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:42.688385",
-      "level": "log",
-      "message": "Parsed event: Object",
-      "location": "useFetchStreaming.ts:109",
-      "source": "cdp_manual",
-      "category": "general"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:42.688392",
-      "level": "log",
-      "message": "Adding token to buffer: Object",
-      "location": "useFetchStreaming.ts:140",
-      "source": "cdp_manual",
-      "category": "auth"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:42.688398",
-      "level": "log",
-      "message": "Calling onToken callback with: . runId: run_1757092162948_oxbctw5k0",
-      "location": "useFetchStreaming.ts:146",
-      "source": "cdp_manual",
-      "category": "auth"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:42.688409",
-      "level": "log",
-      "message": "ChatInterface onToken received: . runId: run_1757092162948_oxbctw5k0",
-      "location": "ChatInterface.tsx:214",
-      "source": "cdp_manual",
-      "category": "chat"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:42.688426",
-      "level": "log",
-      "message": "All stream buffers: Array(13)",
-      "location": "ChatInterface.tsx:219",
-      "source": "cdp_manual",
-      "category": "chat"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:42.688446",
-      "level": "log",
-      "message": "Looking for buffer with runId: run_1757092162948_oxbctw5k0",
-      "location": "ChatInterface.tsx:220",
-      "source": "cdp_manual",
-      "category": "general"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:42.688453",
-      "level": "log",
-      "message": "Stream buffer for runId: run_1757092162948_oxbctw5k0 Object",
-      "location": "ChatInterface.tsx:222",
-      "source": "cdp_manual",
-      "category": "chat"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:42.688466",
-      "level": "log",
-      "message": "Updating message with buffer text: ### Top 3 Portfolio Positions Analysis\n\n#### General Overview\n- **Portfolio Name**: Demo High Net Worth Investor Portfolio\n- **Total Value**: $1,393,071.49\n- **Cash Balance**: $66,336.74\n- **Position Count**: 17\n- **As of**: 2025-09-05T17:09:25Z\n\n### Top 3 Holdings\n\n1. **SPY (S&P 500 ETF)**\n   - **Position Type**: Long\n   - **Quantity**: 400 shares\n   - **Entry Date**: 2024-01-05\n   - **Entry Price**: $530.00\n   - **Cost Basis**: $212,000.00\n   - **Current Price**: $530.00\n   - **Market Value**: $212,000.00\n   - **Unrealized P&L**: $0.00 (0% return)\n\n2. **QQQ (NASDAQ-100 ETF)**\n   - **Position Type**: Long\n   - **Quantity**: 450 shares\n   - **Entry Date**: 2024-01-05\n   - **Entry Price**: $420.00\n   - **Cost Basis**: $189,000.00\n   - **Current Price**: $420.00\n   - **Market Value**: $189,000.00\n   - **Unrealized P&L**: $0.00 (0% return)\n\n3. **[Data for third position was truncated]**\n\n### Detailed Analysis\n\n#### SPY (S&P 500 ETF)\n- **Market Exposure**: This ETF tracks the performance of the S&P 500 index, providing broad exposure to U.S. large-cap stocks. It can serve as a core holding that reflects overall market trends.\n- **Stability**: The S&P 500 is often seen as a benchmark for the U.S. equity markets, offering diversification across 500 leading companies.\n- **Performance Insight**: Currently, the position shows no unrealized profit or loss, indicating stable performance since entry.\n\n#### QQQ (NASDAQ-100 ETF)\n- **Growth Potential**: QQQ tracks the NASDAQ-100 index, which includes 100 of the largest non-financial companies listed on NASDAQ. It's known for its tech-heavy composition and growth potential.\n- **Volatility**: While potentially more volatile, this ETF may offer higher returns driven by technology and innovation sectors.\n- **Performance Insight**: Similar to SPY, QQQ's current value reflects no unrealized gains or losses since purchase.\n\n#### Portfolio Strategy Considerations\n- **Diversification**: Both SPY and QQQ provide diversification across large segments of the U.S. market, balancing growth and stability with broad index tracking.\n- **Market Position**: The stable unrealized P&L indicates consistent market conditions since the investment date.\n- **Cash and Liquidity**: With cash comprising around 4.76% of total portfolio value, there's flexibility for additional investments or tactical adjustments as opportunities arise.\n\n### Recommendations\n- **Monitor Market Trends**: Keep an eye on market conditions impacting the S&P 500 and NASDAQ-100 for potential strategic adjustments.\n- **Diversification Strategy**: Ensure the rest of the portfolio complements large-cap U.S. exposure with other asset classes or geographies.\n- **Tactical Opportunities**: Consider deploying some cash reserves into emerging opportunities or sectors showing momentum.\n\nThis analysis provides a glimpse into your top positions and their contributions to your overall strategy.",
-      "location": "ChatInterface.tsx:224",
-      "source": "cdp_manual",
-      "category": "chat"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:42.715071",
-      "level": "log",
-      "message": "Processing SSE event: Object",
-      "location": "useFetchStreaming.ts:97",
-      "source": "cdp_manual",
-      "category": "chat"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:42.715174",
-      "level": "log",
-      "message": "Parsed event: Object",
-      "location": "useFetchStreaming.ts:109",
-      "source": "cdp_manual",
-      "category": "general"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:42.715227",
-      "level": "log",
-      "message": "Adding token to buffer: Object",
-      "location": "useFetchStreaming.ts:140",
-      "source": "cdp_manual",
-      "category": "auth"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:42.715329",
-      "level": "log",
-      "message": "Calling onToken callback with:  If runId: run_1757092162948_oxbctw5k0",
-      "location": "useFetchStreaming.ts:146",
-      "source": "cdp_manual",
-      "category": "auth"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:42.715403",
-      "level": "log",
-      "message": "ChatInterface onToken received:  If runId: run_1757092162948_oxbctw5k0",
-      "location": "ChatInterface.tsx:214",
-      "source": "cdp_manual",
-      "category": "chat"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:42.715416",
-      "level": "log",
-      "message": "All stream buffers: Array(13)",
-      "location": "ChatInterface.tsx:219",
-      "source": "cdp_manual",
-      "category": "chat"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:42.715424",
-      "level": "log",
-      "message": "Looking for buffer with runId: run_1757092162948_oxbctw5k0",
-      "location": "ChatInterface.tsx:220",
-      "source": "cdp_manual",
-      "category": "general"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:42.715432",
-      "level": "log",
-      "message": "Stream buffer for runId: run_1757092162948_oxbctw5k0 Object",
-      "location": "ChatInterface.tsx:222",
-      "source": "cdp_manual",
-      "category": "chat"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:42.715713",
-      "level": "log",
-      "message": "Updating message with buffer text: ### Top 3 Portfolio Positions Analysis\n\n#### General Overview\n- **Portfolio Name**: Demo High Net Worth Investor Portfolio\n- **Total Value**: $1,393,071.49\n- **Cash Balance**: $66,336.74\n- **Position Count**: 17\n- **As of**: 2025-09-05T17:09:25Z\n\n### Top 3 Holdings\n\n1. **SPY (S&P 500 ETF)**\n   - **Position Type**: Long\n   - **Quantity**: 400 shares\n   - **Entry Date**: 2024-01-05\n   - **Entry Price**: $530.00\n   - **Cost Basis**: $212,000.00\n   - **Current Price**: $530.00\n   - **Market Value**: $212,000.00\n   - **Unrealized P&L**: $0.00 (0% return)\n\n2. **QQQ (NASDAQ-100 ETF)**\n   - **Position Type**: Long\n   - **Quantity**: 450 shares\n   - **Entry Date**: 2024-01-05\n   - **Entry Price**: $420.00\n   - **Cost Basis**: $189,000.00\n   - **Current Price**: $420.00\n   - **Market Value**: $189,000.00\n   - **Unrealized P&L**: $0.00 (0% return)\n\n3. **[Data for third position was truncated]**\n\n### Detailed Analysis\n\n#### SPY (S&P 500 ETF)\n- **Market Exposure**: This ETF tracks the performance of the S&P 500 index, providing broad exposure to U.S. large-cap stocks. It can serve as a core holding that reflects overall market trends.\n- **Stability**: The S&P 500 is often seen as a benchmark for the U.S. equity markets, offering diversification across 500 leading companies.\n- **Performance Insight**: Currently, the position shows no unrealized profit or loss, indicating stable performance since entry.\n\n#### QQQ (NASDAQ-100 ETF)\n- **Growth Potential**: QQQ tracks the NASDAQ-100 index, which includes 100 of the largest non-financial companies listed on NASDAQ. It's known for its tech-heavy composition and growth potential.\n- **Volatility**: While potentially more volatile, this ETF may offer higher returns driven by technology and innovation sectors.\n- **Performance Insight**: Similar to SPY, QQQ's current value reflects no unrealized gains or losses since purchase.\n\n#### Portfolio Strategy Considerations\n- **Diversification**: Both SPY and QQQ provide diversification across large segments of the U.S. market, balancing growth and stability with broad index tracking.\n- **Market Position**: The stable unrealized P&L indicates consistent market conditions since the investment date.\n- **Cash and Liquidity**: With cash comprising around 4.76% of total portfolio value, there's flexibility for additional investments or tactical adjustments as opportunities arise.\n\n### Recommendations\n- **Monitor Market Trends**: Keep an eye on market conditions impacting the S&P 500 and NASDAQ-100 for potential strategic adjustments.\n- **Diversification Strategy**: Ensure the rest of the portfolio complements large-cap U.S. exposure with other asset classes or geographies.\n- **Tactical Opportunities**: Consider deploying some cash reserves into emerging opportunities or sectors showing momentum.\n\nThis analysis provides a glimpse into your top positions and their contributions to your overall strategy. If",
-      "location": "ChatInterface.tsx:224",
-      "source": "cdp_manual",
-      "category": "chat"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:42.715723",
-      "level": "log",
-      "message": "Processing SSE event: Object",
-      "location": "useFetchStreaming.ts:97",
-      "source": "cdp_manual",
-      "category": "chat"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:42.715730",
-      "level": "log",
-      "message": "Parsed event: Object",
-      "location": "useFetchStreaming.ts:109",
-      "source": "cdp_manual",
-      "category": "general"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:42.715737",
-      "level": "log",
-      "message": "Adding token to buffer: Object",
-      "location": "useFetchStreaming.ts:140",
-      "source": "cdp_manual",
-      "category": "auth"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:42.715829",
-      "level": "log",
-      "message": "Calling onToken callback with:  further runId: run_1757092162948_oxbctw5k0",
-      "location": "useFetchStreaming.ts:146",
-      "source": "cdp_manual",
-      "category": "auth"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:42.715857",
-      "level": "log",
-      "message": "ChatInterface onToken received:  further runId: run_1757092162948_oxbctw5k0",
-      "location": "ChatInterface.tsx:214",
-      "source": "cdp_manual",
-      "category": "chat"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:42.715867",
-      "level": "log",
-      "message": "All stream buffers: Array(13)",
-      "location": "ChatInterface.tsx:219",
-      "source": "cdp_manual",
-      "category": "chat"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:42.715874",
-      "level": "log",
-      "message": "Looking for buffer with runId: run_1757092162948_oxbctw5k0",
-      "location": "ChatInterface.tsx:220",
-      "source": "cdp_manual",
-      "category": "general"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:42.715881",
-      "level": "log",
-      "message": "Stream buffer for runId: run_1757092162948_oxbctw5k0 Object",
-      "location": "ChatInterface.tsx:222",
-      "source": "cdp_manual",
-      "category": "chat"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:42.715895",
-      "level": "log",
-      "message": "Updating message with buffer text: ### Top 3 Portfolio Positions Analysis\n\n#### General Overview\n- **Portfolio Name**: Demo High Net Worth Investor Portfolio\n- **Total Value**: $1,393,071.49\n- **Cash Balance**: $66,336.74\n- **Position Count**: 17\n- **As of**: 2025-09-05T17:09:25Z\n\n### Top 3 Holdings\n\n1. **SPY (S&P 500 ETF)**\n   - **Position Type**: Long\n   - **Quantity**: 400 shares\n   - **Entry Date**: 2024-01-05\n   - **Entry Price**: $530.00\n   - **Cost Basis**: $212,000.00\n   - **Current Price**: $530.00\n   - **Market Value**: $212,000.00\n   - **Unrealized P&L**: $0.00 (0% return)\n\n2. **QQQ (NASDAQ-100 ETF)**\n   - **Position Type**: Long\n   - **Quantity**: 450 shares\n   - **Entry Date**: 2024-01-05\n   - **Entry Price**: $420.00\n   - **Cost Basis**: $189,000.00\n   - **Current Price**: $420.00\n   - **Market Value**: $189,000.00\n   - **Unrealized P&L**: $0.00 (0% return)\n\n3. **[Data for third position was truncated]**\n\n### Detailed Analysis\n\n#### SPY (S&P 500 ETF)\n- **Market Exposure**: This ETF tracks the performance of the S&P 500 index, providing broad exposure to U.S. large-cap stocks. It can serve as a core holding that reflects overall market trends.\n- **Stability**: The S&P 500 is often seen as a benchmark for the U.S. equity markets, offering diversification across 500 leading companies.\n- **Performance Insight**: Currently, the position shows no unrealized profit or loss, indicating stable performance since entry.\n\n#### QQQ (NASDAQ-100 ETF)\n- **Growth Potential**: QQQ tracks the NASDAQ-100 index, which includes 100 of the largest non-financial companies listed on NASDAQ. It's known for its tech-heavy composition and growth potential.\n- **Volatility**: While potentially more volatile, this ETF may offer higher returns driven by technology and innovation sectors.\n- **Performance Insight**: Similar to SPY, QQQ's current value reflects no unrealized gains or losses since purchase.\n\n#### Portfolio Strategy Considerations\n- **Diversification**: Both SPY and QQQ provide diversification across large segments of the U.S. market, balancing growth and stability with broad index tracking.\n- **Market Position**: The stable unrealized P&L indicates consistent market conditions since the investment date.\n- **Cash and Liquidity**: With cash comprising around 4.76% of total portfolio value, there's flexibility for additional investments or tactical adjustments as opportunities arise.\n\n### Recommendations\n- **Monitor Market Trends**: Keep an eye on market conditions impacting the S&P 500 and NASDAQ-100 for potential strategic adjustments.\n- **Diversification Strategy**: Ensure the rest of the portfolio complements large-cap U.S. exposure with other asset classes or geographies.\n- **Tactical Opportunities**: Consider deploying some cash reserves into emerging opportunities or sectors showing momentum.\n\nThis analysis provides a glimpse into your top positions and their contributions to your overall strategy. If further",
-      "location": "ChatInterface.tsx:224",
-      "source": "cdp_manual",
-      "category": "chat"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:42.741191",
-      "level": "log",
-      "message": "Processing SSE event: Object",
-      "location": "useFetchStreaming.ts:97",
-      "source": "cdp_manual",
-      "category": "chat"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:42.741204",
-      "level": "log",
-      "message": "Parsed event: Object",
-      "location": "useFetchStreaming.ts:109",
-      "source": "cdp_manual",
-      "category": "general"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:42.741211",
-      "level": "log",
-      "message": "Adding token to buffer: Object",
-      "location": "useFetchStreaming.ts:140",
-      "source": "cdp_manual",
-      "category": "auth"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:42.741218",
-      "level": "log",
-      "message": "Calling onToken callback with:  detailed runId: run_1757092162948_oxbctw5k0",
-      "location": "useFetchStreaming.ts:146",
-      "source": "cdp_manual",
-      "category": "auth"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:42.741225",
-      "level": "log",
-      "message": "ChatInterface onToken received:  detailed runId: run_1757092162948_oxbctw5k0",
-      "location": "ChatInterface.tsx:214",
-      "source": "cdp_manual",
-      "category": "chat"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:42.741516",
-      "level": "log",
-      "message": "All stream buffers: Array(13)",
-      "location": "ChatInterface.tsx:219",
-      "source": "cdp_manual",
-      "category": "chat"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:42.741594",
-      "level": "log",
-      "message": "Looking for buffer with runId: run_1757092162948_oxbctw5k0",
-      "location": "ChatInterface.tsx:220",
-      "source": "cdp_manual",
-      "category": "general"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:42.741652",
-      "level": "log",
-      "message": "Stream buffer for runId: run_1757092162948_oxbctw5k0 Object",
-      "location": "ChatInterface.tsx:222",
-      "source": "cdp_manual",
-      "category": "chat"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:42.741691",
-      "level": "log",
-      "message": "Updating message with buffer text: ### Top 3 Portfolio Positions Analysis\n\n#### General Overview\n- **Portfolio Name**: Demo High Net Worth Investor Portfolio\n- **Total Value**: $1,393,071.49\n- **Cash Balance**: $66,336.74\n- **Position Count**: 17\n- **As of**: 2025-09-05T17:09:25Z\n\n### Top 3 Holdings\n\n1. **SPY (S&P 500 ETF)**\n   - **Position Type**: Long\n   - **Quantity**: 400 shares\n   - **Entry Date**: 2024-01-05\n   - **Entry Price**: $530.00\n   - **Cost Basis**: $212,000.00\n   - **Current Price**: $530.00\n   - **Market Value**: $212,000.00\n   - **Unrealized P&L**: $0.00 (0% return)\n\n2. **QQQ (NASDAQ-100 ETF)**\n   - **Position Type**: Long\n   - **Quantity**: 450 shares\n   - **Entry Date**: 2024-01-05\n   - **Entry Price**: $420.00\n   - **Cost Basis**: $189,000.00\n   - **Current Price**: $420.00\n   - **Market Value**: $189,000.00\n   - **Unrealized P&L**: $0.00 (0% return)\n\n3. **[Data for third position was truncated]**\n\n### Detailed Analysis\n\n#### SPY (S&P 500 ETF)\n- **Market Exposure**: This ETF tracks the performance of the S&P 500 index, providing broad exposure to U.S. large-cap stocks. It can serve as a core holding that reflects overall market trends.\n- **Stability**: The S&P 500 is often seen as a benchmark for the U.S. equity markets, offering diversification across 500 leading companies.\n- **Performance Insight**: Currently, the position shows no unrealized profit or loss, indicating stable performance since entry.\n\n#### QQQ (NASDAQ-100 ETF)\n- **Growth Potential**: QQQ tracks the NASDAQ-100 index, which includes 100 of the largest non-financial companies listed on NASDAQ. It's known for its tech-heavy composition and growth potential.\n- **Volatility**: While potentially more volatile, this ETF may offer higher returns driven by technology and innovation sectors.\n- **Performance Insight**: Similar to SPY, QQQ's current value reflects no unrealized gains or losses since purchase.\n\n#### Portfolio Strategy Considerations\n- **Diversification**: Both SPY and QQQ provide diversification across large segments of the U.S. market, balancing growth and stability with broad index tracking.\n- **Market Position**: The stable unrealized P&L indicates consistent market conditions since the investment date.\n- **Cash and Liquidity**: With cash comprising around 4.76% of total portfolio value, there's flexibility for additional investments or tactical adjustments as opportunities arise.\n\n### Recommendations\n- **Monitor Market Trends**: Keep an eye on market conditions impacting the S&P 500 and NASDAQ-100 for potential strategic adjustments.\n- **Diversification Strategy**: Ensure the rest of the portfolio complements large-cap U.S. exposure with other asset classes or geographies.\n- **Tactical Opportunities**: Consider deploying some cash reserves into emerging opportunities or sectors showing momentum.\n\nThis analysis provides a glimpse into your top positions and their contributions to your overall strategy. If further detailed",
-      "location": "ChatInterface.tsx:224",
-      "source": "cdp_manual",
-      "category": "chat"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:42.741836",
-      "level": "log",
-      "message": "Processing SSE event: Object",
-      "location": "useFetchStreaming.ts:97",
-      "source": "cdp_manual",
-      "category": "chat"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:42.741848",
-      "level": "log",
-      "message": "Parsed event: Object",
-      "location": "useFetchStreaming.ts:109",
-      "source": "cdp_manual",
-      "category": "general"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:42.741856",
-      "level": "log",
-      "message": "Adding token to buffer: Object",
-      "location": "useFetchStreaming.ts:140",
-      "source": "cdp_manual",
-      "category": "auth"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:42.741863",
-      "level": "log",
-      "message": "Calling onToken callback with:  information runId: run_1757092162948_oxbctw5k0",
-      "location": "useFetchStreaming.ts:146",
-      "source": "cdp_manual",
-      "category": "auth"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:42.741871",
-      "level": "log",
-      "message": "ChatInterface onToken received:  information runId: run_1757092162948_oxbctw5k0",
-      "location": "ChatInterface.tsx:214",
-      "source": "cdp_manual",
-      "category": "chat"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:42.741883",
-      "level": "log",
-      "message": "All stream buffers: Array(13)",
-      "location": "ChatInterface.tsx:219",
-      "source": "cdp_manual",
-      "category": "chat"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:42.741907",
-      "level": "log",
-      "message": "Looking for buffer with runId: run_1757092162948_oxbctw5k0",
-      "location": "ChatInterface.tsx:220",
-      "source": "cdp_manual",
-      "category": "general"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:42.741917",
-      "level": "log",
-      "message": "Stream buffer for runId: run_1757092162948_oxbctw5k0 Object",
-      "location": "ChatInterface.tsx:222",
-      "source": "cdp_manual",
-      "category": "chat"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:42.742001",
-      "level": "log",
-      "message": "Updating message with buffer text: ### Top 3 Portfolio Positions Analysis\n\n#### General Overview\n- **Portfolio Name**: Demo High Net Worth Investor Portfolio\n- **Total Value**: $1,393,071.49\n- **Cash Balance**: $66,336.74\n- **Position Count**: 17\n- **As of**: 2025-09-05T17:09:25Z\n\n### Top 3 Holdings\n\n1. **SPY (S&P 500 ETF)**\n   - **Position Type**: Long\n   - **Quantity**: 400 shares\n   - **Entry Date**: 2024-01-05\n   - **Entry Price**: $530.00\n   - **Cost Basis**: $212,000.00\n   - **Current Price**: $530.00\n   - **Market Value**: $212,000.00\n   - **Unrealized P&L**: $0.00 (0% return)\n\n2. **QQQ (NASDAQ-100 ETF)**\n   - **Position Type**: Long\n   - **Quantity**: 450 shares\n   - **Entry Date**: 2024-01-05\n   - **Entry Price**: $420.00\n   - **Cost Basis**: $189,000.00\n   - **Current Price**: $420.00\n   - **Market Value**: $189,000.00\n   - **Unrealized P&L**: $0.00 (0% return)\n\n3. **[Data for third position was truncated]**\n\n### Detailed Analysis\n\n#### SPY (S&P 500 ETF)\n- **Market Exposure**: This ETF tracks the performance of the S&P 500 index, providing broad exposure to U.S. large-cap stocks. It can serve as a core holding that reflects overall market trends.\n- **Stability**: The S&P 500 is often seen as a benchmark for the U.S. equity markets, offering diversification across 500 leading companies.\n- **Performance Insight**: Currently, the position shows no unrealized profit or loss, indicating stable performance since entry.\n\n#### QQQ (NASDAQ-100 ETF)\n- **Growth Potential**: QQQ tracks the NASDAQ-100 index, which includes 100 of the largest non-financial companies listed on NASDAQ. It's known for its tech-heavy composition and growth potential.\n- **Volatility**: While potentially more volatile, this ETF may offer higher returns driven by technology and innovation sectors.\n- **Performance Insight**: Similar to SPY, QQQ's current value reflects no unrealized gains or losses since purchase.\n\n#### Portfolio Strategy Considerations\n- **Diversification**: Both SPY and QQQ provide diversification across large segments of the U.S. market, balancing growth and stability with broad index tracking.\n- **Market Position**: The stable unrealized P&L indicates consistent market conditions since the investment date.\n- **Cash and Liquidity**: With cash comprising around 4.76% of total portfolio value, there's flexibility for additional investments or tactical adjustments as opportunities arise.\n\n### Recommendations\n- **Monitor Market Trends**: Keep an eye on market conditions impacting the S&P 500 and NASDAQ-100 for potential strategic adjustments.\n- **Diversification Strategy**: Ensure the rest of the portfolio complements large-cap U.S. exposure with other asset classes or geographies.\n- **Tactical Opportunities**: Consider deploying some cash reserves into emerging opportunities or sectors showing momentum.\n\nThis analysis provides a glimpse into your top positions and their contributions to your overall strategy. If further detailed information",
-      "location": "ChatInterface.tsx:224",
-      "source": "cdp_manual",
-      "category": "chat"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:42.800831",
-      "level": "log",
-      "message": "Processing SSE event: Object",
-      "location": "useFetchStreaming.ts:97",
-      "source": "cdp_manual",
-      "category": "chat"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:42.800895",
-      "level": "log",
-      "message": "Parsed event: Object",
-      "location": "useFetchStreaming.ts:109",
-      "source": "cdp_manual",
-      "category": "general"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:42.800903",
-      "level": "log",
-      "message": "Adding token to buffer: Object",
-      "location": "useFetchStreaming.ts:140",
-      "source": "cdp_manual",
-      "category": "auth"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:42.800989",
-      "level": "log",
-      "message": "Calling onToken callback with:  or runId: run_1757092162948_oxbctw5k0",
-      "location": "useFetchStreaming.ts:146",
-      "source": "cdp_manual",
-      "category": "auth"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:42.801020",
-      "level": "log",
-      "message": "ChatInterface onToken received:  or runId: run_1757092162948_oxbctw5k0",
-      "location": "ChatInterface.tsx:214",
-      "source": "cdp_manual",
-      "category": "chat"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:42.801107",
-      "level": "log",
-      "message": "All stream buffers: Array(13)",
-      "location": "ChatInterface.tsx:219",
-      "source": "cdp_manual",
-      "category": "chat"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:42.801185",
-      "level": "log",
-      "message": "Looking for buffer with runId: run_1757092162948_oxbctw5k0",
-      "location": "ChatInterface.tsx:220",
-      "source": "cdp_manual",
-      "category": "general"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:42.801275",
-      "level": "log",
-      "message": "Stream buffer for runId: run_1757092162948_oxbctw5k0 Object",
-      "location": "ChatInterface.tsx:222",
-      "source": "cdp_manual",
-      "category": "chat"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:42.801390",
-      "level": "log",
-      "message": "Updating message with buffer text: ### Top 3 Portfolio Positions Analysis\n\n#### General Overview\n- **Portfolio Name**: Demo High Net Worth Investor Portfolio\n- **Total Value**: $1,393,071.49\n- **Cash Balance**: $66,336.74\n- **Position Count**: 17\n- **As of**: 2025-09-05T17:09:25Z\n\n### Top 3 Holdings\n\n1. **SPY (S&P 500 ETF)**\n   - **Position Type**: Long\n   - **Quantity**: 400 shares\n   - **Entry Date**: 2024-01-05\n   - **Entry Price**: $530.00\n   - **Cost Basis**: $212,000.00\n   - **Current Price**: $530.00\n   - **Market Value**: $212,000.00\n   - **Unrealized P&L**: $0.00 (0% return)\n\n2. **QQQ (NASDAQ-100 ETF)**\n   - **Position Type**: Long\n   - **Quantity**: 450 shares\n   - **Entry Date**: 2024-01-05\n   - **Entry Price**: $420.00\n   - **Cost Basis**: $189,000.00\n   - **Current Price**: $420.00\n   - **Market Value**: $189,000.00\n   - **Unrealized P&L**: $0.00 (0% return)\n\n3. **[Data for third position was truncated]**\n\n### Detailed Analysis\n\n#### SPY (S&P 500 ETF)\n- **Market Exposure**: This ETF tracks the performance of the S&P 500 index, providing broad exposure to U.S. large-cap stocks. It can serve as a core holding that reflects overall market trends.\n- **Stability**: The S&P 500 is often seen as a benchmark for the U.S. equity markets, offering diversification across 500 leading companies.\n- **Performance Insight**: Currently, the position shows no unrealized profit or loss, indicating stable performance since entry.\n\n#### QQQ (NASDAQ-100 ETF)\n- **Growth Potential**: QQQ tracks the NASDAQ-100 index, which includes 100 of the largest non-financial companies listed on NASDAQ. It's known for its tech-heavy composition and growth potential.\n- **Volatility**: While potentially more volatile, this ETF may offer higher returns driven by technology and innovation sectors.\n- **Performance Insight**: Similar to SPY, QQQ's current value reflects no unrealized gains or losses since purchase.\n\n#### Portfolio Strategy Considerations\n- **Diversification**: Both SPY and QQQ provide diversification across large segments of the U.S. market, balancing growth and stability with broad index tracking.\n- **Market Position**: The stable unrealized P&L indicates consistent market conditions since the investment date.\n- **Cash and Liquidity**: With cash comprising around 4.76% of total portfolio value, there's flexibility for additional investments or tactical adjustments as opportunities arise.\n\n### Recommendations\n- **Monitor Market Trends**: Keep an eye on market conditions impacting the S&P 500 and NASDAQ-100 for potential strategic adjustments.\n- **Diversification Strategy**: Ensure the rest of the portfolio complements large-cap U.S. exposure with other asset classes or geographies.\n- **Tactical Opportunities**: Consider deploying some cash reserves into emerging opportunities or sectors showing momentum.\n\nThis analysis provides a glimpse into your top positions and their contributions to your overall strategy. If further detailed information or",
-      "location": "ChatInterface.tsx:224",
-      "source": "cdp_manual",
-      "category": "chat"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:42.801399",
-      "level": "log",
-      "message": "Processing SSE event: Object",
-      "location": "useFetchStreaming.ts:97",
-      "source": "cdp_manual",
-      "category": "chat"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:42.801406",
-      "level": "log",
-      "message": "Parsed event: Object",
-      "location": "useFetchStreaming.ts:109",
-      "source": "cdp_manual",
-      "category": "general"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:42.801413",
-      "level": "log",
-      "message": "Adding token to buffer: Object",
-      "location": "useFetchStreaming.ts:140",
-      "source": "cdp_manual",
-      "category": "auth"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:42.801520",
-      "level": "log",
-      "message": "Calling onToken callback with:  analysis runId: run_1757092162948_oxbctw5k0",
-      "location": "useFetchStreaming.ts:146",
-      "source": "cdp_manual",
-      "category": "auth"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:42.801538",
-      "level": "log",
-      "message": "ChatInterface onToken received:  analysis runId: run_1757092162948_oxbctw5k0",
-      "location": "ChatInterface.tsx:214",
-      "source": "cdp_manual",
-      "category": "chat"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:42.801552",
-      "level": "log",
-      "message": "All stream buffers: Array(13)",
-      "location": "ChatInterface.tsx:219",
-      "source": "cdp_manual",
-      "category": "chat"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:42.801559",
-      "level": "log",
-      "message": "Looking for buffer with runId: run_1757092162948_oxbctw5k0",
-      "location": "ChatInterface.tsx:220",
-      "source": "cdp_manual",
-      "category": "general"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:42.801568",
-      "level": "log",
-      "message": "Stream buffer for runId: run_1757092162948_oxbctw5k0 Object",
-      "location": "ChatInterface.tsx:222",
-      "source": "cdp_manual",
-      "category": "chat"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:42.801589",
-      "level": "log",
-      "message": "Updating message with buffer text: ### Top 3 Portfolio Positions Analysis\n\n#### General Overview\n- **Portfolio Name**: Demo High Net Worth Investor Portfolio\n- **Total Value**: $1,393,071.49\n- **Cash Balance**: $66,336.74\n- **Position Count**: 17\n- **As of**: 2025-09-05T17:09:25Z\n\n### Top 3 Holdings\n\n1. **SPY (S&P 500 ETF)**\n   - **Position Type**: Long\n   - **Quantity**: 400 shares\n   - **Entry Date**: 2024-01-05\n   - **Entry Price**: $530.00\n   - **Cost Basis**: $212,000.00\n   - **Current Price**: $530.00\n   - **Market Value**: $212,000.00\n   - **Unrealized P&L**: $0.00 (0% return)\n\n2. **QQQ (NASDAQ-100 ETF)**\n   - **Position Type**: Long\n   - **Quantity**: 450 shares\n   - **Entry Date**: 2024-01-05\n   - **Entry Price**: $420.00\n   - **Cost Basis**: $189,000.00\n   - **Current Price**: $420.00\n   - **Market Value**: $189,000.00\n   - **Unrealized P&L**: $0.00 (0% return)\n\n3. **[Data for third position was truncated]**\n\n### Detailed Analysis\n\n#### SPY (S&P 500 ETF)\n- **Market Exposure**: This ETF tracks the performance of the S&P 500 index, providing broad exposure to U.S. large-cap stocks. It can serve as a core holding that reflects overall market trends.\n- **Stability**: The S&P 500 is often seen as a benchmark for the U.S. equity markets, offering diversification across 500 leading companies.\n- **Performance Insight**: Currently, the position shows no unrealized profit or loss, indicating stable performance since entry.\n\n#### QQQ (NASDAQ-100 ETF)\n- **Growth Potential**: QQQ tracks the NASDAQ-100 index, which includes 100 of the largest non-financial companies listed on NASDAQ. It's known for its tech-heavy composition and growth potential.\n- **Volatility**: While potentially more volatile, this ETF may offer higher returns driven by technology and innovation sectors.\n- **Performance Insight**: Similar to SPY, QQQ's current value reflects no unrealized gains or losses since purchase.\n\n#### Portfolio Strategy Considerations\n- **Diversification**: Both SPY and QQQ provide diversification across large segments of the U.S. market, balancing growth and stability with broad index tracking.\n- **Market Position**: The stable unrealized P&L indicates consistent market conditions since the investment date.\n- **Cash and Liquidity**: With cash comprising around 4.76% of total portfolio value, there's flexibility for additional investments or tactical adjustments as opportunities arise.\n\n### Recommendations\n- **Monitor Market Trends**: Keep an eye on market conditions impacting the S&P 500 and NASDAQ-100 for potential strategic adjustments.\n- **Diversification Strategy**: Ensure the rest of the portfolio complements large-cap U.S. exposure with other asset classes or geographies.\n- **Tactical Opportunities**: Consider deploying some cash reserves into emerging opportunities or sectors showing momentum.\n\nThis analysis provides a glimpse into your top positions and their contributions to your overall strategy. If further detailed information or analysis",
-      "location": "ChatInterface.tsx:224",
-      "source": "cdp_manual",
-      "category": "chat"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:42.874244",
-      "level": "log",
-      "message": "Processing SSE event: Object",
-      "location": "useFetchStreaming.ts:97",
-      "source": "cdp_manual",
-      "category": "chat"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:42.874259",
-      "level": "log",
-      "message": "Parsed event: Object",
-      "location": "useFetchStreaming.ts:109",
-      "source": "cdp_manual",
-      "category": "general"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:42.874394",
-      "level": "log",
-      "message": "Adding token to buffer: Object",
-      "location": "useFetchStreaming.ts:140",
-      "source": "cdp_manual",
-      "category": "auth"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:42.874508",
-      "level": "log",
-      "message": "Calling onToken callback with:  on runId: run_1757092162948_oxbctw5k0",
-      "location": "useFetchStreaming.ts:146",
-      "source": "cdp_manual",
-      "category": "auth"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:42.874589",
-      "level": "log",
-      "message": "ChatInterface onToken received:  on runId: run_1757092162948_oxbctw5k0",
-      "location": "ChatInterface.tsx:214",
-      "source": "cdp_manual",
-      "category": "chat"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:42.874606",
-      "level": "log",
-      "message": "All stream buffers: Array(13)",
-      "location": "ChatInterface.tsx:219",
-      "source": "cdp_manual",
-      "category": "chat"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:42.874709",
-      "level": "log",
-      "message": "Looking for buffer with runId: run_1757092162948_oxbctw5k0",
-      "location": "ChatInterface.tsx:220",
-      "source": "cdp_manual",
-      "category": "general"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:42.874748",
-      "level": "log",
-      "message": "Stream buffer for runId: run_1757092162948_oxbctw5k0 Object",
-      "location": "ChatInterface.tsx:222",
-      "source": "cdp_manual",
-      "category": "chat"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:42.874927",
-      "level": "log",
-      "message": "Updating message with buffer text: ### Top 3 Portfolio Positions Analysis\n\n#### General Overview\n- **Portfolio Name**: Demo High Net Worth Investor Portfolio\n- **Total Value**: $1,393,071.49\n- **Cash Balance**: $66,336.74\n- **Position Count**: 17\n- **As of**: 2025-09-05T17:09:25Z\n\n### Top 3 Holdings\n\n1. **SPY (S&P 500 ETF)**\n   - **Position Type**: Long\n   - **Quantity**: 400 shares\n   - **Entry Date**: 2024-01-05\n   - **Entry Price**: $530.00\n   - **Cost Basis**: $212,000.00\n   - **Current Price**: $530.00\n   - **Market Value**: $212,000.00\n   - **Unrealized P&L**: $0.00 (0% return)\n\n2. **QQQ (NASDAQ-100 ETF)**\n   - **Position Type**: Long\n   - **Quantity**: 450 shares\n   - **Entry Date**: 2024-01-05\n   - **Entry Price**: $420.00\n   - **Cost Basis**: $189,000.00\n   - **Current Price**: $420.00\n   - **Market Value**: $189,000.00\n   - **Unrealized P&L**: $0.00 (0% return)\n\n3. **[Data for third position was truncated]**\n\n### Detailed Analysis\n\n#### SPY (S&P 500 ETF)\n- **Market Exposure**: This ETF tracks the performance of the S&P 500 index, providing broad exposure to U.S. large-cap stocks. It can serve as a core holding that reflects overall market trends.\n- **Stability**: The S&P 500 is often seen as a benchmark for the U.S. equity markets, offering diversification across 500 leading companies.\n- **Performance Insight**: Currently, the position shows no unrealized profit or loss, indicating stable performance since entry.\n\n#### QQQ (NASDAQ-100 ETF)\n- **Growth Potential**: QQQ tracks the NASDAQ-100 index, which includes 100 of the largest non-financial companies listed on NASDAQ. It's known for its tech-heavy composition and growth potential.\n- **Volatility**: While potentially more volatile, this ETF may offer higher returns driven by technology and innovation sectors.\n- **Performance Insight**: Similar to SPY, QQQ's current value reflects no unrealized gains or losses since purchase.\n\n#### Portfolio Strategy Considerations\n- **Diversification**: Both SPY and QQQ provide diversification across large segments of the U.S. market, balancing growth and stability with broad index tracking.\n- **Market Position**: The stable unrealized P&L indicates consistent market conditions since the investment date.\n- **Cash and Liquidity**: With cash comprising around 4.76% of total portfolio value, there's flexibility for additional investments or tactical adjustments as opportunities arise.\n\n### Recommendations\n- **Monitor Market Trends**: Keep an eye on market conditions impacting the S&P 500 and NASDAQ-100 for potential strategic adjustments.\n- **Diversification Strategy**: Ensure the rest of the portfolio complements large-cap U.S. exposure with other asset classes or geographies.\n- **Tactical Opportunities**: Consider deploying some cash reserves into emerging opportunities or sectors showing momentum.\n\nThis analysis provides a glimpse into your top positions and their contributions to your overall strategy. If further detailed information or analysis on",
-      "location": "ChatInterface.tsx:224",
-      "source": "cdp_manual",
-      "category": "chat"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:42.874937",
-      "level": "log",
-      "message": "Processing SSE event: Object",
-      "location": "useFetchStreaming.ts:97",
-      "source": "cdp_manual",
-      "category": "chat"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:42.874945",
-      "level": "log",
-      "message": "Parsed event: Object",
-      "location": "useFetchStreaming.ts:109",
-      "source": "cdp_manual",
-      "category": "general"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:42.874952",
-      "level": "log",
-      "message": "Adding token to buffer: Object",
-      "location": "useFetchStreaming.ts:140",
-      "source": "cdp_manual",
-      "category": "auth"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:42.874958",
-      "level": "log",
-      "message": "Calling onToken callback with:  other runId: run_1757092162948_oxbctw5k0",
-      "location": "useFetchStreaming.ts:146",
-      "source": "cdp_manual",
-      "category": "auth"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:42.874965",
-      "level": "log",
-      "message": "ChatInterface onToken received:  other runId: run_1757092162948_oxbctw5k0",
-      "location": "ChatInterface.tsx:214",
-      "source": "cdp_manual",
-      "category": "chat"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:42.874976",
-      "level": "log",
-      "message": "All stream buffers: Array(13)",
-      "location": "ChatInterface.tsx:219",
-      "source": "cdp_manual",
-      "category": "chat"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:42.874997",
-      "level": "log",
-      "message": "Looking for buffer with runId: run_1757092162948_oxbctw5k0",
-      "location": "ChatInterface.tsx:220",
-      "source": "cdp_manual",
-      "category": "general"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:42.875005",
-      "level": "log",
-      "message": "Stream buffer for runId: run_1757092162948_oxbctw5k0 Object",
-      "location": "ChatInterface.tsx:222",
-      "source": "cdp_manual",
-      "category": "chat"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:42.875020",
-      "level": "log",
-      "message": "Updating message with buffer text: ### Top 3 Portfolio Positions Analysis\n\n#### General Overview\n- **Portfolio Name**: Demo High Net Worth Investor Portfolio\n- **Total Value**: $1,393,071.49\n- **Cash Balance**: $66,336.74\n- **Position Count**: 17\n- **As of**: 2025-09-05T17:09:25Z\n\n### Top 3 Holdings\n\n1. **SPY (S&P 500 ETF)**\n   - **Position Type**: Long\n   - **Quantity**: 400 shares\n   - **Entry Date**: 2024-01-05\n   - **Entry Price**: $530.00\n   - **Cost Basis**: $212,000.00\n   - **Current Price**: $530.00\n   - **Market Value**: $212,000.00\n   - **Unrealized P&L**: $0.00 (0% return)\n\n2. **QQQ (NASDAQ-100 ETF)**\n   - **Position Type**: Long\n   - **Quantity**: 450 shares\n   - **Entry Date**: 2024-01-05\n   - **Entry Price**: $420.00\n   - **Cost Basis**: $189,000.00\n   - **Current Price**: $420.00\n   - **Market Value**: $189,000.00\n   - **Unrealized P&L**: $0.00 (0% return)\n\n3. **[Data for third position was truncated]**\n\n### Detailed Analysis\n\n#### SPY (S&P 500 ETF)\n- **Market Exposure**: This ETF tracks the performance of the S&P 500 index, providing broad exposure to U.S. large-cap stocks. It can serve as a core holding that reflects overall market trends.\n- **Stability**: The S&P 500 is often seen as a benchmark for the U.S. equity markets, offering diversification across 500 leading companies.\n- **Performance Insight**: Currently, the position shows no unrealized profit or loss, indicating stable performance since entry.\n\n#### QQQ (NASDAQ-100 ETF)\n- **Growth Potential**: QQQ tracks the NASDAQ-100 index, which includes 100 of the largest non-financial companies listed on NASDAQ. It's known for its tech-heavy composition and growth potential.\n- **Volatility**: While potentially more volatile, this ETF may offer higher returns driven by technology and innovation sectors.\n- **Performance Insight**: Similar to SPY, QQQ's current value reflects no unrealized gains or losses since purchase.\n\n#### Portfolio Strategy Considerations\n- **Diversification**: Both SPY and QQQ provide diversification across large segments of the U.S. market, balancing growth and stability with broad index tracking.\n- **Market Position**: The stable unrealized P&L indicates consistent market conditions since the investment date.\n- **Cash and Liquidity**: With cash comprising around 4.76% of total portfolio value, there's flexibility for additional investments or tactical adjustments as opportunities arise.\n\n### Recommendations\n- **Monitor Market Trends**: Keep an eye on market conditions impacting the S&P 500 and NASDAQ-100 for potential strategic adjustments.\n- **Diversification Strategy**: Ensure the rest of the portfolio complements large-cap U.S. exposure with other asset classes or geographies.\n- **Tactical Opportunities**: Consider deploying some cash reserves into emerging opportunities or sectors showing momentum.\n\nThis analysis provides a glimpse into your top positions and their contributions to your overall strategy. If further detailed information or analysis on other",
-      "location": "ChatInterface.tsx:224",
-      "source": "cdp_manual",
-      "category": "chat"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:42.901136",
-      "level": "log",
-      "message": "Processing SSE event: Object",
-      "location": "useFetchStreaming.ts:97",
-      "source": "cdp_manual",
-      "category": "chat"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:42.901211",
-      "level": "log",
-      "message": "Parsed event: Object",
-      "location": "useFetchStreaming.ts:109",
-      "source": "cdp_manual",
-      "category": "general"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:42.901220",
-      "level": "log",
-      "message": "Adding token to buffer: Object",
-      "location": "useFetchStreaming.ts:140",
-      "source": "cdp_manual",
-      "category": "auth"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:42.901229",
-      "level": "log",
-      "message": "Calling onToken callback with:  positions runId: run_1757092162948_oxbctw5k0",
-      "location": "useFetchStreaming.ts:146",
-      "source": "cdp_manual",
-      "category": "auth"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:42.901270",
-      "level": "log",
-      "message": "ChatInterface onToken received:  positions runId: run_1757092162948_oxbctw5k0",
-      "location": "ChatInterface.tsx:214",
-      "source": "cdp_manual",
-      "category": "chat"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:42.901504",
-      "level": "log",
-      "message": "All stream buffers: Array(13)",
-      "location": "ChatInterface.tsx:219",
-      "source": "cdp_manual",
-      "category": "chat"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:42.901794",
-      "level": "log",
-      "message": "Looking for buffer with runId: run_1757092162948_oxbctw5k0",
-      "location": "ChatInterface.tsx:220",
-      "source": "cdp_manual",
-      "category": "general"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:42.901803",
-      "level": "log",
-      "message": "Stream buffer for runId: run_1757092162948_oxbctw5k0 Object",
-      "location": "ChatInterface.tsx:222",
-      "source": "cdp_manual",
-      "category": "chat"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:42.901822",
-      "level": "log",
-      "message": "Updating message with buffer text: ### Top 3 Portfolio Positions Analysis\n\n#### General Overview\n- **Portfolio Name**: Demo High Net Worth Investor Portfolio\n- **Total Value**: $1,393,071.49\n- **Cash Balance**: $66,336.74\n- **Position Count**: 17\n- **As of**: 2025-09-05T17:09:25Z\n\n### Top 3 Holdings\n\n1. **SPY (S&P 500 ETF)**\n   - **Position Type**: Long\n   - **Quantity**: 400 shares\n   - **Entry Date**: 2024-01-05\n   - **Entry Price**: $530.00\n   - **Cost Basis**: $212,000.00\n   - **Current Price**: $530.00\n   - **Market Value**: $212,000.00\n   - **Unrealized P&L**: $0.00 (0% return)\n\n2. **QQQ (NASDAQ-100 ETF)**\n   - **Position Type**: Long\n   - **Quantity**: 450 shares\n   - **Entry Date**: 2024-01-05\n   - **Entry Price**: $420.00\n   - **Cost Basis**: $189,000.00\n   - **Current Price**: $420.00\n   - **Market Value**: $189,000.00\n   - **Unrealized P&L**: $0.00 (0% return)\n\n3. **[Data for third position was truncated]**\n\n### Detailed Analysis\n\n#### SPY (S&P 500 ETF)\n- **Market Exposure**: This ETF tracks the performance of the S&P 500 index, providing broad exposure to U.S. large-cap stocks. It can serve as a core holding that reflects overall market trends.\n- **Stability**: The S&P 500 is often seen as a benchmark for the U.S. equity markets, offering diversification across 500 leading companies.\n- **Performance Insight**: Currently, the position shows no unrealized profit or loss, indicating stable performance since entry.\n\n#### QQQ (NASDAQ-100 ETF)\n- **Growth Potential**: QQQ tracks the NASDAQ-100 index, which includes 100 of the largest non-financial companies listed on NASDAQ. It's known for its tech-heavy composition and growth potential.\n- **Volatility**: While potentially more volatile, this ETF may offer higher returns driven by technology and innovation sectors.\n- **Performance Insight**: Similar to SPY, QQQ's current value reflects no unrealized gains or losses since purchase.\n\n#### Portfolio Strategy Considerations\n- **Diversification**: Both SPY and QQQ provide diversification across large segments of the U.S. market, balancing growth and stability with broad index tracking.\n- **Market Position**: The stable unrealized P&L indicates consistent market conditions since the investment date.\n- **Cash and Liquidity**: With cash comprising around 4.76% of total portfolio value, there's flexibility for additional investments or tactical adjustments as opportunities arise.\n\n### Recommendations\n- **Monitor Market Trends**: Keep an eye on market conditions impacting the S&P 500 and NASDAQ-100 for potential strategic adjustments.\n- **Diversification Strategy**: Ensure the rest of the portfolio complements large-cap U.S. exposure with other asset classes or geographies.\n- **Tactical Opportunities**: Consider deploying some cash reserves into emerging opportunities or sectors showing momentum.\n\nThis analysis provides a glimpse into your top positions and their contributions to your overall strategy. If further detailed information or analysis on other positions",
-      "location": "ChatInterface.tsx:224",
-      "source": "cdp_manual",
-      "category": "chat"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:42.901830",
-      "level": "log",
-      "message": "Processing SSE event: Object",
-      "location": "useFetchStreaming.ts:97",
-      "source": "cdp_manual",
-      "category": "chat"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:42.901837",
-      "level": "log",
-      "message": "Parsed event: Object",
-      "location": "useFetchStreaming.ts:109",
-      "source": "cdp_manual",
-      "category": "general"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:42.901844",
-      "level": "log",
-      "message": "Adding token to buffer: Object",
-      "location": "useFetchStreaming.ts:140",
-      "source": "cdp_manual",
-      "category": "auth"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:42.901965",
-      "level": "log",
-      "message": "Calling onToken callback with:  is runId: run_1757092162948_oxbctw5k0",
-      "location": "useFetchStreaming.ts:146",
-      "source": "cdp_manual",
-      "category": "auth"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:42.901973",
-      "level": "log",
-      "message": "ChatInterface onToken received:  is runId: run_1757092162948_oxbctw5k0",
-      "location": "ChatInterface.tsx:214",
-      "source": "cdp_manual",
-      "category": "chat"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:42.901984",
-      "level": "log",
-      "message": "All stream buffers: Array(13)",
-      "location": "ChatInterface.tsx:219",
-      "source": "cdp_manual",
-      "category": "chat"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:42.901991",
-      "level": "log",
-      "message": "Looking for buffer with runId: run_1757092162948_oxbctw5k0",
-      "location": "ChatInterface.tsx:220",
-      "source": "cdp_manual",
-      "category": "general"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:42.901998",
-      "level": "log",
-      "message": "Stream buffer for runId: run_1757092162948_oxbctw5k0 Object",
-      "location": "ChatInterface.tsx:222",
-      "source": "cdp_manual",
-      "category": "chat"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:42.902011",
-      "level": "log",
-      "message": "Updating message with buffer text: ### Top 3 Portfolio Positions Analysis\n\n#### General Overview\n- **Portfolio Name**: Demo High Net Worth Investor Portfolio\n- **Total Value**: $1,393,071.49\n- **Cash Balance**: $66,336.74\n- **Position Count**: 17\n- **As of**: 2025-09-05T17:09:25Z\n\n### Top 3 Holdings\n\n1. **SPY (S&P 500 ETF)**\n   - **Position Type**: Long\n   - **Quantity**: 400 shares\n   - **Entry Date**: 2024-01-05\n   - **Entry Price**: $530.00\n   - **Cost Basis**: $212,000.00\n   - **Current Price**: $530.00\n   - **Market Value**: $212,000.00\n   - **Unrealized P&L**: $0.00 (0% return)\n\n2. **QQQ (NASDAQ-100 ETF)**\n   - **Position Type**: Long\n   - **Quantity**: 450 shares\n   - **Entry Date**: 2024-01-05\n   - **Entry Price**: $420.00\n   - **Cost Basis**: $189,000.00\n   - **Current Price**: $420.00\n   - **Market Value**: $189,000.00\n   - **Unrealized P&L**: $0.00 (0% return)\n\n3. **[Data for third position was truncated]**\n\n### Detailed Analysis\n\n#### SPY (S&P 500 ETF)\n- **Market Exposure**: This ETF tracks the performance of the S&P 500 index, providing broad exposure to U.S. large-cap stocks. It can serve as a core holding that reflects overall market trends.\n- **Stability**: The S&P 500 is often seen as a benchmark for the U.S. equity markets, offering diversification across 500 leading companies.\n- **Performance Insight**: Currently, the position shows no unrealized profit or loss, indicating stable performance since entry.\n\n#### QQQ (NASDAQ-100 ETF)\n- **Growth Potential**: QQQ tracks the NASDAQ-100 index, which includes 100 of the largest non-financial companies listed on NASDAQ. It's known for its tech-heavy composition and growth potential.\n- **Volatility**: While potentially more volatile, this ETF may offer higher returns driven by technology and innovation sectors.\n- **Performance Insight**: Similar to SPY, QQQ's current value reflects no unrealized gains or losses since purchase.\n\n#### Portfolio Strategy Considerations\n- **Diversification**: Both SPY and QQQ provide diversification across large segments of the U.S. market, balancing growth and stability with broad index tracking.\n- **Market Position**: The stable unrealized P&L indicates consistent market conditions since the investment date.\n- **Cash and Liquidity**: With cash comprising around 4.76% of total portfolio value, there's flexibility for additional investments or tactical adjustments as opportunities arise.\n\n### Recommendations\n- **Monitor Market Trends**: Keep an eye on market conditions impacting the S&P 500 and NASDAQ-100 for potential strategic adjustments.\n- **Diversification Strategy**: Ensure the rest of the portfolio complements large-cap U.S. exposure with other asset classes or geographies.\n- **Tactical Opportunities**: Consider deploying some cash reserves into emerging opportunities or sectors showing momentum.\n\nThis analysis provides a glimpse into your top positions and their contributions to your overall strategy. If further detailed information or analysis on other positions is",
-      "location": "ChatInterface.tsx:224",
-      "source": "cdp_manual",
-      "category": "chat"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:42.959553",
-      "level": "log",
-      "message": "Processing SSE event: Object",
-      "location": "useFetchStreaming.ts:97",
-      "source": "cdp_manual",
-      "category": "chat"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:42.959676",
-      "level": "log",
-      "message": "Parsed event: Object",
-      "location": "useFetchStreaming.ts:109",
-      "source": "cdp_manual",
-      "category": "general"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:42.959689",
-      "level": "log",
-      "message": "Adding token to buffer: Object",
-      "location": "useFetchStreaming.ts:140",
-      "source": "cdp_manual",
-      "category": "auth"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:42.959697",
-      "level": "log",
-      "message": "Calling onToken callback with:  needed runId: run_1757092162948_oxbctw5k0",
-      "location": "useFetchStreaming.ts:146",
-      "source": "cdp_manual",
-      "category": "auth"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:42.959704",
-      "level": "log",
-      "message": "ChatInterface onToken received:  needed runId: run_1757092162948_oxbctw5k0",
-      "location": "ChatInterface.tsx:214",
-      "source": "cdp_manual",
-      "category": "chat"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:42.959741",
-      "level": "log",
-      "message": "All stream buffers: Array(13)",
-      "location": "ChatInterface.tsx:219",
-      "source": "cdp_manual",
-      "category": "chat"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:42.959752",
-      "level": "log",
-      "message": "Looking for buffer with runId: run_1757092162948_oxbctw5k0",
-      "location": "ChatInterface.tsx:220",
-      "source": "cdp_manual",
-      "category": "general"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:42.959814",
-      "level": "log",
-      "message": "Stream buffer for runId: run_1757092162948_oxbctw5k0 Object",
-      "location": "ChatInterface.tsx:222",
-      "source": "cdp_manual",
-      "category": "chat"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:42.959872",
-      "level": "log",
-      "message": "Updating message with buffer text: ### Top 3 Portfolio Positions Analysis\n\n#### General Overview\n- **Portfolio Name**: Demo High Net Worth Investor Portfolio\n- **Total Value**: $1,393,071.49\n- **Cash Balance**: $66,336.74\n- **Position Count**: 17\n- **As of**: 2025-09-05T17:09:25Z\n\n### Top 3 Holdings\n\n1. **SPY (S&P 500 ETF)**\n   - **Position Type**: Long\n   - **Quantity**: 400 shares\n   - **Entry Date**: 2024-01-05\n   - **Entry Price**: $530.00\n   - **Cost Basis**: $212,000.00\n   - **Current Price**: $530.00\n   - **Market Value**: $212,000.00\n   - **Unrealized P&L**: $0.00 (0% return)\n\n2. **QQQ (NASDAQ-100 ETF)**\n   - **Position Type**: Long\n   - **Quantity**: 450 shares\n   - **Entry Date**: 2024-01-05\n   - **Entry Price**: $420.00\n   - **Cost Basis**: $189,000.00\n   - **Current Price**: $420.00\n   - **Market Value**: $189,000.00\n   - **Unrealized P&L**: $0.00 (0% return)\n\n3. **[Data for third position was truncated]**\n\n### Detailed Analysis\n\n#### SPY (S&P 500 ETF)\n- **Market Exposure**: This ETF tracks the performance of the S&P 500 index, providing broad exposure to U.S. large-cap stocks. It can serve as a core holding that reflects overall market trends.\n- **Stability**: The S&P 500 is often seen as a benchmark for the U.S. equity markets, offering diversification across 500 leading companies.\n- **Performance Insight**: Currently, the position shows no unrealized profit or loss, indicating stable performance since entry.\n\n#### QQQ (NASDAQ-100 ETF)\n- **Growth Potential**: QQQ tracks the NASDAQ-100 index, which includes 100 of the largest non-financial companies listed on NASDAQ. It's known for its tech-heavy composition and growth potential.\n- **Volatility**: While potentially more volatile, this ETF may offer higher returns driven by technology and innovation sectors.\n- **Performance Insight**: Similar to SPY, QQQ's current value reflects no unrealized gains or losses since purchase.\n\n#### Portfolio Strategy Considerations\n- **Diversification**: Both SPY and QQQ provide diversification across large segments of the U.S. market, balancing growth and stability with broad index tracking.\n- **Market Position**: The stable unrealized P&L indicates consistent market conditions since the investment date.\n- **Cash and Liquidity**: With cash comprising around 4.76% of total portfolio value, there's flexibility for additional investments or tactical adjustments as opportunities arise.\n\n### Recommendations\n- **Monitor Market Trends**: Keep an eye on market conditions impacting the S&P 500 and NASDAQ-100 for potential strategic adjustments.\n- **Diversification Strategy**: Ensure the rest of the portfolio complements large-cap U.S. exposure with other asset classes or geographies.\n- **Tactical Opportunities**: Consider deploying some cash reserves into emerging opportunities or sectors showing momentum.\n\nThis analysis provides a glimpse into your top positions and their contributions to your overall strategy. If further detailed information or analysis on other positions is needed",
-      "location": "ChatInterface.tsx:224",
-      "source": "cdp_manual",
-      "category": "chat"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:42.962711",
-      "level": "log",
-      "message": "Processing SSE event: Object",
-      "location": "useFetchStreaming.ts:97",
-      "source": "cdp_manual",
-      "category": "chat"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:42.962772",
-      "level": "log",
-      "message": "Parsed event: Object",
-      "location": "useFetchStreaming.ts:109",
-      "source": "cdp_manual",
-      "category": "general"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:42.962780",
-      "level": "log",
-      "message": "Adding token to buffer: Object",
-      "location": "useFetchStreaming.ts:140",
-      "source": "cdp_manual",
-      "category": "auth"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:42.962786",
-      "level": "log",
-      "message": "Calling onToken callback with: , runId: run_1757092162948_oxbctw5k0",
-      "location": "useFetchStreaming.ts:146",
-      "source": "cdp_manual",
-      "category": "auth"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:42.962794",
-      "level": "log",
-      "message": "ChatInterface onToken received: , runId: run_1757092162948_oxbctw5k0",
-      "location": "ChatInterface.tsx:214",
-      "source": "cdp_manual",
-      "category": "chat"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:42.962805",
-      "level": "log",
-      "message": "All stream buffers: Array(13)",
-      "location": "ChatInterface.tsx:219",
-      "source": "cdp_manual",
-      "category": "chat"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:42.963236",
-      "level": "log",
-      "message": "Looking for buffer with runId: run_1757092162948_oxbctw5k0",
-      "location": "ChatInterface.tsx:220",
-      "source": "cdp_manual",
-      "category": "general"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:42.963250",
-      "level": "log",
-      "message": "Stream buffer for runId: run_1757092162948_oxbctw5k0 Object",
-      "location": "ChatInterface.tsx:222",
-      "source": "cdp_manual",
-      "category": "chat"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:42.963270",
-      "level": "log",
-      "message": "Updating message with buffer text: ### Top 3 Portfolio Positions Analysis\n\n#### General Overview\n- **Portfolio Name**: Demo High Net Worth Investor Portfolio\n- **Total Value**: $1,393,071.49\n- **Cash Balance**: $66,336.74\n- **Position Count**: 17\n- **As of**: 2025-09-05T17:09:25Z\n\n### Top 3 Holdings\n\n1. **SPY (S&P 500 ETF)**\n   - **Position Type**: Long\n   - **Quantity**: 400 shares\n   - **Entry Date**: 2024-01-05\n   - **Entry Price**: $530.00\n   - **Cost Basis**: $212,000.00\n   - **Current Price**: $530.00\n   - **Market Value**: $212,000.00\n   - **Unrealized P&L**: $0.00 (0% return)\n\n2. **QQQ (NASDAQ-100 ETF)**\n   - **Position Type**: Long\n   - **Quantity**: 450 shares\n   - **Entry Date**: 2024-01-05\n   - **Entry Price**: $420.00\n   - **Cost Basis**: $189,000.00\n   - **Current Price**: $420.00\n   - **Market Value**: $189,000.00\n   - **Unrealized P&L**: $0.00 (0% return)\n\n3. **[Data for third position was truncated]**\n\n### Detailed Analysis\n\n#### SPY (S&P 500 ETF)\n- **Market Exposure**: This ETF tracks the performance of the S&P 500 index, providing broad exposure to U.S. large-cap stocks. It can serve as a core holding that reflects overall market trends.\n- **Stability**: The S&P 500 is often seen as a benchmark for the U.S. equity markets, offering diversification across 500 leading companies.\n- **Performance Insight**: Currently, the position shows no unrealized profit or loss, indicating stable performance since entry.\n\n#### QQQ (NASDAQ-100 ETF)\n- **Growth Potential**: QQQ tracks the NASDAQ-100 index, which includes 100 of the largest non-financial companies listed on NASDAQ. It's known for its tech-heavy composition and growth potential.\n- **Volatility**: While potentially more volatile, this ETF may offer higher returns driven by technology and innovation sectors.\n- **Performance Insight**: Similar to SPY, QQQ's current value reflects no unrealized gains or losses since purchase.\n\n#### Portfolio Strategy Considerations\n- **Diversification**: Both SPY and QQQ provide diversification across large segments of the U.S. market, balancing growth and stability with broad index tracking.\n- **Market Position**: The stable unrealized P&L indicates consistent market conditions since the investment date.\n- **Cash and Liquidity**: With cash comprising around 4.76% of total portfolio value, there's flexibility for additional investments or tactical adjustments as opportunities arise.\n\n### Recommendations\n- **Monitor Market Trends**: Keep an eye on market conditions impacting the S&P 500 and NASDAQ-100 for potential strategic adjustments.\n- **Diversification Strategy**: Ensure the rest of the portfolio complements large-cap U.S. exposure with other asset classes or geographies.\n- **Tactical Opportunities**: Consider deploying some cash reserves into emerging opportunities or sectors showing momentum.\n\nThis analysis provides a glimpse into your top positions and their contributions to your overall strategy. If further detailed information or analysis on other positions is needed,",
-      "location": "ChatInterface.tsx:224",
-      "source": "cdp_manual",
-      "category": "chat"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:42.968403",
-      "level": "log",
-      "message": "Processing SSE event: Object",
-      "location": "useFetchStreaming.ts:97",
-      "source": "cdp_manual",
-      "category": "chat"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:42.968680",
-      "level": "log",
-      "message": "Parsed event: Object",
-      "location": "useFetchStreaming.ts:109",
-      "source": "cdp_manual",
-      "category": "general"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:42.968736",
-      "level": "log",
-      "message": "Adding token to buffer: Object",
-      "location": "useFetchStreaming.ts:140",
-      "source": "cdp_manual",
-      "category": "auth"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:42.968759",
-      "level": "log",
-      "message": "Calling onToken callback with:  feel runId: run_1757092162948_oxbctw5k0",
-      "location": "useFetchStreaming.ts:146",
-      "source": "cdp_manual",
-      "category": "auth"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:42.968776",
-      "level": "log",
-      "message": "ChatInterface onToken received:  feel runId: run_1757092162948_oxbctw5k0",
-      "location": "ChatInterface.tsx:214",
-      "source": "cdp_manual",
-      "category": "chat"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:42.968826",
-      "level": "log",
-      "message": "All stream buffers: Array(13)",
-      "location": "ChatInterface.tsx:219",
-      "source": "cdp_manual",
-      "category": "chat"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:42.969126",
-      "level": "log",
-      "message": "Looking for buffer with runId: run_1757092162948_oxbctw5k0",
-      "location": "ChatInterface.tsx:220",
-      "source": "cdp_manual",
-      "category": "general"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:42.969154",
-      "level": "log",
-      "message": "Stream buffer for runId: run_1757092162948_oxbctw5k0 Object",
-      "location": "ChatInterface.tsx:222",
-      "source": "cdp_manual",
-      "category": "chat"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:42.969202",
-      "level": "log",
-      "message": "Updating message with buffer text: ### Top 3 Portfolio Positions Analysis\n\n#### General Overview\n- **Portfolio Name**: Demo High Net Worth Investor Portfolio\n- **Total Value**: $1,393,071.49\n- **Cash Balance**: $66,336.74\n- **Position Count**: 17\n- **As of**: 2025-09-05T17:09:25Z\n\n### Top 3 Holdings\n\n1. **SPY (S&P 500 ETF)**\n   - **Position Type**: Long\n   - **Quantity**: 400 shares\n   - **Entry Date**: 2024-01-05\n   - **Entry Price**: $530.00\n   - **Cost Basis**: $212,000.00\n   - **Current Price**: $530.00\n   - **Market Value**: $212,000.00\n   - **Unrealized P&L**: $0.00 (0% return)\n\n2. **QQQ (NASDAQ-100 ETF)**\n   - **Position Type**: Long\n   - **Quantity**: 450 shares\n   - **Entry Date**: 2024-01-05\n   - **Entry Price**: $420.00\n   - **Cost Basis**: $189,000.00\n   - **Current Price**: $420.00\n   - **Market Value**: $189,000.00\n   - **Unrealized P&L**: $0.00 (0% return)\n\n3. **[Data for third position was truncated]**\n\n### Detailed Analysis\n\n#### SPY (S&P 500 ETF)\n- **Market Exposure**: This ETF tracks the performance of the S&P 500 index, providing broad exposure to U.S. large-cap stocks. It can serve as a core holding that reflects overall market trends.\n- **Stability**: The S&P 500 is often seen as a benchmark for the U.S. equity markets, offering diversification across 500 leading companies.\n- **Performance Insight**: Currently, the position shows no unrealized profit or loss, indicating stable performance since entry.\n\n#### QQQ (NASDAQ-100 ETF)\n- **Growth Potential**: QQQ tracks the NASDAQ-100 index, which includes 100 of the largest non-financial companies listed on NASDAQ. It's known for its tech-heavy composition and growth potential.\n- **Volatility**: While potentially more volatile, this ETF may offer higher returns driven by technology and innovation sectors.\n- **Performance Insight**: Similar to SPY, QQQ's current value reflects no unrealized gains or losses since purchase.\n\n#### Portfolio Strategy Considerations\n- **Diversification**: Both SPY and QQQ provide diversification across large segments of the U.S. market, balancing growth and stability with broad index tracking.\n- **Market Position**: The stable unrealized P&L indicates consistent market conditions since the investment date.\n- **Cash and Liquidity**: With cash comprising around 4.76% of total portfolio value, there's flexibility for additional investments or tactical adjustments as opportunities arise.\n\n### Recommendations\n- **Monitor Market Trends**: Keep an eye on market conditions impacting the S&P 500 and NASDAQ-100 for potential strategic adjustments.\n- **Diversification Strategy**: Ensure the rest of the portfolio complements large-cap U.S. exposure with other asset classes or geographies.\n- **Tactical Opportunities**: Consider deploying some cash reserves into emerging opportunities or sectors showing momentum.\n\nThis analysis provides a glimpse into your top positions and their contributions to your overall strategy. If further detailed information or analysis on other positions is needed, feel",
-      "location": "ChatInterface.tsx:224",
-      "source": "cdp_manual",
-      "category": "chat"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:42.969235",
-      "level": "log",
-      "message": "Processing SSE event: Object",
-      "location": "useFetchStreaming.ts:97",
-      "source": "cdp_manual",
-      "category": "chat"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:42.969265",
-      "level": "log",
-      "message": "Parsed event: Object",
-      "location": "useFetchStreaming.ts:109",
-      "source": "cdp_manual",
-      "category": "general"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:42.969398",
-      "level": "log",
-      "message": "Adding token to buffer: Object",
-      "location": "useFetchStreaming.ts:140",
-      "source": "cdp_manual",
-      "category": "auth"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:42.969414",
-      "level": "log",
-      "message": "Calling onToken callback with:  free runId: run_1757092162948_oxbctw5k0",
-      "location": "useFetchStreaming.ts:146",
-      "source": "cdp_manual",
-      "category": "auth"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:42.969428",
-      "level": "log",
-      "message": "ChatInterface onToken received:  free runId: run_1757092162948_oxbctw5k0",
-      "location": "ChatInterface.tsx:214",
-      "source": "cdp_manual",
-      "category": "chat"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:42.969452",
-      "level": "log",
-      "message": "All stream buffers: Array(13)",
-      "location": "ChatInterface.tsx:219",
-      "source": "cdp_manual",
-      "category": "chat"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:42.969467",
-      "level": "log",
-      "message": "Looking for buffer with runId: run_1757092162948_oxbctw5k0",
-      "location": "ChatInterface.tsx:220",
-      "source": "cdp_manual",
-      "category": "general"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:42.969484",
-      "level": "log",
-      "message": "Stream buffer for runId: run_1757092162948_oxbctw5k0 Object",
-      "location": "ChatInterface.tsx:222",
-      "source": "cdp_manual",
-      "category": "chat"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:42.969523",
-      "level": "log",
-      "message": "Updating message with buffer text: ### Top 3 Portfolio Positions Analysis\n\n#### General Overview\n- **Portfolio Name**: Demo High Net Worth Investor Portfolio\n- **Total Value**: $1,393,071.49\n- **Cash Balance**: $66,336.74\n- **Position Count**: 17\n- **As of**: 2025-09-05T17:09:25Z\n\n### Top 3 Holdings\n\n1. **SPY (S&P 500 ETF)**\n   - **Position Type**: Long\n   - **Quantity**: 400 shares\n   - **Entry Date**: 2024-01-05\n   - **Entry Price**: $530.00\n   - **Cost Basis**: $212,000.00\n   - **Current Price**: $530.00\n   - **Market Value**: $212,000.00\n   - **Unrealized P&L**: $0.00 (0% return)\n\n2. **QQQ (NASDAQ-100 ETF)**\n   - **Position Type**: Long\n   - **Quantity**: 450 shares\n   - **Entry Date**: 2024-01-05\n   - **Entry Price**: $420.00\n   - **Cost Basis**: $189,000.00\n   - **Current Price**: $420.00\n   - **Market Value**: $189,000.00\n   - **Unrealized P&L**: $0.00 (0% return)\n\n3. **[Data for third position was truncated]**\n\n### Detailed Analysis\n\n#### SPY (S&P 500 ETF)\n- **Market Exposure**: This ETF tracks the performance of the S&P 500 index, providing broad exposure to U.S. large-cap stocks. It can serve as a core holding that reflects overall market trends.\n- **Stability**: The S&P 500 is often seen as a benchmark for the U.S. equity markets, offering diversification across 500 leading companies.\n- **Performance Insight**: Currently, the position shows no unrealized profit or loss, indicating stable performance since entry.\n\n#### QQQ (NASDAQ-100 ETF)\n- **Growth Potential**: QQQ tracks the NASDAQ-100 index, which includes 100 of the largest non-financial companies listed on NASDAQ. It's known for its tech-heavy composition and growth potential.\n- **Volatility**: While potentially more volatile, this ETF may offer higher returns driven by technology and innovation sectors.\n- **Performance Insight**: Similar to SPY, QQQ's current value reflects no unrealized gains or losses since purchase.\n\n#### Portfolio Strategy Considerations\n- **Diversification**: Both SPY and QQQ provide diversification across large segments of the U.S. market, balancing growth and stability with broad index tracking.\n- **Market Position**: The stable unrealized P&L indicates consistent market conditions since the investment date.\n- **Cash and Liquidity**: With cash comprising around 4.76% of total portfolio value, there's flexibility for additional investments or tactical adjustments as opportunities arise.\n\n### Recommendations\n- **Monitor Market Trends**: Keep an eye on market conditions impacting the S&P 500 and NASDAQ-100 for potential strategic adjustments.\n- **Diversification Strategy**: Ensure the rest of the portfolio complements large-cap U.S. exposure with other asset classes or geographies.\n- **Tactical Opportunities**: Consider deploying some cash reserves into emerging opportunities or sectors showing momentum.\n\nThis analysis provides a glimpse into your top positions and their contributions to your overall strategy. If further detailed information or analysis on other positions is needed, feel free",
-      "location": "ChatInterface.tsx:224",
-      "source": "cdp_manual",
-      "category": "chat"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:42.999653",
-      "level": "log",
-      "message": "Processing SSE event: Object",
-      "location": "useFetchStreaming.ts:97",
-      "source": "cdp_manual",
-      "category": "chat"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:42.999780",
-      "level": "log",
-      "message": "Parsed event: Object",
-      "location": "useFetchStreaming.ts:109",
-      "source": "cdp_manual",
-      "category": "general"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:43.000158",
-      "level": "log",
-      "message": "Adding token to buffer: Object",
-      "location": "useFetchStreaming.ts:140",
-      "source": "cdp_manual",
-      "category": "auth"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:43.000178",
-      "level": "log",
-      "message": "Calling onToken callback with:  to runId: run_1757092162948_oxbctw5k0",
-      "location": "useFetchStreaming.ts:146",
-      "source": "cdp_manual",
-      "category": "auth"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:43.000240",
-      "level": "log",
-      "message": "ChatInterface onToken received:  to runId: run_1757092162948_oxbctw5k0",
-      "location": "ChatInterface.tsx:214",
-      "source": "cdp_manual",
-      "category": "chat"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:43.000280",
-      "level": "log",
-      "message": "All stream buffers: Array(13)",
-      "location": "ChatInterface.tsx:219",
-      "source": "cdp_manual",
-      "category": "chat"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:43.000299",
-      "level": "log",
-      "message": "Looking for buffer with runId: run_1757092162948_oxbctw5k0",
-      "location": "ChatInterface.tsx:220",
-      "source": "cdp_manual",
-      "category": "general"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:43.000337",
-      "level": "log",
-      "message": "Stream buffer for runId: run_1757092162948_oxbctw5k0 Object",
-      "location": "ChatInterface.tsx:222",
-      "source": "cdp_manual",
-      "category": "chat"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:43.000368",
-      "level": "log",
-      "message": "Updating message with buffer text: ### Top 3 Portfolio Positions Analysis\n\n#### General Overview\n- **Portfolio Name**: Demo High Net Worth Investor Portfolio\n- **Total Value**: $1,393,071.49\n- **Cash Balance**: $66,336.74\n- **Position Count**: 17\n- **As of**: 2025-09-05T17:09:25Z\n\n### Top 3 Holdings\n\n1. **SPY (S&P 500 ETF)**\n   - **Position Type**: Long\n   - **Quantity**: 400 shares\n   - **Entry Date**: 2024-01-05\n   - **Entry Price**: $530.00\n   - **Cost Basis**: $212,000.00\n   - **Current Price**: $530.00\n   - **Market Value**: $212,000.00\n   - **Unrealized P&L**: $0.00 (0% return)\n\n2. **QQQ (NASDAQ-100 ETF)**\n   - **Position Type**: Long\n   - **Quantity**: 450 shares\n   - **Entry Date**: 2024-01-05\n   - **Entry Price**: $420.00\n   - **Cost Basis**: $189,000.00\n   - **Current Price**: $420.00\n   - **Market Value**: $189,000.00\n   - **Unrealized P&L**: $0.00 (0% return)\n\n3. **[Data for third position was truncated]**\n\n### Detailed Analysis\n\n#### SPY (S&P 500 ETF)\n- **Market Exposure**: This ETF tracks the performance of the S&P 500 index, providing broad exposure to U.S. large-cap stocks. It can serve as a core holding that reflects overall market trends.\n- **Stability**: The S&P 500 is often seen as a benchmark for the U.S. equity markets, offering diversification across 500 leading companies.\n- **Performance Insight**: Currently, the position shows no unrealized profit or loss, indicating stable performance since entry.\n\n#### QQQ (NASDAQ-100 ETF)\n- **Growth Potential**: QQQ tracks the NASDAQ-100 index, which includes 100 of the largest non-financial companies listed on NASDAQ. It's known for its tech-heavy composition and growth potential.\n- **Volatility**: While potentially more volatile, this ETF may offer higher returns driven by technology and innovation sectors.\n- **Performance Insight**: Similar to SPY, QQQ's current value reflects no unrealized gains or losses since purchase.\n\n#### Portfolio Strategy Considerations\n- **Diversification**: Both SPY and QQQ provide diversification across large segments of the U.S. market, balancing growth and stability with broad index tracking.\n- **Market Position**: The stable unrealized P&L indicates consistent market conditions since the investment date.\n- **Cash and Liquidity**: With cash comprising around 4.76% of total portfolio value, there's flexibility for additional investments or tactical adjustments as opportunities arise.\n\n### Recommendations\n- **Monitor Market Trends**: Keep an eye on market conditions impacting the S&P 500 and NASDAQ-100 for potential strategic adjustments.\n- **Diversification Strategy**: Ensure the rest of the portfolio complements large-cap U.S. exposure with other asset classes or geographies.\n- **Tactical Opportunities**: Consider deploying some cash reserves into emerging opportunities or sectors showing momentum.\n\nThis analysis provides a glimpse into your top positions and their contributions to your overall strategy. If further detailed information or analysis on other positions is needed, feel free to",
-      "location": "ChatInterface.tsx:224",
-      "source": "cdp_manual",
-      "category": "chat"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:43.000387",
-      "level": "log",
-      "message": "Processing SSE event: Object",
-      "location": "useFetchStreaming.ts:97",
-      "source": "cdp_manual",
-      "category": "chat"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:43.000430",
-      "level": "log",
-      "message": "Parsed event: Object",
-      "location": "useFetchStreaming.ts:109",
-      "source": "cdp_manual",
-      "category": "general"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:43.000449",
-      "level": "log",
-      "message": "Adding token to buffer: Object",
-      "location": "useFetchStreaming.ts:140",
-      "source": "cdp_manual",
-      "category": "auth"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:43.000462",
-      "level": "log",
-      "message": "Calling onToken callback with:  ask runId: run_1757092162948_oxbctw5k0",
-      "location": "useFetchStreaming.ts:146",
-      "source": "cdp_manual",
-      "category": "auth"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:43.000502",
-      "level": "log",
-      "message": "ChatInterface onToken received:  ask runId: run_1757092162948_oxbctw5k0",
-      "location": "ChatInterface.tsx:214",
-      "source": "cdp_manual",
-      "category": "chat"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:43.000623",
-      "level": "log",
-      "message": "All stream buffers: Array(13)",
-      "location": "ChatInterface.tsx:219",
-      "source": "cdp_manual",
-      "category": "chat"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:43.000705",
-      "level": "log",
-      "message": "Looking for buffer with runId: run_1757092162948_oxbctw5k0",
-      "location": "ChatInterface.tsx:220",
-      "source": "cdp_manual",
-      "category": "general"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:43.000717",
-      "level": "log",
-      "message": "Stream buffer for runId: run_1757092162948_oxbctw5k0 Object",
-      "location": "ChatInterface.tsx:222",
-      "source": "cdp_manual",
-      "category": "chat"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:43.000740",
-      "level": "log",
-      "message": "Updating message with buffer text: ### Top 3 Portfolio Positions Analysis\n\n#### General Overview\n- **Portfolio Name**: Demo High Net Worth Investor Portfolio\n- **Total Value**: $1,393,071.49\n- **Cash Balance**: $66,336.74\n- **Position Count**: 17\n- **As of**: 2025-09-05T17:09:25Z\n\n### Top 3 Holdings\n\n1. **SPY (S&P 500 ETF)**\n   - **Position Type**: Long\n   - **Quantity**: 400 shares\n   - **Entry Date**: 2024-01-05\n   - **Entry Price**: $530.00\n   - **Cost Basis**: $212,000.00\n   - **Current Price**: $530.00\n   - **Market Value**: $212,000.00\n   - **Unrealized P&L**: $0.00 (0% return)\n\n2. **QQQ (NASDAQ-100 ETF)**\n   - **Position Type**: Long\n   - **Quantity**: 450 shares\n   - **Entry Date**: 2024-01-05\n   - **Entry Price**: $420.00\n   - **Cost Basis**: $189,000.00\n   - **Current Price**: $420.00\n   - **Market Value**: $189,000.00\n   - **Unrealized P&L**: $0.00 (0% return)\n\n3. **[Data for third position was truncated]**\n\n### Detailed Analysis\n\n#### SPY (S&P 500 ETF)\n- **Market Exposure**: This ETF tracks the performance of the S&P 500 index, providing broad exposure to U.S. large-cap stocks. It can serve as a core holding that reflects overall market trends.\n- **Stability**: The S&P 500 is often seen as a benchmark for the U.S. equity markets, offering diversification across 500 leading companies.\n- **Performance Insight**: Currently, the position shows no unrealized profit or loss, indicating stable performance since entry.\n\n#### QQQ (NASDAQ-100 ETF)\n- **Growth Potential**: QQQ tracks the NASDAQ-100 index, which includes 100 of the largest non-financial companies listed on NASDAQ. It's known for its tech-heavy composition and growth potential.\n- **Volatility**: While potentially more volatile, this ETF may offer higher returns driven by technology and innovation sectors.\n- **Performance Insight**: Similar to SPY, QQQ's current value reflects no unrealized gains or losses since purchase.\n\n#### Portfolio Strategy Considerations\n- **Diversification**: Both SPY and QQQ provide diversification across large segments of the U.S. market, balancing growth and stability with broad index tracking.\n- **Market Position**: The stable unrealized P&L indicates consistent market conditions since the investment date.\n- **Cash and Liquidity**: With cash comprising around 4.76% of total portfolio value, there's flexibility for additional investments or tactical adjustments as opportunities arise.\n\n### Recommendations\n- **Monitor Market Trends**: Keep an eye on market conditions impacting the S&P 500 and NASDAQ-100 for potential strategic adjustments.\n- **Diversification Strategy**: Ensure the rest of the portfolio complements large-cap U.S. exposure with other asset classes or geographies.\n- **Tactical Opportunities**: Consider deploying some cash reserves into emerging opportunities or sectors showing momentum.\n\nThis analysis provides a glimpse into your top positions and their contributions to your overall strategy. If further detailed information or analysis on other positions is needed, feel free to ask",
-      "location": "ChatInterface.tsx:224",
-      "source": "cdp_manual",
-      "category": "chat"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:43.018333",
-      "level": "log",
-      "message": "Processing SSE event: Object",
-      "location": "useFetchStreaming.ts:97",
-      "source": "cdp_manual",
-      "category": "chat"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:43.018570",
-      "level": "log",
-      "message": "Parsed event: Object",
-      "location": "useFetchStreaming.ts:109",
-      "source": "cdp_manual",
-      "category": "general"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:43.018648",
-      "level": "log",
-      "message": "Adding token to buffer: Object",
-      "location": "useFetchStreaming.ts:140",
-      "source": "cdp_manual",
-      "category": "auth"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:43.018708",
-      "level": "log",
-      "message": "Calling onToken callback with: ! runId: run_1757092162948_oxbctw5k0",
-      "location": "useFetchStreaming.ts:146",
-      "source": "cdp_manual",
-      "category": "auth"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:43.018768",
-      "level": "log",
-      "message": "ChatInterface onToken received: ! runId: run_1757092162948_oxbctw5k0",
-      "location": "ChatInterface.tsx:214",
-      "source": "cdp_manual",
-      "category": "chat"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:43.018869",
-      "level": "log",
-      "message": "All stream buffers: Array(13)",
-      "location": "ChatInterface.tsx:219",
-      "source": "cdp_manual",
-      "category": "chat"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:43.019188",
-      "level": "log",
-      "message": "Looking for buffer with runId: run_1757092162948_oxbctw5k0",
-      "location": "ChatInterface.tsx:220",
-      "source": "cdp_manual",
-      "category": "general"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:43.019275",
-      "level": "log",
-      "message": "Stream buffer for runId: run_1757092162948_oxbctw5k0 Object",
-      "location": "ChatInterface.tsx:222",
-      "source": "cdp_manual",
-      "category": "chat"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:43.019352",
-      "level": "log",
-      "message": "Updating message with buffer text: ### Top 3 Portfolio Positions Analysis\n\n#### General Overview\n- **Portfolio Name**: Demo High Net Worth Investor Portfolio\n- **Total Value**: $1,393,071.49\n- **Cash Balance**: $66,336.74\n- **Position Count**: 17\n- **As of**: 2025-09-05T17:09:25Z\n\n### Top 3 Holdings\n\n1. **SPY (S&P 500 ETF)**\n   - **Position Type**: Long\n   - **Quantity**: 400 shares\n   - **Entry Date**: 2024-01-05\n   - **Entry Price**: $530.00\n   - **Cost Basis**: $212,000.00\n   - **Current Price**: $530.00\n   - **Market Value**: $212,000.00\n   - **Unrealized P&L**: $0.00 (0% return)\n\n2. **QQQ (NASDAQ-100 ETF)**\n   - **Position Type**: Long\n   - **Quantity**: 450 shares\n   - **Entry Date**: 2024-01-05\n   - **Entry Price**: $420.00\n   - **Cost Basis**: $189,000.00\n   - **Current Price**: $420.00\n   - **Market Value**: $189,000.00\n   - **Unrealized P&L**: $0.00 (0% return)\n\n3. **[Data for third position was truncated]**\n\n### Detailed Analysis\n\n#### SPY (S&P 500 ETF)\n- **Market Exposure**: This ETF tracks the performance of the S&P 500 index, providing broad exposure to U.S. large-cap stocks. It can serve as a core holding that reflects overall market trends.\n- **Stability**: The S&P 500 is often seen as a benchmark for the U.S. equity markets, offering diversification across 500 leading companies.\n- **Performance Insight**: Currently, the position shows no unrealized profit or loss, indicating stable performance since entry.\n\n#### QQQ (NASDAQ-100 ETF)\n- **Growth Potential**: QQQ tracks the NASDAQ-100 index, which includes 100 of the largest non-financial companies listed on NASDAQ. It's known for its tech-heavy composition and growth potential.\n- **Volatility**: While potentially more volatile, this ETF may offer higher returns driven by technology and innovation sectors.\n- **Performance Insight**: Similar to SPY, QQQ's current value reflects no unrealized gains or losses since purchase.\n\n#### Portfolio Strategy Considerations\n- **Diversification**: Both SPY and QQQ provide diversification across large segments of the U.S. market, balancing growth and stability with broad index tracking.\n- **Market Position**: The stable unrealized P&L indicates consistent market conditions since the investment date.\n- **Cash and Liquidity**: With cash comprising around 4.76% of total portfolio value, there's flexibility for additional investments or tactical adjustments as opportunities arise.\n\n### Recommendations\n- **Monitor Market Trends**: Keep an eye on market conditions impacting the S&P 500 and NASDAQ-100 for potential strategic adjustments.\n- **Diversification Strategy**: Ensure the rest of the portfolio complements large-cap U.S. exposure with other asset classes or geographies.\n- **Tactical Opportunities**: Consider deploying some cash reserves into emerging opportunities or sectors showing momentum.\n\nThis analysis provides a glimpse into your top positions and their contributions to your overall strategy. If further detailed information or analysis on other positions is needed, feel free to ask!",
-      "location": "ChatInterface.tsx:224",
-      "source": "cdp_manual",
-      "category": "chat"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:43.137471",
-      "level": "log",
-      "message": "Processing SSE event: Object",
-      "location": "useFetchStreaming.ts:97",
-      "source": "cdp_manual",
-      "category": "chat"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:43.137544",
-      "level": "log",
-      "message": "Parsed event: Object",
-      "location": "useFetchStreaming.ts:109",
-      "source": "cdp_manual",
-      "category": "general"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:43.137568",
-      "level": "log",
-      "message": "Done metrics: Object",
-      "location": "useFetchStreaming.ts:200",
-      "source": "cdp_manual",
-      "category": "general"
-    },
-    {
-      "timestamp": "2025-09-05T10:09:43.137594",
-      "level": "log",
-      "message": "Event timeline (ms since start): Array(10)",
-      "location": "useFetchStreaming.ts:206",
-      "source": "cdp_manual",
-      "category": "general"
-    }
-  ]
+  "console_logs": []
 }

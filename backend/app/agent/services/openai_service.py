@@ -172,7 +172,7 @@ class OpenAIService:
             {
                 "name": "get_factor_etf_prices",
                 "type": "function",
-                "description": "Get ETF prices for factor analysis and correlations",
+                "description": "Get current and historical prices for factor ETFs. Call this tool when users ask about factor ETF prices, factor investing, or factor analysis. Returns market beta (SPY) by default, or specific factors if requested. Available factors: SPY (Market Beta), VTV (Value), VUG (Growth), MTUM (Momentum), QUAL (Quality), SLY (Size/Small Cap), USMV (Low Volatility).",
                 "parameters": {
                     "type": "object",
                     "properties": {

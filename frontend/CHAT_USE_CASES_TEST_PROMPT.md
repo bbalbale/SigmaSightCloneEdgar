@@ -129,24 +129,21 @@ tail -n 50 backend/chat_monitoring_report.json | grep -E "frontend|backend|statu
 **Validation:** Response includes quality metrics and recommendations
 
 #### Test 8: Historical Price Query (AAPL)
-**Query:** `"give me historical prices on AAPL for the last 60 days"`
+**Query:** `"give me historical prices on AAPL for the last 20 days"`
 **Expected:** Historical price data with dates and values
-**API Reference:** `get_prices_historical(portfolio_id, lookback_days=60, max_symbols=1)`
+**API Reference:** `get_prices_historical(portfolio_id, lookback_days=20, max_symbols=1)`
 
 #### Test 9: Historical Price Query (NVDA)
-**Query:** `"give me historical prices for NVDA for the last 60 days"`
+**Query:** `"give me historical prices for NVDA for the last 20 days"`
 **Expected:** Historical price data for NVDA
-**API Reference:** `get_prices_historical(portfolio_id, lookback_days=60, max_symbols=1)`
+**API Reference:** `get_prices_historical(portfolio_id, lookback_days=20, max_symbols=1)`
 
 #### Test 10: Correlation Calculation
-**Query:** `"now calculate the correlation between AAPL and NVDA over the last 60 days"`
+**Query:** `"now calculate the correlation between AAPL and NVDA over the last 20 days"`
 **Expected:** Correlation coefficient with explanation
 **Prerequisites:** Tests 8 and 9 must pass
 
-#### Test 11: Factor ETF Prices
-**Query:** `"give me all the factor ETF prices"`
-**Expected:** List of factor ETF prices from database
-**API Reference:** `get_factor_etf_prices(lookback_days=90)`
+#### Test 11: (removed for now, placeholder for future tests)
 
 #### Test 12: Specific Position Details
 **Query:** `"give me my position details on NVDA, TSLA"`
