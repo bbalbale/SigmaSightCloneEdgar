@@ -5,6 +5,7 @@
 import { portfolioResolver } from './portfolioResolver'
 import { authManager } from './authManager'
 import { requestManager } from './requestManager'
+import { positionApiService } from './positionApiService'
 
 export type PortfolioType = 'individual' | 'high-net-worth' | 'hedge-fund'
 
@@ -35,8 +36,13 @@ interface PortfolioData {
 /**
  * Load portfolio data for a specific portfolio type
  * Now with centralized auth and retry logic
+ * Phase 3: Use API for positions when USE_API_POSITIONS is enabled
  */
-export async function loadPortfolioData(portfolioType: PortfolioType, abortSignal?: AbortSignal) {
+export async function loadPortfolioData(
+  portfolioType: PortfolioType, 
+  abortSignal?: AbortSignal,
+  useApiPositions: boolean = false
+) {
   // Fetch real data for all portfolio types
   if (!portfolioType) {
     return null // No portfolio type specified
@@ -115,11 +121,49 @@ export async function loadPortfolioData(portfolioType: PortfolioType, abortSigna
 
     const data: PortfolioData = await response.json()
     
+    // Phase 3: Try to use API positions if enabled
+    let positionsData = transformPositions(data.holdings)
+    let dataSource: 'live' | 'cached' = 'cached'
+    
+    if (useApiPositions) {
+      try {
+        console.log('📊 Phase 3: Attempting to fetch positions from API...')
+        const apiStartTime = performance.now()
+        
+        const apiResponse = await positionApiService.fetchPositionsFromApi(
+          portfolioId,
+          portfolioType,
+          abortSignal
+        )
+        
+        if (apiResponse && apiResponse.positions.length > 0) {
+          // Transform API positions to UI format
+          positionsData = apiResponse.positions.map(pos => ({
+            symbol: pos.symbol,
+            quantity: pos.quantity,
+            price: pos.current_price,
+            marketValue: pos.market_value,
+            pnl: pos.unrealized_pnl, // Will be 0 from API
+            positive: pos.unrealized_pnl >= 0,
+            type: pos.position_type
+          }))
+          dataSource = 'live'
+          console.log(`📊 Phase 3: Successfully using API positions (${performance.now() - apiStartTime}ms)`)
+        } else {
+          console.log('📊 Phase 3: API returned no positions, using fallback')
+        }
+      } catch (apiError) {
+        console.error('📊 Phase 3: Failed to fetch API positions, using fallback:', apiError)
+        // Keep using transformed data from complete endpoint
+      }
+    }
+    
     // Transform to UI-friendly format
     return {
       exposures: calculateExposures(data),
-      positions: transformPositions(data.holdings),
-      portfolioInfo: data.portfolio
+      positions: positionsData,
+      portfolioInfo: data.portfolio,
+      positionsDataSource: dataSource
     }
   } catch (error: any) {
     // Don't log abort errors

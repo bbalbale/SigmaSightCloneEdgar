@@ -11,6 +11,9 @@ import { Badge } from '@/components/ui/badge'
 import { ThemeProvider, useTheme } from '@/contexts/ThemeContext'
 import { ThemeToggle } from '../components/ThemeToggle'
 import { loadPortfolioData, PortfolioType } from '../../services/portfolioService'
+import { DataSourceIndicator, DataSourceStatus } from '@/components/DataSourceIndicator'
+import { positionApiService } from '../../services/positionApiService'
+import { portfolioResolver } from '../../services/portfolioResolver'
 
 // Default mock data (used for individual and hedge-fund portfolios)
 const defaultPortfolioSummaryMetrics = [
@@ -96,6 +99,10 @@ function PortfolioPageContent() {
   const [portfolioName, setPortfolioName] = useState('Loading...')
   const [dataLoaded, setDataLoaded] = useState(false)
   
+  // Data source tracking
+  const [exposureDataSource, setExposureDataSource] = useState<DataSourceStatus>('mock')
+  const [positionsDataSource, setPositionsDataSource] = useState<DataSourceStatus>('mock')
+  
   useEffect(() => {
     const abortController = new AbortController();
     
@@ -107,6 +114,8 @@ function PortfolioPageContent() {
         setShortPositionsState(shortPositions)
         setPortfolioName('Demo Portfolio')
         setDataLoaded(true)
+        setExposureDataSource('mock')
+        setPositionsDataSource('mock')
         return
       }
 
@@ -114,7 +123,9 @@ function PortfolioPageContent() {
       setError(null)
       
       try {
-        const data = await loadPortfolioData(portfolioType, abortController.signal)
+        // Phase 3: Enable API positions
+        const USE_API_POSITIONS = true // Feature flag for Phase 3
+        const data = await loadPortfolioData(portfolioType, abortController.signal, USE_API_POSITIONS)
         
         if (data) {
           console.log('Loaded portfolio data:', data)
@@ -135,6 +146,45 @@ function PortfolioPageContent() {
           setDataLoaded(true)
           setError(null)
           setRetryCount(0)
+          
+          // Phase 3: Update data source indicators based on actual source
+          setExposureDataSource('cached')  // JSON calculations from backend
+          setPositionsDataSource(data.positionsDataSource === 'live' ? 'live' : 'cached')
+          
+          // PHASE 2: Shadow API call - fetch positions in parallel for comparison
+          const shadowStartTime = performance.now()
+          try {
+            // Get the portfolio ID for API call
+            const portfolioId = await portfolioResolver.getPortfolioIdByType(portfolioType)
+            
+            if (portfolioId) {
+              const apiData = await positionApiService.fetchPositionsFromApi(
+                portfolioId,
+                portfolioType,
+                abortController.signal
+              )
+              
+              const apiCallTime = performance.now() - shadowStartTime
+              
+              // Compare and generate report
+              const jsonPositionData = {
+                positions: data.positions.filter(p => p.type === 'LONG' || !p.type),
+                shortPositions: data.positions.filter(p => p.type === 'SHORT')
+              }
+              
+              const report = positionApiService.compareWithJsonData(
+                apiData,
+                jsonPositionData,
+                apiCallTime
+              )
+              
+              // Generate summary report after comparison
+              positionApiService.generateSummaryReport()
+            }
+          } catch (shadowError) {
+            // Silently log shadow mode errors
+            console.log('📊 Shadow API: error during comparison', shadowError)
+          }
         }
       } catch (err: any) {
         if (err.name !== 'AbortError') {
@@ -148,6 +198,8 @@ function PortfolioPageContent() {
             setPositions(longPositions)
             setShortPositionsState(shortPositions)
             setPortfolioName(`${portfolioType.replace('-', ' ').toUpperCase()} Portfolio (Offline Mode)`)
+            setExposureDataSource('error')
+            setPositionsDataSource('error')
           }
         }
       } finally {
@@ -318,9 +370,12 @@ function PortfolioPageContent() {
                 theme === 'dark' ? 'bg-slate-800 border-slate-700' : 'bg-white border-gray-200'
               }`}>
                 <CardContent className="p-4">
-                  <div className={`text-xs mb-2 transition-colors duration-300 ${
-                    theme === 'dark' ? 'text-slate-400' : 'text-gray-600'
-                  }`}>{metric.title}</div>
+                  <div className="flex items-center justify-between mb-2">
+                    <div className={`text-xs transition-colors duration-300 ${
+                      theme === 'dark' ? 'text-slate-400' : 'text-gray-600'
+                    }`}>{metric.title}</div>
+                    <DataSourceIndicator status={exposureDataSource} />
+                  </div>
                   <div className={`text-xl font-bold mb-1 ${
                     metric.positive ? 'text-emerald-400' : 'text-red-400'
                   }`}>
@@ -388,6 +443,7 @@ function PortfolioPageContent() {
                 }`}>
                   {positions.length}
                 </Badge>
+                <DataSourceIndicator status={positionsDataSource} />
               </div>
               <div className="space-y-3">
                 {positions.map((position, index) => (
@@ -419,9 +475,9 @@ function PortfolioPageContent() {
                             theme === 'dark' ? 'text-white' : 'text-gray-900'
                           }`}>{formatNumber(position.marketValue)}</div>
                           <div className={`text-sm font-medium ${
-                            position.positive ? 'text-emerald-400' : 'text-red-400'
+                            position.pnl === 0 ? 'text-slate-400' : position.positive ? 'text-emerald-400' : 'text-red-400'
                           }`}>
-                            {position.positive ? '+' : ''}{formatNumber(position.pnl)}
+                            {position.pnl === 0 ? '—' : `${position.positive ? '+' : ''}${formatNumber(position.pnl)}`}
                           </div>
                         </div>
                       </div>
@@ -442,6 +498,7 @@ function PortfolioPageContent() {
                 }`}>
                   {shortPositionsState.length}
                 </Badge>
+                <DataSourceIndicator status={positionsDataSource} />
               </div>
               <div className="space-y-3">
                 {shortPositionsState.map((position, index) => (
@@ -472,9 +529,9 @@ function PortfolioPageContent() {
                             theme === 'dark' ? 'text-white' : 'text-gray-900'
                           }`}>-{formatNumber(position.marketValue)}</div>
                           <div className={`text-sm font-medium ${
-                            position.positive ? 'text-emerald-400' : 'text-red-400'
+                            position.pnl === 0 ? 'text-slate-400' : position.positive ? 'text-emerald-400' : 'text-red-400'
                           }`}>
-                            {position.positive ? '+' : ''}{formatNumber(position.pnl)}
+                            {position.pnl === 0 ? '—' : `${position.positive ? '+' : ''}${formatNumber(position.pnl)}`}
                           </div>
                         </div>
                       </div>
