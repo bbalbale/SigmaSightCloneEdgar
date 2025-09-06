@@ -3,14 +3,44 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { chatAuthService } from '@/services/chatAuthService'
-import { AlertCircle, Loader2 } from 'lucide-react'
+import { AlertCircle, Loader2, User, Building2, TrendingUp } from 'lucide-react'
 
 export default function LoginPage() {
   const router = useRouter()
-  const [email, setEmail] = useState('demo_hnw@sigmasight.com')
-  const [password, setPassword] = useState('demo12345')
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  
+  const demoAccounts = [
+    {
+      name: 'High Net Worth Portfolio',
+      email: 'demo_hnw@sigmasight.com',
+      portfolioType: 'high-net-worth',
+      icon: TrendingUp,
+      description: 'Multi-asset portfolio with advanced analytics'
+    },
+    {
+      name: 'Individual Investor',
+      email: 'demo_individual@sigmasight.com',
+      portfolioType: 'individual',
+      icon: User,
+      description: 'Personal investment portfolio'
+    },
+    {
+      name: 'Hedge Fund',
+      email: 'demo_hedgefundstyle@sigmasight.com',
+      portfolioType: 'hedge-fund',
+      icon: Building2,
+      description: 'Institutional portfolio with complex strategies'
+    }
+  ]
+  
+  const handleFillCredentials = (demoEmail: string) => {
+    setEmail(demoEmail)
+    setPassword('demo12345')
+    setError(null)
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -21,8 +51,15 @@ export default function LoginPage() {
       const response = await chatAuthService.login(email, password)
       console.log('Login successful:', response.user)
       
+      // Determine portfolio type based on email
+      let portfolioType = 'high-net-worth' // default
+      const account = demoAccounts.find(acc => acc.email === email)
+      if (account) {
+        portfolioType = account.portfolioType
+      }
+      
       // Redirect to portfolio page after successful login
-      router.push('/portfolio?type=high-net-worth')
+      router.push(`/portfolio?type=${portfolioType}`)
     } catch (err: any) {
       console.error('Login error:', err)
       setError(err.message || 'Failed to login. Please try again.')
@@ -105,14 +142,48 @@ export default function LoginPage() {
             </button>
           </div>
 
-          <div className="text-sm text-center text-gray-600">
-            <div className="mt-4 p-4 bg-blue-50 rounded-md">
-              <p className="font-semibold mb-2">Demo Credentials:</p>
-              <p>Email: demo_hnw@sigmasight.com</p>
-              <p>Password: demo12345</p>
+        </form>
+        
+        <div className="mt-8">
+          <div className="relative">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-gray-300" />
+            </div>
+            <div className="relative flex justify-center text-sm">
+              <span className="px-2 bg-gray-50 text-gray-500">Or use demo account</span>
             </div>
           </div>
-        </form>
+          
+          <div className="mt-6 space-y-3">
+            <p className="text-xs text-center text-gray-500 mb-4">
+              All demo accounts use password: <span className="font-mono font-semibold">demo12345</span>
+            </p>
+            
+            {demoAccounts.map((account) => {
+              const Icon = account.icon
+              return (
+                <button
+                  key={account.email}
+                  type="button"
+                  onClick={() => handleFillCredentials(account.email)}
+                  className="w-full flex items-start p-3 border border-gray-200 rounded-lg hover:bg-gray-50 hover:border-blue-300 transition-colors group"
+                >
+                  <div className="flex-shrink-0 w-10 h-10 bg-blue-50 rounded-lg flex items-center justify-center group-hover:bg-blue-100">
+                    <Icon className="w-5 h-5 text-blue-600" />
+                  </div>
+                  <div className="ml-3 text-left flex-1">
+                    <p className="text-sm font-medium text-gray-900">{account.name}</p>
+                    <p className="text-xs text-gray-500 mt-0.5">{account.description}</p>
+                    <p className="text-xs font-mono text-blue-600 mt-1">{account.email}</p>
+                  </div>
+                  <div className="ml-2 text-xs text-gray-400 self-center">
+                    Click to fill
+                  </div>
+                </button>
+              )
+            })}
+          </div>
+        </div>
       </div>
     </div>
   )

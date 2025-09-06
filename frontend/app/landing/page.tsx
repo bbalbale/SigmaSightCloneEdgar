@@ -2,7 +2,6 @@
 
 import { useState } from "react"
 import Link from "next/link"
-import { PortfolioSelectionDialog } from '@/components/PortfolioSelectionDialog'
 
 export default function HomePage() {
   const [searchQuery, setSearchQuery] = useState("")
@@ -140,13 +139,11 @@ export default function HomePage() {
           </nav>
         </div>
         <div className="flex items-center gap-4">
-          <PortfolioSelectionDialog
-            trigger={
-              <button className="bg-transparent border border-gray-200 rounded-md px-4 py-2 text-sm font-medium text-gray-800 hover:bg-gray-50 transition-colors cursor-pointer">
-                Login
-              </button>
-            }
-          />
+          <Link href="/login">
+            <button className="bg-transparent border border-gray-200 rounded-md px-4 py-2 text-sm font-medium text-gray-800 hover:bg-gray-50 transition-colors cursor-pointer">
+              Login
+            </button>
+          </Link>
         </div>
       </header>
 

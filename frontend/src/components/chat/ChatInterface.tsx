@@ -67,9 +67,12 @@ export function ChatInterface({ className }: ChatInterfaceProps) {
   
   const hasInteracted = messages.length > 0
   
-  // FIX 6.49 & 6.50: Sync conversation ID and validate format on mount
+  // FIX 6.49 & 6.50: Sync conversation ID and validate format on mount and when visible
   useEffect(() => {
-    console.log('[ChatInterface] Component mounted, checking conversation sync...')
+    // Only sync when the chat interface is actually open
+    if (!isOpen) return
+    
+    console.log('[ChatInterface] Chat opened, checking conversation sync...')
     
     // Check localStorage for conversation ID
     const storedConversationId = localStorage.getItem('conversationId')
@@ -106,7 +109,7 @@ export function ChatInterface({ className }: ChatInterfaceProps) {
     // Also call hydrateFromStorage to ensure sync
     const { hydrateFromStorage } = useChatStore.getState()
     hydrateFromStorage()
-  }, []) // Run only on mount
+  }, [isOpen]) // Re-run when chat opens
   
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
@@ -240,7 +243,7 @@ export function ChatInterface({ className }: ChatInterfaceProps) {
       }
       
       // Start streaming - backend will provide all IDs
-      let runId: string | null = null
+      let runId: string | null | undefined = null
       runId = await streamMessage(conversationId, text, {
         onMessageCreated: (event) => {
           console.log('Received message_created event:', event)
