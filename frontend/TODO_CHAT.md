@@ -1446,6 +1446,73 @@ useEffect(() => {
 - ✅ SSE streaming working perfectly with valid IDs
 - ✅ Full test report: `CHAT_USE_CASES_TEST_REPORT_20250905_094316.md`
 
+### TODO 6.51: Fix Chat Dialog Send Button Disabled After First Query
+**Priority**: 🔴 HIGH | **Severity**: BLOCKING | **Added**: 2025-09-06  
+**Status**: ❌ OPEN - Blocks multi-turn conversation testing
+
+**Problem Description**:
+The chat dialog's Send button becomes permanently disabled after submitting the first query, preventing follow-up questions and multi-turn conversations. This is a critical UX issue that blocks comprehensive testing of the chat system.
+
+**Observed Behavior**:
+1. First query works correctly (e.g., "What's my largest position?")
+2. Response is received and displayed properly
+3. User can type new text in input field
+4. Send button remains disabled regardless of input content
+5. Pressing Enter key doesn't submit the query
+6. Issue persists even after closing and reopening dialog
+7. Inline chat has similar validation issues
+
+**Technical Diagnostics**:
+```javascript
+// Current state when issue occurs:
+- Input field: <input value="What is my portfolio value?" />
+- Send button: <button disabled>Send</button>
+- Input not marked as disabled
+- Form submission events don't trigger
+- React state likely not updating properly
+```
+
+**Backend Status** (WORKING):
+- SSE streaming: ✅ Functioning correctly
+- Tool handlers: ✅ `get_portfolio_complete` executing properly
+- Response times: ✅ 45-50ms average
+- Authentication: ✅ JWT tokens passed correctly
+
+**Frontend Issues**:
+1. **ChatInterface.tsx validation logic** - Likely culprit
+2. **State management** - Message state not resetting after submission
+3. **Input validation** - May be checking for specific conditions not met
+4. **Form state** - Possible React Hook Form or similar validation issue
+
+**Files to Investigate**:
+- `frontend/src/components/chat/ChatInterface.tsx` - Main chat UI component
+- `frontend/src/stores/chatStore.ts` - Chat state management
+- `frontend/src/components/ui/sheet.tsx` - Dialog wrapper component
+
+**Test Evidence**:
+- Test Report: `CHAT_USE_CASES_TEST_REPORT_20250906_225300.md`
+- Screenshot: `/Users/elliottng/CascadeProjects/SigmaSight-BE/.playwright-mcp/test-case-2-largest-position.png`
+- Only 3 of 18 test cases completed due to this issue
+
+**Attempted Workarounds** (Failed):
+- Programmatic form submission via JavaScript
+- Simulating Enter key press
+- Manually enabling button via DOM manipulation
+- Closing and reopening dialog
+
+**Recommended Fix**:
+1. Check input validation conditions in ChatInterface.tsx
+2. Ensure form state resets after successful submission
+3. Debug React DevTools to inspect component state
+4. Add console logging to track validation state changes
+5. Consider adding a force-enable flag for testing
+
+**Impact**:
+- Blocks 83% of chat use case testing (15 of 18 tests)
+- Prevents multi-turn conversations
+- Critical for production readiness
+- Affects both inline and dialog chat interfaces
+
 ## 7. **Portfolio ID Improvements (Level 1 - Complete Scope)**
 **Timeline: 1-2 days | Reference: _docs/requirements/PORTFOLIO_ID_DESIGN_DOC.md Section 8.1**
 
