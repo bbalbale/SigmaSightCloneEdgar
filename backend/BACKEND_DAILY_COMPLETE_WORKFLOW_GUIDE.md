@@ -324,58 +324,72 @@ curl -H "Authorization: Bearer $TOKEN" \
 
 ## Agent System Operations
 
-### 1. Start Agent Server (Chat Interface)
-The agent system provides an AI-powered chat interface for portfolio analysis.
+### ⚠️ IMPORTANT: Chat/Agent Testing Requires Frontend Authentication
+
+The agent/chat system uses a **dual authentication flow** that requires proper frontend login for full functionality:
+- JWT tokens must be set via frontend login page
+- Cookie-based authentication for SSE streaming  
+- Portfolio context required for chat data access
+
+**For proper end-to-end testing of the chat/agent system:**
+
+### 📖 See Frontend Chat Testing Guide
+```bash
+# The complete testing guide with authentication flow
+cat ../frontend/CHAT_TESTING_GUIDE.md
+
+# Quick reference - MANDATORY sequence:
+# 1. Navigate to http://localhost:3005/login
+# 2. Login with demo_hnw@sigmasight.com / demo12345
+# 3. Wait for redirect to portfolio page (sets JWT)
+# 4. ONLY THEN test chat functionality
+```
+
+### Why Frontend Testing is Required
+- **Authentication Context**: Chat requires JWT tokens set by frontend login
+- **Cookie Management**: SSE streaming uses HttpOnly cookies
+- **Portfolio Data Access**: Chat tools need authenticated portfolio context
+- **Console Monitoring**: Frontend guide includes browser console capture
+
+### Backend-Only Verification (Limited)
+If you only need to verify the backend agent endpoints exist:
 
 ```bash
-# The agent endpoints are part of the main API server
-# Ensure API server is running first (see above)
-
-# Verify agent endpoints are available
+# Check if agent endpoints are registered (won't work without auth)
 curl http://localhost:8000/api/v1/agent/health
 
-# Check available tools
+# Test direct backend auth (limited functionality)
+TOKEN=$(curl -s -X POST http://localhost:8000/api/v1/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"demo_hnw@sigmasight.com","password":"demo12345"}' \
+  | jq -r '.access_token')
+
+# This may return 401 due to missing cookie auth
 curl -H "Authorization: Bearer $TOKEN" \
   http://localhost:8000/api/v1/agent/tools
 ```
 
-### 2. Test Agent Chat
-```bash
-# Start a chat session
-curl -X POST "http://localhost:8000/api/v1/agent/chat" \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "message": "What is my portfolio performance?",
-    "portfolio_id": "<PORTFOLIO_ID>"
-  }'
+### Agent System Components (Backend)
+The agent system (`/backend/app/agent/`) provides:
+- **OpenAI Integration**: Uses Responses API (not Chat Completions)
+- **Tool Registry**: Portfolio analysis tools
+- **SSE Streaming**: Real-time response streaming
+- **Authentication**: Dual JWT + cookie system
 
-# Stream responses (SSE)
-curl -N -H "Authorization: Bearer $TOKEN" \
-  "http://localhost:8000/api/v1/agent/chat/stream?message=Analyze+my+risk&portfolio_id=<PORTFOLIO_ID>"
+### Monitoring (During Frontend Testing)
+```bash
+# Start monitoring with browser console capture
+cd backend
+uv run python simple_monitor.py --mode manual &
+
+# View live monitoring data
+tail -f chat_monitoring_report.json | jq '.console_logs[-10:]'
+
+# Check for errors
+jq '.console_logs[] | select(.category=="error")' chat_monitoring_report.json
 ```
 
-### 3. Agent System Components
-The agent system (`/backend/app/agent/`) includes:
-- **Chat Handler**: Processes natural language queries
-- **Tool Registry**: Available analysis tools
-- **Market Data Tools**: Fetch prices, quotes
-- **Portfolio Tools**: Analyze positions, risk
-- **Calculation Tools**: Run factor analysis, stress tests
-- **Report Tools**: Generate custom reports
-
-### 4. Monitor Agent Activity
-```bash
-# Check agent logs
-tail -f logs/agent.log
-
-# Monitor OpenAI API usage
-grep "OpenAI" logs/app.log | tail -20
-
-# Check active sessions
-curl -H "Authorization: Bearer $TOKEN" \
-  http://localhost:8000/api/v1/agent/sessions
-```
+**Bottom Line**: For actual chat/agent testing, use the frontend guide at `../frontend/CHAT_TESTING_GUIDE.md`
 
 ---
 

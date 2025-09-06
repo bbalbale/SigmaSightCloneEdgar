@@ -1,10 +1,10 @@
-# Complete Workflow Guide - From Setup to Reports & API Server
+# Initial Setup Guide - First-Time Installation
 
-> **Last Updated**: 2025-08-26
-> **Phase**: 3.0 - API Development (30% complete)
-> **API Status**: Raw Data APIs 100% operational
+> **Last Updated**: 2025-09-06
+> **Purpose**: Initial setup and configuration only
+> **Next Steps**: See [BACKEND_DAILY_COMPLETE_WORKFLOW_GUIDE.md](BACKEND_DAILY_COMPLETE_WORKFLOW_GUIDE.md) for daily operations
 
-This guide walks through the **complete workflow** from initial setup to generating portfolio reports and running the FastAPI server for API access.
+This guide covers the **initial setup only**. After completing this guide, refer to the [Daily Workflow Guide](BACKEND_DAILY_COMPLETE_WORKFLOW_GUIDE.md) for ongoing operations.
 
 ## Prerequisites
 
@@ -52,16 +52,19 @@ This creates all necessary tables for calculations, snapshots, correlations, etc
 ## Step 3: Create Demo Accounts and Portfolios
 
 ```bash
-# Use the bulletproof demo setup (avoids async/sync issues)
-uv run python scripts/setup_minimal_demo.py
+# Use the deterministic seeding for consistent portfolio IDs
+uv run python scripts/reset_and_seed.py reset --confirm
 ```
 
 This creates:
-- **3 Demo Accounts**:
-  - `demo_individual@sigmasight.com` (password: demo12345)
-  - `demo_hnw@sigmasight.com` (password: demo12345)
-  - `demo_hedgefundstyle@sigmasight.com` (password: demo12345)
-- **3 Demo Portfolios** ready for calculations and reports
+- **3 Demo Accounts** with deterministic portfolio IDs:
+  - `demo_individual@sigmasight.com` → Portfolio: `1d8ddd95-3b45-0ac5-35bf-cf81af94a5fe`
+  - `demo_hnw@sigmasight.com` → Portfolio: `e23ab931-a033-edfe-ed4f-9d02474780b4`
+  - `demo_hedgefundstyle@sigmasight.com` → Portfolio: `fcd71196-e93e-f000-5a74-31a9eead3118`
+- **All passwords**: `demo12345`
+- **63 positions** across 3 portfolios
+
+> **Note**: Portfolio IDs are now deterministic and will be identical across all machines. See [SETUP_DETERMINISTIC_IDS.md](../SETUP_DETERMINISTIC_IDS.md) for details.
 
 ## Step 3.1: Validate Setup (Recommended)
 
@@ -74,32 +77,29 @@ Expected output: `📊 Validation Summary: 8/8 checks passed`
 
 ---
 
-## Step 4: Find Your Portfolio IDs
+## Step 4: Verify Portfolio IDs
 
 ```bash
-# List all portfolios with their IDs
+# List portfolios (IDs will be deterministic)
 uv run python scripts/list_portfolios.py
-
-# Or use the verbose mode for more details
-uv run python scripts/list_portfolios.py --verbose
 ```
 
-**Save these IDs!** You'll need them for batch processing and reports.
-
-Example output:
+**Expected Output** (IDs must match exactly):
 ```
 Portfolio: Individual Investor Portfolio
-  ID: 123e4567-e89b-12d3-a456-426614174000
+  ID: 1d8ddd95-3b45-0ac5-35bf-cf81af94a5fe
   Owner: demo_individual@sigmasight.com
 
-Portfolio: High Net Worth Portfolio
-  ID: 223e4567-e89b-12d3-a456-426614174001
+Portfolio: High Net Worth Portfolio  
+  ID: e23ab931-a033-edfe-ed4f-9d02474780b4
   Owner: demo_hnw@sigmasight.com
 
 Portfolio: Hedge Fund Style Portfolio
-  ID: 323e4567-e89b-12d3-a456-426614174002
+  ID: fcd71196-e93e-f000-5a74-31a9eead3118
   Owner: demo_hedgefundstyle@sigmasight.com
 ```
+
+> **Important**: These IDs are deterministic and identical across all developer machines.
 
 ---
 
@@ -108,23 +108,22 @@ Portfolio: Hedge Fund Style Portfolio
 ### Option A: Process All Portfolios (Recommended for First Run)
 
 ```bash
-# Run batch processing for ALL portfolios and generate reports
-uv run python scripts/run_batch_with_reports.py
-
-# Or run with correlations (slower but more complete)
-uv run python scripts/run_batch_with_reports.py --correlations
+# Run batch processing for ALL portfolios
+uv run python scripts/run_batch_calculations.py
 ```
 
+> **⚠️ IMPORTANT**: Pre-API reports (.md, .json, .csv) are deprecated and planned for deletion.
+> Use the API endpoints for accessing portfolio data instead.
+
 This will:
-1. Fetch latest market data
+1. Fetch latest market data (with improved historical coverage)
 2. Calculate portfolio aggregations and exposures
-3. Calculate Greeks for options positions
+3. ~~Calculate Greeks~~ (Disabled - no reliable options data)
 4. Run factor analysis (7 factors)
 5. Generate market risk scenarios
 6. Run 15 stress test scenarios
 7. Create portfolio snapshots
-8. Calculate correlations (if --correlations flag used)
-9. Generate reports in all formats
+8. Calculate correlations (runs daily)
 
 **Expected time**: ~30-60 seconds per portfolio
 
@@ -144,77 +143,15 @@ uv run python scripts/run_batch_with_reports.py --skip-batch
 
 ---
 
-## Step 6: View Generated Reports
+## Step 6: Access Data via API (Reports Deprecated)
 
-The script generates reports in the `backend/reports/` directory. The folder is named using a slugified version of the **portfolio's name** and the report date.
+> **Note**: File-based reports are deprecated. Use the API endpoints to access portfolio data.
 
-For example, a report for the "Demo Hedge Fund-Style Investor" portfolio on August 8, 2025, will be in: `reports/demo-hedge-fund-style-investor-portfolio_2025-08-08/`
-
-Inside this date-stamped directory, you'll find the report in three standard formats:
-
-```bash
-# Windows - Open reports folder
-explorer reports
-
-# Mac - Open reports folder  
-open reports
-
-# Or list reports from command line
-dir reports     # Windows
-ls -la reports  # Mac/Linux
-```
-
-**Report Structure**:
-```
-reports/
-├── portfolio_<ID>_<DATE>.md     # Markdown format (human-readable)
-├── portfolio_<ID>_<DATE>.json   # JSON format (machine-readable)
-└── portfolio_<ID>_<DATE>.csv    # CSV format (Excel-compatible)
-```
-
-### View Markdown Report
-
-The `.md` files are best viewed in:
-- **VS Code** - Has built-in Markdown preview (Ctrl+Shift+V)
-- **GitHub** - Upload to a gist for formatted viewing
-- **Markdown Viewer** - Any online Markdown viewer
-- **Notepad++** - With Markdown plugin
-
-### Open CSV in Excel
-
-1. Double-click the `.csv` file
-2. Excel should open automatically
-3. Contains all positions with calculations
-
-### Parse JSON Programmatically
-
-The `.json` files contain complete structured data for integration.
+Data is now accessed through the API. After batch processing completes, use the API endpoints documented in the [Daily Workflow Guide](BACKEND_DAILY_COMPLETE_WORKFLOW_GUIDE.md).
 
 ---
 
-## Step 7: Generate Reports for Different Dates
-
-```bash
-# Generate report for specific date
-uv run python -m app.cli.report_generator_cli generate \
-    --portfolio-id <PORTFOLIO_ID> \
-    --as-of 2025-08-15 \
-    --format md,json,csv
-
-# Generate only Markdown
-uv run python -m app.cli.report_generator_cli generate \
-    --portfolio-id <PORTFOLIO_ID> \
-    --format md
-
-# Save to custom directory
-uv run python -m app.cli.report_generator_cli generate \
-    --portfolio-id <PORTFOLIO_ID> \
-    --output-dir C:\Users\Ben\Documents\Reports
-```
-
----
-
-## Step 8: Launch FastAPI Server for API Access
+## Step 7: Launch FastAPI Server for API Access
 
 ### Start the Development Server
 
@@ -280,33 +217,16 @@ curl -X POST "http://localhost:8000/api/v1/auth/login" \
 # Example response: {"access_token": "eyJ...", "token_type": "bearer"}
 ```
 
-### Test Raw Data APIs (100% Complete)
+### Test API Endpoints
 
+For complete API endpoint documentation, see:
+- [Daily Workflow Guide - API Endpoints](BACKEND_DAILY_COMPLETE_WORKFLOW_GUIDE.md#common-api-endpoints)
+- [API Specifications V1.4.5](_docs/requirements/API_SPECIFICATIONS_V1.4.5.md)
+
+**Quick test with demo portfolio**:
 ```bash
-# Replace <TOKEN> with the access_token from login
-
-# Get portfolios
-curl -X GET "http://localhost:8000/api/v1/data/portfolios" \
-  -H "Authorization: Bearer <TOKEN>"
-
-# Get positions for a portfolio
-curl -X GET "http://localhost:8000/api/v1/data/portfolios/<PORTFOLIO_ID>/positions" \
-  -H "Authorization: Bearer <TOKEN>"
-
-# Get risk metrics
-curl -X GET "http://localhost:8000/api/v1/data/portfolios/<PORTFOLIO_ID>/risk_metrics" \
-  -H "Authorization: Bearer <TOKEN>"
-
-# Get factor exposures
-curl -X GET "http://localhost:8000/api/v1/data/portfolios/<PORTFOLIO_ID>/factor_exposures" \
-  -H "Authorization: Bearer <TOKEN>"
-
-# Get market quotes
-curl -X GET "http://localhost:8000/api/v1/data/prices/quotes?symbols=AAPL,MSFT,GOOGL" \
-  -H "Authorization: Bearer <TOKEN>"
-
-# Get portfolio exposures
-curl -X GET "http://localhost:8000/api/v1/data/portfolios/<PORTFOLIO_ID>/exposures" \
+# Get High Net Worth portfolio data
+curl -X GET "http://localhost:8000/api/v1/data/portfolio/e23ab931-a033-edfe-ed4f-9d02474780b4/complete" \
   -H "Authorization: Bearer <TOKEN>"
 ```
 
@@ -350,51 +270,22 @@ uv run python run.py
 # Reattach with: screen -r sigmasight
 ```
 
-### Available API Endpoints Overview
+### Available API Endpoints
 
-**🟢 Raw Data APIs (100% Complete)**:
-- `/api/v1/data/portfolios` - Get all portfolios
-- `/api/v1/data/portfolios/{id}/positions` - Get portfolio positions
-- `/api/v1/data/portfolios/{id}/risk_metrics` - Get risk metrics
-- `/api/v1/data/portfolios/{id}/factor_exposures` - Get factor exposures
-- `/api/v1/data/portfolios/{id}/exposures` - Get portfolio exposures
-- `/api/v1/data/prices/quotes` - Get market quotes
+See the [Daily Workflow Guide](BACKEND_DAILY_COMPLETE_WORKFLOW_GUIDE.md#common-api-endpoints) for the current list of working endpoints.
 
-**🟡 Authentication APIs**:
-- `/api/v1/auth/login` - Login and get JWT token
-- `/api/v1/auth/register` - Register new user
-- `/api/v1/auth/me` - Get current user info
+## Next Steps: Daily Operations
 
-**🔴 Other APIs (In Development)**:
-- Analytics APIs - Calculations and derived metrics
-- Management APIs - Portfolio CRUD operations
-- Export APIs - Report generation and downloads
+✅ **Initial setup is complete!**
 
-See [API Specifications V1.4.4](_docs/requirements/API_SPECIFICATIONS_V1.4.4.md) for complete endpoint documentation.
+For daily operations including:
+- Starting services
+- Running batch calculations
+- Updating market data
+- Testing the chat/agent system
+- API endpoint reference
 
-## Step 9: Daily Workflow
-
-Once everything is set up, your daily workflow is:
-
-```bash
-# 1. Start Docker (if not running)
-# 2. Navigate to project
-cd C:\Projects\SigmaSight-BE\backend
-
-# 3. Start database
-docker-compose up -d
-
-# 4. Start API server
-uv run python run.py
-
-# 5. Run batch and generate reports (in another terminal)
-uv run python scripts/run_batch_with_reports.py
-
-# 6. View reports
-explorer reports  # Windows
-
-# 7. Access API at http://localhost:8000/docs
-```
+**See**: [BACKEND_DAILY_COMPLETE_WORKFLOW_GUIDE.md](BACKEND_DAILY_COMPLETE_WORKFLOW_GUIDE.md)
 
 ---
 
@@ -468,32 +359,26 @@ netstat -an | grep 8000
 
 ## Understanding the Batch Process
 
-The batch orchestrator runs 8 calculation engines in sequence:
+The batch orchestrator runs calculation engines in sequence:
 
-1. **Market Data Update** - Fetches latest prices
+1. **Market Data Update** - Fetches latest prices with improved historical coverage
 2. **Portfolio Aggregation** - Calculates exposures
-3. **Greeks Calculation** - Options sensitivities
+3. ~~**Greeks Calculation**~~ - Disabled (no reliable options data)
 4. **Factor Analysis** - 7-factor model betas
 5. **Market Risk Scenarios** - ±5%, ±10%, ±20% scenarios
 6. **Stress Testing** - 15 extreme scenarios
 7. **Portfolio Snapshot** - Daily state capture
-8. **Correlations** (optional) - Position relationships
-9. **Report Generation** - Creates MD/JSON/CSV files
+8. **Correlations** - Now runs daily (not optional)
 
-Each engine saves results to the database, making data available for reports.
+Each engine saves results to the database for API access.
 
 ---
 
 ## Advanced Options
 
-### Run Batch Without Reports
+### Run Batch Processing Only
 ```bash
-uv run python scripts/run_batch_with_reports.py --skip-reports
-```
-
-### Generate Reports Without Batch
-```bash
-uv run python scripts/run_batch_with_reports.py --skip-batch
+uv run python scripts/run_batch_calculations.py
 ```
 
 ### Run Specific Calculation Engine Tests
@@ -510,24 +395,21 @@ uv run python scripts/test_fmp_batch_integration.py
 
 ---
 
-## Next Steps
+## Additional Resources
 
-1. **Explore API Endpoints** - Use http://localhost:8000/docs to test all endpoints
-2. **Review Generated Reports** - Check all sections are populated
-3. **Verify Calculations** - Ensure numbers make sense via API responses
-4. **Test Different Portfolios** - Run for all 3 demo portfolios
-5. **Integrate with Frontend** - Use Raw Data APIs for UI development
-6. **Customize Reports** - Modify templates in `app/reports/templates/`
-7. **Schedule Daily Runs** - Set up Windows Task Scheduler or cron
-8. **Monitor API Performance** - Check response times in `/docs`
+1. **Daily Operations** - [BACKEND_DAILY_COMPLETE_WORKFLOW_GUIDE.md](BACKEND_DAILY_COMPLETE_WORKFLOW_GUIDE.md)
+2. **API Documentation** - http://localhost:8000/docs (when server is running)
+3. **Deterministic IDs** - [SETUP_DETERMINISTIC_IDS.md](../SETUP_DETERMINISTIC_IDS.md)
+4. **Chat Testing** - [Frontend Chat Testing Guide](../frontend/CHAT_TESTING_GUIDE.md)
 
 ---
 
 ## Questions?
 
-- Check the [White Paper](_docs/generated/Calculation_Engine_White_Paper.md) for calculation details
-- Review [TODO3.md](TODO3.md) for current API development status
-- See [AI_AGENT_REFERENCE.md](AI_AGENT_REFERENCE.md) for code structure
-- View [API Specifications](/_docs/requirements/API_SPECIFICATIONS_V1.4.4.md) for endpoint details
+- **Daily Operations**: [BACKEND_DAILY_COMPLETE_WORKFLOW_GUIDE.md](BACKEND_DAILY_COMPLETE_WORKFLOW_GUIDE.md)
+- **Calculation Details**: [White Paper](_docs/generated/Calculation_Engine_White_Paper.md)
+- **API Status**: [TODO3.md](TODO3.md)
+- **Code Structure**: [AI_AGENT_REFERENCE.md](AI_AGENT_REFERENCE.md)
+- **API Specs**: [API_SPECIFICATIONS_V1.4.5.md](_docs/requirements/API_SPECIFICATIONS_V1.4.5.md)
 
 Remember: The first run takes longer as it fetches historical data. Subsequent runs are faster!
