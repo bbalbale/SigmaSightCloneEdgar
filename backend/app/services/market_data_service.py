@@ -557,7 +557,7 @@ class MarketDataService:
         symbols: List[str],
         start_date: Optional[date] = None,
         end_date: Optional[date] = None,
-        include_gics: bool = True
+        include_gics: bool = False  # Fix 3: Default to False for performance
     ) -> Dict[str, int]:
         """
         Update market data cache with latest price and GICS data
@@ -682,36 +682,46 @@ class MarketDataService:
     
     async def _get_cached_dates(self, db: AsyncSession, symbol: str) -> set:
         """
-        Get all dates we have data for this symbol in the cache
+        Get all dates we have PRICE data for this symbol in the cache
+        (Fix 2 from Section 6.1.10 - Filter out metadata rows)
         
         Args:
             db: Database session
             symbol: Symbol to check
             
         Returns:
-            Set of dates with cached data
+            Set of dates with cached price data
         """
-        from sqlalchemy import select
+        from sqlalchemy import select, and_
         stmt = select(MarketDataCache.date).where(
-            MarketDataCache.symbol == symbol.upper()
+            and_(
+                MarketDataCache.symbol == symbol.upper(),
+                MarketDataCache.close > 0,  # Filter out metadata rows
+                MarketDataCache.data_source.in_(['fmp', 'polygon'])  # Only price sources
+            )
         ).distinct()
         result = await db.execute(stmt)
         return set(row[0] for row in result.fetchall())
     
     async def _count_cached_days(self, db: AsyncSession, symbol: str) -> int:
         """
-        Count the number of days of cached data for a symbol
+        Count the number of days of cached PRICE data for a symbol
+        (Fix 2 from Section 6.1.10 - Filter out metadata rows)
         
         Args:
             db: Database session
             symbol: Symbol to check
             
         Returns:
-            Number of days with cached data
+            Number of days with cached price data
         """
-        from sqlalchemy import func
-        stmt = select(func.count(MarketDataCache.date)).where(
-            MarketDataCache.symbol == symbol.upper()
+        from sqlalchemy import func, and_, distinct
+        stmt = select(func.count(distinct(MarketDataCache.date))).where(
+            and_(
+                MarketDataCache.symbol == symbol.upper(),
+                MarketDataCache.close > 0,  # Filter out metadata rows
+                MarketDataCache.data_source.in_(['fmp', 'polygon'])  # Only price sources
+            )
         )
         result = await db.execute(stmt)
         return result.scalar() or 0
@@ -791,7 +801,8 @@ class MarketDataService:
         self, 
         db: AsyncSession, 
         symbols: List[str],
-        days_back: int = 90
+        days_back: int = 90,
+        include_gics: bool = False  # Fix 3: Default to False for performance
     ) -> Dict[str, Any]:
         """
         Bulk fetch historical data and cache for multiple symbols
@@ -800,6 +811,7 @@ class MarketDataService:
             db: Database session
             symbols: List of symbols to fetch
             days_back: Number of days of historical data to fetch
+            include_gics: Whether to fetch GICS sector/industry data (expensive)
             
         Returns:
             Summary statistics of the operation
@@ -807,14 +819,14 @@ class MarketDataService:
         start_date = date.today() - timedelta(days=days_back)
         end_date = date.today()
         
-        logger.info(f"Bulk fetching {days_back} days of data for {len(symbols)} symbols")
+        logger.info(f"Bulk fetching {days_back} days of data for {len(symbols)} symbols (GICS: {include_gics})")
         
         return await self.update_market_data_cache(
             db=db,
             symbols=symbols,
             start_date=start_date,
             end_date=end_date,
-            include_gics=True
+            include_gics=include_gics
         )
     
     

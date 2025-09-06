@@ -5,7 +5,7 @@ import asyncio
 from datetime import datetime, date, timedelta
 from typing import List, Set, Dict, Any
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, distinct
+from sqlalchemy import select, distinct, func, and_
 
 from app.database import AsyncSessionLocal
 from app.services.market_data_service import market_data_service
@@ -96,29 +96,50 @@ async def fetch_missing_historical_data(days_back: int = 90):
                 logger.info("No symbols found for historical backfill")
                 return
             
-            # Check what data we already have
+            # Check coverage per symbol (Fix 1 from Section 6.1.10)
             start_date = date.today() - timedelta(days=days_back)
+            end_date = date.today()
             
-            stmt = select(distinct(MarketDataCache.symbol)).where(
-                MarketDataCache.date >= start_date
-            )
-            result = await db.execute(stmt)
-            cached_symbols = set(result.scalars().all())
+            # Calculate expected trading days (approximate)
+            expected_days = 0
+            current = start_date
+            while current <= end_date:
+                if current.weekday() < 5:  # Monday=0, Friday=4
+                    expected_days += 1
+                current += timedelta(days=1)
             
-            # Find symbols missing data
-            missing_symbols = symbols - cached_symbols
+            # Check coverage for each symbol
+            symbols_needing_backfill = []
+            for symbol in symbols:
+                # Count distinct dates with actual price data (filter out metadata)
+                stmt = select(func.count(distinct(MarketDataCache.date))).where(
+                    and_(
+                        MarketDataCache.symbol == symbol,
+                        MarketDataCache.date >= start_date,
+                        MarketDataCache.close > 0,  # Filter out metadata rows
+                        MarketDataCache.data_source.in_(['fmp', 'polygon'])  # Only price data
+                    )
+                )
+                count = (await db.execute(stmt)).scalar() or 0
+                
+                # Use 80% threshold to account for holidays/weekends
+                if count < expected_days * 0.8:
+                    symbols_needing_backfill.append(symbol)
+                    logger.info(f"Symbol {symbol} has {count}/{expected_days} days (needs backfill)")
+                else:
+                    logger.debug(f"Symbol {symbol} has sufficient coverage: {count}/{expected_days} days")
             
-            if missing_symbols:
-                logger.info(f"Backfilling data for {len(missing_symbols)} symbols")
+            if symbols_needing_backfill:
+                logger.info(f"Backfilling data for {len(symbols_needing_backfill)} symbols with insufficient coverage")
                 stats = await market_data_service.bulk_fetch_and_cache(
                     db=db,
-                    symbols=list(missing_symbols),
+                    symbols=symbols_needing_backfill,
                     days_back=days_back
                 )
                 logger.info(f"Historical backfill completed: {stats}")
                 return stats
             else:
-                logger.info("All symbols already have historical data cached")
+                logger.info("All symbols have sufficient historical data coverage")
                 return {"message": "No backfill needed"}
                 
     except Exception as e:

@@ -1,5 +1,13 @@
 # SigmaSight API Endpoints Specification v1.4.4
 
+> 🚫 SUPERSEDED DOCUMENT (2025-09-06)
+>
+> This specification is superseded by the newer version: [API_SPECIFICATIONS_V1.4.5.md](./API_SPECIFICATIONS_V1.4.5.md).
+>
+> Status: Reference only. Content is out of date and may not reflect current endpoints, contracts, or implementation details.
+>
+> AI coding agents: Do not treat this file as the project source of truth or as a list of current requirements. Always use the latest spec above and corroborate with `backend/TODO3.md` and the code.
+
 > ⚠️ **IMPLEMENTATION STATUS (2025-08-26 15:30 PST)**: Raw Data APIs (`/data/` namespace) are 100% complete (6/6 endpoints). See [TODO3.md](../../TODO3.md) for full API implementation progress (30% overall, 12/39 endpoints complete).
 
 ## Document Version Control
