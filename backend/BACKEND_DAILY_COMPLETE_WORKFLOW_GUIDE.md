@@ -209,18 +209,26 @@ asyncio.run(validate())
 - ✅ Metadata rows filtered (only counts actual price data)
 
 ### 2. Run Batch Calculations
+
+**⚠️ IMPORTANT NOTE**: Pre-API reports (.md summary, .json, .csv) are planned for deletion.  
+**DO NOT RUN REPORTS** - Use `--skip-reports` flag for all batch operations.
+
 ```bash
-# Run batch processing for all portfolios
-uv run python scripts/run_batch_with_reports.py
-
-# Run for specific portfolio only
-uv run python scripts/run_batch_with_reports.py --portfolio <PORTFOLIO_ID>
-
-# Skip batch, only generate reports  
-uv run python scripts/run_batch_with_reports.py --skip-batch
-
-# Run batch without reports
+# Run batch processing WITHOUT reports (recommended)
 uv run python scripts/run_batch_with_reports.py --skip-reports
+
+# Run batch for specific portfolio WITHOUT reports
+uv run python scripts/run_batch_with_reports.py --portfolio <PORTFOLIO_ID> --skip-reports
+
+# Examples with actual portfolio IDs:
+# Individual portfolio only
+uv run python scripts/run_batch_with_reports.py --portfolio 1d8ddd95-3b45-0ac5-35bf-cf81af94a5fe --skip-reports
+
+# High Net Worth portfolio only  
+uv run python scripts/run_batch_with_reports.py --portfolio e23ab931-a033-edfe-ed4f-9d02474780b4 --skip-reports
+
+# Hedge Fund portfolio only
+uv run python scripts/run_batch_with_reports.py --portfolio fcd71196-e93e-f000-5a74-31a9eead3118 --skip-reports
 ```
 
 **What Batch Processing Does:**
@@ -232,6 +240,7 @@ uv run python scripts/run_batch_with_reports.py --skip-reports
 6. Stress testing (15 extreme scenarios)
 7. Portfolio snapshots (daily state capture)
 8. Position correlations (relationship analysis)
+9. ~~Report generation~~ (DEPRECATED - use API instead)
 
 ---
 
