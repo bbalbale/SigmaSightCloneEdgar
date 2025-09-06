@@ -3,9 +3,27 @@
 ## Overview
 This document outlines an incremental approach to transitioning the portfolio page from JSON report data to live API data, while maintaining application stability and user experience.
 
-**Current State**: Portfolio page uses a mix of mock data and JSON reports  
-**Target State**: Full API integration with real-time data  
+**Current State**: Portfolio page uses live API data via `/api/v1/data/positions/details` endpoint  
+**Target State**: Full API integration with real-time data including P&L calculations  
 **Approach**: Phased migration with rollback capabilities at each step
+
+**Last Updated**: 2025-09-06
+
+## Current Implementation Status
+
+### ✅ Completed Phases (3 of 6)
+1. **Phase 1**: Data source indicators - Complete
+2. **Phase 2**: Shadow mode API testing - Complete  
+3. **Phase 3**: Live API adoption for positions - Complete
+
+### 🔄 Active Issues
+- **P&L Data Inconsistency**: High-net-worth portfolio shows zero P&L (backend seed data issue)
+- **Body Stream Error**: Fixed - was causing fallback to mock data
+
+### 📊 API Performance
+- Response times: 80-200ms typical
+- Success rate: >95%
+- Data source: Live API for positions, calculated for exposures
 
 ---
 
@@ -122,8 +140,10 @@ Differences Found:
 
 ---
 
-## Phase 3: Gradual API Adoption for Positions
+## Phase 3: Gradual API Adoption for Positions ✅ COMPLETE
 **Goal**: Use API for position data, keep JSON for exposures
+
+**Completed**: 2025-09-06
 
 ### Implementation
 1. **Switch position cards to API data**:
@@ -144,9 +164,45 @@ Differences Found:
    - Or on failure: `"Source: Cached Data"` (yellow dot)
 
 ### Success Criteria
-- Positions display correctly from API
-- Fallback works seamlessly
-- Load time <500ms
+- Positions display correctly from API ✅
+- Fallback works seamlessly ✅
+- Load time <500ms ✅ (typically 80-200ms)
+
+### Phase 3 Completion Update (2025-09-06)
+**Status**: ✅ COMPLETE
+
+**Key Findings - P&L Data Availability**:
+
+The API implementation is working correctly, but P&L data availability varies by portfolio due to backend data seeding differences:
+
+1. **High-Net-Worth Portfolio**: 
+   - API returns `unrealized_pnl: 0` for all positions
+   - Backend seed data has `entry_price = current_price` (no price movement)
+   - Frontend correctly displays dashes ("—") for zero P&L
+   - Example: SPY has entry=$530, current=$530, P&L=$0
+
+2. **Hedge Fund Portfolio**:
+   - API returns actual P&L values (both positive and negative)
+   - Backend seed data has realistic `entry_price ≠ current_price`
+   - Frontend correctly displays these P&L values
+   - Examples: 
+     - META: +$265,000 P&L (long position with gains)
+     - NFLX: -$588,000 P&L (short position with losses)
+     - SHOP: -$390,000 P&L (short position with losses)
+
+3. **Technical Details**: 
+   - Same API endpoint used for all portfolios: `/api/v1/data/positions/details`
+   - Backend calculates P&L as: `(current_price - entry_price) * quantity`
+   - API response structure is identical across portfolios
+   - Difference is purely in the backend database seed data
+
+4. **Frontend Behavior**:
+   - Correctly handles both zero and non-zero P&L values
+   - Shows dashes ("—") when P&L equals 0
+   - Shows formatted values with +/- signs when P&L is non-zero
+   - Data source indicators correctly show "live" (green dot) when using API
+
+**Recommendation**: To enable P&L display for all portfolios, the backend seed data should be updated with realistic entry prices that differ from current prices.
 
 ---
 
