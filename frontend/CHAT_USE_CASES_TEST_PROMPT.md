@@ -93,100 +93,92 @@ tail -n 50 backend/chat_monitoring_report.json | grep -E "frontend|backend|statu
 
 ## Core Use Case Test Suite
 
-### Category 1: Basic Chat Functionality (Working ✅)
-
-#### Test 1.1: General Help Query
+#### Test 1: General Help Query
 **Query:** `"how can sigmasight help me?"`
 **Expected:** General platform overview and capabilities
 **Validation:** Response includes platform features
 
-#### Test 1.2: API Discovery
+#### Test 2: API Discovery
 **Query:** `"tell me what apis are available with a full description of the endpoint?"`
 **Expected:** Full API descriptions with parameters
 **Validation:** Response includes endpoint details and parameter lists
 
-#### Test 1.3: Quote Request Prompt
+#### Test 3: Quote Request Prompt
 **Query:** `"get current quote"`
 **Expected:** Request for specific ticker symbol
 **Validation:** Response asks "Which symbol would you like a quote for?"
 
-#### Test 1.4: Specific Quote Request
+#### Test 4: Specific Quote Request
 **Query:** `"TSLA"`
 **Expected:** Latest TSLA quote with commentary
 **Validation:** Response includes price, volume, change data
 
-#### Test 1.5: Natural Language Quote Request
+#### Test 5: Natural Language Quote Request
 **Query:** `"give me a quote on NVDA"`
 **Expected:** NVDA quote data
 **Validation:** Response focuses on NVDA, minimal TSLA reference acceptable
 
-#### Test 1.6: Portfolio Overview
+#### Test 6: Portfolio Overview
 **Query:** `"show me my portfolio in chat"`
 **Expected:** List of tickers with portfolio data
 **Validation:** Response includes position symbols and values
 
-#### Test 1.7: Data Quality Assessment
+#### Test 7: Data Quality Assessment
 **Query:** `"assess portfolio data quality"`
 **Expected:** Data completeness analysis
 **Validation:** Response includes quality metrics and recommendations
 
-### Category 2: Historical Data & Analytics (Failing ❌)
-
-#### Test 2.1: Historical Price Query (AAPL)
+#### Test 8: Historical Price Query (AAPL)
 **Query:** `"give me historical prices on AAPL for the last 60 days"`
 **Expected:** Historical price data with dates and values
 **API Reference:** `get_prices_historical(portfolio_id, lookback_days=60, max_symbols=1)`
 
-#### Test 2.2: Historical Price Query (NVDA)
+#### Test 9: Historical Price Query (NVDA)
 **Query:** `"give me historical prices for NVDA for the last 60 days"`
 **Expected:** Historical price data for NVDA
 **API Reference:** `get_prices_historical(portfolio_id, lookback_days=60, max_symbols=1)`
 
-#### Test 2.3: Correlation Calculation
+#### Test 10: Correlation Calculation
 **Query:** `"now calculate the correlation between AAPL and NVDA over the last 60 days"`
 **Expected:** Correlation coefficient with explanation
-**Prerequisites:** Tests 2.1 and 2.2 must pass
+**Prerequisites:** Tests 8 and 9 must pass
 
-#### Test 2.4: Factor ETF Prices
+#### Test 11: Factor ETF Prices
 **Query:** `"give me all the factor ETF prices"`
 **Expected:** List of factor ETF prices from database
 **API Reference:** `get_factor_etf_prices(lookback_days=90)`
 
-### Category 3: Position-Specific Queries (Mixed Results ⚠️)
-
-#### Test 3.1: Specific Position Details
+#### Test 12: Specific Position Details
 **Query:** `"give me my position details on NVDA, TSLA"`
 **Expected:** Detailed position info for specified tickers
 **API Reference:** `get_positions_details(portfolio_id, position_ids="NVDA,TSLA")`
 
-#### Test 3.2: Complete Portfolio Data
-**Query:** `"get portfolio complete"`
+#### Test 13: Complete Portfolio Data
+**Query:** `"please provide a complete detailed list of positions in my portfolio"`
 **Expected:** Comprehensive portfolio breakdown
 **API Reference:** `get_portfolio_complete(portfolio_id, include_holdings=true)`
 
-#### Test 3.3: Top Positions Analysis
+#### Test 14: Top Positions Analysis
 **Query:** `"give me detailed breakdown of my top 3 positions"`
 **Expected:** Detailed analysis of largest 3 positions
 **API Reference:** Combination of `get_portfolio_complete` + `get_positions_details`
 
-### Category 4: Advanced Analytics (Suggested Additional Tests)
-
-#### Test 4.1: Risk Profile Analysis
+#### Test 15: Risk Profile Analysis
 **Query:** `"What's the risk profile of my portfolio?"`
 **Expected:** Risk metrics and analysis
 **API Reference:** Portfolio analytics + risk calculations
 
-#### Test 4.2: Performance Comparison
+#### Test 16: Performance Comparison
 **Query:** `"Compare my portfolio performance to SPY"`
 **Expected:** Benchmark comparison with metrics
 **Prerequisites:** Historical data functionality
 
-#### Test 4.3: Position Filtering
+#### Test 17: Position Filtering
 **Query:** `"Show me positions with P&L loss greater than -5%"`
 **Expected:** Filtered position list with P&L data
 **API Reference:** `get_positions_details` with filtering logic
 
-#### Test 4.4: Multi-Tool Request
+#### Test 18: Multi-Tool Request
 **Query:** `"Get TSLA quote and show my TSLA position details"`
 **Expected:** Both current quote and position information
 **API References:** `get_current_quotes` + `get_positions_details`
@@ -359,100 +351,301 @@ fi
 
 ## Individual Use Case Testing & Reporting
 
-For each use case test, follow this detailed reporting structure:
+For each use case test, follow this unified reporting template:
 
-### For WORKING Use Cases:
 ```markdown
 ## Test [ID]: [Query]
-**Status**: ✅ WORKING  
-**Response Time**: [X.X]s  
-**Test Executed**: [Timestamp]
-
-### LLM Response:
-```
-[FULL LLM RESPONSE TEXT HERE]
-```
-
-### System Response (if different from LLM):
-```
-[FULL SYSTEM RESPONSE TEXT IF APPLICABLE]
-```
-
-### Notes:
-[Any relevant observations about response quality, tool usage, etc.]
-
-**⚠️ CRITICAL DEBUGGING NOTE**: Always capture the COMPLETE LLM response text and System Response text, including ALL error messages, stack traces, and diagnostic information. Partial or truncated responses make root cause analysis impossible. If an error occurs, document the ENTIRE error message verbatim.
-```
-
-### For FAILED Use Cases:
-```markdown
-## Test [ID]: [Query]  
-**Status**: ❌ FAILED  
-**Response Time**: [X.X]s / TIMEOUT  
+**Status**: [✅ PASS / ❌ FAIL / ⚠️ PARTIAL / ⏭️ SKIPPED]
+**Response Time**: [X.X]s / TIMEOUT
 **Test Executed**: [Timestamp]
 
 ### Expected Behavior:
-[What should have happened]
+[What should happen according to test specification]
 
 ### Actual Behavior:
-[What actually happened - empty response, error message, wrong response, etc.]
+[What actually happened - brief summary of response/error/outcome]
 
-### LLM Response:
+### User-Visible Response (REQUIRED):
 ```
-[FULL LLM RESPONSE TEXT - DO NOT TRUNCATE]
+[ACTUAL TEXT DISPLAYED TO USER IN THE CHAT INTERFACE]
+[This is what the user sees as the final response]
+[Include up to 2500 characters to show substantial detail]
+[If response exceeds 2500 chars, add note: "... [truncated from X total characters]"]
+```
+
+### Full LLM Response (Backend):
+```
+[COMPLETE LLM/API RESPONSE INCLUDING TOOL CALLS AND INTERMEDIATE STEPS]
+[Include ALL content, error messages, stack traces, etc.]
+[This shows what happened behind the scenes]
 ```
 
 ### System Response (if error occurred):
 ```
-[FULL SYSTEM ERROR/RESPONSE TEXT - INCLUDE ALL ERROR DETAILS]
+[SYSTEM ERROR/CONSOLE OUTPUT IF DIFFERENT FROM USER RESPONSE]
+[Include console errors, network failures, etc.]
 ```
 
-**⚠️ CRITICAL**: Document the COMPLETE response text, including ALL error messages, stack traces, and diagnostic information. Never truncate or summarize error messages.
+### Frontend Layer Analysis:
+- **UI State**: [Input field status, button states, loading indicators]
+- **Console Logs**: [Any errors, warnings, or relevant debug messages]
+- **Network Activity**: [API calls made, status codes, response times]
+- **Screenshots**: `test-[ID]-[timestamp].png` (if captured)
 
-### Frontend Layer Diagnostics:
-- **UI State**: [Input enabled/disabled, loading states, error displays]
-- **Console Logs**: 
-```javascript
-[FILTERED RELEVANT CONSOLE LOGS - ERRORS, SSE EVENTS, NETWORK FAILURES]
+### Backend API Layer Analysis:
+- **Endpoints Called**: [List of API endpoints with methods]
+- **Authentication Status**: [JWT present/valid, portfolio context]
+- **Response Codes**: [HTTP status codes received]
+- **API Logs**: [Relevant backend log entries if available]
+
+### Tool Execution Analysis:
+- **Tools Invoked**: [List of tools called with parameters]
+- **Tool Results**: [Success/failure, data returned]
+- **Execution Time**: [Time taken for tool calls]
+- **SSE Events**: [Event sequence: start → tool_call → tool_result → done]
+
+### Data Layer Analysis:
+- **Data Retrieved**: [What data was successfully fetched]
+- **Data Quality**: [Completeness, accuracy of returned data]
+- **Query Performance**: [Database query times if available]
+
+### Diagnostics Summary:
+- **Pass/Fail Reason**: [Clear explanation of why test passed or failed]
+- **Error Classification**: [Frontend/Backend/Tool/Data/Network issue]
+- **Impact Severity**: [Critical/High/Medium/Low]
+- **Blocking Other Tests**: [Yes/No - which tests are affected]
+
+### Recommended Actions:
+[Specific steps to fix issues or improve functionality]
+
+### Notes:
+[Additional observations, edge cases, or important context]
 ```
-- **Network Requests**: [Failed API calls, status codes, timing]
-- **Screenshots**: 
-  - Before: `test-[ID]-before-[timestamp].png`
-  - After: `test-[ID]-after-[timestamp].png`
 
-### Backend API Layer Diagnostics:
-- **Endpoint Response**: [Status code, response time, headers]
-- **Authentication**: [JWT validation, portfolio context resolution]
-- **API Logs**: 
-```bash
-[RELEVANT BACKEND LOG ENTRIES]
+**⚠️ CRITICAL DOCUMENTATION REQUIREMENTS**:
+- **USER-VISIBLE RESPONSE IS MANDATORY**: Always capture what the user actually sees in the chat interface (up to 2500 chars)
+- The "User-Visible Response" section must contain the ACTUAL text displayed to the user, not a summary
+- Include the first 2500 characters of user-facing responses to show substantial detail
+- Document ALL error messages, stack traces, and diagnostic information verbatim
+- Preserve exact formatting, markdown, and special characters in responses
+- If user response exceeds 2500 chars, note the total length for context
+
+## Example Test Reports
+
+### Example 1: Successful Test Case
+
+```markdown
+## Test 6: Portfolio Overview
+**Status**: ✅ PASS
+**Response Time**: 4.2s
+**Test Executed**: 2025-09-06T19:45:23Z
+
+### Expected Behavior:
+List of tickers with portfolio data showing all positions and values
+
+### Actual Behavior:
+Successfully displayed complete portfolio with all 17 positions, total value, and individual position details
+
+### User-Visible Response (REQUIRED):
+```
+Here's your complete portfolio overview:
+
+## Portfolio Summary
+- **Total Value**: $1,393,071.49
+- **Cash Balance**: $66,336.74
+- **Number of Positions**: 17
+
+## Your Holdings
+
+1. **SPY** (SPDR S&P 500 ETF) - 400 shares
+   - Current Price: $530.00
+   - Market Value: $212,000.00
+   - Position Type: Long
+
+2. **QQQ** (Invesco QQQ Trust) - 450 shares
+   - Current Price: $420.00
+   - Market Value: $189,000.00
+   - Position Type: Long
+
+3. **MSFT** (Microsoft Corporation) - 240 shares
+   - Current Price: $380.00
+   - Market Value: $91,200.00
+   - Position Type: Long
+
+4. **AAPL** (Apple Inc.) - 400 shares
+   - Current Price: $225.00
+   - Market Value: $90,000.00
+   - Position Type: Long
+
+5. **NVDA** (NVIDIA Corporation) - 180 shares
+   - Current Price: $460.00
+   - Market Value: $82,800.00
+   - Position Type: Long
+
+6. **AMZN** (Amazon.com Inc.) - 480 shares
+   - Current Price: $170.00
+   - Market Value: $81,600.00
+   - Position Type: Long
+
+7. **GOOGL** (Alphabet Inc.) - 500 shares
+   - Current Price: $160.00
+   - Market Value: $80,000.00
+   - Position Type: Long
+
+8. **BRK-B** (Berkshire Hathaway) - 180 shares
+   - Current Price: $440.00
+   - Market Value: $79,200.00
+   - Position Type: Long
+
+9. **META** (Meta Platforms) - 220 shares
+   - Current Price: $340.00
+   - Market Value: $74,800.00
+   - Position Type: Long
+
+10. **GLD** (SPDR Gold Trust) - 325 shares
+    - Current Price: $219.23
+    - Market Value: $71,249.75
+    - Position Type: Long
+
+[Remaining 7 positions follow similar format...]
+
+## Portfolio Analysis
+Your portfolio shows strong diversification across technology, financials, and consumer sectors. The largest allocations are to broad market ETFs (SPY, QQQ) providing market exposure, complemented by individual technology leaders.
 ```
 
-### Tool Handler Layer Diagnostics:
-- **Tool Execution**: [Which tools were called, parameters passed]
-- **Tool Registry**: [Tool registration status, availability]
-- **Tool Results**: [Success/failure, data returned, execution time]
-- **SSE Event Flow**:
-```javascript
-[SSE EVENTS: message_created → start → tool_call → tool_result → done]
-[IDENTIFY MISSING EVENTS OR GAPS IN THE FLOW]
+### Full LLM Response (Backend):
+```
+[SSE Event: start - conversation_id: abc123, mode: green]
+[SSE Event: tool_call - get_portfolio_complete(portfolio_id="e23ab931-a033-edfe-ed4f-9d02474780b4", include_holdings=true)]
+[Tool Response: Successfully retrieved portfolio data with 17 positions, total_value: 1393071.49]
+[SSE Event: token - streaming response generation]
+[Full formatted response with all 17 positions as shown above]
+[SSE Event: done - response complete]
 ```
 
-### Database Layer Diagnostics:
-- **Data Availability**: [Required data exists, query results]
-- **Database Queries**: [SQL executed, results returned, performance]
-- **Connection Status**: [Database connectivity, pool health]
+### System Response (if error occurred):
+```
+N/A - No errors
+```
 
-### SSE/Streaming Layer Diagnostics:
-- **Event Pipeline**: [Complete event flow, missing events]
-- **Content Streaming**: [Response content delivery, streaming gaps]
-- **Connection Health**: [SSE connection status, reconnection events]
+### Frontend Layer Analysis:
+- **UI State**: Input enabled, send button active, response displayed correctly
+- **Console Logs**: No errors or warnings
+- **Network Activity**: POST /api/v1/chat/send (200 OK, 4.2s)
+- **Screenshots**: test-6-20250906-194523.png
 
-### Root Cause Analysis:
-[SPECIFIC TECHNICAL ISSUE IDENTIFIED]
+### Backend API Layer Analysis:
+- **Endpoints Called**: GET /api/v1/data/portfolio/e23ab931-a033-edfe-ed4f-9d02474780b4/complete
+- **Authentication Status**: JWT valid, portfolio context resolved
+- **Response Codes**: 200 OK
+- **API Logs**: Successfully fetched portfolio with 17 positions
 
-### Recommended Action:
-[SPECIFIC STEPS FOR CODING AGENT TO INVESTIGATE/FIX]
+### Tool Execution Analysis:
+- **Tools Invoked**: get_portfolio_complete(portfolio_id, include_holdings=true)
+- **Tool Results**: Success - returned complete portfolio data
+- **Execution Time**: 823ms
+- **SSE Events**: start → tool_call → tool_result → token (streaming) → done
+
+### Data Layer Analysis:
+- **Data Retrieved**: All 17 positions with prices and values
+- **Data Quality**: Complete data for all positions
+- **Query Performance**: 45ms database query time
+
+### Diagnostics Summary:
+- **Pass/Fail Reason**: Test passed - successfully displayed all portfolio positions with correct values
+- **Error Classification**: N/A - No errors
+- **Impact Severity**: N/A
+- **Blocking Other Tests**: No
+
+### Recommended Actions:
+None - feature working as expected
+
+### Notes:
+Character limit fix (15000 chars) confirmed working - all positions displayed without truncation
+```
+
+### Example 2: Failed Test Case
+
+```markdown
+## Test 8: Historical Price Query (AAPL)
+**Status**: ❌ FAIL
+**Response Time**: 2.8s
+**Test Executed**: 2025-09-06T19:47:15Z
+
+### Expected Behavior:
+Historical price data for AAPL over the last 60 days with dates and values
+
+### Actual Behavior:
+LLM responded that it doesn't have access to historical price data tool, cannot fulfill request
+
+### User-Visible Response (REQUIRED):
+```
+I apologize, but I don't have access to historical price data for individual stocks at this time. 
+
+What I can help you with instead:
+- Current quotes for AAPL or other stocks
+- Your portfolio positions and current values
+- Portfolio data quality assessment
+- Analysis of your current holdings
+
+To get the current AAPL quote, I can fetch that for you right now. Would you like me to get the latest AAPL price and market data instead?
+
+For historical price data, you may want to check with your broker or financial data provider directly.
+```
+
+### Full LLM Response (Backend):
+```
+[SSE Event: start - conversation_id: abc123, mode: green]
+[SSE Event: message - No tool found for historical prices]
+[SSE Event: token - streaming response]
+"I apologize, but I don't have access to historical price data for individual stocks at this time..."
+[SSE Event: done - response complete]
+[Note: get_prices_historical tool not called despite being registered]
+```
+
+### System Response (if error occurred):
+```
+Console Warning: Tool 'get_prices_historical' exists in registry but not in LLM tool list
+```
+
+### Frontend Layer Analysis:
+- **UI State**: Input enabled, response displayed, no loading errors
+- **Console Logs**: Warning - "Tool mismatch in registry"
+- **Network Activity**: POST /api/v1/chat/send (200 OK, 2.8s)
+- **Screenshots**: test-8-20250906-194715.png
+
+### Backend API Layer Analysis:
+- **Endpoints Called**: POST /api/v1/chat/conversations/{id}/messages
+- **Authentication Status**: JWT valid, portfolio context present
+- **Response Codes**: 200 OK (API succeeded but tool not used)
+- **API Logs**: Request processed but tool not invoked
+
+### Tool Execution Analysis:
+- **Tools Invoked**: None - tool not called despite being needed
+- **Tool Results**: N/A - tool not executed
+- **Execution Time**: N/A
+- **SSE Events**: start → message → token → done (no tool_call event)
+
+### Data Layer Analysis:
+- **Data Retrieved**: None - historical data not fetched
+- **Data Quality**: N/A - no data retrieved
+- **Query Performance**: N/A - no database query
+
+### Diagnostics Summary:
+- **Pass/Fail Reason**: Failed - get_prices_historical tool not being presented to LLM
+- **Error Classification**: Tool Registration Issue (Backend/Agent configuration)
+- **Impact Severity**: High - blocks all historical data functionality
+- **Blocking Other Tests**: Yes - Tests 9, 10 (correlation, historical analysis)
+
+### Recommended Actions:
+1. Verify get_prices_historical is registered in tool_registry.py
+2. Check OpenAI service tool definition includes get_prices_historical
+3. Verify tool handler implementation in handlers.py
+4. Test tool directly via API to confirm it works
+5. Check for tool name mismatches or parameter issues
+
+### Notes:
+Tool appears in API documentation but LLM claims no access. Likely registration issue between tool_registry and OpenAI service.
 ```
 
 ## Report Structure
