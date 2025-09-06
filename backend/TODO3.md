@@ -1374,62 +1374,143 @@ cached_symbols = set(result.scalars().all())
 missing_symbols = symbols - cached_symbols  # Incorrectly excludes partial data
 ```
 
-#### Implementation Requirements
+#### Implementation Requirements - REVISED PLAN
 
-##### Task 1: Fix Gap Detection Logic in Batch Processing
-**File**: `app/batch/market_data_sync.py`
-**Function**: `fetch_missing_historical_data()`
+##### Core Strategy: Enhance `bulk_fetch_and_cache()` Instead of Replacing
+**Rationale**: Keep the existing function name and signature for zero breaking changes. All 10+ callers continue to work without modification.
 
-**Required Implementation**:
+##### Current Callers of `bulk_fetch_and_cache()` (Must Continue Working)
+1. **Production Code**:
+   - `app/batch/market_data_sync.py` - 3 calls (sync_market_data, fetch_missing_historical_data, validate_and_ensure)
+   - `app/api/v1/market_data.py` - 1 call (API endpoint)
+   
+2. **Test Scripts** (Can Delete if Outdated):
+   - `scripts/test_fmp_factor_etf_coverage.py`
+   - `scripts/test_post_yfinance_removal.py` 
+   - `scripts/backfill_factor_etfs.py`
+   - `scripts/test_fmp_hybrid_integration.py`
+   - `scripts/test_polygon_connection.py`
+   - `scripts/backfill_position_symbols.py`
+
+##### Task 1: Enhance `bulk_fetch_and_cache()` with Smart Gap Detection
+**File**: `app/services/market_data_service.py`
+**Function**: Keep `bulk_fetch_and_cache()` name, replace internals
+
+**Enhanced Implementation**:
 ```python
-async def fetch_missing_historical_data(days_back: int = 252):  # Target 1 year
+async def bulk_fetch_and_cache(
+    self, 
+    db: AsyncSession, 
+    symbols: List[str],
+    days_back: int = 90  # Keep same parameter name for compatibility
+) -> Dict[str, Any]:
     """
-    Enhanced version with proper gap detection and incremental backfill.
-    Preserves existing older data while filling gaps.
+    Bulk fetch historical data and cache for multiple symbols
+    
+    ENHANCED BEHAVIOR (internal change only):
+    - First run: Fetches initial historical data up to days_back
+    - Subsequent runs: Preserves existing data, only fills gaps
+    - No longer overwrites older data with UPSERT
+    - Accumulates history over time
+    
+    Args (unchanged):
+        db: Database session
+        symbols: List of symbols to fetch
+        days_back: Target number of days of historical data
+        
+    Returns (unchanged):
+        Summary statistics of the operation
     """
-    # For each symbol:
-    # 1. Query MIN(date) and MAX(date) from MarketDataCache
-    # 2. Build date range needed: [today - days_back, today]
-    # 3. Find gaps between existing data points
-    # 4. Fetch ONLY missing date ranges from provider
-    # 5. Never delete/overwrite existing older data
-    # 6. Handle API limits (FMP ~5000 calls/day free tier)
+    results = {}
+    
+    for symbol in symbols:
+        # NEW: Check what we already have
+        existing_dates = await self._get_cached_date_range(db, symbol)
+        target_date = date.today() - timedelta(days=days_back)
+        
+        if not existing_dates:
+            # First time - fetch everything available
+            date_ranges_to_fetch = [(target_date, date.today())]
+        else:
+            # Find gaps in existing data
+            date_ranges_to_fetch = await self._identify_gaps(
+                db, symbol, target_date, date.today()
+            )
+        
+        # Fetch only missing data
+        if date_ranges_to_fetch:
+            new_data = await self._fetch_date_ranges(symbol, date_ranges_to_fetch)
+            await self._insert_new_market_data(db, symbol, new_data)  # INSERT only!
+            
+        results[symbol] = {
+            "fetched_records": len(new_data) if date_ranges_to_fetch else 0,
+            "total_days_cached": await self._count_cached_days(db, symbol)
+        }
+    
+    return {"symbols_processed": len(symbols), "details": results}
 ```
 
-##### Task 2: Implement Incremental Data Accumulation
-**New Function**:
+##### Task 2: Add New Helper Methods (Private)
+**New Internal Functions**:
 ```python
-async def accumulate_historical_data(
+async def _get_cached_date_range(self, db: AsyncSession, symbol: str) -> List[date]:
+    """Get all dates we have data for this symbol"""
+    
+async def _identify_gaps(
+    self, db: AsyncSession, symbol: str, 
+    start_date: date, end_date: date
+) -> List[Tuple[date, date]]:
+    """Find missing date ranges in the cache"""
+    
+async def _fetch_date_ranges(
+    self, symbol: str, 
+    date_ranges: List[Tuple[date, date]]
+) -> List[Dict]:
+    """Fetch specific date ranges from provider"""
+    
+async def _insert_new_market_data(
+    self, db: AsyncSession, symbol: str, data: List[Dict]
+):
+    """INSERT only new records - no UPSERT/overwrite"""
+```
+
+##### Task 3: Add On-Demand Coverage Function
+**New Public Function**:
+```python
+async def ensure_data_coverage(
+    self,
     db: AsyncSession,
     symbol: str,
-    target_days: int = 252,  # 1 trading year
-    max_fetch_days: int = 180  # FMP typical limit
-) -> dict:
+    min_days: int = 90
+) -> bool:
     """
-    Builds up historical data over time without overwriting.
+    Ensures minimum data coverage for a specific symbol (on-demand)
+    Used by API endpoints when user requests data NOW
     
-    Strategy:
-    1. Check existing date range for symbol
-    2. If we have old data (e.g., from 6 months ago), preserve it
-    3. Fetch newer data to fill gap to present
-    4. On next run, if provider window shifts, fetch older data
-    5. Over time, accumulate full 252-day history
-    
+    Args:
+        db: Database session
+        symbol: Single symbol to check/fetch
+        min_days: Minimum days of history required
+        
     Returns:
-    - existing_days: Days already in cache
-    - fetched_days: New days added
-    - total_days: Total after update
-    - oldest_date: Earliest data point
-    - newest_date: Latest data point
-    - gaps: List of date ranges still missing
+        True if minimum coverage is met (after fetching if needed)
     """
+    existing = await self._get_cached_date_range(db, symbol)
+    
+    if len(existing) < min_days:
+        # User needs it NOW - fetch immediately
+        await self.bulk_fetch_and_cache(db, [symbol], days_back=min_days)
+        existing = await self._get_cached_date_range(db, symbol)
+    
+    return len(existing) >= min_days
 ```
 
-##### Task 3: Add Data Completeness Monitoring
+##### Task 4: Add Data Coverage Analysis
 ```python
-async def analyze_data_completeness(db: AsyncSession) -> dict:
+async def analyze_data_coverage(db: AsyncSession) -> dict:
     """
-    Comprehensive analysis of MarketDataCache coverage.
+    Comprehensive analysis of MarketDataCache coverage
+    Used for monitoring and diagnostics
     
     Returns per symbol:
     - total_trading_days_available
@@ -1437,15 +1518,10 @@ async def analyze_data_completeness(db: AsyncSession) -> dict:
     - gaps_detected: [(start_date, end_date), ...]
     - completeness_pct: (actual_days / target_days) * 100
     - last_update: When data was last refreshed
-    
-    Categories:
-    - Portfolio positions (all symbols in active portfolios)
-    - Factor ETFs (XLB, XLE, XLF, XLI, XLK, XLP, XLU, XLV, XLY, XLRE, XLC)
-    - Benchmarks (SPY, QQQ, IWM, DIA)
     """
 ```
 
-##### Task 4: Integrate All Batch Processing Components
+##### Task 5: Update Batch Processing Integration
 **Components to Include** (from `batch_orchestrator_v2.py`):
 1. **Market Data Sync** (`sync_market_data`)
    - Daily quotes for active symbols
@@ -1689,6 +1765,144 @@ curl -X GET "http://localhost:8000/api/v1/analytics/portfolio/{id}/overview"
 ```
 
 **Status**: ✅ FIXED - Endpoint fully functional
+
+### 6.4 **Modify Batch Orchestrator v2 Flow**
+**Issue**: Current batch orchestrator has three problems:
+1. Greeks calculations fail due to missing options data feed
+2. Correlations only run periodically but should run daily
+3. Report generation is included but shouldn't be part of batch flow
+
+**Current Flow** (`batch_orchestrator_v2.py`):
+```python
+# Line ~50-80
+steps = [
+    ("Market Data Sync", sync_market_data),
+    ("Portfolio Aggregation", _calculate_portfolio_aggregation),
+    ("Greeks Calculation", _calculate_greeks),  # FAILS - no options data
+    ("Factor Analysis", _calculate_factors),
+    ("Market Risk Scenarios", _calculate_market_risk),
+    ("Stress Testing", _run_stress_tests),
+    ("Portfolio Snapshot", _create_snapshot),
+    ("Correlations", _calculate_correlations),  # Only runs sometimes
+    ("Generate Reports", generate_all_reports)  # Should be removed
+]
+```
+
+**Required Changes**:
+
+#### Task 1: Skip Greeks Calculation
+```python
+# Comment out or skip Greeks step until options feed is available
+steps = [
+    ("Market Data Sync", sync_market_data),
+    ("Portfolio Aggregation", _calculate_portfolio_aggregation),
+    # ("Greeks Calculation", _calculate_greeks),  # DISABLED: No options feed
+    ("Factor Analysis", _calculate_factors),
+    ...
+]
+```
+
+#### Task 2: Make Correlations Run Daily
+```python
+# Current (line ~150)
+if should_run_correlations():  # Runs based on some condition
+    await _calculate_correlations(db, portfolio_ids)
+
+# Change to:
+# Always run correlations (important for risk metrics)
+await _calculate_correlations(db, portfolio_ids)
+```
+
+#### Task 3: Remove Report Generation
+```python
+# Remove this entire step from batch flow
+# Reports should be generated on-demand via API, not in batch
+# DELETE: ("Generate Reports", generate_all_reports)
+```
+
+**Files to Modify**:
+- `app/batch/batch_orchestrator_v2.py` - Main orchestrator logic
+- `app/batch/__init__.py` - If it exports the orchestrator
+
+**Testing**:
+```bash
+# After changes, test batch run manually
+uv run python -c "from app.batch.batch_orchestrator_v2 import batch_orchestrator_v2; import asyncio; asyncio.run(batch_orchestrator_v2.run())"
+```
+
+**Expected Results**:
+- Batch completes without Greeks errors
+- Correlations calculate every run
+- No reports generated (faster batch completion)
+
+**Status**: 🔄 TODO
+
+### 6.5 **Delete Legacy Report Generator (generate_all_reports.py)**
+**Context**: The report generator was built in Phase 2 (TODO2.md) before APIs were available. It generates MD, JSON, and CSV files to disk for LLM consumption. Now that we have APIs providing real-time data access, this file-based approach is obsolete.
+
+**Legacy System Components**:
+- `scripts/generate_all_reports.py` - Script that generates reports for all demo portfolios
+- `app/reports/portfolio_report_generator.py` - Core report generation logic (KEEP - still useful for API)
+- Generated files in `reports/` directory - Static files accumulating on disk
+
+**What Was It**:
+```python
+# Pre-API approach (Phase 2.0):
+# Generated static files for analysis
+formats=['md', 'json', 'csv']
+write_to_disk=True  # Files written to reports/ directory
+```
+
+**Why Delete**:
+1. **Obsolete**: APIs now provide real-time data access
+2. **Performance**: Unnecessary batch generation for all portfolios
+3. **Storage**: Creates accumulating disk files
+4. **Maintenance**: One less thing to maintain and test
+
+**Files to Delete**:
+```bash
+# Delete the script
+rm scripts/generate_all_reports.py
+
+# Clean up any generated report files
+rm -rf reports/demo-*
+rm -rf reports/portfolio-*
+```
+
+**Files to Keep**:
+```python
+# KEEP app/reports/portfolio_report_generator.py
+# This has useful logic that can be adapted for API endpoints:
+# - build_md_report() - For markdown API responses
+# - build_json_report() - For structured API responses  
+# - build_csv_report() - For export API endpoints
+```
+
+**Migration Path**:
+1. Delete `scripts/generate_all_reports.py`
+2. Remove from batch orchestrator (see Task 6.4)
+3. Later: Create API endpoints using the report generator logic
+   ```python
+   # Future API endpoint (not part of this task):
+   @router.get("/api/v1/reports/{portfolio_id}")
+   async def get_portfolio_report(
+       portfolio_id: UUID,
+       format: Literal["md", "json", "csv"] = "json"
+   ):
+       # Use existing portfolio_report_generator logic
+       # Return as API response, not file
+   ```
+
+**Testing**:
+```bash
+# Verify batch still works without report generation
+uv run python -c "from app.batch.batch_orchestrator_v2 import batch_orchestrator_v2; import asyncio; asyncio.run(batch_orchestrator_v2.run())"
+
+# Verify the generator module still imports (we kept it)
+uv run python -c "from app.reports.portfolio_report_generator import PortfolioReportGenerator; print('✅ Module still works')"
+```
+
+**Status**: 🔄 TODO
 
 ---
 
