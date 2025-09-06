@@ -174,19 +174,18 @@ class BatchOrchestratorV2:
             ("market_data_update", self._update_market_data, []),
             ("position_values_update", self._update_position_values, [portfolio_id]),
             ("portfolio_aggregation", self._calculate_portfolio_aggregation, [portfolio_id]),
-            ("greeks_calculation", self._calculate_greeks, [portfolio_id]),
+            # ("greeks_calculation", self._calculate_greeks, [portfolio_id]),  # DISABLED: No options feed
             ("factor_analysis", self._calculate_factors, [portfolio_id]),
             ("market_risk_scenarios", self._calculate_market_risk, [portfolio_id]),
             ("stress_testing", self._run_stress_tests, [portfolio_id]),
             ("portfolio_snapshot", self._create_snapshot, [portfolio_id]),
         ]
         
-        # Add correlations if requested
-        if run_correlations or (run_correlations is None and utc_now().weekday() == 1):
-            job_sequence.append(("position_correlations", self._calculate_correlations, [portfolio_id]))
+        # Always run correlations (important for risk metrics)
+        job_sequence.append(("position_correlations", self._calculate_correlations, [portfolio_id]))
         
-        # Add report generation at the end (after all calculations)
-        job_sequence.append(("report_generation", self._generate_report, [portfolio_id]))
+        # Remove report generation - should be on-demand via API
+        # job_sequence.append(("report_generation", self._generate_report, [portfolio_id]))  # REMOVED: Use API instead
         
         # Execute jobs sequentially with isolated sessions
         for job_name, job_func, args in job_sequence:

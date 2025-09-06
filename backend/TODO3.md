@@ -1835,7 +1835,18 @@ uv run python -c "from app.batch.batch_orchestrator_v2 import batch_orchestrator
 - Correlations calculate every run
 - No reports generated (faster batch completion)
 
-**Status**: 🔄 TODO
+**Status**: ✅ COMPLETED
+
+**Implementation Summary**:
+1. ✅ **Greeks Calculation Disabled** - Commented out in job_sequence (line 177)
+2. ✅ **Correlations Run Daily** - Removed conditional logic, always appended (line 185)  
+3. ✅ **Report Generation Removed** - Commented out from job_sequence (line 188)
+
+**Verification**:
+- Batch orchestrator imports and runs successfully
+- No errors when executing without Greeks calculation
+- Correlations included in every batch run
+- No report files generated during batch processing
 
 ### 6.5 **Delete Legacy Report Generator (generate_all_reports.py)**
 **Context**: The report generator was built in Phase 2 (TODO2.md) before APIs were available. It generates MD, JSON, and CSV files to disk for LLM consumption. Now that we have APIs providing real-time data access, this file-based approach is obsolete.
