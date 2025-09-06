@@ -3463,77 +3463,75 @@ portfolio = result.scalar_one_or_none()  # Takes first result
 
 **Problem Identified**: Chat use case testing revealed that the `get_prices_historical` tool is not implemented, causing failures for all historical data queries (Test Category 2).
 
-**Implementation Tasks**:
-1. [ ] **Add tool handler in `app/agent/tools/tool_handlers.py`**
-   - [ ] Implement `get_prices_historical` function
-   - [ ] Map to backend endpoint `/api/v1/data/prices/historical/{portfolio_id}`
-   - [ ] Handle parameters: portfolio_id, lookback_days, max_symbols, include_factor_etfs, date_format
-   - [ ] Apply caps: max 180 days lookback, max 5 symbols
-   - [ ] Return structured data with metadata
+**Implementation**: Use `frontend/IMPLEMENT_TOOL_PROMPT.md` template with:
+- **Tool Name**: `get_prices_historical`
+- **API Endpoint**: `GET /api/v1/data/prices/historical/{portfolio_id}`
+- **Purpose**: Retrieve historical price data for portfolio positions
+- **Parameters**: 
+  - portfolio_id (required)
+  - lookback_days (optional, max 180)
+  - max_symbols (optional, max 5)
+  - include_factor_etfs (optional, default false)
+  - date_format (optional, default ISO)
+- **Response**: Historical OHLCV data with metadata
 
-2. [ ] **Register tool in `app/agent/tools/tool_registry.py`**
-   - [ ] Add to tool definitions with proper OpenAI schema
-   - [ ] Include description: "Retrieves historical price data for portfolio symbols"
-   - [ ] Define parameters schema with types and validation
-
-3. [ ] **Add error handling**
-   - [ ] Handle missing portfolio_id gracefully
-   - [ ] Return informative error messages for invalid parameters
-   - [ ] Implement fallback for when no data available
-
-4. [ ] **Test implementation**
-   - [ ] Verify with query: "give me historical prices on AAPL for the last 60 days"
-   - [ ] Test edge cases: invalid symbols, excessive lookback, missing data
-   - [ ] Ensure proper SSE streaming of results
+**Test Queries**:
+- "Give me historical prices on AAPL for the last 60 days"
+- "Show me NVDA price history for the last 30 days"
+- "Get historical prices for my top 3 positions"
 
 **Expected Outcome**: Historical price queries should work, enabling correlation calculations and performance analysis.
 
 **References**:
-- Test failures documented in: `frontend/CHAT_USE_CASES_TEST_REPORT_20250905_153000.md` (Test 2.1-2.3)
-- Backend endpoint exists and works: `/api/v1/data/prices/historical/{id}`
-- Similar implementation pattern: See existing `get_current_quotes` tool
+- Test failures: `frontend/CHAT_USE_CASES_TEST_REPORT_20250906_1916.md` (Tests 2.1-2.3)
+- Backend endpoint verified working: `/api/v1/data/prices/historical/{id}`
+- Similar pattern: `get_current_quotes` tool implementation
 
 ---
 
-### 🔍 9.18 Investigate Data Access for get_factor_etf_prices (Priority: HIGH)
+### 🔍 9.18 Debug Tool: get_factor_etf_prices (Priority: HIGH)
 
 **Problem Identified**: The `get_factor_etf_prices` tool is fully implemented but returns educational content instead of actual data, despite data being confirmed in the database.
 
-**Investigation Required**:
-1. [ ] **Verify tool is being called correctly**
-   - [ ] Check if LLM is actually calling the tool vs providing fallback response
-   - [ ] Verify tool parameters are being passed correctly
-   - [ ] Check SSE event stream to see if tool_call events are generated
+**Debugging Steps**:
+1. [ ] **Verify tool invocation**
+   - [ ] Check chat_monitoring_report.json for tool_call events
+   - [ ] Confirm LLM is calling tool vs providing fallback response
+   - [ ] Verify tool appears in available_tools list
 
-2. [ ] **Debug data retrieval path**
-   - [ ] Verify MarketDataCache table contains ETF symbols (SPY, VTV, VUG, MTUM, QUAL, SLY, USMV)
-   - [ ] Check if authentication context is properly passed to tool handler
-   - [ ] Verify database query in `/api/v1/data/factors/etf-prices` endpoint is working
-   - [ ] Test endpoint directly with curl to confirm data returns
+2. [ ] **Test API endpoint directly**
+   ```bash
+   TOKEN=$(curl -s -X POST http://localhost:8000/api/v1/auth/login \
+     -H 'Content-Type: application/json' \
+     -d '{"email":"demo_hnw@sigmasight.com","password":"demo12345"}' | jq -r '.access_token')
+   
+   curl -H "Authorization: Bearer ${TOKEN}" \
+     http://localhost:8000/api/v1/data/factors/etf-prices
+   ```
 
-3. [ ] **Check tool response handling**
-   - [ ] Verify tool response is properly formatted and returned to LLM
-   - [ ] Check if empty/null responses are causing fallback behavior
-   - [ ] Ensure meta object is properly populated
+3. [ ] **Check tool response in monitoring**
+   - [ ] Look for tool response content in chat_monitoring_report.json
+   - [ ] Verify response structure matches expected format
+   - [ ] Check if response is being truncated
 
-4. [ ] **Test with direct query**
-   - [ ] Test endpoint: `curl -H "Authorization: Bearer TOKEN" http://localhost:8000/api/v1/data/factors/etf-prices`
-   - [ ] Verify response contains actual price data
-   - [ ] Compare with chat response to identify discrepancy
+4. [ ] **Common issues to check**
+   - [ ] Empty/null response causing LLM fallback
+   - [ ] Authentication context not passed to handler
+   - [ ] Tool response exceeding character limits
+   - [ ] Meta object not properly populated
 
-**Implementation Verified**:
-- ✅ Backend endpoint exists: `/api/v1/data/factors/etf-prices` (line 676)
-- ✅ Tool handler implemented: `handlers.py` line 415
-- ✅ Tool registered: `tool_registry.py` line 74  
-- ✅ OpenAI definition present: `openai_adapter.py` line 173
-- ✅ Data confirmed in database
+**Implementation Status**:
+- ✅ Backend endpoint: `/api/v1/data/factors/etf-prices`
+- ✅ Tool handler: `handlers.py` line 415
+- ✅ Tool registry: `tool_registry.py` line 74
+- ✅ OpenAI definition: `openai_service.py`
+- ✅ Data exists in MarketDataCache table
 
-**Expected Outcome**: Tool should return actual factor ETF price data instead of educational content.
+**Expected Outcome**: Tool should return actual ETF prices (SPY, VTV, VUG, MTUM, QUAL, SLY, USMV).
 
 **References**:
-- Test failure documented in: `frontend/CHAT_USE_CASES_TEST_REPORT_20250905_153000.md` (Test 2.4)
-- User confirmed data exists in database
-- Tool appears fully implemented but not functioning correctly
+- Test failure: `frontend/CHAT_USE_CASES_TEST_REPORT_20250906_1916.md` (Test 2.4)
+- Use monitoring tools per `frontend/CHAT_TESTING_GUIDE.md`
 
 ---
 
