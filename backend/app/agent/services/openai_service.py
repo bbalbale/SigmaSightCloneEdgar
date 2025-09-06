@@ -140,11 +140,6 @@ class OpenAIService:
                             "description": "Days of history (max 180)",
                             "default": 90
                         },
-                        "max_symbols": {
-                            "type": "integer",
-                            "description": "Max symbols to return (max 5)",
-                            "default": 5
-                        },
                         "include_factor_etfs": {
                             "type": "boolean",
                             "description": "Include factor ETF prices",

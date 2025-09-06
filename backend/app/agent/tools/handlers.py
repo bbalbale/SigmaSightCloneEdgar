@@ -469,7 +469,6 @@ class PortfolioTools:
         self,
         portfolio_id: str,
         lookback_days: int = 60,
-        max_symbols: int = 5,
         include_factor_etfs: bool = False,
         **kwargs
     ) -> Dict[str, Any]:
@@ -479,13 +478,11 @@ class PortfolioTools:
         Business logic:
         - Validates portfolio_id format
         - Applies lookback_days cap (max 180)
-        - Applies max_symbols cap (max 5)
         - Returns OHLCV data with metadata
         
         Args:
             portfolio_id: Portfolio UUID
             lookback_days: Days of history to retrieve (max 180)
-            max_symbols: Maximum number of symbols to return (max 5)
             include_factor_etfs: Include factor ETF prices
             
         Returns:
@@ -502,12 +499,10 @@ class PortfolioTools:
             
             # Apply caps
             lookback_days = min(lookback_days, 180)
-            max_symbols = min(max_symbols, 5)
             
             # Build parameters
             params = {
                 "lookback_days": lookback_days,
-                "max_symbols": max_symbols,
                 "include_factor_etfs": include_factor_etfs
             }
             
@@ -526,7 +521,6 @@ class PortfolioTools:
                 response["metadata"]["parameters_used"] = {
                     "portfolio_id": portfolio_id,
                     "lookback_days": lookback_days,
-                    "max_symbols": max_symbols,
                     "include_factor_etfs": include_factor_etfs
                 }
                 
