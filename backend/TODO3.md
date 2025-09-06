@@ -1676,6 +1676,102 @@ uv run python -c "from app.services.market_data_service import MarketDataService
 
 **Temporary Fix Applied**: 2025-09-06 - Manually backfilled 30 days for demo
 
+#### 6.1.10 Additional Critical Fixes (Based on Design Review)
+
+##### Fix 1: Fix Partial Coverage Bug in `fetch_missing_historical_data()`
+**File**: `app/batch/market_data_sync.py` (lines 102-116)
+**Problem**: Currently skips symbols with ANY data in date range, causing "1 day only" issue
+**Solution**: Replace "any data → skip" logic with proper coverage checks
+
+```python
+# CURRENT BAD CODE (lines 102-110):
+stmt = select(distinct(MarketDataCache.symbol)).where(
+    MarketDataCache.date >= start_date
+)
+cached_symbols = set(result.scalars().all())
+missing_symbols = symbols - cached_symbols  # WRONG: Skips symbols with partial data
+
+# FIXED CODE:
+# Check coverage per symbol, not just presence
+for symbol in symbols:
+    # Count distinct dates with actual price data
+    stmt = select(func.count(distinct(MarketDataCache.date))).where(
+        and_(
+            MarketDataCache.symbol == symbol,
+            MarketDataCache.date >= start_date,
+            MarketDataCache.close > 0,  # Filter out metadata rows
+            MarketDataCache.data_source.in_(['fmp', 'polygon'])  # Only price data
+        )
+    )
+    count = await db.execute(stmt).scalar()
+    
+    # Calculate required days (weekdays in range)
+    required_days = calculate_trading_days(start_date, end_date)
+    
+    if count < required_days * 0.8:  # Allow 80% coverage threshold
+        symbols_to_fetch.append(symbol)
+```
+
+##### Fix 2: Filter Out Profile/Metadata Rows from Coverage Calculations
+**Problem**: `update_security_metadata()` inserts rows with `close=0` that pollute coverage counts
+**Files to Update**:
+- `app/services/market_data_service.py` - Update helper methods
+- `app/batch/market_data_sync.py` - Add filters to queries
+
+```python
+# Update _get_cached_dates() in market_data_service.py:
+async def _get_cached_dates(self, db: AsyncSession, symbol: str) -> set:
+    """Get all dates we have PRICE data for this symbol"""
+    stmt = select(MarketDataCache.date).where(
+        and_(
+            MarketDataCache.symbol == symbol.upper(),
+            MarketDataCache.close > 0,  # Filter out metadata rows
+            MarketDataCache.data_source.in_(['fmp', 'polygon'])  # Only price sources
+        )
+    ).distinct()
+    result = await db.execute(stmt)
+    return set(row[0] for row in result.fetchall())
+
+# Similar update for _count_cached_days()
+```
+
+##### Fix 3: Optimize GICS Fetching
+**Problem**: GICS data adds unnecessary latency and API calls for coverage runs
+**Solution**: Make GICS optional, default to False for coverage operations
+
+```python
+# In bulk_fetch_and_cache():
+async def bulk_fetch_and_cache(
+    self, 
+    db: AsyncSession, 
+    symbols: List[str],
+    days_back: int = 90,
+    include_gics: bool = False  # Changed default from True
+) -> Dict[str, Any]:
+    """
+    Note: Set include_gics=True only when you specifically need sector/industry data
+    For coverage runs, keep it False to reduce API calls and latency
+    """
+```
+
+##### Fix 4: Simplify Data Source Priority (Keep Current Behavior)
+**Decision**: Keep current INSERT with on_conflict_do_nothing()
+**Rationale**: 
+- Simple to understand and debug
+- First data wins, no complex priority logic needed
+- If we need to refresh, we can manually delete and re-fetch
+
+##### Fix 5: Coverage Definition (Keep Simple)
+**Definition**: "At least N distinct dates with price data"
+**Implementation**: Count distinct dates where `close > 0` and `data_source in ('fmp', 'polygon')`
+**Target**: 30 days minimum for basic functionality
+
+##### Implementation Priority:
+1. Fix 1 - Critical bug causing "1 day only" issue
+2. Fix 2 - Prevents false positive coverage counts
+3. Fix 3 - Performance optimization
+4. Fixes 4 & 5 - Already decided (keep simple)
+
 ### 6.2 Fix Portfolio Overview Endpoint Registration
 **Issue**: Portfolio Overview endpoint returns 404 despite being implemented in code
 **Discovered**: 2025-09-06 during frontend integration testing
