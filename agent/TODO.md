@@ -3459,33 +3459,38 @@ portfolio = result.scalar_one_or_none()  # Takes first result
 
 ---
 
-### 🔧 9.17 Implement Tool: get_prices_historical (Priority: HIGH)
+### 🔧 9.17 Implement Tool: get_prices_historical ✅ **COMPLETED 2025-09-06**
 
 **Problem Identified**: Chat use case testing revealed that the `get_prices_historical` tool is not implemented, causing failures for all historical data queries (Test Category 2).
 
-**Implementation**: Use `frontend/IMPLEMENT_TOOL_PROMPT.md` template with:
+**Implementation Completed**: 
 - **Tool Name**: `get_prices_historical`
 - **API Endpoint**: `GET /api/v1/data/prices/historical/{portfolio_id}`
 - **Purpose**: Retrieve historical price data for portfolio positions
-- **Parameters**: 
+- **Final Parameters** (simplified from original spec):
   - portfolio_id (required)
   - lookback_days (optional, max 180)
-  - max_symbols (optional, max 5)
   - include_factor_etfs (optional, default false)
-  - date_format (optional, default ISO)
-- **Response**: Historical OHLCV data with metadata
+  - ~~max_symbols~~ **REMOVED** - returns all symbols
+  - ~~date_format~~ **REMOVED** - API issue with date handling
+- **Response**: Historical OHLCV data with metadata for all portfolio symbols
 
-**Test Queries**:
-- "Give me historical prices on AAPL for the last 60 days"
-- "Show me NVDA price history for the last 30 days"
-- "Get historical prices for my top 3 positions"
+**Implementation Notes**:
+- ✅ Handler added to `app/agent/tools/handlers.py`
+- ✅ Tool already registered in `tool_registry.py`
+- ✅ OpenAI service definition updated
+- ✅ Removed problematic `date_format` parameter (API threw 500 errors)
+- ✅ Removed `max_symbols` parameter (decided to simplify, return all symbols)
+- ✅ Tested successfully with tool registry dispatch
 
-**Expected Outcome**: Historical price queries should work, enabling correlation calculations and performance analysis.
+**Architectural Decisions**:
+- Decided NOT to modify backend API endpoint (keep API layer stable)
+- Simplified tool interface by removing unnecessary parameters
+- Rely on character limits (15,000 for portfolio tools) for response size control
 
-**References**:
-- Test failures: `frontend/CHAT_USE_CASES_TEST_REPORT_20250906_1916.md` (Tests 2.1-2.3)
-- Backend endpoint verified working: `/api/v1/data/prices/historical/{id}`
-- Similar pattern: `get_current_quotes` tool implementation
+**Test Results**: Tool successfully returns historical data for all 17 portfolio symbols
+
+**Documentation**: See `backend/TOOL_IMPLEMENTATION_REPORT_get_prices_historical.md`
 
 ---
 

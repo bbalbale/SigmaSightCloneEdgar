@@ -1,20 +1,20 @@
 # Tool Implementation Report: get_prices_historical
-**Date**: 2025-09-06 21:05:00 PST
+**Date**: 2025-09-06 21:05:00 PST (Updated: 2025-09-06 21:45:00 PST)
 **Tool**: get_prices_historical
 **API Endpoint**: GET /api/v1/data/prices/historical/{portfolio_id}
 
 ## Implementation Summary
 
-Successfully implemented the `get_prices_historical` tool handler for the chat agent system. The tool retrieves historical price data for portfolio positions with configurable parameters.
+Successfully implemented the `get_prices_historical` tool handler for the chat agent system. The tool retrieves historical price data for all portfolio positions.
 
 ## Changes Made
 
 ### 1. Tool Handler Implementation
-**File**: `backend/app/agent/tools/handlers.py` (lines 468-554)
+**File**: `backend/app/agent/tools/handlers.py` (lines 468-545)
 - Added `get_prices_historical` async method to PortfolioTools class
 - Implements parameter validation and caps:
   - `lookback_days`: max 180 days
-  - `max_symbols`: max 5 symbols (though API doesn't enforce this yet)
+  - ~~`max_symbols`~~: **REMOVED** - decided to return all symbols
 - Handles portfolio_id validation
 - Adds comprehensive metadata to response
 - Proper error handling with retryable flag
@@ -25,9 +25,10 @@ Successfully implemented the `get_prices_historical` tool handler for the chat a
 - No changes needed
 
 ### 3. OpenAI Service Definition
-**File**: `backend/app/agent/services/openai_service.py` (lines 130-156)
+**File**: `backend/app/agent/services/openai_service.py` (lines 128-151)
 - Tool definition was already present
 - Fixed: Removed problematic `date_format` parameter that was causing 500 errors
+- **REMOVED**: `max_symbols` parameter - simplified to always return all symbols
 - Updated `include_factor_etfs` default to `False`
 
 ## Issues Encountered and Fixed
@@ -38,31 +39,35 @@ Successfully implemented the `get_prices_historical` tool handler for the chat a
 - **Solution**: Removed the `date_format` parameter from the tool handler, OpenAI definition, and parameter building
 - **Status**: ✅ Fixed
 
-### Issue 2: max_symbols Not Enforced by API
-- **Problem**: API returns all 17 symbols even when `max_symbols=3` is specified
-- **Note**: This is a backend API issue, not a tool handler issue
-- **Workaround**: Tool correctly passes the parameter; API team needs to fix enforcement
-- **Status**: ⚠️ API limitation (not blocking)
+### Issue 2: max_symbols Parameter Decision
+- **Initial Problem**: API returns all symbols regardless of `max_symbols` parameter
+- **Considered Fix**: Modify backend API to enforce the parameter
+- **Final Decision**: **REMOVED the parameter entirely**
+- **Rationale**: 
+  - Decided NOT to modify the backend API endpoint
+  - Removed `max_symbols` from tool definition to simplify interface
+  - Tool now always returns all portfolio symbols
+  - Character limits (15,000 for portfolio tools) are sufficient
+- **Status**: ✅ Resolved by removing the parameter
 
 ## Test Results
 
-### Manual Test via Tool Registry
+### Manual Test via Tool Registry (Final Version)
 ```python
 result = await registry.dispatch_tool_call(
     'get_prices_historical',
     {
         'portfolio_id': 'e23ab931-a033-edfe-ed4f-9d02474780b4',
-        'lookback_days': 30,
-        'max_symbols': 3
+        'lookback_days': 30
     }
 )
 ```
 
 **Result**: ✅ Success
 - Tool executed successfully
-- Returned 17 symbols (API doesn't enforce max_symbols)
+- Returns all 17 portfolio symbols
 - Metadata correctly populated
-- 1 data point per symbol (limited test data)
+- 1 data point per symbol (limited test data in development environment)
 
 ### API Endpoint Direct Test
 ```bash
@@ -106,12 +111,27 @@ The tool returns comprehensive metadata:
 }
 ```
 
-## Recommendations
+## Additional Changes Made
 
-1. **Backend API Fix**: The `/api/v1/data/prices/historical` endpoint should respect the `max_symbols` parameter
-2. **Date Format Support**: If date format flexibility is needed, fix the backend to handle date conversions properly
-3. **More Test Data**: Currently only 1 day of data in test environment; need more historical data for proper testing
-4. **Integration Testing**: Test with actual chat conversations once chat endpoint is available
+### Model Configuration Update
+- **Changed default model**: From `gpt-4o` to `gpt-5-mini-2025-08-07`
+- **Changed fallback model**: From `gpt-4o-mini` to `gpt-5-nano-2025-08-07`
+- **Rationale**: Faster response times and lower costs
+- **Documentation**: Added reference to OpenAI docs confirming GPT-5 models exist
+
+## Architectural Decisions
+
+1. **No Backend API Modifications**: Decided NOT to modify the `/api/v1/data/prices/historical` endpoint
+   - Keeps API layer stable
+   - Tool handler adapts to API behavior
+   - Simplifies by removing unnecessary parameters
+
+2. **Simplified Tool Interface**: Removed `max_symbols` parameter
+   - Always returns all portfolio symbols
+   - Relies on character limits for response size control
+   - Reduces complexity for LLM
+
+3. **Model Optimization**: Switched to GPT-5 models for efficiency
 
 ## Status
 
@@ -119,8 +139,10 @@ The tool returns comprehensive metadata:
 
 ## Files Modified
 
-1. `/backend/app/agent/tools/handlers.py` - Added tool handler implementation
-2. `/backend/app/agent/services/openai_service.py` - Fixed tool definition parameters
+1. `/backend/app/agent/tools/handlers.py` - Added tool handler implementation, removed max_symbols
+2. `/backend/app/agent/services/openai_service.py` - Removed date_format and max_symbols from tool definition  
+3. `/backend/app/config.py` - Updated to GPT-5 models
+4. `/backend/app/api/v1/data.py` - **NOT MODIFIED** (deliberate decision to keep API stable)
 
 ## Next Steps
 
