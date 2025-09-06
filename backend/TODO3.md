@@ -1627,47 +1627,68 @@ curl -X GET "http://localhost:8000/api/v1/analytics/portfolio/{id}/overview" \
 **Issue**: Portfolio Analytics Service has undefined variable error
 **Discovered**: 2025-09-06 during endpoint testing after fixing registration
 **Priority**: P0 - Blocks portfolio overview functionality
+**RESOLVED**: 2025-09-06
 
 #### Problem Details
 **Endpoint**: `/api/v1/analytics/portfolio/{id}/overview`  
-**Error**: `name 'cost_basis' is not defined`
+**Original Errors**: 
+1. `name 'cost_basis' is not defined` - Line 121
+2. `STOCK` - Invalid PositionType enum value
 **Location**: `app/services/portfolio_analytics_service.py`
-**Impact**: Endpoint returns 500 Internal Server Error
+**Impact**: Endpoint returned 500 Internal Server Error
 
-#### Error Context
-```
-2025-09-06 13:04:22 - sigmasight.app.services.portfolio_analytics_service - ERROR - 
-Error calculating portfolio overview for e23ab931-a033-edfe-ed4f-9d02474780b4: 
-name 'cost_basis' is not defined
-```
+#### Solution Applied
+**Fixed two issues in portfolio_analytics_service.py:**
 
-#### Investigation Required
-1. Check `portfolio_analytics_service.py` for undefined `cost_basis` variable
-2. Determine if it should be a local variable, class attribute, or imported
-3. Review calculation logic for cost basis calculations
-4. Check if related variables are also undefined
+1. **Line 121**: Changed undefined `cost_basis` to `entry_price`
+   ```python
+   # Before: if cost_basis > 0 and current_price > 0:
+   # After:  if entry_price > 0 and current_price > 0:
+   ```
+
+2. **Line 127**: Fixed invalid PositionType enum values
+   ```python
+   # Before: if pos.position_type in [PositionType.LONG, PositionType.STOCK]:
+   # After:  if pos.position_type == PositionType.LONG:
+   ```
+
+3. **Line 138**: Updated option type references to use actual enum values
+   ```python
+   # Before: elif pos.position_type in [PositionType.CALL, PositionType.PUT]:
+   # After:  elif pos.position_type in [PositionType.LC, PositionType.LP, PositionType.SC, PositionType.SP]:
+   ```
 
 #### Implementation Tasks
-- [ ] Locate the undefined `cost_basis` reference
-- [ ] Implement proper cost basis calculation or retrieval
-- [ ] Check for other undefined variables in the service
-- [ ] Add proper error handling and defaults
-- [ ] Test with demo portfolio data
+- [x] Located the undefined `cost_basis` reference (line 121)
+- [x] Changed to use `entry_price` variable already defined
+- [x] Fixed incorrect PositionType enum references
+- [x] Tested with demo portfolio data
+- [x] Verified endpoint returns valid response
 
-#### Expected Behavior
-The service should calculate and return:
-- Portfolio total value
-- Cost basis for P&L calculations
-- Exposure metrics (long/short/gross/net)
-- Position counts by type
-- Realized and unrealized P&L
+#### Test Results
+```bash
+# Successful response from endpoint
+curl -X GET "http://localhost:8000/api/v1/analytics/portfolio/{id}/overview"
+# Returns 200 OK with portfolio data:
+{
+  "portfolio_id": "e23ab931-a033-edfe-ed4f-9d02474780b4",
+  "total_value": 24971986.65,
+  "exposures": {...},
+  "pnl": {
+    "total_pnl": 2348376.9,
+    "unrealized_pnl": 2348376.9,
+    "realized_pnl": 0.0
+  },
+  "position_count": {
+    "total_positions": 278,
+    "long_count": 278,
+    "short_count": 0,
+    "option_count": 0
+  }
+}
+```
 
-#### Key Files
-- `app/services/portfolio_analytics_service.py` - Main service implementation
-- `app/schemas/analytics.py` - Response model definition
-- `app/models/positions.py` - Position model with cost basis field
-
-**Status**: Investigation needed
+**Status**: ✅ FIXED - Endpoint fully functional
 
 ---
 

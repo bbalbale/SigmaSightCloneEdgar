@@ -118,13 +118,13 @@ class PortfolioAnalyticsService:
             total_value += position_value
             
             # Calculate P&L for this position
-            if cost_basis > 0 and current_price > 0:
-                position_cost = quantity * cost_basis
+            if entry_price > 0 and current_price > 0:
+                position_cost = quantity * entry_price
                 position_pnl = position_value - position_cost
                 unrealized_pnl += position_pnl
             
             # Categorize position type
-            if pos.position_type in [PositionType.LONG, PositionType.STOCK]:
+            if pos.position_type == PositionType.LONG:
                 long_count += 1
                 if quantity > 0:
                     long_exposure += position_value
@@ -135,12 +135,12 @@ class PortfolioAnalyticsService:
             elif pos.position_type == PositionType.SHORT:
                 short_count += 1
                 short_exposure += abs(position_value)
-            elif pos.position_type in [PositionType.CALL, PositionType.PUT]:
+            elif pos.position_type in [PositionType.LC, PositionType.LP, PositionType.SC, PositionType.SP]:
                 option_count += 1
-                # Options contribute to exposure based on quantity sign
-                if quantity > 0:
-                    long_exposure += position_value
-                else:
+                # Options contribute to exposure based on type and quantity
+                if pos.position_type in [PositionType.LC, PositionType.LP]:  # Long options
+                    long_exposure += abs(position_value)
+                else:  # Short options
                     short_exposure += abs(position_value)
         
         # Calculate exposure percentages
