@@ -68,6 +68,14 @@ This section documents the **13 fully implemented and production-ready endpoints
 #### Analytics Endpoints  
 - **13.** [`GET /analytics/portfolio/{portfolio_id}/overview`](#13-portfolio-overview) - Get comprehensive portfolio overview with exposures and P&L
 
+#### Chat Endpoints (Implemented)
+- `POST /chat/conversations` — Create conversation
+- `GET /chat/conversations/{conversation_id}` — Get conversation
+- `GET /chat/conversations` — List conversations
+- `PUT /chat/conversations/{conversation_id}/mode` — Change mode
+- `DELETE /chat/conversations/{conversation_id}` — Delete conversation
+- `POST /chat/send` — Send message (SSE streaming, `text/event-stream`)
+
 #### Administration Endpoints  
 **⚠️ NOTE**: Admin endpoints are implemented in `app/api/v1/endpoints/admin_batch.py` but NOT registered in the router. They are currently inaccessible via the API.
 
@@ -81,6 +89,159 @@ All data endpoints require JWT authentication via Bearer token:
 ```
 Authorization: Bearer <jwt_token>
 ```
+
+---
+
+## B. Chat Endpoints (Implemented)
+
+These endpoints power the conversational agent and server‑sent events (SSE) streaming. Frontend calls typically go through the Next.js proxy at `/api/proxy/...`, but the canonical backend paths are under `/api/v1/chat/...`.
+
+### Chat Overview
+- Base path: `/api/v1/chat`
+- Auth: Required (Bearer token or HttpOnly cookie forwarded via proxy)
+- SSE: `POST /chat/send` returns `text/event-stream`
+
+### Create Conversation
+**Endpoint**: `POST /chat/conversations`  
+**Status**: ✅ Fully Implemented  
+**File**: `app/api/v1/chat/conversations.py`  
+**Function**: `create_conversation()`  
+**Frontend Proxy Path**: `/api/proxy/api/v1/chat/conversations`  
+Creates a new conversation, auto-resolving the user’s `portfolio_id` when not provided.
+
+**Authentication**: Required (Bearer token or HttpOnly cookie via proxy)  
+**OpenAPI Description**: "Create a new conversation for the current user"  
+**Database Access**: Direct ORM via AsyncSession  
+- Tables: `agent.conversations` (Conversation), `portfolios` (resolve portfolio_id)  
+**Service Layer**: None (direct ORM in endpoint)  
+
+**Purpose**: Establish a chat thread with portfolio context for subsequent messages.  
+**Implementation Notes**: Saves conversation metadata including `portfolio_id`; logs creation with IDs.  
+
+**Parameters**:  
+- Body (ConversationCreate): `{ mode: "green|blue|indigo|violet", portfolio_id?: string }`  
+
+**Response** (ConversationResponse):  
+`{ id: "uuid", mode: "green", created_at: "ISO", provider: "openai", provider_thread_id: null }`
+
+### Get Conversation
+**Endpoint**: `GET /chat/conversations/{conversation_id}`  
+**Status**: ✅ Fully Implemented  
+**File**: `app/api/v1/chat/conversations.py`  
+**Function**: `get_conversation()`
+**Frontend Proxy Path**: `/api/proxy/api/v1/chat/conversations/{conversation_id}`  
+
+**Authentication**: Required  
+**Database Access**: Direct ORM (Conversation by id + user scope)  
+**Service Layer**: None  
+**Purpose**: Retrieve conversation metadata.  
+**Parameters**: Path `conversation_id` (UUID)  
+**Response**: ConversationResponse
+
+### List Conversations
+**Endpoint**: `GET /chat/conversations`  
+**Status**: ✅ Fully Implemented  
+**File**: `app/api/v1/chat/conversations.py`  
+**Function**: `list_conversations()`
+**Frontend Proxy Path**: `/api/proxy/api/v1/chat/conversations`  
+
+**Authentication**: Required  
+**Database Access**: Direct ORM (current user’s conversations)  
+**Service Layer**: None  
+**Purpose**: Paginated list for UI selector/history.  
+**Parameters**: Query `limit` (int, default 10), `offset` (int, default 0)  
+**Response**: `ConversationResponse[]`
+
+### Change Conversation Mode
+**Endpoint**: `PUT /chat/conversations/{conversation_id}/mode`  
+**Status**: ✅ Fully Implemented  
+**File**: `app/api/v1/chat/conversations.py`  
+**Function**: `change_conversation_mode()`
+**Frontend Proxy Path**: `/api/proxy/api/v1/chat/conversations/{conversation_id}/mode`  
+
+**Authentication**: Required  
+**Database Access**: Direct ORM (update Conversation)  
+**Service Layer**: None  
+**Purpose**: Switch agent mode (prompt/tooling flavor) mid-conversation.  
+**Parameters**:  
+- Path `conversation_id` (UUID)  
+- Body (ModeChangeRequest): `{ mode: "green|blue|indigo|violet" }`  
+**Response** (ModeChangeResponse): `{ id, previous_mode, new_mode, changed_at }`
+
+### Delete Conversation
+**Endpoint**: `DELETE /chat/conversations/{conversation_id}`  
+**Status**: ✅ Fully Implemented  
+**File**: `app/api/v1/chat/conversations.py`  
+**Function**: `delete_conversation()`
+**Frontend Proxy Path**: `/api/proxy/api/v1/chat/conversations/{conversation_id}`  
+
+**Authentication**: Required  
+**Database Access**: Direct ORM (delete Conversation; cascades messages)  
+**Service Layer**: None  
+**Purpose**: Remove conversation and associated messages.  
+**Parameters**: Path `conversation_id` (UUID)  
+**Response**: 204 No Content
+
+### Send Message (SSE Streaming)
+**Endpoint**: `POST /chat/send`  
+**Status**: ✅ Fully Implemented  
+**File**: `app/api/v1/chat/send.py`  
+**Function**: `router.post('/chat/send')` (SSE via `StreamingResponse`)  
+**Frontend Proxy Path**: `/api/proxy/api/v1/chat/send`  
+**Response Type**: `text/event-stream`  
+Streams standardized SSE events: `message_created`, `start`, `message` tokens, `done`, with error and heartbeat events. Frontend proxies this as `POST /api/proxy/api/v1/chat/send`.
+
+**Authentication**: Required (Bearer or HttpOnly cookie)  
+**Database Access**: Direct ORM (create ConversationMessage rows; update assistant message)  
+**Service Layer**:  
+- OpenAI: `app/agent/services/openai_service.py` (`openai_service`)  
+- Portfolio data (optional context): `app/services/portfolio_data_service.py` (PortfolioDataService)  
+**Purpose**: Stream model output and tool results as SSE for responsive chat UX.  
+**Implementation Notes**: 
+- Generates backend message IDs before streaming; emits `message_created` with both IDs  
+- Retries with exponential backoff; can switch to fallback model before first token  
+- Emits standardized `done` envelope with timing/metrics  
+**Parameters**: Body (MessageSend): `{ conversation_id: UUID, text: string }`  
+**Response (SSE events)**: `start`, `message` token deltas, `done` with final text and metrics; `error`/`heartbeat` as needed
+
+---
+
+## C. Market Data Endpoints (Implemented)
+
+### Symbol Historical Prices
+**Endpoint**: `GET /market-data/prices/{symbol}`  
+**Status**: ✅ Fully Implemented  
+**File/Function**: `backend/app/api/v1/market_data.py:get_price_data()`  
+**Authentication**: Required (`Depends(get_current_user)`)  
+
+**Data Access**:
+- Service layer: `app/services/market_data_service.py` (class `MarketDataService`)
+  - `get_cached_prices(db, symbols, target_date)`
+    - ORM query on `app.models.market_data.MarketDataCache` (table: `market_data_cache`) via `SELECT` with `symbol IN` and `date <= target_date`
+  - `update_market_data_cache(db, symbols, start_date, end_date)`
+    - Inserts historical rows into `MarketDataCache` using `pg_insert ... ON CONFLICT DO NOTHING`, then `commit`
+- Direct ORM in endpoint:
+  - `SELECT MarketDataCache` WHERE `symbol == {symbol}`, `date BETWEEN start_date AND end_date`, `ORDER BY date DESC`; then maps rows to response
+
+**Tables**: `market_data_cache` (model: `app.models.market_data.MarketDataCache`)
+
+---
+
+### Options Chain
+**Endpoint**: `GET /market-data/options/{symbol}`  
+**Status**: ✅ Fully Implemented  
+**File/Function**: `backend/app/api/v1/market_data.py:get_options_chain()`  
+**Authentication**: Required (`Depends(get_current_user)`)  
+
+**Data Access**:
+- Service layer: `app/services/market_data_service.py` (class `MarketDataService`)
+  - `fetch_options_chain(symbol, expiration_date)`
+    - Uses external provider Polygon.io:
+      - `polygon_rate_limiter.acquire()` (from `app/services/rate_limiter.py`)
+      - REST client: `MarketDataService.polygon_client` (`polygon.RESTClient`) calling `list_options_contracts(...)` and pagination via `_get_raw(next_url)`
+    - No database access; returns parsed contracts list
+
+**Tables**: none (external API only)
 
 ---
 

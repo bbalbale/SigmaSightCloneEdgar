@@ -720,15 +720,15 @@ class OpenAIService:
                     
                     # Create a summary of what the tool returned
                     if isinstance(tool_result, dict) and "data" in tool_result:
-                        data_json = json.dumps(tool_result["data"], indent=2)
-                        data_summary = data_json[:max_chars] if max_chars else data_json
+                        full_json = json.dumps(tool_result["data"], indent=2)
+                        data_summary = full_json[:max_chars] if max_chars else full_json
                     else:
-                        result_json = json.dumps(tool_result, indent=2)
-                        data_summary = result_json[:max_chars] if max_chars else result_json
+                        full_json = json.dumps(tool_result, indent=2)
+                        data_summary = full_json[:max_chars] if max_chars else full_json
                     
                     # Log truncation info for debugging
                     if max_chars and len(data_summary) == max_chars:
-                        logger.info(f"Tool response truncated: {tool_name} - {len(data_json if 'data' in locals() else result_json)} chars -> {max_chars} chars")
+                        logger.info(f"Tool response truncated: {tool_name} - {len(full_json)} chars -> {max_chars} chars")
                     
                     tool_summary_parts.append(f"Tool '{tool_name}' returned:\n{data_summary}")
                 

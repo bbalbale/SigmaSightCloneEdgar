@@ -86,16 +86,24 @@ Ben: maybe this was created as a fallback?
 
 **P0: Portfolio Overview**
 | `/api/v1/analytics/portfolio/{id}/overview` | GET | ❌ 404 | Endpoint exists in code but not registered in router |
+Elliott: **this is IMPLEMENTED**
 Elliott: Need to investigate and fix this.  Maybe it is not registered in the router? Maybe the data is not in the database on Ben's side?
 Ben: Confirms that the 1st thing it tries is to get this API.
 Ben: need Cash balance
-Elliott: add Cash balance.  Register with router.
+Elliott: add Cash balance. ADD TO ISSUE LIST, DONE.
+Elliott: Register with router. DONE.
 
 | `/api/v1/analytics/portfolio/{id}/risk-metrics` | GET | ❌ TODO | Not implemented |
+Elliott: YES WE WANT TO KEEP THIS and cover: Beta, Volatility, Max Drawdown.
+
 | `/api/v1/analytics/portfolio/{id}/performance` | GET | ❌ TODO | Not implemented |
+Elliott: DELETE THIS. TOO GENERIC. Added to ISSUE LIST/DONE
 
 **P1: Factor Exposures**
 | `/api/v1/analytics/portfolio/{id}/factor-attribution` | GET | ❌ TODO | Not implemented |
+DElete thiss. ADD TO ISSUE LIST,DONE
+Have an approved task to do Factor-Exposures as an endpoint. easier to delete old and reimplement new.
+
 Ben: P1 priority is the factor exposures.  Both position level factor betas and portfolio level factor betas.
 Elliott: not sure what this was originally supposed to be.  Look at previous 1.4.4 definitions
 Elliott: I think we already calculate portfolio factor betas.
@@ -107,10 +115,16 @@ Elliott: then look at how we will implement the API calls (what service level py
 TTD for right now: look at existing 1.4.4 factor exposure specs
 
 | `/api/v1/analytics/portfolio/{id}/var` | GET | ❌ TODO | Not implemented |
+Elliott: DELETE THIS. ADD TO ISSUE LIST, ADDED/DONE.
 | `/api/v1/analytics/portfolio/{id}/stress-test` | GET | ❌ TODO | Not implemented |
+Elliott: yes we want to do it ADD TO ISSUE LIST. ADDED/DONE
+
 | `/api/v1/analytics/portfolio/{id}/optimization` | POST | ❌ TODO | Not implemented |
+Elliott: Not sure what this is. probably DELETE THIS. ADD TO ISSUE LIST, ADDED/DONE
 
 **P1:  Correlation Matrix API**
+**TODO3.md 3.0.1.10 Correlation Matrix. Will track the work there.**
+
 Ben: idea is we have 500 stocks (we haven't done this yet) and then create the correlation matrix for those stocks and put in the database.
 Ben: then would display portfolio tickers and correlation matrix between those tickers
 Elliott: current concept is: pull historical data for every ticker in every data portfolio (not 500 stocks). so we can live with this right now.  later add the proactive pulling of 3000 stocks.
@@ -119,12 +133,12 @@ Elliott: did we implementa diversification score already and where is it in the 
 Elliott: create 2 APIs, 1 is a diversification score API call, 1 is a correlation matrix data call. Confirm.
 Elliott: what params do you want to have for the API call?
 
-
 We might be able to use the API Specification 1.4.4 correlation matrix API as a reference.
 Get Correlation Matrix
 ```http
 GET /api/v1/analytics/correlation/{portfolio_id}/matrix
 ```
+EElliott: I think we want to use this endpoint name.
 
 Returns position correlation matrix.
 
@@ -157,17 +171,19 @@ Elliott: maybe we kill lookback days and just use the default pre-calcuated amou
     "average_correlation": 0.75
   }
 }
+Remove the average_correlation from the response.
+
 
 **P1: Diversification Score API**
-Elliott: remove average correlation and move to a separate API because we would use that score elsewhere as a card on other pages.
+TODO3.md 3.0.1.11 Diversification Score
+GET /api/v1/analytics/correlation/{portfolio_id}/diversification-score
 
+Elliott: remove average correlation and move to a separate API because we would use that score elsewhere as a card on other pages.
 Ben: implement the language around the diversification score in the frontend.  great.
 
 
 
-
-
-
+**INFORMATION IS OUTDATED AND UNRELIABLE**
 
 ## 4. Market Data Service APIs ❌ NOT WORKING
 
@@ -178,9 +194,49 @@ Ben: implement the language around the diversification score in the frontend.  g
 | `/api/v1/market-data/options/{symbol}` | GET | ❌ TODO | Options chain data |
 | `/api/v1/market-data/fundamentals/{symbol}` | GET | ❌ TODO | Company fundamentals |
 
+### researched, current state ###
+
+- GET /api/v1/market-data/prices/{symbol}
+      - File/function: backend/app/api/v1/market_data.py:get_price_data()
+      - Auth: Required (Depends(get_current_user))
+      - Data access:
+      - Service layer: app/services/market_data_service.py (class MarketDataService)
+        - get_cached_prices(db, symbols, target_date)
+          - ORM query on app.models.market_data.MarketDataCache (table:
+  market_data_cache) via SELECT with symbol IN and date <= target_date
+        - update_market_data_cache(db, symbols, start_date, end_date)
+          - Inserts historical rows into MarketDataCache using pg_insert ON CONFLICT
+  DO NOTHING, then commit
+      - Direct ORM in endpoint:
+        - SELECT MarketDataCache WHERE symbol == {symbol}, date BETWEEN start_date and
+  end_date, ORDER BY date DESC; then maps rows to response
+  -
+  Tables: market_data_cache (model: app.models.market_data.MarketDataCache)
+  -
+  GET /api/v1/market-data/options/{symbol}
+      - File/function: backend/app/api/v1/market_data.py:get_options_chain()
+      - Auth: Required (Depends(get_current_user))
+      - Data access:
+      - Service layer: app/services/market_data_service.py (class MarketDataService)
+        - fetch_options_chain(symbol, expiration_date)
+          - Uses external provider Polygon.io:
+            - polygon_rate_limiter.acquire() (from app/services/rate_limiter.py)
+            - REST client: MarketDataService.polygon_client (polygon.RESTClient)
+  calling list_options_contracts(...) and pagination via _get_raw(next_url)
+          - No database access; returns parsed contracts list
+  - Tables: none (external API only)
+
+  Endpoints you asked about that do not exist/stub:
+
+  - POST /api/v1/market-data/batch-prices — not present; related endpoints are GET /
+  market-data/current-prices and POST /market-data/refresh.
+  - GET /api/v1/market-data/fundamentals/{symbol} — not present; related is GET /
+  market-data/sectors (GICS data placeholder).
+
 ---
 
 ## 5. Chat/AI Endpoints ⚠️ PARTIAL
+### **DATA IS OUTDATED AND UNRELIABLE**
 
 | Endpoint | Method | Status | Notes |
 |----------|--------|--------|-------|
@@ -188,6 +244,27 @@ Ben: implement the language around the diversification score in the frontend.  g
 | `/api/v1/chat/stream` | POST | ❌ TODO | SSE streaming not implemented |
 | `/api/v1/chat/history` | GET | ❌ TODO | Chat history not implemented |
 | `/api/v1/chat/clear` | POST | ❌ TODO | Clear chat not implemented |
+
+Short answer: the table is outdated.
+
+  - POST /api/v1/chat/send
+      - Implemented and in use (SSE streaming).
+      - Code: backend/app/api/v1/chat/send.py, routed under /api/v1/chat/send.
+      - Frontend calls via proxy: /api/proxy/api/v1/chat/send.
+      - Not a mock.
+      - Not a mock.
+  -
+  POST /api/v1/chat/stream
+      - Does not exist in the codebase; not in use.
+  -
+  GET /api/v1/chat/history
+      - Does not exist; not in use.
+      - Note: A history-like route is planned in docs as GET /chat/conversations/
+  {conversation_id}/messages, but there’s no implemented handler for it.
+  -
+  POST /api/v1/chat/clear
+      - Does not exist; not in use.
+
 
 **Note**: Backend is configured for OpenAI Responses API (not Chat Completions API)
 
@@ -204,6 +281,54 @@ Ben: implement the language around the diversification score in the frontend.  g
 | `/api/v1/portfolios/{id}/positions` | POST | ❌ TODO | Add position |
 | `/api/v1/portfolios/{id}/positions/{pos_id}` | PUT | ❌ TODO | Update position |
 | `/api/v1/portfolios/{id}/positions/{pos_id}` | DELETE | ❌ TODO | Delete position |
+
+- GET /api/v1/portfolios
+      - Status: Does not exist (no stub).
+      - Nearest implemented: GET /api/v1/data/portfolios
+      - File/function: backend/app/api/v1/data.py:get_user_portfolios()
+      - Authentication: Required (Depends(get_current_user))
+      - Database access: Direct ORM (AsyncSession) with SELECT on
+  app.models.users.Portfolio and selectinload(Portfolio.positions)
+        - Tables: portfolios, positions
+      - Service layer: None (API composes data directly)
+      - Purpose: List the current user’s portfolios (returns list; today each user
+  typically has one)
+      - Parameters: None
+      - Response: Array of { id, name, total_value, created_at, updated_at,
+  position_count }
+
+  - POST /api/v1/portfolios
+      - Status: Does not exist (no stub).
+      - Nearest stub: POST /api/v1/portfolio/upload
+      - File/function: backend/app/api/v1/portfolio.py:upload_portfolio()
+      - Authentication: Required
+      - Database access: None (returns TODO)
+      - Purpose: Placeholder for CSV upload; not implemented.
+
+  - PUT /api/v1/portfolios/{id}
+      - Status: Does not exist (no stub).
+      - Status: Does not exist (no stub).
+  -
+  DELETE /api/v1/portfolios/{id}
+      - Status: Does not exist (no stub).
+  -
+  POST /api/v1/portfolios/{id}/positions
+      - Status: Does not exist (no stub).
+      - Related stubs (not nested): /api/v1/positions
+      - File: backend/app/api/v1/positions.py
+        - GET /positions → get_positions() — TODO, no DB
+        - GET /positions/{position_id} → get_position() — TODO, no DB
+        - PUT /positions/{position_id} → update_position() — TODO, no DB
+
+  - PUT /api/v1/portfolios/{id}/positions/{pos_id}
+      - Status: Does not exist.
+      - Related stub: PUT /api/v1/positions/{position_id} — exists but is a TODO stub
+  (no service/DB).
+      - Related stub: PUT /api/v1/positions/{position_id} — exists but is a TODO stub
+  (no service/DB).
+  -
+  DELETE /api/v1/portfolios/{id}/positions/{pos_id}
+      - Status: Does not exist (no stub).
 
 ---
 

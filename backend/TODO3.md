@@ -511,6 +511,7 @@ return standardize_datetime_dict(response)
 ### 3.0.3 Analytics APIs (/analytics/) (Week 2-3)
 *Calculated metrics leveraging existing batch processing engines*
 
+#### 3.0.3.1 Portfolio Overview API
 - [x] **3.0.3.1 GET /api/v1/analytics/portfolio/{id}/overview** - Portfolio metrics - ✅ **COMPLETED**
   
   **Implementation Specification:**
@@ -590,9 +591,38 @@ return standardize_datetime_dict(response)
   - [ ] Portfolio and position level views
 - [ ] **3.0.3.9 GET /api/v1/analytics/factors/definitions** - Factor definitions (PENDING APPROVAL)
   - [ ] ETF proxies and descriptions
-- [ ] **3.0.3.10 GET /api/v1/analytics/correlation/{id}/matrix** - Correlation matrix (PENDING APPROVAL)
-  - [ ] Position pairwise correlations
+
+#### 3.0.3.10 Correlation Matrix API - APPROVED FOR IMPLEMENTATION
+- [ ] **3.0.3.10 GET /api/v1/analytics/correlation/{portfolio_id}/matrix** - Correlation matrix (AP  - [ ] Position pairwise correlations
   - [ ] Use existing correlation engine
+
+#### 3.0.3.11 Diversification Score API - APPROVED FOR IMPLEMENTATION
+**GET /api/v1/analytics/correlation/{portfolio_id}/diversification-score** - Diversification score
+
+#### 3.0.3.12 Factor Exposures (Portfolio) API - APPROVED FOR IMPLEMENTATION
+**GET /api/v1/analytics/factors/{portfolio_id}/exposures** — Portfolio-level factor exposures (aggregated)
+  - Small payload: aggregate 7-factor vector for the portfolio
+  - Response includes: `portfolio_exposures` object and `metadata` (model version, window, calculated_at)
+  - Note: See 6.8 to delete deprecated `factor-attribution` API
+
+#### 3.0.3.15 Factor Exposures (Positions) API - APPROVED FOR IMPLEMENTATION
+**GET /api/v1/analytics/factors/{portfolio_id}/exposures/positions** — Position-level factor exposures (paginated)
+  - Always paginated to avoid large payloads
+  - Query Params: `limit` (default 50, max 200), `offset` (default 0), `symbols` (optional CSV), `min_weight` (optional), `lookback_days` (optional), `model_version` (optional)
+  - Response includes: `positions` array with `{position_id, symbol, weight, exposures}`, plus `total`, `limit`, `offset`, and `metadata`
+
+#### 3.0.3.13 Risk Metrics API - APPROVED FOR IMPLEMENTATION
+**GET /api/v1/analytics/{portfolio_id}/risk-metrics** - Portfolio risk metrics (beta, volatility, max drawdown)
+  - Includes: `portfolio_beta`, `annualized_volatility`, `max_drawdown`
+  - Optional: `sharpe_ratio`, `sortino_ratio`, `correlation_with_benchmark`
+  - Query Params: `lookback_days` (default 252), `benchmark` (default SPY)
+ 
+#### 3.0.3.14 Stress Test API - APPROVED FOR IMPLEMENTATION
+**GET /api/v1/analytics/{portfolio_id}/stress-test** - Portfolio stress testing scenarios
+  - First task: Delete the unused stubbed endpoint `GET /api/v1/analytics/portfolio/{id}/stress-test` and reimplement at this canonical path
+  - Use API_SPECIFICATIONS_V1.4.4 scenarios endpoint as the general response shape (scenario list with id, name, description, dollar_impact, percentage_impact, new_portfolio_value, severity; plus portfolio_value and calculation_date)
+  - Use the V1.4.5 description/purpose: "Stress testing results across ~15 market scenarios; leverage existing batch stress-testing calculations; include systematic and idiosyncratic impacts"
+  - Query Params: `scenarios` (optional, comma-separated), `view` (portfolio|longs|shorts)
 
 ### 3.0.4 Management APIs (/management/) (Week 3-4)
 *CRUD operations for portfolios, positions, and configurations*
@@ -2035,113 +2065,60 @@ uv run python -c "from app.reports.portfolio_report_generator import PortfolioRe
 
 **Status**: 🔄 TODO
 
+### 6.10 Implement Portfolio Stress Test API - /api/v1/analytics/portfolio/{id}/stress-test
+
+Implement an API endpoint to run portfolio stress tests (e.g., scenario shocks to factors, market, and rates) and return P&L impacts.
+
+**Status**: 🔄 TODO
+
 ---
 
-### 6.6 CRITICAL BUG: Historical Prices Tool Response Streaming Failure
+### 6.6 ✅ FIXED: Historical Prices Tool Response Streaming Failure
 
-**Issue**: Chat system fails to stream historical price data back to users due to Python variable scope error
+**Issue**: Chat system was failing to stream historical price data back to users due to Python variable scope error
 
 **Symptoms**:
 - User queries for historical prices (e.g., "give me historical prices on AAPL for the last 20 days")
 - Tool call `get_prices_historical` executes successfully (API returns 200 OK)
-- Backend crashes with: `Error in stream_responses: cannot access local variable 'result_json' where it is not associated with a value`
-- System retries 3 times then gives up
-- User sees no response in chat interface
+- Backend crashed with: `Error in stream_responses: cannot access local variable 'result_json' where it is not associated with a value`
+- System retried 3 times then gave up
+- User saw no response in chat interface
 
 **Root Cause**: 
 - Bug in `app/agent/services/openai_service.py` in the `stream_responses` method
-- Variable `result_json` is referenced before being initialized in the continuation flow
-- Occurs specifically when handling tool results with OpenAI Responses API
+- Variable `result_json` was referenced before being initialized in the continuation flow
+- Occurred specifically when handling tool results with OpenAI Responses API
 
-**Impact**:
-- All queries requiring historical price data fail silently
-- Affects portfolio analysis capabilities
-- Degrades user experience significantly
+**Fix Applied**:
+- Changed lines 722-731 in `openai_service.py` to use a single variable `full_json` instead of separate `data_json` and `result_json` variables
+- This ensures the variable is always defined regardless of which code branch is taken
+- The fix prevents the UnboundLocalError that was causing the crash
 
-**Reproduction Steps**:
-1. Login with demo credentials (demo_hnw@sigmasight.com)
-2. Open chat interface
-3. Ask: "give me historical prices on AAPL for the last 20 days"
-4. Observe backend logs showing the error
+**Status**: ✅ **FIXED** - Backend restarted with fix applied (2025-09-06 18:27)
 
-**Fix Required**:
-- Review `stream_responses` method in `openai_service.py`
-- Ensure `result_json` is properly initialized before use
-- Add proper error handling for tool result streaming
-- Test with various tool calls to ensure stability
+### 6.7 Add Cash Balance to /api/v1/analytics/portfolio/{id}/overview
 
-**Status**: 🔴 CRITICAL - Blocking chat functionality
+Add current cash balance to the portfolio overview API response.
 
----
+**Status**: 🔄 TODO
 
-### 6.7 Investigate Model Selection and Upgrade to Latest OpenAI Models
+### 6.9 Delete unused stubbed out APIs
 
-**Issue**: System may be using older models despite having access to latest GPT-5 models
+Remove unused, stubbed endpoints to reduce surface area and confusion.
 
-**Context**: 
-- Log messages show "Switching model from gpt-4o to gpt-4o-mini (attempt 2)" suggesting fallback to older models
-- Configuration in `app/config.py` already specifies latest models but may not be taking effect
+#### 6.9.1 /api/v1/analytics/portfolio/{id}/var
+- Delete the VaR stub endpoint and any unused handler code.
 
-**Available Models (Confirmed via API Key)**:
-Your API key has access to the following latest models:
-- **gpt-5-mini** (Latest efficient model - recommended default)
-- **gpt-5-mini-2025-08-07** (Dated version)
-- **gpt-5-nano** (Ultra-light model for fallback)
-- **gpt-5-nano-2025-08-07** (Dated version)
-- **gpt-5** (Full capability model)
-- **gpt-5-2025-08-07** (Dated version)
-- Also available: gpt-4o, gpt-4o-mini, o1, o1-mini, o1-pro
+#### 6.9.2 /api/v1/analytics/portfolio/{id}/optimization
+- Delete the portfolio optimization stub endpoint and any unused handler code.
 
-**Current Configuration (app/config.py)**:
-```python
-MODEL_DEFAULT: str = Field(default="gpt-5-mini-2025-08-07", env="MODEL_DEFAULT")
-MODEL_FALLBACK: str = Field(default="gpt-5-nano-2025-08-07", env="MODEL_FALLBACK")
-```
+#### 6.9.3 /api/v1/analytics/portfolio/{id}/factor-attribution
+- Delete the factor attribution stub endpoint and any unused handler code.
 
-**Investigation Required**:
-1. Check why system might be falling back to gpt-4o-mini despite config
-2. Verify environment variables are properly loaded
-3. Check retry logic in openai_service.py for model switching behavior
-4. Test model availability with direct API call
+#### 6.9.4 /api/v1/analytics/portfolio/{id}/performance
+- Delete the performance stub endpoint and any unused handler code.
 
-**Testing Model Availability**:
-```python
-# Test script to verify model access
-import openai
-from dotenv import load_dotenv
-import os
-
-load_dotenv()
-client = openai.Client(api_key=os.getenv("OPENAI_API_KEY"))
-
-# List available models
-response = client.models.list()
-available_models = [m.id for m in response.data if 'gpt' in m.id]
-print(f"Available models: {available_models}")
-
-# Test specific model
-test_response = client.chat.completions.create(
-    model="gpt-5-mini",
-    messages=[{"role": "user", "content": "Test"}],
-    max_tokens=10
-)
-print(f"Model {test_response.model} works!")
-```
-
-**API Documentation References**:
-- Models List API: https://api.openai.com/v1/models
-- Latest Models Documentation: https://platform.openai.com/docs/models/
-- GPT-5 Mini Documentation: https://platform.openai.com/docs/models/gpt-5-mini
-
-**Recommended Actions**:
-1. Ensure `.env` file has MODEL_DEFAULT and MODEL_FALLBACK set (or rely on defaults)
-2. Add logging to show which model is actually being used
-3. Remove any hardcoded model fallback logic that overrides config
-4. Test with explicit model parameter in API calls
-
-**Note for LLMs**: The models mentioned above (gpt-5 series) are real and available as of 2025. Do not assume these are fictional or unavailable. The API key has been verified to have access to these models via the OpenAI models endpoint.
-
-**Status**: 🔧 TODO - Need to ensure latest models are being used
+**Status**: 🔄 TODO
 
 ---
 
