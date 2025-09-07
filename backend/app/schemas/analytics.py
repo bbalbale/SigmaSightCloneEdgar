@@ -5,7 +5,7 @@ Pydantic models for portfolio analytics endpoints including portfolio overview,
 risk metrics, and performance data.
 """
 from pydantic import BaseModel, Field
-from typing import Optional, Dict, Union
+from typing import Optional, Dict, Union, List
 from datetime import datetime
 
 
@@ -141,11 +141,75 @@ class DiversificationScoreResponse(BaseModel):
                 "calculation_date": "2025-09-05",
                 "symbols_included": 23,
                 "metadata": {
-                    "parameters_used": {
-                        "lookback_days": 90,
-                        "min_overlap": 30,
-                        "selection_method": "full_calculation_set"
-                    }
+                    "lookback_days": 90,
+                    "min_overlap": 30,
+                    "selection_method": "full_calculation_set"
                 }
+            }
+        }
+
+
+class PortfolioFactorItem(BaseModel):
+    name: str = Field(..., description="Factor name")
+    beta: float = Field(..., description="Portfolio beta to the factor")
+    exposure_dollar: Optional[float] = Field(None, description="Dollar exposure to the factor, if available")
+
+
+class PortfolioFactorExposuresResponse(BaseModel):
+    available: bool = Field(..., description="Whether factor exposures are available")
+    portfolio_id: str = Field(..., description="Portfolio UUID")
+    calculation_date: Optional[str] = Field(None, description="ISO date of the factor exposure calculation")
+    factors: Optional[List[PortfolioFactorItem]] = Field(None, description="List of factor exposures")
+    metadata: Optional[Dict[str, Union[str, int]]] = Field(None, description="Additional metadata such as factor model details")
+
+    class Config:
+        schema_extra = {
+            "example": {
+                "available": True,
+                "portfolio_id": "c0510ab8-c6b5-433c-adbc-3f74e1dbdb5e",
+                "calculation_date": "2025-09-05",
+                "factors": [
+                    {"name": "Growth", "beta": 0.67, "exposure_dollar": 837500.0},
+                    {"name": "Value", "beta": -0.15, "exposure_dollar": -187500.0}
+                ],
+                "metadata": {
+                    "factor_model": "7-factor",
+                    "calculation_method": "ETF-proxy regression"
+                }
+            }
+        }
+
+
+class PositionFactorItem(BaseModel):
+    position_id: str = Field(..., description="Position UUID")
+    symbol: str = Field(..., description="Position symbol")
+    exposures: Dict[str, float] = Field(..., description="Map of factor name to beta")
+
+
+class PositionFactorExposuresResponse(BaseModel):
+    available: bool = Field(..., description="Whether position factor exposures are available")
+    portfolio_id: str = Field(..., description="Portfolio UUID")
+    calculation_date: Optional[str] = Field(None, description="ISO date used for exposures")
+    total: Optional[int] = Field(None, description="Total positions matched")
+    limit: Optional[int] = Field(None, description="Page size")
+    offset: Optional[int] = Field(None, description="Pagination offset")
+    positions: Optional[List[PositionFactorItem]] = Field(None, description="List of positions with factor exposures")
+
+    class Config:
+        schema_extra = {
+            "example": {
+                "available": True,
+                "portfolio_id": "c0510ab8-c6b5-433c-adbc-3f74e1dbdb5e",
+                "calculation_date": "2025-09-05",
+                "total": 120,
+                "limit": 50,
+                "offset": 0,
+                "positions": [
+                    {
+                        "position_id": "e5e29f33-ac9f-411b-9494-bff119f435b2",
+                        "symbol": "AAPL",
+                        "exposures": {"Market Beta": 0.95, "Value": -0.12, "Momentum": 0.18}
+                    }
+                ]
             }
         }
