@@ -858,6 +858,107 @@ Returns all portfolios for the authenticated user with real database data.
 
 **Implementation Notes**: 
 - Returns pre-calculated correlations from nightly batch processing
+
+### 15. Portfolio Factor Exposures
+**Endpoint**: `GET /analytics/portfolio/{portfolio_id}/factor-exposures`  
+**Status**: 🚧 Implemented — Under Testing  
+**File**: `app/api/v1/analytics/portfolio.py`  
+**Function**: `get_portfolio_factor_exposures()` (lines 197–227)  
+
+**Authentication**: Required (Bearer token)  
+**Database Access**: Read-only via service layer  
+**Service Layer**: `app/services/factor_exposure_service.py`
+  - Class: `FactorExposureService`
+  - Method: `get_portfolio_exposures(portfolio_id)`
+  - Reads: `factor_exposures` joined with `factor_definitions`
+  - Enforces latest complete set: selects the most recent `calculation_date` where all active factors have exposures
+
+**Purpose**: Return portfolio-level factor betas (and optional dollar exposures) from the latest complete calculation set for dashboards and reports.  
+**Missing Data Contract**: `200 OK` with `{ available:false, reason:"no_calculation_available" }`  
+
+**Parameters**:
+- `portfolio_id` (path): Portfolio UUID
+
+**Response Schema**: `PortfolioFactorExposuresResponse`
+```json
+{
+  "available": true,
+  "portfolio_id": "c0510ab8-c6b5-433c-adbc-3f74e1dbdb5e",
+  "calculation_date": "2025-09-05",
+  "factors": [
+    { "name": "Market Beta",     "beta": 0.72,  "exposure_dollar": 900000.0 },
+    { "name": "Size",             "beta": 0.74,  "exposure_dollar": 925000.0 },
+    { "name": "Value",            "beta": -0.15, "exposure_dollar": -187500.0 },
+    { "name": "Momentum",         "beta": 0.22,  "exposure_dollar": 275000.0 },
+    { "name": "Quality",          "beta": 0.82,  "exposure_dollar": 1025000.0 },
+    { "name": "Low Volatility",   "beta": 0.90,  "exposure_dollar": 1125000.0 },
+    { "name": "Growth",           "beta": 0.67,  "exposure_dollar": 837500.0 }
+  ],
+  "metadata": { "factor_model": "7-factor", "calculation_method": "ETF-proxy regression" }
+}
+```
+
+### 16. Position Factor Exposures
+**Endpoint**: `GET /analytics/portfolio/{portfolio_id}/positions/factor-exposures`  
+**Status**: 🚧 Implemented — Under Testing  
+**File**: `app/api/v1/analytics/portfolio.py`  
+**Function**: `list_position_factor_exposures()` (lines 230–266)  
+
+**Authentication**: Required (Bearer token)  
+**Database Access**: Read-only via service layer  
+**Service Layer**: `app/services/factor_exposure_service.py`
+  - Method: `list_position_exposures(portfolio_id, limit, offset, symbols=None)`
+  - Reads: `position_factor_exposures` joined with `positions` and `factor_definitions`
+  - Uses latest available anchor `calculation_date` for the portfolio; paginates by positions
+
+**Purpose**: Return per-position factor betas for the latest anchor date to power position-level analytics tables.  
+**Missing Data Contract**: `200 OK` with `{ available:false, reason:"no_calculation_available" }`  
+
+**Parameters**:
+- `portfolio_id` (path): Portfolio UUID
+- `limit` (query, default 50, max 200)
+- `offset` (query, default 0)
+- `symbols` (query, optional CSV)
+
+**Response Schema**: `PositionFactorExposuresResponse`
+```json
+{
+  "available": true,
+  "portfolio_id": "c0510ab8-c6b5-433c-adbc-3f74e1dbdb5e",
+  "calculation_date": "2025-09-05",
+  "total": 120,
+  "limit": 50,
+  "offset": 0,
+  "positions": [
+    {
+      "position_id": "e5e29f33-ac9f-411b-9494-bff119f435b2",
+      "symbol": "AAPL",
+      "exposures": {
+        "Market Beta": 0.95,
+        "Size": 0.10,
+        "Value": -0.12,
+        "Momentum": 0.18,
+        "Quality": 0.22,
+        "Low Volatility": 0.30,
+        "Growth": 0.40
+      }
+    },
+    {
+      "position_id": "77dc7c6c-3b8e-41a2-9b9e-c2f0f8b3a111",
+      "symbol": "MSFT",
+      "exposures": {
+        "Market Beta": 0.82,
+        "Size": 0.05,
+        "Value": 0.05,
+        "Momentum": 0.21,
+        "Quality": 0.35,
+        "Low Volatility": 0.28,
+        "Growth": 0.32
+      }
+    }
+  ]
+}
+```
 - Matrix is ordered by position weight (gross market value)
 - Returns `available: false` if no calculation exists for the requested parameters
 - Self-correlations are always 1.0
@@ -1429,129 +1530,59 @@ This section provides development specifications for future API endpoints. These
 - **`/export/`**: Data export and report generation
 - **`/system/`**: System utilities and job management
 
-### 🔄 **Migration Strategy**
-- **Current Focus**: `/data/` namespace (✅ Complete - 9 endpoints)
-- **Phase 1 Priority**: `/analytics/` endpoints for calculated metrics
-- **Phase 2 Priority**: `/management/` endpoints for CRUD operations  
-- **Phase 3 Priority**: `/export/` and `/system/` utilities
-
----
-
-## Data Endpoints (/data/) - Non-Existent but Previously Documented
-
-**Status**: ❌ These endpoints were incorrectly documented as implemented but do not exist  
-**Priority**: To be determined based on actual requirements
-
-### Greeks Data
-**Planned Endpoint**: `GET /data/greeks/{portfolio_id}`  
-**Status**: Does not exist - was incorrectly marked as implemented  
-**Purpose**: Would provide Greeks calculations for options positions  
-**Note**: Greeks calculations exist in database but no API endpoint
-
-### Factor Exposures
-**Planned Endpoint**: `GET /data/factors/{portfolio_id}`  
-**Status**: Does not exist - was incorrectly marked as implemented  
-**Purpose**: Would provide factor exposure data for portfolio positions  
-**Note**: Factor calculations exist in database but no API endpoint
-
-### Portfolio Aggregations  
-**Planned Endpoint**: `GET /data/portfolios/{portfolio_id}/aggregations`  
-**Status**: Does not exist - was incorrectly marked as implemented  
-**Purpose**: Would provide portfolio-level aggregated metrics  
-**Note**: Some aggregations available via analytics endpoint
-
-### Risk Summary
-**Planned Endpoint**: `GET /data/portfolios/{portfolio_id}/risk-summary`  
-**Status**: Does not exist - was incorrectly marked as implemented  
-**Purpose**: Would provide comprehensive risk metrics for portfolio  
-**Note**: Risk calculations not yet implemented
-
-### Position Summary
-**Planned Endpoint**: `GET /data/portfolios/{portfolio_id}/positions/summary`  
-**Status**: Does not exist - was incorrectly marked as implemented  
-**Purpose**: Would provide position summary with key metrics  
-**Note**: Some position data available via existing endpoints
-
-### Position Details by ID
-**Planned Endpoint**: `GET /data/positions/{position_id}/details`  
-**Status**: Does not exist - was incorrectly marked as implemented  
-**Purpose**: Would provide detailed information for specific position  
-**Note**: Basic position details available via portfolio endpoints
 
 ---
 
 ## Analytics Endpoints (/analytics/) 🧮
 
-**Status**: 📋 Planned - Not Yet Implemented  
+**Status**: 📋 Under Development
 **Priority**: High - Core calculations and derived metrics
 
-**Note**: Portfolio Overview endpoint (`/analytics/portfolio/{id}/overview`) is already implemented - see Part I, Section C.12
 
 ### Risk Analytics
 
 #### A2. Portfolio Risk Metrics
 ```http
-GET /api/v1/analytics/risk/{portfolio_id}/metrics
+GET /api/v1/analytics/portfolio/{portfolio_id}/risk-metrics
 ```
 
-**Purpose**: Calculated risk metrics (VaR, expected shortfall, beta, correlation)  
-**Implementation Notes**: 
-- Requires completed factor analysis and historical data
-- Should leverage existing batch calculation results
-- Return cached values with calculation timestamps
+**Purpose**: Calculated risk metrics (beta, volatility, max drawdown)  
+**Implementation Notes**:
+- v1 minimal scope: excludes VaR/Expected Shortfall (planned for v1.1)
+- Benchmark is fixed to SPY (no `benchmark` query param)
+- lookback_days default 90 (bounds 30–252)
+- Leverage existing portfolio snapshots and market data; optionally use factor “Market Beta” as fallback for beta
 
-**Planned Response**:
+**Parameters**:
+- `lookback_days` (query, optional): default 90; min 30; max 252
+
+**Planned Response (v1)**:
 ```json
 {
+  "available": true,
   "portfolio_id": "uuid",
   "risk_metrics": {
-    "value_at_risk": {
-      "1_day": {"confidence_95": -12500.0, "confidence_99": -18750.0},
-      "5_day": {"confidence_95": -28000.0, "confidence_99": -42000.0}
-    },
-    "expected_shortfall": {
-      "1_day": {"confidence_95": -15600.0, "confidence_99": -23400.0}
-    },
-    "portfolio_beta": 1.15,
-    "sharpe_ratio": 1.42,
-    "sortino_ratio": 1.89,
-    "max_drawdown": -0.185,
-    "correlation_with_spy": 0.78
+    "portfolio_beta": 0.87,
+    "annualized_volatility": 0.142,
+    "max_drawdown": -0.185
   },
-  "calculation_metadata": {
-    "calculated_at": "2025-09-05T10:00:00Z",
-    "lookback_days": 252,
-    "confidence_levels": [0.95, 0.99]
+  "metadata": {
+    "lookback_days": 90,
+    "date_range": { "start": "2025-06-07", "end": "2025-09-05" },
+    "observations": 230
   }
 }
 ```
 
-#### A2. Factor Exposures
-```http
-GET /api/v1/analytics/factor/{portfolio_id}/exposures
-```
+**Missing Data Contract**:
+- `200 OK` with `{ "available": false, "reason": "no_snapshots|insufficient_overlap|no_benchmark_data" }`
 
-**Purpose**: Portfolio exposures to 7-factor model  
-**Implementation Notes**:
-- Use existing `PositionFactorExposure` database table
-- Aggregate position-level exposures to portfolio level
-- Include factor attribution analysis
-
-#### A3. Scenario Analysis  
-```http
-GET /api/v1/analytics/risk/{portfolio_id}/scenarios
-```
-
-**Purpose**: Stress testing results across 15 market scenarios  
-**Implementation Notes**:
-- Leverage existing batch stress testing calculations
-- Include both systematic and idiosyncratic risk impacts
 
 ---
 
 ## Management Endpoints (/management/) 📋
 
-**Status**: 📋 Planned - Not Yet Implemented  
+**Status**: 📋 Planned - Pending Approval - Not Yet Implemented  
 **Priority**: Medium - CRUD operations for portfolios and positions
 
 ### Portfolio Management
@@ -1595,82 +1626,7 @@ POST /api/v1/management/positions/{position_id}/close
 
 ---
 
-## Export Endpoints (/export/) 📊
 
-**Status**: 📋 Planned - Not Yet Implemented  
-**Priority**: Medium - Report generation and data export
-
-### Report Generation
-
-#### E1. Generate Portfolio Report
-```http
-POST /api/v1/export/reports/portfolio/{portfolio_id}
-```
-
-**Purpose**: Generate comprehensive portfolio reports in multiple formats  
-**Implementation Notes**:
-- Leverage existing report generation infrastructure
-- Support MD, JSON, CSV, PDF formats
-- Async job processing with status tracking
-
-#### E2. Export Historical Data
-```http
-GET /api/v1/export/data/historical
-```
-
-**Purpose**: Bulk historical data export for analysis  
-**Query Parameters**: `portfolio_id`, `start_date`, `end_date`, `format`, `include_calculated`
-
----
-
-## System Endpoints (/system/) ⚙️
-
-**Status**: 📋 Planned - Not Yet Implemented  
-**Priority**: Low - System utilities and monitoring
-
-### Job Management
-
-#### S1. List Background Jobs
-```http
-GET /api/v1/system/jobs
-```
-
-#### S2. Job Details
-```http
-GET /api/v1/system/jobs/{job_id}
-```
-
-### System Health
-
-#### S3. System Status
-```http
-GET /api/v1/system/status
-```
-
-**Purpose**: Comprehensive system health including database, external APIs, batch processing  
-
----
-
-## Implementation Roadmap 🗺️
-
-### Phase 1: Core Analytics (Priority: High)
-**Target**: Q4 2025
-- [ ] Risk metrics endpoint (A1)
-- [ ] Factor exposures endpoint (A2) 
-- [ ] Scenario analysis endpoint (A3)
-- [ ] Greeks calculations integration
-
-### Phase 2: Management Operations (Priority: Medium)  
-**Target**: Q1 2026
-- [ ] Portfolio CRUD operations (M1-M3)
-- [ ] Position management (M4-M6)
-- [ ] Data validation and business rules
-
-### Phase 3: Export & System (Priority: Low)
-**Target**: Q2 2026  
-- [ ] Report generation (E1-E2)
-- [ ] System monitoring (S1-S3)
-- [ ] Advanced export formats
 
 ### Implementation Notes
 
