@@ -613,7 +613,7 @@ return standardize_datetime_dict(response)
   - (view param removed in v1; matrix only)
 
   Implementation Plan:
-  - [ ] Router: Add `app/api/v1/analytics/correlation.py` with `APIRouter(prefix="/correlation")`; register in `app/api/v1/analytics/router.py`
+  - [ ] Router: Add new handler to `app/api/v1/analytics/portfolio.py` (reuse portfolio analytics router)
   - [ ] Schema: Add `CorrelationMatrixResponse` to `app/schemas/analytics.py`:
         { "data": { "matrix": {symbol: {symbol: float}}, "average_correlation": float } }
   - [ ] Service: Add `CorrelationService.get_matrix(...)` (read path) in `app/services/correlation_service.py`
@@ -644,7 +644,47 @@ return standardize_datetime_dict(response)
   - Consider returning optional metadata in future (calculation_date, positions_included) if added to the spec
 
 #### 3.0.3.11 Diversification Score API - APPROVED FOR IMPLEMENTATION
-**GET /api/v1/analytics/portfolio/{portfolio_id}/diversification-score** - Diversification score
+**GET /api/v1/analytics/portfolio/{portfolio_id}/diversification-score** — Lightweight, weighted aggregate portfolio correlation (0–1)
+
+  Prompt Inputs (see `backend/IMPLEMENT_NEW_API_PROMPT.md`):
+  - Endpoint ID: 3.0.3.11
+  - Path/Method: GET `/api/v1/analytics/portfolio/{portfolio_id}/diversification-score`
+  - Approved: Yes
+  - Response shape source: Same data source and selection logic as 3.0.3.10 (matrix), but returns a single weighted aggregate value
+  - Ownership check: Yes (validate portfolio ownership)
+  - Missing data behavior: 200 OK with metadata `{ "available": false, "reason": "no_calculation_available|insufficient_symbols", "duration_days": lookback_days }`
+  - Performance target: < 200ms (smaller than matrix)
+
+  Parameters & Defaults (mirror 3.0.3.10 v1; weight-only selection):
+  - `lookback_days` (int, default 90; 30–365)
+  - `min_overlap` (int, default 30; 10–365) — require `data_points >= min_overlap`
+  - `max_symbols` (int, default 25; hard cap 50) — cap symbols considered
+
+  Weighted Aggregate Correlation (absolute):
+  - Compute gross weights from current positions: `w_i = |qty_i * last_price_i| / sum_j |qty_j * last_price_j|`
+  - Use only selected symbols (same selection as 3.0.3.10)
+  - Let `c_ij` be correlation for pair (i, j) with sufficient overlap
+  - Weighted similarity (0–1):
+    - numerator = Σ_{i<j} (w_i × w_j × |c_ij|)
+    - denominator = Σ_{i<j} (w_i × w_j)
+    - `portfolio_correlation = numerator / denominator`
+  - Edge cases: if fewer than 2 symbols or denominator=0 → `available=false` with `reason="insufficient_symbols"`
+
+  Implementation Plan:
+  - [ ] Router: Add new handler to `app/api/v1/analytics/portfolio.py` (reuse portfolio analytics router)
+  - [ ] Schema: Add `DiversificationScoreResponse` to `app/schemas/analytics.py`:
+        { "available": bool, "portfolio_correlation": float | null, "duration_days": int, "calculation_date": str | null, "symbols_included": int | null, "metadata": { ... } }
+  - [ ] Service (read-only): Add `CorrelationService.get_weighted_correlation(portfolio_id, lookback_days, min_overlap, max_symbols)`
+        - Reuse selection logic from 3.0.3.10 (weight-only; top `max_symbols` by current gross value)
+        - Load latest `CorrelationCalculation` for `{portfolio_id, duration_days=lookback_days}`; return `available=false` if none
+        - Filter `PairwiseCorrelation` to `data_points >= min_overlap`
+        - Build symbol set and weights from current positions; compute weighted aggregate as above (absolute correlations)
+        - Return compact payload with `portfolio_correlation` and small metadata
+  - [ ] Auth/Ownership: `Depends(get_current_user)` + `validate_portfolio_ownership(db, portfolio_id, current_user.id)`
+  - [ ] Error handling: always 200 with `available=false` metadata when no calculation or insufficient symbols; 500 for unexpected errors
+  - [ ] Logging: include portfolio_id, lookback_days, min_overlap, symbols_included, timing
+  - [ ] Docs: Update `API_SPECIFICATIONS_V1.4.5.md` with endpoint, file/function, purpose, params, example response
+  - [ ] Tests/Manual: Add cURL in spec; verify value ∈ [0, 1] and declines as symbol set diversifies
 
 #### 3.0.3.12 Factor Exposures (Portfolio) API - APPROVED FOR IMPLEMENTATION
 **GET /api/v1/analytics/portfolio/{portfolio_id}/factor-exposures** — Portfolio-level factor exposures (aggregated)
@@ -653,19 +693,19 @@ return standardize_datetime_dict(response)
   - Note: See 6.8 to delete deprecated `factor-attribution` API
 
 #### 3.0.3.15 Factor Exposures (Positions) API - APPROVED FOR IMPLEMENTATION
-**GET /api/v1/analytics/positions/{portfolio_id}/exposures** — Position-level factor exposures (paginated)
+**GET /api/v1/analytics/portfolio/{portfolio_id}/positions/factor-exposures** — Position-level factor exposures (paginated)
   - Always paginated to avoid large payloads
   - Query Params: `limit` (default 50, max 200), `offset` (default 0), `symbols` (optional CSV), `min_weight` (optional), `lookback_days` (optional), `model_version` (optional)
   - Response includes: `positions` array with `{position_id, symbol, weight, exposures}`, plus `total`, `limit`, `offset`, and `metadata`
 
 #### 3.0.3.13 Risk Metrics API - APPROVED FOR IMPLEMENTATION
-**GET /api/v1/analytics/{portfolio_id}/risk-metrics** - Portfolio risk metrics (beta, volatility, max drawdown)
+**GET /api/v1/analytics/portfolio/{portfolio_id}/risk-metrics** - Portfolio risk metrics (beta, volatility, max drawdown)
   - Includes: `portfolio_beta`, `annualized_volatility`, `max_drawdown`
   - Optional: `sharpe_ratio`, `sortino_ratio`, `correlation_with_benchmark`
   - Query Params: `lookback_days` (default 252), `benchmark` (default SPY)
  
 #### 3.0.3.14 Stress Test API - APPROVED FOR IMPLEMENTATION
-**GET /api/v1/analytics/{portfolio_id}/stress-test** - Portfolio stress testing scenarios
+**GET /api/v1/analytics/portfolio/{portfolio_id}/stress-test** - Portfolio stress testing scenarios
   - First task: Delete the unused stubbed endpoint `GET /api/v1/analytics/portfolio/{id}/stress-test` and reimplement at this canonical path
   - Use API_SPECIFICATIONS_V1.4.4 scenarios endpoint as the general response shape (scenario list with id, name, description, dollar_impact, percentage_impact, new_portfolio_value, severity; plus portfolio_value and calculation_date)
   - Use the V1.4.5 description/purpose: "Stress testing results across ~15 market scenarios; leverage existing batch stress-testing calculations; include systematic and idiosyncratic impacts"
