@@ -1621,6 +1621,12 @@ GET /api/v1/analytics/portfolio/{portfolio_id}/stress-test
 - Read `StressTestResult` (use `correlated_pnl`) joined with `StressTestScenario`
 - Baseline `portfolio_value` from `PortfolioSnapshot.total_value` on/<= anchor date
 - No recomputation in v1; if no snapshot or no results, return `available=false`
+- Anchor selection: if `scenarios` filter is provided, use the latest calculation_date among the filtered subset; otherwise use latest overall
+- Sorting: stable by `category` (ASC), then `name` (ASC)
+- `percentage_impact` reported in percentage points (e.g., -10.0 means -10%)
+- `calculation_date` is date-only (YYYY-MM-DD)
+- `metadata.scenarios_requested` is included only when filter param is provided
+- Reason precedence: if no results → `no_results`; if results but no snapshot → `no_snapshot`
 
 **Missing Data Contract**:
 - `200 OK` with `{ "available": false, "reason": "no_results|no_snapshot" }`

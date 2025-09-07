@@ -1053,6 +1053,8 @@ return standardize_datetime_dict(response)
     - Uses latest anchor `calculation_date` across results
     - Baseline `portfolio_value` from latest `PortfolioSnapshot.total_value` on/<= anchor date (no fallback recomputation in v1)
     - Compute per-scenario `percentage_impact` (correlated_pnl / portfolio_value × 100) and `new_portfolio_value` (portfolio_value + correlated_pnl)
+    - Anchor selection with filter: if `scenarios` is provided, use latest `calculation_date` among the filtered subset; else use latest overall
+    - Sorting: stable by `category` ASC, then `name` ASC
   - Missing-data contract: 200 with `{ available:false, reason:"no_results|no_snapshot" }`
   - Performance/logging: target < 200ms; log portfolio_id, scenarios_count, anchor_date
 
@@ -1142,6 +1144,11 @@ return standardize_datetime_dict(response)
           - Compute impact percentage and new value using baseline PortfolioSnapshot.total_value
           - If no snapshots on/<= anchor date, return available=false (reason: no_snapshot)
           - Return available=false if no results (reason: no_results)
+          - Sorting: category ASC, name ASC
+          - percentage_impact in percentage points (e.g., -10.0 means -10%)
+          - calculation_date is date-only (YYYY-MM-DD)
+          - metadata.scenarios_requested is included only when filter provided
+          - Reason precedence: if no results → no_results; if results but no snapshot → no_snapshot
           """
           raise NotImplementedError
   ```
