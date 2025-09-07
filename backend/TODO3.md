@@ -1025,7 +1025,7 @@ uv run python test_factor_exposures_api.py
 
 **Conclusion:** No bugs found - implementation is correct and follows the data model properly.
 
-#### 3.0.3.13 Risk Metrics API - APPROVED FOR IMPLEMENTATION
+#### 3.0.3.13 Risk Metrics API - COMPLETED (Under Testing & Validation)
 **GET /api/v1/analytics/portfolio/{portfolio_id}/risk-metrics** — Portfolio risk metrics (beta, volatility, max drawdown)
 
   Updated Scope (v1 minimal):
@@ -1127,6 +1127,30 @@ uv run python test_factor_exposures_api.py
           """
           raise NotImplementedError  # planned
   ```
+
+  Completion Notes:
+  - Status: Implemented; pending thorough testing/validation
+  - Router: Added handler in `app/api/v1/analytics/portfolio.py::get_portfolio_risk_metrics`
+  - Schemas: Added to `app/schemas/analytics.py`:
+    - `RiskDateRange`, `PortfolioRiskMetrics`, `PortfolioRiskMetricsResponse`
+  - Service: Implemented `app/services/risk_metrics_service.py::RiskMetricsService.get_portfolio_risk_metrics(...)`
+    - DB-first v1: beta from `FactorExposure` ("Market Beta"), volatility/drawdown from `PortfolioSnapshot`
+    - Partial results with `metadata.warnings`; metadata includes beta provenance and timestamp
+  - Missing-data: `200 OK` with `{ available:false, reason:"no_snapshots" }` when no snapshots in window
+  - Files changed:
+    - `backend/app/api/v1/analytics/portfolio.py`
+    - `backend/app/schemas/analytics.py`
+    - `backend/app/services/risk_metrics_service.py` (new)
+    - `backend/_docs/requirements/API_SPECIFICATIONS_V1.4.5.md`
+  - Manual Test (example):
+    ```bash
+    TOKEN=$(curl -s -X POST http://localhost:8000/api/v1/auth/login \
+      -H 'Content-Type: application/json' \
+      -d '{"email":"demo_hnw@sigmasight.com","password":"demo12345"}' | jq -r .access_token)
+    PORTFOLIO_ID=$(curl -s -H "Authorization: Bearer $TOKEN" http://localhost:8000/api/v1/auth/me | jq -r .portfolio_id)
+    curl -s -H "Authorization: Bearer $TOKEN" \
+      "http://localhost:8000/api/v1/analytics/portfolio/$PORTFOLIO_ID/risk-metrics?lookback_days=90" | jq
+    ```
 
 #### 3.0.3.14 Stress Test API - COMPLETED (Under Testing & Validation)
 **GET /api/v1/analytics/portfolio/{portfolio_id}/stress-test** — Portfolio stress testing scenarios (read-only)

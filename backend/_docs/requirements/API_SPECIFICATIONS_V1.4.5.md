@@ -1560,7 +1560,11 @@ GET /api/v1/analytics/portfolio/{portfolio_id}/risk-metrics
 **Parameters**:
 - `lookback_days` (query, optional): default 90; min 30; max 252
 
-**Planned Response (v1)**:
+**Status**: 🚧 Implemented — Under Testing  
+**File/Function**: `app/api/v1/analytics/portfolio.py:get_portfolio_risk_metrics()`  
+**Service Layer**: `app/services/risk_metrics_service.py:RiskMetricsService.get_portfolio_risk_metrics(...)`
+
+**Response (v1)**:
 ```json
 {
   "available": true,
@@ -1586,6 +1590,16 @@ GET /api/v1/analytics/portfolio/{portfolio_id}/risk-metrics
 **Missing Data Contract**:
 - `200 OK` with `{ "available": false, "reason": "no_snapshots" }`
 - Partial results (available=true, with nulls) if some metrics cannot be computed; include `metadata.warnings`
+
+**cURL Example**:
+```bash
+TOKEN=$(curl -s -X POST http://localhost:8000/api/v1/auth/login \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"demo_hnw@sigmasight.com","password":"demo12345"}' | jq -r .access_token)
+PID=$(curl -s -H "Authorization: Bearer $TOKEN" http://localhost:8000/api/v1/auth/me | jq -r .portfolio_id)
+curl -s -H "Authorization: Bearer $TOKEN" \
+  "http://localhost:8000/api/v1/analytics/portfolio/$PID/risk-metrics?lookback_days=90" | jq
+```
 
 #### A3. Portfolio Stress Test
 ```http
