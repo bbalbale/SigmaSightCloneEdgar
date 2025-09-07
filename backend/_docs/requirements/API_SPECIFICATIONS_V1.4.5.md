@@ -1583,7 +1583,7 @@ GET /api/v1/analytics/portfolio/{portfolio_id}/stress-test
 ```
 
 **Purpose**: Return precomputed stress testing results across ~15 scenarios using correlated impacts.  
-**Status**: 📋 Approved for Implementation (read-only; no recomputation)
+**Status**: 🚧 Implemented — Under Testing (read-only; no recomputation)
 
 **Parameters**:
 - `scenarios` (query, optional CSV): Filter by scenario IDs
@@ -1627,6 +1627,19 @@ GET /api/v1/analytics/portfolio/{portfolio_id}/stress-test
 - `calculation_date` is date-only (YYYY-MM-DD)
 - `metadata.scenarios_requested` is included only when filter param is provided
 - Reason precedence: if no results → `no_results`; if results but no snapshot → `no_snapshot`
+
+**File/Function**: `app/api/v1/analytics/portfolio.py:get_stress_test_results()`  
+**Service Layer**: `app/services/stress_test_service.py:StressTestService.get_portfolio_results(...)`
+
+**cURL Example**:
+```bash
+TOKEN=$(curl -s -X POST http://localhost:8000/api/v1/auth/login \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"demo_hnw@sigmasight.com","password":"demo12345"}' | jq -r .access_token)
+PORTFOLIO_ID=$(curl -s -H "Authorization: Bearer $TOKEN" http://localhost:8000/api/v1/auth/me | jq -r .portfolio_id)
+curl -s -H "Authorization: Bearer $TOKEN" \
+  "http://localhost:8000/api/v1/analytics/portfolio/$PORTFOLIO_ID/stress-test" | jq
+```
 
 **Missing Data Contract**:
 - `200 OK` with `{ "available": false, "reason": "no_results|no_snapshot" }`

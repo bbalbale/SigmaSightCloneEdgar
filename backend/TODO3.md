@@ -1083,7 +1083,7 @@ uv run python test_factor_exposures_api.py
           raise NotImplementedError  # planned
   ```
 
-#### 3.0.3.14 Stress Test API - APPROVED FOR IMPLEMENTATION
+#### 3.0.3.14 Stress Test API - COMPLETED (Under Testing & Validation)
 **GET /api/v1/analytics/portfolio/{portfolio_id}/stress-test** — Portfolio stress testing scenarios (read-only)
   - First task: Delete the unused stubbed endpoint `GET /api/v1/analytics/portfolio/{id}/stress-test` and reimplement at this canonical path
   - Use API_SPECIFICATIONS_V1.4.4 scenarios endpoint as the base response shape (scenario list with id, name, description, dollar_impact, percentage_impact, new_portfolio_value, severity; plus portfolio_value and calculation_date)
@@ -1204,6 +1204,38 @@ uv run python test_factor_exposures_api.py
           """
           raise NotImplementedError
   ```
+
+  Completion Notes:
+  - Status: Implemented; pending thorough testing/validation
+  - Router: Added handler in `app/api/v1/analytics/portfolio.py::get_stress_test_results`
+  - Schemas: Added to `app/schemas/analytics.py`:
+    - `StressImpact`, `StressScenarioItem`, `StressTestPayload`, `StressTestResponse`
+  - Service: Implemented `app/services/stress_test_service.py::StressTestService.get_portfolio_results(...)`
+    - Anchor selection with filter (latest date across filtered subset)
+    - Baseline from `PortfolioSnapshot.total_value` (no fallback recomputation)
+    - Impact from `StressTestResult.correlated_pnl`; computes percentage and new value
+    - Sorting: `category` ASC, then `name` ASC
+  - Missing-data: `200 OK` with `{ available:false, reason:"no_results|no_snapshot" }`
+  - Files changed:
+    - `backend/app/api/v1/analytics/portfolio.py`
+    - `backend/app/schemas/analytics.py`
+    - `backend/app/services/stress_test_service.py` (new)
+    - `backend/_docs/requirements/API_SPECIFICATIONS_V1.4.5.md`
+  - Manual Test (example):
+    ```bash
+    TOKEN=$(curl -s -X POST http://localhost:8000/api/v1/auth/login \
+      -H 'Content-Type: application/json' \
+      -d '{"email":"demo_hnw@sigmasight.com","password":"demo12345"}' | jq -r .access_token)
+    PORTFOLIO_ID=$(curl -s -H "Authorization: Bearer $TOKEN" http://localhost:8000/api/v1/auth/me | jq -r .portfolio_id)
+
+    # All scenarios
+    curl -s -H "Authorization: Bearer $TOKEN" \
+      "http://localhost:8000/api/v1/analytics/portfolio/$PORTFOLIO_ID/stress-test" | jq
+
+    # Filtered scenarios
+    curl -s -H "Authorization: Bearer $TOKEN" \
+      "http://localhost:8000/api/v1/analytics/portfolio/$PORTFOLIO_ID/stress-test?scenarios=market_down_10,market_up_10" | jq
+    ```
 
 ### 3.0.4 Management APIs (/management/) (Week 3-4)
 *CRUD operations for portfolios, positions, and configurations*
