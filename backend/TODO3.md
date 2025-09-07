@@ -738,14 +738,14 @@ return standardize_datetime_dict(response)
   - Missing data behavior: 200 OK with metadata `{ "available": false, "reason": "no_calculation_available|insufficient_symbols", "duration_days": lookback_days }`
   - Performance target: < 200ms (smaller than matrix)
 
-  Parameters & Defaults (mirror 3.0.3.10 v1; weight-only selection):
+  Parameters & Defaults (v1):
   - `lookback_days` (int, default 90; 30–365)
   - `min_overlap` (int, default 30; 10–365) — require `data_points >= min_overlap`
-  - `max_symbols` (int, default 25; hard cap 50) — cap symbols considered
+  - Symbol universe: use the full calculation symbol set (no `max_symbols` cap in v1)
 
   Weighted Aggregate Correlation (absolute):
-  - Compute gross weights from current positions: `w_i = |qty_i * last_price_i| / sum_j |qty_j * last_price_j|`
-  - Use only selected symbols (same selection as 3.0.3.10)
+  - Compute gross weights from current positions over the full calculation symbol set: `w_i = |qty_i * last_price_i| / sum_j |qty_j * last_price_j|`
+  - Use the full calculation symbol set; do not cap by `max_symbols`
   - Let `c_ij` be correlation for pair (i, j) with sufficient overlap
   - Weighted similarity (0–1):
     - numerator = Σ_{i<j} (w_i × w_j × |c_ij|)
@@ -757,15 +757,15 @@ return standardize_datetime_dict(response)
   - [ ] Router: Add new handler to `app/api/v1/analytics/portfolio.py` (reuse portfolio analytics router)
   - [ ] Schema: Add `DiversificationScoreResponse` to `app/schemas/analytics.py`:
         { "available": bool, "portfolio_correlation": float | null, "duration_days": int, "calculation_date": str | null, "symbols_included": int | null, "metadata": { ... } }
-  - [ ] Service (read-only): Add `CorrelationService.get_weighted_correlation(portfolio_id, lookback_days, min_overlap, max_symbols)`
-        - Reuse selection logic from 3.0.3.10 (weight-only; top `max_symbols` by current gross value)
+  - [ ] Service (read-only): Add `CorrelationService.get_weighted_correlation(portfolio_id, lookback_days, min_overlap)`
+        - Use the full calculation symbol set (not the display subset used for the matrix heatmap)
         - Load latest `CorrelationCalculation` for `{portfolio_id, duration_days=lookback_days}`; return `available=false` if none
         - Filter `PairwiseCorrelation` to `data_points >= min_overlap`
-        - Build symbol set and weights from current positions; compute weighted aggregate as above (absolute correlations)
+        - Build weights from current positions for symbols in the calculation set; compute weighted aggregate as above (absolute correlations)
         - Return compact payload with `portfolio_correlation` and small metadata
   - [ ] Auth/Ownership: `Depends(get_current_user)` + `validate_portfolio_ownership(db, portfolio_id, current_user.id)`
   - [ ] Error handling: always 200 with `available=false` metadata when no calculation or insufficient symbols; 500 for unexpected errors
-  - [ ] Logging: include portfolio_id, lookback_days, min_overlap, symbols_included, timing
+  - [ ] Logging: include portfolio_id, lookback_days, min_overlap, symbols_included (full set size), timing
   - [ ] Docs: Update `API_SPECIFICATIONS_V1.4.5.md` with endpoint, file/function, purpose, params, example response
   - [ ] Tests/Manual: Add cURL in spec; verify value ∈ [0, 1] and declines as symbol set diversifies
 
