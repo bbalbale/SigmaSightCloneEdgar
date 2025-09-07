@@ -308,7 +308,13 @@ async def get_stress_test_results(
         raise HTTPException(status_code=500, detail="Internal server error retrieving stress test results")
 
 
-@router.get("/{portfolio_id}/risk-metrics", response_model=PortfolioRiskMetricsResponse)
+@router.get(
+    "/{portfolio_id}/risk-metrics", 
+    response_model=PortfolioRiskMetricsResponse,
+    deprecated=True,
+    summary="⚠️ DEFERRED - Portfolio Risk Metrics (DO NOT USE)",
+    description="⚠️ WARNING: PARTIALLY IMPLEMENTED BUT NOT TESTED. DEFERRED INDEFINITELY (2025-09-07). DO NOT USE IN PRODUCTION. Frontend and AI agents should NOT use this endpoint. This endpoint may return incomplete or incorrect data."
+)
 async def get_portfolio_risk_metrics(
     portfolio_id: UUID,
     lookback_days: int = Query(90, ge=30, le=252, description="Lookback period in days (30–252)"),
@@ -316,11 +322,23 @@ async def get_portfolio_risk_metrics(
     db: AsyncSession = Depends(get_db),
 ):
     """
-    Portfolio risk metrics (DB-first v1):
+    Portfolio risk metrics (DB-first v1).
+    
+    ⚠️ WARNING: PARTIALLY IMPLEMENTED BUT NOT TESTED. DEFERRED INDEFINITELY (2025-09-07).
+    ⚠️ DO NOT USE IN PRODUCTION. Frontend and AI agents should NOT use this endpoint.
+    ⚠️ This endpoint may return incomplete or incorrect data.
+    
+    Original scope:
     - portfolio_beta from FactorExposure ("Market Beta")
     - annualized_volatility from PortfolioSnapshot.daily_return
     - max_drawdown from PortfolioSnapshot.total_value
+    
+    Status: Implementation incomplete, testing not performed, deferred for future release.
     """
+    # ⚠️ IMPORTANT: This endpoint is DEFERRED INDEFINITELY - DO NOT USE
+    # Implementation is incomplete and untested. May return incorrect data.
+    # Frontend developers and AI agents should avoid using this endpoint.
+    
     try:
         start = time.time()
         await validate_portfolio_ownership(db, portfolio_id, current_user.id)

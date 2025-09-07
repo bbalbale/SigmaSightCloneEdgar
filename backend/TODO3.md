@@ -803,7 +803,7 @@ return standardize_datetime_dict(response)
       "http://localhost:8000/api/v1/analytics/portfolio/$PORTFOLIO_ID/diversification-score?lookback_days=90&min_overlap=30"
     ```
 
-#### 3.0.3.12 Factor Exposures (Portfolio) API - COMPLETED (Under Testing & Validation)
+#### 3.0.3.12 Factor Exposures (Portfolio) API - COMPLETED
 **GET /api/v1/analytics/portfolio/{portfolio_id}/factor-exposures** — Portfolio-level factor exposures (aggregated)
 
   Calculation & Data Model Discovery:
@@ -918,7 +918,7 @@ uv run python test_factor_exposures_api.py
 # Output: ✅ Passed: 2/2 main tests
 ```
 
-#### 3.0.3.15 Factor Exposures (Positions) API - COMPLETED (Under Testing & Validation)
+#### 3.0.3.15 Factor Exposures (Positions) API - COMPLETED
 **GET /api/v1/analytics/portfolio/{portfolio_id}/positions/factor-exposures** — Position-level factor exposures (paginated)
 
   Calculation & Data Model Discovery:
@@ -990,6 +990,21 @@ uv run python test_factor_exposures_api.py
   }
   ```
 
+#### 3.0.3.15.1 Test Results (2025-09-07)
+
+✅ **ALL TESTS PASSED** - Comprehensive test suite executed successfully
+
+**Test Coverage:** 7/7 categories passed
+- Basic functionality: 17 positions with 7 factors each
+- Pagination: Supports limits 5-200, offsets work correctly  
+- Symbol filtering: CSV filtering functional (AAPL,AMZN tested)
+- Error handling: Proper 422/401/500 responses
+- Performance: ~7ms response time for all request sizes
+- Data consistency: Matching calculation dates across requests
+- Factor validity: All 7 expected factors present with valid ranges
+
+**Test Script:** `test_position_factor_exposures_3_0_3_15.py`
+
 #### 3.0.3.14.1 Static Code Review Results (2025-09-07)
 
 ✅ **REVIEWED** - Stress Test Results API implementation reviewed
@@ -1025,7 +1040,7 @@ uv run python test_factor_exposures_api.py
 
 **Conclusion:** No bugs found - implementation is correct and follows the data model properly.
 
-#### 3.0.3.13 Risk Metrics API - COMPLETED (Under Testing & Validation)
+#### 3.0.3.13 Risk Metrics API - PARTIALLY IMPLEMENTED BUT NOT TESTED. DECISION (09-07) TO DEFER INDEFINITELY
 **GET /api/v1/analytics/portfolio/{portfolio_id}/risk-metrics** — Portfolio risk metrics (beta, volatility, max drawdown)
 
   Updated Scope (v1 minimal):
@@ -1151,6 +1166,31 @@ uv run python test_factor_exposures_api.py
     curl -s -H "Authorization: Bearer $TOKEN" \
       "http://localhost:8000/api/v1/analytics/portfolio/$PORTFOLIO_ID/risk-metrics?lookback_days=90" | jq
     ```
+
+#### 3.0.3.13.1 Deprecation Warnings Added (2025-09-07)
+
+**IMPORTANT FOR FUTURE REMOVAL**: Deprecation warnings were added to prevent usage of this incomplete endpoint.
+
+**Warnings Added:**
+1. **Endpoint decorator** (`app/api/v1/analytics/portfolio.py` lines 311-317):
+   - `deprecated=True` flag for OpenAPI
+   - Summary: "⚠️ DEFERRED - Portfolio Risk Metrics (DO NOT USE)"
+   - Description with full warning text
+
+2. **Docstring warnings** (lines 318-337):
+   - Multiple ⚠️ WARNING lines
+   - Explicit "DO NOT USE IN PRODUCTION" message
+   - "Frontend and AI agents should NOT use this endpoint"
+
+3. **Inline code comment** (lines 338-340):
+   - Additional warning for developers reading code
+
+**To Remove When Implementing:**
+- Remove `deprecated=True` from decorator
+- Update summary and description to normal documentation
+- Remove warning lines from docstring
+- Remove inline warning comment
+- Update TODO3.md and API_SPECIFICATIONS_V1.4.5.md status
 
 #### 3.0.3.14 Stress Test API - COMPLETED (Under Testing & Validation)
 **GET /api/v1/analytics/portfolio/{portfolio_id}/stress-test** — Portfolio stress testing scenarios (read-only)

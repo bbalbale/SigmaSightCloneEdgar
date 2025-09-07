@@ -861,9 +861,9 @@ Returns all portfolios for the authenticated user with real database data.
 
 ### 15. Portfolio Factor Exposures
 **Endpoint**: `GET /analytics/portfolio/{portfolio_id}/factor-exposures`  
-**Status**: 🚧 Implemented — Under Testing  
+**Status**: ✅ Implemented  
 **File**: `app/api/v1/analytics/portfolio.py`  
-**Function**: `get_portfolio_factor_exposures()` (lines 197–227)  
+**Function**: `get_portfolio_factor_exposures()` (lines 202–232)  
 
 **Authentication**: Required (Bearer token)  
 **Database Access**: Read-only via service layer  
@@ -900,9 +900,9 @@ Returns all portfolios for the authenticated user with real database data.
 
 ### 16. Position Factor Exposures
 **Endpoint**: `GET /analytics/portfolio/{portfolio_id}/positions/factor-exposures`  
-**Status**: 🚧 Implemented — Under Testing  
+**Status**: ✅ Implemented  
 **File**: `app/api/v1/analytics/portfolio.py`  
-**Function**: `list_position_factor_exposures()` (lines 230–266)  
+**Function**: `list_position_factor_exposures()` (lines 235–271)  
 
 **Authentication**: Required (Bearer token)  
 **Database Access**: Read-only via service layer  
@@ -1541,7 +1541,7 @@ This section provides development specifications for future API endpoints. These
 
 ### Risk Analytics
 
-#### A2. Portfolio Risk Metrics
+#### A2. Portfolio Risk Metrics - PARTIALLY IMPLEMENTED BUT NOT TESTED. DECISION (09-07) TO DEFER INDEFINITELY
 ```http
 GET /api/v1/analytics/portfolio/{portfolio_id}/risk-metrics
 ```

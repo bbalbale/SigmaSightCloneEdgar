@@ -144,7 +144,8 @@ class DiversificationScoreResponse(BaseModel):
                     "lookback_days": 90,
                     "min_overlap": 30,
                     "selection_method": "full_calculation_set"
-        }
+                }
+            }
         }
 
 
@@ -198,7 +199,6 @@ class PortfolioRiskMetricsResponse(BaseModel):
             "beta_source, beta_calculation_date, beta_window_days, warnings[]"
         ),
     )
-        }
 
 
 class PortfolioFactorItem(BaseModel):
