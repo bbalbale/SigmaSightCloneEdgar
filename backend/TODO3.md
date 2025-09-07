@@ -757,7 +757,7 @@ return standardize_datetime_dict(response)
   Implementation Plan:
   - [ ] Router: Add new handler to `app/api/v1/analytics/portfolio.py`
   - [ ] Schema: Add `PortfolioFactorExposuresResponse` to `app/schemas/analytics.py`:
-        { "available": bool, "factors": [{"name": str, "beta": float, "exposure_dollar": float|null}], "calculation_date": str|null, "metadata": {...} }
+        { "available": bool, "portfolio_id": str, "calculation_date": str|null, "factors": [{"name": str, "beta": float, "exposure_dollar": float|null}], "metadata": {...} }
   - [ ] Service (read-only): Add `FactorExposureService.get_portfolio_exposures(portfolio_id)`
         - Join `factor_exposures` to `factor_definitions` for this portfolio
         - Select the latest `calculation_date` per `factor_id` (window function or Python grouping if result set small)
@@ -766,6 +766,24 @@ return standardize_datetime_dict(response)
   - [ ] Error handling: 200 with `available=false` metadata if none; 500 for unexpected
   - [ ] Logging: portfolio_id, factors_count, timing
   - [ ] Docs: Update spec with attribution and example
+
+  Response Schema (v1):
+  ```json
+  {
+    "available": true,
+    "portfolio_id": "c0510ab8-c6b5-433c-adbc-3f74e1dbdb5e",
+    "calculation_date": "2025-09-05",
+    "factors": [
+      { "name": "Market Beta", "beta": 0.72, "exposure_dollar": 123456.78 },
+      { "name": "Value", "beta": -0.15, "exposure_dollar": -23456.78 },
+      { "name": "Momentum", "beta": 0.22, "exposure_dollar": 9876.54 }
+    ],
+    "metadata": {
+      "factor_model": "7-factor",
+      "duration_days": 252
+    }
+  }
+  ```
 
 #### 3.0.3.15 Factor Exposures (Positions) API - APPROVED FOR IMPLEMENTATION
 **GET /api/v1/analytics/portfolio/{portfolio_id}/positions/factor-exposures** — Position-level factor exposures (paginated)
@@ -788,7 +806,7 @@ return standardize_datetime_dict(response)
   Implementation Plan:
   - [ ] Router: Add new handler to `app/api/v1/analytics/portfolio.py`
   - [ ] Schema: Add `PositionFactorExposuresResponse` to `app/schemas/analytics.py`:
-        { "available": bool, "positions": [{"position_id": str, "symbol": str, "exposures": {factor: beta}}], "total": int, "limit": int, "offset": int, "calculation_date": str|null }
+        { "available": bool, "portfolio_id": str, "calculation_date": str|null, "total": int, "limit": int, "offset": int, "positions": [{"position_id": str, "symbol": str, "exposures": {factor: beta}}] }
   - [ ] Service (read-only): Add `FactorExposureService.list_position_exposures(portfolio_id, limit, offset, symbols=None)`
         - Determine an anchor calculation_date: latest date present for this portfolio in `position_factor_exposures` (or per-position latest if we want per-row latest)
         - Join `positions` → `position_factor_exposures` (by position_id and calculation_date) → `factor_definitions`
@@ -798,6 +816,38 @@ return standardize_datetime_dict(response)
   - [ ] Error handling: 200 with `available=false` metadata if none; 500 for unexpected
   - [ ] Logging: portfolio_id, total_positions, timing
   - [ ] Docs: Update spec with attribution and example
+
+  Response Schema (v1):
+  ```json
+  {
+    "available": true,
+    "portfolio_id": "c0510ab8-c6b5-433c-adbc-3f74e1dbdb5e",
+    "calculation_date": "2025-09-05",
+    "total": 120,
+    "limit": 50,
+    "offset": 0,
+    "positions": [
+      {
+        "position_id": "e5e29f33-ac9f-411b-9494-bff119f435b2",
+        "symbol": "AAPL",
+        "exposures": {
+          "Market Beta": 0.95,
+          "Value": -0.12,
+          "Momentum": 0.18
+        }
+      },
+      {
+        "position_id": "77dc7c6c-3b8e-41a2-9b9e-c2f0f8b3a111",
+        "symbol": "MSFT",
+        "exposures": {
+          "Market Beta": 0.82,
+          "Value": 0.05,
+          "Momentum": 0.21
+        }
+      }
+    ]
+  }
+  ```
 
 #### 3.0.3.13 Risk Metrics API - APPROVED FOR IMPLEMENTATION
 **GET /api/v1/analytics/portfolio/{portfolio_id}/risk-metrics** - Portfolio risk metrics (beta, volatility, max drawdown)
