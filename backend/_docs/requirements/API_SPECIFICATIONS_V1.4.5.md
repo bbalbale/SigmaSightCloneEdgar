@@ -67,6 +67,7 @@ This section documents the **13 fully implemented and production-ready endpoints
 
 #### Analytics Endpoints  
 - **13.** [`GET /analytics/portfolio/{portfolio_id}/overview`](#13-portfolio-overview) - Get comprehensive portfolio overview with exposures and P&L
+- **14.** [`GET /analytics/portfolio/{portfolio_id}/correlation-matrix`](#14-correlation-matrix) - Get correlation matrix for portfolio positions
 
 #### Chat Endpoints (Implemented)
 - `POST /chat/conversations` — Create conversation
@@ -808,6 +809,58 @@ Returns all portfolios for the authenticated user with real database data.
   "last_updated": "2025-09-05T10:30:00Z"
 }
 ```
+
+### 14. Correlation Matrix
+**Endpoint**: `GET /analytics/portfolio/{portfolio_id}/correlation-matrix`  
+**Status**: ✅ Fully Implemented  
+**File**: `app/api/v1/analytics/portfolio.py`  
+**Function**: `get_correlation_matrix()` (lines 80-147)  
+**Authentication**: Required (Bearer token)  
+**OpenAPI Description**: "Get the correlation matrix for portfolio positions"  
+**Database Access**: ORM queries to CorrelationCalculation, PairwiseCorrelation, and Position tables  
+**Service Layer**: `app/services/correlation_service.py`
+  - Class: `CorrelationService`
+  - Method: `get_matrix()` (lines 652-773)
+  - Retrieves pre-calculated correlations from batch processing
+
+**Purpose**: Returns pairwise correlations between all positions in the portfolio  
+**Parameters**:
+- `portfolio_id` (path): Portfolio UUID
+- `lookback_days` (query, optional): Lookback period in days (30-365, default: 90)
+- `min_overlap` (query, optional): Minimum overlapping data points (10-365, default: 30)
+
+**Response Schema**: `CorrelationMatrixResponse`
+```json
+{
+  "available": true,
+  "data": {
+    "matrix": {
+      "AAPL": {
+        "AAPL": 1.0,
+        "MSFT": 0.75,
+        "GOOGL": 0.62
+      },
+      "MSFT": {
+        "AAPL": 0.75,
+        "MSFT": 1.0,
+        "GOOGL": 0.58
+      }
+    },
+    "average_correlation": 0.65
+  },
+  "metadata": {
+    "calculation_date": "2025-09-07T00:00:00",
+    "lookback_days": 90,
+    "positions_included": 15
+  }
+}
+```
+
+**Implementation Notes**: 
+- Returns pre-calculated correlations from nightly batch processing
+- Matrix is ordered by position weight (gross market value)
+- Returns `available: false` if no calculation exists for the requested parameters
+- Self-correlations are always 1.0
 
 ---
 

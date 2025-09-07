@@ -648,3 +648,126 @@ class CorrelationService:
                 self.db.add(cluster_position)
             
             await self.db.flush()
+    
+    async def get_matrix(
+        self,
+        portfolio_id: UUID,
+        lookback_days: int = 90,
+        min_overlap: int = 30
+    ) -> Dict:
+        """
+        Retrieve pre-calculated correlation matrix for a portfolio.
+        
+        Args:
+            portfolio_id: Portfolio UUID
+            lookback_days: Duration of the calculation period (must match existing calculation)
+            min_overlap: Minimum data points required for correlation pairs
+            
+        Returns:
+            Dict with correlation matrix or unavailable status
+        """
+        try:
+            # Get the latest correlation calculation for this portfolio and lookback period
+            stmt = select(CorrelationCalculation).where(
+                and_(
+                    CorrelationCalculation.portfolio_id == portfolio_id,
+                    CorrelationCalculation.duration_days == lookback_days
+                )
+            ).order_by(CorrelationCalculation.calculation_date.desc()).limit(1)
+            
+            result = await self.db.execute(stmt)
+            calculation = result.scalar_one_or_none()
+            
+            if not calculation:
+                return {
+                    "available": False,
+                    "metadata": {
+                        "reason": "no_calculation_available",
+                        "requested_lookback_days": lookback_days,
+                        "message": f"No correlation calculation found for portfolio {portfolio_id} with {lookback_days}-day lookback"
+                    }
+                }
+            
+            # Get all pairwise correlations for this calculation
+            corr_stmt = select(PairwiseCorrelation).where(
+                PairwiseCorrelation.correlation_calculation_id == calculation.id
+            )
+            corr_result = await self.db.execute(corr_stmt)
+            correlations = corr_result.scalars().all()
+            
+            # Filter by min_overlap
+            filtered_correlations = [
+                c for c in correlations 
+                if c.data_points >= min_overlap
+            ]
+            
+            if not filtered_correlations:
+                return {
+                    "available": False,
+                    "metadata": {
+                        "reason": "insufficient_data",
+                        "min_overlap": min_overlap,
+                        "message": f"No correlations meet the minimum overlap requirement of {min_overlap} data points"
+                    }
+                }
+            
+            # Get current positions for weight ordering
+            pos_stmt = select(Position).where(
+                and_(
+                    Position.portfolio_id == portfolio_id,
+                    Position.exit_date.is_(None)
+                )
+            )
+            pos_result = await self.db.execute(pos_stmt)
+            positions = pos_result.scalars().all()
+            
+            # Calculate weights (gross market value)
+            symbol_weights = {}
+            for pos in positions:
+                weight = abs(float(pos.quantity * pos.last_price))
+                symbol_weights[pos.symbol] = weight
+            
+            # Get unique symbols from correlations
+            symbols = set()
+            for corr in filtered_correlations:
+                symbols.add(corr.symbol_1)
+                symbols.add(corr.symbol_2)
+            
+            # Order symbols by weight (descending), then alphabetically for those not in portfolio
+            ordered_symbols = sorted(
+                symbols,
+                key=lambda s: (-symbol_weights.get(s, 0), s)
+            )
+            
+            # Build the matrix as nested dictionary
+            matrix = {}
+            for symbol1 in ordered_symbols:
+                matrix[symbol1] = {}
+                for symbol2 in ordered_symbols:
+                    if symbol1 == symbol2:
+                        matrix[symbol1][symbol2] = 1.0
+                    else:
+                        # Find correlation value (checking both directions)
+                        corr_value = None
+                        for corr in filtered_correlations:
+                            if (corr.symbol_1 == symbol1 and corr.symbol_2 == symbol2) or \
+                               (corr.symbol_1 == symbol2 and corr.symbol_2 == symbol1):
+                                corr_value = float(corr.correlation_value)
+                                break
+                        
+                        if corr_value is not None:
+                            matrix[symbol1][symbol2] = corr_value
+                        else:
+                            # This shouldn't happen if data is complete, but handle gracefully
+                            matrix[symbol1][symbol2] = 0.0
+            
+            return {
+                "data": {
+                    "matrix": matrix,
+                    "average_correlation": float(calculation.overall_correlation) if calculation.overall_correlation else None
+                }
+            }
+            
+        except Exception as e:
+            logger.error(f"Error retrieving correlation matrix for portfolio {portfolio_id}: {str(e)}")
+            raise

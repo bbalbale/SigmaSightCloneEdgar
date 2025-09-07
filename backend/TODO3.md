@@ -593,7 +593,7 @@ return standardize_datetime_dict(response)
   - [ ] ETF proxies and descriptions
 
 #### 3.0.3.10 Correlation Matrix API - ✅ COMPLETED
-- [x] Endpoint: `GET /api/v1/analytics/correlation/{portfolio_id}/matrix` — Position pairwise correlation matrix
+- [x] Endpoint: `GET /api/v1/analytics/portfolio/{portfolio_id}/correlation-matrix` — Position pairwise correlation matrix
   
   Prompt Inputs (see `backend/IMPLEMENT_NEW_API_PROMPT.md`):
   - Endpoint ID: 3.0.3.10
@@ -613,7 +613,7 @@ return standardize_datetime_dict(response)
   - (view param removed in v1; matrix only)
 
   Implementation Plan:
-  - [x] Router: Created `app/api/v1/analytics/correlation.py` with `get_correlation_matrix()` handler
+  - [x] Router: Added to `app/api/v1/analytics/portfolio.py` with `get_correlation_matrix()` handler
   - [x] Schema: Added `CorrelationMatrixResponse` to `app/schemas/analytics.py`:
         { "data": { "matrix": {symbol: {symbol: float}}, "average_correlation": float } }
   - [x] Service: Added `CorrelationService.get_matrix()` in `app/services/correlation_service.py`
@@ -631,12 +631,55 @@ return standardize_datetime_dict(response)
    - [x] Tests/Manual: Tested with demo portfolio - returns correlation matrix for 15 symbols
 
   **Completion Notes**:
-  - Endpoint path changed to `/analytics/correlation/{portfolio_id}/matrix` for better organization
+  - Endpoint implemented in portfolio router as originally specified
   - Successfully retrieves pre-calculated correlations from batch processing
   - Matrix ordered by position weight (gross market value)
   - Tested with demo_individual portfolio: returns 15x15 correlation matrix
   - Performance: < 100ms response time
   - Fixed `Position.is_closed` issue by using `Position.exit_date.is_(None)`
+  - Function location: `app/api/v1/analytics/portfolio.py` lines 80-147
+  
+  **Files and Objects Modified for Code Review**:
+  
+  1. **app/api/v1/analytics/portfolio.py**
+     - Added imports: `Query` from fastapi, `time` module, `CorrelationMatrixResponse`, `CorrelationService`
+     - Added function: `get_correlation_matrix()` (lines 80-147)
+     - HTTP endpoint: GET `/portfolio/{portfolio_id}/correlation-matrix`
+  
+  2. **app/api/v1/analytics/router.py**
+     - Removed import: `from app.api.v1.analytics.correlation import router as correlation_router`
+     - Removed router registration: `router.include_router(correlation_router)`
+  
+  3. **app/schemas/analytics.py**
+     - Added class: `CorrelationMatrixData` (Pydantic model)
+     - Added class: `CorrelationMatrixResponse` (Pydantic model)
+     - Response schema structure: `{available, data: {matrix, average_correlation}, metadata}`
+  
+  4. **app/services/correlation_service.py**
+     - Added method: `get_matrix()` (lines 652-773)
+     - Fixed bug: Changed `Position.is_closed == False` to `Position.exit_date.is_(None)` (line 718)
+     - Method returns: Dict with correlation matrix or unavailable status
+  
+  5. **app/api/v1/analytics/correlation.py**
+     - File deleted (was created initially but removed per requirements)
+  
+  6. **Test Files Created** (for manual testing, can be removed):
+     - `test_correlation_api.py` - Direct service testing
+     - `test_correlation_endpoint.py` - HTTP endpoint testing
+     - `get_demo_portfolio.py` - Helper to get portfolio IDs
+  
+  **Database Tables Accessed** (read-only):
+  - `correlation_calculations` - Latest calculation lookup
+  - `pairwise_correlations` - Correlation values retrieval
+  - `positions` - Current position weights
+  - `portfolios` - Ownership validation
+  
+  **Key Dependencies**:
+  - FastAPI decorators and dependencies
+  - SQLAlchemy async ORM queries
+  - Pydantic for request/response validation
+  - Authentication via `get_current_user`
+  - Portfolio ownership via `validate_portfolio_ownership`
 
 #### 3.0.3.10.1 Deferred For Future Version (v2+)
 - Add `view=pairs` mode returning a compact edge list (top 50 by |corr|, sorted), with optional `top_k_pairs` and `min_abs_corr` params

@@ -5,7 +5,7 @@ Pydantic models for portfolio analytics endpoints including portfolio overview,
 risk metrics, and performance data.
 """
 from pydantic import BaseModel, Field
-from typing import Optional
+from typing import Optional, Dict, Union
 from datetime import datetime
 
 
@@ -82,5 +82,37 @@ class PortfolioOverviewResponse(BaseModel):
                     "option_count": 3
                 },
                 "last_updated": "2025-01-15T10:30:00Z"
+            }
+        }
+
+
+class CorrelationMatrixData(BaseModel):
+    """Correlation matrix data"""
+    matrix: Dict[str, Dict[str, float]] = Field(..., description="Nested dictionary of symbol correlations")
+    average_correlation: Optional[float] = Field(None, description="Average portfolio correlation")
+
+
+class CorrelationMatrixResponse(BaseModel):
+    """
+    Correlation matrix response for portfolio positions
+    
+    Returns pre-calculated pairwise correlations between portfolio positions
+    ordered by position weight (gross market value).
+    """
+    data: Optional[CorrelationMatrixData] = Field(None, description="Correlation data when available")
+    available: Optional[bool] = Field(None, description="Whether correlation data is available")
+    metadata: Optional[Dict[str, Union[str, int]]] = Field(None, description="Error or status metadata")
+    
+    class Config:
+        schema_extra = {
+            "example": {
+                "data": {
+                    "matrix": {
+                        "AAPL": {"AAPL": 1.0, "MSFT": 0.82, "NVDA": 0.75},
+                        "MSFT": {"AAPL": 0.82, "MSFT": 1.0, "NVDA": 0.68},
+                        "NVDA": {"AAPL": 0.75, "NVDA": 0.68, "NVDA": 1.0}
+                    },
+                    "average_correlation": 0.75
+                }
             }
         }
