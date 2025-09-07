@@ -57,6 +57,13 @@ Enforce defaults/caps in the service layer. Prefer a small set of high‑signal 
 
 ---
 
+## Standard Selection Policy (Default Behavior)
+- Selection mode: weight-only in v1 — pick top `max_symbols` by current gross market value (abs(quantity*last_price)); no explicit list or min_weight filtering in v1.
+- Validate params: enforce `min_overlap <= lookback_days`; clamp `max_symbols` to a safe cap (e.g., 50).
+- Consistency: use the same selection policy across endpoints that consume the same batch results (e.g., correlation matrix and diversification score) to keep UX and results coherent.
+
+---
+
 ## Pre-Implementation Discovery (AI Agent Tasks)
 Before implementing, check:
 1) Does the service layer already exist? Search: `grep -r "class.*Service" app/services/`
@@ -119,6 +126,44 @@ Before implementing, check:
 - Place non-trivial logic in a service file under `app/services/`, e.g., `CorrelationService`, `RiskMetricsService`.
 - **NEVER** access ORM models directly from API endpoints - always use service layer
 - Use async SQLAlchemy sessions via `db: AsyncSession = Depends(get_db)` (or `get_async_session` for raw-data endpoints that follow that pattern).
+- Query models from `app/models/...` with minimal round trips; rely on existing indexes where possible (e.g., `MarketDataCache` has symbol/date indexes).
+- For external data (e.g., Polygon), use existing clients/services with rate limiting.
+- Cache expensive calculations if feasible; document TTL if you add caching.
+
+### Service Read Patterns (No Recompute)
+- For correlation-based endpoints:
+  - Read from `correlation_calculations` (header per run) and `pairwise_correlations` (full NxN, both directions + diagonal)
+  - Provide canonical read methods on the service:
+    - `get_matrix(portfolio_id, lookback_days, min_overlap, max_symbols)`
+    - `get_weighted_correlation(portfolio_id, lookback_days, min_overlap, max_symbols)`
+  - Selection policy: reuse the Standard Selection Policy above (weight-only) to derive the symbol set.
+
+---
+
+## Missing-Data Contract and Metadata
+- Prefer `200 OK` with an `available=false` envelope for “no data yet” cases rather than 404, unless the resource truly doesn’t exist.
+- Standard metadata (example):
+```json
+{
+  "available": false,
+  "reason": "no_calculation_available|insufficient_symbols",
+  "duration_days": 90,
+  "calculation_date": null
+}
+```
+- When data is available, include lightweight metadata next to the payload:
+  - `duration_days`, `calculation_date` (UTC ISO8601), `symbols_included`, and `parameters_used` (lookback_days, min_overlap, max_symbols, selection_method)
+
+---
+
+## Output Rules (Matrix and Scalar)
+- Matrix (e.g., correlation): symmetric nested map `{symbol: {symbol: corr}}` over the selected symbols; diagonal = 1.0; order symbols by weight.
+- Scalar (e.g., diversification): weighted absolute correlation using current gross weights `w_i`:
+  - numerator = Σ_{i<j} (w_i × w_j × |c_ij|)
+  - denominator = Σ_{i<j} (w_i × w_j)
+  - `portfolio_correlation = numerator / denominator`
+
+---
 - Query models from `app/models/...` with minimal round trips; rely on existing indexes where possible (e.g., `MarketDataCache` has symbol/date indexes).
 - For external data (e.g., Polygon), use existing clients/services with rate limiting.
 - Cache expensive calculations if feasible; document TTL if you add caching.
