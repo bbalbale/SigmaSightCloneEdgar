@@ -694,6 +694,38 @@ return standardize_datetime_dict(response)
   - Uses existing correlation engine outputs from batch (see 6.4: Correlations run daily)
   - Consider returning optional metadata in future (calculation_date, positions_included) if added to the spec
 
+#### 3.0.3.10.2 Post Code Review Issues and Tasks
+**Code Review Date: 2025-09-07** - Critical missing implementation identified
+
+  What Exists (Storage Only):
+  - ✅ Schema: CorrelationMatrixResponse and CorrelationMatrixData in app/schemas/analytics.py
+  - ✅ Batch engine: CorrelationService.calculate_portfolio_correlations() in app/services/correlation_service.py
+  - ✅ Database models: CorrelationCalculation and PairwiseCorrelation in app/models/correlations.py
+  - ✅ Storage methods: _store_correlation_matrix() with data_points and significance
+
+  What's Missing (The Actual API):
+  - ❌ **No endpoint handler** in app/api/v1/analytics/portfolio.py
+  - ❌ **No read method** CorrelationService.get_matrix() to retrieve stored data
+  - ❌ **No weight calculation** from current positions (need Position.market_value)
+  - ❌ **The endpoint is completely missing from the router!**
+
+  Implementation Tasks:
+  - [ ] Fix NVDA typo in CorrelationMatrixResponse schema example (NVDA row repeats NVDA key)
+  - [ ] Implement CorrelationService.get_matrix(portfolio_id, lookback_days, min_overlap, max_symbols=25)
+      - Find latest CorrelationCalculation using ORDER BY calculation_date DESC LIMIT 1
+      - Filter PairwiseCorrelation by data_points >= min_overlap
+      - Compute weights from positions: gross_weight = abs(quantity * last_price)
+      - Fallback: Use entry_price if last_price is None, or exclude from matrix
+      - Force diagonal to 1.0 when constructing matrix
+      - Return CorrelationMatrixResponse with available/metadata contract
+  - [ ] Add endpoint handler GET /api/v1/analytics/portfolio/{portfolio_id}/correlation-matrix
+      - Validate min_overlap <= lookback_days (400 if invalid)
+      - Enforce auth + ownership via dependencies
+      - Handle edge cases: no calculation → available=false, <2 symbols → insufficient_symbols
+      - Include metadata: calculation_date, duration_days, symbols_included, parameters_used
+  - [ ] Test with demo portfolio data
+  - [ ] Update API_SPECIFICATIONS_V1.4.5.md with completed endpoint details
+
 #### 3.0.3.11 Diversification Score API - APPROVED FOR IMPLEMENTATION
 **GET /api/v1/analytics/portfolio/{portfolio_id}/diversification-score** — Lightweight, weighted aggregate portfolio correlation (0–1)
 
@@ -742,7 +774,8 @@ return standardize_datetime_dict(response)
 
   Calculation & Data Model Discovery:
   - Batch engine: `app/calculations/factors.py::calculate_factor_betas_hybrid()` computes position betas, then `aggregate_portfolio_factor_exposures()` stores portfolio-level betas
-  - Tables: `factor_exposures` (portfolio-level), `factor_definitions` (metadata)
+  - Tables: `factor_exposures` (portfolio-level), `factor_definitions` (metadata) - CONFIRMED EXIST
+  - Dollar exposures: Calculated as sum(position_market_value * position_beta) representing dollar amount exposed to each factor risk
   - Reference query: See `app/reports/portfolio_report_generator.py` (joins FactorExposure+FactorDefinition and picks latest per factor)
 
   Prompt Inputs:
@@ -752,7 +785,7 @@ return standardize_datetime_dict(response)
   - Performance target: < 200ms
 
   Parameters & Defaults (v1 minimal):
-  - None required; return all active factors for the latest calculation per factor (for this portfolio)
+  - None required; return all factors from the most recent complete calculation set (same calculation_date for all factors)
 
   Implementation Plan:
   - [ ] Router: Add new handler to `app/api/v1/analytics/portfolio.py`
@@ -760,8 +793,9 @@ return standardize_datetime_dict(response)
         { "available": bool, "portfolio_id": str, "calculation_date": str|null, "factors": [{"name": str, "beta": float, "exposure_dollar": float|null}], "metadata": {...} }
   - [ ] Service (read-only): Add `FactorExposureService.get_portfolio_exposures(portfolio_id)`
         - Join `factor_exposures` to `factor_definitions` for this portfolio
-        - Select the latest `calculation_date` per `factor_id` (window function or Python grouping if result set small)
-        - Return all active factors with `exposure_value` (beta) and optional `exposure_dollar`
+        - Select the most recent calculation_date where ALL factors were calculated (complete set)
+        - Return all factors with `exposure_value` (beta) and `exposure_dollar` ordered alphabetically by name
+        - Note: exposure_dollar may be null if position market values unavailable during calculation
   - [ ] Auth/Ownership: enforce via dependencies
   - [ ] Error handling: 200 with `available=false` metadata if none; 500 for unexpected
   - [ ] Logging: portfolio_id, factors_count, timing
@@ -774,13 +808,17 @@ return standardize_datetime_dict(response)
     "portfolio_id": "c0510ab8-c6b5-433c-adbc-3f74e1dbdb5e",
     "calculation_date": "2025-09-05",
     "factors": [
-      { "name": "Market Beta", "beta": 0.72, "exposure_dollar": 123456.78 },
-      { "name": "Value", "beta": -0.15, "exposure_dollar": -23456.78 },
-      { "name": "Momentum", "beta": 0.22, "exposure_dollar": 9876.54 }
+      { "name": "Growth", "beta": 0.67, "exposure_dollar": 837500.00 },
+      { "name": "Low Volatility", "beta": 0.90, "exposure_dollar": 1125000.00 },
+      { "name": "Market Beta", "beta": 0.72, "exposure_dollar": 900000.00 },
+      { "name": "Momentum", "beta": 0.22, "exposure_dollar": 275000.00 },
+      { "name": "Quality", "beta": 0.82, "exposure_dollar": 1025000.00 },
+      { "name": "Size", "beta": 0.74, "exposure_dollar": 925000.00 },
+      { "name": "Value", "beta": -0.15, "exposure_dollar": -187500.00 }
     ],
     "metadata": {
       "factor_model": "7-factor",
-      "duration_days": 252
+      "calculation_method": "ETF-proxy regression"
     }
   }
   ```
