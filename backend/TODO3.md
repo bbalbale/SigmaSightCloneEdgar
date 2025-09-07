@@ -755,6 +755,7 @@ return standardize_datetime_dict(response)
 
   Implementation Plan:
   - [ ] Router: Add new handler to `app/api/v1/analytics/portfolio.py` (reuse portfolio analytics router)
+        - API handler is a thin controller: validate inputs, enforce auth/ownership, call service, serialize response only (no ORM or business logic in API)
   - [ ] Schema: Add `DiversificationScoreResponse` to `app/schemas/analytics.py`:
         { "available": bool, "portfolio_correlation": float | null, "duration_days": int, "calculation_date": str | null, "symbols_included": int | null, "metadata": { ... } }
   - [ ] Service (read-only): Add `CorrelationService.get_weighted_correlation(portfolio_id, lookback_days, min_overlap)`
@@ -789,6 +790,7 @@ return standardize_datetime_dict(response)
 
   Implementation Plan:
   - [ ] Router: Add new handler to `app/api/v1/analytics/portfolio.py`
+        - API handler is a thin controller: validate inputs, enforce auth/ownership, call service, serialize response only (no ORM or business logic in API)
   - [ ] Schema: Add `PortfolioFactorExposuresResponse` to `app/schemas/analytics.py`:
         { "available": bool, "portfolio_id": str, "calculation_date": str|null, "factors": [{"name": str, "beta": float, "exposure_dollar": float|null}], "metadata": {...} }
   - [ ] Service (read-only): Add `FactorExposureService.get_portfolio_exposures(portfolio_id)`

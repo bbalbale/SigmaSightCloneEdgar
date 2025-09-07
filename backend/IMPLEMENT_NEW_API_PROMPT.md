@@ -107,6 +107,10 @@ Before implementing, check:
 - For portfolio-scoped endpoints, validate ownership: `await validate_portfolio_ownership(db, portfolio_id, current_user.id)`.
 - Never leak portfolios that aren’t owned by the current user.
 
+API handlers are thin controllers:
+- Validate inputs, enforce auth/ownership, call service, serialize response.
+- Do not access ORM or implement business logic in the API layer.
+
 ---
 
 ## Schemas and Serialization
