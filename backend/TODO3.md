@@ -593,8 +593,51 @@ return standardize_datetime_dict(response)
   - [ ] ETF proxies and descriptions
 
 #### 3.0.3.10 Correlation Matrix API - APPROVED FOR IMPLEMENTATION
-- [ ] **3.0.3.10 GET /api/v1/analytics/correlation/{portfolio_id}/matrix** - Correlation matrix (AP  - [ ] Position pairwise correlations
-  - [ ] Use existing correlation engine
+- [ ] Endpoint: `GET /api/v1/analytics/correlation/{portfolio_id}/matrix` — Position pairwise correlation matrix
+  
+  Prompt Inputs (see `backend/IMPLEMENT_NEW_API_PROMPT.md`):
+  - Endpoint ID: 3.0.3.10
+  - Path/Method: GET `/api/v1/analytics/correlation/{portfolio_id}/matrix`
+  - Approved: Yes
+  - Response shape source: API_SPECIFICATIONS_V1.4.5.md §3.5.1 (use 1.4.4 example for shape if needed)
+  - Ownership check: Yes (validate portfolio ownership)
+  - Missing data behavior: 200 OK with metadata `{ "available": false, "reason": "no_calculation_available", "duration_days": lookback_days }`
+  - Pagination: No (payload bounded by portfolio positions; optimize query)
+  - Performance target: < 500ms
+
+  Parameters & Defaults (keep API simple; enforce in service layer):
+  - `lookback_days` (int, default 90; 30–365)
+  - `min_overlap` (int, default 30; 10–365) — filters pairs by `data_points >= min_overlap`
+  - `max_symbols` (int, default 25; hard cap 50) — cap symbols used in output
+  - `min_weight` (float, default 0.01) — drop symbols below 1% gross weight
+  - `selection_by` (enum: `weight` | `explicit`, default `weight`)
+    - `weight`: pick top symbols by current gross market value (abs(quantity*last_price))
+    - `explicit`: require `symbols` CSV query param; use intersection with symbols present in calculation results
+  - `view` (enum: `matrix` | `pairs`, default `matrix`)
+
+  Implementation Plan:
+  - [ ] Router: Add `app/api/v1/analytics/correlation.py` with `APIRouter(prefix="/correlation")`; register in `app/api/v1/analytics/router.py`
+  - [ ] Schema: Add `CorrelationMatrixResponse` to `app/schemas/analytics.py`:
+        { "data": { "matrix": {symbol: {symbol: float}}, "average_correlation": float } }
+  - [ ] Service: Add `CorrelationService.get_matrix(...)` (read path) in `app/services/correlation_service.py`
+        - Source tables: `correlation_calculations`, `pairwise_correlations`
+        - Select latest `CorrelationCalculation` for `{portfolio_id, duration_days=lookback_days}` (or <= as_of if later added)
+        - If none: return 200 OK payload with `available=false` metadata
+        - Filter `PairwiseCorrelation` by `data_points >= min_overlap`
+        - Compute weights from current positions (gross market value) and apply `min_weight`, then choose top `max_symbols` by weight when `selection_by=weight`
+        - If `selection_by=explicit`, parse `symbols` (CSV) and intersect with symbols present in calculation results; then apply `max_symbols`
+        - For `view=matrix`: build symmetric nested map `{symbol: {symbol: corr}}` over selected symbols; set diagonal to 1.0; order symbols by weight
+        - For `view=pairs`: build array of `{symbol_1, symbol_2, correlation, data_points}` for selected symbols, sorted by `abs(correlation)` desc then `data_points` desc; return top 50 fixed (no extra param)
+        - Use `overall_correlation` from calculation as `average_correlation` (fallback: compute mean of off-diagonals)
+  - [ ] Auth/Ownership: `Depends(get_current_user)` + `validate_portfolio_ownership(db, portfolio_id, current_user.id)`
+  - [ ] Error handling: always 200 with `available=false` metadata when no calculation; 500 for unexpected errors
+  - [ ] Logging: include portfolio_id, lookback_days, min_overlap, symbol count, timing
+  - [ ] Docs: Update `API_SPECIFICATIONS_V1.4.5.md` Correlation Analytics with file/function, auth, DB access, purpose, params, example response
+  - [ ] Tests/Manual: Add cURL in spec; optionally add integration test using demo portfolio
+
+  Notes:
+  - Uses existing correlation engine outputs from batch (see 6.4: Correlations run daily)
+  - Consider returning optional metadata in future (calculation_date, positions_included) if added to the spec
 
 #### 3.0.3.11 Diversification Score API - APPROVED FOR IMPLEMENTATION
 **GET /api/v1/analytics/correlation/{portfolio_id}/diversification-score** - Diversification score
@@ -2101,25 +2144,7 @@ Implement an API endpoint to run portfolio stress tests (e.g., scenario shocks t
 Add current cash balance to the portfolio overview API response.
 
 **Status**: 🔄 TODO
-
-### 6.9 Delete unused stubbed out APIs
-
-Remove unused, stubbed endpoints to reduce surface area and confusion.
-
-#### 6.9.1 /api/v1/analytics/portfolio/{id}/var
-- Delete the VaR stub endpoint and any unused handler code.
-
-#### 6.9.2 /api/v1/analytics/portfolio/{id}/optimization
-- Delete the portfolio optimization stub endpoint and any unused handler code.
-
-#### 6.9.3 /api/v1/analytics/portfolio/{id}/factor-attribution
-- Delete the factor attribution stub endpoint and any unused handler code.
-
-#### 6.9.4 /api/v1/analytics/portfolio/{id}/performance
-- Delete the performance stub endpoint and any unused handler code.
-
-**Status**: 🔄 TODO
-
+i
 ---
 
 ## Phase 7: Testing & Deployment (Future)
