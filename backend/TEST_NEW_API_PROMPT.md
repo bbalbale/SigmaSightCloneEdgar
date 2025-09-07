@@ -116,6 +116,8 @@ ls -la app/services/ | grep correlation
 
 ## 5) Authenticate and Get Portfolio ID
 
+### 5.1) Standard Authentication (curl)
+
 1) Login and capture token
 ```bash
 TOKEN=$(curl -s -X POST http://localhost:8000/api/v1/auth/login \
@@ -126,6 +128,125 @@ TOKEN=$(curl -s -X POST http://localhost:8000/api/v1/auth/login \
 ```bash
 curl -s -H "Authorization: Bearer $TOKEN" http://localhost:8000/api/v1/auth/me | jq
 PORTFOLIO_ID=<paste from .portfolio_id>
+```
+
+### 5.2) Authentication Troubleshooting
+
+⚠️ **IMPORTANT**: Bearer token authentication with curl can fail in certain shell environments or with complex tokens. If you encounter 401 Unauthorized errors despite correct credentials, use the Python alternative below.
+
+**Common Issues:**
+- Token not being passed correctly in shell variable expansion
+- Special characters in token causing shell escaping issues
+- Header formatting issues with curl
+
+**Verification Steps:**
+```bash
+# Verify token was captured
+echo "Token length: ${#TOKEN}"
+echo "First 50 chars: ${TOKEN:0:50}..."
+
+# Test token directly (should return user info)
+curl -v -H "Authorization: Bearer $TOKEN" http://localhost:8000/api/v1/auth/me 2>&1 | grep -E "(401|200|portfolio_id)"
+
+# If 401, check token format
+echo $TOKEN | cut -d. -f2 | base64 -d 2>/dev/null | jq .exp || echo "Token decode failed"
+```
+
+### 5.3) Python Alternative (Recommended for Automation)
+
+If curl authentication fails, use this Python script for reliable authentication:
+
+```python
+#!/usr/bin/env python
+"""Reliable authentication test for SigmaSight API"""
+
+import requests
+import json
+import sys
+
+# Configuration
+BASE_URL = "http://localhost:8000"
+EMAIL = "demo_hnw@sigmasight.com"
+PASSWORD = "demo12345"
+
+# Login
+login_response = requests.post(
+    f"{BASE_URL}/api/v1/auth/login",
+    json={"email": EMAIL, "password": PASSWORD}
+)
+
+if login_response.status_code != 200:
+    print(f"❌ Login failed: {login_response.status_code}")
+    print(login_response.text)
+    sys.exit(1)
+
+token = login_response.json().get("access_token")
+if not token:
+    print("❌ No token received")
+    sys.exit(1)
+
+print(f"✅ Got token: {token[:50]}...")
+
+# Verify authentication
+headers = {"Authorization": f"Bearer {token}"}
+me_response = requests.get(f"{BASE_URL}/api/v1/auth/me", headers=headers)
+
+if me_response.status_code != 200:
+    print(f"❌ Auth verification failed: {me_response.status_code}")
+    print(me_response.text)
+    sys.exit(1)
+
+user_data = me_response.json()
+portfolio_id = user_data.get("portfolio_id")
+print(f"✅ Auth works - Portfolio ID: {portfolio_id}")
+print(f"✅ User: {user_data.get('email')}")
+
+# Export for use in bash if needed
+print(f"\n# Export these for bash testing:")
+print(f"export TOKEN='{token}'")
+print(f"export PORTFOLIO_ID='{portfolio_id}'")
+```
+
+Save as `test_auth.py` and run:
+```bash
+uv run python test_auth.py
+# Then source the exports if using bash afterward
+eval $(uv run python test_auth.py | tail -2)
+```
+
+### 5.4) Quick Auth Test Function
+
+Add to your shell for quick auth testing:
+```bash
+# Add to ~/.bashrc or ~/.zshrc
+test_sigmasight_auth() {
+    local TOKEN=$(curl -s -X POST http://localhost:8000/api/v1/auth/login \
+        -H 'Content-Type: application/json' \
+        -d '{"email":"demo_hnw@sigmasight.com","password":"demo12345"}' | jq -r .access_token)
+    
+    if [ -z "$TOKEN" ] || [ "$TOKEN" = "null" ]; then
+        echo "❌ Failed to get token"
+        return 1
+    fi
+    
+    local RESPONSE=$(curl -s -H "Authorization: Bearer $TOKEN" http://localhost:8000/api/v1/auth/me)
+    local PORTFOLIO_ID=$(echo "$RESPONSE" | jq -r .portfolio_id)
+    
+    if [ "$PORTFOLIO_ID" = "null" ]; then
+        echo "❌ Auth failed - no portfolio_id"
+        echo "Response: $RESPONSE"
+        return 1
+    fi
+    
+    echo "✅ Auth successful"
+    echo "Token: ${TOKEN:0:50}..."
+    echo "Portfolio ID: $PORTFOLIO_ID"
+    export TOKEN
+    export PORTFOLIO_ID
+}
+
+# Usage
+test_sigmasight_auth
 ```
 
 ---
@@ -180,6 +301,16 @@ curl -s -H "Authorization: Bearer $TOKEN" \
 # After implementation
 curl -s -H "Authorization: Bearer $TOKEN" \
   "http://localhost:8000/api/v1/analytics/portfolio/$PORTFOLIO_ID/positions/factor-exposures?limit=50&offset=0" | jq
+```
+
+Quick one-shot validation script (read-only):
+```bash
+# Validates 7-factor complete set and 7 factors on first two positions
+chmod +x backend/scripts/test_factor_exposures.sh
+BASE_URL=http://localhost:8000/api/v1 \
+EMAIL=demo_hnw@sigmasight.com \
+PASSWORD=demo12345 \
+backend/scripts/test_factor_exposures.sh
 ```
 
 ### 7.B) Error Response Testing
