@@ -2,228 +2,21 @@
   "session_start": "2025-09-06T20:19:15.876405",
   "status_checks": [
     {
-      "timestamp": "2025-09-07T12:27:16.946633",
+      "timestamp": "2025-09-07T15:18:55.476816",
       "frontend": {
         "status": "error: Cannot connect to host localhost:3005 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 3005, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 3005)]",
         "response_time": 0
       },
       "backend": {
         "status": "running",
-        "response_time": 1.75
+        "response_time": 2.28
       }
     },
     {
-      "timestamp": "2025-09-07T12:27:16.950093",
+      "timestamp": "2025-09-07T15:18:55.482290",
       "login_endpoint": {
         "status": 200,
-        "response_time": 203.04,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 5.2
-      }
-    },
-    {
-      "timestamp": "2025-09-07T12:27:47.162017",
-      "frontend": {
-        "status": "error: Cannot connect to host localhost:3005 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 3005, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 3005)]",
-        "response_time": 0
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 1.73
-      }
-    },
-    {
-      "timestamp": "2025-09-07T12:27:47.166132",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 212.92,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 3.77
-      }
-    },
-    {
-      "timestamp": "2025-09-07T12:28:17.385315",
-      "frontend": {
-        "status": "error: Cannot connect to host localhost:3005 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 3005, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 3005)]",
-        "response_time": 0
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 1.91
-      }
-    },
-    {
-      "timestamp": "2025-09-07T12:28:17.389919",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 203.97,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 4.62
-      }
-    },
-    {
-      "timestamp": "2025-09-07T12:28:47.600895",
-      "frontend": {
-        "status": "error: Cannot connect to host localhost:3005 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 3005, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 3005)]",
-        "response_time": 0
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 1.81
-      }
-    },
-    {
-      "timestamp": "2025-09-07T12:28:47.605443",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 199.68,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 4.37
-      }
-    },
-    {
-      "timestamp": "2025-09-07T12:29:17.811911",
-      "frontend": {
-        "status": "error: Cannot connect to host localhost:3005 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 3005, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 3005)]",
-        "response_time": 0
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 2.26
-      }
-    },
-    {
-      "timestamp": "2025-09-07T12:29:17.816354",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 185.82,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 3.4
-      }
-    },
-    {
-      "timestamp": "2025-09-07T12:29:48.008950",
-      "frontend": {
-        "status": "error: Cannot connect to host localhost:3005 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 3005, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 3005)]",
-        "response_time": 0
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 1.85
-      }
-    },
-    {
-      "timestamp": "2025-09-07T12:29:48.014538",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 204.15,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 4.43
-      }
-    },
-    {
-      "timestamp": "2025-09-07T12:30:18.225653",
-      "frontend": {
-        "status": "error: Cannot connect to host localhost:3005 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 3005, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 3005)]",
-        "response_time": 0
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 2.32
-      }
-    },
-    {
-      "timestamp": "2025-09-07T12:30:18.230945",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 204.46,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 4.02
-      }
-    },
-    {
-      "timestamp": "2025-09-07T12:30:48.441832",
-      "frontend": {
-        "status": "error: Cannot connect to host localhost:3005 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 3005, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 3005)]",
-        "response_time": 0
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 1.82
-      }
-    },
-    {
-      "timestamp": "2025-09-07T12:30:48.445625",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 198.12,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 4.16
-      }
-    },
-    {
-      "timestamp": "2025-09-07T12:31:18.650262",
-      "frontend": {
-        "status": "error: Cannot connect to host localhost:3005 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 3005, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 3005)]",
-        "response_time": 0
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 1.83
-      }
-    },
-    {
-      "timestamp": "2025-09-07T12:31:18.654607",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 200.16,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 3.61
-      }
-    },
-    {
-      "timestamp": "2025-09-07T12:31:48.860714",
-      "frontend": {
-        "status": "error: Cannot connect to host localhost:3005 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 3005, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 3005)]",
-        "response_time": 0
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 1.35
-      }
-    },
-    {
-      "timestamp": "2025-09-07T12:31:48.863400",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 200.49,
+        "response_time": 208.85,
         "has_token": true
       },
       "me_endpoint": {
@@ -232,490 +25,7 @@
       }
     },
     {
-      "timestamp": "2025-09-07T12:32:19.070387",
-      "frontend": {
-        "status": "error: Cannot connect to host localhost:3005 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 3005, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 3005)]",
-        "response_time": 0
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 2.04
-      }
-    },
-    {
-      "timestamp": "2025-09-07T12:32:19.075342",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 203.18,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 2.92
-      }
-    },
-    {
-      "timestamp": "2025-09-07T12:32:49.283968",
-      "frontend": {
-        "status": "error: Cannot connect to host localhost:3005 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 3005, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 3005)]",
-        "response_time": 0
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 2.56
-      }
-    },
-    {
-      "timestamp": "2025-09-07T12:32:49.289822",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 209.17,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 3.21
-      }
-    },
-    {
-      "timestamp": "2025-09-07T12:33:19.504747",
-      "frontend": {
-        "status": "error: Cannot connect to host localhost:3005 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 3005, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 3005)]",
-        "response_time": 0
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 2.17
-      }
-    },
-    {
-      "timestamp": "2025-09-07T12:33:19.509982",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 211.47,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 4.28
-      }
-    },
-    {
-      "timestamp": "2025-09-07T12:33:24.727093",
-      "frontend": {
-        "status": "error: Cannot connect to host localhost:3005 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 3005, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 3005)]",
-        "response_time": 0
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 1.38
-      }
-    },
-    {
-      "timestamp": "2025-09-07T12:33:24.729769",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 197.76,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 2.95
-      }
-    },
-    {
-      "timestamp": "2025-09-07T12:33:54.934217",
-      "frontend": {
-        "status": "error: Cannot connect to host localhost:3005 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 3005, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 3005)]",
-        "response_time": 0
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 2.0
-      }
-    },
-    {
-      "timestamp": "2025-09-07T12:33:54.939128",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 201.46,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 3.8
-      }
-    },
-    {
-      "timestamp": "2025-09-07T12:34:25.146814",
-      "frontend": {
-        "status": "error: Cannot connect to host localhost:3005 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 3005, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 3005)]",
-        "response_time": 0
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 2.27
-      }
-    },
-    {
-      "timestamp": "2025-09-07T12:34:25.151499",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 203.09,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 4.3
-      }
-    },
-    {
-      "timestamp": "2025-09-07T12:34:55.361549",
-      "frontend": {
-        "status": "error: Cannot connect to host localhost:3005 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 3005, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 3005)]",
-        "response_time": 0
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 1.92
-      }
-    },
-    {
-      "timestamp": "2025-09-07T12:34:55.366495",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 203.29,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 4.57
-      }
-    },
-    {
-      "timestamp": "2025-09-07T12:35:25.576803",
-      "frontend": {
-        "status": "error: Cannot connect to host localhost:3005 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 3005, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 3005)]",
-        "response_time": 0
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 2.24
-      }
-    },
-    {
-      "timestamp": "2025-09-07T12:35:25.581836",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 268.66,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 6.84
-      }
-    },
-    {
-      "timestamp": "2025-09-07T12:35:55.859756",
-      "frontend": {
-        "status": "error: Cannot connect to host localhost:3005 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 3005, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 3005)]",
-        "response_time": 0
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 2.79
-      }
-    },
-    {
-      "timestamp": "2025-09-07T12:35:55.864860",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 203.73,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 4.41
-      }
-    },
-    {
-      "timestamp": "2025-09-07T12:36:26.076606",
-      "frontend": {
-        "status": "error: Cannot connect to host localhost:3005 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 3005, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 3005)]",
-        "response_time": 0
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 4.23
-      }
-    },
-    {
-      "timestamp": "2025-09-07T12:36:26.082906",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 216.22,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 4.96
-      }
-    },
-    {
-      "timestamp": "2025-09-07T12:36:56.306465",
-      "frontend": {
-        "status": "error: Cannot connect to host localhost:3005 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 3005, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 3005)]",
-        "response_time": 0
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 2.09
-      }
-    },
-    {
-      "timestamp": "2025-09-07T12:36:56.310925",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 202.83,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 4.12
-      }
-    },
-    {
-      "timestamp": "2025-09-07T12:37:26.520284",
-      "frontend": {
-        "status": "error: Cannot connect to host localhost:3005 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 3005, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 3005)]",
-        "response_time": 0
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 2.42
-      }
-    },
-    {
-      "timestamp": "2025-09-07T12:37:26.525885",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 205.02,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 3.74
-      }
-    },
-    {
-      "timestamp": "2025-09-07T12:37:56.737099",
-      "frontend": {
-        "status": "error: Cannot connect to host localhost:3005 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 3005, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 3005)]",
-        "response_time": 0
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 2.19
-      }
-    },
-    {
-      "timestamp": "2025-09-07T12:37:56.742260",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 205.13,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 3.92
-      }
-    },
-    {
-      "timestamp": "2025-09-07T12:38:26.954177",
-      "frontend": {
-        "status": "error: Cannot connect to host localhost:3005 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 3005, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 3005)]",
-        "response_time": 0
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 1.9
-      }
-    },
-    {
-      "timestamp": "2025-09-07T12:38:26.959643",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 206.29,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 2.7
-      }
-    },
-    {
-      "timestamp": "2025-09-07T12:38:57.171200",
-      "frontend": {
-        "status": "error: Cannot connect to host localhost:3005 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 3005, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 3005)]",
-        "response_time": 0
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 3.23
-      }
-    },
-    {
-      "timestamp": "2025-09-07T12:38:57.177560",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 211.72,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 2.39
-      }
-    },
-    {
-      "timestamp": "2025-09-07T12:39:27.394104",
-      "frontend": {
-        "status": "error: Cannot connect to host localhost:3005 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 3005, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 3005)]",
-        "response_time": 0
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 2.03
-      }
-    },
-    {
-      "timestamp": "2025-09-07T12:39:27.398344",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 197.79,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 4.35
-      }
-    },
-    {
-      "timestamp": "2025-09-07T12:39:57.603828",
-      "frontend": {
-        "status": "error: Cannot connect to host localhost:3005 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 3005, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 3005)]",
-        "response_time": 0
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 1.44
-      }
-    },
-    {
-      "timestamp": "2025-09-07T12:39:57.607340",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 196.35,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 4.4
-      }
-    },
-    {
-      "timestamp": "2025-09-07T12:40:27.810576",
-      "frontend": {
-        "status": "error: Cannot connect to host localhost:3005 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 3005, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 3005)]",
-        "response_time": 0
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 2.15
-      }
-    },
-    {
-      "timestamp": "2025-09-07T12:40:27.815799",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 203.62,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 3.58
-      }
-    },
-    {
-      "timestamp": "2025-09-07T12:40:58.025457",
-      "frontend": {
-        "status": "error: Cannot connect to host localhost:3005 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 3005, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 3005)]",
-        "response_time": 0
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 1.7
-      }
-    },
-    {
-      "timestamp": "2025-09-07T12:40:58.029326",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 197.76,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 4.28
-      }
-    },
-    {
-      "timestamp": "2025-09-07T12:41:28.234367",
-      "frontend": {
-        "status": "error: Cannot connect to host localhost:3005 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 3005, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 3005)]",
-        "response_time": 0
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 1.46
-      }
-    },
-    {
-      "timestamp": "2025-09-07T12:41:28.237206",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 260.2,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 5.45
-      }
-    },
-    {
-      "timestamp": "2025-09-07T12:41:58.505211",
-      "frontend": {
-        "status": "error: Cannot connect to host localhost:3005 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 3005, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 3005)]",
-        "response_time": 0
-      },
-      "backend": {
-        "status": "running",
-        "response_time": 2.11
-      }
-    },
-    {
-      "timestamp": "2025-09-07T12:41:58.509391",
-      "login_endpoint": {
-        "status": 200,
-        "response_time": 193.53,
-        "has_token": true
-      },
-      "me_endpoint": {
-        "status": 200,
-        "response_time": 3.53
-      }
-    },
-    {
-      "timestamp": "2025-09-07T12:42:03.707865",
+      "timestamp": "2025-09-07T15:19:25.698718",
       "frontend": {
         "status": "error: Cannot connect to host localhost:3005 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 3005, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 3005)]",
         "response_time": 0
@@ -726,111 +36,272 @@
       }
     },
     {
-      "timestamp": "2025-09-07T12:42:03.712495",
+      "timestamp": "2025-09-07T15:19:25.703948",
       "login_endpoint": {
         "status": 200,
-        "response_time": 201.95,
+        "response_time": 213.63,
         "has_token": true
       },
       "me_endpoint": {
         "status": 200,
-        "response_time": 4.14
+        "response_time": 3.37
       }
     },
     {
-      "timestamp": "2025-09-07T12:42:33.920934",
+      "timestamp": "2025-09-07T15:19:55.924849",
       "frontend": {
         "status": "error: Cannot connect to host localhost:3005 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 3005, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 3005)]",
         "response_time": 0
       },
       "backend": {
         "status": "running",
-        "response_time": 1.9
+        "response_time": 4.04
       }
     },
     {
-      "timestamp": "2025-09-07T12:42:33.924982",
+      "timestamp": "2025-09-07T15:19:55.933761",
       "login_endpoint": {
         "status": 200,
-        "response_time": 200.8,
+        "response_time": 218.71,
         "has_token": true
       },
       "me_endpoint": {
         "status": 200,
-        "response_time": 4.41
+        "response_time": 3.74
       }
     },
     {
-      "timestamp": "2025-09-07T12:43:04.132597",
+      "timestamp": "2025-09-07T15:20:26.159700",
       "frontend": {
         "status": "error: Cannot connect to host localhost:3005 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 3005, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 3005)]",
         "response_time": 0
       },
       "backend": {
         "status": "running",
-        "response_time": 1.98
+        "response_time": 1.68
       }
     },
     {
-      "timestamp": "2025-09-07T12:43:04.137498",
+      "timestamp": "2025-09-07T15:20:26.164078",
       "login_endpoint": {
         "status": 200,
-        "response_time": 203.13,
+        "response_time": 202.93,
         "has_token": true
       },
       "me_endpoint": {
         "status": 200,
-        "response_time": 4.33
+        "response_time": 3.53
       }
     },
     {
-      "timestamp": "2025-09-07T12:43:34.348833",
+      "timestamp": "2025-09-07T15:20:56.374069",
       "frontend": {
         "status": "error: Cannot connect to host localhost:3005 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 3005, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 3005)]",
         "response_time": 0
       },
       "backend": {
         "status": "running",
-        "response_time": 2.07
+        "response_time": 2.21
       }
     },
     {
-      "timestamp": "2025-09-07T12:43:34.358207",
+      "timestamp": "2025-09-07T15:20:56.379394",
       "login_endpoint": {
         "status": 200,
-        "response_time": 201.21,
+        "response_time": 203.56,
         "has_token": true
       },
       "me_endpoint": {
         "status": 200,
-        "response_time": 3.2
+        "response_time": 4.36
       }
     },
     {
-      "timestamp": "2025-09-07T12:44:04.556709",
+      "timestamp": "2025-09-07T15:21:26.590747",
       "frontend": {
         "status": "error: Cannot connect to host localhost:3005 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 3005, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 3005)]",
         "response_time": 0
       },
       "backend": {
         "status": "running",
-        "response_time": 2.03
+        "response_time": 2.39
       }
     },
     {
-      "timestamp": "2025-09-07T12:44:04.561511",
+      "timestamp": "2025-09-07T15:21:26.596035",
       "login_endpoint": {
         "status": 200,
-        "response_time": 209.96,
+        "response_time": 204.4,
         "has_token": true
       },
       "me_endpoint": {
         "status": 200,
-        "response_time": 4.13
+        "response_time": 4.98
       }
     },
     {
-      "timestamp": "2025-09-07T12:44:34.775837",
+      "timestamp": "2025-09-07T15:21:56.808864",
+      "frontend": {
+        "status": "error: Cannot connect to host localhost:3005 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 3005, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 3005)]",
+        "response_time": 0
+      },
+      "backend": {
+        "status": "running",
+        "response_time": 2.31
+      }
+    },
+    {
+      "timestamp": "2025-09-07T15:21:56.814288",
+      "login_endpoint": {
+        "status": 200,
+        "response_time": 203.06,
+        "has_token": true
+      },
+      "me_endpoint": {
+        "status": 200,
+        "response_time": 4.16
+      }
+    },
+    {
+      "timestamp": "2025-09-07T15:22:27.025756",
+      "frontend": {
+        "status": "error: Cannot connect to host localhost:3005 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 3005, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 3005)]",
+        "response_time": 0
+      },
+      "backend": {
+        "status": "running",
+        "response_time": 2.2
+      }
+    },
+    {
+      "timestamp": "2025-09-07T15:22:27.030996",
+      "login_endpoint": {
+        "status": 200,
+        "response_time": 203.91,
+        "has_token": true
+      },
+      "me_endpoint": {
+        "status": 200,
+        "response_time": 4.32
+      }
+    },
+    {
+      "timestamp": "2025-09-07T15:22:57.242733",
+      "frontend": {
+        "status": "error: Cannot connect to host localhost:3005 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 3005, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 3005)]",
+        "response_time": 0
+      },
+      "backend": {
+        "status": "running",
+        "response_time": 2.04
+      }
+    },
+    {
+      "timestamp": "2025-09-07T15:22:57.247554",
+      "login_endpoint": {
+        "status": 200,
+        "response_time": 204.26,
+        "has_token": true
+      },
+      "me_endpoint": {
+        "status": 200,
+        "response_time": 4.37
+      }
+    },
+    {
+      "timestamp": "2025-09-07T15:23:27.459500",
+      "frontend": {
+        "status": "error: Cannot connect to host localhost:3005 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 3005, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 3005)]",
+        "response_time": 0
+      },
+      "backend": {
+        "status": "running",
+        "response_time": 1.87
+      }
+    },
+    {
+      "timestamp": "2025-09-07T15:23:27.463623",
+      "login_endpoint": {
+        "status": 200,
+        "response_time": 197.84,
+        "has_token": true
+      },
+      "me_endpoint": {
+        "status": 200,
+        "response_time": 5.0
+      }
+    },
+    {
+      "timestamp": "2025-09-07T15:23:57.669946",
+      "frontend": {
+        "status": "error: Cannot connect to host localhost:3005 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 3005, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 3005)]",
+        "response_time": 0
+      },
+      "backend": {
+        "status": "running",
+        "response_time": 2.33
+      }
+    },
+    {
+      "timestamp": "2025-09-07T15:23:57.674631",
+      "login_endpoint": {
+        "status": 200,
+        "response_time": 203.82,
+        "has_token": true
+      },
+      "me_endpoint": {
+        "status": 200,
+        "response_time": 4.15
+      }
+    },
+    {
+      "timestamp": "2025-09-07T15:24:02.885069",
+      "frontend": {
+        "status": "error: Cannot connect to host localhost:3005 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 3005, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 3005)]",
+        "response_time": 0
+      },
+      "backend": {
+        "status": "running",
+        "response_time": 2.32
+      }
+    },
+    {
+      "timestamp": "2025-09-07T15:24:02.890412",
+      "login_endpoint": {
+        "status": 200,
+        "response_time": 202.76,
+        "has_token": true
+      },
+      "me_endpoint": {
+        "status": 200,
+        "response_time": 4.3
+      }
+    },
+    {
+      "timestamp": "2025-09-07T15:24:33.101862",
+      "frontend": {
+        "status": "error: Cannot connect to host localhost:3005 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 3005, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 3005)]",
+        "response_time": 0
+      },
+      "backend": {
+        "status": "running",
+        "response_time": 2.62
+      }
+    },
+    {
+      "timestamp": "2025-09-07T15:24:33.107484",
+      "login_endpoint": {
+        "status": 200,
+        "response_time": 205.06,
+        "has_token": true
+      },
+      "me_endpoint": {
+        "status": 200,
+        "response_time": 4.71
+      }
+    },
+    {
+      "timestamp": "2025-09-07T15:25:03.321080",
       "frontend": {
         "status": "error: Cannot connect to host localhost:3005 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 3005, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 3005)]",
         "response_time": 0
@@ -841,88 +312,180 @@
       }
     },
     {
-      "timestamp": "2025-09-07T12:44:34.780849",
+      "timestamp": "2025-09-07T15:25:03.326121",
       "login_endpoint": {
         "status": 200,
-        "response_time": 206.82,
+        "response_time": 203.85,
         "has_token": true
       },
       "me_endpoint": {
         "status": 200,
-        "response_time": 4.13
+        "response_time": 3.89
       }
     },
     {
-      "timestamp": "2025-09-07T12:45:04.993815",
+      "timestamp": "2025-09-07T15:25:33.537404",
       "frontend": {
         "status": "error: Cannot connect to host localhost:3005 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 3005, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 3005)]",
         "response_time": 0
       },
       "backend": {
         "status": "running",
-        "response_time": 2.8
+        "response_time": 1.93
       }
     },
     {
-      "timestamp": "2025-09-07T12:45:04.998397",
+      "timestamp": "2025-09-07T15:25:33.543014",
       "login_endpoint": {
         "status": 200,
-        "response_time": 200.79,
+        "response_time": 203.84,
         "has_token": true
       },
       "me_endpoint": {
         "status": 200,
-        "response_time": 2.5
+        "response_time": 4.96
       }
     },
     {
-      "timestamp": "2025-09-07T12:45:35.203833",
+      "timestamp": "2025-09-07T15:26:03.755172",
       "frontend": {
         "status": "error: Cannot connect to host localhost:3005 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 3005, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 3005)]",
         "response_time": 0
       },
       "backend": {
         "status": "running",
-        "response_time": 1.61
+        "response_time": 1.75
       }
     },
     {
-      "timestamp": "2025-09-07T12:45:35.207183",
+      "timestamp": "2025-09-07T15:26:03.759177",
       "login_endpoint": {
         "status": 200,
-        "response_time": 195.88,
+        "response_time": 200.87,
         "has_token": true
       },
       "me_endpoint": {
         "status": 200,
-        "response_time": 4.54
+        "response_time": 4.3
       }
     },
     {
-      "timestamp": "2025-09-07T12:46:05.409833",
+      "timestamp": "2025-09-07T15:26:33.967792",
       "frontend": {
         "status": "error: Cannot connect to host localhost:3005 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 3005, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 3005)]",
         "response_time": 0
       },
       "backend": {
         "status": "running",
-        "response_time": 1.59
+        "response_time": 1.92
       }
     },
     {
-      "timestamp": "2025-09-07T12:46:05.413611",
+      "timestamp": "2025-09-07T15:26:33.971824",
       "login_endpoint": {
         "status": 200,
-        "response_time": 201.92,
+        "response_time": 199.84,
         "has_token": true
       },
       "me_endpoint": {
         "status": 200,
-        "response_time": 4.06
+        "response_time": 4.09
       }
     },
     {
-      "timestamp": "2025-09-07T12:46:35.621936",
+      "timestamp": "2025-09-07T15:27:04.179814",
+      "frontend": {
+        "status": "error: Cannot connect to host localhost:3005 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 3005, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 3005)]",
+        "response_time": 0
+      },
+      "backend": {
+        "status": "running",
+        "response_time": 2.64
+      }
+    },
+    {
+      "timestamp": "2025-09-07T15:27:04.184681",
+      "login_endpoint": {
+        "status": 200,
+        "response_time": 204.8,
+        "has_token": true
+      },
+      "me_endpoint": {
+        "status": 200,
+        "response_time": 3.59
+      }
+    },
+    {
+      "timestamp": "2025-09-07T15:27:34.397010",
+      "frontend": {
+        "status": "error: Cannot connect to host localhost:3005 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 3005, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 3005)]",
+        "response_time": 0
+      },
+      "backend": {
+        "status": "running",
+        "response_time": 2.92
+      }
+    },
+    {
+      "timestamp": "2025-09-07T15:27:34.403991",
+      "login_endpoint": {
+        "status": 200,
+        "response_time": 211.48,
+        "has_token": true
+      },
+      "me_endpoint": {
+        "status": 200,
+        "response_time": 3.92
+      }
+    },
+    {
+      "timestamp": "2025-09-07T15:28:04.622911",
+      "frontend": {
+        "status": "error: Cannot connect to host localhost:3005 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 3005, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 3005)]",
+        "response_time": 0
+      },
+      "backend": {
+        "status": "running",
+        "response_time": 2.4
+      }
+    },
+    {
+      "timestamp": "2025-09-07T15:28:04.628801",
+      "login_endpoint": {
+        "status": 200,
+        "response_time": 224.0,
+        "has_token": true
+      },
+      "me_endpoint": {
+        "status": 200,
+        "response_time": 3.42
+      }
+    },
+    {
+      "timestamp": "2025-09-07T15:28:34.859723",
+      "frontend": {
+        "status": "error: Cannot connect to host localhost:3005 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 3005, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 3005)]",
+        "response_time": 0
+      },
+      "backend": {
+        "status": "running",
+        "response_time": 2.72
+      }
+    },
+    {
+      "timestamp": "2025-09-07T15:28:34.865774",
+      "login_endpoint": {
+        "status": 200,
+        "response_time": 207.11,
+        "has_token": true
+      },
+      "me_endpoint": {
+        "status": 200,
+        "response_time": 3.41
+      }
+    },
+    {
+      "timestamp": "2025-09-07T15:29:05.079913",
       "frontend": {
         "status": "error: Cannot connect to host localhost:3005 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 3005, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 3005)]",
         "response_time": 0
@@ -933,157 +496,364 @@
       }
     },
     {
-      "timestamp": "2025-09-07T12:46:35.627118",
+      "timestamp": "2025-09-07T15:29:05.085152",
       "login_endpoint": {
         "status": 200,
-        "response_time": 204.4,
+        "response_time": 204.35,
         "has_token": true
       },
       "me_endpoint": {
         "status": 200,
-        "response_time": 4.08
+        "response_time": 4.61
       }
     },
     {
-      "timestamp": "2025-09-07T12:47:05.837912",
+      "timestamp": "2025-09-07T15:29:35.297553",
       "frontend": {
         "status": "error: Cannot connect to host localhost:3005 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 3005, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 3005)]",
         "response_time": 0
       },
       "backend": {
         "status": "running",
-        "response_time": 1.71
+        "response_time": 1.73
       }
     },
     {
-      "timestamp": "2025-09-07T12:47:05.841809",
+      "timestamp": "2025-09-07T15:29:35.302155",
       "login_endpoint": {
         "status": 200,
-        "response_time": 203.93,
+        "response_time": 203.44,
         "has_token": true
       },
       "me_endpoint": {
         "status": 200,
-        "response_time": 3.92
+        "response_time": 4.78
       }
     },
     {
-      "timestamp": "2025-09-07T12:47:36.051902",
+      "timestamp": "2025-09-07T15:30:05.514014",
       "frontend": {
         "status": "error: Cannot connect to host localhost:3005 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 3005, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 3005)]",
         "response_time": 0
       },
       "backend": {
         "status": "running",
-        "response_time": 1.7
+        "response_time": 2.19
       }
     },
     {
-      "timestamp": "2025-09-07T12:47:36.055926",
+      "timestamp": "2025-09-07T15:30:05.519354",
       "login_endpoint": {
         "status": 200,
-        "response_time": 192.32,
+        "response_time": 200.67,
         "has_token": true
       },
       "me_endpoint": {
         "status": 200,
-        "response_time": 4.5
+        "response_time": 4.02
       }
     },
     {
-      "timestamp": "2025-09-07T12:48:06.254979",
+      "timestamp": "2025-09-07T15:30:35.727500",
       "frontend": {
         "status": "error: Cannot connect to host localhost:3005 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 3005, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 3005)]",
         "response_time": 0
       },
       "backend": {
         "status": "running",
-        "response_time": 2.15
+        "response_time": 2.31
       }
     },
     {
-      "timestamp": "2025-09-07T12:48:06.259901",
+      "timestamp": "2025-09-07T15:30:35.732783",
       "login_endpoint": {
         "status": 200,
-        "response_time": 201.39,
+        "response_time": 203.59,
         "has_token": true
       },
       "me_endpoint": {
         "status": 200,
-        "response_time": 2.86
+        "response_time": 3.1
       }
     },
     {
-      "timestamp": "2025-09-07T12:48:36.466463",
+      "timestamp": "2025-09-07T15:31:05.942918",
       "frontend": {
         "status": "error: Cannot connect to host localhost:3005 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 3005, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 3005)]",
         "response_time": 0
       },
       "backend": {
         "status": "running",
-        "response_time": 1.88
+        "response_time": 2.13
       }
     },
     {
-      "timestamp": "2025-09-07T12:48:36.470679",
+      "timestamp": "2025-09-07T15:31:05.947806",
       "login_endpoint": {
         "status": 200,
-        "response_time": 202.6,
+        "response_time": 204.23,
         "has_token": true
       },
       "me_endpoint": {
         "status": 200,
-        "response_time": 2.9
+        "response_time": 4.74
       }
     },
     {
-      "timestamp": "2025-09-07T12:49:06.678533",
+      "timestamp": "2025-09-07T15:31:36.160134",
       "frontend": {
         "status": "error: Cannot connect to host localhost:3005 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 3005, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 3005)]",
         "response_time": 0
       },
       "backend": {
         "status": "running",
-        "response_time": 1.84
+        "response_time": 2.03
       }
     },
     {
-      "timestamp": "2025-09-07T12:49:06.682475",
+      "timestamp": "2025-09-07T15:31:36.164361",
       "login_endpoint": {
         "status": 200,
-        "response_time": 196.03,
+        "response_time": 204.6,
         "has_token": true
       },
       "me_endpoint": {
         "status": 200,
-        "response_time": 4.18
+        "response_time": 4.36
       }
     },
     {
-      "timestamp": "2025-09-07T12:49:36.884918",
+      "timestamp": "2025-09-07T15:32:06.376809",
       "frontend": {
         "status": "error: Cannot connect to host localhost:3005 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 3005, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 3005)]",
         "response_time": 0
       },
       "backend": {
         "status": "running",
-        "response_time": 2.15
+        "response_time": 2.19
       }
     },
     {
-      "timestamp": "2025-09-07T12:49:36.889837",
+      "timestamp": "2025-09-07T15:32:06.381832",
       "login_endpoint": {
         "status": 200,
-        "response_time": 205.38,
+        "response_time": 204.98,
         "has_token": true
       },
       "me_endpoint": {
         "status": 200,
-        "response_time": 4.01
+        "response_time": 4.39
       }
     },
     {
-      "timestamp": "2025-09-07T12:50:07.101470",
+      "timestamp": "2025-09-07T15:32:36.594608",
+      "frontend": {
+        "status": "error: Cannot connect to host localhost:3005 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 3005, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 3005)]",
+        "response_time": 0
+      },
+      "backend": {
+        "status": "running",
+        "response_time": 1.75
+      }
+    },
+    {
+      "timestamp": "2025-09-07T15:32:36.598917",
+      "login_endpoint": {
+        "status": 200,
+        "response_time": 204.52,
+        "has_token": true
+      },
+      "me_endpoint": {
+        "status": 200,
+        "response_time": 4.42
+      }
+    },
+    {
+      "timestamp": "2025-09-07T15:32:41.810341",
+      "frontend": {
+        "status": "error: Cannot connect to host localhost:3005 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 3005, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 3005)]",
+        "response_time": 0
+      },
+      "backend": {
+        "status": "running",
+        "response_time": 2.41
+      }
+    },
+    {
+      "timestamp": "2025-09-07T15:32:41.815828",
+      "login_endpoint": {
+        "status": 200,
+        "response_time": 203.89,
+        "has_token": true
+      },
+      "me_endpoint": {
+        "status": 200,
+        "response_time": 4.71
+      }
+    },
+    {
+      "timestamp": "2025-09-07T15:33:12.029015",
+      "frontend": {
+        "status": "error: Cannot connect to host localhost:3005 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 3005, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 3005)]",
+        "response_time": 0
+      },
+      "backend": {
+        "status": "running",
+        "response_time": 1.95
+      }
+    },
+    {
+      "timestamp": "2025-09-07T15:33:12.034685",
+      "login_endpoint": {
+        "status": 200,
+        "response_time": 205.52,
+        "has_token": true
+      },
+      "me_endpoint": {
+        "status": 200,
+        "response_time": 4.64
+      }
+    },
+    {
+      "timestamp": "2025-09-07T15:33:42.248315",
+      "frontend": {
+        "status": "error: Cannot connect to host localhost:3005 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 3005, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 3005)]",
+        "response_time": 0
+      },
+      "backend": {
+        "status": "running",
+        "response_time": 2.22
+      }
+    },
+    {
+      "timestamp": "2025-09-07T15:33:42.253559",
+      "login_endpoint": {
+        "status": 200,
+        "response_time": 203.73,
+        "has_token": true
+      },
+      "me_endpoint": {
+        "status": 200,
+        "response_time": 4.48
+      }
+    },
+    {
+      "timestamp": "2025-09-07T15:34:12.465310",
+      "frontend": {
+        "status": "error: Cannot connect to host localhost:3005 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 3005, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 3005)]",
+        "response_time": 0
+      },
+      "backend": {
+        "status": "running",
+        "response_time": 1.53
+      }
+    },
+    {
+      "timestamp": "2025-09-07T15:34:12.468776",
+      "login_endpoint": {
+        "status": 200,
+        "response_time": 202.2,
+        "has_token": true
+      },
+      "me_endpoint": {
+        "status": 200,
+        "response_time": 3.85
+      }
+    },
+    {
+      "timestamp": "2025-09-07T15:34:42.678224",
+      "frontend": {
+        "status": "error: Cannot connect to host localhost:3005 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 3005, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 3005)]",
+        "response_time": 0
+      },
+      "backend": {
+        "status": "running",
+        "response_time": 2.01
+      }
+    },
+    {
+      "timestamp": "2025-09-07T15:34:42.681844",
+      "login_endpoint": {
+        "status": 200,
+        "response_time": 200.77,
+        "has_token": true
+      },
+      "me_endpoint": {
+        "status": 200,
+        "response_time": 3.88
+      }
+    },
+    {
+      "timestamp": "2025-09-07T15:35:12.888642",
+      "frontend": {
+        "status": "error: Cannot connect to host localhost:3005 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 3005, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 3005)]",
+        "response_time": 0
+      },
+      "backend": {
+        "status": "running",
+        "response_time": 1.3
+      }
+    },
+    {
+      "timestamp": "2025-09-07T15:35:12.891209",
+      "login_endpoint": {
+        "status": 200,
+        "response_time": 201.87,
+        "has_token": true
+      },
+      "me_endpoint": {
+        "status": 200,
+        "response_time": 4.13
+      }
+    },
+    {
+      "timestamp": "2025-09-07T15:35:43.100678",
+      "frontend": {
+        "status": "error: Cannot connect to host localhost:3005 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 3005, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 3005)]",
+        "response_time": 0
+      },
+      "backend": {
+        "status": "running",
+        "response_time": 2.07
+      }
+    },
+    {
+      "timestamp": "2025-09-07T15:35:43.105629",
+      "login_endpoint": {
+        "status": 200,
+        "response_time": 208.28,
+        "has_token": true
+      },
+      "me_endpoint": {
+        "status": 200,
+        "response_time": 5.0
+      }
+    },
+    {
+      "timestamp": "2025-09-07T15:36:13.322316",
+      "frontend": {
+        "status": "error: Cannot connect to host localhost:3005 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 3005, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 3005)]",
+        "response_time": 0
+      },
+      "backend": {
+        "status": "running",
+        "response_time": 2.12
+      }
+    },
+    {
+      "timestamp": "2025-09-07T15:36:13.327440",
+      "login_endpoint": {
+        "status": 200,
+        "response_time": 212.8,
+        "has_token": true
+      },
+      "me_endpoint": {
+        "status": 200,
+        "response_time": 3.07
+      }
+    },
+    {
+      "timestamp": "2025-09-07T15:36:43.546829",
       "frontend": {
         "status": "error: Cannot connect to host localhost:3005 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 3005, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 3005)]",
         "response_time": 0
@@ -1094,84 +864,314 @@
       }
     },
     {
-      "timestamp": "2025-09-07T12:50:07.106188",
+      "timestamp": "2025-09-07T15:36:43.552058",
       "login_endpoint": {
         "status": 200,
-        "response_time": 254.72,
+        "response_time": 204.93,
         "has_token": true
       },
       "me_endpoint": {
         "status": 200,
-        "response_time": 5.94
+        "response_time": 3.61
       }
     },
     {
-      "timestamp": "2025-09-07T12:50:37.369591",
+      "timestamp": "2025-09-07T15:37:13.764208",
       "frontend": {
         "status": "error: Cannot connect to host localhost:3005 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 3005, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 3005)]",
         "response_time": 0
       },
       "backend": {
         "status": "running",
-        "response_time": 2.37
+        "response_time": 2.39
       }
     },
     {
-      "timestamp": "2025-09-07T12:50:37.375740",
+      "timestamp": "2025-09-07T15:37:13.769552",
       "login_endpoint": {
         "status": 200,
-        "response_time": 203.35,
+        "response_time": 204.74,
         "has_token": true
       },
       "me_endpoint": {
         "status": 200,
-        "response_time": 3.07
+        "response_time": 2.9
       }
     },
     {
-      "timestamp": "2025-09-07T12:50:42.583628",
+      "timestamp": "2025-09-07T15:37:43.981030",
       "frontend": {
         "status": "error: Cannot connect to host localhost:3005 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 3005, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 3005)]",
         "response_time": 0
       },
       "backend": {
         "status": "running",
-        "response_time": 2.29
+        "response_time": 3.03
       }
     },
     {
-      "timestamp": "2025-09-07T12:50:42.588972",
+      "timestamp": "2025-09-07T15:37:43.989410",
       "login_endpoint": {
         "status": 200,
-        "response_time": 205.89,
+        "response_time": 204.91,
         "has_token": true
       },
       "me_endpoint": {
         "status": 200,
-        "response_time": 4.42
+        "response_time": 4.19
       }
     },
     {
-      "timestamp": "2025-09-07T12:51:12.801529",
+      "timestamp": "2025-09-07T15:38:14.201965",
       "frontend": {
         "status": "error: Cannot connect to host localhost:3005 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 3005, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 3005)]",
         "response_time": 0
       },
       "backend": {
         "status": "running",
-        "response_time": 1.97
+        "response_time": 2.26
       }
     },
     {
-      "timestamp": "2025-09-07T12:51:12.805712",
+      "timestamp": "2025-09-07T15:38:14.207194",
       "login_endpoint": {
         "status": 200,
-        "response_time": 199.85,
+        "response_time": 204.94,
         "has_token": true
       },
       "me_endpoint": {
         "status": 200,
-        "response_time": 3.89
+        "response_time": 3.87
+      }
+    },
+    {
+      "timestamp": "2025-09-07T15:38:44.419567",
+      "frontend": {
+        "status": "error: Cannot connect to host localhost:3005 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 3005, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 3005)]",
+        "response_time": 0
+      },
+      "backend": {
+        "status": "running",
+        "response_time": 2.15
+      }
+    },
+    {
+      "timestamp": "2025-09-07T15:38:44.424722",
+      "login_endpoint": {
+        "status": 200,
+        "response_time": 203.65,
+        "has_token": true
+      },
+      "me_endpoint": {
+        "status": 200,
+        "response_time": 4.86
+      }
+    },
+    {
+      "timestamp": "2025-09-07T15:39:14.636682",
+      "frontend": {
+        "status": "error: Cannot connect to host localhost:3005 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 3005, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 3005)]",
+        "response_time": 0
+      },
+      "backend": {
+        "status": "running",
+        "response_time": 2.4
+      }
+    },
+    {
+      "timestamp": "2025-09-07T15:39:14.642063",
+      "login_endpoint": {
+        "status": 200,
+        "response_time": 203.29,
+        "has_token": true
+      },
+      "me_endpoint": {
+        "status": 200,
+        "response_time": 4.06
+      }
+    },
+    {
+      "timestamp": "2025-09-07T15:40:14.112439",
+      "frontend": {
+        "status": "error: Cannot connect to host localhost:3005 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 3005, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 3005)]",
+        "response_time": 0
+      },
+      "backend": {
+        "status": "running",
+        "response_time": 5.53
+      }
+    },
+    {
+      "timestamp": "2025-09-07T15:40:14.125296",
+      "login_endpoint": {
+        "status": 200,
+        "response_time": 206.94,
+        "has_token": true
+      },
+      "me_endpoint": {
+        "status": 200,
+        "response_time": 4.43
+      }
+    },
+    {
+      "timestamp": "2025-09-07T15:40:44.339203",
+      "frontend": {
+        "status": "error: Cannot connect to host localhost:3005 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 3005, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 3005)]",
+        "response_time": 0
+      },
+      "backend": {
+        "status": "running",
+        "response_time": 1.5
+      }
+    },
+    {
+      "timestamp": "2025-09-07T15:40:44.343642",
+      "login_endpoint": {
+        "status": 200,
+        "response_time": 204.22,
+        "has_token": true
+      },
+      "me_endpoint": {
+        "status": 200,
+        "response_time": 4.33
+      }
+    },
+    {
+      "timestamp": "2025-09-07T15:41:14.554660",
+      "frontend": {
+        "status": "error: Cannot connect to host localhost:3005 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 3005, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 3005)]",
+        "response_time": 0
+      },
+      "backend": {
+        "status": "running",
+        "response_time": 2.01
+      }
+    },
+    {
+      "timestamp": "2025-09-07T15:41:14.559717",
+      "login_endpoint": {
+        "status": 200,
+        "response_time": 204.25,
+        "has_token": true
+      },
+      "me_endpoint": {
+        "status": 200,
+        "response_time": 4.26
+      }
+    },
+    {
+      "timestamp": "2025-09-07T15:41:44.770752",
+      "frontend": {
+        "status": "error: Cannot connect to host localhost:3005 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 3005, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 3005)]",
+        "response_time": 0
+      },
+      "backend": {
+        "status": "running",
+        "response_time": 1.93
+      }
+    },
+    {
+      "timestamp": "2025-09-07T15:41:44.775438",
+      "login_endpoint": {
+        "status": 200,
+        "response_time": 202.56,
+        "has_token": true
+      },
+      "me_endpoint": {
+        "status": 200,
+        "response_time": 4.15
+      }
+    },
+    {
+      "timestamp": "2025-09-07T15:41:49.983616",
+      "frontend": {
+        "status": "error: Cannot connect to host localhost:3005 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 3005, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 3005)]",
+        "response_time": 0
+      },
+      "backend": {
+        "status": "running",
+        "response_time": 2.0
+      }
+    },
+    {
+      "timestamp": "2025-09-07T15:41:49.987891",
+      "login_endpoint": {
+        "status": 200,
+        "response_time": 206.84,
+        "has_token": true
+      },
+      "me_endpoint": {
+        "status": 200,
+        "response_time": 4.22
+      }
+    },
+    {
+      "timestamp": "2025-09-07T15:42:20.200908",
+      "frontend": {
+        "status": "error: Cannot connect to host localhost:3005 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 3005, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 3005)]",
+        "response_time": 0
+      },
+      "backend": {
+        "status": "running",
+        "response_time": 1.39
+      }
+    },
+    {
+      "timestamp": "2025-09-07T15:42:20.203708",
+      "login_endpoint": {
+        "status": 200,
+        "response_time": 199.02,
+        "has_token": true
+      },
+      "me_endpoint": {
+        "status": 200,
+        "response_time": 3.91
+      }
+    },
+    {
+      "timestamp": "2025-09-07T15:42:50.408961",
+      "frontend": {
+        "status": "error: Cannot connect to host localhost:3005 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 3005, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 3005)]",
+        "response_time": 0
+      },
+      "backend": {
+        "status": "running",
+        "response_time": 1.25
+      }
+    },
+    {
+      "timestamp": "2025-09-07T15:42:50.411693",
+      "login_endpoint": {
+        "status": 200,
+        "response_time": 198.0,
+        "has_token": true
+      },
+      "me_endpoint": {
+        "status": 200,
+        "response_time": 3.39
+      }
+    },
+    {
+      "timestamp": "2025-09-07T15:43:20.615277",
+      "frontend": {
+        "status": "error: Cannot connect to host localhost:3005 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 3005, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 3005)]",
+        "response_time": 0
+      },
+      "backend": {
+        "status": "running",
+        "response_time": 2.07
+      }
+    },
+    {
+      "timestamp": "2025-09-07T15:43:20.619537",
+      "login_endpoint": {
+        "status": 200,
+        "response_time": 203.04,
+        "has_token": true
+      },
+      "me_endpoint": {
+        "status": 200,
+        "response_time": 4.13
       }
     }
   ],
@@ -1230,6 +1230,46 @@
     },
     {
       "timestamp": "2025-09-07T12:50:37.582399",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-07T13:01:18.560691",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-07T14:06:56.080968",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-07T14:40:43.327563",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-07T14:49:22.263456",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-07T14:58:01.168558",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-07T15:06:40.069486",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-07T15:15:18.999480",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-07T15:23:57.882819",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-07T15:32:36.808095",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-07T15:41:44.982394",
       "error": "[Errno 32] Broken pipe"
     }
   ],

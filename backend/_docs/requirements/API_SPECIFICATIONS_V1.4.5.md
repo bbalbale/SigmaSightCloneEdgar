@@ -965,10 +965,79 @@ Returns all portfolios for the authenticated user with real database data.
 
 ---
 
+### 18. Portfolio Stress Test
+```http
+GET /api/v1/analytics/portfolio/{portfolio_id}/stress-test
+```
+
+**Purpose**: Return precomputed stress testing results across ~15 scenarios using correlated impacts.  
+**Status**: ✅ Implemented (read-only; no recomputation)
+
+**Parameters**:
+- `scenarios` (query, optional CSV): Filter by scenario IDs
+
+**Response (v1)**:
+```json
+{
+  "available": true,
+  "data": {
+    "scenarios": [
+      {
+        "id": "market_down_10",
+        "name": "Market Down 10%",
+        "description": "S&P 500 falls 10%",
+        "category": "market",
+        "impact_type": "correlated",
+        "impact": {
+          "dollar_impact": -48500.0,
+          "percentage_impact": -10.0,
+          "new_portfolio_value": 436500.0
+        },
+        "severity": "moderate"
+      }
+    ],
+    "portfolio_value": 485000.0,
+    "calculation_date": "2025-09-05"
+  },
+  "metadata": {
+    "scenarios_requested": ["market_down_10"]
+  }
+}
+```
+
+**Implementation Notes**:
+- Read `StressTestResult` (use `correlated_pnl`) joined with `StressTestScenario`
+- Baseline `portfolio_value` from `PortfolioSnapshot.total_value` on/<= anchor date
+- No recomputation in v1; if no snapshot or no results, return `available=false`
+- Anchor selection: if `scenarios` filter is provided, use the latest calculation_date among the filtered subset; otherwise use latest overall
+- Sorting: stable by `category` (ASC), then `name` (ASC)
+- `percentage_impact` reported in percentage points (e.g., -10.0 means -10%)
+- `calculation_date` is date-only (YYYY-MM-DD)
+- `metadata.scenarios_requested` is included only when filter param is provided
+- Reason precedence: if no results → `no_results`; if results but no snapshot → `no_snapshot`
+
+**File/Function**: `app/api/v1/analytics/portfolio.py:get_stress_test_results()` (lines 273-311)  
+**Service Layer**: `app/services/stress_test_service.py:StressTestService.get_portfolio_results(...)`
+
+**cURL Example**:
+```bash
+TOKEN=$(curl -s -X POST http://localhost:8000/api/v1/auth/login \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"demo_hnw@sigmasight.com","password":"demo12345"}' | jq -r .access_token)
+PORTFOLIO_ID=$(curl -s -H "Authorization: Bearer $TOKEN" http://localhost:8000/api/v1/auth/me | jq -r .portfolio_id)
+curl -s -H "Authorization: Bearer $TOKEN" \
+  "http://localhost:8000/api/v1/analytics/portfolio/$PORTFOLIO_ID/stress-test" | jq
+```
+
+**Missing Data Contract**:
+- `200 OK` with `{ "available": false, "reason": "no_results|no_snapshot" }`
+
+---
+
 
 ## D. Administration Endpoints
 
-### 18. Get Batch Job Status
+### 19. Get Batch Job Status
 **Endpoint**: `GET /admin/batch/jobs/status`  
 **Status**: ⚠️ Implemented but NOT registered in router  
 **File**: `app/api/v1/endpoints/admin_batch.py`  
@@ -1600,74 +1669,6 @@ PID=$(curl -s -H "Authorization: Bearer $TOKEN" http://localhost:8000/api/v1/aut
 curl -s -H "Authorization: Bearer $TOKEN" \
   "http://localhost:8000/api/v1/analytics/portfolio/$PID/risk-metrics?lookback_days=90" | jq
 ```
-
-#### A3. Portfolio Stress Test
-```http
-GET /api/v1/analytics/portfolio/{portfolio_id}/stress-test
-```
-
-**Purpose**: Return precomputed stress testing results across ~15 scenarios using correlated impacts.  
-**Status**: ✅ Implemented (read-only; no recomputation)
-
-**Parameters**:
-- `scenarios` (query, optional CSV): Filter by scenario IDs
-
-**Response (v1)**:
-```json
-{
-  "available": true,
-  "data": {
-    "scenarios": [
-      {
-        "id": "market_down_10",
-        "name": "Market Down 10%",
-        "description": "S&P 500 falls 10%",
-        "category": "market",
-        "impact_type": "correlated",
-        "impact": {
-          "dollar_impact": -48500.0,
-          "percentage_impact": -10.0,
-          "new_portfolio_value": 436500.0
-        },
-        "severity": "moderate"
-      }
-    ],
-    "portfolio_value": 485000.0,
-    "calculation_date": "2025-09-05"
-  },
-  "metadata": {
-    "scenarios_requested": ["market_down_10"]
-  }
-}
-```
-
-**Implementation Notes**:
-- Read `StressTestResult` (use `correlated_pnl`) joined with `StressTestScenario`
-- Baseline `portfolio_value` from `PortfolioSnapshot.total_value` on/<= anchor date
-- No recomputation in v1; if no snapshot or no results, return `available=false`
-- Anchor selection: if `scenarios` filter is provided, use the latest calculation_date among the filtered subset; otherwise use latest overall
-- Sorting: stable by `category` (ASC), then `name` (ASC)
-- `percentage_impact` reported in percentage points (e.g., -10.0 means -10%)
-- `calculation_date` is date-only (YYYY-MM-DD)
-- `metadata.scenarios_requested` is included only when filter param is provided
-- Reason precedence: if no results → `no_results`; if results but no snapshot → `no_snapshot`
-
-**File/Function**: `app/api/v1/analytics/portfolio.py:get_stress_test_results()` (lines 273-311)  
-**Service Layer**: `app/services/stress_test_service.py:StressTestService.get_portfolio_results(...)`
-
-**cURL Example**:
-```bash
-TOKEN=$(curl -s -X POST http://localhost:8000/api/v1/auth/login \
-  -H 'Content-Type: application/json' \
-  -d '{"email":"demo_hnw@sigmasight.com","password":"demo12345"}' | jq -r .access_token)
-PORTFOLIO_ID=$(curl -s -H "Authorization: Bearer $TOKEN" http://localhost:8000/api/v1/auth/me | jq -r .portfolio_id)
-curl -s -H "Authorization: Bearer $TOKEN" \
-  "http://localhost:8000/api/v1/analytics/portfolio/$PORTFOLIO_ID/stress-test" | jq
-```
-
-**Missing Data Contract**:
-- `200 OK` with `{ "available": false, "reason": "no_results|no_snapshot" }`
-
 
 ---
 
