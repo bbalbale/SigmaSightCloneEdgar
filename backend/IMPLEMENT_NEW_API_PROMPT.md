@@ -138,6 +138,19 @@ Before implementing, check:
     - `get_weighted_correlation(portfolio_id, lookback_days, min_overlap, max_symbols)`
   - Selection policy: reuse the Standard Selection Policy above (weight-only) to derive the symbol set.
 
+- For factor-based endpoints:
+  - Portfolio factor exposures
+    - Read from `factor_exposures` joined to `factor_definitions`
+    - Select the latest `calculation_date` per `factor_id` for the given `portfolio_id`
+    - Service method: `get_portfolio_exposures(portfolio_id)`
+    - Return small vector `{factor_name: beta}` plus optional `exposure_dollar` and `calculation_date`
+  - Position-level factor exposures
+    - Read from `position_factor_exposures` joined to `positions` (filter by `portfolio_id`) and `factor_definitions`
+    - Determine an anchor `calculation_date` (e.g., latest for the portfolio) or use per-position latest (document choice)
+    - Service method: `list_position_exposures(portfolio_id, limit, offset, symbols=None)`
+    - Group rows by `position_id`; build `{position_id, symbol, exposures:{factor: beta}}` objects
+    - Apply pagination at the position level; return `total`, `limit`, `offset`, and `calculation_date`
+
 ---
 
 ## Missing-Data Contract and Metadata
