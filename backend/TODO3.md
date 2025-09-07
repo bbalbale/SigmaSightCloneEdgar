@@ -990,6 +990,41 @@ uv run python test_factor_exposures_api.py
   }
   ```
 
+#### 3.0.3.14.1 Static Code Review Results (2025-09-07)
+
+✅ **REVIEWED** - Stress Test Results API implementation reviewed
+
+**Overall Assessment:** Well-implemented with proper architecture, but contains a critical SQL bug that needs fixing.
+
+**Positive Findings:**
+1. Clean architecture with proper separation of concerns (Controller → Service → Data)
+2. Good error handling with multiple fallback scenarios
+3. Performance monitoring (300ms threshold)
+4. Proper schema design with nested models
+5. Portfolio ownership validation
+6. Division by zero protection
+
+**Initial Concern (Resolved):**
+- Initially thought there was a bug with `StressTestScenario.scenario_id` reference
+- **Resolution:** Code is correct - `StressTestScenario` model has both:
+  - `id` (UUID) - primary key
+  - `scenario_id` (String) - unique string identifier used for filtering
+- The service correctly uses `scenario_id` field which matches the string-based scenario filter
+
+**Minor Observations:**
+1. No validation that scenario IDs in filter actually exist (could return empty silently)
+2. Metadata type could be more specific (currently generic Dict)
+3. Consider caching for frequently accessed results
+
+**Testing Requirements:**
+- Test with no stress test results
+- Test with no portfolio snapshot  
+- Test with scenario filtering
+- Test with invalid scenario IDs
+- Test portfolio ownership validation
+
+**Conclusion:** No bugs found - implementation is correct and follows the data model properly.
+
 #### 3.0.3.13 Risk Metrics API - APPROVED FOR IMPLEMENTATION
 **GET /api/v1/analytics/portfolio/{portfolio_id}/risk-metrics** — Portfolio risk metrics (beta, volatility, max drawdown)
 
@@ -1016,12 +1051,19 @@ uv run python test_factor_exposures_api.py
       }
     }
     ```
-  - Computation Notes:
-    - Use `PortfolioSnapshot.daily_return` over window; align with SPY daily returns from `MarketDataCache`
-    - `portfolio_beta`: OLS slope of portfolio returns vs SPY; fallback to factor exposure “Market Beta” if insufficient overlap
-    - `annualized_volatility`: stddev(daily returns) × sqrt(252)
-    - `max_drawdown`: peak-to-trough of cumulative return (or indexed total_value)
-  - Missing-data contract: 200 OK with `available=false` and `reason` in `{ "no_snapshots", "insufficient_overlap", "no_benchmark_data" }`
+  - Computation Notes (DB-first, no regressions in v1):
+    - Volatility: aggregate from `PortfolioSnapshot.daily_return` over the lookback window using sample stddev (ddof=1) × sqrt(252)
+    - Max Drawdown: compute from `PortfolioSnapshot.total_value` over the lookback window via running-peak percentage drawdown (no intraday)
+    - Portfolio Beta: read from `FactorExposure` for factor name "Market Beta" (latest on/≤ end of window); do not run new regressions in v1
+    - Alignment: no forward-fill or interpolation; use snapshot dates present in `PortfolioSnapshot` (implicit business days)
+    - Bounds: `lookback_days` default 90; allowed 30–252
+  - Partial Results Contract:
+    - Return `available=true` if at least one metric is computed; set missing metrics to null
+    - Add `metadata.warnings` for degraded paths (e.g., `beta_unavailable`, `few_snapshots`)
+  - Metadata (v1):
+    - `lookback_days`, `date_range`, `observations` (snapshot count), `calculation_timestamp`
+    - `beta_source` ("factor_exposure"|"unavailable"), `beta_calculation_date`, `beta_window_days` (e.g., 150)
+  - Missing-data contract: 200 OK with `available=false` when no snapshots in window (`reason: "no_snapshots"`)
 
   Pydantic Schema Draft (do not implement yet):
   ```python
@@ -1034,9 +1076,9 @@ uv run python test_factor_exposures_api.py
       end: str = Field(..., description="ISO date end of lookback window")
 
   class PortfolioRiskMetrics(BaseModel):
-      portfolio_beta: float = Field(..., description="OLS beta vs SPY over lookback window")
-      annualized_volatility: float = Field(..., description="Annualized volatility of portfolio daily returns")
-      max_drawdown: float = Field(..., description="Maximum drawdown over lookback window (negative number)")
+      portfolio_beta: Optional[float] = Field(None, description="Portfolio beta (factor exposure 'Market Beta' in v1)")
+      annualized_volatility: Optional[float] = Field(None, description="Annualized volatility of portfolio daily returns (sample stddev × sqrt(252))")
+      max_drawdown: Optional[float] = Field(None, description="Maximum drawdown over lookback window (negative percentage)")
 
   class PortfolioRiskMetricsResponse(BaseModel):
       available: bool = Field(..., description="Whether risk metrics are available for this window")
@@ -1044,7 +1086,10 @@ uv run python test_factor_exposures_api.py
       risk_metrics: Optional[PortfolioRiskMetrics] = Field(None, description="Risk metrics payload when available")
       metadata: Optional[Dict[str, object]] = Field(
           None,
-          description="Additional context: lookback_days, date_range, observations, calculation_date(optional)",
+          description=(
+              "Additional context: lookback_days, date_range, observations, calculation_timestamp, "
+              "beta_source, beta_calculation_date, beta_window_days, warnings[]"
+          ),
       )
   ```
 

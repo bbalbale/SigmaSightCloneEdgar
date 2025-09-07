@@ -1551,7 +1551,11 @@ GET /api/v1/analytics/portfolio/{portfolio_id}/risk-metrics
 - v1 minimal scope: excludes VaR/Expected Shortfall (planned for v1.1)
 - Benchmark is fixed to SPY (no `benchmark` query param)
 - lookback_days default 90 (bounds 30–252)
-- Leverage existing portfolio snapshots and market data; optionally use factor “Market Beta” as fallback for beta
+- DB-first (no new regressions in v1):
+  - Portfolio Beta: read from FactorExposure ('Market Beta') — latest on/≤ end of window
+  - Volatility: aggregate from PortfolioSnapshot.daily_return (sample stddev × sqrt(252))
+  - Max Drawdown: compute from PortfolioSnapshot.total_value (running-peak percentage drawdown)
+  - Alignment: snapshot dates only (no forward-fill/interpolation); business days implied
 
 **Parameters**:
 - `lookback_days` (query, optional): default 90; min 30; max 252
@@ -1569,13 +1573,19 @@ GET /api/v1/analytics/portfolio/{portfolio_id}/risk-metrics
   "metadata": {
     "lookback_days": 90,
     "date_range": { "start": "2025-06-07", "end": "2025-09-05" },
-    "observations": 230
+    "observations": 230,
+    "calculation_timestamp": "2025-09-07T16:45:12Z",
+    "beta_source": "factor_exposure",
+    "beta_calculation_date": "2025-09-05",
+    "beta_window_days": 150,
+    "warnings": []
   }
 }
 ```
 
 **Missing Data Contract**:
-- `200 OK` with `{ "available": false, "reason": "no_snapshots|insufficient_overlap|no_benchmark_data" }`
+- `200 OK` with `{ "available": false, "reason": "no_snapshots" }`
+- Partial results (available=true, with nulls) if some metrics cannot be computed; include `metadata.warnings`
 
 #### A3. Portfolio Stress Test
 ```http
