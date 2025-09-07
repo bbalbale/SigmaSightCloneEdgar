@@ -1032,11 +1032,119 @@ return standardize_datetime_dict(response)
   ```
 
 #### 3.0.3.14 Stress Test API - APPROVED FOR IMPLEMENTATION
-**GET /api/v1/analytics/portfolio/{portfolio_id}/stress-test** - Portfolio stress testing scenarios
+**GET /api/v1/analytics/portfolio/{portfolio_id}/stress-test** — Portfolio stress testing scenarios (read-only)
   - First task: Delete the unused stubbed endpoint `GET /api/v1/analytics/portfolio/{id}/stress-test` and reimplement at this canonical path
-  - Use API_SPECIFICATIONS_V1.4.4 scenarios endpoint as the general response shape (scenario list with id, name, description, dollar_impact, percentage_impact, new_portfolio_value, severity; plus portfolio_value and calculation_date)
-  - Use the V1.4.5 description/purpose: "Stress testing results across ~15 market scenarios; leverage existing batch stress-testing calculations; include systematic and idiosyncratic impacts"
-  - Query Params: `scenarios` (optional, comma-separated), `view` (portfolio|longs|shorts)
+  - Use API_SPECIFICATIONS_V1.4.4 scenarios endpoint as the base response shape (scenario list with id, name, description, dollar_impact, percentage_impact, new_portfolio_value, severity; plus portfolio_value and calculation_date)
+  - Extend with `category` and `impact_type` (set to "correlated") on each scenario item; add envelope `available` + `metadata.scenarios_requested`
+  - Leverage existing batch results only — no recomputation in v1
+  - Query Params (v1): `scenarios` (optional, comma-separated scenario_ids)
+
+  Constraints (v1):
+  - Baseline `portfolio_value` sourced from `PortfolioSnapshot.total_value` on/<= anchor `calculation_date` only; if no snapshot, return `available=false` with `reason: "no_snapshot"`
+  - Impacts sourced from stored `StressTestResult.correlated_pnl` only (no on-the-fly scenario math)
+  - No `view` param in v1; portfolio aggregate only
+
+  Implementation Plan (v1 minimal):
+  - Router: Add to `app/api/v1/analytics/portfolio.py` with thin-controller
+    - Auth/ownership enforced; parse `scenarios` (CSV → list)
+  - Schema: Add `StressTestResponse` to `app/schemas/analytics.py` (see draft below)
+  - Service (read-only): `StressTestService.get_portfolio_results(portfolio_id, scenarios=None, view='portfolio')`
+    - Reads latest `StressTestResult` rows for the portfolio; joins `StressTestScenario` to enrich id/name/description/severity/category
+    - Uses latest anchor `calculation_date` across results
+    - Baseline `portfolio_value` from latest `PortfolioSnapshot.total_value` on/<= anchor date (no fallback recomputation in v1)
+    - Compute per-scenario `percentage_impact` (correlated_pnl / portfolio_value × 100) and `new_portfolio_value` (portfolio_value + correlated_pnl)
+  - Missing-data contract: 200 with `{ available:false, reason:"no_results|no_snapshot" }`
+  - Performance/logging: target < 200ms; log portfolio_id, scenarios_count, anchor_date
+
+  Response Shape (conforms to V1.4.4 structure, with availability envelope for consistency):
+  ```json
+  {
+    "available": true,
+    "data": {
+      "scenarios": [
+        {
+          "id": "market_down_10",
+          "name": "Market Down 10%",
+          "description": "S&P 500 falls 10%",
+          "category": "market",
+          "impact_type": "correlated",
+          "impact": {
+            "dollar_impact": -48500,
+            "percentage_impact": -10.0,
+            "new_portfolio_value": 436500
+          },
+          "severity": "moderate"
+        }
+      ],
+      "portfolio_value": 485000,
+      "calculation_date": "2025-09-05"
+    },
+    "metadata": {
+      "scenarios_requested": ["market_down_10"]
+    }
+  }
+  ```
+
+  Pydantic Schema Draft (do not implement yet):
+  ```python
+  # app/schemas/analytics.py
+  from pydantic import BaseModel, Field
+  from typing import List, Optional
+
+  class StressImpact(BaseModel):
+      dollar_impact: float = Field(...)
+      percentage_impact: float = Field(..., description="Impact as percentage of portfolio value")
+      new_portfolio_value: float = Field(...)
+
+  class StressScenarioItem(BaseModel):
+      id: str = Field(...)
+      name: str = Field(...)
+      description: Optional[str] = Field(None)
+      category: Optional[str] = Field(None)
+      impact_type: str = Field("correlated")
+      impact: StressImpact
+      severity: Optional[str] = Field(None)
+
+  class StressTestPayload(BaseModel):
+      scenarios: List[StressScenarioItem]
+      portfolio_value: float
+      calculation_date: str
+
+  class StressTestResponse(BaseModel):
+      available: bool = Field(...)
+      data: Optional[StressTestPayload] = Field(None)
+      metadata: Optional[dict] = Field(None)
+  ```
+
+  Service Signature Draft (do not implement yet):
+  ```python
+  # app/services/stress_test_service.py
+  from __future__ import annotations
+  from typing import Dict, List, Optional
+  from uuid import UUID
+  from sqlalchemy.ext.asyncio import AsyncSession
+
+  class StressTestService:
+      def __init__(self, db: AsyncSession) -> None:
+          self.db = db
+
+      async def get_portfolio_results(
+          self,
+          portfolio_id: UUID,
+          *,
+          scenarios: Optional[List[str]] = None,
+      ) -> Dict:
+          """
+          Read-only retrieval of stress test results.
+
+          - Anchor on the latest calculation_date with available StressTestResult rows
+          - Join StressTestScenario for id/name/description/severity/category
+          - Compute impact percentage and new value using baseline PortfolioSnapshot.total_value
+          - If no snapshots on/<= anchor date, return available=false (reason: no_snapshot)
+          - Return available=false if no results (reason: no_results)
+          """
+          raise NotImplementedError
+  ```
 
 ### 3.0.4 Management APIs (/management/) (Week 3-4)
 *CRUD operations for portfolios, positions, and configurations*

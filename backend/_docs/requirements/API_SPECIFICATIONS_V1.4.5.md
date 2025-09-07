@@ -1577,6 +1577,54 @@ GET /api/v1/analytics/portfolio/{portfolio_id}/risk-metrics
 **Missing Data Contract**:
 - `200 OK` with `{ "available": false, "reason": "no_snapshots|insufficient_overlap|no_benchmark_data" }`
 
+#### A3. Portfolio Stress Test
+```http
+GET /api/v1/analytics/portfolio/{portfolio_id}/stress-test
+```
+
+**Purpose**: Return precomputed stress testing results across ~15 scenarios using correlated impacts.  
+**Status**: 📋 Approved for Implementation (read-only; no recomputation)
+
+**Parameters**:
+- `scenarios` (query, optional CSV): Filter by scenario IDs
+
+**Response (v1)**:
+```json
+{
+  "available": true,
+  "data": {
+    "scenarios": [
+      {
+        "id": "market_down_10",
+        "name": "Market Down 10%",
+        "description": "S&P 500 falls 10%",
+        "category": "market",
+        "impact_type": "correlated",
+        "impact": {
+          "dollar_impact": -48500.0,
+          "percentage_impact": -10.0,
+          "new_portfolio_value": 436500.0
+        },
+        "severity": "moderate"
+      }
+    ],
+    "portfolio_value": 485000.0,
+    "calculation_date": "2025-09-05"
+  },
+  "metadata": {
+    "scenarios_requested": ["market_down_10"]
+  }
+}
+```
+
+**Implementation Notes**:
+- Read `StressTestResult` (use `correlated_pnl`) joined with `StressTestScenario`
+- Baseline `portfolio_value` from `PortfolioSnapshot.total_value` on/<= anchor date
+- No recomputation in v1; if no snapshot or no results, return `available=false`
+
+**Missing Data Contract**:
+- `200 OK` with `{ "available": false, "reason": "no_results|no_snapshot" }`
+
 
 ---
 
