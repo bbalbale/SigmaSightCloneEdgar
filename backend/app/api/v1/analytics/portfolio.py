@@ -19,11 +19,13 @@ from app.schemas.analytics import (
     PortfolioFactorExposuresResponse,
     PositionFactorExposuresResponse,
     StressTestResponse,
+    PortfolioRiskMetricsResponse,
 )
 from app.services.portfolio_analytics_service import PortfolioAnalyticsService
 from app.services.correlation_service import CorrelationService
 from app.services.factor_exposure_service import FactorExposureService
 from app.services.stress_test_service import StressTestService
+from app.services.risk_metrics_service import RiskMetricsService
 from app.core.logging import get_logger
 
 logger = get_logger(__name__)
@@ -304,3 +306,37 @@ async def get_stress_test_results(
     except Exception as e:
         logger.error(f"Stress test retrieval failed for {portfolio_id}: {str(e)}")
         raise HTTPException(status_code=500, detail="Internal server error retrieving stress test results")
+
+
+@router.get("/{portfolio_id}/risk-metrics", response_model=PortfolioRiskMetricsResponse)
+async def get_portfolio_risk_metrics(
+    portfolio_id: UUID,
+    lookback_days: int = Query(90, ge=30, le=252, description="Lookback period in days (30–252)"),
+    current_user: CurrentUser = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Portfolio risk metrics (DB-first v1):
+    - portfolio_beta from FactorExposure ("Market Beta")
+    - annualized_volatility from PortfolioSnapshot.daily_return
+    - max_drawdown from PortfolioSnapshot.total_value
+    """
+    try:
+        start = time.time()
+        await validate_portfolio_ownership(db, portfolio_id, current_user.id)
+
+        svc = RiskMetricsService(db)
+        result = await svc.get_portfolio_risk_metrics(portfolio_id, lookback_days=lookback_days)
+
+        elapsed = time.time() - start
+        if elapsed > 0.3:
+            logger.warning(f"Slow risk-metrics response: {elapsed:.2f}s for portfolio {portfolio_id}")
+        else:
+            logger.info(f"Risk-metrics retrieved in {elapsed:.3f}s for portfolio {portfolio_id}")
+
+        return PortfolioRiskMetricsResponse(**result)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Risk metrics failed for {portfolio_id}: {str(e)}")
+        raise HTTPException(status_code=500, detail="Internal server error retrieving risk metrics")
