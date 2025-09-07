@@ -174,6 +174,30 @@ class StressTestResponse(BaseModel):
     available: bool = Field(..., description="Whether stress test results are available")
     data: Optional[StressTestPayload] = Field(None, description="Stress test payload when available")
     metadata: Optional[Dict[str, Union[str, List[str]]]] = Field(None, description="Additional metadata, including scenarios_requested if provided")
+
+
+class RiskDateRange(BaseModel):
+    start: str = Field(..., description="ISO date start of lookback window")
+    end: str = Field(..., description="ISO date end of lookback window")
+
+
+class PortfolioRiskMetrics(BaseModel):
+    portfolio_beta: Optional[float] = Field(None, description="Portfolio beta (factor exposure 'Market Beta' in v1)")
+    annualized_volatility: Optional[float] = Field(None, description="Annualized volatility of portfolio daily returns (sample stddev × sqrt(252))")
+    max_drawdown: Optional[float] = Field(None, description="Maximum drawdown over lookback window (negative percentage)")
+
+
+class PortfolioRiskMetricsResponse(BaseModel):
+    available: bool = Field(..., description="Whether risk metrics are available for this window")
+    portfolio_id: str = Field(..., description="Portfolio UUID")
+    risk_metrics: Optional[PortfolioRiskMetrics] = Field(None, description="Risk metrics payload when available")
+    metadata: Optional[Dict[str, Union[str, int, float, List[str], Dict[str, str]]]] = Field(
+        None,
+        description=(
+            "Additional context: lookback_days, date_range, observations, calculation_timestamp, "
+            "beta_source, beta_calculation_date, beta_window_days, warnings[]"
+        ),
+    )
         }
 
 
