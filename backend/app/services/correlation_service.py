@@ -684,11 +684,9 @@ class CorrelationService:
                 "duration_days": lookback_days,
                 "metadata": {
                     "reason": "no_calculation_available",
-                    "parameters_used": {
-                        "lookback_days": lookback_days,
-                        "min_overlap": min_overlap,
-                        "selection_method": "full_calculation_set",
-                    },
+                    "lookback_days": lookback_days,
+                    "min_overlap": min_overlap,
+                    "selection_method": "full_calculation_set",
                 },
             }
 
@@ -721,11 +719,9 @@ class CorrelationService:
                 "symbols_included": len(symbol_set),
                 "metadata": {
                     "reason": "insufficient_symbols",
-                    "parameters_used": {
-                        "lookback_days": lookback_days,
-                        "min_overlap": min_overlap,
-                        "selection_method": "full_calculation_set",
-                    },
+                    "lookback_days": lookback_days,
+                    "min_overlap": min_overlap,
+                    "selection_method": "full_calculation_set",
                 },
             }
 
@@ -802,11 +798,9 @@ class CorrelationService:
                 "symbols_included": len(symbol_set),
                 "metadata": {
                     "reason": "insufficient_symbols",
-                    "parameters_used": {
-                        "lookback_days": lookback_days,
-                        "min_overlap": min_overlap,
-                        "selection_method": "full_calculation_set",
-                    },
+                    "lookback_days": lookback_days,
+                    "min_overlap": min_overlap,
+                    "selection_method": "full_calculation_set",
                 },
             }
 
@@ -819,11 +813,9 @@ class CorrelationService:
             "calculation_date": calculation.calculation_date.date().isoformat() if calculation.calculation_date else None,
             "symbols_included": len(symbol_set),
             "metadata": {
-                "parameters_used": {
-                    "lookback_days": lookback_days,
-                    "min_overlap": min_overlap,
-                    "selection_method": "full_calculation_set",
-                },
+                "lookback_days": lookback_days,
+                "min_overlap": min_overlap,
+                "selection_method": "full_calculation_set",
                 "calculation_id": str(calculation.id),
             },
         }
@@ -969,12 +961,10 @@ class CorrelationService:
                     "calculation_date": calculation.calculation_date.isoformat() if calculation.calculation_date else None,
                     "duration_days": lookback_days,
                     "symbols_included": len(ordered_symbols),
-                    "parameters_used": {
-                        "lookback_days": lookback_days,
-                        "min_overlap": min_overlap,
-                        "max_symbols": max_symbols,
-                        "selection_method": "weight"
-                    }
+                    "lookback_days": lookback_days,
+                    "min_overlap": min_overlap,
+                    "max_symbols": max_symbols,
+                    "selection_method": "weight"
                 }
             }
             

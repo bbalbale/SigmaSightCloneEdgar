@@ -16,9 +16,14 @@ from app.schemas.analytics import (
     PortfolioOverviewResponse,
     CorrelationMatrixResponse,
     DiversificationScoreResponse,
+    PortfolioFactorExposuresResponse,
+    PositionFactorExposuresResponse,
+    StressTestResponse,
 )
 from app.services.portfolio_analytics_service import PortfolioAnalyticsService
 from app.services.correlation_service import CorrelationService
+from app.services.factor_exposure_service import FactorExposureService
+from app.services.stress_test_service import StressTestService
 from app.core.logging import get_logger
 
 logger = get_logger(__name__)
@@ -189,3 +194,113 @@ async def get_diversification_score(
     except Exception as e:
         logger.error(f"Diversification score failed for {portfolio_id}: {str(e)}")
         raise HTTPException(status_code=500, detail="Internal server error computing diversification score")
+
+
+@router.get("/{portfolio_id}/factor-exposures", response_model=PortfolioFactorExposuresResponse)
+async def get_portfolio_factor_exposures(
+    portfolio_id: UUID,
+    current_user: CurrentUser = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Portfolio-level factor exposures for the most recent calculation date.
+
+    Returns factor betas (and optional dollar exposures) aggregated at the
+    portfolio level. Uses the latest complete set of exposures.
+    """
+    try:
+        start = time.time()
+        await validate_portfolio_ownership(db, portfolio_id, current_user.id)
+
+        svc = FactorExposureService(db)
+        result = await svc.get_portfolio_exposures(portfolio_id)
+
+        elapsed = time.time() - start
+        if elapsed > 0.2:
+            logger.warning(f"Slow factor-exposures response: {elapsed:.2f}s for portfolio {portfolio_id}")
+        else:
+            logger.info(f"Factor-exposures retrieved in {elapsed:.3f}s for portfolio {portfolio_id}")
+
+        return PortfolioFactorExposuresResponse(**result)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Factor exposures failed for {portfolio_id}: {str(e)}")
+        raise HTTPException(status_code=500, detail="Internal server error retrieving factor exposures")
+
+
+@router.get("/{portfolio_id}/positions/factor-exposures", response_model=PositionFactorExposuresResponse)
+async def list_position_factor_exposures(
+    portfolio_id: UUID,
+    limit: int = Query(50, ge=1, le=200, description="Number of positions to return"),
+    offset: int = Query(0, ge=0, description="Pagination offset"),
+    symbols: str | None = Query(None, description="Optional CSV list of symbols to filter"),
+    current_user: CurrentUser = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Position-level factor exposures for the most recent calculation date.
+
+    Paginates by positions. Optional filter by CSV `symbols`.
+    """
+    try:
+        start = time.time()
+        await validate_portfolio_ownership(db, portfolio_id, current_user.id)
+
+        symbols_list = None
+        if symbols:
+            symbols_list = [s.strip().upper() for s in symbols.split(",") if s.strip()]
+
+        svc = FactorExposureService(db)
+        result = await svc.list_position_exposures(portfolio_id, limit=limit, offset=offset, symbols=symbols_list)
+
+        elapsed = time.time() - start
+        if elapsed > 0.3:
+            logger.warning(f"Slow position-factor-exposures response: {elapsed:.2f}s for portfolio {portfolio_id}")
+        else:
+            logger.info(f"Position factor-exposures retrieved in {elapsed:.3f}s for portfolio {portfolio_id}")
+
+        return PositionFactorExposuresResponse(**result)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Position factor exposures failed for {portfolio_id}: {str(e)}")
+        raise HTTPException(status_code=500, detail="Internal server error retrieving position factor exposures")
+
+
+@router.get("/{portfolio_id}/stress-test", response_model=StressTestResponse)
+async def get_stress_test_results(
+    portfolio_id: UUID,
+    scenarios: str | None = Query(None, description="Optional CSV list of scenario IDs to include"),
+    current_user: CurrentUser = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Return precomputed stress testing results for the portfolio using correlated impacts.
+
+    Read-only: joins stored results with scenario definitions; computes percentage and
+    new portfolio value using baseline snapshot; no recomputation.
+    """
+    try:
+        start = time.time()
+        await validate_portfolio_ownership(db, portfolio_id, current_user.id)
+
+        scenarios_list = None
+        if scenarios:
+            scenarios_list = [s.strip() for s in scenarios.split(',') if s.strip()]
+
+        svc = StressTestService(db)
+        result = await svc.get_portfolio_results(portfolio_id, scenarios=scenarios_list)
+
+        elapsed = time.time() - start
+        if elapsed > 0.3:
+            logger.warning(f"Slow stress-test response: {elapsed:.2f}s for portfolio {portfolio_id}")
+        else:
+            logger.info(f"Stress-test retrieved in {elapsed:.3f}s for portfolio {portfolio_id}")
+
+        return StressTestResponse(**result)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Stress test retrieval failed for {portfolio_id}: {str(e)}")
+        raise HTTPException(status_code=500, detail="Internal server error retrieving stress test results")

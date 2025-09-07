@@ -144,8 +144,36 @@ class DiversificationScoreResponse(BaseModel):
                     "lookback_days": 90,
                     "min_overlap": 30,
                     "selection_method": "full_calculation_set"
-                }
-            }
+        }
+        }
+
+
+class StressImpact(BaseModel):
+    dollar_impact: float = Field(..., description="Dollar P&L impact from scenario (correlated)")
+    percentage_impact: float = Field(..., description="Impact as percentage points of portfolio value (e.g., -10.0 means -10%)")
+    new_portfolio_value: float = Field(..., description="Baseline portfolio value plus dollar_impact")
+
+
+class StressScenarioItem(BaseModel):
+    id: str = Field(..., description="Scenario identifier string")
+    name: str = Field(..., description="Scenario display name")
+    description: Optional[str] = Field(None, description="Scenario description")
+    category: Optional[str] = Field(None, description="Scenario category")
+    impact_type: str = Field("correlated", description="Impact type used (correlated)")
+    impact: StressImpact
+    severity: Optional[str] = Field(None, description="Scenario severity")
+
+
+class StressTestPayload(BaseModel):
+    scenarios: List[StressScenarioItem]
+    portfolio_value: float
+    calculation_date: str
+
+
+class StressTestResponse(BaseModel):
+    available: bool = Field(..., description="Whether stress test results are available")
+    data: Optional[StressTestPayload] = Field(None, description="Stress test payload when available")
+    metadata: Optional[Dict[str, Union[str, List[str]]]] = Field(None, description="Additional metadata, including scenarios_requested if provided")
         }
 
 
