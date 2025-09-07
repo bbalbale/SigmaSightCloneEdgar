@@ -2037,6 +2037,114 @@ uv run python -c "from app.reports.portfolio_report_generator import PortfolioRe
 
 ---
 
+### 6.6 CRITICAL BUG: Historical Prices Tool Response Streaming Failure
+
+**Issue**: Chat system fails to stream historical price data back to users due to Python variable scope error
+
+**Symptoms**:
+- User queries for historical prices (e.g., "give me historical prices on AAPL for the last 20 days")
+- Tool call `get_prices_historical` executes successfully (API returns 200 OK)
+- Backend crashes with: `Error in stream_responses: cannot access local variable 'result_json' where it is not associated with a value`
+- System retries 3 times then gives up
+- User sees no response in chat interface
+
+**Root Cause**: 
+- Bug in `app/agent/services/openai_service.py` in the `stream_responses` method
+- Variable `result_json` is referenced before being initialized in the continuation flow
+- Occurs specifically when handling tool results with OpenAI Responses API
+
+**Impact**:
+- All queries requiring historical price data fail silently
+- Affects portfolio analysis capabilities
+- Degrades user experience significantly
+
+**Reproduction Steps**:
+1. Login with demo credentials (demo_hnw@sigmasight.com)
+2. Open chat interface
+3. Ask: "give me historical prices on AAPL for the last 20 days"
+4. Observe backend logs showing the error
+
+**Fix Required**:
+- Review `stream_responses` method in `openai_service.py`
+- Ensure `result_json` is properly initialized before use
+- Add proper error handling for tool result streaming
+- Test with various tool calls to ensure stability
+
+**Status**: 🔴 CRITICAL - Blocking chat functionality
+
+---
+
+### 6.7 Investigate Model Selection and Upgrade to Latest OpenAI Models
+
+**Issue**: System may be using older models despite having access to latest GPT-5 models
+
+**Context**: 
+- Log messages show "Switching model from gpt-4o to gpt-4o-mini (attempt 2)" suggesting fallback to older models
+- Configuration in `app/config.py` already specifies latest models but may not be taking effect
+
+**Available Models (Confirmed via API Key)**:
+Your API key has access to the following latest models:
+- **gpt-5-mini** (Latest efficient model - recommended default)
+- **gpt-5-mini-2025-08-07** (Dated version)
+- **gpt-5-nano** (Ultra-light model for fallback)
+- **gpt-5-nano-2025-08-07** (Dated version)
+- **gpt-5** (Full capability model)
+- **gpt-5-2025-08-07** (Dated version)
+- Also available: gpt-4o, gpt-4o-mini, o1, o1-mini, o1-pro
+
+**Current Configuration (app/config.py)**:
+```python
+MODEL_DEFAULT: str = Field(default="gpt-5-mini-2025-08-07", env="MODEL_DEFAULT")
+MODEL_FALLBACK: str = Field(default="gpt-5-nano-2025-08-07", env="MODEL_FALLBACK")
+```
+
+**Investigation Required**:
+1. Check why system might be falling back to gpt-4o-mini despite config
+2. Verify environment variables are properly loaded
+3. Check retry logic in openai_service.py for model switching behavior
+4. Test model availability with direct API call
+
+**Testing Model Availability**:
+```python
+# Test script to verify model access
+import openai
+from dotenv import load_dotenv
+import os
+
+load_dotenv()
+client = openai.Client(api_key=os.getenv("OPENAI_API_KEY"))
+
+# List available models
+response = client.models.list()
+available_models = [m.id for m in response.data if 'gpt' in m.id]
+print(f"Available models: {available_models}")
+
+# Test specific model
+test_response = client.chat.completions.create(
+    model="gpt-5-mini",
+    messages=[{"role": "user", "content": "Test"}],
+    max_tokens=10
+)
+print(f"Model {test_response.model} works!")
+```
+
+**API Documentation References**:
+- Models List API: https://api.openai.com/v1/models
+- Latest Models Documentation: https://platform.openai.com/docs/models/
+- GPT-5 Mini Documentation: https://platform.openai.com/docs/models/gpt-5-mini
+
+**Recommended Actions**:
+1. Ensure `.env` file has MODEL_DEFAULT and MODEL_FALLBACK set (or rely on defaults)
+2. Add logging to show which model is actually being used
+3. Remove any hardcoded model fallback logic that overrides config
+4. Test with explicit model parameter in API calls
+
+**Note for LLMs**: The models mentioned above (gpt-5 series) are real and available as of 2025. Do not assume these are fictional or unavailable. The API key has been verified to have access to these models via the OpenAI models endpoint.
+
+**Status**: 🔧 TODO - Need to ensure latest models are being used
+
+---
+
 ## Phase 7: Testing & Deployment (Future)
 
 ### 7.1 Testing
