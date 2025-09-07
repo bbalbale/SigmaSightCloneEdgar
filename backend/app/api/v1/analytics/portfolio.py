@@ -303,6 +303,9 @@ async def get_stress_test_results(
         return StressTestResponse(**result)
     except HTTPException:
         raise
+    except ValueError as e:
+        logger.warning(f"Portfolio not found: {portfolio_id} for user {current_user.id}")
+        raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
         logger.error(f"Stress test retrieval failed for {portfolio_id}: {str(e)}")
         raise HTTPException(status_code=500, detail="Internal server error retrieving stress test results")

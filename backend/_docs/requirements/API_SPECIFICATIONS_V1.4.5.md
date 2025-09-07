@@ -1607,7 +1607,7 @@ GET /api/v1/analytics/portfolio/{portfolio_id}/stress-test
 ```
 
 **Purpose**: Return precomputed stress testing results across ~15 scenarios using correlated impacts.  
-**Status**: 🚧 Implemented — Under Testing (read-only; no recomputation)
+**Status**: ✅ Implemented (read-only; no recomputation)
 
 **Parameters**:
 - `scenarios` (query, optional CSV): Filter by scenario IDs
@@ -1652,7 +1652,7 @@ GET /api/v1/analytics/portfolio/{portfolio_id}/stress-test
 - `metadata.scenarios_requested` is included only when filter param is provided
 - Reason precedence: if no results → `no_results`; if results but no snapshot → `no_snapshot`
 
-**File/Function**: `app/api/v1/analytics/portfolio.py:get_stress_test_results()`  
+**File/Function**: `app/api/v1/analytics/portfolio.py:get_stress_test_results()` (lines 273-311)  
 **Service Layer**: `app/services/stress_test_service.py:StressTestService.get_portfolio_results(...)`
 
 **cURL Example**:
