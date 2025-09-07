@@ -110,9 +110,42 @@ class CorrelationMatrixResponse(BaseModel):
                     "matrix": {
                         "AAPL": {"AAPL": 1.0, "MSFT": 0.82, "NVDA": 0.75},
                         "MSFT": {"AAPL": 0.82, "MSFT": 1.0, "NVDA": 0.68},
-                        "NVDA": {"AAPL": 0.75, "NVDA": 0.68, "NVDA": 1.0}
+                        "NVDA": {"AAPL": 0.75, "MSFT": 0.68, "NVDA": 1.0}
                     },
                     "average_correlation": 0.75
+                }
+            }
+        }
+
+
+class DiversificationScoreResponse(BaseModel):
+    """
+    Weighted absolute portfolio correlation (0–1) over the full calculation symbol set.
+    Returns a light payload suitable for dashboards and summaries.
+    """
+    available: bool = Field(..., description="Whether correlation data is available for this portfolio/lookback")
+    portfolio_id: str = Field(..., description="Portfolio UUID")
+    portfolio_correlation: Optional[float] = Field(None, description="Weighted absolute average pairwise correlation (0–1)")
+    duration_days: Optional[int] = Field(None, description="Lookback window in days used by the calculation")
+    calculation_date: Optional[str] = Field(None, description="ISO date of the correlation calculation")
+    symbols_included: Optional[int] = Field(None, description="Number of symbols in the full calculation set")
+    metadata: Optional[Dict[str, Union[str, int, float]]] = Field(None, description="Additional parameters and notes")
+
+    class Config:
+        schema_extra = {
+            "example": {
+                "available": True,
+                "portfolio_id": "c0510ab8-c6b5-433c-adbc-3f74e1dbdb5e",
+                "portfolio_correlation": 0.73,
+                "duration_days": 90,
+                "calculation_date": "2025-09-05",
+                "symbols_included": 23,
+                "metadata": {
+                    "parameters_used": {
+                        "lookback_days": 90,
+                        "min_overlap": 30,
+                        "selection_method": "full_calculation_set"
+                    }
                 }
             }
         }

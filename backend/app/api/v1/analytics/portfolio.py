@@ -12,7 +12,11 @@ import time
 from app.database import get_db
 from app.core.dependencies import get_current_user, validate_portfolio_ownership
 from app.schemas.auth import CurrentUser
-from app.schemas.analytics import PortfolioOverviewResponse, CorrelationMatrixResponse
+from app.schemas.analytics import (
+    PortfolioOverviewResponse,
+    CorrelationMatrixResponse,
+    DiversificationScoreResponse,
+)
 from app.services.portfolio_analytics_service import PortfolioAnalyticsService
 from app.services.correlation_service import CorrelationService
 from app.core.logging import get_logger
@@ -82,6 +86,7 @@ async def get_correlation_matrix(
     portfolio_id: UUID,
     lookback_days: int = Query(90, ge=30, le=365, description="Lookback period in days"),
     min_overlap: int = Query(30, ge=10, le=365, description="Minimum overlapping data points"),
+    max_symbols: int = Query(25, ge=2, le=50, description="Maximum symbols to include in matrix"),
     current_user: CurrentUser = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -115,7 +120,7 @@ async def get_correlation_matrix(
         
         # Get correlation matrix from service
         svc = CorrelationService(db)
-        result = await svc.get_matrix(portfolio_id, lookback_days, min_overlap)
+        result = await svc.get_matrix(portfolio_id, lookback_days, min_overlap, max_symbols)
         
         # Log performance
         elapsed = time.time() - start
@@ -145,3 +150,42 @@ async def get_correlation_matrix(
             status_code=500, 
             detail="Internal server error computing correlation matrix"
         )
+
+
+@router.get("/{portfolio_id}/diversification-score", response_model=DiversificationScoreResponse)
+async def get_diversification_score(
+    portfolio_id: UUID,
+    lookback_days: int = Query(90, ge=30, le=365, description="Lookback period in days"),
+    min_overlap: int = Query(30, ge=10, le=365, description="Minimum overlapping data points"),
+    current_user: CurrentUser = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Get the weighted absolute portfolio correlation (0–1) using the full
+    calculation symbol set for the latest correlation run that matches the
+    requested lookback window.
+    """
+    if min_overlap > lookback_days:
+        raise HTTPException(status_code=400, detail="Min overlap cannot exceed lookback days")
+
+    try:
+        start = time.time()
+
+        await validate_portfolio_ownership(db, portfolio_id, current_user.id)
+
+        svc = CorrelationService(db)
+        result = await svc.get_weighted_correlation(portfolio_id, lookback_days, min_overlap)
+
+        elapsed = time.time() - start
+        if elapsed > 0.3:
+            logger.warning(f"Slow diversification-score response: {elapsed:.2f}s for portfolio {portfolio_id}")
+        else:
+            logger.info(f"Diversification-score retrieved in {elapsed:.3f}s for portfolio {portfolio_id}")
+
+        return DiversificationScoreResponse(**result)
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Diversification score failed for {portfolio_id}: {str(e)}")
+        raise HTTPException(status_code=500, detail="Internal server error computing diversification score")

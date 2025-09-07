@@ -645,15 +645,195 @@ class CorrelationService:
                     correlation_to_cluster=avg_correlation_to_cluster
                 )
                 
-                self.db.add(cluster_position)
-            
+            self.db.add(cluster_position)
+        
             await self.db.flush()
+
+    async def get_weighted_correlation(
+        self,
+        portfolio_id: UUID,
+        lookback_days: int,
+        min_overlap: int
+    ) -> Dict[str, any]:
+        """
+        Compute weighted absolute portfolio correlation (0–1) using the full
+        calculation symbol set for the latest correlation run matching the
+        requested lookback (duration_days).
+
+        Returns a light dict matching DiversificationScoreResponse.
+        """
+        # 1) Find latest calculation header for (portfolio_id, duration_days)
+        calc_query = (
+            select(CorrelationCalculation)
+            .where(
+                and_(
+                    CorrelationCalculation.portfolio_id == portfolio_id,
+                    CorrelationCalculation.duration_days == lookback_days,
+                )
+            )
+            .order_by(CorrelationCalculation.calculation_date.desc())
+        )
+
+        calc_result = await self.db.execute(calc_query)
+        calculation: Optional[CorrelationCalculation] = calc_result.scalars().first()
+
+        if not calculation:
+            return {
+                "available": False,
+                "portfolio_id": str(portfolio_id),
+                "duration_days": lookback_days,
+                "metadata": {
+                    "reason": "no_calculation_available",
+                    "parameters_used": {
+                        "lookback_days": lookback_days,
+                        "min_overlap": min_overlap,
+                        "selection_method": "full_calculation_set",
+                    },
+                },
+            }
+
+        # 2) Load pairwise correlations for this calculation with overlap filter
+        pairs_query = (
+            select(PairwiseCorrelation)
+            .where(
+                and_(
+                    PairwiseCorrelation.correlation_calculation_id == calculation.id,
+                    PairwiseCorrelation.data_points >= min_overlap,
+                )
+            )
+        )
+        pairs_result = await self.db.execute(pairs_query)
+        pairs: List[PairwiseCorrelation] = list(pairs_result.scalars().all())
+
+        # Build symbol set (exclude self-correlations for set construction)
+        symbol_set: Set[str] = set()
+        for p in pairs:
+            if p.symbol_1 and p.symbol_2 and p.symbol_1 != p.symbol_2:
+                symbol_set.add(p.symbol_1)
+                symbol_set.add(p.symbol_2)
+
+        if len(symbol_set) < 2:
+            return {
+                "available": False,
+                "portfolio_id": str(portfolio_id),
+                "duration_days": lookback_days,
+                "calculation_date": calculation.calculation_date.date().isoformat() if calculation.calculation_date else None,
+                "symbols_included": len(symbol_set),
+                "metadata": {
+                    "reason": "insufficient_symbols",
+                    "parameters_used": {
+                        "lookback_days": lookback_days,
+                        "min_overlap": min_overlap,
+                        "selection_method": "full_calculation_set",
+                    },
+                },
+            }
+
+        # 3) Compute current gross weights for symbols in the calculation set
+        #    If last_price is missing, fall back to entry_price.
+        pos_query = select(Portfolio).where(Portfolio.id == portfolio_id).options(selectinload(Portfolio.positions))
+        pos_result = await self.db.execute(pos_query)
+        portfolio = pos_result.scalars().first()
+
+        weights_raw: Dict[str, float] = {}
+        if portfolio and portfolio.positions:
+            for pos in portfolio.positions:
+                sym = (pos.symbol or "").upper()
+                if sym not in symbol_set:
+                    continue
+                price = pos.last_price if pos.last_price is not None else pos.entry_price
+                try:
+                    mv = abs(float(pos.quantity) * float(price)) if price is not None else 0.0
+                except Exception:
+                    mv = 0.0
+                weights_raw[sym] = weights_raw.get(sym, 0.0) + mv
+
+        # Normalize weights across symbols in symbol_set
+        total_mv = sum(weights_raw.get(s, 0.0) for s in symbol_set)
+        weights: Dict[str, float] = {}
+        if total_mv > 0:
+            for s in symbol_set:
+                weights[s] = (weights_raw.get(s, 0.0) / total_mv)
+        else:
+            # Fallback to equal weights
+            equal = 1.0 / float(len(symbol_set))
+            weights = {s: equal for s in symbol_set}
+
+        # 4) Build unique unordered pairs and aggregate
+        #    Use absolute correlation for weighted similarity metric.
+        seen_pairs: Set[frozenset] = set()
+        # Build a lookup for correlations to avoid repeated scans
+        corr_lookup: Dict[Tuple[str, str], float] = {}
+        for p in pairs:
+            if p.symbol_1 and p.symbol_2 and p.symbol_1 != p.symbol_2:
+                corr_lookup[(p.symbol_1, p.symbol_2)] = float(p.correlation_value)
+
+        numerator = 0.0
+        denominator = 0.0
+        symbols_list = sorted(symbol_set)
+        for i in range(len(symbols_list)):
+            for j in range(i + 1, len(symbols_list)):
+                s1 = symbols_list[i]
+                s2 = symbols_list[j]
+                key = frozenset({s1, s2})
+                if key in seen_pairs:
+                    continue
+                seen_pairs.add(key)
+                # correlation may be stored in either direction
+                c = corr_lookup.get((s1, s2))
+                if c is None:
+                    c = corr_lookup.get((s2, s1))
+                if c is None:
+                    continue  # pair removed by min_overlap or not present
+                w1 = weights.get(s1, 0.0)
+                w2 = weights.get(s2, 0.0)
+                w_prod = w1 * w2
+                if w_prod <= 0:
+                    continue
+                numerator += w_prod * abs(c)
+                denominator += w_prod
+
+        if denominator <= 0:
+            return {
+                "available": False,
+                "portfolio_id": str(portfolio_id),
+                "duration_days": lookback_days,
+                "calculation_date": calculation.calculation_date.date().isoformat() if calculation.calculation_date else None,
+                "symbols_included": len(symbol_set),
+                "metadata": {
+                    "reason": "insufficient_symbols",
+                    "parameters_used": {
+                        "lookback_days": lookback_days,
+                        "min_overlap": min_overlap,
+                        "selection_method": "full_calculation_set",
+                    },
+                },
+            }
+
+        portfolio_correlation = numerator / denominator
+        return {
+            "available": True,
+            "portfolio_id": str(portfolio_id),
+            "portfolio_correlation": float(portfolio_correlation),
+            "duration_days": lookback_days,
+            "calculation_date": calculation.calculation_date.date().isoformat() if calculation.calculation_date else None,
+            "symbols_included": len(symbol_set),
+            "metadata": {
+                "parameters_used": {
+                    "lookback_days": lookback_days,
+                    "min_overlap": min_overlap,
+                    "selection_method": "full_calculation_set",
+                },
+                "calculation_id": str(calculation.id),
+            },
+        }
     
     async def get_matrix(
         self,
         portfolio_id: UUID,
         lookback_days: int = 90,
-        min_overlap: int = 30
+        min_overlap: int = 30,
+        max_symbols: int = 25
     ) -> Dict:
         """
         Retrieve pre-calculated correlation matrix for a portfolio.
@@ -662,6 +842,7 @@ class CorrelationService:
             portfolio_id: Portfolio UUID
             lookback_days: Duration of the calculation period (must match existing calculation)
             min_overlap: Minimum data points required for correlation pairs
+            max_symbols: Maximum number of symbols to include in matrix (by weight)
             
         Returns:
             Dict with correlation matrix or unavailable status
@@ -721,11 +902,13 @@ class CorrelationService:
             pos_result = await self.db.execute(pos_stmt)
             positions = pos_result.scalars().all()
             
-            # Calculate weights (gross market value)
+            # Calculate weights (gross market value with fallback to entry_price)
             symbol_weights = {}
             for pos in positions:
-                weight = abs(float(pos.quantity * pos.last_price))
-                symbol_weights[pos.symbol] = weight
+                price = pos.last_price if pos.last_price else pos.entry_price
+                if price:
+                    weight = abs(float(pos.quantity * price))
+                    symbol_weights[pos.symbol] = weight
             
             # Get unique symbols from correlations
             symbols = set()
@@ -738,6 +921,10 @@ class CorrelationService:
                 symbols,
                 key=lambda s: (-symbol_weights.get(s, 0), s)
             )
+            
+            # Limit to max_symbols
+            if len(ordered_symbols) > max_symbols:
+                ordered_symbols = ordered_symbols[:max_symbols]
             
             # Build the matrix as nested dictionary
             matrix = {}
@@ -761,10 +948,33 @@ class CorrelationService:
                             # This shouldn't happen if data is complete, but handle gracefully
                             matrix[symbol1][symbol2] = 0.0
             
+            # Check if we have enough symbols
+            if len(ordered_symbols) < 2:
+                return {
+                    "available": False,
+                    "metadata": {
+                        "reason": "insufficient_symbols",
+                        "symbols_found": len(ordered_symbols),
+                        "message": f"Need at least 2 symbols for correlation matrix, found {len(ordered_symbols)}"
+                    }
+                }
+            
             return {
                 "data": {
                     "matrix": matrix,
                     "average_correlation": float(calculation.overall_correlation) if calculation.overall_correlation else None
+                },
+                "available": True,
+                "metadata": {
+                    "calculation_date": calculation.calculation_date.isoformat() if calculation.calculation_date else None,
+                    "duration_days": lookback_days,
+                    "symbols_included": len(ordered_symbols),
+                    "parameters_used": {
+                        "lookback_days": lookback_days,
+                        "min_overlap": min_overlap,
+                        "max_symbols": max_symbols,
+                        "selection_method": "weight"
+                    }
                 }
             }
             
