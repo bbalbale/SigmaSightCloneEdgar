@@ -592,8 +592,8 @@ return standardize_datetime_dict(response)
 - [ ] **3.0.3.9 GET /api/v1/analytics/factors/definitions** - Factor definitions (PENDING APPROVAL)
   - [ ] ETF proxies and descriptions
 
-#### 3.0.3.10 Correlation Matrix API - APPROVED FOR IMPLEMENTATION
-- [ ] Endpoint: `GET /api/v1/analytics/portfolio/{portfolio_id}/correlation-matrix` — Position pairwise correlation matrix
+#### 3.0.3.10 Correlation Matrix API - ✅ COMPLETED
+- [x] Endpoint: `GET /api/v1/analytics/correlation/{portfolio_id}/matrix` — Position pairwise correlation matrix
   
   Prompt Inputs (see `backend/IMPLEMENT_NEW_API_PROMPT.md`):
   - Endpoint ID: 3.0.3.10
@@ -613,10 +613,10 @@ return standardize_datetime_dict(response)
   - (view param removed in v1; matrix only)
 
   Implementation Plan:
-  - [ ] Router: Add new handler to `app/api/v1/analytics/portfolio.py` (reuse portfolio analytics router)
-  - [ ] Schema: Add `CorrelationMatrixResponse` to `app/schemas/analytics.py`:
+  - [x] Router: Created `app/api/v1/analytics/correlation.py` with `get_correlation_matrix()` handler
+  - [x] Schema: Added `CorrelationMatrixResponse` to `app/schemas/analytics.py`:
         { "data": { "matrix": {symbol: {symbol: float}}, "average_correlation": float } }
-  - [ ] Service: Add `CorrelationService.get_matrix(...)` (read path) in `app/services/correlation_service.py`
+  - [x] Service: Added `CorrelationService.get_matrix()` in `app/services/correlation_service.py`
         - Source tables: `correlation_calculations`, `pairwise_correlations`
         - Select latest `CorrelationCalculation` for `{portfolio_id, duration_days=lookback_days}` (or <= as_of if later added)
         - If none: return 200 OK payload with `available=false` metadata
@@ -624,11 +624,19 @@ return standardize_datetime_dict(response)
         - Compute weights from current positions (gross market value), then choose top `max_symbols` by weight
         - Build symmetric nested map `{symbol: {symbol: corr}}` over selected symbols; set diagonal to 1.0; order symbols by weight
         - Use `overall_correlation` from calculation as `average_correlation` (fallback: compute mean of off-diagonals)
-  - [ ] Auth/Ownership: `Depends(get_current_user)` + `validate_portfolio_ownership(db, portfolio_id, current_user.id)`
-  - [ ] Error handling: always 200 with `available=false` metadata when no calculation; 500 for unexpected errors
-   - [ ] Logging: include portfolio_id, lookback_days, min_overlap, symbol count, timing
-   - [ ] Docs: Update `API_SPECIFICATIONS_V1.4.5.md` Correlation Analytics with file/function, auth, DB access, purpose, params, example response
-   - [ ] Tests/Manual: Add cURL in spec; optionally add integration test using demo portfolio
+  - [x] Auth/Ownership: `Depends(get_current_user)` + `validate_portfolio_ownership(db, portfolio_id, current_user.id)`
+  - [x] Error handling: Returns 200 with `available=false` metadata when no calculation; 500 for unexpected errors
+   - [x] Logging: Includes portfolio_id, lookback_days, min_overlap, symbol count, timing
+   - [x] Docs: Updated `API_SPECIFICATIONS_V1.4.5.md` Section 14 with endpoint documentation
+   - [x] Tests/Manual: Tested with demo portfolio - returns correlation matrix for 15 symbols
+
+  **Completion Notes**:
+  - Endpoint path changed to `/analytics/correlation/{portfolio_id}/matrix` for better organization
+  - Successfully retrieves pre-calculated correlations from batch processing
+  - Matrix ordered by position weight (gross market value)
+  - Tested with demo_individual portfolio: returns 15x15 correlation matrix
+  - Performance: < 100ms response time
+  - Fixed `Position.is_closed` issue by using `Position.exit_date.is_(None)`
 
 #### 3.0.3.10.1 Deferred For Future Version (v2+)
 - Add `view=pairs` mode returning a compact edge list (top 50 by |corr|, sorted), with optional `top_k_pairs` and `min_abs_corr` params
@@ -688,15 +696,65 @@ return standardize_datetime_dict(response)
 
 #### 3.0.3.12 Factor Exposures (Portfolio) API - APPROVED FOR IMPLEMENTATION
 **GET /api/v1/analytics/portfolio/{portfolio_id}/factor-exposures** — Portfolio-level factor exposures (aggregated)
-  - Small payload: aggregate 7-factor vector for the portfolio
-  - Response includes: `portfolio_exposures` object and `metadata` (model version, window, calculated_at)
-  - Note: See 6.8 to delete deprecated `factor-attribution` API
+
+  Calculation & Data Model Discovery:
+  - Batch engine: `app/calculations/factors.py::calculate_factor_betas_hybrid()` computes position betas, then `aggregate_portfolio_factor_exposures()` stores portfolio-level betas
+  - Tables: `factor_exposures` (portfolio-level), `factor_definitions` (metadata)
+  - Reference query: See `app/reports/portfolio_report_generator.py` (joins FactorExposure+FactorDefinition and picks latest per factor)
+
+  Prompt Inputs:
+  - Endpoint ID: 3.0.3.12
+  - Path/Method: GET `/api/v1/analytics/portfolio/{portfolio_id}/factor-exposures`
+  - Missing data behavior: 200 OK with `{ available:false, reason:"no_calculation_available" }`
+  - Performance target: < 200ms
+
+  Parameters & Defaults (v1 minimal):
+  - None required; return all active factors for the latest calculation per factor (for this portfolio)
+
+  Implementation Plan:
+  - [ ] Router: Add new handler to `app/api/v1/analytics/portfolio.py`
+  - [ ] Schema: Add `PortfolioFactorExposuresResponse` to `app/schemas/analytics.py`:
+        { "available": bool, "factors": [{"name": str, "beta": float, "exposure_dollar": float|null}], "calculation_date": str|null, "metadata": {...} }
+  - [ ] Service (read-only): Add `FactorExposureService.get_portfolio_exposures(portfolio_id)`
+        - Join `factor_exposures` to `factor_definitions` for this portfolio
+        - Select the latest `calculation_date` per `factor_id` (window function or Python grouping if result set small)
+        - Return all active factors with `exposure_value` (beta) and optional `exposure_dollar`
+  - [ ] Auth/Ownership: enforce via dependencies
+  - [ ] Error handling: 200 with `available=false` metadata if none; 500 for unexpected
+  - [ ] Logging: portfolio_id, factors_count, timing
+  - [ ] Docs: Update spec with attribution and example
 
 #### 3.0.3.15 Factor Exposures (Positions) API - APPROVED FOR IMPLEMENTATION
 **GET /api/v1/analytics/portfolio/{portfolio_id}/positions/factor-exposures** — Position-level factor exposures (paginated)
-  - Always paginated to avoid large payloads
-  - Query Params: `limit` (default 50, max 200), `offset` (default 0), `symbols` (optional CSV), `min_weight` (optional), `lookback_days` (optional), `model_version` (optional)
-  - Response includes: `positions` array with `{position_id, symbol, weight, exposures}`, plus `total`, `limit`, `offset`, and `metadata`
+
+  Calculation & Data Model Discovery:
+  - Batch engine: `calculate_factor_betas_hybrid()` stores per-position betas via `store_position_factor_exposures()`
+  - Tables: `position_factor_exposures` (position-level), `factor_definitions`, `positions`
+
+  Prompt Inputs:
+  - Endpoint ID: 3.0.3.15
+  - Path/Method: GET `/api/v1/analytics/portfolio/{portfolio_id}/positions/factor-exposures`
+  - Pagination: required (position list can be large)
+  - Missing data behavior: 200 OK with `{ available:false, reason:"no_calculation_available" }` if no exposures
+
+  Query Params (v1):
+  - `limit` (int, default 50, max 200), `offset` (int, default 0)
+  - `symbols` (CSV, optional) — filter positions by symbol list
+  - (defer) `min_weight`, `as_of`, `model_version`
+
+  Implementation Plan:
+  - [ ] Router: Add new handler to `app/api/v1/analytics/portfolio.py`
+  - [ ] Schema: Add `PositionFactorExposuresResponse` to `app/schemas/analytics.py`:
+        { "available": bool, "positions": [{"position_id": str, "symbol": str, "exposures": {factor: beta}}], "total": int, "limit": int, "offset": int, "calculation_date": str|null }
+  - [ ] Service (read-only): Add `FactorExposureService.list_position_exposures(portfolio_id, limit, offset, symbols=None)`
+        - Determine an anchor calculation_date: latest date present for this portfolio in `position_factor_exposures` (or per-position latest if we want per-row latest)
+        - Join `positions` → `position_factor_exposures` (by position_id and calculation_date) → `factor_definitions`
+        - Group rows by position; build exposures dict per position id; apply pagination at position level (not row level)
+        - Return metadata: total positions matched, limit, offset, calculation_date used
+  - [ ] Auth/Ownership: enforce via dependencies
+  - [ ] Error handling: 200 with `available=false` metadata if none; 500 for unexpected
+  - [ ] Logging: portfolio_id, total_positions, timing
+  - [ ] Docs: Update spec with attribution and example
 
 #### 3.0.3.13 Risk Metrics API - APPROVED FOR IMPLEMENTATION
 **GET /api/v1/analytics/portfolio/{portfolio_id}/risk-metrics** - Portfolio risk metrics (beta, volatility, max drawdown)
