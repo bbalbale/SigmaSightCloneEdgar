@@ -593,11 +593,11 @@ return standardize_datetime_dict(response)
   - [ ] ETF proxies and descriptions
 
 #### 3.0.3.10 Correlation Matrix API - APPROVED FOR IMPLEMENTATION
-- [ ] Endpoint: `GET /api/v1/analytics/correlation/{portfolio_id}/matrix` — Position pairwise correlation matrix
+- [ ] Endpoint: `GET /api/v1/analytics/portfolio/{portfolio_id}/correlation-matrix` — Position pairwise correlation matrix
   
   Prompt Inputs (see `backend/IMPLEMENT_NEW_API_PROMPT.md`):
   - Endpoint ID: 3.0.3.10
-  - Path/Method: GET `/api/v1/analytics/correlation/{portfolio_id}/matrix`
+  - Path/Method: GET `/api/v1/analytics/portfolio/{portfolio_id}/correlation-matrix`
   - Approved: Yes
   - Response shape source: API_SPECIFICATIONS_V1.4.5.md §3.5.1 (use 1.4.4 example for shape if needed)
   - Ownership check: Yes (validate portfolio ownership)
@@ -609,11 +609,8 @@ return standardize_datetime_dict(response)
   - `lookback_days` (int, default 90; 30–365)
   - `min_overlap` (int, default 30; 10–365) — filters pairs by `data_points >= min_overlap`
   - `max_symbols` (int, default 25; hard cap 50) — cap symbols used in output
-  - `min_weight` (float, default 0.01) — drop symbols below 1% gross weight
-  - `selection_by` (enum: `weight` | `explicit`, default `weight`)
-    - `weight`: pick top symbols by current gross market value (abs(quantity*last_price))
-    - `explicit`: require `symbols` CSV query param; use intersection with symbols present in calculation results
-  - `view` (enum: `matrix` | `pairs`, default `matrix`)
+  - Selection: weight-only in v1 — pick top symbols by current gross market value (abs(quantity*last_price))
+  - (view param removed in v1; matrix only)
 
   Implementation Plan:
   - [ ] Router: Add `app/api/v1/analytics/correlation.py` with `APIRouter(prefix="/correlation")`; register in `app/api/v1/analytics/router.py`
@@ -624,32 +621,39 @@ return standardize_datetime_dict(response)
         - Select latest `CorrelationCalculation` for `{portfolio_id, duration_days=lookback_days}` (or <= as_of if later added)
         - If none: return 200 OK payload with `available=false` metadata
         - Filter `PairwiseCorrelation` by `data_points >= min_overlap`
-        - Compute weights from current positions (gross market value) and apply `min_weight`, then choose top `max_symbols` by weight when `selection_by=weight`
-        - If `selection_by=explicit`, parse `symbols` (CSV) and intersect with symbols present in calculation results; then apply `max_symbols`
-        - For `view=matrix`: build symmetric nested map `{symbol: {symbol: corr}}` over selected symbols; set diagonal to 1.0; order symbols by weight
-        - For `view=pairs`: build array of `{symbol_1, symbol_2, correlation, data_points}` for selected symbols, sorted by `abs(correlation)` desc then `data_points` desc; return top 50 fixed (no extra param)
+        - Compute weights from current positions (gross market value), then choose top `max_symbols` by weight
+        - Build symmetric nested map `{symbol: {symbol: corr}}` over selected symbols; set diagonal to 1.0; order symbols by weight
         - Use `overall_correlation` from calculation as `average_correlation` (fallback: compute mean of off-diagonals)
   - [ ] Auth/Ownership: `Depends(get_current_user)` + `validate_portfolio_ownership(db, portfolio_id, current_user.id)`
   - [ ] Error handling: always 200 with `available=false` metadata when no calculation; 500 for unexpected errors
-  - [ ] Logging: include portfolio_id, lookback_days, min_overlap, symbol count, timing
-  - [ ] Docs: Update `API_SPECIFICATIONS_V1.4.5.md` Correlation Analytics with file/function, auth, DB access, purpose, params, example response
-  - [ ] Tests/Manual: Add cURL in spec; optionally add integration test using demo portfolio
+   - [ ] Logging: include portfolio_id, lookback_days, min_overlap, symbol count, timing
+   - [ ] Docs: Update `API_SPECIFICATIONS_V1.4.5.md` Correlation Analytics with file/function, auth, DB access, purpose, params, example response
+   - [ ] Tests/Manual: Add cURL in spec; optionally add integration test using demo portfolio
+
+#### 3.0.3.10.1 Deferred For Future Version (v2+)
+- Add `view=pairs` mode returning a compact edge list (top 50 by |corr|, sorted), with optional `top_k_pairs` and `min_abs_corr` params
+- Add `min_weight` symbol filter (drop symbols below threshold before selection)
+- Add `selection_by` param and `symbols` CSV (explicit list support)
+- Add `as_of` timestamp selection (choose the latest calculation at/earlier than provided time)
+- Add alternate matrix formats (array/sparse) and a `precision` param for decimal places
+- Add richer metadata (e.g., `positions_included`, `data_quality`, `calculation_date` if not already present)
+- Add cluster/rollup views (e.g., sector/tag group correlations) if needed by UX
 
   Notes:
   - Uses existing correlation engine outputs from batch (see 6.4: Correlations run daily)
   - Consider returning optional metadata in future (calculation_date, positions_included) if added to the spec
 
 #### 3.0.3.11 Diversification Score API - APPROVED FOR IMPLEMENTATION
-**GET /api/v1/analytics/correlation/{portfolio_id}/diversification-score** - Diversification score
+**GET /api/v1/analytics/portfolio/{portfolio_id}/diversification-score** - Diversification score
 
 #### 3.0.3.12 Factor Exposures (Portfolio) API - APPROVED FOR IMPLEMENTATION
-**GET /api/v1/analytics/factors/{portfolio_id}/exposures** — Portfolio-level factor exposures (aggregated)
+**GET /api/v1/analytics/portfolio/{portfolio_id}/factor-exposures** — Portfolio-level factor exposures (aggregated)
   - Small payload: aggregate 7-factor vector for the portfolio
   - Response includes: `portfolio_exposures` object and `metadata` (model version, window, calculated_at)
   - Note: See 6.8 to delete deprecated `factor-attribution` API
 
 #### 3.0.3.15 Factor Exposures (Positions) API - APPROVED FOR IMPLEMENTATION
-**GET /api/v1/analytics/factors/{portfolio_id}/exposures/positions** — Position-level factor exposures (paginated)
+**GET /api/v1/analytics/positions/{portfolio_id}/exposures** — Position-level factor exposures (paginated)
   - Always paginated to avoid large payloads
   - Query Params: `limit` (default 50, max 200), `offset` (default 0), `symbols` (optional CSV), `min_weight` (optional), `lookback_days` (optional), `model_version` (optional)
   - Response includes: `positions` array with `{position_id, symbol, weight, exposures}`, plus `total`, `limit`, `offset`, and `metadata`
