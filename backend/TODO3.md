@@ -2829,7 +2829,17 @@ Implement an API endpoint to run portfolio stress tests (e.g., scenario shocks t
 Add current cash balance to the portfolio overview API response.
 
 **Status**: 🔄 TODO
-i
+
+### 6.8 Remove stubbed out APIs
+
+- [ ] Identify and remove placeholder/legacy endpoints not used by the frontend:
+  - `/api/v1/portfolio/*` (overview/upload/summary placeholders)
+  - `/api/v1/positions/*` (list/get/update placeholders)
+  - `/api/v1/risk/*` (metrics/factors/greeks placeholders)
+  - `/api/v1/modeling/*` (sessions placeholders)
+- [ ] Update `app/api/v1/router.py` to exclude removed routers or mark as deprecated prior to removal.
+- [ ] Update `API_SPECIFICATIONS_V1.4.5.md` to reflect removals and avoid stale references.
+- [ ] Verify no frontend imports or calls depend on these stubs.
 ---
 
 ## Phase 7: Testing & Deployment (Future)
