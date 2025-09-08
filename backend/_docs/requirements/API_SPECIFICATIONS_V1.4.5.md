@@ -49,36 +49,74 @@ This section documents the **13 fully implemented and production-ready endpoints
 
 ### Complete Endpoint List
 
-#### Authentication Endpoints
-- **1.** [`POST /auth/login`](#1-login) - Authenticate user and return JWT token
-- **2.** [`POST /auth/register`](#2-register) - Register a new user
-- **3.** [`GET /auth/me`](#3-get-current-user) - Get current authenticated user information  
-- **4.** [`POST /auth/refresh`](#4-refresh-token) - Refresh JWT token
-- **5.** [`POST /auth/logout`](#5-logout) - Logout and clear auth cookie
+Base prefix for all endpoints below: `/api/v1`
 
-#### Data Endpoints
-- **6.** [`GET /data/portfolios`](#6-get-portfolios) - Get all portfolios for authenticated user
-- **7.** [`GET /data/portfolio/{portfolio_id}/complete`](#7-get-complete-portfolio) - Get complete portfolio data with optional sections
-- **8.** [`GET /data/portfolio/{portfolio_id}/data-quality`](#8-get-data-quality) - Get data quality metrics for portfolio
-- **9.** [`GET /data/positions/details`](#9-get-position-details) - Get detailed position information with P&L calculations
-- **10.** [`GET /data/prices/historical/{symbol_or_position_id}`](#10-get-historical-prices) - Get historical price data for symbol or position
-- **11.** [`GET /data/prices/quotes`](#11-get-market-quotes) - Get real-time market quotes for symbols
-- **12.** [`GET /data/factors/etf-prices`](#12-get-factor-etf-prices) - Get current and historical prices for factor ETFs
+#### Authentication
+- POST `/auth/login`
+- POST `/auth/register`
+- GET `/auth/me`
+- POST `/auth/refresh`
+- POST `/auth/logout`
 
-#### Analytics Endpoints  
-- **13.** [`GET /analytics/portfolio/{portfolio_id}/overview`](#13-portfolio-overview) - Get comprehensive portfolio overview with exposures and P&L
-- **14.** [`GET /analytics/portfolio/{portfolio_id}/correlation-matrix`](#14-correlation-matrix) - Get correlation matrix for portfolio positions
+#### Data
+- GET `/data/portfolios`
+- GET `/data/portfolio/{portfolio_id}/complete`
+- GET `/data/portfolio/{portfolio_id}/data-quality`
+- GET `/data/positions/details` (query: `portfolio_id` or `position_ids`)
+- GET `/data/prices/historical/{portfolio_id}`
+- GET `/data/prices/quotes` (query: `symbols`)
+- GET `/data/factors/etf-prices` (query: `lookback_days`, `factors`)
+- GET `/data/positions/top/{portfolio_id}` (query: `limit`, `sort_by`, `as_of_date`)
+- GET `/data/test-demo`
+- GET `/data/demo/{portfolio_type}` (no auth; demo only)
 
-#### Chat Endpoints (Implemented)
-- `POST /chat/conversations` — Create conversation
-- `GET /chat/conversations/{conversation_id}` — Get conversation
-- `GET /chat/conversations` — List conversations
-- `PUT /chat/conversations/{conversation_id}/mode` — Change mode
-- `DELETE /chat/conversations/{conversation_id}` — Delete conversation
-- `POST /chat/send` — Send message (SSE streaming, `text/event-stream`)
+#### Analytics (Portfolio)
+- GET `/analytics/portfolio/{portfolio_id}/overview`
+- GET `/analytics/portfolio/{portfolio_id}/correlation-matrix`
+- GET `/analytics/portfolio/{portfolio_id}/diversification-score`
+- GET `/analytics/portfolio/{portfolio_id}/factor-exposures`
+- GET `/analytics/portfolio/{portfolio_id}/positions/factor-exposures` (query: `limit`, `offset`, `symbols`)
+- GET `/analytics/portfolio/{portfolio_id}/stress-test` (query: `scenarios`)
+- GET `/analytics/portfolio/{portfolio_id}/risk-metrics` (deprecated; do not use)
 
-#### Administration Endpoints  
-**⚠️ NOTE**: Admin endpoints are implemented in `app/api/v1/endpoints/admin_batch.py` but NOT registered in the router. They are currently inaccessible via the API.
+#### Chat
+- POST `/chat/conversations`
+- GET `/chat/conversations/{conversation_id}`
+- GET `/chat/conversations`
+- PUT `/chat/conversations/{conversation_id}/mode`
+- DELETE `/chat/conversations/{conversation_id}`
+- POST `/chat/send` (SSE streaming; `text/event-stream`)
+
+#### Portfolio (legacy/placeholders)
+- GET `/portfolio/`
+- POST `/portfolio/upload`
+- GET `/portfolio/summary`
+
+#### Positions (legacy/placeholders)
+- GET `/positions/`
+- GET `/positions/{position_id}`
+- PUT `/positions/{position_id}`
+
+#### Risk (legacy/placeholders)
+- GET `/risk/metrics`
+- GET `/risk/factors`
+- GET `/risk/greeks`
+- POST `/risk/greeks/calculate`
+
+#### Modeling (legacy/placeholders)
+- GET `/modeling/sessions`
+- POST `/modeling/sessions`
+- GET `/modeling/sessions/{session_id}`
+
+#### Market Data
+- GET `/market-data/prices/{symbol}`
+- GET `/market-data/current-prices` (query: `symbols`)
+- GET `/market-data/sectors` (query: `symbols`)
+- POST `/market-data/refresh`
+- GET `/market-data/options/{symbol}`
+
+#### Administration (not registered)
+Admin endpoints exist in `app/api/v1/endpoints/admin_batch.py` but are not included in the router and are not accessible via the API.
 
 ### Base URL
 ```
