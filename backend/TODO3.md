@@ -2832,14 +2832,66 @@ Add current cash balance to the portfolio overview API response.
 
 ### 6.8 Remove stubbed out APIs
 
-- [ ] Identify and remove placeholder/legacy endpoints not used by the frontend:
-  - `/api/v1/portfolio/*` (overview/upload/summary placeholders)
-  - `/api/v1/positions/*` (list/get/update placeholders)
-  - `/api/v1/risk/*` (metrics/factors/greeks placeholders)
-  - `/api/v1/modeling/*` (sessions placeholders)
+APIs to delete (legacy/placeholders not used by FE):
+
+#### Portfolio (legacy/placeholders)
+- GET `/portfolio/`
+- POST `/portfolio/upload`
+- GET `/portfolio/summary`
+
+#### Positions (legacy/placeholders)
+- GET `/positions/`
+- GET `/positions/{position_id}`
+- PUT `/positions/{position_id}`
+
+#### Risk (legacy/placeholders)
+- GET `/risk/metrics`
+- GET `/risk/factors`
+- GET `/risk/greeks`
+- POST `/risk/greeks/calculate`
+
+#### Modeling (legacy/placeholders)
+- GET `/modeling/sessions`
+- POST `/modeling/sessions`
+- GET `/modeling/sessions/{session_id}`
+
+Checklist
+- [ ] Remove the above endpoints (and their routers/modules if fully unused).
 - [ ] Update `app/api/v1/router.py` to exclude removed routers or mark as deprecated prior to removal.
 - [ ] Update `API_SPECIFICATIONS_V1.4.5.md` to reflect removals and avoid stale references.
 - [ ] Verify no frontend imports or calls depend on these stubs.
+
+#### Market Data (internal/testing-only endpoints)
+- GET `/market-data/prices/{symbol}`
+- GET `/market-data/current-prices` (query: `symbols`)
+- GET `/market-data/sectors` (query: `symbols`)
+- POST `/market-data/refresh`
+- GET `/market-data/options/{symbol}`
+
+Notes
+- Not used by the frontend. Kept for manual testing and scripts. Safe to remove from public router if we rely exclusively on `/data/*` endpoints for FE/Agent.
+
+### 6.9 Evaluate removing MarketDataService (service layer)
+
+Checklist
+- [ ] Inventory all usages of `app/services/market_data_service.py` (runtime APIs, ETL/cron, agent tools, scripts).
+- [ ] Confirm FE/Agent do not call `/api/v1/market-data/*` and rely on `/api/v1/data/*` endpoints.
+- [ ] Decide: keep `MarketDataService` for ETL-only use, or remove it entirely if redundant.
+- [ ] If keeping for ETL-only, move to an internal module namespace (e.g., `app/internal/market_data_service.py`) and remove public API exposure.
+- [ ] Remove router `app/api/v1/market_data.py` from `app/api/v1/router.py` (after 6.8 endpoint deletions).
+- [ ] Delete or relocate ad‑hoc scripts that exercise `MarketDataService` directly (below).
+- [ ] Remove/update tests accordingly and ensure CI passes.
+- [ ] Update docs (API specs, deployment plan) to reflect removals.
+
+Scripts to delete (hit `/market-data/*` or `MarketDataService` directly)
+- [ ] `backend/scripts/test_api_endpoints.sh`
+- [ ] `backend/scripts/test_market_data.py`
+- [ ] `backend/scripts/test_polygon_connection.py`
+- [ ] `backend/scripts/test_rate_limiting.py`
+- [ ] `backend/scripts/test_fmp_factor_etf_coverage.py`
+
+Tests to delete or rewrite
+- [ ] `backend/tests/test_market_data_service.py` (unit + integration tests for `MarketDataService` and `/market-data/*` endpoints)
 ---
 
 ## Phase 7: Testing & Deployment (Future)
