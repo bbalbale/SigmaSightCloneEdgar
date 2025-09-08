@@ -3601,6 +3601,46 @@ The backend team needs to:
 
 ## 📋 Phase 10: ID System Refactoring - Option A (Clean API Separation) (Day 12-13)
 
+### 9.20 Add Web Search to Chat Agent (via Responses API)
+
+Goal
+- Enable the chat agent to use OpenAI Responses API with the Web Search tool for retrieval‑augmented answers when local data is insufficient.
+
+Official references
+- OpenAI product post: “New tools for building agents” — documents Responses API built‑in tools including Web Search, with example `tools: [{ type: "web_search_preview" }]` (Mar 11, 2025). https://openai.com/index/new-tools-for-building-agents/
+- OpenAI Cookbook example: “Web Search and States with Responses API” — shows `tools: [{ "type": "web_search" }]` with citations in output (Mar 11, 2025). https://cookbook.openai.com/examples/responses_api/responses_example
+- OpenAI product update: “New tools and features in the Responses API” — continuing updates to built‑in tools (May 21, 2025). https://openai.com/index/new-tools-and-features-in-the-responses-api/
+
+Minimal implementation sketch
+```ts
+// TypeScript (Node SDK v4)
+const response = await openai.responses.create({
+  model: "gpt-4o",
+  input: "Summarize today's major Fed news with 2 citations.",
+  tools: [ { type: "web_search" } ], // or "web_search_preview" per doc version
+});
+
+// Access answer text and any citations (if using SDK helpers)
+console.log(response.output_text);
+```
+
+Agent integration guidelines
+- Tool policy: prefer local DB/portfolio facts first; call `web_search` only when retrieval returns low confidence, missing data, or when the user explicitly asks for “latest/today/this week”.
+- Prompting: instruct model to include 2–4 citations with clear source names and URLs when `web_search` is used.
+- Telemetry: log `request_id`, `tool=web_search`, latency, number of sources, and top domains for analytics.
+- Privacy: redact portfolio IDs, user emails, and any PII from search queries; disallow sending raw position lists to the web.
+- Config flags: `ENABLE_WEB_SEARCH`, `MAX_WEB_SOURCES`, `WEB_SEARCH_TIMEOUT_MS`. Default off in dev if network‑restricted.
+
+Tasks
+- [ ] Add a “web_search” tool option to the chat orchestration layer (agent‑side tool selection).
+- [ ] Add config switches per environment and per request (override in UI/debug panel).
+- [ ] Implement fallback policy (confidence/coverage thresholds) before calling web search.
+- [ ] Update prompts to demand citations and to reconcile conflicts between web vs. local data.
+- [ ] Add telemetry + correlation IDs; surface citations in the chat UI transcript.
+- [ ] Add unit/integration tests: offline mode, successful search with citations, empty/noisy results, tool timeout/retry.
+
+
+
 ### 🔥 10.0 Critical SSE Contract Fixes (1-2 hours) ✅ **COMPLETED 2025-09-02**
 - [x] **10.0.1** Fix Event Type Mismatch ✅ **COMPLETED**
   - [x] Change `send.py` to parse "event: token" instead of "event: message"
