@@ -60,6 +60,12 @@ async def seed_database():
             # Step 3: Essential Data for Batch Processing
             logger.info("🔧 Step 3: Preparing batch processing prerequisites...")
             
+            # Seed stress test scenarios (required for stress testing API)
+            logger.info("🌱 Seeding stress test scenarios...")
+            from scripts.seed_stress_scenarios import seed_scenarios_from_config
+            await seed_scenarios_from_config()
+            logger.info("✅ Stress test scenarios seeded")
+            
             # Seed security master data (classifications for factor analysis)
             await seed_security_master(db)
             logger.info("✅ Security master data populated")
