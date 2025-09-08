@@ -2890,7 +2890,7 @@ Detailed plan (checklist)
     - `market_data.router` — unregistered (kept internal; see 6.9)
 - [x] Delete unused router modules (if no remaining imports)
   - [x] Removed files: `app/api/v1/portfolio.py`, `app/api/v1/positions.py`, `app/api/v1/risk.py`, `app/api/v1/modeling.py` (commit 42ab191)
-  - [ ] For `app/api/v1/market_data.py`: leave unreferenced for now (pending 6.9 decision).
+  - [x] For `app/api/v1/market_data.py`: fully deleted (API endpoints removed; service remains internal). (commit TBD)
 - [x] Update specifications and docs
   - [x] Updated `backend/_docs/requirements/API_SPECIFICATIONS_V1.4.5.md`: marked removed endpoints and noted market‑data unregistered (commit 42ab191)
   - [ ] Update any internal docs mentioning these endpoints (e.g., `_docs/API_Endpoints_Status.md`) — pending audit.

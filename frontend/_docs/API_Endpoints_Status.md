@@ -189,9 +189,9 @@ Ben: implement the language around the diversification score in the frontend.  g
 
 | Endpoint | Method | Status | Notes |
 |----------|--------|--------|-------|
-| `/api/v1/market-data/prices/{symbol}` | GET | ❌ TODO | Individual symbol prices |
+| `/api/v1/market-data/prices/{symbol}` | GET | ⛔ Removed v1.2 | Individual symbol prices |
 | `/api/v1/market-data/batch-prices` | POST | ❌ TODO | Batch price fetching |
-| `/api/v1/market-data/options/{symbol}` | GET | ❌ TODO | Options chain data |
+| `/api/v1/market-data/options/{symbol}` | GET | ⛔ Removed v1.2 | Options chain data |
 | `/api/v1/market-data/fundamentals/{symbol}` | GET | ❌ TODO | Company fundamentals |
 
 ### researched, current state ###
@@ -213,7 +213,7 @@ Ben: implement the language around the diversification score in the frontend.  g
   -
   Tables: market_data_cache (model: app.models.market_data.MarketDataCache)
   -
-  GET /api/v1/market-data/options/{symbol}
+  (removed) GET /api/v1/market-data/options/{symbol}
       - File/function: backend/app/api/v1/market_data.py:get_options_chain()
       - Auth: Required (Depends(get_current_user))
       - Data access:

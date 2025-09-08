@@ -112,13 +112,13 @@ These placeholder endpoints were removed and are no longer exposed.
 - (removed) POST `/modeling/sessions`
 - (removed) GET `/modeling/sessions/{session_id}`
 
-#### Market Data (unregistered in v1.2; internal only)
-The market‑data router is no longer exposed publicly. These endpoints are internal/testing only and not available under `/api/v1`:
-- (unregistered) GET `/market-data/prices/{symbol}`
-- (unregistered) GET `/market-data/current-prices` (query: `symbols`)
-- (unregistered) GET `/market-data/sectors` (query: `symbols`)
-- (unregistered) POST `/market-data/refresh`
-- (unregistered) GET `/market-data/options/{symbol}`
+#### Market Data (removed in v1.2)
+These endpoints were removed from the public API. Service‑level functionality for market data remains available internally.
+- (removed) GET `/market-data/prices/{symbol}`
+- (removed) GET `/market-data/current-prices` (query: `symbols`)
+- (removed) GET `/market-data/sectors` (query: `symbols`)
+- (removed) POST `/market-data/refresh`
+- (removed) GET `/market-data/options/{symbol}`
 
 #### Administration (not registered)
 Admin endpoints exist in `app/api/v1/endpoints/admin_batch.py` but are not included in the router and are not accessible via the API.
@@ -255,7 +255,7 @@ Streams standardized SSE events: `message_created`, `start`, `message` tokens, `
 ### Symbol Historical Prices
 **Endpoint**: `GET /market-data/prices/{symbol}`  
 **Status**: ✅ Fully Implemented  
-**File/Function**: `backend/app/api/v1/market_data.py:get_price_data()`  
+Removed in v1.2: `backend/app/api/v1/market_data.py:get_price_data()`  
 **Authentication**: Required (`Depends(get_current_user)`)  
 
 **Data Access**:
@@ -274,7 +274,7 @@ Streams standardized SSE events: `message_created`, `start`, `message` tokens, `
 ### Options Chain
 **Endpoint**: `GET /market-data/options/{symbol}`  
 **Status**: ✅ Fully Implemented  
-**File/Function**: `backend/app/api/v1/market_data.py:get_options_chain()`  
+Removed in v1.2: `backend/app/api/v1/market_data.py:get_options_chain()`  
 **Authentication**: Required (`Depends(get_current_user)`)  
 
 **Data Access**:
