@@ -2906,17 +2906,33 @@ Detailed plan (checklist)
 - [ ] Rollback plan (simple)
   - [ ] To restore, revert commit 42ab191 and re‑add the `include_router(...)` lines in `app/api/v1/router.py`.
 
-### 6.9 Evaluate removing MarketDataService (service layer)
+### 6.9 Evaluate removing MarketDataService (service layer) — ❌ RESOLVED: DO NOT DELETE
 
-Checklist
-- [ ] Inventory all usages of `app/services/market_data_service.py` (runtime APIs, ETL/cron, agent tools, scripts).
-- [ ] Confirm FE/Agent do not call `/api/v1/market-data/*` and rely on `/api/v1/data/*` endpoints.
-- [ ] Decide: keep `MarketDataService` for ETL-only use, or remove it entirely if redundant.
-- [ ] If keeping for ETL-only, move to an internal module namespace (e.g., `app/internal/market_data_service.py`) and remove public API exposure.
-- [ ] Remove router `app/api/v1/market_data.py` from `app/api/v1/router.py` (after 6.8 endpoint deletions).
-- [ ] Delete or relocate ad‑hoc scripts that exercise `MarketDataService` directly (below).
-- [ ] Remove/update tests accordingly and ensure CI passes.
-- [ ] Update docs (API specs, deployment plan) to reflect removals.
+**Investigation Results (2025-09-08):**
+MarketDataService has extensive internal usage and cannot be safely removed:
+
+**Critical Internal Dependencies Found:**
+- `app/batch/batch_orchestrator_v2.py` - Uses `fetch_stock_prices_hybrid()` and `get_cached_prices()`
+- `app/batch/market_data_sync.py` - Heavily uses `bulk_fetch_and_cache()` for ETL operations  
+- `app/calculations/market_data.py` - Uses price fetching and caching methods
+- Multiple calculation engines depend on MarketDataService for data operations
+
+**Key Services Provided:**
+- Provider failover logic (FMP→Polygon→Mock fallback)
+- Rate limiting and connection pooling for external APIs
+- Bulk data fetching and caching operations
+- Hybrid fetching strategies for different data types
+
+**Decision: KEEP MarketDataService**
+- Service is core infrastructure for batch processing and calculation engines
+- Removing would require major refactoring of batch orchestrator and ETL systems
+- Public API endpoints can be removed (via task 6.8) while keeping service layer intact
+- Service provides critical abstractions for market data provider management
+
+**Recommended Action:**
+- Remove public API endpoints (`/api/v1/market-data/*`) but keep service layer
+- Service remains as internal dependency for ETL/batch operations
+- No namespace relocation needed - internal usage is appropriate
 
 Scripts to delete (hit `/market-data/*` or `MarketDataService` directly)
 - [ ] `backend/scripts/test_api_endpoints.sh`
