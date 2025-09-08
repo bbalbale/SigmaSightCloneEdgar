@@ -2856,10 +2856,14 @@ APIs to delete (legacy/placeholders not used by FE):
 - GET `/modeling/sessions/{session_id}`
 
 Checklist
-- [ ] Remove the above endpoints (and their routers/modules if fully unused).
-- [ ] Update `app/api/v1/router.py` to exclude removed routers or mark as deprecated prior to removal.
-- [ ] Update `API_SPECIFICATIONS_V1.4.5.md` to reflect removals and avoid stale references.
-- [ ] Verify no frontend imports or calls depend on these stubs.
+- [x] Remove the above endpoints (and their routers/modules if fully unused).
+  - Completed in commit 42ab191: deleted `app/api/v1/{portfolio,positions,risk,modeling}.py` and unregistered `market_data` router.
+- [x] Update `app/api/v1/router.py` to exclude removed routers or mark as deprecated prior to removal.
+  - Completed in commit 42ab191: removed `include_router(...)` for portfolio/positions/risk/modeling; added comment noting v1.2 removal.
+- [x] Update `API_SPECIFICATIONS_V1.4.5.md` to reflect removals and avoid stale references.
+  - Completed in commit 42ab191: marked Portfolio/Positions/Risk/Modeling as “removed in v1.2”; Market Data noted as “unregistered/internal only”.
+- [x] Verify no frontend imports or calls depend on these stubs.
+  - Verified with ripgrep; frontend calls `/api/v1/data/*` and `/api/v1/analytics/*` only. No `/api/v1/(portfolio|positions|risk|modeling|market-data)` references.
 
 #### Market Data (internal/testing-only endpoints)
 - GET `/market-data/prices/{symbol}`
@@ -2872,35 +2876,35 @@ Notes
 - Not used by the frontend. Kept for manual testing and scripts. Safe to remove from public router if we rely exclusively on `/data/*` endpoints for FE/Agent.
 
 Detailed plan (checklist)
-- [ ] Pre‑checks: verify zero active usage
-  - [ ] Search frontend for any references to these paths: `rg -n "/api/v1/(portfolio|positions|risk|modeling|market-data)" frontend`
-  - [ ] Search backend/agent for internal calls: `rg -n "/api/v1/(portfolio|positions|risk|modeling|market-data)" backend agent`
-  - [ ] Confirm the only matches are docs/tests/scripts (acceptable).
-- [ ] Create branch for removal work: `git checkout -b chore/remove-legacy-stub-apis`
-- [ ] Remove routers from public API
-  - [ ] Edit `app/api/v1/router.py` and delete `include_router(...)` lines for:
-    - `portfolio.router`
-    - `positions.router`
-    - `risk.router`
-    - `modeling.router`
-    - `market_data.router` (we will remove public exposure; service evaluation in 6.9)
-- [ ] Delete unused router modules (if no remaining imports)
-  - [ ] Remove files: `app/api/v1/portfolio.py`, `app/api/v1/positions.py`, `app/api/v1/risk.py`, `app/api/v1/modeling.py`
-  - [ ] For `app/api/v1/market_data.py`: delete only if 6.9 confirms we won’t keep these endpoints even for ops; otherwise leave file but unreferenced.
-- [ ] Update specifications and docs
-  - [ ] Update `backend/_docs/requirements/API_SPECIFICATIONS_V1.4.5.md`: remove the deleted endpoint sections; add a short “Removed in v1.2” note.
-  - [ ] Update any internal docs mentioning these endpoints (e.g., `_docs/API_Endpoints_Status.md`, scripts guidance) to avoid stale guidance.
-- [ ] Clean up tests/scripts that reference removed endpoints
-  - [ ] Remove calls from `backend/scripts/test_api_endpoints.sh` (or delete the script as part of 6.9).
-  - [ ] Delete or rewrite `backend/tests/test_market_data_service.py` if it asserts `/market-data/*` routes (see 6.9).
+- [x] Pre‑checks: verify zero active usage
+  - [x] Search frontend for any references to these paths: `rg -n "/api/v1/(portfolio|positions|risk|modeling|market-data)" frontend` — no matches in runtime code.
+  - [x] Search backend/agent for internal calls: `rg -n "/api/v1/(portfolio|positions|risk|modeling|market-data)" backend agent` — only docs/tests/scripts matched.
+  - [x] Confirm the only matches are docs/tests/scripts (acceptable).
+- [x] Create branch for removal work: used existing working branch `frontendtest`.
+- [x] Remove routers from public API
+  - [x] Edit `app/api/v1/router.py` and delete `include_router(...)` lines for:
+    - `portfolio.router` — removed
+    - `positions.router` — removed
+    - `risk.router` — removed
+    - `modeling.router` — removed
+    - `market_data.router` — unregistered (kept internal; see 6.9)
+- [x] Delete unused router modules (if no remaining imports)
+  - [x] Removed files: `app/api/v1/portfolio.py`, `app/api/v1/positions.py`, `app/api/v1/risk.py`, `app/api/v1/modeling.py` (commit 42ab191)
+  - [ ] For `app/api/v1/market_data.py`: leave unreferenced for now (pending 6.9 decision).
+- [x] Update specifications and docs
+  - [x] Updated `backend/_docs/requirements/API_SPECIFICATIONS_V1.4.5.md`: marked removed endpoints and noted market‑data unregistered (commit 42ab191)
+  - [ ] Update any internal docs mentioning these endpoints (e.g., `_docs/API_Endpoints_Status.md`) — pending audit.
+- [~] Clean up tests/scripts that reference removed endpoints
+  - [x] Tests: added `@pytest.mark.skip` to endpoint tests in `backend/tests/test_market_data_service.py` (commit 42ab191)
+  - [ ] Scripts: `backend/scripts/test_api_endpoints.sh` still references these routes; slated for deletion in 6.9.
 - [ ] Run test suite locally
-  - [ ] `uv run pytest -q` (or project’s test command) and ensure green.
+  - [ ] `uv run pytest -q` (or project’s test command) — pending run.
   - [ ] Fix import errors if any modules still import the deleted routers.
-- [ ] Commit + PR
-  - [ ] Commit with message: "chore(api): remove legacy stub endpoints and update specs"
+- [x] Commit + PR
+  - [x] Commits pushed to branch `frontendtest` (42ab191)
   - [ ] Open PR to main; tag as safe cleanup; request review.
 - [ ] Rollback plan (simple)
-  - [ ] To restore, revert the removal commit and re‑add the `include_router(...)` lines in `app/api/v1/router.py`.
+  - [ ] To restore, revert commit 42ab191 and re‑add the `include_router(...)` lines in `app/api/v1/router.py`.
 
 ### 6.9 Evaluate removing MarketDataService (service layer)
 
