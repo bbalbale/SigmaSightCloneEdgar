@@ -2871,6 +2871,37 @@ Checklist
 Notes
 - Not used by the frontend. Kept for manual testing and scripts. Safe to remove from public router if we rely exclusively on `/data/*` endpoints for FE/Agent.
 
+Detailed plan (checklist)
+- [ ] Pre‑checks: verify zero active usage
+  - [ ] Search frontend for any references to these paths: `rg -n "/api/v1/(portfolio|positions|risk|modeling|market-data)" frontend`
+  - [ ] Search backend/agent for internal calls: `rg -n "/api/v1/(portfolio|positions|risk|modeling|market-data)" backend agent`
+  - [ ] Confirm the only matches are docs/tests/scripts (acceptable).
+- [ ] Create branch for removal work: `git checkout -b chore/remove-legacy-stub-apis`
+- [ ] Remove routers from public API
+  - [ ] Edit `app/api/v1/router.py` and delete `include_router(...)` lines for:
+    - `portfolio.router`
+    - `positions.router`
+    - `risk.router`
+    - `modeling.router`
+    - `market_data.router` (we will remove public exposure; service evaluation in 6.9)
+- [ ] Delete unused router modules (if no remaining imports)
+  - [ ] Remove files: `app/api/v1/portfolio.py`, `app/api/v1/positions.py`, `app/api/v1/risk.py`, `app/api/v1/modeling.py`
+  - [ ] For `app/api/v1/market_data.py`: delete only if 6.9 confirms we won’t keep these endpoints even for ops; otherwise leave file but unreferenced.
+- [ ] Update specifications and docs
+  - [ ] Update `backend/_docs/requirements/API_SPECIFICATIONS_V1.4.5.md`: remove the deleted endpoint sections; add a short “Removed in v1.2” note.
+  - [ ] Update any internal docs mentioning these endpoints (e.g., `_docs/API_Endpoints_Status.md`, scripts guidance) to avoid stale guidance.
+- [ ] Clean up tests/scripts that reference removed endpoints
+  - [ ] Remove calls from `backend/scripts/test_api_endpoints.sh` (or delete the script as part of 6.9).
+  - [ ] Delete or rewrite `backend/tests/test_market_data_service.py` if it asserts `/market-data/*` routes (see 6.9).
+- [ ] Run test suite locally
+  - [ ] `uv run pytest -q` (or project’s test command) and ensure green.
+  - [ ] Fix import errors if any modules still import the deleted routers.
+- [ ] Commit + PR
+  - [ ] Commit with message: "chore(api): remove legacy stub endpoints and update specs"
+  - [ ] Open PR to main; tag as safe cleanup; request review.
+- [ ] Rollback plan (simple)
+  - [ ] To restore, revert the removal commit and re‑add the `include_router(...)` lines in `app/api/v1/router.py`.
+
 ### 6.9 Evaluate removing MarketDataService (service layer)
 
 Checklist
