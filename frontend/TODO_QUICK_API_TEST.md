@@ -1,5 +1,31 @@
 # Quick Analytics API Test Page - Rapid Implementation Guide
 
+## Try The Existing Dev Test Page (current)
+
+Use this to verify from the browser that the frontend can call the analytics endpoints.
+
+1) Start services
+   - Backend at `http://localhost:8000`
+   - Frontend at `http://localhost:3005` (`npm install && npm run dev` in `frontend/`)
+
+2) Login (sets JWT for pages)
+   - Visit `http://localhost:3005/login`
+   - Demo creds: `demo_hnw@sigmasight.com` / `demo12345`
+
+3) Open the test page
+   - Go to `http://localhost:3005/dev/api-test`
+   - Click “Detect from /auth/me” to auto-fill your portfolio ID
+   - Adjust params if desired (`lookback_days`, `min_overlap`, `limit`, `offset`, `scenarios`)
+   - Click “Run All Analytics”
+
+4) Expect 200 OK and JSON for:
+   - overview, correlation_matrix, factor_exposures, positions_factor_exposures, stress_test
+   - Some may return `{ available: false }` depending on batch data (not an error)
+
+Notes
+- The page uses direct calls with `Authorization: Bearer <token>` (no `/api/proxy`).
+- Chat/SSE continues to use the proxy in dev; not covered here.
+
 ## 🚀 Ultra-Fast Implementation (2-3 hours)
 
 ### Single File Solution
