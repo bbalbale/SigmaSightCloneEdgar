@@ -87,33 +87,38 @@ Base prefix for all endpoints below: `/api/v1`
 - DELETE `/chat/conversations/{conversation_id}`
 - POST `/chat/send` (SSE streaming; `text/event-stream`)
 
-#### Portfolio (legacy/placeholders)
-- GET `/portfolio/`
-- POST `/portfolio/upload`
-- GET `/portfolio/summary`
+#### Portfolio (removed in v1.2)
+These placeholder endpoints were removed and are no longer exposed.
+- (removed) GET `/portfolio/`
+- (removed) POST `/portfolio/upload`
+- (removed) GET `/portfolio/summary`
 
-#### Positions (legacy/placeholders)
-- GET `/positions/`
-- GET `/positions/{position_id}`
-- PUT `/positions/{position_id}`
+#### Positions (removed in v1.2)
+These placeholder endpoints were removed and are no longer exposed.
+- (removed) GET `/positions/`
+- (removed) GET `/positions/{position_id}`
+- (removed) PUT `/positions/{position_id}`
 
-#### Risk (legacy/placeholders)
-- GET `/risk/metrics`
-- GET `/risk/factors`
-- GET `/risk/greeks`
-- POST `/risk/greeks/calculate`
+#### Risk (removed in v1.2)
+These placeholder endpoints were removed and are no longer exposed.
+- (removed) GET `/risk/metrics`
+- (removed) GET `/risk/factors`
+- (removed) GET `/risk/greeks`
+- (removed) POST `/risk/greeks/calculate`
 
-#### Modeling (legacy/placeholders)
-- GET `/modeling/sessions`
-- POST `/modeling/sessions`
-- GET `/modeling/sessions/{session_id}`
+#### Modeling (removed in v1.2)
+These placeholder endpoints were removed and are no longer exposed.
+- (removed) GET `/modeling/sessions`
+- (removed) POST `/modeling/sessions`
+- (removed) GET `/modeling/sessions/{session_id}`
 
-#### Market Data
-- GET `/market-data/prices/{symbol}`
-- GET `/market-data/current-prices` (query: `symbols`)
-- GET `/market-data/sectors` (query: `symbols`)
-- POST `/market-data/refresh`
-- GET `/market-data/options/{symbol}`
+#### Market Data (unregistered in v1.2; internal only)
+The market‑data router is no longer exposed publicly. These endpoints are internal/testing only and not available under `/api/v1`:
+- (unregistered) GET `/market-data/prices/{symbol}`
+- (unregistered) GET `/market-data/current-prices` (query: `symbols`)
+- (unregistered) GET `/market-data/sectors` (query: `symbols`)
+- (unregistered) POST `/market-data/refresh`
+- (unregistered) GET `/market-data/options/{symbol}`
 
 #### Administration (not registered)
 Admin endpoints exist in `app/api/v1/endpoints/admin_batch.py` but are not included in the router and are not accessible via the API.

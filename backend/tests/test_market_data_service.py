@@ -163,6 +163,7 @@ class TestMarketDataServiceIntegration:
 class TestMarketDataEndpoints:
     """Test market data API endpoints"""
     
+    @pytest.mark.skip(reason="/api/v1/market-data routes unregistered in v1.2")
     def test_price_data_endpoint_unauthorized(self):
         """Test price data endpoint without authentication"""
         from fastapi.testclient import TestClient
@@ -174,6 +175,7 @@ class TestMarketDataEndpoints:
         # Should require authentication
         assert response.status_code == 401
 
+    @pytest.mark.skip(reason="/api/v1/market-data routes unregistered in v1.2")
     def test_current_prices_endpoint_unauthorized(self):
         """Test current prices endpoint without authentication"""
         from fastapi.testclient import TestClient
