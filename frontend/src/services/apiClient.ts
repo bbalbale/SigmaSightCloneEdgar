@@ -64,7 +64,7 @@ export class ApiClient {
   private errorInterceptors: ErrorInterceptor[] = [];
 
   constructor(
-    baseURL: string = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000',
+    baseURL: string = process.env.NEXT_PUBLIC_API_BASE_URL || (typeof window !== 'undefined' ? '/api/proxy' : 'http://localhost:8000'),
     options: {
       timeout?: number;
       retries?: number;
