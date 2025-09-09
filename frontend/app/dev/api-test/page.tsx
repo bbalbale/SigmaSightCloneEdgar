@@ -39,6 +39,7 @@ export default function ApiTestPage() {
   const [busy, setBusy] = useState(false);
   const [log, setLog] = useState<string[]>([]);
   const [results, setResults] = useState<Record<string, Result | null>>({});
+  const [allApiResults, setAllApiResults] = useState<Record<string, Result | null>>({});
 
   // Analytics params
   const [lookbackDays, setLookbackDays] = useState<number>(90);
@@ -107,9 +108,76 @@ export default function ApiTestPage() {
       measure('stress_test', () => analyticsApi.getStressTest(pid, { scenarios: scenarios.trim() || undefined })),
     ]);
     setResults((r) => ({ ...r, ...Object.fromEntries(entries) }));
+    setAllApiResults((r) => ({ ...r, ...Object.fromEntries(entries) }));
     appendLog("Finished analytics API calls.");
     setBusy(false);
   }, [token, portfolioId, lookbackDays, minOverlap, posLimit, posOffset, scenarios, appendLog]);
+
+  const testAllApis = useCallback(async () => {
+    if (!token) {
+      appendLog("No token in localStorage. Please login at /login.");
+      return;
+    }
+    const pid = portfolioId.trim() || "<SET_ID>";
+    setBusy(true);
+    appendLog("Testing all available APIs...");
+
+    const measure = async <T,>(key: string, fn: () => Promise<T>): Promise<[string, Result]> => {
+      const started = performance.now();
+      try {
+        const data = await fn();
+        const tookMs = Math.round(performance.now() - started);
+        return [key, { ok: true, status: 200, data, tookMs, url: key }];
+      } catch (e: any) {
+        const status = typeof e?.status === 'number' ? e.status : 0;
+        const tookMs = Math.round(performance.now() - started);
+        return [key, { ok: false, status, data: { error: String(e?.message || e) }, tookMs, url: key }];
+      }
+    };
+
+    // Test all API endpoints
+    const apiTests = await Promise.all([
+      // Auth APIs
+      measure('/api/v1/auth/me', () => apiClient.get('/api/v1/auth/me', { headers: { Authorization: `Bearer ${token}` } })),
+      
+      // Portfolio APIs
+      measure(`/api/v1/data/portfolio/${pid}/complete`, () => 
+        apiClient.get(`/api/v1/data/portfolio/${pid}/complete`, { headers: { Authorization: `Bearer ${token}` } })),
+      measure(`/api/v1/data/portfolio/${pid}/data-quality`, () => 
+        apiClient.get(`/api/v1/data/portfolio/${pid}/data-quality`, { headers: { Authorization: `Bearer ${token}` } })),
+      
+      // Position APIs
+      measure('/api/v1/data/positions/details', () => 
+        apiClient.get(`/api/v1/data/positions/details?portfolio_id=${pid}`, { headers: { Authorization: `Bearer ${token}` } })),
+      
+      // Price APIs
+      measure('/api/v1/data/prices/quotes', () => 
+        apiClient.get('/api/v1/data/prices/quotes', { headers: { Authorization: `Bearer ${token}` } })),
+      
+      // Factor APIs
+      measure('/api/v1/data/factors/etf-prices', () => 
+        apiClient.get('/api/v1/data/factors/etf-prices', { headers: { Authorization: `Bearer ${token}` } })),
+      
+      // Analytics APIs
+      measure(`/api/v1/analytics/portfolio/${pid}/overview`, () => analyticsApi.getOverview(pid)),
+      measure(`/api/v1/analytics/portfolio/${pid}/correlation-matrix`, () => 
+        analyticsApi.getCorrelationMatrix(pid, { lookback_days: 90, min_overlap: 30 })),
+      measure(`/api/v1/analytics/portfolio/${pid}/factor-exposures`, () => 
+        analyticsApi.getPortfolioFactorExposures(pid)),
+      measure(`/api/v1/analytics/portfolio/${pid}/positions/factor-exposures`, () => 
+        analyticsApi.getPositionFactorExposures(pid, { limit: 10 })),
+      measure(`/api/v1/analytics/portfolio/${pid}/stress-test`, () => 
+        analyticsApi.getStressTest(pid)),
+      
+      // Admin APIs
+      measure('/api/v1/admin/health', () => 
+        apiClient.get('/api/v1/admin/health', { headers: { Authorization: `Bearer ${token}` } })),
+    ]);
+
+    setAllApiResults(Object.fromEntries(apiTests));
+    appendLog(`Tested ${apiTests.length} API endpoints.`);
+    setBusy(false);
+  }, [token, portfolioId, appendLog]);
 
   useEffect(() => {
     // Auto-try to fetch portfolio id on load if token exists
@@ -124,6 +192,98 @@ export default function ApiTestPage() {
       <p className="text-sm text-gray-600">
         Calls analytics endpoints via proxy using <code>Authorization: Bearer &lt;token&gt;</code>. Login at <code>/login</code> first.
       </p>
+
+      {/* API Status Table */}
+      <section className="border rounded-lg p-4 space-y-3">
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-medium">API Status Overview</h2>
+          <button 
+            onClick={testAllApis} 
+            disabled={busy || !portfolioId} 
+            className="px-3 py-2 rounded bg-green-600 text-white disabled:opacity-50 text-sm"
+          >
+            Test All APIs
+          </button>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="min-w-full divide-y divide-gray-200">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  API Endpoint
+                </th>
+                <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Status
+                </th>
+                <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Response
+                </th>
+                <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Time (ms)
+                </th>
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {[
+                { key: '/api/v1/auth/me', label: 'Auth: Current User' },
+                { key: `/api/v1/data/portfolio/${portfolioId || '{id}'}/complete`, label: 'Portfolio: Complete Data' },
+                { key: `/api/v1/data/portfolio/${portfolioId || '{id}'}/data-quality`, label: 'Portfolio: Data Quality' },
+                { key: '/api/v1/data/positions/details', label: 'Positions: Details' },
+                { key: '/api/v1/data/prices/quotes', label: 'Prices: Quotes' },
+                { key: '/api/v1/data/factors/etf-prices', label: 'Factors: ETF Prices' },
+                { key: `/api/v1/analytics/portfolio/${portfolioId || '{id}'}/overview`, label: 'Analytics: Overview' },
+                { key: `/api/v1/analytics/portfolio/${portfolioId || '{id}'}/correlation-matrix`, label: 'Analytics: Correlation Matrix' },
+                { key: `/api/v1/analytics/portfolio/${portfolioId || '{id}'}/factor-exposures`, label: 'Analytics: Factor Exposures' },
+                { key: `/api/v1/analytics/portfolio/${portfolioId || '{id}'}/positions/factor-exposures`, label: 'Analytics: Position Factors' },
+                { key: `/api/v1/analytics/portfolio/${portfolioId || '{id}'}/stress-test`, label: 'Analytics: Stress Test' },
+                { key: '/api/v1/admin/health', label: 'Admin: Health Check' },
+              ].map(({ key, label }) => {
+                const result = allApiResults[key];
+                return (
+                  <tr key={key}>
+                    <td className="px-3 py-2 whitespace-nowrap text-sm font-medium text-gray-900">
+                      {label}
+                    </td>
+                    <td className="px-3 py-2 whitespace-nowrap text-sm">
+                      {!result ? (
+                        <span className="text-gray-400">Not tested</span>
+                      ) : result.ok ? (
+                        <span className="text-green-600 font-semibold">✓ {result.status}</span>
+                      ) : (
+                        <span className="text-red-600 font-semibold">✗ {result.status || 'Error'}</span>
+                      )}
+                    </td>
+                    <td className="px-3 py-2 text-sm text-gray-500">
+                      {!result ? (
+                        <span className="text-gray-400">-</span>
+                      ) : result.ok ? (
+                        <span className="text-green-700">
+                          {result.data && typeof result.data === 'object' ? 
+                            (Array.isArray(result.data) ? `Array[${result.data.length}]` : 
+                             Object.keys(result.data).length > 0 ? 'Has data' : 'Empty') 
+                            : 'Response received'}
+                        </span>
+                      ) : (
+                        <span className="text-red-600 text-xs">
+                          {result.data?.error || 'Failed'}
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-500">
+                      {result ? `${result.tookMs}` : '-'}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+        {!portfolioId && (
+          <p className="text-xs text-amber-600 mt-2">
+            Note: Portfolio ID required. Use "Detect from /auth/me" button above or paste a valid UUID.
+          </p>
+        )}
+      </section>
 
       {/* Token/Portfolio */}
       <section className="border rounded-lg p-4 space-y-3">
