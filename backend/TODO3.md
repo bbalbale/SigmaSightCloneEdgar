@@ -2945,9 +2945,108 @@ Tests to delete or rewrite
 - [ ] `backend/tests/test_market_data_service.py` (unit + integration tests for `MarketDataService` and `/market-data/*` endpoints)
 ---
 
-## Phase 7: Testing & Deployment (Future)
+## Phase 7: Develop Process and Scripts for Onboarding New Accounts and Portfolios
 
-### 7.1 Testing
+### 7.1 Client Onboarding Documentation and Process
+- [x] **Write onboarding new account portfolio guide (prompt)** ✅ **COMPLETED 2025-09-09**
+  - Created comprehensive `ONBOARDING_NEW_ACCOUNT_PORTFOLIO.md` guide
+  - 45-page documentation covering CSV import to frontend verification
+  - Harmonized with existing `BACKEND_INITIAL_COMPLETE_WORKFLOW_GUIDE.md`
+  - Includes account creation, market data backfill, batch processing
+  - End-to-end verification for both backend APIs and frontend chat
+  - Production security considerations and troubleshooting
+  - **FIXED**: All technical mismatches identified by AI agent feedback
+  - **ALIGNED**: Code examples now match actual database schema and codebase patterns
+
+### 7.2 Client Onboarding Scripts (To Be Implemented)
+
+> **📋 Implementation Reference**: All scripts should implement the workflow detailed in `ONBOARDING_NEW_ACCOUNT_PORTFOLIO.md` with code examples that match actual database schema.
+
+- [ ] Create `scripts/onboard_client.py` - Main automation script
+  - **Build on existing patterns**: Use `scripts/seed_database.py` as foundation
+  - **Full workflow reference**: `ONBOARDING_NEW_ACCOUNT_PORTFOLIO.md` sections 2-4
+  - Account creation with deterministic (dev) vs random (prod) UUIDs
+  - CSV portfolio import with validation (use actual Position model fields)
+  - Market data backfill orchestration
+  - Batch calculation execution using `BatchOrchestratorV2`
+  - Frontend verification automation
+  - **Success Criteria**:
+    * ✅ Idempotent account creation (get-or-create semantics)
+    * ✅ Position count equals CSV rows imported
+    * ✅ Batch completes with 0 critical failures (allow partial data)
+    * ✅ Key endpoints return 200: `/api/v1/data/portfolio/{id}/complete`
+    * ✅ Optional: FE login + portfolio page loads + chat smoke test
+- [ ] Create `scripts/verify_client.py` - End-to-end verification script
+  - **Reference existing**: Pattern from `scripts/verify_demo_portfolios.py`
+  - Use `scripts/check_database_content.py` for state verification
+  - Integration with `scripts/test_api_endpoints.sh` patterns
+  - **Success Criteria**:
+    * ✅ Data coverage thresholds: >95% market data for last 90 days
+    * ✅ Portfolio snapshots present for last 30 days
+    * ✅ Correlation matrix availability (factors × positions)
+    * ✅ Factor exposure rows > 0 for equity positions
+    * ✅ API latency bounds: <500ms for portfolio data endpoints
+    * ✅ Database integrity: all foreign keys valid, no orphaned records
+- [ ] Create `app/db/client_onboarding.py` - Onboarding utilities module
+  - **Reference patterns**: `app/database.py` for async session management
+  - **Required functions**:
+    * `async def create_client_account(db: AsyncSession, client_info: dict) -> Tuple[UUID, UUID]`
+    * `async def import_positions_from_csv(db: AsyncSession, portfolio_id: UUID, csv_path: str) -> List[Position]`
+    * `async def get_or_create_tag(db: AsyncSession, tag_name: str, user_id: UUID) -> Tag`
+  - **UUID patterns**: Use `app/models/users.py` UUID handling patterns
+  - **Tag associations**: Reference Position.tags relationship in `app/models/positions.py:74`
+- [ ] Create CSV validation and sanitization utilities
+  - **CRITICAL**: Use actual PositionType enum values (LONG, SHORT, LC, LP, SC, SP)
+  - Validate against actual database schema
+  - **Implementation**: Pydantic row schema with typed fields (Decimal, date, Literal enum values)
+  - **Fail-fast**: Summary of invalid rows with specific field errors
+  - **Safety**: Dry-run validation mode before any database writes
+- [ ] Add client removal/rollback scripts for failed onboarding
+  - **Reference patterns**: `scripts/reset_and_seed.py` for database operations
+  - **Required functions**:
+    * `async def remove_client_data(user_id: UUID, confirm: bool = False)`
+    * `async def rollback_partial_onboarding(email: str, step_failed: str)`
+  - **Cleanup order**: Positions → Portfolio → User (respect foreign key constraints)
+  - **Rollback safety**: Prefer soft-delete in dev; add `--hard-delete` flag for explicit cleanup
+  - **Backup first**: Create JSON backup of User + Portfolio + Positions before any removal
+
+### 7.3 Operational Safety & Enhancement Features
+
+**Add to `scripts/onboard_client.py`:**
+- [ ] **Dry-run mode**: `--dry-run` validates client JSON + CSV and prints intended changes without writing
+- [ ] **Idempotency**: Get-or-create semantics; skip re-import unless `--force` passed  
+- [ ] **Duplicate protection**: Guard against duplicate positions on reruns
+- [ ] **Structured logging**: JSON output per step (email, user_id, portfolio_id, step, status, duration, error)
+- [ ] **Rate limiting**: Wrap API calls with per-provider backoff and retry logic
+- [ ] **Partial success handling**: Surface partial success with actionable retry hints
+
+**Add to `scripts/verify_client.py`:**
+- [ ] **Threshold configuration**: Configurable data coverage and performance thresholds
+- [ ] **Detailed reporting**: JSON summary with pass/fail per check and remediation suggestions
+
+### 7.4 Production Onboarding Enhancements
+- [ ] Implement secure UUID generation for production
+  - **Reference**: `uuid4()` from `uuid` module vs deterministic generation
+  - **Environment detection**: Use `app.config.settings` to detect dev vs prod
+- [ ] Add audit logging for all onboarding activities
+  - **Reference patterns**: `app.core.logging.get_logger(__name__)` 
+  - **Log events**: Account creation, CSV import, market data backfill, batch completion
+  - **Include**: user_id, portfolio_id, timestamp, step_status, error_details
+- [ ] Create client data backup/restore procedures
+  - **Backup target**: User + Portfolio + Positions + Tags before any modifications
+  - **Storage format**: JSON with relationships preserved
+- [ ] Add rate limiting for bulk portfolio imports
+  - **Pattern**: Follow existing API rate limiting in `app/api/`
+  - **Limits**: Max positions per import, max imports per hour
+- [ ] Implement progressive market data backfill for large portfolios
+  - **Reference**: `app.batch.batch_orchestrator_v2.py` for sequential processing
+  - **Strategy**: Batch symbols in groups of 10-20, respect API rate limits
+
+---
+
+## Phase 8: Testing & Deployment (Future)
+
+### 8.1 Testing
 - [ ] Write unit tests for all services
 - [ ] Create integration tests for API endpoints
 - [ ] Add performance tests for critical operations
@@ -2955,14 +3054,14 @@ Tests to delete or rewrite
 - [ ] Test authentication flows
 - [ ] Create API documentation with examples
 
-### 7.2 Frontend Integration
+### 8.2 Frontend Integration
 - [ ] Test with deployed Next.js prototype
 - [ ] Adjust API responses to match frontend expectations
 - [ ] Implement any missing endpoints discovered during integration
 - [ ] Add proper CORS configuration
 - [ ] Optimize response formats for frontend consumption
 
-### 7.3 Railway Deployment
+### 8.3 Railway Deployment
 - [ ] Create railway.json configuration
 - [ ] Set up PostgreSQL on Railway
 - [ ] Configure environment variables
@@ -2971,7 +3070,7 @@ Tests to delete or rewrite
 - [ ] Configure custom domain (if needed)
 - [ ] Set up monitoring and logging
 
-### 7.4 Documentation
+### 8.4 Documentation
 - [ ] Create comprehensive README
 - [ ] Document all API endpoints
 - [ ] Create deployment guide
