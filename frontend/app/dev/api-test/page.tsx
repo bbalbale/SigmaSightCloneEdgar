@@ -40,6 +40,7 @@ export default function ApiTestPage() {
   const [log, setLog] = useState<string[]>([]);
   const [results, setResults] = useState<Record<string, Result | null>>({});
   const [allApiResults, setAllApiResults] = useState<Record<string, Result | null>>({});
+  const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
 
   // Analytics params
   const [lookbackDays, setLookbackDays] = useState<number>(90);
@@ -112,6 +113,18 @@ export default function ApiTestPage() {
     appendLog("Finished analytics API calls.");
     setBusy(false);
   }, [token, portfolioId, lookbackDays, minOverlap, posLimit, posOffset, scenarios, appendLog]);
+
+  const toggleRowExpansion = useCallback((key: string) => {
+    setExpandedRows(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(key)) {
+        newSet.delete(key);
+      } else {
+        newSet.add(key);
+      }
+      return newSet;
+    });
+  }, []);
 
   const testAllApis = useCallback(async () => {
     if (!token) {
@@ -239,40 +252,64 @@ export default function ApiTestPage() {
                 { key: '/api/v1/admin/health', label: 'Admin: Health Check' },
               ].map(({ key, label }) => {
                 const result = allApiResults[key];
+                const isExpanded = expandedRows.has(key);
                 return (
-                  <tr key={key}>
-                    <td className="px-3 py-2 whitespace-nowrap text-sm font-medium text-gray-900">
-                      {label}
-                    </td>
-                    <td className="px-3 py-2 whitespace-nowrap text-sm">
-                      {!result ? (
-                        <span className="text-gray-400">Not tested</span>
-                      ) : result.ok ? (
-                        <span className="text-green-600 font-semibold">✓ {result.status}</span>
-                      ) : (
-                        <span className="text-red-600 font-semibold">✗ {result.status || 'Error'}</span>
-                      )}
-                    </td>
-                    <td className="px-3 py-2 text-sm text-gray-500">
-                      {!result ? (
-                        <span className="text-gray-400">-</span>
-                      ) : result.ok ? (
-                        <span className="text-green-700">
-                          {result.data && typeof result.data === 'object' ? 
-                            (Array.isArray(result.data) ? `Array[${result.data.length}]` : 
-                             Object.keys(result.data).length > 0 ? 'Has data' : 'Empty') 
-                            : 'Response received'}
-                        </span>
-                      ) : (
-                        <span className="text-red-600 text-xs">
-                          {result.data?.error || 'Failed'}
-                        </span>
-                      )}
-                    </td>
-                    <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-500">
-                      {result ? `${result.tookMs}` : '-'}
-                    </td>
-                  </tr>
+                  <React.Fragment key={key}>
+                    <tr 
+                      className={result?.ok ? "cursor-pointer hover:bg-gray-50" : ""}
+                      onClick={() => result?.ok && toggleRowExpansion(key)}
+                    >
+                      <td className="px-3 py-2 whitespace-nowrap text-sm font-medium text-gray-900">
+                        <div className="flex items-center gap-1">
+                          {result?.ok && (
+                            <span className="text-gray-400">
+                              {isExpanded ? '▼' : '▶'}
+                            </span>
+                          )}
+                          {label}
+                        </div>
+                      </td>
+                      <td className="px-3 py-2 whitespace-nowrap text-sm">
+                        {!result ? (
+                          <span className="text-gray-400">Not tested</span>
+                        ) : result.ok ? (
+                          <span className="text-green-600 font-semibold">✓ {result.status}</span>
+                        ) : (
+                          <span className="text-red-600 font-semibold">✗ {result.status || 'Error'}</span>
+                        )}
+                      </td>
+                      <td className="px-3 py-2 text-sm text-gray-500">
+                        {!result ? (
+                          <span className="text-gray-400">-</span>
+                        ) : result.ok ? (
+                          <span className="text-green-700">
+                            {result.data && typeof result.data === 'object' ? 
+                              (Array.isArray(result.data) ? `Array[${result.data.length}]` : 
+                               Object.keys(result.data).length > 0 ? 'Has data' : 'Empty') 
+                              : 'Response received'}
+                          </span>
+                        ) : (
+                          <span className="text-red-600 text-xs">
+                            {result.data?.error || 'Failed'}
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-500">
+                        {result ? `${result.tookMs}` : '-'}
+                      </td>
+                    </tr>
+                    {isExpanded && result?.ok && (
+                      <tr>
+                        <td colSpan={4} className="px-3 py-3 bg-gray-50">
+                          <div className="max-h-96 overflow-auto">
+                            <pre className="text-xs font-mono text-gray-700 whitespace-pre-wrap">
+                              {pretty(result.data)}
+                            </pre>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </React.Fragment>
                 );
               })}
             </tbody>
@@ -281,6 +318,11 @@ export default function ApiTestPage() {
         {!portfolioId && (
           <p className="text-xs text-amber-600 mt-2">
             Note: Portfolio ID required. Use "Detect from /auth/me" button above or paste a valid UUID.
+          </p>
+        )}
+        {Object.values(allApiResults).some(r => r?.ok) && (
+          <p className="text-xs text-gray-500 mt-2">
+            💡 Click on successful API rows to expand and view the returned data.
           </p>
         )}
       </section>
