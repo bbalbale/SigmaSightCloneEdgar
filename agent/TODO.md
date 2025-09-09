@@ -3631,13 +3631,90 @@ Agent integration guidelines
 - Privacy: redact portfolio IDs, user emails, and any PII from search queries; disallow sending raw position lists to the web.
 - Config flags: `ENABLE_WEB_SEARCH`, `MAX_WEB_SOURCES`, `WEB_SEARCH_TIMEOUT_MS`. Default off in dev if network‑restricted.
 
-Tasks
-- [ ] Add a “web_search” tool option to the chat orchestration layer (agent‑side tool selection).
-- [ ] Add config switches per environment and per request (override in UI/debug panel).
-- [ ] Implement fallback policy (confidence/coverage thresholds) before calling web search.
-- [ ] Update prompts to demand citations and to reconcile conflicts between web vs. local data.
-- [ ] Add telemetry + correlation IDs; surface citations in the chat UI transcript.
-- [ ] Add unit/integration tests: offline mode, successful search with citations, empty/noisy results, tool timeout/retry.
+Plan (Hierarchical)
+- [ ] 9.20.1 Objectives
+  - [ ] Add web search via OpenAI Responses API built-in tool for recency/missing-data queries.
+  - [ ] Preserve SSE contract; add optional citations rendering in UI.
+
+- [ ] 9.20.2 Scope
+  - [ ] In-scope: backend feature flags, tool wiring, prompt policy, gating, telemetry, minimal FE Sources block.
+  - [ ] Out-of-scope: protocol changes, third-party search providers, large UI redesigns.
+
+- [ ] 9.20.3 Architecture
+  - [ ] Inject `{ type: "web_search" }` into Responses API `tools` only when enabled.
+  - [ ] Keep existing function tools and SSE envelopes unchanged; add optional `citations` field in `done.data`.
+
+- [ ] 9.20.4 Feature Flags
+  - [ ] Add settings: `ENABLE_WEB_SEARCH` (bool, default false), `WEB_SEARCH_MAX_SOURCES` (int, default 4), `WEB_SEARCH_TIMEOUT_MS` (int, default 8000), `WEB_SEARCH_PROVIDER` (string, default "openai").
+  - [ ] Load flags from `.env`; document under backend config.
+  - [ ] Support per-request overrides via header (e.g., `X-Agent-Flags: web_search=1,max_sources=4`).
+
+- [ ] 9.20.5 Tool Integration
+  - [ ] In `OpenAIService._get_tool_definitions_responses()`, append web_search when enabled/gated.
+  - [ ] Ensure inclusion logic is pre-call, no change to tool registry for function tools.
+
+- [ ] 9.20.6 Gating Policy
+  - [ ] v1: include `web_search` whenever `ENABLE_WEB_SEARCH` is true; rely on prompt policy to decide usage.
+  - [ ] v1.1 (optional): include only if recency intent detected ("today/latest/this week/news") or prior tool results indicate missing/low coverage.
+  - [ ] Allow per-request header to force enable/disable for QA.
+
+- [ ] 9.20.7 Prompt Updates
+  - [ ] Update common instructions to state when to use search (recency/missing-data/explicit user request).
+  - [ ] Require 2–4 citations with source name + URL under a "Sources" section when search is used.
+  - [ ] Reconcile conflicts: prefer local portfolio facts; use web only for market/news context.
+  - [ ] Privacy: prohibit sending PII, portfolio IDs, or position lists to the web; use generic queries.
+
+- [ ] 9.20.8 Privacy & Safety
+  - [ ] Start with prompt-level guardrails; note future sanitizer hook if SDK exposes structured args for built-ins.
+  - [ ] Redact portfolio IDs/emails/ticker lists from any search-related content; do not log PII.
+
+- [ ] 9.20.9 SSE & Telemetry
+  - [ ] Keep SSE contract unchanged; add optional `citations` array in `done.data` when present.
+  - [ ] Log telemetry on web search usage: `request_id`, `tool=web_search`, duration, number of sources, top domains.
+  - [ ] Handle search timeouts/errors as non-fatal; stream continues with note about missing sources.
+
+- [ ] 9.20.10 Frontend UX
+  - [ ] On `done`, if `data.citations` present, attach to assistant message and render compact "Sources" block (title/domain + link).
+  - [ ] If absent, rely on textual "Sources:" per prompt; no parsing required.
+  - [ ] Optional: add debug toggle to send `X-Agent-Flags` for per-request enablement in dev.
+
+- [ ] 9.20.11 Testing Strategy
+  - [ ] Unit (backend): flags defaulting; gating heuristics; prompt snapshot; PII redaction helper.
+  - [ ] Integration (backend): mock Responses stream with/without search; verify `done.data.citations`; timeout/error mapping.
+  - [ ] Frontend: render with citations; no-regression when absent; SSE parsing unchanged.
+  - [ ] E2E (manual): "Summarize today’s Fed news (3 sources)" shows Sources; portfolio queries do not trigger search.
+
+- [ ] 9.20.12 Rollout Plan
+  - [ ] Phase 1 (Dev): default off; header overrides for developers.
+  - [ ] Phase 2 (QA): enable per-request; validate latency/telemetry/stability.
+  - [ ] Phase 3 (Limited): enable for internal accounts; monitor usage and error rates.
+  - [ ] Phase 4 (General): enable by default with gating; keep debug override.
+
+- [ ] 9.20.13 Acceptance Criteria
+  - [ ] With flag on and recency intent, Responses call includes `web_search`; otherwise not.
+  - [ ] When search is used, answer contains 2–4 citations visible in UI (structured or textual).
+  - [ ] No PII/portfolio identifiers leak to web or logs.
+  - [ ] SSE contract unchanged; `citations` is optional and additive.
+  - [ ] Telemetry records search usage with duration and domain counts.
+
+- [ ] 9.20.14 Risks & Mitigations
+  - [ ] Latency/cost due to overuse → gating + telemetry; adjust thresholds.
+  - [ ] Model omits citations → reinforce prompt; optionally detect missing citations and append a note.
+  - [ ] Privacy leakage → prompt guard now; add sanitizer if SDK exposes args; review logs.
+  - [ ] Network-restricted dev → default flag off; per-request overrides for testing.
+
+- [ ] 9.20.15 Implementation Notes (File Map)
+  - [ ] `backend/app/config.py`: add flags; `.env` docs.
+  - [ ] `backend/app/agent/services/openai_service.py`: tool inclusion; optional gating; telemetry; populate `done.data.citations` when available.
+  - [ ] `backend/app/api/v1/chat/send.py`: parse per-request flags from headers; pass to service.
+  - [ ] `backend/app/agent/prompts/common_instructions.md`: add search policy, citations, privacy rules.
+  - [ ] `frontend/src/hooks/useFetchStreaming.ts`: plumb `citations` from `done` into store.
+  - [ ] `frontend/src/components/chat/ChatInterface.tsx`: render "Sources" block under assistant messages.
+
+- [ ] 9.20.16 Open Questions
+  - [ ] Confirm tool name per SDK version: `web_search` vs `web_search_preview`.
+  - [ ] Persist per-conversation search setting vs per-request only.
+  - [ ] Cap total search budget per response (in addition to per-tool timeout)?
 
 
 
