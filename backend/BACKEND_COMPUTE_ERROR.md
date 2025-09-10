@@ -1,8 +1,8 @@
 # Backend Compute Error Documentation
 
-> **Last Updated**: 2025-09-10  
+> **Last Updated**: 2025-09-10 (Updated with Factor Exposure API Investigation)  
 > **Purpose**: Document and track all computation errors encountered during batch processing  
-> **Status**: Active Issues - Resolution Required
+> **Status**: Active Issues - Resolution Required (17 Total Issues)
 
 ## Table of Contents
 1. [Critical Issues](#critical-issues)
@@ -88,12 +88,29 @@ PYTHONIOENCODING=utf-8 uv run python <script.py>
 
 ## Database Table Issues
 
-### Issue #6: Missing Stress Test Results Table
+### Issue #6: Factor Exposures Table Schema Mismatch
+**Error**: Factor exposures API returns `"available": false` with `"no_calculation_available"`  
+**Location**: `/api/v1/analytics/portfolio/{id}/factor-exposures` endpoint  
+**Root Cause**: Multiple schema mismatches between API service expectations and actual database
+**Details**:
+- API service expects columns: `factor_name` (string), `beta` (float), `position_id` (nullable)
+- Actual `factor_exposures` table has: `factor_id` (UUID), `exposure_value`, `exposure_dollar`
+- Service looks for a `factors` lookup table that doesn't exist
+- Service expects 8 specific factors including "Short Interest"
+
+**Current Data State**:
+- Individual portfolio: 8 records in `factor_exposures` (but wrong schema)
+- HNW portfolio: 0 records
+- Hedge Fund portfolio: 0 records
+
+**Impact**: All factor exposure API endpoints return unavailable status
+
+### Issue #7: Missing Stress Test Results Table
 **Error**: `relation "stress_test_results" does not exist`  
 **Location**: Referenced in multiple calculation scripts  
 **Impact**: Stress test calculations cannot be stored
 
-### Issue #7: Position Correlations Table Name Mismatch
+### Issue #8: Position Correlations Table Name Mismatch
 **Error**: `relation "position_correlations" does not exist`  
 **Actual Table Name**: `pairwise_correlations`  
 **Impact**: Correlation queries fail when using incorrect table name
@@ -102,7 +119,7 @@ PYTHONIOENCODING=utf-8 uv run python <script.py>
 
 ## Batch Processing Issues
 
-### Issue #8: Portfolio ID Mismatches
+### Issue #9: Portfolio ID Mismatches
 **Error**: Portfolio IDs in `scripts/run_batch_calculations.py` don't match actual database IDs  
 **Attempted IDs**:
 - `51134ffd-2f13-49bd-b1f5-0c327e801b69` (not found)
@@ -116,7 +133,7 @@ PYTHONIOENCODING=utf-8 uv run python <script.py>
 
 **Impact**: Batch processing returns "0/0 jobs" for portfolios not found
 
-### Issue #9: Batch Orchestrator Method Names
+### Issue #10: Batch Orchestrator Method Names
 **Error**: `AttributeError: 'BatchOrchestratorV2' object has no attribute 'run'`  
 **Also**: `AttributeError: 'BatchOrchestratorV2' object has no attribute '_run_factor_analysis'`  
 **Impact**: Cannot call batch orchestrator methods directly as documented
@@ -125,17 +142,17 @@ PYTHONIOENCODING=utf-8 uv run python <script.py>
 
 ## Calculation Engine Issues
 
-### Issue #10: Beta Capping Warnings
+### Issue #11: Beta Capping Warnings
 **Warning**: `Beta capped for position b9d5970d-6ec4-b3b1-9044-2e5f8c37376f, factor Market: -6.300 -> -3.000`  
 **Frequency**: Repeated 3 times  
 **Impact**: Extreme beta values being capped, may affect risk calculations
 
-### Issue #11: Missing Interest Rate Factor
+### Issue #12: Missing Interest Rate Factor
 **Error**: `No exposure found for shocked factor: Interest_Rate (mapped to Interest Rate Beta)`  
 **Frequency**: 10 occurrences  
 **Impact**: Interest rate sensitivity analysis incomplete
 
-### Issue #12: Excessive Stress Loss Clipping
+### Issue #13: Excessive Stress Loss Clipping
 **Warnings**:
 ```
 Direct stress loss of $-599,760 exceeds 99% of portfolio. Clipping at $-537,057
@@ -145,7 +162,7 @@ Correlated stress loss of $-1,086,798 exceeds 99% of portfolio. Clipping at $-53
 ```
 **Impact**: Stress test results being artificially constrained
 
-### Issue #13: Pandas FutureWarning
+### Issue #14: Pandas FutureWarning
 **Warning**: `The default fill_method='pad' in DataFrame.pct_change is deprecated`  
 **Location**: `app/calculations/factors.py:69`  
 **Impact**: Code will break in future pandas versions
@@ -154,11 +171,11 @@ Correlated stress loss of $-1,086,798 exceeds 99% of portfolio. Clipping at $-53
 
 ## API Rate Limiting
 
-### Issue #14: Polygon API Rate Limits
+### Issue #15: Polygon API Rate Limits
 **Error**: `HTTPSConnectionPool(host='api.polygon.io', port=443): Max retries exceeded with url: /v2/aggs/ticker/SPY250919C00460000/range/1/day/2025-09-05/2025-09-10?adjusted=true&sort=asc&limit=50000 (Caused by ResponseError('too many 429 error responses'))`  
 **Impact**: Options data fetching fails due to rate limiting
 
-### Issue #15: FMP Rate Limiting
+### Issue #16: FMP Rate Limiting
 **Log Messages**:
 ```
 Rate limit: waited 11.45s (request #6, avg rate: 0.34 req/s)
@@ -167,6 +184,26 @@ Rate limit: waited 11.94s (request #8, avg rate: 0.19 req/s)
 Rate limit: waited 11.96s (request #9, avg rate: 0.17 req/s)
 ```
 **Impact**: Significant delays in market data synchronization
+
+---
+
+## API-Database Alignment Issues
+
+### Issue #17: Factor Exposure Service Misalignment
+**Error**: API service layer expects different schema than batch processing creates  
+**Details**:
+- `FactorExposureService` looks for `factor_name` and `beta` columns
+- Batch processing creates `factor_id` and `exposure_value` columns  
+- Service expects portfolio-level aggregations with `position_id IS NULL`
+- Actual data uses separate `position_factor_exposures` table for position-level data
+
+**Investigation Findings**:
+- Service expects exactly 8 factors: Market Beta, Size, Value, Momentum, Quality, Low Volatility, Growth, Short Interest
+- Individual portfolio has data but in wrong format (factor_id instead of factor_name)
+- HNW and Hedge Fund portfolios have no factor data at all
+- Missing `factors` lookup table that would map factor_id to factor_name
+
+**Impact**: Complete failure of factor exposure API endpoints for all portfolios
 
 ---
 
@@ -298,11 +335,12 @@ asyncio.run(check())
 
 | Priority | Issue | Impact | Effort |
 |----------|-------|--------|--------|
-| P0 | Incomplete portfolio processing | HIGH - No data for 2/3 portfolios | LOW - Run batch again |
-| P0 | Unicode encoding errors | HIGH - Scripts fail to run | LOW - Add env variable |
-| P1 | Missing database tables | HIGH - Features unavailable | MEDIUM - Create migrations |
-| P1 | Portfolio ID mismatches | HIGH - Batch jobs fail | LOW - Update scripts |
-| P2 | Rate limiting issues | MEDIUM - Slow processing | HIGH - Implement retry logic |
-| P2 | Insufficient options data | MEDIUM - Options calc fail | HIGH - Historical backfill |
-| P3 | Pandas deprecation | LOW - Future issue | LOW - Update code |
-| P3 | Beta capping warnings | LOW - Working as designed | LOW - Adjust thresholds |
+| P0 | Factor exposure schema mismatch (#17) | CRITICAL - All factor APIs broken | HIGH - Refactor service or batch |
+| P0 | Incomplete portfolio processing (#1) | HIGH - No data for 2/3 portfolios | LOW - Run batch again |
+| P0 | Unicode encoding errors (#1) | HIGH - Scripts fail to run | LOW - Add env variable |
+| P1 | Missing database tables (#6,#7) | HIGH - Features unavailable | MEDIUM - Create migrations |
+| P1 | Portfolio ID mismatches (#9) | HIGH - Batch jobs fail | LOW - Update scripts |
+| P2 | Rate limiting issues (#15,#16) | MEDIUM - Slow processing | HIGH - Implement retry logic |
+| P2 | Insufficient options data (#4) | MEDIUM - Options calc fail | HIGH - Historical backfill |
+| P3 | Pandas deprecation (#14) | LOW - Future issue | LOW - Update code |
+| P3 | Beta capping warnings (#11) | LOW - Working as designed | LOW - Adjust thresholds |
