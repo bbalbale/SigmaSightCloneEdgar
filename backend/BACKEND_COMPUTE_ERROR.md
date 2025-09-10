@@ -1,8 +1,8 @@
 # Backend Compute Error Documentation
 
-> **Last Updated**: 2025-09-10 (Updated with Comprehensive Solution Plan)  
-> **Purpose**: Document and track all computation errors encountered during batch processing  
-> **Status**: 3 Issues Resolved, 14 Active (Factor API is P0 priority)
+> **Last Updated**: 2025-09-10 (Updated with Analytics API SQL Bug Discovery)  
+> **Purpose**: Document and track all computation errors encountered during batch processing and API services  
+> **Status**: 3 Issues Resolved, 16 Active (Analytics API SQL bug is P0 priority)
 
 ## Table of Contents
 1. [Critical Issues](#critical-issues)
@@ -210,13 +210,113 @@ Rate limit: waited 11.96s (request #9, avg rate: 0.17 req/s)
 
 **Impact**: Factor exposure API fails for 2/3 portfolios due to incomplete factor sets
 
+### Issue #18: Analytics API SQL Join Bug (CRITICAL)
+**Error**: Portfolio Analytics API returns zeros or massively inflated values  
+**Location**: `/api/v1/analytics/portfolio/{id}/overview` endpoint  
+**Root Cause**: Bad SQL join with MarketDataCache creates duplicate rows
+
+**Investigation Findings (2025-09-10)**:
+- SQL join creates one row per historical price date instead of latest price only
+- Hedge Fund portfolio: 30 actual positions become 3,831 rows (127x multiplication)
+- Results in inflated calculations: $919M gross exposure instead of $6M
+- API returns zeros in production due to overflow/calculation errors
+
+**Actual vs Expected Values (Hedge Fund Portfolio)**:
+```
+Actual from /complete endpoint (CORRECT):
+  - Long Exposure: $3,906,913.25
+  - Short Exposure: $1,990,680.60  
+  - Total Value: $6,188,950.79
+  
+Analytics API returns (WRONG):
+  - Long Exposure: $0.00
+  - Short Exposure: $0.00
+  - Total Value: $342,781,453.15 (55x inflated)
+```
+
+**SQL Bug Location**: `app/services/portfolio_analytics_service.py` lines 52-68
+```python
+# Current (BROKEN) - creates cartesian product with all historical dates
+).outerjoin(
+    MarketDataCache, MarketDataCache.symbol == Position.symbol
+)
+
+# Should be - only latest price per symbol
+).outerjoin(
+    select(MarketDataCache.symbol, func.max(MarketDataCache.date))
+    .group_by(MarketDataCache.symbol)
+    .subquery()
+)
+```
+
+**Impact**: Complete failure of portfolio overview analytics for all portfolios
+
+### Issue #19: Frontend Short Position Assumption
+**Error**: Frontend assumes all portfolios have zero short exposure  
+**Location**: `frontend/src/services/portfolioService.ts` line 177  
+**Code**: `const shortValue = 0 // No short positions in demo data`
+
+**Investigation Findings**:
+- Hedge Fund portfolio has 13 short positions worth ~$2M
+- Frontend hardcodes shorts as 0, missing significant exposure
+- Individual and HNW portfolios correctly have no shorts
+- Frontend calculates from `/complete` endpoint, not analytics API
+
+**Impact**: Incorrect exposure metrics displayed for Hedge Fund portfolio
+
 ---
 
 ## Resolution Steps
 
 ### Immediate Actions Required
 
-1. **Fix Factor Exposure API (CRITICAL - P0)**
+1. **Fix Analytics API SQL Join Bug (CRITICAL - P0)**
+   
+   **Backend Fix Required**:
+   ```python
+   # In app/services/portfolio_analytics_service.py
+   # Replace the bad join (lines 52-68) with:
+   
+   # Create subquery for latest prices only
+   latest_prices = select(
+       MarketDataCache.symbol,
+       MarketDataCache.close,
+       func.max(MarketDataCache.date).label('latest_date')
+   ).group_by(
+       MarketDataCache.symbol, 
+       MarketDataCache.close
+   ).subquery()
+   
+   # Use in main query
+   positions_query = select(
+       Position.id,
+       Position.symbol,
+       # ... other fields
+       latest_prices.c.close.label('current_price')
+   ).outerjoin(
+       latest_prices, latest_prices.c.symbol == Position.symbol
+   )
+   ```
+   
+   **Alternative Quick Fix**:
+   - Use `Position.last_price` instead of joining MarketDataCache
+   - This avoids the join entirely but may have stale prices
+
+2. **Fix Frontend Short Position Calculation (P0)**
+   
+   **Frontend Fix Required**:
+   ```javascript
+   // In frontend/src/services/portfolioService.ts line 177
+   // Replace:
+   const shortValue = 0 // No short positions in demo data
+   
+   // With:
+   const shortValue = data.holdings
+     .filter(h => ['SHORT', 'SC', 'SP'].includes(h.position_type))
+     .reduce((sum, h) => sum + Math.abs(h.market_value), 0)
+   ```
+
+3. **Fix Factor Exposure API (CRITICAL - P0)**
    
    **Option A: Quick Database Fix (Recommended)**
    ```sql
@@ -364,9 +464,50 @@ asyncio.run(check())
 
 ---
 
+## Migration Strategy: /complete to Analytics APIs
+
+### Current State
+- **Frontend**: Uses `/api/v1/data/portfolio/{id}/complete` endpoint
+- **Analytics**: `/api/v1/analytics/portfolio/{id}/overview` endpoint broken
+- **Data Flow**: Frontend calculates exposures client-side from raw data
+
+### Migration Options
+
+#### Option 1: Fix Backend Analytics (Recommended)
+1. Fix SQL join bug in `PortfolioAnalyticsService`
+2. Test with all three portfolios to ensure accuracy
+3. Update frontend to use analytics endpoints
+4. Keep `/complete` as fallback
+
+**Pros**: Centralized calculations, consistent metrics  
+**Cons**: Requires backend deployment
+
+#### Option 2: Quick Frontend Fix
+1. Fix short position calculation in `portfolioService.ts`
+2. Continue using `/complete` endpoint
+3. Defer analytics API migration
+
+**Pros**: No backend changes needed  
+**Cons**: Client-side calculations remain
+
+#### Option 3: Hybrid Approach
+1. Add exposure calculations to `/complete` endpoint
+2. Return both raw data and calculated metrics
+3. Frontend uses pre-calculated values
+
+**Pros**: Minimal frontend changes  
+**Cons**: Duplicates calculation logic
+
+### Testing Requirements
+- Verify all three portfolios display correct exposures
+- Confirm short positions calculated correctly for hedge fund
+- Test error handling when APIs fail
+- Validate performance with large portfolios
+
 ## Notes
 
 - All errors documented from batch run on 2025-09-10
+- Analytics API investigation completed 2025-09-10
 - Backend server running on Windows (CP1252 encoding issues)
 - Database: PostgreSQL 15 in Docker container
 - Python version: 3.11.13
@@ -378,6 +519,8 @@ asyncio.run(check())
 
 | Priority | Issue | Impact | Effort | Status |
 |----------|-------|--------|--------|--------|
+| P0 | Analytics API SQL join bug (#18) | CRITICAL - Analytics API returns wrong values | LOW - Fix SQL query | **NEW** |
+| P0 | Frontend short position assumption (#19) | CRITICAL - Wrong exposures for hedge fund | LOW - Calculate from data | **NEW** |
 | P0 | Factor exposure incomplete sets (#6,#17) | CRITICAL - API fails for 2/3 portfolios | LOW - Add missing factor | **PARTIALLY RESOLVED** |
 | P1 | Missing database tables (#7) | HIGH - Stress tests unavailable | MEDIUM - Create migrations | **PENDING** |
 | P2 | Rate limiting issues (#15,#16) | MEDIUM - Slow processing | HIGH - Implement retry logic | **ACTIVE** |
