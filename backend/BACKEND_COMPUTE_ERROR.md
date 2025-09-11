@@ -504,10 +504,109 @@ asyncio.run(check())
 - Test error handling when APIs fail
 - Validate performance with large portfolios
 
+## Issue #20: Portfolio Data Source Discovery
+
+**Component**: Database Seeding  
+**Date**: 2025-09-11  
+**Location**: `backend/app/db/seed_demo_portfolios.py`
+
+### Discovery
+The portfolio data is **hardcoded** in the seed script, not loaded from external files:
+- 3 demo users with fixed credentials (all use password: `demo12345`)
+- Portfolio specifications defined in `DEMO_PORTFOLIOS` list (lines 67-176)
+- Uses deterministic UUIDs via MD5 hash for consistent IDs across environments
+
+### Portfolio Details
+1. **Individual Portfolio** ($485K): 16 positions (all long)
+   - 9 stocks, 4 mutual funds, 3 ETFs
+   
+2. **High Net Worth Portfolio** ($2.85M): 17 positions (all long)
+   - 2 ETFs, 13 large cap stocks, 2 alternative assets
+   
+3. **Hedge Fund Portfolio** ($3.2M): 34 positions (mixed)
+   - 13 long stocks
+   - **13 short positions** (negative quantities: NFLX -600, SHOP -1000, XOM -2000, etc.)
+   - 8 options (4 long calls, 4 short puts)
+
+### Key Finding
+The hedge fund portfolio has ~$2M in short positions defined in the seed data, but the frontend shows $0 short exposure because it hardcodes `shortValue = 0` instead of calculating from negative quantities.
+
+---
+
+## Frontend Data Fetching Best Practices
+
+### Architecture Recommendations
+
+#### 1. Hybrid Approach (Production Recommended)
+```typescript
+// Primary data from overview endpoint
+const overview = await fetch('/analytics/portfolio/{id}/overview')
+// Supplementary data only when needed
+const positions = await fetch('/analytics/portfolio/{id}/positions?page=1')
+```
+
+#### 2. Backend-First Calculation Strategy
+- **Principle**: "Calculate once, use everywhere"
+- **Benefits**: Single source of truth, testable, consistent
+- **Implementation**: Fix SQL bug, ensure calculations match
+
+#### 3. Progressive Migration Strategy
+
+**Phase 1: Fix Backend (Priority)**
+1. Fix SQL join bug in `portfolio_analytics_service.py`
+2. Add proper short position calculations
+3. Ensure all 8 factors returned
+
+**Phase 2: Feature Flag Migration**
+```typescript
+const useAnalyticsAPI = process.env.NEXT_PUBLIC_USE_ANALYTICS_API === 'true'
+if (useAnalyticsAPI) {
+  return fetchAnalyticsExposures(portfolioId)
+} else {
+  return calculateExposuresLocally(completeData)
+}
+```
+
+**Phase 3: Performance Optimization**
+- Implement response caching (Redis/CDN)
+- Add ETags for conditional requests
+- Consider WebSocket for real-time updates
+
+### When to Use Each Approach
+
+**Use `/complete` endpoint when:**
+- Initial page load (avoid waterfall)
+- Offline-capable applications needed
+- Raw data needed for multiple calculations
+
+**Use Analytics APIs when:**
+- Dashboard widgets (independent updates)
+- Real-time components (smaller payloads)
+- Mobile apps (bandwidth conscious)
+- Expensive calculations (options Greeks)
+
+### Immediate Fix (Minimal Changes)
+```typescript
+// Fix short calculations in frontend
+function calculateExposures(data: PortfolioData) {
+  const shortPositions = data.holdings.filter(h => h.quantity < 0)
+  const shortValue = shortPositions.reduce((sum, p) => 
+    sum + Math.abs(p.quantity * p.last_price), 0
+  )
+  // ... proper calculation
+}
+```
+
+### Performance Comparison
+- **Current `/complete`**: ~100KB payload, single trip, includes unnecessary historical data
+- **Optimized Analytics**: ~5KB overview + 20KB positions (on-demand) = 75% bandwidth reduction
+
 ## Notes
 
 - All errors documented from batch run on 2025-09-10
 - Analytics API investigation completed 2025-09-10
+- Portfolio data source discovery completed 2025-09-11
+- Frontend best practices documented 2025-09-11
 - Backend server running on Windows (CP1252 encoding issues)
 - Database: PostgreSQL 15 in Docker container
 - Python version: 3.11.13
@@ -525,6 +624,7 @@ asyncio.run(check())
 | P1 | Missing database tables (#7) | HIGH - Stress tests unavailable | MEDIUM - Create migrations | **PENDING** |
 | P2 | Rate limiting issues (#15,#16) | MEDIUM - Slow processing | HIGH - Implement retry logic | **ACTIVE** |
 | P2 | Insufficient options data (#4) | MEDIUM - Options calc fail | HIGH - Historical backfill | **PENDING** |
+| P3 | Portfolio data hardcoded (#20) | LOW - Works but inflexible | MEDIUM - Externalize data | **DOCUMENTED** |
 | P3 | Pandas deprecation (#14) | LOW - Future issue | LOW - Update code | **PENDING** |
 | P3 | Beta capping warnings (#11) | LOW - Working as designed | LOW - Adjust thresholds | **MONITORING** |
 | ✅ | Incomplete portfolio processing (#1) | ~~HIGH - No data for 2/3 portfolios~~ | ~~LOW - Run batch again~~ | **RESOLVED** |
