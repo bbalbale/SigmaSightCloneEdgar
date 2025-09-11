@@ -25,8 +25,8 @@
 - **Solution**: Switched SIZE factor to IWM (Russell 2000)
 - **Results**:
   - Updated `app/constants/factors.py` and `market_data_sync.py`
-  - Created `fetch_iwm_data.py` script for 180-day historical fetch
-  - Successfully tested with 122 regression days available
+  - Created unified `fetch_factor_etf_data.py` script for all factor ETFs
+  - Successfully tested with 180+ days of historical data
   - SIZE factor beta: 0.6462 for demo portfolio
   - All 7 active factors now working correctly
 
