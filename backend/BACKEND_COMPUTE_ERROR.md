@@ -2,7 +2,7 @@
 
 > **Last Updated**: 2025-09-11 (CACHE-FIRST + EOD TIME CHECK + DATA PROVIDER OPTIMIZATION + SQL BUG FIXED + EQUITY SYSTEM)  
 > **Purpose**: Document and track all computation errors encountered during batch processing and API services  
-> **Status**: 13 Issues RESOLVED ✅, 1 Issue PARTIALLY RESOLVED, 7 Issues PENDING/ACTIVE
+> **Status**: 15 Issues RESOLVED ✅, 1 Issue PARTIALLY RESOLVED, 5 Issues PENDING/ACTIVE
 
 ## 🎉 Major Updates Completed (2025-09-11)
 
@@ -382,29 +382,29 @@ CREATE TABLE pairwise_correlations (
 
 **Resolution**: ✅ Updated scripts with correct portfolio IDs from database
 
-### Issue #10: Batch Orchestrator Method Names
+### Issue #10: Batch Orchestrator Method Names ✅ RESOLVED (2025-09-11)
 **Error**: `AttributeError: 'BatchOrchestratorV2' object has no attribute 'run'`  
 **Also**: `AttributeError: 'BatchOrchestratorV2' object has no attribute '_run_factor_analysis'`  
 **Location**: `app/batch/batch_orchestrator_v2.py`
 
-**Technical Details**:
-- Documentation refers to `.run()` method that doesn't exist
-- Actual method is `.run_portfolio_batch(portfolio_id)`
-- Private methods like `_run_factor_analysis` were refactored
-- Current working syntax:
-  ```python
-  orchestrator = BatchOrchestratorV2()
-  await orchestrator.run_portfolio_batch(portfolio_id)
-  ```
+**Resolution**:
+- Identified actual method is `run_daily_batch_sequence(portfolio_id)`
+- All scripts already use the correct method name
+- Documentation has been updated with correct syntax
 
-**Documentation Mismatch**:
-- README shows: `orchestrator.run()`
-- Actual API: `orchestrator.run_portfolio_batch(portfolio_id)`
+**Correct Usage**:
+```python
+orchestrator = BatchOrchestratorV2()
+await orchestrator.run_daily_batch_sequence(portfolio_id)
+```
 
-**Impact**: 
-- Scripts fail when following documentation
-- Manual batch runs require code inspection to find correct methods
-- Automation scripts using old API break after updates
+**Scripts Using Correct Method**:
+- `run_batch_calculations.py` ✓
+- `run_batch_with_reports.py` ✓
+- `test_fmp_batch_integration.py` ✓
+- `analyze_demo_calculation_engine_failures.py` ✓
+
+**Status**: RESOLVED - Documentation corrected, no code changes needed
 
 ---
 
@@ -508,23 +508,21 @@ if abs(loss) > portfolio_value * 0.99:
 - Risk reports understate potential losses in extreme scenarios
 - May give false confidence about portfolio resilience
 
-### Issue #14: Pandas FutureWarning
+### Issue #14: Pandas FutureWarning ✅ RESOLVED (2025-09-11)
 **Warning**: `The default fill_method='pad' in DataFrame.pct_change is deprecated`  
-**Location**: `app/calculations/factors.py` line 69
+**Location**: Multiple files using `.pct_change()`
 **Pandas Version**: 2.1.0 (will break in 3.0)
 
-**Current Code**:
-```python
-# Line 69 - using deprecated default
-returns_df = price_df.pct_change().dropna()
-```
+**Resolution**:
+- Fixed in `app/calculations/factors.py` (lines 70, 179)
+- Fixed in `app/calculations/market_risk.py` (line 264)
+- All instances now use `pct_change(fill_method=None)`
+- Tested successfully without FutureWarning errors
 
-**Required Fix**:
+**Files Fixed**:
 ```python
-# Explicit fill_method parameter
+# All instances updated to:
 returns_df = price_df.pct_change(fill_method=None).dropna()
-# Or use ffill() explicitly if forward-fill needed
-returns_df = price_df.ffill().pct_change().dropna()
 ```
 
 **Why This Changed**:
@@ -532,14 +530,7 @@ returns_df = price_df.ffill().pct_change().dropna()
 - Makes data handling more explicit
 - Prevents silent data manipulation
 
-**Timeline**:
-- Warning introduced: Pandas 2.1.0 (Sept 2023)
-- Will error in: Pandas 3.0 (Est. 2025)
-
-**Impact**: 
-- Currently just a warning (calculations still work)
-- Will cause complete failure when Pandas 3.0 releases
-- Affects all factor calculations and return computations
+**Status**: RESOLVED - All production code updated, tested working
 
 ---
 

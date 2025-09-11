@@ -6,7 +6,7 @@
 > **Covers**: Database, API Server, Batch Processing, Agent System, Market Data
 > 
 > ⚠️ **CRITICAL CHANGES (2025-09-11)**:
-> - **Unicode Encoding**: All Python scripts MUST use UTF-8 encoding on Windows
+> - **Unicode Encoding**: ✅ FIXED - Scripts now handle UTF-8 automatically on all platforms
 > - **Database Migrations**: ALWAYS run migrations after pulling code changes
 > - **Equity System**: Portfolio model now includes equity_balance field
 
@@ -28,22 +28,22 @@
 
 ### ⚠️ MUST READ - Recent Breaking Changes
 
-#### 1. Unicode Encoding on Windows (CRITICAL)
-**Issue**: Scripts with emoji characters fail with `UnicodeEncodeError` on Windows  
-**Solution**: ALWAYS prefix Python commands with `PYTHONIOENCODING=utf-8`
+#### 1. Unicode Encoding (✅ RESOLVED)
+**Previous Issue**: Scripts with emoji characters failed with `UnicodeEncodeError` on Windows  
+**Status**: Fixed as of 2025-09-11 - UTF-8 handling now built into all scripts
 
 ```bash
-# ❌ WRONG (will fail on Windows)
+# ✅ Now works on ALL platforms (Windows, Mac, Linux)
 uv run python scripts/verify_demo_portfolios.py
+uv run python scripts/run_batch_with_reports.py --skip-reports
 
-# ✅ CORRECT (works everywhere)
-PYTHONIOENCODING=utf-8 uv run python scripts/verify_demo_portfolios.py
+# No PYTHONIOENCODING prefix needed anymore!
 ```
 
-**Affected Scripts**:
-- `scripts/verify_demo_portfolios.py`
-- `scripts/run_batch_with_reports.py`
-- Any script that outputs emojis or special characters
+**What Changed**:
+- All scripts now include UTF-8 handling internally
+- Works identically on Windows, Mac, and Linux
+- No platform-specific commands needed
 
 #### 2. Database Migrations (CRITICAL)
 **Issue**: New fields added to database models require migrations  
@@ -280,7 +280,7 @@ asyncio.run(validate())
 
 **⚠️ IMPORTANT NOTES**: 
 1. Pre-API reports (.md summary, .json, .csv) are planned for deletion.  
-2. **UNICODE FIX**: On Windows, prefix with `PYTHONIOENCODING=utf-8` for all scripts
+2. **UTF-8 FIXED**: All scripts now handle Unicode automatically (no prefix needed)
 3. **DO NOT RUN REPORTS** - Use `--skip-reports` flag for all batch operations.
 
 ```bash
@@ -288,12 +288,12 @@ asyncio.run(validate())
 uv run python scripts/run_batch_with_reports.py --skip-reports
 
 # Run batch processing WITHOUT reports (Windows - MUST USE UTF-8)
-PYTHONIOENCODING=utf-8 uv run python scripts/run_batch_with_reports.py --skip-reports
+uv run python scripts/run_batch_with_reports.py --skip-reports
 
 # Run batch for specific portfolio WITHOUT reports
-# Windows users: ALWAYS prefix with PYTHONIOENCODING=utf-8
+# UTF-8 handling is now built into all scripts (as of 2025-09-11)
 
-# Examples with actual portfolio IDs (Mac/Linux):
+# Examples with actual portfolio IDs (ALL PLATFORMS):
 # Individual portfolio only
 uv run python scripts/run_batch_with_reports.py --portfolio 1d8ddd95-3b45-0ac5-35bf-cf81af94a5fe --skip-reports
 
@@ -303,15 +303,15 @@ uv run python scripts/run_batch_with_reports.py --portfolio e23ab931-a033-edfe-e
 # Hedge Fund portfolio only
 uv run python scripts/run_batch_with_reports.py --portfolio fcd71196-e93e-f000-5a74-31a9eead3118 --skip-reports
 
-# Examples with actual portfolio IDs (Windows - WITH UTF-8):
+# The commands work identically on all platforms now!
 # Individual portfolio only
-PYTHONIOENCODING=utf-8 uv run python scripts/run_batch_with_reports.py --portfolio 1d8ddd95-3b45-0ac5-35bf-cf81af94a5fe --skip-reports
+uv run python scripts/run_batch_with_reports.py --portfolio 1d8ddd95-3b45-0ac5-35bf-cf81af94a5fe --skip-reports
 
 # High Net Worth portfolio only  
-PYTHONIOENCODING=utf-8 uv run python scripts/run_batch_with_reports.py --portfolio e23ab931-a033-edfe-ed4f-9d02474780b4 --skip-reports
+uv run python scripts/run_batch_with_reports.py --portfolio e23ab931-a033-edfe-ed4f-9d02474780b4 --skip-reports
 
 # Hedge Fund portfolio only
-PYTHONIOENCODING=utf-8 uv run python scripts/run_batch_with_reports.py --portfolio fcd71196-e93e-f000-5a74-31a9eead3118 --skip-reports
+uv run python scripts/run_batch_with_reports.py --portfolio fcd71196-e93e-f000-5a74-31a9eead3118 --skip-reports
 ```
 
 **What Batch Processing Does:**
@@ -518,7 +518,7 @@ asyncio.run(check())
 ```bash
 # Check if calculations exist for portfolio
 # Windows users: Use UTF-8 encoding for scripts with emoji output
-PYTHONIOENCODING=utf-8 uv run python scripts/verify_demo_portfolios.py  # Windows
+uv run python scripts/verify_demo_portfolios.py  # Windows
 uv run python scripts/verify_demo_portfolios.py                          # Mac/Linux
 
 # Check specific calculation data

@@ -66,7 +66,8 @@ async def fetch_factor_returns(
         return pd.DataFrame()
     
     # Calculate daily returns for each ETF
-    returns_df = price_df.pct_change().dropna()
+    # Using fill_method=None to avoid FutureWarning (Pandas 2.1+)
+    returns_df = price_df.pct_change(fill_method=None).dropna()
     
     # Map ETF symbols to factor names for cleaner output
     symbol_to_factor = {v: k for k, v in FACTOR_ETFS.items()}
@@ -174,7 +175,8 @@ async def calculate_position_returns(
             # Compute daily returns from prices directly for clarity.
             # Note: Any constant scaling (quantity, 100× multiplier) cancels in pct_change().
             # Options delta adjustments are not applied here; handled in future redesign steps.
-            returns = prices.pct_change().dropna()
+            # Using fill_method=None to avoid FutureWarning (Pandas 2.1+)
+            returns = prices.pct_change(fill_method=None).dropna()
             
             if not returns.empty:
                 position_returns[str(position.id)] = returns

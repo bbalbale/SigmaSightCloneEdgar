@@ -260,7 +260,8 @@ async def calculate_position_interest_rate_betas(
         )
         
         # Calculate Treasury yield changes (daily changes in basis points)
-        treasury_changes = treasury_data.pct_change().dropna() * 10000  # Convert to basis points
+        # Using fill_method=None to avoid FutureWarning (Pandas 2.1+)
+        treasury_changes = treasury_data.pct_change(fill_method=None).dropna() * 10000  # Convert to basis points
         
         if len(treasury_changes) < MIN_REGRESSION_DAYS:
             logger.warning(f"Insufficient Treasury data: {len(treasury_changes)} days")
