@@ -98,21 +98,43 @@
 
 ## Unicode Encoding Errors
 
-### Issue #1: Windows CP1252 Encoding ✅ RESOLVED
-**Status**: ✅ **RESOLVED** - All scripts now run with UTF-8 encoding
+### Issue #1: Windows CP1252 Encoding ✅ PROPERLY RESOLVED (2025-09-11)
+**Status**: ✅ **PROPERLY RESOLVED** - Scripts now handle UTF-8 internally
 **Location**: Multiple Python scripts  
 **Error Message**: 
 ```
 UnicodeEncodeError: 'charmap' codec can't encode character '\U0001f680' in position 0: character maps to <undefined>
 ```
 
-**Solution Applied**: 
+**Initial Workaround** (No longer needed):
 ```bash
-# Run all Python scripts with UTF-8 encoding
+# Previously required for every script run:
 PYTHONIOENCODING=utf-8 uv run python <script.py>
 ```
 
-**Resolution**: All batch processing scripts successfully run with UTF-8 encoding flag
+**Proper Solution Applied (2025-09-11)**:
+- Created `fix_utf8_encoding.py` script to add UTF-8 handling to all affected files
+- Added to 9 critical scripts after imports:
+```python
+# Configure UTF-8 output handling for Windows
+import sys
+import io
+sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
+sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
+```
+
+**Files Fixed**:
+- `run_batch_calculations.py` ✅
+- `run_batch_with_reports.py` ✅
+- `fetch_iwm_data.py` ✅
+- `generate_all_reports.py` ✅
+- `verify_setup.py` ✅
+- `verify_demo_portfolios.py` ✅
+- `test_factor_calculations.py` ✅
+- `check_factor_exposures.py` ✅
+- `app/batch/market_data_sync.py` ✅
+
+**Resolution**: Scripts now run directly without PYTHONIOENCODING prefix - UTF-8 handling is built-in
 
 ---
 

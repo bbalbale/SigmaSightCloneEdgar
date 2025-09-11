@@ -14,6 +14,13 @@ from app.models.market_data import MarketDataCache
 from app.core.logging import get_logger
 from app.core.datetime_utils import utc_now
 
+# Configure UTF-8 output handling for Windows
+import sys
+import io
+sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
+sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
+
+
 logger = get_logger(__name__)
 
 

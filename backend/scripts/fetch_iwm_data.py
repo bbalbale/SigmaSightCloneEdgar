@@ -10,6 +10,13 @@ from app.services.market_data_service import market_data_service
 from app.constants.factors import REGRESSION_WINDOW_DAYS
 from app.core.logging import get_logger
 
+# Configure UTF-8 output handling for Windows
+import sys
+import io
+sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
+sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
+
+
 logger = get_logger(__name__)
 
 async def fetch_iwm_historical_data():

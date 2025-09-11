@@ -15,6 +15,13 @@ from app.models.positions import Position
 import json
 from datetime import datetime
 
+# Configure UTF-8 output handling for Windows
+import sys
+import io
+sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
+sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
+
+
 PORTFOLIO_ID = "e23ab931-a033-edfe-ed4f-9d02474780b4"
 
 async def check_factor_exposures():

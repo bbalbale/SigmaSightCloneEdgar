@@ -7,6 +7,13 @@ from datetime import date
 from app.database import get_async_session
 from app.reports.portfolio_report_generator import PortfolioReportGenerator
 
+# Configure UTF-8 output handling for Windows
+import sys
+import io
+sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
+sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
+
+
 # Demo portfolio IDs (from TODO2.md)
 DEMO_PORTFOLIOS = {
     "Demo Individual Investor Portfolio": "51134ffd-2f13-49bd-b1f5-0c327e801b69",
