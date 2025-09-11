@@ -6,6 +6,7 @@
 > **Covers**: Database, API Server, Batch Processing, Agent System, Market Data
 > 
 > ⚠️ **CRITICAL CHANGES (2025-09-11)**:
+> - **Scripts Reorganized**: All scripts now organized into subdirectories by function (see note below)
 > - **Unicode Encoding**: ✅ FIXED - Scripts now handle UTF-8 automatically on all platforms
 > - **Database Migrations**: ALWAYS run migrations after pulling code changes
 > - **Equity System**: Portfolio model now includes equity_balance field
@@ -34,8 +35,8 @@
 
 ```bash
 # ✅ Now works on ALL platforms (Windows, Mac, Linux)
-uv run python scripts/verify_demo_portfolios.py
-uv run python scripts/run_batch_with_reports.py --skip-reports
+uv run python scripts/verification/verify_demo_portfolios.py
+uv run python scripts/batch_processing/run_batch_with_reports.py --skip-reports
 
 # No PYTHONIOENCODING prefix needed anymore!
 ```
@@ -79,6 +80,31 @@ Leverage = Gross Exposure / Equity
 #### 4. Factor Exposure Changes
 **What Changed**: Short Interest factor disabled (no ETF proxy)  
 **Impact**: Factor API now accepts partial factor sets (7 factors instead of 8)
+
+#### 5. Scripts Directory Reorganization (NEW)
+**What Changed**: All 108 scripts reorganized into logical subdirectories  
+**Impact**: Script paths have changed - update your commands accordingly
+
+**New Directory Structure**:
+```
+scripts/
+├── batch_processing/     # run_batch_with_reports.py, generate_all_reports.py
+├── database/            # seed_database.py, reset_and_seed.py, check_database_content.py
+├── testing/             # All test_*.py scripts
+├── verification/        # verify_demo_portfolios.py, verify_setup.py
+├── analysis/           # Debugging and analysis tools
+├── data_operations/    # fetch_factor_etf_data.py, backfill scripts
+├── monitoring/         # monitor_chat_interface.py
+├── migrations/         # One-time fixes (fix_utf8_encoding.py, etc.)
+└── utilities/          # General utilities
+```
+
+**Quick Reference - Common Scripts**:
+- Batch processing: `scripts/batch_processing/run_batch_with_reports.py`
+- Database seeding: `scripts/database/seed_database.py`
+- Verify portfolios: `scripts/verification/verify_demo_portfolios.py`
+- Check database: `scripts/database/check_database_content.py`
+- List portfolios: `scripts/database/list_portfolios.py`
 
 ---
 
@@ -190,7 +216,7 @@ uv run alembic history --verbose | head -10
 ### 1. Check Demo Data
 ```bash
 # Verify demo users and portfolios exist
-uv run python scripts/check_database_content.py
+uv run python scripts/database/check_database_content.py
 
 # Expected output:
 # Users: 3
@@ -201,7 +227,7 @@ uv run python scripts/check_database_content.py
 ### 2. List Portfolio IDs
 ```bash
 # Get portfolio IDs for today's work
-uv run python scripts/list_portfolios.py --verbose
+uv run python scripts/database/list_portfolios.py --verbose
 
 # These should be the deterministic IDs (same on all machines):
 # demo_individual@sigmasight.com: 1d8ddd95-3b45-0ac5-35bf-cf81af94a5fe
@@ -285,33 +311,33 @@ asyncio.run(validate())
 
 ```bash
 # Run batch processing WITHOUT reports (Mac/Linux)
-uv run python scripts/run_batch_with_reports.py --skip-reports
+uv run python scripts/batch_processing/run_batch_with_reports.py --skip-reports
 
 # Run batch processing WITHOUT reports (Windows - MUST USE UTF-8)
-uv run python scripts/run_batch_with_reports.py --skip-reports
+uv run python scripts/batch_processing/run_batch_with_reports.py --skip-reports
 
 # Run batch for specific portfolio WITHOUT reports
 # UTF-8 handling is now built into all scripts (as of 2025-09-11)
 
 # Examples with actual portfolio IDs (ALL PLATFORMS):
 # Individual portfolio only
-uv run python scripts/run_batch_with_reports.py --portfolio 1d8ddd95-3b45-0ac5-35bf-cf81af94a5fe --skip-reports
+uv run python scripts/batch_processing/run_batch_with_reports.py --portfolio 1d8ddd95-3b45-0ac5-35bf-cf81af94a5fe --skip-reports
 
 # High Net Worth portfolio only  
-uv run python scripts/run_batch_with_reports.py --portfolio e23ab931-a033-edfe-ed4f-9d02474780b4 --skip-reports
+uv run python scripts/batch_processing/run_batch_with_reports.py --portfolio e23ab931-a033-edfe-ed4f-9d02474780b4 --skip-reports
 
 # Hedge Fund portfolio only
-uv run python scripts/run_batch_with_reports.py --portfolio fcd71196-e93e-f000-5a74-31a9eead3118 --skip-reports
+uv run python scripts/batch_processing/run_batch_with_reports.py --portfolio fcd71196-e93e-f000-5a74-31a9eead3118 --skip-reports
 
 # The commands work identically on all platforms now!
 # Individual portfolio only
-uv run python scripts/run_batch_with_reports.py --portfolio 1d8ddd95-3b45-0ac5-35bf-cf81af94a5fe --skip-reports
+uv run python scripts/batch_processing/run_batch_with_reports.py --portfolio 1d8ddd95-3b45-0ac5-35bf-cf81af94a5fe --skip-reports
 
 # High Net Worth portfolio only  
-uv run python scripts/run_batch_with_reports.py --portfolio e23ab931-a033-edfe-ed4f-9d02474780b4 --skip-reports
+uv run python scripts/batch_processing/run_batch_with_reports.py --portfolio e23ab931-a033-edfe-ed4f-9d02474780b4 --skip-reports
 
 # Hedge Fund portfolio only
-uv run python scripts/run_batch_with_reports.py --portfolio fcd71196-e93e-f000-5a74-31a9eead3118 --skip-reports
+uv run python scripts/batch_processing/run_batch_with_reports.py --portfolio fcd71196-e93e-f000-5a74-31a9eead3118 --skip-reports
 ```
 
 **What Batch Processing Does:**
@@ -518,8 +544,8 @@ asyncio.run(check())
 ```bash
 # Check if calculations exist for portfolio
 # Windows users: Use UTF-8 encoding for scripts with emoji output
-uv run python scripts/verify_demo_portfolios.py  # Windows
-uv run python scripts/verify_demo_portfolios.py                          # Mac/Linux
+uv run python scripts/verification/verify_demo_portfolios.py  # Windows
+uv run python scripts/verification/verify_demo_portfolios.py                          # Mac/Linux
 
 # Check specific calculation data
 uv run python -c "
@@ -571,7 +597,7 @@ taskkill /PID <PID> /F           # Windows
 grep "FMP_API_KEY\|POLYGON_API_KEY" .env
 
 # Test market data service
-uv run python scripts/test_market_data_service.py
+uv run python scripts/testing/test_market_data_service.py
 
 # Check rate limits
 tail -f logs/market_data.log | grep "429"
@@ -617,7 +643,7 @@ ps aux | grep python | awk '{sum+=$6} END {print "Python Memory: " sum/1024 " MB
 ### 1. Generate End of Day Reports
 ```bash
 # Generate final reports for the day
-uv run python scripts/run_batch_with_reports.py --skip-batch
+uv run python scripts/batch_processing/run_batch_with_reports.py --skip-batch
 
 # Backup reports
 cp -r reports/ reports_backup_$(date +%Y%m%d)/    # Mac/Linux
@@ -678,7 +704,7 @@ docker-compose up -d && uv run python run.py
 docker ps && curl http://localhost:8000/health
 
 # Run batch processing
-uv run python scripts/run_batch_with_reports.py
+uv run python scripts/batch_processing/run_batch_with_reports.py
 
 # Stop everything
 docker-compose stop && pkill -f "python run.py"
@@ -698,7 +724,7 @@ Hedge Fund: fcd71196-e93e-f000-5a74-31a9eead3118 (Equity: $4,000,000)
 ```
 **Note**: These are deterministic UUIDs generated from email hashes.
 **Equity Values**: Set via database migration (add_equity_balance_to_portfolio)
-If your IDs differ, run: `uv run python scripts/reset_and_seed.py reset --confirm`
+If your IDs differ, run: `uv run python scripts/database/reset_and_seed.py reset --confirm`
 See [SETUP_DETERMINISTIC_IDS.md](../SETUP_DETERMINISTIC_IDS.md) for details.
 
 ### API Authentication
