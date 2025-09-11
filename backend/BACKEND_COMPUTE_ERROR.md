@@ -216,10 +216,26 @@ Rate limit: waited 11.96s (request #9, avg rate: 0.17 req/s)
 **Root Cause**: Bad SQL join with MarketDataCache creates duplicate rows
 
 **Investigation Findings (2025-09-10)**:
+- **Critical Bug**: Bad SQL join with MarketDataCache table
+- Creates 127x duplicate rows (3,831 instead of 30 positions)
+- Results in massively inflated values: $919M instead of $6M
+- Returns zeros for exposures in production due to calculation errors
+
+**Technical Details**:
 - SQL join creates one row per historical price date instead of latest price only
-- Hedge Fund portfolio: 30 actual positions become 3,831 rows (127x multiplication)
-- Results in inflated calculations: $919M gross exposure instead of $6M
-- API returns zeros in production due to overflow/calculation errors
+- The join on line 64-65 of `portfolio_analytics_service.py`:
+  ```python
+  .outerjoin(MarketDataCache, MarketDataCache.symbol == Position.symbol)
+  ```
+  Returns ALL historical prices for each position, not just the latest
+- For hedge fund: 30 positions × ~127 price dates = 3,831 rows
+- Calculation then sums all these duplicate rows, inflating values by 127x
+
+**Actual vs Calculated Values (Hedge Fund)**:
+- Actual portfolio value: ~$6M
+- API calculates: $919M (153x inflation)
+- Long exposure: Should be ~$4M, calculates as $600M+
+- Short exposure: Should be ~$2M, calculates as $300M+
 
 **Actual vs Expected Values (Hedge Fund Portfolio)**:
 ```
