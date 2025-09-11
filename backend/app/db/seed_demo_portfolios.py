@@ -70,6 +70,7 @@ DEMO_PORTFOLIOS = [
         "portfolio_name": "Demo Individual Investor Portfolio",
         "description": "Individual investor with 401k, IRA, and taxable accounts. Core holdings with growth tilt, heavy mutual fund allocation.",
         "total_value": 485000,
+        "equity_balance": Decimal("600000.00"),  # User-provided NAV for risk calculations
         "positions": [
             # Individual Stocks (32% allocation - $155,000)
             {"symbol": "AAPL", "quantity": Decimal("85"), "entry_price": Decimal("225.00"), "entry_date": date(2024, 1, 15), "tags": ["Core Holdings", "Tech Growth"]},
@@ -99,6 +100,7 @@ DEMO_PORTFOLIOS = [
         "portfolio_name": "Demo High Net Worth Investor Portfolio",
         "description": "High net worth individual with access to private investments. Diversified across public markets with alternative investments.",
         "total_value": 2850000,
+        "equity_balance": Decimal("2000000.00"),  # User-provided NAV for risk calculations
         "positions": [
             # Core ETF Holdings
             {"symbol": "SPY", "quantity": Decimal("400"), "entry_price": Decimal("530.00"), "entry_date": date(2024, 1, 5), "tags": ["Blue Chip"]},
@@ -129,6 +131,7 @@ DEMO_PORTFOLIOS = [
         "portfolio_name": "Demo Hedge Fund Style Investor Portfolio", 
         "description": "Sophisticated trader with derivatives access. Market-neutral with volatility trading and options overlay.",
         "total_value": 3200000,
+        "equity_balance": Decimal("4000000.00"),  # User-provided NAV for risk calculations
         "positions": [
             # Long Positions - Growth/Momentum
             {"symbol": "NVDA", "quantity": Decimal("800"), "entry_price": Decimal("700.00"), "entry_date": date(2024, 1, 5), "tags": ["Long Momentum"]},
@@ -319,6 +322,14 @@ async def create_demo_portfolio(db: AsyncSession, portfolio_data: Dict[str, Any]
     
     if existing_portfolio:
         logger.info(f"User {user.email} already has portfolio: {existing_portfolio.name}")
+        
+        # Update equity_balance if provided and different
+        if "equity_balance" in portfolio_data and existing_portfolio.equity_balance != portfolio_data["equity_balance"]:
+            logger.info(f"Updating equity_balance from {existing_portfolio.equity_balance} to {portfolio_data['equity_balance']}")
+            existing_portfolio.equity_balance = portfolio_data["equity_balance"]
+            db.add(existing_portfolio)
+            await db.flush()
+        
         # Count existing positions
         position_result = await db.execute(
             select(Position).where(Position.portfolio_id == existing_portfolio.id)
@@ -347,7 +358,8 @@ async def create_demo_portfolio(db: AsyncSession, portfolio_data: Dict[str, Any]
         id=generate_deterministic_uuid(f"{user.email}_portfolio"),
         user_id=user.id,
         name=portfolio_data["portfolio_name"],
-        description=portfolio_data["description"]
+        description=portfolio_data["description"],
+        equity_balance=portfolio_data.get("equity_balance")  # Set equity for risk calculations
     )
     db.add(portfolio)
     await db.flush()  # Get portfolio ID

@@ -1041,14 +1041,15 @@ END;
 
 ## Summary of Issue Status (2025-09-11)
 
-### ✅ RESOLVED Issues (7)
+### ✅ RESOLVED Issues (8)
 1. **SQL Join Bug (#18)** - Analytics API now returns correct values
 2. **Equity System** - Full equity-based calculations implemented and working
-3. **Incomplete Portfolio Processing (#1)** - All 3 portfolios have calculation data
-4. **Unicode Encoding (#1)** - Scripts run with UTF-8 encoding
-5. **Portfolio ID Mismatches (#9)** - Correct IDs in all scripts
-6. **Batch Orchestrator Methods (#10)** - Using correct method names
-7. **Portfolio Data Discovery (#20)** - Documented hardcoded data source
+3. **Factor Exposure API (#6)** - Fixed with flexible factor requirements
+4. **Incomplete Portfolio Processing (#1)** - All 3 portfolios have calculation data
+5. **Unicode Encoding (#1)** - Scripts run with UTF-8 encoding
+6. **Portfolio ID Mismatches (#9)** - Correct IDs in all scripts
+7. **Batch Orchestrator Methods (#10)** - Using correct method names
+8. **Portfolio Data Discovery (#20)** - Documented hardcoded data source
 
 ### ⚠️ PARTIALLY RESOLVED Issues (1)
 1. **Analytics API Alignment (#17)** - Service working but some metadata fields incomplete

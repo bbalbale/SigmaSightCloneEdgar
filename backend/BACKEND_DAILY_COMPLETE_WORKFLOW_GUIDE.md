@@ -1,20 +1,84 @@
 # Backend Daily Complete Workflow Guide
 
-> **Last Updated**: 2025-09-06  
+> **Last Updated**: 2025-09-11  
 > **Purpose**: Daily operational guide for backend development after initial setup  
 > **Platforms**: Windows & Mac  
 > **Covers**: Database, API Server, Batch Processing, Agent System, Market Data
+> 
+> ⚠️ **CRITICAL CHANGES (2025-09-11)**:
+> - **Unicode Encoding**: All Python scripts MUST use UTF-8 encoding on Windows
+> - **Database Migrations**: ALWAYS run migrations after pulling code changes
+> - **Equity System**: Portfolio model now includes equity_balance field
 
 ## Table of Contents
-1. [Pre-Flight Checklist](#pre-flight-checklist)
-2. [Starting Core Services](#starting-core-services)
-3. [Verify System Health](#verify-system-health)
-4. [Daily Data Updates](#daily-data-updates)
-5. [API Server Operations](#api-server-operations)
-6. [Agent System Operations](#agent-system-operations)
-7. [Batch Processing](#batch-processing)
-8. [Monitoring & Troubleshooting](#monitoring--troubleshooting)
-9. [End of Day Shutdown](#end-of-day-shutdown)
+1. [Critical Developer Notes](#critical-developer-notes) ⚠️ **READ FIRST**
+2. [Pre-Flight Checklist](#pre-flight-checklist)
+3. [Starting Core Services](#starting-core-services)
+4. [Verify System Health](#verify-system-health)
+5. [Daily Data Updates](#daily-data-updates)
+6. [API Server Operations](#api-server-operations)
+7. [Agent System Operations](#agent-system-operations)
+8. [Batch Processing](#batch-processing)
+9. [Monitoring & Troubleshooting](#monitoring--troubleshooting)
+10. [End of Day Shutdown](#end-of-day-shutdown)
+
+---
+
+## Critical Developer Notes
+
+### ⚠️ MUST READ - Recent Breaking Changes
+
+#### 1. Unicode Encoding on Windows (CRITICAL)
+**Issue**: Scripts with emoji characters fail with `UnicodeEncodeError` on Windows  
+**Solution**: ALWAYS prefix Python commands with `PYTHONIOENCODING=utf-8`
+
+```bash
+# ❌ WRONG (will fail on Windows)
+uv run python scripts/verify_demo_portfolios.py
+
+# ✅ CORRECT (works everywhere)
+PYTHONIOENCODING=utf-8 uv run python scripts/verify_demo_portfolios.py
+```
+
+**Affected Scripts**:
+- `scripts/verify_demo_portfolios.py`
+- `scripts/run_batch_with_reports.py`
+- Any script that outputs emojis or special characters
+
+#### 2. Database Migrations (CRITICAL)
+**Issue**: New fields added to database models require migrations  
+**Solution**: ALWAYS run migrations after pulling code
+
+```bash
+# After every git pull or code update:
+uv run alembic upgrade head
+
+# Verify current status:
+uv run alembic current
+```
+
+**Recent Critical Migrations**:
+- `add_equity_balance_to_portfolio` - Adds equity field for risk calculations
+- Without this, API endpoints will return 500 errors!
+
+#### 3. Equity-Based System Changes
+**What Changed**: Portfolio model now includes `equity_balance` field  
+**Impact**: All portfolio calculations now use equity-based formulas
+
+**Current Equity Values**:
+- Demo Individual: $600,000
+- Demo HNW: $2,000,000  
+- Demo Hedge Fund: $4,000,000
+
+**Key Formulas**:
+```
+Cash = Equity - Long MV + |Short MV|
+Leverage = Gross Exposure / Equity
+```
+
+#### 4. Factor Exposure Changes
+**What Changed**: Short Interest factor disabled (no ETF proxy)  
+**Impact**: Factor API now accepts partial factor sets (7 factors instead of 8)
 
 ---
 
@@ -103,16 +167,20 @@ docker logs backend_postgres_1
 uv run python -c "from app.database import test_connection; import asyncio; asyncio.run(test_connection())"
 ```
 
-### Step 3: Apply Database Migrations
+### Step 3: Apply Database Migrations ⚠️ CRITICAL
 ```bash
 # Check current migration status
 uv run alembic current
 
-# Apply any pending migrations
+# Apply any pending migrations - ALWAYS DO THIS AFTER PULLING CODE
 uv run alembic upgrade head
 
 # Verify migrations applied
 uv run alembic history --verbose | head -10
+
+# Recent critical migrations:
+# - add_equity_balance_to_portfolio.py (adds equity_balance field)
+# If missing, your API calls will fail!
 ```
 
 ---
@@ -210,17 +278,22 @@ asyncio.run(validate())
 
 ### 2. Run Batch Calculations
 
-**⚠️ IMPORTANT NOTE**: Pre-API reports (.md summary, .json, .csv) are planned for deletion.  
-**DO NOT RUN REPORTS** - Use `--skip-reports` flag for all batch operations.
+**⚠️ IMPORTANT NOTES**: 
+1. Pre-API reports (.md summary, .json, .csv) are planned for deletion.  
+2. **UNICODE FIX**: On Windows, prefix with `PYTHONIOENCODING=utf-8` for all scripts
+3. **DO NOT RUN REPORTS** - Use `--skip-reports` flag for all batch operations.
 
 ```bash
-# Run batch processing WITHOUT reports (recommended)
+# Run batch processing WITHOUT reports (Mac/Linux)
 uv run python scripts/run_batch_with_reports.py --skip-reports
 
-# Run batch for specific portfolio WITHOUT reports
-uv run python scripts/run_batch_with_reports.py --portfolio <PORTFOLIO_ID> --skip-reports
+# Run batch processing WITHOUT reports (Windows - MUST USE UTF-8)
+PYTHONIOENCODING=utf-8 uv run python scripts/run_batch_with_reports.py --skip-reports
 
-# Examples with actual portfolio IDs:
+# Run batch for specific portfolio WITHOUT reports
+# Windows users: ALWAYS prefix with PYTHONIOENCODING=utf-8
+
+# Examples with actual portfolio IDs (Mac/Linux):
 # Individual portfolio only
 uv run python scripts/run_batch_with_reports.py --portfolio 1d8ddd95-3b45-0ac5-35bf-cf81af94a5fe --skip-reports
 
@@ -229,6 +302,16 @@ uv run python scripts/run_batch_with_reports.py --portfolio e23ab931-a033-edfe-e
 
 # Hedge Fund portfolio only
 uv run python scripts/run_batch_with_reports.py --portfolio fcd71196-e93e-f000-5a74-31a9eead3118 --skip-reports
+
+# Examples with actual portfolio IDs (Windows - WITH UTF-8):
+# Individual portfolio only
+PYTHONIOENCODING=utf-8 uv run python scripts/run_batch_with_reports.py --portfolio 1d8ddd95-3b45-0ac5-35bf-cf81af94a5fe --skip-reports
+
+# High Net Worth portfolio only  
+PYTHONIOENCODING=utf-8 uv run python scripts/run_batch_with_reports.py --portfolio e23ab931-a033-edfe-ed4f-9d02474780b4 --skip-reports
+
+# Hedge Fund portfolio only
+PYTHONIOENCODING=utf-8 uv run python scripts/run_batch_with_reports.py --portfolio fcd71196-e93e-f000-5a74-31a9eead3118 --skip-reports
 ```
 
 **What Batch Processing Does:**
@@ -434,7 +517,9 @@ asyncio.run(check())
 ### Verify Calculation Results
 ```bash
 # Check if calculations exist for portfolio
-uv run python scripts/verify_demo_portfolios.py
+# Windows users: Use UTF-8 encoding for scripts with emoji output
+PYTHONIOENCODING=utf-8 uv run python scripts/verify_demo_portfolios.py  # Windows
+uv run python scripts/verify_demo_portfolios.py                          # Mac/Linux
 
 # Check specific calculation data
 uv run python -c "
@@ -607,11 +692,12 @@ docker exec -it backend_postgres_1 psql -U sigmasight -d sigmasight
 
 ### Portfolio IDs (Deterministic - Same on All Machines)
 ```
-Individual: 1d8ddd95-3b45-0ac5-35bf-cf81af94a5fe
-High Net Worth: e23ab931-a033-edfe-ed4f-9d02474780b4
-Hedge Fund: fcd71196-e93e-f000-5a74-31a9eead3118
+Individual: 1d8ddd95-3b45-0ac5-35bf-cf81af94a5fe (Equity: $600,000)
+High Net Worth: e23ab931-a033-edfe-ed4f-9d02474780b4 (Equity: $2,000,000)
+Hedge Fund: fcd71196-e93e-f000-5a74-31a9eead3118 (Equity: $4,000,000)
 ```
 **Note**: These are deterministic UUIDs generated from email hashes.
+**Equity Values**: Set via database migration (add_equity_balance_to_portfolio)
 If your IDs differ, run: `uv run python scripts/reset_and_seed.py reset --confirm`
 See [SETUP_DETERMINISTIC_IDS.md](../SETUP_DETERMINISTIC_IDS.md) for details.
 
@@ -633,12 +719,12 @@ curl -H "Authorization: Bearer $TOKEN" http://localhost:8000/api/v1/data/portfol
 
 - [ ] Docker Desktop running
 - [ ] PostgreSQL container started
-- [ ] Database migrations applied
+- [ ] ⚠️ Database migrations applied (CRITICAL - check after every pull)
 - [ ] Market data synced
-- [ ] Batch calculations run
+- [ ] Batch calculations run (Windows: use PYTHONIOENCODING=utf-8)
 - [ ] API server started
 - [ ] Agent system verified
-- [ ] Reports generated
+- [ ] ~~Reports generated~~ (SKIP - use API instead)
 - [ ] Monitoring active
 - [ ] Clean shutdown at end of day
 
@@ -648,9 +734,12 @@ curl -H "Authorization: Bearer $TOKEN" http://localhost:8000/api/v1/data/portfol
 
 - **Market Data**: FMP/Polygon API rate limits reset daily
 - **Options Data**: Limited availability, expect some failures
-- **Factor Analysis**: Requires 252 days of historical data
+- **Factor Analysis**: Requires 252 days of historical data (7 factors now, Short Interest disabled)
 - **Agent System**: Uses OpenAI API (check usage/costs)
 - **Batch Processing**: Takes ~60 seconds per portfolio
 - **Database Backups**: Volumes persist between container restarts
+- **⚠️ Unicode on Windows**: ALWAYS use `PYTHONIOENCODING=utf-8` prefix for scripts
+- **⚠️ Database Changes**: ALWAYS run `uv run alembic upgrade head` after pulling code
+- **Equity System**: Portfolios now have equity_balance field for risk calculations
 
 For initial setup, see [BACKEND_INITIAL_COMPLETE_WORKFLOW_GUIDE.md](BACKEND_INITIAL_COMPLETE_WORKFLOW_GUIDE.md)
