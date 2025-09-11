@@ -1,8 +1,18 @@
 # Backend Compute Error Documentation
 
-> **Last Updated**: 2025-09-10 (Updated with Analytics API SQL Bug Discovery)  
+> **Last Updated**: 2025-09-11 (CRITICAL SQL JOIN BUG FIXED)  
 > **Purpose**: Document and track all computation errors encountered during batch processing and API services  
-> **Status**: 3 Issues Resolved, 16 Active (Analytics API SQL bug is P0 priority)
+> **Status**: 4 Issues Resolved (including P0 SQL bug), 15 Active
+
+## 🎉 Major Fix Completed (2025-09-11)
+
+**Critical SQL Join Bug (#18) RESOLVED**:
+- **Problem**: Analytics API was returning 127x inflated values due to bad SQL join
+- **Solution**: Removed join with MarketDataCache, used Position.last_price field instead
+- **Results**: 
+  - Values now correct: Hedge fund shows $1.9M net (was $919M inflated)
+  - Short exposures properly negative: -$2.0M (was +$288M wrong sign)
+  - All portfolios returning accurate data
 
 ## Table of Contents
 1. [Critical Issues](#critical-issues)
@@ -510,7 +520,7 @@ RATE_LIMIT = 5.0  # requests per second (300/min)
 
 **Impact**: Factor exposure API fails for 2/3 portfolios due to incomplete factor sets
 
-### Issue #18: Analytics API SQL Join Bug (CRITICAL)
+### Issue #18: Analytics API SQL Join Bug ✅ RESOLVED (2025-09-11)
 **Error**: Portfolio Analytics API returns zeros or massively inflated values  
 **Location**: `/api/v1/analytics/portfolio/{id}/overview` endpoint  
 **Root Cause**: Bad SQL join with MarketDataCache creates duplicate rows
@@ -523,7 +533,7 @@ RATE_LIMIT = 5.0  # requests per second (300/min)
 
 **Technical Details**:
 - SQL join creates one row per historical price date instead of latest price only
-- The join on line 64-65 of `portfolio_analytics_service.py`:
+- The problematic join on line 64-65 of `portfolio_analytics_service.py`:
   ```python
   .outerjoin(MarketDataCache, MarketDataCache.symbol == Position.symbol)
   ```
@@ -531,11 +541,46 @@ RATE_LIMIT = 5.0  # requests per second (300/min)
 - For hedge fund: 30 positions × ~127 price dates = 3,831 rows
 - Calculation then sums all these duplicate rows, inflating values by 127x
 
-**Actual vs Calculated Values (Hedge Fund)**:
-- Actual portfolio value: ~$6M
-- API calculates: $919M (153x inflation)
-- Long exposure: Should be ~$4M, calculates as $600M+
-- Short exposure: Should be ~$2M, calculates as $300M+
+**✅ RESOLUTION IMPLEMENTED (2025-09-11)**:
+1. **Removed the problematic SQL join** with MarketDataCache entirely
+2. **Used Position.last_price field instead** - already updated by batch jobs
+3. **Fixed short exposure calculation** to keep negative values
+
+**Fix Applied**:
+```python
+# BEFORE (problematic join):
+positions_query = select(
+    Position.id,
+    Position.symbol,
+    # ... other fields
+    MarketDataCache.close.label('current_price')
+).outerjoin(
+    MarketDataCache, MarketDataCache.symbol == Position.symbol
+)
+
+# AFTER (no join, use Position.last_price):
+positions_query = select(
+    Position.id,
+    Position.symbol,
+    Position.position_type,
+    Position.quantity,
+    Position.entry_price,
+    Position.last_price,  # Use this field directly
+    Position.market_value,
+    Position.unrealized_pnl,
+    Position.realized_pnl
+).where(
+    Position.portfolio_id == portfolio_id
+)
+```
+
+**Results After Fix**:
+- Demo Individual: $542K total (16 positions) ✅
+- Demo HNW: $1.6M total (17 positions) ✅  
+- Demo Hedge Fund: $1.9M net with $3.9M long, **-$2.0M short** ✅
+- Short exposures correctly shown as negative values
+- No more 127x inflation
+- All values match expected ranges
 
 **Actual vs Expected Values (Hedge Fund Portfolio)**:
 ```
@@ -950,10 +995,11 @@ function calculateExposures(data: PortfolioData) {
 - Analytics API investigation completed 2025-09-10
 - Portfolio data source discovery completed 2025-09-11
 - Frontend best practices documented 2025-09-11
+- **SQL Join Bug (#18) RESOLVED 2025-09-11**: Analytics API now returns correct values
 - Backend server running on Windows (CP1252 encoding issues)
 - Database: PostgreSQL 15 in Docker container
 - Python version: 3.11.13
-- The system is functional but requires the fixes above for complete operation
+- The system is functional with major SQL bug fixed, minor issues remain
 
 ---
 
@@ -961,7 +1007,7 @@ function calculateExposures(data: PortfolioData) {
 
 | Priority | Issue | Impact | Effort | Status |
 |----------|-------|--------|--------|--------|
-| P0 | Analytics API SQL join bug (#18) | CRITICAL - Analytics API returns wrong values | LOW - Fix SQL query | **NEW** |
+| P0 | Analytics API SQL join bug (#18) | CRITICAL - Analytics API returns wrong values | LOW - Fix SQL query | ✅ **RESOLVED** |
 | P0 | Frontend short position assumption (#19) | CRITICAL - Wrong exposures for hedge fund | LOW - Calculate from data | **NEW** |
 | P0 | Factor exposure incomplete sets (#6,#17) | CRITICAL - API fails for 2/3 portfolios | LOW - Add missing factor | **PARTIALLY RESOLVED** |
 | P1 | Missing database tables (#7) | HIGH - Stress tests unavailable | MEDIUM - Create migrations | **PENDING** |
@@ -973,3 +1019,425 @@ function calculateExposures(data: PortfolioData) {
 | ✅ | Incomplete portfolio processing (#1) | ~~HIGH - No data for 2/3 portfolios~~ | ~~LOW - Run batch again~~ | **RESOLVED** |
 | ✅ | Unicode encoding errors (#1) | ~~HIGH - Scripts fail to run~~ | ~~LOW - Add env variable~~ | **RESOLVED** |
 | ✅ | Portfolio ID mismatches (#9) | ~~HIGH - Batch jobs fail~~ | ~~LOW - Update scripts~~ | **RESOLVED** |
+
+---
+
+## Equity-Based Portfolio Calculation Plan (2025-09-11)
+
+### Problem Statement
+Currently, portfolio totals are calculated by summing position values, which doesn't account for:
+- Cash balances (positive or negative/margin)
+- True equity (NAV)
+- Leverage ratios
+- Risk metrics for long/short portfolios
+
+### Solution: Equity-First Model
+
+#### Core Formula
+```
+Equity = Long MV - |Short MV| + Cash
+
+Rearranging for Cash:
+Cash = Equity - Long MV + |Short MV|
+
+Where:
+- Equity: User-provided NAV (net asset value)
+- Long MV: Market value of long positions
+- Short MV: Market value of short positions (negative number)
+- Cash: Calculated value (can be negative if leveraged)
+```
+
+#### Implementation Plan
+
+**Phase 1: Database Changes**
+1. Add `equity_balance` field to Portfolio model (Decimal, nullable)
+2. Create Alembic migration
+3. Set default values:
+   - Demo Individual: $500,000
+   - Demo HNW: $1,500,000
+   - Demo Hedge Fund: $2,000,000
+
+**Phase 2: Update Analytics Service**
+```python
+def _calculate_portfolio_metrics(self, db, portfolio_id, positions, equity_balance):
+    # Calculate exposures from positions
+    long_exposure = sum(pos.value for pos if pos.quantity > 0)
+    short_exposure = sum(pos.value for pos if pos.quantity < 0)  # negative
+    
+    # Core calculations
+    gross_exposure = long_exposure + abs(short_exposure)
+    net_exposure = long_exposure + short_exposure
+    
+    # Calculate cash from equity
+    cash_balance = equity_balance - long_exposure + abs(short_exposure)
+    
+    # Risk metrics
+    leverage = gross_exposure / equity_balance if equity_balance > 0 else 0
+    
+    # Portfolio total equals equity (not sum of positions)
+    portfolio_total = equity_balance
+```
+
+**Phase 3: API Endpoints**
+- `PUT /portfolio/{id}/equity` - Update equity balance
+- Update `/analytics/portfolio/{id}/overview` to include:
+  - equity_balance
+  - cash_balance (calculated)
+  - leverage ratio
+  - margin usage percentage
+
+**Phase 4: Risk Metrics**
+- Show leverage prominently (warn if > 2x)
+- Display cash/margin status
+- Calculate margin usage if cash negative
+- Add risk indicators for high leverage scenarios
+
+#### Example Calculations
+
+**Demo Individual (Equity: $500k)**
+- Long: $542k, Short: $0
+- Cash: $500k - $542k + $0 = -$42k (margin debt)
+- Leverage: 1.08x
+
+**Demo HNW (Equity: $1.5M)**
+- Long: $1.63M, Short: $0
+- Cash: $1.5M - $1.63M + $0 = -$130k (margin debt)
+- Leverage: 1.09x
+
+**Demo Hedge Fund (Equity: $2M)**
+- Long: $3.9M, Short: -$2.0M
+- Cash: $2M - $3.9M + $2M = $0.1M
+- Gross: $5.9M
+- Leverage: 2.95x (~3x leveraged)
+
+#### Benefits
+1. **Risk-focused**: Shows true leverage and margin usage
+2. **Simple**: User provides one number (equity)
+3. **Accurate**: Reflects real portfolio mechanics
+4. **Flexible**: Works for long-only and long/short portfolios
+5. **No P&L tracking**: Just current positions + equity
+
+---
+
+## Database Schema Analysis & Join Fix Strategy
+
+### Database Structure & Data Sources
+
+```
+═══════════════════════════════════════════════════════════════════
+                    DATABASE SCHEMA & DATA SOURCES
+═══════════════════════════════════════════════════════════════════
+
+┌─────────────────────────────────────────────────────────────────┐
+│                           USERS                                  │
+├─────────────────────────────────────────────────────────────────┤
+│ id, email, full_name, hashed_password                           │
+│ SOURCE: 🔧 DEMO DATA (seed_demo_portfolios.py)                  │
+│ - 3 hardcoded demo users                                        │
+│ - Fixed passwords: "demo12345"                                  │
+└─────────────────────────────────────────────────────────────────┘
+                            │
+                            │ 1:1
+                            ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                        PORTFOLIOS                                │
+├─────────────────────────────────────────────────────────────────┤
+│ id, user_id, name, description, currency                        │
+│ SOURCE: 🔧 DEMO DATA (seed_demo_portfolios.py)                  │
+│ - 3 hardcoded portfolios                                        │
+│ - Individual ($485K), HNW ($2.85M), Hedge Fund ($3.2M)         │
+│ ❌ NO cash_balance field (calculated from positions)            │
+└─────────────────────────────────────────────────────────────────┘
+                            │
+                            │ 1:N
+                            ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                         POSITIONS                                │
+├─────────────────────────────────────────────────────────────────┤
+│ id, portfolio_id, symbol, position_type, quantity               │
+│ entry_price, entry_date, exit_price, exit_date                  │
+│ ---                                                             │
+│ last_price ──────> 📊 CALCULATED (batch job updates)            │
+│ market_value ────> 📊 CALCULATED (quantity × last_price)        │
+│ unrealized_pnl ──> 📊 CALCULATED (market_value - cost_basis)    │
+│ realized_pnl ────> 📊 CALCULATED (from exits)                   │
+│ ---                                                             │
+│ SOURCE: 🔧 DEMO DATA for base fields                            │
+│         📊 BATCH JOBS for calculated fields                     │
+│ - 63 total positions across 3 portfolios                        │
+│ - Hedge fund has negative quantities (shorts)                   │
+└─────────────────────────────────────────────────────────────────┘
+          │                           │
+          │                           │ N:1 per position
+          │                           ▼
+          │         ┌─────────────────────────────────────────────┐
+          │         │            POSITION_GREEKS                   │
+          │         ├─────────────────────────────────────────────┤
+          │         │ position_id, delta, gamma, theta, vega      │
+          │         │ SOURCE: 📊 CALCULATED (Black-Scholes)       │
+          │         │ - Only for options positions                │
+          │         │ - Uses market data + volatility             │
+          │         └─────────────────────────────────────────────┘
+          │
+          │ ⚠️ THE PROBLEMATIC JOIN!
+          ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                     MARKET_DATA_CACHE                            │
+├─────────────────────────────────────────────────────────────────┤
+│ id, symbol, date, open, high, low, close, volume               │
+│ sector, industry, exchange, country, market_cap                 │
+│ data_source: 'polygon' | 'fmp' | 'tradefeeds' | 'yfinance'     │
+│ ---                                                             │
+│ SOURCE: 🌐 EXTERNAL APIs                                        │
+│ - FMP: Primary for stocks (50% success rate)                    │
+│ - Polygon: Fallback + options (rate limited 5/min)             │
+│ ---                                                             │
+│ ⚠️ PROBLEM: Contains 127+ days of history per symbol!           │
+│ ⚠️ JOIN creates: 30 positions × 127 days = 3,831 rows         │
+└─────────────────────────────────────────────────────────────────┘
+
+═══════════════════════════════════════════════════════════════════
+                    CALCULATED TABLES (Batch Jobs)
+═══════════════════════════════════════════════════════════════════
+
+┌─────────────────────────────────────────────────────────────────┐
+│                     FACTOR_EXPOSURES                             │
+├─────────────────────────────────────────────────────────────────┤
+│ portfolio_id, factor_id, exposure_value, exposure_dollar        │
+│ SOURCE: 📊 CALCULATED (7-factor regression)                     │
+│ - Uses 150 days of price history                                │
+│ - Missing "Short Interest" factor (no ETF proxy)                │
+└─────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────┐
+│                POSITION_FACTOR_EXPOSURES                         │
+├─────────────────────────────────────────────────────────────────┤
+│ position_id, factor_id, beta_value                              │
+│ SOURCE: 📊 CALCULATED (position-level betas)                    │
+│ - 490 records after batch processing                            │
+└─────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────┐
+│                  PAIRWISE_CORRELATIONS                           │
+├─────────────────────────────────────────────────────────────────┤
+│ portfolio_id, symbol1, symbol2, correlation                     │
+│ SOURCE: 📊 CALCULATED (return correlations)                     │
+│ ❌ Code expects "position_correlations" table                   │
+└─────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────┐
+│                   STRESS_TEST_RESULTS                            │
+├─────────────────────────────────────────────────────────────────┤
+│ ❌ TABLE DOESN'T EXIST! (Issue #7)                              │
+│ Should contain: portfolio_id, scenario_id, impact               │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### Key Insights & Join Avoidance Strategy
+
+#### 🔴 The Core Problem
+The `MarketDataCache` table is a **time-series table** with multiple dates per symbol, but the analytics service is treating it like a **lookup table** with one row per symbol.
+
+#### 💡 Join Avoidance Options
+
+**Option A: Use Position.last_price (NO JOIN NEEDED!)**
+```sql
+-- Current problematic query
+SELECT p.*, m.close FROM positions p 
+JOIN market_data_cache m ON p.symbol = m.symbol  -- Gets ALL dates!
+
+-- Simple fix - no join
+SELECT p.*, p.last_price as current_price FROM positions p
+WHERE portfolio_id = ?
+```
+
+**Option B: Create a Materialized View or Summary Table**
+```sql
+-- Create a latest_prices view/table
+CREATE VIEW latest_market_prices AS
+SELECT DISTINCT ON (symbol) 
+    symbol, close as last_price, date as price_date
+FROM market_data_cache
+ORDER BY symbol, date DESC;
+
+-- Then join with this instead
+```
+
+**Option C: Update Position.last_price in Batch Jobs**
+- Batch jobs already update `last_price` field
+- Just need to ensure it's current
+- Analytics can trust this field
+
+### 📊 Data Flow Summary
+
+1. **Demo Data** → Users, Portfolios, Position basics
+2. **External APIs** → MarketDataCache (historical prices)
+3. **Batch Jobs** → Calculate and UPDATE Position fields:
+   - `last_price` ← Latest from MarketDataCache
+   - `market_value` ← quantity × last_price
+   - `unrealized_pnl` ← market_value - (quantity × entry_price)
+4. **Analytics Service** → Should read Position fields, NOT join with MarketDataCache
+
+### ✅ Recommended Approach
+
+**Don't join at all!** The Position table already has everything we need:
+- `last_price` - Updated by batch jobs
+- `market_value` - Pre-calculated
+- `unrealized_pnl` - Pre-calculated
+
+The analytics service should just aggregate these pre-calculated values rather than trying to recalculate from raw market data.
+
+This avoids the join entirely and uses the work that's already been done by the batch processing system.
+
+---
+
+## Cash Balance & Margin Considerations
+
+### The Missing Cash Balance Problem
+
+The Portfolio table lacks a `cash_balance` field, but the reality is more complex than just adding a simple field.
+
+### Real-World Complexities
+
+1. **Negative Cash (Margin/Leverage)**
+   - Hedge funds borrow to amplify positions
+   - Cash balance could be -$500K if leveraged
+   - Interest charges accrue on margin debt
+
+2. **Money Market Funds as "Cash"**
+   - Cash often held as SPAXX, VMFXX, SWVXX, etc.
+   - These are actual positions with tickers
+   - They have NAV (usually ~$1.00) and earn yield
+
+### Implementation Options
+
+#### Option 1: Add cash_balance Field
+```sql
+ALTER TABLE portfolios 
+ADD COLUMN cash_balance NUMERIC(16, 2);  -- Can be negative!
+ADD COLUMN margin_debt NUMERIC(16, 2) DEFAULT 0;  -- Track separately?
+```
+
+**For demo hedge fund:**
+```python
+"cash_balance": -200000,  # Borrowed $200K on margin
+"margin_debt": 200000,     # Explicit tracking
+```
+
+#### Option 2: Money Market as Position (Reflects Reality)
+**This is how real brokerages work:**
+```python
+# In positions table
+{
+    "symbol": "SPAXX",  # Fidelity Government Money Market
+    "position_type": PositionType.LONG,
+    "quantity": Decimal("300000"),  # 300K shares
+    "entry_price": Decimal("1.00"),  # NAV ~$1
+    "last_price": Decimal("1.0001"),  # Slight fluctuation
+}
+```
+
+**Advantages:**
+- Reflects reality (cash IS in a money market fund)
+- Automatically included in position calculations
+- Tracks yield/interest naturally
+- No schema changes needed!
+
+#### Option 3: Hybrid Approach (Most Accurate)
+Track both:
+1. **Actual cash/margin balance** (could be negative)
+2. **Money market positions** (the "sweep" funds)
+
+```python
+# Portfolio table
+cash_balance: -200000  # Margin debt
+margin_available: 500000  # Borrowing capacity
+
+# Positions table
+SPAXX: 300000 shares  # Money market fund
+SPY: 1000 shares      # Regular positions
+```
+
+### Impact on Portfolio Calculations
+
+**Total Portfolio Value:**
+```python
+# Old (wrong)
+total_value = sum(position_values)
+
+# New (correct)
+total_value = cash_balance + sum(position_values)
+# Where cash_balance can be negative (margin debt)
+# And position_values includes money market funds
+```
+
+**Leverage Calculation:**
+```python
+gross_exposure = sum(abs(position_values))
+net_assets = cash_balance + sum(position_values)  # Can be less than gross!
+leverage = gross_exposure / net_assets  # Could be 2x, 3x, etc.
+```
+
+**Example for Hedge Fund:**
+```python
+# Positions
+Long positions: $4M
+Short positions: $2M (held as negative quantities)
+Money market (SPAXX): $300K
+Cash balance: -$200K (margin debt)
+
+# Calculations
+Gross exposure: $6M (4M + 2M)
+Net assets: $2.1M (4M - 2M + 0.3M - 0.2M)
+Leverage: 2.86x (6M / 2.1M)
+```
+
+### Recommended Implementation
+
+**Use Option 2 + Small Schema Change:**
+
+1. **Add money market positions** to seed data:
+```python
+# Add to hedge fund positions
+{
+    "symbol": "SPAXX",
+    "position_type": PositionType.LONG,
+    "quantity": Decimal("300000"),
+    "entry_price": Decimal("1.00"),
+}
+```
+
+2. **Add margin_balance to Portfolio** (one field):
+```sql
+ALTER TABLE portfolios 
+ADD COLUMN margin_balance NUMERIC(16, 2) DEFAULT 0;
+-- Negative = margin debt, Positive = excess cash
+```
+
+3. **Portfolio calculations:**
+```python
+def calculate_portfolio_metrics(positions, margin_balance):
+    # Money market funds are just positions
+    position_values = sum(p.market_value for p in positions)
+    
+    # Total equity
+    net_equity = position_values + margin_balance
+    
+    # Leverage
+    gross_exposure = sum(abs(p.market_value) for p in positions)
+    leverage = gross_exposure / net_equity if net_equity > 0 else 0
+    
+    return {
+        "gross_exposure": gross_exposure,
+        "net_equity": net_equity,
+        "margin_balance": margin_balance,
+        "leverage": leverage
+    }
+```
+
+This approach:
+- Reflects real brokerage practices
+- Handles negative cash (margin debt)
+- Treats money markets as positions (which they are)
+- Enables proper leverage calculations
+- Minimal schema changes
