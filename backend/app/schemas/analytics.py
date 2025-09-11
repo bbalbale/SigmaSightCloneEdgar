@@ -44,8 +44,10 @@ class PortfolioOverviewResponse(BaseModel):
     exposures, P&L, and position counts.
     """
     portfolio_id: str = Field(..., description="Portfolio UUID")
+    equity_balance: Optional[float] = Field(None, description="User-provided equity balance (NAV)")
     total_value: float = Field(..., description="Total portfolio value including cash")
     cash_balance: float = Field(..., description="Available cash balance")
+    leverage: float = Field(..., description="Leverage ratio (gross exposure / equity)")
     exposures: PortfolioExposures = Field(..., description="Portfolio exposure metrics")
     pnl: PortfolioPnL = Field(..., description="Portfolio P&L metrics")
     position_count: PositionCount = Field(..., description="Position count breakdown")

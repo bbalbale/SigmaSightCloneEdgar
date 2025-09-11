@@ -5,13 +5,17 @@ Endpoints for portfolio-level analytics including overview metrics,
 exposures, P&L calculations, and performance data.
 """
 from uuid import UUID
+from decimal import Decimal
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select, update
+from pydantic import BaseModel
 import time
 
 from app.database import get_db
 from app.core.dependencies import get_current_user, validate_portfolio_ownership
 from app.schemas.auth import CurrentUser
+from app.models.users import Portfolio
 from app.schemas.analytics import (
     PortfolioOverviewResponse,
     CorrelationMatrixResponse,
@@ -361,3 +365,64 @@ async def get_portfolio_risk_metrics(
     except Exception as e:
         logger.error(f"Risk metrics failed for {portfolio_id}: {str(e)}")
         raise HTTPException(status_code=500, detail="Internal server error retrieving risk metrics")
+
+
+class UpdateEquityRequest(BaseModel):
+    """Request model for updating portfolio equity balance"""
+    equity_balance: float
+    
+    class Config:
+        schema_extra = {
+            "example": {
+                "equity_balance": 1000000.00
+            }
+        }
+
+
+@router.put("/{portfolio_id}/equity")
+async def update_portfolio_equity(
+    portfolio_id: UUID,
+    request: UpdateEquityRequest,
+    current_user: CurrentUser = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Update the equity balance (NAV) for a portfolio.
+    
+    This endpoint allows users to set their portfolio's equity balance, which is used
+    for calculating cash positions, leverage ratios, and other risk metrics.
+    
+    Args:
+        portfolio_id: The portfolio UUID
+        request: The new equity balance value
+        
+    Returns:
+        Success message with updated equity balance
+    """
+    try:
+        # Validate ownership
+        await validate_portfolio_ownership(db, portfolio_id, current_user.id)
+        
+        # Update equity balance
+        stmt = (
+            update(Portfolio)
+            .where(Portfolio.id == portfolio_id)
+            .values(equity_balance=request.equity_balance)
+        )
+        await db.execute(stmt)
+        await db.commit()
+        
+        logger.info(f"Updated equity balance for portfolio {portfolio_id} to ${request.equity_balance:,.2f}")
+        
+        return {
+            "message": "Equity balance updated successfully",
+            "portfolio_id": str(portfolio_id),
+            "equity_balance": request.equity_balance
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to update equity for {portfolio_id}: {str(e)}")
+        await db.rollback()
+        raise HTTPException(status_code=500, detail="Internal server error updating equity balance")

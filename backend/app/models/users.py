@@ -2,8 +2,9 @@
 User and Portfolio models
 """
 from datetime import datetime
+from decimal import Decimal
 from uuid import uuid4
-from sqlalchemy import String, DateTime, ForeignKey, UniqueConstraint, Index
+from sqlalchemy import String, DateTime, ForeignKey, UniqueConstraint, Index, Numeric
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from typing import Optional, List
@@ -37,6 +38,7 @@ class Portfolio(Base):
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     description: Mapped[Optional[str]] = mapped_column(String(1000), nullable=True)
     currency: Mapped[str] = mapped_column(String(3), default='USD')
+    equity_balance: Mapped[Optional[Decimal]] = mapped_column(Numeric(16, 2), nullable=True)  # User-provided NAV
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow)
     deleted_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)  # Soft delete

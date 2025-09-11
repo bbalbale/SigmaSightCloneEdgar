@@ -39,7 +39,7 @@ class PortfolioAnalyticsService:
             Dict with portfolio overview data matching API_SPECIFICATIONS_V1.4.5.md format
         """
         try:
-            # Verify portfolio exists
+            # Verify portfolio exists and get equity_balance
             portfolio_result = await db.execute(
                 select(Portfolio).where(Portfolio.id == portfolio_id)
             )
@@ -48,7 +48,10 @@ class PortfolioAnalyticsService:
             if not portfolio:
                 raise ValueError(f"Portfolio {portfolio_id} not found")
             
-            # Get all positions with current market data
+            # Get equity balance (use default if not set)
+            equity_balance = float(portfolio.equity_balance) if portfolio.equity_balance else None
+            
+            # Get all positions (NO JOIN - use Position.last_price)
             positions_query = select(
                 Position.id,
                 Position.symbol,
@@ -58,11 +61,7 @@ class PortfolioAnalyticsService:
                 Position.last_price,
                 Position.market_value,
                 Position.unrealized_pnl,
-                Position.realized_pnl,
-                MarketDataCache.close.label('current_price'),
-                MarketDataCache.updated_at.label('price_updated_at')
-            ).outerjoin(
-                MarketDataCache, MarketDataCache.symbol == Position.symbol
+                Position.realized_pnl
             ).where(
                 Position.portfolio_id == portfolio_id
             )
@@ -71,7 +70,7 @@ class PortfolioAnalyticsService:
             positions = positions_result.all()
             
             # Calculate portfolio metrics
-            overview_data = await self._calculate_portfolio_metrics(db, portfolio_id, positions)
+            overview_data = await self._calculate_portfolio_metrics(db, portfolio_id, positions, equity_balance)
             
             # Add metadata
             overview_data.update({
@@ -89,13 +88,12 @@ class PortfolioAnalyticsService:
         self,
         db: AsyncSession,
         portfolio_id: UUID,
-        positions: list
+        positions: list,
+        equity_balance: Optional[float] = None
     ) -> Dict[str, Any]:
-        """Calculate all portfolio metrics from positions data"""
+        """Calculate all portfolio metrics from positions data with equity-based calculations"""
         
         # Initialize metrics
-        total_value = 0.0
-        cash_balance = 0.0  # TODO: Get from portfolio.cash_balance when available
         long_exposure = 0.0
         short_exposure = 0.0
         total_pnl = 0.0
@@ -111,46 +109,54 @@ class PortfolioAnalyticsService:
         for pos in positions:
             quantity = float(pos.quantity) if pos.quantity else 0.0
             entry_price = float(pos.entry_price) if pos.entry_price else 0.0
-            current_price = float(pos.current_price or pos.last_price or 0.0)
+            last_price = float(pos.last_price or 0.0)
             
-            # Calculate position market value
-            position_value = quantity * current_price
-            total_value += position_value
+            # Calculate position market value (keep sign)
+            position_value = quantity * last_price
             
             # Calculate P&L for this position
-            if entry_price > 0 and current_price > 0:
+            if entry_price > 0 and last_price > 0:
                 position_cost = quantity * entry_price
                 position_pnl = position_value - position_cost
                 unrealized_pnl += position_pnl
             
-            # Categorize position type
-            if pos.position_type == PositionType.LONG:
-                long_count += 1
-                if quantity > 0:
-                    long_exposure += position_value
+            # Simple exposure calculation based on quantity sign
+            if quantity > 0:
+                long_exposure += position_value
+                # Count based on position type
+                if pos.position_type == PositionType.SHORT:
+                    short_count += 1  # Covered short
+                elif pos.position_type in [PositionType.LC, PositionType.LP, PositionType.SC, PositionType.SP]:
+                    option_count += 1
                 else:
-                    short_exposure += abs(position_value)
+                    long_count += 1
+            else:  # quantity < 0 means short position
+                short_exposure += position_value  # Keep negative!
+                # Count based on position type
+                if pos.position_type in [PositionType.LC, PositionType.LP, PositionType.SC, PositionType.SP]:
+                    option_count += 1
+                else:
                     short_count += 1
-                    long_count -= 1
-            elif pos.position_type == PositionType.SHORT:
-                short_count += 1
-                short_exposure += abs(position_value)
-            elif pos.position_type in [PositionType.LC, PositionType.LP, PositionType.SC, PositionType.SP]:
-                option_count += 1
-                # Options contribute to exposure based on type and quantity
-                if pos.position_type in [PositionType.LC, PositionType.LP]:  # Long options
-                    long_exposure += abs(position_value)
-                else:  # Short options
-                    short_exposure += abs(position_value)
         
-        # Calculate exposure percentages
-        gross_exposure = long_exposure + short_exposure
-        net_exposure = long_exposure - short_exposure
+        # Calculate exposure aggregates (short_exposure is negative)
+        gross_exposure = long_exposure + abs(short_exposure)
+        net_exposure = long_exposure + short_exposure  # Add negative
+        
+        # Calculate cash balance from equity (if equity provided)
+        if equity_balance is not None:
+            # Cash = Equity - Long MV + |Short MV|
+            cash_balance = equity_balance - long_exposure + abs(short_exposure)
+            portfolio_total = equity_balance  # Portfolio total equals equity
+            leverage = gross_exposure / equity_balance if equity_balance > 0 else 0.0
+        else:
+            # Fallback to old calculation if no equity set
+            cash_balance = 0.0
+            portfolio_total = net_exposure  # Just sum of positions
+            leverage = 0.0
         
         # Calculate percentages (avoid division by zero)
-        portfolio_total = total_value + cash_balance
         long_percentage = (long_exposure / portfolio_total * 100) if portfolio_total > 0 else 0.0
-        short_percentage = (short_exposure / portfolio_total * 100) if portfolio_total > 0 else 0.0
+        short_percentage = (abs(short_exposure) / portfolio_total * 100) if portfolio_total > 0 else 0.0
         gross_percentage = (gross_exposure / portfolio_total * 100) if portfolio_total > 0 else 0.0
         net_percentage = (net_exposure / portfolio_total * 100) if portfolio_total > 0 else 0.0
         
@@ -159,8 +165,10 @@ class PortfolioAnalyticsService:
         realized_pnl = 0.0  # TODO: Calculate from historical data
         
         return {
+            "equity_balance": round(equity_balance, 2) if equity_balance is not None else None,
             "total_value": round(portfolio_total, 2),
             "cash_balance": round(cash_balance, 2),
+            "leverage": round(leverage, 2),
             "exposures": {
                 "long_exposure": round(long_exposure, 2),
                 "short_exposure": round(short_exposure, 2),

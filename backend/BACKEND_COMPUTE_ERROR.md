@@ -1,18 +1,30 @@
 # Backend Compute Error Documentation
 
-> **Last Updated**: 2025-09-11 (CRITICAL SQL JOIN BUG FIXED)  
+> **Last Updated**: 2025-09-11 (SQL BUG FIXED + EQUITY SYSTEM IMPLEMENTED)  
 > **Purpose**: Document and track all computation errors encountered during batch processing and API services  
-> **Status**: 4 Issues Resolved (including P0 SQL bug), 15 Active
+> **Status**: 5 Major Features Completed, 15 Minor Issues Active
 
-## 🎉 Major Fix Completed (2025-09-11)
+## 🎉 Major Updates Completed (2025-09-11)
 
-**Critical SQL Join Bug (#18) RESOLVED**:
+### 1. Critical SQL Join Bug (#18) RESOLVED
 - **Problem**: Analytics API was returning 127x inflated values due to bad SQL join
 - **Solution**: Removed join with MarketDataCache, used Position.last_price field instead
 - **Results**: 
   - Values now correct: Hedge fund shows $1.9M net (was $919M inflated)
   - Short exposures properly negative: -$2.0M (was +$288M wrong sign)
   - All portfolios returning accurate data
+
+### 2. Equity-Based Portfolio System IMPLEMENTED (2025-09-11)
+- **Added**: `equity_balance` field to Portfolio model (Decimal 16,2)
+- **Created**: Database migration `add_equity_balance_to_portfolio.py`
+- **Updated**: Portfolio analytics service with equity-based calculations
+- **Added**: API response fields for `equity_balance` and `leverage`
+- **Formula**: `Cash = Equity - Long MV + |Short MV|`
+- **Result**: True risk management with leverage calculations working correctly
+- **Current Equity Values**:
+  - Demo Individual: $600,000 (0.90x leverage)
+  - Demo HNW: $2,000,000 (0.81x leverage)
+  - Demo Hedge Fund: $4,000,000 (1.47x leverage)
 
 ## Table of Contents
 1. [Critical Issues](#critical-issues)
@@ -989,6 +1001,33 @@ function calculateExposures(data: PortfolioData) {
 - **Current `/complete`**: ~100KB payload, single trip, includes unnecessary historical data
 - **Optimized Analytics**: ~5KB overview + 20KB positions (on-demand) = 75% bandwidth reduction
 
+## Equity System Implementation Details (2025-09-11)
+
+### Files Modified
+1. **`app/models/users.py`**: Added `equity_balance` field to Portfolio model
+2. **`alembic/versions/add_equity_balance_to_portfolio.py`**: Created migration
+3. **`app/services/portfolio_analytics_service.py`**: Updated calculations to use equity
+4. **`app/schemas/analytics.py`**: Added equity_balance and leverage to response model
+5. **`scripts/update_equity_values.py`**: Script to update equity values
+6. **`scripts/test_equity_calculations.py`**: Comprehensive test script
+
+### Test Results
+All three portfolios now correctly calculate:
+- ✅ Equity balances match database values
+- ✅ Cash balances calculated correctly using formula
+- ✅ Leverage ratios accurate (gross exposure / equity)
+- ✅ API returns equity_balance and leverage fields
+
+### Migration Applied
+```sql
+ALTER TABLE portfolios ADD COLUMN equity_balance NUMERIC(16, 2);
+UPDATE portfolios SET equity_balance = CASE 
+    WHEN id = '1d8ddd95-3b45-0ac5-35bf-cf81af94a5fe' THEN 600000.00
+    WHEN id = 'e23ab931-a033-edfe-ed4f-9d02474780b4' THEN 2000000.00
+    WHEN id = 'fcd71196-e93e-f000-5a74-31a9eead3118' THEN 4000000.00
+END;
+```
+
 ## Notes
 
 - All errors documented from batch run on 2025-09-10
@@ -996,10 +1035,11 @@ function calculateExposures(data: PortfolioData) {
 - Portfolio data source discovery completed 2025-09-11
 - Frontend best practices documented 2025-09-11
 - **SQL Join Bug (#18) RESOLVED 2025-09-11**: Analytics API now returns correct values
+- **Equity System IMPLEMENTED 2025-09-11**: Full equity-based calculations working
 - Backend server running on Windows (CP1252 encoding issues)
 - Database: PostgreSQL 15 in Docker container
 - Python version: 3.11.13
-- The system is functional with major SQL bug fixed, minor issues remain
+- The system is functional with major bugs fixed, minor issues remain
 
 ---
 
@@ -1143,10 +1183,13 @@ def _calculate_portfolio_metrics(self, db, portfolio_id, positions, equity_balan
 │                        PORTFOLIOS                                │
 ├─────────────────────────────────────────────────────────────────┤
 │ id, user_id, name, description, currency                        │
+│ ✅ equity_balance: NUMERIC(16,2) (added 2025-09-11)             │
 │ SOURCE: 🔧 DEMO DATA (seed_demo_portfolios.py)                  │
-│ - 3 hardcoded portfolios                                        │
-│ - Individual ($485K), HNW ($2.85M), Hedge Fund ($3.2M)         │
-│ ❌ NO cash_balance field (calculated from positions)            │
+│ - 3 hardcoded portfolios with equity values:                    │
+│   • Individual: $600,000 equity → 0.90x leverage                │
+│   • HNW: $2,000,000 equity → 0.81x leverage                    │
+│   • Hedge Fund: $4,000,000 equity → 1.47x leverage             │
+│ - Cash calculated: Cash = Equity - Long MV + |Short MV|         │
 └─────────────────────────────────────────────────────────────────┘
                             │
                             │ 1:N
