@@ -44,7 +44,10 @@ class MarketDataService:
         """
         Fetch historical stock price data using hybrid provider approach
         
-        Priority: FMP -> Polygon (fallback)
+        Priority: 
+        - Stocks: Polygon -> FMP (fallback)
+        - ETFs: FMP -> Polygon (fallback)
+        - Options: Polygon only
         
         Args:
             symbols: List of stock symbols
@@ -63,19 +66,44 @@ class MarketDataService:
         
         days_back = (end_date - start_date).days
         
-        # Separate options from stocks/ETFs
+        # Known ETF symbols (common ones plus factor ETFs)
+        KNOWN_ETFS = {
+            'SPY', 'QQQ', 'VTI', 'IWM', 'VOO', 'VTV', 'VNQ', 'DJP', 'SLY',
+            'VUG', 'MTUM', 'QUAL', 'SIZE', 'USMV', 'IVV', 'EFA', 'AGG', 
+            'BND', 'GLD', 'TLT', 'XLF', 'XLK', 'XLE', 'XLV', 'XLI', 'XLY',
+            'XLP', 'XLU', 'XLB', 'XLRE', 'VEA', 'VWO', 'VIG', 'VYM', 'SCHD'
+        }
+        
+        # Categorize symbols
         # Options symbols typically have 15+ characters and contain expiration dates
         options_symbols = [s for s in symbols if len(s) > 10 and any(c.isdigit() for c in s[6:])]
-        stock_symbols = [s for s in symbols if s not in options_symbols]
+        etf_symbols = [s for s in symbols if s not in options_symbols and s.upper() in KNOWN_ETFS]
+        stock_symbols = [s for s in symbols if s not in options_symbols and s not in etf_symbols]
         
         results = {}
         
-        # Process stocks/ETFs with FMP
+        logger.info(f"Symbol breakdown: {len(stock_symbols)} stocks, {len(etf_symbols)} ETFs, {len(options_symbols)} options")
+        
+        # Process regular stocks with Polygon first
         if stock_symbols:
+            logger.info(f"Fetching {len(stock_symbols)} stocks with Polygon (primary)")
+            polygon_results = await self.fetch_stock_prices(stock_symbols, start_date, end_date)
+            
+            for symbol in stock_symbols:
+                results[symbol] = polygon_results.get(symbol, [])
+            
+            # Track which stocks failed with Polygon
+            failed_stocks = [s for s in stock_symbols if not results.get(s)]
+            if failed_stocks:
+                logger.warning(f"Polygon failed for {len(failed_stocks)} stocks, will try FMP fallback")
+        
+        # Process ETFs with FMP first
+        if etf_symbols:
+            logger.info(f"Fetching {len(etf_symbols)} ETFs with FMP (primary)")
             provider = market_data_factory.get_provider_for_data_type(DataType.STOCKS)
             if provider:
                 try:
-                    for symbol in stock_symbols:
+                    for symbol in etf_symbols:
                         try:
                             historical_data = await provider.get_historical_prices(symbol, days=days_back)
                             
@@ -104,31 +132,65 @@ class MarketDataService:
                                     })
                                 
                                 results[symbol] = price_records
-                                logger.debug(f"FMP: Retrieved {len(price_records)} records for {symbol}")
+                                logger.debug(f"FMP: Retrieved {len(price_records)} records for ETF {symbol}")
                             else:
                                 results[symbol] = []
                                 
                         except Exception as e:
-                            logger.warning(f"FMP error for {symbol}: {str(e)}")
+                            logger.warning(f"FMP error for ETF {symbol}: {str(e)}")
                             results[symbol] = []
                 
-                    # Check success rate for stocks only
-                    successful_stocks = [s for s in stock_symbols if results.get(s)]
-                    stock_success_rate = len(successful_stocks) / len(stock_symbols) if stock_symbols else 0
-                    
-                    if stock_success_rate >= 0.8:  # 80% success rate threshold
-                        logger.info(f"FMP historical data: {len(successful_stocks)}/{len(stock_symbols)} stocks ({stock_success_rate:.1%})")
-                    else:
-                        logger.warning(f"FMP stock success rate low ({stock_success_rate:.1%}), using Polygon fallback for failed symbols")
+                    # Check success rate for ETFs
+                    successful_etfs = [s for s in etf_symbols if results.get(s)]
+                    etf_success_rate = len(successful_etfs) / len(etf_symbols) if etf_symbols else 0
+                    logger.info(f"FMP ETF success: {len(successful_etfs)}/{len(etf_symbols)} ({etf_success_rate:.1%})")
                         
                 except Exception as e:
-                    logger.error(f"FMP historical data provider error: {str(e)}")
+                    logger.error(f"FMP ETF provider error: {str(e)}")
         
-        # Process options and any failed stocks with Polygon
-        symbols_for_polygon = options_symbols + [s for s in stock_symbols if not results.get(s)]
+        # Fallback: Use FMP for failed stocks and Polygon for failed ETFs
+        failed_stocks = [s for s in stock_symbols if not results.get(s)] if 'failed_stocks' in locals() else []
+        failed_etfs = [s for s in etf_symbols if not results.get(s)]
+        
+        # Try FMP for failed stocks
+        if failed_stocks:
+            logger.info(f"Trying FMP fallback for {len(failed_stocks)} failed stocks")
+            provider = market_data_factory.get_provider_for_data_type(DataType.STOCKS)
+            if provider:
+                for symbol in failed_stocks:
+                    try:
+                        historical_data = await provider.get_historical_prices(symbol, days=days_back)
+                        if historical_data:
+                            price_records = []
+                            for day_data in historical_data:
+                                date_value = day_data['date']
+                                if isinstance(date_value, str):
+                                    date_obj = datetime.strptime(date_value, '%Y-%m-%d').date()
+                                elif isinstance(date_value, date):
+                                    date_obj = date_value
+                                else:
+                                    date_obj = datetime.fromisoformat(str(date_value)).date()
+                                
+                                price_records.append({
+                                    'symbol': symbol.upper(),
+                                    'date': date_obj,
+                                    'open': Decimal(str(day_data['open'])),
+                                    'high': Decimal(str(day_data['high'])),
+                                    'low': Decimal(str(day_data['low'])),
+                                    'close': Decimal(str(day_data['close'])),
+                                    'volume': day_data['volume'],
+                                    'data_source': 'fmp'
+                                })
+                            results[symbol] = price_records
+                            logger.debug(f"FMP fallback: Retrieved {len(price_records)} records for stock {symbol}")
+                    except Exception as e:
+                        logger.warning(f"FMP fallback failed for stock {symbol}: {str(e)}")
+        
+        # Process options and failed ETFs with Polygon
+        symbols_for_polygon = options_symbols + failed_etfs
         
         if symbols_for_polygon:
-            logger.info(f"Using Polygon for {len(options_symbols)} options and {len(symbols_for_polygon) - len(options_symbols)} failed stocks")
+            logger.info(f"Using Polygon for {len(options_symbols)} options and {len(failed_etfs)} failed ETFs")
             polygon_results = await self.fetch_stock_prices(symbols_for_polygon, start_date, end_date)
             
             # Merge Polygon results

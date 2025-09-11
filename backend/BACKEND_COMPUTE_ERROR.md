@@ -1,8 +1,8 @@
 # Backend Compute Error Documentation
 
-> **Last Updated**: 2025-09-11 (SQL BUG FIXED + EQUITY SYSTEM + FACTOR FLEXIBILITY IMPLEMENTED)  
+> **Last Updated**: 2025-09-11 (SQL BUG FIXED + EQUITY SYSTEM + ZOOM→ZM TICKER FIX)  
 > **Purpose**: Document and track all computation errors encountered during batch processing and API services  
-> **Status**: 8 Issues RESOLVED ✅, 1 Issue PARTIALLY RESOLVED, 11 Issues PENDING/ACTIVE
+> **Status**: 9 Issues RESOLVED ✅, 1 Issue PARTIALLY RESOLVED, 10 Issues PENDING/ACTIVE
 
 ## 🎉 Major Updates Completed (2025-09-11)
 
@@ -82,21 +82,27 @@ PYTHONIOENCODING=utf-8 uv run python <script.py>
 
 ## Market Data Issues
 
-### Issue #2: Unexpected FMP Historical Data Format
+### Issue #2: Unexpected FMP Historical Data Format ✅ RESOLVED (Ticker Issue)
 **Error**: `Unexpected FMP historical data format for ZOOM`  
 **Location**: `app/services/market_data_service.py` during FMP API calls
-**Frequency**: Repeated 4 times during batch run  
+**Status**: ✅ **RESOLVED** (2025-09-11)
+
+**Root Cause Found**:
+- **ZOOM is not a valid ticker symbol** - should be **ZM** (Zoom Video Communications)
+- ZOOM was incorrectly used in seed_demo_portfolios.py line 287
+- FMP API couldn't find data for non-existent ticker "ZOOM"
+
+**Resolution Applied**:
+1. Fixed seed_demo_portfolios.py: Changed ZOOM → ZM
+2. Created fix_zoom_ticker.py script to update database
+3. Successfully updated 1 position and deleted 1 invalid cache entry
+4. Reran batch process - ZM data now fetching correctly (5 days retrieved)
 
 **Technical Details**:
-- FMP API returns unexpected JSON structure for certain symbols (ZOOM, PTON, etc.)
+- FMP API returns unexpected JSON structure for invalid symbols
 - Expected format: `{"historical": [{"date": "...", "close": ...}]}`
-- Actual format varies or returns empty/malformed response
-- Affects tickers that may have been delisted or have limited history
-
-**Impact**: 
-- Market data sync failures for 4-6 symbols
-- Positions with these symbols cannot calculate current market values
-- Falls back to last cached price if available
+- For invalid tickers: Returns empty or error response
+- System now correctly uses ZM ticker
 
 ### Issue #3: Missing Factor ETF Data
 **Error**: `Missing data points: {'SIZE': 2}`  
@@ -118,10 +124,11 @@ PYTHONIOENCODING=utf-8 uv run python <script.py>
 - Factor attribution incomplete for portfolio risk analysis
 - May affect 10-15% of positions depending on correlation with SIZE
 
-### Issue #4: Insufficient Historical Data for Options
+### Issue #4: Insufficient Historical Data for Options & New Stocks
 **Error Messages**:
 ```
 ❌ SLY: 0 days (needs 150 more)
+❌ ZM: 5 days (needs 145 more)
 ❌ TSLA250815C00300000: 1 days (needs 149 more)
 ❌ MSFT250919P00380000: 1 days (needs 149 more)
 ❌ VIX250716C00025000: 1 days (needs 149 more)
@@ -134,16 +141,32 @@ PYTHONIOENCODING=utf-8 uv run python <script.py>
 **Location**: `app/calculations/options_pricing.py` historical data validation
 **Required**: 150 days for volatility calculation
 
+**Why We Can't Get Prior 145 Days**:
+
+1. **Options Contracts - Fundamental Limitation**:
+   - Options have **expiration dates** embedded in their symbols (e.g., SPY250919C00460000 expires 2025-09-19)
+   - They are **created when first traded**, not 150 days in advance
+   - Historical data literally doesn't exist before the contract was listed
+   - Example: SPY250919C00460000 might have been created on 2025-09-10, so only 1 day of data exists
+   - **This is NOT a data provider issue** - the data doesn't exist anywhere
+
+2. **ZM (Zoom) - Recent Data Only**:
+   - After fixing ZOOM → ZM ticker, we now get data
+   - But only 5 days available (needs 145 more)
+   - Possible reasons:
+     - Our API plan may have limited historical depth
+     - FMP free/basic tier often limits to 5 days
+     - Need premium tier for 150+ days of history
+
 **Technical Details**:
-- Options contracts are new (just listed)
-- Historical data starts from listing date, not 150 days ago
-- Volatility calculation needs:
+- Volatility calculation needs 150 days for statistical significance:
   ```python
   # Need 150 days of underlying price history
   returns = underlying_prices.pct_change()
   volatility = returns.std() * sqrt(252)  # Annualized
   ```
 - Options with 1 day history = just started trading
+- Can't "backfill" option prices - they didn't exist
 
 **Why This Matters**:
 - Can't calculate implied volatility without historical volatility baseline
@@ -151,14 +174,17 @@ PYTHONIOENCODING=utf-8 uv run python <script.py>
 - Black-Scholes model needs: S, K, r, T, σ (missing σ)
 
 **Workaround Options**:
-1. Use underlying stock's volatility (SPY for SPY options)
-2. Use VIX as volatility proxy
-3. Use similar option's implied volatility
+1. **Use underlying stock's volatility** (SPY volatility for SPY options)
+2. **Use VIX as volatility proxy** for index options
+3. **Use similar option's implied volatility** if available
+4. **Upgrade API plan** for more historical data on stocks
+5. **Accept limited calculations** for new options
 
 **Impact**: 
 - 8 option positions (~25% of hedge fund) lack Greeks
 - Risk metrics incomplete for derivatives
 - Hedge effectiveness cannot be measured
+- ZM position missing factor exposures
 
 ### Issue #5: Low FMP Stock Data Success Rate
 **Error**: `FMP stock success rate low (50.0%), using Polygon fallback for failed symbols`  
@@ -1041,7 +1067,7 @@ END;
 
 ## Summary of Issue Status (2025-09-11)
 
-### ✅ RESOLVED Issues (8)
+### ✅ RESOLVED Issues (9)
 1. **SQL Join Bug (#18)** - Analytics API now returns correct values
 2. **Equity System** - Full equity-based calculations implemented and working
 3. **Factor Exposure API (#6)** - Fixed with flexible factor requirements
@@ -1050,22 +1076,22 @@ END;
 6. **Portfolio ID Mismatches (#9)** - Correct IDs in all scripts
 7. **Batch Orchestrator Methods (#10)** - Using correct method names
 8. **Portfolio Data Discovery (#20)** - Documented hardcoded data source
+9. **ZOOM Ticker Error (#2)** - Fixed ZOOM→ZM, database updated, batch rerun successful
 
 ### ⚠️ PARTIALLY RESOLVED Issues (1)
 1. **Analytics API Alignment (#17)** - Service working but some metadata fields incomplete
 
-### 🔴 PENDING/ACTIVE Issues (11)
+### 🔴 PENDING/ACTIVE Issues (10)
 1. **Frontend Short Position (#19)** - Frontend hardcodes shortValue = 0
 2. **Missing Database Tables (#7)** - stress_test_results table doesn't exist
 3. **Rate Limiting (#15,#16)** - Polygon/FMP rate limits causing delays
-4. **Insufficient Options Data (#4)** - Options need 150 days history
-5. **Market Data Format (#2)** - FMP returns unexpected format for some symbols
-6. **Missing Factor ETF Data (#3)** - SIZE factor missing 2 days
-7. **Table Name Mismatch (#8)** - position_correlations vs pairwise_correlations
-8. **Beta Capping (#11)** - Extreme betas being capped at ±3.0
-9. **Missing Interest Rate Factor (#12)** - Factor name mismatch in stress tests
-10. **Excessive Stress Loss (#13)** - Losses exceed 99% of portfolio
-11. **Pandas Deprecation (#14)** - Need to update pct_change() calls
+4. **Insufficient Options Data (#4)** - Options need 150 days history (fundamental limitation)
+5. **Missing Factor ETF Data (#3)** - SIZE factor missing 2 days
+6. **Table Name Mismatch (#8)** - position_correlations vs pairwise_correlations
+7. **Beta Capping (#11)** - Extreme betas being capped at ±3.0
+8. **Missing Interest Rate Factor (#12)** - Factor name mismatch in stress tests
+9. **Excessive Stress Loss (#13)** - Losses exceed 99% of portfolio
+10. **Pandas Deprecation (#14)** - Need to update pct_change() calls
 
 ## Notes
 

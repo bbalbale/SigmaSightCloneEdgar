@@ -153,7 +153,7 @@ DEMO_PORTFOLIOS = [
             # Short Positions - Overvalued Growth
             {"symbol": "NFLX", "quantity": Decimal("-600"), "entry_price": Decimal("490.00"), "entry_date": date(2024, 1, 25), "tags": ["Short Value Traps"]},
             {"symbol": "SHOP", "quantity": Decimal("-1000"), "entry_price": Decimal("195.00"), "entry_date": date(2024, 1, 25), "tags": ["Short Value Traps"]},
-            {"symbol": "ZOOM", "quantity": Decimal("-2000"), "entry_price": Decimal("70.00"), "entry_date": date(2024, 1, 28), "tags": ["Short Value Traps"]},
+            {"symbol": "ZM", "quantity": Decimal("-2000"), "entry_price": Decimal("70.00"), "entry_date": date(2024, 1, 28), "tags": ["Short Value Traps"]},
             {"symbol": "PTON", "quantity": Decimal("-3000"), "entry_price": Decimal("40.00"), "entry_date": date(2024, 1, 28), "tags": ["Short Value Traps"]},
             {"symbol": "ROKU", "quantity": Decimal("-1800"), "entry_price": Decimal("60.00"), "entry_date": date(2024, 1, 30), "tags": ["Short Value Traps"]},
             
