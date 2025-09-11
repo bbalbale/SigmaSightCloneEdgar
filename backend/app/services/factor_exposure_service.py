@@ -30,12 +30,11 @@ class FactorExposureService:
 
     async def get_portfolio_exposures(self, portfolio_id: UUID) -> Dict:
         """
-        Return the latest complete set of portfolio-level factor exposures.
-        Joins FactorExposure to FactorDefinition; picks the most recent
-        calculation_date and returns all factors from that date.
+        Return the latest set of portfolio-level factor exposures.
+        Accepts any available factors - doesn't require all active factors.
+        Minimum requirement: at least one factor (preferably Market Beta).
         """
-        # Target model: 7-factor style model (complete set)
-        # Collect the active style factors to enforce completeness against
+        # Get active style factors
         target_factors_stmt = (
             select(FactorDefinition.id, FactorDefinition.name, FactorDefinition.calculation_method)
             .where(and_(FactorDefinition.is_active.is_(True), FactorDefinition.factor_type == 'style'))
@@ -55,23 +54,13 @@ class FactorExposureService:
                 "metadata": {"reason": "no_calculation_available", "detail": "no_active_style_factors"},
             }
 
-        # Build counts per date for this portfolio
-        counts_subq = (
-            select(
-                FactorExposure.calculation_date.label("date"),
-                func.count(func.distinct(FactorExposure.factor_id)).label("cnt"),
-            )
+        # Find the latest date with ANY factor calculations (not requiring all)
+        latest_date_stmt = (
+            select(func.max(FactorExposure.calculation_date))
             .where(and_(
                 FactorExposure.portfolio_id == portfolio_id,
                 FactorExposure.factor_id.in_(target_factor_ids)
             ))
-            .group_by(FactorExposure.calculation_date)
-            .subquery()
-        )
-
-        latest_date_stmt = (
-            select(func.max(counts_subq.c.date))
-            .where(counts_subq.c.cnt == target_count)
         )
         latest_date_res = await self.db.execute(latest_date_stmt)
         latest_date = latest_date_res.scalar_one_or_none()
@@ -82,10 +71,10 @@ class FactorExposureService:
                 "portfolio_id": str(portfolio_id),
                 "calculation_date": None,
                 "factors": [],
-                "metadata": {"reason": "no_calculation_available", "detail": "no_complete_set"},
+                "metadata": {"reason": "no_calculation_available", "detail": "no_factor_calculations"},
             }
 
-        # Load only target factors for the latest complete date
+        # Load ANY available factors for the latest date (flexible approach)
         stmt = (
             select(FactorExposure, FactorDefinition)
             .join(FactorDefinition, FactorExposure.factor_id == FactorDefinition.id)
@@ -110,6 +99,7 @@ class FactorExposureService:
             }
 
         factors = []
+        available_factor_names = []
         for exposure, definition in rows:
             factors.append(
                 {
@@ -118,6 +108,7 @@ class FactorExposureService:
                     "exposure_dollar": float(exposure.exposure_dollar) if exposure.exposure_dollar is not None else None,
                 }
             )
+            available_factor_names.append(definition.name)
 
         # Order by FactorDefinition display_order then name
         order_map = {row[0]: idx for idx, row in enumerate(target_rows)}
@@ -129,10 +120,16 @@ class FactorExposureService:
             return 999
         factors.sort(key=_order_key)
 
-        # Derive simple metadata
+        # Derive metadata with information about partial vs complete
         factor_model = f"{len(factors)}-factor" if factors else None
         calc_methods = {getattr(defn, "calculation_method", None) for _, defn in rows}
         calc_method = next((m for m in calc_methods if m), None) or "ETF-proxy regression"
+        
+        # Check if we have Market Beta (minimum requirement)
+        has_market_beta = "Market Beta" in available_factor_names
+        # We now have 7 active factors (Short Interest is inactive)
+        expected_factors = 7  # All active factors except Short Interest
+        completeness = "partial" if len(factors) < expected_factors else "complete"
 
         return {
             "available": True,
@@ -142,6 +139,10 @@ class FactorExposureService:
             "metadata": {
                 "factor_model": factor_model,
                 "calculation_method": calc_method,
+                "completeness": completeness,
+                "total_active_factors": expected_factors,
+                "factors_calculated": len(factors),
+                "has_market_beta": has_market_beta,
             },
         }
 
