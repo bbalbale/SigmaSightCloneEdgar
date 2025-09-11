@@ -628,6 +628,7 @@ class MarketDataService:
         - Preserves existing historical data (no overwriting)
         - Only inserts new records that don't exist
         - Accumulates history over time
+        - CHECKS CACHE FIRST to avoid unnecessary API calls
         
         Args:
             db: Database session
@@ -641,8 +642,51 @@ class MarketDataService:
         """
         logger.info(f"Updating market data cache for {len(symbols)} symbols")
         
-        # Fetch price data using hybrid approach (FMP primary, Polygon fallback)
-        price_data = await self.fetch_historical_data_hybrid(symbols, start_date, end_date)
+        # First, check what data we already have cached
+        symbols_needing_data = []
+        cached_count = 0
+        
+        for symbol in symbols:
+            # Get cached dates for this symbol
+            cached_dates = await self._get_cached_dates(db, symbol)
+            
+            # Generate list of dates we need
+            current = start_date if start_date else date.today() - timedelta(days=90)
+            end = end_date if end_date else date.today()
+            needed_dates = set()
+            
+            while current <= end:
+                # Skip weekends
+                if current.weekday() < 5:  # Monday=0, Friday=4
+                    needed_dates.add(current)
+                current += timedelta(days=1)
+            
+            # Find missing dates
+            missing_dates = needed_dates - cached_dates
+            
+            if missing_dates:
+                symbols_needing_data.append(symbol)
+                logger.debug(f"{symbol}: Missing {len(missing_dates)} days of data")
+            else:
+                cached_count += 1
+                logger.debug(f"{symbol}: All data already cached")
+        
+        logger.info(f"Cache check: {cached_count}/{len(symbols)} symbols have complete data, {len(symbols_needing_data)} need updates")
+        
+        # Only fetch data for symbols that need it
+        if not symbols_needing_data:
+            logger.info("All symbols have complete cached data, skipping API calls")
+            return {
+                'symbols_processed': len(symbols),
+                'symbols_updated': 0,
+                'total_records_attempted': 0,
+                'records_inserted': 0,
+                'records_skipped': 0,
+                'api_calls_saved': len(symbols)
+            }
+        
+        # Fetch price data only for symbols needing updates
+        price_data = await self.fetch_historical_data_hybrid(symbols_needing_data, start_date, end_date)
         
         # Fetch GICS data if requested
         gics_data = {}
@@ -695,7 +739,8 @@ class MarketDataService:
             'symbols_updated': updated_symbols,
             'total_records_attempted': total_records,
             'records_inserted': inserted_records,
-            'records_skipped': skipped_records  # Already existed, preserved
+            'records_skipped': skipped_records,  # Already existed, preserved
+            'api_calls_saved': cached_count
         }
         
         logger.info(f"Market data cache update complete: {stats}")

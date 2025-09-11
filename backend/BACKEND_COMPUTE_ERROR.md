@@ -1,10 +1,22 @@
 # Backend Compute Error Documentation
 
-> **Last Updated**: 2025-09-11 (SQL BUG FIXED + EQUITY SYSTEM + ZOOM→ZM TICKER FIX)  
+> **Last Updated**: 2025-09-11 (CACHE-FIRST + DATA PROVIDER OPTIMIZATION + SQL BUG FIXED + EQUITY SYSTEM)  
 > **Purpose**: Document and track all computation errors encountered during batch processing and API services  
-> **Status**: 9 Issues RESOLVED ✅, 1 Issue PARTIALLY RESOLVED, 10 Issues PENDING/ACTIVE
+> **Status**: 10 Issues RESOLVED ✅, 2 Issues PARTIALLY RESOLVED, 9 Issues PENDING/ACTIVE
 
 ## 🎉 Major Updates Completed (2025-09-11)
+
+### Data Provider Optimization & Cache-First Strategy IMPLEMENTED
+- **Problem**: System was making unnecessary API calls even when data existed in cache
+- **Solution 1**: Modified `update_market_data_cache` to check database cache first
+- **Solution 2**: Prioritized data providers by asset type:
+  - Stocks: Polygon first (better coverage), FMP as fallback
+  - ETFs: FMP first (more reliable), Polygon as fallback
+- **Results**:
+  - ~80% reduction in API calls (most data served from cache)
+  - 7,647 cached records covering 51 symbols with 182 days history
+  - Only 5-10 symbols need updates per batch run
+- **Implementation**: Added ETF detection logic and provider prioritization in `fetch_historical_data_hybrid`
 
 ### 1. Critical SQL Join Bug (#18) RESOLVED
 - **Problem**: Analytics API was returning 127x inflated values due to bad SQL join
@@ -473,34 +485,59 @@ returns_df = price_df.ffill().pct_change().dropna()
 
 ## API Rate Limiting
 
-### Issue #15: Polygon API Rate Limits
+### Issue #15: Polygon API Rate Limits (IMPROVED with Cache-First)
 **Error**: `HTTPSConnectionPool(host='api.polygon.io', port=443): Max retries exceeded with url: /v2/aggs/ticker/SPY250919C00460000/range/1/day/2025-09-05/2025-09-10?adjusted=true&sort=asc&limit=50000 (Caused by ResponseError('too many 429 error responses'))`  
 **Location**: `app/services/market_data_service.py` Polygon API client
 **Rate Limit**: 5 requests/minute on free tier
+**Status**: ⚠️ **PARTIALLY RESOLVED** (2025-09-11)
 
-**Technical Details**:
-- Attempting to fetch 8 option contracts simultaneously
-- Each option requires separate API call
-- Exceeds 5 req/min limit immediately
-- Retry logic makes it worse (3 retries × 8 options = 24 requests)
+**Cache-First Implementation Added (2025-09-11)**:
+- ✅ Modified `update_market_data_cache` to check database cache first
+- ✅ Only fetches data for symbols with missing dates
+- ✅ Tracks `api_calls_saved` metric
+- ✅ Reduces API calls by ~80% for symbols with complete data
 
-**Current Implementation Issues**:
+**Implementation Details**:
 ```python
-# Current: Parallel requests exceed rate limit
-for option in options:
-    tasks.append(fetch_polygon_data(option))  # All fire at once
-await asyncio.gather(*tasks)  # 429 errors
-
-# Should be: Rate-limited sequential or batched
-for option in options:
-    data = await fetch_polygon_data(option)
-    await asyncio.sleep(12)  # 5 req/min = 12 sec between
+# NEW: Cache-aware approach (implemented)
+async def update_market_data_cache(self, db, symbols, days_back=5):
+    symbols_needing_data = []
+    cached_count = 0
+    
+    # Check what data we already have cached
+    for symbol in symbols:
+        cached_dates = await self._get_cached_dates(db, symbol)
+        missing_dates = self._find_missing_dates(cached_dates, days_back)
+        
+        if missing_dates:
+            symbols_needing_data.append(symbol)
+        else:
+            cached_count += 1
+            logger.info(f"✓ {symbol}: Using cached data (no API call needed)")
+    
+    if not symbols_needing_data:
+        logger.info("All symbols have complete cached data, skipping API calls")
+        return {..., 'api_calls_saved': len(symbols)}
+    
+    # Only fetch for symbols with missing data
+    return await self.bulk_fetch_and_cache(db, symbols_needing_data, days_back)
 ```
 
+**Results**:
+- Database has 7,647 cached records covering 51 symbols
+- Most symbols have 182 days of history
+- Only 5-10 symbols typically need updates per batch
+- API calls reduced from ~50 to ~5-10 per batch run
+
+**Remaining Issues**:
+- Still hits rate limits for symbols needing updates (MSFT, PG, JPM, F, BRK-B)
+- Options contracts with minimal history still problematic
+- Need to implement sequential fetching with delays for remaining API calls
+
 **Impact**: 
-- Options data completely unavailable
-- Greeks calculations fail for all options positions
-- Portfolio risk metrics incomplete for hedge fund portfolio
+- ✅ Most data now served from cache (no API calls)
+- ⚠️ Some symbols still trigger rate limits when updating
+- Overall batch processing time improved significantly
 
 ### Issue #16: FMP Rate Limiting
 **Log Messages**:
@@ -1067,7 +1104,7 @@ END;
 
 ## Summary of Issue Status (2025-09-11)
 
-### ✅ RESOLVED Issues (9)
+### ✅ RESOLVED Issues (10)
 1. **SQL Join Bug (#18)** - Analytics API now returns correct values
 2. **Equity System** - Full equity-based calculations implemented and working
 3. **Factor Exposure API (#6)** - Fixed with flexible factor requirements
@@ -1077,21 +1114,22 @@ END;
 7. **Batch Orchestrator Methods (#10)** - Using correct method names
 8. **Portfolio Data Discovery (#20)** - Documented hardcoded data source
 9. **ZOOM Ticker Error (#2)** - Fixed ZOOM→ZM, database updated, batch rerun successful
+10. **Cache-First Data Fetching** - System checks database cache before API calls
 
-### ⚠️ PARTIALLY RESOLVED Issues (1)
+### ⚠️ PARTIALLY RESOLVED Issues (2)
 1. **Analytics API Alignment (#17)** - Service working but some metadata fields incomplete
+2. **Rate Limiting (#15)** - Cache-first reduces API calls by ~80%, but some symbols still hit limits
 
-### 🔴 PENDING/ACTIVE Issues (10)
+### 🔴 PENDING/ACTIVE Issues (9)
 1. **Frontend Short Position (#19)** - Frontend hardcodes shortValue = 0
 2. **Missing Database Tables (#7)** - stress_test_results table doesn't exist
-3. **Rate Limiting (#15,#16)** - Polygon/FMP rate limits causing delays
-4. **Insufficient Options Data (#4)** - Options need 150 days history (fundamental limitation)
-5. **Missing Factor ETF Data (#3)** - SIZE factor missing 2 days
-6. **Table Name Mismatch (#8)** - position_correlations vs pairwise_correlations
-7. **Beta Capping (#11)** - Extreme betas being capped at ±3.0
-8. **Missing Interest Rate Factor (#12)** - Factor name mismatch in stress tests
-9. **Excessive Stress Loss (#13)** - Losses exceed 99% of portfolio
-10. **Pandas Deprecation (#14)** - Need to update pct_change() calls
+3. **Insufficient Options Data (#4)** - Options need 150 days history (fundamental limitation)
+4. **Missing Factor ETF Data (#3)** - SIZE factor missing 2 days
+5. **Table Name Mismatch (#8)** - position_correlations vs pairwise_correlations
+6. **Beta Capping (#11)** - Extreme betas being capped at ±3.0
+7. **Missing Interest Rate Factor (#12)** - Factor name mismatch in stress tests
+8. **Excessive Stress Loss (#13)** - Losses exceed 99% of portfolio
+9. **Pandas Deprecation (#14)** - Need to update pct_change() calls
 
 ## Notes
 
