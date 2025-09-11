@@ -629,6 +629,7 @@ class MarketDataService:
         - Only inserts new records that don't exist
         - Accumulates history over time
         - CHECKS CACHE FIRST to avoid unnecessary API calls
+        - ONLY FETCHES EOD DATA after 4:05 PM ET (new!)
         
         Args:
             db: Database session
@@ -642,6 +643,19 @@ class MarketDataService:
         """
         logger.info(f"Updating market data cache for {len(symbols)} symbols")
         
+        # Check if we should fetch today's data based on time
+        from pytz import timezone
+        et_tz = timezone('US/Eastern')
+        current_time_et = datetime.now(et_tz)
+        market_close_time = current_time_et.replace(hour=16, minute=5, second=0, microsecond=0)  # 4:05 PM ET
+        
+        # If it's before 4:05 PM ET and we're trying to fetch today's data, skip today
+        skip_today = False
+        if current_time_et < market_close_time:
+            skip_today = True
+            logger.info(f"⏰ Current time ({current_time_et.strftime('%H:%M')} ET) is before market close (16:05 ET)")
+            logger.info("  Skipping today's data fetch - will use yesterday's prices")
+        
         # First, check what data we already have cached
         symbols_needing_data = []
         cached_count = 0
@@ -652,7 +666,8 @@ class MarketDataService:
             
             # Generate list of dates we need
             current = start_date if start_date else date.today() - timedelta(days=90)
-            end = end_date if end_date else date.today()
+            # If it's before market close, don't try to fetch today's data
+            end = end_date if end_date else (date.today() - timedelta(days=1) if skip_today else date.today())
             needed_dates = set()
             
             while current <= end:
@@ -666,12 +681,21 @@ class MarketDataService:
             
             if missing_dates:
                 symbols_needing_data.append(symbol)
-                logger.debug(f"{symbol}: Missing {len(missing_dates)} days of data")
+                if skip_today:
+                    logger.debug(f"{symbol}: Missing {len(missing_dates)} days of data (excluding today - market still open)")
+                else:
+                    logger.debug(f"{symbol}: Missing {len(missing_dates)} days of data")
             else:
                 cached_count += 1
-                logger.debug(f"{symbol}: All data already cached")
+                if skip_today:
+                    logger.debug(f"{symbol}: All data cached through yesterday (today's data deferred until after market close)")
+                else:
+                    logger.debug(f"{symbol}: All data already cached")
         
-        logger.info(f"Cache check: {cached_count}/{len(symbols)} symbols have complete data, {len(symbols_needing_data)} need updates")
+        if skip_today:
+            logger.info(f"Cache check (pre-market close): {cached_count}/{len(symbols)} symbols have data through yesterday, {len(symbols_needing_data)} need historical updates")
+        else:
+            logger.info(f"Cache check: {cached_count}/{len(symbols)} symbols have complete data, {len(symbols_needing_data)} need updates")
         
         # Only fetch data for symbols that need it
         if not symbols_needing_data:
