@@ -21,7 +21,7 @@ FACTOR_ETFS = {
     "Growth": "VUG",       # Growth factor
     "Momentum": "MTUM",    # Momentum factor
     "Quality": "QUAL",     # Quality factor
-    "Size": "SIZE",        # Size factor
+    "Size": "IWM",         # Size factor (Russell 2000 small-cap index)
     "Low Volatility": "USMV"  # Low Volatility factor
 }
 

@@ -71,7 +71,7 @@ async def get_active_portfolio_symbols(db: AsyncSession) -> Set[str]:
     symbols = result.scalars().all()
     
     # Also include factor ETF symbols for factor calculations
-    factor_etfs = ['SPY', 'VTV', 'VUG', 'MTUM', 'QUAL', 'SLY', 'USMV']
+    factor_etfs = ['SPY', 'VTV', 'VUG', 'MTUM', 'QUAL', 'IWM', 'USMV']
     
     all_symbols = set(symbols) | set(factor_etfs)
     
