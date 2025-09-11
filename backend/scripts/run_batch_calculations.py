@@ -29,20 +29,20 @@ from app.core.logging import get_logger
 logger = get_logger(__name__)
 
 
-# Demo portfolio IDs (from verify_demo_portfolios.py output)
+# Demo portfolio IDs (updated with correct IDs from database)
 DEMO_PORTFOLIOS = [
     {
-        'id': '51134ffd-2f13-49bd-b1f5-0c327e801b69',
+        'id': '1d8ddd95-3b45-0ac5-35bf-cf81af94a5fe',
         'name': 'Demo Individual Investor Portfolio',
         'email': 'demo_individual@sigmasight.com'
     },
     {
-        'id': 'c0510ab8-c6b5-433c-adbc-3f74e1dbdb5e',
+        'id': 'e23ab931-a033-edfe-ed4f-9d02474780b4',
         'name': 'Demo High Net Worth Investor Portfolio',
         'email': 'demo_hnw@sigmasight.com'
     },
     {
-        'id': '2ee7435f-379f-4606-bdb7-dadce587a182',
+        'id': 'fcd71196-e93e-f000-5a74-31a9eead3118',
         'name': 'Demo Hedge Fund Style Investor Portfolio',
         'email': 'demo_hedgefundstyle@sigmasight.com'
     }
