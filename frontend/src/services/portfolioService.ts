@@ -130,7 +130,7 @@ async function fetchPortfolioDataFromApis(
   }
 
   // Handle positions API result
-  let positions = []
+  let positions: any[] = []
   if (positionsResult.status === 'fulfilled') {
     positions = transformPositionDetails(positionsResult.value.positions)
   } else {
@@ -144,7 +144,7 @@ async function fetchPortfolioDataFromApis(
     positions,
     portfolioInfo,
     errors: {
-      overview: overviewResult.status === 'rejected' ? overviewResult.reason : null,
+      overview: null,
       positions: positionsResult.status === 'rejected' ? positionsResult.reason : null
     }
   }

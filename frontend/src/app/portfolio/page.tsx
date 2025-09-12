@@ -65,7 +65,7 @@ function PortfolioPageContent() {
       try {
         // Phase 3: Enable API positions
         const USE_API_POSITIONS = true // Feature flag for Phase 3
-        const data = await loadPortfolioData(portfolioType, abortController.signal, USE_API_POSITIONS)
+        const data = await loadPortfolioData(portfolioType, abortController.signal)
         
         if (data) {
           console.log('Loaded portfolio data:', data)
@@ -89,7 +89,7 @@ function PortfolioPageContent() {
           
           // Phase 3: Update data source indicators based on actual source
           setExposureDataSource('cached')  // JSON calculations from backend
-          setPositionsDataSource(data.positionsDataSource === 'live' ? 'live' : 'cached')
+          setPositionsDataSource('cached')
           
           // PHASE 2: Shadow API call - fetch positions in parallel for comparison
           const shadowStartTime = performance.now()

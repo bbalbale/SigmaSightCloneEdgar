@@ -61,7 +61,7 @@ function PortfolioPageContent() {
       try {
         // Phase 3: Enable API positions
         const USE_API_POSITIONS = true // Feature flag for Phase 3
-        const data = await loadPortfolioData(portfolioType, abortController.signal, USE_API_POSITIONS)
+        const data = await loadPortfolioData(portfolioType, abortController.signal)
         
         if (data) {
           console.log('Loaded portfolio data:', data)

@@ -303,12 +303,12 @@ export default function ApiTestPage() {
               <label className="text-sm font-medium text-gray-700">Portfolio:</label>
               <select
                 value={selectedPortfolio}
-                onChange={(e) => setSelectedPortfolio(e.target.value)}
+                onChange={(e) => setSelectedPortfolio(e.target.value as typeof DEMO_PORTFOLIOS.HIGH_NET_WORTH)}
                 className="px-3 py-1.5 border border-gray-300 rounded-md text-sm"
               >
                 <option value={DEMO_PORTFOLIOS.HIGH_NET_WORTH}>High Net Worth</option>
                 <option value={DEMO_PORTFOLIOS.INDIVIDUAL_INVESTOR}>Individual Investor</option>
-                <option value={DEMO_PORTFOLIOS.HEDGE_FUND}>Hedge Fund</option>
+                <option value={DEMO_PORTFOLIOS.HEDGE_FUND_STYLE}>Hedge Fund</option>
               </select>
             </div>
           </div>
