@@ -143,10 +143,10 @@ async function fetchPortfolioDataFromApis(
     exposures = calculateExposuresFromOverview(overview)
     portfolioInfo = {
       id: overview.portfolio_id,
-      name: overview.portfolio_name,
+      name: `Portfolio ${portfolioId.slice(0, 8)}`, // Use portfolio ID as fallback name
       total_value: overview.total_value,
       cash_balance: overview.cash_balance,
-      position_count: overview.position_count
+      position_count: overview.position_count?.total_positions || 0
     }
   } else {
     console.error('Failed to fetch portfolio overview:', overviewResult.reason)
@@ -179,13 +179,15 @@ async function fetchPortfolioDataFromApis(
  * Calculate exposure metrics from overview API response
  */
 function calculateExposuresFromOverview(overview: any) {
-  const totalValue = overview.total_value
-  const longValue = overview.long_exposure || 0
-  const shortValue = Math.abs(overview.short_exposure || 0) // Make positive for display
-  const grossExposure = overview.gross_exposure || (longValue + shortValue)
-  const netExposure = overview.net_exposure || (longValue - shortValue)
+  const totalValue = overview.total_value || 0
+  const exposures = overview.exposures || {}
+  const longValue = exposures.long_exposure || 0
+  const shortValue = Math.abs(exposures.short_exposure || 0) // Make positive for display
+  const grossExposure = exposures.gross_exposure || (longValue + shortValue)
+  const netExposure = exposures.net_exposure || (longValue - shortValue)
   const cashBalance = overview.cash_balance || 0
-  const totalPnl = overview.total_unrealized_pnl || 0
+  const pnl = overview.pnl || {}
+  const totalPnl = pnl.unrealized_pnl || 0
   
   return [
     {
