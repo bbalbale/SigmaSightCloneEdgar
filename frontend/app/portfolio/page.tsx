@@ -11,68 +11,8 @@ import { Badge } from '@/components/ui/badge'
 import { ThemeProvider, useTheme } from '@/contexts/ThemeContext'
 import { ThemeToggle } from '../components/ThemeToggle'
 import { loadPortfolioData, PortfolioType } from '@/services/portfolioService'
-import { DataSourceIndicator, DataSourceStatus } from '@/components/DataSourceIndicator'
 import { positionApiService } from '@/services/positionApiService'
 import { portfolioResolver } from '@/services/portfolioResolver'
-
-// Default mock data (used for individual and hedge-fund portfolios)
-const defaultPortfolioSummaryMetrics = [
-  { title: 'Long Exposure', value: '1.1M', subValue: '91.7%', description: 'Notional exposure', positive: true },
-  { title: 'Short Exposure', value: '(567K)', subValue: '47.3%', description: 'Notional exposure', positive: false },
-  { title: 'Gross Exposure', value: '1.7M', subValue: '141.7%', description: 'Notional total', positive: true },
-  { title: 'Net Exposure', value: '574K', subValue: '47.8%', description: 'Notional net', positive: true },
-  { title: 'Total P&L', value: '+285,000', subValue: '23.8%', description: 'Equity: +1,200,000', positive: true }
-]
-
-const longPositions = [
-  { symbol: 'AAPL', quantity: 100, price: 150.25, marketValue: 15025, pnl: 2500, positive: true },
-  { symbol: 'MSFT', quantity: 150, price: 330.50, marketValue: 49575, pnl: 5200, positive: true },
-  { symbol: 'GOOGL', quantity: 50, price: 2800.00, marketValue: 140000, pnl: 8500, positive: true },
-  { symbol: 'NVDA', quantity: 75, price: 450.25, marketValue: 33769, pnl: 3200, positive: true },
-  { symbol: 'AMZN', quantity: 80, price: 3200.00, marketValue: 256000, pnl: 12000, positive: true },
-  { symbol: 'TSLA', quantity: 60, price: 850.75, marketValue: 51045, pnl: 4500, positive: true },
-  { symbol: 'AMD', quantity: 200, price: 120.50, marketValue: 24100, pnl: 2800, positive: true },
-  { symbol: 'CRM', quantity: 40, price: 220.25, marketValue: 8810, pnl: 1200, positive: true },
-  { symbol: 'NET', quantity: 120, price: 75.50, marketValue: 9060, pnl: 800, positive: true },
-  { symbol: 'SHOP', quantity: 25, price: 65.75, marketValue: 1644, pnl: 200, positive: true },
-  { symbol: 'SQ', quantity: 150, price: 68.25, marketValue: 10238, pnl: 900, positive: true },
-  { symbol: 'PYPL', quantity: 100, price: 58.50, marketValue: 5850, pnl: 600, positive: true },
-  { symbol: 'ABNB', quantity: 45, price: 138.75, marketValue: 6244, pnl: 750, positive: true },
-  { symbol: 'UBER', quantity: 200, price: 45.25, marketValue: 9050, pnl: 1100, positive: true },
-  { symbol: 'PINS', quantity: 300, price: 28.75, marketValue: 8625, pnl: 950, positive: true },
-  { symbol: 'TWTR', quantity: 180, price: 42.25, marketValue: 7605, pnl: 680, positive: true },
-  { symbol: 'SNAP', quantity: 500, price: 10.75, marketValue: 5375, pnl: 425, positive: true },
-  { symbol: 'SPOT', quantity: 35, price: 145.25, marketValue: 5084, pnl: 600, positive: true },
-  { symbol: 'ZM', quantity: 35, price: 70.25, marketValue: 2459, pnl: 300, positive: true },
-  { symbol: 'DOCU', quantity: 45, price: 60.00, marketValue: 2700, pnl: 600, positive: true }
-]
-
-const shortPositions = [
-  { symbol: 'WDAY', quantity: 50, price: 200.25, marketValue: 10013, pnl: 1500, positive: true },
-  { symbol: 'SNOW', quantity: 30, price: 180.50, marketValue: 5415, pnl: 800, positive: true },
-  { symbol: 'OKTA', quantity: 25, price: 90.25, marketValue: 2256, pnl: 400, positive: true },
-  { symbol: 'PTON', quantity: 100, price: 8.50, marketValue: 850, pnl: 200, positive: true },
-  { symbol: 'NFLX', quantity: 20, price: 400.00, marketValue: 8000, pnl: 1000, positive: true },
-  { symbol: 'DIS', quantity: 60, price: 95.25, marketValue: 5715, pnl: 750, positive: true },
-  { symbol: 'ROKU', quantity: 80, price: 52.75, marketValue: 4220, pnl: 450, positive: true },
-  { symbol: 'PLTR', quantity: 150, price: 15.25, marketValue: 2288, pnl: 300, positive: true },
-  { symbol: 'COIN', quantity: 25, price: 78.50, marketValue: 1963, pnl: 200, positive: true },
-  { symbol: 'UPST', quantity: 40, price: 25.75, marketValue: 1030, pnl: 150, positive: true },
-  { symbol: 'HOOD', quantity: 100, price: 11.25, marketValue: 1125, pnl: 100, positive: true },
-  { symbol: 'DKNG', quantity: 75, price: 18.50, marketValue: 1388, pnl: 120, positive: true },
-  { symbol: 'CRWD', quantity: 20, price: 175.25, marketValue: 3505, pnl: 400, positive: true },
-  { symbol: 'MU', quantity: 100, price: 68.25, marketValue: 6825, pnl: 750, positive: true },
-  { symbol: 'INTC', quantity: 200, price: 32.50, marketValue: 6500, pnl: 600, positive: true },
-  { symbol: 'QCOM', quantity: 40, price: 125.75, marketValue: 5030, pnl: 500, positive: true },
-  { symbol: 'AVGO', quantity: 15, price: 580.25, marketValue: 8704, pnl: 850, positive: true },
-  { symbol: 'MRVL', quantity: 60, price: 52.75, marketValue: 3165, pnl: 350, positive: true },
-  { symbol: 'LYFT', quantity: 75, price: 12.50, marketValue: 938, pnl: 150, positive: true },
-  { symbol: 'JOW', quantity: 90, price: 35.25, marketValue: 3173, pnl: 400, positive: true },
-  { symbol: 'SQ', quantity: 150, price: 68.25, marketValue: 10238, pnl: 900, positive: true },
-  { symbol: 'NFLX', quantity: 20, price: 400.00, marketValue: 8000, pnl: 1000, positive: true },
-  { symbol: 'PTON', quantity: 100, price: 8.50, marketValue: 850, pnl: 200, positive: true },
-  { symbol: 'COIN', quantity: 25, price: 78.50, marketValue: 1963, pnl: 200, positive: true }
-]
 
 const formatNumber = (num: number) => {
   if (Math.abs(num) >= 1000) {
@@ -99,23 +39,18 @@ function PortfolioPageContent() {
   const [portfolioName, setPortfolioName] = useState('Loading...')
   const [dataLoaded, setDataLoaded] = useState(false)
   
-  // Data source tracking
-  const [exposureDataSource, setExposureDataSource] = useState<DataSourceStatus>('mock')
-  const [positionsDataSource, setPositionsDataSource] = useState<DataSourceStatus>('mock')
-  
   useEffect(() => {
     const abortController = new AbortController();
     
     const loadData = async () => {
       if (!portfolioType) {
-        // Use dummy data when no portfolio type specified
-        setPortfolioSummaryMetrics(defaultPortfolioSummaryMetrics)
-        setPositions(longPositions)
-        setShortPositionsState(shortPositions)
-        setPortfolioName('Demo Portfolio')
-        setDataLoaded(true)
-        setExposureDataSource('mock')
-        setPositionsDataSource('mock')
+        // No portfolio type specified - show error
+        setError('Please select a portfolio type')
+        setPortfolioSummaryMetrics([])
+        setPositions([])
+        setShortPositionsState([])
+        setPortfolioName('No Portfolio Selected')
+        setDataLoaded(false)
         return
       }
 
@@ -146,45 +81,6 @@ function PortfolioPageContent() {
           setDataLoaded(true)
           setError(null)
           setRetryCount(0)
-          
-          // Phase 3: Update data source indicators based on actual source
-          setExposureDataSource('cached')  // JSON calculations from backend
-          setPositionsDataSource(data.positionsDataSource === 'live' ? 'live' : 'cached')
-          
-          // PHASE 2: Shadow API call - fetch positions in parallel for comparison
-          const shadowStartTime = performance.now()
-          try {
-            // Get the portfolio ID for API call
-            const portfolioId = await portfolioResolver.getPortfolioIdByType(portfolioType)
-            
-            if (portfolioId) {
-              const apiData = await positionApiService.fetchPositionsFromApi(
-                portfolioId,
-                portfolioType,
-                abortController.signal
-              )
-              
-              const apiCallTime = performance.now() - shadowStartTime
-              
-              // Compare and generate report
-              const jsonPositionData = {
-                positions: data.positions.filter(p => p.type === 'LONG' || !p.type),
-                shortPositions: data.positions.filter(p => p.type === 'SHORT')
-              }
-              
-              const report = positionApiService.compareWithJsonData(
-                apiData,
-                jsonPositionData,
-                apiCallTime
-              )
-              
-              // Generate summary report after comparison
-              positionApiService.generateSummaryReport()
-            }
-          } catch (shadowError) {
-            // Silently log shadow mode errors
-            console.log('📊 Shadow API: error during comparison', shadowError)
-          }
         }
       } catch (err: any) {
         if (err.name !== 'AbortError') {
@@ -192,14 +88,12 @@ function PortfolioPageContent() {
           const errorMessage = err.message || 'Failed to load portfolio data'
           setError(errorMessage)
           
-          // If first load failed, use dummy data as fallback
+          // No fallback - show error state
           if (!dataLoaded) {
-            setPortfolioSummaryMetrics(defaultPortfolioSummaryMetrics)
-            setPositions(longPositions)
-            setShortPositionsState(shortPositions)
-            setPortfolioName(`${portfolioType.replace('-', ' ').toUpperCase()} Portfolio (Offline Mode)`)
-            setExposureDataSource('error')
-            setPositionsDataSource('error')
+            setPortfolioSummaryMetrics([])
+            setPositions([])
+            setShortPositionsState([])
+            setPortfolioName('Portfolio Unavailable')
           }
         }
       } finally {
@@ -374,7 +268,6 @@ function PortfolioPageContent() {
                     <div className={`text-xs transition-colors duration-300 ${
                       theme === 'dark' ? 'text-slate-400' : 'text-gray-600'
                     }`}>{metric.title}</div>
-                    <DataSourceIndicator status={exposureDataSource} />
                   </div>
                   <div className={`text-xl font-bold mb-1 ${
                     metric.positive ? 'text-emerald-400' : 'text-red-400'
@@ -443,7 +336,6 @@ function PortfolioPageContent() {
                 }`}>
                   {positions.length}
                 </Badge>
-                <DataSourceIndicator status={positionsDataSource} />
               </div>
               <div className="space-y-3">
                 {positions.map((position, index) => (
@@ -498,7 +390,6 @@ function PortfolioPageContent() {
                 }`}>
                   {shortPositionsState.length}
                 </Badge>
-                <DataSourceIndicator status={positionsDataSource} />
               </div>
               <div className="space-y-3">
                 {shortPositionsState.map((position, index) => (
