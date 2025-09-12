@@ -18,6 +18,16 @@ const nextConfig = {
   compress: true,
   poweredByHeader: false,
   
+  async redirects() {
+    return [
+      {
+        source: '/',
+        destination: '/landing',
+        permanent: false,
+      },
+    ]
+  },
+  
   async headers() {
     return [
       {
