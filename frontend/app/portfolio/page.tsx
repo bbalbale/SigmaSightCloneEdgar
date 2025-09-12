@@ -13,6 +13,8 @@ import { ThemeToggle } from '../components/ThemeToggle'
 import { loadPortfolioData, PortfolioType } from '@/services/portfolioService'
 import { positionApiService } from '@/services/positionApiService'
 import { portfolioResolver } from '@/services/portfolioResolver'
+import { FactorExposureCards } from '@/components/portfolio/FactorExposureCards'
+import type { FactorExposure } from '@/types/analytics'
 
 const formatNumber = (num: number) => {
   if (Math.abs(num) >= 1000) {
@@ -32,13 +34,14 @@ function PortfolioPageContent() {
   
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [apiErrors, setApiErrors] = useState<{overview?: any, positions?: any}>({})
+  const [apiErrors, setApiErrors] = useState<{overview?: any, positions?: any, factorExposures?: any}>({})
   const [retryCount, setRetryCount] = useState(0)
   const [portfolioSummaryMetrics, setPortfolioSummaryMetrics] = useState<any[]>([])
   const [positions, setPositions] = useState<any[]>([])
   const [shortPositionsState, setShortPositionsState] = useState<any[]>([])
   const [portfolioName, setPortfolioName] = useState('Loading...')
   const [dataLoaded, setDataLoaded] = useState(false)
+  const [factorExposures, setFactorExposures] = useState<FactorExposure[] | null>(null)
   
   useEffect(() => {
     const abortController = new AbortController();
@@ -75,6 +78,10 @@ function PortfolioPageContent() {
             if (data.errors.positions && !data.errors.overview) {
               console.error('Position API failed:', data.errors.positions)
             }
+            // Log factor exposures error if it failed
+            if (data.errors.factorExposures) {
+              console.error('Factor exposures API failed:', data.errors.factorExposures)
+            }
           } else {
             setApiErrors({})
           }
@@ -83,6 +90,7 @@ function PortfolioPageContent() {
           setPortfolioSummaryMetrics(data.exposures || [])
           setPositions(data.positions.filter(p => p.type === 'LONG' || !p.type))
           setShortPositionsState(data.positions.filter(p => p.type === 'SHORT'))
+          setFactorExposures(data.factorExposures || null)
           
           // Use descriptive name if backend returns generic "Demo Portfolio"
           if (data.portfolioInfo?.name === 'Demo Portfolio' && portfolioType === 'individual') {
@@ -297,6 +305,19 @@ function PortfolioPageContent() {
               </Card>
             ))}
           </div>
+        </div>
+      </section>
+      )}
+
+      {/* Factor Exposure Cards */}
+      {!loading && !error && (
+      <section className="px-4 pb-6">
+        <div className="container mx-auto">
+          <FactorExposureCards 
+            factors={factorExposures}
+            loading={loading}
+            error={apiErrors?.factorExposures}
+          />
         </div>
       </section>
       )}

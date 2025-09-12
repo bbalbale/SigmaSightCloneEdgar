@@ -42,6 +42,7 @@ export interface CorrelationMatrixResponse {
   reason?: string;
 }
 
+// Legacy factor exposures format
 export interface PortfolioFactorExposuresResponse {
   available: boolean;
   data?: Array<{
@@ -52,6 +53,34 @@ export interface PortfolioFactorExposuresResponse {
     calculation_date: string; // ISO
   };
   reason?: string;
+}
+
+// New detailed factor exposures format
+export interface FactorExposure {
+  name: string;
+  beta: number;
+  exposure_dollar: number;
+}
+
+export interface FactorExposuresMetadata {
+  factor_model: string;
+  calculation_method: string;
+  completeness: string;
+  total_active_factors: number;
+  factors_calculated: number;
+  has_market_beta: number;
+}
+
+export interface FactorExposuresResponse {
+  available: boolean;
+  portfolio_id: string;
+  calculation_date: string;
+  factors: FactorExposure[];
+  metadata: FactorExposuresMetadata;
+}
+
+export interface FactorExposuresApiResponse {
+  data: FactorExposuresResponse;
 }
 
 export interface PositionFactorExposureItem {

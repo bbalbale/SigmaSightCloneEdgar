@@ -8,6 +8,7 @@ import { requestManager } from './requestManager'
 import { positionApiService } from './positionApiService'
 import { analyticsApi } from './analyticsApi'
 import { apiClient } from './apiClient'
+import type { FactorExposuresResponse, FactorExposure } from '../types/analytics'
 
 export type PortfolioType = 'individual' | 'high-net-worth' | 'hedge-fund'
 
@@ -97,7 +98,7 @@ async function fetchPortfolioDataFromApis(
   abortSignal?: AbortSignal
 ) {
   // Make parallel API calls using Promise.allSettled to handle partial failures
-  const [overviewResult, positionsResult] = await Promise.allSettled([
+  const [overviewResult, positionsResult, factorExposuresResult] = await Promise.allSettled([
     // Fetch portfolio overview with exposures
     analyticsApi.getOverview(portfolioId),
     // Fetch positions with details
@@ -107,7 +108,18 @@ async function fetchPortfolioDataFromApis(
         headers: { Authorization: `Bearer ${token}` },
         signal: abortSignal
       }
-    )
+    ),
+    // Fetch factor exposures - backend returns PortfolioFactorExposuresResponse
+    apiClient.get<any>(
+      `/api/v1/analytics/portfolio/${portfolioId}/factor-exposures`,
+      {
+        headers: { Authorization: `Bearer ${token}` },
+        signal: abortSignal
+      }
+    ).then(response => {
+      console.log('Factor exposures API response:', response)
+      return response
+    })
   ])
 
   // Handle overview API result
@@ -139,13 +151,34 @@ async function fetchPortfolioDataFromApis(
     positions = []
   }
 
+  // Handle factor exposures API result
+  let factorExposures: FactorExposure[] | null = null
+  if (factorExposuresResult.status === 'fulfilled') {
+    console.log('Factor exposures raw response:', factorExposuresResult.value)
+    if (factorExposuresResult.value?.data?.available && factorExposuresResult.value?.data?.factors) {
+      // Response is wrapped in data field
+      factorExposures = factorExposuresResult.value.data.factors
+      console.log('Loaded factor exposures from data field:', factorExposures)
+    } else if (factorExposuresResult.value?.available && factorExposuresResult.value?.factors) {
+      // Response is not wrapped
+      factorExposures = factorExposuresResult.value.factors
+      console.log('Loaded factor exposures directly:', factorExposures)
+    } else {
+      console.log('Factor exposures not available in response')
+    }
+  } else if (factorExposuresResult.status === 'rejected') {
+    console.error('Failed to fetch factor exposures:', factorExposuresResult.reason)
+  }
+
   return {
     exposures,
     positions,
     portfolioInfo,
+    factorExposures,
     errors: {
       overview: null,
-      positions: positionsResult.status === 'rejected' ? positionsResult.reason : null
+      positions: positionsResult.status === 'rejected' ? positionsResult.reason : null,
+      factorExposures: factorExposuresResult.status === 'rejected' ? factorExposuresResult.reason : null
     }
   }
 }

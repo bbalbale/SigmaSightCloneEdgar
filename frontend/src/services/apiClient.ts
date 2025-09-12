@@ -319,8 +319,8 @@ export class ApiClient {
   }
 }
 
-// Default instance
-export const apiClient = new ApiClient();
+// Default instance - uses Next.js proxy for backend API calls
+export const apiClient = new ApiClient('/api/proxy');
 
 // Add default request interceptor for auth (when needed)
 apiClient.addRequestInterceptor(async (url, config) => {
