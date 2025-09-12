@@ -10,12 +10,16 @@ from typing import AsyncGenerator
 from app.config import settings
 from app.core.logging import db_logger
 
-# Database engine
+# Database engine with optimized connection pool
 engine = create_async_engine(
     settings.DATABASE_URL,
     echo=settings.DEBUG,
     future=True,
     pool_pre_ping=True,
+    pool_size=20,        # Increased from default 5
+    max_overflow=20,     # Increased from default 10
+    pool_timeout=30,     # Default 30s wait for connection
+    pool_recycle=1800,   # Recycle connections every 30 min
 )
 
 # Session factory

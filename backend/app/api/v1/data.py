@@ -2,6 +2,7 @@
 Raw Data API endpoints (/data/)
 Provides unprocessed data for LLM consumption
 """
+import uuid
 from typing import List, Optional
 from uuid import UUID
 from datetime import datetime, date
@@ -10,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_
 from sqlalchemy.orm import selectinload
 
-from app.database import get_async_session
+from app.database import get_async_session, get_db
 from app.core.dependencies import get_current_user
 from app.core.datetime_utils import utc_now, to_utc_iso8601, to_iso_date
 from app.models.users import Portfolio
@@ -394,95 +395,137 @@ async def get_positions_details(
     position_ids: Optional[str] = Query(None, description="Comma-separated position IDs"),
     include_closed: bool = Query(False, description="Include closed positions"),
     current_user: CurrentUser = Depends(get_current_user),
-    db: AsyncSession = Depends(get_async_session)
+    db: AsyncSession = Depends(get_db)
 ):
     """
     Get detailed position information including entry prices and cost basis.
     Returns raw position data without calculations.
     """
-    async with db as session:
-        # Build query based on parameters
-        if portfolio_id:
-            # Verify portfolio ownership
-            port_stmt = select(Portfolio).where(
-                and_(
-                    Portfolio.id == (portfolio_id if isinstance(portfolio_id, UUID) else UUID(str(portfolio_id))),
-                    Portfolio.user_id == (UUID(str(current_user.id)) if not isinstance(current_user.id, UUID) else current_user.id)
-                )
+    import time
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    request_id = str(uuid.uuid4())[:8]
+    start_time = time.time()
+    
+    logger.info(f"[{request_id}] Starting positions request for portfolio {portfolio_id}")
+    
+    # db is already a session from get_db dependency
+    # Build query based on parameters
+    if portfolio_id:
+        # Verify portfolio ownership
+        logger.info(f"[{request_id}] [{time.time() - start_time:.2f}s] Verifying portfolio ownership")
+        port_stmt = select(Portfolio).where(
+            and_(
+                Portfolio.id == (portfolio_id if isinstance(portfolio_id, UUID) else UUID(str(portfolio_id))),
+                Portfolio.user_id == (UUID(str(current_user.id)) if not isinstance(current_user.id, UUID) else current_user.id)
             )
-            port_result = await session.execute(port_stmt)
-            portfolio = port_result.scalar_one_or_none()
+        )
+        port_result = await db.execute(port_stmt)
+        portfolio = port_result.scalar_one_or_none()
             
-            if not portfolio:
-                raise HTTPException(status_code=404, detail="Portfolio not found")
+        if not portfolio:
+            raise HTTPException(status_code=404, detail="Portfolio not found")
+        
+        stmt = select(Position).where(Position.portfolio_id == portfolio_id)
+    elif position_ids:
+        # Parse position IDs
+        ids = [UUID(pid.strip()) for pid in position_ids.split(",")]
+        stmt = select(Position).where(Position.id.in_(ids))
+    else:
+        raise HTTPException(status_code=400, detail="Either portfolio_id or position_ids required")
+        
+    # Execute query
+    logger.info(f"[{request_id}] [{time.time() - start_time:.2f}s] Fetching positions")
+    result = await db.execute(stmt)
+    positions = result.scalars().all()
+    logger.info(f"[{request_id}] [{time.time() - start_time:.2f}s] Found {len(positions)} positions")
+    
+    # Batch fetch all market data at once to avoid N+1 queries
+    logger.info(f"[{request_id}] [{time.time() - start_time:.2f}s] Batch fetching market data")
+    symbols = [position.symbol for position in positions]
+    
+    # Use a single query to get all market data
+    if symbols:
+        # Subquery to get the latest market data for each symbol
+        from sqlalchemy import func
+        subquery = (
+            select(
+                MarketDataCache.symbol,
+                func.max(MarketDataCache.updated_at).label('max_updated')
+            )
+            .where(MarketDataCache.symbol.in_(symbols))
+            .group_by(MarketDataCache.symbol)
+            .subquery()
+        )
+        
+        market_stmt = select(MarketDataCache).join(
+            subquery,
+            and_(
+                MarketDataCache.symbol == subquery.c.symbol,
+                MarketDataCache.updated_at == subquery.c.max_updated
+            )
+        )
+        market_result = await db.execute(market_stmt)
+        market_data_map = {m.symbol: m for m in market_result.scalars().all()}
+    else:
+        market_data_map = {}
+    
+    logger.info(f"[{request_id}] [{time.time() - start_time:.2f}s] Market data fetched for {len(market_data_map)} symbols")
+        
+    # Build response
+    positions_data = []
+    total_cost_basis = 0
+    total_market_value = 0
+    total_unrealized_pnl = 0
+        
+    for position in positions:
+        # Get current price from pre-fetched map
+        market_data = market_data_map.get(position.symbol)
             
-            stmt = select(Position).where(Position.portfolio_id == portfolio_id)
-        elif position_ids:
-            # Parse position IDs
-            ids = [UUID(pid.strip()) for pid in position_ids.split(",")]
-            stmt = select(Position).where(Position.id.in_(ids))
+        current_price = market_data.close if market_data else position.entry_price
+        cost_basis = float(position.quantity) * float(position.entry_price)
+        market_value = float(position.quantity) * float(current_price)
+            
+        # Adjust for shorts
+        if position.position_type.value == "SHORT":
+            market_value = -market_value
+            unrealized_pnl = cost_basis - abs(market_value)  # Profit when price goes down
         else:
-            raise HTTPException(status_code=400, detail="Either portfolio_id or position_ids required")
+            unrealized_pnl = market_value - cost_basis
+            
+        unrealized_pnl_percent = (unrealized_pnl / cost_basis * 100) if cost_basis != 0 else 0
         
-        # Execute query
-        result = await session.execute(stmt)
-        positions = result.scalars().all()
+        total_cost_basis += abs(cost_basis)
+        total_market_value += market_value
+        total_unrealized_pnl += unrealized_pnl
+            
+        positions_data.append({
+            "id": str(position.id),
+            "portfolio_id": str(position.portfolio_id),
+            "symbol": position.symbol,
+            "position_type": position.position_type.value,
+            "quantity": float(position.quantity),
+            "entry_date": to_iso_date(position.entry_date) if position.entry_date else None,
+            "entry_price": float(position.entry_price),
+            "cost_basis": cost_basis,
+            "current_price": float(current_price),
+            "market_value": market_value,
+            "unrealized_pnl": unrealized_pnl,
+            "unrealized_pnl_percent": unrealized_pnl_percent
+        })
+    
+    logger.info(f"[{request_id}] [{time.time() - start_time:.2f}s] Request complete, returning {len(positions_data)} positions")
         
-        # Build response
-        positions_data = []
-        total_cost_basis = 0
-        total_market_value = 0
-        total_unrealized_pnl = 0
-        
-        for position in positions:
-            # Get current price
-            cache_stmt = select(MarketDataCache).where(
-                MarketDataCache.symbol == position.symbol
-            ).order_by(MarketDataCache.updated_at.desc())
-            cache_result = await session.execute(cache_stmt)
-            market_data = cache_result.scalars().first()
-            
-            current_price = market_data.close if market_data else position.entry_price
-            cost_basis = float(position.quantity) * float(position.entry_price)
-            market_value = float(position.quantity) * float(current_price)
-            
-            # Adjust for shorts
-            if position.position_type.value == "SHORT":
-                market_value = -market_value
-                unrealized_pnl = cost_basis - abs(market_value)  # Profit when price goes down
-            else:
-                unrealized_pnl = market_value - cost_basis
-            
-            unrealized_pnl_percent = (unrealized_pnl / cost_basis * 100) if cost_basis != 0 else 0
-            
-            total_cost_basis += abs(cost_basis)
-            total_market_value += market_value
-            total_unrealized_pnl += unrealized_pnl
-            
-            positions_data.append({
-                "id": str(position.id),
-                "portfolio_id": str(position.portfolio_id),
-                "symbol": position.symbol,
-                "position_type": position.position_type.value,
-                "quantity": float(position.quantity),
-                "entry_date": to_iso_date(position.entry_date) if position.entry_date else None,
-                "entry_price": float(position.entry_price),
-                "cost_basis": cost_basis,
-                "current_price": float(current_price),
-                "market_value": market_value,
-                "unrealized_pnl": unrealized_pnl,
-                "unrealized_pnl_percent": unrealized_pnl_percent
-            })
-        
-        return {
-            "positions": positions_data,
-            "summary": {
-                "total_positions": len(positions_data),
-                "total_cost_basis": total_cost_basis,
-                "total_market_value": total_market_value,
-                "total_unrealized_pnl": total_unrealized_pnl
-            }
+    return {
+        "positions": positions_data,
+        "summary": {
+            "total_positions": len(positions_data),
+            "total_cost_basis": total_cost_basis,
+            "total_market_value": total_market_value,
+            "total_unrealized_pnl": total_unrealized_pnl
         }
+    }
 
 
 # Price Data Endpoints

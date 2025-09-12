@@ -55,7 +55,8 @@
       "Bash(copy:*)",
       "mcp__playwright__browser_network_requests",
       "mcp__playwright__browser_type",
-      "Bash(cmd /c:*)"
+      "Bash(cmd /c:*)",
+      "Bash(claude --version)"
     ],
     "additionalDirectories": [
       "C:\\c\\Users\\BenBalbale\\CascadeProjects\\SigmaSight-BE"

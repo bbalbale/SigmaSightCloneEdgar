@@ -123,13 +123,21 @@ export class ApiClient {
     // Retry logic with exponential backoff
     for (let attempt = 0; attempt <= retries; attempt++) {
       try {
-        const response = await this.executeRequest<T>(method, url, data, config, timeout);
+        // Don't pass the original signal to executeRequest for retries
+        // Only pass it on the first attempt
+        const requestConfig = attempt === 0 ? config : { ...config, signal: undefined };
+        const response = await this.executeRequest<T>(method, url, data, requestConfig, timeout);
         return response.data;
       } catch (error) {
         lastError = error as Error;
         
         // Don't retry on client errors (4xx) or non-network errors
         if (error instanceof ApiError && error.status >= 400 && error.status < 500) {
+          break;
+        }
+        
+        // Don't retry if the user's abort signal was triggered
+        if (config?.signal?.aborted) {
           break;
         }
         
