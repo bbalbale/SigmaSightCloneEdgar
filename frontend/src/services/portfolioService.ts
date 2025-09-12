@@ -6,6 +6,8 @@ import { portfolioResolver } from './portfolioResolver'
 import { authManager } from './authManager'
 import { requestManager } from './requestManager'
 import { positionApiService } from './positionApiService'
+import { analyticsApi } from './analyticsApi'
+import { apiClient } from './apiClient'
 
 export type PortfolioType = 'individual' | 'high-net-worth' | 'hedge-fund'
 
@@ -33,10 +35,21 @@ interface PortfolioData {
   }>
 }
 
+interface PositionDetail {
+  id: string
+  symbol: string
+  quantity: number
+  position_type: string
+  current_price: number
+  market_value: number
+  cost_basis: number
+  unrealized_pnl: number
+  realized_pnl: number
+}
+
 /**
  * Load portfolio data for a specific portfolio type
- * Now with centralized auth and retry logic
- * Phase 3: Use API for positions when USE_API_POSITIONS is enabled
+ * Uses individual APIs instead of /complete endpoint
  */
 export async function loadPortfolioData(
   portfolioType: PortfolioType, 
@@ -80,85 +93,17 @@ export async function loadPortfolioData(
       if (!retryId) {
         throw new Error(`Could not resolve portfolio ID for type: ${portfolioType}`)
       }
-      // Use the retry ID
+      // Use the retry ID for subsequent API calls
       const portfolioIdFinal = retryId
       
-      // Fetch portfolio data with retry logic and data-level deduplication
-      const data: PortfolioData = await requestManager.authenticatedFetchJson(
-        `/api/proxy/api/v1/data/portfolio/${portfolioIdFinal}/complete`,
-        refreshedToken,
-        {
-          signal: abortSignal,
-          maxRetries: 3,
-          timeout: 15000,
-          dedupe: true
-        }
-      )
-      
-      // Transform to UI-friendly format
-      return {
-        exposures: calculateExposures(data),
-        positions: transformPositions(data.holdings),
-        portfolioInfo: data.portfolio
-      }
+      // Fetch data from individual APIs in parallel
+      const results = await fetchPortfolioDataFromApis(portfolioIdFinal, refreshedToken, abortSignal)
+      return results
     }
     
-    // Fetch portfolio data with retry logic - use authenticatedFetchJson to avoid double-read
-    const data: PortfolioData = await requestManager.authenticatedFetchJson(
-      `/api/proxy/api/v1/data/portfolio/${portfolioId}/complete`,
-      token,
-      {
-        signal: abortSignal,
-        maxRetries: 3,
-        timeout: 15000,
-        dedupe: true
-      }
-    )
-    
-    // Phase 3: Try to use API positions if enabled
-    let positionsData = transformPositions(data.holdings)
-    let dataSource: 'live' | 'cached' = 'cached'
-    
-    if (useApiPositions) {
-      try {
-        console.log('📊 Phase 3: Attempting to fetch positions from API...')
-        const apiStartTime = performance.now()
-        
-        const apiResponse = await positionApiService.fetchPositionsFromApi(
-          portfolioId,
-          portfolioType,
-          abortSignal
-        )
-        
-        if (apiResponse && apiResponse.positions.length > 0) {
-          // Transform API positions to UI format
-          positionsData = apiResponse.positions.map(pos => ({
-            symbol: pos.symbol,
-            quantity: pos.quantity,
-            price: pos.current_price,
-            marketValue: pos.market_value,
-            pnl: pos.unrealized_pnl, // Will be 0 from API
-            positive: pos.unrealized_pnl >= 0,
-            type: pos.position_type
-          }))
-          dataSource = 'live'
-          console.log(`📊 Phase 3: Successfully using API positions (${performance.now() - apiStartTime}ms)`)
-        } else {
-          console.log('📊 Phase 3: API returned no positions, using fallback')
-        }
-      } catch (apiError) {
-        console.error('📊 Phase 3: Failed to fetch API positions, using fallback:', apiError)
-        // Keep using transformed data from complete endpoint
-      }
-    }
-    
-    // Transform to UI-friendly format
-    return {
-      exposures: calculateExposures(data),
-      positions: positionsData,
-      portfolioInfo: data.portfolio,
-      positionsDataSource: dataSource
-    }
+    // Fetch data from individual APIs in parallel
+    const results = await fetchPortfolioDataFromApis(portfolioId, token, abortSignal)
+    return results
   } catch (error: any) {
     // Don't log abort errors
     if (error.name !== 'AbortError') {
@@ -169,7 +114,127 @@ export async function loadPortfolioData(
 }
 
 /**
- * Calculate exposure metrics from portfolio data
+ * Fetch portfolio data from individual APIs
+ */
+async function fetchPortfolioDataFromApis(
+  portfolioId: string,
+  token: string,
+  abortSignal?: AbortSignal
+) {
+  // Make parallel API calls using Promise.allSettled to handle partial failures
+  const [overviewResult, positionsResult] = await Promise.allSettled([
+    // Fetch portfolio overview with exposures
+    analyticsApi.getOverview(portfolioId),
+    // Fetch positions with details
+    apiClient.get<{ positions: PositionDetail[] }>(
+      `/api/v1/data/positions/details?portfolio_id=${portfolioId}`,
+      {
+        headers: { Authorization: `Bearer ${token}` },
+        signal: abortSignal
+      }
+    )
+  ])
+
+  // Handle overview API result
+  let exposures = []
+  let portfolioInfo = null
+  if (overviewResult.status === 'fulfilled') {
+    const overview = overviewResult.value.data
+    exposures = calculateExposuresFromOverview(overview)
+    portfolioInfo = {
+      id: overview.portfolio_id,
+      name: overview.portfolio_name,
+      total_value: overview.total_value,
+      cash_balance: overview.cash_balance,
+      position_count: overview.position_count
+    }
+  } else {
+    console.error('Failed to fetch portfolio overview:', overviewResult.reason)
+    // Re-throw the error since we need overview data
+    throw new Error(`Portfolio overview unavailable: ${overviewResult.reason}`)
+  }
+
+  // Handle positions API result
+  let positions = []
+  if (positionsResult.status === 'fulfilled') {
+    positions = transformPositionDetails(positionsResult.value.positions)
+  } else {
+    console.error('Failed to fetch positions:', positionsResult.reason)
+    // Return empty positions array but don't fail entirely
+    positions = []
+  }
+
+  return {
+    exposures,
+    positions,
+    portfolioInfo,
+    errors: {
+      overview: overviewResult.status === 'rejected' ? overviewResult.reason : null,
+      positions: positionsResult.status === 'rejected' ? positionsResult.reason : null
+    }
+  }
+}
+
+/**
+ * Calculate exposure metrics from overview API response
+ */
+function calculateExposuresFromOverview(overview: any) {
+  const totalValue = overview.total_value
+  const longValue = overview.long_exposure || 0
+  const shortValue = Math.abs(overview.short_exposure || 0) // Make positive for display
+  const grossExposure = overview.gross_exposure || (longValue + shortValue)
+  const netExposure = overview.net_exposure || (longValue - shortValue)
+  const cashBalance = overview.cash_balance || 0
+  const totalPnl = overview.total_unrealized_pnl || 0
+  
+  return [
+    {
+      title: 'Long Exposure',
+      value: formatCurrency(longValue),
+      subValue: totalValue > 0 ? `${((longValue / totalValue) * 100).toFixed(1)}%` : '0%',
+      description: 'Notional exposure',
+      positive: true
+    },
+    {
+      title: 'Short Exposure',
+      value: shortValue > 0 ? `(${formatCurrency(shortValue)})` : '$0',
+      subValue: totalValue > 0 ? `${((shortValue / totalValue) * 100).toFixed(1)}%` : '0%',
+      description: 'Notional exposure',
+      positive: false
+    },
+    {
+      title: 'Gross Exposure',
+      value: formatCurrency(grossExposure),
+      subValue: totalValue > 0 ? `${((grossExposure / totalValue) * 100).toFixed(1)}%` : '0%',
+      description: 'Notional total',
+      positive: true
+    },
+    {
+      title: 'Net Exposure',
+      value: formatCurrency(netExposure),
+      subValue: totalValue > 0 ? `${((netExposure / totalValue) * 100).toFixed(1)}%` : '0%',
+      description: 'Notional net',
+      positive: true
+    },
+    {
+      title: 'Cash Balance',
+      value: formatCurrency(cashBalance),
+      subValue: totalValue > 0 ? `${((cashBalance / totalValue) * 100).toFixed(1)}%` : '0%',
+      description: `Total Value: ${formatCurrency(totalValue)}`,
+      positive: true
+    },
+    {
+      title: 'Total P&L',
+      value: formatCurrency(totalPnl),
+      subValue: totalPnl !== 0 ? (totalPnl > 0 ? '+' : '') + totalPnl.toFixed(2) : 'N/A',
+      description: 'Unrealized P&L',
+      positive: totalPnl >= 0
+    }
+  ]
+}
+
+/**
+ * Calculate exposure metrics from portfolio data (legacy)
  */
 function calculateExposures(data: PortfolioData) {
   const totalValue = data.portfolio.total_value
@@ -225,7 +290,22 @@ function calculateExposures(data: PortfolioData) {
 }
 
 /**
- * Transform holdings to position format for UI
+ * Transform position details from API to UI format
+ */
+function transformPositionDetails(positions: PositionDetail[]) {
+  return positions.map(pos => ({
+    symbol: pos.symbol,
+    quantity: pos.quantity,
+    price: pos.current_price,
+    marketValue: pos.market_value,
+    pnl: pos.unrealized_pnl,
+    positive: pos.unrealized_pnl >= 0,
+    type: pos.position_type
+  }))
+}
+
+/**
+ * Transform holdings to position format for UI (legacy)
  */
 function transformPositions(holdings: PortfolioData['holdings']) {
   return holdings.map(holding => ({

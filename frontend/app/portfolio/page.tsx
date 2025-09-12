@@ -32,6 +32,7 @@ function PortfolioPageContent() {
   
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [apiErrors, setApiErrors] = useState<{overview?: any, positions?: any}>({})
   const [retryCount, setRetryCount] = useState(0)
   const [portfolioSummaryMetrics, setPortfolioSummaryMetrics] = useState<any[]>([])
   const [positions, setPositions] = useState<any[]>([])
@@ -64,18 +65,30 @@ function PortfolioPageContent() {
         
         if (data) {
           console.log('Loaded portfolio data:', data)
-          console.log('Portfolio name from backend:', data.portfolioInfo.name)
+          console.log('Portfolio name from backend:', data.portfolioInfo?.name)
+          
+          // Handle API errors from individual endpoints
+          if (data.errors) {
+            setApiErrors(data.errors)
+            
+            // Show position error if positions failed but overview succeeded
+            if (data.errors.positions && !data.errors.overview) {
+              console.error('Position API failed:', data.errors.positions)
+            }
+          } else {
+            setApiErrors({})
+          }
           
           // Update all state with real data
-          setPortfolioSummaryMetrics(data.exposures)
+          setPortfolioSummaryMetrics(data.exposures || [])
           setPositions(data.positions.filter(p => p.type === 'LONG' || !p.type))
           setShortPositionsState(data.positions.filter(p => p.type === 'SHORT'))
           
           // Use descriptive name if backend returns generic "Demo Portfolio"
-          if (data.portfolioInfo.name === 'Demo Portfolio' && portfolioType === 'individual') {
+          if (data.portfolioInfo?.name === 'Demo Portfolio' && portfolioType === 'individual') {
             setPortfolioName('Demo Individual Investor Portfolio')
           } else {
-            setPortfolioName(data.portfolioInfo.name)
+            setPortfolioName(data.portfolioInfo?.name || 'Portfolio')
           }
           
           setDataLoaded(true)
@@ -134,18 +147,18 @@ function PortfolioPageContent() {
       </header>
 
       {/* Error Banner */}
-      {error && !loading && (
+      {(error || apiErrors.positions) && !loading && (
         <div className={`px-4 py-3 border-b transition-colors duration-300 ${
           theme === 'dark' ? 'bg-red-900/20 border-red-800' : 'bg-red-50 border-red-200'
         }`}>
           <div className="container mx-auto flex items-center justify-between">
             <div className="flex items-center gap-2">
               <span className={`text-sm ${theme === 'dark' ? 'text-red-400' : 'text-red-600'}`}>
-                ⚠️ {error}
+                ⚠️ {error || (apiErrors.positions && 'Position data unavailable')}
               </span>
               {dataLoaded && (
                 <span className={`text-xs ${theme === 'dark' ? 'text-slate-400' : 'text-gray-500'}`}>
-                  (showing cached data)
+                  (partial data available)
                 </span>
               )}
             </div>
