@@ -11,30 +11,6 @@ import { apiClient } from './apiClient'
 
 export type PortfolioType = 'individual' | 'high-net-worth' | 'hedge-fund'
 
-interface PortfolioData {
-  portfolio: {
-    id: string
-    name: string
-    total_value: number
-    cash_balance: number
-    position_count: number
-  }
-  positions_summary: {
-    long_count: number
-    short_count: number
-    option_count: number
-    total_market_value: number
-  }
-  holdings: Array<{
-    id: string
-    symbol: string
-    quantity: number
-    position_type: string
-    market_value: number
-    last_price: number
-  }>
-}
-
 interface PositionDetail {
   id: string
   symbol: string
@@ -53,8 +29,7 @@ interface PositionDetail {
  */
 export async function loadPortfolioData(
   portfolioType: PortfolioType, 
-  abortSignal?: AbortSignal,
-  useApiPositions: boolean = false
+  abortSignal?: AbortSignal
 ) {
   // Fetch real data for all portfolio types
   if (!portfolioType) {
@@ -236,62 +211,6 @@ function calculateExposuresFromOverview(overview: any) {
 }
 
 /**
- * Calculate exposure metrics from portfolio data (legacy)
- */
-function calculateExposures(data: PortfolioData) {
-  const totalValue = data.portfolio.total_value
-  const longValue = data.positions_summary.total_market_value
-  const shortValue = 0 // No short positions in demo data
-  const grossExposure = longValue + shortValue
-  const netExposure = longValue - shortValue
-  
-  return [
-    {
-      title: 'Long Exposure',
-      value: formatCurrency(longValue),
-      subValue: `${((longValue / totalValue) * 100).toFixed(1)}%`,
-      description: 'Notional exposure',
-      positive: true
-    },
-    {
-      title: 'Short Exposure',
-      value: shortValue > 0 ? `(${formatCurrency(shortValue)})` : '$0',
-      subValue: `${((shortValue / totalValue) * 100).toFixed(1)}%`,
-      description: 'Notional exposure',
-      positive: false
-    },
-    {
-      title: 'Gross Exposure',
-      value: formatCurrency(grossExposure),
-      subValue: `${((grossExposure / totalValue) * 100).toFixed(1)}%`,
-      description: 'Notional total',
-      positive: true
-    },
-    {
-      title: 'Net Exposure',
-      value: formatCurrency(netExposure),
-      subValue: `${((netExposure / totalValue) * 100).toFixed(1)}%`,
-      description: 'Notional net',
-      positive: true
-    },
-    {
-      title: 'Cash Balance',
-      value: formatCurrency(data.portfolio.cash_balance),
-      subValue: `${((data.portfolio.cash_balance / totalValue) * 100).toFixed(1)}%`,
-      description: `Total Value: ${formatCurrency(totalValue)}`,
-      positive: true
-    },
-    {
-      title: 'Total P&L',
-      value: 'Data Not Available',
-      subValue: 'N/A',
-      description: 'P&L data not available in this endpoint',
-      positive: true
-    }
-  ]
-}
-
-/**
  * Transform position details from API to UI format
  */
 function transformPositionDetails(positions: PositionDetail[]) {
@@ -303,21 +222,6 @@ function transformPositionDetails(positions: PositionDetail[]) {
     pnl: pos.unrealized_pnl,
     positive: pos.unrealized_pnl >= 0,
     type: pos.position_type
-  }))
-}
-
-/**
- * Transform holdings to position format for UI (legacy)
- */
-function transformPositions(holdings: PortfolioData['holdings']) {
-  return holdings.map(holding => ({
-    symbol: holding.symbol,
-    quantity: holding.quantity,
-    price: holding.last_price,
-    marketValue: holding.market_value,
-    pnl: 0, // P&L data not available in this endpoint
-    positive: true,
-    type: holding.position_type
   }))
 }
 
