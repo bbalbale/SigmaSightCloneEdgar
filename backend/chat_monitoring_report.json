@@ -2,1176 +2,1176 @@
   "session_start": "2025-09-06T20:19:15.876405",
   "status_checks": [
     {
-      "timestamp": "2025-09-07T15:18:55.476816",
+      "timestamp": "2025-09-17T15:45:33.157057",
       "frontend": {
-        "status": "error: Cannot connect to host localhost:3005 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 3005, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 3005)]",
-        "response_time": 0
+        "status": "running",
+        "response_time": 20.62
       },
       "backend": {
-        "status": "running",
-        "response_time": 2.28
+        "status": "error: Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]",
+        "response_time": 0
       }
     },
     {
-      "timestamp": "2025-09-07T15:18:55.482290",
+      "timestamp": "2025-09-17T15:45:33.179512",
       "login_endpoint": {
-        "status": 200,
-        "response_time": 208.85,
-        "has_token": true
+        "status": "unknown",
+        "response_time": 0,
+        "error": "Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]"
       },
       "me_endpoint": {
-        "status": 200,
-        "response_time": 4.11
+        "status": "unknown",
+        "response_time": 0
       }
     },
     {
-      "timestamp": "2025-09-07T15:19:25.698718",
+      "timestamp": "2025-09-17T15:46:03.184980",
       "frontend": {
-        "status": "error: Cannot connect to host localhost:3005 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 3005, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 3005)]",
-        "response_time": 0
+        "status": "running",
+        "response_time": 21.34
       },
       "backend": {
-        "status": "running",
-        "response_time": 2.18
+        "status": "error: Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]",
+        "response_time": 0
       }
     },
     {
-      "timestamp": "2025-09-07T15:19:25.703948",
+      "timestamp": "2025-09-17T15:46:03.208268",
       "login_endpoint": {
-        "status": 200,
-        "response_time": 213.63,
-        "has_token": true
+        "status": "unknown",
+        "response_time": 0,
+        "error": "Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]"
       },
       "me_endpoint": {
-        "status": 200,
-        "response_time": 3.37
+        "status": "unknown",
+        "response_time": 0
       }
     },
     {
-      "timestamp": "2025-09-07T15:19:55.924849",
+      "timestamp": "2025-09-17T15:46:33.214106",
       "frontend": {
-        "status": "error: Cannot connect to host localhost:3005 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 3005, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 3005)]",
-        "response_time": 0
+        "status": "running",
+        "response_time": 22.08
       },
       "backend": {
-        "status": "running",
-        "response_time": 4.04
+        "status": "error: Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]",
+        "response_time": 0
       }
     },
     {
-      "timestamp": "2025-09-07T15:19:55.933761",
+      "timestamp": "2025-09-17T15:46:33.238756",
       "login_endpoint": {
-        "status": 200,
-        "response_time": 218.71,
-        "has_token": true
+        "status": "unknown",
+        "response_time": 0,
+        "error": "Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]"
       },
       "me_endpoint": {
-        "status": 200,
-        "response_time": 3.74
+        "status": "unknown",
+        "response_time": 0
       }
     },
     {
-      "timestamp": "2025-09-07T15:20:26.159700",
+      "timestamp": "2025-09-17T15:47:03.246199",
       "frontend": {
-        "status": "error: Cannot connect to host localhost:3005 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 3005, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 3005)]",
-        "response_time": 0
+        "status": "running",
+        "response_time": 21.12
       },
       "backend": {
-        "status": "running",
-        "response_time": 1.68
+        "status": "error: Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]",
+        "response_time": 0
       }
     },
     {
-      "timestamp": "2025-09-07T15:20:26.164078",
+      "timestamp": "2025-09-17T15:47:03.269550",
       "login_endpoint": {
-        "status": 200,
-        "response_time": 202.93,
-        "has_token": true
+        "status": "unknown",
+        "response_time": 0,
+        "error": "Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]"
       },
       "me_endpoint": {
-        "status": 200,
-        "response_time": 3.53
+        "status": "unknown",
+        "response_time": 0
       }
     },
     {
-      "timestamp": "2025-09-07T15:20:56.374069",
+      "timestamp": "2025-09-17T15:47:33.274629",
       "frontend": {
-        "status": "error: Cannot connect to host localhost:3005 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 3005, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 3005)]",
-        "response_time": 0
+        "status": "running",
+        "response_time": 18.84
       },
       "backend": {
-        "status": "running",
-        "response_time": 2.21
+        "status": "error: Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]",
+        "response_time": 0
       }
     },
     {
-      "timestamp": "2025-09-07T15:20:56.379394",
+      "timestamp": "2025-09-17T15:47:33.295043",
       "login_endpoint": {
-        "status": 200,
-        "response_time": 203.56,
-        "has_token": true
+        "status": "unknown",
+        "response_time": 0,
+        "error": "Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]"
       },
       "me_endpoint": {
-        "status": 200,
-        "response_time": 4.36
+        "status": "unknown",
+        "response_time": 0
       }
     },
     {
-      "timestamp": "2025-09-07T15:21:26.590747",
+      "timestamp": "2025-09-17T15:48:03.301314",
       "frontend": {
-        "status": "error: Cannot connect to host localhost:3005 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 3005, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 3005)]",
-        "response_time": 0
+        "status": "running",
+        "response_time": 24.08
       },
       "backend": {
-        "status": "running",
-        "response_time": 2.39
+        "status": "error: Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]",
+        "response_time": 0
       }
     },
     {
-      "timestamp": "2025-09-07T15:21:26.596035",
+      "timestamp": "2025-09-17T15:48:03.327353",
       "login_endpoint": {
-        "status": 200,
-        "response_time": 204.4,
-        "has_token": true
+        "status": "unknown",
+        "response_time": 0,
+        "error": "Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]"
       },
       "me_endpoint": {
-        "status": 200,
-        "response_time": 4.98
+        "status": "unknown",
+        "response_time": 0
       }
     },
     {
-      "timestamp": "2025-09-07T15:21:56.808864",
+      "timestamp": "2025-09-17T15:48:33.333528",
       "frontend": {
-        "status": "error: Cannot connect to host localhost:3005 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 3005, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 3005)]",
-        "response_time": 0
+        "status": "running",
+        "response_time": 21.4
       },
       "backend": {
-        "status": "running",
-        "response_time": 2.31
+        "status": "error: Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]",
+        "response_time": 0
       }
     },
     {
-      "timestamp": "2025-09-07T15:21:56.814288",
+      "timestamp": "2025-09-17T15:48:33.356979",
       "login_endpoint": {
-        "status": 200,
-        "response_time": 203.06,
-        "has_token": true
+        "status": "unknown",
+        "response_time": 0,
+        "error": "Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]"
       },
       "me_endpoint": {
-        "status": 200,
-        "response_time": 4.16
+        "status": "unknown",
+        "response_time": 0
       }
     },
     {
-      "timestamp": "2025-09-07T15:22:27.025756",
+      "timestamp": "2025-09-17T15:49:03.364404",
       "frontend": {
-        "status": "error: Cannot connect to host localhost:3005 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 3005, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 3005)]",
-        "response_time": 0
+        "status": "running",
+        "response_time": 20.04
       },
       "backend": {
-        "status": "running",
-        "response_time": 2.2
+        "status": "error: Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]",
+        "response_time": 0
       }
     },
     {
-      "timestamp": "2025-09-07T15:22:27.030996",
+      "timestamp": "2025-09-17T15:49:03.386558",
       "login_endpoint": {
-        "status": 200,
-        "response_time": 203.91,
-        "has_token": true
+        "status": "unknown",
+        "response_time": 0,
+        "error": "Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]"
       },
       "me_endpoint": {
-        "status": 200,
-        "response_time": 4.32
+        "status": "unknown",
+        "response_time": 0
       }
     },
     {
-      "timestamp": "2025-09-07T15:22:57.242733",
+      "timestamp": "2025-09-17T15:49:33.393939",
       "frontend": {
-        "status": "error: Cannot connect to host localhost:3005 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 3005, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 3005)]",
-        "response_time": 0
+        "status": "running",
+        "response_time": 21.37
       },
       "backend": {
-        "status": "running",
-        "response_time": 2.04
+        "status": "error: Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]",
+        "response_time": 0
       }
     },
     {
-      "timestamp": "2025-09-07T15:22:57.247554",
+      "timestamp": "2025-09-17T15:49:33.417329",
       "login_endpoint": {
-        "status": 200,
-        "response_time": 204.26,
-        "has_token": true
+        "status": "unknown",
+        "response_time": 0,
+        "error": "Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]"
       },
       "me_endpoint": {
-        "status": 200,
-        "response_time": 4.37
+        "status": "unknown",
+        "response_time": 0
       }
     },
     {
-      "timestamp": "2025-09-07T15:23:27.459500",
+      "timestamp": "2025-09-17T15:49:38.419764",
       "frontend": {
-        "status": "error: Cannot connect to host localhost:3005 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 3005, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 3005)]",
-        "response_time": 0
+        "status": "running",
+        "response_time": 21.3
       },
       "backend": {
-        "status": "running",
-        "response_time": 1.87
+        "status": "error: Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]",
+        "response_time": 0
       }
     },
     {
-      "timestamp": "2025-09-07T15:23:27.463623",
+      "timestamp": "2025-09-17T15:49:38.443158",
       "login_endpoint": {
-        "status": 200,
-        "response_time": 197.84,
-        "has_token": true
+        "status": "unknown",
+        "response_time": 0,
+        "error": "Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]"
       },
       "me_endpoint": {
-        "status": 200,
-        "response_time": 5.0
+        "status": "unknown",
+        "response_time": 0
       }
     },
     {
-      "timestamp": "2025-09-07T15:23:57.669946",
+      "timestamp": "2025-09-17T15:50:08.450285",
       "frontend": {
-        "status": "error: Cannot connect to host localhost:3005 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 3005, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 3005)]",
-        "response_time": 0
+        "status": "running",
+        "response_time": 21.12
       },
       "backend": {
-        "status": "running",
-        "response_time": 2.33
+        "status": "error: Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]",
+        "response_time": 0
       }
     },
     {
-      "timestamp": "2025-09-07T15:23:57.674631",
+      "timestamp": "2025-09-17T15:50:08.473317",
       "login_endpoint": {
-        "status": 200,
-        "response_time": 203.82,
-        "has_token": true
+        "status": "unknown",
+        "response_time": 0,
+        "error": "Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]"
       },
       "me_endpoint": {
-        "status": 200,
-        "response_time": 4.15
+        "status": "unknown",
+        "response_time": 0
       }
     },
     {
-      "timestamp": "2025-09-07T15:24:02.885069",
+      "timestamp": "2025-09-17T15:50:38.479322",
       "frontend": {
-        "status": "error: Cannot connect to host localhost:3005 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 3005, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 3005)]",
-        "response_time": 0
+        "status": "running",
+        "response_time": 25.35
       },
       "backend": {
-        "status": "running",
-        "response_time": 2.32
+        "status": "error: Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]",
+        "response_time": 0
       }
     },
     {
-      "timestamp": "2025-09-07T15:24:02.890412",
+      "timestamp": "2025-09-17T15:50:38.506535",
       "login_endpoint": {
-        "status": 200,
-        "response_time": 202.76,
-        "has_token": true
+        "status": "unknown",
+        "response_time": 0,
+        "error": "Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]"
       },
       "me_endpoint": {
-        "status": 200,
-        "response_time": 4.3
+        "status": "unknown",
+        "response_time": 0
       }
     },
     {
-      "timestamp": "2025-09-07T15:24:33.101862",
+      "timestamp": "2025-09-17T15:51:08.512850",
       "frontend": {
-        "status": "error: Cannot connect to host localhost:3005 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 3005, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 3005)]",
-        "response_time": 0
+        "status": "running",
+        "response_time": 25.67
       },
       "backend": {
-        "status": "running",
-        "response_time": 2.62
+        "status": "error: Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]",
+        "response_time": 0
       }
     },
     {
-      "timestamp": "2025-09-07T15:24:33.107484",
+      "timestamp": "2025-09-17T15:51:08.540396",
       "login_endpoint": {
-        "status": 200,
-        "response_time": 205.06,
-        "has_token": true
+        "status": "unknown",
+        "response_time": 0,
+        "error": "Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]"
       },
       "me_endpoint": {
-        "status": 200,
-        "response_time": 4.71
+        "status": "unknown",
+        "response_time": 0
       }
     },
     {
-      "timestamp": "2025-09-07T15:25:03.321080",
+      "timestamp": "2025-09-17T15:51:38.543765",
       "frontend": {
-        "status": "error: Cannot connect to host localhost:3005 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 3005, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 3005)]",
-        "response_time": 0
+        "status": "running",
+        "response_time": 21.19
       },
       "backend": {
-        "status": "running",
-        "response_time": 2.16
+        "status": "error: Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]",
+        "response_time": 0
       }
     },
     {
-      "timestamp": "2025-09-07T15:25:03.326121",
+      "timestamp": "2025-09-17T15:51:38.566307",
       "login_endpoint": {
-        "status": 200,
-        "response_time": 203.85,
-        "has_token": true
+        "status": "unknown",
+        "response_time": 0,
+        "error": "Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]"
       },
       "me_endpoint": {
-        "status": 200,
-        "response_time": 3.89
+        "status": "unknown",
+        "response_time": 0
       }
     },
     {
-      "timestamp": "2025-09-07T15:25:33.537404",
+      "timestamp": "2025-09-17T15:52:08.563556",
       "frontend": {
-        "status": "error: Cannot connect to host localhost:3005 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 3005, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 3005)]",
-        "response_time": 0
+        "status": "running",
+        "response_time": 34.83
       },
       "backend": {
-        "status": "running",
-        "response_time": 1.93
+        "status": "error: Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]",
+        "response_time": 0
       }
     },
     {
-      "timestamp": "2025-09-07T15:25:33.543014",
+      "timestamp": "2025-09-17T15:52:08.599804",
       "login_endpoint": {
-        "status": 200,
-        "response_time": 203.84,
-        "has_token": true
+        "status": "unknown",
+        "response_time": 0,
+        "error": "Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]"
       },
       "me_endpoint": {
-        "status": 200,
-        "response_time": 4.96
+        "status": "unknown",
+        "response_time": 0
       }
     },
     {
-      "timestamp": "2025-09-07T15:26:03.755172",
+      "timestamp": "2025-09-17T15:52:38.603982",
       "frontend": {
-        "status": "error: Cannot connect to host localhost:3005 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 3005, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 3005)]",
-        "response_time": 0
+        "status": "running",
+        "response_time": 23.49
       },
       "backend": {
-        "status": "running",
-        "response_time": 1.75
+        "status": "error: Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]",
+        "response_time": 0
       }
     },
     {
-      "timestamp": "2025-09-07T15:26:03.759177",
+      "timestamp": "2025-09-17T15:52:38.629416",
       "login_endpoint": {
-        "status": 200,
-        "response_time": 200.87,
-        "has_token": true
+        "status": "unknown",
+        "response_time": 0,
+        "error": "Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]"
       },
       "me_endpoint": {
-        "status": 200,
-        "response_time": 4.3
+        "status": "unknown",
+        "response_time": 0
       }
     },
     {
-      "timestamp": "2025-09-07T15:26:33.967792",
+      "timestamp": "2025-09-17T15:53:08.635517",
       "frontend": {
-        "status": "error: Cannot connect to host localhost:3005 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 3005, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 3005)]",
-        "response_time": 0
+        "status": "running",
+        "response_time": 19.45
       },
       "backend": {
-        "status": "running",
-        "response_time": 1.92
+        "status": "error: Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]",
+        "response_time": 0
       }
     },
     {
-      "timestamp": "2025-09-07T15:26:33.971824",
+      "timestamp": "2025-09-17T15:53:08.657119",
       "login_endpoint": {
-        "status": 200,
-        "response_time": 199.84,
-        "has_token": true
+        "status": "unknown",
+        "response_time": 0,
+        "error": "Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]"
       },
       "me_endpoint": {
-        "status": 200,
-        "response_time": 4.09
+        "status": "unknown",
+        "response_time": 0
       }
     },
     {
-      "timestamp": "2025-09-07T15:27:04.179814",
+      "timestamp": "2025-09-17T15:53:38.663749",
       "frontend": {
-        "status": "error: Cannot connect to host localhost:3005 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 3005, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 3005)]",
-        "response_time": 0
+        "status": "running",
+        "response_time": 20.32
       },
       "backend": {
-        "status": "running",
-        "response_time": 2.64
+        "status": "error: Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]",
+        "response_time": 0
       }
     },
     {
-      "timestamp": "2025-09-07T15:27:04.184681",
+      "timestamp": "2025-09-17T15:53:38.686370",
       "login_endpoint": {
-        "status": 200,
-        "response_time": 204.8,
-        "has_token": true
+        "status": "unknown",
+        "response_time": 0,
+        "error": "Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]"
       },
       "me_endpoint": {
-        "status": 200,
-        "response_time": 3.59
+        "status": "unknown",
+        "response_time": 0
       }
     },
     {
-      "timestamp": "2025-09-07T15:27:34.397010",
+      "timestamp": "2025-09-17T15:54:08.693290",
       "frontend": {
-        "status": "error: Cannot connect to host localhost:3005 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 3005, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 3005)]",
-        "response_time": 0
+        "status": "running",
+        "response_time": 29.09
       },
       "backend": {
-        "status": "running",
-        "response_time": 2.92
+        "status": "error: Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]",
+        "response_time": 0
       }
     },
     {
-      "timestamp": "2025-09-07T15:27:34.403991",
+      "timestamp": "2025-09-17T15:54:08.724837",
       "login_endpoint": {
-        "status": 200,
-        "response_time": 211.48,
-        "has_token": true
+        "status": "unknown",
+        "response_time": 0,
+        "error": "Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]"
       },
       "me_endpoint": {
-        "status": 200,
-        "response_time": 3.92
+        "status": "unknown",
+        "response_time": 0
       }
     },
     {
-      "timestamp": "2025-09-07T15:28:04.622911",
+      "timestamp": "2025-09-17T15:54:38.730237",
       "frontend": {
-        "status": "error: Cannot connect to host localhost:3005 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 3005, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 3005)]",
-        "response_time": 0
+        "status": "running",
+        "response_time": 20.49
       },
       "backend": {
-        "status": "running",
-        "response_time": 2.4
+        "status": "error: Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]",
+        "response_time": 0
       }
     },
     {
-      "timestamp": "2025-09-07T15:28:04.628801",
+      "timestamp": "2025-09-17T15:54:38.752804",
       "login_endpoint": {
-        "status": 200,
-        "response_time": 224.0,
-        "has_token": true
+        "status": "unknown",
+        "response_time": 0,
+        "error": "Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]"
       },
       "me_endpoint": {
-        "status": 200,
-        "response_time": 3.42
+        "status": "unknown",
+        "response_time": 0
       }
     },
     {
-      "timestamp": "2025-09-07T15:28:34.859723",
+      "timestamp": "2025-09-17T15:55:08.758853",
       "frontend": {
-        "status": "error: Cannot connect to host localhost:3005 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 3005, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 3005)]",
-        "response_time": 0
+        "status": "running",
+        "response_time": 18.22
       },
       "backend": {
-        "status": "running",
-        "response_time": 2.72
+        "status": "error: Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]",
+        "response_time": 0
       }
     },
     {
-      "timestamp": "2025-09-07T15:28:34.865774",
+      "timestamp": "2025-09-17T15:55:08.778462",
       "login_endpoint": {
-        "status": 200,
-        "response_time": 207.11,
-        "has_token": true
+        "status": "unknown",
+        "response_time": 0,
+        "error": "Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]"
       },
       "me_endpoint": {
-        "status": 200,
-        "response_time": 3.41
+        "status": "unknown",
+        "response_time": 0
       }
     },
     {
-      "timestamp": "2025-09-07T15:29:05.079913",
+      "timestamp": "2025-09-17T15:55:38.782566",
       "frontend": {
-        "status": "error: Cannot connect to host localhost:3005 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 3005, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 3005)]",
-        "response_time": 0
+        "status": "running",
+        "response_time": 23.41
       },
       "backend": {
-        "status": "running",
-        "response_time": 2.13
+        "status": "error: Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]",
+        "response_time": 0
       }
     },
     {
-      "timestamp": "2025-09-07T15:29:05.085152",
+      "timestamp": "2025-09-17T15:55:38.808252",
       "login_endpoint": {
-        "status": 200,
-        "response_time": 204.35,
-        "has_token": true
+        "status": "unknown",
+        "response_time": 0,
+        "error": "Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]"
       },
       "me_endpoint": {
-        "status": 200,
-        "response_time": 4.61
+        "status": "unknown",
+        "response_time": 0
       }
     },
     {
-      "timestamp": "2025-09-07T15:29:35.297553",
+      "timestamp": "2025-09-17T15:56:08.815060",
       "frontend": {
-        "status": "error: Cannot connect to host localhost:3005 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 3005, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 3005)]",
-        "response_time": 0
+        "status": "running",
+        "response_time": 22.17
       },
       "backend": {
-        "status": "running",
-        "response_time": 1.73
+        "status": "error: Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]",
+        "response_time": 0
       }
     },
     {
-      "timestamp": "2025-09-07T15:29:35.302155",
+      "timestamp": "2025-09-17T15:56:08.839369",
       "login_endpoint": {
-        "status": 200,
-        "response_time": 203.44,
-        "has_token": true
+        "status": "unknown",
+        "response_time": 0,
+        "error": "Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]"
       },
       "me_endpoint": {
-        "status": 200,
-        "response_time": 4.78
+        "status": "unknown",
+        "response_time": 0
       }
     },
     {
-      "timestamp": "2025-09-07T15:30:05.514014",
+      "timestamp": "2025-09-17T15:56:38.846832",
       "frontend": {
-        "status": "error: Cannot connect to host localhost:3005 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 3005, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 3005)]",
-        "response_time": 0
+        "status": "running",
+        "response_time": 25.29
       },
       "backend": {
-        "status": "running",
-        "response_time": 2.19
+        "status": "error: Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]",
+        "response_time": 0
       }
     },
     {
-      "timestamp": "2025-09-07T15:30:05.519354",
+      "timestamp": "2025-09-17T15:56:38.874514",
       "login_endpoint": {
-        "status": 200,
-        "response_time": 200.67,
-        "has_token": true
+        "status": "unknown",
+        "response_time": 0,
+        "error": "Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]"
       },
       "me_endpoint": {
-        "status": 200,
-        "response_time": 4.02
+        "status": "unknown",
+        "response_time": 0
       }
     },
     {
-      "timestamp": "2025-09-07T15:30:35.727500",
+      "timestamp": "2025-09-17T15:57:08.880983",
       "frontend": {
-        "status": "error: Cannot connect to host localhost:3005 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 3005, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 3005)]",
-        "response_time": 0
+        "status": "running",
+        "response_time": 25.38
       },
       "backend": {
-        "status": "running",
-        "response_time": 2.31
+        "status": "error: Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]",
+        "response_time": 0
       }
     },
     {
-      "timestamp": "2025-09-07T15:30:35.732783",
+      "timestamp": "2025-09-17T15:57:08.908679",
       "login_endpoint": {
-        "status": 200,
-        "response_time": 203.59,
-        "has_token": true
+        "status": "unknown",
+        "response_time": 0,
+        "error": "Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]"
       },
       "me_endpoint": {
-        "status": 200,
-        "response_time": 3.1
+        "status": "unknown",
+        "response_time": 0
       }
     },
     {
-      "timestamp": "2025-09-07T15:31:05.942918",
+      "timestamp": "2025-09-17T15:57:38.915371",
       "frontend": {
-        "status": "error: Cannot connect to host localhost:3005 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 3005, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 3005)]",
-        "response_time": 0
+        "status": "running",
+        "response_time": 21.13
       },
       "backend": {
-        "status": "running",
-        "response_time": 2.13
+        "status": "error: Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]",
+        "response_time": 0
       }
     },
     {
-      "timestamp": "2025-09-07T15:31:05.947806",
+      "timestamp": "2025-09-17T15:57:38.937925",
       "login_endpoint": {
-        "status": 200,
-        "response_time": 204.23,
-        "has_token": true
+        "status": "unknown",
+        "response_time": 0,
+        "error": "Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]"
       },
       "me_endpoint": {
-        "status": 200,
-        "response_time": 4.74
+        "status": "unknown",
+        "response_time": 0
       }
     },
     {
-      "timestamp": "2025-09-07T15:31:36.160134",
+      "timestamp": "2025-09-17T15:58:08.941943",
       "frontend": {
-        "status": "error: Cannot connect to host localhost:3005 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 3005, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 3005)]",
-        "response_time": 0
+        "status": "running",
+        "response_time": 23.37
       },
       "backend": {
-        "status": "running",
-        "response_time": 2.03
+        "status": "error: Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]",
+        "response_time": 0
       }
     },
     {
-      "timestamp": "2025-09-07T15:31:36.164361",
+      "timestamp": "2025-09-17T15:58:08.967462",
       "login_endpoint": {
-        "status": 200,
-        "response_time": 204.6,
-        "has_token": true
+        "status": "unknown",
+        "response_time": 0,
+        "error": "Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]"
       },
       "me_endpoint": {
-        "status": 200,
-        "response_time": 4.36
+        "status": "unknown",
+        "response_time": 0
       }
     },
     {
-      "timestamp": "2025-09-07T15:32:06.376809",
+      "timestamp": "2025-09-17T15:58:38.973210",
       "frontend": {
-        "status": "error: Cannot connect to host localhost:3005 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 3005, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 3005)]",
-        "response_time": 0
+        "status": "running",
+        "response_time": 11.07
       },
       "backend": {
-        "status": "running",
-        "response_time": 2.19
+        "status": "error: Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]",
+        "response_time": 0
       }
     },
     {
-      "timestamp": "2025-09-07T15:32:06.381832",
+      "timestamp": "2025-09-17T15:58:38.985343",
       "login_endpoint": {
-        "status": 200,
-        "response_time": 204.98,
-        "has_token": true
+        "status": "unknown",
+        "response_time": 0,
+        "error": "Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]"
       },
       "me_endpoint": {
-        "status": 200,
-        "response_time": 4.39
+        "status": "unknown",
+        "response_time": 0
       }
     },
     {
-      "timestamp": "2025-09-07T15:32:36.594608",
+      "timestamp": "2025-09-17T15:58:43.987726",
       "frontend": {
-        "status": "error: Cannot connect to host localhost:3005 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 3005, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 3005)]",
-        "response_time": 0
+        "status": "running",
+        "response_time": 24.88
       },
       "backend": {
-        "status": "running",
-        "response_time": 1.75
+        "status": "error: Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]",
+        "response_time": 0
       }
     },
     {
-      "timestamp": "2025-09-07T15:32:36.598917",
+      "timestamp": "2025-09-17T15:58:44.014953",
       "login_endpoint": {
-        "status": 200,
-        "response_time": 204.52,
-        "has_token": true
+        "status": "unknown",
+        "response_time": 0,
+        "error": "Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]"
       },
       "me_endpoint": {
-        "status": 200,
-        "response_time": 4.42
+        "status": "unknown",
+        "response_time": 0
       }
     },
     {
-      "timestamp": "2025-09-07T15:32:41.810341",
+      "timestamp": "2025-09-17T15:59:14.022117",
       "frontend": {
-        "status": "error: Cannot connect to host localhost:3005 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 3005, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 3005)]",
-        "response_time": 0
+        "status": "running",
+        "response_time": 21.71
       },
       "backend": {
-        "status": "running",
-        "response_time": 2.41
+        "status": "error: Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]",
+        "response_time": 0
       }
     },
     {
-      "timestamp": "2025-09-07T15:32:41.815828",
+      "timestamp": "2025-09-17T15:59:14.045535",
       "login_endpoint": {
-        "status": 200,
-        "response_time": 203.89,
-        "has_token": true
+        "status": "unknown",
+        "response_time": 0,
+        "error": "Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]"
       },
       "me_endpoint": {
-        "status": 200,
-        "response_time": 4.71
+        "status": "unknown",
+        "response_time": 0
       }
     },
     {
-      "timestamp": "2025-09-07T15:33:12.029015",
+      "timestamp": "2025-09-17T15:59:44.051571",
       "frontend": {
-        "status": "error: Cannot connect to host localhost:3005 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 3005, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 3005)]",
-        "response_time": 0
+        "status": "running",
+        "response_time": 23.93
       },
       "backend": {
-        "status": "running",
-        "response_time": 1.95
+        "status": "error: Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]",
+        "response_time": 0
       }
     },
     {
-      "timestamp": "2025-09-07T15:33:12.034685",
+      "timestamp": "2025-09-17T15:59:44.077586",
       "login_endpoint": {
-        "status": 200,
-        "response_time": 205.52,
-        "has_token": true
+        "status": "unknown",
+        "response_time": 0,
+        "error": "Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]"
       },
       "me_endpoint": {
-        "status": 200,
-        "response_time": 4.64
+        "status": "unknown",
+        "response_time": 0
       }
     },
     {
-      "timestamp": "2025-09-07T15:33:42.248315",
+      "timestamp": "2025-09-17T16:00:14.084665",
       "frontend": {
-        "status": "error: Cannot connect to host localhost:3005 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 3005, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 3005)]",
-        "response_time": 0
+        "status": "running",
+        "response_time": 20.44
       },
       "backend": {
-        "status": "running",
-        "response_time": 2.22
+        "status": "error: Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]",
+        "response_time": 0
       }
     },
     {
-      "timestamp": "2025-09-07T15:33:42.253559",
+      "timestamp": "2025-09-17T16:00:14.107186",
       "login_endpoint": {
-        "status": 200,
-        "response_time": 203.73,
-        "has_token": true
+        "status": "unknown",
+        "response_time": 0,
+        "error": "Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]"
       },
       "me_endpoint": {
-        "status": 200,
-        "response_time": 4.48
+        "status": "unknown",
+        "response_time": 0
       }
     },
     {
-      "timestamp": "2025-09-07T15:34:12.465310",
+      "timestamp": "2025-09-17T16:00:44.113343",
       "frontend": {
-        "status": "error: Cannot connect to host localhost:3005 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 3005, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 3005)]",
-        "response_time": 0
+        "status": "running",
+        "response_time": 18.87
       },
       "backend": {
-        "status": "running",
-        "response_time": 1.53
+        "status": "error: Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]",
+        "response_time": 0
       }
     },
     {
-      "timestamp": "2025-09-07T15:34:12.468776",
+      "timestamp": "2025-09-17T16:00:44.134521",
       "login_endpoint": {
-        "status": 200,
-        "response_time": 202.2,
-        "has_token": true
+        "status": "unknown",
+        "response_time": 0,
+        "error": "Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]"
       },
       "me_endpoint": {
-        "status": 200,
-        "response_time": 3.85
+        "status": "unknown",
+        "response_time": 0
       }
     },
     {
-      "timestamp": "2025-09-07T15:34:42.678224",
+      "timestamp": "2025-09-17T16:01:14.140889",
       "frontend": {
-        "status": "error: Cannot connect to host localhost:3005 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 3005, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 3005)]",
-        "response_time": 0
+        "status": "running",
+        "response_time": 26.99
       },
       "backend": {
-        "status": "running",
-        "response_time": 2.01
+        "status": "error: Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]",
+        "response_time": 0
       }
     },
     {
-      "timestamp": "2025-09-07T15:34:42.681844",
+      "timestamp": "2025-09-17T16:01:14.169486",
       "login_endpoint": {
-        "status": 200,
-        "response_time": 200.77,
-        "has_token": true
+        "status": "unknown",
+        "response_time": 0,
+        "error": "Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]"
       },
       "me_endpoint": {
-        "status": 200,
-        "response_time": 3.88
+        "status": "unknown",
+        "response_time": 0
       }
     },
     {
-      "timestamp": "2025-09-07T15:35:12.888642",
+      "timestamp": "2025-09-17T16:01:44.175292",
       "frontend": {
-        "status": "error: Cannot connect to host localhost:3005 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 3005, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 3005)]",
-        "response_time": 0
+        "status": "running",
+        "response_time": 34.13
       },
       "backend": {
-        "status": "running",
-        "response_time": 1.3
+        "status": "error: Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]",
+        "response_time": 0
       }
     },
     {
-      "timestamp": "2025-09-07T15:35:12.891209",
+      "timestamp": "2025-09-17T16:01:44.211571",
       "login_endpoint": {
-        "status": 200,
-        "response_time": 201.87,
-        "has_token": true
+        "status": "unknown",
+        "response_time": 0,
+        "error": "Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]"
       },
       "me_endpoint": {
-        "status": 200,
-        "response_time": 4.13
+        "status": "unknown",
+        "response_time": 0
       }
     },
     {
-      "timestamp": "2025-09-07T15:35:43.100678",
+      "timestamp": "2025-09-17T16:02:14.216286",
       "frontend": {
-        "status": "error: Cannot connect to host localhost:3005 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 3005, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 3005)]",
-        "response_time": 0
+        "status": "running",
+        "response_time": 25.05
       },
       "backend": {
-        "status": "running",
-        "response_time": 2.07
+        "status": "error: Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]",
+        "response_time": 0
       }
     },
     {
-      "timestamp": "2025-09-07T15:35:43.105629",
+      "timestamp": "2025-09-17T16:02:14.242864",
       "login_endpoint": {
-        "status": 200,
-        "response_time": 208.28,
-        "has_token": true
+        "status": "unknown",
+        "response_time": 0,
+        "error": "Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]"
       },
       "me_endpoint": {
-        "status": 200,
-        "response_time": 5.0
+        "status": "unknown",
+        "response_time": 0
       }
     },
     {
-      "timestamp": "2025-09-07T15:36:13.322316",
+      "timestamp": "2025-09-17T16:02:44.248312",
       "frontend": {
-        "status": "error: Cannot connect to host localhost:3005 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 3005, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 3005)]",
-        "response_time": 0
+        "status": "running",
+        "response_time": 21.3
       },
       "backend": {
-        "status": "running",
-        "response_time": 2.12
+        "status": "error: Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]",
+        "response_time": 0
       }
     },
     {
-      "timestamp": "2025-09-07T15:36:13.327440",
+      "timestamp": "2025-09-17T16:02:44.271686",
       "login_endpoint": {
-        "status": 200,
-        "response_time": 212.8,
-        "has_token": true
+        "status": "unknown",
+        "response_time": 0,
+        "error": "Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]"
       },
       "me_endpoint": {
-        "status": 200,
-        "response_time": 3.07
+        "status": "unknown",
+        "response_time": 0
       }
     },
     {
-      "timestamp": "2025-09-07T15:36:43.546829",
+      "timestamp": "2025-09-17T16:03:14.278425",
       "frontend": {
-        "status": "error: Cannot connect to host localhost:3005 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 3005, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 3005)]",
-        "response_time": 0
+        "status": "running",
+        "response_time": 15.26
       },
       "backend": {
-        "status": "running",
-        "response_time": 2.35
+        "status": "error: Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]",
+        "response_time": 0
       }
     },
     {
-      "timestamp": "2025-09-07T15:36:43.552058",
+      "timestamp": "2025-09-17T16:03:14.295185",
       "login_endpoint": {
-        "status": 200,
-        "response_time": 204.93,
-        "has_token": true
+        "status": "unknown",
+        "response_time": 0,
+        "error": "Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]"
       },
       "me_endpoint": {
-        "status": 200,
-        "response_time": 3.61
+        "status": "unknown",
+        "response_time": 0
       }
     },
     {
-      "timestamp": "2025-09-07T15:37:13.764208",
+      "timestamp": "2025-09-17T16:03:44.302077",
       "frontend": {
-        "status": "error: Cannot connect to host localhost:3005 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 3005, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 3005)]",
-        "response_time": 0
+        "status": "running",
+        "response_time": 23.18
       },
       "backend": {
-        "status": "running",
-        "response_time": 2.39
+        "status": "error: Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]",
+        "response_time": 0
       }
     },
     {
-      "timestamp": "2025-09-07T15:37:13.769552",
+      "timestamp": "2025-09-17T16:03:44.327601",
       "login_endpoint": {
-        "status": 200,
-        "response_time": 204.74,
-        "has_token": true
+        "status": "unknown",
+        "response_time": 0,
+        "error": "Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]"
       },
       "me_endpoint": {
-        "status": 200,
-        "response_time": 2.9
+        "status": "unknown",
+        "response_time": 0
       }
     },
     {
-      "timestamp": "2025-09-07T15:37:43.981030",
+      "timestamp": "2025-09-17T16:04:14.332441",
       "frontend": {
-        "status": "error: Cannot connect to host localhost:3005 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 3005, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 3005)]",
-        "response_time": 0
+        "status": "running",
+        "response_time": 24.67
       },
       "backend": {
-        "status": "running",
-        "response_time": 3.03
+        "status": "error: Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]",
+        "response_time": 0
       }
     },
     {
-      "timestamp": "2025-09-07T15:37:43.989410",
+      "timestamp": "2025-09-17T16:04:14.359374",
       "login_endpoint": {
-        "status": 200,
-        "response_time": 204.91,
-        "has_token": true
+        "status": "unknown",
+        "response_time": 0,
+        "error": "Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]"
       },
       "me_endpoint": {
-        "status": 200,
-        "response_time": 4.19
+        "status": "unknown",
+        "response_time": 0
       }
     },
     {
-      "timestamp": "2025-09-07T15:38:14.201965",
+      "timestamp": "2025-09-17T16:04:44.365809",
       "frontend": {
-        "status": "error: Cannot connect to host localhost:3005 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 3005, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 3005)]",
-        "response_time": 0
+        "status": "running",
+        "response_time": 21.84
       },
       "backend": {
-        "status": "running",
-        "response_time": 2.26
+        "status": "error: Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]",
+        "response_time": 0
       }
     },
     {
-      "timestamp": "2025-09-07T15:38:14.207194",
+      "timestamp": "2025-09-17T16:04:44.389737",
       "login_endpoint": {
-        "status": 200,
-        "response_time": 204.94,
-        "has_token": true
+        "status": "unknown",
+        "response_time": 0,
+        "error": "Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]"
       },
       "me_endpoint": {
-        "status": 200,
-        "response_time": 3.87
+        "status": "unknown",
+        "response_time": 0
       }
     },
     {
-      "timestamp": "2025-09-07T15:38:44.419567",
+      "timestamp": "2025-09-17T16:05:14.395185",
       "frontend": {
-        "status": "error: Cannot connect to host localhost:3005 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 3005, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 3005)]",
-        "response_time": 0
+        "status": "running",
+        "response_time": 20.5
       },
       "backend": {
-        "status": "running",
-        "response_time": 2.15
+        "status": "error: Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]",
+        "response_time": 0
       }
     },
     {
-      "timestamp": "2025-09-07T15:38:44.424722",
+      "timestamp": "2025-09-17T16:05:14.417776",
       "login_endpoint": {
-        "status": 200,
-        "response_time": 203.65,
-        "has_token": true
+        "status": "unknown",
+        "response_time": 0,
+        "error": "Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]"
       },
       "me_endpoint": {
-        "status": 200,
-        "response_time": 4.86
+        "status": "unknown",
+        "response_time": 0
       }
     },
     {
-      "timestamp": "2025-09-07T15:39:14.636682",
+      "timestamp": "2025-09-17T16:05:44.424969",
       "frontend": {
-        "status": "error: Cannot connect to host localhost:3005 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 3005, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 3005)]",
-        "response_time": 0
+        "status": "running",
+        "response_time": 26.91
       },
       "backend": {
-        "status": "running",
-        "response_time": 2.4
+        "status": "error: Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]",
+        "response_time": 0
       }
     },
     {
-      "timestamp": "2025-09-07T15:39:14.642063",
+      "timestamp": "2025-09-17T16:05:44.453957",
       "login_endpoint": {
-        "status": 200,
-        "response_time": 203.29,
-        "has_token": true
+        "status": "unknown",
+        "response_time": 0,
+        "error": "Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]"
       },
       "me_endpoint": {
-        "status": 200,
-        "response_time": 4.06
+        "status": "unknown",
+        "response_time": 0
       }
     },
     {
-      "timestamp": "2025-09-07T15:40:14.112439",
+      "timestamp": "2025-09-17T16:06:14.460170",
       "frontend": {
-        "status": "error: Cannot connect to host localhost:3005 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 3005, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 3005)]",
-        "response_time": 0
+        "status": "running",
+        "response_time": 24.04
       },
       "backend": {
-        "status": "running",
-        "response_time": 5.53
+        "status": "error: Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]",
+        "response_time": 0
       }
     },
     {
-      "timestamp": "2025-09-07T15:40:14.125296",
+      "timestamp": "2025-09-17T16:06:14.486115",
       "login_endpoint": {
-        "status": 200,
-        "response_time": 206.94,
-        "has_token": true
+        "status": "unknown",
+        "response_time": 0,
+        "error": "Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]"
       },
       "me_endpoint": {
-        "status": 200,
-        "response_time": 4.43
+        "status": "unknown",
+        "response_time": 0
       }
     },
     {
-      "timestamp": "2025-09-07T15:40:44.339203",
+      "timestamp": "2025-09-17T16:06:44.491170",
       "frontend": {
-        "status": "error: Cannot connect to host localhost:3005 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 3005, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 3005)]",
-        "response_time": 0
+        "status": "running",
+        "response_time": 23.42
       },
       "backend": {
-        "status": "running",
-        "response_time": 1.5
+        "status": "error: Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]",
+        "response_time": 0
       }
     },
     {
-      "timestamp": "2025-09-07T15:40:44.343642",
+      "timestamp": "2025-09-17T16:06:44.516696",
       "login_endpoint": {
-        "status": 200,
-        "response_time": 204.22,
-        "has_token": true
+        "status": "unknown",
+        "response_time": 0,
+        "error": "Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]"
       },
       "me_endpoint": {
-        "status": 200,
-        "response_time": 4.33
+        "status": "unknown",
+        "response_time": 0
       }
     },
     {
-      "timestamp": "2025-09-07T15:41:14.554660",
+      "timestamp": "2025-09-17T16:07:14.523131",
       "frontend": {
-        "status": "error: Cannot connect to host localhost:3005 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 3005, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 3005)]",
-        "response_time": 0
+        "status": "running",
+        "response_time": 25.11
       },
       "backend": {
-        "status": "running",
-        "response_time": 2.01
+        "status": "error: Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]",
+        "response_time": 0
       }
     },
     {
-      "timestamp": "2025-09-07T15:41:14.559717",
+      "timestamp": "2025-09-17T16:07:14.550111",
       "login_endpoint": {
-        "status": 200,
-        "response_time": 204.25,
-        "has_token": true
+        "status": "unknown",
+        "response_time": 0,
+        "error": "Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]"
       },
       "me_endpoint": {
-        "status": 200,
-        "response_time": 4.26
+        "status": "unknown",
+        "response_time": 0
       }
     },
     {
-      "timestamp": "2025-09-07T15:41:44.770752",
+      "timestamp": "2025-09-17T16:07:44.555956",
       "frontend": {
-        "status": "error: Cannot connect to host localhost:3005 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 3005, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 3005)]",
-        "response_time": 0
+        "status": "running",
+        "response_time": 17.89
       },
       "backend": {
-        "status": "running",
-        "response_time": 1.93
+        "status": "error: Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]",
+        "response_time": 0
       }
     },
     {
-      "timestamp": "2025-09-07T15:41:44.775438",
+      "timestamp": "2025-09-17T16:07:44.576103",
       "login_endpoint": {
-        "status": 200,
-        "response_time": 202.56,
-        "has_token": true
+        "status": "unknown",
+        "response_time": 0,
+        "error": "Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]"
       },
       "me_endpoint": {
-        "status": 200,
-        "response_time": 4.15
+        "status": "unknown",
+        "response_time": 0
       }
     },
     {
-      "timestamp": "2025-09-07T15:41:49.983616",
+      "timestamp": "2025-09-17T16:07:49.577885",
       "frontend": {
-        "status": "error: Cannot connect to host localhost:3005 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 3005, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 3005)]",
-        "response_time": 0
+        "status": "running",
+        "response_time": 21.06
       },
       "backend": {
-        "status": "running",
-        "response_time": 2.0
+        "status": "error: Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]",
+        "response_time": 0
       }
     },
     {
-      "timestamp": "2025-09-07T15:41:49.987891",
+      "timestamp": "2025-09-17T16:07:49.601112",
       "login_endpoint": {
-        "status": 200,
-        "response_time": 206.84,
-        "has_token": true
+        "status": "unknown",
+        "response_time": 0,
+        "error": "Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]"
       },
       "me_endpoint": {
-        "status": 200,
-        "response_time": 4.22
+        "status": "unknown",
+        "response_time": 0
       }
     },
     {
-      "timestamp": "2025-09-07T15:42:20.200908",
+      "timestamp": "2025-09-17T16:08:19.606720",
       "frontend": {
-        "status": "error: Cannot connect to host localhost:3005 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 3005, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 3005)]",
-        "response_time": 0
+        "status": "running",
+        "response_time": 23.89
       },
       "backend": {
-        "status": "running",
-        "response_time": 1.39
+        "status": "error: Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]",
+        "response_time": 0
       }
     },
     {
-      "timestamp": "2025-09-07T15:42:20.203708",
+      "timestamp": "2025-09-17T16:08:19.632659",
       "login_endpoint": {
-        "status": 200,
-        "response_time": 199.02,
-        "has_token": true
+        "status": "unknown",
+        "response_time": 0,
+        "error": "Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]"
       },
       "me_endpoint": {
-        "status": 200,
-        "response_time": 3.91
+        "status": "unknown",
+        "response_time": 0
       }
     },
     {
-      "timestamp": "2025-09-07T15:42:50.408961",
+      "timestamp": "2025-09-17T16:08:49.640733",
       "frontend": {
-        "status": "error: Cannot connect to host localhost:3005 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 3005, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 3005)]",
-        "response_time": 0
+        "status": "running",
+        "response_time": 40.42
       },
       "backend": {
-        "status": "running",
-        "response_time": 1.25
+        "status": "error: Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]",
+        "response_time": 0
       }
     },
     {
-      "timestamp": "2025-09-07T15:42:50.411693",
+      "timestamp": "2025-09-17T16:08:49.684075",
       "login_endpoint": {
-        "status": 200,
-        "response_time": 198.0,
-        "has_token": true
+        "status": "unknown",
+        "response_time": 0,
+        "error": "Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]"
       },
       "me_endpoint": {
-        "status": 200,
-        "response_time": 3.39
+        "status": "unknown",
+        "response_time": 0
       }
     },
     {
-      "timestamp": "2025-09-07T15:43:20.615277",
+      "timestamp": "2025-09-17T16:09:19.688947",
       "frontend": {
-        "status": "error: Cannot connect to host localhost:3005 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 3005, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 3005)]",
-        "response_time": 0
+        "status": "running",
+        "response_time": 24.14
       },
       "backend": {
-        "status": "running",
-        "response_time": 2.07
+        "status": "error: Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]",
+        "response_time": 0
       }
     },
     {
-      "timestamp": "2025-09-07T15:43:20.619537",
+      "timestamp": "2025-09-17T16:09:19.715194",
       "login_endpoint": {
-        "status": 200,
-        "response_time": 203.04,
-        "has_token": true
+        "status": "unknown",
+        "response_time": 0,
+        "error": "Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]"
       },
       "me_endpoint": {
-        "status": 200,
-        "response_time": 4.13
+        "status": "unknown",
+        "response_time": 0
       }
     }
   ],
@@ -1270,6 +1270,1758 @@
     },
     {
       "timestamp": "2025-09-07T15:41:44.982394",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-07T15:50:23.869775",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-07T15:59:02.843961",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-07T16:30:18.231583",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-07T17:51:24.399942",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-07T18:48:38.065365",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-07T19:31:16.184923",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-07T19:54:21.624300",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-07T20:03:00.550328",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-07T20:11:39.461121",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-07T20:20:18.392625",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-07T20:28:57.345237",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-07T20:37:36.291260",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-07T20:46:15.189293",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-07T20:54:54.127742",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-07T21:03:33.586182",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-07T21:19:18.943127",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-07T21:49:09.561857",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-07T21:58:49.822496",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-07T22:12:31.337598",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-07T22:25:42.222550",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-07T22:36:19.679976",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-07T22:50:01.394740",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-07T23:03:42.759159",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-07T23:17:24.118119",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-08T01:01:49.445945",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-08T04:02:09.421245",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-08T06:29:47.934870",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-08T06:43:29.366159",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-08T06:57:10.893652",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-08T07:10:52.312811",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-08T07:24:33.714467",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-08T07:38:15.053179",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-08T07:51:56.468449",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-08T08:05:37.910312",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-08T08:19:19.254179",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-08T08:33:00.647146",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-08T08:46:41.982784",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-08T09:00:23.208692",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-08T09:14:04.535732",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-08T09:27:46.099738",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-08T09:41:27.741241",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-08T09:55:09.338839",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-08T10:08:50.699002",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-08T10:22:32.015604",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-08T11:20:48.289582",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-08T11:34:29.723192",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-08T11:48:11.180679",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-08T12:01:52.676439",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-08T12:15:34.115171",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-08T12:29:15.699549",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-08T12:42:57.403494",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-08T12:56:38.911535",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-08T13:10:20.594622",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-08T13:24:02.231505",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-08T13:37:43.810437",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-08T13:51:25.359245",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-08T14:05:06.902206",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-08T14:18:48.590022",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-08T14:32:30.175379",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-08T14:46:11.712817",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-08T14:59:53.357585",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-08T15:14:44.366994",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-08T15:53:01.442854",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-08T16:22:35.780067",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-08T16:39:34.573934",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-08T16:53:15.968241",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-08T17:06:57.373866",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-08T17:20:38.719006",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-08T17:34:20.113331",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-08T17:48:01.434278",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-08T18:01:42.764349",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-08T18:15:24.270864",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-08T18:29:05.702992",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-08T18:42:47.251329",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-08T18:56:28.926819",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-08T19:10:10.433140",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-08T19:30:55.266580",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-08T19:44:36.813823",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-08T19:58:18.246807",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-08T20:40:51.648949",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-08T21:22:28.252839",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-08T21:36:09.775697",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-08T22:18:39.223687",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-08T22:32:20.618853",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-08T22:46:02.141130",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-08T23:17:42.685229",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-09T02:36:25.724218",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-09T05:34:41.562342",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-09T06:58:45.943582",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-09T07:12:27.562992",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-09T07:26:09.037367",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-09T07:39:50.534864",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-09T07:53:32.026074",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-09T08:07:13.703294",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-09T08:20:55.196583",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-09T08:38:43.716134",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-09T08:52:25.182560",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-09T09:06:06.754000",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-09T09:19:48.263995",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-09T09:33:29.751827",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-09T09:47:11.220085",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-09T10:00:52.730773",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-09T10:14:34.244198",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-09T10:28:15.886499",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-09T10:41:57.390735",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-09T10:55:38.902433",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-09T11:09:20.473345",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-09T11:23:02.076233",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-09T11:36:43.679544",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-09T11:50:25.306100",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-09T12:04:06.826547",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-09T12:17:48.526655",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-09T12:41:38.243510",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-09T13:10:04.508059",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-09T13:23:46.028514",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-09T13:37:27.786904",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-09T13:51:09.395702",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-09T14:42:29.336398",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-09T15:31:40.719346",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-09T15:50:16.814280",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-09T16:03:58.418826",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-09T16:17:39.997755",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-09T16:31:21.566489",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-09T16:45:03.369361",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-09T16:58:44.907437",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-09T17:12:26.401838",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-09T17:26:07.984056",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-09T17:39:49.536546",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-09T17:53:31.367369",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-09T18:07:13.144955",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-09T18:20:54.574172",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-09T19:56:16.830042",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-09T21:03:50.335641",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-09T21:48:18.528460",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-09T22:01:59.986875",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-09T22:15:41.565385",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-09T22:29:23.012995",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-10T00:17:01.907298",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-10T02:55:21.552139",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-10T05:11:18.898784",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-10T07:34:43.350719",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-10T07:48:25.015203",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-10T08:20:44.079061",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-10T08:34:25.637638",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-10T08:48:07.192646",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-10T09:01:48.660556",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-10T09:15:30.150796",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-10T09:29:11.713921",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-10T09:42:53.272935",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-10T09:58:47.929118",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-10T10:47:26.144232",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-10T11:01:07.728896",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-10T11:14:49.264284",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-10T11:28:30.831773",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-10T11:42:12.502813",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-10T11:55:54.100991",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-10T12:09:35.921004",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-10T12:23:17.499141",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-10T12:36:59.067006",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-10T12:50:40.702280",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-10T13:12:42.178305",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-10T13:26:23.772067",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-10T13:40:05.388153",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-10T13:53:47.039367",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-10T14:07:28.689458",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-10T14:21:10.270569",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-10T14:34:51.881713",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-10T14:58:31.893932",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-10T16:02:57.740202",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-10T17:30:59.845976",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-10T17:56:20.666874",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-10T18:10:02.171543",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-10T18:23:43.743432",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-10T18:40:03.396698",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-10T18:53:44.796130",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-10T19:07:26.273775",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-10T19:21:07.722201",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-10T19:34:49.287873",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-10T19:48:30.869495",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-10T20:50:20.249131",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-10T21:04:02.046306",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-10T21:17:43.582570",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-10T21:31:25.454970",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-10T21:45:06.981959",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-10T21:58:48.539648",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-10T22:12:30.155804",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-10T22:26:11.699632",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-10T22:39:53.339491",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-10T22:53:34.802847",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-11T01:21:27.200599",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-11T03:48:17.757562",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-11T06:32:33.288296",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-11T07:08:58.275169",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-11T07:22:39.850522",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-11T07:36:21.343348",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-11T07:50:02.765107",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-11T08:08:14.504871",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-11T08:39:33.211368",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-11T10:17:34.161484",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-11T11:45:39.500503",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-11T11:59:21.063712",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-11T12:13:02.621451",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-11T12:26:44.175560",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-11T12:40:25.766230",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-11T13:38:47.163324",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-11T14:24:59.815325",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-11T14:56:09.745158",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-11T17:22:18.786821",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-11T18:08:02.813090",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-11T18:21:44.302362",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-11T18:35:25.852119",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-11T18:49:07.382089",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-11T19:02:48.884211",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-11T19:25:01.347417",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-11T19:38:42.752795",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-11T19:52:24.354468",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-11T20:11:52.609646",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-11T21:34:19.354466",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-11T21:52:45.074663",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-11T22:06:26.685867",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-11T22:20:08.308354",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-11T22:33:50.039790",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-11T22:47:31.554877",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-11T23:01:13.361960",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-11T23:14:54.983796",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-11T23:28:36.621425",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-11T23:42:18.123187",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-12T00:35:06.910324",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-12T03:25:29.035141",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-12T06:41:08.686073",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-12T06:58:55.215498",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-12T07:16:16.792314",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-12T07:29:58.372376",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-12T07:43:39.923879",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-12T08:07:40.176580",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-12T08:21:21.629837",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-12T08:35:03.218157",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-12T08:48:44.758384",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-12T09:02:26.318134",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-12T09:16:07.914927",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-12T09:29:49.461580",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-12T09:43:30.997455",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-12T10:25:05.714655",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-12T11:40:08.862591",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-12T13:24:48.950742",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-12T13:42:11.313432",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-12T13:55:52.681994",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-12T14:09:34.131306",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-12T14:23:15.505864",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-12T14:36:57.049561",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-12T14:50:38.475050",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-12T15:49:30.840131",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-12T17:32:58.259219",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-12T17:55:37.082819",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-12T18:09:18.399667",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-12T18:22:59.811228",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-12T19:17:26.850274",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-12T19:32:04.277221",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-12T19:45:45.765783",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-12T19:59:27.162830",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-12T20:13:08.543444",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-12T20:26:50.044546",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-12T20:40:31.461176",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-12T20:54:12.812077",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-12T21:07:54.201752",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-12T21:21:35.751516",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-12T21:43:24.222970",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-12T23:09:35.465983",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-12T23:23:16.996603",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-12T23:36:58.548111",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-13T00:06:25.068993",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-13T03:04:57.081613",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-13T05:48:28.598476",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-13T07:49:59.538049",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-13T08:21:37.873996",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-13T08:35:19.344739",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-13T08:49:00.915775",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-13T09:02:42.398685",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-13T09:16:24.025537",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-13T09:30:05.526045",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-13T10:02:07.824077",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-13T10:15:49.414081",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-13T10:29:30.878432",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-13T10:43:12.405711",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-13T10:56:53.914094",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-13T11:10:35.283500",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-13T11:24:16.820712",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-13T11:37:58.434358",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-13T11:51:39.942257",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-13T12:30:44.253261",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-13T13:14:32.847878",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-13T13:28:36.472183",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-13T13:42:18.014666",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-13T13:55:59.999093",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-13T14:58:14.336357",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-13T15:14:01.535405",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-13T15:27:43.175716",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-13T15:41:24.802709",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-13T15:55:06.706680",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-13T16:08:48.821150",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-13T16:22:30.537293",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-13T16:36:12.352085",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-13T16:49:53.844625",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-13T17:49:07.206940",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-13T19:14:38.926545",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-13T19:59:40.926394",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-13T20:23:24.315793",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-13T20:37:05.969403",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-13T20:50:47.555848",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-13T21:04:29.316427",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-13T21:18:11.062374",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-13T21:31:52.540586",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-13T21:45:34.044842",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-13T23:20:38.408498",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-14T01:40:12.201201",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-14T04:31:02.206352",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-14T07:07:36.842341",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-14T07:26:04.366249",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-14T07:43:28.916124",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-14T07:57:10.424785",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-14T08:10:51.941110",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-14T08:24:33.365773",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-14T08:38:14.838070",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-14T08:51:56.297556",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-14T09:09:12.558551",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-14T09:22:53.978868",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-14T10:04:26.602242",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-14T11:19:09.434797",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-14T11:32:50.922199",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-14T11:56:35.967784",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-14T12:36:14.765513",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-14T14:09:12.315604",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-14T15:12:28.066487",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-14T16:42:17.387903",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-14T17:33:38.139109",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-14T19:26:49.255800",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-14T22:00:48.664240",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-15T00:56:53.159833",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-15T04:19:42.819704",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-15T06:21:16.888254",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-15T08:29:48.147218",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-15T08:54:27.760602",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-15T09:08:09.255254",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-15T09:21:50.735297",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-15T09:35:32.262064",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-15T10:06:16.330238",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-15T11:25:53.853080",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-15T12:13:23.048183",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-15T13:54:42.959666",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-15T14:26:35.119369",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-15T14:54:29.781053",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-15T16:12:34.192567",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-15T16:26:15.773862",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-15T16:39:57.420250",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-15T17:44:03.413162",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-15T18:49:15.929418",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-15T19:31:45.257449",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-15T20:48:44.958759",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-15T21:28:32.735095",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-15T22:24:56.857041",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-16T01:01:48.014622",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-16T03:08:55.852107",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-16T06:28:12.753650",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-16T07:22:08.525922",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-16T07:38:46.109105",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-16T07:52:27.670065",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-16T08:06:09.224757",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-16T08:19:50.768632",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-16T09:05:37.615263",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-16T09:22:35.002400",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-16T09:36:16.568244",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-16T09:49:58.047177",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-16T10:03:39.552768",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-16T10:27:12.850316",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-16T11:23:01.356354",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-16T12:56:36.123566",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-16T13:26:45.586055",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-16T13:40:27.708077",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-16T13:54:09.309225",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-16T14:07:51.023443",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-16T14:21:32.551151",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-16T14:35:14.068641",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-16T14:48:55.639605",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-16T15:02:37.190383",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-16T15:16:18.653272",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-16T15:33:35.701159",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-16T15:47:17.216735",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-16T16:00:58.819104",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-16T16:14:40.532448",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-16T16:28:21.984843",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-16T16:42:03.489547",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-16T16:55:45.126977",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-16T17:09:26.630884",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-16T17:23:08.163314",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-16T17:36:49.767950",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-16T17:50:31.318484",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-16T18:39:00.337162",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-16T19:52:20.724715",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-16T20:54:04.895952",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-16T22:05:15.420179",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-16T23:34:43.256868",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-17T02:03:28.730382",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-17T05:07:43.421126",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-17T06:59:10.077989",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-17T07:37:11.073412",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-17T07:50:52.579089",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-17T08:04:34.116893",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-17T08:18:15.665429",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-17T08:39:46.321637",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-17T09:36:05.380905",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-17T09:49:46.861172",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-17T10:03:28.333367",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-17T10:17:09.847054",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-17T10:30:51.370510",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-17T10:44:33.221838",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-17T10:58:14.932225",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-17T11:11:56.559088",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-17T11:25:38.003412",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-17T11:39:19.501185",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-17T11:53:00.990102",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-17T12:06:42.536356",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-17T12:20:24.117791",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-17T12:34:05.600204",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-17T12:45:48.616475",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-17T12:54:54.207158",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-17T13:25:42.360870",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-17T13:40:19.639458",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-17T13:49:25.193229",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-17T13:58:30.775244",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-17T14:07:36.385369",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-17T14:16:42.001692",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-17T14:25:47.615210",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-17T15:21:50.632201",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-17T15:31:22.250150",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-17T15:40:27.855946",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-17T15:49:33.418510",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-17T15:58:38.986482",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-17T16:07:44.577485",
       "error": "[Errno 32] Broken pipe"
     }
   ],

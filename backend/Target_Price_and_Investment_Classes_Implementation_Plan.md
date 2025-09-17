@@ -255,6 +255,155 @@ uv run python scripts/run_batch_calculations.py
 5. Document API changes
 6. Plan frontend integration
 
+## Design Comments from Elliott
+
+### 1. Target Price Service Layer
+
+### 2. Target Price API Spec
+
+#### Pydantic Schema Definitions
+```python
+# app/schemas/target_prices.py
+from pydantic import BaseModel, Field
+from typing import Optional
+from datetime import datetime
+from uuid import UUID
+
+class TargetPriceCreate(BaseModel):
+    """Create/Update target price request"""
+    target_price_eoy: Optional[float] = Field(None, gt=0, description="End of year target price")
+    target_price_next_year: Optional[float] = Field(None, gt=0, description="Next year target price")
+    notes: Optional[str] = Field(None, max_length=500, description="Optional notes")
+
+class TargetPriceResponse(BaseModel):
+    """Individual symbol target price response"""
+    portfolio_id: UUID
+    symbol: str
+    target_price_eoy: Optional[float] = None
+    target_price_next_year: Optional[float] = None
+    current_price: Optional[float] = None
+    expected_return_eoy: Optional[float] = None  # Calculated percentage
+    expected_return_next_year: Optional[float] = None  # Calculated percentage
+    price_updated_at: Optional[datetime] = None
+    notes: Optional[str] = None
+    created_at: datetime
+    updated_at: datetime
+
+class TargetPriceSummary(BaseModel):
+    """Summary for list endpoint"""
+    symbol: str
+    target_price_eoy: Optional[float] = None
+    expected_return_eoy: Optional[float] = None
+    current_price: Optional[float] = None
+    updated_at: datetime
+
+class TargetPriceListResponse(BaseModel):
+    """List of all targets for a portfolio"""
+    portfolio_id: UUID
+    targets: list[TargetPriceSummary]
+    count: int
+
+class TargetPriceDeleteResponse(BaseModel):
+    """Delete confirmation"""
+    status: str = "deleted"
+    symbol: str
+    portfolio_id: UUID
+```
+
+#### API Endpoints
+
+### Set/Update Target Price for Symbol
+**Endpoint**: `PUT /api/v1/portfolios/{portfolio_id}/target-prices/{symbol}`  
+**Status**: 🎯 Planned  
+**File**: `app/api/v1/target_prices.py` (to be created)  
+**Function**: `set_target_price()`  
+**Frontend Proxy Path**: `/api/proxy/api/v1/portfolios/{portfolio_id}/target-prices/{symbol}`  
+
+**Authentication**: Required (Bearer token)  
+**OpenAPI Description**: "Set or update target price for a specific symbol within a portfolio. Automatically calculates expected returns based on current market price."  
+**Database Access**: Direct ORM (PostgreSQL upsert with ON CONFLICT)  
+- Tables: `portfolio_target_prices` (create/update), `market_data_cache` (current price lookup)  
+**Service Layer**: None (direct ORM in endpoint)  
+
+**Purpose**: Allow users to set investment targets for individual symbols with automatic expected return calculations.  
+**Implementation Notes**: Uses PostgreSQL UPSERT; fetches current price from market_data_cache; calculates expected returns inline.  
+
+**Parameters**:  
+- Path `portfolio_id` (UUID): Portfolio identifier  
+- Path `symbol` (string): Stock/ETF symbol (e.g., "AAPL")  
+- Body (TargetPriceCreate): Optional target prices and notes  
+
+**Response** (TargetPriceResponse): Complete target price data with calculated expected returns
+
+### Get Target Price for Symbol
+**Endpoint**: `GET /api/v1/portfolios/{portfolio_id}/target-prices/{symbol}`  
+**Status**: 🎯 Planned  
+**File**: `app/api/v1/target_prices.py` (to be created)  
+**Function**: `get_target_price()`  
+**Frontend Proxy Path**: `/api/proxy/api/v1/portfolios/{portfolio_id}/target-prices/{symbol}`  
+
+**Authentication**: Required  
+**OpenAPI Description**: "Retrieve target price and expected return calculations for a specific symbol in the portfolio."  
+**Database Access**: Direct ORM query with calculated fields  
+**Service Layer**: None (simple read operation)  
+
+**Purpose**: Fetch current target price and calculated expected returns for a specific symbol.  
+**Implementation Notes**: Single SELECT query; calculates expected returns in Python; returns 404 if target not found.  
+
+**Parameters**:  
+- Path `portfolio_id` (UUID): Portfolio identifier  
+- Path `symbol` (string): Stock/ETF symbol  
+
+**Response** (TargetPriceResponse): Complete target price data with expected returns
+
+### Delete Target Price for Symbol
+**Endpoint**: `DELETE /api/v1/portfolios/{portfolio_id}/target-prices/{symbol}`  
+**Status**: 🎯 Planned  
+**File**: `app/api/v1/target_prices.py` (to be created)  
+**Function**: `delete_target_price()`  
+**Frontend Proxy Path**: `/api/proxy/api/v1/portfolios/{portfolio_id}/target-prices/{symbol}`  
+
+**Authentication**: Required  
+**OpenAPI Description**: "Remove target price for a specific symbol from the portfolio."  
+**Database Access**: Direct ORM (simple DELETE operation)  
+**Service Layer**: None  
+
+**Purpose**: Remove target price tracking for a symbol.  
+**Implementation Notes**: Single DELETE query; returns 404 if target not found; confirms deletion in response.  
+
+**Parameters**:  
+- Path `portfolio_id` (UUID): Portfolio identifier  
+- Path `symbol` (string): Stock/ETF symbol  
+
+**Response** (TargetPriceDeleteResponse): Deletion confirmation with identifiers
+
+### List All Target Prices for Portfolio
+**Endpoint**: `GET /api/v1/portfolios/{portfolio_id}/target-prices`  
+**Status**: 🎯 Planned  
+**File**: `app/api/v1/target_prices.py` (to be created)  
+**Function**: `list_target_prices()`  
+**Frontend Proxy Path**: `/api/proxy/api/v1/portfolios/{portfolio_id}/target-prices`  
+
+**Authentication**: Required  
+**OpenAPI Description**: "Retrieve all symbols with target prices set for the portfolio, including expected return calculations."  
+**Database Access**: Direct ORM query with optional LIMIT  
+**Service Layer**: None (read-only aggregation)  
+
+**Purpose**: Portfolio overview of all symbols with target prices for dashboard display.  
+**Implementation Notes**: Single SELECT with WHERE clause; calculates expected returns for each symbol; supports pagination.  
+
+**Parameters**:  
+- Path `portfolio_id` (UUID): Portfolio identifier  
+- Query `limit` (int, optional): Maximum number of results (default: 50)  
+
+**Response** (TargetPriceListResponse): Array of target price summaries with metadata
+
+### 3. Investment Classification Service Layer
+
+### 4. Investment Classification APIs
+
+### 5. Update Demo Seeding Script 
+
 ---
 *Last Updated: 2025-01-11*
 *Status: Planning Phase*
