@@ -17,10 +17,10 @@ Use this for endpoints in backend/TODO3.md. Implementation details and response 
    - Creating new service classes or data models
    - Modifying existing service methods or classes
    - Especially changes to existing data models
-3. **Direct ORM Access**: 
-   - NEVER access database directly from API endpoints
-   - Always use service layer abstraction
-   - If service method doesn't exist, ASK before creating
+3. **Direct ORM Access in API Handlers**:
+   - Data operations (create/update/delete/list/compute) must go through a service layer
+   - Exception: Minimal ORM reads for ownership/existence checks (e.g., read `Portfolio` to verify user owns `{portfolio_id}`)
+   - If a suitable service method doesn't exist for data operations, ASK before creating one
 
 ### ✅ Proceed Without Approval:
 - Adding new API endpoints using existing services
@@ -34,7 +34,7 @@ Use this for endpoints in backend/TODO3.md. Implementation details and response 
 - Endpoint ID (from TODO3.md): e.g., 3.0.3.10
 - Canonical path and method: e.g., `GET /api/v1/analytics/correlation/{portfolio_id}/matrix`
 - Status: Approved for implementation? (Yes/No). If not, request approval.
-- Response shape source: Check TODO3.md for requirements and examples. If TODO3.md references API_SPECIFICATIONS_V1.4.4/1.4.5, treat those as example shape references — TODO3.md governs the contract.
+- Response shape source: Check TODO3.md for requirements and examples. If TODO3.md references API_SPECIFICATIONS_V1.4.4/1.4.5, treat those as example shape references — TODO3.md governs the contract. Ensure alignment with the latest 1.4.5 where applicable.
 - Ownership check required: Yes/No (most `/analytics/` endpoints: Yes)
 - Missing data behavior: `404 Not Found` vs `200 OK` with empty payload + metadata
 - Pagination requirement: Yes/No and limits (if large payloads)
@@ -76,14 +76,39 @@ Before implementing, check:
 
 ---
 
+## API Types and Patterns
+
+We support two primary endpoint patterns. Choose the one that matches the feature you’re implementing.
+
+1) Analytics (calculated/derived data)
+- Examples: correlation matrices, factor exposures, diversification scores
+- Characteristics: derived from batch/precomputed tables; small, parameterized read APIs; strict bounds/caps for performance
+- Typical dependencies: async service reads from analytics tables, shaping parameters (lookback_days, max_symbols, etc.)
+
+2) CRUD/Resource (portfolio-scoped resources)
+- Examples: target prices, tags, private investment details
+- Characteristics: standard create/list/get/update/delete plus bulk operations; portfolio ownership checks; may include import/export helpers
+- Typical dependencies: Pydantic request/response schemas, service methods for persistence, optional bulk CSV/JSON utilities
+
+---
+
+## Dependencies and Imports (Canonical)
+
+- Auth dependency: `from app.api.v1.auth import get_current_user`
+- DB dependency: `from app.database import get_async_session`
+- Async session type: `from sqlalchemy.ext.asyncio import AsyncSession`
+- Logging: `from app.core.logging import get_logger`
+
+Ownership check reminder: Perform a minimal ORM read of `Portfolio` by `{portfolio_id}` and return 404/403 if not found/not owned. Keep this as a small helper closest to the router unless a shared dependency exists.
+
 ## Generalized Development Tasks
 1) Create/extend router under correct namespace; register in aggregator router
 2) Add request/response Pydantic schemas (use existing modules where possible)
 3) Enforce auth and portfolio ownership (where applicable)
 4) Implement service layer with async DB access and minimal queries
-5) Return response matching the spec’s shape and types (no extra fields unless documented)
-6) Add logging and robust error handling (4xx for client errors, 5xx for unexpected)
-7) Update API_SPECIFICATIONS_V1.4.5.md with full attribution and example
+5) Return response matching the spec’s shape and types (no extra fields unless documented). For Decimal fields, ensure Pydantic encoders serialize to JSON numbers.
+6) Add logging and robust error handling (map 400/403/404/500 consistently; see Status Codes section)
+7) Update API_SPECIFICATIONS_V1.4.5.md with full attribution and examples; avoid using line-number references that drift over time
 8) Update backend/TODO3.md status and add completion notes
 9) Provide a cURL example or add an integration test when feasible
 
@@ -187,16 +212,17 @@ API handlers are thin controllers:
 
 ---
 
-## Endpoint Template (FastAPI)
+## Endpoint Templates (FastAPI)
+
+### Analytics Example
 ```python
 # app/api/v1/analytics/correlation.py
 from fastapi import APIRouter, Depends, HTTPException, Query
 from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.dependencies import get_current_user, validate_portfolio_ownership
-from app.database import get_db
-from app.schemas.auth import CurrentUser
+from app.api.v1.auth import get_current_user
+from app.database import get_async_session
 from app.schemas.analytics import CorrelationMatrixResponse  # create this
 from app.services.correlation_service import CorrelationService  # create this
 from app.core.logging import get_logger
@@ -209,28 +235,16 @@ async def get_correlation_matrix(
     portfolio_id: UUID,
     lookback_days: int = Query(90, ge=30, le=365),
     min_overlap: int = Query(30, ge=10, le=365),
-    current_user: CurrentUser = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
+    current_user = Depends(get_current_user),
+    db: AsyncSession = Depends(get_async_session),
 ):
-    # Input validation
     if min_overlap > lookback_days:
         raise HTTPException(400, "Min overlap cannot exceed lookback days")
-    
+
     try:
-        # Performance monitoring
-        import time
-        start = time.time()
-        
-        await validate_portfolio_ownership(db, portfolio_id, current_user.id)
-        
-        # Note: Check if service needs db in constructor or as method param
-        svc = CorrelationService(db)  # Many services need db in constructor
+        # TODO: Verify portfolio ownership (ORM read of Portfolio; 404/403 as appropriate)
+        svc = CorrelationService(db)  # or pass db as method arg depending on service design
         data = await svc.get_matrix(portfolio_id, lookback_days, min_overlap)
-        
-        elapsed = time.time() - start
-        if elapsed > 0.5:
-            logger.warning(f"Slow response: {elapsed:.2f}s for {portfolio_id}")
-            
         return CorrelationMatrixResponse(**data)
     except HTTPException:
         raise
@@ -238,6 +252,126 @@ async def get_correlation_matrix(
         logger.error(f"Correlation matrix failed for {portfolio_id}: {e}")
         raise HTTPException(status_code=500, detail="Internal server error computing correlation matrix")
 ```
+
+### CRUD/Resource Example (Portfolio-Scoped)
+```python
+# app/api/v1/widgets.py
+from fastapi import APIRouter, Depends, HTTPException, Body
+from uuid import UUID
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.api.v1.auth import get_current_user
+from app.database import get_async_session
+from app.schemas.widgets import WidgetCreate, WidgetUpdate, WidgetResponse, WidgetListResponse
+from app.services.widget_service import WidgetService
+
+router = APIRouter(prefix="/widgets", tags=["widgets"])
+svc = WidgetService()
+
+@router.post("/{portfolio_id}", response_model=WidgetResponse)
+async def create_widget(portfolio_id: UUID, data: WidgetCreate, current_user = Depends(get_current_user), db: AsyncSession = Depends(get_async_session)):
+    # TODO: Verify ownership via ORM read of Portfolio
+    return await svc.create(db, portfolio_id, data, created_by=current_user.id)
+
+@router.get("/{portfolio_id}", response_model=list[WidgetResponse])
+async def list_widgets(portfolio_id: UUID, current_user = Depends(get_current_user), db: AsyncSession = Depends(get_async_session)):
+    # TODO: Verify ownership
+    items = await svc.list(db, portfolio_id)
+    return [WidgetResponse.model_validate(i) for i in items]
+
+@router.get("/item/{item_id}", response_model=WidgetResponse)
+async def get_widget(item_id: UUID, current_user = Depends(get_current_user), db: AsyncSession = Depends(get_async_session)):
+    item = await svc.get(db, item_id)
+    if not item:
+        raise HTTPException(404, "Not found")
+    # TODO: Verify ownership against item.portfolio_id
+    return WidgetResponse.model_validate(item)
+
+@router.put("/item/{item_id}", response_model=WidgetResponse)
+async def update_widget(item_id: UUID, data: WidgetUpdate, current_user = Depends(get_current_user), db: AsyncSession = Depends(get_async_session)):
+    # prefetch for ownership, then update
+    item = await svc.get(db, item_id)
+    if not item:
+        raise HTTPException(404, "Not found")
+    # TODO: Verify ownership
+    return await svc.update(db, item_id, data)
+
+@router.delete("/item/{item_id}")
+async def delete_widget(item_id: UUID, current_user = Depends(get_current_user), db: AsyncSession = Depends(get_async_session)):
+    # prefetch for ownership, then delete
+    item = await svc.get(db, item_id)
+    if not item:
+        raise HTTPException(404, "Not found")
+    # TODO: Verify ownership
+    deleted = await svc.delete(db, item_id)
+    return {"deleted": bool(deleted)}
+```
+
+---
+
+## CSV Import/Export Contracts (Resource Endpoints)
+
+When implementing CSV helpers, align with the Target Prices pattern (API Spec 1.4.5):
+- Import CSV required headers (example): `symbol,position_type,target_eoy,target_next_year,downside,current_price`
+- Import response shape: `{ "created": number, "updated": number, "errors": string[], "total": number }`
+- Duplicate behavior: with `update_existing=false`, existing rows are not modified and an “already exists, skipping” message is added to `errors`
+- Export JSON returns an array of items; Export CSV returns `{ "csv": "<string>" }`
+
+Document any deviations explicitly in the API spec and TODO3 entry.
+
+---
+
+## Serialization and Decimals
+
+- DB numeric fields commonly use fixed precision (e.g., `Numeric(12,4)`).
+- Schemas should accept `Decimal` for prices/returns and validate ranges.
+- Pydantic encoders should serialize `Decimal` to JSON numbers (floats) in responses.
+
+---
+
+## Status Codes and Error Mapping
+
+- 400: validation/domain errors (e.g., invalid parameters, duplicate create)
+- 403: portfolio ownership violation
+- 404: resource/portfolio not found
+- 500: unexpected errors (log internal detail; return generic message)
+
+---
+
+## Router Registration Guidance
+
+- Register the router in `app/api/v1/router.py` under the correct namespace.
+- Some resources are mounted top-level (e.g., `/target-prices`) rather than `/management`.
+- Keep tags consistent and helpful for OpenAPI grouping.
+
+---
+
+## Service Design Advisory
+
+- Two patterns exist in the codebase:
+  - Stateless services whose methods accept `db: AsyncSession`
+  - Stateful services that take `db` in the constructor
+- Prefer stateless where practical to simplify testing and composition; be consistent within a service.
+
+---
+
+## Summary/Aggregation Micro-Pattern
+
+For portfolio summary endpoints (e.g., weighted expected returns):
+- Compute coverage: `positions_with_targets / total_positions` (%), using active positions only
+- Weight metrics by `abs(position.market_value) / portfolio_value`
+- Return `None` for weighted metrics if insufficient data
+- Timestamps: UTC ISO8601 (Z) or timezone-aware datetimes from the DB
+
+---
+
+## Documentation Update Checklist
+
+When updating `API_SPECIFICATIONS_V1.4.5.md`:
+- Include file/function names, avoid line-number references
+- Ensure example payloads reflect exact schemas (especially CSV import/export and bulk update)
+- Add implementation notes where fields exist but may be null (e.g., contribution_to_portfolio_risk)
+- Confirm auth, path, params, and response types match the code
 
 Register the router:
 ```python

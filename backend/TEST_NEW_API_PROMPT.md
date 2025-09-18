@@ -1,8 +1,15 @@
-# Backend Test Prompt (End‑to‑End Validation)
+# SigmaSight Backend API Testing Guide (End‑to‑End Validation)
 
-Purpose: Provide a repeatable, code‑first checklist to bring up SigmaSight Backend locally and validate new API endpoints against a real Postgres DB, seeded demo data, batch outputs, and (optionally) LLM connections.
+Purpose: Provide a comprehensive, repeatable testing framework for all SigmaSight Backend API endpoints including Analytics, Target Prices, Raw Data, Authentication, and Chat APIs.
 
-Use this to verify endpoints like analytics/correlation‑matrix, diversification‑score, factor exposures, etc., after implementation.
+This guide supports testing against a real Postgres DB with seeded demo data, batch processing outputs, and optional LLM connections.
+
+**Supported API Categories:**
+- **Authentication APIs**: Login, logout, token refresh, user management
+- **Raw Data APIs**: Portfolio data, positions, market data, data quality
+- **Analytics APIs**: Correlation matrix, diversification score, factor exposures
+- **Target Prices APIs**: CRUD operations, bulk actions, CSV import/export ⭐ **NEWLY IMPLEMENTED**
+- **Chat APIs**: Conversation management, SSE streaming, LLM integration
 
 ---
 
@@ -13,25 +20,37 @@ Use this to verify endpoints like analytics/correlation‑matrix, diversificatio
 cd backend && \
 docker compose up -d postgres && \
 uv run python scripts/reset_and_seed.py seed && \
+uv run python scripts/data_operations/populate_target_prices_via_service.py --csv-file data/target_prices_import.csv --execute && \
 uv run python -c "from app.batch.batch_orchestrator_v2 import batch_orchestrator_v2; import asyncio; asyncio.run(batch_orchestrator_v2.run())" && \
 uv run uvicorn app.main:app --reload &
 
-# Quick test
+# Quick test - multiple API categories
 TOKEN=$(curl -s -X POST http://localhost:8000/api/v1/auth/login -H 'Content-Type: application/json' -d '{"email":"demo_hnw@sigmasight.com","password":"demo12345"}' | jq -r .access_token)
 PORTFOLIO_ID=$(curl -s -H "Authorization: Bearer $TOKEN" http://localhost:8000/api/v1/auth/me | jq -r .portfolio_id)
+
+# Test Analytics API
 curl -s -H "Authorization: Bearer $TOKEN" "http://localhost:8000/api/v1/analytics/portfolio/$PORTFOLIO_ID/correlation-matrix" | jq
+
+# Test Target Prices API
+curl -s -H "Authorization: Bearer $TOKEN" "http://localhost:8000/api/v1/target-prices/portfolio/$PORTFOLIO_ID" | jq
+
+# Test Raw Data API
+curl -s -H "Authorization: Bearer $TOKEN" "http://localhost:8000/api/v1/data/portfolio/$PORTFOLIO_ID/complete" | jq
 ```
 
 ---
 
 ## Inputs (Fill Before You Start)
-- Branch: `frontendtest` (or your working branch)
-- DB URL: `postgresql+asyncpg://sigmasight:sigmasight_dev@localhost:5432/sigmasight_db`
-- Auth: demo user credentials (from seeding)
-  - `demo_hnw@sigmasight.com / demo12345` (or the others listed in logs)
-- Portfolio ID: copy from DB or from `/auth/me` response
-- Lookback params: `lookback_days=90`, `min_overlap=30` (analytics tests)
-- OpenAI key (optional, for chat tests): `OPENAI_API_KEY`
+- **Branch**: `APIIntegration` (or your working branch)
+- **DB URL**: `postgresql+asyncpg://sigmasight:sigmasight_dev@localhost:5432/sigmasight_db`
+- **Auth**: Demo user credentials (from seeding)
+  - `demo_hnw@sigmasight.com / demo12345` (High Net Worth Investor)
+  - `demo_individual@sigmasight.com / demo12345` (Individual Investor)  
+  - `demo_hedge@sigmasight.com / demo12345` (Hedge Fund Style)
+- **Portfolio ID**: Copy from DB or from `/auth/me` response
+- **Test Data**: Target prices CSV populated (105 records across 3 portfolios)
+- **Analytics Params**: `lookback_days=90`, `min_overlap=30` (analytics tests)
+- **OpenAI Key** (optional, for chat tests): `OPENAI_API_KEY`
 
 ---
 
@@ -59,8 +78,9 @@ curl -s -H "Authorization: Bearer $TOKEN" "http://localhost:8000/api/v1/analytic
 
 ---
 
-## 2) Seed Demo Data (Users, Portfolios, Positions, Factors)
+## 2) Seed Demo Data (Users, Portfolios, Positions, Factors, Target Prices)
 
+### 2.1) Base Data Seeding
 Use the authoritative seeding script (safe mode first):
 ```bash
 cd backend
@@ -73,9 +93,35 @@ You should see logs confirming:
 - 8 factor definitions
 - Market data rows populated
 
-Validate (optional):
+### 2.2) Target Prices Data
+Populate target prices for comprehensive API testing:
 ```bash
+# Populate target prices (105 records across 3 portfolios)
+uv run python scripts/data_operations/populate_target_prices_via_service.py \
+  --csv-file data/target_prices_import.csv --execute
+```
+Expected output: 105 target price records created (35 symbols × 3 portfolios)
+
+### 2.3) Validation
+Validate all seeded data:
+```bash
+# Validate base data
 uv run python scripts/reset_and_seed.py validate
+
+# Validate target prices
+uv run python -c "
+import asyncio
+from app.database import AsyncSessionLocal
+from app.models.target_prices import TargetPrice
+from sqlalchemy import select, func
+
+async def verify():
+    async with AsyncSessionLocal() as db:
+        count = await db.scalar(select(func.count(TargetPrice.id)))
+        print(f'Target price records: {count}')
+        
+asyncio.run(verify())
+"
 ```
 
 ---
@@ -251,25 +297,300 @@ test_sigmasight_auth
 
 ---
 
-## 6) Smoke Tests (Core Data APIs)
+## 6) API Testing Framework
 
-- List portfolios (raw data):
+### 6.1) Smoke Tests (Core Data APIs)
+
+Verify basic API functionality across all categories:
+
+**Raw Data APIs:**
 ```bash
+# List portfolios
 curl -s -H "Authorization: Bearer $TOKEN" http://localhost:8000/api/v1/data/portfolios | jq
-```
-- Portfolio complete (raw data):
-```bash
+
+# Portfolio complete data
 curl -s -H "Authorization: Bearer $TOKEN" \
   http://localhost:8000/api/v1/data/portfolio/$PORTFOLIO_ID/complete | jq
+
+# Data quality check
+curl -s -H "Authorization: Bearer $TOKEN" \
+  http://localhost:8000/api/v1/data/portfolio/$PORTFOLIO_ID/data-quality | jq
+```
+
+**Authentication APIs:**
+```bash
+# Current user info
+curl -s -H "Authorization: Bearer $TOKEN" http://localhost:8000/api/v1/auth/me | jq
+
+# Token refresh
+curl -s -X POST -H "Authorization: Bearer $TOKEN" \
+  http://localhost:8000/api/v1/auth/refresh | jq
+```
+
+**Health Check:**
+```bash
+# API health
+curl -s http://localhost:8000/health | jq
+
+# OpenAPI documentation
+curl -s http://localhost:8000/openapi.json | jq '.info'
+```
+
+### 6.2) General API Testing Patterns
+
+**Endpoint Discovery:**
+```bash
+# List all endpoints
+curl -s http://localhost:8000/openapi.json | jq '.paths | keys[]' | sort
+
+# Check specific endpoint registration
+curl -s http://localhost:8000/openapi.json | jq '.paths | keys[] | select(contains("target-prices"))'
+
+# Verify implementation exists
+grep -r "target-prices" app/api/v1/
+```
+
+**Error Response Testing (Universal Patterns):**
+```bash
+# Test with invalid portfolio ID
+curl -s -H "Authorization: Bearer $TOKEN" \
+  "http://localhost:8000/api/v1/[endpoint]/invalid-uuid" | jq
+
+# Test without authentication
+curl -s "http://localhost:8000/api/v1/[endpoint]/$PORTFOLIO_ID" | jq
+
+# Test with malformed data
+curl -s -X POST -H "Authorization: Bearer $TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{"invalid": "data"}' \
+  "http://localhost:8000/api/v1/[endpoint]/$PORTFOLIO_ID" | jq
+```
+
+**Performance Testing Pattern:**
+```bash
+# Time any endpoint
+echo "Timing [endpoint]:"
+time curl -s -H "Authorization: Bearer $TOKEN" \
+  "http://localhost:8000/api/v1/[endpoint]/$PORTFOLIO_ID" | jq '.metadata // .data // empty'
 ```
 
 ---
 
-## 7) Analytics Tests (New Endpoints)
+## 7) Specific API Category Tests
 
-### 7.A) Positive Test Cases
+### 7.A) Target Prices APIs (COMPREHENSIVE - 10 Endpoints) ⭐
 
-A) Correlation Matrix (3.0.3.10 – IMPLEMENTED)
+**Prerequisites:** Target prices data must be seeded (see section 2.2)
+
+#### 7.A.1) Read Operations
+
+**List Target Prices (GET /target-prices/portfolio/{id}):**
+```bash
+# List all target prices for portfolio
+curl -s -H "Authorization: Bearer $TOKEN" \
+  "http://localhost:8000/api/v1/target-prices/portfolio/$PORTFOLIO_ID" | jq
+
+# With pagination
+curl -s -H "Authorization: Bearer $TOKEN" \
+  "http://localhost:8000/api/v1/target-prices/portfolio/$PORTFOLIO_ID?limit=10&offset=0" | jq
+
+# Filter by symbol
+curl -s -H "Authorization: Bearer $TOKEN" \
+  "http://localhost:8000/api/v1/target-prices/portfolio/$PORTFOLIO_ID?symbol=AAPL" | jq
+```
+
+**Get Individual Target Price (GET /target-prices/{id}):**
+```bash
+# First get a target price ID
+TARGET_ID=$(curl -s -H "Authorization: Bearer $TOKEN" \
+  "http://localhost:8000/api/v1/target-prices/portfolio/$PORTFOLIO_ID?limit=1" | jq -r '.target_prices[0].id')
+
+# Get specific target price
+curl -s -H "Authorization: Bearer $TOKEN" \
+  "http://localhost:8000/api/v1/target-prices/$TARGET_ID" | jq
+```
+
+#### 7.A.2) Create Operations  
+
+**Create Single Target Price (POST /target-prices/portfolio/{id}):**
+```bash
+# Create new target price
+curl -s -X POST -H "Authorization: Bearer $TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "symbol": "TEST",
+    "position_type": "LONG", 
+    "target_price_eoy": 150.00,
+    "target_price_next_year": 180.00,
+    "downside_target_price": 120.00,
+    "current_price": 140.00,
+    "analyst_notes": "Test target price"
+  }' \
+  "http://localhost:8000/api/v1/target-prices/portfolio/$PORTFOLIO_ID" | jq
+```
+
+**Bulk Create (POST /target-prices/portfolio/{id}/bulk):**
+```bash
+# Create multiple target prices
+curl -s -X POST -H "Authorization: Bearer $TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "target_prices": [
+      {
+        "symbol": "TEST1",
+        "position_type": "LONG",
+        "target_price_eoy": 100.00,
+        "target_price_next_year": 110.00,
+        "downside_target_price": 80.00,
+        "current_price": 95.00
+      },
+      {
+        "symbol": "TEST2", 
+        "position_type": "LONG",
+        "target_price_eoy": 200.00,
+        "target_price_next_year": 220.00,
+        "downside_target_price": 160.00,
+        "current_price": 190.00
+      }
+    ]
+  }' \
+  "http://localhost:8000/api/v1/target-prices/portfolio/$PORTFOLIO_ID/bulk" | jq
+```
+
+#### 7.A.3) Update Operations
+
+**Update Target Price (PUT /target-prices/{id}):**
+```bash
+# Update existing target price
+curl -s -X PUT -H "Authorization: Bearer $TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "target_price_eoy": 160.00,
+    "target_price_next_year": 190.00,
+    "analyst_notes": "Updated target price"
+  }' \
+  "http://localhost:8000/api/v1/target-prices/$TARGET_ID" | jq
+```
+
+**Bulk Update (PUT /target-prices/portfolio/{id}/bulk):**
+```bash
+# Update multiple target prices
+curl -s -X PUT -H "Authorization: Bearer $TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "updates": [
+      {
+        "id": "'$TARGET_ID'",
+        "target_price_eoy": 170.00,
+        "analyst_notes": "Bulk update test"
+      }
+    ]
+  }' \
+  "http://localhost:8000/api/v1/target-prices/portfolio/$PORTFOLIO_ID/bulk" | jq
+```
+
+#### 7.A.4) Delete Operations
+
+**Delete Target Price (DELETE /target-prices/{id}):**
+```bash
+# Delete specific target price
+curl -s -X DELETE -H "Authorization: Bearer $TOKEN" \
+  "http://localhost:8000/api/v1/target-prices/$TARGET_ID" | jq
+```
+
+**Bulk Delete (DELETE /target-prices/portfolio/{id}/bulk):**
+```bash
+# Delete multiple target prices
+curl -s -X DELETE -H "Authorization: Bearer $TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "target_price_ids": ["'$TARGET_ID'"]
+  }' \
+  "http://localhost:8000/api/v1/target-prices/portfolio/$PORTFOLIO_ID/bulk" | jq
+```
+
+#### 7.A.5) CSV Import/Export Operations
+
+**CSV Import (POST /target-prices/portfolio/{id}/import):**
+```bash
+# Import from CSV file
+curl -s -X POST -H "Authorization: Bearer $TOKEN" \
+  -F "file=@data/target_prices_import.csv" \
+  -F "update_existing=false" \
+  "http://localhost:8000/api/v1/target-prices/portfolio/$PORTFOLIO_ID/import" | jq
+
+# Expected response: {"created": N, "updated": 0, "errors": [], "total": N}
+```
+
+**CSV Export (GET /target-prices/portfolio/{id}/export):**
+```bash
+# Export to CSV
+curl -s -H "Authorization: Bearer $TOKEN" \
+  "http://localhost:8000/api/v1/target-prices/portfolio/$PORTFOLIO_ID/export" \
+  > exported_target_prices.csv
+
+# Verify export
+head -5 exported_target_prices.csv
+wc -l exported_target_prices.csv
+```
+
+#### 7.A.6) Target Prices Validation Tests
+
+**Data Integrity:**
+```bash
+# Verify expected returns are calculated
+curl -s -H "Authorization: Bearer $TOKEN" \
+  "http://localhost:8000/api/v1/target-prices/portfolio/$PORTFOLIO_ID?symbol=AAPL" | \
+  jq '.target_prices[0] | {
+    symbol,
+    target_price_eoy,
+    current_price,
+    expected_return_eoy,
+    calculated_return: ((.target_price_eoy / .current_price - 1) * 100)
+  }'
+```
+
+**Error Handling:**
+```bash
+# Test duplicate creation (should fail)
+curl -s -X POST -H "Authorization: Bearer $TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "symbol": "AAPL",
+    "position_type": "LONG",
+    "target_price_eoy": 250.00
+  }' \
+  "http://localhost:8000/api/v1/target-prices/portfolio/$PORTFOLIO_ID" | jq
+
+# Test invalid data types
+curl -s -X POST -H "Authorization: Bearer $TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "symbol": "INVALID",
+    "target_price_eoy": "not_a_number"
+  }' \
+  "http://localhost:8000/api/v1/target-prices/portfolio/$PORTFOLIO_ID" | jq
+```
+
+**Performance Testing:**
+```bash
+# Time target prices list (should be < 500ms for 35 records)
+echo "Timing target prices list:"
+time curl -s -H "Authorization: Bearer $TOKEN" \
+  "http://localhost:8000/api/v1/target-prices/portfolio/$PORTFOLIO_ID" | \
+  jq '.target_prices | length'
+
+# Time CSV export (should be < 1s)
+echo "Timing CSV export:"
+time curl -s -H "Authorization: Bearer $TOKEN" \
+  "http://localhost:8000/api/v1/target-prices/portfolio/$PORTFOLIO_ID/export" | wc -l
+```
+
+### 7.B) Analytics APIs (Correlation, Diversification, Factors)
+
+**Prerequisites:** Batch processing must be completed (see section 3)
+
+#### 7.B.1) Correlation Matrix (IMPLEMENTED)
 ```bash
 curl -s -H "Authorization: Bearer $TOKEN" \
   "http://localhost:8000/api/v1/analytics/portfolio/$PORTFOLIO_ID/correlation-matrix?lookback_days=90&min_overlap=30&max_symbols=25" | jq
@@ -561,15 +882,77 @@ kill $MONITOR_PID
 ---
 
 ## 10) Success Criteria
-- Backend starts without errors; DB seeding validated
-- Batch run completes; correlation/factor tables populated
-- Auth works; portfolio ID resolvable
-- Diversification score returns a sane value (0–1) with correct metadata
-- (When implemented) correlation matrix and factor endpoints return expected shapes
+
+### 10.1) Environment & Data
+- ✅ Backend starts without errors (`uvicorn app.main:app --reload`)
+- ✅ Database seeding validated (3 users, 3 portfolios, 60+ positions)
+- ✅ Target prices populated (105 records across 3 portfolios)
+- ✅ Batch processing completed (correlation/factor tables populated)
+
+### 10.2) Authentication & Authorization
+- ✅ Auth works; JWT tokens generated successfully
+- ✅ Portfolio ID resolvable via `/auth/me`
+- ✅ Token refresh functionality working
+- ✅ Authorization correctly restricts access to portfolio-specific data
+
+### 10.3) API Category Testing
+
+**Raw Data APIs:**
+- ✅ Portfolio complete data returns without errors
+- ✅ Data quality checks provide meaningful metrics
+- ✅ Pagination works correctly for large datasets
+
+**Target Prices APIs (COMPREHENSIVE - 10 endpoints):**
+- ✅ List target prices returns 35 records per portfolio
+- ✅ CRUD operations (Create, Read, Update, Delete) function correctly
+- ✅ Bulk operations handle multiple records efficiently
+- ✅ CSV import processes 35 symbols successfully
+- ✅ CSV export generates valid CSV format
+- ✅ Expected returns calculated automatically (e.g., AAPL: ~45% EOY)
+- ✅ Data validation prevents duplicate records
+- ✅ Performance: List < 500ms, CSV export < 1s
+
+**Analytics APIs:**
+- ✅ Diversification score returns value ∈ [0,1] with correct metadata
+- ✅ Correlation matrix returns expected dimensions when data available
+- ✅ Factor exposures provide comprehensive coverage (when implemented)
+
+**Chat APIs (Optional):**
+- ✅ SSE streaming works for LLM interactions
+- ✅ Conversation management functional
+
+### 10.4) Performance Benchmarks
+- Target Prices list: < 500ms for 35 records
+- CSV export: < 1s for 35 records
+- Analytics endpoints: < 2s for complex calculations
+- Authentication: < 100ms for token operations
+
+### 10.5) Error Handling
+- ✅ Invalid UUIDs return appropriate 400/404 errors
+- ✅ Missing authentication returns 401 Unauthorized
+- ✅ Malformed data returns 422 Validation Error
+- ✅ Non-existent resources return 404 Not Found
+- ✅ Duplicate creation attempts handled gracefully
 
 ---
 
-References:
-- CLAUDE.md (root): High‑level workflows + gotchas
-- BACKEND_INITIAL_COMPLETE_WORKFLOW_GUIDE.md: Environment + project bring‑up
-- BACKEND_DAILY_COMPLETE_WORKFLOW_GUIDE.md: Regular workflows and validation
+## References & Documentation
+
+**Core Setup & Workflows:**
+- `CLAUDE.md` (root): High‑level workflows + gotchas
+- `BACKEND_INITIAL_COMPLETE_WORKFLOW_GUIDE.md`: Environment + project bring‑up
+- `BACKEND_DAILY_COMPLETE_WORKFLOW_GUIDE.md`: Regular workflows and validation
+
+**API Documentation:**
+- `_docs/requirements/API_SPECIFICATIONS_V1.4.5.md`: Complete API specifications
+- Target Prices section E (APIs 23-32): Detailed endpoint documentation
+
+**Target Prices Implementation:**
+- `README_TARGET_PRICES_IMPORT.md`: CSV import/export guide with rationale
+- `app/api/v1/target_prices.py`: Full API implementation (10 endpoints)
+- `app/services/target_price_service.py`: Business logic and service layer
+- `data/target_prices_import.csv`: Sample data (35 symbols, 3 portfolios)
+
+**Testing & Validation:**
+- `scripts/data_operations/populate_target_prices_via_service.py`: Data seeding script
+- `scripts/reset_and_seed.py`: Core data seeding and validation
