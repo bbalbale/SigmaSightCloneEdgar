@@ -120,3 +120,9 @@ class TargetPriceExportRequest(BaseModel):
     """Schema for exporting target prices"""
     format: str = Field("csv", description="Export format: csv, json")
     include_metadata: bool = Field(False, description="Include metadata fields")
+
+
+class TargetPriceDeleteResponse(BaseModel):
+    """Schema for delete target price response"""
+    deleted: int = Field(..., description="Number of target prices deleted (0 or 1)")
+    errors: List[str] = Field(default_factory=list, description="Any error messages")

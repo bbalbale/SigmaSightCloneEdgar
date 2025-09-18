@@ -860,8 +860,26 @@ class TargetPriceService:
             # Get beta from factor exposures
             beta = await self._get_position_beta(db, target_price.position_id)
             
+            # Get position to check if it's an options position
+            result = await db.execute(
+                select(Position).where(Position.id == target_price.position_id)
+            )
+            position = result.scalar_one_or_none()
+            
+            if not position:
+                logger.warning(f"Position {target_price.position_id} not found for risk calculation")
+                return None
+            
+            # For options, use underlying symbol for volatility calculation
+            volatility_symbol = target_price.symbol  # Default to contract symbol
+            if position.position_type.value in ['LC', 'LP', 'SC', 'SP'] and position.underlying_symbol:
+                volatility_symbol = position.underlying_symbol
+                logger.debug(f"Using underlying symbol {volatility_symbol} for options volatility calculation")
+            elif position.position_type.value in ['LC', 'LP', 'SC', 'SP'] and not position.underlying_symbol:
+                logger.warning(f"Options position {position.id} missing underlying_symbol, using contract symbol")
+            
             # Get volatility from historical data
-            volatility = await self._get_position_volatility(db, target_price.symbol)
+            volatility = await self._get_position_volatility(db, volatility_symbol)
             
             if volatility is not None:
                 # Calculate risk contribution using fractions

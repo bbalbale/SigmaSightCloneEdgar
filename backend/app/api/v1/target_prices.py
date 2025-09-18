@@ -18,7 +18,8 @@ from app.schemas.target_prices import (
     TargetPriceBulkUpdate,
     PortfolioTargetPriceSummary,
     TargetPriceImportCSV,
-    TargetPriceExportRequest
+    TargetPriceExportRequest,
+    TargetPriceDeleteResponse
 )
 from app.services.target_price_service import TargetPriceService
 from app.core.logging import get_logger
@@ -172,7 +173,7 @@ async def update_target_price(
         raise HTTPException(status_code=500, detail="Failed to update target price")
 
 
-@router.delete("/target/{target_price_id}")
+@router.delete("/target/{target_price_id}", response_model=TargetPriceDeleteResponse)
 async def delete_target_price(
     target_price_id: UUID,
     current_user: User = Depends(get_current_user),
