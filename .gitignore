@@ -18,6 +18,10 @@
 # Allow OpenAI streaming bug report to be tracked
 !backend/OPENAI_STREAMING_BUG_REPORT.md
 
+# Chat monitoring and test files
+**/chat_monitoring_report.json
+chat_monitoring_report.json
+
 # Python
 __pycache__/
 *.py[cod]
