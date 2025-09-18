@@ -986,11 +986,9 @@ All code has been committed and pushed to the `APIIntegration` branch.
 - Removing `include_calculations` parameter
 
 **Implementation Staging**:
-1. **Phase 1**: Database migrations and Alembic commits
-   - Add `investment_class` field to TargetPrice model
-   - Create and run Alembic migration: `alembic revision --autogenerate -m "add_investment_class_to_target_price"`
-2. **Phase 2**: Service layer changes (non-breaking functionality)
-3. **Phase 3**: API breaking changes (ONLY after explicit approval)
+1. **Phase 1**: Service layer changes (non-breaking functionality)
+   - No database migrations required (decision: use smart resolution vs new fields)
+2. **Phase 2**: API breaking changes (ONLY after explicit approval)
 
 **Approval Required Before**: Starting Phase 3 (API contract changes)
 
@@ -1009,10 +1007,22 @@ current_price is a snapshot provided by the client (create/update/import). The s
 
 #### 1.1.3 Price Resolution Contract (Critical Implementation Details)
 
-**Position-to-Class Mapping Strategy**:
-- Add `investment_class` field to TargetPrice model for direct lookup
-- Support both `position_id` and `position_type` + `investment_class` parameters in APIs
-- **Deterministic Fallback Rule**: When symbol matches multiple positions, prefer equity over options
+**Position-to-Class Mapping Strategy** (DECISION: Smart Service Resolution):
+- **No new database fields** - use existing Position.investment_class via service logic
+- **Smart Resolution Logic**:
+  ```python
+  if position_id provided:
+      use position directly
+  else:
+      find position by symbol + position_type
+      if multiple matches: use first match (deterministic)
+      if no matches: default to "PUBLIC"
+  ```
+- **Deterministic Fallback Rule for Multiple Positions**:
+  1. If `position_type` provided in request → honor it exactly
+  2. Else if any equity positions exist for symbol → choose equity
+  3. Else if any options positions exist for symbol → choose options  
+  4. Else → return 400 error with guidance message
 
 **Detailed Resolution Logic**:
 - **PUBLIC/OPTIONS**: 
@@ -1038,13 +1048,13 @@ current_price is a snapshot provided by the client (create/update/import). The s
 In concept, we want to use the equity_balance of the portfolio as the denominator in the calculation of position_weight.  That may change our current implementation. 
 
 **Current Implementation**: `position_weight = abs(position.market_value) / portfolio_value * 100`
-**Proposed Implementation**: `position_weight = abs(position.market_value) / equity_balance` (as fraction, not percentage)
+**Proposed Implementation**: `position_weight_fraction = abs(position.market_value) / equity_balance` (internal fraction, API shows percentage)
 
 **Changes Required**:
 - Update `_calculate_position_metrics()` method in `target_price_service.py:390-392`
-- Remove `* 100` multiplication to return fractions (0.15 instead of 15.0)
-- When `equity_balance` is null: Skip calculation, log warning, return None for weight-dependent calculations
-- Impact: Position weights will be higher and as fractions (leveraged portfolios may exceed 1.0 total weight)
+- Calculate as fractions internally, convert to percentage for API response (`fraction * 100`)
+- When `equity_balance` is null: Skip calculation, log warning, return None for weight-dependent calculations  
+- Impact: Internal calculations use fractions (leveraged portfolios may exceed 1.0), API maintains percentage display
 
 ### 1.3 Make changes to Service Layer Logic on classes/methods/functions/data models affected by the change in approach to current price (1.1)
 
@@ -1153,10 +1163,17 @@ else:
 
 ### 1.6 Units and Precision Specifications
 
-**Position Weight Units**: 
-- **Decision**: Use fractions (0-1), not percentages (0-100)
-- **Rationale**: Avoids 100x scaling errors in risk calculations
-- **Implementation**: `position_weight = abs(position.market_value) / equity_balance` (result: 0.15 not 15.0)
+**Position Weight Units** (DECISION: Internal Fractions, API Percentages):
+- **Internal Calculations**: Use fractions (0-1) to avoid 100x scaling errors
+- **API Responses**: Keep as percentages (0-100) for backward compatibility
+- **Implementation**: 
+  ```python
+  # Internal calculation
+  position_weight_fraction = abs(position.market_value) / equity_balance  # 0.15
+  # API response  
+  response.position_weight = position_weight_fraction * 100  # 15.0
+  ```
+- **Risk Calculation**: Always use fractions internally
 
 **Volatility Calculation Standards**:
 - **Window**: 90 trading days (configurable constant)
@@ -1166,12 +1183,15 @@ else:
 
 **Risk Contribution Formula Consistency**:
 ```python
-# All components as fractions/decimals
-risk_contribution = position_weight × volatility × beta
+# Internal calculations use fractions
+risk_contribution = position_weight_fraction × volatility × beta
 # Where:
-# position_weight: 0.0 to 1.0+ (can exceed 1.0 for leveraged portfolios)
+# position_weight_fraction: 0.0 to 1.0+ (can exceed 1.0 for leveraged portfolios)  
 # volatility: annualized (e.g., 0.20 for 20%)
 # beta: factor exposure (e.g., 1.2 for 20% more volatile than market)
+
+# API response converts back to percentage for display
+api_response.position_weight = position_weight_fraction * 100
 ```
 
 **Decimal Precision Handling**:
@@ -1322,3 +1342,32 @@ Add downside price same as other endpoints
 #### 2.32.1 Delete include_calculations parameter
 
 #### 2.32.2 Remove this from the service layer.  By default we will provide the expected returns and any other calculated fields.
+
+## 3. Critical Implementation Decisions (Finalized)
+
+### 3.1 Position-to-Class Resolution Strategy
+**DECISION**: Smart service-layer resolution without new database fields
+- Keep position_id optional for frontend flexibility
+- Service resolves investment_class via existing Position relationships
+- Deterministic fallback rules handle edge cases
+
+### 3.2 Multiple Position Mapping Logic  
+**DECISION**: Refined decision tree for symbol disambiguation
+```
+1. If position_type provided → honor exactly
+2. Else if equity positions exist → choose equity
+3. Else if options exist → choose options
+4. Else → 400 error with guidance
+```
+
+### 3.3 API Compatibility for Position Weights
+**DECISION**: Internal fractions, API percentages (no breaking change)
+- Internal calculations use fractions (0.15) to avoid scaling errors
+- API responses maintain percentages (15.0) for backward compatibility
+- Risk calculations always use fraction values
+
+### 3.4 Database Schema Changes
+**DECISION**: No new fields required
+- Use existing Position.investment_class via service resolution
+- No Alembic migrations needed for Phase 1
+- Reduces implementation complexity and data duplication risks
