@@ -18,21 +18,11 @@ class TargetPriceBase(BaseModel):
     downside_target_price: Optional[Decimal] = Field(None, ge=0, description="Downside scenario target price")
 
     current_price: Decimal = Field(..., gt=0, description="Current market price")
-    current_implied_vol: Optional[Decimal] = Field(None, ge=0, le=5, description="Current implied volatility for options")
-
-    analyst_notes: Optional[str] = Field(None, description="Analyst notes or rationale")
-    data_source: Optional[str] = Field(None, description="Data source: USER_INPUT, ANALYST_CONSENSUS, MODEL")
 
     @validator('position_type')
     def validate_position_type(cls, v):
         if v and v not in ['LONG', 'SHORT', 'LC', 'LP', 'SC', 'SP']:
             raise ValueError('Invalid position type')
-        return v
-
-    @validator('data_source')
-    def validate_data_source(cls, v):
-        if v and v not in ['USER_INPUT', 'ANALYST_CONSENSUS', 'MODEL']:
-            raise ValueError('Invalid data source')
         return v
 
 
@@ -48,16 +38,6 @@ class TargetPriceUpdate(BaseModel):
     downside_target_price: Optional[Decimal] = Field(None, ge=0)
 
     current_price: Optional[Decimal] = Field(None, gt=0)
-    current_implied_vol: Optional[Decimal] = Field(None, ge=0, le=5)
-
-    analyst_notes: Optional[str] = None
-    data_source: Optional[str] = None
-
-    @validator('data_source')
-    def validate_data_source(cls, v):
-        if v and v not in ['USER_INPUT', 'ANALYST_CONSENSUS', 'MODEL']:
-            raise ValueError('Invalid data source')
-        return v
 
 
 class TargetPriceResponse(TargetPriceBase):
@@ -139,5 +119,4 @@ class TargetPriceImportCSV(BaseModel):
 class TargetPriceExportRequest(BaseModel):
     """Schema for exporting target prices"""
     format: str = Field("csv", description="Export format: csv, json")
-    include_calculations: bool = Field(True, description="Include calculated returns")
     include_metadata: bool = Field(False, description="Include metadata fields")

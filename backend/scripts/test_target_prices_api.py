@@ -75,9 +75,7 @@ async def test_target_prices():
                     target_price_eoy=Decimal(str(float(pos.last_price or 100) * 1.15)),  # 15% upside
                     target_price_next_year=Decimal(str(float(pos.last_price or 100) * 1.25)),  # 25% upside
                     downside_target_price=Decimal(str(float(pos.last_price or 100) * 0.85)),  # 15% downside
-                    current_price=pos.last_price or Decimal('100'),
-                    analyst_notes=f"Test target for {pos.symbol}",
-                    data_source="USER_INPUT"
+                    current_price=pos.last_price or Decimal('100')
                 )
 
                 target_price = await service.create_target_price(

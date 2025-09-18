@@ -215,9 +215,6 @@ class TargetPriceService:
             target_price_next_year=target_price_data.target_price_next_year,
             downside_target_price=target_price_data.downside_target_price,
             current_price=resolved_price,
-            current_implied_vol=target_price_data.current_implied_vol,
-            analyst_notes=target_price_data.analyst_notes,
-            data_source=target_price_data.data_source or 'USER_INPUT',
             created_by=user_id,
             price_updated_at=datetime.utcnow()
         )

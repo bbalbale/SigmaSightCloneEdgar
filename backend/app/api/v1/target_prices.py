@@ -196,9 +196,15 @@ async def delete_target_price(
     deleted = await target_price_service.delete_target_price(db, target_price_id)
 
     if deleted:
-        return {"message": "Target price deleted successfully"}
+        return {
+            "deleted": 1,
+            "errors": []
+        }
     else:
-        raise HTTPException(status_code=404, detail="Target price not found")
+        return {
+            "deleted": 0,
+            "errors": ["Target price not found"]
+        }
 
 
 @router.post("/{portfolio_id}/bulk", response_model=List[TargetPriceResponse])
@@ -356,16 +362,15 @@ async def export_target_prices(
         output = io.StringIO()
         writer = csv.writer(output)
 
-        # Write headers
-        headers = ["symbol", "position_type", "target_eoy", "target_next_year", "downside", "current_price"]
-        if export_request.include_calculations:
-            headers.extend(["expected_return_eoy", "expected_return_next_year", "downside_return"])
+        # Write headers (always include calculations)
+        headers = ["symbol", "position_type", "target_eoy", "target_next_year", "downside", "current_price", 
+                  "expected_return_eoy", "expected_return_next_year", "downside_return"]
         if export_request.include_metadata:
-            headers.extend(["created_at", "updated_at", "analyst_notes"])
+            headers.extend(["created_at", "updated_at"])
 
         writer.writerow(headers)
 
-        # Write data
+        # Write data (always include calculations)
         for tp in target_prices:
             row = [
                 tp.symbol,
@@ -373,21 +378,16 @@ async def export_target_prices(
                 float(tp.target_price_eoy) if tp.target_price_eoy else "",
                 float(tp.target_price_next_year) if tp.target_price_next_year else "",
                 float(tp.downside_target_price) if tp.downside_target_price else "",
-                float(tp.current_price)
+                float(tp.current_price),
+                float(tp.expected_return_eoy) if tp.expected_return_eoy else "",
+                float(tp.expected_return_next_year) if tp.expected_return_next_year else "",
+                float(tp.downside_return) if tp.downside_return else ""
             ]
-
-            if export_request.include_calculations:
-                row.extend([
-                    float(tp.expected_return_eoy) if tp.expected_return_eoy else "",
-                    float(tp.expected_return_next_year) if tp.expected_return_next_year else "",
-                    float(tp.downside_return) if tp.downside_return else ""
-                ])
 
             if export_request.include_metadata:
                 row.extend([
                     tp.created_at.isoformat() if tp.created_at else "",
-                    tp.updated_at.isoformat() if tp.updated_at else "",
-                    tp.analyst_notes or ""
+                    tp.updated_at.isoformat() if tp.updated_at else ""
                 ])
 
             writer.writerow(row)
