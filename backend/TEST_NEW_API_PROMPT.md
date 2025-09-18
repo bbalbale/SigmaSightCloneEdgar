@@ -32,7 +32,7 @@ PORTFOLIO_ID=$(curl -s -H "Authorization: Bearer $TOKEN" http://localhost:8000/a
 curl -s -H "Authorization: Bearer $TOKEN" "http://localhost:8000/api/v1/analytics/portfolio/$PORTFOLIO_ID/correlation-matrix" | jq
 
 # Test Target Prices API
-curl -s -H "Authorization: Bearer $TOKEN" "http://localhost:8000/api/v1/target-prices/portfolio/$PORTFOLIO_ID" | jq
+curl -s -H "Authorization: Bearer $TOKEN" "http://localhost:8000/api/v1/target-prices/$PORTFOLIO_ID" | jq
 
 # Test Raw Data API
 curl -s -H "Authorization: Bearer $TOKEN" "http://localhost:8000/api/v1/data/portfolio/$PORTFOLIO_ID/complete" | jq
@@ -384,35 +384,31 @@ time curl -s -H "Authorization: Bearer $TOKEN" \
 
 #### 7.A.1) Read Operations
 
-**List Target Prices (GET /target-prices/portfolio/{id}):**
+**List Target Prices (GET /target-prices/{portfolio_id}):**
 ```bash
 # List all target prices for portfolio
 curl -s -H "Authorization: Bearer $TOKEN" \
-  "http://localhost:8000/api/v1/target-prices/portfolio/$PORTFOLIO_ID" | jq
-
-# With pagination
-curl -s -H "Authorization: Bearer $TOKEN" \
-  "http://localhost:8000/api/v1/target-prices/portfolio/$PORTFOLIO_ID?limit=10&offset=0" | jq
+  "http://localhost:8000/api/v1/target-prices/$PORTFOLIO_ID" | jq
 
 # Filter by symbol
 curl -s -H "Authorization: Bearer $TOKEN" \
-  "http://localhost:8000/api/v1/target-prices/portfolio/$PORTFOLIO_ID?symbol=AAPL" | jq
+  "http://localhost:8000/api/v1/target-prices/$PORTFOLIO_ID?symbol=AAPL" | jq
 ```
 
-**Get Individual Target Price (GET /target-prices/{id}):**
+**Get Individual Target Price (GET /target-prices/target/{id}):**
 ```bash
 # First get a target price ID
 TARGET_ID=$(curl -s -H "Authorization: Bearer $TOKEN" \
-  "http://localhost:8000/api/v1/target-prices/portfolio/$PORTFOLIO_ID?limit=1" | jq -r '.target_prices[0].id')
+  "http://localhost:8000/api/v1/target-prices/$PORTFOLIO_ID" | jq -r '.[0].id')
 
 # Get specific target price
 curl -s -H "Authorization: Bearer $TOKEN" \
-  "http://localhost:8000/api/v1/target-prices/$TARGET_ID" | jq
+  "http://localhost:8000/api/v1/target-prices/target/$TARGET_ID" | jq
 ```
 
 #### 7.A.2) Create Operations  
 
-**Create Single Target Price (POST /target-prices/portfolio/{id}):**
+**Create Single Target Price (POST /target-prices/{portfolio_id}):**
 ```bash
 # Create new target price
 curl -s -X POST -H "Authorization: Bearer $TOKEN" \
@@ -423,13 +419,12 @@ curl -s -X POST -H "Authorization: Bearer $TOKEN" \
     "target_price_eoy": 150.00,
     "target_price_next_year": 180.00,
     "downside_target_price": 120.00,
-    "current_price": 140.00,
-    "analyst_notes": "Test target price"
+    "current_price": 140.00
   }' \
-  "http://localhost:8000/api/v1/target-prices/portfolio/$PORTFOLIO_ID" | jq
+  "http://localhost:8000/api/v1/target-prices/$PORTFOLIO_ID" | jq
 ```
 
-**Bulk Create (POST /target-prices/portfolio/{id}/bulk):**
+**Bulk Create (POST /target-prices/{portfolio_id}/bulk):**
 ```bash
 # Create multiple target prices
 curl -s -X POST -H "Authorization: Bearer $TOKEN" \
@@ -454,25 +449,24 @@ curl -s -X POST -H "Authorization: Bearer $TOKEN" \
       }
     ]
   }' \
-  "http://localhost:8000/api/v1/target-prices/portfolio/$PORTFOLIO_ID/bulk" | jq
+  "http://localhost:8000/api/v1/target-prices/$PORTFOLIO_ID/bulk" | jq
 ```
 
 #### 7.A.3) Update Operations
 
-**Update Target Price (PUT /target-prices/{id}):**
+**Update Target Price (PUT /target-prices/target/{id}):**
 ```bash
 # Update existing target price
 curl -s -X PUT -H "Authorization: Bearer $TOKEN" \
   -H 'Content-Type: application/json' \
   -d '{
     "target_price_eoy": 160.00,
-    "target_price_next_year": 190.00,
-    "analyst_notes": "Updated target price"
+    "target_price_next_year": 190.00
   }' \
-  "http://localhost:8000/api/v1/target-prices/$TARGET_ID" | jq
+  "http://localhost:8000/api/v1/target-prices/target/$TARGET_ID" | jq
 ```
 
-**Bulk Update (PUT /target-prices/portfolio/{id}/bulk):**
+**Bulk Update (PUT /target-prices/{portfolio_id}/bulk-update):**
 ```bash
 # Update multiple target prices
 curl -s -X PUT -H "Authorization: Bearer $TOKEN" \
@@ -480,54 +474,51 @@ curl -s -X PUT -H "Authorization: Bearer $TOKEN" \
   -d '{
     "updates": [
       {
-        "id": "'$TARGET_ID'",
-        "target_price_eoy": 170.00,
-        "analyst_notes": "Bulk update test"
+        "symbol": "TEST1",
+        "position_type": "LONG",
+        "target_price_eoy": 170.00
       }
     ]
   }' \
-  "http://localhost:8000/api/v1/target-prices/portfolio/$PORTFOLIO_ID/bulk" | jq
+  "http://localhost:8000/api/v1/target-prices/$PORTFOLIO_ID/bulk-update" | jq
 ```
 
 #### 7.A.4) Delete Operations
 
-**Delete Target Price (DELETE /target-prices/{id}):**
+**Delete Target Price (DELETE /target-prices/target/{id}):**
 ```bash
 # Delete specific target price
 curl -s -X DELETE -H "Authorization: Bearer $TOKEN" \
-  "http://localhost:8000/api/v1/target-prices/$TARGET_ID" | jq
+  "http://localhost:8000/api/v1/target-prices/target/$TARGET_ID" | jq
 ```
 
-**Bulk Delete (DELETE /target-prices/portfolio/{id}/bulk):**
-```bash
-# Delete multiple target prices
-curl -s -X DELETE -H "Authorization: Bearer $TOKEN" \
-  -H 'Content-Type: application/json' \
-  -d '{
-    "target_price_ids": ["'$TARGET_ID'"]
-  }' \
-  "http://localhost:8000/api/v1/target-prices/portfolio/$PORTFOLIO_ID/bulk" | jq
 ```
 
 #### 7.A.5) CSV Import/Export Operations
 
-**CSV Import (POST /target-prices/portfolio/{id}/import):**
+**CSV Import (POST /target-prices/{portfolio_id}/import-csv):**
 ```bash
-# Import from CSV file
+# Import from CSV content (inline)
+CSV_CONTENT=$(cat data/target_prices_import.csv)
 curl -s -X POST -H "Authorization: Bearer $TOKEN" \
-  -F "file=@data/target_prices_import.csv" \
-  -F "update_existing=false" \
-  "http://localhost:8000/api/v1/target-prices/portfolio/$PORTFOLIO_ID/import" | jq
+  -H 'Content-Type: application/json' \
+  -d '{
+    "csv_content": '"$(jq -Rn --arg s "$CSV_CONTENT" '$s')"',
+    "update_existing": false
+  }' \
+  "http://localhost:8000/api/v1/target-prices/$PORTFOLIO_ID/import-csv" | jq
 
-# Expected response: {"created": N, "updated": 0, "errors": [], "total": N}
+# Expected response: {"created": N, "updated": M, "errors": [], "total": N+M}
 ```
 
-**CSV Export (GET /target-prices/portfolio/{id}/export):**
+**CSV Export (POST /target-prices/{portfolio_id}/export):**
 ```bash
-# Export to CSV
-curl -s -H "Authorization: Bearer $TOKEN" \
-  "http://localhost:8000/api/v1/target-prices/portfolio/$PORTFOLIO_ID/export" \
-  > exported_target_prices.csv
+# Export to CSV (JSON response contains a `csv` string)
+curl -s -X POST -H "Authorization: Bearer $TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{"format":"csv","include_metadata":false}' \
+  "http://localhost:8000/api/v1/target-prices/$PORTFOLIO_ID/export" \
+  | jq -r .csv > exported_target_prices.csv
 
 # Verify export
 head -5 exported_target_prices.csv
@@ -540,8 +531,8 @@ wc -l exported_target_prices.csv
 ```bash
 # Verify expected returns are calculated
 curl -s -H "Authorization: Bearer $TOKEN" \
-  "http://localhost:8000/api/v1/target-prices/portfolio/$PORTFOLIO_ID?symbol=AAPL" | \
-  jq '.target_prices[0] | {
+  "http://localhost:8000/api/v1/target-prices/$PORTFOLIO_ID?symbol=AAPL" | \
+  jq '.[0] | {
     symbol,
     target_price_eoy,
     current_price,
@@ -560,7 +551,7 @@ curl -s -X POST -H "Authorization: Bearer $TOKEN" \
     "position_type": "LONG",
     "target_price_eoy": 250.00
   }' \
-  "http://localhost:8000/api/v1/target-prices/portfolio/$PORTFOLIO_ID" | jq
+  "http://localhost:8000/api/v1/target-prices/$PORTFOLIO_ID" | jq
 
 # Test invalid data types
 curl -s -X POST -H "Authorization: Bearer $TOKEN" \
@@ -569,7 +560,7 @@ curl -s -X POST -H "Authorization: Bearer $TOKEN" \
     "symbol": "INVALID",
     "target_price_eoy": "not_a_number"
   }' \
-  "http://localhost:8000/api/v1/target-prices/portfolio/$PORTFOLIO_ID" | jq
+  "http://localhost:8000/api/v1/target-prices/$PORTFOLIO_ID" | jq
 ```
 
 **Performance Testing:**
@@ -577,13 +568,15 @@ curl -s -X POST -H "Authorization: Bearer $TOKEN" \
 # Time target prices list (should be < 500ms for 35 records)
 echo "Timing target prices list:"
 time curl -s -H "Authorization: Bearer $TOKEN" \
-  "http://localhost:8000/api/v1/target-prices/portfolio/$PORTFOLIO_ID" | \
-  jq '.target_prices | length'
+  "http://localhost:8000/api/v1/target-prices/$PORTFOLIO_ID" | \
+  jq 'length'
 
 # Time CSV export (should be < 1s)
 echo "Timing CSV export:"
-time curl -s -H "Authorization: Bearer $TOKEN" \
-  "http://localhost:8000/api/v1/target-prices/portfolio/$PORTFOLIO_ID/export" | wc -l
+time curl -s -X POST -H "Authorization: Bearer $TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{"format":"csv","include_metadata":false}' \
+  "http://localhost:8000/api/v1/target-prices/$PORTFOLIO_ID/export" | jq -r .csv | wc -l
 ```
 
 ### 7.B) Analytics APIs (Correlation, Diversification, Factors)
