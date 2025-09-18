@@ -51,7 +51,8 @@ class Portfolio(Base):
     market_risk_scenarios: Mapped[List["MarketRiskScenario"]] = relationship("MarketRiskScenario", back_populates="portfolio")
     stress_test_results: Mapped[List["StressTestResult"]] = relationship("StressTestResult", back_populates="portfolio")
     correlation_calculations: Mapped[List["CorrelationCalculation"]] = relationship("CorrelationCalculation", back_populates="portfolio")
-    
+    target_prices: Mapped[List["TargetPrice"]] = relationship("TargetPrice", back_populates="portfolio")
+
     __table_args__ = (
         UniqueConstraint('user_id', name='uq_portfolios_user_id'),
         Index('ix_portfolios_deleted_at', 'deleted_at'),

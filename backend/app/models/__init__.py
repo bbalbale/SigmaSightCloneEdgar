@@ -10,6 +10,7 @@ from app.models.snapshots import PortfolioSnapshot, BatchJob, BatchJobSchedule
 from app.models.modeling import ModelingSessionSnapshot
 from app.models.history import ExportHistory
 from app.models.correlations import CorrelationCalculation, CorrelationCluster, CorrelationClusterPosition, PairwiseCorrelation
+from app.models.target_prices import TargetPrice
 
 # Export all models
 __all__ = [
@@ -48,4 +49,7 @@ __all__ = [
     "CorrelationCluster",
     "CorrelationClusterPosition",
     "PairwiseCorrelation",
+
+    # Target prices module
+    "TargetPrice",
 ]
