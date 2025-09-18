@@ -1557,3 +1557,85 @@ _calculate_risk_contribution()     # Risk contribution formula
 ✅ **Production-Ready Breaking Changes**
 
 **Phase 2 breaking changes complete. System ready for Phase 3 testing and deployment.**
+
+---
+
+## 6. Bugs and Issues Discovered During Testing (September 18, 2025)
+
+### 6.1 Critical Issue: HTTP 500 Errors on All Target Price API Endpoints
+
+**Status**: 🔴 **CRITICAL BUG** - All Target Price endpoints non-functional via HTTP  
+**Discovery Date**: September 18, 2025  
+**Affected Endpoints**: ALL Target Price endpoints (`/api/v1/target-prices/*`)
+
+#### 6.1.1 Issue Summary
+While all individual components work correctly in isolation, **every Target Price API endpoint returns HTTP 500 Internal Server Error** when accessed via HTTP requests.
+
+#### 6.1.2 Components That Work Correctly ✅
+- **Service Layer**: `TargetPriceService.get_portfolio_target_prices()` returns 35 records correctly
+- **Database Layer**: 110 target price records exist, 35 for test portfolio
+- **Authentication**: JWT token generation and validation working  
+- **Response Models**: `TargetPriceResponse.from_orm()` serialization works
+- **Router Registration**: All endpoints appear in OpenAPI specification
+- **Portfolio Ownership**: Verification logic works correctly
+- **Business Logic**: Expected return calculations accurate (e.g., AAPL: 45.21% EOY return)
+
+#### 6.1.3 Failed HTTP Endpoints ❌
+- `GET /api/v1/target-prices/{portfolio_id}` → HTTP 500
+- `GET /api/v1/target-prices/{portfolio_id}/summary` → HTTP 500  
+- All other Target Price endpoints (untested but likely affected)
+
+#### 6.1.4 Test Data Validated
+- **Test Portfolio**: `e23ab931-a033-edfe-ed4f-9d02474780b4`
+- **Test User**: `demo_hnw@sigmasight.com` (ID: `9dacfb0f-2123-7a94-debc-0f982b90d845`)
+- **Sample Data**: AAPL target $261.38 vs current $180.00 (45.21% expected return)
+- **Record Count**: 35 target prices in test portfolio, 110 total across all portfolios
+
+#### 6.1.5 Integration Points Working
+- **Authentication Flow**: ✅ JWT tokens generated successfully
+- **Database Queries**: ✅ Service layer database operations work
+- **Data Serialization**: ✅ Pydantic models serialize correctly in isolation
+- **FastAPI Router**: ✅ Endpoints registered and appear in OpenAPI spec
+
+#### 6.1.6 Root Cause Analysis Required
+**Likely Failure Points:**
+1. **FastAPI Dependency Injection**: Authentication dependencies may fail in HTTP context
+2. **Pydantic v2 Compatibility**: `from_orm()` deprecation warnings suggest compatibility issues
+3. **Middleware Interference**: CORS or other middleware may be affecting Target Price endpoints
+4. **Response Serialization**: JSON serialization may fail in FastAPI HTTP context vs isolated testing
+5. **Import/Module Issues**: Target Price service imports may have circular dependencies
+
+#### 6.1.7 Recommended Debug Steps
+1. **Server Logs Analysis**: Check FastAPI server logs for detailed error traces during API calls
+2. **Pydantic Migration**: Update `from_orm()` to `model_validate()` for Pydantic v2 compliance
+3. **Dependency Testing**: Test authentication dependencies in actual FastAPI request context
+4. **Simple Endpoint Test**: Create minimal test endpoint in Target Price router to isolate issue
+5. **Step-by-Step Integration**: Test each FastAPI component (auth → service → serialization) individually
+
+#### 6.1.8 Business Impact
+- **Immediate**: Target Price functionality completely unavailable via API
+- **Testing**: Cannot validate business logic via HTTP endpoints
+- **Deployment**: System not ready for production until resolved
+- **Workaround**: Service layer and business logic validated, issue is HTTP integration only
+
+### 6.2 Secondary Issues
+
+#### 6.2.1 Pydantic Deprecation Warnings ⚠️
+- `from_orm()` method deprecated in Pydantic v2
+- Should migrate to `model_validate()` with `from_attributes=True`
+- Not blocking but should be addressed for future compatibility
+
+#### 6.2.2 Test Coverage Gap 📊
+- **Service Layer**: ✅ Thoroughly tested
+- **HTTP Endpoints**: ❌ Cannot test due to 500 errors
+- **Integration**: ❌ Missing end-to-end validation
+- **Performance**: ❌ Cannot benchmark HTTP response times
+
+### 6.3 Next Steps Priority Order
+
+1. **🔴 CRITICAL**: Resolve HTTP 500 errors on Target Price endpoints
+2. **🟡 HIGH**: Update Pydantic models for v2 compatibility  
+3. **🟢 MEDIUM**: Implement comprehensive HTTP endpoint testing
+4. **🟢 LOW**: Performance benchmarking once endpoints functional
+
+**Note**: The implementation is functionally complete and correct at the service layer. The issue is purely an HTTP integration problem preventing API access to working business logic.
