@@ -800,6 +800,160 @@ uv run python scripts/run_batch_calculations.py
 3. Should target prices support multiple time horizons beyond EOY/next year?
 4. Integration with chat interface for portfolio upload?
 
+---
+
+## 📊 IMPLEMENTATION STATUS REPORT (as of 2025-09-18)
+
+### ✅ PHASE 1: Investment Classification - COMPLETED (100%)
+
+#### What Was Implemented:
+1. **Database Schema** ✅
+   - Added `investment_class` field to positions table (VARCHAR 20, nullable)
+   - Added `investment_subtype` field to positions table (VARCHAR 30, nullable)
+   - Created indexes for query performance
+
+2. **Alembic Migration** ✅
+   - Migration ID: `927c043e92ee_add_investment_classification_fields`
+   - Successfully applied to database
+   - Includes proper rollback functionality
+
+3. **Data Classification** ✅
+   - All 63 demo positions classified:
+     - PUBLIC: 46 positions (stocks, ETFs, mutual funds)
+     - OPTIONS: 16 positions (listed options)
+     - PRIVATE: 1 position (private fund)
+   - Classification script: `scripts/classify_positions.py`
+
+4. **System Integration** ✅
+   - Updated `app/calculations/factors.py` to exclude PRIVATE positions
+   - Added logging for excluded positions
+   - Maintained backwards compatibility
+
+#### Files Created/Modified:
+- ✅ `app/models/positions.py` - Added investment_class fields
+- ✅ `app/calculations/factors.py` - Updated factor analysis
+- ✅ `scripts/classify_positions.py` - Classification script
+- ✅ `scripts/test_investment_classification.py` - Test suite
+- ✅ `alembic/versions/927c043e92ee_*.py` - Migration file
+
+### ✅ PHASE 2: Target Prices - COMPLETED (100%)
+
+#### What Was Implemented:
+
+1. **Database Schema** ✅
+   - Created `portfolio_target_prices` table
+   - Unique constraint on (portfolio_id, symbol, position_type)
+   - Proper indexes for performance
+   - Relationships to Portfolio and Position models
+
+2. **Alembic Migration** ✅
+   - Migration ID: `1dafe8c1dd84_add_portfolio_target_prices_table`
+   - Successfully applied to database
+   - Table created with all 22 columns
+
+3. **Data Model** ✅
+   - `app/models/target_prices.py` - Complete TargetPrice model
+   - Automatic expected return calculations
+   - Support for EOY, next year, and downside targets
+
+4. **Service Layer** ✅
+   - `app/services/target_price_service.py` - Complete business logic
+   - CRUD operations
+   - Portfolio aggregation
+   - CSV import/export
+   - Weighted return calculations
+
+5. **API Endpoints** ✅ - ALL IMPLEMENTED
+   - `POST /api/v1/target-prices/{portfolio_id}` - Create target price
+   - `GET /api/v1/target-prices/{portfolio_id}` - List portfolio targets
+   - `GET /api/v1/target-prices/{portfolio_id}/summary` - Portfolio summary
+   - `GET /api/v1/target-prices/target/{id}` - Get specific target
+   - `PUT /api/v1/target-prices/target/{id}` - Update target
+   - `DELETE /api/v1/target-prices/target/{id}` - Delete target
+   - `POST /api/v1/target-prices/{portfolio_id}/bulk` - Bulk create
+   - `PUT /api/v1/target-prices/{portfolio_id}/bulk-update` - Bulk update
+   - `POST /api/v1/target-prices/{portfolio_id}/import-csv` - CSV import
+   - `POST /api/v1/target-prices/{portfolio_id}/export` - Export
+
+6. **Pydantic Schemas** ✅
+   - `app/schemas/target_prices.py` - Complete request/response models
+   - Support for all CRUD operations
+   - CSV import/export schemas
+
+7. **Testing** ✅
+   - `scripts/test_target_prices_api.py` - Functional tests
+   - Successfully created targets for demo positions
+   - Verified calculations and aggregations
+
+#### Files Created/Modified:
+- ✅ `app/models/target_prices.py` - Target price model
+- ✅ `app/services/target_price_service.py` - Service layer
+- ✅ `app/schemas/target_prices.py` - Pydantic schemas
+- ✅ `app/api/v1/target_prices.py` - API endpoints
+- ✅ `app/api/v1/router.py` - Router registration
+- ✅ `alembic/versions/1dafe8c1dd84_*.py` - Migration file
+
+### ⏳ PHASE 3: Private Investment Support - NOT STARTED (0%)
+
+#### What Remains:
+
+1. **Database Schema** ❌
+   - Create `private_investment_details` table
+   - Add valuation history tracking
+   - Support for capital calls/distributions
+
+2. **Business Logic** ❌
+   - IRR calculations
+   - Multiple/NAV tracking
+   - Performance attribution
+
+3. **API Endpoints** ❌
+   - Private investment CRUD
+   - Valuation updates
+   - Performance reporting
+
+4. **UI Components** ❌
+   - Specialized forms for private investments
+   - Valuation workflow
+   - Performance dashboards
+
+### 📈 Overall Progress
+
+| Phase | Status | Completion | Notes |
+|-------|--------|------------|-------|
+| Phase 1: Investment Classification | ✅ Complete | 100% | All positions classified |
+| Phase 2: Target Prices | ✅ Complete | 100% | Full API ready |
+| Phase 3: Private Investments | ⏳ Not Started | 0% | Optional enhancement |
+
+### 🎯 Next Steps
+
+1. **Frontend Integration** (Ready)
+   - Target price API is fully functional
+   - All endpoints tested and documented
+   - Ready for UI development
+
+2. **Optional Enhancements**
+   - Add target price history tracking
+   - Implement analyst consensus integration
+   - Add portfolio optimization based on targets
+
+3. **Phase 3 Consideration**
+   - Evaluate need for private investment features
+   - Currently only 1 private position in demo data
+   - May not be priority for MVP
+
+### 📝 Git Commits
+
+Recent commits implementing these features:
+- `17a23725` - feat: Add Target Prices API endpoints
+- `5965324f` - feat: Implement Phase 2 - Target Prices (core functionality)
+- `3416d06c` - fix: Correct investment classification to three-class system
+- `4221fa6f` - feat: Implement investment classification for positions
+- `927c043e92ee` - Migration: Add investment classification fields
+- `1dafe8c1dd84` - Migration: Add portfolio_target_prices table
+
+All code has been committed and pushed to the `APIIntegration` branch.
+
 ## Next Steps
 1. Review and approve this plan
 2. Create Alembic migrations
