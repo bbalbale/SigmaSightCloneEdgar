@@ -125,17 +125,35 @@ async def calculate_position_returns(
     logger.info(f"Date range: {start_date} to {end_date}, Delta-adjusted: {use_delta_adjusted}")
     
     # Get active positions for the portfolio
+    # IMPORTANT: Exclude PRIVATE positions from factor analysis
     stmt = select(Position).where(
         and_(
             Position.portfolio_id == portfolio_id,
-            Position.exit_date.is_(None)  # Only active positions
+            Position.exit_date.is_(None),  # Only active positions
+            # Exclude PRIVATE investment class from factor analysis
+            # None is allowed for backwards compatibility
+            Position.investment_class != 'PRIVATE'
         )
     )
     result = await db.execute(stmt)
     positions = result.scalars().all()
-    
+
+    # Also check if any PRIVATE positions exist (for logging purposes)
+    private_stmt = select(Position).where(
+        and_(
+            Position.portfolio_id == portfolio_id,
+            Position.exit_date.is_(None),
+            Position.investment_class == 'PRIVATE'
+        )
+    )
+    private_result = await db.execute(private_stmt)
+    private_count = len(private_result.scalars().all())
+
+    if private_count > 0:
+        logger.info(f"Excluding {private_count} PRIVATE positions from factor analysis")
+
     if not positions:
-        logger.warning(f"No active positions found for portfolio {portfolio_id}")
+        logger.warning(f"No active non-PRIVATE positions found for portfolio {portfolio_id}")
         return pd.DataFrame()
     
     # Get unique symbols for price fetching

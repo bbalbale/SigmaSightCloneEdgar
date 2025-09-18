@@ -58,12 +58,16 @@ class Position(Base):
     strike_price: Mapped[Optional[Decimal]] = mapped_column(Numeric(12, 4), nullable=True)
     expiration_date: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
     
+    # Investment classification (new fields for categorization)
+    investment_class: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)  # PUBLIC, OPTIONS, PRIVATE
+    investment_subtype: Mapped[Optional[str]] = mapped_column(String(30), nullable=True)  # STOCK, ETF, HEDGE_FUND, etc.
+
     # Current market data
     last_price: Mapped[Optional[Decimal]] = mapped_column(Numeric(12, 4), nullable=True)
     market_value: Mapped[Optional[Decimal]] = mapped_column(Numeric(16, 2), nullable=True)
     unrealized_pnl: Mapped[Optional[Decimal]] = mapped_column(Numeric(16, 2), nullable=True)
     realized_pnl: Mapped[Optional[Decimal]] = mapped_column(Numeric(16, 2), nullable=True)
-    
+
     # Timestamps
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -81,6 +85,8 @@ class Position(Base):
         Index('ix_positions_symbol', 'symbol'),
         Index('ix_positions_deleted_at', 'deleted_at'),
         Index('ix_positions_exit_date', 'exit_date'),
+        Index('ix_positions_investment_class', 'investment_class'),
+        Index('ix_positions_inv_class_subtype', 'investment_class', 'investment_subtype'),
     )
 
 
