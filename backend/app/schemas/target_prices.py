@@ -83,7 +83,7 @@ class TargetPriceResponse(TargetPriceBase):
     updated_at: datetime
 
     class Config:
-        orm_mode = True
+        from_attributes = True
         json_encoders = {
             Decimal: lambda v: float(v) if v is not None else None
         }
@@ -124,7 +124,7 @@ class PortfolioTargetPriceSummary(BaseModel):
     last_updated: datetime
 
     class Config:
-        orm_mode = True
+        from_attributes = True
         json_encoders = {
             Decimal: lambda v: float(v) if v is not None else None
         }
