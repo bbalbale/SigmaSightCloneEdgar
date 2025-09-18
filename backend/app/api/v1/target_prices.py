@@ -30,24 +30,34 @@ router = APIRouter(prefix="/target-prices", tags=["Target Prices"])
 target_price_service = TargetPriceService()
 
 
-@router.post("/{portfolio_id}", response_model=TargetPriceResponse)
+@router.post(
+    "/{portfolio_id}", 
+    response_model=TargetPriceResponse,
+    summary="Create a new target price for a portfolio position",
+    description="""Creates a portfolio-specific target price with smart price resolution, automatic position linking, and investment class detection. 
+    
+    Features:
+    - Smart price resolution (market data → live API → user provided)
+    - Automatic position linking if position_id not provided
+    - Investment class detection (PUBLIC/OPTIONS/PRIVATE)
+    - Options underlying symbol resolution for accurate pricing
+    - Equity-based position weight calculation and risk contributions
+    
+    Phase 2 changes: Removed deprecated fields (analyst_notes, data_source, current_implied_vol)""",
+    responses={
+        200: {"description": "Target price created successfully with calculated metrics"},
+        400: {"description": "Invalid input data or target price already exists"},
+        403: {"description": "Not authorized to access this portfolio"},
+        404: {"description": "Portfolio not found"},
+        500: {"description": "Internal server error during creation"}
+    }
+)
 async def create_target_price(
     portfolio_id: UUID,
     target_price_data: TargetPriceCreate,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_async_session)
 ):
-    """
-    Create a new target price for a portfolio position.
-
-    - **portfolio_id**: The portfolio to add the target price to
-    - **symbol**: The security symbol
-    - **position_type**: LONG, SHORT, LC, LP, SC, SP (optional, defaults to LONG)
-    - **target_price_eoy**: End-of-year target price
-    - **target_price_next_year**: Next year target price
-    - **downside_target_price**: Downside scenario target
-    - **current_price**: Current market price (required for calculations)
-    """
     # Verify user owns the portfolio
     portfolio = await _verify_portfolio_ownership(db, portfolio_id, current_user.id)
 
@@ -66,19 +76,31 @@ async def create_target_price(
         raise HTTPException(status_code=500, detail="Failed to create target price")
 
 
-@router.get("/{portfolio_id}", response_model=List[TargetPriceResponse])
+@router.get(
+    "/{portfolio_id}", 
+    response_model=List[TargetPriceResponse],
+    summary="Get all target prices for a portfolio with optional filtering",
+    description="""Returns all target prices for a portfolio with optional server-side filtering by symbol or position type. 
+    
+    Performance optimizations:
+    - SQL-level filtering applied at database query level
+    - Indexed lookups for optimal performance
+    - Automatic portfolio ownership verification
+    
+    Filters are case-insensitive and applied efficiently in the database.""",
+    responses={
+        200: {"description": "List of target prices (may be empty)"},
+        403: {"description": "Not authorized to access this portfolio"},
+        404: {"description": "Portfolio not found"}
+    }
+)
 async def get_portfolio_target_prices(
     portfolio_id: UUID,
-    symbol: Optional[str] = Query(None, description="Filter by symbol"),
-    position_type: Optional[str] = Query(None, description="Filter by position type"),
+    symbol: Optional[str] = Query(None, description="Filter by specific symbol (case-insensitive)"),
+    position_type: Optional[str] = Query(None, description="Filter by position type (LONG, SHORT, LC, LP, SC, SP)"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_async_session)
 ):
-    """
-    Get all target prices for a portfolio.
-
-    Optionally filter by symbol or position type.
-    """
     # Verify user owns the portfolio
     portfolio = await _verify_portfolio_ownership(db, portfolio_id, current_user.id)
 
@@ -90,21 +112,31 @@ async def get_portfolio_target_prices(
     return [TargetPriceResponse.from_orm(tp) for tp in target_prices]
 
 
-@router.get("/{portfolio_id}/summary", response_model=PortfolioTargetPriceSummary)
+@router.get(
+    "/{portfolio_id}/summary", 
+    response_model=PortfolioTargetPriceSummary,
+    summary="Get portfolio target price summary with aggregated metrics",
+    description="""Returns comprehensive portfolio-level target price analytics including coverage statistics, equity-weighted returns, and risk-adjusted metrics.
+    
+    Key features:
+    - Equity-based weighting using portfolio.equity_balance for accurate calculations
+    - Coverage analysis (percentage of positions with target prices)
+    - Risk-adjusted metrics (Sharpe and Sortino ratios)
+    - Graceful degradation when equity_balance unavailable
+    
+    Weighting methodology uses equity_balance instead of simple market value summation for more accurate portfolio analysis.""",
+    responses={
+        200: {"description": "Portfolio target price summary with all calculated metrics"},
+        403: {"description": "Not authorized to access this portfolio"},
+        404: {"description": "Portfolio not found"},
+        500: {"description": "Error calculating portfolio metrics"}
+    }
+)
 async def get_portfolio_target_summary(
     portfolio_id: UUID,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_async_session)
 ):
-    """
-    Get portfolio target price summary with aggregated metrics.
-
-    Returns:
-    - Coverage percentage
-    - Weighted expected returns
-    - Risk-adjusted metrics (Sharpe, Sortino)
-    - Individual target prices with calculations
-    """
     # Verify user owns the portfolio
     portfolio = await _verify_portfolio_ownership(db, portfolio_id, current_user.id)
 
@@ -173,15 +205,27 @@ async def update_target_price(
         raise HTTPException(status_code=500, detail="Failed to update target price")
 
 
-@router.delete("/target/{target_price_id}", response_model=TargetPriceDeleteResponse)
+@router.delete(
+    "/target/{target_price_id}", 
+    response_model=TargetPriceDeleteResponse,
+    summary="Delete a target price",
+    description="""Permanently removes a target price record with portfolio ownership verification. 
+    
+    Returns standardized deletion result with count and any error messages.
+    
+    Phase 2 changes: Updated response format from simple message to structured result with 'deleted' count and 'errors' array.""",
+    responses={
+        200: {"description": "Target price deleted successfully", "content": {"application/json": {"example": {"deleted": 1, "errors": []}}}},
+        403: {"description": "Not authorized to access this portfolio"},
+        404: {"description": "Target price not found"},
+        500: {"description": "Error during deletion"}
+    }
+)
 async def delete_target_price(
     target_price_id: UUID,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_async_session)
 ):
-    """
-    Delete a target price.
-    """
     # Get the target price first to verify ownership
     target_price = await target_price_service.get_target_price(db, target_price_id)
 
@@ -231,18 +275,29 @@ async def bulk_create_target_prices(
     return [TargetPriceResponse.from_orm(tp) for tp in created_targets]
 
 
-@router.put("/{portfolio_id}/bulk-update")
+@router.put(
+    "/{portfolio_id}/bulk-update",
+    summary="Bulk update target prices by symbol", 
+    description="""Updates multiple target prices by symbol and position type with optimized performance and comprehensive error tracking.
+
+    Performance optimizations (Phase 1):
+    - O(1) lookups using pre-indexed target prices by (symbol, position_type)
+    - Single database query instead of per-update queries
+    - Detailed error reporting for failed updates
+    
+    Supports partial updates - only provided fields are updated for each target price.""",
+    responses={
+        200: {"description": "Bulk update completed with success/error counts", "content": {"application/json": {"example": {"updated": 5, "errors": ["MSFT not found"]}}}},
+        403: {"description": "Not authorized to access this portfolio"},
+        404: {"description": "Portfolio not found"}
+    }
+)
 async def bulk_update_target_prices(
     portfolio_id: UUID,
     bulk_update: TargetPriceBulkUpdate,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_async_session)
 ):
-    """
-    Bulk update target prices by symbol.
-
-    Expects a list of updates with symbol, position_type, and fields to update.
-    """
     # Verify user owns the portfolio
     portfolio = await _verify_portfolio_ownership(db, portfolio_id, current_user.id)
 
@@ -322,16 +377,31 @@ async def import_target_prices_csv(
     return result
 
 
-@router.post("/{portfolio_id}/export")
+@router.post(
+    "/{portfolio_id}/export",
+    summary="Export target prices to CSV or JSON format",
+    description="""Exports portfolio target prices with configurable format options. Always includes calculated returns and metrics.
+    
+    Phase 2 changes:
+    - Removed 'include_calculations' parameter (always included now)
+    - Simplified export always includes expected returns and risk metrics
+    - Optional metadata controls inclusion of created_at/updated_at fields only
+    
+    Export formats:
+    - CSV: Returns structured CSV string with all metrics
+    - JSON: Returns array of target price objects""",
+    responses={
+        200: {"description": "Target prices exported successfully"},
+        403: {"description": "Not authorized to access this portfolio"},
+        404: {"description": "Portfolio not found"}
+    }
+)
 async def export_target_prices(
     portfolio_id: UUID,
     export_request: TargetPriceExportRequest = Body(default=TargetPriceExportRequest()),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_async_session)
 ):
-    """
-    Export target prices to CSV or JSON format.
-    """
     # Verify user owns the portfolio
     portfolio = await _verify_portfolio_ownership(db, portfolio_id, current_user.id)
 
