@@ -1,10 +1,50 @@
-# Target Price and Investment Classes Implementation Plan
+# Target Price and Investment Classes Implementation Plan (REVISED)
 
 ## Executive Summary
 Implementation plan for adding three major features to SigmaSight:
-1. **Target Prices**: Portfolio-specific target prices with expected return calculations
-2. **Investment Classification**: Categorizing positions into PUBLIC, OPTIONS, and PRIVATE
+1. **Investment Classification**: Categorizing positions into PUBLIC, OPTIONS, and PRIVATE asset classes
+2. **Target Prices**: Portfolio-specific target prices with expected return calculations
 3. **Private Investment Support**: Comprehensive tracking for private funds and investments
+
+**CRITICAL CHANGE**: Investment classification must be implemented FIRST as target prices depend on knowing the asset class for proper calculations.
+
+## Key Architecture Decisions
+
+### ✅ What We're Doing
+1. **Adding** `investment_class` field to positions table (nullable for backwards compatibility)
+2. **Keeping** `position_type` unchanged - it still drives Greeks and trading logic
+3. **Using** proper Alembic migrations for all database changes
+4. **Updating** only factor analysis to exclude PRIVATE positions
+5. **Implementing** classification first, then target prices
+
+### ❌ What We're NOT Doing
+1. **NOT** replacing position_type with investment_class
+2. **NOT** changing how Greeks are calculated (still based on LC/LP/SC/SP)
+3. **NOT** modifying existing batch processes except where needed
+4. **NOT** using raw SQL migrations - using Alembic instead
+5. **NOT** breaking existing functionality
+
+## Key Concepts - Understanding the Data Model
+
+### Position Type vs Investment Class
+These are **separate, orthogonal concepts** that work together:
+
+- **`position_type`** (existing): Defines the DIRECTION and INSTRUMENT
+  - LONG/SHORT: Directional equity positions
+  - LC/LP/SC/SP: Options positions (Long/Short Call/Put)
+
+- **`investment_class`** (new): Defines the ASSET CATEGORY
+  - PUBLIC: Publicly traded securities (stocks, ETFs)
+  - OPTIONS: Listed options contracts
+  - PRIVATE: Private investments (funds, private equity, etc.)
+
+### Why Both Are Needed
+- A position can be LONG + PUBLIC (long stock position)
+- A position can be SHORT + PUBLIC (short stock position)
+- A position can be LC + OPTIONS (long call option)
+- A position can be LONG + PRIVATE (private fund investment)
+
+The `position_type` tells us HOW we hold it, the `investment_class` tells us WHAT it is.
 
 ## Process Overview - How Target Prices Will Work
 
@@ -51,7 +91,7 @@ Ongoing management includes:
 
 ## Database Schema Design
 
-### 1. Position Model Extensions (Minimal Risk)
+### 1. Investment Classification Fields (Phase 1 - IMPLEMENT FIRST)
 Add nullable fields to existing `positions` table:
 ```python
 # Add to Position model - nullable ensures backwards compatibility
@@ -59,10 +99,32 @@ investment_class: Mapped[Optional[str]] = mapped_column(String(20), nullable=Tru
 investment_subtype: Mapped[Optional[str]] = mapped_column(String(30), nullable=True)
 ```
 
-**Classification Logic:**
-- `NULL` = PUBLIC equity (default, backwards compatible)
-- Options identified by: `position_type IN (LC, LP, SC, SP)` OR `investment_class = 'OPTIONS'`
-- Private identified by: `investment_class = 'PRIVATE'`
+**Classification Values:**
+- `investment_class`:
+  - `NULL` or `'PUBLIC'`: Publicly traded securities (stocks, ETFs)
+  - `'OPTIONS'`: Listed options contracts
+  - `'PRIVATE'`: Private investments (funds, PE, VC)
+
+- `investment_subtype` (optional detail):
+  - For PUBLIC: 'STOCK', 'ETF', 'REIT', 'ADR'
+  - For OPTIONS: 'LISTED_OPTION', 'INDEX_OPTION'
+  - For PRIVATE: 'HEDGE_FUND', 'PE_FUND', 'VC_FUND', 'REAL_ESTATE'
+
+**Default Classification Rules:**
+```python
+def classify_position(position):
+    """Classify existing positions during migration"""
+    # Options are clearly identified by position_type
+    if position.position_type in ['LC', 'LP', 'SC', 'SP']:
+        return 'OPTIONS', 'LISTED_OPTION'
+
+    # Check for private investments (custom logic)
+    if is_private_investment_symbol(position.symbol):
+        return 'PRIVATE', determine_private_subtype(position.symbol)
+
+    # Default to public equity
+    return 'PUBLIC', 'STOCK'
+```
 
 ### 2. Portfolio Target Prices Table (Enhanced with Downside Scenarios)
 ```sql
@@ -207,26 +269,70 @@ class PortfolioTargetAggregator:
 ```python
 async def calculate_option_expected_return(self, option_position, target_underlying_price, current_underlying_price, iv, days_to_expiry):
     """
-    Calculate expected return for options considering:
-    - Delta movement from underlying price change
-    - Theta decay over time period
-    - Vega impact from IV changes
-    - Probability of being ITM at expiry
+    Calculate expected return for options based on position_type (not investment_class)
+    - Use existing mibian library for Black-Scholes calculations
+    - Position_type (LC/LP/SC/SP) determines calculation method
+    - Investment_class is only for categorization
     """
 
     if option_position.position_type == 'LC':  # Long Call
-        # Calculate option value at target price
-        target_option_value = black_scholes_call(
-            S=target_underlying_price,
-            K=option_position.strike_price,
-            T=days_to_target/365,
-            r=risk_free_rate,
-            sigma=iv
-        )
-        current_option_value = option_position.current_price
-        return (target_option_value - current_option_value) / current_option_value
+        # Use mibian for option value calculation
+        import mibian
+        bs = mibian.BS([current_underlying_price,
+                       option_position.strike_price,
+                       risk_free_rate * 100,  # mibian expects percentage
+                       days_to_expiry],
+                      volatility=iv * 100)
 
-    # Similar for LP, SC, SP...
+        current_option_value = option_position.current_price
+        # Calculate expected return based on target
+        # ... implementation details
+```
+
+## System Integration Requirements
+
+### Batch Processing Updates
+```python
+# app/batch/batch_orchestrator_v2.py - CRITICAL UPDATES
+
+async def run_factor_analysis(session: AsyncSession):
+    """Update factor analysis to handle investment classes"""
+
+    # Get all active positions
+    positions = await get_active_positions(session)
+
+    # Filter for factor analysis - exclude PRIVATE positions
+    factor_eligible = [
+        p for p in positions
+        if p.investment_class != 'PRIVATE'
+    ]
+
+    # Run existing factor analysis on eligible positions
+    results = await calculate_factor_exposures(factor_eligible)
+    return results
+
+async def calculate_position_greeks(position: Position):
+    """Greeks calculation uses position_type, NOT investment_class"""
+
+    # NO CHANGES NEEDED - position_type drives Greeks logic
+    if position.position_type in ['LC', 'LP', 'SC', 'SP']:
+        return await calculate_option_greeks_mibian(position)
+    else:
+        return calculate_stock_delta(position)
+```
+
+### Market Data Service Integration
+```python
+# app/services/market_data_service.py
+
+async def should_fetch_price(position: Position) -> bool:
+    """Determine if position needs market data"""
+
+    # Private investments don't have public prices
+    if position.investment_class == 'PRIVATE':
+        return False
+
+    return True  # Fetch for PUBLIC and OPTIONS
 ```
 
 ## Risk Analysis and Mitigation
@@ -238,21 +344,20 @@ async def calculate_option_expected_return(self, option_position, target_underly
 - For demo portfolios, we control symbol format
 - Consider future enhancement: link to position_id as alternative
 
-### Risk 2: Factor Analysis Disruption
-**Issue**: Factor calculations might fail on private/option positions
+### Risk 2: Position Type vs Investment Class Confusion
+**Issue**: Developers might confuse position_type with investment_class
 **Mitigation**:
-```python
-# Simple exclusion logic in factor calculations
-public_positions = [p for p in positions
-                    if (p.investment_class is None or p.investment_class == 'PUBLIC')]
-```
+- Clear documentation explaining the difference
+- Position_type drives trading logic (Greeks, P&L calculation)
+- Investment_class drives categorization and filtering
+- Code reviews to ensure proper usage
 
-### Risk 3: Batch Processing Impact
-**Issue**: Batch orchestrator expects specific position structure
+### Risk 3: Batch Processing Compatibility
+**Issue**: Existing batch processes must continue working
 **Mitigation**:
-- Maintain backwards compatibility with nullable fields
-- Test batch processing with modified schema before deployment
-- Update batch processing to skip private investments where appropriate
+- Nullable fields ensure backwards compatibility
+- Test all batch processes after schema changes
+- Update only the specific areas that need investment class filtering (factor analysis)
 
 ### Risk 4: Performance Degradation
 **Issue**: Additional joins for target prices could slow queries
@@ -492,28 +597,56 @@ POST /api/v1/portfolios/{portfolio_id}/target-prices/bulk
    - Efficient batching
    - Circuit breakers
 
-## Implementation Phases
+## Implementation Phases (REVISED ORDER)
 
-### Phase 1: Safe Schema Changes (Week 1)
-1. Create Alembic migration for nullable Position fields
-2. Create new tables (portfolio_target_prices, private_investment_details)
-3. Deploy and verify no impact on existing functionality
-4. Run full test suite
+### Phase 1: Investment Classification (Week 1) - IMPLEMENT FIRST
+**Why First**: Target prices and other features need to know asset classes
 
-### Phase 2: Data Classification (Week 1-2)
-1. Classify existing demo positions:
-   - LONG/SHORT → PUBLIC/STOCK
-   - LC/LP/SC/SP → OPTIONS/LISTED_OPTION
-2. Verify batch calculations still work
-3. Update factor analysis to exclude non-public positions
+1. **Database Changes**:
+   - Create Alembic migration to add investment_class and investment_subtype fields
+   - Deploy schema changes with NULL defaults (no breaking changes)
+   - Verify existing functionality continues working
 
-### Phase 3: Target Price Implementation (Week 2)
-1. Create target price calculation service
-2. Implement expected return calculations
-3. Build APIs for target price management
-4. Test with demo portfolios
+2. **Data Migration**:
+   - Classify existing positions using position_type
+   - Options (LC/LP/SC/SP) → investment_class = 'OPTIONS'
+   - Others → investment_class = 'PUBLIC' (default)
+   - Run classification script on demo portfolios
 
-### Phase 4: API Development (Week 2-3)
+3. **System Integration Updates**:
+   - Update batch_orchestrator_v2.py to handle investment classes
+   - Modify factor analysis to exclude PRIVATE positions
+   - Ensure Greeks calculations continue using position_type (not investment_class)
+   - Test all batch processes with classified data
+
+### Phase 2: Target Price Implementation (Week 2)
+**Now Safe**: Investment classes are in place for proper calculations
+
+1. **Database**:
+   - Create portfolio_target_prices table via Alembic
+   - Add indexes for performance
+   - No changes to existing tables
+
+2. **Business Logic**:
+   - Implement target price service with expected return calculations
+   - Handle different calculations by investment_class:
+     - PUBLIC: Standard (target - current) / current
+     - OPTIONS: Use Black-Scholes for option value at target
+     - PRIVATE: Multiple or IRR based calculations
+
+3. **APIs**:
+   - CRUD operations for target prices
+   - Portfolio aggregation endpoints
+   - Bulk update capabilities
+
+### Phase 3: Private Investment Support (Week 3)
+**Optional Enhancement**: Only if needed by specific portfolios
+
+1. Create private_investment_details table
+2. Build specialized UI for private investment data entry
+3. Implement valuation and IRR calculations
+
+### Phase 4: API Development (Complete)
 ```python
 # Target Price APIs
 GET  /api/v1/portfolios/{portfolio_id}/target-prices
@@ -538,46 +671,90 @@ AAPL,100,150.00,PUBLIC,200.00,250.00
 MyPrivateFund,1,1000000,PRIVATE,,1500000
 ```
 
-## Migration SQL Scripts
+## Alembic Migration Scripts (PROPER APPROACH)
 
-### Migration 1: Add Classification Fields
-```sql
--- Add nullable classification fields
-ALTER TABLE positions
-ADD COLUMN investment_class VARCHAR(20),
-ADD COLUMN investment_subtype VARCHAR(30);
+### Migration 1: Add Investment Classification Fields
+```python
+# alembic revision --autogenerate -m "add_investment_classification_fields"
+# File: alembic/versions/xxx_add_investment_classification_fields.py
 
--- Add indexes for performance
-CREATE INDEX idx_positions_investment_class ON positions(investment_class);
+from alembic import op
+import sqlalchemy as sa
+
+def upgrade():
+    # Add nullable fields to positions table
+    op.add_column('positions',
+        sa.Column('investment_class', sa.String(20), nullable=True))
+    op.add_column('positions',
+        sa.Column('investment_subtype', sa.String(30), nullable=True))
+
+    # Add indexes for query performance
+    op.create_index('idx_positions_investment_class',
+                    'positions', ['investment_class'])
+    op.create_index('idx_positions_inv_class_subtype',
+                    'positions', ['investment_class', 'investment_subtype'])
+
+def downgrade():
+    # Remove indexes
+    op.drop_index('idx_positions_inv_class_subtype', 'positions')
+    op.drop_index('idx_positions_investment_class', 'positions')
+
+    # Remove columns
+    op.drop_column('positions', 'investment_subtype')
+    op.drop_column('positions', 'investment_class')
 ```
 
-### Migration 2: Create Target Prices Table
-```sql
--- Create portfolio target prices table
-CREATE TABLE portfolio_target_prices (
-    -- Schema as defined above
-);
+### Migration 2: Classify Existing Positions
+```python
+# alembic revision --autogenerate -m "classify_existing_positions"
+# File: alembic/versions/xxx_classify_existing_positions.py
 
--- Add indexes
-CREATE INDEX idx_target_prices_portfolio ON portfolio_target_prices(portfolio_id);
-CREATE INDEX idx_target_prices_symbol ON portfolio_target_prices(symbol);
+from alembic import op
+import sqlalchemy as sa
+from sqlalchemy.sql import table, column
+
+def upgrade():
+    # Create a table reference for bulk updates
+    positions = table('positions',
+        column('id', sa.String),
+        column('position_type', sa.String),
+        column('investment_class', sa.String),
+        column('investment_subtype', sa.String)
+    )
+
+    # Classify options positions
+    op.execute(
+        positions.update().
+        where(positions.c.position_type.in_(['LC', 'LP', 'SC', 'SP'])).
+        where(positions.c.investment_class.is_(None)).
+        values(investment_class='OPTIONS', investment_subtype='LISTED_OPTION')
+    )
+
+    # Classify equity positions
+    op.execute(
+        positions.update().
+        where(positions.c.position_type.in_(['LONG', 'SHORT'])).
+        where(positions.c.investment_class.is_(None)).
+        values(investment_class='PUBLIC', investment_subtype='STOCK')
+    )
+
+def downgrade():
+    # Clear classification fields
+    positions = table('positions',
+        column('investment_class', sa.String),
+        column('investment_subtype', sa.String)
+    )
+
+    op.execute(
+        positions.update().
+        values(investment_class=None, investment_subtype=None)
+    )
 ```
 
-### Migration 3: Classify Existing Positions
-```sql
--- Classify stock positions
-UPDATE positions
-SET investment_class = 'PUBLIC',
-    investment_subtype = 'STOCK'
-WHERE position_type IN ('LONG', 'SHORT')
-  AND investment_class IS NULL;
-
--- Classify options
-UPDATE positions
-SET investment_class = 'OPTIONS',
-    investment_subtype = 'LISTED_OPTION'
-WHERE position_type IN ('LC', 'LP', 'SC', 'SP')
-  AND investment_class IS NULL;
+### Migration 3: Create Target Prices Table
+```python
+# alembic revision --autogenerate -m "create_portfolio_target_prices_table"
+# Already implemented in Phase 1 - see lines 937-940 of implementation status
 ```
 
 ## Testing Strategy
@@ -606,13 +783,15 @@ uv run python scripts/run_batch_calculations.py
 4. Validate target price calculations
 5. Check performance metrics
 
-## Success Criteria
+## Success Criteria (Updated)
 - ✅ No breaking changes to existing functionality
-- ✅ Demo portfolios continue working
-- ✅ Batch processing runs without errors
-- ✅ Factor analysis correctly excludes non-public positions
-- ✅ Target prices calculate expected returns correctly
+- ✅ Demo portfolios continue working with classification
+- ✅ Batch processing runs without errors (Greeks still use position_type)
+- ✅ Factor analysis correctly excludes PRIVATE positions only
+- ✅ Investment_class and position_type work independently
+- ✅ Target prices calculate returns based on investment_class
 - ✅ APIs handle portfolio-specific targets properly
+- ✅ Alembic migrations are reversible
 - ✅ Performance remains within acceptable limits
 
 ## Open Questions for Future Consideration
