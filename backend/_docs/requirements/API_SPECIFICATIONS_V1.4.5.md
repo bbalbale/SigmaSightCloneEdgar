@@ -1520,14 +1520,18 @@ These endpoints manage portfolio-specific target prices for securities, enabling
 - **Base Path**: `/api/v1/target-prices`
 - **Authentication**: Required (Bearer token)
 - **Database**: `portfolio_target_prices` table via TargetPrice model
-- **Service Layer**: `TargetPriceService` (all endpoints use service methods, not direct ORM)
+- **Service Layer**: Target price data operations use TargetPriceService. The API also performs portfolio ownership verification via a direct ORM query on Portfolio.
+- **Serialization**: Numeric values are serialized as JSON numbers; Decimal fields are converted to floats via Pydantic encoders.
 - **Features**: EOY targets, next year targets, downside scenarios, bulk operations, CSV import/export
+
+**Implementation Notes:**
+- `contribution_to_portfolio_risk` is defined on the model and returned by the API but is not currently computed in the service. It will be null unless set elsewhere.
 
 ### 23. Create Target Price
 **Endpoint**: `POST /target-prices/{portfolio_id}`  
 **Status**: ✅ Fully Implemented  
 **File**: `app/api/v1/target_prices.py`  
-**Function**: `create_target_price()` (lines 32-65)  
+**Function**: `create_target_price()`  
 **Authentication**: Required (Bearer token)  
 **OpenAPI Description**: "Create a new target price for a portfolio position"  
 **Database Access**: Via service layer  
@@ -1571,7 +1575,7 @@ Creates a target price entry with EOY, next year, and downside scenarios for a s
   "downside_return": -16.67,
   "position_weight": 5.25,
   "contribution_to_portfolio_return": 0.58,
-  "contribution_to_portfolio_risk": 0.45,
+  "contribution_to_portfolio_risk": null,
   "analyst_notes": "Strong fundamentals with iPhone 16 cycle",
   "data_source": "ANALYST_CONSENSUS",
   "price_updated_at": "2025-09-18T10:00:00Z",
@@ -1585,7 +1589,7 @@ Creates a target price entry with EOY, next year, and downside scenarios for a s
 **Endpoint**: `GET /target-prices/{portfolio_id}`  
 **Status**: ✅ Fully Implemented  
 **File**: `app/api/v1/target_prices.py`  
-**Function**: `get_portfolio_target_prices()` (lines 68-92)  
+**Function**: `get_portfolio_target_prices()`  
 **Authentication**: Required (Bearer token)  
 **OpenAPI Description**: "Get all target prices for a portfolio"  
 **Service Layer**: `TargetPriceService.get_portfolio_target_prices()`  
@@ -1622,7 +1626,7 @@ Returns all target prices for a portfolio with optional filtering by symbol or p
 **Endpoint**: `GET /target-prices/{portfolio_id}/summary`  
 **Status**: ✅ Fully Implemented  
 **File**: `app/api/v1/target_prices.py`  
-**Function**: `get_portfolio_target_summary()` (lines 95-120)  
+**Function**: `get_portfolio_target_summary()`  
 **Authentication**: Required (Bearer token)  
 **OpenAPI Description**: "Get portfolio target price summary with aggregated metrics"  
 **Service Layer**: `TargetPriceService.get_portfolio_summary()`  
@@ -1661,7 +1665,7 @@ Returns comprehensive portfolio-level target price analytics with coverage, weig
 **Endpoint**: `GET /target-prices/target/{target_price_id}`  
 **Status**: ✅ Fully Implemented  
 **File**: `app/api/v1/target_prices.py`  
-**Function**: `get_target_price()` (lines 123-140)  
+**Function**: `get_target_price()`  
 **Authentication**: Required (Bearer token)  
 **OpenAPI Description**: "Get a specific target price by ID"  
 **Service Layer**: `TargetPriceService.get_target_price()`  
@@ -1677,7 +1681,7 @@ Retrieves a single target price record with portfolio ownership verification.
 **Endpoint**: `PUT /target-prices/target/{target_price_id}`  
 **Status**: ✅ Fully Implemented  
 **File**: `app/api/v1/target_prices.py`  
-**Function**: `update_target_price()` (lines 143-175)  
+**Function**: `update_target_price()`  
 **Authentication**: Required (Bearer token)  
 **OpenAPI Description**: "Update an existing target price"  
 **Service Layer**: `TargetPriceService.update_target_price()`  
@@ -1704,7 +1708,7 @@ Updates target price fields with automatic recalculation of expected returns.
 **Endpoint**: `DELETE /target-prices/target/{target_price_id}`  
 **Status**: ✅ Fully Implemented  
 **File**: `app/api/v1/target_prices.py`  
-**Function**: `delete_target_price()` (lines 178-201)  
+**Function**: `delete_target_price()`  
 **Authentication**: Required (Bearer token)  
 **OpenAPI Description**: "Delete a target price"  
 **Service Layer**: `TargetPriceService.delete_target_price()`  
@@ -1725,7 +1729,7 @@ Permanently removes a target price record with portfolio ownership verification.
 **Endpoint**: `POST /target-prices/{portfolio_id}/bulk`  
 **Status**: ✅ Fully Implemented  
 **File**: `app/api/v1/target_prices.py`  
-**Function**: `bulk_create_target_prices()` (lines 204-227)  
+**Function**: `bulk_create_target_prices()`  
 **Authentication**: Required (Bearer token)  
 **OpenAPI Description**: "Create multiple target prices at once"  
 **Service Layer**: `TargetPriceService.bulk_create_target_prices()`  
@@ -1760,7 +1764,7 @@ Creates multiple target prices in a single operation, skipping existing symbol/p
 **Endpoint**: `PUT /target-prices/{portfolio_id}/bulk-update`  
 **Status**: ✅ Fully Implemented  
 **File**: `app/api/v1/target_prices.py`  
-**Function**: `bulk_update_target_prices()` (lines 230-283)  
+**Function**: `bulk_update_target_prices()`  
 **Authentication**: Required (Bearer token)  
 **OpenAPI Description**: "Bulk update target prices by symbol"  
 **Service Layer**: `TargetPriceService.get_portfolio_target_prices()` + `TargetPriceService.update_target_price()`  
@@ -1800,7 +1804,7 @@ Updates multiple target prices by symbol and position type with error tracking.
 **Endpoint**: `POST /target-prices/{portfolio_id}/import-csv`  
 **Status**: ✅ Fully Implemented  
 **File**: `app/api/v1/target_prices.py`  
-**Function**: `import_target_prices_csv()` (lines 286-317)  
+**Function**: `import_target_prices_csv()`  
 **Authentication**: Required (Bearer token)  
 **OpenAPI Description**: "Import target prices from CSV format"  
 **Service Layer**: `TargetPriceService.import_from_csv()`  
@@ -1821,14 +1825,15 @@ Imports target prices from CSV with configurable update behavior for existing re
 - Required headers: `symbol,position_type,target_eoy,target_next_year,downside,current_price`
 - Position types: `LONG`, `SHORT`, `LC`, `LP`, `SC`, `SP`
 
+**Note**: When `update_existing=false` and a record already exists, it is not imported and an "already exists, skipping" message appears in errors.
+
 **Response**:
 ```json
 {
-  "imported": 2,
-  "updated": 0, 
-  "skipped": 0,
+  "created": 2,
+  "updated": 0,
   "errors": [],
-  "summary": "Successfully imported 2 target prices"
+  "total": 2
 }
 ```
 
@@ -1836,7 +1841,7 @@ Imports target prices from CSV with configurable update behavior for existing re
 **Endpoint**: `POST /target-prices/{portfolio_id}/export`  
 **Status**: ✅ Fully Implemented  
 **File**: `app/api/v1/target_prices.py`  
-**Function**: `export_target_prices()` (lines 320-395)  
+**Function**: `export_target_prices()`  
 **Authentication**: Required (Bearer token)  
 **OpenAPI Description**: "Export target prices to CSV or JSON format"  
 **Service Layer**: `TargetPriceService.get_portfolio_target_prices()`  
