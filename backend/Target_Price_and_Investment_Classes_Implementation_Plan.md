@@ -252,7 +252,7 @@ async def calculate_option_expected_return(self, option_position, target_underly
 **Mitigation**:
 ```python
 # Simple exclusion logic in factor calculations
-public_positions = [p for p in positions 
+public_positions = [p for p in positions
                     if (p.investment_class is None or p.investment_class == 'PUBLIC')]
 ```
 
@@ -538,7 +538,7 @@ POST /api/v1/portfolios/{portfolio_id}/target-prices
 DELETE /api/v1/portfolios/{portfolio_id}/target-prices/{symbol}
 GET  /api/v1/portfolios/{portfolio_id}/expected-returns
 
-# Investment Classification APIs  
+# Investment Classification APIs
 GET  /api/v1/portfolios/{portfolio_id}/positions/by-class
 PATCH /api/v1/positions/{position_id}/classification
 
@@ -560,7 +560,7 @@ MyPrivateFund,1,1000000,PRIVATE,,1500000
 ### Migration 1: Add Classification Fields
 ```sql
 -- Add nullable classification fields
-ALTER TABLE positions 
+ALTER TABLE positions
 ADD COLUMN investment_class VARCHAR(20),
 ADD COLUMN investment_subtype VARCHAR(30);
 
@@ -583,16 +583,16 @@ CREATE INDEX idx_target_prices_symbol ON portfolio_target_prices(symbol);
 ### Migration 3: Classify Existing Positions
 ```sql
 -- Classify stock positions
-UPDATE positions 
-SET investment_class = 'PUBLIC', 
+UPDATE positions
+SET investment_class = 'PUBLIC',
     investment_subtype = 'STOCK'
 WHERE position_type IN ('LONG', 'SHORT')
   AND investment_class IS NULL;
 
 -- Classify options
-UPDATE positions 
+UPDATE positions
 SET investment_class = 'OPTIONS',
-    investment_subtype = 'LISTED_OPTION'  
+    investment_subtype = 'LISTED_OPTION'
 WHERE position_type IN ('LC', 'LP', 'SC', 'SP')
   AND investment_class IS NULL;
 ```
@@ -646,42 +646,41 @@ uv run python scripts/run_batch_calculations.py
 5. Document API changes
 6. Plan frontend integration
 
-## Design Comments from Elliott
+## Design Comments/Details from Elliott
 
-### 1. Target Price Service Layer
+### 1. Target Price Pydantic Schemas
 
-### 2. Target Price API Spec
+**File**: `app/schemas/target_prices.py`
 
-#### Pydantic Schema Definitions
+**Purpose**: Shared data models for API requests/responses and service layer input/output
+
 ```python
 # app/schemas/target_prices.py
 from pydantic import BaseModel, Field
-from typing import Optional
+from typing import Optional, List
 from datetime import datetime
 from uuid import UUID
 
 class TargetPriceCreate(BaseModel):
-    """Create/Update target price request"""
     target_price_eoy: Optional[float] = Field(None, gt=0, description="End of year target price")
-    target_price_next_year: Optional[float] = Field(None, gt=0, description="Next year target price")
-    notes: Optional[str] = Field(None, max_length=500, description="Optional notes")
+    target_price_next_year: Optional[float] = Field(None, gt=0, description="Next year target price") 
+    notes: Optional[str] = Field(None, max_length=500, description="User notes")
 
 class TargetPriceResponse(BaseModel):
-    """Individual symbol target price response"""
+    id: UUID
     portfolio_id: UUID
     symbol: str
     target_price_eoy: Optional[float] = None
     target_price_next_year: Optional[float] = None
     current_price: Optional[float] = None
-    expected_return_eoy: Optional[float] = None  # Calculated percentage
-    expected_return_next_year: Optional[float] = None  # Calculated percentage
+    expected_return_eoy: Optional[float] = None  # Calculated by service
+    expected_return_next_year: Optional[float] = None  # Calculated by service
     price_updated_at: Optional[datetime] = None
     notes: Optional[str] = None
     created_at: datetime
     updated_at: datetime
 
 class TargetPriceSummary(BaseModel):
-    """Summary for list endpoint"""
     symbol: str
     target_price_eoy: Optional[float] = None
     expected_return_eoy: Optional[float] = None
@@ -689,113 +688,328 @@ class TargetPriceSummary(BaseModel):
     updated_at: datetime
 
 class TargetPriceListResponse(BaseModel):
-    """List of all targets for a portfolio"""
     portfolio_id: UUID
-    targets: list[TargetPriceSummary]
-    count: int
+    targets: List[TargetPriceSummary]
+    total_count: int
+
+class PriceRefreshResponse(BaseModel):
+    portfolio_id: UUID
+    updated_count: int
+    failed_symbols: List[str]
+    timestamp: datetime
 
 class TargetPriceDeleteResponse(BaseModel):
-    """Delete confirmation"""
-    status: str = "deleted"
-    symbol: str
-    portfolio_id: UUID
+    message: str
+    deleted_id: UUID
 ```
+
+**Schema Usage**:
+- **Service Layer**: Input/output types for all service methods
+- **API Layer**: Request validation and response serialization
+- **Shared Models**: Consistent data structures across layers
+
+### 2. Target Price Service Layer
+
+#### Service Architecture
+
+**File**: `app/services/target_price_service.py`
+
+**Purpose**: Centralize target price business logic, calculations, and data operations
+
+#### Core Service Methods
+
+```python
+class TargetPriceService:
+    def __init__(self, db: AsyncSession):
+        self.db = db
+        self.market_data_service = MarketDataService()
+    
+    async def create_or_update_target(
+        self, 
+        portfolio_id: UUID, 
+        symbol: str, 
+        target_data: TargetPriceCreate
+    ) -> TargetPriceResponse:
+        """Create or update target price with automatic return calculations"""
+        
+    async def get_target_price(
+        self, 
+        portfolio_id: UUID, 
+        symbol: str
+    ) -> Optional[TargetPriceResponse]:
+        """Get target price for specific symbol"""
+        
+    async def list_portfolio_target_prices(
+        self, 
+        portfolio_id: UUID, 
+        limit: Optional[int] = 50
+    ) -> TargetPriceListResponse:
+        """List all target prices for portfolio"""
+        
+    async def delete_target_price(
+        self, 
+        portfolio_id: UUID, 
+        symbol: str
+    ) -> bool:
+        """Delete target price for symbol"""
+        
+    async def refresh_current_target_prices(
+        self, 
+        portfolio_id: UUID, 
+        symbols: Optional[List[str]] = None
+    ) -> PriceRefreshResponse:
+        """Refresh current prices for target prices and recalculate returns"""
+        
+    async def calculate_expected_returns(
+        self, 
+        target_price: TargetPrice
+    ) -> Tuple[Optional[float], Optional[float]]:
+        """Calculate EOY and next year expected returns"""
+        
+    async def _fetch_current_price(
+        self, 
+        symbol: str
+    ) -> Optional[float]:
+        """Private helper: Fetch current price from market data service"""
+```
+
+#### Business Logic Responsibilities
+
+**1. Return Calculations**
+- Calculate expected return percentages from current price to target prices
+- Handle edge cases (negative prices, missing data)
+- Update calculated fields automatically
+
+**2. Price Data Management** 
+- Fetch current prices from MarketDataService
+- Cache price data with timestamps
+- Handle market data service failures gracefully
+
+**3. Data Validation**
+- Validate target prices are positive
+- Ensure portfolio ownership
+- Symbol normalization and validation
+
+**4. Error Handling**
+- Market data unavailable scenarios
+- Portfolio access control
+- Invalid input validation
+
+#### Service Dependencies
+
+- `MarketDataService` - Real-time price fetching
+- `AsyncSession` - Database operations
+- `Portfolio` model - Ownership verification
+- `TargetPrice` model - CRUD operations
+
+### 3. Target Price API Spec
+
+#### API Architecture with Service Layer
+
+**File**: `app/api/v1/target_prices.py`
+
+**Service Integration**: All endpoints use `TargetPriceService` for business logic
+
+**Schema Reference**: See section 1 "Target Price Pydantic Schemas" for all data models
 
 #### API Endpoints
 
-### Set/Update Target Price for Symbol
-**Endpoint**: `PUT /api/v1/portfolios/{portfolio_id}/target-prices/{symbol}`  
+### Create/Update Target Price
+**Endpoint**: `POST /api/v1/target-prices/portfolios/{portfolio_id}/symbols/{symbol}`  
 **Status**: 🎯 Planned  
-**File**: `app/api/v1/target_prices.py` (to be created)  
-**Function**: `set_target_price()`  
-**Frontend Proxy Path**: `/api/proxy/api/v1/portfolios/{portfolio_id}/target-prices/{symbol}`  
+**File**: `app/api/v1/target_prices.py`  
+**Function**: `create_or_update_target_price()`  
+**Service Method**: `target_service.create_or_update_target()`
 
 **Authentication**: Required (Bearer token)  
-**OpenAPI Description**: "Set or update target price for a specific symbol within a portfolio. Automatically calculates expected returns based on current market price."  
-**Database Access**: Direct ORM (PostgreSQL upsert with ON CONFLICT)  
-- Tables: `portfolio_target_prices` (create/update), `market_data_cache` (current price lookup)  
-**Service Layer**: None (direct ORM in endpoint)  
+**OpenAPI Description**: "Create or update target price for a symbol with automatic expected return calculations"  
 
-**Purpose**: Allow users to set investment targets for individual symbols with automatic expected return calculations.  
-**Implementation Notes**: Uses PostgreSQL UPSERT; fetches current price from market_data_cache; calculates expected returns inline.  
+**Service Layer Responsibilities**:
+- Validate portfolio ownership  
+- Fetch current market price via MarketDataService
+- Calculate expected returns using business logic
+- Handle database upsert operations
+- Return calculated response
 
 **Parameters**:  
 - Path `portfolio_id` (UUID): Portfolio identifier  
-- Path `symbol` (string): Stock/ETF symbol (e.g., "AAPL")  
-- Body (TargetPriceCreate): Optional target prices and notes  
+- Path `symbol` (string): Stock symbol (e.g., "AAPL")  
+- Body (TargetPriceCreate): Target prices and notes  
 
-**Response** (TargetPriceResponse): Complete target price data with calculated expected returns
+**Response** (TargetPriceResponse): Complete target with calculated returns
 
-### Get Target Price for Symbol
-**Endpoint**: `GET /api/v1/portfolios/{portfolio_id}/target-prices/{symbol}`  
+### Get Target Price  
+**Endpoint**: `GET /api/v1/target-prices/portfolios/{portfolio_id}/symbols/{symbol}`  
 **Status**: 🎯 Planned  
-**File**: `app/api/v1/target_prices.py` (to be created)  
 **Function**: `get_target_price()`  
-**Frontend Proxy Path**: `/api/proxy/api/v1/portfolios/{portfolio_id}/target-prices/{symbol}`  
+**Service Method**: `target_service.get_target_price()`
 
 **Authentication**: Required  
-**OpenAPI Description**: "Retrieve target price and expected return calculations for a specific symbol in the portfolio."  
-**Database Access**: Direct ORM query with calculated fields  
-**Service Layer**: None (simple read operation)  
+**OpenAPI Description**: "Retrieve target price and calculated expected returns for a symbol"  
 
-**Purpose**: Fetch current target price and calculated expected returns for a specific symbol.  
-**Implementation Notes**: Single SELECT query; calculates expected returns in Python; returns 404 if target not found.  
+**Service Layer Responsibilities**:
+- Validate portfolio ownership
+- Fetch target price data 
+- Calculate current expected returns
+- Handle not found scenarios
 
 **Parameters**:  
 - Path `portfolio_id` (UUID): Portfolio identifier  
-- Path `symbol` (string): Stock/ETF symbol  
+- Path `symbol` (string): Stock symbol  
 
-**Response** (TargetPriceResponse): Complete target price data with expected returns
+**Response** (TargetPriceResponse): Target price with current calculations
 
-### Delete Target Price for Symbol
-**Endpoint**: `DELETE /api/v1/portfolios/{portfolio_id}/target-prices/{symbol}`  
+### List Portfolio Target Prices
+**Endpoint**: `GET /api/v1/target-prices/portfolios/{portfolio_id}`  
 **Status**: 🎯 Planned  
-**File**: `app/api/v1/target_prices.py` (to be created)  
-**Function**: `delete_target_price()`  
-**Frontend Proxy Path**: `/api/proxy/api/v1/portfolios/{portfolio_id}/target-prices/{symbol}`  
-
-**Authentication**: Required  
-**OpenAPI Description**: "Remove target price for a specific symbol from the portfolio."  
-**Database Access**: Direct ORM (simple DELETE operation)  
-**Service Layer**: None  
-
-**Purpose**: Remove target price tracking for a symbol.  
-**Implementation Notes**: Single DELETE query; returns 404 if target not found; confirms deletion in response.  
-
-**Parameters**:  
-- Path `portfolio_id` (UUID): Portfolio identifier  
-- Path `symbol` (string): Stock/ETF symbol  
-
-**Response** (TargetPriceDeleteResponse): Deletion confirmation with identifiers
-
-### List All Target Prices for Portfolio
-**Endpoint**: `GET /api/v1/portfolios/{portfolio_id}/target-prices`  
-**Status**: 🎯 Planned  
-**File**: `app/api/v1/target_prices.py` (to be created)  
 **Function**: `list_target_prices()`  
-**Frontend Proxy Path**: `/api/proxy/api/v1/portfolios/{portfolio_id}/target-prices`  
+**Service Method**: `target_service.list_portfolio_target_prices()`
 
 **Authentication**: Required  
-**OpenAPI Description**: "Retrieve all symbols with target prices set for the portfolio, including expected return calculations."  
-**Database Access**: Direct ORM query with optional LIMIT  
-**Service Layer**: None (read-only aggregation)  
+**OpenAPI Description**: "List all target prices for a portfolio with expected return calculations"  
 
-**Purpose**: Portfolio overview of all symbols with target prices for dashboard display.  
-**Implementation Notes**: Single SELECT with WHERE clause; calculates expected returns for each symbol; supports pagination.  
+**Service Layer Responsibilities**:
+- Validate portfolio ownership
+- Fetch all target prices for portfolio
+- Calculate expected returns for each symbol
+- Apply pagination and sorting
 
 **Parameters**:  
 - Path `portfolio_id` (UUID): Portfolio identifier  
-- Query `limit` (int, optional): Maximum number of results (default: 50)  
+- Query `limit` (int, optional): Max results (default: 50)  
 
-**Response** (TargetPriceListResponse): Array of target price summaries with metadata
+**Response** (TargetPriceListResponse): List of target price summaries
 
-### 3. Investment Classification Service Layer
+### Delete Target Price
+**Endpoint**: `DELETE /api/v1/target-prices/portfolios/{portfolio_id}/symbols/{symbol}`  
+**Status**: 🎯 Planned  
+**Function**: `delete_target_price()`  
+**Service Method**: `target_service.delete_target_price()`
 
-### 4. Investment Classification APIs
+**Authentication**: Required  
+**OpenAPI Description**: "Delete target price for a symbol"  
 
-### 5. Update Demo Seeding Script 
+**Service Layer Responsibilities**:
+- Validate portfolio ownership
+- Verify target exists
+- Perform delete operation
+- Return confirmation
+
+**Parameters**:  
+- Path `portfolio_id` (UUID): Portfolio identifier  
+- Path `symbol` (string): Stock symbol  
+
+**Response** (TargetPriceDeleteResponse): Deletion confirmation
+
+### Refresh Current Prices
+**Endpoint**: `POST /api/v1/target-prices/portfolios/{portfolio_id}/refresh-prices`  
+**Status**: 🎯 Planned  
+**Function**: `refresh_current_prices()`  
+**Service Method**: `target_service.refresh_current_target_prices()`
+
+**Authentication**: Required  
+**OpenAPI Description**: "Refresh current prices for all or specified symbols and recalculate returns"  
+
+**Service Layer Responsibilities**:
+- Validate portfolio ownership
+- Fetch current prices from MarketDataService
+- Update price data and timestamps
+- Recalculate all expected returns
+- Handle market data failures gracefully
+
+**Parameters**:  
+- Path `portfolio_id` (UUID): Portfolio identifier  
+- Query `symbols` (List[str], optional): Specific symbols to refresh  
+
+**Response** (PriceRefreshResponse): Refresh operation summary
+
+### 4. Investment Classification Service Layer
+
+### 5. Investment Classification APIs
+
+### 6. Update Demo Seeding Script
+
+---
+
+# TODO List
+
+## Phase 1: Target Price Implementation
+
+### 1.1 Database Model Implementation ✅ COMPLETED
+- [x] Created `app/models/target_prices.py` with TargetPrice model
+- [x] Defined table schema with proper field types (UUID, Decimal, Text)
+- [x] Added portfolio foreign key relationship with CASCADE delete
+- [x] Implemented unique constraint on (portfolio_id, symbol)
+- [x] Added comprehensive indexing for performance:
+  - Primary key index on id
+  - Foreign key index on portfolio_id
+  - Composite index on (portfolio_id, symbol)
+  - Symbol index for cross-portfolio queries
+  - Updated_at index for time-based queries
+- [x] Implemented calculate_expected_returns() method on model
+- [x] Added relationship to Portfolio model in users.py
+- [x] Updated models/__init__.py to export TargetPrice
+
+### 1.2 Database Migration ✅ COMPLETED
+- [x] Updated database.py to import TargetPrice model for Alembic detection
+- [x] Generated Alembic migration: `8a69d30cdfbd_add_portfolio_target_prices_table.py`
+- [x] Verified migration includes all table constraints and indexes
+- [x] Confirmed migration has proper upgrade/downgrade functions
+
+### 1.3 Pydantic Schemas Implementation ✅ COMPLETED
+- [x] Created `app/schemas/target_prices.py` with comprehensive schema definitions
+- [x] Implemented TargetPriceCreate schema with validation
+- [x] Implemented TargetPriceUpdate schema for partial updates
+- [x] Implemented TargetPriceResponse schema with full model data
+- [x] Implemented TargetPriceSummary schema for list endpoints
+- [x] Implemented TargetPriceListResponse for portfolio-level queries
+- [x] Implemented TargetPriceDeleteResponse for delete confirmations
+- [x] Implemented TargetPriceErrorResponse for error handling
+- [x] Added field validation for positive prices using Pydantic validators
+- [x] Added comprehensive examples and documentation strings
+
+### 1.4 API Endpoints Implementation ✅ COMPLETED
+- [x] Created `app/api/v1/target_prices.py` with complete CRUD operations
+- [x] Implemented portfolio ownership verification helper function
+- [x] Implemented current price fetching integration with MarketDataService
+- [x] Created GET `/target-prices/portfolios/{portfolio_id}` - List target prices
+- [x] Created GET `/target-prices/portfolios/{portfolio_id}/symbols/{symbol}` - Get specific target
+- [x] Created POST `/target-prices/portfolios/{portfolio_id}/symbols/{symbol}` - Create/update target
+- [x] Created PUT `/target-prices/portfolios/{portfolio_id}/symbols/{symbol}` - Update existing target
+- [x] Created DELETE `/target-prices/portfolios/{portfolio_id}/symbols/{symbol}` - Delete target
+- [x] Created POST `/target-prices/portfolios/{portfolio_id}/refresh-prices` - Refresh current prices
+- [x] Added comprehensive error handling with proper HTTP status codes
+- [x] Added authentication and authorization on all endpoints
+- [x] Integrated automatic return calculations on create/update operations
+
+### 1.5 Router Integration ✅ COMPLETED
+- [x] Updated `app/api/v1/router.py` to import target_prices module
+- [x] Registered target_prices.router in main API router
+- [x] Added proper routing prefix and tags configuration
+
+### 1.6 Market Data Integration ✅ COMPLETED
+- [x] Updated get_current_price_for_symbol() to use existing MarketDataService
+- [x] Integrated with MarketDataService.fetch_current_prices() method
+- [x] Added proper error handling for market data fetch failures
+- [x] Implemented automatic price updates with timestamp tracking
+
+### 1.7 Implementation Features Summary ✅ COMPLETED
+- [x] Direct ORM implementation (no service layer as per design decision)
+- [x] Real-time price fetching via Polygon API integration
+- [x] Automatic expected return calculations (EOY and next year)
+- [x] Comprehensive input validation and error responses
+- [x] Portfolio-scoped security with ownership verification
+- [x] Symbol-level API design for maximum flexibility
+- [x] Support for partial updates and bulk price refresh operations
+- [x] Complete OpenAPI documentation with examples
+
+## Phase 2: Investment Classification Implementation
+*Status: Not Started*
+
+## Phase 3: Demo Data Seeding
+*Status: Not Started*
 
 ---
 *Last Updated: 2025-09-17*
 *Status: Enhanced Planning Phase - Ready for Implementation*
-*Added: Comprehensive risk analysis, user workflows, and portfolio aggregation logic*
+*Implementation Status: Phase 1 Complete - Ready for Testing*
