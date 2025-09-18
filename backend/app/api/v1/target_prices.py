@@ -81,13 +81,10 @@ async def get_portfolio_target_prices(
     # Verify user owns the portfolio
     portfolio = await _verify_portfolio_ownership(db, portfolio_id, current_user.id)
 
-    target_prices = await target_price_service.get_portfolio_target_prices(db, portfolio_id)
-
-    # Apply filters if provided
-    if symbol:
-        target_prices = [tp for tp in target_prices if tp.symbol == symbol.upper()]
-    if position_type:
-        target_prices = [tp for tp in target_prices if tp.position_type == position_type.upper()]
+    # Apply filters at SQL level for better performance
+    target_prices = await target_price_service.get_portfolio_target_prices(
+        db, portfolio_id, symbol=symbol, position_type=position_type
+    )
 
     return [TargetPriceResponse.from_orm(tp) for tp in target_prices]
 
@@ -248,6 +245,12 @@ async def bulk_update_target_prices(
     # Verify user owns the portfolio
     portfolio = await _verify_portfolio_ownership(db, portfolio_id, current_user.id)
 
+    # Fetch all target prices once and index by (symbol, position_type) for O(1) lookup
+    target_prices = await target_price_service.get_portfolio_target_prices(db, portfolio_id)
+    target_price_index = {
+        (tp.symbol, tp.position_type): tp for tp in target_prices
+    }
+
     updated_count = 0
     errors = []
 
@@ -256,13 +259,8 @@ async def bulk_update_target_prices(
             symbol = update_item.get('symbol')
             position_type = update_item.get('position_type', 'LONG')
 
-            # Find the target price
-            target_prices = await target_price_service.get_portfolio_target_prices(db, portfolio_id)
-            target_price = next(
-                (tp for tp in target_prices
-                 if tp.symbol == symbol and tp.position_type == position_type),
-                None
-            )
+            # Fast lookup using index
+            target_price = target_price_index.get((symbol, position_type))
 
             if target_price:
                 # Create update data

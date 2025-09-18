@@ -12,7 +12,7 @@ from sqlalchemy import select, delete, and_, func
 from sqlalchemy.orm import selectinload
 
 from app.models.target_prices import TargetPrice
-from app.models.positions import Position
+from app.models.positions import Position, PositionType
 from app.models.users import Portfolio
 from app.models.market_data import MarketDataCache, PositionFactorExposure, FactorDefinition
 from app.services.market_data_service import MarketDataService
@@ -69,18 +69,30 @@ class TargetPriceService:
         )
         
         if position_type:
-            # Honor exact position_type if provided
-            query = query.where(Position.position_type == position_type)
-            result = await db.execute(query)
-            positions = result.scalars().all()
-            if positions:
-                return positions[0], positions[0].investment_class or "PUBLIC"
+            # Honor exact position_type if provided - convert string to enum
+            try:
+                position_type_enum = PositionType[position_type]
+                query = query.where(Position.position_type == position_type_enum)
+                result = await db.execute(query)
+                positions = result.scalars().all()
+                if positions:
+                    return positions[0], positions[0].investment_class or "PUBLIC"
+            except KeyError:
+                logger.warning(f"Invalid position_type '{position_type}', falling back to deterministic rules")
         else:
             # Apply deterministic fallback rules
             result = await db.execute(query)
             all_positions = result.scalars().all()
             
             if not all_positions:
+                # Check if symbol appears to be an options contract without position_id
+                if self._looks_like_options_contract(symbol):
+                    logger.warning(
+                        f"Symbol '{symbol}' appears to be an options contract but no position found. "
+                        f"Consider providing position_id or underlying_symbol for accurate pricing. "
+                        f"Falling back to symbol-based price resolution."
+                    )
+                    return None, "OPTIONS"  # Classify as OPTIONS for price resolution
                 return None, "PUBLIC"  # Default assumption
             
             # Prefer equity over options
@@ -92,6 +104,26 @@ class TargetPriceService:
             return all_positions[0], all_positions[0].investment_class or "PUBLIC"
         
         return None, "PUBLIC"
+
+    def _looks_like_options_contract(self, symbol: str) -> bool:
+        """
+        Heuristic to detect if a symbol looks like an options contract.
+        Common patterns: AAPL220121C00150000, MSFT231215P00400000
+        """
+        # Check for common options contract patterns
+        if len(symbol) >= 15:  # Minimum length for standard options symbol
+            # Look for patterns like: [TICKER][YYMMDD][C|P][STRIKE]
+            # or extended patterns
+            import re
+            patterns = [
+                r'^[A-Z]{1,6}\d{6}[CP]\d{8}$',  # Standard: AAPL220121C00150000
+                r'^[A-Z]{1,6}\d{6}[CP]\d{5}$',   # Some variations
+                r'[CP]\d{5,8}$',                 # Ends with C/P + strike
+            ]
+            for pattern in patterns:
+                if re.match(pattern, symbol):
+                    return True
+        return False
 
     async def _resolve_current_price(
         self,
@@ -222,8 +254,8 @@ class TargetPriceService:
         # Calculate expected returns using resolved price
         target_price.calculate_expected_returns(resolved_price)
 
-        # Calculate position weight if position exists
-        if target_price_data.position_id:
+        # Calculate position metrics if position was resolved (either passed or found)
+        if target_price.position_id:
             await self._calculate_position_metrics(db, target_price)
 
         db.add(target_price)
@@ -294,7 +326,7 @@ class TargetPriceService:
         # Recalculate expected returns with resolved price if available
         target_price.calculate_expected_returns(resolved_price)
 
-        # Recalculate position metrics if linked to position
+        # Recalculate position metrics if position is linked (resolved or updated)
         if target_price.position_id:
             await self._calculate_position_metrics(db, target_price)
 
@@ -342,16 +374,24 @@ class TargetPriceService:
     async def get_portfolio_target_prices(
         self,
         db: AsyncSession,
-        portfolio_id: UUID
+        portfolio_id: UUID,
+        symbol: Optional[str] = None,
+        position_type: Optional[str] = None
     ) -> List[TargetPrice]:
         """
-        Get all target prices for a portfolio.
+        Get all target prices for a portfolio with optional filtering.
         """
-        result = await db.execute(
-            select(TargetPrice)
-            .where(TargetPrice.portfolio_id == portfolio_id)
-            .order_by(TargetPrice.symbol)
-        )
+        query = select(TargetPrice).where(TargetPrice.portfolio_id == portfolio_id)
+        
+        # Apply SQL-level filters
+        if symbol:
+            query = query.where(TargetPrice.symbol == symbol.upper())
+        if position_type:
+            query = query.where(TargetPrice.position_type == position_type.upper())
+            
+        query = query.order_by(TargetPrice.symbol)
+        
+        result = await db.execute(query)
         return result.scalars().all()
 
     async def get_portfolio_summary(
@@ -394,7 +434,7 @@ class TargetPriceService:
         # Calculate portfolio-level metrics
         portfolio_metrics = await self._calculate_portfolio_metrics(
             db,
-            portfolio_id,
+            portfolio,
             target_prices,
             positions
         )
@@ -595,18 +635,20 @@ class TargetPriceService:
     async def _calculate_portfolio_metrics(
         self,
         db: AsyncSession,
-        portfolio_id: UUID,
+        portfolio: Portfolio,
         target_prices: List[TargetPrice],
         positions: List[Position]
     ) -> Dict[str, Optional[Decimal]]:
         """
-        Calculate portfolio-level metrics from target prices.
+        Calculate portfolio-level metrics from target prices using equity_balance.
         """
         if not target_prices:
             return {}
 
-        portfolio_value = await self._get_portfolio_value(db, portfolio_id)
-        if not portfolio_value or portfolio_value <= 0:
+        # Use equity_balance for weighting (Phase 1 policy)
+        equity_balance = portfolio.equity_balance
+        if not equity_balance or equity_balance <= 0:
+            logger.warning(f"Portfolio {portfolio.id} has no equity_balance, cannot calculate weighted metrics")
             return {}
 
         # Calculate weighted returns
@@ -624,7 +666,8 @@ class TargetPriceService:
             )
 
             if position and position.market_value:
-                weight = abs(position.market_value) / portfolio_value
+                # Calculate weight as abs(market_value)/equity_balance (fraction)
+                weight = abs(position.market_value) / equity_balance
 
                 if tp.expected_return_eoy:
                     weighted_eoy += weight * tp.expected_return_eoy
