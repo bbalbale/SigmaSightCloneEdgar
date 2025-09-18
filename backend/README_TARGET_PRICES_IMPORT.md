@@ -165,3 +165,55 @@ The script is ready to use against the current database schema. All 35 symbols f
 - Skipping duplicates and invalid records safely
 
 Run with `--dry-run` first to preview, then `--execute` to create the actual records.
+
+---
+
+## Appendix: Target Prices Rationale (09-18 Version)
+
+### Rationale for Upside vs Downside Targets
+
+#### **Upside Case (Bullish EOY & Next Year)**
+
+**Market Assumption**: Soft landing scenario with corporate earnings expanding double digits in 2025 and ~10% in 2026, while valuation multiples hold near historical highs.
+
+**By Sector/Category**:
+
+- **Tech/AI Beneficiaries** (NVDA, MSFT, META, AMD, GOOGL, AMZN, NFLX, TSLA): Given sustained AI/streaming/EV investment, these companies receive premium multiples and outsized upside (+30–50% next year).
+
+- **Defensives** (JNJ, PG, UNH, XOM): Lower growth expectations but stable fundamentals. Upside is modest (10–20%).
+
+- **Bonds** (BND, FXNAX): Interest rates ease, producing small but steady NAV gains.
+
+- **Gold** (GLD): Mild tailwind from weaker USD and modest geopolitical premium.
+
+- **Broad ETFs** (SPY, QQQ, VTI, VNQ, VTIAX): Track index-level assumptions (8–12% EOY, ~20–30% next year in a continued bull market).
+
+#### **Downside Case (Severe Correction)**
+
+**Market Assumption**: Economic downturn with significant multiple compression and demand destruction.
+
+**By Sector/Category**:
+
+- **Equities Overall**: S&P (SPY, VTI) drops ~25%. QQQ more volatile, down ~25–30%.
+
+- **High-Beta Tech** (NVDA, AMD, TSLA, ROKU, SHOP, META, NFLX): 35–45% drawdowns possible due to valuation compression and cyclical demand hit.
+
+- **Financials** (JPM, C, BRK-B): Down ~20–25% as higher rates pressure credit conditions.
+
+- **Defensives** (JNJ, PG, UNH): Hold better relative performance, down ~10–15%.
+
+- **Energy** (XOM): Oil demand slows, prices retrace, ~20% downside.
+
+- **Gold** (GLD): Mixed performance—can rally as safe haven, but liquidity crunches often hit metals first; modeled ~10–15% downside.
+
+- **Bonds** (BND, FXNAX): Could actually gain if Fed forced to cut aggressively, so modest upside/downside balance (kept relatively stable).
+
+- **Speculative Small Caps** (PTON, ROKU, ZOOM): Higher beta characteristics, 40–50% downside possible.
+
+### **Methodology Notes**
+
+- Target prices reflect fundamental analysis combined with scenario-based modeling
+- Upside targets assume continued multiple expansion in favorable macro environment
+- Downside targets model stress conditions while considering sector-specific resilience
+- Current price references provide baseline for return calculations
+- All targets subject to revision based on evolving market conditions and company fundamentals
