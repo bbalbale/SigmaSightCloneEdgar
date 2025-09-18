@@ -90,34 +90,39 @@ class TargetPrice(Base):
         Index('ix_target_prices_updated_at', 'updated_at'),
     )
 
-    def calculate_expected_returns(self) -> None:
+    def calculate_expected_returns(self, resolved_current_price: Optional[Decimal] = None) -> None:
         """
         Calculate expected returns based on current price and target prices.
         This is a simple percentage calculation for now.
+        
+        Args:
+            resolved_current_price: Explicit price to use for calculations.
+                                  If None, uses self.current_price
         """
-        if self.current_price and self.current_price != 0:
+        current_price = resolved_current_price or self.current_price
+        if current_price and current_price != 0:
             # EOY return calculation
             if self.target_price_eoy:
                 if self.position_type in ['SHORT', 'SC', 'SP']:
                     # For short positions, profit when price goes down
                     self.expected_return_eoy = (
-                        (self.current_price - self.target_price_eoy) / self.current_price
+                        (current_price - self.target_price_eoy) / current_price
                     ) * 100
                 else:
                     # For long positions, profit when price goes up
                     self.expected_return_eoy = (
-                        (self.target_price_eoy - self.current_price) / self.current_price
+                        (self.target_price_eoy - current_price) / current_price
                     ) * 100
 
             # Next year return calculation
             if self.target_price_next_year:
                 if self.position_type in ['SHORT', 'SC', 'SP']:
                     self.expected_return_next_year = (
-                        (self.current_price - self.target_price_next_year) / self.current_price
+                        (current_price - self.target_price_next_year) / current_price
                     ) * 100
                 else:
                     self.expected_return_next_year = (
-                        (self.target_price_next_year - self.current_price) / self.current_price
+                        (self.target_price_next_year - current_price) / current_price
                     ) * 100
 
             # Downside return calculation
@@ -125,12 +130,12 @@ class TargetPrice(Base):
                 if self.position_type in ['SHORT', 'SC', 'SP']:
                     # For shorts, downside is when price goes up
                     self.downside_return = (
-                        (self.current_price - self.downside_target_price) / self.current_price
+                        (current_price - self.downside_target_price) / current_price
                     ) * 100
                 else:
                     # For longs, downside is when price goes down
                     self.downside_return = (
-                        (self.downside_target_price - self.current_price) / self.current_price
+                        (self.downside_target_price - current_price) / current_price
                     ) * 100
 
     def __repr__(self):
