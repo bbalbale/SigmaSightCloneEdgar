@@ -17,7 +17,7 @@ Users will input three target prices per position:
 This applies to ALL position types:
 - **Long Positions**: Standard upside/downside targets
 - **Short Positions**: Inverse targets (lower is better)
-- **Options**: Underlying price targets + Greeks-based valuation
+- **Options**: Underlying price targets 
 - **Private Investments**: NAV or multiple-based targets
 
 ### Step 2: Position-Level Calculations
@@ -25,20 +25,16 @@ For each position with targets, the system calculates:
 - Expected return % for each scenario
 - Position weight in portfolio
 - Contribution to portfolio return
-- Risk-adjusted returns (considering confidence levels)
-
+- 
 ### Step 3: Portfolio Aggregation
 The system aggregates all positions to show:
 - **Portfolio Expected Return (EOY)**: Weighted average of all EOY targets
 - **Portfolio Expected Return (Next Year)**: Longer-term outlook
 - **Portfolio Downside Risk**: Weighted downside scenario
-- **Scenario Analysis**: Bull/Base/Bear cases with probabilities
+
 
 ### Step 4: Risk Analytics
 Beyond simple aggregation, the system provides:
-- Correlation-adjusted returns (positions moving together)
-- Concentration risk warnings
-- Confidence-weighted scenarios
 - Coverage metrics (% of portfolio with targets)
 
 ### Step 5: Monitoring & Updates
@@ -91,11 +87,6 @@ CREATE TABLE portfolio_target_prices (
     expected_return_next_year DECIMAL(8,4),  -- Calculated percentage
     downside_return DECIMAL(8,4),  -- NEW: Downside return percentage
 
-    -- Confidence Levels
-    confidence_level VARCHAR(10),  -- HIGH, MEDIUM, LOW
-    probability_eoy DECIMAL(5,2),  -- Probability of hitting EOY target (0-100)
-    probability_next_year DECIMAL(5,2),  -- Probability of hitting next year target
-    probability_downside DECIMAL(5,2),  -- Probability of downside scenario
 
     -- Risk Metrics
     position_weight DECIMAL(8,4),  -- Position weight in portfolio
@@ -121,7 +112,7 @@ CREATE TABLE portfolio_target_prices (
 - Position weight tracking for portfolio aggregation
 - Audit trail with created_by field
 
-### 3. Private Investment Details Table (Optional Enhancement)
+### 3. Private Investment Details Table (Optional functionality, not all portfolios will have private investemnts)
 ```sql
 CREATE TABLE private_investment_details (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -279,16 +270,8 @@ public_positions = [p for p in positions
 
 ## Code Implementation Risks
 
-### Risk 6: Option Calculation Complexity
-**Issue**: Complex Black-Scholes calculations for options target valuations may fail or produce incorrect results
-**Impact**: Incorrect expected returns for option positions, affecting portfolio aggregation
-**Mitigation**:
-- Use proven mibian library (already in codebase) for Greeks calculations
-- Implement fallback to simple linear approximation if Greeks unavailable
-- Add validation checks for reasonable option values (0 < price < underlying)
-- Unit tests for edge cases (near expiry, deep ITM/OTM)
 
-### Risk 7: Database Migration Failures
+### Risk 76: Database Migration Failures
 **Issue**: Alembic migrations could fail due to existing data or constraints
 **Impact**: Incomplete schema changes, system in inconsistent state
 **Mitigation**:
@@ -297,7 +280,7 @@ public_positions = [p for p in positions
 - Implement rollback scripts for each migration
 - Add pre-migration validation checks
 
-### Risk 8: Async/Sync Mixing in Aggregation Service
+### Risk 7: Async/Sync Mixing in Aggregation Service
 **Issue**: Portfolio aggregation service mixing async database calls with sync calculations
 **Impact**: Greenlet errors, event loop blocking
 **Mitigation**:
@@ -306,7 +289,7 @@ public_positions = [p for p in positions
 - Follow existing async patterns from batch orchestrator
 - Add comprehensive async/await testing
 
-### Risk 9: API Rate Limiting for Bulk Updates
+### Risk 8: API Rate Limiting for Bulk Updates
 **Issue**: Bulk target price updates hitting market data API rate limits
 **Impact**: Incomplete price refreshes, stale current prices
 **Mitigation**:
@@ -315,7 +298,7 @@ public_positions = [p for p in positions
 - Batch API calls efficiently (use existing FMP bulk endpoint)
 - Add circuit breaker pattern for API failures
 
-### Risk 10: Circular Import Dependencies
+### Risk 9: Circular Import Dependencies
 **Issue**: New services importing from models while models import from services
 **Impact**: ImportError at runtime, application fails to start
 **Mitigation**:
@@ -324,7 +307,7 @@ public_positions = [p for p in positions
 - Follow existing pattern: models → schemas → services → API
 - Add import validation to test suite
 
-### Risk 11: Memory Leaks in Large Portfolio Aggregations
+### Risk 10: Memory Leaks in Large Portfolio Aggregations
 **Issue**: Loading thousands of positions into memory for aggregation
 **Impact**: OOM errors, server crashes
 **Mitigation**:
@@ -333,7 +316,7 @@ public_positions = [p for p in positions
 - Add memory profiling to test suite
 - Implement pagination for large result sets
 
-### Risk 12: Type Conversion Errors
+### Risk 11: Type Conversion Errors
 **Issue**: UUID/string conversions, Decimal/float mismatches in calculations
 **Impact**: Runtime errors, incorrect calculations
 **Mitigation**:
