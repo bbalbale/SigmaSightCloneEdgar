@@ -1512,6 +1512,374 @@ curl -s -H "Authorization: Bearer $TOKEN" \
 
 ---
 
+## E. Target Prices Endpoints
+
+These endpoints manage portfolio-specific target prices for securities, enabling different price targets per portfolio and comprehensive scenario analysis.
+
+### Base Information
+- **Base Path**: `/api/v1/target-prices`
+- **Authentication**: Required (Bearer token)
+- **Database**: `portfolio_target_prices` table via TargetPrice model
+- **Service Layer**: `TargetPriceService` (all endpoints use service methods, not direct ORM)
+- **Features**: EOY targets, next year targets, downside scenarios, bulk operations, CSV import/export
+
+### 23. Create Target Price
+**Endpoint**: `POST /target-prices/{portfolio_id}`  
+**Status**: ✅ Fully Implemented  
+**File**: `app/api/v1/target_prices.py`  
+**Function**: `create_target_price()` (lines 32-65)  
+**Authentication**: Required (Bearer token)  
+**OpenAPI Description**: "Create a new target price for a portfolio position"  
+**Database Access**: Via service layer  
+**Service Layer**: `TargetPriceService.create_target_price()`  
+
+Creates a target price entry with EOY, next year, and downside scenarios for a specific portfolio and symbol.
+
+**Parameters**:
+- `portfolio_id` (path): Portfolio UUID
+- **Request Body** (TargetPriceCreate):
+```json
+{
+  "symbol": "AAPL",
+  "position_type": "LONG", 
+  "target_price_eoy": 200.00,
+  "target_price_next_year": 220.00,
+  "downside_target_price": 150.00,
+  "current_price": 180.00,
+  "current_implied_vol": 0.25,
+  "analyst_notes": "Strong fundamentals with iPhone 16 cycle",
+  "data_source": "ANALYST_CONSENSUS",
+  "position_id": "uuid-optional"
+}
+```
+
+**Response** (TargetPriceResponse):
+```json
+{
+  "id": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
+  "portfolio_id": "c0510ab8-c6b5-433c-adbc-3f74e1dbdb5e",
+  "position_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+  "symbol": "AAPL",
+  "position_type": "LONG",
+  "target_price_eoy": 200.00,
+  "target_price_next_year": 220.00,
+  "downside_target_price": 150.00,
+  "current_price": 180.00,
+  "current_implied_vol": 0.25,
+  "expected_return_eoy": 11.11,
+  "expected_return_next_year": 22.22,
+  "downside_return": -16.67,
+  "position_weight": 5.25,
+  "contribution_to_portfolio_return": 0.58,
+  "contribution_to_portfolio_risk": 0.45,
+  "analyst_notes": "Strong fundamentals with iPhone 16 cycle",
+  "data_source": "ANALYST_CONSENSUS",
+  "price_updated_at": "2025-09-18T10:00:00Z",
+  "created_by": "user-uuid",
+  "created_at": "2025-09-18T10:00:00Z",
+  "updated_at": "2025-09-18T10:00:00Z"
+}
+```
+
+### 24. Get Portfolio Target Prices
+**Endpoint**: `GET /target-prices/{portfolio_id}`  
+**Status**: ✅ Fully Implemented  
+**File**: `app/api/v1/target_prices.py`  
+**Function**: `get_portfolio_target_prices()` (lines 68-92)  
+**Authentication**: Required (Bearer token)  
+**OpenAPI Description**: "Get all target prices for a portfolio"  
+**Service Layer**: `TargetPriceService.get_portfolio_target_prices()`  
+
+Returns all target prices for a portfolio with optional filtering by symbol or position type.
+
+**Parameters**:
+- `portfolio_id` (path): Portfolio UUID
+- `symbol` (query, optional): Filter by symbol
+- `position_type` (query, optional): Filter by position type
+
+**Response**:
+```json
+[
+  {
+    "id": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
+    "portfolio_id": "c0510ab8-c6b5-433c-adbc-3f74e1dbdb5e",
+    "symbol": "AAPL",
+    "position_type": "LONG",
+    "target_price_eoy": 200.00,
+    "target_price_next_year": 220.00,
+    "downside_target_price": 150.00,
+    "current_price": 180.00,
+    "expected_return_eoy": 11.11,
+    "expected_return_next_year": 22.22,
+    "downside_return": -16.67,
+    "created_at": "2025-09-18T10:00:00Z",
+    "updated_at": "2025-09-18T10:00:00Z"
+  }
+]
+```
+
+### 25. Get Portfolio Target Price Summary
+**Endpoint**: `GET /target-prices/{portfolio_id}/summary`  
+**Status**: ✅ Fully Implemented  
+**File**: `app/api/v1/target_prices.py`  
+**Function**: `get_portfolio_target_summary()` (lines 95-120)  
+**Authentication**: Required (Bearer token)  
+**OpenAPI Description**: "Get portfolio target price summary with aggregated metrics"  
+**Service Layer**: `TargetPriceService.get_portfolio_summary()`  
+
+Returns comprehensive portfolio-level target price analytics with coverage, weighted returns, and risk metrics.
+
+**Parameters**:
+- `portfolio_id` (path): Portfolio UUID
+
+**Response** (PortfolioTargetPriceSummary):
+```json
+{
+  "portfolio_id": "c0510ab8-c6b5-433c-adbc-3f74e1dbdb5e",
+  "portfolio_name": "Demo High Net Worth Investor Portfolio",
+  "total_positions": 21,
+  "positions_with_targets": 18,
+  "coverage_percentage": 85.71,
+  "weighted_expected_return_eoy": 12.5,
+  "weighted_expected_return_next_year": 18.3,
+  "weighted_downside_return": -8.2,
+  "expected_sharpe_ratio": 1.25,
+  "expected_sortino_ratio": 1.68,
+  "target_prices": [
+    {
+      "id": "uuid",
+      "symbol": "AAPL", 
+      "target_price_eoy": 200.00,
+      "expected_return_eoy": 11.11
+    }
+  ],
+  "last_updated": "2025-09-18T10:00:00Z"
+}
+```
+
+### 26. Get Target Price by ID
+**Endpoint**: `GET /target-prices/target/{target_price_id}`  
+**Status**: ✅ Fully Implemented  
+**File**: `app/api/v1/target_prices.py`  
+**Function**: `get_target_price()` (lines 123-140)  
+**Authentication**: Required (Bearer token)  
+**OpenAPI Description**: "Get a specific target price by ID"  
+**Service Layer**: `TargetPriceService.get_target_price()`  
+
+Retrieves a single target price record with portfolio ownership verification.
+
+**Parameters**:
+- `target_price_id` (path): Target price UUID
+
+**Response**: TargetPriceResponse (same as create response)
+
+### 27. Update Target Price
+**Endpoint**: `PUT /target-prices/target/{target_price_id}`  
+**Status**: ✅ Fully Implemented  
+**File**: `app/api/v1/target_prices.py`  
+**Function**: `update_target_price()` (lines 143-175)  
+**Authentication**: Required (Bearer token)  
+**OpenAPI Description**: "Update an existing target price"  
+**Service Layer**: `TargetPriceService.update_target_price()`  
+
+Updates target price fields with automatic recalculation of expected returns.
+
+**Parameters**:
+- `target_price_id` (path): Target price UUID
+- **Request Body** (TargetPriceUpdate):
+```json
+{
+  "target_price_eoy": 210.00,
+  "target_price_next_year": 235.00,
+  "downside_target_price": 160.00,
+  "current_price": 185.00,
+  "analyst_notes": "Updated after Q3 earnings beat",
+  "data_source": "USER_INPUT"
+}
+```
+
+**Response**: TargetPriceResponse with updated values
+
+### 28. Delete Target Price
+**Endpoint**: `DELETE /target-prices/target/{target_price_id}`  
+**Status**: ✅ Fully Implemented  
+**File**: `app/api/v1/target_prices.py`  
+**Function**: `delete_target_price()` (lines 178-201)  
+**Authentication**: Required (Bearer token)  
+**OpenAPI Description**: "Delete a target price"  
+**Service Layer**: `TargetPriceService.delete_target_price()`  
+
+Permanently removes a target price record with portfolio ownership verification.
+
+**Parameters**:
+- `target_price_id` (path): Target price UUID
+
+**Response**:
+```json
+{
+  "message": "Target price deleted successfully"
+}
+```
+
+### 29. Bulk Create Target Prices
+**Endpoint**: `POST /target-prices/{portfolio_id}/bulk`  
+**Status**: ✅ Fully Implemented  
+**File**: `app/api/v1/target_prices.py`  
+**Function**: `bulk_create_target_prices()` (lines 204-227)  
+**Authentication**: Required (Bearer token)  
+**OpenAPI Description**: "Create multiple target prices at once"  
+**Service Layer**: `TargetPriceService.bulk_create_target_prices()`  
+
+Creates multiple target prices in a single operation, skipping existing symbol/position_type combinations.
+
+**Parameters**:
+- `portfolio_id` (path): Portfolio UUID
+- **Request Body** (TargetPriceBulkCreate):
+```json
+{
+  "target_prices": [
+    {
+      "symbol": "AAPL",
+      "position_type": "LONG",
+      "target_price_eoy": 200.00,
+      "current_price": 180.00
+    },
+    {
+      "symbol": "MSFT", 
+      "position_type": "LONG",
+      "target_price_eoy": 450.00,
+      "current_price": 425.00
+    }
+  ]
+}
+```
+
+**Response**: Array of TargetPriceResponse objects for created records
+
+### 30. Bulk Update Target Prices
+**Endpoint**: `PUT /target-prices/{portfolio_id}/bulk-update`  
+**Status**: ✅ Fully Implemented  
+**File**: `app/api/v1/target_prices.py`  
+**Function**: `bulk_update_target_prices()` (lines 230-283)  
+**Authentication**: Required (Bearer token)  
+**OpenAPI Description**: "Bulk update target prices by symbol"  
+**Service Layer**: `TargetPriceService.get_portfolio_target_prices()` + `TargetPriceService.update_target_price()`  
+
+Updates multiple target prices by symbol and position type with error tracking.
+
+**Parameters**:
+- `portfolio_id` (path): Portfolio UUID
+- **Request Body** (TargetPriceBulkUpdate):
+```json
+{
+  "updates": [
+    {
+      "symbol": "AAPL",
+      "position_type": "LONG",
+      "target_price_eoy": 210.00,
+      "current_price": 185.00
+    },
+    {
+      "symbol": "MSFT",
+      "position_type": "LONG", 
+      "target_price_next_year": 475.00
+    }
+  ]
+}
+```
+
+**Response**:
+```json
+{
+  "updated": 2,
+  "errors": []
+}
+```
+
+### 31. Import Target Prices from CSV
+**Endpoint**: `POST /target-prices/{portfolio_id}/import-csv`  
+**Status**: ✅ Fully Implemented  
+**File**: `app/api/v1/target_prices.py`  
+**Function**: `import_target_prices_csv()` (lines 286-317)  
+**Authentication**: Required (Bearer token)  
+**OpenAPI Description**: "Import target prices from CSV format"  
+**Service Layer**: `TargetPriceService.import_from_csv()`  
+
+Imports target prices from CSV with configurable update behavior for existing records.
+
+**Parameters**:
+- `portfolio_id` (path): Portfolio UUID
+- **Request Body** (TargetPriceImportCSV):
+```json
+{
+  "csv_content": "symbol,position_type,target_eoy,target_next_year,downside,current_price\nAAPL,LONG,200,220,150,180\nMSFT,LONG,400,450,350,375",
+  "update_existing": false
+}
+```
+
+**CSV Format**:
+- Required headers: `symbol,position_type,target_eoy,target_next_year,downside,current_price`
+- Position types: `LONG`, `SHORT`, `LC`, `LP`, `SC`, `SP`
+
+**Response**:
+```json
+{
+  "imported": 2,
+  "updated": 0, 
+  "skipped": 0,
+  "errors": [],
+  "summary": "Successfully imported 2 target prices"
+}
+```
+
+### 32. Export Target Prices
+**Endpoint**: `POST /target-prices/{portfolio_id}/export`  
+**Status**: ✅ Fully Implemented  
+**File**: `app/api/v1/target_prices.py`  
+**Function**: `export_target_prices()` (lines 320-395)  
+**Authentication**: Required (Bearer token)  
+**OpenAPI Description**: "Export target prices to CSV or JSON format"  
+**Service Layer**: `TargetPriceService.get_portfolio_target_prices()`  
+
+Exports portfolio target prices with configurable format and optional metadata.
+
+**Parameters**:
+- `portfolio_id` (path): Portfolio UUID  
+- **Request Body** (TargetPriceExportRequest):
+```json
+{
+  "format": "csv",
+  "include_calculations": true,
+  "include_metadata": false
+}
+```
+
+**Response for JSON format**:
+```json
+[
+  {
+    "symbol": "AAPL",
+    "position_type": "LONG",
+    "target_price_eoy": 200.00,
+    "target_price_next_year": 220.00,
+    "downside_target_price": 150.00,
+    "current_price": 180.00,
+    "expected_return_eoy": 11.11,
+    "expected_return_next_year": 22.22,
+    "downside_return": -16.67
+  }
+]
+```
+
+**Response for CSV format**:
+```json
+{
+  "csv": "symbol,position_type,target_eoy,target_next_year,downside,current_price,expected_return_eoy,expected_return_next_year,downside_return\nAAPL,LONG,200.0,220.0,150.0,180.0,11.11,22.22,-16.67"
+}
+```
+
+---
+
 ## Error Handling
 
 All endpoints follow consistent error response format:
@@ -1820,5 +2188,5 @@ For development planning questions:
 ---
 
 **Document Status**: ✅ Part I Production Ready | 🎯 Part II Development Planning  
-**Last Verified**: September 5, 2025  
+**Last Verified**: September 18, 2025  
 **Production endpoints confirmed working with real database data**
