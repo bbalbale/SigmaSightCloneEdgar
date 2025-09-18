@@ -1532,6 +1532,20 @@ These endpoints manage portfolio-specific target prices for securities, enabling
 - **Performance Optimized**: SQL-level filtering, bulk operation indexing, stale data detection
 - **Breaking Changes Applied**: Removed deprecated fields, standardized response formats
 
+### Price Source Behavior
+**PUBLIC/OPTIONS Securities:**
+- Primary: Latest from MarketDataCache (with staleness detection)
+- Fallback: Live MarketDataService API call
+- Final Fallback: User-provided `current_price` parameter
+
+**PRIVATE Investments:**
+- Requires user-provided `current_price` (rejects request if missing)
+- No market data lookup attempted
+
+**Options Handling:**
+- Price resolution uses underlying symbol when position linked
+- Volatility calculation uses underlying symbol for accurate risk metrics
+
 ### 23. Create Target Price
 
 **Endpoint**: `POST /target-prices/{portfolio_id}`  
@@ -1598,6 +1612,11 @@ These endpoints manage portfolio-specific target prices for securities, enabling
 }
 ```
 
+**Response Notes**:
+- `contribution_to_portfolio_risk`: May be null if beta, volatility, or position weight unavailable
+- `position_weight`: Returned as percentage (0-100) for API compatibility
+- All calculated fields depend on successful price resolution and position linking
+
 ### 24. Get Portfolio Target Prices
 
 **Endpoint**: `GET /target-prices/{portfolio_id}`  
@@ -1618,8 +1637,10 @@ These endpoints manage portfolio-specific target prices for securities, enabling
 - **SQL-Level Filtering**: Filters applied in database query for performance
 - **Portfolio Ownership**: Automatic verification of user portfolio access
 - **Efficient Queries**: Indexed lookups with optimized joins
+- **Sorting**: Results ordered by symbol (ascending)
+- **No Pagination**: Returns all matching records (pagination planned for future)
 
-**Response**: Array of TargetPriceResponse objects (same schema as create response)
+**Response**: Array of TargetPriceResponse objects (same schema as create response, with nullability notes above)
 
 ### 25. Get Portfolio Target Price Summary
 
@@ -1863,12 +1884,18 @@ These endpoints manage portfolio-specific target prices for securities, enabling
 **Response**:
 ```json
 {
-  "imported": 15,
+  "created": 15,
   "updated": 3,
-  "skipped": 2,
+  "total": 18,
   "errors": ["Row 8: Invalid position_type 'INVALID'"]
 }
 ```
+
+**Response Schema Notes**:
+- `created`: Number of new target prices created
+- `updated`: Number of existing target prices updated (when update_existing=true)
+- `total`: Total records processed successfully (created + updated)
+- `errors`: Array of error messages for failed rows
 
 ### 32. Export Target Prices
 
