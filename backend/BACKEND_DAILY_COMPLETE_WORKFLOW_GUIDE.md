@@ -302,10 +302,37 @@ asyncio.run(validate())
 - ✅ GICS fetching now **optional** (defaults to False for performance)
 - ✅ Metadata rows filtered (only counts actual price data)
 
-### 2. Run Batch Calculations
+### 2. Seed Target Prices (If Needed)
 
-**⚠️ IMPORTANT NOTES**: 
-1. Pre-API reports (.md summary, .json, .csv) are planned for deletion.  
+If target prices haven't been seeded or need updating:
+
+```bash
+# Check if target prices exist
+uv run python -c "
+import asyncio
+from app.database import AsyncSessionLocal
+from app.models.target_prices import TargetPrice
+from sqlalchemy import select, func
+
+async def check():
+    async with AsyncSessionLocal() as db:
+        count = await db.scalar(select(func.count(TargetPrice.id)))
+        print(f'Target price records: {count}')
+
+asyncio.run(check())
+"
+
+# If count is 0, seed target prices
+uv run python scripts/data_operations/populate_target_prices_via_service.py \
+  --csv-file data/target_prices_import.csv --execute
+```
+
+Expected: 105 target price records (35 symbols × 3 portfolios)
+
+### 3. Run Batch Calculations
+
+**⚠️ IMPORTANT NOTES**:
+1. Pre-API reports (.md summary, .json, .csv) are planned for deletion.
 2. **UTF-8 FIXED**: All scripts now handle Unicode automatically (no prefix needed)
 3. **DO NOT RUN REPORTS** - Use `--skip-reports` flag for all batch operations.
 
@@ -747,6 +774,7 @@ curl -H "Authorization: Bearer $TOKEN" http://localhost:8000/api/v1/data/portfol
 - [ ] PostgreSQL container started
 - [ ] ⚠️ Database migrations applied (CRITICAL - check after every pull)
 - [ ] Market data synced
+- [ ] Target prices populated (if using Target Price APIs)
 - [ ] Batch calculations run (Windows: use PYTHONIOENCODING=utf-8)
 - [ ] API server started
 - [ ] Agent system verified
