@@ -33,6 +33,24 @@ export default function ApiTestPage() {
   }, []);
 
   const testEndpoints = [
+    // Target Price Endpoints
+    {
+      name: '🎯 Target Prices - Get All',
+      endpoint: `/api/proxy/api/v1/target-prices/${selectedPortfolio}`,
+      method: 'GET',
+      requiresAuth: true,
+      category: 'target-prices',
+      description: 'Get all target prices for the portfolio with EOY, Next Year, and Downside scenarios'
+    },
+    {
+      name: '📊 Target Prices - Portfolio Summary',
+      endpoint: `/api/proxy/api/v1/target-prices/${selectedPortfolio}/summary`,
+      method: 'GET',
+      requiresAuth: true,
+      category: 'target-prices',
+      description: 'Portfolio-weighted target price summary with coverage and weighted returns'
+    },
+
     // Analytics Lookthrough Endpoints
     {
       name: '📊 Portfolio Overview Analytics',
@@ -193,7 +211,59 @@ export default function ApiTestPage() {
 
   const renderDataPreview = (data: any, endpoint: string) => {
     if (!data) return <span className="text-gray-400">No data</span>;
-    
+
+    // Special rendering for target prices
+    if (endpoint.includes('target-prices') && !endpoint.includes('summary')) {
+      if (Array.isArray(data)) {
+        return (
+          <div className="space-y-2">
+            <div className="text-sm font-medium">{data.length} target prices found</div>
+            {data.slice(0, 3).map((tp: any, idx: number) => (
+              <div key={idx} className="p-2 bg-gray-50 rounded text-xs space-y-1">
+                <div className="font-semibold">{tp.symbol} ({tp.position_type || 'N/A'})</div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>Current: ${tp.current_price?.toFixed(2) || 'N/A'}</div>
+                  <div>EOY Target: ${tp.target_price_eoy?.toFixed(2) || 'N/A'}</div>
+                  <div>Next Year: ${tp.target_price_next_year?.toFixed(2) || 'N/A'}</div>
+                  <div>Downside: ${tp.downside_target_price?.toFixed(2) || 'N/A'}</div>
+                </div>
+                <div className="text-gray-600">
+                  EOY Return: {tp.expected_return_eoy ? `${tp.expected_return_eoy.toFixed(1)}%` : 'N/A'} |
+                  Next Yr: {tp.expected_return_next_year ? `${tp.expected_return_next_year.toFixed(1)}%` : 'N/A'} |
+                  Downside: {tp.downside_return ? `${tp.downside_return.toFixed(1)}%` : 'N/A'}
+                </div>
+              </div>
+            ))}
+            {data.length > 3 && (
+              <div className="text-xs text-gray-500">...and {data.length - 3} more</div>
+            )}
+          </div>
+        );
+      }
+    }
+
+    // Special rendering for target price summary
+    if (endpoint.includes('target-prices') && endpoint.includes('summary')) {
+      return (
+        <div className="space-y-2">
+          <div className="text-sm">
+            <strong>{data.portfolio_name}</strong>
+          </div>
+          <div className="grid grid-cols-2 gap-2 text-xs">
+            <div>Positions: {data.total_positions}</div>
+            <div>With Targets: {data.positions_with_targets}</div>
+            <div>Coverage: {data.coverage_percentage ? `${data.coverage_percentage.toFixed(1)}%` : 'N/A'}</div>
+            <div>Target Count: {data.target_prices?.length || 0}</div>
+          </div>
+          <div className="text-xs space-y-1 pt-1 border-t">
+            <div>Weighted EOY Return: {data.weighted_expected_return_eoy ? `${data.weighted_expected_return_eoy.toFixed(1)}%` : 'N/A'}</div>
+            <div>Weighted Next Year Return: {data.weighted_expected_return_next_year ? `${data.weighted_expected_return_next_year.toFixed(1)}%` : 'N/A'}</div>
+            <div>Weighted Downside Return: {data.weighted_downside_return ? `${data.weighted_downside_return.toFixed(1)}%` : 'N/A'}</div>
+          </div>
+        </div>
+      );
+    }
+
     // Special rendering for specific endpoint types
     if (endpoint.includes('correlation-matrix') && data.matrix) {
       return (
@@ -356,7 +426,65 @@ export default function ApiTestPage() {
         {/* Detailed Results */}
         <div className="space-y-4">
           <h2 className="text-xl font-semibold text-gray-800">Test Results</h2>
-          
+
+          {/* Target Prices Section */}
+          <div className="space-y-2">
+            <h3 className="text-lg font-medium text-gray-700 bg-purple-50 px-4 py-2 rounded">
+              Target Price Endpoints
+            </h3>
+            {results.filter(r => r.url.includes('/target-prices/')).map((result, index) => (
+              <div
+                key={`target-${index}`}
+                className="border rounded-lg p-4 bg-white hover:shadow-md transition-shadow"
+              >
+                <div className="flex items-start justify-between mb-2">
+                  <div className="flex-1">
+                    <div className="font-medium text-gray-800">{result.endpoint}</div>
+                    <div className="text-xs text-gray-500 mt-1">{result.url}</div>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <span className={`font-mono text-sm ${getStatusColor(result.status)}`}>
+                      {result.status || 'ERROR'}
+                    </span>
+                    <span className="text-sm text-gray-500">{result.responseTime}ms</span>
+                  </div>
+                </div>
+
+                {result.error && (
+                  <div className="mt-2 p-2 bg-red-50 rounded text-sm text-red-600">
+                    Error: {result.error}
+                  </div>
+                )}
+
+                {result.data && (
+                  <div className="mt-3">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-sm font-medium text-gray-700">Response Data:</span>
+                      <button
+                        onClick={() => toggleDataExpansion(result.endpoint)}
+                        className="text-xs text-blue-600 hover:text-blue-800"
+                      >
+                        {expandedData[result.endpoint] ? 'Collapse' : 'Expand Full Data'}
+                      </button>
+                    </div>
+
+                    {!expandedData[result.endpoint] ? (
+                      <div className="p-3 bg-gray-50 rounded">
+                        {renderDataPreview(result.data, result.url)}
+                      </div>
+                    ) : (
+                      <div className="max-h-96 overflow-y-auto">
+                        <pre className="text-xs bg-gray-100 p-4 rounded overflow-x-auto">
+                          {formatJson(result.data)}
+                        </pre>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+
           {/* Analytics Section */}
           <div className="space-y-2">
             <h3 className="text-lg font-medium text-gray-700 bg-blue-50 px-4 py-2 rounded">
