@@ -41,6 +41,8 @@ export default function ApiTestPage() {
   const [results, setResults] = useState<Record<string, Result | null>>({});
   const [allApiResults, setAllApiResults] = useState<Record<string, Result | null>>({});
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
+  const [createdTargetPriceId, setCreatedTargetPriceId] = useState<string>("");
+  const [targetPriceMutationResults, setTargetPriceMutationResults] = useState<Record<string, Result | null>>({});
 
   // Analytics params
   const [lookbackDays, setLookbackDays] = useState<number>(90);
@@ -203,13 +205,190 @@ export default function ApiTestPage() {
         analyticsApi.getStressTest(pid)),
       
       // Admin APIs
-      measure('/api/v1/admin/health', () => 
+      measure('/api/v1/admin/health', () =>
         apiClient.get('/api/v1/admin/health', { headers: { Authorization: `Bearer ${token}` } })),
+
+      // Target Price APIs
+      measure(`/api/v1/target-prices/${pid}`, () =>
+        apiClient.get(`/api/v1/target-prices/${pid}`, { headers: { Authorization: `Bearer ${token}` } })),
+      measure(`/api/v1/target-prices/${pid}/summary`, () =>
+        apiClient.get(`/api/v1/target-prices/${pid}/summary`, { headers: { Authorization: `Bearer ${token}` } })),
+      measure(`/api/v1/target-prices/${pid}/export`, () =>
+        apiClient.post(`/api/v1/target-prices/${pid}/export`, {}, { headers: { Authorization: `Bearer ${token}` } })),
     ]);
 
     setAllApiResults(Object.fromEntries(apiTests));
     appendLog(`Tested ${apiTests.length} API endpoints.`);
     setBusy(false);
+  }, [token, portfolioId, appendLog]);
+
+  // Target Price Mutation Functions
+  const testCreateTargetPrice = useCallback(async () => {
+    if (!token || !portfolioId) {
+      appendLog("Token and Portfolio ID required");
+      return;
+    }
+    setBusy(true);
+    try {
+      // Get first position from portfolio
+      const positionsData = await apiClient.get(
+        `/api/v1/data/positions/details?portfolio_id=${portfolioId}&limit=1`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+
+      if (!positionsData?.positions?.length) {
+        appendLog("No positions found in portfolio");
+        return;
+      }
+
+      const firstPosition = positionsData.positions[0];
+      const targetPriceData = {
+        symbol: firstPosition.symbol,
+        position_id: firstPosition.id,
+        position_type: firstPosition.position_type || "LONG",
+        target_price_eoy: firstPosition.last_price * 1.1,
+        target_price_next_year: firstPosition.last_price * 1.2,
+        downside_target_price: firstPosition.last_price * 0.9,
+        current_price: firstPosition.last_price
+      };
+
+      const started = performance.now();
+      const response = await fetch(`/api/proxy/api/v1/target-prices/${portfolioId}`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(targetPriceData)
+      });
+
+      const data = await response.json();
+      const tookMs = Math.round(performance.now() - started);
+
+      const result = {
+        ok: response.ok,
+        status: response.status,
+        data,
+        tookMs,
+        url: `/api/v1/target-prices/${portfolioId}`
+      };
+
+      setTargetPriceMutationResults(prev => ({ ...prev, create: result }));
+
+      if (response.ok && data.id) {
+        setCreatedTargetPriceId(data.id);
+        appendLog(`Created target price for ${firstPosition.symbol} with ID: ${data.id}`);
+      } else {
+        appendLog(`Failed to create target price: ${data.error || 'Unknown error'}`);
+      }
+    } catch (e: any) {
+      appendLog(`Error creating target price: ${e.message}`);
+    } finally {
+      setBusy(false);
+    }
+  }, [token, portfolioId, appendLog]);
+
+  const testDeleteTargetPrice = useCallback(async () => {
+    if (!token || !createdTargetPriceId) {
+      appendLog("Token and Target Price ID required");
+      return;
+    }
+    setBusy(true);
+    try {
+      const started = performance.now();
+      const response = await fetch(`/api/proxy/api/v1/target-prices/target/${createdTargetPriceId}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+
+      const data = response.status !== 204 ? await response.json() : { message: 'Deleted successfully' };
+      const tookMs = Math.round(performance.now() - started);
+
+      const result = {
+        ok: response.ok,
+        status: response.status,
+        data,
+        tookMs,
+        url: `/api/v1/target-prices/target/${createdTargetPriceId}`
+      };
+
+      setTargetPriceMutationResults(prev => ({ ...prev, delete: result }));
+
+      if (response.ok) {
+        appendLog(`Deleted target price ID: ${createdTargetPriceId}`);
+        setCreatedTargetPriceId("");
+      } else {
+        appendLog(`Failed to delete target price: ${data.error || 'Unknown error'}`);
+      }
+    } catch (e: any) {
+      appendLog(`Error deleting target price: ${e.message}`);
+    } finally {
+      setBusy(false);
+    }
+  }, [token, createdTargetPriceId, appendLog]);
+
+  const testBulkCreateTargetPrices = useCallback(async () => {
+    if (!token || !portfolioId) {
+      appendLog("Token and Portfolio ID required");
+      return;
+    }
+    setBusy(true);
+    try {
+      // Get top 3 positions
+      const positionsData = await apiClient.get(
+        `/api/v1/data/positions/details?portfolio_id=${portfolioId}&limit=3`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+
+      if (!positionsData?.positions?.length) {
+        appendLog("No positions found in portfolio");
+        return;
+      }
+
+      const targetPrices = positionsData.positions.map((pos: any) => ({
+        symbol: pos.symbol,
+        position_id: pos.id,
+        position_type: pos.position_type || "LONG",
+        target_price_eoy: pos.last_price * 1.15,
+        target_price_next_year: pos.last_price * 1.25,
+        downside_target_price: pos.last_price * 0.85,
+        current_price: pos.last_price
+      }));
+
+      const started = performance.now();
+      const response = await fetch(`/api/proxy/api/v1/target-prices/${portfolioId}/bulk`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ target_prices: targetPrices })
+      });
+
+      const data = await response.json();
+      const tookMs = Math.round(performance.now() - started);
+
+      const result = {
+        ok: response.ok,
+        status: response.status,
+        data,
+        tookMs,
+        url: `/api/v1/target-prices/${portfolioId}/bulk`
+      };
+
+      setTargetPriceMutationResults(prev => ({ ...prev, bulk_create: result }));
+
+      if (response.ok) {
+        const symbols = positionsData.positions.map((p: any) => p.symbol).join(', ');
+        appendLog(`Bulk created target prices for: ${symbols}`);
+      } else {
+        appendLog(`Failed to bulk create target prices: ${data.error || 'Unknown error'}`);
+      }
+    } catch (e: any) {
+      appendLog(`Error bulk creating target prices: ${e.message}`);
+    } finally {
+      setBusy(false);
+    }
   }, [token, portfolioId, appendLog]);
 
   useEffect(() => {
@@ -270,6 +449,9 @@ export default function ApiTestPage() {
                 { key: `/api/v1/analytics/portfolio/${portfolioId || '{id}'}/positions/factor-exposures`, label: 'Analytics: Position Factors' },
                 { key: `/api/v1/analytics/portfolio/${portfolioId || '{id}'}/stress-test`, label: 'Analytics: Stress Test' },
                 { key: '/api/v1/admin/health', label: 'Admin: Health Check' },
+                { key: `/api/v1/target-prices/${portfolioId || '{id}'}`, label: '🎯 Target Prices: List' },
+                { key: `/api/v1/target-prices/${portfolioId || '{id}'}/summary`, label: '📊 Target Prices: Summary' },
+                { key: `/api/v1/target-prices/${portfolioId || '{id}'}/export`, label: '📥 Target Prices: Export' },
               ].map(({ key, label }) => {
                 const result = allApiResults[key];
                 const isExpanded = expandedRows.has(key);
@@ -401,6 +583,130 @@ export default function ApiTestPage() {
             Run All Analytics
           </button>
         </div>
+      </section>
+
+      {/* Target Price Display */}
+      <section className="border rounded-lg p-4 space-y-3 bg-purple-50">
+        <h2 className="text-lg font-medium text-purple-900">🎯 Target Prices Data</h2>
+        <p className="text-sm text-purple-700">Existing target prices for the portfolio</p>
+
+        {/* Display fetched target prices */}
+        {allApiResults[`/api/v1/target-prices/${portfolioId}`]?.data && (
+          <div className="mt-3 space-y-2">
+            <div className="text-sm font-medium text-purple-900">
+              Found {Array.isArray(allApiResults[`/api/v1/target-prices/${portfolioId}`]?.data)
+                ? allApiResults[`/api/v1/target-prices/${portfolioId}`]?.data?.length || 0
+                : 0} target prices:
+            </div>
+            <div className="max-h-96 overflow-y-auto bg-white rounded-lg p-3 border border-purple-200">
+              {Array.isArray(allApiResults[`/api/v1/target-prices/${portfolioId}`]?.data) &&
+               allApiResults[`/api/v1/target-prices/${portfolioId}`]?.data?.length > 0 ? (
+                <div className="space-y-2">
+                  {allApiResults[`/api/v1/target-prices/${portfolioId}`]?.data?.slice(0, 10).map((tp: any, idx: number) => (
+                    <div key={tp.id || idx} className="p-2 bg-purple-50 rounded border border-purple-100">
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <span className="font-semibold text-purple-900">{tp.symbol}</span>
+                          <span className="ml-2 text-xs text-purple-600">{tp.position_type}</span>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-sm text-gray-600">Current: ${tp.current_price?.toFixed(2)}</div>
+                          <div className="text-sm font-medium text-green-600">
+                            Target EOY: ${tp.target_price_eoy?.toFixed(2)}
+                            ({tp.expected_return_eoy > 0 ? '+' : ''}{tp.expected_return_eoy?.toFixed(2)}%)
+                          </div>
+                        </div>
+                      </div>
+                      {tp.position_weight && (
+                        <div className="mt-1 text-xs text-gray-500">
+                          Weight: {tp.position_weight?.toFixed(2)}% |
+                          Contribution: {tp.contribution_to_portfolio_return?.toFixed(4)}%
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                  {(allApiResults[`/api/v1/target-prices/${portfolioId}`]?.data?.length || 0) > 10 && (
+                    <div className="text-center text-sm text-purple-600">
+                      ...and {(allApiResults[`/api/v1/target-prices/${portfolioId}`]?.data?.length || 0) - 10} more
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="text-sm text-gray-500">No target prices found</div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Display summary if available */}
+        {allApiResults[`/api/v1/target-prices/${portfolioId}/summary`]?.data && (
+          <div className="mt-3 p-3 bg-white rounded-lg border border-purple-200">
+            <div className="text-sm font-medium text-purple-900 mb-2">Portfolio Summary:</div>
+            <pre className="text-xs overflow-auto max-h-32 bg-gray-50 p-2 rounded">
+              {pretty(allApiResults[`/api/v1/target-prices/${portfolioId}/summary`]?.data)}
+            </pre>
+          </div>
+        )}
+      </section>
+
+      {/* Target Price Mutations */}
+      <section className="border rounded-lg p-4 space-y-3 bg-purple-50 mt-4">
+        <h2 className="text-lg font-medium text-purple-900">✏️ Target Price Management</h2>
+        <p className="text-sm text-purple-700">Create, update, and delete target prices for portfolio positions</p>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <button
+            onClick={testCreateTargetPrice}
+            disabled={busy || !portfolioId}
+            className="px-4 py-2 rounded bg-purple-600 text-white disabled:opacity-50 hover:bg-purple-700"
+          >
+            ➕ Create Target Price
+          </button>
+          <button
+            onClick={testBulkCreateTargetPrices}
+            disabled={busy || !portfolioId}
+            className="px-4 py-2 rounded bg-purple-600 text-white disabled:opacity-50 hover:bg-purple-700"
+          >
+            📦 Bulk Create (Top 3)
+          </button>
+          <button
+            onClick={testDeleteTargetPrice}
+            disabled={busy || !createdTargetPriceId}
+            className="px-4 py-2 rounded bg-red-600 text-white disabled:opacity-50 hover:bg-red-700"
+          >
+            🗑️ Delete Created
+          </button>
+        </div>
+
+        {createdTargetPriceId && (
+          <div className="text-sm text-purple-700 bg-purple-100 p-2 rounded">
+            Created Target Price ID: <code className="font-mono">{createdTargetPriceId}</code>
+          </div>
+        )}
+
+        {/* Mutation Results */}
+        {Object.keys(targetPriceMutationResults).length > 0 && (
+          <div className="mt-4 space-y-2">
+            <h3 className="text-sm font-semibold text-purple-900">Mutation Results:</h3>
+            {Object.entries(targetPriceMutationResults).map(([key, result]) => (
+              result && (
+                <div key={key} className="p-2 bg-white rounded border border-purple-200">
+                  <div className="flex justify-between items-start">
+                    <span className="text-sm font-medium capitalize">{key.replace('_', ' ')}</span>
+                    <span className={`text-xs px-2 py-1 rounded ${result.ok ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                      {result.ok ? `✓ ${result.status}` : `✗ ${result.status}`}
+                    </span>
+                  </div>
+                  {result.data && (
+                    <pre className="mt-2 text-xs overflow-auto max-h-32 bg-gray-50 p-2 rounded">
+                      {pretty(result.data)}
+                    </pre>
+                  )}
+                </div>
+              )
+            ))}
+          </div>
+        )}
       </section>
 
       {/* Results */}
