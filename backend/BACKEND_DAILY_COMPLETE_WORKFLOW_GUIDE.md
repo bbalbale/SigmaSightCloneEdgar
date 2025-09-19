@@ -193,7 +193,21 @@ docker logs backend_postgres_1
 uv run python -c "from app.database import test_connection; import asyncio; asyncio.run(test_connection())"
 ```
 
-### Step 3: Apply Database Migrations ⚠️ CRITICAL
+### Step 3: Check Existing Data (Before Any Reset Operations) ⚠️ IMPORTANT
+```bash
+# ALWAYS check what data you have before considering any reset
+uv run python scripts/database/check_database_content.py
+
+# This shows:
+# - Number of users, portfolios, positions
+# - Calculation data (Greeks, factors, etc.)
+# - Target prices and other data
+
+# If you have existing data, DO NOT run reset commands!
+# Work with your existing portfolios instead
+```
+
+### Step 4: Apply Database Migrations ⚠️ CRITICAL
 ```bash
 # Check current migration status
 uv run alembic current
@@ -751,7 +765,13 @@ Hedge Fund: fcd71196-e93e-f000-5a74-31a9eead3118 (Equity: $4,000,000)
 ```
 **Note**: These are deterministic UUIDs generated from email hashes.
 **Equity Values**: Set via database migration (add_equity_balance_to_portfolio)
-If your IDs differ, run: `uv run python scripts/database/reset_and_seed.py reset --confirm`
+
+**⚠️ WARNING about reset_and_seed**:
+- The command `reset_and_seed.py reset --confirm` **DELETES ALL DATA PERMANENTLY**
+- If your IDs differ but you have existing data, DO NOT run reset
+- Instead, work with your existing portfolio IDs
+- Only use reset for corrupted databases or explicit fresh starts
+
 See [SETUP_DETERMINISTIC_IDS.md](../SETUP_DETERMINISTIC_IDS.md) for details.
 
 ### API Authentication

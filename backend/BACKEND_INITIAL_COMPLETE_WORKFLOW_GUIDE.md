@@ -51,9 +51,27 @@ This creates all necessary tables for calculations, snapshots, correlations, etc
 
 ## Step 3: Create Demo Accounts and Portfolios
 
+### ⚠️ CRITICAL WARNING: Check for Existing Data First!
+
+**BEFORE running any reset commands, check if you already have data:**
+
 ```bash
-# Use the deterministic seeding for consistent portfolio IDs
+# CHECK FIRST - See if you already have portfolios
+uv run python scripts/database/check_database_content.py
+
+# If portfolios exist, SKIP THIS STEP entirely!
+# The reset command DELETES ALL DATA permanently
+```
+
+### Only for FIRST-TIME Setup (No Existing Data)
+
+```bash
+# ⚠️ WARNING: This command DELETES ALL EXISTING DATA!
+# Only run if you have NO existing portfolios/data
 uv run python scripts/reset_and_seed.py reset --confirm
+
+# Alternative: Safer approach - seed without reset
+uv run python scripts/database/seed_database.py
 ```
 
 This creates:
