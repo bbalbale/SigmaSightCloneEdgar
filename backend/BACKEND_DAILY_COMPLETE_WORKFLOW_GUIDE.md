@@ -193,7 +193,21 @@ docker logs backend_postgres_1
 uv run python -c "from app.database import test_connection; import asyncio; asyncio.run(test_connection())"
 ```
 
-### Step 3: Apply Database Migrations ⚠️ CRITICAL
+### Step 3: Check Existing Data (Before Any Reset Operations) ⚠️ IMPORTANT
+```bash
+# ALWAYS check what data you have before considering any reset
+uv run python scripts/database/check_database_content.py
+
+# This shows:
+# - Number of users, portfolios, positions
+# - Calculation data (Greeks, factors, etc.)
+# - Target prices and other data
+
+# If you have existing data, DO NOT run reset commands!
+# Work with your existing portfolios instead
+```
+
+### Step 4: Apply Database Migrations ⚠️ CRITICAL
 ```bash
 # Check current migration status
 uv run alembic current
@@ -302,10 +316,37 @@ asyncio.run(validate())
 - ✅ GICS fetching now **optional** (defaults to False for performance)
 - ✅ Metadata rows filtered (only counts actual price data)
 
-### 2. Run Batch Calculations
+### 2. Seed Target Prices (If Needed)
 
-**⚠️ IMPORTANT NOTES**: 
-1. Pre-API reports (.md summary, .json, .csv) are planned for deletion.  
+If target prices haven't been seeded or need updating:
+
+```bash
+# Check if target prices exist
+uv run python -c "
+import asyncio
+from app.database import AsyncSessionLocal
+from app.models.target_prices import TargetPrice
+from sqlalchemy import select, func
+
+async def check():
+    async with AsyncSessionLocal() as db:
+        count = await db.scalar(select(func.count(TargetPrice.id)))
+        print(f'Target price records: {count}')
+
+asyncio.run(check())
+"
+
+# If count is 0, seed target prices
+uv run python scripts/data_operations/populate_target_prices_via_service.py \
+  --csv-file data/target_prices_import.csv --execute
+```
+
+Expected: 105 target price records (35 symbols × 3 portfolios)
+
+### 3. Run Batch Calculations
+
+**⚠️ IMPORTANT NOTES**:
+1. Pre-API reports (.md summary, .json, .csv) are planned for deletion.
 2. **UTF-8 FIXED**: All scripts now handle Unicode automatically (no prefix needed)
 3. **DO NOT RUN REPORTS** - Use `--skip-reports` flag for all batch operations.
 
@@ -724,7 +765,13 @@ Hedge Fund: fcd71196-e93e-f000-5a74-31a9eead3118 (Equity: $4,000,000)
 ```
 **Note**: These are deterministic UUIDs generated from email hashes.
 **Equity Values**: Set via database migration (add_equity_balance_to_portfolio)
-If your IDs differ, run: `uv run python scripts/database/reset_and_seed.py reset --confirm`
+
+**⚠️ WARNING about reset_and_seed**:
+- The command `reset_and_seed.py reset --confirm` **DELETES ALL DATA PERMANENTLY**
+- If your IDs differ but you have existing data, DO NOT run reset
+- Instead, work with your existing portfolio IDs
+- Only use reset for corrupted databases or explicit fresh starts
+
 See [SETUP_DETERMINISTIC_IDS.md](../SETUP_DETERMINISTIC_IDS.md) for details.
 
 ### API Authentication
@@ -747,6 +794,7 @@ curl -H "Authorization: Bearer $TOKEN" http://localhost:8000/api/v1/data/portfol
 - [ ] PostgreSQL container started
 - [ ] ⚠️ Database migrations applied (CRITICAL - check after every pull)
 - [ ] Market data synced
+- [ ] Target prices populated (if using Target Price APIs)
 - [ ] Batch calculations run (Windows: use PYTHONIOENCODING=utf-8)
 - [ ] API server started
 - [ ] Agent system verified

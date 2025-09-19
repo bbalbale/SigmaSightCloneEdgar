@@ -2,904 +2,7 @@
   "session_start": "2025-09-06T20:19:15.876405",
   "status_checks": [
     {
-      "timestamp": "2025-09-18T13:39:30.374810",
-      "frontend": {
-        "status": "running",
-        "response_time": 15.17
-      },
-      "backend": {
-        "status": "error: Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]",
-        "response_time": 0
-      }
-    },
-    {
-      "timestamp": "2025-09-18T13:39:30.391182",
-      "login_endpoint": {
-        "status": "unknown",
-        "response_time": 0,
-        "error": "Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]"
-      },
-      "me_endpoint": {
-        "status": "unknown",
-        "response_time": 0
-      }
-    },
-    {
-      "timestamp": "2025-09-18T13:40:00.395942",
-      "frontend": {
-        "status": "running",
-        "response_time": 25.9
-      },
-      "backend": {
-        "status": "error: Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]",
-        "response_time": 0
-      }
-    },
-    {
-      "timestamp": "2025-09-18T13:40:00.423538",
-      "login_endpoint": {
-        "status": "unknown",
-        "response_time": 0,
-        "error": "Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]"
-      },
-      "me_endpoint": {
-        "status": "unknown",
-        "response_time": 0
-      }
-    },
-    {
-      "timestamp": "2025-09-18T13:40:30.429924",
-      "frontend": {
-        "status": "running",
-        "response_time": 21.71
-      },
-      "backend": {
-        "status": "error: Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]",
-        "response_time": 0
-      }
-    },
-    {
-      "timestamp": "2025-09-18T13:40:30.453640",
-      "login_endpoint": {
-        "status": "unknown",
-        "response_time": 0,
-        "error": "Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]"
-      },
-      "me_endpoint": {
-        "status": "unknown",
-        "response_time": 0
-      }
-    },
-    {
-      "timestamp": "2025-09-18T13:41:00.459614",
-      "frontend": {
-        "status": "running",
-        "response_time": 19.26
-      },
-      "backend": {
-        "status": "error: Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]",
-        "response_time": 0
-      }
-    },
-    {
-      "timestamp": "2025-09-18T13:41:00.481055",
-      "login_endpoint": {
-        "status": "unknown",
-        "response_time": 0,
-        "error": "Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]"
-      },
-      "me_endpoint": {
-        "status": "unknown",
-        "response_time": 0
-      }
-    },
-    {
-      "timestamp": "2025-09-18T13:41:30.487345",
-      "frontend": {
-        "status": "running",
-        "response_time": 24.6
-      },
-      "backend": {
-        "status": "error: Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]",
-        "response_time": 0
-      }
-    },
-    {
-      "timestamp": "2025-09-18T13:41:30.513867",
-      "login_endpoint": {
-        "status": "unknown",
-        "response_time": 0,
-        "error": "Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]"
-      },
-      "me_endpoint": {
-        "status": "unknown",
-        "response_time": 0
-      }
-    },
-    {
-      "timestamp": "2025-09-18T13:42:00.519468",
-      "frontend": {
-        "status": "running",
-        "response_time": 18.95
-      },
-      "backend": {
-        "status": "error: Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]",
-        "response_time": 0
-      }
-    },
-    {
-      "timestamp": "2025-09-18T13:42:00.539968",
-      "login_endpoint": {
-        "status": "unknown",
-        "response_time": 0,
-        "error": "Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]"
-      },
-      "me_endpoint": {
-        "status": "unknown",
-        "response_time": 0
-      }
-    },
-    {
-      "timestamp": "2025-09-18T13:42:30.545476",
-      "frontend": {
-        "status": "running",
-        "response_time": 24.19
-      },
-      "backend": {
-        "status": "error: Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]",
-        "response_time": 0
-      }
-    },
-    {
-      "timestamp": "2025-09-18T13:42:30.571169",
-      "login_endpoint": {
-        "status": "unknown",
-        "response_time": 0,
-        "error": "Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]"
-      },
-      "me_endpoint": {
-        "status": "unknown",
-        "response_time": 0
-      }
-    },
-    {
-      "timestamp": "2025-09-18T13:43:00.576258",
-      "frontend": {
-        "status": "running",
-        "response_time": 22.16
-      },
-      "backend": {
-        "status": "error: Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]",
-        "response_time": 0
-      }
-    },
-    {
-      "timestamp": "2025-09-18T13:43:00.599797",
-      "login_endpoint": {
-        "status": "unknown",
-        "response_time": 0,
-        "error": "Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]"
-      },
-      "me_endpoint": {
-        "status": "unknown",
-        "response_time": 0
-      }
-    },
-    {
-      "timestamp": "2025-09-18T13:43:30.606000",
-      "frontend": {
-        "status": "running",
-        "response_time": 23.1
-      },
-      "backend": {
-        "status": "error: Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]",
-        "response_time": 0
-      }
-    },
-    {
-      "timestamp": "2025-09-18T13:43:30.631144",
-      "login_endpoint": {
-        "status": "unknown",
-        "response_time": 0,
-        "error": "Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]"
-      },
-      "me_endpoint": {
-        "status": "unknown",
-        "response_time": 0
-      }
-    },
-    {
-      "timestamp": "2025-09-18T13:43:35.633720",
-      "frontend": {
-        "status": "running",
-        "response_time": 21.69
-      },
-      "backend": {
-        "status": "error: Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]",
-        "response_time": 0
-      }
-    },
-    {
-      "timestamp": "2025-09-18T13:43:35.657614",
-      "login_endpoint": {
-        "status": "unknown",
-        "response_time": 0,
-        "error": "Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]"
-      },
-      "me_endpoint": {
-        "status": "unknown",
-        "response_time": 0
-      }
-    },
-    {
-      "timestamp": "2025-09-18T13:44:05.665581",
-      "frontend": {
-        "status": "running",
-        "response_time": 18.19
-      },
-      "backend": {
-        "status": "error: Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]",
-        "response_time": 0
-      }
-    },
-    {
-      "timestamp": "2025-09-18T13:44:05.685168",
-      "login_endpoint": {
-        "status": "unknown",
-        "response_time": 0,
-        "error": "Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]"
-      },
-      "me_endpoint": {
-        "status": "unknown",
-        "response_time": 0
-      }
-    },
-    {
-      "timestamp": "2025-09-18T13:44:35.691732",
-      "frontend": {
-        "status": "running",
-        "response_time": 20.48
-      },
-      "backend": {
-        "status": "error: Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]",
-        "response_time": 0
-      }
-    },
-    {
-      "timestamp": "2025-09-18T13:44:35.714586",
-      "login_endpoint": {
-        "status": "unknown",
-        "response_time": 0,
-        "error": "Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]"
-      },
-      "me_endpoint": {
-        "status": "unknown",
-        "response_time": 0
-      }
-    },
-    {
-      "timestamp": "2025-09-18T13:45:05.722789",
-      "frontend": {
-        "status": "running",
-        "response_time": 21.75
-      },
-      "backend": {
-        "status": "error: Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]",
-        "response_time": 0
-      }
-    },
-    {
-      "timestamp": "2025-09-18T13:45:05.746591",
-      "login_endpoint": {
-        "status": "unknown",
-        "response_time": 0,
-        "error": "Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]"
-      },
-      "me_endpoint": {
-        "status": "unknown",
-        "response_time": 0
-      }
-    },
-    {
-      "timestamp": "2025-09-18T13:45:35.753739",
-      "frontend": {
-        "status": "running",
-        "response_time": 29.99
-      },
-      "backend": {
-        "status": "error: Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]",
-        "response_time": 0
-      }
-    },
-    {
-      "timestamp": "2025-09-18T13:45:35.786335",
-      "login_endpoint": {
-        "status": "unknown",
-        "response_time": 0,
-        "error": "Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]"
-      },
-      "me_endpoint": {
-        "status": "unknown",
-        "response_time": 0
-      }
-    },
-    {
-      "timestamp": "2025-09-18T13:46:05.792681",
-      "frontend": {
-        "status": "running",
-        "response_time": 19.29
-      },
-      "backend": {
-        "status": "error: Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]",
-        "response_time": 0
-      }
-    },
-    {
-      "timestamp": "2025-09-18T13:46:05.813454",
-      "login_endpoint": {
-        "status": "unknown",
-        "response_time": 0,
-        "error": "Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]"
-      },
-      "me_endpoint": {
-        "status": "unknown",
-        "response_time": 0
-      }
-    },
-    {
-      "timestamp": "2025-09-18T13:46:35.819301",
-      "frontend": {
-        "status": "running",
-        "response_time": 22.74
-      },
-      "backend": {
-        "status": "error: Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]",
-        "response_time": 0
-      }
-    },
-    {
-      "timestamp": "2025-09-18T13:46:35.843965",
-      "login_endpoint": {
-        "status": "unknown",
-        "response_time": 0,
-        "error": "Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]"
-      },
-      "me_endpoint": {
-        "status": "unknown",
-        "response_time": 0
-      }
-    },
-    {
-      "timestamp": "2025-09-18T13:47:05.851013",
-      "frontend": {
-        "status": "running",
-        "response_time": 24.58
-      },
-      "backend": {
-        "status": "error: Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]",
-        "response_time": 0
-      }
-    },
-    {
-      "timestamp": "2025-09-18T13:47:05.877757",
-      "login_endpoint": {
-        "status": "unknown",
-        "response_time": 0,
-        "error": "Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]"
-      },
-      "me_endpoint": {
-        "status": "unknown",
-        "response_time": 0
-      }
-    },
-    {
-      "timestamp": "2025-09-18T13:47:35.883864",
-      "frontend": {
-        "status": "running",
-        "response_time": 26.02
-      },
-      "backend": {
-        "status": "error: Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]",
-        "response_time": 0
-      }
-    },
-    {
-      "timestamp": "2025-09-18T13:47:35.911626",
-      "login_endpoint": {
-        "status": "unknown",
-        "response_time": 0,
-        "error": "Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]"
-      },
-      "me_endpoint": {
-        "status": "unknown",
-        "response_time": 0
-      }
-    },
-    {
-      "timestamp": "2025-09-18T13:48:05.917960",
-      "frontend": {
-        "status": "running",
-        "response_time": 18.27
-      },
-      "backend": {
-        "status": "error: Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]",
-        "response_time": 0
-      }
-    },
-    {
-      "timestamp": "2025-09-18T13:48:05.938077",
-      "login_endpoint": {
-        "status": "unknown",
-        "response_time": 0,
-        "error": "Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]"
-      },
-      "me_endpoint": {
-        "status": "unknown",
-        "response_time": 0
-      }
-    },
-    {
-      "timestamp": "2025-09-18T13:48:35.943934",
-      "frontend": {
-        "status": "running",
-        "response_time": 22.23
-      },
-      "backend": {
-        "status": "error: Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]",
-        "response_time": 0
-      }
-    },
-    {
-      "timestamp": "2025-09-18T13:48:35.968192",
-      "login_endpoint": {
-        "status": "unknown",
-        "response_time": 0,
-        "error": "Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]"
-      },
-      "me_endpoint": {
-        "status": "unknown",
-        "response_time": 0
-      }
-    },
-    {
-      "timestamp": "2025-09-18T13:49:05.974690",
-      "frontend": {
-        "status": "running",
-        "response_time": 27.46
-      },
-      "backend": {
-        "status": "error: Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]",
-        "response_time": 0
-      }
-    },
-    {
-      "timestamp": "2025-09-18T13:49:06.003948",
-      "login_endpoint": {
-        "status": "unknown",
-        "response_time": 0,
-        "error": "Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]"
-      },
-      "me_endpoint": {
-        "status": "unknown",
-        "response_time": 0
-      }
-    },
-    {
-      "timestamp": "2025-09-18T13:49:36.009050",
-      "frontend": {
-        "status": "running",
-        "response_time": 20.88
-      },
-      "backend": {
-        "status": "error: Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]",
-        "response_time": 0
-      }
-    },
-    {
-      "timestamp": "2025-09-18T13:49:36.031744",
-      "login_endpoint": {
-        "status": "unknown",
-        "response_time": 0,
-        "error": "Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]"
-      },
-      "me_endpoint": {
-        "status": "unknown",
-        "response_time": 0
-      }
-    },
-    {
-      "timestamp": "2025-09-18T13:50:06.039217",
-      "frontend": {
-        "status": "running",
-        "response_time": 19.88
-      },
-      "backend": {
-        "status": "error: Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]",
-        "response_time": 0
-      }
-    },
-    {
-      "timestamp": "2025-09-18T13:50:06.060998",
-      "login_endpoint": {
-        "status": "unknown",
-        "response_time": 0,
-        "error": "Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]"
-      },
-      "me_endpoint": {
-        "status": "unknown",
-        "response_time": 0
-      }
-    },
-    {
-      "timestamp": "2025-09-18T13:50:36.067506",
-      "frontend": {
-        "status": "running",
-        "response_time": 19.4
-      },
-      "backend": {
-        "status": "error: Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]",
-        "response_time": 0
-      }
-    },
-    {
-      "timestamp": "2025-09-18T13:50:36.088137",
-      "login_endpoint": {
-        "status": "unknown",
-        "response_time": 0,
-        "error": "Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]"
-      },
-      "me_endpoint": {
-        "status": "unknown",
-        "response_time": 0
-      }
-    },
-    {
-      "timestamp": "2025-09-18T13:51:06.092814",
-      "frontend": {
-        "status": "running",
-        "response_time": 16.15
-      },
-      "backend": {
-        "status": "error: Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]",
-        "response_time": 0
-      }
-    },
-    {
-      "timestamp": "2025-09-18T13:51:06.110340",
-      "login_endpoint": {
-        "status": "unknown",
-        "response_time": 0,
-        "error": "Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]"
-      },
-      "me_endpoint": {
-        "status": "unknown",
-        "response_time": 0
-      }
-    },
-    {
-      "timestamp": "2025-09-18T13:51:36.115611",
-      "frontend": {
-        "status": "running",
-        "response_time": 19.42
-      },
-      "backend": {
-        "status": "error: Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]",
-        "response_time": 0
-      }
-    },
-    {
-      "timestamp": "2025-09-18T13:51:36.136486",
-      "login_endpoint": {
-        "status": "unknown",
-        "response_time": 0,
-        "error": "Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]"
-      },
-      "me_endpoint": {
-        "status": "unknown",
-        "response_time": 0
-      }
-    },
-    {
-      "timestamp": "2025-09-18T13:52:06.143057",
-      "frontend": {
-        "status": "running",
-        "response_time": 24.28
-      },
-      "backend": {
-        "status": "error: Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]",
-        "response_time": 0
-      }
-    },
-    {
-      "timestamp": "2025-09-18T13:52:06.170024",
-      "login_endpoint": {
-        "status": "unknown",
-        "response_time": 0,
-        "error": "Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]"
-      },
-      "me_endpoint": {
-        "status": "unknown",
-        "response_time": 0
-      }
-    },
-    {
-      "timestamp": "2025-09-18T13:52:36.177199",
-      "frontend": {
-        "status": "running",
-        "response_time": 20.25
-      },
-      "backend": {
-        "status": "error: Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]",
-        "response_time": 0
-      }
-    },
-    {
-      "timestamp": "2025-09-18T13:52:36.199336",
-      "login_endpoint": {
-        "status": "unknown",
-        "response_time": 0,
-        "error": "Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]"
-      },
-      "me_endpoint": {
-        "status": "unknown",
-        "response_time": 0
-      }
-    },
-    {
-      "timestamp": "2025-09-18T13:52:41.201772",
-      "frontend": {
-        "status": "running",
-        "response_time": 19.32
-      },
-      "backend": {
-        "status": "error: Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]",
-        "response_time": 0
-      }
-    },
-    {
-      "timestamp": "2025-09-18T13:52:41.223120",
-      "login_endpoint": {
-        "status": "unknown",
-        "response_time": 0,
-        "error": "Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]"
-      },
-      "me_endpoint": {
-        "status": "unknown",
-        "response_time": 0
-      }
-    },
-    {
-      "timestamp": "2025-09-18T13:53:11.230300",
-      "frontend": {
-        "status": "running",
-        "response_time": 21.74
-      },
-      "backend": {
-        "status": "error: Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]",
-        "response_time": 0
-      }
-    },
-    {
-      "timestamp": "2025-09-18T13:53:11.254191",
-      "login_endpoint": {
-        "status": "unknown",
-        "response_time": 0,
-        "error": "Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]"
-      },
-      "me_endpoint": {
-        "status": "unknown",
-        "response_time": 0
-      }
-    },
-    {
-      "timestamp": "2025-09-18T13:53:41.260506",
-      "frontend": {
-        "status": "running",
-        "response_time": 18.55
-      },
-      "backend": {
-        "status": "error: Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]",
-        "response_time": 0
-      }
-    },
-    {
-      "timestamp": "2025-09-18T13:53:41.279944",
-      "login_endpoint": {
-        "status": "unknown",
-        "response_time": 0,
-        "error": "Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]"
-      },
-      "me_endpoint": {
-        "status": "unknown",
-        "response_time": 0
-      }
-    },
-    {
-      "timestamp": "2025-09-18T13:54:11.288228",
-      "frontend": {
-        "status": "running",
-        "response_time": 25.23
-      },
-      "backend": {
-        "status": "error: Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]",
-        "response_time": 0
-      }
-    },
-    {
-      "timestamp": "2025-09-18T13:54:11.315540",
-      "login_endpoint": {
-        "status": "unknown",
-        "response_time": 0,
-        "error": "Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]"
-      },
-      "me_endpoint": {
-        "status": "unknown",
-        "response_time": 0
-      }
-    },
-    {
-      "timestamp": "2025-09-18T13:54:41.323203",
-      "frontend": {
-        "status": "running",
-        "response_time": 21.2
-      },
-      "backend": {
-        "status": "error: Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]",
-        "response_time": 0
-      }
-    },
-    {
-      "timestamp": "2025-09-18T13:54:41.346721",
-      "login_endpoint": {
-        "status": "unknown",
-        "response_time": 0,
-        "error": "Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]"
-      },
-      "me_endpoint": {
-        "status": "unknown",
-        "response_time": 0
-      }
-    },
-    {
-      "timestamp": "2025-09-18T13:55:11.352129",
-      "frontend": {
-        "status": "running",
-        "response_time": 22.05
-      },
-      "backend": {
-        "status": "error: Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]",
-        "response_time": 0
-      }
-    },
-    {
-      "timestamp": "2025-09-18T13:55:11.376260",
-      "login_endpoint": {
-        "status": "unknown",
-        "response_time": 0,
-        "error": "Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]"
-      },
-      "me_endpoint": {
-        "status": "unknown",
-        "response_time": 0
-      }
-    },
-    {
-      "timestamp": "2025-09-18T13:55:41.383897",
-      "frontend": {
-        "status": "running",
-        "response_time": 24.11
-      },
-      "backend": {
-        "status": "error: Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]",
-        "response_time": 0
-      }
-    },
-    {
-      "timestamp": "2025-09-18T13:55:41.409914",
-      "login_endpoint": {
-        "status": "unknown",
-        "response_time": 0,
-        "error": "Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]"
-      },
-      "me_endpoint": {
-        "status": "unknown",
-        "response_time": 0
-      }
-    },
-    {
-      "timestamp": "2025-09-18T13:56:11.416784",
-      "frontend": {
-        "status": "running",
-        "response_time": 16.42
-      },
-      "backend": {
-        "status": "error: Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]",
-        "response_time": 0
-      }
-    },
-    {
-      "timestamp": "2025-09-18T13:56:11.434222",
-      "login_endpoint": {
-        "status": "unknown",
-        "response_time": 0,
-        "error": "Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]"
-      },
-      "me_endpoint": {
-        "status": "unknown",
-        "response_time": 0
-      }
-    },
-    {
-      "timestamp": "2025-09-18T13:56:41.438600",
-      "frontend": {
-        "status": "running",
-        "response_time": 21.55
-      },
-      "backend": {
-        "status": "error: Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]",
-        "response_time": 0
-      }
-    },
-    {
-      "timestamp": "2025-09-18T13:56:41.462688",
-      "login_endpoint": {
-        "status": "unknown",
-        "response_time": 0,
-        "error": "Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]"
-      },
-      "me_endpoint": {
-        "status": "unknown",
-        "response_time": 0
-      }
-    },
-    {
-      "timestamp": "2025-09-18T13:57:11.469632",
-      "frontend": {
-        "status": "running",
-        "response_time": 23.05
-      },
-      "backend": {
-        "status": "error: Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]",
-        "response_time": 0
-      }
-    },
-    {
-      "timestamp": "2025-09-18T13:57:11.494827",
-      "login_endpoint": {
-        "status": "unknown",
-        "response_time": 0,
-        "error": "Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]"
-      },
-      "me_endpoint": {
-        "status": "unknown",
-        "response_time": 0
-      }
-    },
-    {
-      "timestamp": "2025-09-18T13:57:41.501836",
-      "frontend": {
-        "status": "running",
-        "response_time": 22.42
-      },
-      "backend": {
-        "status": "error: Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]",
-        "response_time": 0
-      }
-    },
-    {
-      "timestamp": "2025-09-18T13:57:41.526258",
-      "login_endpoint": {
-        "status": "unknown",
-        "response_time": 0,
-        "error": "Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]"
-      },
-      "me_endpoint": {
-        "status": "unknown",
-        "response_time": 0
-      }
-    },
-    {
-      "timestamp": "2025-09-18T13:58:11.534051",
+      "timestamp": "2025-09-18T14:18:22.742230",
       "frontend": {
         "status": "running",
         "response_time": 20.0
@@ -910,7 +13,7 @@
       }
     },
     {
-      "timestamp": "2025-09-18T13:58:11.556288",
+      "timestamp": "2025-09-18T14:18:22.763662",
       "login_endpoint": {
         "status": "unknown",
         "response_time": 0,
@@ -922,10 +25,10 @@
       }
     },
     {
-      "timestamp": "2025-09-18T13:58:41.563048",
+      "timestamp": "2025-09-18T14:18:52.769836",
       "frontend": {
         "status": "running",
-        "response_time": 16.47
+        "response_time": 20.35
       },
       "backend": {
         "status": "error: Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]",
@@ -933,7 +36,7 @@
       }
     },
     {
-      "timestamp": "2025-09-18T13:58:41.581679",
+      "timestamp": "2025-09-18T14:18:52.792242",
       "login_endpoint": {
         "status": "unknown",
         "response_time": 0,
@@ -945,10 +48,10 @@
       }
     },
     {
-      "timestamp": "2025-09-18T13:59:11.589715",
+      "timestamp": "2025-09-18T14:19:22.799541",
       "frontend": {
         "status": "running",
-        "response_time": 30.12
+        "response_time": 28.9
       },
       "backend": {
         "status": "error: Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]",
@@ -956,7 +59,7 @@
       }
     },
     {
-      "timestamp": "2025-09-18T13:59:11.622099",
+      "timestamp": "2025-09-18T14:19:22.830759",
       "login_endpoint": {
         "status": "unknown",
         "response_time": 0,
@@ -968,10 +71,10 @@
       }
     },
     {
-      "timestamp": "2025-09-18T13:59:41.628185",
+      "timestamp": "2025-09-18T14:19:52.836338",
       "frontend": {
         "status": "running",
-        "response_time": 22.69
+        "response_time": 21.87
       },
       "backend": {
         "status": "error: Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]",
@@ -979,7 +82,7 @@
       }
     },
     {
-      "timestamp": "2025-09-18T13:59:41.652874",
+      "timestamp": "2025-09-18T14:19:52.860324",
       "login_endpoint": {
         "status": "unknown",
         "response_time": 0,
@@ -991,10 +94,10 @@
       }
     },
     {
-      "timestamp": "2025-09-18T14:00:11.659127",
+      "timestamp": "2025-09-18T14:19:57.863114",
       "frontend": {
         "status": "running",
-        "response_time": 20.53
+        "response_time": 19.63
       },
       "backend": {
         "status": "error: Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]",
@@ -1002,7 +105,7 @@
       }
     },
     {
-      "timestamp": "2025-09-18T14:00:11.681201",
+      "timestamp": "2025-09-18T14:19:57.884845",
       "login_endpoint": {
         "status": "unknown",
         "response_time": 0,
@@ -1014,10 +117,10 @@
       }
     },
     {
-      "timestamp": "2025-09-18T14:00:41.688517",
+      "timestamp": "2025-09-18T14:20:27.891365",
       "frontend": {
         "status": "running",
-        "response_time": 14.33
+        "response_time": 19.86
       },
       "backend": {
         "status": "error: Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]",
@@ -1025,7 +128,7 @@
       }
     },
     {
-      "timestamp": "2025-09-18T14:00:41.703990",
+      "timestamp": "2025-09-18T14:20:27.913701",
       "login_endpoint": {
         "status": "unknown",
         "response_time": 0,
@@ -1037,10 +140,10 @@
       }
     },
     {
-      "timestamp": "2025-09-18T14:01:11.708578",
+      "timestamp": "2025-09-18T14:20:57.919639",
       "frontend": {
         "status": "running",
-        "response_time": 21.92
+        "response_time": 20.28
       },
       "backend": {
         "status": "error: Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]",
@@ -1048,7 +151,7 @@
       }
     },
     {
-      "timestamp": "2025-09-18T14:01:11.732699",
+      "timestamp": "2025-09-18T14:20:57.941539",
       "login_endpoint": {
         "status": "unknown",
         "response_time": 0,
@@ -1060,10 +163,10 @@
       }
     },
     {
-      "timestamp": "2025-09-18T14:01:41.707398",
+      "timestamp": "2025-09-18T14:21:27.946720",
       "frontend": {
         "status": "running",
-        "response_time": 36.38
+        "response_time": 28.56
       },
       "backend": {
         "status": "error: Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]",
@@ -1071,7 +174,7 @@
       }
     },
     {
-      "timestamp": "2025-09-18T14:01:41.745865",
+      "timestamp": "2025-09-18T14:21:27.977669",
       "login_endpoint": {
         "status": "unknown",
         "response_time": 0,
@@ -1083,10 +186,10 @@
       }
     },
     {
-      "timestamp": "2025-09-18T14:01:46.753592",
+      "timestamp": "2025-09-18T14:21:57.983812",
       "frontend": {
         "status": "running",
-        "response_time": 23.53
+        "response_time": 22.47
       },
       "backend": {
         "status": "error: Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]",
@@ -1094,7 +197,7 @@
       }
     },
     {
-      "timestamp": "2025-09-18T14:01:46.779390",
+      "timestamp": "2025-09-18T14:21:58.008520",
       "login_endpoint": {
         "status": "unknown",
         "response_time": 0,
@@ -1106,10 +209,10 @@
       }
     },
     {
-      "timestamp": "2025-09-18T14:02:16.779212",
+      "timestamp": "2025-09-18T14:22:28.014312",
       "frontend": {
         "status": "running",
-        "response_time": 20.59
+        "response_time": 23.65
       },
       "backend": {
         "status": "error: Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]",
@@ -1117,7 +220,7 @@
       }
     },
     {
-      "timestamp": "2025-09-18T14:02:16.801638",
+      "timestamp": "2025-09-18T14:22:28.040025",
       "login_endpoint": {
         "status": "unknown",
         "response_time": 0,
@@ -1129,49 +232,946 @@
       }
     },
     {
-      "timestamp": "2025-09-18T14:02:46.805558",
+      "timestamp": "2025-09-18T14:22:58.047267",
       "frontend": {
         "status": "running",
-        "response_time": 19.51
+        "response_time": 21.93
       },
       "backend": {
-        "status": "error: Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]",
-        "response_time": 0
+        "status": "running",
+        "response_time": 2.92
       }
     },
     {
-      "timestamp": "2025-09-18T14:02:46.827285",
+      "timestamp": "2025-09-18T14:22:58.072489",
       "login_endpoint": {
-        "status": "unknown",
-        "response_time": 0,
-        "error": "Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]"
+        "status": 200,
+        "response_time": 208.93,
+        "has_token": true
       },
       "me_endpoint": {
-        "status": "unknown",
-        "response_time": 0
+        "status": 200,
+        "response_time": 8.7
       }
     },
     {
-      "timestamp": "2025-09-18T14:03:16.833486",
+      "timestamp": "2025-09-18T14:23:28.298448",
       "frontend": {
         "status": "running",
-        "response_time": 10.2
+        "response_time": 22.32
       },
       "backend": {
-        "status": "error: Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]",
-        "response_time": 0
+        "status": "running",
+        "response_time": 3.53
       }
     },
     {
-      "timestamp": "2025-09-18T14:03:16.845035",
+      "timestamp": "2025-09-18T14:23:28.324928",
       "login_endpoint": {
-        "status": "unknown",
-        "response_time": 0,
-        "error": "Cannot connect to host localhost:8000 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 8000, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 8000)]"
+        "status": 200,
+        "response_time": 216.42,
+        "has_token": true
       },
       "me_endpoint": {
-        "status": "unknown",
-        "response_time": 0
+        "status": 200,
+        "response_time": 4.19
+      }
+    },
+    {
+      "timestamp": "2025-09-18T14:23:58.551819",
+      "frontend": {
+        "status": "running",
+        "response_time": 23.86
+      },
+      "backend": {
+        "status": "running",
+        "response_time": 2.42
+      }
+    },
+    {
+      "timestamp": "2025-09-18T14:23:58.578575",
+      "login_endpoint": {
+        "status": 200,
+        "response_time": 213.34,
+        "has_token": true
+      },
+      "me_endpoint": {
+        "status": 200,
+        "response_time": 4.92
+      }
+    },
+    {
+      "timestamp": "2025-09-18T14:24:28.804224",
+      "frontend": {
+        "status": "running",
+        "response_time": 40.55
+      },
+      "backend": {
+        "status": "running",
+        "response_time": 1.65
+      }
+    },
+    {
+      "timestamp": "2025-09-18T14:24:28.846919",
+      "login_endpoint": {
+        "status": 200,
+        "response_time": 202.21,
+        "has_token": true
+      },
+      "me_endpoint": {
+        "status": 200,
+        "response_time": 5.29
+      }
+    },
+    {
+      "timestamp": "2025-09-18T14:24:59.061766",
+      "frontend": {
+        "status": "running",
+        "response_time": 21.48
+      },
+      "backend": {
+        "status": "running",
+        "response_time": 2.47
+      }
+    },
+    {
+      "timestamp": "2025-09-18T14:24:59.086145",
+      "login_endpoint": {
+        "status": 200,
+        "response_time": 210.78,
+        "has_token": true
+      },
+      "me_endpoint": {
+        "status": 200,
+        "response_time": 5.32
+      }
+    },
+    {
+      "timestamp": "2025-09-18T14:25:29.309886",
+      "frontend": {
+        "status": "running",
+        "response_time": 19.44
+      },
+      "backend": {
+        "status": "running",
+        "response_time": 2.31
+      }
+    },
+    {
+      "timestamp": "2025-09-18T14:25:29.331985",
+      "login_endpoint": {
+        "status": 200,
+        "response_time": 219.4,
+        "has_token": true
+      },
+      "me_endpoint": {
+        "status": 200,
+        "response_time": 3.75
+      }
+    },
+    {
+      "timestamp": "2025-09-18T14:25:59.563331",
+      "frontend": {
+        "status": "running",
+        "response_time": 28.92
+      },
+      "backend": {
+        "status": "running",
+        "response_time": 2.85
+      }
+    },
+    {
+      "timestamp": "2025-09-18T14:25:59.595926",
+      "login_endpoint": {
+        "status": 200,
+        "response_time": 212.42,
+        "has_token": true
+      },
+      "me_endpoint": {
+        "status": 200,
+        "response_time": 4.29
+      }
+    },
+    {
+      "timestamp": "2025-09-18T14:26:29.820840",
+      "frontend": {
+        "status": "running",
+        "response_time": 24.13
+      },
+      "backend": {
+        "status": "running",
+        "response_time": 2.55
+      }
+    },
+    {
+      "timestamp": "2025-09-18T14:26:29.847965",
+      "login_endpoint": {
+        "status": 200,
+        "response_time": 208.6,
+        "has_token": true
+      },
+      "me_endpoint": {
+        "status": 200,
+        "response_time": 3.73
+      }
+    },
+    {
+      "timestamp": "2025-09-18T14:27:00.065772",
+      "frontend": {
+        "status": "running",
+        "response_time": 18.05
+      },
+      "backend": {
+        "status": "running",
+        "response_time": 1.7
+      }
+    },
+    {
+      "timestamp": "2025-09-18T14:27:00.085854",
+      "login_endpoint": {
+        "status": 200,
+        "response_time": 220.56,
+        "has_token": true
+      },
+      "me_endpoint": {
+        "status": 200,
+        "response_time": 4.59
+      }
+    },
+    {
+      "timestamp": "2025-09-18T14:27:30.320559",
+      "frontend": {
+        "status": "running",
+        "response_time": 22.53
+      },
+      "backend": {
+        "status": "running",
+        "response_time": 3.11
+      }
+    },
+    {
+      "timestamp": "2025-09-18T14:27:30.346666",
+      "login_endpoint": {
+        "status": 200,
+        "response_time": 203.29,
+        "has_token": true
+      },
+      "me_endpoint": {
+        "status": 200,
+        "response_time": 4.85
+      }
+    },
+    {
+      "timestamp": "2025-09-18T14:28:00.562749",
+      "frontend": {
+        "status": "running",
+        "response_time": 15.82
+      },
+      "backend": {
+        "status": "running",
+        "response_time": 2.33
+      }
+    },
+    {
+      "timestamp": "2025-09-18T14:28:00.581233",
+      "login_endpoint": {
+        "status": 200,
+        "response_time": 206.86,
+        "has_token": true
+      },
+      "me_endpoint": {
+        "status": 200,
+        "response_time": 4.51
+      }
+    },
+    {
+      "timestamp": "2025-09-18T14:28:30.800041",
+      "frontend": {
+        "status": "running",
+        "response_time": 19.9
+      },
+      "backend": {
+        "status": "running",
+        "response_time": 2.64
+      }
+    },
+    {
+      "timestamp": "2025-09-18T14:28:30.823038",
+      "login_endpoint": {
+        "status": 200,
+        "response_time": 208.73,
+        "has_token": true
+      },
+      "me_endpoint": {
+        "status": 200,
+        "response_time": 3.32
+      }
+    },
+    {
+      "timestamp": "2025-09-18T14:29:01.041410",
+      "frontend": {
+        "status": "running",
+        "response_time": 19.76
+      },
+      "backend": {
+        "status": "running",
+        "response_time": 2.67
+      }
+    },
+    {
+      "timestamp": "2025-09-18T14:29:01.064261",
+      "login_endpoint": {
+        "status": 200,
+        "response_time": 207.2,
+        "has_token": true
+      },
+      "me_endpoint": {
+        "status": 200,
+        "response_time": 2.99
+      }
+    },
+    {
+      "timestamp": "2025-09-18T14:29:31.280151",
+      "frontend": {
+        "status": "running",
+        "response_time": 22.92
+      },
+      "backend": {
+        "status": "running",
+        "response_time": 2.58
+      }
+    },
+    {
+      "timestamp": "2025-09-18T14:29:31.306125",
+      "login_endpoint": {
+        "status": 200,
+        "response_time": 207.21,
+        "has_token": true
+      },
+      "me_endpoint": {
+        "status": 200,
+        "response_time": 4.78
+      }
+    },
+    {
+      "timestamp": "2025-09-18T14:30:01.525963",
+      "frontend": {
+        "status": "running",
+        "response_time": 20.9
+      },
+      "backend": {
+        "status": "running",
+        "response_time": 2.01
+      }
+    },
+    {
+      "timestamp": "2025-09-18T14:30:01.549217",
+      "login_endpoint": {
+        "status": 200,
+        "response_time": 197.58,
+        "has_token": true
+      },
+      "me_endpoint": {
+        "status": 200,
+        "response_time": 5.4
+      }
+    },
+    {
+      "timestamp": "2025-09-18T14:30:31.759774",
+      "frontend": {
+        "status": "running",
+        "response_time": 23.67
+      },
+      "backend": {
+        "status": "running",
+        "response_time": 2.78
+      }
+    },
+    {
+      "timestamp": "2025-09-18T14:30:31.786640",
+      "login_endpoint": {
+        "status": 200,
+        "response_time": 207.06,
+        "has_token": true
+      },
+      "me_endpoint": {
+        "status": 200,
+        "response_time": 5.81
+      }
+    },
+    {
+      "timestamp": "2025-09-18T14:31:02.007463",
+      "frontend": {
+        "status": "running",
+        "response_time": 24.78
+      },
+      "backend": {
+        "status": "running",
+        "response_time": 2.54
+      }
+    },
+    {
+      "timestamp": "2025-09-18T14:31:02.035271",
+      "login_endpoint": {
+        "status": 200,
+        "response_time": 213.2,
+        "has_token": true
+      },
+      "me_endpoint": {
+        "status": 200,
+        "response_time": 4.57
+      }
+    },
+    {
+      "timestamp": "2025-09-18T14:31:32.259732",
+      "frontend": {
+        "status": "running",
+        "response_time": 21.25
+      },
+      "backend": {
+        "status": "running",
+        "response_time": 2.83
+      }
+    },
+    {
+      "timestamp": "2025-09-18T14:31:32.284287",
+      "login_endpoint": {
+        "status": 200,
+        "response_time": 212.67,
+        "has_token": true
+      },
+      "me_endpoint": {
+        "status": 200,
+        "response_time": 4.57
+      }
+    },
+    {
+      "timestamp": "2025-09-18T14:32:02.511330",
+      "frontend": {
+        "status": "running",
+        "response_time": 42.75
+      },
+      "backend": {
+        "status": "running",
+        "response_time": 2.46
+      }
+    },
+    {
+      "timestamp": "2025-09-18T14:32:02.557828",
+      "login_endpoint": {
+        "status": 200,
+        "response_time": 208.18,
+        "has_token": true
+      },
+      "me_endpoint": {
+        "status": 200,
+        "response_time": 3.37
+      }
+    },
+    {
+      "timestamp": "2025-09-18T14:32:07.771222",
+      "frontend": {
+        "status": "running",
+        "response_time": 16.99
+      },
+      "backend": {
+        "status": "running",
+        "response_time": 2.57
+      }
+    },
+    {
+      "timestamp": "2025-09-18T14:32:07.791156",
+      "login_endpoint": {
+        "status": 200,
+        "response_time": 204.92,
+        "has_token": true
+      },
+      "me_endpoint": {
+        "status": 200,
+        "response_time": 4.75
+      }
+    },
+    {
+      "timestamp": "2025-09-18T14:32:38.008609",
+      "frontend": {
+        "status": "running",
+        "response_time": 20.87
+      },
+      "backend": {
+        "status": "running",
+        "response_time": 2.38
+      }
+    },
+    {
+      "timestamp": "2025-09-18T14:32:38.032303",
+      "login_endpoint": {
+        "status": 200,
+        "response_time": 200.71,
+        "has_token": true
+      },
+      "me_endpoint": {
+        "status": 200,
+        "response_time": 4.71
+      }
+    },
+    {
+      "timestamp": "2025-09-18T14:33:08.246091",
+      "frontend": {
+        "status": "running",
+        "response_time": 18.05
+      },
+      "backend": {
+        "status": "running",
+        "response_time": 1.83
+      }
+    },
+    {
+      "timestamp": "2025-09-18T14:33:08.266377",
+      "login_endpoint": {
+        "status": 200,
+        "response_time": 214.05,
+        "has_token": true
+      },
+      "me_endpoint": {
+        "status": 200,
+        "response_time": 3.09
+      }
+    },
+    {
+      "timestamp": "2025-09-18T14:33:38.489165",
+      "frontend": {
+        "status": "running",
+        "response_time": 21.08
+      },
+      "backend": {
+        "status": "running",
+        "response_time": 2.61
+      }
+    },
+    {
+      "timestamp": "2025-09-18T14:33:38.513314",
+      "login_endpoint": {
+        "status": 200,
+        "response_time": 218.21,
+        "has_token": true
+      },
+      "me_endpoint": {
+        "status": 200,
+        "response_time": 5.08
+      }
+    },
+    {
+      "timestamp": "2025-09-18T14:34:08.743946",
+      "frontend": {
+        "status": "running",
+        "response_time": 21.53
+      },
+      "backend": {
+        "status": "running",
+        "response_time": 2.95
+      }
+    },
+    {
+      "timestamp": "2025-09-18T14:34:08.768912",
+      "login_endpoint": {
+        "status": 200,
+        "response_time": 203.8,
+        "has_token": true
+      },
+      "me_endpoint": {
+        "status": 200,
+        "response_time": 4.48
+      }
+    },
+    {
+      "timestamp": "2025-09-18T14:34:38.985496",
+      "frontend": {
+        "status": "running",
+        "response_time": 20.83
+      },
+      "backend": {
+        "status": "running",
+        "response_time": 2.72
+      }
+    },
+    {
+      "timestamp": "2025-09-18T14:34:39.009441",
+      "login_endpoint": {
+        "status": 200,
+        "response_time": 216.17,
+        "has_token": true
+      },
+      "me_endpoint": {
+        "status": 200,
+        "response_time": 4.7
+      }
+    },
+    {
+      "timestamp": "2025-09-18T14:35:09.236972",
+      "frontend": {
+        "status": "running",
+        "response_time": 23.05
+      },
+      "backend": {
+        "status": "running",
+        "response_time": 2.7
+      }
+    },
+    {
+      "timestamp": "2025-09-18T14:35:09.263187",
+      "login_endpoint": {
+        "status": 200,
+        "response_time": 214.09,
+        "has_token": true
+      },
+      "me_endpoint": {
+        "status": 200,
+        "response_time": 4.35
+      }
+    },
+    {
+      "timestamp": "2025-09-18T14:35:39.488958",
+      "frontend": {
+        "status": "running",
+        "response_time": 21.51
+      },
+      "backend": {
+        "status": "running",
+        "response_time": 2.86
+      }
+    },
+    {
+      "timestamp": "2025-09-18T14:35:39.513704",
+      "login_endpoint": {
+        "status": 200,
+        "response_time": 217.26,
+        "has_token": true
+      },
+      "me_endpoint": {
+        "status": 200,
+        "response_time": 5.11
+      }
+    },
+    {
+      "timestamp": "2025-09-18T14:36:09.743049",
+      "frontend": {
+        "status": "running",
+        "response_time": 22.12
+      },
+      "backend": {
+        "status": "running",
+        "response_time": 3.28
+      }
+    },
+    {
+      "timestamp": "2025-09-18T14:36:09.768887",
+      "login_endpoint": {
+        "status": 200,
+        "response_time": 208.26,
+        "has_token": true
+      },
+      "me_endpoint": {
+        "status": 200,
+        "response_time": 4.08
+      }
+    },
+    {
+      "timestamp": "2025-09-18T14:36:39.986426",
+      "frontend": {
+        "status": "running",
+        "response_time": 23.88
+      },
+      "backend": {
+        "status": "running",
+        "response_time": 2.51
+      }
+    },
+    {
+      "timestamp": "2025-09-18T14:36:40.013405",
+      "login_endpoint": {
+        "status": 200,
+        "response_time": 215.23,
+        "has_token": true
+      },
+      "me_endpoint": {
+        "status": 200,
+        "response_time": 5.16
+      }
+    },
+    {
+      "timestamp": "2025-09-18T14:37:10.240383",
+      "frontend": {
+        "status": "running",
+        "response_time": 23.55
+      },
+      "backend": {
+        "status": "running",
+        "response_time": 2.64
+      }
+    },
+    {
+      "timestamp": "2025-09-18T14:37:10.267034",
+      "login_endpoint": {
+        "status": 200,
+        "response_time": 212.91,
+        "has_token": true
+      },
+      "me_endpoint": {
+        "status": 200,
+        "response_time": 5.24
+      }
+    },
+    {
+      "timestamp": "2025-09-18T14:37:40.491686",
+      "frontend": {
+        "status": "running",
+        "response_time": 20.92
+      },
+      "backend": {
+        "status": "running",
+        "response_time": 3.65
+      }
+    },
+    {
+      "timestamp": "2025-09-18T14:37:40.516625",
+      "login_endpoint": {
+        "status": 200,
+        "response_time": 292.13,
+        "has_token": true
+      },
+      "me_endpoint": {
+        "status": 200,
+        "response_time": 4.4
+      }
+    },
+    {
+      "timestamp": "2025-09-18T14:38:10.818739",
+      "frontend": {
+        "status": "running",
+        "response_time": 28.15
+      },
+      "backend": {
+        "status": "running",
+        "response_time": 4.63
+      }
+    },
+    {
+      "timestamp": "2025-09-18T14:38:10.852190",
+      "login_endpoint": {
+        "status": 200,
+        "response_time": 263.9,
+        "has_token": true
+      },
+      "me_endpoint": {
+        "status": 200,
+        "response_time": 5.27
+      }
+    },
+    {
+      "timestamp": "2025-09-18T14:38:41.127572",
+      "frontend": {
+        "status": "running",
+        "response_time": 28.78
+      },
+      "backend": {
+        "status": "running",
+        "response_time": 274.04
+      }
+    },
+    {
+      "timestamp": "2025-09-18T14:38:41.431711",
+      "login_endpoint": {
+        "status": 200,
+        "response_time": 234.52,
+        "has_token": true
+      },
+      "me_endpoint": {
+        "status": 200,
+        "response_time": 3.83
+      }
+    },
+    {
+      "timestamp": "2025-09-18T14:39:11.674828",
+      "frontend": {
+        "status": "running",
+        "response_time": 27.5
+      },
+      "backend": {
+        "status": "running",
+        "response_time": 2.46
+      }
+    },
+    {
+      "timestamp": "2025-09-18T14:39:11.705162",
+      "login_endpoint": {
+        "status": 200,
+        "response_time": 213.19,
+        "has_token": true
+      },
+      "me_endpoint": {
+        "status": 200,
+        "response_time": 6.2
+      }
+    },
+    {
+      "timestamp": "2025-09-18T14:39:41.932429",
+      "frontend": {
+        "status": "running",
+        "response_time": 21.23
+      },
+      "backend": {
+        "status": "running",
+        "response_time": 2.49
+      }
+    },
+    {
+      "timestamp": "2025-09-18T14:39:41.956590",
+      "login_endpoint": {
+        "status": 200,
+        "response_time": 213.69,
+        "has_token": true
+      },
+      "me_endpoint": {
+        "status": 200,
+        "response_time": 4.46
+      }
+    },
+    {
+      "timestamp": "2025-09-18T14:40:12.181060",
+      "frontend": {
+        "status": "running",
+        "response_time": 21.82
+      },
+      "backend": {
+        "status": "running",
+        "response_time": 3.16
+      }
+    },
+    {
+      "timestamp": "2025-09-18T14:40:12.206543",
+      "login_endpoint": {
+        "status": 200,
+        "response_time": 209.1,
+        "has_token": true
+      },
+      "me_endpoint": {
+        "status": 200,
+        "response_time": 2.93
+      }
+    },
+    {
+      "timestamp": "2025-09-18T14:40:42.427059",
+      "frontend": {
+        "status": "running",
+        "response_time": 16.27
+      },
+      "backend": {
+        "status": "running",
+        "response_time": 2.45
+      }
+    },
+    {
+      "timestamp": "2025-09-18T14:40:42.446113",
+      "login_endpoint": {
+        "status": 200,
+        "response_time": 216.78,
+        "has_token": true
+      },
+      "me_endpoint": {
+        "status": 200,
+        "response_time": 3.35
+      }
+    },
+    {
+      "timestamp": "2025-09-18T14:41:12.670535",
+      "frontend": {
+        "status": "running",
+        "response_time": 11.82
+      },
+      "backend": {
+        "status": "running",
+        "response_time": 1.07
+      }
+    },
+    {
+      "timestamp": "2025-09-18T14:41:12.683614",
+      "login_endpoint": {
+        "status": 200,
+        "response_time": 215.69,
+        "has_token": true
+      },
+      "me_endpoint": {
+        "status": 200,
+        "response_time": 5.41
+      }
+    },
+    {
+      "timestamp": "2025-09-18T14:41:42.913241",
+      "frontend": {
+        "status": "running",
+        "response_time": 19.25
+      },
+      "backend": {
+        "status": "running",
+        "response_time": 2.93
+      }
+    },
+    {
+      "timestamp": "2025-09-18T14:41:42.935875",
+      "login_endpoint": {
+        "status": 200,
+        "response_time": 217.35,
+        "has_token": true
+      },
+      "me_endpoint": {
+        "status": 200,
+        "response_time": 4.39
+      }
+    },
+    {
+      "timestamp": "2025-09-18T14:42:13.163766",
+      "frontend": {
+        "status": "running",
+        "response_time": 27.88
+      },
+      "backend": {
+        "status": "running",
+        "response_time": 3.39
+      }
+    },
+    {
+      "timestamp": "2025-09-18T14:42:13.195625",
+      "login_endpoint": {
+        "status": 200,
+        "response_time": 214.28,
+        "has_token": true
+      },
+      "me_endpoint": {
+        "status": 200,
+        "response_time": 4.85
+      }
+    },
+    {
+      "timestamp": "2025-09-18T14:42:43.426072",
+      "frontend": {
+        "status": "running",
+        "response_time": 25.29
+      },
+      "backend": {
+        "status": "running",
+        "response_time": 4.02
+      }
+    },
+    {
+      "timestamp": "2025-09-18T14:42:43.455897",
+      "login_endpoint": {
+        "status": 200,
+        "response_time": 223.17,
+        "has_token": true
+      },
+      "me_endpoint": {
+        "status": 200,
+        "response_time": 5.69
       }
     }
   ],
@@ -3318,6 +3318,18 @@
     },
     {
       "timestamp": "2025-09-18T14:01:41.755071",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-18T14:10:47.299102",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-18T14:19:52.861901",
+      "error": "[Errno 32] Broken pipe"
+    },
+    {
+      "timestamp": "2025-09-18T14:32:02.769847",
       "error": "[Errno 32] Broken pipe"
     }
   ],

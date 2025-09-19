@@ -51,9 +51,27 @@ This creates all necessary tables for calculations, snapshots, correlations, etc
 
 ## Step 3: Create Demo Accounts and Portfolios
 
+### ⚠️ CRITICAL WARNING: Check for Existing Data First!
+
+**BEFORE running any reset commands, check if you already have data:**
+
 ```bash
-# Use the deterministic seeding for consistent portfolio IDs
+# CHECK FIRST - See if you already have portfolios
+uv run python scripts/database/check_database_content.py
+
+# If portfolios exist, SKIP THIS STEP entirely!
+# The reset command DELETES ALL DATA permanently
+```
+
+### Only for FIRST-TIME Setup (No Existing Data)
+
+```bash
+# ⚠️ WARNING: This command DELETES ALL EXISTING DATA!
+# Only run if you have NO existing portfolios/data
 uv run python scripts/reset_and_seed.py reset --confirm
+
+# Alternative: Safer approach - seed without reset
+uv run python scripts/database/seed_database.py
 ```
 
 This creates:
@@ -90,7 +108,7 @@ Portfolio: Individual Investor Portfolio
   ID: 1d8ddd95-3b45-0ac5-35bf-cf81af94a5fe
   Owner: demo_individual@sigmasight.com
 
-Portfolio: High Net Worth Portfolio  
+Portfolio: High Net Worth Portfolio
   ID: e23ab931-a033-edfe-ed4f-9d02474780b4
   Owner: demo_hnw@sigmasight.com
 
@@ -103,7 +121,31 @@ Portfolio: Hedge Fund Style Portfolio
 
 ---
 
-## Step 5: Run Batch Processing to Populate All Calculation Data
+## Step 5: Seed Target Prices (Optional but Recommended)
+
+Populate target prices for all portfolios to enable Target Price API testing:
+
+```bash
+# Preview what will be created (dry run)
+uv run python scripts/data_operations/populate_target_prices_via_service.py \
+  --csv-file data/target_prices_import.csv --dry-run
+
+# Execute the import (creates 105 target price records)
+uv run python scripts/data_operations/populate_target_prices_via_service.py \
+  --csv-file data/target_prices_import.csv --execute
+```
+
+This creates:
+- **105 target price records** (35 symbols × 3 portfolios)
+- Target prices for EOY, next year, and downside scenarios
+- Automatic calculation of expected returns
+- Links to existing positions in portfolios
+
+> **Note**: Target prices are required for testing Target Price APIs but optional for other functionality.
+
+---
+
+## Step 6: Run Batch Processing to Populate All Calculation Data
 
 ### Option A: Process All Portfolios (Recommended for First Run)
 
@@ -143,7 +185,7 @@ uv run python scripts/run_batch_with_reports.py --skip-batch
 
 ---
 
-## Step 6: Access Data via API (Reports Deprecated)
+## Step 7: Access Data via API (Reports Deprecated)
 
 > **Note**: File-based reports are deprecated. Use the API endpoints to access portfolio data.
 
@@ -151,7 +193,7 @@ Data is now accessed through the API. After batch processing completes, use the 
 
 ---
 
-## Step 7: Launch FastAPI Server for API Access
+## Step 8: Launch FastAPI Server for API Access
 
 ### Start the Development Server
 
