@@ -148,24 +148,44 @@ export default function ApiTestPage() {
       }
     };
 
+    // First, try to get portfolio positions to extract symbols
+    let symbols = 'AAPL,MSFT,GOOGL'; // Default fallback symbols
+    try {
+      const positionsData = await apiClient.get(`/api/v1/data/positions/details?portfolio_id=${pid}&limit=5`,
+        { headers: { Authorization: `Bearer ${token}` } });
+      if (positionsData?.positions && Array.isArray(positionsData.positions)) {
+        const extractedSymbols = positionsData.positions
+          .slice(0, 5)
+          .map((p: any) => p.symbol)
+          .filter((s: any) => s)
+          .join(',');
+        if (extractedSymbols) {
+          symbols = extractedSymbols;
+        }
+      }
+    } catch (e) {
+      // If we can't get positions, use default symbols
+      console.log('Could not fetch positions for symbols, using defaults');
+    }
+
     // Test all API endpoints
     const apiTests = await Promise.all([
       // Auth APIs
       measure('/api/v1/auth/me', () => apiClient.get('/api/v1/auth/me', { headers: { Authorization: `Bearer ${token}` } })),
-      
+
       // Portfolio APIs
-      measure(`/api/v1/data/portfolio/${pid}/complete`, () => 
+      measure(`/api/v1/data/portfolio/${pid}/complete`, () =>
         apiClient.get(`/api/v1/data/portfolio/${pid}/complete`, { headers: { Authorization: `Bearer ${token}` } })),
-      measure(`/api/v1/data/portfolio/${pid}/data-quality`, () => 
+      measure(`/api/v1/data/portfolio/${pid}/data-quality`, () =>
         apiClient.get(`/api/v1/data/portfolio/${pid}/data-quality`, { headers: { Authorization: `Bearer ${token}` } })),
-      
+
       // Position APIs
-      measure('/api/v1/data/positions/details', () => 
+      measure('/api/v1/data/positions/details', () =>
         apiClient.get(`/api/v1/data/positions/details?portfolio_id=${pid}`, { headers: { Authorization: `Bearer ${token}` } })),
-      
-      // Price APIs
-      measure('/api/v1/data/prices/quotes', () => 
-        apiClient.get('/api/v1/data/prices/quotes', { headers: { Authorization: `Bearer ${token}` } })),
+
+      // Price APIs - Use dynamic symbols from portfolio or defaults
+      measure('/api/v1/data/prices/quotes', () =>
+        apiClient.get(`/api/v1/data/prices/quotes?symbols=${symbols}`, { headers: { Authorization: `Bearer ${token}` } })),
       
       // Factor APIs
       measure('/api/v1/data/factors/etf-prices', () => 
