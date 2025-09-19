@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Body
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
-from app.database import get_async_session
+from app.database import get_db
 from app.api.v1.auth import get_current_user
 from app.models.users import User, Portfolio
 from app.schemas.target_prices import (
@@ -56,7 +56,7 @@ async def create_target_price(
     portfolio_id: UUID,
     target_price_data: TargetPriceCreate,
     current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_async_session)
+    db: AsyncSession = Depends(get_db)
 ):
     # Verify user owns the portfolio
     portfolio = await _verify_portfolio_ownership(db, portfolio_id, current_user.id)
@@ -99,7 +99,7 @@ async def get_portfolio_target_prices(
     symbol: Optional[str] = Query(None, description="Filter by specific symbol (case-insensitive)"),
     position_type: Optional[str] = Query(None, description="Filter by position type (LONG, SHORT, LC, LP, SC, SP)"),
     current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_async_session)
+    db: AsyncSession = Depends(get_db)
 ):
     # Verify user owns the portfolio
     portfolio = await _verify_portfolio_ownership(db, portfolio_id, current_user.id)
@@ -135,7 +135,7 @@ async def get_portfolio_target_prices(
 async def get_portfolio_target_summary(
     portfolio_id: UUID,
     current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_async_session)
+    db: AsyncSession = Depends(get_db)
 ):
     # Verify user owns the portfolio
     portfolio = await _verify_portfolio_ownership(db, portfolio_id, current_user.id)
@@ -154,7 +154,7 @@ async def get_portfolio_target_summary(
 async def get_target_price(
     target_price_id: UUID,
     current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_async_session)
+    db: AsyncSession = Depends(get_db)
 ):
     """
     Get a specific target price by ID.
@@ -175,7 +175,7 @@ async def update_target_price(
     target_price_id: UUID,
     update_data: TargetPriceUpdate,
     current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_async_session)
+    db: AsyncSession = Depends(get_db)
 ):
     """
     Update an existing target price.
@@ -224,7 +224,7 @@ async def update_target_price(
 async def delete_target_price(
     target_price_id: UUID,
     current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_async_session)
+    db: AsyncSession = Depends(get_db)
 ):
     # Get the target price first to verify ownership
     target_price = await target_price_service.get_target_price(db, target_price_id)
@@ -254,7 +254,7 @@ async def bulk_create_target_prices(
     portfolio_id: UUID,
     bulk_data: TargetPriceBulkCreate,
     current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_async_session)
+    db: AsyncSession = Depends(get_db)
 ):
     """
     Create multiple target prices at once.
@@ -296,7 +296,7 @@ async def bulk_update_target_prices(
     portfolio_id: UUID,
     bulk_update: TargetPriceBulkUpdate,
     current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_async_session)
+    db: AsyncSession = Depends(get_db)
 ):
     # Verify user owns the portfolio
     portfolio = await _verify_portfolio_ownership(db, portfolio_id, current_user.id)
@@ -348,7 +348,7 @@ async def import_target_prices_csv(
     portfolio_id: UUID,
     csv_import: TargetPriceImportCSV,
     current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_async_session)
+    db: AsyncSession = Depends(get_db)
 ):
     """
     Import target prices from CSV format.
@@ -400,7 +400,7 @@ async def export_target_prices(
     portfolio_id: UUID,
     export_request: TargetPriceExportRequest = Body(default=TargetPriceExportRequest()),
     current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_async_session)
+    db: AsyncSession = Depends(get_db)
 ):
     # Verify user owns the portfolio
     portfolio = await _verify_portfolio_ownership(db, portfolio_id, current_user.id)
