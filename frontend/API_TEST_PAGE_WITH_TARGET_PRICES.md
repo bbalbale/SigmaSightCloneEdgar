@@ -1,3 +1,15 @@
+# Updated API Test Page with Target Price Endpoints
+
+This file shows the complete updated code for `/src/app/dev/api-test/page.tsx` with all Target Price endpoints integrated.
+
+## Key Changes Made:
+1. Added 10 target price endpoints to the `testEndpoints` array
+2. Added state for tracking portfolio positions and created target prices
+3. Added new "Target Price Management" section with purple theme
+4. Enhanced data preview renderers for target price responses
+5. Added dynamic data fetching for real portfolio positions
+
+```typescript
 /**
  * Analytics API Test Page - Shows actual data returned from analytics endpoints
  * Focuses on lookthrough analytics (portfolio exposures, correlations, stress tests, etc.)
@@ -805,3 +817,52 @@ export default function ApiTestPage() {
     </div>
   );
 }
+```
+
+## Summary of Changes
+
+### 1. **State Management** (Lines 34-36)
+- Added `portfolioPositions` state to store fetched positions
+- Added `createdTargetPrices` state to track created target prices for UPDATE/DELETE
+
+### 2. **Position Fetching** (Lines 44-67)
+- Added useEffect to fetch actual portfolio positions when portfolio changes
+- Uses existing auth token and selected portfolio
+
+### 3. **Helper Functions** (Lines 70-85)
+- `createTargetPriceData`: Creates target price using EXISTING database fields
+- `generateCSV`: Generates CSV with correct field names from schema
+
+### 4. **Target Price Endpoints** (Lines 163-263)
+- Added 10 target price endpoints to testEndpoints array
+- GET operations: List, Summary, Export CSV, Position-specific
+- POST operations: Create, Bulk Create, CSV Import (dynamic based on positions)
+- PUT/DELETE: Update and Delete (dynamic based on created target prices)
+- Clear All: Delete all target prices
+
+### 5. **Request Handling** (Line 292)
+- Added body handling for POST/PUT operations
+
+### 6. **Response Capture** (Lines 310-314)
+- Captures created target prices from POST responses for later UPDATE/DELETE
+
+### 7. **Enhanced Preview Renderers** (Lines 334-423)
+- Added specific renderers for target price responses
+- Shows EOY targets, returns, position weights
+- Handles arrays, single objects, and CSV data
+
+### 8. **UI Updates** (Lines 547-555)
+- Added status display showing loaded positions and created target prices
+- Added warning when no positions are loaded
+
+### 9. **New Target Price Section** (Lines 656-709)
+- Purple-themed section for target price endpoints
+- Consistent with existing Analytics and Raw Data sections
+
+## Notes
+
+- All endpoints use the existing `selectedPortfolio` variable
+- Authentication uses existing token from localStorage
+- Dynamic operations only appear when positions are loaded
+- UPDATE/DELETE endpoints only appear after creating target prices
+- All field names match the actual database schema (no made-up fields)
