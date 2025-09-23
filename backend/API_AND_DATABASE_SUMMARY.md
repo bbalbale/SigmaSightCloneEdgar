@@ -1,0 +1,333 @@
+# SigmaSight API and Database Summary
+
+**Generated**: September 18, 2025
+**Status**: Production-Ready APIs with Complete Database Schema
+
+---
+
+## Part I: API Endpoints Summary
+
+### Base URL
+```
+http://localhost:8000/api/v1
+```
+
+### Authentication Required
+All endpoints except `/auth/login` and `/auth/register` require JWT Bearer token:
+```
+Authorization: Bearer <jwt_token>
+```
+
+---
+
+## 📍 API Endpoints by Category
+
+### 🔐 Authentication Endpoints (5 endpoints)
+| Method | Endpoint | Status | Description |
+|--------|----------|--------|-------------|
+| POST | `/auth/login` | ✅ Ready | Login with email/password, returns JWT |
+| POST | `/auth/register` | ✅ Ready | Register new user |
+| GET | `/auth/me` | ✅ Ready | Get current user info |
+| POST | `/auth/refresh` | ✅ Ready | Refresh JWT token |
+| POST | `/auth/logout` | ✅ Ready | Clear auth cookie |
+
+### 📊 Data Endpoints (11 endpoints)
+| Method | Endpoint | Status | Description |
+|--------|----------|--------|-------------|
+| GET | `/data/portfolios` | ✅ Ready | List user portfolios |
+| GET | `/data/portfolio/{id}/complete` | ✅ Ready | Full portfolio snapshot |
+| GET | `/data/portfolio/{id}/data-quality` | ✅ Ready | Data quality metrics |
+| GET | `/data/positions/details` | ✅ Ready | Position details with P&L |
+| GET | `/data/positions/top/{id}` | ✅ Ready | Top positions by various metrics |
+| GET | `/data/prices/historical/{id}` | ✅ Ready | Historical price data |
+| GET | `/data/prices/quotes` | ✅ Ready | Real-time market quotes |
+| GET | `/data/factors/etf-prices` | ✅ Ready | Factor ETF prices |
+| GET | `/data/test-demo` | ✅ Ready | Test endpoint |
+| GET | `/data/demo/{portfolio_type}` | ✅ Ready | Demo data (no auth) |
+
+### 📈 Analytics Endpoints (7 endpoints)
+| Method | Endpoint | Status | Description |
+|--------|----------|--------|-------------|
+| GET | `/analytics/portfolio/{id}/overview` | ✅ Ready | Portfolio metrics overview |
+| GET | `/analytics/portfolio/{id}/correlation-matrix` | ✅ Ready | Position correlations |
+| GET | `/analytics/portfolio/{id}/diversification-score` | ✅ Ready | Portfolio diversification |
+| GET | `/analytics/portfolio/{id}/factor-exposures` | ✅ Ready | Portfolio factor betas |
+| GET | `/analytics/portfolio/{id}/positions/factor-exposures` | ✅ Ready | Position-level factors |
+| GET | `/analytics/portfolio/{id}/stress-test` | ✅ Ready | Stress test scenarios |
+| GET | `/analytics/portfolio/{id}/risk-metrics` | ⚠️ Deprecated | Legacy risk metrics |
+
+### 💬 Chat Endpoints (6 endpoints - SSE Streaming)
+| Method | Endpoint | Status | Description |
+|--------|----------|--------|-------------|
+| POST | `/chat/conversations` | ✅ Ready | Create conversation |
+| GET | `/chat/conversations/{id}` | ✅ Ready | Get conversation |
+| GET | `/chat/conversations` | ✅ Ready | List conversations |
+| PUT | `/chat/conversations/{id}/mode` | ✅ Ready | Change agent mode |
+| DELETE | `/chat/conversations/{id}` | ✅ Ready | Delete conversation |
+| POST | `/chat/send` | ✅ Ready | Send message (SSE stream) |
+
+### 🎯 Target Prices Endpoints (10 endpoints)
+| Method | Endpoint | Status | Description |
+|--------|----------|--------|-------------|
+| POST | `/target-prices/{portfolio_id}` | ✅ Ready | Create target price |
+| GET | `/target-prices/{portfolio_id}` | ✅ Ready | List portfolio targets |
+| GET | `/target-prices/{portfolio_id}/summary` | ✅ Ready | Portfolio summary |
+| GET | `/target-prices/target/{id}` | ✅ Ready | Get specific target |
+| PUT | `/target-prices/target/{id}` | ✅ Ready | Update target price |
+| DELETE | `/target-prices/target/{id}` | ✅ Ready | Delete target price |
+| POST | `/target-prices/{portfolio_id}/bulk` | ✅ Ready | Bulk create |
+| PUT | `/target-prices/{portfolio_id}/bulk-update` | ✅ Ready | Bulk update |
+| POST | `/target-prices/{portfolio_id}/import-csv` | ✅ Ready | Import from CSV |
+| POST | `/target-prices/{portfolio_id}/export` | ✅ Ready | Export to CSV/JSON |
+
+### ⚙️ Admin Endpoints (5 endpoints - Not Registered in Router)
+| Method | Endpoint | Status | Description |
+|--------|----------|--------|-------------|
+| GET | `/admin/batch/jobs/status` | ⚠️ Exists | Batch job status |
+| GET | `/admin/batch/jobs/summary` | ⚠️ Exists | Job statistics |
+| DELETE | `/admin/batch/jobs/{id}/cancel` | ⚠️ Exists | Cancel job |
+| GET | `/admin/batch/data-quality` | ⚠️ Exists | Data quality status |
+| POST | `/admin/batch/data-quality/refresh` | ⚠️ Exists | Refresh market data |
+
+### 📋 Summary Statistics
+- **Total Endpoints**: 44
+- **Production Ready**: 39 (88.6%)
+- **Admin (Not Registered)**: 5 (11.4%)
+- **Categories**: 6 (Auth, Data, Analytics, Chat, Target Prices, Admin)
+
+---
+
+## Part II: Database Schema - ASCII Diagram
+
+### 🗄️ Database Overview
+- **Type**: PostgreSQL (via Docker)
+- **ORM**: SQLAlchemy 2.0 with async support
+- **Migrations**: Alembic
+- **Primary Keys**: UUID for all tables
+
+### 📊 Core Database Schema
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                           SIGMASIGHT DATABASE SCHEMA                        │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────┐       ┌─────────────────┐       ┌─────────────────┐
+│     USERS       │       │   PORTFOLIOS    │       │   POSITIONS     │
+├─────────────────┤       ├─────────────────┤       ├─────────────────┤
+│ id (UUID)    PK │───┐   │ id (UUID)    PK │───┐   │ id (UUID)    PK │
+│ email           │   │   │ user_id      FK │   │   │ portfolio_id FK │
+│ hashed_password │   └──<│ name            │   └──<│ symbol          │
+│ full_name       │       │ description     │       │ position_type   │
+│ is_active       │       │ currency        │       │ quantity        │
+│ is_admin        │       │ created_at      │       │ cost_basis      │
+│ created_at      │       │ updated_at      │       │ created_at      │
+│ updated_at      │       │ cash_balance    │       │ updated_at      │
+└─────────────────┘       │ equity_balance  │       │ investment_class│
+                          └─────────────────┘       └─────────────────┘
+                                    │                        │
+                                    │                        │
+                    ┌───────────────┴────────────────────────┴──────────┐
+                    │                                                    │
+                    ▼                                                    ▼
+        ┌─────────────────────┐                           ┌──────────────────────┐
+        │ PORTFOLIO_SNAPSHOTS │                           │  MARKET_DATA_CACHE   │
+        ├─────────────────────┤                           ├──────────────────────┤
+        │ id (UUID)        PK │                           │ id (UUID)         PK │
+        │ portfolio_id     FK │                           │ symbol               │
+        │ snapshot_date       │                           │ date                 │
+        │ total_value         │                           │ open                 │
+        │ daily_return        │                           │ high                 │
+        │ cumulative_return   │                           │ low                  │
+        │ created_at          │                           │ close                │
+        └─────────────────────┘                           │ volume               │
+                                                          │ adjusted_close       │
+                                                          │ created_at           │
+                                                          └──────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         CALCULATION RESULTS TABLES                          │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌──────────────────────┐  ┌──────────────────────┐  ┌──────────────────────┐
+│   POSITION_GREEKS    │  │  FACTOR_EXPOSURES    │  │ CORRELATION_CALCS    │
+├──────────────────────┤  ├──────────────────────┤  ├──────────────────────┤
+│ id (UUID)         PK │  │ id (UUID)         PK │  │ id (UUID)         PK │
+│ position_id       FK │  │ portfolio_id      FK │  │ portfolio_id      FK │
+│ calculation_date     │  │ factor_id         FK │  │ calculation_date     │
+│ delta                │  │ calculation_date     │  │ lookback_days        │
+│ gamma                │  │ exposure_value       │  │ created_at           │
+│ theta                │  │ beta                 │  └──────────────────────┘
+│ vega                 │  │ created_at           │            │
+│ rho                  │  └──────────────────────┘            │
+│ created_at           │                                       ▼
+└──────────────────────┘            ┌──────────────────────────────────┐
+                                    │   PAIRWISE_CORRELATIONS          │
+┌──────────────────────┐            ├──────────────────────────────────┤
+│ POSITION_FACTOR_EXP  │            │ id (UUID)                     PK │
+├──────────────────────┤            │ correlation_calc_id           FK │
+│ id (UUID)         PK │            │ symbol1                          │
+│ position_id       FK │            │ symbol2                          │
+│ factor_id         FK │            │ correlation_value                │
+│ calculation_date     │            │ overlap_days                     │
+│ exposure_value       │            └──────────────────────────────────┘
+│ created_at           │
+└──────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                          STRESS TEST & RISK TABLES                          │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌──────────────────────┐  ┌──────────────────────┐  ┌──────────────────────┐
+│  STRESS_SCENARIOS    │  │  STRESS_TEST_RESULTS │  │    BATCH_JOBS        │
+├──────────────────────┤  ├──────────────────────┤  ├──────────────────────┤
+│ id (UUID)         PK │  │ id (UUID)         PK │  │ id (UUID)         PK │
+│ scenario_id          │  │ portfolio_id      FK │  │ job_name             │
+│ name                 │  │ scenario_id       FK │  │ status               │
+│ description          │  │ calculation_date     │  │ portfolio_id      FK │
+│ category             │  │ correlated_pnl       │  │ started_at           │
+│ market_shock         │  │ independent_pnl      │  │ completed_at         │
+│ created_at           │  │ created_at           │  │ error_message        │
+└──────────────────────┘  └──────────────────────┘  └──────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                            TARGET PRICE TABLES                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌────────────────────────────┐         ┌────────────────────────────┐
+│  PORTFOLIO_TARGET_PRICES   │         │   FACTOR_DEFINITIONS       │
+├────────────────────────────┤         ├────────────────────────────┤
+│ id (UUID)               PK │         │ id (UUID)               PK │
+│ portfolio_id            FK │         │ name                       │
+│ position_id             FK │         │ etf_symbol                 │
+│ symbol                     │         │ description                │
+│ position_type              │         │ is_active                  │
+│ target_price_eoy           │         │ created_at                 │
+│ target_price_next_year     │         └────────────────────────────┘
+│ downside_target_price      │
+│ current_price              │         ┌────────────────────────────┐
+│ expected_return_eoy        │         │    ECONOMIC_DATA           │
+│ expected_return_next_year  │         ├────────────────────────────┤
+│ downside_return            │         │ id (UUID)               PK │
+│ position_weight            │         │ indicator                  │
+│ contribution_to_portfolio  │         │ date                       │
+│ contribution_to_risk       │         │ value                      │
+│ price_updated_at           │         │ source                     │
+│ created_by              FK │         │ created_at                 │
+│ created_at                 │         └────────────────────────────┘
+│ updated_at                 │
+└────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                            AGENT/CHAT TABLES                                │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌────────────────────────────┐         ┌────────────────────────────┐
+│   agent.CONVERSATIONS      │         │  agent.MESSAGES            │
+├────────────────────────────┤         ├────────────────────────────┤
+│ id (UUID)               PK │         │ id (UUID)               PK │
+│ user_id                 FK │───┐     │ conversation_id         FK │
+│ portfolio_id            FK │   │     │ role                       │
+│ mode                       │   └────<│ content                    │
+│ provider                   │         │ tool_calls                 │
+│ provider_thread_id         │         │ created_at                 │
+│ created_at                 │         └────────────────────────────┘
+└────────────────────────────┘
+
+```
+
+### 🔑 Key Relationships
+
+#### Primary Relationships:
+1. **Users → Portfolios**: One-to-Many (1 user has multiple portfolios)
+2. **Portfolios → Positions**: One-to-Many (1 portfolio has multiple positions)
+3. **Portfolios → Portfolio Snapshots**: One-to-Many (historical snapshots)
+4. **Positions → Greeks/Factors**: One-to-Many (calculation results)
+5. **Portfolios → Target Prices**: One-to-Many (price targets per position)
+6. **Users → Conversations**: One-to-Many (chat threads)
+7. **Conversations → Messages**: One-to-Many (chat history)
+
+#### Investment Classification:
+- **Position.investment_class**: Computed field (PUBLIC/OPTIONS/PRIVATE)
+  - PUBLIC: Regular equities, ETFs
+  - OPTIONS: Options contracts (LC, LP, SC, SP position types)
+  - PRIVATE: Private/alternative investments
+
+#### Position Types:
+- LONG: Long equity position
+- SHORT: Short equity position
+- LC: Long Call option
+- LP: Long Put option
+- SC: Short Call option (covered/naked)
+- SP: Short Put option
+
+### 📈 Batch Processing Tables
+
+#### Calculation Engines (8 total, 7 functional):
+1. **Market Data Update**: Populates market_data_cache
+2. **Position Greeks**: Calculates options Greeks
+3. **Factor Exposures**: Portfolio & position-level factor betas
+4. **Correlation Matrix**: Pairwise position correlations
+5. **Stress Testing**: Scenario-based portfolio impacts
+6. **Portfolio Aggregation**: Daily snapshots and returns
+7. **Data Quality**: Validation and completeness checks
+8. **Risk Metrics**: (Partially implemented)
+
+### 🔐 Security Features
+
+1. **Authentication**:
+   - JWT tokens with 30-day expiration
+   - HTTP-only cookies for web clients
+   - Password hashing with bcrypt
+
+2. **Data Access**:
+   - Row-level security via user_id/portfolio_id
+   - Portfolio ownership validation
+   - Audit trails with created_at/updated_at
+
+3. **API Security**:
+   - CORS configuration
+   - Rate limiting on external API calls
+   - Bearer token validation
+
+### 💾 Data Volume (Demo Environment)
+
+- **Users**: 3 demo users
+- **Portfolios**: 3 (HNW, Retail, Institutional)
+- **Positions**: 63 total across portfolios
+- **Market Data**: ~90 days historical for each symbol
+- **Calculations**: Daily batch processing results
+
+### 🚀 Performance Optimizations
+
+1. **Database**:
+   - UUID primary keys with indexes
+   - Async SQLAlchemy 2.0 operations
+   - Connection pooling
+   - Optimized joins for complex queries
+
+2. **Caching**:
+   - Market data caching to reduce API calls
+   - Factor ETF price caching
+   - Calculation result persistence
+
+3. **Batch Processing**:
+   - Sequential engine execution
+   - Graceful degradation on failures
+   - Parallel position processing where possible
+
+---
+
+## Notes
+
+- **Database Location**: PostgreSQL via Docker (`docker-compose up -d`)
+- **Migrations**: Managed via Alembic (`uv run alembic upgrade head`)
+- **Demo Data**: Pre-seeded with `scripts/seed_database.py`
+- **Investment Classification**: Derived from position data, not stored explicitly
+- **Admin Endpoints**: Implemented but require manual router registration
+
+---
+
+**Last Updated**: September 18, 2025
+**Database Version**: Latest migration applied
+**API Version**: v1.4.5

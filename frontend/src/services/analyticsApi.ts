@@ -30,16 +30,18 @@ export const analyticsApi = {
     params?: { lookback_days?: number; min_overlap?: number }
   ): Promise<{ data: CorrelationMatrixResponse; url: string }>
   {
-    let endpoint = API_ENDPOINTS.ANALYTICS.CORRELATION_MATRIX(portfolioId);
-    const urlObj = new URL(apiClient.buildUrl(endpoint));
-    if (params?.lookback_days != null) urlObj.searchParams.set('lookback_days', String(params.lookback_days));
-    if (params?.min_overlap != null) urlObj.searchParams.set('min_overlap', String(params.min_overlap));
-    const finalUrl = urlObj.toString();
-    const data = await apiClient.get<CorrelationMatrixResponse>(finalUrl, {
+    const endpoint = API_ENDPOINTS.ANALYTICS.CORRELATION_MATRIX(portfolioId);
+    const queryParams = new URLSearchParams();
+    if (params?.lookback_days != null) queryParams.set('lookback_days', String(params.lookback_days));
+    if (params?.min_overlap != null) queryParams.set('min_overlap', String(params.min_overlap));
+    const queryString = queryParams.toString();
+    const fullEndpoint = queryString ? `${endpoint}?${queryString}` : endpoint;
+    const url = apiClient.buildUrl(fullEndpoint);
+    const data = await apiClient.get<CorrelationMatrixResponse>(fullEndpoint, {
       ...REQUEST_CONFIGS.CALCULATION,
       headers: { ...getAuthHeader() },
     });
-    return { data, url: finalUrl };
+    return { data, url };
   },
 
   async getPortfolioFactorExposures(
@@ -60,16 +62,18 @@ export const analyticsApi = {
     params?: { limit?: number; offset?: number }
   ): Promise<{ data: PositionFactorExposuresResponse; url: string }>
   {
-    let endpoint = API_ENDPOINTS.ANALYTICS.POSITIONS_FACTOR_EXPOSURES(portfolioId);
-    const urlObj = new URL(apiClient.buildUrl(endpoint));
-    if (params?.limit != null) urlObj.searchParams.set('limit', String(params.limit));
-    if (params?.offset != null) urlObj.searchParams.set('offset', String(params.offset));
-    const finalUrl = urlObj.toString();
-    const data = await apiClient.get<PositionFactorExposuresResponse>(finalUrl, {
+    const endpoint = API_ENDPOINTS.ANALYTICS.POSITIONS_FACTOR_EXPOSURES(portfolioId);
+    const queryParams = new URLSearchParams();
+    if (params?.limit != null) queryParams.set('limit', String(params.limit));
+    if (params?.offset != null) queryParams.set('offset', String(params.offset));
+    const queryString = queryParams.toString();
+    const fullEndpoint = queryString ? `${endpoint}?${queryString}` : endpoint;
+    const url = apiClient.buildUrl(fullEndpoint);
+    const data = await apiClient.get<PositionFactorExposuresResponse>(fullEndpoint, {
       ...REQUEST_CONFIGS.STANDARD,
       headers: { ...getAuthHeader() },
     });
-    return { data, url: finalUrl };
+    return { data, url };
   },
 
   async getStressTest(
@@ -77,15 +81,17 @@ export const analyticsApi = {
     params?: { scenarios?: string }
   ): Promise<{ data: StressTestResponse; url: string }>
   {
-    let endpoint = API_ENDPOINTS.ANALYTICS.STRESS_TEST(portfolioId);
-    const urlObj = new URL(apiClient.buildUrl(endpoint));
-    if (params?.scenarios) urlObj.searchParams.set('scenarios', params.scenarios);
-    const finalUrl = urlObj.toString();
-    const data = await apiClient.get<StressTestResponse>(finalUrl, {
+    const endpoint = API_ENDPOINTS.ANALYTICS.STRESS_TEST(portfolioId);
+    const queryParams = new URLSearchParams();
+    if (params?.scenarios) queryParams.set('scenarios', params.scenarios);
+    const queryString = queryParams.toString();
+    const fullEndpoint = queryString ? `${endpoint}?${queryString}` : endpoint;
+    const url = apiClient.buildUrl(fullEndpoint);
+    const data = await apiClient.get<StressTestResponse>(fullEndpoint, {
       ...REQUEST_CONFIGS.CALCULATION,
       headers: { ...getAuthHeader() },
     });
-    return { data, url: finalUrl };
+    return { data, url };
   },
 };
 

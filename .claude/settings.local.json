@@ -61,7 +61,14 @@
       "Bash(for:*)",
       "Bash(do if [ -f \"$file\" ])",
       "Bash(paste:*)",
-      "Bash(git pull:*)"
+      "Bash(git fetch:*)",
+      "Bash(git pull:*)",
+      "Bash(python:*)",
+      "Bash(netstat:*)",
+      "Bash(findstr:*)",
+      "Bash(start msedge http://localhost:8000/docs)",
+      "Bash(del test_target_routes.py)",
+      "Bash(tasklist)"
     ],
     "additionalDirectories": [
       "C:\\c\\Users\\BenBalbale\\CascadeProjects\\SigmaSight-BE"
