@@ -25,8 +25,7 @@ class User(Base):
     
     # Relationships
     portfolio: Mapped["Portfolio"] = relationship("Portfolio", back_populates="user", uselist=False)
-    tags: Mapped[List["Tag"]] = relationship("Tag", back_populates="user")
-    # Enhanced tag model (v2)
+    # Enhanced tag model (v2) - replaced the old tags relationship
     tags_v2: Mapped[List["TagV2"]] = relationship("TagV2", back_populates="user", foreign_keys="TagV2.user_id")
     modeling_sessions: Mapped[List["ModelingSessionSnapshot"]] = relationship("ModelingSessionSnapshot", back_populates="user")
 
