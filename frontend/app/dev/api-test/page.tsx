@@ -44,6 +44,12 @@ export default function ApiTestPage() {
   const [createdTargetPriceId, setCreatedTargetPriceId] = useState<string>("");
   const [targetPriceMutationResults, setTargetPriceMutationResults] = useState<Record<string, Result | null>>({});
 
+  // Strategy & Tag state
+  const [strategyResults, setStrategyResults] = useState<Record<string, Result | null>>({});
+  const [tagResults, setTagResults] = useState<Record<string, Result | null>>({});
+  const [createdStrategyId, setCreatedStrategyId] = useState<string>("");
+  const [createdTagId, setCreatedTagId] = useState<string>("");
+
   // Analytics params
   const [lookbackDays, setLookbackDays] = useState<number>(90);
   const [minOverlap, setMinOverlap] = useState<number>(30);
@@ -215,6 +221,25 @@ export default function ApiTestPage() {
         apiClient.get(`/api/v1/target-prices/${pid}/summary`, { headers: { Authorization: `Bearer ${token}` } })),
       measure(`/api/v1/target-prices/${pid}/export`, () =>
         apiClient.post(`/api/v1/target-prices/${pid}/export`, {}, { headers: { Authorization: `Bearer ${token}` } })),
+
+      // Strategy APIs
+      measure(`/api/v1/data/portfolios/${pid}/strategies`, () =>
+        apiClient.get(`/api/v1/data/portfolios/${pid}/strategies?include_tags=true`,
+          { headers: { Authorization: `Bearer ${token}` } })),
+      measure(`/api/v1/strategies/detect/${pid}`, () =>
+        apiClient.get(`/api/v1/strategies/detect/${pid}`,
+          { headers: { Authorization: `Bearer ${token}` } })),
+      measure('/api/v1/strategies/', () =>
+        apiClient.get('/api/v1/strategies/',
+          { headers: { Authorization: `Bearer ${token}` } })),
+
+      // Tag APIs
+      measure('/api/v1/tags/', () =>
+        apiClient.get('/api/v1/tags/?include_archived=false',
+          { headers: { Authorization: `Bearer ${token}` } })),
+      measure('/api/v1/tags/defaults', () =>
+        apiClient.post('/api/v1/tags/defaults', {},
+          { headers: { Authorization: `Bearer ${token}` } })),
     ]);
 
     setAllApiResults(Object.fromEntries(apiTests));
@@ -391,6 +416,222 @@ export default function ApiTestPage() {
     }
   }, [token, portfolioId, appendLog]);
 
+  // Strategy & Tag Testing Functions
+  const testStrategyAndTagApis = useCallback(async () => {
+    if (!token || !portfolioId) {
+      appendLog("Token and Portfolio ID required for strategy/tag APIs");
+      return;
+    }
+    setBusy(true);
+    appendLog("Testing Strategy & Tag APIs...");
+
+    const measure = async <T,>(key: string, fn: () => Promise<T>): Promise<[string, Result]> => {
+      const started = performance.now();
+      try {
+        const data = await fn();
+        const tookMs = Math.round(performance.now() - started);
+        return [key, { ok: true, status: 200, data, tookMs, url: key }];
+      } catch (e: any) {
+        const status = typeof e?.status === 'number' ? e.status : 0;
+        const tookMs = Math.round(performance.now() - started);
+        return [key, { ok: false, status, data: { error: String(e?.message || e) }, tookMs, url: key }];
+      }
+    };
+
+    // Test Strategy APIs
+    const strategyTests = await Promise.all([
+      // List strategies for portfolio
+      measure(`/api/v1/data/portfolios/${portfolioId}/strategies`, () =>
+        apiClient.get(`/api/v1/data/portfolios/${portfolioId}/strategies?include_tags=true&include_positions=false`,
+          { headers: { Authorization: `Bearer ${token}` } })),
+
+      // Detect strategy patterns
+      measure(`/api/v1/strategies/detect/${portfolioId}`, () =>
+        apiClient.get(`/api/v1/strategies/detect/${portfolioId}`,
+          { headers: { Authorization: `Bearer ${token}` } })),
+
+      // Get all strategies (user level)
+      measure('/api/v1/strategies/', () =>
+        apiClient.get('/api/v1/strategies/',
+          { headers: { Authorization: `Bearer ${token}` } })),
+    ]);
+
+    // Test Tag APIs
+    const tagTests = await Promise.all([
+      // List user tags
+      measure('/api/v1/tags/', () =>
+        apiClient.get('/api/v1/tags/?include_archived=false',
+          { headers: { Authorization: `Bearer ${token}` } })),
+
+      // Create default tags
+      measure('/api/v1/tags/defaults', () =>
+        apiClient.post('/api/v1/tags/defaults', {},
+          { headers: { Authorization: `Bearer ${token}` } })),
+    ]);
+
+    const allTests = [...strategyTests, ...tagTests];
+    setStrategyResults(Object.fromEntries(strategyTests));
+    setTagResults(Object.fromEntries(tagTests));
+    setAllApiResults(prev => ({ ...prev, ...Object.fromEntries(allTests) }));
+
+    appendLog(`Tested ${allTests.length} Strategy & Tag API endpoints.`);
+    setBusy(false);
+  }, [token, portfolioId, appendLog]);
+
+  const testCreateStrategy = useCallback(async () => {
+    if (!token || !portfolioId) {
+      appendLog("Token and Portfolio ID required");
+      return;
+    }
+    setBusy(true);
+    try {
+      // Get first position
+      const positionsData = await apiClient.get(
+        `/api/v1/data/positions/details?portfolio_id=${portfolioId}&limit=1`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+
+      if (!positionsData?.positions?.length) {
+        appendLog("No positions found to create strategy");
+        return;
+      }
+
+      const position = positionsData.positions[0];
+      const strategyData = {
+        portfolio_id: portfolioId,
+        name: `Test Strategy ${Date.now()}`,
+        strategy_type: "custom",
+        description: "Test strategy created from API test page",
+        position_ids: [position.id]
+      };
+
+      const started = performance.now();
+      const response = await fetch(`/api/proxy/api/v1/strategies/`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(strategyData)
+      });
+
+      const data = await response.json();
+      const tookMs = Math.round(performance.now() - started);
+
+      const result = {
+        ok: response.ok,
+        status: response.status,
+        data,
+        tookMs,
+        url: '/api/v1/strategies/'
+      };
+
+      setStrategyResults(prev => ({ ...prev, create_strategy: result }));
+
+      if (response.ok && data.id) {
+        setCreatedStrategyId(data.id);
+        appendLog(`Created strategy "${strategyData.name}" with ID: ${data.id}`);
+      } else {
+        appendLog(`Failed to create strategy: ${data.detail || 'Unknown error'}`);
+      }
+    } catch (e: any) {
+      appendLog(`Error creating strategy: ${e.message}`);
+    } finally {
+      setBusy(false);
+    }
+  }, [token, portfolioId, appendLog]);
+
+  const testCreateTag = useCallback(async () => {
+    if (!token) {
+      appendLog("Token required for tag creation");
+      return;
+    }
+    setBusy(true);
+    try {
+      const tagData = {
+        name: `TestTag_${Date.now()}`,
+        color: "#" + Math.floor(Math.random()*16777215).toString(16).padStart(6, '0'),
+        description: "Test tag created from API test page"
+      };
+
+      const started = performance.now();
+      const response = await fetch(`/api/proxy/api/v1/tags/`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(tagData)
+      });
+
+      const data = await response.json();
+      const tookMs = Math.round(performance.now() - started);
+
+      const result = {
+        ok: response.ok,
+        status: response.status,
+        data,
+        tookMs,
+        url: '/api/v1/tags/'
+      };
+
+      setTagResults(prev => ({ ...prev, create_tag: result }));
+
+      if (response.ok && data.id) {
+        setCreatedTagId(data.id);
+        appendLog(`Created tag "${tagData.name}" with ID: ${data.id}`);
+      } else {
+        appendLog(`Failed to create tag: ${data.detail || 'Unknown error'}`);
+      }
+    } catch (e: any) {
+      appendLog(`Error creating tag: ${e.message}`);
+    } finally {
+      setBusy(false);
+    }
+  }, [token, appendLog]);
+
+  const testAssignTagToStrategy = useCallback(async () => {
+    if (!token || !createdStrategyId || !createdTagId) {
+      appendLog("Token, Strategy ID, and Tag ID required");
+      return;
+    }
+    setBusy(true);
+    try {
+      const started = performance.now();
+      const response = await fetch(`/api/proxy/api/v1/strategies/${createdStrategyId}/tags`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ tag_ids: [createdTagId] })
+      });
+
+      const data = await response.json();
+      const tookMs = Math.round(performance.now() - started);
+
+      const result = {
+        ok: response.ok,
+        status: response.status,
+        data,
+        tookMs,
+        url: `/api/v1/strategies/${createdStrategyId}/tags`
+      };
+
+      setStrategyResults(prev => ({ ...prev, assign_tag: result }));
+
+      if (response.ok) {
+        appendLog(`Assigned tag to strategy successfully`);
+      } else {
+        appendLog(`Failed to assign tag: ${data.detail || 'Unknown error'}`);
+      }
+    } catch (e: any) {
+      appendLog(`Error assigning tag: ${e.message}`);
+    } finally {
+      setBusy(false);
+    }
+  }, [token, createdStrategyId, createdTagId, appendLog]);
+
   useEffect(() => {
     // Auto-try to fetch portfolio id on load if token exists
     if (token && !portfolioId) {
@@ -452,6 +693,11 @@ export default function ApiTestPage() {
                 { key: `/api/v1/target-prices/${portfolioId || '{id}'}`, label: '🎯 Target Prices: List' },
                 { key: `/api/v1/target-prices/${portfolioId || '{id}'}/summary`, label: '📊 Target Prices: Summary' },
                 { key: `/api/v1/target-prices/${portfolioId || '{id}'}/export`, label: '📥 Target Prices: Export' },
+                { key: `/api/v1/data/portfolios/${portfolioId || '{id}'}/strategies`, label: '🎯 Strategies: List by Portfolio' },
+                { key: `/api/v1/strategies/detect/${portfolioId || '{id}'}`, label: '🔍 Strategies: Auto-Detect' },
+                { key: '/api/v1/strategies/', label: '📋 Strategies: List All' },
+                { key: '/api/v1/tags/', label: '🏷️ Tags: List User Tags' },
+                { key: '/api/v1/tags/defaults', label: '🏷️ Tags: Create Defaults' },
               ].map(({ key, label }) => {
                 const result = allApiResults[key];
                 const isExpanded = expandedRows.has(key);
@@ -705,6 +951,162 @@ export default function ApiTestPage() {
                 </div>
               )
             ))}
+          </div>
+        )}
+      </section>
+
+      {/* Strategy & Tag Display */}
+      <section className="border rounded-lg p-4 space-y-3 bg-blue-50">
+        <h2 className="text-lg font-medium text-blue-900">🎯 Strategies & Tags</h2>
+        <p className="text-sm text-blue-700">Portfolio strategies and user-scoped tagging system</p>
+
+        <div className="flex gap-2">
+          <button
+            onClick={testStrategyAndTagApis}
+            disabled={busy || !portfolioId}
+            className="px-3 py-2 rounded bg-blue-600 text-white disabled:opacity-50 text-sm"
+          >
+            Test Strategy & Tag APIs
+          </button>
+        </div>
+
+        {/* Display strategies if available */}
+        {allApiResults[`/api/v1/data/portfolios/${portfolioId}/strategies`]?.data && (
+          <div className="mt-3 space-y-2">
+            <div className="text-sm font-medium text-blue-900">
+              Portfolio Strategies ({allApiResults[`/api/v1/data/portfolios/${portfolioId}/strategies`]?.data?.total || 0}):
+            </div>
+            <div className="max-h-96 overflow-y-auto bg-white rounded-lg p-3 border border-blue-200">
+              {allApiResults[`/api/v1/data/portfolios/${portfolioId}/strategies`]?.data?.strategies?.length > 0 ? (
+                <div className="space-y-2">
+                  {allApiResults[`/api/v1/data/portfolios/${portfolioId}/strategies`]?.data?.strategies?.slice(0, 10).map((strategy: any) => (
+                    <div key={strategy.id} className="p-2 bg-blue-50 rounded border border-blue-100">
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <span className="font-semibold text-blue-900">{strategy.name}</span>
+                          <span className="ml-2 text-xs text-blue-600 capitalize">{strategy.type}</span>
+                        </div>
+                        <div className="text-xs text-gray-600">
+                          {strategy.position_count} position{strategy.position_count !== 1 ? 's' : ''}
+                        </div>
+                      </div>
+                      {strategy.tags?.length > 0 && (
+                        <div className="mt-1 flex gap-1 flex-wrap">
+                          {strategy.tags.map((tag: any) => (
+                            <span
+                              key={tag.id}
+                              className="px-2 py-0.5 text-xs rounded text-white"
+                              style={{ backgroundColor: tag.color || '#6B7280' }}
+                            >
+                              {tag.name}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-sm text-gray-500">No strategies found</div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Display tags if available */}
+        {allApiResults['/api/v1/tags/']?.data && (
+          <div className="mt-3 space-y-2">
+            <div className="text-sm font-medium text-blue-900">
+              User Tags ({Array.isArray(allApiResults['/api/v1/tags/']?.data) ? allApiResults['/api/v1/tags/']?.data?.length : 0}):
+            </div>
+            <div className="max-h-48 overflow-y-auto bg-white rounded-lg p-3 border border-blue-200">
+              {Array.isArray(allApiResults['/api/v1/tags/']?.data) && allApiResults['/api/v1/tags/']?.data?.length > 0 ? (
+                <div className="flex flex-wrap gap-2">
+                  {allApiResults['/api/v1/tags/']?.data?.map((tag: any) => (
+                    <div
+                      key={tag.id}
+                      className="px-3 py-1 rounded text-white text-sm"
+                      style={{ backgroundColor: tag.color || '#6B7280' }}
+                      title={tag.description || tag.name}
+                    >
+                      {tag.name}
+                      {tag.usage_count > 0 && (
+                        <span className="ml-1 opacity-75">({tag.usage_count})</span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-sm text-gray-500">No tags found</div>
+              )}
+            </div>
+          </div>
+        )}
+      </section>
+
+      {/* Strategy & Tag Management */}
+      <section className="border rounded-lg p-4 space-y-3 bg-blue-50">
+        <h2 className="text-lg font-medium text-blue-900">✏️ Strategy & Tag Management</h2>
+        <p className="text-sm text-blue-700">Create strategies, tags, and test assignment operations</p>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <button
+            onClick={testCreateStrategy}
+            disabled={busy || !portfolioId}
+            className="px-4 py-2 rounded bg-blue-600 text-white disabled:opacity-50 hover:bg-blue-700"
+          >
+            ➕ Create Strategy
+          </button>
+          <button
+            onClick={testCreateTag}
+            disabled={busy || !token}
+            className="px-4 py-2 rounded bg-green-600 text-white disabled:opacity-50 hover:bg-green-700"
+          >
+            🏷️ Create Tag
+          </button>
+          <button
+            onClick={testAssignTagToStrategy}
+            disabled={busy || !createdStrategyId || !createdTagId}
+            className="px-4 py-2 rounded bg-purple-600 text-white disabled:opacity-50 hover:bg-purple-700"
+          >
+            🔗 Assign Tag to Strategy
+          </button>
+        </div>
+
+        {createdStrategyId && (
+          <div className="text-sm text-blue-700 bg-blue-100 p-2 rounded">
+            Created Strategy ID: <code className="font-mono">{createdStrategyId}</code>
+          </div>
+        )}
+        {createdTagId && (
+          <div className="text-sm text-green-700 bg-green-100 p-2 rounded">
+            Created Tag ID: <code className="font-mono">{createdTagId}</code>
+          </div>
+        )}
+
+        {/* Strategy & Tag Mutation Results */}
+        {(Object.keys(strategyResults).length > 0 || Object.keys(tagResults).length > 0) && (
+          <div className="mt-4 space-y-2">
+            <h3 className="text-sm font-semibold text-blue-900">Operation Results:</h3>
+            {Object.entries({ ...strategyResults, ...tagResults })
+              .filter(([key]) => key.startsWith('create_') || key.startsWith('assign_'))
+              .map(([key, result]) => (
+                result && (
+                  <div key={key} className="p-2 bg-white rounded border border-blue-200">
+                    <div className="flex justify-between items-start">
+                      <span className="text-sm font-medium capitalize">{key.replace(/_/g, ' ')}</span>
+                      <span className={`text-xs px-2 py-1 rounded ${result.ok ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                        {result.ok ? `✓ ${result.status}` : `✗ ${result.status}`}
+                      </span>
+                    </div>
+                    {result.data && (
+                      <pre className="mt-2 text-xs overflow-auto max-h-32 bg-gray-50 p-2 rounded">
+                        {pretty(result.data)}
+                      </pre>
+                    )}
+                  </div>
+                )
+              ))}
           </div>
         )}
       </section>

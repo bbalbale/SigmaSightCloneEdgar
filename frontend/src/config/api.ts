@@ -76,9 +76,9 @@ export const API_ENDPOINTS = {
 
   // Strategy management endpoints
   STRATEGIES: {
-    LIST: '/api/v1/strategies',
+    LIST: '/api/v1/strategies/',
     GET: (id: string) => `/api/v1/strategies/${id}`,
-    CREATE: '/api/v1/strategies',
+    CREATE: '/api/v1/strategies/',
     UPDATE: (id: string) => `/api/v1/strategies/${id}`,
     DELETE: (id: string) => `/api/v1/strategies/${id}`,
     COMBINE: '/api/v1/strategies/combine',
@@ -93,8 +93,8 @@ export const API_ENDPOINTS = {
 
   // Tag management endpoints (user-scoped tags)
   TAGS: {
-    LIST: '/api/v1/tags',
-    CREATE: '/api/v1/tags',
+    LIST: '/api/v1/tags/',
+    CREATE: '/api/v1/tags/',
     GET: (id: string) => `/api/v1/tags/${id}`,
     UPDATE: (id: string) => `/api/v1/tags/${id}`,
     ARCHIVE: (id: string) => `/api/v1/tags/${id}/archive`,
