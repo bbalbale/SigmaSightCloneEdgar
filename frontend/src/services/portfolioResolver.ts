@@ -47,35 +47,8 @@ class PortfolioResolver {
       }
     }
 
-    // Fetch portfolios from the backend with retry logic
+    // Prefer the backend portfolios endpoint; fallback to old mapping only if needed
     try {
-      // TEMPORARY WORKAROUND: Use hardcoded mapping with DETERMINISTIC portfolio IDs
-      // The /portfolios endpoint exists in code but isn't available in the running backend
-      // These are deterministic UUIDs that match across all developer machines:
-      const email = localStorage.getItem('user_email')
-      const portfolioMap: Record<string, string> = {
-        'demo_individual@sigmasight.com': '1d8ddd95-3b45-0ac5-35bf-cf81af94a5fe',
-        'demo_hnw@sigmasight.com': 'e23ab931-a033-edfe-ed4f-9d02474780b4',
-        'demo_hedgefundstyle@sigmasight.com': 'fcd71196-e93e-f000-5a74-31a9eead3118'
-      }
-      
-      if (email && portfolioMap[email]) {
-        const portfolioInfo: PortfolioInfo = {
-          id: portfolioMap[email],
-          name: `Portfolio for ${email}`,
-          totalValue: 0,
-          positionCount: 0
-        }
-        
-        // Cache the result
-        this.portfolioCache.set(cacheKey, portfolioInfo)
-        this.cacheExpiry.set(cacheKey, Date.now() + this.CACHE_DURATION)
-        
-        console.log('Portfolio resolved using correct IDs from database:', portfolioInfo)
-        return portfolioMap[email]
-      }
-      
-      // Try the portfolios endpoint anyway in case backend gets restarted
       const response = await requestManager.authenticatedFetch(
         '/api/proxy/api/v1/data/portfolios',
         token,
@@ -118,10 +91,28 @@ class PortfolioResolver {
           console.warn('No portfolios found for user in backend response')
           return null
         }
-      } else {
-        console.log('Portfolios endpoint not available, using hardcoded mapping')
-        return null
       }
+      
+      // Fallback: deterministic mapping (development only)
+      const email = localStorage.getItem('user_email') || ''
+      const portfolioMap: Record<string, string> = {
+        'demo_individual@sigmasight.com': '1d8ddd95-3b45-0ac5-35bf-cf81af94a5fe',
+        'demo_hnw@sigmasight.com': 'e23ab931-a033-edfe-ed4f-9d02474780b4',
+        'demo_hedgefundstyle@sigmasight.com': 'fcd71196-e93e-f000-5a74-31a9eead3118'
+      }
+      if (email && portfolioMap[email]) {
+        const portfolioInfo: PortfolioInfo = {
+          id: portfolioMap[email],
+          name: `Portfolio for ${email}`,
+          totalValue: 0,
+          positionCount: 0
+        }
+        this.portfolioCache.set(cacheKey, portfolioInfo)
+        this.cacheExpiry.set(cacheKey, Date.now() + this.CACHE_DURATION)
+        console.warn('Backend portfolios endpoint unavailable; using fallback mapping for development:', portfolioInfo)
+        return portfolioMap[email]
+      }
+      return null
     } catch (error: any) {
       if (error.name !== 'AbortError') {
         console.error('Error fetching portfolios:', error)

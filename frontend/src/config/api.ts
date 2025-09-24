@@ -43,6 +43,7 @@ export const API_ENDPOINTS = {
     LIST: '/api/v1/data/portfolios',
     COMPLETE: (id: string) => `/api/v1/data/portfolio/${id}/complete`,
     DATA_QUALITY: (id: string) => `/api/v1/data/portfolio/${id}/data-quality`,
+    STRATEGIES: (id: string) => `/api/v1/data/portfolios/${id}/strategies`,
   },
   
   // Position data endpoints
@@ -71,6 +72,37 @@ export const API_ENDPOINTS = {
     FACTOR_EXPOSURES: (portfolioId: string) => `/api/v1/analytics/portfolio/${portfolioId}/factor-exposures`,
     POSITIONS_FACTOR_EXPOSURES: (portfolioId: string) => `/api/v1/analytics/portfolio/${portfolioId}/positions/factor-exposures`,
     STRESS_TEST: (portfolioId: string) => `/api/v1/analytics/portfolio/${portfolioId}/stress-test`,
+  },
+
+  // Strategy management endpoints
+  STRATEGIES: {
+    LIST: '/api/v1/strategies',
+    GET: (id: string) => `/api/v1/strategies/${id}`,
+    CREATE: '/api/v1/strategies',
+    UPDATE: (id: string) => `/api/v1/strategies/${id}`,
+    DELETE: (id: string) => `/api/v1/strategies/${id}`,
+    COMBINE: '/api/v1/strategies/combine',
+    DETECT: (portfolioId: string) => `/api/v1/strategies/detect/${portfolioId}`,
+    TAGS: {
+      GET: (id: string) => `/api/v1/strategies/${id}/tags`,
+      REPLACE: (id: string) => `/api/v1/strategies/${id}/tags`,
+      ADD: (id: string) => `/api/v1/strategies/${id}/tags`,
+      REMOVE: (id: string) => `/api/v1/strategies/${id}/tags`,
+    },
+  },
+
+  // Tag management endpoints (user-scoped tags)
+  TAGS: {
+    LIST: '/api/v1/tags',
+    CREATE: '/api/v1/tags',
+    GET: (id: string) => `/api/v1/tags/${id}`,
+    UPDATE: (id: string) => `/api/v1/tags/${id}`,
+    ARCHIVE: (id: string) => `/api/v1/tags/${id}/archive`,
+    RESTORE: (id: string) => `/api/v1/tags/${id}/restore`,
+    ASSIGN: '/api/v1/tags/assign',
+    BULK_ASSIGN: '/api/v1/tags/bulk-assign',
+    STRATEGIES_BY_TAG: (id: string) => `/api/v1/tags/${id}/strategies`,
+    DEFAULTS: '/api/v1/tags/defaults',
   },
   
   // Admin endpoints (for monitoring)

@@ -16,11 +16,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.models import (
-    Portfolio, Position, Tag, MarketDataCache,
+    Portfolio, Position, MarketDataCache,
     CorrelationCalculation, CorrelationCluster, 
     CorrelationClusterPosition, PairwiseCorrelation
 )
-from app.models.positions import position_tags
+from app.models.tags_v2 import TagV2
+from app.models.strategies import StrategyTag
 from app.schemas.correlations import (
     PositionFilterConfig, CorrelationCalculationCreate,
     PairwiseCorrelationCreate
@@ -308,32 +309,29 @@ class CorrelationService:
             if s in symbol_to_position
         ]
         
-        # 1. Check for common tags
+        # 1. Check for common tags (new system: tags apply to strategies)
         if cluster_positions:
-            # Get all tags for cluster positions
-            position_ids = [p.id for p in cluster_positions]
-            
-            # Query tags for these positions
-            tag_query = select(Tag).join(
-                position_tags,
-                Tag.id == position_tags.c.tag_id
-            ).where(
-                position_tags.c.position_id.in_(position_ids)
-            )
-            
-            result = await self.db.execute(tag_query)
-            tags = result.scalars().all()
-            
-            # Count tag occurrences
-            tag_counts = defaultdict(int)
-            for tag in tags:
-                tag_counts[tag.name] += 1
-            
-            # Find tags that appear in most positions
-            if tag_counts:
-                most_common_tag = max(tag_counts, key=tag_counts.get)
-                if tag_counts[most_common_tag] >= len(cluster_positions) * 0.7:  # 70% threshold
-                    return most_common_tag
+            # Map strategies for positions
+            strategy_ids = [p.strategy_id for p in cluster_positions if p.strategy_id]
+            if strategy_ids:
+                tag_query = (
+                    select(TagV2)
+                    .join(StrategyTag, TagV2.id == StrategyTag.tag_id)
+                    .where(StrategyTag.strategy_id.in_(strategy_ids))
+                )
+                result = await self.db.execute(tag_query)
+                tags = result.scalars().all()
+
+                # Count tag occurrences
+                tag_counts = defaultdict(int)
+                for tag in tags:
+                    tag_counts[tag.name] += 1
+
+                if tag_counts:
+                    most_common_tag = max(tag_counts, key=tag_counts.get)
+                    # Require common tag across 70% of positions
+                    if tag_counts[most_common_tag] >= len(cluster_positions) * 0.7:
+                        return most_common_tag
         
         # 2. Check for common sector
         sectors = []

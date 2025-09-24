@@ -14,7 +14,10 @@ from sqlalchemy import select
 from app.core.logging import get_logger
 from app.core.auth import get_password_hash
 from app.models.users import User, Portfolio
-from app.models.positions import Position, PositionType, Tag, TagType
+from app.models.positions import Position, PositionType
+from app.models.tags_v2 import TagV2
+from app.services.strategy_service import StrategyService
+from app.services.tag_service import TagService
 
 logger = get_logger(__name__)
 
@@ -218,21 +221,15 @@ async def get_user_by_email(db: AsyncSession, email: str) -> User:
         raise ValueError(f"Demo user not found: {email}. Run scripts/seed_database.py first.")
     return user
 
-async def get_or_create_tag(db: AsyncSession, user_id: str, tag_name: str) -> Tag:
+async def get_or_create_tag(db: AsyncSession, user_id: str, tag_name: str) -> TagV2:
     """Get existing tag or create new one"""
-    result = await db.execute(
-        select(Tag).where(Tag.user_id == user_id, Tag.name == tag_name)
-    )
+    result = await db.execute(select(TagV2).where(TagV2.user_id == user_id, TagV2.name == tag_name, TagV2.is_archived == False))
     tag = result.scalar_one_or_none()
     
     if not tag:
-        tag = Tag(
-            id=generate_deterministic_uuid(f"{user_id}_{tag_name}_tag"),
-            user_id=user_id,
-            name=tag_name,
-            tag_type=TagType.STRATEGY if tag_name in ["Long Momentum", "Short Value Traps", "Options Overlay"] else TagType.REGULAR
-        )
+        tag = TagV2(user_id=user_id, name=tag_name, color="#4A90E2")
         db.add(tag)
+        await db.flush()
     
     return tag
 
@@ -283,21 +280,18 @@ async def _add_positions_to_portfolio(db: AsyncSession, portfolio: Portfolio, po
         db.add(position)
         await db.flush()  # Get position ID
         
-        # Create and associate tags (manual relationship via association table)
+        # Ensure strategy exists for the position and assign tags at strategy level
+        s_service = StrategyService(db)
+        t_service = TagService(db)
+        strategy = await s_service.auto_create_standalone_strategy(position)
+
         if pos_data.get("tags"):
-            await db.flush()  # Ensure position is saved first
+            await db.flush()
+            tag_ids = []
             for tag_name in pos_data.get("tags", []):
                 tag = await get_or_create_tag(db, user.id, tag_name)
-                await db.flush()  # Ensure tag is saved
-                
-                # Manually insert into association table to avoid async issues
-                from sqlalchemy import text
-                await db.execute(
-                    text("INSERT INTO position_tags (position_id, tag_id) VALUES (:pos_id, :tag_id) ON CONFLICT DO NOTHING"),
-                    {"pos_id": position.id, "tag_id": tag.id}
-                )
-            
-            await db.flush()  # Commit the tag relationships
+                tag_ids.append(tag.id)
+            await t_service.bulk_assign_tags(strategy.id, tag_ids, assigned_by=user.id, replace_existing=False)
         
         position_count += 1
         existing_symbols.add(symbol)  # Track newly added positions

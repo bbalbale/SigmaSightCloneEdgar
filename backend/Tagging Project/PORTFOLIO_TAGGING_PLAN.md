@@ -411,3 +411,32 @@ This tagging system will provide users with a flexible way to organize and analy
 - **Extensible**: Foundation for future enhancements
 
 The phased approach ensures we can deliver value incrementally while maintaining system stability.
+---
+
+## Implementation Update (2025-09-24)
+
+We pivoted the design to apply user-scoped tags (TagV2) to strategies rather than positions. Every position belongs to a strategy (standalone by default). Summary of what is implemented now:
+
+- Schema
+  - tags_v2 (user-scoped), strategies, strategy_legs, strategy_metrics, strategy_tags, positions.strategy_id (NOT NULL).
+  - Legacy tables (tags, position_tags) dropped; baseline initial schema updated.
+- Backend APIs
+  - Strategy CRUD and utilities.
+  - Strategy tagging: GET/PUT/POST/DELETE /api/v1/strategies/{id}/tags.
+  - Portfolio strategies list: GET /api/v1/data/portfolios/{id}/strategies with tag/type filters; portfolio complete includes strategies.
+- Services
+  - StrategyService: create/list/get/update/delete/combine/detect (basic), minimal metrics.
+  - TagService: TagV2 CRUD, archive/restore, usage counts, get/replace/bulk-assign/remove strategy tags.
+- Frontend
+  - Page: frontend/src/pages/portfolio-strategies.tsx (resolves portfolio, lists strategies, edit tags).
+  - Components: frontend/src/components/portfolio/StrategyList.tsx, TagEditor.tsx.
+  - Clients: frontend/src/services/strategiesApi.ts, tagsApi.ts.
+
+Where this diverges from original plan
+- The earlier plan proposed portfolio-scoped tags and position_tags. We implemented user-scoped TagV2 and strategy-level tags (strategy_tags) instead, to align with the dual system (strategies as first-class containers).
+- API endpoints and queries operate on strategies/tags rather than positions/tags.
+
+Next steps
+- Extend metrics aggregation (Greeks, P&L) at strategy level.
+- Add analytics by tag and by strategy type endpoints as planned.
+- Integrate strategy filtering/grouping into the main portfolio views.

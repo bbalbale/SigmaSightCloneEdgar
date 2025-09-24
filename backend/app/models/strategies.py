@@ -66,13 +66,13 @@ class Strategy(Base):
         ),
     )
 
-    # Relationships (simplified without back_populates for now)
-    # portfolio = relationship("Portfolio")
-    # positions = relationship("Position", foreign_keys="Position.strategy_id")
-    # strategy_legs = relationship("StrategyLeg", cascade="all, delete-orphan")
-    # tags = relationship("StrategyTag", cascade="all, delete-orphan")
-    # metrics = relationship("StrategyMetrics", cascade="all, delete-orphan")
-    # creator = relationship("User", foreign_keys=[created_by])
+    # Relationships
+    portfolio = relationship("Portfolio", back_populates="strategies")
+    positions = relationship("Position", back_populates="strategy", foreign_keys="Position.strategy_id")
+    strategy_legs = relationship("StrategyLeg", cascade="all, delete-orphan", back_populates="strategy")
+    strategy_tags = relationship("StrategyTag", cascade="all, delete-orphan", back_populates="strategy")
+    metrics = relationship("StrategyMetrics", cascade="all, delete-orphan", back_populates="strategy")
+    creator = relationship("User", foreign_keys=[created_by])
 
     def __repr__(self):
         return f"<Strategy(id={self.id}, name={self.name}, type={self.strategy_type})>"
@@ -115,9 +115,9 @@ class StrategyLeg(Base):
     leg_type = Column(String(50), default="single", nullable=False)  # single, long_leg, short_leg, protective, etc.
     leg_order = Column(Integer, default=0, nullable=False)  # Display ordering
 
-    # Relationships (simplified without back_populates for now)
-    # strategy = relationship("Strategy")
-    # position = relationship("Position")
+    # Relationships
+    strategy = relationship("Strategy", back_populates="strategy_legs")
+    position = relationship("Position", back_populates="strategy_legs")
 
     def __repr__(self):
         return f"<StrategyLeg(strategy={self.strategy_id}, position={self.position_id}, type={self.leg_type})>"
@@ -151,8 +151,8 @@ class StrategyMetrics(Base):
         UniqueConstraint('strategy_id', 'calculation_date', name='unique_strategy_date'),
     )
 
-    # Relationships (simplified without back_populates for now)
-    # strategy = relationship("Strategy")
+    # Relationships
+    strategy = relationship("Strategy", back_populates="metrics")
 
     def __repr__(self):
         return f"<StrategyMetrics(strategy={self.strategy_id}, date={self.calculation_date})>"
@@ -191,10 +191,10 @@ class StrategyTag(Base):
         UniqueConstraint('strategy_id', 'tag_id', name='unique_strategy_tag'),
     )
 
-    # Relationships (simplified without back_populates for now)
-    # strategy = relationship("Strategy")
-    # tag = relationship("TagV2")
-    # assignor = relationship("User", foreign_keys=[assigned_by])
+    # Relationships
+    strategy = relationship("Strategy", back_populates="strategy_tags")
+    tag = relationship("TagV2", back_populates="strategy_tags")
+    assignor = relationship("User", foreign_keys=[assigned_by])
 
     def __repr__(self):
         return f"<StrategyTag(strategy={self.strategy_id}, tag={self.tag_id})>"

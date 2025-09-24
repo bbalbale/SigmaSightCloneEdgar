@@ -4,7 +4,7 @@ Position and Tag models
 from datetime import datetime, date
 from uuid import uuid4
 from decimal import Decimal
-from sqlalchemy import String, DateTime, ForeignKey, Index, Numeric, Date, Enum as SQLEnum, Table, Column
+from sqlalchemy import String, DateTime, ForeignKey, Index, Numeric, Date, Enum as SQLEnum
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from typing import Optional, List
@@ -28,15 +28,7 @@ class TagType(enum.Enum):
     STRATEGY = "STRATEGY"
 
 
-# Many-to-many association table for positions and tags
-position_tags = Table(
-    'position_tags',
-    Base.metadata,
-    Column('position_id', UUID(as_uuid=True), ForeignKey('positions.id'), primary_key=True),
-    Column('tag_id', UUID(as_uuid=True), ForeignKey('tags.id'), primary_key=True),
-    Column('created_at', DateTime(timezone=True), default=datetime.utcnow),
-    Index('ix_position_tags_position_id_tag_id', 'position_id', 'tag_id')
-)
+# Legacy position_tags removed in favor of strategy_tags; see tags_v2.py / strategies.py
 
 
 class Position(Base):
@@ -78,9 +70,9 @@ class Position(Base):
 
     # Relationships
     portfolio: Mapped["Portfolio"] = relationship("Portfolio", back_populates="positions")
-    tags: Mapped[List["Tag"]] = relationship("Tag", secondary=position_tags, back_populates="positions")
-    # strategy: Mapped[Optional["Strategy"]] = relationship("Strategy", back_populates="positions", foreign_keys=[strategy_id])
-    # strategy_legs: Mapped[List["StrategyLeg"]] = relationship("StrategyLeg", back_populates="position")
+    # Legacy tags relationship removed; tags apply to strategies via StrategyTag/TagV2
+    strategy: Mapped[Optional["Strategy"]] = relationship("Strategy", back_populates="positions", foreign_keys=[strategy_id])
+    strategy_legs: Mapped[List["StrategyLeg"]] = relationship("StrategyLeg", back_populates="position")
     greeks: Mapped[Optional["PositionGreeks"]] = relationship("PositionGreeks", back_populates="position", uselist=False)
     factor_exposures: Mapped[List["PositionFactorExposure"]] = relationship("PositionFactorExposure", back_populates="position")
     interest_rate_betas: Mapped[List["PositionInterestRateBeta"]] = relationship("PositionInterestRateBeta", back_populates="position")
@@ -97,23 +89,6 @@ class Position(Base):
 
 
 class Tag(Base):
-    """Tag model - stores user-defined tags for positions"""
+    """Deprecated legacy Tag model retained only for migrations."""
     __tablename__ = "tags"
-    
     id: Mapped[UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid4)
-    user_id: Mapped[UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
-    name: Mapped[str] = mapped_column(String(50), nullable=False)
-    tag_type: Mapped[TagType] = mapped_column(SQLEnum(TagType), nullable=False, default=TagType.REGULAR)
-    description: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
-    color: Mapped[Optional[str]] = mapped_column(String(7), nullable=True)  # Hex color code
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow)
-    
-    # Relationships
-    user: Mapped["User"] = relationship("User", back_populates="tags")
-    positions: Mapped[List["Position"]] = relationship("Position", secondary=position_tags, back_populates="tags")
-    
-    __table_args__ = (
-        Index('ix_tags_user_id_name', 'user_id', 'name', unique=True),
-        Index('ix_tags_tag_type', 'tag_type'),
-    )

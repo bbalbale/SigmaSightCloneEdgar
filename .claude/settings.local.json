@@ -76,7 +76,8 @@
       "Bash(C:\\Users\\BenBalbale\\CascadeProjects\\SigmaSight\\backend\\.venv\\Scripts\\python.exe -m alembic upgrade head)",
       "Bash(powershell:*)",
       "Bash(.venv\\Scripts\\alembic.exe upgrade head)",
-      "Bash(.venvScriptspython.exe verify_strategy_tables.py)"
+      "Bash(.venvScriptspython.exe verify_strategy_tables.py)",
+      "Bash(git restore:*)"
     ],
     "additionalDirectories": [
       "C:\\c\\Users\\BenBalbale\\CascadeProjects\\SigmaSight-BE"

@@ -50,10 +50,10 @@ class TagV2(Base):
         CheckConstraint("color ~ '^#[0-9A-Fa-f]{6}$'", name='valid_hex_color'),
     )
 
-    # Relationships (simplified without back_populates for now)
-    # user = relationship("User", foreign_keys=[user_id])
-    # archiver = relationship("User", foreign_keys=[archived_by])
-    # strategy_tags = relationship("StrategyTag", cascade="all, delete-orphan")
+    # Relationships
+    user = relationship("User", foreign_keys=[user_id])
+    archiver = relationship("User", foreign_keys=[archived_by])
+    strategy_tags = relationship("StrategyTag", cascade="all, delete-orphan", back_populates="tag")
 
     def __repr__(self):
         return f"<TagV2(id={self.id}, name={self.name}, user={self.user_id})>"
@@ -66,7 +66,10 @@ class TagV2(Base):
     @property
     def strategy_count(self) -> int:
         """Get the number of strategies using this tag."""
-        return 0  # Will be implemented when relationships are fixed
+        try:
+            return len(self.strategy_tags) if self.strategy_tags is not None else 0
+        except Exception:
+            return 0
 
     def archive(self, archived_by_user_id: Optional[UUID] = None):
         """Archive this tag."""

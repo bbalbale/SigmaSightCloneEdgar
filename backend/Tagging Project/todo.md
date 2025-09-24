@@ -1,7 +1,7 @@
 # Portfolio Tagging System Implementation Todo
 
 **Created**: September 24, 2025
-**Status**: Planning Phase
+**Status**: Phase 2 starting (Phase 1 complete; Tag APIs built)
 **Project**: Dual system for position organization (tags) and position grouping (strategies)
 
 ---
@@ -46,7 +46,7 @@ Implementing a comprehensive dual-system architecture that separates organizatio
 ### Phase 1: Strategy Foundation (Week 1-2) üöß **CRITICAL PATH**
 
 #### Database Schema Changes
-- [ ] **Task 1.1**: Create Alembic migration for strategy tables
+- [x] **Task 1.1**: Create Alembic migration for strategy tables
   - `strategies` table with all required fields
   - `strategy_legs` junction table
   - `strategy_metrics` calculated table
@@ -55,7 +55,7 @@ Implementing a comprehensive dual-system architecture that separates organizatio
   - **Dependencies**: None
   - **Risk**: High - Core database structure changes
 
-- [ ] **Task 1.2**: Create SQLAlchemy models for strategies
+- [x] **Task 1.2**: Create SQLAlchemy models for strategies
   - `Strategy` model with full relationships
   - `StrategyLeg` association model
   - `StrategyMetrics` model for cached calculations
@@ -63,7 +63,7 @@ Implementing a comprehensive dual-system architecture that separates organizatio
   - **Estimated Time**: 1 day
   - **Dependencies**: Task 1.1 complete
 
-- [ ] **Task 1.3**: Implement StrategyService class
+- [x] **Task 1.3**: Implement StrategyService class
   - `create_strategy()` - Create new strategy with positions
   - `auto_create_standalone()` - Auto-create standalone strategy for new positions
   - `combine_into_strategy()` - Combine multiple positions
@@ -71,7 +71,7 @@ Implementing a comprehensive dual-system architecture that separates organizatio
   - **Estimated Time**: 3 days
   - **Dependencies**: Task 1.2 complete
 
-- [ ] **Task 1.4**: Create basic strategy CRUD endpoints
+- [x] **Task 1.4**: Create basic strategy CRUD endpoints
   - `POST /api/v1/strategies` - Create strategy
   - `GET /api/v1/strategies` - List portfolio strategies
   - `GET /api/v1/strategies/{id}` - Get strategy details
@@ -80,7 +80,7 @@ Implementing a comprehensive dual-system architecture that separates organizatio
   - **Estimated Time**: 2 days
   - **Dependencies**: Task 1.3 complete
 
-- [ ] **Task 1.5**: Data migration script for existing positions
+- [x] **Task 1.5**: Data migration script for existing positions
   - Create standalone strategies for all existing positions
   - Update position records with strategy_id references
   - Verify data integrity post-migration
@@ -116,7 +116,6 @@ Implementing a comprehensive dual-system architecture that separates organizatio
   - **Dependencies**: Task 2.1 complete
 
 - [ ] **Task 2.3**: Implement aggregated metrics calculation
-  - Net Greeks calculation for option strategies
   - P&L aggregation across strategy legs
   - Risk metrics at strategy level
   - Break-even point calculations
@@ -142,7 +141,7 @@ Implementing a comprehensive dual-system architecture that separates organizatio
 ### Phase 3: Enhanced Tag System (Week 4) üè∑Ô∏è
 
 #### User-Scoped Tag System
-- [ ] **Task 3.1**: Create enhanced tag database tables
+- [x] **Task 3.1**: Create enhanced tag database tables
   - Migration to add user-scoped tag fields
   - `tags` table enhancement (user_id, archiving, usage_count)
   - `strategy_tags` junction table (replaces position_tags for new system)
@@ -150,7 +149,7 @@ Implementing a comprehensive dual-system architecture that separates organizatio
   - **Estimated Time**: 2 days
   - **Dependencies**: Phase 2 complete
 
-- [ ] **Task 3.2**: Implement enhanced TagService
+- [x] **Task 3.2**: Implement enhanced TagService
   - Tag CRUD operations with user scoping
   - Tag archiving and restoration
   - Usage count tracking and statistics
@@ -158,7 +157,7 @@ Implementing a comprehensive dual-system architecture that separates organizatio
   - **Estimated Time**: 2 days
   - **Dependencies**: Task 3.1 complete
 
-- [ ] **Task 3.3**: Create tag management endpoints
+- [x] **Task 3.3**: Create tag management endpoints
   - `POST /api/v1/tags` - Create tag
   - `GET /api/v1/tags` - List user's tags
   - `PUT /api/v1/tags/{id}` - Update tag
@@ -238,7 +237,7 @@ Implementing a comprehensive dual-system architecture that separates organizatio
   - **Estimated Time**: 1 day
   - **Dependencies**: Phase 4 complete
 
-- [ ] **Task 5.2**: Enforce database constraints
+- [x] **Task 5.2**: Enforce database constraints
   - Make strategy_id NOT NULL on positions table
   - Remove old position_tags table after verification
   - Add all necessary database constraints and triggers
@@ -588,3 +587,115 @@ Create FastAPI routes in `backend/app/api/v1/`:
 **Last Updated**: September 24, 2025
 **Next Review**: September 25, 2025
 **Status**: Ready to begin Phase 1 implementation
+
+---
+
+## Progress Update (2025-09-24)
+
+- Wired ORM relationships for strategies, positions, and TagV2:
+  - Portfolio.strategies, Strategy.positions, Position.strategy
+  - Strategy.metrics, Strategy.strategy_tags, TagV2.strategy_tags
+- Completed Strategy and Tag services for CRUD and assignment flows.
+- Implemented strategies API endpoints and normalized metrics to return the latest metrics snapshot in GET /api/v1/strategies/{id}?include_metrics=true.
+
+Remaining for Phase 1:
+- [ ] Task 1.5 Data migration script to backfill standalone strategies for existing positions and set positions.strategy_id.
+- [ ] Tighten authz checks to ensure portfolio ownership on strategy/tag operations.
+
+Notes:
+- Metrics relationship is one-to-many; API returns the latest metrics object for compatibility with current schema.
+
+---
+
+## Progress Update (2025-09-24 ÔøΩ Tag APIs & Auth)
+
+- Built Tag APIs and services:
+  - Endpoints: create, list, get, update, archive, restore; assign, remove, bulk-assign; get strategies by tag; create default tags
+  - Service: user-scoped CRUD, archiving, usage counts, assignments
+  - Authorization: portfolio ownership checks on strategy-tag actions
+- Strategy tagging convenience routes under /strategies/{id}/tags are pending (current flows use /api/v1/tags/assign, /api/v1/tags/bulk-assign, and DELETE /api/v1/tags/assign).
+
+## Status vs IMPLEMENTATION_STRATEGY_PRD.md
+
+- Phase 1 (Database & Models): Complete
+- Phase 2 (Services & Business Logic): In progress (combine done; basic detection; metrics minimal)
+- Phase 3 (API Endpoints): Mostly complete (missing /strategies/{id}/tags convenience routes)
+- Phase 4 (Views & Filtering): Not started
+- Phase 5 (Data Migration & Cleanup): Partially complete (NOT NULL enforced; legacy tag migration pending)
+
+---
+
+## Progress Update (2025-09-24 ñ Migrations & Initial Schema)
+
+- Migrated legacy position_tags to strategy_tags; created missing TagV2 entries.
+- Dropped legacy tables (tags, position_tags) via Alembic revision e1f0c2d9b7a3.
+- Updated initial schema baseline to include strategies, strategy_legs, strategy_metrics, strategy_tags, and tags_v2; removed legacy tables; positions.strategy_id is NOT NULL with FK.
+- Seed scripts updated to create Strategy per position and assign TagV2 via StrategyTag.
+- Frontend wiring: added endpoints in src/config/api.ts and a StrategiesApi client (src/services/strategiesApi.ts) for listing/filtering strategies and editing strategy tags.
+
+---
+
+## Implementation Status Update (2025-09-24)
+
+Whatís completed end-to-end:
+- Database and migrations
+  - Added strategies, strategy_legs, strategy_metrics, strategy_tags, tags_v2.
+  - Enforced positions.strategy_id NOT NULL and FK to strategies.
+  - Migrated legacy position_tags ? strategy_tags and created missing TagV2 per (user, name).
+  - Dropped legacy tables (tags, position_tags). Updated initial_schema baseline.
+- Backend APIs
+  - Strategy CRUD + utilities (create/list/get/update/delete/combine/detect).
+  - Strategy tags convenience routes: GET/PUT/POST/DELETE `/api/v1/strategies/{id}/tags`.
+  - Portfolio data APIs extended:
+    - GET `/api/v1/data/portfolio/{id}/complete` includes strategies (optional).
+    - GET `/api/v1/data/portfolios/{id}/strategies` with tag/type filters (any|all), include_positions/tags.
+  - Authorization: ownership checks for portfolio on all relevant routes.
+- Services
+  - StrategyService: create, auto-create standalone, list/get/update/delete, combine, detect (basic), metrics (cost basis).
+  - TagService: user-scoped TagV2 CRUD, archive/restore, usage counts, get/replace/bulk assign/remove tags on strategies.
+- Frontend wiring (dev)
+  - New page: `frontend/src/pages/portfolio-strategies.tsx` (resolves portfolio, lists strategies, edit tags).
+  - Strategy list UI: `frontend/src/components/portfolio/StrategyList.tsx`.
+  - Tag editor modal: `frontend/src/components/portfolio/TagEditor.tsx`.
+  - API clients: `frontend/src/services/strategiesApi.ts`, `frontend/src/services/tagsApi.ts`.
+  - Config: new endpoints in `frontend/src/config/api.ts`.
+
+Notes
+- Tags are now user-scoped (TagV2) and applied to strategies via StrategyTag.
+- Position?tag legacy paths are deprecated and removed from runtime.
+- Strategy metrics are minimal (cost basis aggregate) and can be extended.
+
+Open items
+- Phase 2: richer detection algorithms; aggregated metrics (Greeks, P&L, risk).
+- Phase 4: integrate strategy views/filters into primary portfolio UI.
+- Cleanup remaining references to legacy Tag (placeholder kept for migrations only).
+
+---
+
+## Quick Reference (Where Things Live)
+
+Backend
+- Endpoints
+  - Portfolio strategies: `backend/app/api/v1/data.py`
+    - GET `/api/v1/data/portfolios/{portfolio_id}/strategies`
+    - GET `/api/v1/data/portfolio/{id}/complete` (strategies section)
+  - Strategies + tags: `backend/app/api/v1/strategies.py`
+    - GET/PUT/POST/DELETE `/api/v1/strategies/{id}/tags`
+- Services
+  - `backend/app/services/strategy_service.py`
+  - `backend/app/services/tag_service.py`
+- Models
+  - `backend/app/models/strategies.py`, `backend/app/models/tags_v2.py`
+- Schemas
+  - `backend/app/schemas/strategy_schemas.py`, `backend/app/schemas/tag_schemas.py`
+- Migrations
+  - Drop legacy: `alembic/versions/e1f0c2d9b7a3_drop_legacy_tag_tables.py`
+  - Enforce NOT NULL: `alembic/versions/c9c0e8d2a7a1_enforce_not_null_on_positions_strategy_id.py`
+  - Baseline updated: `alembic/versions/initial_schema.py`
+  - Data migration script: `scripts/migrations/migrate_position_tags_to_strategy_tags.py`
+
+Frontend
+- Page: `frontend/src/pages/portfolio-strategies.tsx`
+- Components: `frontend/src/components/portfolio/StrategyList.tsx`, `TagEditor.tsx`
+- Clients: `frontend/src/services/strategiesApi.ts`, `tagsApi.ts`
+- Config: `frontend/src/config/api.ts`

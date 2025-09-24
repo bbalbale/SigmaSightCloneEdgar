@@ -49,21 +49,96 @@ def upgrade() -> None:
     )
     op.create_index('ix_portfolios_deleted_at', 'portfolios', ['deleted_at'], unique=False)
 
-    # Create tags table
-    op.create_table('tags',
+    # Create enhanced tags_v2 table (user-scoped)
+    op.create_table('tags_v2',
         sa.Column('id', postgresql.UUID(as_uuid=True), nullable=False),
         sa.Column('user_id', postgresql.UUID(as_uuid=True), nullable=False),
         sa.Column('name', sa.String(length=50), nullable=False),
-        sa.Column('tag_type', sa.Enum('REGULAR', 'STRATEGY', name='tagtype'), nullable=False),
-        sa.Column('description', sa.String(length=255), nullable=True),
-        sa.Column('color', sa.String(length=7), nullable=True),
-        sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
-        sa.Column('updated_at', sa.DateTime(timezone=True), nullable=False),
-        sa.ForeignKeyConstraint(['user_id'], ['users.id'], ),
+        sa.Column('color', sa.String(length=7), nullable=True, server_default='#4A90E2'),
+        sa.Column('description', sa.Text(), nullable=True),
+        sa.Column('display_order', sa.Integer(), nullable=False, server_default='0'),
+        sa.Column('usage_count', sa.Integer(), nullable=False, server_default='0'),
+        sa.Column('is_archived', sa.Boolean(), nullable=False, server_default='false'),
+        sa.Column('archived_at', sa.DateTime(timezone=True), nullable=True),
+        sa.Column('archived_by', postgresql.UUID(as_uuid=True), nullable=True),
+        sa.Column('created_at', sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
+        sa.Column('updated_at', sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
+        sa.ForeignKeyConstraint(['user_id'], ['users.id'], ondelete='CASCADE'),
+        sa.ForeignKeyConstraint(['archived_by'], ['users.id']),
+        sa.PrimaryKeyConstraint('id'),
+        sa.UniqueConstraint('user_id', 'name', 'is_archived', name='unique_active_tag_name_v2')
+    )
+    op.create_index('idx_tags_v2_user_active', 'tags_v2', ['user_id'],
+                    postgresql_where=sa.text('is_archived = false'))
+    op.create_index('idx_tags_v2_display_order', 'tags_v2', ['user_id', 'display_order'])
+
+    # Create strategies tables
+    op.create_table('strategies',
+        sa.Column('id', postgresql.UUID(as_uuid=True), nullable=False),
+        sa.Column('portfolio_id', postgresql.UUID(as_uuid=True), nullable=False),
+        sa.Column('strategy_type', sa.String(length=50), nullable=False, server_default='standalone'),
+        sa.Column('name', sa.String(length=200), nullable=False),
+        sa.Column('description', sa.Text(), nullable=True),
+        sa.Column('is_synthetic', sa.Boolean(), nullable=False, server_default='false'),
+        sa.Column('net_exposure', sa.Numeric(20, 2), nullable=True),
+        sa.Column('total_cost_basis', sa.Numeric(20, 2), nullable=True),
+        sa.Column('created_at', sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
+        sa.Column('updated_at', sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
+        sa.Column('closed_at', sa.DateTime(timezone=True), nullable=True),
+        sa.Column('created_by', postgresql.UUID(as_uuid=True), nullable=True),
+        sa.ForeignKeyConstraint(['portfolio_id'], ['portfolios.id'], ondelete='CASCADE'),
+        sa.ForeignKeyConstraint(['created_by'], ['users.id']),
         sa.PrimaryKeyConstraint('id')
     )
-    op.create_index('ix_tags_user_id_name', 'tags', ['user_id', 'name'], unique=True)
-    op.create_index('ix_tags_tag_type', 'tags', ['tag_type'], unique=False)
+    op.create_index('idx_strategies_portfolio', 'strategies', ['portfolio_id'])
+    op.create_index('idx_strategies_type', 'strategies', ['strategy_type'])
+    op.create_index('idx_strategies_synthetic', 'strategies', ['is_synthetic'])
+
+    op.create_table('strategy_legs',
+        sa.Column('strategy_id', postgresql.UUID(as_uuid=True), nullable=False),
+        sa.Column('position_id', postgresql.UUID(as_uuid=True), nullable=False),
+        sa.Column('leg_type', sa.String(length=50), nullable=False, server_default='single'),
+        sa.Column('leg_order', sa.Integer(), nullable=False, server_default='0'),
+        sa.ForeignKeyConstraint(['strategy_id'], ['strategies.id'], ondelete='CASCADE'),
+        sa.ForeignKeyConstraint(['position_id'], ['positions.id'], ondelete='CASCADE'),
+        sa.PrimaryKeyConstraint('strategy_id', 'position_id')
+    )
+    op.create_index('idx_strategy_legs_position', 'strategy_legs', ['position_id'])
+
+    op.create_table('strategy_metrics',
+        sa.Column('id', postgresql.UUID(as_uuid=True), nullable=False),
+        sa.Column('strategy_id', postgresql.UUID(as_uuid=True), nullable=False),
+        sa.Column('calculation_date', sa.Date(), nullable=False),
+        sa.Column('net_delta', sa.Numeric(10, 4), nullable=True),
+        sa.Column('net_gamma', sa.Numeric(10, 6), nullable=True),
+        sa.Column('net_theta', sa.Numeric(20, 2), nullable=True),
+        sa.Column('net_vega', sa.Numeric(20, 2), nullable=True),
+        sa.Column('total_pnl', sa.Numeric(20, 2), nullable=True),
+        sa.Column('max_profit', sa.Numeric(20, 2), nullable=True),
+        sa.Column('max_loss', sa.Numeric(20, 2), nullable=True),
+        sa.Column('break_even_points', postgresql.JSONB(astext_type=sa.Text()), nullable=True),
+        sa.Column('created_at', sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
+        sa.ForeignKeyConstraint(['strategy_id'], ['strategies.id'], ondelete='CASCADE'),
+        sa.PrimaryKeyConstraint('id'),
+        sa.UniqueConstraint('strategy_id', 'calculation_date', name='unique_strategy_date')
+    )
+    op.create_index('idx_strategy_metrics_strategy', 'strategy_metrics', ['strategy_id'])
+    op.create_index('idx_strategy_metrics_date', 'strategy_metrics', ['calculation_date'])
+
+    op.create_table('strategy_tags',
+        sa.Column('id', postgresql.UUID(as_uuid=True), nullable=False),
+        sa.Column('strategy_id', postgresql.UUID(as_uuid=True), nullable=False),
+        sa.Column('tag_id', postgresql.UUID(as_uuid=True), nullable=False),
+        sa.Column('assigned_at', sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
+        sa.Column('assigned_by', postgresql.UUID(as_uuid=True), nullable=True),
+        sa.ForeignKeyConstraint(['strategy_id'], ['strategies.id'], ondelete='CASCADE'),
+        sa.ForeignKeyConstraint(['tag_id'], ['tags_v2.id'], ondelete='CASCADE'),
+        sa.ForeignKeyConstraint(['assigned_by'], ['users.id']),
+        sa.PrimaryKeyConstraint('id'),
+        sa.UniqueConstraint('strategy_id', 'tag_id', name='unique_strategy_tag')
+    )
+    op.create_index('idx_strategy_tags_strategy', 'strategy_tags', ['strategy_id'])
+    op.create_index('idx_strategy_tags_tag', 'strategy_tags', ['tag_id'])
 
     # Create positions table
     op.create_table('positions',
@@ -83,10 +158,12 @@ def upgrade() -> None:
         sa.Column('market_value', sa.Numeric(precision=16, scale=2), nullable=True),
         sa.Column('unrealized_pnl', sa.Numeric(precision=16, scale=2), nullable=True),
         sa.Column('realized_pnl', sa.Numeric(precision=16, scale=2), nullable=True),
+        sa.Column('strategy_id', postgresql.UUID(as_uuid=True), nullable=False),
         sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
         sa.Column('updated_at', sa.DateTime(timezone=True), nullable=False),
         sa.Column('deleted_at', sa.DateTime(timezone=True), nullable=True),
         sa.ForeignKeyConstraint(['portfolio_id'], ['portfolios.id'], ),
+        sa.ForeignKeyConstraint(['strategy_id'], ['strategies.id'], ),
         sa.PrimaryKeyConstraint('id')
     )
     op.create_index('ix_positions_portfolio_id', 'positions', ['portfolio_id'], unique=False)
@@ -94,16 +171,8 @@ def upgrade() -> None:
     op.create_index('ix_positions_deleted_at', 'positions', ['deleted_at'], unique=False)
     op.create_index('ix_positions_exit_date', 'positions', ['exit_date'], unique=False)
 
-    # Create position_tags junction table
-    op.create_table('position_tags',
-        sa.Column('position_id', postgresql.UUID(as_uuid=True), nullable=False),
-        sa.Column('tag_id', postgresql.UUID(as_uuid=True), nullable=False),
-        sa.Column('created_at', sa.DateTime(timezone=True), nullable=True),
-        sa.ForeignKeyConstraint(['position_id'], ['positions.id'], ),
-        sa.ForeignKeyConstraint(['tag_id'], ['tags.id'], ),
-        sa.PrimaryKeyConstraint('position_id', 'tag_id')
-    )
-    op.create_index('ix_position_tags_position_id_tag_id', 'position_tags', ['position_id', 'tag_id'], unique=False)
+    # Index for strategy reference
+    op.create_index('ix_positions_strategy', 'positions', ['strategy_id'], unique=False)
 
     # Create market_data_cache table
     op.create_table('market_data_cache',
@@ -259,12 +328,14 @@ def downgrade() -> None:
     op.drop_table('factor_definitions')
     op.drop_table('position_greeks')
     op.drop_table('market_data_cache')
-    op.drop_table('position_tags')
     op.drop_table('positions')
-    op.drop_table('tags')
+    op.drop_table('strategy_tags')
+    op.drop_table('strategy_metrics')
+    op.drop_table('strategy_legs')
+    op.drop_table('strategies')
+    op.drop_table('tags_v2')
     op.drop_table('portfolios')
     op.drop_table('users')
     
     # Drop enums
     op.execute('DROP TYPE IF EXISTS positiontype')
-    op.execute('DROP TYPE IF EXISTS tagtype')
