@@ -68,14 +68,19 @@ class Position(Base):
     unrealized_pnl: Mapped[Optional[Decimal]] = mapped_column(Numeric(16, 2), nullable=True)
     realized_pnl: Mapped[Optional[Decimal]] = mapped_column(Numeric(16, 2), nullable=True)
 
+    # Strategy relationship (added for tagging system)
+    strategy_id: Mapped[Optional[UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("strategies.id"), nullable=True)
+
     # Timestamps
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow)
     deleted_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)  # Soft delete
-    
+
     # Relationships
     portfolio: Mapped["Portfolio"] = relationship("Portfolio", back_populates="positions")
     tags: Mapped[List["Tag"]] = relationship("Tag", secondary=position_tags, back_populates="positions")
+    # strategy: Mapped[Optional["Strategy"]] = relationship("Strategy", back_populates="positions", foreign_keys=[strategy_id])
+    # strategy_legs: Mapped[List["StrategyLeg"]] = relationship("StrategyLeg", back_populates="position")
     greeks: Mapped[Optional["PositionGreeks"]] = relationship("PositionGreeks", back_populates="position", uselist=False)
     factor_exposures: Mapped[List["PositionFactorExposure"]] = relationship("PositionFactorExposure", back_populates="position")
     interest_rate_betas: Mapped[List["PositionInterestRateBeta"]] = relationship("PositionInterestRateBeta", back_populates="position")

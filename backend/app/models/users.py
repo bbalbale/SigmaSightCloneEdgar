@@ -26,6 +26,7 @@ class User(Base):
     # Relationships
     portfolio: Mapped["Portfolio"] = relationship("Portfolio", back_populates="user", uselist=False)
     tags: Mapped[List["Tag"]] = relationship("Tag", back_populates="user")
+    # Note: TagV2 relationship will be added once TagV2 model is imported properly
     modeling_sessions: Mapped[List["ModelingSessionSnapshot"]] = relationship("ModelingSessionSnapshot", back_populates="user")
 
 
@@ -46,6 +47,7 @@ class Portfolio(Base):
     # Relationships
     user: Mapped["User"] = relationship("User", back_populates="portfolio")
     positions: Mapped[List["Position"]] = relationship("Position", back_populates="portfolio")
+    # strategies: Mapped[List["Strategy"]] = relationship("Strategy", back_populates="portfolio")  # Will be added when Strategy model is imported
     snapshots: Mapped[List["PortfolioSnapshot"]] = relationship("PortfolioSnapshot", back_populates="portfolio")
     factor_exposures: Mapped[List["FactorExposure"]] = relationship("FactorExposure", back_populates="portfolio")
     market_risk_scenarios: Mapped[List["MarketRiskScenario"]] = relationship("MarketRiskScenario", back_populates="portfolio")
