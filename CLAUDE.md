@@ -188,7 +188,7 @@ FRED_API_KEY=your_fred_key  # Optional
 
 ```bash
 # Verify critical imports
-PYTHONPATH=/Users/elliottng/CascadeProjects/SigmaSight-BE/backend uv run python -c "from app.models.users import User; print('✅ Models import successfully')"
+cd backend && uv run python -c "from app.models.users import User; print('✅ Models import successfully')"
 
 # Check database content
 uv run python scripts/check_database_content.py
