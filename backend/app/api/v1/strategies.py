@@ -132,17 +132,52 @@ async def list_strategies(
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
 
+    # Always include positions for now to avoid lazy loading issues
     strategies = await service.list_strategies(
         portfolio_id=effective_portfolio_id,
         strategy_type=strategy_type,
         is_synthetic=is_synthetic,
-        include_positions=include_positions,
+        include_positions=True,  # Always load to avoid lazy loading issues
         limit=limit,
         offset=offset
     )
 
-    # Convert to response models
-    strategy_responses = [StrategyResponse.model_validate(s) for s in strategies]
+    # Convert to response models - build dicts manually to avoid lazy loading
+    strategy_responses = []
+    for s in strategies:
+        # Build response dict manually to control what's accessed
+        strategy_dict = {
+            "id": s.id,
+            "portfolio_id": s.portfolio_id,
+            "name": s.name,
+            "description": s.description,
+            "strategy_type": s.strategy_type,
+            "is_synthetic": s.is_synthetic,
+            "net_exposure": s.net_exposure,
+            "total_cost_basis": s.total_cost_basis,
+            "created_at": s.created_at,
+            "updated_at": s.updated_at,
+            "closed_at": s.closed_at,
+            "created_by": s.created_by,
+            "position_count": len(s.positions) if hasattr(s, 'positions') and s.positions is not None else 0
+        }
+
+        # Only include positions if requested
+        if include_positions and hasattr(s, 'positions') and s.positions is not None:
+            strategy_dict["positions"] = [
+                {
+                    "id": p.id,
+                    "symbol": p.symbol,
+                    "position_type": p.position_type,
+                    "quantity": p.quantity,
+                    "entry_price": p.entry_price,
+                    "market_value": p.market_value,
+                    "unrealized_pnl": p.unrealized_pnl
+                }
+                for p in s.positions
+            ]
+
+        strategy_responses.append(StrategyResponse(**strategy_dict))
 
     return StrategyListResponse(
         strategies=strategy_responses,

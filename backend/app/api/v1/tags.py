@@ -351,17 +351,19 @@ async def create_default_tags(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Create default tag set for the current user"""
+    """Get or create default tag set for the current user - idempotent operation"""
     service = TagService(db)
 
     # Check if user already has tags
     existing_tags = await service.get_user_tags(current_user.id)
     if existing_tags:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="User already has tags. Cannot create defaults."
-        )
+        # Return existing tags instead of error - idempotent behavior
+        return {
+            "message": f"User has {len(existing_tags)} existing tags",
+            "tags": [TagResponse.model_validate(t) for t in existing_tags]
+        }
 
+    # No tags exist, create defaults
     created_tags = await service.create_default_tags(current_user.id)
 
     return {

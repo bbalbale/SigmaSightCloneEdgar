@@ -228,9 +228,10 @@ async def get_portfolio_complete(
         if include_strategies:
             # Query strategies for this portfolio
             s_service = StrategyService(session)
+            # Always include positions to get accurate count
             strategies = await s_service.list_strategies(
                 portfolio_id=portfolio.id,
-                include_positions=include_strategy_positions,
+                include_positions=True,  # Always load to get position count
                 limit=1000,
                 offset=0,
             )
@@ -258,7 +259,7 @@ async def get_portfolio_complete(
                     "name": s.name,
                     "type": s.strategy_type,
                     "is_synthetic": s.is_synthetic,
-                    "position_count": len(s.positions) if getattr(s, "positions", None) else 0,
+                    "position_count": len(s.positions) if hasattr(s, "positions") and s.positions is not None else 0,
                     "tags": tags_by_strategy.get(s.id, []) if include_strategy_tags else None,
                 }
                 for s in strategies
