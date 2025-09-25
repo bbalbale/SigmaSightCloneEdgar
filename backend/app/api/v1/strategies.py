@@ -59,8 +59,27 @@ async def create_strategy(
             created_by=current_user.id
         )
 
+        # Build response dict manually to avoid lazy loading issues
+        strategy_dict = {
+            "id": strategy.id,
+            "portfolio_id": strategy.portfolio_id,
+            "name": strategy.name,
+            "description": strategy.description,
+            "strategy_type": strategy.strategy_type,
+            "is_synthetic": strategy.is_synthetic,
+            "net_exposure": strategy.net_exposure,
+            "total_cost_basis": strategy.total_cost_basis,
+            "created_at": strategy.created_at,
+            "updated_at": strategy.updated_at,
+            "closed_at": strategy.closed_at,
+            "created_by": strategy.created_by,
+            "position_count": 0,  # New strategies start with 0 positions
+            "positions": None,  # Don't include positions in creation response
+            "metrics": None  # No metrics yet for new strategy
+        }
+
         # Convert to response model
-        return StrategyResponse.model_validate(strategy)
+        return StrategyResponse(**strategy_dict)
 
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
@@ -271,7 +290,26 @@ async def combine_positions(
             created_by=current_user.id
         )
 
-        return StrategyResponse.model_validate(strategy)
+        # Build response dict manually to avoid lazy loading issues
+        strategy_dict = {
+            "id": strategy.id,
+            "portfolio_id": strategy.portfolio_id,
+            "name": strategy.name,
+            "description": strategy.description,
+            "strategy_type": strategy.strategy_type,
+            "is_synthetic": strategy.is_synthetic,
+            "net_exposure": strategy.net_exposure,
+            "total_cost_basis": strategy.total_cost_basis,
+            "created_at": strategy.created_at,
+            "updated_at": strategy.updated_at,
+            "closed_at": strategy.closed_at,
+            "created_by": strategy.created_by,
+            "position_count": len(request.position_ids) if request.position_ids else 0,
+            "positions": None,  # Don't include positions in creation response
+            "metrics": None  # No metrics yet for new strategy
+        }
+
+        return StrategyResponse(**strategy_dict)
 
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
@@ -404,3 +442,5 @@ async def remove_strategy_tags(
 
     await t_service.remove_tags_from_strategy(strategy_id, request.tag_ids)
     return {"message": "Tags removed"}
+# Trigger reload
+
