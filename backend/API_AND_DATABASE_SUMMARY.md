@@ -1,7 +1,8 @@
 # SigmaSight API and Database Summary
 
-**Generated**: September 18, 2025
+**Generated**: September 25, 2025
 **Status**: Production-Ready APIs with Complete Database Schema
+**Latest Updates**: Fixed async/sync issues in strategies and portfolio APIs, added tagging system
 
 ---
 
@@ -80,6 +81,36 @@ Authorization: Bearer <jwt_token>
 | POST | `/target-prices/{portfolio_id}/import-csv` | ✅ Ready | Import from CSV |
 | POST | `/target-prices/{portfolio_id}/export` | ✅ Ready | Export to CSV/JSON |
 
+### 🎯 Strategy Endpoints (12 endpoints)
+| Method | Endpoint | Status | Description |
+|--------|----------|--------|-------------|
+| POST | `/strategies/` | ✅ Ready | Create new strategy |
+| GET | `/strategies/` | ✅ Ready | List all strategies |
+| GET | `/strategies/{id}` | ✅ Ready | Get strategy details |
+| PATCH | `/strategies/{id}` | ✅ Ready | Update strategy |
+| DELETE | `/strategies/{id}` | ✅ Ready | Delete strategy |
+| POST | `/strategies/{id}/positions` | ✅ Ready | Add positions to strategy |
+| DELETE | `/strategies/{id}/positions` | ✅ Ready | Remove positions from strategy |
+| POST | `/strategies/{id}/tags` | ✅ Ready | Assign tags to strategy |
+| DELETE | `/strategies/{id}/tags` | ✅ Ready | Remove tags from strategy |
+| GET | `/strategies/detect/{portfolio_id}` | ✅ Ready | Auto-detect strategies |
+| POST | `/strategies/combine` | ✅ Ready | Combine positions into strategy |
+| GET | `/data/portfolios/{id}/strategies` | ✅ Ready | Get portfolio strategies |
+
+### 🏷️ Tag Endpoints (10 endpoints)
+| Method | Endpoint | Status | Description |
+|--------|----------|--------|-------------|
+| POST | `/tags/` | ✅ Ready | Create new tag |
+| GET | `/tags/` | ✅ Ready | List user tags |
+| GET | `/tags/{id}` | ✅ Ready | Get tag details |
+| PATCH | `/tags/{id}` | ✅ Ready | Update tag |
+| DELETE | `/tags/{id}` | ✅ Ready | Archive/delete tag |
+| POST | `/tags/{id}/restore` | ✅ Ready | Restore archived tag |
+| POST | `/tags/defaults` | ✅ Ready | Create/get default tags (idempotent) |
+| POST | `/tags/reorder` | ✅ Ready | Reorder tag display |
+| GET | `/tags/{id}/strategies` | ✅ Ready | Get strategies using tag |
+| POST | `/tags/batch-update` | ✅ Ready | Batch update tags |
+
 ### ⚙️ Admin Endpoints (5 endpoints - Not Registered in Router)
 | Method | Endpoint | Status | Description |
 |--------|----------|--------|-------------|
@@ -90,10 +121,10 @@ Authorization: Bearer <jwt_token>
 | POST | `/admin/batch/data-quality/refresh` | ⚠️ Exists | Refresh market data |
 
 ### 📋 Summary Statistics
-- **Total Endpoints**: 44
-- **Production Ready**: 39 (88.6%)
-- **Admin (Not Registered)**: 5 (11.4%)
-- **Categories**: 6 (Auth, Data, Analytics, Chat, Target Prices, Admin)
+- **Total Endpoints**: 66
+- **Production Ready**: 61 (92.4%)
+- **Admin (Not Registered)**: 5 (7.6%)
+- **Categories**: 8 (Auth, Data, Analytics, Chat, Target Prices, Strategies, Tags, Admin)
 
 ---
 
@@ -219,6 +250,54 @@ Authorization: Bearer <jwt_token>
 └────────────────────────────┘
 
 ┌─────────────────────────────────────────────────────────────────────────────┐
+│                          STRATEGY & TAGGING TABLES                          │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌────────────────────────────┐         ┌────────────────────────────┐
+│       STRATEGIES           │         │     STRATEGY_LEGS          │
+├────────────────────────────┤         ├────────────────────────────┤
+│ id (UUID)               PK │         │ id (UUID)               PK │
+│ portfolio_id            FK │───┐     │ strategy_id             FK │
+│ strategy_type              │   │     │ position_id             FK │
+│ name                       │   └────<│ created_at                 │
+│ description                │         └────────────────────────────┘
+│ is_synthetic               │
+│ net_exposure               │         ┌────────────────────────────┐
+│ total_cost_basis           │         │       TAGS_V2              │
+│ created_at                 │         ├────────────────────────────┤
+│ updated_at                 │         │ id (UUID)               PK │
+│ closed_at                  │         │ user_id                 FK │
+│ created_by              FK │         │ name                       │
+└────────────────────────────┘         │ color                      │
+                                       │ description                │
+┌────────────────────────────┐         │ display_order              │
+│    STRATEGY_TAGS           │         │ usage_count                │
+├────────────────────────────┤         │ is_archived                │
+│ id (UUID)               PK │         │ archived_at                │
+│ strategy_id             FK │         │ archived_by             FK │
+│ tag_id                  FK │         │ created_at                 │
+│ assigned_at                │         │ updated_at                 │
+│ assigned_by             FK │         └────────────────────────────┘
+└────────────────────────────┘
+
+┌────────────────────────────┐         ┌────────────────────────────┐
+│   STRATEGY_METRICS         │         │   OPTION_CONTRACTS         │
+├────────────────────────────┤         ├────────────────────────────┤
+│ id (UUID)               PK │         │ id (UUID)               PK │
+│ strategy_id             FK │         │ position_id             FK │
+│ calculation_date           │         │ underlying_symbol          │
+│ net_delta                  │         │ strike_price               │
+│ net_gamma                  │         │ expiry_date                │
+│ net_theta                  │         │ option_type                │
+│ net_vega                   │         │ contract_size               │
+│ total_pnl                  │         │ created_at                 │
+│ max_profit                 │         └────────────────────────────┘
+│ max_loss                   │
+│ break_even_points          │
+│ created_at                 │
+└────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
 │                            AGENT/CHAT TABLES                                │
 └─────────────────────────────────────────────────────────────────────────────┘
 
@@ -241,11 +320,15 @@ Authorization: Bearer <jwt_token>
 #### Primary Relationships:
 1. **Users → Portfolios**: One-to-Many (1 user has multiple portfolios)
 2. **Portfolios → Positions**: One-to-Many (1 portfolio has multiple positions)
-3. **Portfolios → Portfolio Snapshots**: One-to-Many (historical snapshots)
-4. **Positions → Greeks/Factors**: One-to-Many (calculation results)
-5. **Portfolios → Target Prices**: One-to-Many (price targets per position)
-6. **Users → Conversations**: One-to-Many (chat threads)
-7. **Conversations → Messages**: One-to-Many (chat history)
+3. **Portfolios → Strategies**: One-to-Many (trading strategies per portfolio)
+4. **Strategies → Positions**: Many-to-Many via strategy_legs (positions in strategies)
+5. **Users → Tags**: One-to-Many (user-scoped tagging system)
+6. **Strategies → Tags**: Many-to-Many via strategy_tags (tag assignments)
+7. **Portfolios → Portfolio Snapshots**: One-to-Many (historical snapshots)
+8. **Positions → Greeks/Factors**: One-to-Many (calculation results)
+9. **Portfolios → Target Prices**: One-to-Many (price targets per position)
+10. **Users → Conversations**: One-to-Many (chat threads)
+11. **Conversations → Messages**: One-to-Many (chat history)
 
 #### Investment Classification:
 - **Position.investment_class**: Computed field (PUBLIC/OPTIONS/PRIVATE)
@@ -318,6 +401,20 @@ Authorization: Bearer <jwt_token>
 
 ---
 
+## Recent Updates & Fixes (September 25, 2025)
+
+### API Fixes Applied:
+1. **Tags/Defaults Endpoint**: Made idempotent - now returns existing tags instead of 400 error
+2. **Strategies List Endpoint**: Fixed async/sync issues by eagerly loading positions and manually building response objects
+3. **Portfolio Complete Endpoint**: Fixed lazy loading issues by ensuring positions are always loaded for accurate counts
+4. **SQLAlchemy Async Issues**: Resolved MissingGreenlet errors when accessing lazy-loaded relationships
+
+### New Features:
+1. **Strategy Management System**: Complete CRUD operations for trading strategies
+2. **Tagging System**: User-scoped tags with strategy assignment capabilities
+3. **Strategy Detection**: Auto-detect common strategy patterns (spreads, straddles, etc.)
+4. **Bulk Operations**: Support for bulk updates on target prices and tags
+
 ## Notes
 
 - **Database Location**: PostgreSQL via Docker (`docker-compose up -d`)
@@ -325,9 +422,10 @@ Authorization: Bearer <jwt_token>
 - **Demo Data**: Pre-seeded with `scripts/seed_database.py`
 - **Investment Classification**: Derived from position data, not stored explicitly
 - **Admin Endpoints**: Implemented but require manual router registration
+- **Testing**: Frontend API test page at `/dev/api-test` validates all endpoints
 
 ---
 
-**Last Updated**: September 18, 2025
-**Database Version**: Latest migration applied
-**API Version**: v1.4.5
+**Last Updated**: September 25, 2025
+**Database Version**: Latest migration applied with strategies and tags_v2 tables
+**API Version**: v1.5.0 (with strategy and tagging system)
