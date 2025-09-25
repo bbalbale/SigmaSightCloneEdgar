@@ -49,7 +49,8 @@ export default function ApiTestPage() {
   const [tagResults, setTagResults] = useState<Record<string, Result | null>>({});
   const [createdStrategyId, setCreatedStrategyId] = useState<string>("");
   const [createdTagId, setCreatedTagId] = useState<string>("");
-
+  const [strategyNameInput, setStrategyNameInput] = useState<string>("");
+  const [tagNameInput, setTagNameInput] = useState<string>("");
   // Analytics params
   const [lookbackDays, setLookbackDays] = useState<number>(90);
   const [minOverlap, setMinOverlap] = useState<number>(30);
@@ -497,12 +498,13 @@ export default function ApiTestPage() {
       }
 
       const position = positionsData.positions[0];
+      const strategyName = strategyNameInput.trim() || `Test Strategy ${Date.now()}`;
       const strategyData = {
         portfolio_id: portfolioId,
-        name: `Test Strategy ${Date.now()}`,
+        name: strategyName,
         strategy_type: "custom",
-        description: "Test strategy created from API test page",
-        position_ids: [position.id]
+        description: "Test strategy created from API test page"
+        // Note: position_ids is optional, removing it for now
       };
 
       const started = performance.now();
@@ -530,7 +532,7 @@ export default function ApiTestPage() {
 
       if (response.ok && data.id) {
         setCreatedStrategyId(data.id);
-        appendLog(`Created strategy "${strategyData.name}" with ID: ${data.id}`);
+        appendLog(`Created strategy "${strategyName}" with ID: ${data.id}`);
       } else {
         appendLog(`Failed to create strategy: ${data.detail || 'Unknown error'}`);
       }
@@ -539,7 +541,7 @@ export default function ApiTestPage() {
     } finally {
       setBusy(false);
     }
-  }, [token, portfolioId, appendLog]);
+  }, [token, portfolioId, appendLog, strategyNameInput]);
 
   const testCreateTag = useCallback(async () => {
     if (!token) {
@@ -548,12 +550,12 @@ export default function ApiTestPage() {
     }
     setBusy(true);
     try {
+      const tagName = tagNameInput.trim() || `TestTag_${Date.now()}`;
       const tagData = {
-        name: `TestTag_${Date.now()}`,
-        color: "#" + Math.floor(Math.random()*16777215).toString(16).padStart(6, '0'),
+        name: tagName,
+        color: "#" + Math.floor(Math.random()*16777215).toString(16).padStart(6, "0"),
         description: "Test tag created from API test page"
       };
-
       const started = performance.now();
       const response = await fetch(`/api/proxy/api/v1/tags/`, {
         method: 'POST',
@@ -579,7 +581,7 @@ export default function ApiTestPage() {
 
       if (response.ok && data.id) {
         setCreatedTagId(data.id);
-        appendLog(`Created tag "${tagData.name}" with ID: ${data.id}`);
+        appendLog(`Created tag "${tagName}" with ID: ${data.id}`);
       } else {
         appendLog(`Failed to create tag: ${data.detail || 'Unknown error'}`);
       }
@@ -588,7 +590,7 @@ export default function ApiTestPage() {
     } finally {
       setBusy(false);
     }
-  }, [token, appendLog]);
+  }, [token, appendLog, tagNameInput]);
 
   const testAssignTagToStrategy = useCallback(async () => {
     if (!token || !createdStrategyId || !createdTagId) {
@@ -1049,6 +1051,29 @@ export default function ApiTestPage() {
         <h2 className="text-lg font-medium text-blue-900">✏️ Strategy & Tag Management</h2>
         <p className="text-sm text-blue-700">Create strategies, tags, and test assignment operations</p>
 
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div className="flex flex-col gap-1">
+            <label className="text-xs font-semibold text-blue-800">Strategy name override (optional)</label>
+            <input
+              value={strategyNameInput}
+              onChange={(event) => setStrategyNameInput(event.target.value)}
+              placeholder="Custom strategy name"
+              className="px-3 py-2 border border-blue-200 rounded outline-none focus:ring-2 focus:ring-blue-400"
+              type="text"
+            />
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-xs font-semibold text-green-800">Tag name override (optional)</label>
+            <input
+              value={tagNameInput}
+              onChange={(event) => setTagNameInput(event.target.value)}
+              placeholder="Custom tag name"
+              className="px-3 py-2 border border-green-200 rounded outline-none focus:ring-2 focus:ring-green-400"
+              type="text"
+            />
+          </div>
+        </div>
+        
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
           <button
             onClick={testCreateStrategy}

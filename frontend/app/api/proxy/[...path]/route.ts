@@ -63,10 +63,10 @@ export async function GET(
 ) {
   const path = params.path.join('/')
   const url = `${BACKEND_URL}/${path}${request.nextUrl.search}`
-  
-  // Forward cookies from client to backend
+
+  // Get cookie header from request
   const cookieHeader = request.headers.get('cookie')
-  
+
   const response = await handleProxyRequest(url, {
     headers: {
       ...Object.fromEntries(request.headers.entries()),
@@ -102,9 +102,7 @@ export async function POST(
   const path = params.path.join('/')
   const url = `${BACKEND_URL}/${path}`
   
-  // Forward cookies from client to backend
-  const cookieHeader = request.headers.get('cookie')
-  
+
   // Handle different content types
   let body: any
   const contentType = request.headers.get('content-type')
@@ -119,13 +117,24 @@ export async function POST(
   
   console.log('Proxy POST to:', url)
   
+  const forwardHeaders: Record<string, string> = {}
+  request.headers.forEach((value, key) => {
+    const lower = key.toLowerCase()
+    if (lower === 'content-length' || lower === 'connection' || lower === 'host') {
+      return
+    }
+    forwardHeaders[key] = value
+  })
+
+  forwardHeaders['content-type'] = contentType || 'application/json'
+
+  if (!forwardHeaders['accept']) {
+    forwardHeaders['accept'] = 'application/json'
+  }
+
   const response = await handleProxyRequest(url, {
     method: 'POST',
-    headers: {
-      'Content-Type': contentType || 'application/json',
-      'Accept': request.headers.get('accept') || 'application/json',
-      ...(cookieHeader && { cookie: cookieHeader }),
-    },
+    headers: forwardHeaders,
     body: typeof body === 'string' ? body : JSON.stringify(body),
     credentials: 'include',
   })
@@ -178,16 +187,30 @@ export async function PUT(
   const path = params.path.join('/')
   const url = `${BACKEND_URL}/${path}`
   
-  const cookieHeader = request.headers.get('cookie')
+
   const body = await request.json()
   
+  const contentType = request.headers.get('content-type') || 'application/json'
+
+  const forwardHeaders: Record<string, string> = {}
+  request.headers.forEach((value, key) => {
+    const lower = key.toLowerCase()
+    if (lower === 'content-length' || lower === 'connection' || lower === 'host') {
+      return
+    }
+    forwardHeaders[key] = value
+  })
+
+  forwardHeaders['content-type'] = contentType
+
+  if (!forwardHeaders['accept']) {
+    forwardHeaders['accept'] = 'application/json'
+  }
+
   const response = await handleProxyRequest(url, {
     method: 'PUT',
-    headers: {
-      'Content-Type': 'application/json',
-      ...(cookieHeader && { cookie: cookieHeader }),
-    },
-    body: JSON.stringify(body),
+    headers: forwardHeaders,
+    body: typeof body === 'string' ? body : JSON.stringify(body),
     credentials: 'include',
   })
   
@@ -216,13 +239,20 @@ export async function DELETE(
   const path = params.path.join('/')
   const url = `${BACKEND_URL}/${path}`
   
-  const cookieHeader = request.headers.get('cookie')
+
   
+  const forwardHeaders: Record<string, string> = {}
+  request.headers.forEach((value, key) => {
+    const lower = key.toLowerCase()
+    if (lower === 'content-length' || lower === 'connection' || lower === 'host') {
+      return
+    }
+    forwardHeaders[key] = value
+  })
+
   const response = await handleProxyRequest(url, {
     method: 'DELETE',
-    headers: {
-      ...(cookieHeader && { cookie: cookieHeader }),
-    },
+    headers: forwardHeaders,
     credentials: 'include',
   })
   
