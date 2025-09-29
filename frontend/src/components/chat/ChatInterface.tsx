@@ -9,7 +9,7 @@ import {
   SheetTitle,
   SheetTrigger 
 } from '@/components/ui/sheet'
-import { ChatInput } from '@/app/components/ChatInput'
+import { ChatInput } from '@/components/app/ChatInput'
 import { MessageSquare, AlertCircle, WifiOff } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useChatStore } from '@/stores/chatStore'

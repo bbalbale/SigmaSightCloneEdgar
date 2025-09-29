@@ -1,110 +1,292 @@
 # Project Structure
 
 ## Overview
-The project has been organized into two main sections to separate marketing and application concerns:
+The SigmaSight frontend follows Next.js best practices with a clean separation between routing (in `/app`) and shared application code (in `/src`). This structure aligns with Next.js's "Option 1" pattern where the `app` directory remains at the project root while other code is organized in shared folders.
 
-## Directory Structure
+## Current Directory Structure
 
 ```
-src/
-├── app/
-│   ├── (landing)/              # Marketing Landing Page
-│   │   ├── page.tsx           # Landing page (route: /)
-│   │   └── layout.tsx         # Landing-specific layout
-│   ├── (app)/                 # Application Pages
-│   │   ├── portfolio/         # Portfolio page (route: /portfolio)
-│   │   │   └── page.tsx
-│   │   └── layout.tsx         # App-specific layout
-│   ├── layout.tsx             # Root layout
-│   ├── error.tsx              # Global error handling
-│   └── loading.tsx            # Global loading component
-├── components/
-│   ├── ui/                    # ShadCN UI components
-│   ├── BasicDemoPage.tsx      # Landing page component
-│   ├── Header.tsx             # Shared header
-│   ├── ChatInput.tsx          # Chat input component
-│   └── ThemeToggle.tsx        # Theme toggle component
-├── contexts/
-│   └── ThemeContext.tsx       # Theme management
-└── styles/
-    └── globals.css            # Global styles
+frontend/
+├── app/                        # Next.js App Router (Routes Only - Minimal Logic)
+│   ├── api/                    # API routes
+│   │   └── proxy/              # Backend proxy endpoints
+│   ├── dev/                    # Development tools
+│   │   └── api-test/           # API testing page
+│   │       └── page.tsx
+│   ├── landing/                # Marketing landing page
+│   │   └── page.tsx            # Public landing page (route: /landing)
+│   ├── login/                  # Authentication
+│   │   └── page.tsx            # Login page
+│   ├── portfolio/              # Main application
+│   │   └── page.tsx            # Portfolio dashboard (route: /portfolio) - ~230 lines
+│   ├── error.tsx               # Global error handling
+│   ├── layout.tsx              # Root layout
+│   ├── loading.tsx             # Global loading state
+│   └── page.tsx                # Root page (redirects to /landing)
+│
+├── src/                        # Application Source Code
+│   ├── components/             # React components
+│   │   ├── app/                # App-specific components
+│   │   │   ├── ChatInput.tsx
+│   │   │   ├── Header.tsx
+│   │   │   └── ThemeToggle.tsx
+│   │   ├── chat/               # Chat system components
+│   │   │   └── ChatInterface.tsx
+│   │   ├── portfolio/          # Portfolio components (Modular, Reusable)
+│   │   │   ├── FactorExposureCards.tsx  # Factor exposure display
+│   │   │   ├── FilterBar.tsx            # Filter & sort controls
+│   │   │   ├── PortfolioError.tsx       # Error handling & display
+│   │   │   ├── PortfolioHeader.tsx      # Portfolio name & chat input
+│   │   │   ├── PortfolioMetrics.tsx     # Summary metrics cards
+│   │   │   ├── PortfolioPositions.tsx   # Long/short positions grid
+│   │   │   ├── PositionCard.tsx         # Individual position card
+│   │   │   ├── StrategyList.tsx
+│   │   │   └── TagEditor.tsx
+│   │   └── ui/                 # ShadCN UI components
+│   │       ├── badge.tsx
+│   │       ├── button.tsx
+│   │       ├── card.tsx
+│   │       ├── dialog.tsx
+│   │       ├── sheet.tsx
+│   │       └── ...
+│   ├── config/                 # Configuration files
+│   ├── contexts/               # React contexts
+│   │   └── ThemeContext.tsx
+│   ├── hooks/                  # Custom React hooks
+│   │   └── usePortfolioData.ts # Portfolio data fetching & state management
+│   ├── lib/                    # Utility libraries
+│   │   ├── auth.ts             # Authentication utilities
+│   │   ├── dal.ts              # Data access layer
+│   │   ├── formatters.ts       # Number & currency formatting utilities
+│   │   ├── portfolioType.ts    # Portfolio type definitions
+│   │   ├── types.ts            # Shared type definitions
+│   │   └── utils.ts            # General utilities
+│   ├── pages/                  # Legacy pages (if any)
+│   ├── services/               # API services
+│   │   ├── apiClient.ts
+│   │   ├── authManager.ts
+│   │   ├── chatAuthService.ts
+│   │   ├── chatService.ts
+│   │   ├── portfolioResolver.ts
+│   │   ├── portfolioService.ts
+│   │   ├── positionApiService.ts
+│   │   └── requestManager.ts
+│   ├── stores/                 # State management (Zustand)
+│   │   ├── chatStore.ts
+│   │   └── streamStore.ts
+│   ├── styles/                 # Global styles
+│   │   └── globals.css
+│   ├── types/                  # TypeScript type definitions
+│   │   └── analytics.ts
+│   └── utils/                  # Utility functions
+│
+├── public/                     # Static assets
+├── tests/                      # Test files
+├── _docs/                      # Documentation
+│   └── project-structure.md   # This file
+├── .env                        # Environment variables
+├── .env.local                  # Local environment overrides
+├── Dockerfile                  # Docker configuration
+├── next.config.js              # Next.js configuration
+├── package.json                # Dependencies
+├── tailwind.config.js          # Tailwind CSS config
+└── tsconfig.json               # TypeScript config
 ```
 
-## Route Groups
-Using Next.js 13+ route groups to organize pages:
+## Architecture Principles
 
-- `(landing)` - Marketing pages, SEO-focused
-  - Route: `/` - Landing page with pricing, features, etc.
-  
-- `(app)` - Application pages, authenticated/functional
-  - Route: `/portfolio` - Main portfolio dashboard
+### 1. **Separation of Concerns**
+- **`/app`**: Contains only Next.js routing files (pages, layouts, error handling)
+- **`/src`**: Contains all application code (components, services, utilities)
+- This follows Next.js documentation's "Option 1" pattern
+
+### 2. **Import Path Strategy**
+- All imports use absolute paths via the `@/` alias
+- `@/` maps to `./src/` in tsconfig.json
+- Example: `import { Button } from '@/components/ui/button'`
+
+### 3. **Component Organization**
+- **`ui/`**: Reusable ShadCN UI components
+- **`app/`**: Components specific to app pages
+- **`chat/`**: Chat-related components
+- **`portfolio/`**: Portfolio-specific components
+
+### 4. **Service Layer**
+All API interactions go through the services layer:
+- `portfolioService.ts`: Portfolio data fetching
+- `chatService.ts`: Chat messaging
+- `authManager.ts`: Authentication management
+- `requestManager.ts`: Request retry and deduplication
+
+## Key Routes
+
+### Public Routes
+- `/` - Redirects to `/landing`
+- `/landing` - Marketing landing page
+- `/login` - Authentication page
+
+### Protected Routes
+- `/portfolio` - Main portfolio dashboard
+- `/portfolio?type={high-net-worth|individual|hedge-fund}` - Portfolio by type
+
+### Development Routes
+- `/dev/api-test` - API testing interface
+
+## State Management
+
+### Zustand Stores
+- **`chatStore`**: Persistent chat data (conversations, messages)
+- **`streamStore`**: Streaming state management (active streams, chunks)
+
+### Context Providers
+- **`ThemeContext`**: Dark/light theme management
+
+## Authentication Flow
+
+1. User logs in at `/login`
+2. JWT token stored in localStorage
+3. Token used for portfolio API calls
+4. HttpOnly cookies used for chat streaming
+
+## Development Workflow
+
+### File Placement Guidelines
+1. **New page?** → Add to `/app/[route]/page.tsx`
+2. **New component?** → Add to `/src/components/[category]/`
+3. **New service?** → Add to `/src/services/`
+4. **New utility?** → Add to `/src/lib/` or `/src/utils/`
+5. **New type?** → Add to `/src/types/`
+
+### Import Examples
+```typescript
+// Components
+import { Button } from '@/components/ui/button'
+import { ChatInput } from '@/components/app/ChatInput'
+import { PortfolioHeader } from '@/components/portfolio/PortfolioHeader'
+
+// Hooks
+import { usePortfolioData } from '@/hooks/usePortfolioData'
+
+// Services
+import { portfolioService } from '@/services/portfolioService'
+
+// Utilities
+import { cn } from '@/lib/utils'
+import { formatNumber, formatCurrency } from '@/lib/formatters'
+
+// Types
+import type { FactorExposure } from '@/types/analytics'
+```
 
 ## Benefits of This Structure
 
-### 1. **Clear Separation of Concerns**
-- Marketing content separate from app functionality
-- Different layouts for landing vs app pages
-- Easier maintenance and development
+### 1. **Clear Boundaries**
+- Routing logic separate from business logic
+- Easy to understand where code belongs
+- Follows Next.js best practices
 
-### 2. **Scalability**
-- Landing section can grow with more marketing pages
-- App section can expand with new application features
-- Independent styling and functionality
+### 2. **Maintainability**
+- Consistent import paths
+- No duplicate directories
+- Clean separation of concerns
 
-### 3. **Development Workflow**
-- Landing page team can work independently
-- App development team has clear boundaries
-- Easier to manage different deployment strategies if needed
+### 3. **Scalability**
+- Easy to add new routes in `/app`
+- Easy to add new features in `/src`
+- Components organized by function
 
-## Future Expansion
+### 4. **Developer Experience**
+- TypeScript path aliases for clean imports
+- Logical grouping of related code
+- Standard Next.js patterns
 
-### Landing Section Future Pages:
-```
-(landing)/
-├── page.tsx                   # Home/Landing
-├── pricing/page.tsx           # Pricing details
-├── features/page.tsx          # Feature showcase
-├── about/page.tsx             # Company info
-├── resources/
-│   ├── blog/page.tsx          # Blog listing
-│   └── docs/page.tsx          # Documentation
-└── contact/page.tsx           # Contact form
-```
+## Component Architecture Pattern (Modular Refactoring)
 
-### App Section Future Pages:
-```
-(app)/
-├── portfolio/page.tsx         # Current: Portfolio dashboard
-├── analytics/page.tsx         # Risk analytics page
-├── performance/page.tsx       # Performance analysis
-├── history/page.tsx          # Historical data
-├── settings/page.tsx         # User settings
-└── profile/page.tsx          # User profile
-```
+### Pattern: Option 2 - Modular Components with Shared Hooks
+We've implemented a modular architecture pattern where:
+- **Page files** (`/app/[route]/page.tsx`) are thin wrappers (~230 lines max)
+- **Business logic** lives in custom hooks (`/src/hooks/`)
+- **UI components** are small, focused, and reusable (`/src/components/portfolio/`)
+- **Utilities** are centralized (`/src/lib/formatters.ts`)
 
-## Component Organization
+### Example: Portfolio Page Refactoring
+The portfolio page was refactored from a 540-line monolithic component to:
+- **1 custom hook** (`usePortfolioData`) - All data fetching & state management
+- **8 focused components** - Each with single responsibility
+- **1 utility file** - Shared formatting functions
+- **Result**: Clean, maintainable, ready for multi-page expansion
 
-### Shared Components (`/components/`)
-- Components used by both landing and app
-- UI components (buttons, inputs, etc.)
-- Theme management
+### Component Prop Naming Convention
+**Important**: Always check component prop interfaces. Example issue found:
+- `FactorExposureCards` expects prop `factors` not `exposures`
+- Always verify prop names match component expectations
 
-### Page-Specific Components
-- Landing components in `(landing)/components/`
-- App components in `(app)/components/`
-- Keep components close to where they're used
+## Recent Cleanup (2025-09-29)
 
-## Current Implementation Status
+### Issues Fixed
+- Removed duplicate `/src/app` directory
+- Consolidated components from `/app/components` to `/src/components/app`
+- Merged multiple `lib` directories into `/src/lib`
+- Updated all import paths to use `@/` consistently
+- Refactored 540-line portfolio page into modular components
 
-✅ **Completed:**
-- Route group structure established
-- Landing page at `/`
-- Portfolio app page at `/portfolio`
-- Theme system working across both sections
-- Navigation between landing and app
+### Migration Notes
+- All relative imports (`../components/`) converted to absolute (`@/components/`)
+- ChatInput and ThemeToggle moved to `/src/components/app/`
+- All library utilities consolidated in `/src/lib/`
+- Portfolio page logic extracted to `usePortfolioData` hook
+- UI components split into focused, single-responsibility modules
 
-📋 **Next Steps:**
-- Add landing-specific components directory
-- Add app-specific components directory
-- Expand each section with additional pages
-- Implement different layouts for landing vs app
+## Future Expansion Plans
+
+### Planned Routes
+- `/analytics` - Advanced analytics dashboard
+- `/settings` - User preferences
+- `/reports` - Generated reports
+- `/admin` - Admin panel (if needed)
+
+### Component Libraries
+- Consider adding `/src/components/forms/` for form components
+- Consider adding `/src/components/charts/` for data visualization
+- Consider adding `/src/components/layouts/` for layout components
+
+## Deployment Considerations
+
+### Docker Build
+- Uses multi-stage build for optimization
+- Standalone output mode in next.config.js
+- ~210MB optimized image size
+
+### Environment Variables
+- Development: `.env.local`
+- Production: Environment-specific `.env`
+- API proxy configured for CORS handling
+
+## Maintenance Guidelines
+
+1. **Keep `/app` minimal** - Only routing files, thin wrappers (~200-300 lines max)
+2. **Extract business logic to hooks** - Use custom hooks for data fetching and state
+3. **Create focused components** - Single responsibility, reusable across pages
+4. **Organize `/src` by feature** - Group related code
+5. **Use absolute imports** - Always use `@/` paths
+6. **Verify prop interfaces** - Ensure prop names match component expectations
+7. **Centralize utilities** - Keep formatting and helpers in `/src/lib/`
+8. **Document new patterns** - Update this file when adding new structures
+9. **Test after restructuring** - Ensure all imports resolve correctly
+
+## Best Practices Learned
+
+### Refactoring Large Pages
+When refactoring large page components (>300 lines):
+1. **Extract data logic** → Create custom hook in `/src/hooks/`
+2. **Identify UI sections** → Create component for each major section
+3. **Find repeated code** → Extract to utilities in `/src/lib/`
+4. **Keep page thin** → Page file should just compose components
+5. **Test incrementally** → Verify each extraction works
+
+### Multi-Page Ready Architecture
+For applications that will expand to multiple pages:
+- Use **Option 2 pattern** (modular components with shared hooks)
+- Ensures data consistency across pages
+- Components can be mixed and matched
+- Hooks provide single source of truth for data

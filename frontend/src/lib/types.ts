@@ -1,252 +1,187 @@
-// Authentication types
+// TypeScript definitions matching SigmaSight database schema
+
 export interface User {
-  id: string
+  id: string // UUID
   email: string
   full_name: string
   is_active: boolean
-}
-
-export interface LoginRequest {
-  email: string
-  password: string
-}
-
-export interface RegisterRequest {
-  email: string
-  password: string
-  full_name: string
-}
-
-export interface TokenResponse {
-  access_token: string
-  token_type: string
-  expires_in: number
-}
-
-// Portfolio types
-export interface Portfolio {
-  id: string
-  user_id: string
-  name: string
+  is_admin?: boolean
   created_at: string
   updated_at: string
 }
 
-export interface PortfolioOverview {
-  total_value: number
-  total_pl: number
-  total_pl_percent: number
-  exposures: {
-    long: ExposureValue
-    short: ExposureValue
-    gross: ExposureValue
-    net: ExposureValue
-  }
-  exposure_calculations: {
-    delta: ExposureCalculation
-    notional: ExposureCalculation
-  }
-  ai_insights?: {
-    primary_risks: string[]
-    opportunities: string[]
-  }
+export interface Portfolio {
+  id: string // UUID
+  user_id: string // FK to users.id
+  name: string
+  description?: string
+  currency: string // default 'USD'
+  cash_balance?: number
+  equity_balance?: number
+  created_at: string
+  updated_at: string
+  deleted_at?: string
+
+  // Additional fields from API responses
+  total_value?: number
+  total_pnl?: number
+  positions_count?: number
 }
 
-export interface ExposureValue {
-  value: number
-  visual: VisualIndicator
+export interface Position {
+  id: string // UUID
+  portfolio_id: string // FK to portfolios.id
+  symbol: string
+  position_type: 'LONG' | 'SHORT' | 'LC' | 'LP' | 'SC' | 'SP' // Enum
+  quantity: number
+  cost_basis?: number
+  entry_price?: number
+  exit_price?: number
+  entry_date?: string
+  exit_date?: string
+  last_price?: number
+  market_value?: number
+  unrealized_pnl?: number
+  realized_pnl?: number
+  investment_class?: 'PUBLIC' | 'OPTIONS' | 'PRIVATE' // Computed field
+
+  // Options-specific fields
+  underlying_symbol?: string
+  strike_price?: number
+  expiration_date?: string
+
+  // Additional fields from API
+  name?: string
+  sector?: string
+
+  created_at: string
+  updated_at: string
+  deleted_at?: string
 }
 
-export interface ExposureCalculation {
+export interface FactorExposure {
+  id: string
+  portfolio_id: string
+  factor_name: string
+  factor_id?: string
+  exposure_value: number
+  exposure_dollar?: number
+  calculation_date?: string
+}
+
+export interface PortfolioAnalytics {
+  portfolio_id: string
   long_exposure: number
   short_exposure: number
   gross_exposure: number
   net_exposure: number
+  cash_balance: number
+  total_value: number
+  total_pnl?: number
+  positions_count: number
+
+  // Percentages
+  long_exposure_pct?: number
+  short_exposure_pct?: number
+  gross_exposure_pct?: number
+  net_exposure_pct?: number
+  cash_balance_pct?: number
 }
 
-export interface VisualIndicator {
-  percentage?: number
-  status?: 'success' | 'warning' | 'danger' | 'info'
-  color?: string
-  target_range?: [number, number]
-  limit?: number
-  display?: string
-}
-
-// Position types
-export type PositionType = 'LONG' | 'SHORT' | 'LC' | 'LP' | 'SC' | 'SP'
-
-export interface Position {
+export interface TargetPrice {
   id: string
-  ticker: string
-  name: string
-  type: PositionType
-  quantity: number
-  price: number
-  value: number
-  pnl: number
-  pnl_percent: number
-  tags: string[]
-  notional_exposure: number
-  risk_metrics?: {
-    beta: number
-    risk_contribution: number
-  }
-  strike?: number
-  expiration?: string
-  market_value?: number
-  exposure?: number
-  greeks?: PositionGreeks
-}
-
-export interface PositionGreeks {
-  delta: number
-  gamma: number
-  theta: number
-  vega: number
-  rho?: number
-}
-
-export interface PositionsResponse {
-  positions: Position[]
-  summary: {
-    total_positions: number
-    gross_exposure: number
-    net_exposure: number
-  }
-}
-
-// Risk types
-export interface RiskOverview {
-  view: 'portfolio' | 'longs' | 'shorts'
-  period: 'daily' | 'weekly' | 'monthly' | 'annual'
-  metrics: {
-    beta: RiskMetric
-    annualized_volatility: RiskMetric
-    position_correlation: RiskMetric
-    max_drawdown: RiskMetric
-    var_1d: RiskMetric & { confidence: number }
-  }
-  ai_risk_summary?: {
-    biggest_risks: Array<{
-      type: string
-      description: string
-      severity: 'low' | 'medium' | 'high' | 'critical'
-      suggested_actions: string[]
-    }>
-  }
-}
-
-export interface RiskMetric {
-  value: number | string
-  description: string
-  visual?: VisualIndicator
-}
-
-export interface GreeksResponse {
-  current: {
-    delta: number
-    gamma: number
-    theta: number
-    vega: number
-    visual?: {
-      gamma_status: 'success' | 'warning' | 'danger'
-      gamma_message: string
-    }
-  }
-  after_expiry?: {
-    delta: number
-    gamma: number
-    changes: {
-      delta: number
-      gamma: number
-      gamma_percent: number
-    }
-  }
-}
-
-// Factor types
-export interface FactorDefinition {
-  factor_name: string
-  etf_ticker: string | null
-  description: string
-  calculation_method: 'real' | 'mock'
-  display_order: number
-}
-
-export interface FactorExposure {
-  factor_name: string
-  exposure: number
-  exposure_visual: VisualIndicator
-}
-
-// Market data types
-export interface MarketQuote {
+  portfolio_id: string
+  position_id: string
   symbol: string
-  price: number
-  change: number
-  change_percent: number
-  volume?: number
-  timestamp?: string
+  position_type: string
+  target_price_eoy?: number
+  target_price_next_year?: number
+  downside_target_price?: number
+  current_price?: number
+  expected_return_eoy?: number
+  expected_return_next_year?: number
+  downside_return?: number
+  position_weight?: number
+  contribution_to_portfolio?: number
+  contribution_to_risk?: number
+  price_updated_at?: string
+  created_by: string
+  created_at: string
+  updated_at: string
 }
 
-// Report types
-export interface ReportTemplate {
+export interface Strategy {
   id: string
+  portfolio_id: string
+  strategy_type: string
   name: string
-  description: string
-  sections: string[]
-  format: 'pdf' | 'json' | 'csv'
+  description?: string
+  is_synthetic: boolean
+  net_exposure?: number
+  total_cost_basis?: number
+  created_at: string
+  updated_at: string
+  closed_at?: string
+  created_by: string
+
+  // Related data
+  legs?: StrategyLeg[]
+  tags?: Tag[]
 }
 
-// Alert types
-export interface Alert {
+export interface StrategyLeg {
   id: string
-  type: string
-  priority: 'low' | 'medium' | 'high' | 'critical'
-  title: string
-  message: string
-  positions_affected?: string[]
-  triggered_at: string
-  actions?: string[]
+  strategy_id: string
+  position_id: string
+  created_at: string
 }
 
-// Modeling types
-export interface ModelingSession {
-  session_id: string
+export interface Tag {
+  id: string
+  user_id: string
   name: string
-  status: 'active' | 'closed'
-  original_portfolio: PortfolioOverview
-  modified_portfolio: PortfolioOverview
-  changes: Array<{
-    action: 'add' | 'modify' | 'remove'
-    position_id: string
-    field?: string
-    from?: any
-    to?: any
-  }>
-  impact: {
-    net_exposure_change: number
-    tech_exposure_change?: number
-    greeks_change?: Partial<PositionGreeks>
-  }
+  color: string
+  description?: string
+  display_order: number
+  usage_count: number
+  is_archived: boolean
+  archived_at?: string
+  archived_by?: string
+  created_at: string
+  updated_at: string
 }
 
-// Pagination types
-export interface PaginatedResponse<T> {
-  data: T[]
-  meta: {
-    page: number
-    limit: number
-    total: number
-    pages: number
-  }
+// API Response types
+export interface ApiResponse<T> {
+  data: T
+  message?: string
+  status: number
 }
 
-// Error types
-export interface ApiError {
-  code: string
-  message: string
-  field?: string
-  ai_suggestions?: string[]
+// Form types
+export interface LoginCredentials {
+  email: string
+  password: string
+}
+
+// Session types
+export interface Session {
+  user: User
+  token: string
+}
+
+// Navigation types
+export interface NavItem {
+  href: string
+  label: string
+  icon?: string
+}
+
+// Dashboard Summary types
+export interface PositionSummary {
+  type: 'LONG' | 'SHORT' | 'OPTIONS' | 'PRIVATE'
+  count: number
+  totalValue: number
+  totalPnL: number
+  positions: Position[]
 }
