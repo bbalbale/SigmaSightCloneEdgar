@@ -28,6 +28,9 @@ function PortfolioPageContent() {
     portfolioSummaryMetrics,
     positions,
     shortPositions,
+    publicPositions,
+    optionsPositions,
+    privatePositions,
     factorExposures,
     dataLoaded,
     portfolioType,
@@ -129,6 +132,9 @@ function PortfolioPageContent() {
       <PortfolioPositions
         longPositions={positions}
         shortPositions={shortPositions}
+        publicPositions={publicPositions}
+        optionsPositions={optionsPositions}
+        privatePositions={privatePositions}
       />
     </div>
   )

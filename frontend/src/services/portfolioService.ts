@@ -17,11 +17,17 @@ interface PositionDetail {
   symbol: string
   quantity: number
   position_type: string
+  investment_class?: string  // PUBLIC, OPTIONS, PRIVATE
+  investment_subtype?: string
   current_price: number
   market_value: number
   cost_basis: number
   unrealized_pnl: number
   realized_pnl: number
+  // Option-specific fields
+  strike_price?: number
+  expiration_date?: string
+  underlying_symbol?: string
 }
 
 /**
@@ -248,13 +254,20 @@ function calculateExposuresFromOverview(overview: any) {
  */
 function transformPositionDetails(positions: PositionDetail[]) {
   return positions.map(pos => ({
+    id: pos.id,
     symbol: pos.symbol,
     quantity: pos.quantity,
     price: pos.current_price,
     marketValue: pos.market_value,
     pnl: pos.unrealized_pnl,
     positive: pos.unrealized_pnl >= 0,
-    type: pos.position_type
+    type: pos.position_type,
+    investment_class: pos.investment_class || 'PUBLIC',  // Default to PUBLIC if not set
+    investment_subtype: pos.investment_subtype,
+    // Option-specific fields
+    strike_price: pos.strike_price,
+    expiration_date: pos.expiration_date,
+    underlying_symbol: pos.underlying_symbol
   }))
 }
 

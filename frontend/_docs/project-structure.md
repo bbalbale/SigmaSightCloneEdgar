@@ -37,11 +37,14 @@ frontend/
 │   │   ├── portfolio/          # Portfolio components (Modular, Reusable)
 │   │   │   ├── FactorExposureCards.tsx  # Factor exposure display
 │   │   │   ├── FilterBar.tsx            # Filter & sort controls
+│   │   │   ├── OptionsPositions.tsx     # Options contracts display
 │   │   │   ├── PortfolioError.tsx       # Error handling & display
 │   │   │   ├── PortfolioHeader.tsx      # Portfolio name & chat input
 │   │   │   ├── PortfolioMetrics.tsx     # Summary metrics cards
-│   │   │   ├── PortfolioPositions.tsx   # Long/short positions grid
+│   │   │   ├── PortfolioPositions.tsx   # 3-column investment class grid
 │   │   │   ├── PositionCard.tsx         # Individual position card
+│   │   │   ├── PrivatePositions.tsx     # Private/alternative investments
+│   │   │   ├── PublicPositions.tsx      # Public equity/ETF positions
 │   │   │   ├── StrategyList.tsx
 │   │   │   └── TagEditor.tsx
 │   │   └── ui/                 # ShadCN UI components
@@ -219,10 +222,17 @@ We've implemented a modular architecture pattern where:
 ### Example: Page Refactoring
 #### Portfolio Page
 The portfolio page was refactored from a 540-line monolithic component to:
-- **1 custom hook** (`usePortfolioData`) - All data fetching & state management
-- **8 focused components** - Each with single responsibility
+- **1 custom hook** (`usePortfolioData`) - All data fetching & state management with investment class grouping
+- **11 focused components** - Including specialized components for each investment class
 - **1 utility file** - Shared formatting functions
 - **Result**: Clean, maintainable, ready for multi-page expansion
+
+#### Investment Class Components (Added 2025-09-29)
+The portfolio positions display now uses a 3-column layout with specialized components:
+- **PublicPositions.tsx** - Displays public equities/ETFs with Long/Short grouping
+- **OptionsPositions.tsx** - Shows options contracts with strike prices and expiration dates
+- **PrivatePositions.tsx** - Displays private/alternative investments with custom formatting
+- **PortfolioPositions.tsx** - Orchestrates the 3-column layout and maintains backward compatibility
 
 #### Login Page
 The login page was refactored from a 190-line page file to:
@@ -236,38 +246,7 @@ The login page was refactored from a 190-line page file to:
 - `FactorExposureCards` expects prop `factors` not `exposures`
 - Always verify prop names match component expectations
 
-## Recent Cleanup (2025-09-29)
-
-### Issues Fixed
-- Removed duplicate `/src/app` directory
-- Consolidated components from `/app/components` to `/src/components/app`
-- Merged multiple `lib` directories into `/src/lib`
-- Updated all import paths to use `@/` consistently
-- Refactored 540-line portfolio page into modular components
-- Refactored login page to follow new structure (thin route wrapper + component)
-
-### Migration Notes
-- All relative imports (`../components/`) converted to absolute (`@/components/`)
-- ChatInput and ThemeToggle moved to `/src/components/app/`
-- All library utilities consolidated in `/src/lib/`
-- Portfolio page logic extracted to `usePortfolioData` hook
-- UI components split into focused, single-responsibility modules
-- Login page refactored: logic moved to `/src/components/auth/LoginForm.tsx`
-- Added ShadCN UI `Input` component for form fields
-- `/app/login/page.tsx` reduced to 5-line thin wrapper
-
-## Future Expansion Plans
-
-### Planned Routes
-- `/analytics` - Advanced analytics dashboard
-- `/settings` - User preferences
-- `/reports` - Generated reports
-- `/admin` - Admin panel (if needed)
-
-### Component Libraries
-- Consider adding `/src/components/forms/` for form components
-- Consider adding `/src/components/charts/` for data visualization
-- Consider adding `/src/components/layouts/` for layout components
+#
 
 ## Deployment Considerations
 
@@ -305,7 +284,7 @@ When refactoring large page components (>300 lines):
 
 ### Multi-Page Ready Architecture
 For applications that will expand to multiple pages:
-- Use **Option 2 pattern** (modular components with shared hooks)
+- Use modular components with shared hooks
 - Ensures data consistency across pages
 - Components can be mixed and matched
 - Hooks provide single source of truth for data

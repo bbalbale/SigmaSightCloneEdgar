@@ -17,6 +17,9 @@ interface UsePortfolioDataReturn {
   portfolioSummaryMetrics: any[]
   positions: any[]
   shortPositions: any[]
+  publicPositions: any[]    // New: public equity/ETF positions
+  optionsPositions: any[]   // New: options contracts
+  privatePositions: any[]   // New: private/alternative investments
   portfolioName: string
   dataLoaded: boolean
   factorExposures: FactorExposure[] | null
@@ -37,6 +40,9 @@ export function usePortfolioData(): UsePortfolioDataReturn {
   const [portfolioSummaryMetrics, setPortfolioSummaryMetrics] = useState<any[]>([])
   const [positions, setPositions] = useState<any[]>([])
   const [shortPositions, setShortPositions] = useState<any[]>([])
+  const [publicPositions, setPublicPositions] = useState<any[]>([])
+  const [optionsPositions, setOptionsPositions] = useState<any[]>([])
+  const [privatePositions, setPrivatePositions] = useState<any[]>([])
   const [portfolioName, setPortfolioName] = useState('Loading...')
   const [dataLoaded, setDataLoaded] = useState(false)
   const [factorExposures, setFactorExposures] = useState<FactorExposure[] | null>(null)
@@ -51,6 +57,9 @@ export function usePortfolioData(): UsePortfolioDataReturn {
         setPortfolioSummaryMetrics([])
         setPositions([])
         setShortPositions([])
+        setPublicPositions([])
+        setOptionsPositions([])
+        setPrivatePositions([])
         setPortfolioName('No Portfolio Selected')
         setDataLoaded(false)
         return
@@ -85,8 +94,26 @@ export function usePortfolioData(): UsePortfolioDataReturn {
           // Update all state with real data
           setPortfolioSummaryMetrics(data.exposures || [])
           const allPositions = data.positions || []
+
+          // Legacy grouping by type (for backward compatibility)
           setPositions(allPositions.filter(p => p.type === 'LONG' || !p.type))
           setShortPositions(allPositions.filter(p => p.type === 'SHORT'))
+
+          // New grouping by investment class
+          const publicPos = allPositions.filter(p =>
+            !p.investment_class || p.investment_class === 'PUBLIC'
+          )
+          const optionsPos = allPositions.filter(p =>
+            p.investment_class === 'OPTIONS' ||
+            ['LC', 'LP', 'SC', 'SP'].includes(p.type)
+          )
+          const privatePos = allPositions.filter(p =>
+            p.investment_class === 'PRIVATE'
+          )
+
+          setPublicPositions(publicPos)
+          setOptionsPositions(optionsPos)
+          setPrivatePositions(privatePos)
           setFactorExposures(data.factorExposures || null)
 
           // Use descriptive name if backend returns generic "Demo Portfolio"
@@ -111,6 +138,9 @@ export function usePortfolioData(): UsePortfolioDataReturn {
             setPortfolioSummaryMetrics([])
             setPositions([])
             setShortPositions([])
+            setPublicPositions([])
+            setOptionsPositions([])
+            setPrivatePositions([])
             setPortfolioName('Portfolio Unavailable')
           }
         }
@@ -138,6 +168,9 @@ export function usePortfolioData(): UsePortfolioDataReturn {
     portfolioSummaryMetrics,
     positions,
     shortPositions,
+    publicPositions,
+    optionsPositions,
+    privatePositions,
     portfolioName,
     dataLoaded,
     factorExposures,

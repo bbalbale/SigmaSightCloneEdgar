@@ -648,6 +648,8 @@ async def get_positions_details(
             "portfolio_id": str(position.portfolio_id),
             "symbol": position.symbol,
             "position_type": position.position_type.value,
+            "investment_class": position.investment_class if position.investment_class else "PUBLIC",  # Default to PUBLIC if not set
+            "investment_subtype": position.investment_subtype if position.investment_subtype else None,
             "quantity": float(position.quantity),
             "entry_date": to_iso_date(position.entry_date) if position.entry_date else None,
             "entry_price": float(position.entry_price),
@@ -655,7 +657,11 @@ async def get_positions_details(
             "current_price": float(current_price),
             "market_value": market_value,
             "unrealized_pnl": unrealized_pnl,
-            "unrealized_pnl_percent": unrealized_pnl_percent
+            "unrealized_pnl_percent": unrealized_pnl_percent,
+            # Add option-specific fields if available
+            "strike_price": float(position.strike_price) if position.strike_price else None,
+            "expiration_date": to_iso_date(position.expiration_date) if position.expiration_date else None,
+            "underlying_symbol": position.underlying_symbol if position.underlying_symbol else None
         })
     
     logger.info(f"[{request_id}] [{time.time() - start_time:.2f}s] Request complete, returning {len(positions_data)} positions")

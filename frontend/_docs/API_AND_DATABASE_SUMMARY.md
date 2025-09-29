@@ -1,8 +1,8 @@
 # SigmaSight API and Database Summary
 
-**Generated**: September 25, 2025
+**Generated**: September 29, 2025
 **Status**: Production-Ready APIs with Complete Database Schema
-**Latest Updates**: Fixed async/sync issues in strategies and portfolio APIs, added tagging system
+**Latest Updates**: Added investment_class fields to positions API, implemented 3-column investment class display
 
 ---
 
@@ -38,7 +38,7 @@ Authorization: Bearer <jwt_token>
 | GET | `/data/portfolios` | ✅ Ready | List user portfolios |
 | GET | `/data/portfolio/{id}/complete` | ✅ Ready | Full portfolio snapshot |
 | GET | `/data/portfolio/{id}/data-quality` | ✅ Ready | Data quality metrics |
-| GET | `/data/positions/details` | ✅ Ready | Position details with P&L |
+| GET | `/data/positions/details` | ✅ Ready | Position details with P&L, investment_class, and options data |
 | GET | `/data/positions/top/{id}` | ✅ Ready | Top positions by various metrics |
 | GET | `/data/prices/historical/{id}` | ✅ Ready | Historical price data |
 | GET | `/data/prices/quotes` | ✅ Ready | Real-time market quotes |
@@ -331,10 +331,17 @@ Authorization: Bearer <jwt_token>
 11. **Conversations → Messages**: One-to-Many (chat history)
 
 #### Investment Classification:
-- **Position.investment_class**: Computed field (PUBLIC/OPTIONS/PRIVATE)
+- **Position.investment_class**: Database field (PUBLIC/OPTIONS/PRIVATE)
   - PUBLIC: Regular equities, ETFs
   - OPTIONS: Options contracts (LC, LP, SC, SP position types)
   - PRIVATE: Private/alternative investments
+- **Position.investment_subtype**: Optional categorization within investment class
+- **API Response**: `/data/positions/details` now includes:
+  - investment_class: String field for position categorization
+  - investment_subtype: Optional subtype classification
+  - strike_price: For options contracts
+  - expiration_date: For options contracts
+  - underlying_symbol: For options contracts
 
 #### Position Types:
 - LONG: Long equity position
@@ -401,31 +408,117 @@ Authorization: Bearer <jwt_token>
 
 ---
 
-## Recent Updates & Fixes (September 25, 2025)
+## Part III: Frontend Services Architecture
 
-### API Fixes Applied:
-1. **Tags/Defaults Endpoint**: Made idempotent - now returns existing tags instead of 400 error
-2. **Strategies List Endpoint**: Fixed async/sync issues by eagerly loading positions and manually building response objects
-3. **Portfolio Complete Endpoint**: Fixed lazy loading issues by ensuring positions are always loaded for accurate counts
-4. **SQLAlchemy Async Issues**: Resolved MissingGreenlet errors when accessing lazy-loaded relationships
+### Service Layer Overview
+The frontend uses a layered service architecture to interact with the backend API. All API calls should go through the service layer rather than being made directly from components. Services are located in `/src/services/` and provide:
+- Centralized API endpoint management
+- Consistent error handling
+- Request retry and deduplication
+- Authentication token management
+- Type-safe responses
 
-### New Features:
-1. **Strategy Management System**: Complete CRUD operations for trading strategies
-2. **Tagging System**: User-scoped tags with strategy assignment capabilities
-3. **Strategy Detection**: Auto-detect common strategy patterns (spreads, straddles, etc.)
-4. **Bulk Operations**: Support for bulk updates on target prices and tags
+### Frontend Services and API Endpoints
+
+| Service | Purpose | API Endpoints Used | Used By |
+|---------|---------|-------------------|----------|
+| **apiClient.ts** | Base HTTP client with proxy support | All endpoints (infrastructure) | All services |
+| **authManager.ts** | JWT token management & authentication | `/auth/login`, `/auth/me` | portfolioService, components |
+| **portfolioService.ts** | Main portfolio data fetching | `/analytics/portfolio/{id}/overview`<br>`/data/positions/details`<br>`/analytics/portfolio/{id}/factor-exposures` | usePortfolioData hook |
+| **portfolioResolver.ts** | Dynamic portfolio ID resolution | `/data/portfolios`<br>`/data/portfolio/{id}/complete` | portfolioService |
+| **analyticsApi.ts** | Analytics & calculations | `/analytics/portfolio/{id}/overview`<br>`/analytics/portfolio/{id}/correlation-matrix`<br>`/analytics/portfolio/{id}/factor-exposures`<br>`/analytics/portfolio/{id}/stress-test` | Dashboard, Analytics pages |
+| **portfolioApi.ts** | Portfolio CRUD operations | `/data/portfolios`<br>`/data/portfolio/{id}/complete`<br>`/data/portfolio/{id}/data-quality` | Portfolio management |
+| **positionApiService.ts** | Position details & operations | `/data/positions/details` | Position components |
+| **strategiesApi.ts** | Strategy management | `/strategies/`<br>`/data/portfolios/{id}/strategies`<br>`/strategies/combine`<br>`/strategies/detect/{id}` | StrategyList component |
+| **tagsApi.ts** | Tag management | `/tags/`<br>`/tags/defaults`<br>`/tags/{id}/strategies` | TagEditor component |
+| **chatService.ts** | Chat conversation management | `/chat/conversations`<br>`/chat/send`<br>`/chat/conversations/{id}/mode` | ChatInterface component |
+| **chatAuthService.ts** | Chat auth & streaming | `/auth/login`<br>`/auth/logout`<br>`/auth/me`<br>`/chat/send` | Chat components |
+| **requestManager.ts** | Request retry & deduplication | N/A (infrastructure) | All services |
+
+### Service Architecture Layers
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                         Components/Pages                         │
+│  (PortfolioPage, ChatInterface, StrategyList, TagEditor, etc.)  │
+└────────────────────┬────────────────────────────────────────────┘
+                     │
+┌────────────────────▼────────────────────────────────────────────┐
+│                          Custom Hooks                           │
+│           (usePortfolioData, useFetchStreaming, etc.)          │
+└────────────────────┬────────────────────────────────────────────┘
+                     │
+┌────────────────────▼────────────────────────────────────────────┐
+│                        Service Layer                            │
+│ ┌──────────────┐ ┌──────────────┐ ┌──────────────────────────┐ │
+│ │Feature APIs │ │   Auth       │ │    Infrastructure        │ │
+│ │analyticsApi │ │authManager   │ │    apiClient             │ │
+│ │portfolioApi │ │chatAuthService│ │    requestManager        │ │
+│ │strategiesApi│ └──────────────┘ └──────────────────────────┘ │
+│ │tagsApi      │                                                │
+│ └──────────────┘                                               │
+└────────────────────┬────────────────────────────────────────────┘
+                     │
+┌────────────────────▼────────────────────────────────────────────┐
+│                     Next.js API Proxy                           │
+│                    (/api/proxy/[...path])                       │
+└────────────────────┬────────────────────────────────────────────┘
+                     │
+┌────────────────────▼────────────────────────────────────────────┐
+│                    Backend API (FastAPI)                        │
+│                    http://localhost:8000                        │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### Centralized Configuration
+
+The frontend uses centralized API configuration in `/src/config/api.ts`:
+
+- **API_ENDPOINTS**: Organized mapping of all backend endpoints
+- **REQUEST_CONFIGS**: Preset configurations for different operation types
+  - STANDARD: Normal requests with caching
+  - REALTIME: Short timeout, no caching
+  - CALCULATION: Long timeout for complex operations
+  - AUTH: Authentication-specific settings
+- **API_CONFIG**: Environment-based settings (timeouts, retries, cache TTL)
+
+### Service Usage Patterns
+
+#### 1. Through Custom Hooks (Recommended)
+```typescript
+// usePortfolioData hook uses portfolioService internally
+const { positions, publicPositions, optionsPositions } = usePortfolioData()
+```
+
+#### 2. Direct Service Usage in Components
+```typescript
+// Components import and use services directly
+import strategiesApi from '@/services/strategiesApi'
+const strategies = await strategiesApi.listByPortfolio({ portfolioId })
+```
+
+#### 3. Proxy Routing
+All API calls route through Next.js proxy at `/api/proxy/` to handle CORS during development.
+
+### Best Practices
+
+1. **Always use services** - Don't make direct fetch() calls to backend
+2. **Use appropriate service** - Each service has a specific domain responsibility
+3. **Handle errors gracefully** - Services provide consistent error handling
+4. **Leverage request manager** - Automatic retry and deduplication
+5. **Type safety** - Services provide TypeScript interfaces for responses
+
+---
+
+## Recent Updates & Fixes
+
+
 
 ## Notes
 
 - **Database Location**: PostgreSQL via Docker (`docker-compose up -d`)
 - **Migrations**: Managed via Alembic (`uv run alembic upgrade head`)
 - **Demo Data**: Pre-seeded with `scripts/seed_database.py`
-- **Investment Classification**: Derived from position data, not stored explicitly
 - **Admin Endpoints**: Implemented but require manual router registration
 - **Testing**: Frontend API test page at `/dev/api-test` validates all endpoints
 
----
-
-**Last Updated**: September 25, 2025
-**Database Version**: Latest migration applied with strategies and tags_v2 tables
-**API Version**: v1.5.0 (with strategy and tagging system)
