@@ -15,7 +15,7 @@ from app.database import get_async_session, engine, Base
 from app.core.logging import setup_logging, get_logger
 
 # Import seeding functions
-from scripts.seed_database import seed_database
+from scripts.database.seed_database import seed_database
 
 # Setup logging
 setup_logging()

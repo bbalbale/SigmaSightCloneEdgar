@@ -156,10 +156,10 @@ async def enrich_from_api(db: AsyncSession, symbol: str) -> bool:
         # Placeholder - mark as unknown for now
         cache_entry = MarketDataCache(
             symbol=symbol,
-            date=asyncio.get_event_loop().time(),
+            date=date.today(),
             close=0.0,  # Placeholder
             sector="Unknown",
-            industry="Unknown", 
+            industry="Unknown",
             data_source="api_enrichment"
         )
         db.add(cache_entry)
