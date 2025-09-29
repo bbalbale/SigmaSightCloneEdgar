@@ -132,9 +132,15 @@ DEMO_PORTFOLIOS = [
             {"symbol": "HD", "quantity": Decimal("125"), "entry_price": Decimal("350.00"), "entry_date": date(2024, 1, 25), "tags": ["Blue Chip", "Individual Stock"]},
             {"symbol": "PG", "quantity": Decimal("250"), "entry_price": Decimal("165.00"), "entry_date": date(2024, 1, 25), "tags": ["Blue Chip", "Individual Stock"]},
 
-            # Alternative Assets (Note: Not including private funds/real estate as they're not tradeable securities)
+            # Alternative Assets
             {"symbol": "GLD", "quantity": Decimal("325"), "entry_price": Decimal("219.23"), "entry_date": date(2024, 2, 1), "tags": ["Alternative Assets", "Risk Hedge", "Gold"]},
             {"symbol": "DJP", "quantity": Decimal("1900"), "entry_price": Decimal("30.00"), "entry_date": date(2024, 2, 1), "tags": ["Alternative Assets", "Risk Hedge", "Commodities"]},
+
+            # Private Investment Funds (25% allocation as per Ben Mock Portfolios.md)
+            {"symbol": "BX_PRIVATE_EQUITY", "quantity": Decimal("1"), "entry_price": Decimal("285000.00"), "entry_date": date(2023, 6, 1), "tags": ["Private Investments", "Private Equity"]},
+            {"symbol": "A16Z_VC_FUND", "quantity": Decimal("1"), "entry_price": Decimal("142500.00"), "entry_date": date(2023, 6, 1), "tags": ["Private Investments", "Venture Capital"]},
+            {"symbol": "STARWOOD_REIT", "quantity": Decimal("1"), "entry_price": Decimal("142500.00"), "entry_date": date(2023, 6, 1), "tags": ["Private Investments", "Private REIT"]},
+            {"symbol": "TWO_SIGMA_FUND", "quantity": Decimal("1"), "entry_price": Decimal("142500.00"), "entry_date": date(2023, 6, 1), "tags": ["Private Investments", "Hedge Fund"]},
         ]
     },
     {
@@ -256,35 +262,56 @@ def determine_investment_class(symbol: str) -> str:
     """Determine investment class from symbol
 
     Returns:
-        'OPTION' for options (symbols with expiry/strike pattern)
+        'OPTIONS' for options (symbols with expiry/strike pattern)
+        'PRIVATE' for private investment funds
         'PUBLIC' for regular stocks and ETFs
-        'PRIVATE' for anything else
     """
     # Check if it's an option (has expiry date and strike price pattern)
     if len(symbol) > 10 and any(char in symbol for char in ['C', 'P']):
-        return 'OPTION'
+        return 'OPTIONS'
+    # Check for private investment patterns
+    elif any(pattern in symbol.upper() for pattern in ['PRIVATE', 'FUND', '_VC_', '_PE_', 'REIT', 'SIGMA']):
+        return 'PRIVATE'
     # Everything else is public equity (stocks, ETFs, mutual funds)
     else:
         return 'PUBLIC'
+
+def determine_investment_subtype(symbol: str) -> str:
+    """Determine investment subtype for private investments"""
+    symbol_upper = symbol.upper()
+    if 'PRIVATE_EQUITY' in symbol_upper or 'BX' in symbol_upper:
+        return 'PRIVATE_EQUITY'
+    elif 'VC' in symbol_upper or 'A16Z' in symbol_upper:
+        return 'VENTURE_CAPITAL'
+    elif 'REIT' in symbol_upper or 'STARWOOD' in symbol_upper:
+        return 'PRIVATE_REIT'
+    elif 'FUND' in symbol_upper or 'SIGMA' in symbol_upper:
+        return 'HEDGE_FUND'
+    return None
 
 async def _add_positions_to_portfolio(db: AsyncSession, portfolio: Portfolio, position_data_list: List[Dict[str, Any]], user: User, existing_symbols: set = None) -> int:
     """Helper function to add positions to a portfolio, avoiding duplicates"""
     if existing_symbols is None:
         existing_symbols = set()
-    
+
     position_count = 0
     for pos_data in position_data_list:
         symbol = pos_data["symbol"]
-        
+
         # Skip if position already exists
         if symbol in existing_symbols:
             continue
-        
+
         # Determine position type
         position_type = determine_position_type(symbol, pos_data["quantity"])
 
         # Determine investment class
         investment_class = determine_investment_class(symbol)
+
+        # Determine investment subtype for private investments
+        investment_subtype = None
+        if investment_class == 'PRIVATE':
+            investment_subtype = determine_investment_subtype(symbol)
 
         # Create position with deterministic ID for development consistency
         position = Position(
@@ -296,6 +323,7 @@ async def _add_positions_to_portfolio(db: AsyncSession, portfolio: Portfolio, po
             entry_price=pos_data["entry_price"],
             entry_date=pos_data["entry_date"],
             investment_class=investment_class,
+            investment_subtype=investment_subtype,
         )
         
         # Add options-specific fields if present
