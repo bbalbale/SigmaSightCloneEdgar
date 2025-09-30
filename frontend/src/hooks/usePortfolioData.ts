@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
-import { useSearchParams } from 'next/navigation'
-import { loadPortfolioData, PortfolioType } from '@/services/portfolioService'
+import { loadPortfolioData } from '@/services/portfolioService'
+import { usePortfolioStore } from '@/stores/portfolioStore'
 import type { FactorExposure } from '@/types/analytics'
 
 interface ApiErrors {
@@ -17,21 +17,23 @@ interface UsePortfolioDataReturn {
   portfolioSummaryMetrics: any[]
   positions: any[]
   shortPositions: any[]
-  publicPositions: any[]    // New: public equity/ETF positions
-  optionsPositions: any[]   // New: options contracts
-  privatePositions: any[]   // New: private/alternative investments
+  publicPositions: any[]
+  optionsPositions: any[]
+  privatePositions: any[]
   portfolioName: string
   dataLoaded: boolean
   factorExposures: FactorExposure[] | null
-  portfolioType: PortfolioType | null
+  portfolioId: string | null
 
   // Actions
   handleRetry: () => void
 }
 
 export function usePortfolioData(): UsePortfolioDataReturn {
-  const searchParams = useSearchParams()
-  const portfolioType = searchParams?.get('type') as PortfolioType | null
+  // Use separate selectors to avoid creating new object references
+  const portfolioId = usePortfolioStore(state => state.portfolioId)
+  const setPortfolio = usePortfolioStore(state => state.setPortfolio)
+  const clearPortfolio = usePortfolioStore(state => state.clearPortfolio)
 
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -51,99 +53,72 @@ export function usePortfolioData(): UsePortfolioDataReturn {
     const abortController = new AbortController()
 
     const loadData = async () => {
-      if (!portfolioType) {
-        // No portfolio type specified - show error
-        setError('Please select a portfolio type')
+      setLoading(true)
+      setError(null)
+
+      try {
+        const data = await loadPortfolioData(abortController.signal, {
+          portfolioId,
+          forceRefresh: retryCount > 0
+        })
+
+        if (!data) {
+          setError('Portfolio data unavailable')
+          setDataLoaded(false)
+          return
+        }
+
+        const resolvedId = data.portfolioId
+        if (resolvedId) {
+          setPortfolio(resolvedId, data.portfolioInfo?.name)
+        }
+
+        if (data.errors) {
+          setApiErrors(data.errors)
+        } else {
+          setApiErrors({})
+        }
+
+        setPortfolioSummaryMetrics(data.exposures || [])
+        const allPositions = data.positions || []
+
+        setPositions(allPositions.filter(p => p.type === 'LONG' || !p.type))
+        setShortPositions(allPositions.filter(p => p.type === 'SHORT'))
+
+        const publicPos = allPositions.filter(p => !p.investment_class || p.investment_class === 'PUBLIC')
+        const optionsPos = allPositions.filter(p => p.investment_class === 'OPTIONS' || ['LC', 'LP', 'SC', 'SP'].includes(p.type))
+        const privatePos = allPositions.filter(p => p.investment_class === 'PRIVATE')
+
+        setPublicPositions(publicPos)
+        setOptionsPositions(optionsPos)
+        setPrivatePositions(privatePos)
+        setFactorExposures(data.factorExposures || null)
+
+        if (data.portfolioInfo?.name) {
+          setPortfolioName(data.portfolioInfo.name)
+        } else {
+          setPortfolioName('Portfolio')
+        }
+
+        setDataLoaded(true)
+        setError(null)
+      } catch (err: any) {
+        if (err.name === 'AbortError') {
+          return
+        }
+
+        console.error('Failed to load portfolio:', err)
+        const errorMessage = err.message || 'Failed to load portfolio data'
+        setError(errorMessage)
+        setDataLoaded(false)
         setPortfolioSummaryMetrics([])
         setPositions([])
         setShortPositions([])
         setPublicPositions([])
         setOptionsPositions([])
         setPrivatePositions([])
-        setPortfolioName('No Portfolio Selected')
-        setDataLoaded(false)
-        return
-      }
-
-      setLoading(true)
-      setError(null)
-
-      try {
-        const data = await loadPortfolioData(portfolioType, abortController.signal)
-
-        if (data) {
-          console.log('Loaded portfolio data:', data)
-          console.log('Portfolio name from backend:', data.portfolioInfo?.name)
-
-          // Handle API errors from individual endpoints
-          if (data.errors) {
-            setApiErrors(data.errors)
-
-            // Show position error if positions failed but overview succeeded
-            if (data.errors.positions && !data.errors.overview) {
-              console.error('Position API failed:', data.errors.positions)
-            }
-            // Log factor exposures error if it failed
-            if (data.errors.factorExposures) {
-              console.error('Factor exposures API failed:', data.errors.factorExposures)
-            }
-          } else {
-            setApiErrors({})
-          }
-
-          // Update all state with real data
-          setPortfolioSummaryMetrics(data.exposures || [])
-          const allPositions = data.positions || []
-
-          // Legacy grouping by type (for backward compatibility)
-          setPositions(allPositions.filter(p => p.type === 'LONG' || !p.type))
-          setShortPositions(allPositions.filter(p => p.type === 'SHORT'))
-
-          // New grouping by investment class
-          const publicPos = allPositions.filter(p =>
-            !p.investment_class || p.investment_class === 'PUBLIC'
-          )
-          const optionsPos = allPositions.filter(p =>
-            p.investment_class === 'OPTIONS' ||
-            ['LC', 'LP', 'SC', 'SP'].includes(p.type)
-          )
-          const privatePos = allPositions.filter(p =>
-            p.investment_class === 'PRIVATE'
-          )
-
-          setPublicPositions(publicPos)
-          setOptionsPositions(optionsPos)
-          setPrivatePositions(privatePos)
-          setFactorExposures(data.factorExposures || null)
-
-          // Use descriptive name if backend returns generic "Demo Portfolio"
-          if (data.portfolioInfo?.name === 'Demo Portfolio' && portfolioType === 'individual') {
-            setPortfolioName('Demo Individual Investor Portfolio')
-          } else {
-            setPortfolioName(data.portfolioInfo?.name || 'Portfolio')
-          }
-
-          setDataLoaded(true)
-          setError(null)
-          setRetryCount(0)
-        }
-      } catch (err: any) {
-        if (err.name !== 'AbortError') {
-          console.error('Failed to load portfolio:', err)
-          const errorMessage = err.message || 'Failed to load portfolio data'
-          setError(errorMessage)
-
-          // No fallback - show error state
-          if (!dataLoaded) {
-            setPortfolioSummaryMetrics([])
-            setPositions([])
-            setShortPositions([])
-            setPublicPositions([])
-            setOptionsPositions([])
-            setPrivatePositions([])
-            setPortfolioName('Portfolio Unavailable')
-          }
-        }
+        setPortfolioName('Portfolio Unavailable')
+        clearPortfolio()
       } finally {
         setLoading(false)
       }
@@ -154,14 +129,14 @@ export function usePortfolioData(): UsePortfolioDataReturn {
     return () => {
       abortController.abort()
     }
-  }, [portfolioType, retryCount])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [portfolioId, retryCount])
 
   const handleRetry = () => {
     setRetryCount(prev => prev + 1)
   }
 
   return {
-    // State
     loading,
     error,
     apiErrors,
@@ -174,9 +149,9 @@ export function usePortfolioData(): UsePortfolioDataReturn {
     portfolioName,
     dataLoaded,
     factorExposures,
-    portfolioType,
-
-    // Actions
+    portfolioId,
     handleRetry
   }
 }
+
+
