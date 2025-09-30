@@ -351,6 +351,18 @@ Authorization: Bearer <jwt_token>
 - SC: Short Call option (covered/naked)
 - SP: Short Put option
 
+#### Portfolio Snapshots & Equity Balance:
+- **PortfolioSnapshot Table**: Daily historical snapshots of portfolio state
+  - Captures complete portfolio metrics on each trading day
+  - Includes valuations, exposures, P&L, Greeks, and position counts
+- **equity_balance Field**: Tracks the capital account over time
+  - Formula: `starting_equity_balance + realized_pnl`
+  - Represents actual capital (starting balance + realized gains/losses)
+  - Updated daily during batch processing BEFORE snapshot creation
+  - Stored in both `portfolios.equity_balance` (current) and `portfolio_snapshots.equity_balance` (historical)
+  - NOT the same as market value or unrealized P&L
+  - Used for historical tracking of capital account changes
+
 ### 📈 Batch Processing Tables
 
 #### Calculation Engines (8 total, 7 functional):

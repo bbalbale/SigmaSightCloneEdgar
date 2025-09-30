@@ -44,7 +44,10 @@ class PortfolioSnapshot(Base):
     num_positions: Mapped[int] = mapped_column(nullable=False)
     num_long_positions: Mapped[int] = mapped_column(nullable=False)
     num_short_positions: Mapped[int] = mapped_column(nullable=False)
-    
+
+    # Equity balance (starting capital + realized P&L)
+    equity_balance: Mapped[Optional[Decimal]] = mapped_column(Numeric(16, 2), nullable=True)
+
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
     
     # Relationships

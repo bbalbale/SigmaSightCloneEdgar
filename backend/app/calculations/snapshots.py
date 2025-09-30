@@ -298,7 +298,15 @@ async def _create_or_update_snapshot(
     position_counts: Dict[str, int]
 ) -> PortfolioSnapshot:
     """Create or update portfolio snapshot"""
-    
+
+    # Import Portfolio model for equity_balance lookup
+    from app.models.users import Portfolio
+
+    # Get portfolio to access equity_balance
+    portfolio_query = select(Portfolio).where(Portfolio.id == portfolio_id)
+    portfolio_result = await db.execute(portfolio_query)
+    portfolio = portfolio_result.scalar_one_or_none()
+
     # Check if snapshot already exists
     existing_query = select(PortfolioSnapshot).where(
         and_(
@@ -308,7 +316,7 @@ async def _create_or_update_snapshot(
     )
     existing_result = await db.execute(existing_query)
     existing_snapshot = existing_result.scalar_one_or_none()
-    
+
     snapshot_data = {
         "portfolio_id": portfolio_id,
         "snapshot_date": calculation_date,
@@ -327,7 +335,8 @@ async def _create_or_update_snapshot(
         "portfolio_vega": greeks['vega'],
         "num_positions": position_counts['total'],
         "num_long_positions": position_counts['long'],
-        "num_short_positions": position_counts['short']
+        "num_short_positions": position_counts['short'],
+        "equity_balance": portfolio.equity_balance if portfolio else None
     }
     
     if existing_snapshot:

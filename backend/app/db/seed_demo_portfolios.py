@@ -141,6 +141,21 @@ DEMO_PORTFOLIOS = [
             {"symbol": "A16Z_VC_FUND", "quantity": Decimal("1"), "entry_price": Decimal("142500.00"), "entry_date": date(2023, 6, 1), "tags": ["Private Investments", "Venture Capital"]},
             {"symbol": "STARWOOD_REIT", "quantity": Decimal("1"), "entry_price": Decimal("142500.00"), "entry_date": date(2023, 6, 1), "tags": ["Private Investments", "Private REIT"]},
             {"symbol": "TWO_SIGMA_FUND", "quantity": Decimal("1"), "entry_price": Decimal("142500.00"), "entry_date": date(2023, 6, 1), "tags": ["Private Investments", "Hedge Fund"]},
+
+            # Real Estate (20% allocation - $570K)
+            {"symbol": "HOME_EQUITY", "quantity": Decimal("1"), "entry_price": Decimal("285000.00"), "entry_date": date(2023, 1, 15), "tags": ["Real Estate", "Primary Residence"]},
+            {"symbol": "RENTAL_CONDO", "quantity": Decimal("1"), "entry_price": Decimal("142500.00"), "entry_date": date(2022, 6, 1), "tags": ["Real Estate", "Rental Property"]},
+            {"symbol": "RENTAL_SFH", "quantity": Decimal("1"), "entry_price": Decimal("142500.00"), "entry_date": date(2021, 9, 1), "tags": ["Real Estate", "Rental Property"]},
+
+            # Cryptocurrency (1.5% allocation - $42.75K)
+            {"symbol": "CRYPTO_BTC_ETH", "quantity": Decimal("1"), "entry_price": Decimal("42750.00"), "entry_date": date(2023, 3, 1), "tags": ["Alternative Assets", "Cryptocurrency"]},
+
+            # Art/Collectibles (1% allocation - $28.5K)
+            {"symbol": "ART_COLLECTIBLES", "quantity": Decimal("1"), "entry_price": Decimal("28500.00"), "entry_date": date(2022, 11, 1), "tags": ["Alternative Assets", "Art"]},
+
+            # Cash & Fixed Income (3% allocation - $85.5K)
+            {"symbol": "MONEY_MARKET", "quantity": Decimal("1"), "entry_price": Decimal("57000.00"), "entry_date": date(2024, 1, 1), "tags": ["Cash", "Money Market"]},
+            {"symbol": "TREASURY_BILLS", "quantity": Decimal("1"), "entry_price": Decimal("28500.00"), "entry_date": date(2024, 1, 1), "tags": ["Cash", "Fixed Income"]},
         ]
     },
     {

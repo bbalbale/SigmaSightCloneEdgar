@@ -459,9 +459,28 @@ async def _aggregate_portfolio_betas(
     position_betas: Dict[str, Dict[str, float]]
 ) -> Dict[str, float]:
     """
-    Aggregate position-level betas to portfolio level using exposure weighting
+    Aggregate position-level betas to portfolio level using equity-based weighting
+
+    Weights each position by: position_market_value / portfolio_equity_balance
+    For leveraged portfolios, weights will sum to leverage ratio (not 1.0)
     """
-    # Get current position exposures for weighting
+    # Get portfolio to access equity_balance
+    from app.models.users import Portfolio
+    portfolio_stmt = select(Portfolio).where(Portfolio.id == portfolio_id)
+    portfolio_result = await db.execute(portfolio_stmt)
+    portfolio = portfolio_result.scalar_one()
+
+    # Validate equity_balance exists
+    if not portfolio.equity_balance or portfolio.equity_balance <= 0:
+        raise ValueError(
+            f"Portfolio {portfolio_id} has no equity_balance set. "
+            f"Equity-based factor calculation requires valid equity_balance."
+        )
+
+    portfolio_equity = float(portfolio.equity_balance)
+    logger.info(f"Using equity-based weighting with portfolio equity: ${portfolio_equity:,.2f}")
+
+    # Get current positions for weighting
     stmt = select(Position).where(
         and_(
             Position.portfolio_id == portfolio_id,
@@ -470,30 +489,28 @@ async def _aggregate_portfolio_betas(
     )
     result = await db.execute(stmt)
     positions = result.scalars().all()
-    
+
     if not positions:
         return {}
-    
-    # Calculate exposure weights
-    total_exposure = Decimal('0')
+
+    # Calculate equity-based weights
     position_weights = {}
-    
+    total_market_value = Decimal('0')
+
     for position in positions:
-        # Simple exposure calculation for weighting
+        # Calculate position market value
         multiplier = OPTIONS_MULTIPLIER if _is_options_position(position) else 1
-        exposure = abs(position.quantity * (position.last_price or position.entry_price) * multiplier)
-        total_exposure += exposure
-        position_weights[str(position.id)] = exposure
-    
-    if total_exposure == 0:
-        logger.warning("Total portfolio exposure is zero, using equal weights")
-        equal_weight = 1.0 / len(positions)
-        position_weights = {str(p.id): equal_weight for p in positions}
-        total_exposure = Decimal('1')
-    
-    # Normalize weights
-    for pos_id in position_weights:
-        position_weights[pos_id] = float(position_weights[pos_id] / total_exposure)
+        market_value = abs(position.quantity * (position.last_price or position.entry_price) * multiplier)
+        total_market_value += market_value
+
+        # Weight = market value / portfolio equity
+        position_weights[str(position.id)] = float(market_value / Decimal(str(portfolio_equity)))
+
+    leverage_ratio = float(total_market_value / Decimal(str(portfolio_equity)))
+    logger.info(
+        f"Portfolio leverage: {leverage_ratio:.2f}x "
+        f"(Gross exposure: ${float(total_market_value):,.2f}, Equity: ${portfolio_equity:,.2f})"
+    )
     
     # Calculate weighted average betas
     portfolio_betas = {}
@@ -626,27 +643,31 @@ async def aggregate_portfolio_factor_exposures(
 ) -> Dict[str, Any]:
     """
     Aggregate position-level factor exposures to portfolio level and store
-    
+
+    Uses equity-based weighting for portfolio beta calculation:
+    - Portfolio beta = sum(position_market_value × position_beta) / portfolio_equity
+    - For leveraged portfolios, betas will be scaled by leverage ratio
+
     Position-level attribution implementation:
     - Calculate each position's contribution to factor exposure
     - Sum contributions for portfolio-level dollar exposure
     - Store both signed and magnitude portfolio betas
-    
+
     IMPORTANT: Factor exposures are INDEPENDENT and will sum to >100% of portfolio value.
     This is correct behavior - each factor measures a different dimension of risk.
     Example: A portfolio can be 96% exposed to Value factor AND 67% to Growth factor
     simultaneously because positions can score high on multiple factors.
-    
+
     This follows industry standard (Bloomberg, MSCI Barra) factor models where
     exposures are not mutually exclusive partitions but independent risk measurements.
-    
+
     Args:
         db: Database session
         position_betas: Position-level factor betas
         portfolio_exposures: Current portfolio exposures for weighting
         portfolio_id: Portfolio ID
         calculation_date: Date of calculation
-        
+
     Returns:
         Dictionary with aggregation results
     """
@@ -701,38 +722,48 @@ async def aggregate_portfolio_factor_exposures(
             
             position_exposures[pos_id_str] = signed_exposure
         
+        # Get portfolio to access equity_balance for equity-based weighting
+        from app.models.users import Portfolio as PortfolioModel
+        portfolio_stmt = select(PortfolioModel).where(PortfolioModel.id == portfolio_id)
+        portfolio_result = await db.execute(portfolio_stmt)
+        portfolio = portfolio_result.scalar_one()
+
+        # Validate equity_balance exists
+        if not portfolio.equity_balance or portfolio.equity_balance <= 0:
+            raise ValueError(
+                f"Portfolio {portfolio_id} has no equity_balance set. "
+                f"Equity-based factor calculation requires valid equity_balance."
+            )
+
+        portfolio_equity = float(portfolio.equity_balance)
+        logger.info(f"Using equity-based weighting with portfolio equity: ${portfolio_equity:,.2f}")
+
         # Calculate factor dollar exposures using position-level attribution
-        gross_exposure = portfolio_exposures.get("gross_exposure", Decimal('0'))
-        
         for factor_name in factor_name_mapping.keys():
             factor_dollar_exposure = 0.0
             signed_weighted_beta = 0.0
             magnitude_weighted_beta = 0.0
-            
+
             # Sum position contributions for this factor
             for pos_id_str, pos_betas in position_betas.items():
                 if factor_name in pos_betas and pos_id_str in position_exposures:
                     position_beta = pos_betas[factor_name]
                     position_exposure = position_exposures[pos_id_str]
-                    
+
                     # Position's contribution to factor exposure
                     contribution = position_exposure * position_beta
                     factor_dollar_exposure += contribution
-                    
-                    # For portfolio beta calculations
+
+                    # For portfolio beta calculations (using equity-based weighting)
                     signed_weighted_beta += position_exposure * position_beta
                     magnitude_weighted_beta += abs(position_exposure) * abs(position_beta)
-            
+
             # Store calculated values
             factor_dollar_exposures[factor_name] = factor_dollar_exposure
-            
-            # Calculate portfolio betas (if gross exposure > 0)
-            if gross_exposure > 0:
-                signed_portfolio_betas[factor_name] = signed_weighted_beta / float(gross_exposure)
-                magnitude_portfolio_betas[factor_name] = magnitude_weighted_beta / float(gross_exposure)
-            else:
-                signed_portfolio_betas[factor_name] = 0.0
-                magnitude_portfolio_betas[factor_name] = 0.0
+
+            # Calculate portfolio betas using equity as denominator (equity-based weighting)
+            signed_portfolio_betas[factor_name] = signed_weighted_beta / portfolio_equity
+            magnitude_portfolio_betas[factor_name] = magnitude_weighted_beta / portfolio_equity
         
         # Use signed betas as the primary portfolio betas
         portfolio_betas = signed_portfolio_betas
