@@ -4,13 +4,9 @@
 
 import { portfolioResolver } from './portfolioResolver'
 import { authManager } from './authManager'
-import { requestManager } from './requestManager'
-import { positionApiService } from './positionApiService'
 import { analyticsApi } from './analyticsApi'
 import { apiClient } from './apiClient'
-import type { FactorExposuresResponse, FactorExposure } from '../types/analytics'
-
-export type PortfolioType = 'individual' | 'high-net-worth' | 'hedge-fund'
+import type { FactorExposure } from '../types/analytics'
 
 interface PositionDetail {
   id: string
@@ -30,66 +26,48 @@ interface PositionDetail {
   underlying_symbol?: string
 }
 
+type LoadOptions = {
+  portfolioId?: string | null
+  forceRefresh?: boolean
+}
+
 /**
- * Load portfolio data for a specific portfolio type
+ * Load portfolio data for the authenticated user
  * Uses individual APIs instead of /complete endpoint
  */
 export async function loadPortfolioData(
-  portfolioType: PortfolioType, 
-  abortSignal?: AbortSignal
+  abortSignal?: AbortSignal,
+  options: LoadOptions = {}
 ) {
-  // Fetch real data for all portfolio types
-  if (!portfolioType) {
-    return null // No portfolio type specified
-  }
-
   try {
-    // Get authentication token from centralized manager
-    const token = await authManager.getToken(portfolioType)
-    
-    // Clear portfolio resolver cache to ensure fresh resolution
-    portfolioResolver.clearCache()
-    
-    // Update token and email in localStorage for portfolio resolver
-    localStorage.setItem('access_token', token)
-    
-    // Store the email for portfolio resolver to use
-    const DEMO_CREDENTIALS = {
-      'individual': { email: 'demo_individual@sigmasight.com', password: 'demo12345' },
-      'high-net-worth': { email: 'demo_hnw@sigmasight.com', password: 'demo12345' },
-      'hedge-fund': { email: 'demo_hedgefundstyle@sigmasight.com', password: 'demo12345' }
+    const token = authManager.getAccessToken()
+    if (!token) {
+      throw new Error('Authentication token unavailable')
     }
-    const credentials = DEMO_CREDENTIALS[portfolioType]
-    if (credentials) {
-      localStorage.setItem('user_email', credentials.email)
-    }
-    
-    // Dynamically resolve portfolio ID with the fresh token
-    const portfolioId = await portfolioResolver.getPortfolioIdByType(portfolioType)
-    if (!portfolioId) {
-      // Try refreshing the token and retrying once
-      const refreshedToken = await authManager.refreshToken(portfolioType)
-      localStorage.setItem('access_token', refreshedToken)
-      const retryId = await portfolioResolver.getPortfolioIdByType(portfolioType)
-      
-      if (!retryId) {
-        throw new Error(`Could not resolve portfolio ID for type: ${portfolioType}`)
+
+    let portfolioId = options.portfolioId ?? authManager.getPortfolioId()
+
+    if (!portfolioId || options.forceRefresh) {
+      if (options.forceRefresh) {
+        portfolioResolver.clearCache()
       }
-      // Use the retry ID for subsequent API calls
-      const portfolioIdFinal = retryId
-      
-      // Fetch data from individual APIs in parallel
-      const results = await fetchPortfolioDataFromApis(portfolioIdFinal, refreshedToken, abortSignal)
-      return results
+      portfolioId = await portfolioResolver.getUserPortfolioId(options.forceRefresh)
     }
-    
-    // Fetch data from individual APIs in parallel
+
+    if (!portfolioId) {
+      throw new Error('Could not resolve portfolio ID for current user')
+    }
+
+    authManager.setPortfolioId(portfolioId)
+
     const results = await fetchPortfolioDataFromApis(portfolioId, token, abortSignal)
-    return results
+    return {
+      ...results,
+      portfolioId
+    }
   } catch (error: any) {
-    // Don't log abort errors
-    if (error.name !== 'AbortError') {
-      console.error(`Failed to load portfolio data for ${portfolioType}:`, error)
+    if (error?.name !== 'AbortError') {
+      console.error('Failed to load portfolio data:', error)
     }
     throw error
   }
@@ -103,11 +81,8 @@ async function fetchPortfolioDataFromApis(
   token: string,
   abortSignal?: AbortSignal
 ) {
-  // Make parallel API calls using Promise.allSettled to handle partial failures
   const [overviewResult, positionsResult, factorExposuresResult] = await Promise.allSettled([
-    // Fetch portfolio overview with exposures
     analyticsApi.getOverview(portfolioId),
-    // Fetch positions with details
     apiClient.get<{ positions: PositionDetail[] }>(
       `/api/v1/data/positions/details?portfolio_id=${portfolioId}`,
       {
@@ -115,7 +90,6 @@ async function fetchPortfolioDataFromApis(
         signal: abortSignal
       }
     ),
-    // Fetch factor exposures - backend returns PortfolioFactorExposuresResponse
     apiClient.get<any>(
       `/api/v1/analytics/portfolio/${portfolioId}/factor-exposures`,
       {
@@ -128,47 +102,35 @@ async function fetchPortfolioDataFromApis(
     })
   ])
 
-  // Handle overview API result
-  let exposures = []
-  let portfolioInfo = null
+  let portfolioInfo: { name: string } | null = null
+  let exposures = [] as any[]
+
   if (overviewResult.status === 'fulfilled') {
-    const overview = overviewResult.value.data
-    exposures = calculateExposuresFromOverview(overview)
+    const overviewResponse = overviewResult.value.data
+    exposures = calculateExposuresFromOverview(overviewResponse)
     portfolioInfo = {
-      id: overview.portfolio_id,
-      name: `Portfolio ${portfolioId.slice(0, 8)}`, // Use portfolio ID as fallback name
-      total_value: overview.total_value,
-      cash_balance: overview.cash_balance,
-      position_count: overview.position_count?.total_positions || 0
+      name: 'Portfolio'
     }
   } else {
     console.error('Failed to fetch portfolio overview:', overviewResult.reason)
-    // Re-throw the error since we need overview data
-    throw new Error(`Portfolio overview unavailable: ${overviewResult.reason}`)
   }
 
-  // Handle positions API result
   let positions: any[] = []
   if (positionsResult.status === 'fulfilled') {
-    positions = transformPositionDetails(positionsResult.value.positions)
+    const positionData = positionsResult.value
+    if (positionData?.positions) {
+      positions = transformPositionDetails(positionData.positions)
+    }
   } else {
-    console.error('Failed to fetch positions:', positionsResult.reason)
-    // Return empty positions array but don't fail entirely
-    positions = []
+    console.error('Failed to fetch portfolio positions:', positionsResult.reason)
   }
 
-  // Handle factor exposures API result
   let factorExposures: FactorExposure[] | null = null
   if (factorExposuresResult.status === 'fulfilled') {
-    console.log('Factor exposures raw response:', factorExposuresResult.value)
     if (factorExposuresResult.value?.data?.available && factorExposuresResult.value?.data?.factors) {
-      // Response is wrapped in data field
       factorExposures = factorExposuresResult.value.data.factors
-      console.log('Loaded factor exposures from data field:', factorExposures)
     } else if (factorExposuresResult.value?.available && factorExposuresResult.value?.factors) {
-      // Response is not wrapped
       factorExposures = factorExposuresResult.value.factors
-      console.log('Loaded factor exposures directly:', factorExposures)
     } else {
       console.log('Factor exposures not available in response')
     }
@@ -182,7 +144,7 @@ async function fetchPortfolioDataFromApis(
     portfolioInfo,
     factorExposures,
     errors: {
-      overview: null,
+      overview: overviewResult.status === 'rejected' ? overviewResult.reason : null,
       positions: positionsResult.status === 'rejected' ? positionsResult.reason : null,
       factorExposures: factorExposuresResult.status === 'rejected' ? factorExposuresResult.reason : null
     }
@@ -193,17 +155,25 @@ async function fetchPortfolioDataFromApis(
  * Calculate exposure metrics from overview API response
  */
 function calculateExposuresFromOverview(overview: any) {
-  const totalValue = overview.total_value || 0
-  const exposures = overview.exposures || {}
+  const totalValue = overview?.total_value || 0
+  const exposures = overview?.exposures || {}
   const longValue = exposures.long_exposure || 0
-  const shortValue = Math.abs(exposures.short_exposure || 0) // Make positive for display
+  const shortValue = Math.abs(exposures.short_exposure || 0)
   const grossExposure = exposures.gross_exposure || (longValue + shortValue)
   const netExposure = exposures.net_exposure || (longValue - shortValue)
-  const cashBalance = overview.cash_balance || 0
-  const pnl = overview.pnl || {}
+  const cashBalance = overview?.cash_balance || 0
+  const equityBalance = overview?.equity_balance || 0
+  const pnl = overview?.pnl || {}
   const totalPnl = pnl.unrealized_pnl || 0
-  
+
   return [
+    {
+      title: 'Equity Balance',
+      value: formatCurrency(equityBalance),
+      subValue: totalValue > 0 ? `${((equityBalance / totalValue) * 100).toFixed(1)}%` : '0%',
+      description: `Total Value: ${formatCurrency(totalValue)}`,
+      positive: true
+    },
     {
       title: 'Long Exposure',
       value: formatCurrency(longValue),
@@ -233,13 +203,6 @@ function calculateExposuresFromOverview(overview: any) {
       positive: true
     },
     {
-      title: 'Cash Balance',
-      value: formatCurrency(cashBalance),
-      subValue: totalValue > 0 ? `${((cashBalance / totalValue) * 100).toFixed(1)}%` : '0%',
-      description: `Total Value: ${formatCurrency(totalValue)}`,
-      positive: true
-    },
-    {
       title: 'Total P&L',
       value: formatCurrency(totalPnl),
       subValue: totalPnl !== 0 ? (totalPnl > 0 ? '+' : '') + totalPnl.toFixed(2) : 'N/A',
@@ -262,18 +225,14 @@ function transformPositionDetails(positions: PositionDetail[]) {
     pnl: pos.unrealized_pnl,
     positive: pos.unrealized_pnl >= 0,
     type: pos.position_type,
-    investment_class: pos.investment_class || 'PUBLIC',  // Default to PUBLIC if not set
+    investment_class: pos.investment_class || 'PUBLIC',
     investment_subtype: pos.investment_subtype,
-    // Option-specific fields
     strike_price: pos.strike_price,
     expiration_date: pos.expiration_date,
     underlying_symbol: pos.underlying_symbol
   }))
 }
 
-/**
- * Format currency values
- */
 function formatCurrency(value: number): string {
   if (Math.abs(value) >= 1000000) {
     return `$${(value / 1000000).toFixed(1)}M`

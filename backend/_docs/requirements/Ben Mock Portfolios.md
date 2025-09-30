@@ -1,8 +1,9 @@
 # Three Mock Investment Portfolios
 
 ## Portfolio 1: "Balanced Individual Investor"
-**Total Portfolio Value:** $485,000  
-**Investor Profile:** Individual investor with 401k, IRA, and taxable accounts  
+**Total Portfolio Value:** $485,000
+**Equity Balance (NAV):** $485,000
+**Investor Profile:** Individual investor with 401k, IRA, and taxable accounts
 **Investment Strategy:** Core holdings with some growth tilt, heavy mutual fund allocation
 
 ### Asset Allocation
@@ -45,8 +46,9 @@
 ---
 
 ## Portfolio 2: "Sophisticated High Net Worth"
-**Total Portfolio Value:** $2,850,000  
-**Investor Profile:** High net worth individual with access to private investments  
+**Total Portfolio Value:** $2,850,000
+**Equity Balance (NAV):** $2,850,000
+**Investor Profile:** High net worth individual with access to private investments
 **Investment Strategy:** Diversified across public markets, private funds, and real estate
 
 ### Asset Allocation
@@ -117,8 +119,9 @@
 ---
 
 ## Portfolio 3: "Long/Short Equity Hedge Fund Style"
-**Total Portfolio Value:** $3,200,000  
-**Investor Profile:** Sophisticated trader with derivatives access  
+**Total Portfolio Value:** $3,200,000
+**Equity Balance (NAV):** $3,200,000
+**Investor Profile:** Sophisticated trader with derivatives access
 **Investment Strategy:** Market-neutral with volatility trading and options overlay
 
 ### Portfolio Metrics
@@ -215,6 +218,7 @@
 | Metric | Individual | High Net Worth | Long/Short |
 |--------|------------|----------------|------------|
 | **Total Value** | $485K | $2.85M | $3.2M |
+| **Equity Balance (NAV)** | $485K | $2.85M | $3.2M |
 | **Complexity** | Low | Medium | High |
 | **Liquidity** | High (90%+) | Medium (55%) | High (85%) |
 | **Risk Level** | Conservative | Moderate | Aggressive |

@@ -46,9 +46,9 @@ const getBetaColor = (beta: number) => {
 
 // Skeleton card for loading state
 const SkeletonCard = () => (
-  <div className="bg-white rounded-lg border border-gray-200 p-3 animate-pulse">
-    <div className="h-4 bg-gray-200 rounded w-20 mb-2"></div>
-    <div className="h-6 bg-gray-200 rounded w-12 mb-2"></div>
+  <div className="bg-white rounded-lg border border-gray-200 p-2 animate-pulse">
+    <div className="h-3 bg-gray-200 rounded w-20 mb-1"></div>
+    <div className="h-5 bg-gray-200 rounded w-12 mb-1"></div>
     <div className="h-3 bg-gray-200 rounded w-24"></div>
   </div>
 )
@@ -56,23 +56,23 @@ const SkeletonCard = () => (
 // Individual factor card
 const FactorCard = ({ factor }: { factor: FactorExposure }) => {
   const colorClass = getBetaColor(factor.beta)
-  
+
   return (
-    <div className={`rounded-lg border p-3 transition-all duration-200 hover:shadow-md cursor-pointer ${colorClass}`}>
-      <div className="text-xs font-medium text-gray-600 mb-1">
+    <div className={`rounded-lg border p-2 transition-all duration-200 hover:shadow-md cursor-pointer ${colorClass}`}>
+      <div className="text-xs font-medium text-gray-600 mb-0.5">
         {factor.name}
       </div>
-      <div className="text-lg font-bold mb-1">
+      <div className="text-base font-bold mb-0.5">
         {formatBeta(factor.beta)}
       </div>
       <div className="text-xs text-gray-500">
         {formatCurrency(factor.exposure_dollar)}
       </div>
       {/* Visual indicator bar */}
-      <div className="mt-2 h-1 bg-gray-200 rounded-full overflow-hidden">
-        <div 
+      <div className="mt-1.5 h-1 bg-gray-200 rounded-full overflow-hidden">
+        <div
           className="h-full bg-current transition-all duration-300"
-          style={{ 
+          style={{
             width: `${Math.min(100, (Math.abs(factor.beta) / 7) * 100)}%`,
             opacity: 0.6
           }}
@@ -90,7 +90,7 @@ export const FactorExposureCards: React.FC<FactorExposureCardsProps> = ({
   // Handle loading state
   if (loading) {
     return (
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
         {FACTOR_ORDER.map((_, index) => (
           <SkeletonCard key={index} />
         ))}
@@ -130,13 +130,13 @@ export const FactorExposureCards: React.FC<FactorExposureCardsProps> = ({
   })
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <h3 className="text-lg font-semibold text-gray-900">Factor Exposures</h3>
+        <h3 className="text-sm font-medium text-gray-600">Factor Exposures</h3>
         <span className="text-xs text-gray-500">Beta values and dollar exposures</span>
       </div>
-      
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-3">
+
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
         {sortedFactors.map((factor) => (
           <FactorCard key={factor.name} factor={factor} />
         ))}
