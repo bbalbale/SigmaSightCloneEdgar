@@ -2,8 +2,10 @@ import type { Metadata } from 'next'
 import { Inter } from 'next/font/google'
 import '@/styles/globals.css'
 import { ChatProvider } from '@/components/chat/ChatProvider'
+import { Providers } from './providers'
+import { NavigationHeader } from '@/components/navigation/NavigationHeader'
 
-const inter = Inter({ 
+const inter = Inter({
   subsets: ['latin'],
   variable: '--font-sans',
 })
@@ -24,13 +26,16 @@ export default function RootLayout({
   return (
     <html lang="en" className="h-full">
       <body className={`${inter.variable} font-sans antialiased h-full bg-background text-foreground`}>
-        <div className="flex min-h-screen flex-col">
-          <main className="flex-1">
-            {children}
-          </main>
-          {/* Chat Interface - Available on all pages */}
-          <ChatProvider />
-        </div>
+        <Providers>
+          <div className="flex min-h-screen flex-col">
+            <NavigationHeader />
+            <main className="flex-1">
+              {children}
+            </main>
+            {/* Chat Interface - Available on all pages */}
+            <ChatProvider />
+          </div>
+        </Providers>
       </body>
     </html>
   )

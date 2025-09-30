@@ -3,11 +3,11 @@
 ## Overview
 The SigmaSight frontend follows Next.js best practices with a clean separation between routing (in `/app`) and shared application code (in `/src`). This structure aligns with Next.js's "Option 1" pattern where the `app` directory remains at the project root while other code is organized in shared folders.
 
-## Current Directory Structure
+## Current Directory Structure (With Multi-Page Implementation)
 
 ```
 frontend/
-├── app/                        # Next.js App Router (Routes Only - Minimal Logic)
+├── app/                        # Next.js App Router
 │   ├── api/                    # API routes
 │   │   └── proxy/              # Backend proxy endpoints
 │   ├── dev/                    # Development tools
@@ -16,16 +16,36 @@ frontend/
 │   ├── landing/                # Marketing landing page
 │   │   └── page.tsx            # Public landing page (route: /landing)
 │   ├── login/                  # Authentication
-│   │   └── page.tsx            # Login page
-│   ├── portfolio/              # Main application
-│   │   └── page.tsx            # Portfolio dashboard (route: /portfolio) - ~230 lines
+│   │   └── page.tsx            # Login page (thin wrapper)
+│   ├── portfolio/              # Main dashboard (EXISTING - Modular Pattern)
+│   │   └── page.tsx            # Portfolio dashboard - ~230 lines (Keep as-is)
+│   ├── public-positions/       # 🔄 PLANNED - Container Pattern
+│   │   └── page.tsx            # Will be thin wrapper (~8 lines)
+│   ├── private-positions/      # 🔄 PLANNED - Container Pattern
+│   │   └── page.tsx            # Will be thin wrapper (~8 lines)
+│   ├── organize/               # 🔄 PLANNED - Container Pattern
+│   │   └── page.tsx            # Will be thin wrapper (~8 lines)
+│   ├── ai-chat/                # 🔄 PLANNED - Container Pattern
+│   │   └── page.tsx            # Will be thin wrapper (~8 lines)
+│   ├── settings/               # 🔄 PLANNED - Container Pattern
+│   │   └── page.tsx            # Will be thin wrapper (~8 lines)
+│   ├── providers.tsx           # ✅ IMPLEMENTED - Auth context & global providers
 │   ├── error.tsx               # Global error handling
-│   ├── layout.tsx              # Root layout
+│   ├── layout.tsx              # ✅ UPDATED - Root layout with navigation
 │   ├── loading.tsx             # Global loading state
 │   └── page.tsx                # Root page (redirects to /landing)
 │
 ├── src/                        # Application Source Code
+│   ├── containers/             # 🔄 PLANNED - Container components for pages
+│   │   ├── PublicPositionsContainer.tsx   # (To be created)
+│   │   ├── PrivatePositionsContainer.tsx  # (To be created)
+│   │   ├── OrganizeContainer.tsx          # (To be created)
+│   │   ├── AIChatContainer.tsx            # (To be created)
+│   │   └── SettingsContainer.tsx          # (To be created)
 │   ├── components/             # React components
+│   │   ├── navigation/         # ✅ IMPLEMENTED - Navigation components
+│   │   │   ├── NavigationDropdown.tsx     # Dropdown menu with all 6 pages
+│   │   │   └── NavigationHeader.tsx       # Header with branding and dropdown
 │   │   ├── app/                # App-specific components
 │   │   │   ├── ChatInput.tsx
 │   │   │   ├── Header.tsx
@@ -78,8 +98,9 @@ frontend/
 │   │   ├── positionApiService.ts
 │   │   └── requestManager.ts
 │   ├── stores/                 # State management (Zustand)
-│   │   ├── chatStore.ts
-│   │   └── streamStore.ts
+│   │   ├── portfolioStore.ts  # 🆕 NEW - Global portfolio ID state
+│   │   ├── chatStore.ts       # Chat persistent data
+│   │   └── streamStore.ts     # Chat streaming state
 │   ├── styles/                 # Global styles
 │   │   └── globals.css
 │   ├── types/                  # TypeScript type definitions
@@ -101,25 +122,37 @@ frontend/
 
 ## Architecture Principles
 
-### 1. **Separation of Concerns**
-- **`/app`**: Contains only Next.js routing files (pages, layouts, error handling)
-- **`/src`**: Contains all application code (components, services, utilities)
+### 1. **Hybrid Architecture Pattern**
+We use two patterns based on the page:
+- **Modular Pattern** (Existing portfolio page): Page file contains logic (~230 lines)
+- **Container Pattern** (New pages): Thin pages (8 lines) + container components (150-250 lines)
+
+### 2. **Separation of Concerns**
+- **`/app`**: Contains Next.js routing files (thin for new pages)
+- **`/src/containers`**: Business logic for new pages
+- **`/src`**: Contains all shared application code
 - This follows Next.js documentation's "Option 1" pattern
 
-### 2. **Import Path Strategy**
+### 3. **Import Path Strategy**
 - All imports use absolute paths via the `@/` alias
 - `@/` maps to `./src/` in tsconfig.json
 - Example: `import { Button } from '@/components/ui/button'`
 
-### 3. **Component Organization**
+### 4. **State Management**
+- **Portfolio ID**: Stored in Zustand portfolioStore (global, no URL params)
+- **User Auth**: React Context in providers.tsx
+- **Chat State**: Split between chatStore and streamStore
+- **Portfolio Switching**: Logout required (no in-app switching)
+
+### 5. **Component Organization**
 - **`ui/`**: Reusable ShadCN UI components
 - **`app/`**: Components specific to app pages
 - **`auth/`**: Authentication-related components
 - **`chat/`**: Chat-related components
 - **`portfolio/`**: Portfolio-specific components
 
-### 4. **Service Layer**
-All API interactions go through the services layer:
+### 6. **Service Layer**
+All API interactions go through the services layer (no direct fetch calls):
 - `portfolioService.ts`: Portfolio data fetching
 - `chatService.ts`: Chat messaging
 - `authManager.ts`: Authentication management
@@ -132,49 +165,73 @@ All API interactions go through the services layer:
 - `/landing` - Marketing landing page
 - `/login` - Authentication page
 
-### Protected Routes
-- `/portfolio` - Main portfolio dashboard
-- `/portfolio?type={high-net-worth|individual|hedge-fund}` - Portfolio by type
+### Protected Routes (Navigation Dropdown)
+- `/portfolio` - Main dashboard (existing modular pattern)
+- `/public-positions` - Public equity positions (container pattern)
+- `/private-positions` - Private/alternative positions (container pattern)
+- `/organize` - Strategy & tag management (container pattern)
+- `/ai-chat` - AI assistant chat (container pattern)
+- `/settings` - User & portfolio settings (container pattern)
 
 ### Development Routes
 - `/dev/api-test` - API testing interface
 
+### Navigation
+- **Dropdown Menu**: All 6 protected routes accessible via dropdown
+- **No Portfolio Switching**: Must logout to change portfolios
+- **Portfolio ID**: Stored in Zustand, not in URL
+
 ## State Management
 
 ### Zustand Stores
+- **`portfolioStore`**: 🆕 Global portfolio ID (persists across pages)
 - **`chatStore`**: Persistent chat data (conversations, messages)
 - **`streamStore`**: Streaming state management (active streams, chunks)
 
 ### Context Providers
+- **`AuthContext`**: 🆕 User authentication state (in providers.tsx)
 - **`ThemeContext`**: Dark/light theme management
 
 ## Authentication Flow
 
 1. User logs in at `/login`
 2. JWT token stored in localStorage
-3. Token used for portfolio API calls
-4. HttpOnly cookies used for chat streaming
+3. Portfolio ID stored in Zustand portfolioStore
+4. Token used for all API calls
+5. Portfolio ID persists across page navigations
+6. Logout clears both token and portfolio ID
+7. No in-app portfolio switching (must logout)
 
 ## Development Workflow
 
 ### File Placement Guidelines
-1. **New page?** → Add to `/app/[route]/page.tsx`
-2. **New component?** → Add to `/src/components/[category]/`
-3. **New service?** → Add to `/src/services/`
-4. **New utility?** → Add to `/src/lib/` or `/src/utils/`
-5. **New type?** → Add to `/src/types/`
+1. **New page?** → Add thin wrapper to `/app/[route]/page.tsx` (8 lines)
+2. **Page logic?** → Add container to `/src/containers/[Page]Container.tsx`
+3. **New component?** → Add to `/src/components/[category]/`
+4. **New hook?** → Add to `/src/hooks/`
+5. **New service?** → Add to `/src/services/`
+6. **New utility?** → Add to `/src/lib/` or `/src/utils/`
+7. **New type?** → Add to `/src/types/`
+8. **Global state?** → Add to `/src/stores/`
 
 ### Import Examples
 ```typescript
+// Containers (NEW)
+import { PublicPositionsContainer } from '@/containers/PublicPositionsContainer'
+import { SettingsContainer } from '@/containers/SettingsContainer'
+
 // Components
+import { NavigationDropdown } from '@/components/navigation/NavigationDropdown'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { LoginForm } from '@/components/auth/LoginForm'
-import { ChatInput } from '@/components/app/ChatInput'
 import { PortfolioHeader } from '@/components/portfolio/PortfolioHeader'
 
 // Hooks
 import { usePortfolioData } from '@/hooks/usePortfolioData'
+import { usePositions } from '@/hooks/usePositions'
+
+// Stores (NEW)
+import { usePortfolioStore } from '@/stores/portfolioStore'
 
 // Services
 import { portfolioService } from '@/services/portfolioService'
