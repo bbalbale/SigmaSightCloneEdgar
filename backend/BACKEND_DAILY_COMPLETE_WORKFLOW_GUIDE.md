@@ -276,9 +276,16 @@ asyncio.run(check())
 ## Daily Data Updates
 
 ### 1. Update Market Data (Required Daily)
+
+**⚠️ IMPORTANT: Private positions should NOT be included in price fetching**
+- Private positions (real estate, private equity, art, crypto holdings, etc.) are NOT publicly traded
+- Attempting to fetch prices for these symbols will fail and waste API calls
+- Only fetch prices for PUBLIC and OPTIONS positions with valid ticker symbols
+
 ```bash
 # Sync latest market prices (last 5 trading days)
 # NOTE: Preserves existing historical data (won't overwrite)
+# Automatically excludes private positions (investment_class='PRIVATE')
 uv run python -c "
 import asyncio
 from app.batch.market_data_sync import sync_market_data
@@ -287,6 +294,7 @@ asyncio.run(sync_market_data())
 
 # Backfill missing historical data if needed (90 days)
 # NOTE: Now checks per-symbol coverage with 80% threshold
+# NOTE: Excludes private positions automatically
 uv run python -c "
 import asyncio
 from app.batch.market_data_sync import fetch_missing_historical_data
@@ -295,6 +303,7 @@ asyncio.run(fetch_missing_historical_data(days_back=90))
 
 # Ensure factor analysis data (252 days) - ONLY if doing factor analysis
 # NOTE: Automatically backfills any symbols with insufficient data
+# NOTE: Excludes private positions automatically
 uv run python -c "
 import asyncio
 from app.batch.market_data_sync import validate_and_ensure_factor_analysis_data
@@ -315,6 +324,7 @@ asyncio.run(validate())
 - ✅ Coverage checked **per-symbol** (80% threshold for trading days)
 - ✅ GICS fetching now **optional** (defaults to False for performance)
 - ✅ Metadata rows filtered (only counts actual price data)
+- ✅ **Private positions excluded** from price fetching (real estate, private equity, collectibles, etc.)
 
 ### 2. Seed Target Prices (If Needed)
 
