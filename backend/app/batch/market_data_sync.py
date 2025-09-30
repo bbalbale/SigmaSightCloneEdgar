@@ -28,35 +28,43 @@ async def sync_market_data():
     """
     Daily market data synchronization from external sources
     - Fetches data for all symbols in active portfolios
-    - Updates price data from Polygon.io
-    - Updates GICS sector data from YFinance
+    - Updates price data ONLY if cache is stale (>1 day old)
+    - Skips API calls if data is already current
     """
     start_time = utc_now()
     logger.info(f"Starting market data sync at {start_time}")
-    
+
     try:
         async with AsyncSessionLocal() as db:
             # Get all unique symbols from active positions
             symbols = await get_active_portfolio_symbols(db)
-            
+
             if not symbols:
                 logger.info("No active portfolio symbols found, skipping sync")
                 return
-            
+
             logger.info(f"Syncing market data for {len(symbols)} symbols: {', '.join(list(symbols)[:5])}{'...' if len(symbols) > 5 else ''}")
-            
-            # Fetch and cache market data
+
+            # Check cache staleness before fetching
+            # bulk_fetch_and_cache already has smart cache checking - it will skip symbols with current data
+            # It also auto-detects market close time and skips today's data if before 4:05 PM ET
+            # We only fetch last 5 days to catch any recent missing data
             stats = await market_data_service.bulk_fetch_and_cache(
                 db=db,
                 symbols=list(symbols),
                 days_back=5  # Get last 5 trading days for daily sync
             )
-            
+
             duration = utc_now() - start_time
-            logger.info(f"Market data sync completed in {duration.total_seconds():.2f}s: {stats}")
-            
+
+            # Log results with clarity on whether API calls were needed
+            if stats.get('api_calls_saved', 0) > 0:
+                logger.info(f"Market data sync completed in {duration.total_seconds():.2f}s - Saved {stats['api_calls_saved']} API calls (data already cached)")
+            else:
+                logger.info(f"Market data sync completed in {duration.total_seconds():.2f}s: {stats}")
+
             return stats
-            
+
     except Exception as e:
         logger.error(f"Market data sync failed: {str(e)}")
         raise
