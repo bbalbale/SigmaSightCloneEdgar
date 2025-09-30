@@ -90,7 +90,7 @@ export const FactorExposureCards: React.FC<FactorExposureCardsProps> = ({
   // Handle loading state
   if (loading) {
     return (
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-3">
         {FACTOR_ORDER.map((_, index) => (
           <SkeletonCard key={index} />
         ))}
@@ -130,18 +130,20 @@ export const FactorExposureCards: React.FC<FactorExposureCardsProps> = ({
   })
 
   return (
-    <div className="space-y-3">
-      <div className="flex items-center justify-between">
-        <h3 className="text-sm font-medium text-gray-600">Factor Exposures</h3>
-        <span className="text-xs text-gray-500">Beta values and dollar exposures</span>
-      </div>
+    <section className="px-4 pb-6">
+      <div className="container mx-auto">
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-sm font-medium text-gray-600">Factor Exposures</h3>
+          <span className="text-xs text-gray-500">Beta values and dollar exposures</span>
+        </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
-        {sortedFactors.map((factor) => (
-          <FactorCard key={factor.name} factor={factor} />
-        ))}
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-4">
+          {sortedFactors.map((factor) => (
+            <FactorCard key={factor.name} factor={factor} />
+          ))}
+        </div>
       </div>
-    </div>
+    </section>
   )
 }
 
