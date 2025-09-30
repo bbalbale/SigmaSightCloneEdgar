@@ -4,6 +4,7 @@ import '@/styles/globals.css'
 import { ChatProvider } from '@/components/chat/ChatProvider'
 import { Providers } from './providers'
 import { ConditionalNavigationHeader } from '@/components/navigation/ConditionalNavigationHeader'
+import { ThemeProvider } from '@/contexts/ThemeContext'
 
 const inter = Inter({
   subsets: ['latin'],
@@ -26,16 +27,18 @@ export default function RootLayout({
   return (
     <html lang="en" className="h-full">
       <body className={`${inter.variable} font-sans antialiased h-full bg-background text-foreground`}>
-        <Providers>
-          <div className="flex min-h-screen flex-col">
-            <ConditionalNavigationHeader />
-            <main className="flex-1">
-              {children}
-            </main>
-            {/* Chat Interface - Available on all pages */}
-            <ChatProvider />
-          </div>
-        </Providers>
+        <ThemeProvider>
+          <Providers>
+            <div className="flex min-h-screen flex-col">
+              <ConditionalNavigationHeader />
+              <main className="flex-1">
+                {children}
+              </main>
+              {/* Chat Interface - Available on all pages */}
+              <ChatProvider />
+            </div>
+          </Providers>
+        </ThemeProvider>
       </body>
     </html>
   )
