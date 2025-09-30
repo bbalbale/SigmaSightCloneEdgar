@@ -1,278 +1,264 @@
 /**
  * Centralized Authentication Manager
- * Prevents token race conditions and manages authentication state consistently
- * Ensures only one authentication request happens at a time
+ * Maintains a single shared session for portfolio + chat features
+ * Works alongside chatAuthService, which handles cookie-based chat auth
  */
 
-import { PortfolioType } from './portfolioService'
-
-interface AuthToken {
-  access_token: string
-  token_type: string
-  expires_in?: number
-  portfolio_id?: string | null  // Added portfolio_id from backend fix
-  user?: {
-    id: string
-    email: string
-    name?: string
-  }
+interface AuthUser {
+  id: string
+  email: string
+  name?: string
 }
 
-interface CachedToken {
+interface AuthSession {
   token: string
   email: string
   expiresAt: number
-  portfolioId?: string | null  // Added portfolio_id caching
-  user?: AuthToken['user']
+  portfolioId: string | null
+  user: AuthUser | null
 }
 
-// Demo user credentials for authentication
-const DEMO_CREDENTIALS = {
-  'individual': { email: 'demo_individual@sigmasight.com', password: 'demo12345' },
-  'high-net-worth': { email: 'demo_hnw@sigmasight.com', password: 'demo12345' },
-  'hedge-fund': { email: 'demo_hedgefundstyle@sigmasight.com', password: 'demo12345' }
+interface SessionPayload {
+  token: string
+  email: string
+  tokenType?: string
+  expiresIn?: number
+  portfolioId?: string | null
+  user?: AuthUser | null
 }
 
 class AuthManager {
-  private tokenCache: Map<string, CachedToken> = new Map()
-  private authInProgress: Map<string, Promise<string>> = new Map()
-  private readonly TOKEN_EXPIRY_BUFFER = 60 * 1000 // Refresh 1 minute before expiry
-  private readonly DEFAULT_TOKEN_LIFETIME = 30 * 60 * 1000 // 30 minutes default
-  
+  private session: AuthSession | null = null
+  private readonly TOKEN_EXPIRY_BUFFER = 60 * 1000 // Refresh 1 minute early
+  private readonly DEFAULT_TOKEN_LIFETIME = 30 * 60 * 1000 // 30 minutes
+
   /**
-   * Get authentication token for a portfolio type
-   * Prevents concurrent authentication requests and caches valid tokens
+   * Store the authenticated session in memory + localStorage
    */
-  async getToken(portfolioType: PortfolioType): Promise<string> {
-    const credentials = DEMO_CREDENTIALS[portfolioType]
-    if (!credentials) {
-      throw new Error(`Invalid portfolio type: ${portfolioType}`)
+  setSession(payload: SessionPayload): void {
+    if (typeof window === 'undefined') {
+      return
     }
 
-    const cacheKey = credentials.email
+    const expiresInMs = (payload.expiresIn ?? this.DEFAULT_TOKEN_LIFETIME / 1000) * 1000
+    const expiresAt = Date.now() + Math.max(expiresInMs - this.TOKEN_EXPIRY_BUFFER, this.DEFAULT_TOKEN_LIFETIME / 2)
 
-    // Check if we have a valid cached token
-    const cached = this.tokenCache.get(cacheKey)
-    if (cached && this.isTokenValid(cached)) {
-      return cached.token
+    this.session = {
+      token: payload.token,
+      email: payload.email,
+      expiresAt,
+      portfolioId: payload.portfolioId ?? null,
+      user: payload.user ?? null
     }
 
-    // Check if authentication is already in progress for this user
-    const inProgress = this.authInProgress.get(cacheKey)
-    if (inProgress) {
-      return inProgress
+    localStorage.setItem('access_token', payload.token)
+    localStorage.setItem('user_email', payload.email)
+    localStorage.setItem('token_expires_at', `${expiresAt}`)
+
+    if (payload.portfolioId) {
+      localStorage.setItem('portfolio_id', payload.portfolioId)
+    } else {
+      localStorage.removeItem('portfolio_id')
     }
 
-    // Start new authentication process
-    const authPromise = this.authenticate(credentials.email, credentials.password, cacheKey)
-    this.authInProgress.set(cacheKey, authPromise)
-
-    try {
-      const token = await authPromise
-      return token
-    } finally {
-      // Clean up in-progress tracker
-      this.authInProgress.delete(cacheKey)
+    if (payload.user) {
+      sessionStorage.setItem('auth_user', JSON.stringify(payload.user))
+    } else {
+      sessionStorage.removeItem('auth_user')
     }
   }
 
   /**
-   * Authenticate with the backend
+   * Clear all session data
    */
-  private async authenticate(email: string, password: string, cacheKey: string): Promise<string> {
-    try {
-      const response = await fetch('/api/proxy/api/v1/auth/login', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ email, password }),
-        signal: AbortSignal.timeout(10000) // 10 second timeout
-      })
-
-      if (!response.ok) {
-        // Clear any stale cache on auth failure
-        this.tokenCache.delete(cacheKey)
-        localStorage.removeItem('access_token')
-        
-        const errorData = await response.json().catch(() => ({}))
-        throw new Error(`Authentication failed: ${errorData.detail || response.status}`)
-      }
-
-      const data: AuthToken = await response.json()
-      
-      // Calculate expiration time
-      const expiresIn = data.expires_in || (this.DEFAULT_TOKEN_LIFETIME / 1000)
-      const expiresAt = Date.now() + (expiresIn * 1000) - this.TOKEN_EXPIRY_BUFFER
-
-      // Cache the token with portfolio_id from backend response
-      const cachedToken: CachedToken = {
-        token: data.access_token,
-        email,
-        expiresAt,
-        portfolioId: data.portfolio_id, // Cache portfolio_id from JWT
-        user: data.user
-      }
-      
-      this.tokenCache.set(cacheKey, cachedToken)
-      
-      // Also update localStorage for backward compatibility and portfolio context fallback
-      localStorage.setItem('access_token', data.access_token)
-      localStorage.setItem('user_email', email)
-      
-      // Persist resolved portfolio ID to localStorage for session recovery
-      if (data.portfolio_id) {
-        localStorage.setItem('portfolio_id', data.portfolio_id)
-      }
-      
-      if (data.user) {
-        sessionStorage.setItem('auth_user', JSON.stringify(data.user))
-      }
-
-      return data.access_token
-    } catch (error) {
-      console.error(`Authentication failed for ${email}:`, error)
-      throw error
+  clearSession(): void {
+    this.session = null
+    if (typeof window === 'undefined') {
+      return
     }
+
+    localStorage.removeItem('access_token')
+    localStorage.removeItem('user_email')
+    localStorage.removeItem('token_expires_at')
+    localStorage.removeItem('portfolio_id')
+    sessionStorage.removeItem('auth_user')
   }
 
   /**
-   * Check if a cached token is still valid
+   * Ensure in-memory session is hydrated from storage
    */
-  private isTokenValid(cached: CachedToken): boolean {
-    return Date.now() < cached.expiresAt
-  }
-
-  /**
-   * Get token from localStorage (for backward compatibility)
-   */
-  getStoredToken(): string | null {
-    return localStorage.getItem('access_token')
-  }
-
-  /**
-   * Get portfolio ID with fallback chain: JWT → localStorage → backend API
-   * Implements Frontend Portfolio Context Fallback from PORTFOLIO_ID_DESIGN_DOC Section 8.1.2
-   */
-  async getPortfolioId(portfolioType?: PortfolioType): Promise<string | null> {
-    // Try multiple portfolio ID sources in order
-    
-    // 1. Try JWT claims from cached token
-    if (portfolioType) {
-      const credentials = DEMO_CREDENTIALS[portfolioType]
-      if (credentials) {
-        const cached = this.tokenCache.get(credentials.email)
-        if (cached && this.isTokenValid(cached) && cached.portfolioId) {
-          return cached.portfolioId
-        }
-      }
+  private hydrateSession(): void {
+    if (this.session || typeof window === 'undefined') {
+      return
     }
-    
-    // 2. Try localStorage fallback
-    const storedPortfolioId = localStorage.getItem('portfolio_id')
-    if (storedPortfolioId) {
-      return storedPortfolioId
+
+    const token = localStorage.getItem('access_token')
+    if (!token) {
+      this.session = null
+      return
     }
-    
-    // 3. Fallback: fetch from backend API
-    if (portfolioType) {
+
+    const email = localStorage.getItem('user_email') || ''
+    const expiresRaw = localStorage.getItem('token_expires_at')
+    const expiresAt = expiresRaw ? Number(expiresRaw) : Date.now() + this.DEFAULT_TOKEN_LIFETIME
+    const portfolioId = localStorage.getItem('portfolio_id') || null
+
+    let user: AuthUser | null = null
+    const storedUser = sessionStorage.getItem('auth_user') ?? localStorage.getItem('auth_user')
+    if (storedUser && storedUser !== 'undefined') {
       try {
-        const portfolioId = await this.fetchDefaultPortfolio(portfolioType)
-        if (portfolioId) {
-          // Persist resolved portfolio ID to localStorage for session recovery
-          localStorage.setItem('portfolio_id', portfolioId)
-          return portfolioId
-        }
-      } catch (error) {
-        console.error('Failed to fetch default portfolio:', error)
+        user = JSON.parse(storedUser)
+      } catch {
+        user = null
       }
     }
-    
-    return null
+
+    this.session = {
+      token,
+      email,
+      expiresAt,
+      portfolioId,
+      user
+    }
   }
 
   /**
-   * Fetch default portfolio from backend when missing from JWT/localStorage
-   * Implements fetchDefaultPortfolio() method from PORTFOLIO_ID_DESIGN_DOC Section 8.1.2
+   * Retrieve the current access token (may be expired)
    */
-  async fetchDefaultPortfolio(portfolioType: PortfolioType): Promise<string | null> {
+  getAccessToken(): string | null {
+    if (!this.session) {
+      this.hydrateSession()
+    }
+    return this.session?.token ?? null
+  }
+
+  /**
+   * Update portfolio ID in session + storage
+   */
+  setPortfolioId(portfolioId: string | null): void {
+    if (typeof window === 'undefined') {
+      return
+    }
+
+    if (!this.session) {
+      this.hydrateSession()
+    }
+
+    if (this.session) {
+      this.session.portfolioId = portfolioId
+    }
+
+    if (portfolioId) {
+      localStorage.setItem('portfolio_id', portfolioId)
+    } else {
+      localStorage.removeItem('portfolio_id')
+    }
+  }
+
+  /**
+   * Get cached portfolio ID from session/storage
+   */
+  getPortfolioId(): string | null {
+    if (!this.session) {
+      this.hydrateSession()
+    }
+    return this.session?.portfolioId ?? null
+  }
+
+  /**
+   * Cache user info locally to avoid redundant requests
+   */
+  setCachedUser(user: AuthUser | null): void {
+    if (typeof window === 'undefined') {
+      return
+    }
+
+    if (!this.session) {
+      this.hydrateSession()
+    }
+
+    if (this.session) {
+      this.session.user = user
+    }
+
+    if (user) {
+      sessionStorage.setItem('auth_user', JSON.stringify(user))
+    } else {
+      sessionStorage.removeItem('auth_user')
+    }
+  }
+
+  /**
+   * Return cached user if available
+   */
+  getCachedUser(): AuthUser | null {
+    if (!this.session) {
+      this.hydrateSession()
+    }
+    return this.session?.user ?? null
+  }
+
+  /**
+   * Fetch the current user from the backend using the stored token
+   */
+  async getCurrentUser(): Promise<AuthUser | null> {
+    const token = this.getAccessToken()
+    if (!token) {
+      return null
+    }
+
     try {
-      const token = await this.getToken(portfolioType)
-      
-      // Call /api/v1/me endpoint to get user info with portfolio_id
       const response = await fetch('/api/proxy/api/v1/auth/me', {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
+          'Content-Type': 'application/json'
         },
-        signal: AbortSignal.timeout(10000)
+        signal: AbortSignal.timeout(5000)
       })
 
       if (!response.ok) {
-        throw new Error(`Failed to fetch user info: ${response.status}`)
+        return null
       }
 
-      const userData = await response.json()
-      
-      // Extract portfolio_id from user data (when backend is updated to include it)
-      if (userData.portfolio_id) {
-        return userData.portfolio_id
+      const data = await response.json()
+      const user: AuthUser = {
+        id: data.id ?? data.user_id ?? '',
+        email: data.email ?? '',
+        name: data.name ?? data.full_name ?? undefined
       }
-      
-      // Fallback: use portfolioResolver logic for now
-      const { portfolioResolver } = await import('./portfolioResolver')
-      return portfolioResolver.getPortfolioIdByType(portfolioType)
-      
+
+      this.setCachedUser(user)
+
+      if (data.portfolio_id) {
+        this.setPortfolioId(data.portfolio_id)
+      }
+
+      return user
     } catch (error) {
-      console.error(`Failed to fetch default portfolio for ${portfolioType}:`, error)
+      console.error('Failed to fetch current user:', error)
       return null
     }
   }
 
   /**
-   * Clear all cached tokens and stored auth data
+   * Validate that a token is still usable
    */
-  clearAllTokens(): void {
-    this.tokenCache.clear()
-    this.authInProgress.clear()
-    localStorage.removeItem('access_token')
-    localStorage.removeItem('user_email')
-    localStorage.removeItem('portfolio_id')  // Also clear portfolio_id
-    sessionStorage.removeItem('auth_user')
-  }
-
-  /**
-   * Clear token for specific portfolio type
-   */
-  clearTokenForType(portfolioType: PortfolioType): void {
-    const credentials = DEMO_CREDENTIALS[portfolioType]
-    if (credentials) {
-      this.tokenCache.delete(credentials.email)
-      this.authInProgress.delete(credentials.email)
+  async validateToken(token?: string): Promise<boolean> {
+    const accessToken = token ?? this.getAccessToken()
+    if (!accessToken) {
+      return false
     }
-  }
 
-  /**
-   * Refresh token for a specific portfolio type
-   */
-  async refreshToken(portfolioType: PortfolioType): Promise<string> {
-    this.clearTokenForType(portfolioType)
-    return this.getToken(portfolioType)
-  }
-
-  /**
-   * Validate that a token is still working by making a test request
-   */
-  async validateToken(token: string): Promise<boolean> {
     try {
       const response = await fetch('/api/proxy/api/v1/auth/me', {
         method: 'GET',
         headers: {
-          'Authorization': `Bearer ${token}`
+          'Authorization': `Bearer ${accessToken}`
         },
-        signal: AbortSignal.timeout(5000) // 5 second timeout
+        signal: AbortSignal.timeout(5000)
       })
+
       return response.ok
     } catch {
       return false
@@ -280,8 +266,5 @@ class AuthManager {
   }
 }
 
-// Export singleton instance
 export const authManager = new AuthManager()
-
-// Export types
-export type { AuthToken, CachedToken }
+export type { AuthUser, SessionPayload }

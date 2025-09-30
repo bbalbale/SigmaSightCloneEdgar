@@ -1,6 +1,6 @@
 /**
  * Portfolio Store - Global portfolio ID management
- * Handles portfolio selection and persistence across pages
+ * Handles portfolio persistence across pages
  * Portfolio switching requires logout (no in-app switching)
  */
 
@@ -11,10 +11,9 @@ interface PortfolioStore {
   // State
   portfolioId: string | null
   portfolioName: string | null
-  portfolioType: string | null // 'high-net-worth' | 'individual' | 'hedge-fund'
 
   // Actions
-  setPortfolio: (id: string, name?: string, type?: string) => void
+  setPortfolio: (id: string, name?: string | null) => void
   clearPortfolio: () => void
 
   // Computed
@@ -27,14 +26,12 @@ export const usePortfolioStore = create<PortfolioStore>()(
       // Initial state
       portfolioId: null,
       portfolioName: null,
-      portfolioType: null,
 
-      // Set portfolio data (called on login)
-      setPortfolio: (id, name, type) => {
+      // Set portfolio data (called on login/data load)
+      setPortfolio: (id, name) => {
         set({
           portfolioId: id,
-          portfolioName: name || null,
-          portfolioType: type || null
+          portfolioName: name ?? null
         })
       },
 
@@ -42,8 +39,7 @@ export const usePortfolioStore = create<PortfolioStore>()(
       clearPortfolio: () => {
         set({
           portfolioId: null,
-          portfolioName: null,
-          portfolioType: null
+          portfolioName: null
         })
       },
 
@@ -54,8 +50,8 @@ export const usePortfolioStore = create<PortfolioStore>()(
     }),
     {
       name: 'portfolio-storage', // localStorage key
-      version: 1,
-      // Only persist the portfolioId, fetch name/type fresh on reload
+      version: 2,
+      // Only persist the portfolioId, fetch name fresh on reload
       partialize: (state) => ({
         portfolioId: state.portfolioId
       })
@@ -66,12 +62,11 @@ export const usePortfolioStore = create<PortfolioStore>()(
 // Selector hooks for common use cases
 export const usePortfolioId = () => usePortfolioStore((state) => state.portfolioId)
 export const usePortfolioName = () => usePortfolioStore((state) => state.portfolioName)
-export const usePortfolioType = () => usePortfolioStore((state) => state.portfolioType)
 export const useHasPortfolio = () => usePortfolioStore((state) => state.hasPortfolio())
 
 // Helper to get portfolio data outside of React components
 export const getPortfolioId = () => usePortfolioStore.getState().portfolioId
 export const clearPortfolioState = () => usePortfolioStore.getState().clearPortfolio()
-export const setPortfolioState = (id: string, name?: string, type?: string) => {
-  usePortfolioStore.getState().setPortfolio(id, name, type)
+export const setPortfolioState = (id: string, name?: string | null) => {
+  usePortfolioStore.getState().setPortfolio(id, name)
 }

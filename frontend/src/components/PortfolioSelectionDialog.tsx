@@ -40,15 +40,13 @@ const portfolioTypes = [
 
 export function PortfolioSelectionDialog({ trigger }: PortfolioSelectionDialogProps) {
   const [open, setOpen] = useState(false)
-  const [selectedType, setSelectedType] = useState<string | null>(null)
   const router = useRouter()
 
   const handlePortfolioSelect = (portfolioType: string) => {
-    setSelectedType(portfolioType)
     setOpen(false)
     
-    // Navigate to portfolio page with type parameter
-    router.push(`/portfolio?type=${portfolioType}`)
+    // Navigate to portfolio page (single portfolio per user)
+    router.push('/portfolio')
   }
 
   return (
@@ -104,3 +102,5 @@ export function PortfolioSelectionDialog({ trigger }: PortfolioSelectionDialogPr
     </Dialog>
   )
 }
+
+

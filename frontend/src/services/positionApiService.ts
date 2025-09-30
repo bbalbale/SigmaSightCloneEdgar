@@ -5,7 +5,6 @@
 
 import { authManager } from './authManager'
 import { requestManager } from './requestManager'
-import { PortfolioType } from './portfolioService'
 
 interface ApiPosition {
   id: string
@@ -54,14 +53,17 @@ class PositionApiService {
    */
   async fetchPositionsFromApi(
     portfolioId: string,
-    portfolioType: PortfolioType,
     signal?: AbortSignal
   ): Promise<PositionsApiResponse | null> {
     const startTime = performance.now()
     
     try {
-      const token = await authManager.getToken(portfolioType)
-      
+      const token = authManager.getAccessToken()
+      if (!token) {
+        console.log('dY"S Shadow API: missing auth token, skipping fetch')
+        return null
+      }
+
       const response = await requestManager.authenticatedFetch(
         `/api/proxy/api/v1/data/positions/details?portfolio_id=${portfolioId}`,
         token,

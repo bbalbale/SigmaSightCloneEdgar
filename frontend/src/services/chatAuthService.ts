@@ -5,15 +5,19 @@
  */
 
 import { portfolioResolver } from './portfolioResolver';
+import { authManager } from './authManager';
+import { setPortfolioState, clearPortfolioState } from '@/stores/portfolioStore';
 
 interface LoginResponse {
   access_token: string;
   token_type: string;
-  user: {
+  expires_in?: number;
+  portfolio_id?: string | null;
+  user?: {
     id: string;
     email: string;
     name?: string;
-  };
+  } | null;
 }
 
 interface AuthUser {
@@ -54,27 +58,22 @@ class ChatAuthService {
       }
 
       const data: LoginResponse = await response.json();
-      
-      // Store user info (but not the token - that's in HttpOnly cookie)
+
       this.isAuthenticated = true;
-      this.currentUser = data.user;
-      
-      // Store auth state in sessionStorage for persistence check
+      this.currentUser = data.user ?? null;
+
       if (typeof window !== 'undefined') {
-        // Option 6: User-specific cache clearing - check if different user is logging in
         const previousUser = localStorage.getItem('user_email');
         const isDifferentUser = previousUser && previousUser !== email;
-        
+
         if (isDifferentUser) {
           console.log('[Auth] Different user detected, clearing all user-specific data');
-          // Clear all chat-related persisted data for the previous user
-          const keepItems = ['cache_version']; // Items to preserve across users
+          const keepItems = ['cache_version'];
           const saved: [string, string][] = keepItems
             .map(k => [k, localStorage.getItem(k)] as [string, string | null])
             .filter((item): item is [string, string] => item[1] !== null);
-          
-          // Clear localStorage except critical system items
-          const keysToRemove = [];
+
+          const keysToRemove: string[] = [];
           for (let i = 0; i < localStorage.length; i++) {
             const key = localStorage.key(i);
             if (key && !keepItems.includes(key)) {
@@ -82,24 +81,23 @@ class ChatAuthService {
             }
           }
           keysToRemove.forEach(key => localStorage.removeItem(key));
-          
-          // Clear sessionStorage completely
+
           sessionStorage.clear();
-          
-          // Clear Zustand persisted stores
           localStorage.removeItem('chat-storage');
-          
-          // Restore preserved items
           saved.forEach(([k, v]) => localStorage.setItem(k, v));
+
+          clearPortfolioState();
         }
-        
-        sessionStorage.setItem('auth_user', JSON.stringify(data.user));
-        // Store access token for portfolio API calls (not for chat)
-        localStorage.setItem('access_token', data.access_token);
-        localStorage.setItem('user_email', email);
-        
-        // Option 1: Clear specific conversation state (always do this, even for same user)
-        // This prevents 403 "Not authorized to access this conversation" errors
+
+        authManager.setSession({
+          token: data.access_token,
+          email,
+          tokenType: data.token_type,
+          expiresIn: data.expires_in,
+          portfolioId: data.portfolio_id ?? null,
+          user: data.user ?? null,
+        });
+
         localStorage.removeItem('conversationId');
         localStorage.removeItem('chatHistory');
         localStorage.removeItem('currentConversationId');
@@ -107,29 +105,34 @@ class ChatAuthService {
         sessionStorage.removeItem('chatHistory');
         console.log('[Auth] Cleared stale conversation state on login');
       }
-      
-      // Try to discover and cache the portfolio ID
-      // This is a best-effort operation - don't fail login if it doesn't work
+
+      let resolvedPortfolioId = data.portfolio_id ?? null;
       try {
-        await portfolioResolver.getUserPortfolioId(true); // Force refresh to discover ID
+        const discoveredId = await portfolioResolver.getUserPortfolioId(true);
+        if (discoveredId) {
+          resolvedPortfolioId = discoveredId;
+        }
       } catch (error) {
         console.warn('Could not discover portfolio ID after login:', error);
       }
-      
-      // Initialize a new conversation for this session
-      // This prevents using stale conversation IDs from previous sessions
+
+      if (resolvedPortfolioId) {
+        authManager.setPortfolioId(resolvedPortfolioId);
+        setPortfolioState(resolvedPortfolioId);
+      }
+
       try {
         const conversationId = await this.initializeConversation();
         console.log('[Auth] Initialized new conversation:', conversationId);
       } catch (error) {
         console.warn('[Auth] Could not initialize conversation on login:', error);
-        // Don't fail login if conversation creation fails
-        // It will be created on first chat message instead
       }
 
       return data;
     } catch (error) {
       console.error('Login error:', error);
+      this.isAuthenticated = false;
+      this.currentUser = null;
       throw error;
     }
   }
@@ -202,6 +205,8 @@ class ChatAuthService {
       // Clear local state regardless
       this.isAuthenticated = false;
       this.currentUser = null;
+      authManager.clearSession();
+      clearPortfolioState();
       if (typeof window !== 'undefined') {
         sessionStorage.removeItem('auth_user');
         // Also clear conversation state on logout
@@ -229,6 +234,7 @@ class ChatAuthService {
         const user = await response.json();
         this.isAuthenticated = true;
         this.currentUser = user;
+        authManager.setCachedUser(user);
         return user;
       }
     } catch (error) {
@@ -238,6 +244,7 @@ class ChatAuthService {
     // Not authenticated
     this.isAuthenticated = false;
     this.currentUser = null;
+    authManager.clearSession();
     if (typeof window !== 'undefined') {
       sessionStorage.removeItem('auth_user');
     }

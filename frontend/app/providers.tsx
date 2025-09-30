@@ -4,6 +4,7 @@ import React, { createContext, useContext, useEffect, useState, useCallback } fr
 import { useRouter, usePathname } from 'next/navigation'
 import { authManager } from '@/services/authManager'
 import { portfolioResolver } from '@/services/portfolioResolver'
+import { chatAuthService } from '@/services/chatAuthService'
 import { setPortfolioState, clearPortfolioState } from '@/stores/portfolioStore'
 
 interface User {
@@ -33,19 +34,23 @@ export function useAuth() {
 
 const publicPaths = ['/', '/landing', '/login']
 
+const isPublicRoute = (path: string | null) => {
+  if (!path) {
+    return false
+  }
+  return publicPaths.includes(path)
+}
+
 export function Providers({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
   const router = useRouter()
   const pathname = usePathname()
 
-  // Initialize portfolio ID when user is authenticated
   const initializePortfolio = useCallback(async () => {
     try {
       const portfolioId = await portfolioResolver.getUserPortfolioId()
       if (portfolioId) {
-        // Fetch portfolio details if needed
-        // For now, just set the ID
         setPortfolioState(portfolioId)
       }
     } catch (error) {
@@ -53,87 +58,81 @@ export function Providers({ children }: { children: React.ReactNode }) {
     }
   }, [])
 
-  // Check authentication status on mount and token changes
+  const mapUser = useCallback((authUser: { id: string; email: string; name?: string } | null): User | null => {
+    if (!authUser) {
+      return null
+    }
+    return {
+      id: authUser.id,
+      email: authUser.email,
+      fullName: authUser.name || authUser.email,
+      isAdmin: false
+    }
+  }, [])
+
   const checkAuth = useCallback(async () => {
     try {
-      const token = localStorage.getItem('access_token')
+      const token = authManager.getAccessToken()
 
       if (!token) {
         setUser(null)
         clearPortfolioState()
         setLoading(false)
-
-        // Redirect to login if on protected route
-        if (!publicPaths.includes(pathname)) {
+        if (!isPublicRoute(pathname)) {
           router.push('/login')
         }
         return
       }
 
-      // Validate token and get user info
       const isValid = await authManager.validateToken(token)
       if (isValid) {
-        const userInfo = await authManager.getCurrentUser()
-        setUser(userInfo)
-
-        // Initialize portfolio after successful auth
+        const currentUser = await authManager.getCurrentUser()
+        setUser(mapUser(currentUser))
         await initializePortfolio()
       } else {
-        // Token invalid, clear everything
-        localStorage.removeItem('access_token')
+        authManager.clearSession()
         setUser(null)
         clearPortfolioState()
-
-        if (!publicPaths.includes(pathname)) {
+        if (!isPublicRoute(pathname)) {
           router.push('/login')
         }
       }
     } catch (error) {
       console.error('Auth check failed:', error)
+      authManager.clearSession()
       setUser(null)
       clearPortfolioState()
     } finally {
       setLoading(false)
     }
-  }, [pathname, router, initializePortfolio])
+  }, [initializePortfolio, mapUser, pathname, router])
 
   useEffect(() => {
     checkAuth()
   }, [checkAuth])
 
-  const login = async (email: string, password: string) => {
-    try {
-      const response = await authManager.login(email, password)
+  const login = useCallback(async (email: string, password: string) => {
+    const response = await chatAuthService.login(email, password)
+    setUser(mapUser(response.user || null))
+    await initializePortfolio()
+    router.push('/portfolio')
+  }, [initializePortfolio, mapUser, router])
 
-      if (response.user) {
-        setUser(response.user)
-        await initializePortfolio()
-        router.push('/portfolio')
-      }
-    } catch (error) {
-      // Let the login form handle the error
-      throw error
-    }
-  }
-
-  const logout = async () => {
+  const logout = useCallback(async () => {
     try {
-      await authManager.logout()
-    } catch (error) {
-      console.error('Logout error:', error)
+      await chatAuthService.logout()
     } finally {
-      // Clear everything regardless of API response
-      localStorage.removeItem('access_token')
+      authManager.clearSession()
       setUser(null)
       clearPortfolioState()
       portfolioResolver.clearCache()
       router.push('/login')
     }
-  }
+  }, [router])
 
-  const refreshAuth = async () => {
+  const refreshAuth = useCallback(async () => {
     await checkAuth()
-  }
+  }, [checkAuth])
 
   return (
     <AuthContext.Provider
@@ -149,3 +148,4 @@ export function Providers({ children }: { children: React.ReactNode }) {
     </AuthContext.Provider>
   )
 }
+

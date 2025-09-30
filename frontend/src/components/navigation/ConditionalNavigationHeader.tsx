@@ -8,7 +8,7 @@ import { useAuth } from '../../../app/providers'
 const publicPages = ['/', '/landing', '/login']
 
 export function ConditionalNavigationHeader() {
-  const pathname = usePathname()
+  const pathname = usePathname() ?? ''
   const { user, loading } = useAuth()
 
   // Don't show header on public pages

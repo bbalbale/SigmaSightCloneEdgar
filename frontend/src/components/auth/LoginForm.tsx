@@ -1,15 +1,14 @@
 "use client"
 
 import { useState } from 'react'
-import { useRouter } from 'next/navigation'
-import { chatAuthService } from '@/services/chatAuthService'
+import { useAuth } from '../../../app/providers'
 import { AlertCircle, Loader2, User, Building2, TrendingUp } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 
 export function LoginForm() {
-  const router = useRouter()
+  const { login } = useAuth()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [isLoading, setIsLoading] = useState(false)
@@ -19,21 +18,18 @@ export function LoginForm() {
     {
       name: 'High Net Worth Portfolio',
       email: 'demo_hnw@sigmasight.com',
-      portfolioType: 'high-net-worth',
       icon: TrendingUp,
       description: 'Multi-asset portfolio with advanced analytics'
     },
     {
       name: 'Individual Investor',
       email: 'demo_individual@sigmasight.com',
-      portfolioType: 'individual',
       icon: User,
       description: 'Personal investment portfolio'
     },
     {
       name: 'Hedge Fund',
       email: 'demo_hedgefundstyle@sigmasight.com',
-      portfolioType: 'hedge-fund',
       icon: Building2,
       description: 'Institutional portfolio with complex strategies'
     }
@@ -51,21 +47,10 @@ export function LoginForm() {
     setIsLoading(true)
 
     try {
-      const response = await chatAuthService.login(email, password)
-      console.log('Login successful:', response.user)
-
-      // Determine portfolio type based on email
-      let portfolioType = 'high-net-worth' // default
-      const account = demoAccounts.find(acc => acc.email === email)
-      if (account) {
-        portfolioType = account.portfolioType
-      }
-
-      // Redirect to portfolio page after successful login
-      router.push(`/portfolio?type=${portfolioType}`)
+      await login(email, password)
     } catch (err: any) {
       console.error('Login error:', err)
-      setError(err.message || 'Failed to login. Please try again.')
+      setError(err?.message || 'Failed to login. Please try again.')
     } finally {
       setIsLoading(false)
     }

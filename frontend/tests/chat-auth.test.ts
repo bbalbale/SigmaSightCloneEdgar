@@ -21,7 +21,7 @@ test.describe('Chat Authentication Flow', () => {
 
   test('should set HttpOnly cookie on login', async ({ page }) => {
     // Navigate to portfolio page
-    await page.goto(`${BASE_URL}/portfolio?type=high-net-worth`);
+    await page.goto(`${BASE_URL}/portfolio`);
     
     // Perform login
     const response = await page.request.post(`${API_URL}/api/v1/auth/login`, {
@@ -57,7 +57,7 @@ test.describe('Chat Authentication Flow', () => {
 
   test('should persist authentication across page refresh', async ({ page }) => {
     // Login and navigate to portfolio
-    await page.goto(`${BASE_URL}/portfolio?type=high-net-worth`);
+    await page.goto(`${BASE_URL}/portfolio`);
     
     // Perform login via API
     await page.request.post(`${API_URL}/api/v1/auth/login`, {
@@ -113,7 +113,7 @@ test.describe('Chat Authentication Flow', () => {
   });
 
   test('should include credentials in fetch requests', async ({ page }) => {
-    await page.goto(`${BASE_URL}/portfolio?type=high-net-worth`);
+    await page.goto(`${BASE_URL}/portfolio`);
     
     // Intercept fetch requests to check credentials
     await page.route('**/api/v1/**', async (route, request) => {
@@ -159,7 +159,7 @@ test.describe('Chat SSE Streaming', () => {
       data: TEST_USER
     });
     
-    await page.goto(`${BASE_URL}/portfolio?type=high-net-worth`);
+    await page.goto(`${BASE_URL}/portfolio`);
     
     // Set up SSE listener
     const events: string[] = [];
@@ -189,7 +189,7 @@ test.describe('Chat SSE Streaming', () => {
   });
 
   test('should handle connection errors with proper error type', async ({ page }) => {
-    await page.goto(`${BASE_URL}/portfolio?type=high-net-worth`);
+    await page.goto(`${BASE_URL}/portfolio`);
     
     // Test error handling
     const errorResponse = await page.evaluate(async () => {
@@ -208,7 +208,8 @@ test.describe('Chat SSE Streaming', () => {
           return error;
         }
       } catch (error) {
-        return { error_type: 'NETWORK_ERROR', message: error.message };
+        const message = error instanceof Error ? error.message : 'Unknown error';
+        return { error_type: 'NETWORK_ERROR', message };
       }
     });
     
@@ -218,3 +219,5 @@ test.describe('Chat SSE Streaming', () => {
       .toContain(errorResponse.error_type);
   });
 });
+
+
