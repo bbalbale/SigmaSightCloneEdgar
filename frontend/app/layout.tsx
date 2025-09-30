@@ -3,7 +3,7 @@ import { Inter } from 'next/font/google'
 import '@/styles/globals.css'
 import { ChatProvider } from '@/components/chat/ChatProvider'
 import { Providers } from './providers'
-import { NavigationHeader } from '@/components/navigation/NavigationHeader'
+import { ConditionalNavigationHeader } from '@/components/navigation/ConditionalNavigationHeader'
 
 const inter = Inter({
   subsets: ['latin'],
@@ -28,7 +28,7 @@ export default function RootLayout({
       <body className={`${inter.variable} font-sans antialiased h-full bg-background text-foreground`}>
         <Providers>
           <div className="flex min-h-screen flex-col">
-            <NavigationHeader />
+            <ConditionalNavigationHeader />
             <main className="flex-1">
               {children}
             </main>
