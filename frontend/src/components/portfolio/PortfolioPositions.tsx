@@ -42,58 +42,104 @@ export function PortfolioPositions({
   // If new investment class arrays are provided, use them
   // Otherwise fall back to legacy long/short grouping
   const hasInvestmentClassData = publicPositions.length > 0 || optionsPositions.length > 0 || privatePositions.length > 0
-  const hasLegacyData = longPositions.length > 0 || shortPositions.length > 0
 
   // For backward compatibility, if only legacy data is provided, display it in the public column
   const publicPositionsFinal = hasInvestmentClassData ? publicPositions : [...longPositions, ...shortPositions]
 
+  // Split public positions into longs and shorts
+  const publicLongs = publicPositionsFinal.filter(p => p.type === 'LONG' || !p.type)
+  const publicShorts = publicPositionsFinal.filter(p => p.type === 'SHORT')
+
+  // Split options into longs (LC, LP) and shorts (SC, SP)
+  const optionLongs = optionsPositions.filter(p => p.type === 'LC' || p.type === 'LP')
+  const optionShorts = optionsPositions.filter(p => p.type === 'SC' || p.type === 'SP')
+
   return (
     <section className="flex-1 px-4 pb-6">
       <div className="container mx-auto">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Public Equity/ETF Column */}
-          <div>
-            <div className="flex items-center gap-2 mb-4">
-              <h3 className={`text-lg font-semibold transition-colors duration-300 ${
-                theme === 'dark' ? 'text-white' : 'text-gray-900'
-              }`}>Public Equity</h3>
-              <Badge variant="secondary" className={`transition-colors duration-300 ${
-                theme === 'dark' ? 'bg-slate-700 text-slate-300' : 'bg-gray-200 text-gray-700'
-              }`}>
-                {publicPositionsFinal.length}
-              </Badge>
+        <div className="space-y-8">
+          {/* Row 1: Longs (Stocks), Shorts (Stocks), Private Investments */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            {/* Longs */}
+            <div>
+              <div className="flex items-center gap-2 mb-4">
+                <h3 className={`text-lg font-semibold transition-colors duration-300 ${
+                  theme === 'dark' ? 'text-white' : 'text-gray-900'
+                }`}>Longs</h3>
+                <Badge variant="secondary" className={`transition-colors duration-300 ${
+                  theme === 'dark' ? 'bg-slate-700 text-slate-300' : 'bg-gray-200 text-gray-700'
+                }`}>
+                  {publicLongs.length}
+                </Badge>
+              </div>
+              <PublicPositions positions={publicLongs} />
             </div>
-            <PublicPositions positions={publicPositionsFinal} />
+
+            {/* Shorts */}
+            <div>
+              <div className="flex items-center gap-2 mb-4">
+                <h3 className={`text-lg font-semibold transition-colors duration-300 ${
+                  theme === 'dark' ? 'text-white' : 'text-gray-900'
+                }`}>Shorts</h3>
+                <Badge variant="secondary" className={`transition-colors duration-300 ${
+                  theme === 'dark' ? 'bg-slate-700 text-slate-300' : 'bg-gray-200 text-gray-700'
+                }`}>
+                  {publicShorts.length}
+                </Badge>
+              </div>
+              <PublicPositions positions={publicShorts} />
+            </div>
+
+            {/* Private Investments */}
+            <div>
+              <div className="flex items-center gap-2 mb-4">
+                <h3 className={`text-lg font-semibold transition-colors duration-300 ${
+                  theme === 'dark' ? 'text-white' : 'text-gray-900'
+                }`}>Private Investments</h3>
+                <Badge variant="secondary" className={`transition-colors duration-300 ${
+                  theme === 'dark' ? 'bg-slate-700 text-slate-300' : 'bg-gray-200 text-gray-700'
+                }`}>
+                  {privatePositions.length}
+                </Badge>
+              </div>
+              <PrivatePositions positions={privatePositions} />
+            </div>
           </div>
 
-          {/* Options Column */}
-          <div>
-            <div className="flex items-center gap-2 mb-4">
-              <h3 className={`text-lg font-semibold transition-colors duration-300 ${
-                theme === 'dark' ? 'text-white' : 'text-gray-900'
-              }`}>Options</h3>
-              <Badge variant="secondary" className={`transition-colors duration-300 ${
-                theme === 'dark' ? 'bg-slate-700 text-slate-300' : 'bg-gray-200 text-gray-700'
-              }`}>
-                {optionsPositions.length}
-              </Badge>
+          {/* Row 2: Option Longs and Shorts (3-column layout with empty third column) */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            {/* Option Longs (LC, LP) */}
+            <div>
+              <div className="flex items-center gap-2 mb-4">
+                <h3 className={`text-lg font-semibold transition-colors duration-300 ${
+                  theme === 'dark' ? 'text-white' : 'text-gray-900'
+                }`}>Long Options</h3>
+                <Badge variant="secondary" className={`transition-colors duration-300 ${
+                  theme === 'dark' ? 'bg-slate-700 text-slate-300' : 'bg-gray-200 text-gray-700'
+                }`}>
+                  {optionLongs.length}
+                </Badge>
+              </div>
+              <OptionsPositions positions={optionLongs} />
             </div>
-            <OptionsPositions positions={optionsPositions} />
-          </div>
 
-          {/* Private/Alternative Column */}
-          <div>
-            <div className="flex items-center gap-2 mb-4">
-              <h3 className={`text-lg font-semibold transition-colors duration-300 ${
-                theme === 'dark' ? 'text-white' : 'text-gray-900'
-              }`}>Private Investments</h3>
-              <Badge variant="secondary" className={`transition-colors duration-300 ${
-                theme === 'dark' ? 'bg-slate-700 text-slate-300' : 'bg-gray-200 text-gray-700'
-              }`}>
-                {privatePositions.length}
-              </Badge>
+            {/* Option Shorts (SC, SP) */}
+            <div>
+              <div className="flex items-center gap-2 mb-4">
+                <h3 className={`text-lg font-semibold transition-colors duration-300 ${
+                  theme === 'dark' ? 'text-white' : 'text-gray-900'
+                }`}>Short Options</h3>
+                <Badge variant="secondary" className={`transition-colors duration-300 ${
+                  theme === 'dark' ? 'bg-slate-700 text-slate-300' : 'bg-gray-200 text-gray-700'
+                }`}>
+                  {optionShorts.length}
+                </Badge>
+              </div>
+              <OptionsPositions positions={optionShorts} />
             </div>
-            <PrivatePositions positions={privatePositions} />
+
+            {/* Empty third column for alignment */}
+            <div></div>
           </div>
         </div>
       </div>
