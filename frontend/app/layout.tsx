@@ -1,7 +1,6 @@
-import type { Metadata } from 'next'
+﻿import type { Metadata } from 'next'
 import { Inter } from 'next/font/google'
 import '@/styles/globals.css'
-import { ChatProvider } from '@/components/chat/ChatProvider'
 import { Providers } from './providers'
 import { ConditionalNavigationHeader } from '@/components/navigation/ConditionalNavigationHeader'
 import { ThemeProvider } from '@/contexts/ThemeContext'
@@ -34,8 +33,6 @@ export default function RootLayout({
               <main className="flex-1">
                 {children}
               </main>
-              {/* Chat Interface - Available on all pages */}
-              <ChatProvider />
             </div>
           </Providers>
         </ThemeProvider>
