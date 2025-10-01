@@ -5,7 +5,6 @@ import { StrategyListItem } from '@/services/strategiesApi'
 import { SelectablePositionCard } from './SelectablePositionCard'
 import { OrganizePositionCard } from '@/components/positions/OrganizePositionCard'
 import { StrategyCard } from './StrategyCard'
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { useTheme } from '@/contexts/ThemeContext'
 
 interface ShortPositionsListProps {
@@ -38,49 +37,47 @@ export function ShortPositionsList({
   const shortStrategies = strategies.filter(s => s.type === 'SHORT')
 
   return (
-    <Card className={`transition-colors ${
-      theme === 'dark' ? 'bg-slate-800 border-slate-700' : 'bg-white border-gray-200'
-    }`}>
-      <CardHeader>
-        <CardTitle className={`text-base font-semibold transition-colors duration-300 ${
-          theme === 'dark' ? 'text-white' : 'text-gray-900'
-        }`}>Short Positions</CardTitle>
-      </CardHeader>
-      <CardContent>
-        {shortPositions.length === 0 && shortStrategies.length === 0 ? (
-          <div className={`text-center py-8 transition-colors duration-300 ${
-            theme === 'dark' ? 'text-slate-400' : 'text-gray-500'
-          }`}>
-            No short positions
-          </div>
-        ) : (
-          <div className="space-y-2">
-            {/* Render strategies first */}
-            {shortStrategies.map(strategy => (
-              <StrategyCard
-                key={strategy.id}
-                strategy={strategy}
-                onEdit={onEditStrategy || (() => {})}
-                onDelete={onDeleteStrategy || (() => {})}
-                onDrop={onDropTag}
-              />
-            ))}
+    <div>
+      <h3 className={`text-base font-semibold mb-3 transition-colors duration-300 ${
+        theme === 'dark' ? 'text-white' : 'text-gray-900'
+      }`}>
+        Short Positions
+      </h3>
+      {shortPositions.length === 0 && shortStrategies.length === 0 ? (
+        <div className={`text-sm p-3 rounded-lg border transition-colors duration-300 ${
+          theme === 'dark'
+            ? 'text-empty-text-dark bg-empty-bg-dark border-empty-border-dark'
+            : 'text-empty-text bg-empty-bg border-empty-border'
+        }`}>
+          No short positions
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {/* Render strategies first */}
+          {shortStrategies.map(strategy => (
+            <StrategyCard
+              key={strategy.id}
+              strategy={strategy}
+              onEdit={onEditStrategy || (() => {})}
+              onDelete={onDeleteStrategy || (() => {})}
+              onDrop={onDropTag}
+            />
+          ))}
 
-            {/* Render individual positions */}
-            {shortPositions.map(position => (
-              <SelectablePositionCard
-                key={position.id}
-                isSelected={isSelected(position.id)}
-                onToggleSelection={() => onToggleSelection(position.id)}
-                tags={position.tags || []}
-                onDropTag={(tagId) => onDropTag?.(position.id, tagId)}
-              >
-                <OrganizePositionCard position={position} />
-              </SelectablePositionCard>
-            ))}
-          </div>
-        )}
-      </CardContent>
-    </Card>
+          {/* Render individual positions */}
+          {shortPositions.map(position => (
+            <SelectablePositionCard
+              key={position.id}
+              isSelected={isSelected(position.id)}
+              onToggleSelection={() => onToggleSelection(position.id)}
+              tags={position.tags || []}
+              onDropTag={(tagId) => onDropTag?.(position.id, tagId)}
+            >
+              <OrganizePositionCard position={position} />
+            </SelectablePositionCard>
+          ))}
+        </div>
+      )}
+    </div>
   )
 }
