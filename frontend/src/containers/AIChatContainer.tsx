@@ -62,7 +62,7 @@ export function AIChatContainer() {
               <p className={cn('text-sm', theme === 'dark' ? 'text-slate-400' : 'text-gray-600')}>
                 Signed in as {user.fullName}
               </p>
-              <h1 className={cn('text-3xl font-bold', theme === 'dark' ? 'text-white' : 'text-gray-900')}>
+              <h1 className={cn('text-2xl font-semibold', theme === 'dark' ? 'text-white' : 'text-gray-900')}>
                 AI Portfolio Assistant
               </h1>
             </div>
