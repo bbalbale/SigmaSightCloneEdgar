@@ -5,6 +5,7 @@ import { StrategyListItem } from '@/services/strategiesApi'
 import { PositionCard } from './PositionCard'
 import { StrategyCard } from './StrategyCard'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
+import { useTheme } from '@/contexts/ThemeContext'
 
 interface ShortPositionsListProps {
   positions: Position[]
@@ -27,6 +28,8 @@ export function ShortPositionsList({
   onEditStrategy,
   onDeleteStrategy
 }: ShortPositionsListProps) {
+  const { theme } = useTheme()
+
   // Filter for short positions only
   const shortPositions = positions.filter(p => p.position_type === 'SHORT')
 
@@ -34,13 +37,19 @@ export function ShortPositionsList({
   const shortStrategies = strategies.filter(s => s.type === 'SHORT')
 
   return (
-    <Card>
+    <Card className={`transition-colors ${
+      theme === 'dark' ? 'bg-slate-800 border-slate-700' : 'bg-white border-gray-200'
+    }`}>
       <CardHeader>
-        <CardTitle className="text-base font-semibold">Short Positions</CardTitle>
+        <CardTitle className={`text-base font-semibold transition-colors duration-300 ${
+          theme === 'dark' ? 'text-white' : 'text-gray-900'
+        }`}>Short Positions</CardTitle>
       </CardHeader>
       <CardContent>
         {shortPositions.length === 0 && shortStrategies.length === 0 ? (
-          <div className="text-center py-8 text-gray-500">
+          <div className={`text-center py-8 transition-colors duration-300 ${
+            theme === 'dark' ? 'text-slate-400' : 'text-gray-500'
+          }`}>
             No short positions
           </div>
         ) : (

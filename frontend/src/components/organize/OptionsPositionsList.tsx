@@ -5,6 +5,7 @@ import { StrategyListItem } from '@/services/strategiesApi'
 import { PositionCard } from './PositionCard'
 import { StrategyCard } from './StrategyCard'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
+import { useTheme } from '@/contexts/ThemeContext'
 
 interface OptionsPositionsListProps {
   positions: Position[]
@@ -27,6 +28,8 @@ export function OptionsPositionsList({
   onEditStrategy,
   onDeleteStrategy
 }: OptionsPositionsListProps) {
+  const { theme } = useTheme()
+
   // Filter for options positions
   const optionsPositions = positions.filter(p => p.investment_class === 'OPTIONS')
 
@@ -40,13 +43,19 @@ export function OptionsPositionsList({
   )
 
   return (
-    <Card>
+    <Card className={`transition-colors ${
+      theme === 'dark' ? 'bg-slate-800 border-slate-700' : 'bg-white border-gray-200'
+    }`}>
       <CardHeader>
-        <CardTitle className="text-base font-semibold">Options Positions</CardTitle>
+        <CardTitle className={`text-base font-semibold transition-colors duration-300 ${
+          theme === 'dark' ? 'text-white' : 'text-gray-900'
+        }`}>Options Positions</CardTitle>
       </CardHeader>
       <CardContent>
         {optionsPositions.length === 0 && optionsStrategies.length === 0 ? (
-          <div className="text-center py-8 text-gray-500">
+          <div className={`text-center py-8 transition-colors duration-300 ${
+            theme === 'dark' ? 'text-slate-400' : 'text-gray-500'
+          }`}>
             No options positions
           </div>
         ) : (
@@ -69,7 +78,9 @@ export function OptionsPositionsList({
             {/* Long Options */}
             {longOptions.length > 0 && (
               <div>
-                <h4 className="text-sm font-medium text-gray-700 mb-2">Long Options</h4>
+                <h4 className={`text-sm font-medium mb-2 transition-colors duration-300 ${
+                  theme === 'dark' ? 'text-slate-300' : 'text-gray-700'
+                }`}>Long Options</h4>
                 <div className="space-y-2">
                   {longOptions.map(position => (
                     <PositionCard
@@ -87,7 +98,9 @@ export function OptionsPositionsList({
             {/* Short Options */}
             {shortOptions.length > 0 && (
               <div>
-                <h4 className="text-sm font-medium text-gray-700 mb-2">Short Options</h4>
+                <h4 className={`text-sm font-medium mb-2 transition-colors duration-300 ${
+                  theme === 'dark' ? 'text-slate-300' : 'text-gray-700'
+                }`}>Short Options</h4>
                 <div className="space-y-2">
                   {shortOptions.map(position => (
                     <PositionCard

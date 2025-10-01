@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useTheme } from '@/contexts/ThemeContext'
 import { usePositions } from '@/hooks/usePositions'
 import { useStrategies } from '@/hooks/useStrategies'
 import { useTags } from '@/hooks/useTags'
@@ -14,6 +15,7 @@ import tagsApi from '@/services/tagsApi'
 import { usePortfolioStore } from '@/stores/portfolioStore'
 
 export function OrganizeContainer() {
+  const { theme } = useTheme()
   const portfolioId = usePortfolioStore(state => state.portfolioId)
 
   // Data hooks
@@ -130,22 +132,37 @@ export function OrganizeContainer() {
 
   if (isLoading) {
     return (
-      <div className="space-y-6">
-        <div className="h-8 w-64 bg-gray-200 animate-pulse rounded" />
-        <div className="h-96 bg-gray-200 animate-pulse rounded" />
+      <div className={`min-h-screen transition-colors duration-300 ${
+        theme === 'dark' ? 'bg-slate-900' : 'bg-gray-50'
+      }`}>
+        <section className="px-4 py-12">
+          <div className="container mx-auto text-center">
+            <p className={`text-lg ${theme === 'dark' ? 'text-slate-400' : 'text-gray-600'}`}>
+              Loading portfolio organization...
+            </p>
+          </div>
+        </section>
       </div>
     )
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div>
-        <h1 className="text-3xl font-bold text-gray-900">Portfolio Organization</h1>
-        <p className="text-gray-600 mt-1">
-          Group positions into strategies and organize with tags
-        </p>
-      </div>
+    <div className={`min-h-screen transition-colors duration-300 ${
+      theme === 'dark' ? 'bg-slate-900' : 'bg-gray-50'
+    }`}>
+      <section className="px-4 py-8">
+        <div className="container mx-auto">
+          {/* Header */}
+          <div className="mb-8">
+            <h1 className={`text-3xl font-bold mb-2 ${
+              theme === 'dark' ? 'text-white' : 'text-gray-900'
+            }`}>Portfolio Organization</h1>
+            <p className={`${
+              theme === 'dark' ? 'text-slate-400' : 'text-gray-600'
+            }`}>
+              Group positions into strategies and organize with tags
+            </p>
+          </div>
 
       {/* Tag Management Section */}
       <TagList
@@ -180,6 +197,8 @@ export function OrganizeContainer() {
         onConfirm={handleCombineConfirm}
         selectedCount={selectedCount}
       />
+        </div>
+      </section>
     </div>
   )
 }

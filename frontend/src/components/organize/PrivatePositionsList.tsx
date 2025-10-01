@@ -5,6 +5,7 @@ import { StrategyListItem } from '@/services/strategiesApi'
 import { PositionCard } from './PositionCard'
 import { StrategyCard } from './StrategyCard'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
+import { useTheme } from '@/contexts/ThemeContext'
 
 interface PrivatePositionsListProps {
   positions: Position[]
@@ -27,6 +28,8 @@ export function PrivatePositionsList({
   onEditStrategy,
   onDeleteStrategy
 }: PrivatePositionsListProps) {
+  const { theme } = useTheme()
+
   // Filter for private positions only
   const privatePositions = positions.filter(p => p.investment_class === 'PRIVATE')
 
@@ -36,13 +39,19 @@ export function PrivatePositionsList({
   )
 
   return (
-    <Card>
+    <Card className={`transition-colors ${
+      theme === 'dark' ? 'bg-slate-800 border-slate-700' : 'bg-white border-gray-200'
+    }`}>
       <CardHeader>
-        <CardTitle className="text-base font-semibold">Private Positions</CardTitle>
+        <CardTitle className={`text-base font-semibold transition-colors duration-300 ${
+          theme === 'dark' ? 'text-white' : 'text-gray-900'
+        }`}>Private Positions</CardTitle>
       </CardHeader>
       <CardContent>
         {privatePositions.length === 0 && privateStrategies.length === 0 ? (
-          <div className="text-center py-8 text-gray-500">
+          <div className={`text-center py-8 transition-colors duration-300 ${
+            theme === 'dark' ? 'text-slate-400' : 'text-gray-500'
+          }`}>
             No private positions
           </div>
         ) : (
