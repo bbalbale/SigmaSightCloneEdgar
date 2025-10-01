@@ -50,7 +50,37 @@ module.exports = {
   			},
   			card: {
   				DEFAULT: 'hsl(var(--card))',
-  				foreground: 'hsl(var(--card-foreground))'
+  				foreground: 'hsl(var(--card-foreground))',
+  				// Position card design tokens
+  				bg: 'hsl(0, 0%, 100%)',              // White (light theme)
+  				'bg-dark': 'hsl(215, 28%, 17%)',     // slate-800 (dark theme)
+  				'bg-hover': 'hsl(210, 20%, 98%)',    // gray-50 (light hover)
+  				'bg-hover-dark': 'hsl(215, 25%, 20%)', // slate-750 (dark hover)
+  				border: 'hsl(214, 32%, 91%)',        // gray-200 (light)
+  				'border-dark': 'hsl(215, 20%, 35%)', // slate-700 (dark)
+  				text: 'hsl(222, 47%, 11%)',          // gray-900 (light)
+  				'text-dark': 'hsl(0, 0%, 100%)',     // white (dark)
+  				'text-muted': 'hsl(215, 16%, 47%)',  // gray-600 (light)
+  				'text-muted-dark': 'hsl(215, 20%, 65%)', // slate-400 (dark)
+  				positive: 'hsl(158, 64%, 52%)',      // emerald-400
+  				negative: 'hsl(0, 72%, 51%)',        // red-400
+  				neutral: 'hsl(215, 20%, 65%)',       // slate-400
+  			},
+  			// Empty state design tokens
+  			empty: {
+  				bg: 'hsl(210, 20%, 98%)',            // gray-50 (light)
+  				'bg-dark': 'hsla(215, 28%, 17%, 0.5)', // slate-800/50 (dark)
+  				text: 'hsl(210, 13%, 50%)',          // gray-500 (light)
+  				'text-dark': 'hsl(215, 20%, 65%)',   // slate-400 (dark)
+  				border: 'hsl(214, 32%, 91%)',        // gray-200 (light)
+  				'border-dark': 'hsl(215, 20%, 35%)', // slate-700 (dark)
+  			},
+  			// Badge design tokens (for section headers)
+  			badge: {
+  				bg: 'hsl(214, 32%, 91%)',            // gray-200 (light)
+  				'bg-dark': 'hsl(215, 20%, 35%)',     // slate-700 (dark)
+  				text: 'hsl(215, 16%, 47%)',          // gray-700 (light)
+  				'text-dark': 'hsl(215, 20%, 65%)',   // slate-300 (dark)
   			},
   			sigmasight: {
   				primary: '#0066cc',

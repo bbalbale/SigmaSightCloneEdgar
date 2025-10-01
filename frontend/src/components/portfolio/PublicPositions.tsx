@@ -1,7 +1,6 @@
 import React from 'react'
-import { Badge } from '@/components/ui/badge'
-import { PositionCard } from './PositionCard'
-import { useTheme } from '@/contexts/ThemeContext'
+import { PositionList } from '@/components/common/PositionList'
+import { StockPositionCard } from '@/components/positions/StockPositionCard'
 
 interface Position {
   id?: string
@@ -22,12 +21,11 @@ interface PublicPositionsProps {
 }
 
 export function PublicPositions({ positions }: PublicPositionsProps) {
-  const { theme } = useTheme()
-
   return (
-    <div className="space-y-2">
-      {positions.map((position, index) => (
-        <PositionCard
+    <PositionList
+      items={positions}
+      renderItem={(position, index) => (
+        <StockPositionCard
           key={position.id || `public-${index}`}
           position={{
             ...position,
@@ -35,16 +33,8 @@ export function PublicPositions({ positions }: PublicPositionsProps) {
             marketValue: position.type === 'SHORT' ? -Math.abs(position.marketValue) : position.marketValue
           }}
         />
-      ))}
-      {positions.length === 0 && (
-        <div className={`text-sm p-3 rounded-lg border ${
-          theme === 'dark'
-            ? 'text-slate-400 bg-slate-800/50 border-slate-700'
-            : 'text-gray-500 bg-gray-50 border-gray-200'
-        }`}>
-          No positions
-        </div>
       )}
-    </div>
+      emptyMessage="No positions"
+    />
   )
 }

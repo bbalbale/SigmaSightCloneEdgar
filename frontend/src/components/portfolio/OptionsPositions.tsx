@@ -1,6 +1,6 @@
 import React from 'react'
-import { OptionCard } from './OptionCard'
-import { useTheme } from '@/contexts/ThemeContext'
+import { PositionList } from '@/components/common/PositionList'
+import { OptionPositionCard } from '@/components/positions/OptionPositionCard'
 
 interface OptionPosition {
   id?: string
@@ -21,23 +21,16 @@ interface OptionsPositionsProps {
 }
 
 export function OptionsPositions({ positions }: OptionsPositionsProps) {
-  const { theme } = useTheme()
-
   return (
-    <div className="space-y-2">
-      {positions.map((position, index) => (
-        <OptionCard key={position.id || `option-${index}`} position={position} />
-      ))}
-
-      {positions.length === 0 && (
-        <div className={`text-sm p-3 rounded-lg border ${
-          theme === 'dark'
-            ? 'text-slate-400 bg-slate-800/50 border-slate-700'
-            : 'text-gray-500 bg-gray-50 border-gray-200'
-        }`}>
-          No options positions
-        </div>
+    <PositionList
+      items={positions}
+      renderItem={(position, index) => (
+        <OptionPositionCard
+          key={position.id || `option-${index}`}
+          position={position}
+        />
       )}
-    </div>
+      emptyMessage="No options positions"
+    />
   )
 }

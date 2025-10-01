@@ -1,8 +1,7 @@
 import React from 'react'
 import { Badge } from '@/components/ui/badge'
-import { Card } from '@/components/ui/card'
 import { useTheme } from '@/contexts/ThemeContext'
-import { formatCurrency } from '@/lib/formatters'
+import { PrivatePositionCard } from '@/components/positions/PrivatePositionCard'
 
 interface PrivatePosition {
   id?: string
@@ -24,7 +23,7 @@ interface PrivatePositionsProps {
 export function PrivatePositions({ positions }: PrivatePositionsProps) {
   const { theme } = useTheme()
 
-  // Group by investment subtype if available
+  // Group by investment subtype
   const groupedPositions = positions.reduce((acc, position) => {
     const subtype = position.investment_subtype || 'Alternative Investment'
     if (!acc[subtype]) acc[subtype] = []
@@ -32,45 +31,15 @@ export function PrivatePositions({ positions }: PrivatePositionsProps) {
     return acc
   }, {} as Record<string, PrivatePosition[]>)
 
-  const renderPrivateCard = (position: PrivatePosition) => {
+  if (positions.length === 0) {
     return (
-      <Card
-        key={position.id || `private-${position.symbol}`}
-        className={`transition-colors cursor-pointer ${
-          theme === 'dark'
-            ? 'bg-slate-800 border-slate-700 hover:bg-slate-750'
-            : 'bg-white border-gray-200 hover:bg-gray-50'
-        }`}
-      >
-        <div className="p-4">
-          <div className="flex justify-between items-start">
-            <div>
-              <div className={`font-semibold text-sm transition-colors duration-300 ${
-                theme === 'dark' ? 'text-white' : 'text-gray-900'
-              }`}>
-                {position.symbol}
-              </div>
-              <div className={`text-xs transition-colors duration-300 ${
-                theme === 'dark' ? 'text-slate-400' : 'text-gray-600'
-              }`}>
-                {position.investment_subtype || 'Alternative Investment'}
-              </div>
-            </div>
-            <div className="text-right">
-              <div className={`text-sm font-medium transition-colors duration-300 ${
-                theme === 'dark' ? 'text-white' : 'text-gray-900'
-              }`}>
-                {formatCurrency(Math.abs(position.marketValue))}
-              </div>
-              <div className={`text-sm font-medium ${
-                position.pnl === 0 ? 'text-slate-400' : position.pnl >= 0 ? 'text-emerald-400' : 'text-red-400'
-              }`}>
-                {position.pnl === 0 ? '—' : `${position.pnl >= 0 ? '+' : ''}${formatCurrency(position.pnl)}`}
-              </div>
-            </div>
-          </div>
-        </div>
-      </Card>
+      <div className={`text-sm p-3 rounded-lg border ${
+        theme === 'dark'
+          ? 'text-empty-text-dark bg-empty-bg-dark border-empty-border-dark'
+          : 'text-empty-text bg-empty-bg border-empty-border'
+      }`}>
+        No private or alternative investments
+      </div>
     )
   }
 
@@ -87,20 +56,15 @@ export function PrivatePositions({ positions }: PrivatePositionsProps) {
             </Badge>
           </div>
           <div className="space-y-2">
-            {subtypePositions.map(renderPrivateCard)}
+            {subtypePositions.map((position, index) => (
+              <PrivatePositionCard
+                key={position.id || `private-${subtype}-${index}`}
+                position={position}
+              />
+            ))}
           </div>
         </div>
       ))}
-
-      {positions.length === 0 && (
-        <div className={`text-sm p-3 rounded-lg border ${
-          theme === 'dark'
-            ? 'text-slate-400 bg-slate-800/50 border-slate-700'
-            : 'text-gray-500 bg-gray-50 border-gray-200'
-        }`}>
-          No private or alternative investments
-        </div>
-      )}
     </div>
   )
 }
