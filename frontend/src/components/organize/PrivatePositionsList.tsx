@@ -2,7 +2,8 @@
 
 import { Position } from '@/hooks/usePositions'
 import { StrategyListItem } from '@/services/strategiesApi'
-import { PositionCard } from './PositionCard'
+import { SelectablePositionCard } from './SelectablePositionCard'
+import { OrganizePositionCard } from '@/components/positions/OrganizePositionCard'
 import { StrategyCard } from './StrategyCard'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { useTheme } from '@/contexts/ThemeContext'
@@ -69,13 +70,15 @@ export function PrivatePositionsList({
 
             {/* Render individual positions */}
             {privatePositions.map(position => (
-              <PositionCard
+              <SelectablePositionCard
                 key={position.id}
-                position={position}
                 isSelected={isSelected(position.id)}
-                onToggleSelection={onToggleSelection}
-                onDrop={onDropTag}
-              />
+                onToggleSelection={() => onToggleSelection(position.id)}
+                tags={position.tags || []}
+                onDropTag={(tagId) => onDropTag?.(position.id, tagId)}
+              >
+                <OrganizePositionCard position={position} />
+              </SelectablePositionCard>
             ))}
           </div>
         )}
