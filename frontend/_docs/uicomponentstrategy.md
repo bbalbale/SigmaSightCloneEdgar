@@ -1388,3 +1388,277 @@ The layered architecture (Presentation → Adapter → Container → Page) provi
 - Foundation: `@/components/ui/card`, `@/components/ui/badge`
 - Theme system: `@/contexts/ThemeContext`
 - Formatters: `@/lib/formatters`
+
+---
+
+## Implementation Status: Organize Page (2025-10-01)
+
+### Overview
+
+Successfully implemented the reusable position card architecture on the Organize page with key differences from the Portfolio page to support organize-specific features. The implementation demonstrates the flexibility of the layered architecture.
+
+### What Was Implemented
+
+#### 1. OrganizePositionCard Adapter (70 lines)
+**File**: `src/components/positions/OrganizePositionCard.tsx`
+
+**Purpose**: Universal adapter for all investment types on the Organize page
+
+**Key Differences from Portfolio Adapters**:
+```typescript
+// Portfolio Page - Shows P&L
+<BasePositionCard
+  primaryValue={formatCurrency(Math.abs(position.market_value))}
+  secondaryValue={`${position.pnl >= 0 ? '+' : ''}${formatCurrency(position.pnl)}`}
+  secondaryValueColor={position.pnl >= 0 ? 'positive' : 'negative'}
+/>
+
+// Organize Page - NO P&L
+<BasePositionCard
+  primaryValue={formatCurrency(Math.abs(position.market_value))}
+  secondaryValue=""  // EMPTY - no P&L display
+  secondaryValueColor="neutral"
+/>
+```
+
+**Why No P&L on Organize Page**:
+- Organize page focuses on grouping positions into strategies
+- Users are categorizing, not analyzing performance
+- Cleaner visual focus on position selection and tagging
+
+**Features**:
+- Handles all investment classes (PUBLIC, OPTIONS, PRIVATE)
+- Maps option types (LC/LP/SC/SP) to labels
+- Extracts strike prices and expiration dates
+- Uses design tokens for consistent theming
+- Reuses BasePositionCard foundation
+
+#### 2. SelectablePositionCard Wrapper (85 lines)
+**File**: `src/components/organize/SelectablePositionCard.tsx`
+
+**Purpose**: Adds organize-specific features without modifying the base card
+
+**Features**:
+1. **Checkbox Selection**
+   ```typescript
+   <input
+     type="checkbox"
+     checked={isSelected}
+     onChange={onToggleSelection}
+     className="mt-4 h-4 w-4 cursor-pointer"
+   />
+   ```
+
+2. **Tag Display**
+   ```typescript
+   {tags.length > 0 && (
+     <div className="flex flex-wrap gap-1 mt-2">
+       {tags.map(tag => <TagBadge key={tag.id} tag={tag} />)}
+     </div>
+   )}
+   ```
+
+3. **Drag-Drop Support**
+   ```typescript
+   const handleDrop = (e: React.DragEvent) => {
+     const tagId = e.dataTransfer.getData('tagId')
+     if (tagId && onDropTag) {
+       onDropTag(tagId)
+     }
+   }
+   ```
+
+4. **Visual Selection State**
+   ```typescript
+   className={`${isSelected ? 'ring-2 ring-blue-500 ring-offset-2' : ''}`}
+   ```
+
+**Architecture Pattern**:
+```
+SelectablePositionCard (wrapper)
+  ├── Checkbox for selection
+  ├── OrganizePositionCard (adapter)
+  │   └── BasePositionCard (foundation)
+  └── Tags display below card
+```
+
+#### 3. Refactored Position Lists (4 files)
+
+**Files Updated**:
+- `LongPositionsList.tsx` (~80 lines)
+- `ShortPositionsList.tsx` (~80 lines)
+- `OptionsPositionsList.tsx` (~120 lines)
+- `PrivatePositionsList.tsx` (~85 lines)
+
+**Before** (with Card backgrounds):
+```typescript
+<Card className="bg-slate-800">
+  <CardHeader>
+    <CardTitle>Long Positions</CardTitle>
+  </CardHeader>
+  <CardContent>
+    {positions.map(position => (
+      <PositionCard position={position} />
+    ))}
+  </CardContent>
+</Card>
+```
+
+**After** (no Card backgrounds):
+```typescript
+<div>
+  <h3 className="text-base font-semibold mb-3">Long Positions</h3>
+  {positions.length === 0 ? (
+    <div className="text-sm p-3 rounded-lg border">
+      No long positions
+    </div>
+  ) : (
+    <div className="space-y-2">
+      {positions.map(position => (
+        <SelectablePositionCard
+          isSelected={isSelected(position.id)}
+          onToggleSelection={() => onToggleSelection(position.id)}
+          tags={position.tags || []}
+          onDropTag={(tagId) => onDropTag?.(position.id, tagId)}
+        >
+          <OrganizePositionCard position={position} />
+        </SelectablePositionCard>
+      ))}
+    </div>
+  )}
+</div>
+```
+
+**Key Changes**:
+1. **Removed Card wrappers** - No more Card/CardHeader/CardContent components
+2. **Added h3 headings** - Section titles now simple h3 elements
+3. **Matched Portfolio styling** - Same visual consistency across pages
+4. **Preserved functionality** - All selection, tagging, and drag-drop features intact
+5. **Design tokens** - Empty states use centralized color tokens
+
+### Implementation Metrics
+
+**Components Created**:
+- OrganizePositionCard.tsx - 70 lines
+- SelectablePositionCard.tsx - 85 lines
+
+**Components Refactored**:
+- LongPositionsList.tsx - Updated
+- ShortPositionsList.tsx - Updated
+- OptionsPositionsList.tsx - Updated
+- PrivatePositionsList.tsx - Updated
+
+**Components Deleted**:
+- organize/PositionCard.tsx (legacy, replaced by new architecture)
+
+**Net Code Change**: -12 lines (cleaner codebase)
+
+### Architecture Benefits Demonstrated
+
+#### 1. Foundation Reuse
+- BasePositionCard used by both Portfolio and Organize pages
+- Same visual consistency without code duplication
+- Theme support automatic across both pages
+
+#### 2. Adapter Flexibility
+- Created OrganizePositionCard for no-P&L variant
+- Only 70 lines to support all investment types
+- Reuses BasePositionCard infrastructure
+
+#### 3. Wrapper Pattern
+- SelectablePositionCard adds features without modifying adapter
+- Clean separation: selection logic vs display logic
+- Easy to add more wrappers for other pages
+
+#### 4. Design Token Power
+- Changed to simple div/h3 structure
+- Design tokens ensure visual consistency
+- Single config change affects all cards
+
+### Lessons Learned
+
+#### What Worked Well
+
+1. **Layered Architecture**
+   - Easy to create organize-specific variant
+   - No changes needed to BasePositionCard
+   - Clear separation of concerns
+
+2. **Wrapper Pattern**
+   - SelectablePositionCard cleanly adds checkbox/tags
+   - Doesn't pollute OrganizePositionCard with UI logic
+   - Composable for future features
+
+3. **Design Tokens**
+   - Made Card removal straightforward
+   - Consistent empty states automatically
+   - Theme support seamless
+
+#### Areas for Consideration
+
+1. **Wrapper Complexity**
+   - SelectablePositionCard has multiple responsibilities
+   - Could split into smaller components if needed
+   - Works well for current requirements
+
+2. **Adapter Variations**
+   - OrganizePositionCard very similar to other adapters
+   - Could potentially unify with feature flags
+   - Current approach (separate adapter) clearer for now
+
+### Comparison: Portfolio vs Organize
+
+| Feature | Portfolio Page | Organize Page |
+|---------|---------------|---------------|
+| **P&L Display** | ✅ Shows P&L with colors | ❌ Hidden (not relevant) |
+| **Checkboxes** | ❌ None | ✅ For selection |
+| **Tag Display** | ❌ None | ✅ Shows tags below card |
+| **Drag-Drop** | ❌ None | ✅ Drag tags to positions |
+| **Section Headers** | Simple h3 | Simple h3 |
+| **Card Backgrounds** | No Card wrappers | No Card wrappers |
+| **Theme Support** | ✅ Dark/Light | ✅ Dark/Light |
+| **Foundation** | BasePositionCard | BasePositionCard |
+
+### Usage Pattern Established
+
+```typescript
+// Pattern for future pages with different requirements:
+
+// 1. Create page-specific adapter (if needed)
+export function MyPagePositionCard({ position }: Props) {
+  return (
+    <BasePositionCard
+      primaryText={position.symbol}
+      secondaryText={getCustomText(position)}
+      primaryValue={formatValue(position)}
+      secondaryValue={getCustomValue(position)}  // Customize as needed
+      secondaryValueColor="neutral"
+    />
+  )
+}
+
+// 2. Create page-specific wrapper (if needed)
+export function MyPageWrapper({ children, ...props }: Props) {
+  return (
+    <div className="custom-wrapper">
+      {/* Add page-specific features */}
+      {children}
+    </div>
+  )
+}
+
+// 3. Use in page component
+<MyPageWrapper {...wrapperProps}>
+  <MyPagePositionCard position={position} />
+</MyPageWrapper>
+```
+
+### Next Steps
+
+This implementation provides a proven pattern for:
+1. **Public Positions Page** - Can reuse StockPositionCard directly
+2. **Private Positions Page** - Can reuse PrivatePositionCard directly
+3. **Settings Page** - Can create new adapter if position display needed
+4. **AI Chat Page** - Can create compact variant for chat context
+
+The architecture has proven flexible enough to handle significantly different requirements (P&L vs no P&L, interactive vs static) while maintaining code reuse and visual consistency.

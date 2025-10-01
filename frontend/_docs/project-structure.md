@@ -43,6 +43,15 @@ frontend/
 │   │   ├── AIChatContainer.tsx            # (To be created)
 │   │   └── SettingsContainer.tsx          # (To be created)
 │   ├── components/             # React components
+│   │   ├── common/             # ✅ NEW - Shared reusable components
+│   │   │   ├── BasePositionCard.tsx      # Foundation card component
+│   │   │   ├── PositionSectionHeader.tsx # Section headers with badges
+│   │   │   └── PositionList.tsx          # Generic list container
+│   │   ├── positions/          # ✅ NEW - Position card adapters
+│   │   │   ├── StockPositionCard.tsx     # Stock/ETF adapter
+│   │   │   ├── OptionPositionCard.tsx    # Options adapter
+│   │   │   ├── PrivatePositionCard.tsx   # Private investments adapter
+│   │   │   └── OrganizePositionCard.tsx  # Organize page adapter (no P&L)
 │   │   ├── navigation/         # ✅ IMPLEMENTED - Navigation components
 │   │   │   ├── NavigationDropdown.tsx     # Dropdown menu with all 6 pages
 │   │   │   └── NavigationHeader.tsx       # Header with branding and dropdown
@@ -62,11 +71,18 @@ frontend/
 │   │   │   ├── PortfolioHeader.tsx      # Portfolio name & chat input
 │   │   │   ├── PortfolioMetrics.tsx     # Summary metrics cards
 │   │   │   ├── PortfolioPositions.tsx   # 3-column investment class grid
-│   │   │   ├── PositionCard.tsx         # Individual position card
 │   │   │   ├── PrivatePositions.tsx     # Private/alternative investments
 │   │   │   ├── PublicPositions.tsx      # Public equity/ETF positions
 │   │   │   ├── StrategyList.tsx
 │   │   │   └── TagEditor.tsx
+│   │   ├── organize/           # ✅ IMPLEMENTED - Organize page components
+│   │   │   ├── SelectablePositionCard.tsx  # Wrapper with checkbox & tags
+│   │   │   ├── LongPositionsList.tsx       # Long positions list
+│   │   │   ├── ShortPositionsList.tsx      # Short positions list
+│   │   │   ├── OptionsPositionsList.tsx    # Options positions list
+│   │   │   ├── PrivatePositionsList.tsx    # Private positions list
+│   │   │   ├── StrategyCard.tsx            # Strategy display card
+│   │   │   └── TagBadge.tsx                # Tag display component
 │   │   └── ui/                 # ShadCN UI components
 │   │       ├── badge.tsx
 │   │       ├── button.tsx
@@ -345,3 +361,169 @@ For applications that will expand to multiple pages:
 - Ensures data consistency across pages
 - Components can be mixed and matched
 - Hooks provide single source of truth for data
+
+---
+
+## Reusable Position Card Architecture (Added 2025-10-01)
+
+### Overview
+Implemented a layered component architecture for position cards that enables reuse across multiple pages while maintaining UX consistency. This system consists of foundation components, domain adapters, and page-specific wrappers.
+
+### Component Layers
+
+#### 1. Foundation Layer (`/src/components/common/`)
+**BasePositionCard.tsx** - Pure presentation component (~65 lines)
+- Accepts pre-formatted strings as props
+- Handles theme switching and hover states
+- Uses design tokens from tailwind.config.js
+- NO business logic - just rendering
+
+**PositionSectionHeader.tsx** - Section headers with count badges
+**PositionList.tsx** - Generic list container with empty state handling
+
+#### 2. Adapter Layer (`/src/components/positions/`)
+Domain-specific adapters that transform data into BasePositionCard props:
+
+**StockPositionCard.tsx** - For stocks/ETFs
+- Looks up company names
+- Formats with `formatNumber()`
+- Handles LONG/SHORT display logic
+- Shows P&L with color coding
+
+**OptionPositionCard.tsx** - For options contracts
+- Maps position types (LC/LP/SC/SP) to labels
+- Formats with `formatCurrency()`
+- Shows strike prices and expiration
+- Shows P&L with color coding
+
+**PrivatePositionCard.tsx** - For private investments
+- Uses investment_subtype as secondary text
+- Formats with `formatCurrency()`
+- Shows P&L with color coding
+
+**OrganizePositionCard.tsx** - For Organize page (70 lines)
+- **KEY DIFFERENCE**: NO P&L display
+- Only shows market values
+- Same visual structure as other adapters
+- Reuses BasePositionCard foundation
+
+#### 3. Page-Specific Layer
+
+**Portfolio Page** (`/src/components/portfolio/`)
+- Uses Stock/Option/Private adapters WITH P&L
+- PositionList provides layout and empty states
+- Focus: Performance monitoring and analysis
+
+**Organize Page** (`/src/components/organize/`)
+- Uses OrganizePositionCard adapter (NO P&L)
+- Adds SelectablePositionCard wrapper for:
+  - Checkboxes for selection
+  - Tag display badges
+  - Drag-drop functionality
+- Focus: Position grouping and strategy building
+
+### Organize Page Differences
+
+#### Component Structure
+```
+SelectablePositionCard (wrapper)
+  ├── Checkbox input
+  ├── OrganizePositionCard (adapter - no P&L)
+  │   └── BasePositionCard (foundation)
+  └── Tag badges display
+```
+
+#### Key Features
+1. **No P&L Display** - Organize page focuses on grouping, not performance
+2. **Checkbox Selection** - Users can select multiple positions to combine into strategies
+3. **Tag Display** - Shows tags associated with each position
+4. **Drag-Drop Support** - Drag tags onto positions to categorize them
+5. **No Card Backgrounds** - Position lists use simple divs with h3 headings (matching Portfolio page)
+
+#### Implementation Files
+- `OrganizePositionCard.tsx` - Universal adapter for all investment types (no P&L)
+- `SelectablePositionCard.tsx` - Wrapper adding checkboxes, tags, drag-drop
+- `LongPositionsList.tsx` - Long positions with section header
+- `ShortPositionsList.tsx` - Short positions with section header
+- `OptionsPositionsList.tsx` - Options with Long/Short subsections
+- `PrivatePositionsList.tsx` - Private investments with section header
+
+### Design Tokens (tailwind.config.js)
+
+All position cards use centralized design tokens:
+```javascript
+colors: {
+  'card-bg': '#ffffff',           // Light theme background
+  'card-bg-dark': '#1e293b',      // Dark theme background
+  'card-text': '#111827',         // Primary text light
+  'card-text-dark': '#ffffff',    // Primary text dark
+  'card-positive': '#34d399',     // Positive P&L (emerald-400)
+  'card-negative': '#f87171',     // Negative P&L (red-400)
+  // ... more tokens
+}
+```
+
+**Benefits:**
+- Change one value, affects entire app
+- Semantic naming (card-positive vs emerald-400)
+- Type-safe autocomplete in IDE
+- Easy theme customization
+
+### Benefits of This Architecture
+
+1. **Code Reuse**
+   - BasePositionCard used by all position types
+   - Same visual consistency automatically
+   - 40+ lines of duplicate JSX eliminated
+
+2. **Maintainability**
+   - Styling changes in one place (BasePositionCard)
+   - Theme changes propagate automatically
+   - Clear separation of concerns
+
+3. **Flexibility**
+   - Portfolio page: Shows P&L for analysis
+   - Organize page: Hides P&L, adds checkboxes/tags
+   - Same foundation, different features
+
+4. **Scalability**
+   - New position type: Create adapter (~20 lines)
+   - New page feature: Create wrapper component
+   - Foundation remains unchanged
+
+### Usage Examples
+
+**Portfolio Page** (with P&L):
+```typescript
+import { StockPositionCard } from '@/components/positions/StockPositionCard'
+
+<StockPositionCard position={position} />
+// Shows: Symbol, Company, $350K, +$45K (green)
+```
+
+**Organize Page** (no P&L, with checkbox):
+```typescript
+import { SelectablePositionCard } from '@/components/organize/SelectablePositionCard'
+import { OrganizePositionCard } from '@/components/positions/OrganizePositionCard'
+
+<SelectablePositionCard
+  isSelected={isSelected(position.id)}
+  onToggleSelection={() => onToggle(position.id)}
+  tags={position.tags}
+  onDropTag={(tagId) => onDrop(position.id, tagId)}
+>
+  <OrganizePositionCard position={position} />
+</SelectablePositionCard>
+// Shows: Checkbox, Symbol, Company, $350K, Tags (no P&L)
+```
+
+### Migration Pattern
+
+When adding the Organize page, we followed this pattern:
+1. Created OrganizePositionCard adapter (reuses BasePositionCard, removes P&L logic)
+2. Created SelectablePositionCard wrapper (adds checkboxes, tags, drag-drop)
+3. Updated all position list components to use new architecture
+4. Removed Card background wrappers to match Portfolio page styling
+5. Preserved all functionality (selection, tags, drag-drop)
+
+This same pattern can be applied to future pages with different requirements.
