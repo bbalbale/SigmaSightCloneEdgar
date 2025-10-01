@@ -131,8 +131,8 @@ async def sse_generator(
             }
             logger.info(f"Using portfolio context for conversation: portfolio_id={portfolio_id}")
         
-        # 🔍 TRACE-2 Send Context (Phase 9.12.1 investigation)
-        logger.info(f"🔍 TRACE-2 Send Context: conversation={conversation.id} | portfolio_context={portfolio_context}")
+        # [TRACE] TRACE-2 Send Context (Phase 9.12.1 investigation)
+        logger.info(f"[TRACE] TRACE-2 Send Context: conversation={conversation.id} | portfolio_context={portfolio_context}")
         
         # Create BOTH messages upfront with backend-generated IDs
         user_message = ConversationMessage(
@@ -350,7 +350,7 @@ async def sse_generator(
                         openai_response_id = data.get("data", {}).get("response_id")
                         if openai_response_id:
                             logger.info(
-                                f"🔗 OpenAI Response Started - "
+                                f"[LINK] OpenAI Response Started - "
                                 f"Response ID: {openai_response_id} | "
                                 f"Conversation: {conversation.id} | "
                                 f"User: {current_user.id} | "
@@ -468,7 +468,7 @@ async def sse_generator(
         assistant_message.tool_calls = None
         if openai_response_id:
             assistant_message.provider_message_id = openai_response_id
-            logger.info(f"🔗 Stored OpenAI Response ID: {openai_response_id} for message {assistant_message.id} in conversation {conversation.id}")
+            logger.info(f"[LINK] Stored OpenAI Response ID: {openai_response_id} for message {assistant_message.id} in conversation {conversation.id}")
         if first_token_time:
             assistant_message.first_token_ms = int((first_token_time - start_time) * 1000)
         assistant_message.latency_ms = int((time.time() - start_time) * 1000)

@@ -86,8 +86,8 @@ async def create_conversation(
         await db.commit()
         await db.refresh(conversation)
         
-        # 🔍 TRACE-1 Conversation Created (Phase 9.12.1 investigation)
-        logger.info(f"🔍 TRACE-1 Conversation Created: {conversation.id} | meta_data: {conversation.meta_data}")
+        # [TRACE] TRACE-1 Conversation Created (Phase 9.12.1 investigation)
+        logger.info(f"[TRACE] TRACE-1 Conversation Created: {conversation.id} | meta_data: {conversation.meta_data}")
         logger.info(f"Created conversation {conversation.id} for user {current_user.id}")
         
         return ConversationResponse(
