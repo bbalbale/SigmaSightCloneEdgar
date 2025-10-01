@@ -26,15 +26,9 @@ export function PortfolioHeader({
       return
     }
 
-    if (typeof window !== "undefined") {
-      sessionStorage.setItem("pendingChatMessage", trimmed)
-    }
-
-    router.push("/ai-chat")
-  }
-
-  const handleFocus = () => {
-    router.push("/ai-chat")
+    // Navigate to AI chat with message as URL parameter
+    const encodedMessage = encodeURIComponent(trimmed)
+    router.push(`/ai-chat?message=${encodedMessage}`)
   }
 
   return (
@@ -121,7 +115,6 @@ export function PortfolioHeader({
           <ChatInput
             placeholder="What are my biggest risks? How correlated are my positions?"
             className="flex-1"
-            onFocus={handleFocus}
             onSubmit={handleSubmit}
           />
         </div>

@@ -18,6 +18,7 @@ interface ChatConversationPaneProps {
   title?: string
   subtitle?: string
   onConversationReset?: () => void
+  initialMessage?: string
 }
 
 export function ChatConversationPane({
@@ -27,7 +28,16 @@ export function ChatConversationPane({
   title = 'SigmaSight AI Assistant',
   subtitle = 'Ask questions about your portfolio',
   onConversationReset,
+  initialMessage,
 }: ChatConversationPaneProps) {
+  // Log when component receives initialMessage prop
+  console.log('[ChatConversationPane] Component rendered with:', {
+    isActive,
+    variant,
+    hasInitialMessage: !!initialMessage,
+    initialMessage
+  })
+
   const {
     currentMode,
     currentConversationId,
@@ -58,48 +68,33 @@ export function ChatConversationPane({
   const currentAssistantMessageIdRef = useRef<string | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const infoMessageCounterRef = useRef(0)
-  const hasInitializedRef = useRef(false)
+  const [isInitialized, setIsInitialized] = React.useState(false)
   const handleSendMessageRef = useRef<((text: string) => Promise<void>) | null>(null)
 
   useEffect(() => {
-    if (!isActive || hasInitializedRef.current) {
+    if (!isActive || isInitialized) {
       return
     }
 
     const syncConversation = () => {
-      const storedConversationId = localStorage.getItem('conversationId')
-      const currentStoredId = localStorage.getItem('currentConversationId')
-      const activeId = storedConversationId || currentStoredId
+      console.log('[ChatConversationPane] Starting initialization...')
 
-      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+      // Only clear stream state, not conversation state
+      // Conversation state is managed by chat store and should persist
+      console.log('[ChatConversationPane] Resetting stream state only')
+      resetStreamState()
 
-      if (activeId) {
-        if (!uuidRegex.test(activeId)) {
-          console.warn('[ChatConversationPane] Invalid conversation ID format detected:', activeId)
-          localStorage.removeItem('conversationId')
-          localStorage.removeItem('currentConversationId')
-          useChatStore.getState().reset()
-          resetStreamState()
-        } else if (activeId !== currentConversationId) {
-          console.log('[ChatConversationPane] Syncing conversation ID from localStorage:', activeId)
-          useChatStore.getState().loadConversation(activeId)
-        }
-      } else if (currentConversationId && !uuidRegex.test(currentConversationId)) {
-        console.warn('[ChatConversationPane] Store has invalid conversation ID:', currentConversationId)
-        useChatStore.getState().reset()
-        resetStreamState()
-      }
-
-      useChatStore.getState().hydrateFromStorage()
-      hasInitializedRef.current = true
+      console.log('[ChatConversationPane] Initialization complete')
+      setIsInitialized(true)
     }
 
     try {
       syncConversation()
     } catch (error) {
       console.warn('[ChatConversationPane] Failed to sync conversation state', error)
+      setIsInitialized(true) // Still mark as initialized to prevent blocking
     }
-  }, [isActive, resetStreamState])
+  }, [isActive, isInitialized, resetStreamState])
 
   const modeColors: Record<typeof currentMode, string> = {
     green: 'bg-green-500',
@@ -345,24 +340,30 @@ export function ChatConversationPane({
     handleSendMessageRef.current = handleSendMessage
   }, [handleSendMessage])
 
-  const hasSentPendingRef = useRef(false)
+  const hasSentInitialRef = useRef(false)
 
   useEffect(() => {
-    if (!isActive || hasSentPendingRef.current) {
+    // Send initial message from URL parameter if provided
+    if (!isActive || !isInitialized || hasSentInitialRef.current || !initialMessage) {
+      console.log('[ChatConversationPane] Initial message effect - conditions not met:', {
+        isActive,
+        isInitialized,
+        hasSentInitial: hasSentInitialRef.current,
+        hasInitialMessage: !!initialMessage
+      })
       return
     }
 
-    if (typeof window === 'undefined') {
-      return
+    console.log('[ChatConversationPane] Conditions met, checking handleSendMessageRef...')
+    if (handleSendMessageRef.current) {
+      console.log('[ChatConversationPane] Sending initial message:', initialMessage)
+      handleSendMessageRef.current(initialMessage)
+      hasSentInitialRef.current = true
+    } else {
+      console.warn('[ChatConversationPane] handleSendMessageRef.current is null, cannot send message')
     }
-
-    const pending = sessionStorage.getItem('pendingChatMessage')
-    if (pending && handleSendMessageRef.current) {
-      sessionStorage.removeItem('pendingChatMessage')
-      handleSendMessageRef.current(pending)
-      hasSentPendingRef.current = true
-    }
-  }, [isActive])
+  }, [isActive, isInitialized, initialMessage])
+  // Note: Removed handleSendMessage from dependencies to prevent constant re-runs
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })

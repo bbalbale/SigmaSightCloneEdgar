@@ -1,6 +1,7 @@
 'use client'
 
 import React from 'react'
+import { useSearchParams } from 'next/navigation'
 import { useAuth } from '../../app/providers'
 import { useTheme } from '@/contexts/ThemeContext'
 import { usePortfolioStore } from '@/stores/portfolioStore'
@@ -8,10 +9,23 @@ import { ChatConversationPane } from '@/components/chat/ChatConversationPane'
 import { cn } from '@/lib/utils'
 
 export function AIChatContainer() {
+  const searchParams = useSearchParams()
+  const initialMessage = searchParams.get('message')
   const { user, loading } = useAuth()
   const portfolioId = usePortfolioStore((state) => state.portfolioId)
   const portfolioName = usePortfolioStore((state) => state.portfolioName)
   const { theme } = useTheme()
+
+  // Comprehensive logging for debugging message flow
+  React.useEffect(() => {
+    console.log('[AIChatContainer] Component mounted/updated with:', {
+      hasSearchParams: !!searchParams,
+      initialMessage,
+      searchParamsString: searchParams.toString(),
+      user: user?.fullName,
+      portfolioId
+    })
+  }, [searchParams, initialMessage, user, portfolioId])
 
   if (loading) {
     return (
@@ -87,6 +101,7 @@ export function AIChatContainer() {
           title="Conversation"
           subtitle="Responses include real-time portfolio context and risk analytics."
           className="min-h-[560px]"
+          initialMessage={initialMessage || undefined}
         />
       </div>
     </div>

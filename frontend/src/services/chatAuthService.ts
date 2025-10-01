@@ -276,7 +276,7 @@ class ChatAuthService {
 
   /**
    * Make authenticated fetch request
-   * Automatically includes credentials
+   * Automatically includes credentials and Bearer token
    */
   async authenticatedFetch(url: string, options: RequestInit = {}): Promise<Response> {
     // Ensure we're authenticated
@@ -285,10 +285,14 @@ class ChatAuthService {
       throw new Error('Not authenticated');
     }
 
+    // Get Bearer token from localStorage
+    const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
+
     return fetch(url, {
       ...options,
       credentials: 'include', // Always include cookies
       headers: {
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
         ...options.headers,
       },
     });

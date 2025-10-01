@@ -299,8 +299,8 @@ async def sse_generator(
                         upstream_final_text = data_obj.get("data", {}).get("final_text")
                     except Exception as e:
                         logger.warning(f"Failed to parse upstream done event for token_counts: {e}")
-                    # Don't forward upstream done
-                    continue
+                    # Don't forward upstream done, but break the stream loop
+                    break
 
                 # On subsequent attempts, suppress duplicate start events
                 if "event: start" in sse_event:
@@ -511,6 +511,7 @@ async def sse_generator(
                     logger.warning("Used upstream final_text or model fallback due to issues in primary attempt")
             except Exception:
                 pass
+            return  # Properly close the generator after done event
         else:
             # All attempts failed or non-retryable error
             error_payload = {
@@ -526,6 +527,7 @@ async def sse_generator(
                 "timestamp": int(time.time() * 1000)
             }
             yield f"event: error\ndata: {json.dumps(error_payload)}\n\n"
+            return  # Properly close the generator after error event
         
     except Exception as e:
         logger.error(f"SSE generator error: {e}")
@@ -541,6 +543,7 @@ async def sse_generator(
             "timestamp": int(time.time() * 1000)
         }
         yield f"event: error\ndata: {json.dumps(error_payload)}\n\n"
+        return  # Properly close the generator after exception error event
 
 
 @router.post("/send")
