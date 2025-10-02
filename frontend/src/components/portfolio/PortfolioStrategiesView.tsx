@@ -46,9 +46,11 @@ export function PortfolioStrategiesView({
   } = useStrategyFiltering(strategies)
 
   return (
-    <div className={`space-y-12 ${className}`}>
-      {/* Row 1: Public Longs | Public Shorts | Private Investments */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+    <section className="flex-1 px-4 pb-6">
+      <div className="container mx-auto">
+        <div className={`space-y-8 ${className}`}>
+          {/* Row 1: Public Longs | Public Shorts | Private Investments */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Public Longs */}
         <div>
           <div className="flex items-center gap-2 mb-4">
@@ -156,15 +158,17 @@ export function PortfolioStrategiesView({
         <div></div>
       </div>
 
-      {/* Empty state */}
-      {strategies.length === 0 && (
-        <div className={`text-center py-12 ${
-          theme === 'dark' ? 'text-slate-400' : 'text-gray-500'
-        }`}>
-          <p className="text-lg">No strategies found</p>
-          <p className="text-sm mt-2">Positions will be automatically grouped into strategies</p>
+          {/* Empty state */}
+          {strategies.length === 0 && (
+            <div className={`text-center py-12 ${
+              theme === 'dark' ? 'text-slate-400' : 'text-gray-500'
+            }`}>
+              <p className="text-lg">No combinations found</p>
+              <p className="text-sm mt-2">Positions will be automatically grouped into combinations</p>
+            </div>
+          )}
         </div>
-      )}
-    </div>
+      </div>
+    </section>
   )
 }

@@ -26,19 +26,21 @@
   - `list()`, `getStrategies()`, `defaults()`, `reorder()`, `batchUpdate()`
 - ✅ **types/strategies.ts** - Comprehensive TypeScript definitions
 
-### Frontend Components (70% Complete) ⚠️
+### Frontend Components (85% Complete) ✅
 - ✅ **StrategyCard.tsx** - Wrapper component (follows SelectablePositionCard pattern)
 - ✅ **StrategyPositionList.tsx** - List container with expansion state management
-- ✅ **PortfolioStrategiesView.tsx** - 3-column layout matching position view (NEW)
+- ✅ **PortfolioStrategiesView.tsx** - 3-column layout matching position view
 - ✅ **TagBadge.tsx** - Tag display component (already existed in organize/)
 - ✅ **useStrategies.ts** - React hook with tag management methods
-- ✅ **useStrategyFiltering.ts** - Filter strategies by investment class & direction (NEW)
-- ✅ **Strategy categorization** - direction & primary_investment_class fields (NEW)
-- ⏸️ Portfolio page integration (ready for hybrid approach - see recommendations below)
+- ✅ **useStrategyFiltering.ts** - Filter strategies by investment class & direction
+- ✅ **Strategy categorization** - direction & primary_investment_class fields
+- ✅ **Portfolio page integration** - View toggle between Position/Combination views (DEPLOYED)
+- ✅ **API endpoint fixes** - Corrected strategiesApi.ts and config/api.ts
+- ✅ **Formatter defensive checks** - Added null/undefined/string handling
 - ⏸️ Tag filtering UI
 - ⏸️ Tag management modal
 
-### Overall Progress: 75% Complete
+### Overall Progress: 85% Complete
 
 ---
 

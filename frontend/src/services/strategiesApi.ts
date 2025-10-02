@@ -23,6 +23,7 @@ export class StrategiesApi {
   }): Promise<ListStrategiesResponse> {
     const { portfolioId, tagIds, tagMode = 'any', strategyType, includePositions = false, includeTags = true, limit = 200, offset = 0 } = options;
     const params = new URLSearchParams();
+    params.set('portfolio_id', portfolioId);
     if (tagIds?.length) params.set('tag_ids', tagIds.join(','));
     if (tagMode) params.set('tag_mode', tagMode);
     if (strategyType) params.set('strategy_type', strategyType);
@@ -31,7 +32,7 @@ export class StrategiesApi {
     params.set('limit', String(limit));
     params.set('offset', String(offset));
 
-    const url = `/api/proxy${API_ENDPOINTS.PORTFOLIOS.STRATEGIES(portfolioId)}?${params.toString()}`;
+    const url = `/api/proxy/api/v1/strategies/?${params.toString()}`;
     const token = localStorage.getItem('access_token') || '';
     const data = await requestManager.authenticatedFetch(url, token, { method: 'GET', timeout: 10000, dedupe: true })
       .then(async (r) => {

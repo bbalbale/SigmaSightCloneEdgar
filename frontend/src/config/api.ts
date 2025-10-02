@@ -43,7 +43,7 @@ export const API_ENDPOINTS = {
     LIST: '/api/v1/data/portfolios',
     COMPLETE: (id: string) => `/api/v1/data/portfolio/${id}/complete`,
     DATA_QUALITY: (id: string) => `/api/v1/data/portfolio/${id}/data-quality`,
-    STRATEGIES: (id: string) => `/api/v1/data/portfolios/${id}/strategies`,
+    STRATEGIES: (id: string) => `/api/v1/strategies/?portfolio_id=${id}`,
   },
   
   // Position data endpoints

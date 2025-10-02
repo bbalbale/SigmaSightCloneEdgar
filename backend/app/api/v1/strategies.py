@@ -174,6 +174,8 @@ async def list_strategies(
             "is_synthetic": s.is_synthetic,
             "net_exposure": s.net_exposure,
             "total_cost_basis": s.total_cost_basis,
+            "direction": s.direction,
+            "primary_investment_class": s.primary_investment_class,
             "created_at": s.created_at,
             "updated_at": s.updated_at,
             "closed_at": s.closed_at,

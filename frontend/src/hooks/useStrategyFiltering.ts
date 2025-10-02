@@ -60,15 +60,15 @@ export function useStrategyFiltering(strategies: StrategyListItem[]): FilteredSt
       s => s.primary_investment_class === 'PRIVATE'
     )
 
-    // Long Options: OPTIONS investment class, LC or LP direction
+    // Long Options: OPTION investment class, LC or LP direction
     const optionLongs = strategies.filter(
-      s => s.primary_investment_class === 'OPTIONS' &&
+      s => s.primary_investment_class === 'OPTION' &&
            (s.direction === 'LC' || s.direction === 'LP')
     )
 
-    // Short Options: OPTIONS investment class, SC or SP direction
+    // Short Options: OPTION investment class, SC or SP direction
     const optionShorts = strategies.filter(
-      s => s.primary_investment_class === 'OPTIONS' &&
+      s => s.primary_investment_class === 'OPTION' &&
            (s.direction === 'SC' || s.direction === 'SP')
     )
 
@@ -108,11 +108,11 @@ export function isStrategyInCategory(
       return strategy.primary_investment_class === 'PRIVATE'
 
     case 'option-long':
-      return strategy.primary_investment_class === 'OPTIONS' &&
+      return strategy.primary_investment_class === 'OPTION' &&
              (strategy.direction === 'LC' || strategy.direction === 'LP')
 
     case 'option-short':
-      return strategy.primary_investment_class === 'OPTIONS' &&
+      return strategy.primary_investment_class === 'OPTION' &&
              (strategy.direction === 'SC' || strategy.direction === 'SP')
 
     default:

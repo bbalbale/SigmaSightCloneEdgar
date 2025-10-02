@@ -81,7 +81,7 @@ export function StrategyPositionList({
 
       {strategies.length === 0 && (
         <div className="text-center py-8 text-gray-500">
-          No strategies found
+          No combinations found
         </div>
       )}
     </div>

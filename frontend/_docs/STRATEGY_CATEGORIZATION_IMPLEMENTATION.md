@@ -1,7 +1,7 @@
 # Strategy Categorization Implementation
 
 **Date**: 2025-10-01
-**Status**: ✅ Complete - Ready for Testing
+**Status**: ✅ Complete - Deployed and Working
 
 ## Summary
 
@@ -431,15 +431,40 @@ export default function PortfolioPage() {
 
 ---
 
-## Next Steps
+## Deployment Status
 
-1. ✅ Apply migration (`alembic upgrade head`)
-2. ✅ Run backfill script
-3. ✅ Verify API responses
-4. ⏳ Integrate view toggle into Portfolio page
-5. ⏳ Test with demo data
-6. ⏳ Update documentation
-7. ⏳ Deploy to production
+1. ✅ Apply migration (`alembic upgrade head`) - **COMPLETE**
+2. ✅ Run backfill script - **COMPLETE** (65 strategies categorized)
+3. ✅ Verify API responses - **COMPLETE** (fields returned correctly)
+4. ✅ Integrate view toggle into Portfolio page - **COMPLETE**
+5. ✅ Fix API endpoint configuration - **COMPLETE**
+6. ✅ Fix investment class naming (OPTION vs OPTIONS) - **COMPLETE**
+7. ✅ Fix formatter defensive checks - **COMPLETE**
+8. ✅ Update documentation - **COMPLETE**
+
+## Deployment Details (2025-10-01)
+
+### Issues Encountered and Resolved
+
+1. **API Endpoint Mismatch**: Frontend was calling wrong endpoint
+   - Fixed: Updated `config/api.ts` to use `/api/v1/strategies/?portfolio_id=`
+   - Fixed: Updated `strategiesApi.ts` to build URL correctly
+
+2. **Investment Class Naming**: Database uses `OPTION` (singular) but frontend used `OPTIONS` (plural)
+   - Fixed: Updated TypeScript types in `strategies.ts`
+   - Fixed: Updated filtering logic in `useStrategyFiltering.ts`
+
+3. **Formatter Type Safety**: `formatCurrency` didn't handle strings/null/undefined
+   - Fixed: Added defensive checks to all formatter functions in `lib/formatters.ts`
+
+4. **Layout Consistency**: Strategy view didn't match position view layout
+   - Fixed: Added proper section wrapper to `PortfolioStrategiesView.tsx`
+
+### Final Implementation
+
+The view toggle is now live on the Portfolio page with two modes:
+- **Position View**: Original position-based layout (default)
+- **Combination View**: Strategy-based layout with same 3-column grid
 
 ---
 

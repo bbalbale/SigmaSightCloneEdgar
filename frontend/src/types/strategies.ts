@@ -40,7 +40,7 @@ export interface StrategyPosition {
   cost_basis?: number;
   current_price?: number;
   unrealized_pnl?: number;
-  investment_class?: 'PUBLIC' | 'OPTIONS' | 'PRIVATE';
+  investment_class?: 'PUBLIC' | 'OPTION' | 'PRIVATE';
 }
 
 /**
@@ -65,7 +65,7 @@ export interface StrategyListItem {
   position_count?: number | null;
   tags?: StrategyTag[] | null;
   direction?: 'LONG' | 'SHORT' | 'LC' | 'LP' | 'SC' | 'SP' | 'NEUTRAL' | null;
-  primary_investment_class?: 'PUBLIC' | 'OPTIONS' | 'PRIVATE' | null;
+  primary_investment_class?: 'PUBLIC' | 'OPTION' | 'PRIVATE' | null;
   created_at: string;
   updated_at: string;
 }
@@ -80,7 +80,7 @@ export interface StrategyDetail {
   strategy_type: StrategyType;
   is_synthetic: boolean;
   direction?: 'LONG' | 'SHORT' | 'LC' | 'LP' | 'SC' | 'SP' | 'NEUTRAL' | null;
-  primary_investment_class?: 'PUBLIC' | 'OPTIONS' | 'PRIVATE' | null;
+  primary_investment_class?: 'PUBLIC' | 'OPTION' | 'PRIVATE' | null;
   created_at: string;
   updated_at: string;
   positions: StrategyPosition[];

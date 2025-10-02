@@ -1,8 +1,9 @@
 # SigmaSight API and Database Summary
 
 **Generated**: September 29, 2025
+**Last Updated**: October 1, 2025
 **Status**: Production-Ready APIs with Complete Database Schema
-**Latest Updates**: Added investment_class fields to positions API, implemented 3-column investment class display
+**Latest Updates**: Added strategy categorization (direction & primary_investment_class), implemented Combination View toggle
 
 ---
 
@@ -95,13 +96,18 @@ Authorization: Bearer <jwt_token>
 | DELETE | `/strategies/{id}/tags` | ✅ Ready | Remove tags from strategy | `strategiesApi.removeStrategyTags()` |
 | GET | `/strategies/detect/{portfolio_id}` | ✅ Ready | Auto-detect strategies | `strategiesApi.detect()` |
 | POST | `/strategies/combine` | ✅ Ready | Combine positions into strategy | `strategiesApi.combine()` |
-| GET | `/data/portfolios/{id}/strategies` | ✅ Ready | Get portfolio strategies | `strategiesApi.listByPortfolio()` |
+| GET | `/strategies/?portfolio_id={id}` | ✅ Ready | Get portfolio strategies with categorization | `strategiesApi.listByPortfolio()` |
 
 **Frontend Service**: `src/services/strategiesApi.ts` (12/12 methods implemented)
 
-**New Strategy Fields (2025-10-01)**:
-- `direction` (String): LONG, SHORT, LC, LP, SC, SP, NEUTRAL - automatically calculated from positions
-- `primary_investment_class` (String): PUBLIC, OPTIONS, PRIVATE - automatically calculated from positions
+**New Strategy Categorization Fields (October 1, 2025)**:
+- `direction` (String): Strategy direction - `LONG`, `SHORT`, `LC`, `LP`, `SC`, `SP`, `NEUTRAL`
+  - Automatically calculated from position types
+  - Used for filtering in Combination View
+- `primary_investment_class` (String): Investment class - `PUBLIC`, `OPTION`, `PRIVATE`
+  - Automatically calculated from positions
+  - Used for 3-column layout categorization
+- Both fields enable automatic filtering and the new Combination View toggle on Portfolio page
 - **Purpose**: Enable filtering strategies by investment class and direction for 3-column portfolio layout
 - **See**: `STRATEGY_CATEGORIZATION_IMPLEMENTATION.md` for deployment guide
 

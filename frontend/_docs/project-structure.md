@@ -18,7 +18,7 @@ frontend/
 │   ├── login/                  # Authentication
 │   │   └── page.tsx            # Login page (thin wrapper)
 │   ├── portfolio/              # Main dashboard (EXISTING - Modular Pattern)
-│   │   └── page.tsx            # Portfolio dashboard - ~230 lines (Keep as-is)
+│   │   └── page.tsx            # Portfolio dashboard with Position/Combination view toggle
 │   ├── public-positions/       # 🔄 PLANNED - Container Pattern
 │   │   └── page.tsx            # Will be thin wrapper (~8 lines)
 │   ├── private-positions/      # 🔄 PLANNED - Container Pattern
