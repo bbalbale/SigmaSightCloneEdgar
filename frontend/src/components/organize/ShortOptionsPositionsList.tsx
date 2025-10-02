@@ -32,10 +32,11 @@ export function ShortOptionsPositionsList({
 }: ShortOptionsPositionsListProps) {
   const { theme } = useTheme()
 
-  // Filter for short options strategies (by direction and primary_investment_class)
+  // Filter for short options strategies (SC = Short Call, SP = Short Put)
   // Note: All positions should be in strategies (either standalone or combined)
   const optionsStrategies = strategies.filter(s =>
-    s.direction === 'SHORT' && s.primary_investment_class === 'OPTION'
+    s.primary_investment_class === 'OPTION' &&
+    (s.direction === 'SC' || s.direction === 'SP')
   )
 
   return (

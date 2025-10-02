@@ -32,10 +32,11 @@ export function OptionsPositionsList({
 }: OptionsPositionsListProps) {
   const { theme } = useTheme()
 
-  // Filter for long options strategies (by direction and primary_investment_class)
+  // Filter for long options strategies (LC = Long Call, LP = Long Put)
   // Note: All positions should be in strategies (either standalone or combined)
   const optionsStrategies = strategies.filter(s =>
-    s.direction === 'LONG' && s.primary_investment_class === 'OPTION'
+    s.primary_investment_class === 'OPTION' &&
+    (s.direction === 'LC' || s.direction === 'LP')
   )
 
   return (
