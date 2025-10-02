@@ -164,6 +164,13 @@ async def list_strategies(
     # Convert to response models - build dicts manually to avoid lazy loading
     strategy_responses = []
     for s in strategies:
+        # Calculate total market value from positions
+        total_market_value = None
+        if hasattr(s, 'positions') and s.positions is not None:
+            total_market_value = sum(
+                float(p.market_value or 0) for p in s.positions
+            )
+
         # Build response dict manually to control what's accessed
         strategy_dict = {
             "id": s.id,
@@ -174,6 +181,7 @@ async def list_strategies(
             "is_synthetic": s.is_synthetic,
             "net_exposure": s.net_exposure,
             "total_cost_basis": s.total_cost_basis,
+            "total_market_value": total_market_value,
             "direction": s.direction,
             "primary_investment_class": s.primary_investment_class,
             "created_at": s.created_at,
@@ -192,6 +200,7 @@ async def list_strategies(
                     "position_type": p.position_type,
                     "quantity": p.quantity,
                     "entry_price": p.entry_price,
+                    "current_price": p.last_price,  # Use last_price as current_price
                     "market_value": p.market_value,
                     "unrealized_pnl": p.unrealized_pnl
                 }

@@ -63,6 +63,7 @@ export interface StrategyListItem {
   strategy_type: StrategyType;
   is_synthetic: boolean;
   position_count?: number | null;
+  total_market_value?: number | null;
   tags?: StrategyTag[] | null;
   direction?: 'LONG' | 'SHORT' | 'LC' | 'LP' | 'SC' | 'SP' | 'NEUTRAL' | null;
   primary_investment_class?: 'PUBLIC' | 'OPTION' | 'PRIVATE' | null;

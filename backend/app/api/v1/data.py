@@ -658,6 +658,7 @@ async def get_positions_details(
             "market_value": market_value,
             "unrealized_pnl": unrealized_pnl,
             "unrealized_pnl_percent": unrealized_pnl_percent,
+            "strategy_id": str(position.strategy_id) if position.strategy_id else None,  # Link to strategy for filtering
             # Add option-specific fields if available
             "strike_price": float(position.strike_price) if position.strike_price else None,
             "expiration_date": to_iso_date(position.expiration_date) if position.expiration_date else None,

@@ -289,6 +289,9 @@ class StrategyService:
         if is_synthetic is not None:
             filters.append(Strategy.is_synthetic == is_synthetic)
 
+        # Always filter out closed (soft-deleted) strategies
+        filters.append(Strategy.closed_at.is_(None))
+
         if filters:
             query = query.where(and_(*filters))
 
@@ -418,7 +421,19 @@ class StrategyService:
             created_by=created_by
         )
 
-        # Link positions to the strategy
+        # Collect old standalone strategies to delete
+        old_strategy_ids = set()
+        for position in positions:
+            if position.strategy_id:
+                # Query to check if this is a standalone strategy
+                old_strategy_result = await self.db.execute(
+                    select(Strategy).where(Strategy.id == position.strategy_id)
+                )
+                old_strategy = old_strategy_result.scalar_one_or_none()
+                if old_strategy and old_strategy.strategy_type == 'standalone':
+                    old_strategy_ids.add(old_strategy.id)
+
+        # Link positions to the new strategy
         for i, position in enumerate(positions):
             # Update position's strategy_id
             position.strategy_id = strategy.id
@@ -432,6 +447,13 @@ class StrategyService:
                 leg_order=i
             )
             self.db.add(strategy_leg)
+
+        # Delete old standalone strategies (they now have no positions)
+        if old_strategy_ids:
+            await self.db.execute(
+                delete(Strategy).where(Strategy.id.in_(old_strategy_ids))
+            )
+            logger.info(f"Deleted {len(old_strategy_ids)} orphaned standalone strategies")
 
         # Calculate aggregated metrics
         await self._calculate_strategy_metrics(strategy)

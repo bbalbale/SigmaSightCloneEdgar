@@ -30,7 +30,7 @@ export function PositionSelectionGrid({
 }: PositionSelectionGridProps) {
   // Filter positions by investment class for each quadrant
   const publicPositions = positions.filter(p => p.investment_class === 'PUBLIC')
-  const optionsPositions = positions.filter(p => p.investment_class === 'OPTIONS')
+  const optionsPositions = positions.filter(p => p.investment_class === 'OPTION')
   const privatePositions = positions.filter(p => p.investment_class === 'PRIVATE')
 
   return (

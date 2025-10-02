@@ -30,16 +30,10 @@ export function OptionsPositionsList({
 }: OptionsPositionsListProps) {
   const { theme } = useTheme()
 
-  // Filter for options positions
-  const optionsPositions = positions.filter(p => p.investment_class === 'OPTIONS')
-
-  // Separate long and short options
-  const longOptions = optionsPositions.filter(p => ['LC', 'LP'].includes(p.position_type))
-  const shortOptions = optionsPositions.filter(p => ['SC', 'SP'].includes(p.position_type))
-
-  // Filter for options strategies (those containing options positions)
+  // Filter for options strategies (by primary_investment_class field)
+  // Note: All positions should be in strategies (either standalone or combined)
   const optionsStrategies = strategies.filter(s =>
-    s.positions?.some((p: any) => p.investment_class === 'OPTIONS')
+    s.primary_investment_class === 'OPTION'
   )
 
   return (
@@ -49,7 +43,7 @@ export function OptionsPositionsList({
       }`}>
         Options Positions
       </h3>
-      {optionsPositions.length === 0 && optionsStrategies.length === 0 ? (
+      {optionsStrategies.length === 0 ? (
         <div className={`text-sm p-3 rounded-lg border transition-colors duration-300 ${
           theme === 'dark'
             ? 'text-empty-text-dark bg-empty-bg-dark border-empty-border-dark'
@@ -58,65 +52,17 @@ export function OptionsPositionsList({
           No options positions
         </div>
       ) : (
-        <div className="space-y-4">
-          {/* Strategies */}
-          {optionsStrategies.length > 0 && (
-            <div className="space-y-2">
-              {optionsStrategies.map(strategy => (
-                <StrategyCard
-                  key={strategy.id}
-                  strategy={strategy}
-                  onEdit={onEditStrategy || (() => {})}
-                  onDelete={onDeleteStrategy || (() => {})}
-                  onDrop={onDropTag}
-                />
-              ))}
-            </div>
-          )}
-
-          {/* Long Options */}
-          {longOptions.length > 0 && (
-            <div>
-              <h4 className={`text-sm font-medium mb-2 transition-colors duration-300 ${
-                theme === 'dark' ? 'text-slate-300' : 'text-gray-700'
-              }`}>Long Options</h4>
-              <div className="space-y-2">
-                {longOptions.map(position => (
-                  <SelectablePositionCard
-                    key={position.id}
-                    isSelected={isSelected(position.id)}
-                    onToggleSelection={() => onToggleSelection(position.id)}
-                    tags={position.tags || []}
-                    onDropTag={(tagId) => onDropTag?.(position.id, tagId)}
-                  >
-                    <OrganizePositionCard position={position} />
-                  </SelectablePositionCard>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Short Options */}
-          {shortOptions.length > 0 && (
-            <div>
-              <h4 className={`text-sm font-medium mb-2 transition-colors duration-300 ${
-                theme === 'dark' ? 'text-slate-300' : 'text-gray-700'
-              }`}>Short Options</h4>
-              <div className="space-y-2">
-                {shortOptions.map(position => (
-                  <SelectablePositionCard
-                    key={position.id}
-                    isSelected={isSelected(position.id)}
-                    onToggleSelection={() => onToggleSelection(position.id)}
-                    tags={position.tags || []}
-                    onDropTag={(tagId) => onDropTag?.(position.id, tagId)}
-                  >
-                    <OrganizePositionCard position={position} />
-                  </SelectablePositionCard>
-                ))}
-              </div>
-            </div>
-          )}
+        <div className="space-y-2">
+          {/* Render all strategies (both individual and combinations) */}
+          {optionsStrategies.map(strategy => (
+            <StrategyCard
+              key={strategy.id}
+              strategy={strategy}
+              onEdit={onEditStrategy || (() => {})}
+              onDelete={onDeleteStrategy || (() => {})}
+              onDrop={onDropTag}
+            />
+          ))}
         </div>
       )}
     </div>

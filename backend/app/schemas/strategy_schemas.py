@@ -77,6 +77,7 @@ class StrategyResponse(StrategyBase):
     is_synthetic: bool
     net_exposure: Optional[float] = None
     total_cost_basis: Optional[float] = None
+    total_market_value: Optional[float] = None  # Sum of all position market values
     direction: Optional[str] = None  # LONG, SHORT, LC, LP, SC, SP, NEUTRAL
     primary_investment_class: Optional[str] = None  # PUBLIC, OPTIONS, PRIVATE
     created_at: datetime

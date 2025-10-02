@@ -30,11 +30,9 @@ export function ShortPositionsList({
 }: ShortPositionsListProps) {
   const { theme } = useTheme()
 
-  // Filter for short positions only
-  const shortPositions = positions.filter(p => p.position_type === 'SHORT')
-
-  // Filter for short strategies
-  const shortStrategies = strategies.filter(s => s.type === 'SHORT')
+  // Filter for short strategies (by direction field)
+  // Note: All positions should be in strategies (either standalone or combined)
+  const shortStrategies = strategies.filter(s => s.direction === 'SHORT')
 
   return (
     <div>
@@ -43,7 +41,7 @@ export function ShortPositionsList({
       }`}>
         Short Positions
       </h3>
-      {shortPositions.length === 0 && shortStrategies.length === 0 ? (
+      {shortStrategies.length === 0 ? (
         <div className={`text-sm p-3 rounded-lg border transition-colors duration-300 ${
           theme === 'dark'
             ? 'text-empty-text-dark bg-empty-bg-dark border-empty-border-dark'
@@ -53,7 +51,7 @@ export function ShortPositionsList({
         </div>
       ) : (
         <div className="space-y-2">
-          {/* Render strategies first */}
+          {/* Render all strategies (both individual and combinations) */}
           {shortStrategies.map(strategy => (
             <StrategyCard
               key={strategy.id}
@@ -62,19 +60,6 @@ export function ShortPositionsList({
               onDelete={onDeleteStrategy || (() => {})}
               onDrop={onDropTag}
             />
-          ))}
-
-          {/* Render individual positions */}
-          {shortPositions.map(position => (
-            <SelectablePositionCard
-              key={position.id}
-              isSelected={isSelected(position.id)}
-              onToggleSelection={() => onToggleSelection(position.id)}
-              tags={position.tags || []}
-              onDropTag={(tagId) => onDropTag?.(position.id, tagId)}
-            >
-              <OrganizePositionCard position={position} />
-            </SelectablePositionCard>
           ))}
         </div>
       )}

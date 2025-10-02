@@ -30,11 +30,9 @@ export function LongPositionsList({
 }: LongPositionsListProps) {
   const { theme } = useTheme()
 
-  // Filter for long positions only
-  const longPositions = positions.filter(p => p.position_type === 'LONG')
-
-  // Filter for long strategies
-  const longStrategies = strategies.filter(s => s.type === 'LONG')
+  // Filter for long strategies (by direction field)
+  // Note: All positions should be in strategies (either standalone or combined)
+  const longStrategies = strategies.filter(s => s.direction === 'LONG')
 
   return (
     <div>
@@ -43,7 +41,7 @@ export function LongPositionsList({
       }`}>
         Long Positions
       </h3>
-      {longPositions.length === 0 && longStrategies.length === 0 ? (
+      {longStrategies.length === 0 ? (
         <div className={`text-sm p-3 rounded-lg border transition-colors duration-300 ${
           theme === 'dark'
             ? 'text-empty-text-dark bg-empty-bg-dark border-empty-border-dark'
@@ -53,7 +51,7 @@ export function LongPositionsList({
         </div>
       ) : (
         <div className="space-y-2">
-          {/* Render strategies first */}
+          {/* Render all strategies (both individual and combinations) */}
           {longStrategies.map(strategy => (
             <StrategyCard
               key={strategy.id}
@@ -62,19 +60,6 @@ export function LongPositionsList({
               onDelete={onDeleteStrategy || (() => {})}
               onDrop={onDropTag}
             />
-          ))}
-
-          {/* Render individual positions */}
-          {longPositions.map(position => (
-            <SelectablePositionCard
-              key={position.id}
-              isSelected={isSelected(position.id)}
-              onToggleSelection={() => onToggleSelection(position.id)}
-              tags={position.tags || []}
-              onDropTag={(tagId) => onDropTag?.(position.id, tagId)}
-            >
-              <OrganizePositionCard position={position} />
-            </SelectablePositionCard>
           ))}
         </div>
       )}

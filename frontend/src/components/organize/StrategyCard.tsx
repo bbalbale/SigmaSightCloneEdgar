@@ -42,7 +42,10 @@ export function StrategyCard({
   }
 
   const positionCount = strategy.position_count || 0
-  const isPositive = (strategy.net_exposure || 0) >= 0
+  const totalValue = strategy.total_market_value || 0
+  const isPositive = totalValue >= 0
+  const isIndividual = positionCount === 1
+  const displayType = isIndividual ? 'Individual' : 'Combination'
 
   return (
     <div
@@ -71,7 +74,7 @@ export function StrategyCard({
             <h3 className="font-semibold text-gray-900">{strategy.name}</h3>
 
             <Badge variant="outline" className="text-xs">
-              {strategy.type}
+              {displayType}
             </Badge>
           </div>
 
@@ -82,10 +85,10 @@ export function StrategyCard({
 
           {/* Metrics */}
           <div className="flex items-center gap-4 mt-2 ml-7 text-sm">
-            <span className="text-gray-500">{positionCount} positions</span>
-            {strategy.net_exposure !== undefined && (
+            <span className="text-gray-500">{positionCount} {positionCount === 1 ? 'position' : 'positions'}</span>
+            {strategy.total_market_value !== undefined && strategy.total_market_value !== null && (
               <span className={`font-medium ${isPositive ? 'text-green-600' : 'text-red-600'}`}>
-                Net: {formatCurrency(strategy.net_exposure)}
+                Value: {formatCurrency(strategy.total_market_value)}
               </span>
             )}
           </div>

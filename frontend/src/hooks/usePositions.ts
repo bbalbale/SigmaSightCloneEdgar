@@ -9,13 +9,14 @@ export interface Position {
   symbol: string
   quantity: number
   position_type: string
-  investment_class?: string  // PUBLIC, OPTIONS, PRIVATE
+  investment_class?: string  // PUBLIC, OPTION, PRIVATE
   investment_subtype?: string
   current_price: number
   market_value: number
   cost_basis: number
   unrealized_pnl: number
   realized_pnl: number
+  strategy_id?: string  // Link to standalone strategy for tag assignment
   // Option-specific fields
   strike_price?: number
   expiration_date?: string
@@ -26,7 +27,7 @@ export interface Position {
 }
 
 interface UsePositionsOptions {
-  investmentClass?: 'PUBLIC' | 'OPTIONS' | 'PRIVATE'
+  investmentClass?: 'PUBLIC' | 'OPTION' | 'PRIVATE'
   includeDetails?: boolean
 }
 

@@ -69,9 +69,9 @@ export function OrganizeContainer() {
       clearSelection()
       setIsModalOpen(false)
 
-      alert('Strategy created successfully!')
+      alert('Combination created successfully!')
     } catch (error) {
-      console.error('Failed to create strategy:', error)
+      console.error('Failed to create combination:', error)
       throw error
     }
   }
@@ -83,17 +83,17 @@ export function OrganizeContainer() {
   }
 
   const handleDeleteStrategy = async (strategyId: string) => {
-    if (!confirm('Delete this strategy? Positions will remain individual.')) {
+    if (!confirm('Delete this combination? Positions will remain individual.')) {
       return
     }
 
     try {
       await strategiesApi.delete(strategyId)
       await refreshStrategies()
-      alert('Strategy deleted successfully')
+      alert('Combination deleted successfully')
     } catch (error) {
-      console.error('Failed to delete strategy:', error)
-      alert('Failed to delete strategy')
+      console.error('Failed to delete combination:', error)
+      alert('Failed to delete combination')
     }
   }
 
@@ -120,9 +120,21 @@ export function OrganizeContainer() {
 
   const handleDropTag = async (targetId: string, tagId: string) => {
     try {
-      // Apply tag to strategy or position
-      // For now, assuming it's a strategy
-      await strategiesApi.addStrategyTags(targetId, [tagId])
+      // Check if target is a position or strategy
+      const position = positions.find(p => p.id === targetId)
+
+      if (position) {
+        // Target is a position - use its strategy_id for tagging
+        if (!position.strategy_id) {
+          alert('Position does not have an associated strategy. Please create a strategy first.')
+          return
+        }
+        await strategiesApi.addStrategyTags(position.strategy_id, [tagId])
+      } else {
+        // Target is a strategy - use the strategy id directly
+        await strategiesApi.addStrategyTags(targetId, [tagId])
+      }
+
       await refreshStrategies()
     } catch (error) {
       console.error('Failed to apply tag:', error)

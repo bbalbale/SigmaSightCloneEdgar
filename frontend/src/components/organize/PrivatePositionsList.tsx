@@ -30,12 +30,10 @@ export function PrivatePositionsList({
 }: PrivatePositionsListProps) {
   const { theme } = useTheme()
 
-  // Filter for private positions only
-  const privatePositions = positions.filter(p => p.investment_class === 'PRIVATE')
-
-  // Filter for private strategies
+  // Filter for private strategies (by primary_investment_class field)
+  // Note: All positions should be in strategies (either standalone or combined)
   const privateStrategies = strategies.filter(s =>
-    s.positions?.some((p: any) => p.investment_class === 'PRIVATE')
+    s.primary_investment_class === 'PRIVATE'
   )
 
   return (
@@ -45,7 +43,7 @@ export function PrivatePositionsList({
       }`}>
         Private Positions
       </h3>
-      {privatePositions.length === 0 && privateStrategies.length === 0 ? (
+      {privateStrategies.length === 0 ? (
         <div className={`text-sm p-3 rounded-lg border transition-colors duration-300 ${
           theme === 'dark'
             ? 'text-empty-text-dark bg-empty-bg-dark border-empty-border-dark'
@@ -55,7 +53,7 @@ export function PrivatePositionsList({
         </div>
       ) : (
         <div className="space-y-2">
-          {/* Render strategies first */}
+          {/* Render all strategies (both individual and combinations) */}
           {privateStrategies.map(strategy => (
             <StrategyCard
               key={strategy.id}
@@ -64,19 +62,6 @@ export function PrivatePositionsList({
               onDelete={onDeleteStrategy || (() => {})}
               onDrop={onDropTag}
             />
-          ))}
-
-          {/* Render individual positions */}
-          {privatePositions.map(position => (
-            <SelectablePositionCard
-              key={position.id}
-              isSelected={isSelected(position.id)}
-              onToggleSelection={() => onToggleSelection(position.id)}
-              tags={position.tags || []}
-              onDropTag={(tagId) => onDropTag?.(position.id, tagId)}
-            >
-              <OrganizePositionCard position={position} />
-            </SelectablePositionCard>
           ))}
         </div>
       )}
