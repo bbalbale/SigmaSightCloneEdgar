@@ -7,7 +7,7 @@ import { OrganizePositionCard } from '@/components/positions/OrganizePositionCar
 import { StrategyCard } from './StrategyCard'
 import { useTheme } from '@/contexts/ThemeContext'
 
-interface PrivatePositionsListProps {
+interface ShortOptionsPositionsListProps {
   positions: Position[]
   strategies: StrategyListItem[]
   selectedIds: string[]
@@ -19,7 +19,7 @@ interface PrivatePositionsListProps {
   onDeleteStrategy?: (strategyId: string) => void
 }
 
-export function PrivatePositionsList({
+export function ShortOptionsPositionsList({
   positions,
   strategies,
   selectedIds,
@@ -29,13 +29,13 @@ export function PrivatePositionsList({
   onDropPosition,
   onEditStrategy,
   onDeleteStrategy
-}: PrivatePositionsListProps) {
+}: ShortOptionsPositionsListProps) {
   const { theme } = useTheme()
 
-  // Filter for private strategies (by primary_investment_class field)
+  // Filter for short options strategies (by direction and primary_investment_class)
   // Note: All positions should be in strategies (either standalone or combined)
-  const privateStrategies = strategies.filter(s =>
-    s.primary_investment_class === 'PRIVATE'
+  const optionsStrategies = strategies.filter(s =>
+    s.direction === 'SHORT' && s.primary_investment_class === 'OPTION'
   )
 
   return (
@@ -43,9 +43,9 @@ export function PrivatePositionsList({
       <h3 className={`text-base font-semibold mb-3 transition-colors duration-300 ${
         theme === 'dark' ? 'text-white' : 'text-gray-900'
       }`}>
-        Positions
+        Short Options
       </h3>
-      {privateStrategies.length === 0 ? (
+      {optionsStrategies.length === 0 ? (
         <div className={`text-sm p-3 rounded-lg border transition-colors duration-300 ${
           theme === 'dark'
             ? 'text-empty-text-dark bg-empty-bg-dark border-empty-border-dark'
@@ -56,7 +56,7 @@ export function PrivatePositionsList({
       ) : (
         <div className="space-y-2">
           {/* Render all strategies (both individual and combinations) */}
-          {privateStrategies.map(strategy => (
+          {optionsStrategies.map(strategy => (
             <StrategyCard
               key={strategy.id}
               strategy={strategy}

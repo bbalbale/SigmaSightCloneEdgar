@@ -14,6 +14,7 @@ interface OptionsPositionsListProps {
   isSelected: (id: string) => boolean
   onToggleSelection: (id: string) => void
   onDropTag?: (targetId: string, tagId: string) => void
+  onDropPosition?: (droppedPositionId: string, targetPositionId: string) => void
   onEditStrategy?: (strategy: StrategyListItem) => void
   onDeleteStrategy?: (strategyId: string) => void
 }
@@ -25,15 +26,16 @@ export function OptionsPositionsList({
   isSelected,
   onToggleSelection,
   onDropTag,
+  onDropPosition,
   onEditStrategy,
   onDeleteStrategy
 }: OptionsPositionsListProps) {
   const { theme } = useTheme()
 
-  // Filter for options strategies (by primary_investment_class field)
+  // Filter for long options strategies (by direction and primary_investment_class)
   // Note: All positions should be in strategies (either standalone or combined)
   const optionsStrategies = strategies.filter(s =>
-    s.primary_investment_class === 'OPTION'
+    s.direction === 'LONG' && s.primary_investment_class === 'OPTION'
   )
 
   return (
@@ -41,7 +43,7 @@ export function OptionsPositionsList({
       <h3 className={`text-base font-semibold mb-3 transition-colors duration-300 ${
         theme === 'dark' ? 'text-white' : 'text-gray-900'
       }`}>
-        Options Positions
+        Long Options
       </h3>
       {optionsStrategies.length === 0 ? (
         <div className={`text-sm p-3 rounded-lg border transition-colors duration-300 ${
@@ -49,7 +51,7 @@ export function OptionsPositionsList({
             ? 'text-empty-text-dark bg-empty-bg-dark border-empty-border-dark'
             : 'text-empty-text bg-empty-bg border-empty-border'
         }`}>
-          No options positions
+          No positions
         </div>
       ) : (
         <div className="space-y-2">
@@ -61,6 +63,7 @@ export function OptionsPositionsList({
               onEdit={onEditStrategy || (() => {})}
               onDelete={onDeleteStrategy || (() => {})}
               onDrop={onDropTag}
+              onDropStrategy={onDropPosition}
             />
           ))}
         </div>

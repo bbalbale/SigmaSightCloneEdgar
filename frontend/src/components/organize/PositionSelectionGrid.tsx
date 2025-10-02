@@ -5,7 +5,7 @@ import { StrategyListItem } from '@/services/strategiesApi'
 import { LongPositionsList } from './LongPositionsList'
 import { ShortPositionsList } from './ShortPositionsList'
 import { OptionsPositionsList } from './OptionsPositionsList'
-import { PrivatePositionsList } from './PrivatePositionsList'
+import { ShortOptionsPositionsList } from './ShortOptionsPositionsList'
 
 interface PositionSelectionGridProps {
   positions: Position[]
@@ -14,6 +14,7 @@ interface PositionSelectionGridProps {
   isSelected: (id: string) => boolean
   onToggleSelection: (id: string) => void
   onDropTag?: (targetId: string, tagId: string) => void
+  onDropPosition?: (droppedPositionId: string, targetPositionId: string) => void
   onEditStrategy?: (strategy: StrategyListItem) => void
   onDeleteStrategy?: (strategyId: string) => void
 }
@@ -25,6 +26,7 @@ export function PositionSelectionGrid({
   isSelected,
   onToggleSelection,
   onDropTag,
+  onDropPosition,
   onEditStrategy,
   onDeleteStrategy
 }: PositionSelectionGridProps) {
@@ -43,6 +45,7 @@ export function PositionSelectionGrid({
         isSelected={isSelected}
         onToggleSelection={onToggleSelection}
         onDropTag={onDropTag}
+        onDropPosition={onDropPosition}
         onEditStrategy={onEditStrategy}
         onDeleteStrategy={onDeleteStrategy}
       />
@@ -55,11 +58,12 @@ export function PositionSelectionGrid({
         isSelected={isSelected}
         onToggleSelection={onToggleSelection}
         onDropTag={onDropTag}
+        onDropPosition={onDropPosition}
         onEditStrategy={onEditStrategy}
         onDeleteStrategy={onDeleteStrategy}
       />
 
-      {/* Bottom-left: Options Positions */}
+      {/* Bottom-left: Long Options Positions */}
       <OptionsPositionsList
         positions={optionsPositions}
         strategies={strategies}
@@ -67,18 +71,20 @@ export function PositionSelectionGrid({
         isSelected={isSelected}
         onToggleSelection={onToggleSelection}
         onDropTag={onDropTag}
+        onDropPosition={onDropPosition}
         onEditStrategy={onEditStrategy}
         onDeleteStrategy={onDeleteStrategy}
       />
 
-      {/* Bottom-right: Private Positions */}
-      <PrivatePositionsList
-        positions={privatePositions}
+      {/* Bottom-right: Short Options Positions */}
+      <ShortOptionsPositionsList
+        positions={optionsPositions}
         strategies={strategies}
         selectedIds={selectedIds}
         isSelected={isSelected}
         onToggleSelection={onToggleSelection}
         onDropTag={onDropTag}
+        onDropPosition={onDropPosition}
         onEditStrategy={onEditStrategy}
         onDeleteStrategy={onDeleteStrategy}
       />

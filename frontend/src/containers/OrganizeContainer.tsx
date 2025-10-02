@@ -37,9 +37,14 @@ export function OrganizeContainer() {
 
   // Modal state
   const [isModalOpen, setIsModalOpen] = useState(false)
+  // State for drag-drop combination
+  const [dragDropPositions, setDragDropPositions] = useState<string[]>([])
 
   // Loading state
   const isLoading = positionsLoading || strategiesLoading || tagsLoading
+
+  // Get position IDs to combine (either from selection or drag-drop)
+  const positionsToCombine = dragDropPositions.length > 0 ? dragDropPositions : selectedIds
 
   // Handlers
   const handleCombineClick = () => {
@@ -47,6 +52,28 @@ export function OrganizeContainer() {
       alert('Please select at least 2 positions to combine')
       return
     }
+    setDragDropPositions([]) // Clear any drag-drop state
+    setIsModalOpen(true)
+  }
+
+  const handleDropPosition = (droppedStrategyId: string, targetStrategyId: string) => {
+    // Find the strategies by ID
+    const droppedStrategy = strategies.find(s => s.id === droppedStrategyId)
+    const targetStrategy = strategies.find(s => s.id === targetStrategyId)
+
+    // Extract position IDs from the strategies
+    const positionIds: string[] = []
+
+    if (droppedStrategy?.positions) {
+      positionIds.push(...droppedStrategy.positions.map((p: any) => p.id))
+    }
+    if (targetStrategy?.positions) {
+      positionIds.push(...targetStrategy.positions.map((p: any) => p.id))
+    }
+
+    // Set the position IDs to combine
+    setDragDropPositions(positionIds)
+    // Open the modal
     setIsModalOpen(true)
   }
 
@@ -56,17 +83,17 @@ export function OrganizeContainer() {
     }
 
     try {
-      await strategiesApi.create({
+      await strategiesApi.combine({
         portfolio_id: portfolioId,
-        name: data.name,
-        type: data.type,
-        description: data.description,
-        position_ids: selectedIds
+        position_ids: positionsToCombine,
+        strategy_name: data.name,  // Backend expects strategy_name not name
+        strategy_type: 'custom'  // User-created combinations are custom strategies
       })
 
       // Refresh data
       await refreshStrategies()
       clearSelection()
+      setDragDropPositions([])
       setIsModalOpen(false)
 
       alert('Combination created successfully!')
@@ -74,6 +101,11 @@ export function OrganizeContainer() {
       console.error('Failed to create combination:', error)
       throw error
     }
+  }
+
+  const handleModalClose = () => {
+    setIsModalOpen(false)
+    setDragDropPositions([]) // Clear drag-drop state on cancel
   }
 
   const handleEditStrategy = (strategy: any) => {
@@ -191,6 +223,7 @@ export function OrganizeContainer() {
         isSelected={isSelected}
         onToggleSelection={toggleSelection}
         onDropTag={handleDropTag}
+        onDropPosition={handleDropPosition}
         onEditStrategy={handleEditStrategy}
         onDeleteStrategy={handleDeleteStrategy}
       />
@@ -205,9 +238,9 @@ export function OrganizeContainer() {
       {/* Combine Modal */}
       <CombineModal
         open={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
+        onClose={handleModalClose}
         onConfirm={handleCombineConfirm}
-        selectedCount={selectedCount}
+        selectedCount={positionsToCombine.length}
       />
         </div>
       </section>
