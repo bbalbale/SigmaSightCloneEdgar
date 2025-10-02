@@ -28,6 +28,61 @@ class StrategyService:
         """Initialize with database session"""
         self.db = db
 
+    def _calculate_strategy_categorization(
+        self,
+        strategy_type: str,
+        positions: List[Position]
+    ) -> Dict[str, Optional[str]]:
+        """
+        Calculate direction and primary_investment_class for a strategy.
+
+        Args:
+            strategy_type: The type of strategy
+            positions: List of positions in the strategy
+
+        Returns:
+            Dict with 'direction' and 'primary_investment_class' keys
+        """
+        if not positions:
+            return {'direction': None, 'primary_investment_class': None}
+
+        # Standalone strategies: Inherit from single position
+        if len(positions) == 1:
+            pos = positions[0]
+            return {
+                'direction': pos.position_type.value if hasattr(pos.position_type, 'value') else str(pos.position_type),
+                'primary_investment_class': pos.investment_class
+            }
+
+        # Multi-leg strategies: Use strategy type mapping
+        strategy_type_mapping = {
+            'covered_call': {'direction': 'LONG', 'class': 'PUBLIC'},
+            'protective_put': {'direction': 'LONG', 'class': 'PUBLIC'},
+            'iron_condor': {'direction': 'NEUTRAL', 'class': 'OPTIONS'},
+            'straddle': {'direction': 'NEUTRAL', 'class': 'OPTIONS'},
+            'strangle': {'direction': 'NEUTRAL', 'class': 'OPTIONS'},
+            'butterfly': {'direction': 'NEUTRAL', 'class': 'OPTIONS'},
+            'pairs_trade': {'direction': 'NEUTRAL', 'class': 'PUBLIC'},
+        }
+
+        if strategy_type in strategy_type_mapping:
+            mapping = strategy_type_mapping[strategy_type]
+            return {
+                'direction': mapping['direction'],
+                'primary_investment_class': mapping['class']
+            }
+
+        # Fallback: Use position with largest absolute market value
+        primary_position = max(
+            positions,
+            key=lambda p: abs(float(p.market_value or 0))
+        )
+
+        return {
+            'direction': primary_position.position_type.value if hasattr(primary_position.position_type, 'value') else str(primary_position.position_type),
+            'primary_investment_class': primary_position.investment_class
+        }
+
     async def create_strategy(
         self,
         portfolio_id: UUID,
@@ -52,6 +107,20 @@ class StrategyService:
             Created Strategy object
         """
         try:
+            # Fetch positions if provided to calculate categorization
+            positions = []
+            if position_ids:
+                result = await self.db.execute(
+                    select(Position).where(Position.id.in_(position_ids))
+                )
+                positions = list(result.scalars().all())
+
+            # Calculate categorization
+            categorization = self._calculate_strategy_categorization(
+                strategy_type=strategy_type.value if isinstance(strategy_type, StrategyType) else strategy_type,
+                positions=positions
+            )
+
             # Create the strategy
             strategy = Strategy(
                 id=uuid4(),
@@ -60,6 +129,8 @@ class StrategyService:
                 strategy_type=strategy_type.value if isinstance(strategy_type, StrategyType) else strategy_type,
                 description=description,
                 is_synthetic=strategy_type != StrategyType.STANDALONE,
+                direction=categorization['direction'],
+                primary_investment_class=categorization['primary_investment_class'],
                 created_by=created_by
             )
 
@@ -116,6 +187,12 @@ class StrategyService:
         if position.entry_price and position.quantity:
             cost_basis = float(position.entry_price * position.quantity)
 
+        # Calculate categorization (direction and investment class)
+        categorization = self._calculate_strategy_categorization(
+            strategy_type=StrategyType.STANDALONE.value,
+            positions=[position]
+        )
+
         # Create the standalone strategy
         strategy = Strategy(
             id=uuid4(),
@@ -125,6 +202,8 @@ class StrategyService:
             description=f"Standalone strategy for {position.symbol}",
             is_synthetic=False,
             total_cost_basis=cost_basis,
+            direction=categorization['direction'],
+            primary_investment_class=categorization['primary_investment_class'],
             created_by=created_by
         )
 

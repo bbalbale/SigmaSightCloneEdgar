@@ -81,35 +81,45 @@ Authorization: Bearer <jwt_token>
 | POST | `/target-prices/{portfolio_id}/import-csv` | ✅ Ready | Import from CSV |
 | POST | `/target-prices/{portfolio_id}/export` | ✅ Ready | Export to CSV/JSON |
 
-### 🎯 Strategy Endpoints (12 endpoints)
-| Method | Endpoint | Status | Description |
-|--------|----------|--------|-------------|
-| POST | `/strategies/` | ✅ Ready | Create new strategy |
-| GET | `/strategies/` | ✅ Ready | List all strategies |
-| GET | `/strategies/{id}` | ✅ Ready | Get strategy details |
-| PATCH | `/strategies/{id}` | ✅ Ready | Update strategy |
-| DELETE | `/strategies/{id}` | ✅ Ready | Delete strategy |
-| POST | `/strategies/{id}/positions` | ✅ Ready | Add positions to strategy |
-| DELETE | `/strategies/{id}/positions` | ✅ Ready | Remove positions from strategy |
-| POST | `/strategies/{id}/tags` | ✅ Ready | Assign tags to strategy |
-| DELETE | `/strategies/{id}/tags` | ✅ Ready | Remove tags from strategy |
-| GET | `/strategies/detect/{portfolio_id}` | ✅ Ready | Auto-detect strategies |
-| POST | `/strategies/combine` | ✅ Ready | Combine positions into strategy |
-| GET | `/data/portfolios/{id}/strategies` | ✅ Ready | Get portfolio strategies |
+### 🎯 Strategy Endpoints (12 endpoints) - **Frontend: 100% Complete** ✅
+| Method | Endpoint | Status | Description | Frontend Method |
+|--------|----------|--------|-------------|-----------------|
+| POST | `/strategies/` | ✅ Ready | Create new strategy | `strategiesApi.create()` |
+| GET | `/strategies/` | ✅ Ready | List all strategies | `strategiesApi.listByPortfolio()` |
+| GET | `/strategies/{id}` | ✅ Ready | Get strategy details | `strategiesApi.get()` |
+| PATCH | `/strategies/{id}` | ✅ Ready | Update strategy | `strategiesApi.update()` |
+| DELETE | `/strategies/{id}` | ✅ Ready | Delete strategy | `strategiesApi.delete()` |
+| POST | `/strategies/{id}/positions` | ✅ Ready | Add positions to strategy | `strategiesApi.addPositions()` |
+| DELETE | `/strategies/{id}/positions` | ✅ Ready | Remove positions from strategy | `strategiesApi.removePositions()` |
+| POST | `/strategies/{id}/tags` | ✅ Ready | Assign tags to strategy | `strategiesApi.addStrategyTags()` |
+| DELETE | `/strategies/{id}/tags` | ✅ Ready | Remove tags from strategy | `strategiesApi.removeStrategyTags()` |
+| GET | `/strategies/detect/{portfolio_id}` | ✅ Ready | Auto-detect strategies | `strategiesApi.detect()` |
+| POST | `/strategies/combine` | ✅ Ready | Combine positions into strategy | `strategiesApi.combine()` |
+| GET | `/data/portfolios/{id}/strategies` | ✅ Ready | Get portfolio strategies | `strategiesApi.listByPortfolio()` |
 
-### 🏷️ Tag Endpoints (10 endpoints)
-| Method | Endpoint | Status | Description |
-|--------|----------|--------|-------------|
-| POST | `/tags/` | ✅ Ready | Create new tag |
-| GET | `/tags/` | ✅ Ready | List user tags |
-| GET | `/tags/{id}` | ✅ Ready | Get tag details |
-| PATCH | `/tags/{id}` | ✅ Ready | Update tag |
-| DELETE | `/tags/{id}` | ✅ Ready | Archive/delete tag |
-| POST | `/tags/{id}/restore` | ✅ Ready | Restore archived tag |
-| POST | `/tags/defaults` | ✅ Ready | Create/get default tags (idempotent) |
-| POST | `/tags/reorder` | ✅ Ready | Reorder tag display |
-| GET | `/tags/{id}/strategies` | ✅ Ready | Get strategies using tag |
-| POST | `/tags/batch-update` | ✅ Ready | Batch update tags |
+**Frontend Service**: `src/services/strategiesApi.ts` (12/12 methods implemented)
+
+**New Strategy Fields (2025-10-01)**:
+- `direction` (String): LONG, SHORT, LC, LP, SC, SP, NEUTRAL - automatically calculated from positions
+- `primary_investment_class` (String): PUBLIC, OPTIONS, PRIVATE - automatically calculated from positions
+- **Purpose**: Enable filtering strategies by investment class and direction for 3-column portfolio layout
+- **See**: `STRATEGY_CATEGORIZATION_IMPLEMENTATION.md` for deployment guide
+
+### 🏷️ Tag Endpoints (10 endpoints) - **Frontend: 100% Complete** ✅
+| Method | Endpoint | Status | Description | Frontend Method |
+|--------|----------|--------|-------------|-----------------|
+| POST | `/tags/` | ✅ Ready | Create new tag | `tagsApi.create()` |
+| GET | `/tags/` | ✅ Ready | List user tags | `tagsApi.list()` |
+| GET | `/tags/{id}` | ✅ Ready | Get tag details | `tagsApi.get()` |
+| PATCH | `/tags/{id}` | ✅ Ready | Update tag | `tagsApi.update()` |
+| DELETE | `/tags/{id}` | ✅ Ready | Archive/delete tag | `tagsApi.delete()` |
+| POST | `/tags/{id}/restore` | ✅ Ready | Restore archived tag | `tagsApi.restore()` |
+| POST | `/tags/defaults` | ✅ Ready | Create/get default tags (idempotent) | `tagsApi.defaults()` |
+| POST | `/tags/reorder` | ✅ Ready | Reorder tag display | `tagsApi.reorder()` |
+| GET | `/tags/{id}/strategies` | ✅ Ready | Get strategies using tag | `tagsApi.getStrategies()` |
+| POST | `/tags/batch-update` | ✅ Ready | Batch update tags | `tagsApi.batchUpdate()` |
+
+**Frontend Service**: `src/services/tagsApi.ts` (10/10 methods implemented)
 
 ### ⚙️ Admin Endpoints (5 endpoints - Not Registered in Router)
 | Method | Endpoint | Status | Description |
@@ -125,6 +135,53 @@ Authorization: Bearer <jwt_token>
 - **Production Ready**: 61 (92.4%)
 - **Admin (Not Registered)**: 5 (7.6%)
 - **Categories**: 8 (Auth, Data, Analytics, Chat, Target Prices, Strategies, Tags, Admin)
+
+---
+
+## Part I-B: Frontend Integration Status
+
+### 🎨 Frontend Services Implementation
+
+| Service | File | Methods | Status | Notes |
+|---------|------|---------|--------|-------|
+| **Strategies** | `src/services/strategiesApi.ts` | 12/12 | ✅ 100% | All CRUD + tag management + combine |
+| **Tags** | `src/services/tagsApi.ts` | 10/10 | ✅ 100% | Full tag lifecycle + bulk operations |
+| **Analytics** | `src/services/analyticsApi.ts` | 5/5 | ✅ 100% | Portfolio analytics endpoints |
+| **Portfolio** | `src/services/portfolioService.ts` | 1/1 | ✅ 100% | Load portfolio data (composite) |
+| **Auth** | `src/services/authManager.ts` | - | ✅ 100% | JWT token management |
+
+### 🧩 Frontend Components Implementation
+
+| Component | File | Purpose | Status | Notes |
+|-----------|------|---------|--------|-------|
+| **StrategyCard** | `src/components/strategies/StrategyCard.tsx` | Wrapper for position cards | ✅ Complete | Follows SelectablePositionCard pattern |
+| **StrategyPositionList** | `src/components/strategies/StrategyPositionList.tsx` | List container | ✅ Complete | Manages expansion state, renders cards |
+| **PortfolioStrategiesView** | `src/components/portfolio/PortfolioStrategiesView.tsx` | 3-column layout (NEW) | ✅ Complete | Strategy view matching position layout |
+| **TagBadge** | `src/components/organize/TagBadge.tsx` | Tag display | ✅ Complete | Drag-drop support, color customization |
+| **useStrategies** | `src/hooks/useStrategies.ts` | React hook | ✅ Complete | Fetch strategies, tag management methods |
+| **useTags** | `src/hooks/useTags.ts` | React hook | ✅ Complete | Tag CRUD operations |
+| **useStrategyFiltering** | `src/hooks/useStrategyFiltering.ts` | Filter hook (NEW) | ✅ Complete | Filter strategies by inv. class & direction |
+
+### 📦 Type Definitions
+
+| File | Exports | Status | Notes |
+|------|---------|--------|-------|
+| `src/types/strategies.ts` | 25+ types | ✅ Complete | StrategyType, StrategyDetail, TagItem, UI props, etc. **NEW**: direction & primary_investment_class fields |
+| `src/types/analytics.ts` | Factor types | ✅ Complete | FactorExposure, analytics data |
+
+### 🚧 Integration Status (Portfolio Page)
+
+| Feature | Status | Notes |
+|---------|--------|-------|
+| **Strategy display components** | ✅ Complete | StrategyCard, StrategyPositionList, PortfolioStrategiesView ready |
+| **Strategy categorization** | ✅ Complete | direction & primary_investment_class fields implemented (NEW) |
+| **Strategy filtering** | ✅ Complete | useStrategyFiltering hook filters by inv. class & direction |
+| **Portfolio page integration** | ⏸️ Ready for integration | Non-breaking hybrid approach (view toggle) |
+| **Tag filtering UI** | 🔄 Partial | FilterBar exists but doesn't filter yet |
+| **Tag management modal** | ❌ Not Started | Needs implementation |
+| **Organize page** | ✅ Complete | Uses strategies and tags successfully |
+
+**Recommendation**: Implement hybrid approach (add strategy view alongside position view) to avoid breaking changes. See `strategyuicomponents.md` for detailed risk analysis.
 
 ---
 

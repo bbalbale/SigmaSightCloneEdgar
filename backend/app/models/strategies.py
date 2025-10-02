@@ -50,6 +50,12 @@ class Strategy(Base):
     net_exposure = Column(Numeric(20, 2), nullable=True)
     total_cost_basis = Column(Numeric(20, 2), nullable=True)
 
+    # Categorization for filtering/display
+    # direction: LONG, SHORT, LC, LP, SC, SP, NEUTRAL
+    direction = Column(String(10), nullable=True)
+    # primary_investment_class: PUBLIC, OPTIONS, PRIVATE
+    primary_investment_class = Column(String(20), nullable=True)
+
     # Timestamps
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
@@ -98,6 +104,8 @@ class Strategy(Base):
             "is_synthetic": self.is_synthetic,
             "net_exposure": float(self.net_exposure) if self.net_exposure else None,
             "total_cost_basis": float(self.total_cost_basis) if self.total_cost_basis else None,
+            "direction": self.direction,
+            "primary_investment_class": self.primary_investment_class,
             "leg_count": self.leg_count,
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,

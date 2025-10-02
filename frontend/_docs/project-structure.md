@@ -64,17 +64,22 @@ frontend/
 │   │   ├── chat/               # Chat system components
 │   │   │   └── ChatInterface.tsx
 │   │   ├── portfolio/          # Portfolio components (Modular, Reusable)
-│   │   │   ├── FactorExposureCards.tsx  # Factor exposure display
-│   │   │   ├── FilterBar.tsx            # Filter & sort controls
-│   │   │   ├── OptionsPositions.tsx     # Options contracts display
-│   │   │   ├── PortfolioError.tsx       # Error handling & display
-│   │   │   ├── PortfolioHeader.tsx      # Portfolio name & chat input
-│   │   │   ├── PortfolioMetrics.tsx     # Summary metrics cards
-│   │   │   ├── PortfolioPositions.tsx   # 3-column investment class grid
-│   │   │   ├── PrivatePositions.tsx     # Private/alternative investments
-│   │   │   ├── PublicPositions.tsx      # Public equity/ETF positions
+│   │   │   ├── FactorExposureCards.tsx    # Factor exposure display
+│   │   │   ├── FilterBar.tsx              # Filter & sort controls
+│   │   │   ├── OptionsPositions.tsx       # Options contracts display
+│   │   │   ├── PortfolioError.tsx         # Error handling & display
+│   │   │   ├── PortfolioHeader.tsx        # Portfolio name & chat input
+│   │   │   ├── PortfolioMetrics.tsx       # Summary metrics cards
+│   │   │   ├── PortfolioPositions.tsx     # 3-column investment class grid (positions)
+│   │   │   ├── PortfolioStrategiesView.tsx # ✅ NEW - 3-column grid (strategies)
+│   │   │   ├── PrivatePositions.tsx       # Private/alternative investments
+│   │   │   ├── PublicPositions.tsx        # Public equity/ETF positions
 │   │   │   ├── StrategyList.tsx
 │   │   │   └── TagEditor.tsx
+│   │   ├── strategies/         # ✅ NEW - Strategy display components
+│   │   │   ├── StrategyCard.tsx           # Strategy wrapper component
+│   │   │   ├── StrategyPositionList.tsx   # Strategy list container
+│   │   │   └── index.ts                   # Module exports
 │   │   ├── organize/           # ✅ IMPLEMENTED - Organize page components
 │   │   │   ├── SelectablePositionCard.tsx  # Wrapper with checkbox & tags
 │   │   │   ├── LongPositionsList.tsx       # Long positions list
@@ -95,7 +100,10 @@ frontend/
 │   ├── contexts/               # React contexts
 │   │   └── ThemeContext.tsx
 │   ├── hooks/                  # Custom React hooks
-│   │   └── usePortfolioData.ts # Portfolio data fetching & state management
+│   │   ├── usePortfolioData.ts      # Portfolio data fetching & state management
+│   │   ├── useStrategies.ts         # ✅ NEW - Strategy data hook
+│   │   ├── useTags.ts               # ✅ NEW - Tag management hook
+│   │   └── useStrategyFiltering.ts  # ✅ NEW - Strategy filtering by inv. class
 │   ├── lib/                    # Utility libraries
 │   │   ├── auth.ts             # Authentication utilities
 │   │   ├── dal.ts              # Data access layer
@@ -105,14 +113,16 @@ frontend/
 │   │   └── utils.ts            # General utilities
 │   ├── pages/                  # Legacy pages (if any)
 │   ├── services/               # API services
-│   │   ├── apiClient.ts
-│   │   ├── authManager.ts
-│   │   ├── chatAuthService.ts
-│   │   ├── chatService.ts
-│   │   ├── portfolioResolver.ts
-│   │   ├── portfolioService.ts
-│   │   ├── positionApiService.ts
-│   │   └── requestManager.ts
+│   │   ├── apiClient.ts             # Base HTTP client
+│   │   ├── authManager.ts           # Authentication service
+│   │   ├── chatAuthService.ts       # Chat authentication
+│   │   ├── chatService.ts           # Chat messaging
+│   │   ├── portfolioResolver.ts     # Portfolio ID resolution
+│   │   ├── portfolioService.ts      # Portfolio data
+│   │   ├── positionApiService.ts    # Position operations
+│   │   ├── strategiesApi.ts         # ✅ NEW - Strategy management API (12/12 methods)
+│   │   ├── tagsApi.ts               # ✅ NEW - Tag management API (10/10 methods)
+│   │   └── requestManager.ts        # Request retry/deduplication
 │   ├── stores/                 # State management (Zustand)
 │   │   ├── portfolioStore.ts  # 🆕 NEW - Global portfolio ID state
 │   │   ├── chatStore.ts       # Chat persistent data
@@ -120,7 +130,8 @@ frontend/
 │   ├── styles/                 # Global styles
 │   │   └── globals.css
 │   ├── types/                  # TypeScript type definitions
-│   │   └── analytics.ts
+│   │   ├── analytics.ts
+│   │   └── strategies.ts       # ✅ NEW - Strategy & tag type definitions (25+ exports)
 │   └── utils/                  # Utility functions
 │
 ├── public/                     # Static assets

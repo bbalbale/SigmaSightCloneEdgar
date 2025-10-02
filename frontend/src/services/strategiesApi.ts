@@ -1,14 +1,14 @@
 import { API_ENDPOINTS } from '@/config/api';
 import { requestManager } from './requestManager';
-
-export interface StrategyListItem {
-  id: string;
-  name: string;
-  type: string;
-  is_synthetic: boolean;
-  position_count?: number | null;
-  tags?: { id: string; name: string; color: string }[] | null;
-}
+import type {
+  StrategyListItem,
+  StrategyDetail,
+  CreateStrategyRequest,
+  UpdateStrategyRequest,
+  CombineStrategyRequest,
+  ListStrategiesResponse,
+  StrategyDetection,
+} from '@/types/strategies';
 
 export class StrategiesApi {
   async listByPortfolio(options: {
@@ -20,7 +20,7 @@ export class StrategiesApi {
     includeTags?: boolean;
     limit?: number;
     offset?: number;
-  }): Promise<{ strategies: StrategyListItem[]; total: number; limit: number; offset: number }>{
+  }): Promise<ListStrategiesResponse> {
     const { portfolioId, tagIds, tagMode = 'any', strategyType, includePositions = false, includeTags = true, limit = 200, offset = 0 } = options;
     const params = new URLSearchParams();
     if (tagIds?.length) params.set('tag_ids', tagIds.join(','));
@@ -72,6 +72,118 @@ export class StrategiesApi {
     const url = `/api/proxy${API_ENDPOINTS.STRATEGIES.TAGS.REMOVE(strategyId)}`;
     const token = localStorage.getItem('access_token') || '';
     const resp = await requestManager.authenticatedFetch(url, token, { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ tag_ids: tagIds }), timeout: 10000 });
+    return resp.json();
+  }
+
+  async create(request: CreateStrategyRequest): Promise<StrategyDetail> {
+    const url = `/api/proxy${API_ENDPOINTS.STRATEGIES.CREATE}`;
+    const token = localStorage.getItem('access_token') || '';
+    const resp = await requestManager.authenticatedFetch(url, token, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(request),
+      timeout: 10000
+    });
+    if (!resp.ok) {
+      const text = await resp.text().catch(() => '');
+      throw new Error(`HTTP ${resp.status}: ${text || resp.statusText}`);
+    }
+    return resp.json();
+  }
+
+  async get(strategyId: string): Promise<StrategyDetail> {
+    const url = `/api/proxy${API_ENDPOINTS.STRATEGIES.GET(strategyId)}`;
+    const token = localStorage.getItem('access_token') || '';
+    const resp = await requestManager.authenticatedFetch(url, token, { method: 'GET', timeout: 10000 });
+    if (!resp.ok) {
+      const text = await resp.text().catch(() => '');
+      throw new Error(`HTTP ${resp.status}: ${text || resp.statusText}`);
+    }
+    return resp.json();
+  }
+
+  async update(strategyId: string, request: UpdateStrategyRequest): Promise<StrategyDetail> {
+    const url = `/api/proxy${API_ENDPOINTS.STRATEGIES.UPDATE(strategyId)}`;
+    const token = localStorage.getItem('access_token') || '';
+    const resp = await requestManager.authenticatedFetch(url, token, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(request),
+      timeout: 10000
+    });
+    if (!resp.ok) {
+      const text = await resp.text().catch(() => '');
+      throw new Error(`HTTP ${resp.status}: ${text || resp.statusText}`);
+    }
+    return resp.json();
+  }
+
+  async delete(strategyId: string): Promise<void> {
+    const url = `/api/proxy${API_ENDPOINTS.STRATEGIES.DELETE(strategyId)}`;
+    const token = localStorage.getItem('access_token') || '';
+    const resp = await requestManager.authenticatedFetch(url, token, { method: 'DELETE', timeout: 10000 });
+    if (!resp.ok) {
+      const text = await resp.text().catch(() => '');
+      throw new Error(`HTTP ${resp.status}: ${text || resp.statusText}`);
+    }
+  }
+
+  async addPositions(strategyId: string, positionIds: string[]): Promise<StrategyDetail> {
+    const url = `/api/proxy/api/v1/strategies/${strategyId}/positions`;
+    const token = localStorage.getItem('access_token') || '';
+    const resp = await requestManager.authenticatedFetch(url, token, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ position_ids: positionIds }),
+      timeout: 10000
+    });
+    if (!resp.ok) {
+      const text = await resp.text().catch(() => '');
+      throw new Error(`HTTP ${resp.status}: ${text || resp.statusText}`);
+    }
+    return resp.json();
+  }
+
+  async removePositions(strategyId: string, positionIds: string[]): Promise<StrategyDetail> {
+    const url = `/api/proxy/api/v1/strategies/${strategyId}/positions`;
+    const token = localStorage.getItem('access_token') || '';
+    const resp = await requestManager.authenticatedFetch(url, token, {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ position_ids: positionIds }),
+      timeout: 10000
+    });
+    if (!resp.ok) {
+      const text = await resp.text().catch(() => '');
+      throw new Error(`HTTP ${resp.status}: ${text || resp.statusText}`);
+    }
+    return resp.json();
+  }
+
+  async combine(request: CombineStrategyRequest): Promise<StrategyDetail> {
+    const url = `/api/proxy${API_ENDPOINTS.STRATEGIES.COMBINE}`;
+    const token = localStorage.getItem('access_token') || '';
+    const resp = await requestManager.authenticatedFetch(url, token, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(request),
+      timeout: 10000
+    });
+    if (!resp.ok) {
+      const text = await resp.text().catch(() => '');
+      throw new Error(`HTTP ${resp.status}: ${text || resp.statusText}`);
+    }
+    return resp.json();
+  }
+
+  async detect(portfolioId: string): Promise<StrategyDetection[]> {
+    const url = `/api/proxy${API_ENDPOINTS.STRATEGIES.DETECT(portfolioId)}`;
+    const token = localStorage.getItem('access_token') || '';
+    const resp = await requestManager.authenticatedFetch(url, token, { method: 'GET', timeout: 10000 });
+    if (!resp.ok) {
+      const text = await resp.text().catch(() => '');
+      throw new Error(`HTTP ${resp.status}: ${text || resp.statusText}`);
+    }
     return resp.json();
   }
 }

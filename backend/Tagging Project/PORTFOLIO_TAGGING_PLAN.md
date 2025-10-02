@@ -1,9 +1,9 @@
 # Portfolio Position Tagging System - Implementation Status
 
 **Original Date**: September 23, 2025
-**Last Updated**: September 24, 2025
+**Last Updated**: October 1, 2025
 **Feature**: Dual system for position organization (tags) and position grouping (strategies)
-**Implementation Status**: Backend 95% Complete | Frontend 30% Complete
+**Implementation Status**: Backend 95% Complete | Frontend 75% Complete
 
 ---
 
@@ -42,11 +42,29 @@ The backend implementation is essentially complete with full API coverage, while
   - Multi-leg strategy combination
   - Basic strategy detection (covered calls, protective puts)
   - Metrics calculation and caching
+  - **NEW (2025-10-01)**: Automatic categorization by direction & investment class
+    - `_calculate_strategy_categorization()` method
+    - Standalone strategies: inherit from position
+    - Multi-leg strategies: use strategy type mapping
 - **TagService** (`app/services/tag_service.py`):
   - User-scoped tag management
   - Archive/restore functionality
   - Bulk operations and usage tracking
   - Default tag creation (10 suggestions)
+
+#### Strategy Categorization System - NEW ✅ (2025-10-01)
+- **Purpose**: Enable filtering strategies by investment class and direction for 3-column portfolio layout
+- **Database Fields Added**:
+  - `direction` (String): LONG, SHORT, LC, LP, SC, SP, NEUTRAL
+  - `primary_investment_class` (String): PUBLIC, OPTIONS, PRIVATE
+  - Indexes added for efficient filtering
+- **Migration**: `add_strategy_categorization_fields.py` (ready to deploy)
+- **Backfill Script**: `scripts/backfill_strategy_categorization.py` (ready to run)
+- **Calculation Logic**:
+  - Standalone strategies (70%): Inherit from single position
+  - Multi-leg strategies: Pre-defined type mapping (covered_call→LONG+PUBLIC, iron_condor→NEUTRAL+OPTIONS, etc.)
+  - Fallback: Use primary leg (largest market value)
+- **API Updates**: StrategyResponse now includes direction and primary_investment_class fields
 
 #### API Endpoints - FULLY IMPLEMENTED ✅
 - **22+ endpoints across strategies and tags**:
@@ -57,17 +75,70 @@ The backend implementation is essentially complete with full API coverage, while
   - Enhanced portfolio complete with strategies
 - **Full authorization and validation**
 
-### ⚠️ **IN PROGRESS Components (30% Frontend)**
+### ⚠️ **IN PROGRESS Components (75% Frontend)** - Updated 2025-10-01
 
-#### Frontend Integration - PARTIAL
-- **Created**:
-  - API clients: `strategiesApi.ts`, `tagsApi.ts`
-  - Components: `StrategyList.tsx`, `TagEditor.tsx`
-- **Missing**:
-  - Portfolio strategies page (referenced but not found)
-  - Integration into main portfolio views
-  - Strategy creation/combination UI
-  - Tag management interface
+#### Frontend Integration - SUBSTANTIALLY COMPLETE ✅
+- **API Services (100% Complete)**:
+  - ✅ `strategiesApi.ts` - 12/12 methods implemented
+    - CRUD operations: `create()`, `get()`, `update()`, `delete()`
+    - Position management: `addPositions()`, `removePositions()`, `combine()`
+    - Strategy operations: `listByPortfolio()`, `detect()`
+    - Tag management: `addStrategyTags()`, `removeStrategyTags()`, `replaceStrategyTags()`, `getStrategyTags()`
+  - ✅ `tagsApi.ts` - 10/10 methods implemented
+    - CRUD operations: `create()`, `get()`, `update()`, `delete()`, `restore()`
+    - Tag operations: `list()`, `getStrategies()`, `defaults()`, `reorder()`, `batchUpdate()`
+
+- **Type Definitions (100% Complete)**:
+  - ✅ `types/strategies.ts` - Comprehensive TypeScript types (25+ exports)
+    - Strategy types: `StrategyType`, `StrategyDetail`, `StrategyListItem`, `StrategyMetrics`
+    - **NEW**: `direction` and `primary_investment_class` fields for categorization
+    - Tag types: `TagItem`, `UpdateTagRequest`, `BatchTagUpdate`, `TagWithCount`
+    - Request/Response types for all API operations
+    - UI component prop types: `StrategyCardProps`, `TagSelectorProps`, etc.
+    - Constants: `DEFAULT_TAG_COLORS`, `DEFAULT_TAG_NAMES`
+
+- **React Hooks (100% Complete)**:
+  - ✅ `hooks/useStrategies.ts` - Fetch strategies with filtering, tag management methods
+  - ✅ `hooks/useTags.ts` - Tag CRUD operations (already existed)
+  - ✅ `hooks/useStrategyFiltering.ts` - **NEW**: Filter strategies by investment class & direction
+  - ✅ `hooks/usePositionSelection.ts` - Multi-select for strategy combination (already existed)
+
+- **UI Components (70% Complete)**:
+  - ✅ `components/strategies/StrategyCard.tsx` - Wrapper component (follows SelectablePositionCard pattern)
+    - Handles standalone (single position) and multi-leg (2+ positions) strategies
+    - Tag display with edit button
+    - Expand/collapse for multi-leg strategies
+    - Theme support (dark/light modes)
+  - ✅ `components/strategies/StrategyPositionList.tsx` - List container
+    - Manages expansion state for multi-leg strategies
+    - Renders appropriate position cards (Stock/Option/Private)
+    - Maps backend position data to frontend components
+  - ✅ `components/portfolio/PortfolioStrategiesView.tsx` - **NEW**: 3-column layout for strategies
+    - Same layout as PortfolioPositions (Row 1: Public Longs|Shorts|Private, Row 2: Long Options|Short Options)
+    - Uses useStrategyFiltering hook for automatic categorization
+    - Theme support and badge counts
+    - Ready for hybrid portfolio page integration
+  - ✅ `components/organize/TagBadge.tsx` - Tag display (already existed)
+    - Visual tag display with color customization
+    - Drag-drop support for tag application
+    - Optional delete button
+
+- **Page Integration (50% Complete)**:
+  - ✅ Organize page (`app/organize/page.tsx`) - Uses strategies and tags successfully
+  - ⏸️ Portfolio page (`app/portfolio/page.tsx`) - **READY FOR INTEGRATION** (hybrid approach)
+    - ✅ All components ready: StrategyCard, StrategyPositionList, PortfolioStrategiesView
+    - ✅ **Strategy categorization complete**: direction & primary_investment_class fields
+    - ✅ **Filtering complete**: useStrategyFiltering hook maintains 3-column layout
+    - ⏸️ **Integration pending**: Need to add view toggle (Position View / Strategy View)
+    - **Recommended approach**: Hybrid integration (add strategy view alongside position view)
+    - **See**: `STRATEGY_CATEGORIZATION_IMPLEMENTATION.md` for deployment guide
+    - **See**: `frontend/_docs/strategyuicomponents.md` for architecture details
+
+- **Remaining Work**:
+  - ⏸️ Portfolio page hybrid integration (safe migration path)
+  - ❌ Tag filtering UI in FilterBar
+  - ❌ Tag management modal (create/edit/archive UI)
+  - ❌ Drag-drop tag application refinements
 
 ### ❌ **PENDING Components**
 
