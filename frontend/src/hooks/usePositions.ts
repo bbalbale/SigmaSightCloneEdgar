@@ -24,6 +24,13 @@ export interface Position {
   // UI fields
   pnl?: number
   positive?: boolean
+  // Tags from the position-tag relationship
+  tags?: Array<{
+    id: string
+    name: string
+    color: string
+    description?: string
+  }>
 }
 
 interface UsePositionsOptions {
@@ -81,6 +88,17 @@ export function usePositions(options: UsePositionsOptions = {}): UsePositionsRet
         }
       )
 
+      console.log('[usePositions] Raw API response:', response)
+      console.log('[usePositions] Number of positions:', response.positions?.length)
+
+      // Check if any positions have tags
+      const positionsWithTags = response.positions?.filter((p: any) => p.tags && p.tags.length > 0) || []
+      console.log(`[usePositions] Positions with tags: ${positionsWithTags.length}`)
+
+      if (positionsWithTags.length > 0) {
+        console.log('[usePositions] Example position with tags:', positionsWithTags[0])
+      }
+
       let filteredPositions = response.positions || []
 
       // Apply investment class filter if specified
@@ -91,11 +109,18 @@ export function usePositions(options: UsePositionsOptions = {}): UsePositionsRet
       }
 
       // Add UI fields
-      const enhancedPositions = filteredPositions.map(pos => ({
-        ...pos,
-        pnl: pos.unrealized_pnl,
-        positive: pos.unrealized_pnl >= 0
-      }))
+      const enhancedPositions = filteredPositions.map(pos => {
+        // Log to verify tags are coming from API
+        if (pos.tags && pos.tags.length > 0) {
+          console.log(`Position ${pos.symbol} has tags:`, pos.tags)
+        }
+        return {
+          ...pos,
+          pnl: pos.unrealized_pnl,
+          positive: pos.unrealized_pnl >= 0,
+          tags: pos.tags || []  // Include tags from API response
+        }
+      })
 
       setPositions(enhancedPositions)
     } catch (err) {

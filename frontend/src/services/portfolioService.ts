@@ -229,7 +229,8 @@ function transformPositionDetails(positions: PositionDetail[]) {
     investment_subtype: pos.investment_subtype,
     strike_price: pos.strike_price,
     expiration_date: pos.expiration_date,
-    underlying_symbol: pos.underlying_symbol
+    underlying_symbol: pos.underlying_symbol,
+    tags: (pos as any).tags || [] // Include tags from API response
   }))
 }
 
