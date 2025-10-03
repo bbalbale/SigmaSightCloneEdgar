@@ -9,6 +9,128 @@
 
   Recommended Approach: Create Separate CompanyProfiles Table
 
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                         COMPANY_PROFILES TABLE STRUCTURE                        │
+│                              (~50 columns total)                                │
+└─────────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│ PRIMARY KEY                                                                     │
+├─────────────────────────────────────────┬───────────────────────────────────────┤
+│ symbol                                  │ VARCHAR(20) PRIMARY KEY               │
+└─────────────────────────────────────────┴───────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│ BASIC COMPANY INFO (7 fields)                                                  │
+├─────────────────────────────────────────┬───────────────────────────────────────┤
+│ company_name                            │ VARCHAR(200)                          │
+│ sector                                  │ VARCHAR(100)                          │
+│ industry                                │ VARCHAR(100)                          │
+│ exchange                                │ VARCHAR(20)                           │
+│ country                                 │ VARCHAR(10)                           │
+│ market_cap                              │ NUMERIC(18, 2)                        │
+│ description                             │ VARCHAR(1000)                         │
+└─────────────────────────────────────────┴───────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│ COMPANY TYPE FLAGS (2 fields)                                                  │
+├─────────────────────────────────────────┬───────────────────────────────────────┤
+│ is_etf                                  │ BOOLEAN (default: false)              │
+│ is_fund                                 │ BOOLEAN (default: false)              │
+└─────────────────────────────────────────┴───────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│ COMPANY DETAILS (3 fields)                                                     │
+├─────────────────────────────────────────┬───────────────────────────────────────┤
+│ ceo                                     │ VARCHAR(100)                          │
+│ employees                               │ INTEGER                               │
+│ website                                 │ VARCHAR(200)                          │
+└─────────────────────────────────────────┴───────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│ VALUATION METRICS (6 fields)                                                   │
+├─────────────────────────────────────────┬───────────────────────────────────────┤
+│ pe_ratio                                │ NUMERIC(10, 2)                        │
+│ forward_pe                              │ NUMERIC(10, 2)                        │
+│ dividend_yield                          │ NUMERIC(8, 6)                         │
+│ beta                                    │ NUMERIC(8, 4)                         │
+│ week_52_high                            │ NUMERIC(12, 4)                        │
+│ week_52_low                             │ NUMERIC(12, 4)                        │
+└─────────────────────────────────────────┴───────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│ ANALYST ESTIMATES & TARGETS (6 fields)                                         │
+├─────────────────────────────────────────┬───────────────────────────────────────┤
+│ target_mean_price                       │ NUMERIC(12, 4)                        │
+│ target_high_price                       │ NUMERIC(12, 4)                        │
+│ target_low_price                        │ NUMERIC(12, 4)                        │
+│ number_of_analyst_opinions              │ INTEGER                               │
+│ recommendation_mean                     │ NUMERIC(3, 2)  [1-5 scale]           │
+│ recommendation_key                      │ VARCHAR(20)  ["buy", "hold", "sell"] │
+└─────────────────────────────────────────┴───────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│ FORWARD ESTIMATES (4 fields)                                                   │
+├─────────────────────────────────────────┬───────────────────────────────────────┤
+│ forward_eps                             │ NUMERIC(12, 4)                        │
+│ earnings_growth                         │ NUMERIC(8, 6)  [as decimal]          │
+│ revenue_growth                          │ NUMERIC(8, 6)  [as decimal]          │
+│ earnings_quarterly_growth               │ NUMERIC(8, 6)  [as decimal]          │
+└─────────────────────────────────────────┴───────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│ PROFITABILITY METRICS (6 fields)                                               │
+├─────────────────────────────────────────┬───────────────────────────────────────┤
+│ profit_margins                          │ NUMERIC(8, 6)                         │
+│ operating_margins                       │ NUMERIC(8, 6)                         │
+│ gross_margins                           │ NUMERIC(8, 6)                         │
+│ return_on_assets                        │ NUMERIC(8, 6)                         │
+│ return_on_equity                        │ NUMERIC(8, 6)                         │
+│ total_revenue                           │ NUMERIC(18, 2)  [TTM]                 │
+└─────────────────────────────────────────┴───────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│ CURRENT YEAR ESTIMATES - Period "0y" (8 fields) ← yahooquery earnings_trend    │
+├─────────────────────────────────────────┬───────────────────────────────────────┤
+│ current_year_revenue_avg                │ NUMERIC(18, 2)                        │
+│ current_year_revenue_low                │ NUMERIC(18, 2)                        │
+│ current_year_revenue_high               │ NUMERIC(18, 2)                        │
+│ current_year_revenue_growth             │ NUMERIC(8, 6)  [as decimal]          │
+│ current_year_earnings_avg               │ NUMERIC(12, 4)                        │
+│ current_year_earnings_low               │ NUMERIC(12, 4)                        │
+│ current_year_earnings_high              │ NUMERIC(12, 4)                        │
+│ current_year_end_date                   │ DATE  [fiscal year end]              │
+└─────────────────────────────────────────┴───────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│ NEXT YEAR ESTIMATES - Period "+1y" (8 fields) ← yahooquery earnings_trend      │
+├─────────────────────────────────────────┬───────────────────────────────────────┤
+│ next_year_revenue_avg                   │ NUMERIC(18, 2)                        │
+│ next_year_revenue_low                   │ NUMERIC(18, 2)                        │
+│ next_year_revenue_high                  │ NUMERIC(18, 2)                        │
+│ next_year_revenue_growth                │ NUMERIC(8, 6)  [as decimal]          │
+│ next_year_earnings_avg                  │ NUMERIC(12, 4)                        │
+│ next_year_earnings_low                  │ NUMERIC(12, 4)                        │
+│ next_year_earnings_high                 │ NUMERIC(12, 4)                        │
+│ next_year_end_date                      │ DATE  [fiscal year end]              │
+└─────────────────────────────────────────┴───────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│ DATA TRACKING (4 fields)                                                        │
+├─────────────────────────────────────────┬───────────────────────────────────────┤
+│ data_source                             │ VARCHAR(50)  [default: 'yahooquery'] │
+│ last_updated                            │ TIMESTAMP WITH TIMEZONE               │
+│ created_at                              │ TIMESTAMP WITH TIMEZONE               │
+│ updated_at                              │ TIMESTAMP WITH TIMEZONE               │
+└─────────────────────────────────────────┴───────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│ INDEXES                                                                         │
+├─────────────────────────────────────────────────────────────────────────────────┤
+│ • PRIMARY KEY on symbol                                                         │
+│ • INDEX on symbol (ix_company_profiles_symbol)                                 │
+└─────────────────────────────────────────────────────────────────────────────────┘
+
   Option 1: New Table (RECOMMENDED)
   class CompanyProfile(Base):
       """Company profile information - relatively static company metadata"""
