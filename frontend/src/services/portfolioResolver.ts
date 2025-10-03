@@ -57,7 +57,7 @@ class PortfolioResolver {
     }
 
     try {
-      const response = await requestManager.authenticatedFetch(
+      const portfolios = await requestManager.authenticatedFetchJson<any[]>(
         '/api/proxy/api/v1/data/portfolios',
         token,
         {
@@ -71,65 +71,62 @@ class PortfolioResolver {
         }
       )
 
-      if (response.ok) {
-        const portfolios = await response.json()
-
-        if (Array.isArray(portfolios) && portfolios.length > 0) {
-          const portfolio = portfolios[0]
-          const portfolioInfo: PortfolioInfo = {
-            id: portfolio.id,
-            name: portfolio.name,
-            totalValue: portfolio.total_value || 0,
-            positionCount: portfolio.position_count || 0
-          }
-
-          this.portfolioCache.set(cacheKey, portfolioInfo)
-          this.cacheExpiry.set(cacheKey, Date.now() + this.CACHE_DURATION)
-
-          authManager.setPortfolioId(portfolio.id)
-
-          console.log('Portfolio discovered from backend:', {
-            id: portfolio.id,
-            name: portfolio.name,
-            totalValue: portfolio.total_value,
-            positionCount: portfolio.position_count
-          })
-          return portfolio.id
+      if (Array.isArray(portfolios) && portfolios.length > 0) {
+        const portfolio = portfolios[0]
+        const portfolioInfo: PortfolioInfo = {
+          id: portfolio.id,
+          name: portfolio.name,
+          totalValue: portfolio.total_value || 0,
+          positionCount: portfolio.position_count || 0
         }
 
-        console.warn('No portfolios found for user in backend response')
-        return null
+        this.portfolioCache.set(cacheKey, portfolioInfo)
+        this.cacheExpiry.set(cacheKey, Date.now() + this.CACHE_DURATION)
+
+        authManager.setPortfolioId(portfolio.id)
+
+        console.log('Portfolio discovered from backend:', {
+          id: portfolio.id,
+          name: portfolio.name,
+          totalValue: portfolio.total_value,
+          positionCount: portfolio.position_count
+        })
+        return portfolio.id
       }
 
-      // Fallback: deterministic mapping (development only)
-      if (email) {
-        const portfolioMap: Record<string, string> = {
-          'demo_individual@sigmasight.com': '1d8ddd95-3b45-0ac5-35bf-cf81af94a5fe',
-          'demo_hnw@sigmasight.com': 'e23ab931-a033-edfe-ed4f-9d02474780b4',
-          'demo_hedgefundstyle@sigmasight.com': 'fcd71196-e93e-f000-5a74-31a9eead3118'
-        }
-        const mappedId = portfolioMap[email]
-        if (mappedId) {
-          const portfolioInfo: PortfolioInfo = {
-            id: mappedId,
-            name: `Portfolio for ${email}`,
-            totalValue: 0,
-            positionCount: 0
-          }
-          this.portfolioCache.set(cacheKey, portfolioInfo)
-          this.cacheExpiry.set(cacheKey, Date.now() + this.CACHE_DURATION)
-          authManager.setPortfolioId(mappedId)
-          console.warn('Backend portfolios endpoint unavailable; using fallback mapping for development:', portfolioInfo)
-          return mappedId
-        }
-      }
-      return null
+      console.warn('No portfolios found for user in backend response')
+      // Continue to fallback
     } catch (error: any) {
       if (error.name !== 'AbortError') {
         console.error('Error fetching portfolios:', error)
       }
-      return null
+      // Continue to fallback
     }
+
+    // Fallback: deterministic mapping (development only)
+    if (email) {
+      const portfolioMap: Record<string, string> = {
+        'demo_individual@sigmasight.com': '1d8ddd95-3b45-0ac5-35bf-cf81af94a5fe',
+        'demo_hnw@sigmasight.com': 'e23ab931-a033-edfe-ed4f-9d02474780b4',
+        'demo_hedgefundstyle@sigmasight.com': 'fcd71196-e93e-f000-5a74-31a9eead3118'
+      }
+      const mappedId = portfolioMap[email]
+      if (mappedId) {
+        const portfolioInfo: PortfolioInfo = {
+          id: mappedId,
+          name: `Portfolio for ${email}`,
+          totalValue: 0,
+          positionCount: 0
+        }
+        this.portfolioCache.set(cacheKey, portfolioInfo)
+        this.cacheExpiry.set(cacheKey, Date.now() + this.CACHE_DURATION)
+        authManager.setPortfolioId(mappedId)
+        console.warn('Backend portfolios endpoint unavailable; using fallback mapping for development:', portfolioInfo)
+        return mappedId
+      }
+    }
+
+    return null
   }
 
   /**
