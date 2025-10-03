@@ -70,7 +70,9 @@ class Position(Base):
 
     # Relationships
     portfolio: Mapped["Portfolio"] = relationship("Portfolio", back_populates="positions")
-    # Legacy tags relationship removed; tags apply to strategies via StrategyTag/TagV2
+    # Direct position tagging (new system)
+    position_tags: Mapped[List["PositionTag"]] = relationship("PositionTag", back_populates="position", cascade="all, delete-orphan")
+    # Legacy strategy relationship (deprecated but kept for backward compatibility)
     strategy: Mapped[Optional["Strategy"]] = relationship("Strategy", back_populates="positions", foreign_keys=[strategy_id])
     strategy_legs: Mapped[List["StrategyLeg"]] = relationship("StrategyLeg", back_populates="position")
     greeks: Mapped[Optional["PositionGreeks"]] = relationship("PositionGreeks", back_populates="position", uselist=False)

@@ -1,9 +1,11 @@
 # SigmaSight API and Database Summary
 
 **Generated**: September 29, 2025
-**Last Updated**: October 1, 2025
+**Last Updated**: October 2, 2025
 **Status**: Production-Ready APIs with Complete Database Schema
-**Latest Updates**: Added strategy categorization (direction & primary_investment_class), implemented Combination View toggle
+**Latest Updates**:
+- **October 2, 2025**: Position tagging system implemented (replaces strategy-based tagging)
+- **October 1, 2025**: Added strategy categorization (direction & primary_investment_class), implemented Combination View toggle
 
 ---
 
@@ -82,23 +84,25 @@ Authorization: Bearer <jwt_token>
 | POST | `/target-prices/{portfolio_id}/import-csv` | ✅ Ready | Import from CSV |
 | POST | `/target-prices/{portfolio_id}/export` | ✅ Ready | Export to CSV/JSON |
 
-### 🎯 Strategy Endpoints (12 endpoints) - **Frontend: 100% Complete** ✅
+### 🎯 Strategy Endpoints (12 endpoints) - ⚠️ **DEPRECATED** - Use Position Tagging Instead
 | Method | Endpoint | Status | Description | Frontend Method |
 |--------|----------|--------|-------------|-----------------|
-| POST | `/strategies/` | ✅ Ready | Create new strategy | `strategiesApi.create()` |
-| GET | `/strategies/` | ✅ Ready | List all strategies | `strategiesApi.listByPortfolio()` |
-| GET | `/strategies/{id}` | ✅ Ready | Get strategy details | `strategiesApi.get()` |
-| PATCH | `/strategies/{id}` | ✅ Ready | Update strategy | `strategiesApi.update()` |
-| DELETE | `/strategies/{id}` | ✅ Ready | Delete strategy | `strategiesApi.delete()` |
-| POST | `/strategies/{id}/positions` | ✅ Ready | Add positions to strategy | `strategiesApi.addPositions()` |
-| DELETE | `/strategies/{id}/positions` | ✅ Ready | Remove positions from strategy | `strategiesApi.removePositions()` |
-| POST | `/strategies/{id}/tags` | ✅ Ready | Assign tags to strategy | `strategiesApi.addStrategyTags()` |
-| DELETE | `/strategies/{id}/tags` | ✅ Ready | Remove tags from strategy | `strategiesApi.removeStrategyTags()` |
-| GET | `/strategies/detect/{portfolio_id}` | ✅ Ready | Auto-detect strategies | `strategiesApi.detect()` |
-| POST | `/strategies/combine` | ✅ Ready | Combine positions into strategy | `strategiesApi.combine()` |
-| GET | `/strategies/?portfolio_id={id}` | ✅ Ready | Get portfolio strategies with categorization | `strategiesApi.listByPortfolio()` |
+| POST | `/strategies/` | ⚠️ Deprecated | Create new strategy | `strategiesApi.create()` |
+| GET | `/strategies/` | ⚠️ Deprecated | List all strategies | `strategiesApi.listByPortfolio()` |
+| GET | `/strategies/{id}` | ⚠️ Deprecated | Get strategy details | `strategiesApi.get()` |
+| PATCH | `/strategies/{id}` | ⚠️ Deprecated | Update strategy | `strategiesApi.update()` |
+| DELETE | `/strategies/{id}` | ⚠️ Deprecated | Delete strategy | `strategiesApi.delete()` |
+| POST | `/strategies/{id}/positions` | ⚠️ Deprecated | Add positions to strategy | `strategiesApi.addPositions()` |
+| DELETE | `/strategies/{id}/positions` | ⚠️ Deprecated | Remove positions from strategy | `strategiesApi.removePositions()` |
+| POST | `/strategies/{id}/tags` | ⚠️ Deprecated | Assign tags to strategy | `strategiesApi.addStrategyTags()` |
+| DELETE | `/strategies/{id}/tags` | ⚠️ Deprecated | Remove tags from strategy | `strategiesApi.removeStrategyTags()` |
+| GET | `/strategies/detect/{portfolio_id}` | ⚠️ Deprecated | Auto-detect strategies | `strategiesApi.detect()` |
+| POST | `/strategies/combine` | ⚠️ Deprecated | Combine positions into strategy | `strategiesApi.combine()` |
+| GET | `/strategies/?portfolio_id={id}` | ⚠️ Deprecated | Get portfolio strategies with categorization | `strategiesApi.listByPortfolio()` |
 
-**Frontend Service**: `src/services/strategiesApi.ts` (12/12 methods implemented)
+**Frontend Service**: `src/services/strategiesApi.ts` (12/12 methods implemented, backward compatible)
+
+**Deprecation Notice**: Strategy-based tagging is deprecated in favor of direct position tagging. Strategy endpoints remain functional for backward compatibility but will not receive new features. Use the Position Tagging endpoints below instead.
 
 **New Strategy Categorization Fields (October 1, 2025)**:
 - `direction` (String): Strategy direction - `LONG`, `SHORT`, `LC`, `LP`, `SC`, `SP`, `NEUTRAL`
@@ -111,7 +115,7 @@ Authorization: Bearer <jwt_token>
 - **Purpose**: Enable filtering strategies by investment class and direction for 3-column portfolio layout
 - **See**: `STRATEGY_CATEGORIZATION_IMPLEMENTATION.md` for deployment guide
 
-### 🏷️ Tag Endpoints (10 endpoints) - **Frontend: 100% Complete** ✅
+### 🏷️ Tag Management Endpoints (10 endpoints) - **Frontend: 100% Complete** ✅
 | Method | Endpoint | Status | Description | Frontend Method |
 |--------|----------|--------|-------------|-----------------|
 | POST | `/tags/` | ✅ Ready | Create new tag | `tagsApi.create()` |
@@ -122,10 +126,29 @@ Authorization: Bearer <jwt_token>
 | POST | `/tags/{id}/restore` | ✅ Ready | Restore archived tag | `tagsApi.restore()` |
 | POST | `/tags/defaults` | ✅ Ready | Create/get default tags (idempotent) | `tagsApi.defaults()` |
 | POST | `/tags/reorder` | ✅ Ready | Reorder tag display | `tagsApi.reorder()` |
-| GET | `/tags/{id}/strategies` | ✅ Ready | Get strategies using tag | `tagsApi.getStrategies()` |
+| GET | `/tags/{id}/strategies` | ⚠️ Deprecated | Get strategies using tag (legacy) | `tagsApi.getStrategies()` |
 | POST | `/tags/batch-update` | ✅ Ready | Batch update tags | `tagsApi.batchUpdate()` |
 
-**Frontend Service**: `src/services/tagsApi.ts` (10/10 methods implemented)
+**Frontend Service**: `src/services/tagsApi.ts` (10 tag management methods + 5 position tagging methods)
+
+### 🏷️ Position Tagging Endpoints (5 endpoints) - **NEW** ✅ **Preferred Method**
+| Method | Endpoint | Status | Description | Frontend Method |
+|--------|----------|--------|-------------|-----------------|
+| POST | `/positions/{id}/tags` | ✅ Ready | Add tags to position | `tagsApi.addPositionTags()` |
+| DELETE | `/positions/{id}/tags` | ✅ Ready | Remove tags from position | `tagsApi.removePositionTags()` |
+| GET | `/positions/{id}/tags` | ✅ Ready | Get position's tags | `tagsApi.getPositionTags()` |
+| PATCH | `/positions/{id}/tags` | ✅ Ready | Replace all position tags | `tagsApi.replacePositionTags()` |
+| GET | `/tags/{id}/positions` | ✅ Ready | Get positions with tag | `tagsApi.getPositionsByTag()` |
+
+**Frontend Service**: `src/services/tagsApi.ts` (same service, 5 new methods added)
+**React Hook**: `src/hooks/usePositionTags.ts` - State management for position tagging
+
+**Key Features**:
+- **Direct Tagging**: Tag positions directly without creating strategies
+- **Multiple Tags**: Positions can have multiple tags for flexible organization
+- **Batch Operations**: Add/remove multiple tags in a single request
+- **Automatic Inclusion**: Position details endpoint now includes `tags` array
+- **Performance Optimized**: Batch fetching to prevent N+1 queries
 
 ### ⚙️ Admin Endpoints (5 endpoints - Not Registered in Router)
 | Method | Endpoint | Status | Description |
@@ -137,10 +160,11 @@ Authorization: Bearer <jwt_token>
 | POST | `/admin/batch/data-quality/refresh` | ⚠️ Exists | Refresh market data |
 
 ### 📋 Summary Statistics
-- **Total Endpoints**: 66
-- **Production Ready**: 61 (92.4%)
-- **Admin (Not Registered)**: 5 (7.6%)
-- **Categories**: 8 (Auth, Data, Analytics, Chat, Target Prices, Strategies, Tags, Admin)
+- **Total Endpoints**: 71 (includes 5 new position tagging endpoints)
+- **Production Ready**: 66 (93%)
+- **Deprecated (Strategies)**: 12 (backward compatible)
+- **Admin (Not Registered)**: 5 (7%)
+- **Categories**: 9 (Auth, Data, Analytics, Chat, Target Prices, Strategies [Deprecated], Tags, Position Tagging [NEW], Admin)
 
 ---
 
@@ -150,8 +174,9 @@ Authorization: Bearer <jwt_token>
 
 | Service | File | Methods | Status | Notes |
 |---------|------|---------|--------|-------|
-| **Strategies** | `src/services/strategiesApi.ts` | 12/12 | ✅ 100% | All CRUD + tag management + combine |
+| **Position Tagging** | `src/services/tagsApi.ts` | 5/5 | ✅ 100% | **NEW** - Direct position tagging (preferred) |
 | **Tags** | `src/services/tagsApi.ts` | 10/10 | ✅ 100% | Full tag lifecycle + bulk operations |
+| **Strategies** | `src/services/strategiesApi.ts` | 12/12 | ⚠️ Deprecated | Legacy - backward compatible |
 | **Analytics** | `src/services/analyticsApi.ts` | 5/5 | ✅ 100% | Portfolio analytics endpoints |
 | **Portfolio** | `src/services/portfolioService.ts` | 1/1 | ✅ 100% | Load portfolio data (composite) |
 | **Auth** | `src/services/authManager.ts` | - | ✅ 100% | JWT token management |
@@ -160,13 +185,14 @@ Authorization: Bearer <jwt_token>
 
 | Component | File | Purpose | Status | Notes |
 |-----------|------|---------|--------|-------|
-| **StrategyCard** | `src/components/strategies/StrategyCard.tsx` | Wrapper for position cards | ✅ Complete | Follows SelectablePositionCard pattern |
-| **StrategyPositionList** | `src/components/strategies/StrategyPositionList.tsx` | List container | ✅ Complete | Manages expansion state, renders cards |
-| **PortfolioStrategiesView** | `src/components/portfolio/PortfolioStrategiesView.tsx` | 3-column layout (NEW) | ✅ Complete | Strategy view matching position layout |
-| **TagBadge** | `src/components/organize/TagBadge.tsx` | Tag display | ✅ Complete | Drag-drop support, color customization |
-| **useStrategies** | `src/hooks/useStrategies.ts` | React hook | ✅ Complete | Fetch strategies, tag management methods |
+| **usePositionTags** | `src/hooks/usePositionTags.ts` | React hook (NEW) | ✅ Complete | **NEW** - Position tag state management |
 | **useTags** | `src/hooks/useTags.ts` | React hook | ✅ Complete | Tag CRUD operations |
-| **useStrategyFiltering** | `src/hooks/useStrategyFiltering.ts` | Filter hook (NEW) | ✅ Complete | Filter strategies by inv. class & direction |
+| **StrategyCard** | `src/components/strategies/StrategyCard.tsx` | Wrapper for position cards | ⚠️ Deprecated | Legacy component |
+| **StrategyPositionList** | `src/components/strategies/StrategyPositionList.tsx` | List container | ⚠️ Deprecated | Legacy component |
+| **PortfolioStrategiesView** | `src/components/portfolio/PortfolioStrategiesView.tsx` | 3-column layout | ⚠️ Deprecated | Legacy view |
+| **TagBadge** | `src/components/organize/TagBadge.tsx` | Tag display | ✅ Complete | Drag-drop support, color customization |
+| **useStrategies** | `src/hooks/useStrategies.ts` | React hook | ⚠️ Deprecated | Legacy - use usePositionTags instead |
+| **useStrategyFiltering** | `src/hooks/useStrategyFiltering.ts` | Filter hook | ⚠️ Deprecated | Legacy filtering |
 
 ### 📦 Type Definitions
 
@@ -313,35 +339,75 @@ Authorization: Bearer <jwt_token>
 └────────────────────────────┘
 
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                          STRATEGY & TAGGING TABLES                          │
+│                          TAGGING SYSTEM TABLES                              │
 └─────────────────────────────────────────────────────────────────────────────┘
 
-┌────────────────────────────┐         ┌────────────────────────────┐
-│       STRATEGIES           │         │     STRATEGY_LEGS          │
-├────────────────────────────┤         ├────────────────────────────┤
-│ id (UUID)               PK │         │ id (UUID)               PK │
-│ portfolio_id            FK │───┐     │ strategy_id             FK │
-│ strategy_type              │   │     │ position_id             FK │
-│ name                       │   └────<│ created_at                 │
-│ description                │         └────────────────────────────┘
-│ is_synthetic               │
-│ net_exposure               │         ┌────────────────────────────┐
-│ total_cost_basis           │         │       TAGS_V2              │
-│ created_at                 │         ├────────────────────────────┤
-│ updated_at                 │         │ id (UUID)               PK │
-│ closed_at                  │         │ user_id                 FK │
-│ created_by              FK │         │ name                       │
-└────────────────────────────┘         │ color                      │
-                                       │ description                │
-┌────────────────────────────┐         │ display_order              │
-│    STRATEGY_TAGS           │         │ usage_count                │
-├────────────────────────────┤         │ is_archived                │
-│ id (UUID)               PK │         │ archived_at                │
-│ strategy_id             FK │         │ archived_by             FK │
-│ tag_id                  FK │         │ created_at                 │
-│ assigned_at                │         │ updated_at                 │
-│ assigned_by             FK │         └────────────────────────────┘
-└────────────────────────────┘
+                              ┌────────────────────────────┐
+                              │       TAGS_V2              │
+                              ├────────────────────────────┤
+                              │ id (UUID)               PK │
+                              │ user_id                 FK │
+                              │ name                       │
+                              │ color                      │
+                              │ description                │
+                              │ display_order              │
+                              │ usage_count                │
+                              │ is_archived                │
+                              │ archived_at                │
+                              │ archived_by             FK │
+                              │ created_at                 │
+                              │ updated_at                 │
+                              └────────────────────────────┘
+                                        │
+                  ┌─────────────────────┴─────────────────────┐
+                  │                                           │
+                  ▼ (NEW - Preferred)                         ▼ (Deprecated)
+┌────────────────────────────┐                 ┌────────────────────────────┐
+│     POSITION_TAGS          │                 │    STRATEGY_TAGS           │
+├────────────────────────────┤                 ├────────────────────────────┤
+│ id (UUID)               PK │                 │ id (UUID)               PK │
+│ position_id             FK │                 │ strategy_id             FK │
+│ tag_id                  FK │                 │ tag_id                  FK │
+│ assigned_at                │                 │ assigned_at                │
+│ assigned_by             FK │                 │ assigned_by             FK │
+│ UNIQUE(position_id, tag_id)│                 └────────────────────────────┘
+│ INDEX(position_id)         │                           │
+│ INDEX(tag_id)              │                           │
+└────────────────────────────┘                           ▼
+          │                              ┌────────────────────────────┐
+          │                              │       STRATEGIES           │
+          │                              ├────────────────────────────┤
+          ▼                              │ id (UUID)               PK │
+┌─────────────────┐                      │ portfolio_id            FK │
+│   POSITIONS     │                      │ strategy_type              │
+├─────────────────┤                      │ name                       │
+│ id (UUID)    PK │                      │ description                │
+│ portfolio_id FK │                      │ direction          [NEW]   │
+│ symbol          │                      │ primary_inv_class  [NEW]   │
+│ position_type   │                      │ is_synthetic               │
+│ quantity        │                      │ net_exposure               │
+│ investment_class│                      │ total_cost_basis           │
+│ created_at      │                      │ created_at                 │
+│ updated_at      │                      │ updated_at                 │
+│ tags (computed) │ ← Batch fetched      │ closed_at                  │
+└─────────────────┘   via position_tags  │ created_by              FK │
+                                         └────────────────────────────┘
+                                                   │
+                                                   ▼
+                                         ┌────────────────────────────┐
+                                         │     STRATEGY_LEGS          │
+                                         ├────────────────────────────┤
+                                         │ id (UUID)               PK │
+                                         │ strategy_id             FK │
+                                         │ position_id             FK │
+                                         │ created_at                 │
+                                         └────────────────────────────┘
+
+**Key Changes (October 2, 2025)**:
+- **NEW**: `position_tags` table for direct position tagging (preferred)
+- **DEPRECATED**: `strategies`, `strategy_legs`, `strategy_tags` (legacy, backward compatible)
+- All positions now include `tags` array in API responses (batch fetched)
+- Position tagging uses junction table with unique constraint and indexes for performance
 
 ┌────────────────────────────┐         ┌────────────────────────────┐
 │   STRATEGY_METRICS         │         │   OPTION_CONTRACTS         │

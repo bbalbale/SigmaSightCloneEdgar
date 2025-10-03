@@ -166,21 +166,8 @@ class StrategyService:
         Returns:
             Created Strategy object
         """
-        # Generate a descriptive name
-        position_type_names = {
-            'LONG': 'Long',
-            'SHORT': 'Short',
-            'LC': 'Long Call',
-            'LP': 'Long Put',
-            'SC': 'Short Call',
-            'SP': 'Short Put'
-        }
-
-        type_name = position_type_names.get(
-            position.position_type.value if hasattr(position.position_type, 'value') else str(position.position_type),
-            position.position_type
-        )
-        strategy_name = f"{type_name} {position.symbol}"
+        # Use just the symbol as the strategy name
+        strategy_name = position.symbol
 
         # Calculate cost basis
         cost_basis = None
@@ -199,7 +186,7 @@ class StrategyService:
             portfolio_id=position.portfolio_id,
             name=strategy_name,
             strategy_type=StrategyType.STANDALONE.value,
-            description=f"Standalone strategy for {position.symbol}",
+            description=None,
             is_synthetic=False,
             total_cost_basis=cost_basis,
             direction=categorization['direction'],
@@ -412,14 +399,25 @@ class StrategyService:
         if len(positions) != len(position_ids):
             raise ValueError("Some positions not found or don't belong to the portfolio")
 
+        # Calculate categorization before creating the strategy
+        categorization = self._calculate_strategy_categorization(
+            strategy_type=strategy_type.value if isinstance(strategy_type, StrategyType) else strategy_type,
+            positions=positions
+        )
+
         # Create the multi-leg strategy
-        strategy = await self.create_strategy(
+        strategy = Strategy(
+            id=uuid4(),
             portfolio_id=portfolio_id,
             name=strategy_name,
-            strategy_type=strategy_type,
+            strategy_type=strategy_type.value if isinstance(strategy_type, StrategyType) else strategy_type,
             description=description,
+            is_synthetic=True,  # Combined strategies are always synthetic
+            direction=categorization['direction'],
+            primary_investment_class=categorization['primary_investment_class'],
             created_by=created_by
         )
+        self.db.add(strategy)
 
         # Collect old standalone strategies to delete
         old_strategy_ids = set()

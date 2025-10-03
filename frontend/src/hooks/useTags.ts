@@ -85,21 +85,17 @@ export function useTags(options: UseTagsOptions = {}): UseTagsReturn {
     }
   }, [])
 
-  // Delete a tag (placeholder - API doesn't have delete endpoint yet)
+  // Delete a tag
   const deleteTag = useCallback(async (tagId: string) => {
     try {
-      // TODO: Call delete API when available
-      // For now, just remove from local state optimistically
-      setTags(prev => prev.filter(tag => tag.id !== tagId))
-
-      // Would normally call:
-      // await tagsApi.delete(tagId)
-      // await fetchTags()
+      await tagsApi.delete(tagId)
+      // Refresh tags list after deletion
+      await fetchTags()
     } catch (err) {
       console.error('Failed to delete tag:', err)
       throw err
     }
-  }, [])
+  }, [fetchTags])
 
   // Archive a tag (soft delete)
   const archiveTag = useCallback(async (tagId: string) => {

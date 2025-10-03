@@ -20,16 +20,8 @@ logger = logging.getLogger(__name__)
 
 def get_strategy_name(position_type: str, symbol: str) -> str:
     """Generate a descriptive name for a standalone strategy."""
-    type_names = {
-        'LONG': 'Long',
-        'SHORT': 'Short',
-        'LC': 'Long Call',
-        'LP': 'Long Put',
-        'SC': 'Short Call',
-        'SP': 'Short Put'
-    }
-    type_name = type_names.get(position_type, position_type)
-    return f"{type_name} {symbol}"
+    # Just use the symbol without the position type prefix
+    return symbol
 
 
 async def migrate_positions():

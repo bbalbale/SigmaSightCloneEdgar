@@ -615,13 +615,44 @@ async def get_positions_details(
         market_data_map = {}
     
     logger.info(f"[{request_id}] [{time.time() - start_time:.2f}s] Market data fetched for {len(market_data_map)} symbols")
-        
+
+    # Batch fetch all position tags to avoid N+1 queries
+    logger.info(f"[{request_id}] [{time.time() - start_time:.2f}s] Batch fetching position tags")
+    from app.models.position_tags import PositionTag
+    from app.models.tags_v2 import TagV2
+
+    position_ids = [p.id for p in positions]
+    if position_ids:
+        tags_stmt = (
+            select(PositionTag, TagV2)
+            .join(TagV2, PositionTag.tag_id == TagV2.id)
+            .where(PositionTag.position_id.in_(position_ids))
+            .where(TagV2.is_archived == False)
+        )
+        tags_result = await db.execute(tags_stmt)
+
+        # Build a map of position_id -> list of tags
+        position_tags_map = {}
+        for position_tag, tag in tags_result:
+            if position_tag.position_id not in position_tags_map:
+                position_tags_map[position_tag.position_id] = []
+            position_tags_map[position_tag.position_id].append({
+                "id": str(tag.id),
+                "name": tag.name,
+                "color": tag.color,
+                "description": tag.description
+            })
+    else:
+        position_tags_map = {}
+
+    logger.info(f"[{request_id}] [{time.time() - start_time:.2f}s] Tags fetched for {len(position_tags_map)} positions")
+
     # Build response
     positions_data = []
     total_cost_basis = 0
     total_market_value = 0
     total_unrealized_pnl = 0
-        
+
     for position in positions:
         # Get current price from pre-fetched map
         market_data = market_data_map.get(position.symbol)
@@ -662,7 +693,8 @@ async def get_positions_details(
             # Add option-specific fields if available
             "strike_price": float(position.strike_price) if position.strike_price else None,
             "expiration_date": to_iso_date(position.expiration_date) if position.expiration_date else None,
-            "underlying_symbol": position.underlying_symbol if position.underlying_symbol else None
+            "underlying_symbol": position.underlying_symbol if position.underlying_symbol else None,
+            "tags": position_tags_map.get(position.id, [])  # Position tags from new position tagging system
         })
     
     logger.info(f"[{request_id}] [{time.time() - start_time:.2f}s] Request complete, returning {len(positions_data)} positions")

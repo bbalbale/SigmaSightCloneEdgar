@@ -370,3 +370,57 @@ async def create_default_tags(
         "message": f"Created {len(created_tags)} default tags",
         "tags": [TagResponse.model_validate(t) for t in created_tags]
     }
+
+
+@router.get("/{tag_id}/positions")
+async def get_positions_by_tag(
+    tag_id: UUID,
+    portfolio_id: Optional[UUID] = Query(None, description="Filter by portfolio"),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Get all positions with a specific tag (new position tagging system).
+
+    This replaces the /tags/{tag_id}/strategies endpoint for the new
+    position-based tagging system.
+    """
+    from app.services.position_tag_service import PositionTagService
+
+    tag_service = TagService(db)
+    position_tag_service = PositionTagService(db)
+
+    # Verify tag ownership
+    tag = await tag_service.get_tag(tag_id)
+    if not tag:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tag not found")
+    if tag.user_id != current_user.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
+
+    # Default to current user's portfolio, and authorize
+    effective_portfolio_id = portfolio_id or getattr(current_user, "portfolio_id", None)
+    if not effective_portfolio_id:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No portfolio context available")
+    try:
+        await validate_portfolio_ownership(db, effective_portfolio_id, current_user.id)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
+
+    positions = await position_tag_service.get_positions_by_tag(tag_id, effective_portfolio_id)
+
+    return {
+        "tag_id": tag_id,
+        "tag_name": tag.name,
+        "positions": [
+            {
+                "id": p.id,
+                "symbol": p.symbol,
+                "position_type": p.position_type.value if hasattr(p.position_type, 'value') else str(p.position_type),
+                "quantity": float(p.quantity),
+                "portfolio_id": p.portfolio_id,
+                "investment_class": p.investment_class
+            }
+            for p in positions
+        ],
+        "total": len(positions)
+    }

@@ -1,11 +1,22 @@
 'use client'
 
+import { useState } from 'react'
 import { TagItem } from '@/services/tagsApi'
 import { TagBadge } from './TagBadge'
 import { TagCreator } from './TagCreator'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { Trash } from 'lucide-react'
 import { useTheme } from '@/contexts/ThemeContext'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 
 interface TagListProps {
   tags: TagItem[]
@@ -19,17 +30,17 @@ export function TagList({
   onDelete
 }: TagListProps) {
   const { theme } = useTheme()
+  const [tagToDelete, setTagToDelete] = useState<TagItem | null>(null)
 
-  const handleDelete = async (tagId: string) => {
-    if (!confirm('Archive this tag? It will be removed from all strategies.')) {
-      return
-    }
+  const confirmDelete = async () => {
+    if (!tagToDelete) return
 
     try {
-      await onDelete(tagId)
+      await onDelete(tagToDelete.id)
+      setTagToDelete(null)
     } catch (error) {
       console.error('Failed to delete tag:', error)
-      alert('Failed to delete tag')
+      // Could add toast notification here
     }
   }
 
@@ -88,7 +99,7 @@ export function TagList({
                   )}
 
                   <button
-                    onClick={() => handleDelete(tag.id)}
+                    onClick={() => setTagToDelete(tag)}
                     className={`transition-colors ${
                       theme === 'dark'
                         ? 'text-slate-400 hover:text-red-400'
@@ -104,6 +115,31 @@ export function TagList({
           </div>
         )}
       </CardContent>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={!!tagToDelete} onOpenChange={(open) => !open && setTagToDelete(null)}>
+        <AlertDialogContent className={theme === 'dark' ? 'bg-slate-800 border-slate-700' : 'bg-white border-gray-200'}>
+          <AlertDialogHeader>
+            <AlertDialogTitle className={theme === 'dark' ? 'text-white' : 'text-gray-900'}>
+              Archive Tag
+            </AlertDialogTitle>
+            <AlertDialogDescription className={theme === 'dark' ? 'text-slate-400' : 'text-gray-600'}>
+              Are you sure you want to archive "{tagToDelete?.name}"? This will remove it from all positions.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className={theme === 'dark' ? 'bg-slate-700 text-slate-300 hover:bg-slate-600' : ''}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDelete}
+              className="bg-red-600 hover:bg-red-700 text-white"
+            >
+              Archive
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Card>
   )
 }

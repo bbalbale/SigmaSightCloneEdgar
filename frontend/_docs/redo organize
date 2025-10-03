@@ -1,0 +1,280 @@
+ Organize Page Redesign - Tag-Based Position Management (REVISED)                                                 │
+     │                                                                                                                  │
+     │ Phase 1: Backend Data Model Changes                                                                              │
+     │                                                                                                                  │
+     │ 1.1 Fix Investment Class Inconsistency                                                                           │
+     │                                                                                                                  │
+     │ Problem: Database has 'OPTIONS' (plural), frontend expects 'OPTION' (singular)                                   │
+     │                                                                                                                  │
+     │ Files to modify:                                                                                                 │
+     │ - backend/app/db/seed_demo_portfolios.py:286 - Change return value 'OPTIONS' → 'OPTION'                          │
+     │ - backend/app/services/strategy_service.py:61 - Change mapping 'OPTIONS' → 'OPTION'                              │
+     │                                                                                                                  │
+     │ Database migration script (backend/scripts/fix_investment_class.py):                                             │
+     │ # Update all existing positions: 'OPTIONS' → 'OPTION'                                                            │
+     │ UPDATE positions SET investment_class = 'OPTION' WHERE investment_class = 'OPTIONS';                             │
+     │ # Update all existing strategies: 'OPTIONS' → 'OPTION'                                                           │
+     │ UPDATE strategies SET primary_investment_class = 'OPTION' WHERE primary_investment_class = 'OPTIONS';            │
+     │                                                                                                                  │
+     │ 1.2 Add Direct Position-Tag Relationship                                                                         │
+     │                                                                                                                  │
+     │ Problem: Tags currently go through strategies (Position → Strategy → StrategyTag → Tag). We want direct tagging. │
+     │                                                                                                                  │
+     │ New table (backend/alembic/versions/xxx_add_position_tags.py):                                                   │
+     │ CREATE TABLE position_tags (                                                                                     │
+     │     id UUID PRIMARY KEY,                                                                                         │
+     │     position_id UUID NOT NULL REFERENCES positions(id) ON DELETE CASCADE,                                        │
+     │     tag_id UUID NOT NULL REFERENCES tags_v2(id) ON DELETE CASCADE,                                               │
+     │     assigned_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),                                                          │
+     │     assigned_by UUID REFERENCES users(id),                                                                       │
+     │     UNIQUE(position_id, tag_id)                                                                                  │
+     │ );                                                                                                               │
+     │ CREATE INDEX idx_position_tags_position ON position_tags(position_id);                                           │
+     │ CREATE INDEX idx_position_tags_tag ON position_tags(tag_id);                                                     │
+     │                                                                                                                  │
+     │ New model (backend/app/models/position_tags.py):                                                                 │
+     │ class PositionTag(Base):                                                                                         │
+     │     __tablename__ = "position_tags"                                                                              │
+     │     id = Column(UUID, primary_key=True, default=uuid4)                                                           │
+     │     position_id = Column(UUID, ForeignKey("positions.id", ondelete="CASCADE"))                                   │
+     │     tag_id = Column(UUID, ForeignKey("tags_v2.id", ondelete="CASCADE"))                                          │
+     │     assigned_at = Column(DateTime(timezone=True), server_default=func.now())                                     │
+     │     assigned_by = Column(UUID, ForeignKey("users.id"), nullable=True)                                            │
+     │                                                                                                                  │
+     │     # Relationships                                                                                              │
+     │     position = relationship("Position", back_populates="position_tags")                                          │
+     │     tag = relationship("TagV2", back_populates="position_tags")                                                  │
+     │                                                                                                                  │
+     │ Update Position model (backend/app/models/positions.py):                                                         │
+     │ # Add to Position class:                                                                                         │
+     │ position_tags = relationship("PositionTag", back_populates="position", cascade="all, delete-orphan")             │
+     │                                                                                                                  │
+     │ 1.3 Update Positions API to Include Tags                                                                         │
+     │                                                                                                                  │
+     │ Modify /api/v1/data/positions/details endpoint (line 646-666):                                                   │
+     │                                                                                                                  │
+     │ # Add tag loading after fetching positions (line 584)                                                            │
+     │ from sqlalchemy.orm import selectinload                                                                          │
+     │ stmt = select(Position).where(...).options(                                                                      │
+     │     selectinload(Position.position_tags).selectinload(PositionTag.tag)                                           │
+     │ )                                                                                                                │
+     │                                                                                                                  │
+     │ # In the position loop (after line 665), add tags:                                                               │
+     │ position_dict = {                                                                                                │
+     │     # ... existing fields ...                                                                                    │
+     │     "tags": [                                                                                                    │
+     │         {                                                                                                        │
+     │             "id": str(pt.tag.id),                                                                                │
+     │             "name": pt.tag.name,                                                                                 │
+     │             "color": pt.tag.color,                                                                               │
+     │             "description": pt.tag.description                                                                    │
+     │         }                                                                                                        │
+     │         for pt in position.position_tags                                                                         │
+     │     ] if position.position_tags else []                                                                          │
+     │ }                                                                                                                │
+     │                                                                                                                  │
+     │ 1.4 Add Position Tag Management Endpoints                                                                        │
+     │                                                                                                                  │
+     │ New file: backend/app/api/v1/position_tags.py                                                                    │
+     │                                                                                                                  │
+     │ @router.post("/positions/{position_id}/tags")                                                                    │
+     │ async def add_position_tags(position_id: UUID, tag_ids: List[UUID]):                                             │
+     │     """Add tags directly to a position"""                                                                        │
+     │                                                                                                                  │
+     │ @router.delete("/positions/{position_id}/tags")                                                                  │
+     │ async def remove_position_tags(position_id: UUID, tag_ids: List[UUID]):                                          │
+     │     """Remove tags from a position"""                                                                            │
+     │                                                                                                                  │
+     │ Phase 2: Frontend - Remove Combine/Strategy Functionality                                                        │
+     │                                                                                                                  │
+     │ 2.1 Delete Unused Components                                                                                     │
+     │                                                                                                                  │
+     │ Files to DELETE:                                                                                                 │
+     │ - ✅ frontend/src/components/organize/CombineModal.tsx                                                            │
+     │ - ✅ frontend/src/components/organize/CombinePositionsButton.tsx                                                  │
+     │ - ✅ frontend/src/components/organize/SelectablePositionCard.tsx                                                  │
+     │ - ✅ frontend/src/hooks/usePositionSelection.ts                                                                   │
+     │ - ✅ frontend/src/components/organize/StrategyCard.tsx (no longer needed)                                         │
+     │ - ✅ frontend/src/hooks/useStrategies.ts (no longer needed)                                                       │
+     │                                                                                                                  │
+     │ 2.2 Update Position Interface                                                                                    │
+     │                                                                                                                  │
+     │ Modify frontend/src/hooks/usePositions.ts:                                                                       │
+     │                                                                                                                  │
+     │ export interface Position {                                                                                      │
+     │   // ... existing fields ...                                                                                     │
+     │   tags?: Array<{                                                                                                 │
+     │     id: string                                                                                                   │
+     │     name: string                                                                                                 │
+     │     color: string                                                                                                │
+     │     description?: string                                                                                         │
+     │   }>                                                                                                             │
+     │ }                                                                                                                │
+     │                                                                                                                  │
+     │ Phase 3: Frontend - Redesign Organize Page (5-Column Grid)                                                       │
+     │                                                                                                                  │
+     │ 3.1 Create New Position Card Component                                                                           │
+     │                                                                                                                  │
+     │ New file: frontend/src/components/organize/PositionCard.tsx                                                      │
+     │                                                                                                                  │
+     │ interface PositionCardProps {                                                                                    │
+     │   position: Position                                                                                             │
+     │   onDropTag: (positionId: string, tagId: string) => void                                                         │
+     │   onRemoveTag: (positionId: string, tagId: string) => void                                                       │
+     │ }                                                                                                                │
+     │                                                                                                                  │
+     │ export function PositionCard({ position, onDropTag, onRemoveTag }: PositionCardProps) {                          │
+     │   // Show: Symbol, Value, P&L, Tags (as badges)                                                                  │
+     │   // Accept: Tag drops                                                                                           │
+     │   // Click X on badge: Remove tag                                                                                │
+     │ }                                                                                                                │
+     │                                                                                                                  │
+     │ 3.2 Create Column Components (Replace Current Lists)                                                             │
+     │                                                                                                                  │
+     │ New files (replace existing):                                                                                    │
+     │ - frontend/src/components/organize/LongStocksList.tsx                                                            │
+     │ - frontend/src/components/organize/ShortStocksList.tsx                                                           │
+     │ - frontend/src/components/organize/LongOptionsList.tsx                                                           │
+     │ - frontend/src/components/organize/ShortOptionsList.tsx                                                          │
+     │ - frontend/src/components/organize/PrivatePositionsList.tsx                                                      │
+     │                                                                                                                  │
+     │ Pattern (example for LongStocksList):                                                                            │
+     │ export function LongStocksList({ positions, onDropTag, onRemoveTag }) {                                          │
+     │   // Filter: investment_class='PUBLIC' AND position_type='LONG'                                                  │
+     │   const longStocks = positions.filter(p =>                                                                       │
+     │     p.investment_class === 'PUBLIC' && p.position_type === 'LONG'                                                │
+     │   )                                                                                                              │
+     │                                                                                                                  │
+     │   return (                                                                                                       │
+     │     <div>                                                                                                        │
+     │       <h3>Long Stocks</h3>                                                                                       │
+     │       {longStocks.map(position => (                                                                              │
+     │         <PositionCard                                                                                            │
+     │           key={position.id}                                                                                      │
+     │           position={position}                                                                                    │
+     │           onDropTag={onDropTag}                                                                                  │
+     │           onRemoveTag={onRemoveTag}                                                                              │
+     │         />                                                                                                       │
+     │       ))}                                                                                                        │
+     │     </div>                                                                                                       │
+     │   )                                                                                                              │
+     │ }                                                                                                                │
+     │                                                                                                                  │
+     │ 3.3 Update Grid Layout                                                                                           │
+     │                                                                                                                  │
+     │ Modify: frontend/src/components/organize/PositionSelectionGrid.tsx                                               │
+     │                                                                                                                  │
+     │ // Change to 5-column grid                                                                                       │
+     │ <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">                                                          │
+     │   <LongStocksList positions={positions} ... />                                                                   │
+     │   <ShortStocksList positions={positions} ... />                                                                  │
+     │   <LongOptionsList positions={positions} ... />                                                                  │
+     │   <ShortOptionsList positions={positions} ... />                                                                 │
+     │   <PrivatePositionsList positions={positions} ... />                                                             │
+     │ </div>                                                                                                           │
+     │                                                                                                                  │
+     │ 3.4 Simplify OrganizeContainer                                                                                   │
+     │                                                                                                                  │
+     │ Modify: frontend/src/containers/OrganizeContainer.tsx                                                            │
+     │                                                                                                                  │
+     │ export function OrganizeContainer() {                                                                            │
+     │   const { positions, loading, refresh } = usePositions() // No strategies needed!                                │
+     │   const { tags, refresh: refreshTags } = useTags()                                                               │
+     │                                                                                                                  │
+     │   const handleDropTag = async (positionId: string, tagId: string) => {                                           │
+     │     // Call new API: POST /positions/{positionId}/tags                                                           │
+     │     await apiClient.post(`/api/v1/positions/${positionId}/tags`, { tag_ids: [tagId] })                           │
+     │     await refresh() // Reload positions with updated tags                                                        │
+     │   }                                                                                                              │
+     │                                                                                                                  │
+     │   const handleRemoveTag = async (positionId: string, tagId: string) => {                                         │
+     │     // Call new API: DELETE /positions/{positionId}/tags                                                         │
+     │     await apiClient.delete(`/api/v1/positions/${positionId}/tags`, {                                             │
+     │       data: { tag_ids: [tagId] }                                                                                 │
+     │     })                                                                                                           │
+     │     await refresh()                                                                                              │
+     │   }                                                                                                              │
+     │                                                                                                                  │
+     │   // No more combine logic, strategy logic, position selection, etc.                                             │
+     │ }                                                                                                                │
+     │                                                                                                                  │
+     │ Phase 4: Keep Strategies in Backend (Minimal Touch)                                                              │
+     │                                                                                                                  │
+     │ 4.1 Keep Auto-Creating Standalone Strategies                                                                     │
+     │                                                                                                                  │
+     │ - Every position still gets a standalone strategy automatically                                                  │
+     │ - Frontend just ignores this (doesn't use strategies anymore)                                                    │
+     │ - Keeps backend from breaking                                                                                    │
+     │ - Can clean up later in separate project                                                                         │
+     │                                                                                                                  │
+     │ 4.2 Stop Showing Combined Strategies                                                                             │
+     │                                                                                                                  │
+     │ - Don't delete them from database                                                                                │
+     │ - Frontend just doesn't query or display them                                                                    │
+     │ - They become orphaned but harmless                                                                              │
+     │                                                                                                                  │
+     │ Files Changed Summary                                                                                            │
+     │                                                                                                                  │
+     │ Backend - New Files:                                                                                             │
+     │                                                                                                                  │
+     │ - alembic/versions/xxx_add_position_tags.py (migration)                                                          │
+     │ - app/models/position_tags.py (model)                                                                            │
+     │ - app/api/v1/position_tags.py (endpoints)                                                                        │
+     │ - scripts/fix_investment_class.py (data migration)                                                               │
+     │                                                                                                                  │
+     │ Backend - Modified Files:                                                                                        │
+     │                                                                                                                  │
+     │ - app/db/seed_demo_portfolios.py (OPTIONS → OPTION)                                                              │
+     │ - app/services/strategy_service.py (OPTIONS → OPTION)                                                            │
+     │ - app/models/positions.py (add position_tags relationship)                                                       │
+     │ - app/api/v1/data.py (include tags in positions endpoint)                                                        │
+     │                                                                                                                  │
+     │ Frontend - Deleted Files:                                                                                        │
+     │                                                                                                                  │
+     │ - components/organize/CombineModal.tsx                                                                           │
+     │ - components/organize/CombinePositionsButton.tsx                                                                 │
+     │ - components/organize/SelectablePositionCard.tsx                                                                 │
+     │ - components/organize/StrategyCard.tsx                                                                           │
+     │ - hooks/usePositionSelection.ts                                                                                  │
+     │ - hooks/useStrategies.ts                                                                                         │
+     │                                                                                                                  │
+     │ Frontend - New Files:                                                                                            │
+     │                                                                                                                  │
+     │ - components/organize/PositionCard.tsx                                                                           │
+     │ - components/organize/LongStocksList.tsx                                                                         │
+     │ - components/organize/ShortStocksList.tsx                                                                        │
+     │ - components/organize/LongOptionsList.tsx                                                                        │
+     │ - components/organize/ShortOptionsList.tsx                                                                       │
+     │ - components/organize/PrivatePositionsList.tsx                                                                   │
+     │                                                                                                                  │
+     │ Frontend - Modified Files:                                                                                       │
+     │                                                                                                                  │
+     │ - components/organize/PositionSelectionGrid.tsx (5-column grid)                                                  │
+     │ - containers/OrganizeContainer.tsx (simplified, no strategies)                                                   │
+     │ - hooks/usePositions.ts (add tags to interface)                                                                  │
+     │                                                                                                                  │
+     │ Expected Final Result:                                                                                           │
+     │                                                                                                                  │
+     │ ┌─────────────────────────────────────────────────────────────────────┐                                          │
+     │ │ Portfolio Organization                                               │                                         │
+     │ ├─────────────────────────────────────────────────────────────────────┤                                          │
+     │ │ Tags: [+ Create Tag]  [🔵 Tech]  [🟢 Finance]  [🔴 Shorts]         │                                            │
+     │ ├──────────┬──────────┬──────────┬──────────┬──────────────────────────┤                                         │
+     │ │ Long     │ Short    │ Long     │ Short    │ Private                  │                                         │
+     │ │ Stocks   │ Stocks   │ Options  │ Options  │ Investments              │                                         │
+     │ ├──────────┼──────────┼──────────┼──────────┼──────────────────────────┤                                         │
+     │ │┌────────┐│┌────────┐│┌────────┐│┌────────┐│┌────────┐               │                                          │
+     │ ││ MSFT   │││  ZM    │││AAPL Call│││MSFT Put│││ A16Z VC│               │                                         │
+     │ ││$15,432 │││-$2,100 │││ $1,500 │││  $800  │││$500,000│               │                                          │
+     │ ││🔵 Tech ││││🔴Short││││🔵 Tech ││││🔴Hedge││││🟠 Alt  │               │                                         │
+     │ │└────────┘│└────────┘│└────────┘│└────────┘│└────────┘               │                                          │
+     │ │┌────────┐│          │          │          │                          │                                         │
+     │ ││ GOOGL  ││          │          │          │                          │                                         │
+     │ ││$22,100 ││          │          │          │                          │                                         │
+     │ ││🔵 Tech ││          │          │          │                          │                                         │
+     │ │└────────┘│          │          │          │                          │                                         │
+     │ └──────────┴──────────┴──────────┴──────────┴──────────────────────────┘                                         │
+     │                                                                                                                  │
+     │ User Workflow:                                                                                                   │
+     │ 1. Click "Create Tag" → Name it "Tech Portfolio", pick blue color                                                │
+     │ 2. Drag blue "Tech Portfolio" tag                                                                                │

@@ -18,8 +18,11 @@ export function TagBadge({
 }: TagBadgeProps) {
   const handleDragStart = (e: React.DragEvent) => {
     if (draggable) {
-      e.dataTransfer.setData('tagId', tag.id)
+      console.log('Starting drag of tag:', tag.name, tag.id)
+      // Use text/plain format for better compatibility
+      e.dataTransfer.setData('text/plain', tag.id)
       e.dataTransfer.effectAllowed = 'copy'
+      console.log('Set dataTransfer with tag.id:', tag.id)
     }
   }
 

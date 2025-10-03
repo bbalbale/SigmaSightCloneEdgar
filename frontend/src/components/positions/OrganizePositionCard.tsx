@@ -1,6 +1,15 @@
 import React from 'react'
 import { BasePositionCard } from '@/components/common/BasePositionCard'
 import { formatCurrency } from '@/lib/formatters'
+import { TagBadge } from '@/components/organize/TagBadge'
+import { useTheme } from '@/contexts/ThemeContext'
+
+// Tag interface
+interface Tag {
+  id: string
+  name: string
+  color: string
+}
 
 // Position interface from usePositions hook
 interface Position {
@@ -13,6 +22,7 @@ interface Position {
   strike_price?: number
   expiration_date?: string
   investment_subtype?: string
+  tags?: Tag[]
 }
 
 interface OrganizePositionCardProps {
@@ -28,6 +38,8 @@ const OPTION_TYPE_LABELS: Record<string, string> = {
 }
 
 export function OrganizePositionCard({ position, onClick }: OrganizePositionCardProps) {
+  const { theme } = useTheme()
+
   // Determine card content based on investment class
   const getCardContent = () => {
     if (position.investment_class === 'OPTIONS') {
@@ -66,5 +78,16 @@ export function OrganizePositionCard({ position, onClick }: OrganizePositionCard
 
   const content = getCardContent()
 
-  return <BasePositionCard {...content} onClick={onClick} />
+  return (
+    <div className="space-y-2">
+      <BasePositionCard {...content} onClick={onClick} />
+      {position.tags && position.tags.length > 0 && (
+        <div className="flex flex-wrap gap-1 px-1">
+          {position.tags.map(tag => (
+            <TagBadge key={tag.id} tag={tag} draggable={false} />
+          ))}
+        </div>
+      )}
+    </div>
+  )
 }

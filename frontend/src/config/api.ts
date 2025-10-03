@@ -102,7 +102,16 @@ export const API_ENDPOINTS = {
     ASSIGN: '/api/v1/tags/assign',
     BULK_ASSIGN: '/api/v1/tags/bulk-assign',
     STRATEGIES_BY_TAG: (id: string) => `/api/v1/tags/${id}/strategies`,
+    POSITIONS_BY_TAG: (id: string) => `/api/v1/tags/${id}/positions`, // New: Position tagging system
     DEFAULTS: '/api/v1/tags/defaults',
+  },
+
+  // Position tagging endpoints (new position tagging system)
+  POSITION_TAGS: {
+    GET: (positionId: string) => `/api/v1/positions/${positionId}/tags`,
+    ADD: (positionId: string) => `/api/v1/positions/${positionId}/tags`,
+    REMOVE: (positionId: string) => `/api/v1/positions/${positionId}/tags`,
+    REPLACE: (positionId: string) => `/api/v1/positions/${positionId}/tags`,
   },
   
   // Admin endpoints (for monitoring)

@@ -101,9 +101,10 @@ frontend/
 │   │   └── ThemeContext.tsx
 │   ├── hooks/                  # Custom React hooks
 │   │   ├── usePortfolioData.ts      # Portfolio data fetching & state management
-│   │   ├── useStrategies.ts         # ✅ NEW - Strategy data hook
-│   │   ├── useTags.ts               # ✅ NEW - Tag management hook
-│   │   └── useStrategyFiltering.ts  # ✅ NEW - Strategy filtering by inv. class
+│   │   ├── useStrategies.ts         # ⚠️ DEPRECATED - Legacy strategy data hook
+│   │   ├── useTags.ts               # ✅ Tag management hook
+│   │   ├── usePositionTags.ts       # ✅ NEW - Position tagging hook (replaces strategies)
+│   │   └── useStrategyFiltering.ts  # ⚠️ DEPRECATED - Legacy strategy filtering
 │   ├── lib/                    # Utility libraries
 │   │   ├── auth.ts             # Authentication utilities
 │   │   ├── dal.ts              # Data access layer
@@ -120,8 +121,10 @@ frontend/
 │   │   ├── portfolioResolver.ts     # Portfolio ID resolution
 │   │   ├── portfolioService.ts      # Portfolio data
 │   │   ├── positionApiService.ts    # Position operations
-│   │   ├── strategiesApi.ts         # ✅ NEW - Strategy management API (12/12 methods)
-│   │   ├── tagsApi.ts               # ✅ NEW - Tag management API (10/10 methods)
+│   │   ├── strategiesApi.ts         # ⚠️ DEPRECATED - Legacy strategy API (backward compatible)
+│   │   ├── tagsApi.ts               # ✅ Tag & Position Tagging API (15 methods total)
+│   │   │                            #    - 10 tag management methods
+│   │   │                            #    - 5 position tagging methods (NEW)
 │   │   └── requestManager.ts        # Request retry/deduplication
 │   ├── stores/                 # State management (Zustand)
 │   │   ├── portfolioStore.ts  # 🆕 NEW - Global portfolio ID state
@@ -538,3 +541,206 @@ When adding the Organize page, we followed this pattern:
 5. Preserved all functionality (selection, tags, drag-drop)
 
 This same pattern can be applied to future pages with different requirements.
+
+---
+
+## Position Tagging System (Added 2025-10-02)
+
+### Overview
+Implemented a direct position tagging system that replaces the legacy strategy-based tagging. Users can now tag individual positions directly for filtering and organization, rather than grouping positions into strategies first.
+
+### Architecture
+
+#### Backend Infrastructure ✅ Complete
+- **Database**: `position_tags` junction table (many-to-many: positions ↔ tags)
+- **Models**: PositionTag, Position, TagV2 with bidirectional relationships
+- **Service**: PositionTagService with 7 methods (assign, remove, bulk operations)
+- **API Endpoints**: 5 RESTful endpoints under `/api/v1/positions/{id}/tags`
+- **Data Migration**: All existing strategy tags migrated to position tags (backward compatible)
+
+#### Frontend Infrastructure ✅ Complete
+- **API Config**: Added `POSITION_TAGS` endpoint configuration
+- **Service Layer**: Updated `tagsApi.ts` with 5 position tagging methods
+- **React Hook**: Created `usePositionTags` for state management
+- **Type Safety**: Full TypeScript support across all layers
+
+### API Endpoints
+
+#### Position Tag Endpoints (New System)
+```typescript
+POST   /api/v1/positions/{id}/tags        // Add tags to position
+DELETE /api/v1/positions/{id}/tags        // Remove tags from position
+GET    /api/v1/positions/{id}/tags        // Get position's tags
+PATCH  /api/v1/positions/{id}/tags        // Replace all position tags
+GET    /api/v1/tags/{id}/positions        // Get positions with tag
+```
+
+#### Tag Management Endpoints (Existing)
+```typescript
+GET    /api/v1/tags/                      // List all tags
+POST   /api/v1/tags/                      // Create new tag
+GET    /api/v1/tags/{id}                  // Get tag details
+PATCH  /api/v1/tags/{id}                  // Update tag
+POST   /api/v1/tags/{id}/archive          // Archive tag
+POST   /api/v1/tags/{id}/restore          // Restore tag
+POST   /api/v1/tags/defaults              // Create default tags
+```
+
+### Service Layer Methods
+
+#### Position Tagging Methods (tagsApi.ts)
+```typescript
+// Get tags for a position
+async getPositionTags(positionId: string): Promise<TagItem[]>
+
+// Add tags to a position (optionally replace existing)
+async addPositionTags(
+  positionId: string,
+  tagIds: string[],
+  replaceExisting?: boolean
+): Promise<void>
+
+// Remove specific tags from a position
+async removePositionTags(
+  positionId: string,
+  tagIds: string[]
+): Promise<void>
+
+// Replace all tags for a position
+async replacePositionTags(
+  positionId: string,
+  tagIds: string[]
+): Promise<void>
+
+// Get all positions with a specific tag
+async getPositionsByTag(tagId: string): Promise<Position[]>
+```
+
+### React Hook: usePositionTags
+
+```typescript
+const {
+  // State
+  loading,
+  error,
+
+  // Methods
+  getPositionTags,
+  addTagsToPosition,
+  removeTagsFromPosition,
+  replacePositionTags,
+  getPositionsByTag,
+} = usePositionTags()
+
+// Example usage
+const tags = await getPositionTags(positionId)
+await addTagsToPosition(positionId, [tagId1, tagId2])
+await removeTagsFromPosition(positionId, [tagId1])
+const positions = await getPositionsByTag(tagId)
+```
+
+### Position Data with Tags
+
+All positions returned by `/api/v1/data/positions/details` now include a `tags` array:
+
+```typescript
+interface Position {
+  id: string
+  symbol: string
+  position_type: string
+  quantity: number
+  // ... other fields
+  tags: Array<{
+    id: string
+    name: string
+    color: string
+    description?: string
+  }>  // NEW - automatically included
+}
+```
+
+### Migration Strategy
+
+**Backward Compatibility**: The system maintains full backward compatibility
+- Legacy strategy tables remain in database (orphaned but functional)
+- Strategy API endpoints still work (marked as deprecated)
+- All existing strategy tags were migrated to position tags
+- No data loss during migration
+
+**Deprecation Path**:
+1. ✅ Phase 1-4: New position tagging system implemented
+2. ✅ Phase 5: Frontend infrastructure ready
+3. ⏳ Phase 6: Update UI to use position tagging
+4. ⏳ Phase 7: Add deprecation warnings to strategy APIs
+5. Future: Remove strategy UI components (backend remains for data integrity)
+
+### Usage Patterns
+
+#### Organizing Page Flow
+```typescript
+// 1. Load positions with their tags (automatic)
+const positions = await portfolioService.getPositions()
+// Each position includes tags array
+
+// 2. Display tags on position cards
+<SelectablePositionCard tags={position.tags} />
+
+// 3. Add tag to position (drag-drop or click)
+await addTagsToPosition(position.id, [draggedTagId])
+
+// 4. Filter positions by tag
+const filtered = await getPositionsByTag(selectedTagId)
+
+// 5. Remove tag from position
+await removeTagsFromPosition(position.id, [tagId])
+```
+
+#### Tag Management
+```typescript
+// Create tags
+const tag = await tagsApi.create("Growth", "#2196F3")
+
+// Get all tags
+const tags = await tagsApi.list()
+
+// Update tag
+await tagsApi.update(tagId, { name: "Growth Stocks", color: "#4CAF50" })
+
+// Archive tag
+await tagsApi.delete(tagId)
+```
+
+### Benefits of Position Tagging
+
+1. **Simpler Mental Model**: Tag positions directly, not through strategies
+2. **More Flexible**: Positions can have multiple tags without creating complex strategies
+3. **Better Performance**: Direct relationships, optimized with batch fetching (N+1 prevention)
+4. **Easier to Understand**: No intermediate "strategy" concept to explain
+5. **Backward Compatible**: Legacy data preserved, gradual migration path
+
+### Implementation Checklist
+
+Backend ✅ Complete:
+- [x] Database schema (position_tags table)
+- [x] Models with relationships
+- [x] Service layer (PositionTagService)
+- [x] API endpoints (5 endpoints)
+- [x] Data migration script
+- [x] Include tags in position responses
+
+Frontend ✅ Infrastructure Complete:
+- [x] API endpoint configuration
+- [x] Service layer methods (tagsApi)
+- [x] React hook (usePositionTags)
+- [x] TypeScript types
+
+Frontend ⏳ UI Pending:
+- [ ] Update OrganizeContainer with position tagging UI
+- [ ] Position card tag display
+- [ ] Drag-drop tag assignment
+- [ ] Filter by tags functionality
+
+Deprecation ⏳ Pending:
+- [ ] Add deprecation warnings to strategy APIs
+- [ ] Update documentation
+- [ ] Remove strategy UI components (optional, future)

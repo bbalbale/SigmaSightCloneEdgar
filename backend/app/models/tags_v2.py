@@ -53,6 +53,9 @@ class TagV2(Base):
     # Relationships
     user = relationship("User", foreign_keys=[user_id])
     archiver = relationship("User", foreign_keys=[archived_by])
+    # Direct position tagging (new system)
+    position_tags = relationship("PositionTag", cascade="all, delete-orphan", back_populates="tag")
+    # Legacy strategy tagging (deprecated but kept for backward compatibility)
     strategy_tags = relationship("StrategyTag", cascade="all, delete-orphan", back_populates="tag")
 
     def __repr__(self):
