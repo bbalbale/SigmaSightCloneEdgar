@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import React, { useState } from 'react'
 import { useTheme } from '@/contexts/ThemeContext'
 import { usePortfolioData } from '@/hooks/usePortfolioData'
 import { useTags } from '@/hooks/useTags'
@@ -13,13 +13,17 @@ import { Badge } from '@/components/ui/badge'
 export function OrganizeContainer() {
   const { theme } = useTheme()
 
+  // Auto-scroll state for drag-drop
+  const [autoScrollInterval, setAutoScrollInterval] = React.useState<NodeJS.Timeout | null>(null)
+
   // Fetch positions (includes tags array automatically from backend)
   const {
     loading,
     positions,
     publicPositions,
     optionsPositions,
-    privatePositions
+    privatePositions,
+    handleRetry: refreshPositions
   } = usePortfolioData()
 
   // Debug logging
@@ -45,9 +49,58 @@ export function OrganizeContainer() {
   // Filter state
   const [selectedTagFilter, setSelectedTagFilter] = useState<string | null>(null)
 
+  // Auto-scroll helper function
+  const handleAutoScroll = React.useCallback((e: React.DragEvent) => {
+    const SCROLL_THRESHOLD = 100 // pixels from edge to trigger scroll
+    const SCROLL_SPEED = 10 // pixels per interval
+
+    const { clientY } = e
+    const viewportHeight = window.innerHeight
+
+    // Clear any existing interval
+    if (autoScrollInterval) {
+      clearInterval(autoScrollInterval)
+      setAutoScrollInterval(null)
+    }
+
+    // Check if near top edge
+    if (clientY < SCROLL_THRESHOLD) {
+      const interval = setInterval(() => {
+        window.scrollBy(0, -SCROLL_SPEED)
+      }, 20)
+      setAutoScrollInterval(interval)
+    }
+    // Check if near bottom edge
+    else if (clientY > viewportHeight - SCROLL_THRESHOLD) {
+      const interval = setInterval(() => {
+        window.scrollBy(0, SCROLL_SPEED)
+      }, 20)
+      setAutoScrollInterval(interval)
+    }
+  }, [autoScrollInterval])
+
+  // Stop auto-scroll when drag ends or leaves
+  const stopAutoScroll = React.useCallback(() => {
+    if (autoScrollInterval) {
+      clearInterval(autoScrollInterval)
+      setAutoScrollInterval(null)
+    }
+  }, [autoScrollInterval])
+
+  // Cleanup auto-scroll on unmount
+  React.useEffect(() => {
+    return () => {
+      if (autoScrollInterval) {
+        clearInterval(autoScrollInterval)
+      }
+    }
+  }, [autoScrollInterval])
+
   // Handle tag drop on position
   const handleTagDrop = async (positionId: string, tagId: string) => {
     console.log('handleTagDrop called:', { positionId, tagId })
+    stopAutoScroll() // Stop auto-scrolling
+
     if (!positionId || !tagId) {
       console.error('Missing positionId or tagId:', { positionId, tagId })
       return
@@ -55,10 +108,28 @@ export function OrganizeContainer() {
     try {
       await addTagsToPosition(positionId, [tagId], false) // false = don't replace existing
       console.log(`Tag ${tagId} added to position ${positionId}`)
-      // Refresh the page to show updated tags
-      window.location.reload()
+      // Refresh positions to show updated tags
+      refreshPositions()
     } catch (error) {
       console.error('Failed to add tag to position:', error)
+      // Optionally show error toast
+    }
+  }
+
+  // Handle tag removal from position
+  const handleRemoveTag = async (positionId: string, tagId: string) => {
+    console.log('handleRemoveTag called:', { positionId, tagId })
+    if (!positionId || !tagId) {
+      console.error('Missing positionId or tagId:', { positionId, tagId })
+      return
+    }
+    try {
+      await removeTagsFromPosition(positionId, [tagId])
+      console.log(`Tag ${tagId} removed from position ${positionId}`)
+      // Refresh positions to show updated tags
+      refreshPositions()
+    } catch (error) {
+      console.error('Failed to remove tag from position:', error)
       // Optionally show error toast
     }
   }
@@ -79,6 +150,8 @@ export function OrganizeContainer() {
     try {
       await deleteTag(tagId)
       console.log(`Tag ${tagId} deleted`)
+      // Refresh positions to remove deleted tag from display
+      refreshPositions()
     } catch (error) {
       console.error('Failed to delete tag:', error)
       throw error
@@ -254,15 +327,18 @@ export function OrganizeContainer() {
                           onDragOver={(e) => {
                             e.preventDefault()
                             e.dataTransfer.dropEffect = 'copy'
+                            handleAutoScroll(e) // Enable auto-scroll
                           }}
                           onDrop={(e) => {
                             e.preventDefault()
+                            stopAutoScroll() // Stop auto-scroll on drop
                             const tagId = e.dataTransfer.getData('text/plain')
                             console.log('Position DROP:', position.symbol, 'Tag:', tagId)
                             if (tagId && position.id) {
                               handleTagDrop(position.id, tagId)
                             }
                           }}
+                          onDragLeave={stopAutoScroll} // Stop auto-scroll when leaving
                         >
                           <div
                             className="border-2 border-transparent hover:border-gray-300 transition-all duration-200 rounded-lg p-1"
@@ -275,7 +351,7 @@ export function OrganizeContainer() {
                               e.currentTarget.style.backgroundColor = 'transparent'
                             }}
                           >
-                            <OrganizePositionCard position={position} />
+                            <OrganizePositionCard position={position} onRemoveTag={handleRemoveTag} />
                           </div>
                         </div>
                       )
@@ -307,14 +383,17 @@ export function OrganizeContainer() {
                         onDragOver={(e) => {
                           e.preventDefault()
                           e.dataTransfer.dropEffect = 'copy'
+                          handleAutoScroll(e)
                         }}
                         onDrop={(e) => {
                           e.preventDefault()
+                          stopAutoScroll()
                           const tagId = e.dataTransfer.getData('text/plain')
                           if (tagId && position.id) {
                             handleTagDrop(position.id, tagId)
                           }
                         }}
+                        onDragLeave={stopAutoScroll}
                       >
                         <div
                           className="border-2 border-transparent hover:border-gray-300 transition-all duration-200 rounded-lg p-1"
@@ -327,7 +406,7 @@ export function OrganizeContainer() {
                             e.currentTarget.style.backgroundColor = 'transparent'
                           }}
                         >
-                          <OrganizePositionCard position={position} />
+                          <OrganizePositionCard position={position} onRemoveTag={handleRemoveTag} />
                         </div>
                       </div>
                     )}
@@ -354,14 +433,19 @@ export function OrganizeContainer() {
                     renderItem={(position) => (
                       <div
                         key={position.id}
-                        onDragOver={(e) => e.preventDefault()}
+                        onDragOver={(e) => {
+                          e.preventDefault()
+                          handleAutoScroll(e)
+                        }}
                         onDrop={(e) => {
                           e.preventDefault()
+                          stopAutoScroll()
                           const tagId = e.dataTransfer.getData('text/plain')
                           if (tagId) handleTagDrop(position.id, tagId)
                         }}
+                        onDragLeave={stopAutoScroll}
                       >
-                        <OrganizePositionCard position={position} />
+                        <OrganizePositionCard position={position} onRemoveTag={handleRemoveTag} />
                       </div>
                     )}
                     emptyMessage="No private investments"
@@ -394,14 +478,19 @@ export function OrganizeContainer() {
                     renderItem={(position) => (
                       <div
                         key={position.id}
-                        onDragOver={(e) => e.preventDefault()}
+                        onDragOver={(e) => {
+                          e.preventDefault()
+                          handleAutoScroll(e)
+                        }}
                         onDrop={(e) => {
                           e.preventDefault()
+                          stopAutoScroll()
                           const tagId = e.dataTransfer.getData('text/plain')
                           if (tagId) handleTagDrop(position.id, tagId)
                         }}
+                        onDragLeave={stopAutoScroll}
                       >
-                        <OrganizePositionCard position={position} />
+                        <OrganizePositionCard position={position} onRemoveTag={handleRemoveTag} />
                       </div>
                     )}
                     emptyMessage="No long options"
@@ -427,14 +516,19 @@ export function OrganizeContainer() {
                     renderItem={(position) => (
                       <div
                         key={position.id}
-                        onDragOver={(e) => e.preventDefault()}
+                        onDragOver={(e) => {
+                          e.preventDefault()
+                          handleAutoScroll(e)
+                        }}
                         onDrop={(e) => {
                           e.preventDefault()
+                          stopAutoScroll()
                           const tagId = e.dataTransfer.getData('text/plain')
                           if (tagId) handleTagDrop(position.id, tagId)
                         }}
+                        onDragLeave={stopAutoScroll}
                       >
-                        <OrganizePositionCard position={position} />
+                        <OrganizePositionCard position={position} onRemoveTag={handleRemoveTag} />
                       </div>
                     )}
                     emptyMessage="No short options"

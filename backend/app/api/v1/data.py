@@ -15,10 +15,9 @@ from app.database import get_async_session, get_db
 from app.core.dependencies import get_current_user
 from app.core.datetime_utils import utc_now, to_utc_iso8601, to_iso_date
 from app.models.users import Portfolio
-from app.models.strategies import Strategy, StrategyTag
 from app.models.tags_v2 import TagV2
-from app.services.strategy_service import StrategyService
 from app.models.positions import Position
+from app.models.position_tags import PositionTag
 from app.models.market_data import MarketDataCache
 from app.schemas.auth import CurrentUser
 from app.core.logging import get_logger
@@ -58,17 +57,22 @@ async def get_user_portfolios(
         # Format response
         portfolio_list = []
         for portfolio in portfolios:
-            # Calculate total value (sum of all positions)
-            total_value = 0
+            # Calculate total market value (sum of all positions)
+            total_market_value = 0
             if portfolio.positions:
                 for position in portfolio.positions:
                     if position.last_price and position.quantity:
-                        total_value += float(position.last_price) * float(position.quantity)
-            
+                        total_market_value += float(position.last_price) * float(position.quantity)
+
+            # Get equity balance (capital account)
+            equity_balance = float(portfolio.equity_balance) if portfolio.equity_balance else 0.0
+
             portfolio_list.append({
                 "id": str(portfolio.id),
                 "name": portfolio.name,
-                "total_value": total_value,
+                "total_value": total_market_value + equity_balance,
+                "equity_balance": equity_balance,
+                "total_market_value": total_market_value,
                 "created_at": to_utc_iso8601(portfolio.created_at) if portfolio.created_at else None,
                 "updated_at": to_utc_iso8601(portfolio.updated_at) if portfolio.updated_at else None,
                 "position_count": len(portfolio.positions) if portfolio.positions else 0
@@ -80,9 +84,7 @@ async def get_user_portfolios(
 async def get_portfolio_complete(
     portfolio_id: UUID,
     include_holdings: bool = Query(True, description="Include position details"),
-    include_strategies: bool = Query(True, description="Include strategies section"),
-    include_strategy_positions: bool = Query(False, description="Include strategy leg positions"),
-    include_strategy_tags: bool = Query(True, description="Include strategy tags"),
+    include_position_tags: bool = Query(True, description="Include position tags"),
     include_timeseries: bool = Query(False, description="Include historical data"),
     include_attrib: bool = Query(False, description="Include attribution data"),
     as_of_date: Optional[date] = Query(None, description="Historical snapshot date"),
@@ -125,7 +127,29 @@ async def get_portfolio_complete(
         option_count = 0
         complete_data_count = 0
         partial_data_count = 0
-        
+
+        # Preload position tags if requested
+        position_tags_map = {}
+        if include_holdings and include_position_tags:
+            position_ids = [p.id for p in portfolio.positions]
+            if position_ids:
+                tags_stmt = (
+                    select(PositionTag, TagV2)
+                    .join(TagV2, PositionTag.tag_id == TagV2.id)
+                    .where(PositionTag.position_id.in_(position_ids))
+                    .where(TagV2.is_archived == False)
+                )
+                tags_result = await session.execute(tags_stmt)
+
+                for position_tag, tag in tags_result:
+                    if position_tag.position_id not in position_tags_map:
+                        position_tags_map[position_tag.position_id] = []
+                    position_tags_map[position_tag.position_id].append({
+                        "id": str(tag.id),
+                        "name": tag.name,
+                        "color": tag.color
+                    })
+
         if include_holdings:
             for position in portfolio.positions:
                 # Get current price from market data cache
@@ -134,10 +158,10 @@ async def get_portfolio_complete(
                 ).order_by(MarketDataCache.updated_at.desc())
                 cache_result = await session.execute(cache_stmt)
                 market_data = cache_result.scalars().first()
-                
+
                 last_price = market_data.close if market_data else position.entry_price
                 market_value = float(position.quantity) * float(last_price)
-                
+
                 # Count position types
                 if position.position_type.value.startswith("L"):
                     if position.position_type.value in ["LC", "LP"]:
@@ -150,9 +174,9 @@ async def get_portfolio_complete(
                     else:
                         short_count += 1
                         market_value = -market_value  # Negative for shorts
-                
+
                 total_market_value += market_value
-                
+
                 # Check data completeness (simplified for now - using market data cache)
                 # In a full implementation, we'd have a separate historical prices table
                 has_complete_history = market_data is not None  # Simplified check
@@ -160,25 +184,31 @@ async def get_portfolio_complete(
                     complete_data_count += 1
                 else:
                     partial_data_count += 1
-                
-                positions_data.append({
+
+                position_data = {
                     "id": str(position.id),
                     "symbol": position.symbol,
                     "quantity": float(position.quantity),
                     "position_type": position.position_type.value,
+                    "investment_class": position.investment_class if position.investment_class else "PUBLIC",
                     "market_value": market_value,
                     "last_price": float(last_price),
                     "has_complete_history": has_complete_history
-                })
+                }
+
+                # Add tags if requested
+                if include_position_tags:
+                    position_data["tags"] = position_tags_map.get(position.id, [])
+
+                positions_data.append(position_data)
         
         # Sort positions for deterministic ordering
         positions_data.sort(key=lambda x: (x['symbol'], x['id']))
-        
+
         # Build response with proper meta object
-        # Note: Portfolio model doesn't have cash_balance field
-        # Using 5% of portfolio value as a reasonable cash allocation placeholder
-        # This represents typical cash reserves for portfolio liquidity
-        cash_balance = total_market_value * 0.05 if total_market_value > 0 else 10000.0
+        # Use the portfolio's equity_balance which tracks the capital account
+        # (starting balance + realized P&L)
+        equity_balance = float(portfolio.equity_balance) if portfolio.equity_balance else 0.0
         
         # Create meta object
         meta = {
@@ -211,8 +241,8 @@ async def get_portfolio_complete(
             "portfolio": {
                 "id": str(portfolio.id),
                 "name": portfolio.name,
-                "total_value": total_market_value + cash_balance,
-                "cash_balance": cash_balance,
+                "total_value": total_market_value + equity_balance,
+                "equity_balance": equity_balance,
                 "position_count": len(positions_data),
                 "as_of": to_utc_iso8601(as_of_timestamp)
             },
@@ -223,47 +253,6 @@ async def get_portfolio_complete(
                 "total_market_value": total_market_value
             }
         }
-
-        # Strategies section
-        if include_strategies:
-            # Query strategies for this portfolio
-            s_service = StrategyService(session)
-            # Always include positions to get accurate count
-            strategies = await s_service.list_strategies(
-                portfolio_id=portfolio.id,
-                include_positions=True,  # Always load to get position count
-                limit=1000,
-                offset=0,
-            )
-
-            # Preload tags for all strategies if requested
-            tags_by_strategy = {}
-            if include_strategy_tags and strategies:
-                stmt = (
-                    select(StrategyTag.strategy_id, TagV2)
-                    .join(TagV2, TagV2.id == StrategyTag.tag_id)
-                    .where(StrategyTag.strategy_id.in_([s.id for s in strategies]))
-                    .order_by(TagV2.display_order)
-                )
-                tag_rows = await session.execute(stmt)
-                for sid, tag in tag_rows.all():
-                    tags_by_strategy.setdefault(sid, []).append({
-                        "id": str(tag.id),
-                        "name": tag.name,
-                        "color": tag.color,
-                    })
-
-            response["strategies"] = [
-                {
-                    "id": str(s.id),
-                    "name": s.name,
-                    "type": s.strategy_type,
-                    "is_synthetic": s.is_synthetic,
-                    "position_count": len(s.positions) if hasattr(s, "positions") and s.positions is not None else 0,
-                    "tags": tags_by_strategy.get(s.id, []) if include_strategy_tags else None,
-                }
-                for s in strategies
-            ]
 
         # Add holdings section if requested
         if include_holdings:
@@ -298,100 +287,9 @@ async def get_portfolio_complete(
         return response
 
 
-@router.get("/portfolios/{portfolio_id}/strategies")
-async def get_portfolio_strategies(
-    portfolio_id: UUID,
-    tag_ids: Optional[str] = Query(None, description="Comma-separated TagV2 IDs to filter"),
-    tag_mode: str = Query("any", description="Tag filter mode: any|all"),
-    strategy_type: Optional[str] = Query(None, description="Filter by strategy type"),
-    include_positions: bool = Query(False, description="Include strategy legs"),
-    include_tags: bool = Query(True, description="Include tags in response"),
-    limit: int = Query(200, ge=1, le=1000),
-    offset: int = Query(0, ge=0),
-    current_user: CurrentUser = Depends(get_current_user),
-    db: AsyncSession = Depends(get_async_session)
-):
-    """List strategies in a portfolio, with optional tag/type filters"""
-    async with db as session:
-        # Ownership check
-        stmt = select(Portfolio).where(
-            and_(
-                Portfolio.id == portfolio_id,
-                Portfolio.user_id == (current_user.id if isinstance(current_user.id, UUID) else UUID(str(current_user.id)))
-            )
-        )
-    result = await session.execute(stmt)
-    portfolio = result.scalar_one_or_none()
-    if not portfolio:
-        logger.warning(f"Strategies request 404: portfolio {portfolio_id} not owned by user {current_user.id}")
-        raise HTTPException(status_code=404, detail="Portfolio not found")
-
-        # Base query
-        q = select(Strategy).where(Strategy.portfolio_id == portfolio_id)
-        if strategy_type:
-            q = q.where(Strategy.strategy_type == strategy_type)
-
-        # Tag filtering
-        tag_list = []
-        if tag_ids:
-            try:
-                tag_list = [UUID(x.strip()) for x in tag_ids.split(",") if x.strip()]
-            except Exception:
-                raise HTTPException(status_code=400, detail="Invalid tag_ids parameter")
-
-        if tag_list:
-            if tag_mode.lower() == "all":
-                # strategy must have all tag_ids: intersect count equals len(tag_list)
-                q = q.where(
-                    Strategy.id.in_(
-                        select(StrategyTag.strategy_id)
-                        .where(StrategyTag.tag_id.in_(tag_list))
-                        .group_by(StrategyTag.strategy_id)
-                        .having(func.count(sa.distinct(StrategyTag.tag_id)) == len(tag_list))
-                    )
-                )
-            else:
-                # any
-                q = q.where(
-                    Strategy.id.in_(
-                        select(StrategyTag.strategy_id).where(StrategyTag.tag_id.in_(tag_list))
-                    )
-                )
-
-        q = q.limit(limit).offset(offset)
-        res = await session.execute(q)
-        strategies = res.scalars().all()
-
-        # Tags
-        tag_map = {}
-        if include_tags and strategies:
-            stmt = (
-                select(StrategyTag.strategy_id, TagV2)
-                .join(TagV2, TagV2.id == StrategyTag.tag_id)
-                .where(StrategyTag.strategy_id.in_([s.id for s in strategies]))
-                .order_by(TagV2.display_order)
-            )
-            rows = await session.execute(stmt)
-            for sid, tag in rows.all():
-                tag_map.setdefault(sid, []).append({"id": str(tag.id), "name": tag.name, "color": tag.color})
-
-        return {
-            "portfolio_id": str(portfolio_id),
-            "strategies": [
-                {
-                    "id": str(s.id),
-                    "name": s.name,
-                    "type": s.strategy_type,
-                    "is_synthetic": s.is_synthetic,
-                    "position_count": len(s.positions) if include_positions and getattr(s, "positions", None) else None,
-                    "tags": tag_map.get(s.id, []) if include_tags else None,
-                }
-                for s in strategies
-            ],
-            "limit": limit,
-            "offset": offset,
-            "total": len(strategies)
-        }
+# Note: The /portfolios/{portfolio_id}/strategies endpoint has been removed
+# Use position tagging directly instead - positions now have tags attached
+# See /positions/details endpoint with position tags included
 
 
 @router.get("/portfolio/{portfolio_id}/data-quality")
@@ -689,7 +587,6 @@ async def get_positions_details(
             "market_value": market_value,
             "unrealized_pnl": unrealized_pnl,
             "unrealized_pnl_percent": unrealized_pnl_percent,
-            "strategy_id": str(position.strategy_id) if position.strategy_id else None,  # Link to strategy for filtering
             # Add option-specific fields if available
             "strike_price": float(position.strike_price) if position.strike_price else None,
             "expiration_date": to_iso_date(position.expiration_date) if position.expiration_date else None,

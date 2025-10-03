@@ -1,5 +1,31 @@
 """
-Position Tag API endpoints - Direct position tagging system.
+Position Tag API Endpoints - Direct Position-Tag Relationship Management
+
+This module handles POSITION-CENTRIC tagging operations - adding, removing, and
+querying tags for individual positions. This is the PREFERRED tagging method
+(replaces legacy strategy-based tagging).
+
+**Architecture Context** (3-tier separation of concerns):
+- THIS FILE (position_tags.py): Position-tag relationship operations
+- tags.py: Tag management (create/update/delete) + reverse lookups
+- tags_v2.py: Database models (TagV2, PositionTag)
+
+**Endpoints**:
+- POST   /positions/{id}/tags       → Add tags to position
+- GET    /positions/{id}/tags       → Get position's tags
+- DELETE /positions/{id}/tags       → Remove tags from position
+- PATCH  /positions/{id}/tags       → Replace all position tags
+
+**Related Files**:
+- Service: app/services/position_tag_service.py (PositionTagService)
+- Models: app/models/tags_v2.py (TagV2), app/models/position_tags.py (PositionTag)
+- Frontend: src/services/tagsApi.ts (lines 69-130 - position tagging methods)
+- Documentation: backend/TAGGING_ARCHITECTURE.md
+
+**Router Registration**:
+Registered in app/api/v1/router.py as:
+  `api_router.include_router(position_tags_router, prefix="/positions")`
+This creates routes like: /api/v1/positions/{id}/tags
 
 Replaces the legacy strategy-based tagging with direct position tags.
 """
@@ -84,6 +110,46 @@ async def assign_tags_to_position(
 
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+
+@router.post("/{position_id}/tags/remove")
+async def remove_tags_from_position_post(
+    position_id: UUID,
+    request: RemoveTagsFromPositionRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Remove one or more tags from a position using POST method.
+    This is an alternative to the DELETE endpoint for better compatibility.
+    """
+    service = PositionTagService(db)
+
+    # Verify position exists and user has access
+    from sqlalchemy import select
+    position_result = await db.execute(
+        select(Position).where(Position.id == position_id)
+    )
+    position = position_result.scalar()
+
+    if not position:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Position not found")
+
+    # Verify user owns the portfolio containing this position
+    try:
+        await validate_portfolio_ownership(db, position.portfolio_id, current_user.id)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
+
+    removed_count = await service.bulk_remove_tags(
+        position_id=position_id,
+        tag_ids=request.tag_ids
+    )
+
+    return {
+        "message": f"Removed {removed_count} tags from position",
+        "removed_count": removed_count
+    }
 
 
 @router.delete("/{position_id}/tags")

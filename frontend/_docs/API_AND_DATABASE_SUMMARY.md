@@ -4,8 +4,96 @@
 **Last Updated**: October 2, 2025
 **Status**: Production-Ready APIs with Complete Database Schema
 **Latest Updates**:
+- **October 3, 2025**: Added TAGGING_ARCHITECTURE.md guide - clarifies 3-file structure is intentional design
 - **October 2, 2025**: Position tagging system implemented (replaces strategy-based tagging)
 - **October 1, 2025**: Added strategy categorization (direction & primary_investment_class), implemented Combination View toggle
+
+---
+
+## 🏗️ Tagging System Architecture Clarification
+
+> **IMPORTANT**: The tagging system uses a **3-file architecture** that may appear to be "different services by different developers" - **this is intentional design**, not technical debt!
+
+### Architecture Overview
+
+```
+📂 Backend Files (3-Tier Separation of Concerns)
+├── position_tags.py    → Position-Tag Relationship Operations
+├── tags.py             → Tag Management + Reverse Lookups
+└── tags_v2.py          → Database Models
+
+📂 Frontend Files (Aligned with Backend)
+├── tagsApi.ts          → ONE service with TWO responsibilities
+│   ├── Tag Management (create, update, delete tags)
+│   └── Position Tagging (add/remove tags from positions)
+└── hooks/
+    ├── useTags.ts      → Tag lifecycle management
+    └── usePositionTags.ts → Position-tag operations
+```
+
+### Why Three Backend Files?
+
+This is **standard 3-tier architecture**:
+
+1. **`position_tags.py`** (API Layer) - Handles position-tag relationships
+   - Endpoints: `/api/v1/positions/{id}/tags`
+   - Operations: Add/remove tags from positions
+   - **Router prefix**: `/positions`
+
+2. **`tags.py`** (API Layer) - Handles tag management + reverse lookups
+   - Endpoints: `/api/v1/tags/`
+   - Operations: Create/update/delete tags, find positions by tag
+   - **Router prefix**: `/tags`
+   - **Includes**: `GET /tags/{id}/positions` (reverse lookup - finds positions with a tag)
+
+3. **`tags_v2.py`** (Data Layer) - Database models
+   - Models: `TagV2`, `PositionTag`, `StrategyTag` (deprecated)
+   - Relationships: Supports both position tagging (new) and strategy tagging (legacy)
+
+### Why is `/tags/{id}/positions` in tags.py?
+
+**This is a REST API design pattern for many-to-many relationships:**
+
+- **Position-centric endpoint** (`position_tags.py`): "What tags does THIS position have?"
+  - `GET /positions/{id}/tags` → Returns tags for a position
+
+- **Tag-centric endpoint** (`tags.py`): "What positions have THIS tag?"
+  - `GET /tags/{id}/positions` → Returns positions with this tag (reverse lookup)
+
+This follows standard REST conventions and keeps related operations together.
+
+### Quick Decision Tree
+
+```
+┌─ Need to create/manage tags?
+│  └─→ Use /api/v1/tags/ (tags.py)
+│
+├─ Need to add/remove tags from positions?
+│  └─→ Use /api/v1/positions/{id}/tags (position_tags.py)
+│
+└─ Need to find all positions with a specific tag?
+   └─→ Use /api/v1/tags/{id}/positions (tags.py - reverse lookup)
+```
+
+### Frontend Integration
+
+**ONE service file (`tagsApi.ts`) with TWO logical groups**:
+
+```typescript
+// Tag Management (lines 10-62)
+tagsApi.create()      // POST /api/v1/tags/
+tagsApi.list()        // GET /api/v1/tags/
+tagsApi.update()      // PATCH /api/v1/tags/{id}
+
+// Position Tagging (lines 69-130)
+tagsApi.addPositionTags()      // POST /api/v1/positions/{id}/tags
+tagsApi.removePositionTags()   // POST /api/v1/positions/{id}/tags/remove
+tagsApi.getPositionsByTag()    // GET /api/v1/tags/{id}/positions
+```
+
+This architecture is **intentional and correct** - not technical debt!
+
+📚 **For complete architecture details**, see: `backend/TAGGING_ARCHITECTURE.md`
 
 ---
 

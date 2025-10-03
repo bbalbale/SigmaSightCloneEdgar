@@ -1,7 +1,30 @@
-"""Enhanced tag models for user-scoped organizational metadata.
+"""
+Enhanced Tag Models - User-Scoped Organizational Metadata (Data Layer)
 
-Tags are user-level organizational tools that can be applied to strategies
-for filtering and grouping purposes.
+Tags are user-level organizational tools that can be applied to positions (NEW)
+or strategies (DEPRECATED) for filtering and grouping purposes.
+
+**Architecture Context** (3-tier separation of concerns):
+- position_tags.py (API): Position-tag relationship operations
+- tags.py (API): Tag management + reverse lookups
+- THIS FILE (tags_v2.py): Database models (TagV2, relationships)
+
+**Models Defined Here**:
+1. TagV2 - The main tag entity (name, color, description, etc.)
+2. Relationships:
+   - position_tags: Many-to-many with positions (NEW - preferred)
+   - strategy_tags: Many-to-many with strategies (DEPRECATED)
+
+**Database Tables**:
+- tags_v2: Main tag table
+- position_tags: Junction table (position_id, tag_id) [NEW]
+- strategy_tags: Junction table (strategy_id, tag_id) [DEPRECATED]
+
+**Related Files**:
+- Junction model: app/models/position_tags.py (PositionTag)
+- Services: app/services/tag_service.py, app/services/position_tag_service.py
+- API endpoints: app/api/v1/tags.py, app/api/v1/position_tags.py
+- Documentation: backend/TAGGING_ARCHITECTURE.md
 """
 from typing import Optional, TYPE_CHECKING
 from datetime import datetime
@@ -53,9 +76,15 @@ class TagV2(Base):
     # Relationships
     user = relationship("User", foreign_keys=[user_id])
     archiver = relationship("User", foreign_keys=[archived_by])
-    # Direct position tagging (new system)
+
+    # ===== Position Tagging (NEW - Preferred) =====
+    # Direct position tagging through position_tags junction table
+    # Use this for all new features - tag positions directly
     position_tags = relationship("PositionTag", cascade="all, delete-orphan", back_populates="tag")
-    # Legacy strategy tagging (deprecated but kept for backward compatibility)
+
+    # ===== Strategy Tagging (DEPRECATED) =====
+    # Legacy strategy tagging - kept for backward compatibility only
+    # DO NOT use for new features - use position_tags instead
     strategy_tags = relationship("StrategyTag", cascade="all, delete-orphan", back_populates="tag")
 
     def __repr__(self):
