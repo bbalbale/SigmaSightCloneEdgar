@@ -1,8 +1,34 @@
 """
-Position Tag Service - Business logic for managing position-tag relationships.
+Position Tag Service - Business Logic for Position-Tag Relationships (Service Layer)
 
 This service handles the direct tagging of positions, replacing the legacy
-strategy-based tagging system.
+strategy-based tagging system. This is the PREFERRED service for all tagging operations.
+
+**Architecture Context** (3-tier separation of concerns):
+- API Layer: app/api/v1/position_tags.py (FastAPI endpoints)
+- THIS FILE (Service Layer): Business logic for position-tag operations
+- Data Layer: app/models/tags_v2.py (TagV2), app/models/position_tags.py (PositionTag)
+
+**Key Methods**:
+- assign_tag_to_position(): Add single tag to position
+- remove_tag_from_position(): Remove single tag from position
+- bulk_assign_tags(): Add multiple tags (with optional replace)
+- bulk_remove_tags(): Remove multiple tags
+- get_tags_for_position(): Get all tags for a position
+- get_positions_by_tag(): Get all positions with a specific tag (reverse lookup)
+
+**Used By**:
+- app/api/v1/position_tags.py: Position tagging endpoints
+- app/api/v1/tags.py: Reverse lookup endpoint (/tags/{id}/positions)
+
+**Related Services**:
+- TagService: Tag management (create/update/delete tags)
+
+**Frontend Integration**:
+- Service: src/services/tagsApi.ts (lines 69-130 - position tagging methods)
+- Hook: src/hooks/usePositionTags.ts
+
+**Documentation**: backend/TAGGING_ARCHITECTURE.md
 """
 import logging
 from datetime import datetime

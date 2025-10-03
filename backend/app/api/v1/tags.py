@@ -1,5 +1,48 @@
 """
-Tag API endpoints
+Tag Management API Endpoints - Tag Lifecycle + Reverse Lookups
+
+This module handles TAG-CENTRIC operations - creating, updating, and managing tags,
+plus finding positions that have a specific tag (reverse lookup pattern).
+
+**Architecture Context** (3-tier separation of concerns):
+- position_tags.py: Position-tag relationship operations
+- THIS FILE (tags.py): Tag management + reverse lookups
+- tags_v2.py: Database models (TagV2, PositionTag)
+
+**Endpoints - Tag Management**:
+- POST   /tags/                    → Create new tag
+- GET    /tags/                    → List user's tags
+- GET    /tags/{id}                → Get tag details
+- PATCH  /tags/{id}                → Update tag
+- POST   /tags/{id}/archive        → Archive tag (soft delete)
+- POST   /tags/{id}/restore        → Restore archived tag
+- POST   /tags/defaults            → Create/get default tags
+
+**Endpoints - Reverse Lookups** (Find positions/strategies by tag):
+- GET    /tags/{id}/positions      → Get positions with this tag (NEW - preferred)
+- GET    /tags/{id}/strategies     → Get strategies with this tag (DEPRECATED)
+
+**Endpoints - Strategy Tagging** (DEPRECATED - kept for backward compatibility):
+- POST   /tags/assign              → Assign tag to strategy
+- DELETE /tags/assign              → Remove tag from strategy
+- POST   /tags/bulk-assign         → Bulk assign tags to strategy
+
+**Why is the reverse lookup here?**
+This follows REST API design patterns for many-to-many relationships:
+- Position-centric: "What tags does THIS position have?" → position_tags.py
+- Tag-centric: "What positions have THIS tag?" → tags.py (this file)
+
+**Related Files**:
+- Service: app/services/tag_service.py (TagService)
+- Service: app/services/position_tag_service.py (PositionTagService - for reverse lookups)
+- Models: app/models/tags_v2.py (TagV2), app/models/position_tags.py (PositionTag)
+- Frontend: src/services/tagsApi.ts (lines 10-62 - tag management methods)
+- Documentation: backend/TAGGING_ARCHITECTURE.md
+
+**Router Registration**:
+Registered in app/api/v1/router.py as:
+  `api_router.include_router(tags_router)`
+Router has prefix="/tags" defined internally, creating routes like: /api/v1/tags/
 """
 from typing import List, Optional
 from uuid import UUID
@@ -193,7 +236,12 @@ async def assign_tag_to_strategy(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Assign a tag to a strategy"""
+    """
+    Assign a tag to a strategy
+
+    ⚠️ DEPRECATED: Use position tagging instead (/api/v1/positions/{id}/tags)
+    This endpoint is kept for backward compatibility only.
+    """
     service = TagService(db)
     strategy_service = StrategyService(db)
 
@@ -233,7 +281,12 @@ async def remove_tag_from_strategy(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Remove a tag from a strategy"""
+    """
+    Remove a tag from a strategy
+
+    ⚠️ DEPRECATED: Use position tagging instead (/api/v1/positions/{id}/tags)
+    This endpoint is kept for backward compatibility only.
+    """
     service = TagService(db)
     strategy_service = StrategyService(db)
 
@@ -267,7 +320,12 @@ async def bulk_assign_tags(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Assign multiple tags to a strategy at once"""
+    """
+    Assign multiple tags to a strategy at once
+
+    ⚠️ DEPRECATED: Use position tagging instead (/api/v1/positions/{id}/tags)
+    This endpoint is kept for backward compatibility only.
+    """
     service = TagService(db)
     strategy_service = StrategyService(db)
 
@@ -309,7 +367,12 @@ async def get_strategies_by_tag(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Get all strategies with a specific tag"""
+    """
+    Get all strategies with a specific tag
+
+    ⚠️ DEPRECATED: Use /tags/{id}/positions for position tagging instead
+    This endpoint is kept for backward compatibility only.
+    """
     service = TagService(db)
 
     # Verify tag ownership

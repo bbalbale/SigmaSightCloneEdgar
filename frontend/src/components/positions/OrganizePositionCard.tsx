@@ -28,6 +28,7 @@ interface Position {
 interface OrganizePositionCardProps {
   position: Position
   onClick?: () => void
+  onRemoveTag?: (positionId: string, tagId: string) => void
 }
 
 const OPTION_TYPE_LABELS: Record<string, string> = {
@@ -37,7 +38,7 @@ const OPTION_TYPE_LABELS: Record<string, string> = {
   'SP': 'Short Put'
 }
 
-export function OrganizePositionCard({ position, onClick }: OrganizePositionCardProps) {
+export function OrganizePositionCard({ position, onClick, onRemoveTag }: OrganizePositionCardProps) {
   const { theme } = useTheme()
 
   // Determine card content based on investment class
@@ -84,7 +85,31 @@ export function OrganizePositionCard({ position, onClick }: OrganizePositionCard
       {position.tags && position.tags.length > 0 && (
         <div className="flex flex-wrap gap-1 px-1">
           {position.tags.map(tag => (
-            <TagBadge key={tag.id} tag={tag} draggable={false} />
+            <div key={tag.id} className="relative inline-flex items-center">
+              <TagBadge tag={tag} draggable={false} />
+              {onRemoveTag && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    onRemoveTag(position.id, tag.id)
+                  }}
+                  className="ml-0.5 px-1 py-0 text-xs rounded transition-all duration-200 hover:scale-110"
+                  style={{
+                    backgroundColor: theme === 'dark' ? 'rgba(239, 68, 68, 0.2)' : 'rgba(239, 68, 68, 0.1)',
+                    color: theme === 'dark' ? '#ef4444' : '#dc2626',
+                    border: `1px solid ${theme === 'dark' ? '#ef4444' : '#dc2626'}`,
+                    fontSize: '10px',
+                    lineHeight: '14px',
+                    minWidth: '14px',
+                    height: '14px'
+                  }}
+                  title={`Remove ${tag.name} tag`}
+                  aria-label={`Remove ${tag.name} tag from ${position.symbol}`}
+                >
+                  ×
+                </button>
+              )}
+            </div>
           ))}
         </div>
       )}

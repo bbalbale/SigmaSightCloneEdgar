@@ -1,5 +1,41 @@
 """
-Tag Service - Business logic for managing user-scoped tags
+Tag Service - Business Logic for Tag Management (Service Layer)
+
+This service handles tag lifecycle operations (create/update/delete) and includes
+DEPRECATED strategy tagging methods kept for backward compatibility.
+
+**Architecture Context** (3-tier separation of concerns):
+- API Layer: app/api/v1/tags.py (FastAPI endpoints)
+- THIS FILE (Service Layer): Tag management business logic
+- Data Layer: app/models/tags_v2.py (TagV2, StrategyTag)
+
+**Tag Management Methods** (Active - Use these):
+- create_tag(): Create new tag
+- get_tag(): Get tag by ID
+- get_user_tags(): List user's tags
+- update_tag(): Update tag properties
+- archive_tag(): Soft delete tag
+- restore_tag(): Restore archived tag
+- create_default_tags(): Create starter tags for new users
+
+**Strategy Tagging Methods** (DEPRECATED - Do not use for new features):
+- assign_tag_to_strategy() ⚠️ Use PositionTagService.assign_tag_to_position() instead
+- remove_tag_from_strategy() ⚠️ Use PositionTagService.remove_tag_from_position() instead
+- get_strategies_by_tag() ⚠️ Use PositionTagService.get_positions_by_tag() instead
+- bulk_assign_tags() ⚠️ Use PositionTagService.bulk_assign_tags() instead
+
+**Used By**:
+- app/api/v1/tags.py: Tag management endpoints
+- app/api/v1/position_tags.py: For tag validation
+
+**Related Services**:
+- PositionTagService: Position-tag relationship management (PREFERRED)
+
+**Frontend Integration**:
+- Service: src/services/tagsApi.ts (lines 10-62 - tag management methods)
+- Hook: src/hooks/useTags.ts
+
+**Documentation**: backend/TAGGING_ARCHITECTURE.md
 """
 import logging
 from datetime import datetime
@@ -216,6 +252,9 @@ class TagService:
         """
         Archive a tag (soft delete)
 
+        This will also remove all position_tags and strategy_tags associations
+        to prevent archived tags from appearing on positions/strategies.
+
         Args:
             tag_id: Tag to archive
             archived_by: User who archived it
@@ -231,6 +270,20 @@ class TagService:
             logger.warning(f"Tag {tag_id} is already archived")
             return True
 
+        # Remove all position_tags associations (NEW - prevents archived tags from showing)
+        from app.models.position_tags import PositionTag
+        await self.db.execute(
+            delete(PositionTag).where(PositionTag.tag_id == tag_id)
+        )
+        logger.info(f"Removed all position_tags for archived tag {tag_id}")
+
+        # Remove all strategy_tags associations (DEPRECATED but still needed for backward compat)
+        await self.db.execute(
+            delete(StrategyTag).where(StrategyTag.tag_id == tag_id)
+        )
+        logger.info(f"Removed all strategy_tags for archived tag {tag_id}")
+
+        # Archive the tag
         tag.is_archived = True
         tag.archived_at = datetime.utcnow()
         tag.archived_by = archived_by
