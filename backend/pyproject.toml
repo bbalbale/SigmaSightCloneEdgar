@@ -32,7 +32,7 @@ dependencies = [
     "python-multipart>=0.0.6",
     # Market Data
     "polygon-api-client>=1.14.0",
-    # "yfinance>=0.2.28",  # Removed - FMP primary architecture
+    # yfinance is now primary provider - see line 55
     "fredapi>=0.5.1",
     "pandas>=2.1.0",
     "numpy>=1.25.0",
