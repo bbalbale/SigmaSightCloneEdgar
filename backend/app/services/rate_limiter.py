@@ -177,8 +177,85 @@ class ExponentialBackoff:
         self.attempt = 0
 
 
+class FMPQuotaTracker:
+    """Daily quota tracker for FMP API (250 calls/day limit)"""
+
+    def __init__(self, daily_limit: int = 250):
+        """Initialize FMP quota tracker
+
+        Args:
+            daily_limit: Maximum number of API calls per day
+        """
+        self.daily_limit = daily_limit
+        self._calls_today = 0
+        self._last_reset = datetime.now().date()
+        self._lock = asyncio.Lock()
+
+        logger.info(f"Initialized FMP quota tracker: {daily_limit} calls/day")
+
+    async def can_make_request(self) -> bool:
+        """Check if we can make another FMP request without exceeding daily quota
+
+        Returns:
+            True if under quota, False if quota exceeded
+        """
+        async with self._lock:
+            # Reset counter if it's a new day
+            today = datetime.now().date()
+            if today > self._last_reset:
+                logger.info(f"FMP quota reset: New day ({today}), resetting counter from {self._calls_today}")
+                self._calls_today = 0
+                self._last_reset = today
+
+            return self._calls_today < self.daily_limit
+
+    async def record_request(self) -> None:
+        """Record an FMP API request"""
+        async with self._lock:
+            # Reset counter if it's a new day
+            today = datetime.now().date()
+            if today > self._last_reset:
+                self._calls_today = 0
+                self._last_reset = today
+
+            self._calls_today += 1
+            remaining = self.daily_limit - self._calls_today
+
+            if remaining <= 10:
+                logger.warning(f"FMP quota warning: Only {remaining} calls remaining today")
+            elif self._calls_today % 50 == 0:
+                logger.info(f"FMP quota update: {self._calls_today}/{self.daily_limit} calls used today")
+
+    async def acquire(self) -> bool:
+        """Try to acquire permission for an FMP request
+
+        Returns:
+            True if request allowed, False if quota exceeded
+        """
+        if not await self.can_make_request():
+            logger.error(f"FMP daily quota exceeded: {self._calls_today}/{self.daily_limit}")
+            return False
+
+        await self.record_request()
+        return True
+
+    @property
+    def stats(self) -> dict:
+        """Get quota statistics"""
+        return {
+            "calls_today": self._calls_today,
+            "daily_limit": self.daily_limit,
+            "remaining": self.daily_limit - self._calls_today,
+            "last_reset": str(self._last_reset),
+            "quota_used_percent": (self._calls_today / self.daily_limit) * 100
+        }
+
+
 # Import settings at module level to get plan configuration
 from app.config import settings
 
 # Global rate limiter instance for Polygon API
 polygon_rate_limiter = PolygonRateLimiter(plan=settings.POLYGON_PLAN)
+
+# Global quota tracker for FMP API (250 calls per day)
+fmp_quota_tracker = FMPQuotaTracker(daily_limit=250)

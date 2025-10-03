@@ -9,6 +9,7 @@ from app.config import settings
 from app.clients.base import MarketDataProvider
 from app.clients.fmp_client import FMPClient
 from app.clients.tradefeeds_client import TradeFeedsClient
+from app.clients.yfinance_client import YFinanceClient
 
 logger = logging.getLogger(__name__)
 
@@ -31,7 +32,19 @@ class MarketDataFactory:
         """Initialize all available clients based on configuration"""
         if self._initialized:
             return
-        
+
+        # Initialize YFinance client (always available, no API key needed)
+        if settings.USE_YFINANCE:
+            try:
+                self._clients['YFinance'] = YFinanceClient(
+                    api_key="none",  # YFinance doesn't need an API key
+                    timeout=settings.YFINANCE_TIMEOUT_SECONDS,
+                    max_retries=settings.YFINANCE_MAX_RETRIES
+                )
+                logger.info("YFinance client initialized successfully (primary provider for stocks)")
+            except Exception as e:
+                logger.error(f"Failed to initialize YFinance client: {str(e)}")
+
         # Initialize FMP client if API key is available
         if settings.FMP_API_KEY:
             try:
@@ -77,10 +90,14 @@ class MarketDataFactory:
         self.initialize()
         
         if data_type == DataType.STOCKS:
-            if settings.USE_FMP_FOR_STOCKS and 'FMP' in self._clients:
+            # Priority: YFinance -> FMP -> TradeFeeds
+            if settings.USE_YFINANCE and 'YFinance' in self._clients:
+                return self._clients['YFinance']
+            elif settings.USE_FMP_FOR_STOCKS and 'FMP' in self._clients:
+                logger.warning("YFinance not available for stocks, falling back to FMP")
                 return self._clients['FMP']
             elif 'TradeFeeds' in self._clients:
-                logger.warning("FMP not available for stocks, falling back to TradeFeeds")
+                logger.warning("YFinance and FMP not available for stocks, falling back to TradeFeeds")
                 return self._clients['TradeFeeds']
         
         elif data_type == DataType.FUNDS:

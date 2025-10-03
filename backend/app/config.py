@@ -27,10 +27,16 @@ class Settings(BaseSettings):
     # New market data providers (Section 1.4.9)
     FMP_API_KEY: str = Field(default="", env="FMP_API_KEY")  # Financial Modeling Prep
     TRADEFEEDS_API_KEY: str = Field(default="", env="TRADEFEEDS_API_KEY")  # TradeFeeds backup
-    
+
+    # YFinance settings (no API key required)
+    USE_YFINANCE: bool = Field(default=True, env="USE_YFINANCE")  # Primary provider for stocks
+    YFINANCE_RATE_LIMIT: float = Field(default=1.0, env="YFINANCE_RATE_LIMIT")  # Seconds between requests
+    YFINANCE_TIMEOUT_SECONDS: int = Field(default=30, env="YFINANCE_TIMEOUT_SECONDS")
+    YFINANCE_MAX_RETRIES: int = Field(default=3, env="YFINANCE_MAX_RETRIES")
+
     # Provider selection flags
-    USE_FMP_FOR_STOCKS: bool = Field(default=True, env="USE_FMP_FOR_STOCKS")
-    USE_FMP_FOR_FUNDS: bool = Field(default=True, env="USE_FMP_FOR_FUNDS") 
+    USE_FMP_FOR_STOCKS: bool = Field(default=False, env="USE_FMP_FOR_STOCKS")  # Now secondary to yfinance
+    USE_FMP_FOR_FUNDS: bool = Field(default=True, env="USE_FMP_FOR_FUNDS")
     USE_POLYGON_FOR_OPTIONS: bool = Field(default=True, env="USE_POLYGON_FOR_OPTIONS")  # Always true
     
     # Provider-specific settings

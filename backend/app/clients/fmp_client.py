@@ -38,12 +38,18 @@ class FMPClient(MarketDataProvider):
     
     async def _make_request(self, endpoint: str, params: Dict[str, Any] = None) -> Dict[str, Any]:
         """Make HTTP request to FMP API with retries"""
+        from app.services.rate_limiter import fmp_quota_tracker
+
+        # Check FMP daily quota before making request
+        if not await fmp_quota_tracker.can_make_request():
+            raise Exception("FMP daily quota exceeded (250 calls/day). Please wait until tomorrow or use fallback providers.")
+
         if params is None:
             params = {}
-        
+
         params['apikey'] = self.api_key
         url = f"{self.BASE_URL}/{endpoint}"
-        
+
         session = await self._get_session()
         
         for attempt in range(self.max_retries):
@@ -52,6 +58,8 @@ class FMPClient(MarketDataProvider):
                 async with session.get(url, params=params) as response:
                     if response.status == 200:
                         data = await response.json()
+                        # Record successful FMP request for quota tracking
+                        await fmp_quota_tracker.record_request()
                         return data
                     elif response.status == 429:  # Rate limit
                         wait_time = 2 ** attempt

@@ -36,24 +36,24 @@ class MarketDataService:
     # New hybrid provider methods (Section 1.4.9)
     
     async def fetch_historical_data_hybrid(
-        self, 
-        symbols: List[str], 
+        self,
+        symbols: List[str],
         start_date: Optional[date] = None,
         end_date: Optional[date] = None
     ) -> Dict[str, List[Dict[str, Any]]]:
         """
         Fetch historical stock price data using hybrid provider approach
-        
-        Priority: 
-        - Stocks: Polygon -> FMP (fallback)
-        - ETFs: FMP -> Polygon (fallback)
+
+        Priority:
+        - Stocks: YFinance -> Polygon -> FMP (fallback)
+        - ETFs: YFinance -> FMP -> Polygon (fallback)
         - Options: Polygon only
-        
+
         Args:
             symbols: List of stock symbols
             start_date: Start date for historical data
             end_date: End date for historical data
-            
+
         Returns:
             Dictionary with symbol as key and list of price data as value
         """
@@ -84,69 +84,141 @@ class MarketDataService:
         
         logger.info(f"Symbol breakdown: {len(stock_symbols)} stocks, {len(etf_symbols)} ETFs, {len(options_symbols)} options")
         
-        # Process regular stocks with Polygon first
+        # Process regular stocks with YFinance first
         if stock_symbols:
-            logger.info(f"Fetching {len(stock_symbols)} stocks with Polygon (primary)")
-            polygon_results = await self.fetch_stock_prices(stock_symbols, start_date, end_date)
-            
-            for symbol in stock_symbols:
-                results[symbol] = polygon_results.get(symbol, [])
-            
-            # Track which stocks failed with Polygon
+            logger.info(f"Fetching {len(stock_symbols)} stocks with YFinance (primary)")
+            yfinance_provider = market_data_factory.get_provider_for_data_type(DataType.STOCKS)
+
+            if yfinance_provider and yfinance_provider.provider_name == "YFinance":
+                for symbol in stock_symbols:
+                    try:
+                        historical_data = await yfinance_provider.get_historical_prices(symbol, days=days_back)
+
+                        if historical_data:
+                            # Convert YFinance format to our standard format
+                            price_records = []
+                            for day_data in historical_data:
+                                price_records.append({
+                                    'symbol': symbol.upper(),
+                                    'date': day_data['date'],
+                                    'open': day_data['open'],
+                                    'high': day_data['high'],
+                                    'low': day_data['low'],
+                                    'close': day_data['close'],
+                                    'volume': day_data['volume'],
+                                    'data_source': 'yfinance'
+                                })
+
+                            results[symbol] = price_records
+                            logger.debug(f"YFinance: Retrieved {len(price_records)} records for stock {symbol}")
+                        else:
+                            results[symbol] = []
+
+                    except Exception as e:
+                        logger.warning(f"YFinance error for stock {symbol}: {str(e)}")
+                        results[symbol] = []
+
+                # Track which stocks failed with YFinance
+                failed_stocks = [s for s in stock_symbols if not results.get(s)]
+                if failed_stocks:
+                    logger.warning(f"YFinance failed for {len(failed_stocks)} stocks, will try Polygon fallback")
+
+                    # Try Polygon for failed stocks
+                    polygon_results = await self.fetch_stock_prices(failed_stocks, start_date, end_date)
+                    for symbol in failed_stocks:
+                        if polygon_results.get(symbol):
+                            results[symbol] = polygon_results.get(symbol, [])
+                        else:
+                            # Mark as failed from both YFinance and Polygon
+                            results[symbol] = []
+            else:
+                # Fall back to Polygon if YFinance not available
+                logger.info(f"YFinance not available, using Polygon for {len(stock_symbols)} stocks")
+                polygon_results = await self.fetch_stock_prices(stock_symbols, start_date, end_date)
+
+                for symbol in stock_symbols:
+                    results[symbol] = polygon_results.get(symbol, [])
+
+            # Track which stocks still failed
             failed_stocks = [s for s in stock_symbols if not results.get(s)]
             if failed_stocks:
-                logger.warning(f"Polygon failed for {len(failed_stocks)} stocks, will try FMP fallback")
+                logger.warning(f"Primary sources failed for {len(failed_stocks)} stocks, will try FMP fallback")
         
-        # Process ETFs with FMP first
+        # Process ETFs with YFinance first (same as stocks)
         if etf_symbols:
-            logger.info(f"Fetching {len(etf_symbols)} ETFs with FMP (primary)")
-            provider = market_data_factory.get_provider_for_data_type(DataType.STOCKS)
-            if provider:
-                try:
-                    for symbol in etf_symbols:
-                        try:
-                            historical_data = await provider.get_historical_prices(symbol, days=days_back)
-                            
-                            if historical_data:
-                                # Convert FMP format to our standard format
-                                price_records = []
-                                for day_data in historical_data:
-                                    # Handle date field - could be string or date object
-                                    date_value = day_data['date']
-                                    if isinstance(date_value, str):
-                                        date_obj = datetime.strptime(date_value, '%Y-%m-%d').date()
-                                    elif isinstance(date_value, date):
-                                        date_obj = date_value
-                                    else:
-                                        date_obj = datetime.fromisoformat(str(date_value)).date()
-                                    
-                                    price_records.append({
-                                        'symbol': symbol.upper(),
-                                        'date': date_obj,
-                                        'open': Decimal(str(day_data['open'])),
-                                        'high': Decimal(str(day_data['high'])),
-                                        'low': Decimal(str(day_data['low'])),
-                                        'close': Decimal(str(day_data['close'])),
-                                        'volume': day_data['volume'],
-                                        'data_source': 'fmp'
-                                    })
-                                
-                                results[symbol] = price_records
-                                logger.debug(f"FMP: Retrieved {len(price_records)} records for ETF {symbol}")
-                            else:
-                                results[symbol] = []
-                                
-                        except Exception as e:
-                            logger.warning(f"FMP error for ETF {symbol}: {str(e)}")
+            logger.info(f"Fetching {len(etf_symbols)} ETFs with YFinance (primary)")
+            yfinance_provider = market_data_factory.get_provider_for_data_type(DataType.STOCKS)
+
+            if yfinance_provider and yfinance_provider.provider_name == "YFinance":
+                for symbol in etf_symbols:
+                    try:
+                        historical_data = await yfinance_provider.get_historical_prices(symbol, days=days_back)
+
+                        if historical_data:
+                            # Convert YFinance format to our standard format
+                            price_records = []
+                            for day_data in historical_data:
+                                price_records.append({
+                                    'symbol': symbol.upper(),
+                                    'date': day_data['date'],
+                                    'open': day_data['open'],
+                                    'high': day_data['high'],
+                                    'low': day_data['low'],
+                                    'close': day_data['close'],
+                                    'volume': day_data['volume'],
+                                    'data_source': 'yfinance'
+                                })
+
+                            results[symbol] = price_records
+                            logger.debug(f"YFinance: Retrieved {len(price_records)} records for ETF {symbol}")
+                        else:
                             results[symbol] = []
-                
-                    # Check success rate for ETFs
-                    successful_etfs = [s for s in etf_symbols if results.get(s)]
-                    etf_success_rate = len(successful_etfs) / len(etf_symbols) if etf_symbols else 0
-                    logger.info(f"FMP ETF success: {len(successful_etfs)}/{len(etf_symbols)} ({etf_success_rate:.1%})")
-                        
-                except Exception as e:
-                    logger.error(f"FMP ETF provider error: {str(e)}")
+
+                    except Exception as e:
+                        logger.warning(f"YFinance error for ETF {symbol}: {str(e)}")
+                        results[symbol] = []
+
+                # Check success rate for ETFs
+                successful_etfs = [s for s in etf_symbols if results.get(s)]
+                etf_success_rate = len(successful_etfs) / len(etf_symbols) if etf_symbols else 0
+                logger.info(f"YFinance ETF success: {len(successful_etfs)}/{len(etf_symbols)} ({etf_success_rate:.1%})")
+
+                # Try FMP for failed ETFs
+                failed_etfs = [s for s in etf_symbols if not results.get(s)]
+                if failed_etfs:
+                    logger.warning(f"YFinance failed for {len(failed_etfs)} ETFs, trying FMP fallback")
+                    # Get FMP provider directly
+                    fmp_provider = market_data_factory.get_client('FMP')
+                    if fmp_provider:
+                        for symbol in failed_etfs:
+                            try:
+                                historical_data = await fmp_provider.get_historical_prices(symbol, days=days_back)
+
+                                if historical_data:
+                                    price_records = []
+                                    for day_data in historical_data:
+                                        date_value = day_data['date']
+                                        if isinstance(date_value, str):
+                                            date_obj = datetime.strptime(date_value, '%Y-%m-%d').date()
+                                        elif isinstance(date_value, date):
+                                            date_obj = date_value
+                                        else:
+                                            date_obj = datetime.fromisoformat(str(date_value)).date()
+
+                                        price_records.append({
+                                            'symbol': symbol.upper(),
+                                            'date': date_obj,
+                                            'open': Decimal(str(day_data['open'])),
+                                            'high': Decimal(str(day_data['high'])),
+                                            'low': Decimal(str(day_data['low'])),
+                                            'close': Decimal(str(day_data['close'])),
+                                            'volume': day_data['volume'],
+                                            'data_source': 'fmp'
+                                        })
+                                    results[symbol] = price_records
+                                    logger.debug(f"FMP fallback: Retrieved {len(price_records)} records for ETF {symbol}")
+                            except Exception as e:
+                                logger.warning(f"FMP fallback error for ETF {symbol}: {str(e)}")
         
         # Fallback: Use FMP for failed stocks and Polygon for failed ETFs
         failed_stocks = [s for s in stock_symbols if not results.get(s)] if 'failed_stocks' in locals() else []
