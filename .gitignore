@@ -16,7 +16,7 @@
 # Allow OpenAI service source file to be tracked
 !backend/app/agent/services/openai_service.py
 # Allow OpenAI streaming bug report to be tracked (archived)
-!_archive/incidents/OPENAI_STREAMING_BUG_REPORT.md
+!backend/_archive/incidents/OPENAI_STREAMING_BUG_REPORT.md
 
 # Chat monitoring and test files
 **/chat_monitoring_report.json

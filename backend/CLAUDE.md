@@ -99,13 +99,13 @@
    - **Read Part II before exploring the codebase**
 
 2. **[TODO3.md](TODO3.md)** - Current Phase 3.0 API development (active)
-3. **[TODO1.md](TODO1.md)** - Phase 1 implementation (complete)
-4. **[TODO2.md](TODO2.md)** - Phase 2 implementation (complete)
+3. **[_archive/todos/TODO1.md](_archive/todos/TODO1.md)** - Phase 1 implementation (complete, archived)
+4. **[_archive/todos/TODO2.md](_archive/todos/TODO2.md)** - Phase 2 implementation (complete, archived)
 5. **[README.md](README.md)** - Setup instructions and environment
 6. **[_docs/reference/API_REFERENCE_V1.4.6.md](_docs/reference/API_REFERENCE_V1.4.6.md)** - Complete API endpoint documentation
 
 ### **Specialized References**
-- **Batch Processing Issues**: See TODO1.md Section 1.6.14 for systematic issue resolution
+- **Batch Processing Issues**: See `_archive/todos/TODO1.md` Section 1.6.14 for systematic issue resolution
 - **Portfolio Reports**: See `_docs/requirements/PRD_PORTFOLIO_REPORT_SPEC.md` for specifications
 - **Database Schema**: See Part II of this file for relationship maps and query patterns
 
@@ -125,7 +125,7 @@
 
 ### **✅ DO:**
 - Read Part II (Codebase Reference) first to understand the architecture
-- Check TODO3.md for current work, TODO1.md and TODO2.md for completed phases
+- Check TODO3.md for current work, `_archive/todos/TODO1.md` and `_archive/todos/TODO2.md` for completed phases
 - Use existing demo data (3 portfolios, 63 positions) for testing
 - Implement graceful degradation for missing calculation data
 - Follow async patterns consistently (avoid sync/async mixing)
@@ -138,7 +138,7 @@
 - Create new test data when demo data exists
 - Assume tables exist without checking (see stress_test_results issue)
 - Mix async/sync database operations (causes greenlet errors)
-- Ignore batch processing issues documented in TODO1.md 1.6.14
+- Ignore batch processing issues documented in `_archive/todos/TODO1.md` Section 1.6.14
 - **Add feature flags without explicit approval** - We prefer simple, correct implementations
 - **Create or modify database tables without Alembic migrations**
 
@@ -174,7 +174,7 @@ except Exception as e:
 ### **Task Management**
 - Use TODO tools frequently for complex tasks (3+ steps)
 - Mark TODO items complete immediately after finishing
-- Document any new issues discovered in TODO1.md format
+- Document any new issues discovered following the format in `_archive/todos/TODO1.md`
 - Cross-reference related work in TODO files
 
 ---
@@ -184,7 +184,7 @@ except Exception as e:
 ### **Progress Updates**
 - Use clear completion markers: ✅ **COMPLETED**, ⚠️ **PARTIAL**, ❌ **FAILED**
 - Include specific results: "Found 8 portfolios, 11 Greeks records"
-- Document issues with references: "See TODO1.md 1.6.14 for resolution plan"
+- Document issues with references: "See `_archive/todos/TODO1.md` Section 1.6.14 for resolution plan"
 
 ### **Problem Reporting**
 - Be specific about error messages and context
@@ -264,8 +264,8 @@ pyproject.toml       - Dependencies (mibian, not py_vollib)
 .env                 - Environment variables (no REDIS_URL)
 alembic/             - Database migrations
 TODO3.md             - Phase 3.0+ API development (CURRENT)
-TODO1.md             - Phase 1 implementation (COMPLETE)
-TODO2.md             - Phase 2 implementation (COMPLETE)
+_archive/todos/TODO1.md - Phase 1 implementation (COMPLETE, archived)
+_archive/todos/TODO2.md - Phase 2 implementation (COMPLETE, archived)
 ```
 
 ---
@@ -371,7 +371,7 @@ User (1) ─→ (N) Portfolio ─→ (N) Position
                 │
                 ├─→ (N) PortfolioSnapshot
                 ├─→ (N) CorrelationCalculation
-                └─→ (N) StressTestResult (⚠️ TABLE MISSING - see TODO1.md 1.6.14)
+                └─→ (N) StressTestResult (⚠️ TABLE MISSING - see `_archive/todos/TODO1.md` Section 1.6.14)
 ```
 
 ### **Common Query Patterns**
@@ -436,7 +436,7 @@ from app.batch.batch_orchestrator_v2 import batch_orchestrator_v2
 print("Batch orchestrator ready!")
 ```
 
-### **Known Batch Issues (see TODO1.md 1.6.14)**
+### **Known Batch Issues (see `_archive/todos/TODO1.md` Section 1.6.14)**
 - **CRITICAL**: Async/sync mixing causes greenlet errors
 - **CRITICAL**: Missing stress_test_results table in database
 - **HIGH**: Market data gaps (SPY/QQQ options, factor ETFs, BRK.B)
@@ -629,7 +629,7 @@ except Exception as e:
 - Factor analysis and correlations
 - Position tagging system (October 2, 2025)
 
-## ⚠️ Known Issues (see TODO1.md 1.6.14)
+## ⚠️ Known Issues (see `_archive/todos/TODO1.md` Section 1.6.14)
 - Batch processing has async/sync mixing issues
 - Missing stress_test_results database table
 - Market data gaps for certain symbols
@@ -639,18 +639,19 @@ except Exception as e:
 - **Status**: 30% complete (12/39 endpoints originally planned)
 - **Complete**: Authentication (5), Raw Data (10), Chat (6), Target Prices (10), Tags (10), Position Tagging (5)
 - **Analytics**: 7 endpoints complete including diversification-score
-- **See**: TODO3.md for current work, `_docs/reference/API_REFERENCE_V1.4.6.md` for complete endpoint list
+- **See**: `TODO3.md` for current work, `_docs/reference/API_REFERENCE_V1.4.6.md` for complete endpoint list
 
 ---
 
 ## 💡 Efficiency Tips for AI Agents
 
 1. **Read Part II first** - saves 30-45 minutes of exploration
-2. **Check TODO3.md** for current work and status
-3. **Use existing demo data** rather than creating new test data
-4. **Implement graceful degradation** for missing calculation data
-5. **Use diagnostic commands** to verify environment quickly
-6. **Update this file** when discovering new patterns
+2. **Check `TODO3.md`** for current work and status
+3. **Reference `_archive/todos/`** for historical context (TODO1.md, TODO2.md)
+4. **Use existing demo data** rather than creating new test data
+5. **Implement graceful degradation** for missing calculation data
+6. **Use diagnostic commands** to verify environment quickly
+7. **Update this file** when discovering new patterns
 
 ---
 
