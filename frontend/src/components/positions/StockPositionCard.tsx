@@ -4,7 +4,7 @@ import { formatNumber } from '@/lib/formatters'
 
 interface StockPosition {
   symbol: string
-  name?: string
+  company_name?: string
   marketValue: number
   pnl: number
   positive?: boolean
@@ -17,7 +17,7 @@ interface StockPositionCardProps {
 }
 
 export function StockPositionCard({ position, onClick }: StockPositionCardProps) {
-  const companyName = position.name || position.symbol
+  const companyName = position.company_name || position.symbol
 
   return (
     <BasePositionCard
