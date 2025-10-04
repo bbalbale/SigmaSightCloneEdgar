@@ -52,3 +52,14 @@ next-env.d.ts
 # Logs
 logs
 *.log
+
+# Test results and browser automation
+*.test.json
+*test_results*
+monitoring_screenshots/
+test_screenshots/
+.playwright-mcp/
+
+# Development artifacts
+cookies.txt
+*.cache

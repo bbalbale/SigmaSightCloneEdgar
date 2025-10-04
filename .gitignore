@@ -116,3 +116,18 @@ jspm_packages/
 
 # Yarn Integrity file
 .yarn-integrity
+
+# Test results and generated data
+*.test.json
+*test_results*
+api_test_results/
+reports/
+
+# Browser automation artifacts
+monitoring_screenshots/
+test_screenshots/
+.playwright-mcp/
+
+# Development artifacts
+cookies.txt
+*.cache

@@ -87,3 +87,12 @@ detailed_git_history_ending_0810.txt
 
 # Factor ETF data exports
 factor_etf_exports/
+
+# Test results and development artifacts
+*.test.json
+*test_results*
+api_test_results/
+monitoring_screenshots/
+test_screenshots/
+cookies.txt
+*.cache
