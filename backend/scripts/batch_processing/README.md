@@ -4,9 +4,10 @@ Core scripts for running batch calculations and generating portfolio reports.
 
 ## Key Scripts
 
-- **run_batch_with_reports.py** - Main batch processor with integrated report generation (CURRENT)
-- **run_batch_calculations.py** - Legacy batch processor (DEPRECATED - use run_batch_with_reports.py)
-- **generate_all_reports.py** - Standalone report generation for all portfolios
+- **run_batch_with_reports.py** ⭐ **MAIN** - Batch processor with integrated report generation (use with --skip-reports flag)
+- **generate_all_reports.py** - Standalone report generation for all portfolios (deprecated - use API instead)
+
+> **Note**: `run_batch_calculations.py` has been deprecated and archived. Use `run_batch_with_reports.py --skip-reports` instead.
 
 ## Usage
 

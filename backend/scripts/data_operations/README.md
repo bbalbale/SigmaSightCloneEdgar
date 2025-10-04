@@ -15,6 +15,13 @@ Scripts for fetching, managing, and exporting market data.
 - **backfill_position_symbols.py** - Fix missing position symbols
 - **sample_data_generator.py** - Generate sample market data
 
+### Target Prices
+- **populate_target_prices_via_service.py** ⭐ **MAIN** - Populate target prices from CSV
+- **populate_target_prices.py** - Legacy target price population
+
+### Data Fetching
+- **fetch_with_round_robin.py** - Round-robin fetch across multiple providers
+
 ## Common Commands
 
 ### Fetch factor ETF data:

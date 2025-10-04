@@ -2,6 +2,8 @@
 
 Comprehensive test scripts for all system components.
 
+> **Note**: 14 completed version-specific test scripts have been archived to `../../_archive/scripts/tests/`
+
 ## Test Categories
 
 ### Authentication & Security

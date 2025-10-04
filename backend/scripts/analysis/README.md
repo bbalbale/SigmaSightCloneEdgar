@@ -11,9 +11,9 @@ Deep analysis and debugging tools for troubleshooting calculation issues.
 - **debug_factor_calculation.py** - Debug factor calculation issues
 
 ### Portfolio Analysis
-- **analyze_demo_calculation_engine_failures.py** - Analyze engine failures
-- **analyze_demo_portfolio_calculation_failure.py** - Portfolio-specific failures
-- **portfolio_context_smoke_test.py** - Portfolio context testing
+- **check_equity.py** - Check equity calculations
+- **check_short_exposure.py** - Verify short exposure calculations
+- **check_monitoring_status.py** - Check monitoring system status
 
 ### Market Analysis
 - **analyze_interest_rate_impact.py** - Interest rate impact analysis
