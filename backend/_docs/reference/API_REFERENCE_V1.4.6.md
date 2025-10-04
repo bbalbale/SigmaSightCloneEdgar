@@ -31,14 +31,14 @@ This section documents all **fully implemented and production-ready endpoints** 
 
 Base prefix for all endpoints below: `/api/v1`
 
-#### Authentication
+#### Authentication (5 endpoints)
 - POST `/auth/login`
 - POST `/auth/register`
 - GET `/auth/me`
 - POST `/auth/refresh`
 - POST `/auth/logout`
 
-#### Data
+#### Data (10 endpoints)
 - GET `/data/portfolios`
 - GET `/data/portfolio/{portfolio_id}/complete`
 - GET `/data/portfolio/{portfolio_id}/data-quality`
@@ -50,22 +50,53 @@ Base prefix for all endpoints below: `/api/v1`
 - GET `/data/test-demo`
 - GET `/data/demo/{portfolio_type}` (no auth; demo only)
 
-#### Analytics (Portfolio)
+#### Analytics (7 endpoints)
 - GET `/analytics/portfolio/{portfolio_id}/overview`
 - GET `/analytics/portfolio/{portfolio_id}/correlation-matrix`
-- GET `/analytics/portfolio/{portfolio_id}/diversification-score`
+- GET `/analytics/portfolio/{portfolio_id}/diversification-score` ✨ **NEW**
 - GET `/analytics/portfolio/{portfolio_id}/factor-exposures`
 - GET `/analytics/portfolio/{portfolio_id}/positions/factor-exposures` (query: `limit`, `offset`, `symbols`)
 - GET `/analytics/portfolio/{portfolio_id}/stress-test` (query: `scenarios`)
 - GET `/analytics/portfolio/{portfolio_id}/risk-metrics` (deprecated; do not use)
 
-#### Chat
+#### Chat (6 endpoints)
 - POST `/chat/conversations`
 - GET `/chat/conversations/{conversation_id}`
 - GET `/chat/conversations`
 - PUT `/chat/conversations/{conversation_id}/mode`
 - DELETE `/chat/conversations/{conversation_id}`
 - POST `/chat/send` (SSE streaming; `text/event-stream`)
+
+#### Target Prices (10 endpoints)
+- POST `/target-prices/{portfolio_id}`
+- GET `/target-prices/{portfolio_id}`
+- GET `/target-prices/{portfolio_id}/summary`
+- GET `/target-prices/target/{id}`
+- PUT `/target-prices/target/{id}`
+- DELETE `/target-prices/target/{id}`
+- POST `/target-prices/{portfolio_id}/bulk`
+- PUT `/target-prices/{portfolio_id}/bulk-update`
+- POST `/target-prices/{portfolio_id}/import-csv`
+- POST `/target-prices/{portfolio_id}/export`
+
+#### Tag Management (10 endpoints) ✨ **NEW - October 2, 2025**
+- POST `/tags/` - Create tag
+- GET `/tags/` - List user tags
+- GET `/tags/{id}` - Get tag details
+- PATCH `/tags/{id}` - Update tag
+- POST `/tags/{id}/archive` - Archive tag (soft delete)
+- POST `/tags/{id}/restore` - Restore archived tag
+- POST `/tags/defaults` - Create default tags (idempotent)
+- POST `/tags/reorder` - Reorder tags
+- GET `/tags/{id}/strategies` - Get strategies by tag (deprecated)
+- POST `/tags/batch-update` - Batch update tags
+
+#### Position Tagging (5 endpoints) ✨ **NEW - October 2, 2025 - PREFERRED METHOD**
+- POST `/positions/{id}/tags` - Add tags to position
+- DELETE `/positions/{id}/tags` - Remove tags from position
+- GET `/positions/{id}/tags` - Get position's tags
+- PATCH `/positions/{id}/tags` - Replace all position tags
+- GET `/tags/{id}/positions` - Get positions by tag (reverse lookup)
 
 #### Portfolio (removed in v1.2)
 These placeholder endpoints were removed and are no longer exposed.
@@ -922,20 +953,20 @@ Returns all portfolios for the authenticated user with real database data.
 ```
 
 ### 16. Position Factor Exposures
-**Endpoint**: `GET /analytics/portfolio/{portfolio_id}/positions/factor-exposures`  
-**Status**: ✅ Implemented  
-**File**: `app/api/v1/analytics/portfolio.py`  
-**Function**: `list_position_factor_exposures()` (lines 235–271)  
+**Endpoint**: `GET /analytics/portfolio/{portfolio_id}/positions/factor-exposures`
+**Status**: ✅ Implemented
+**File**: `app/api/v1/analytics/portfolio.py`
+**Function**: `list_position_factor_exposures()` (lines 235–271)
 
-**Authentication**: Required (Bearer token)  
-**Database Access**: Read-only via service layer  
+**Authentication**: Required (Bearer token)
+**Database Access**: Read-only via service layer
 **Service Layer**: `app/services/factor_exposure_service.py`
   - Method: `list_position_exposures(portfolio_id, limit, offset, symbols=None)`
   - Reads: `position_factor_exposures` joined with `positions` and `factor_definitions`
   - Uses latest available anchor `calculation_date` for the portfolio; paginates by positions
 
-**Purpose**: Return per-position factor betas for the latest anchor date to power position-level analytics tables.  
-**Missing Data Contract**: `200 OK` with `{ available:false, reason:"no_calculation_available" }`  
+**Purpose**: Return per-position factor betas for the latest anchor date to power position-level analytics tables.
+**Missing Data Contract**: `200 OK` with `{ available:false, reason:"no_calculation_available" }`
 
 **Parameters**:
 - `portfolio_id` (path): Portfolio UUID
@@ -985,6 +1016,54 @@ Returns all portfolios for the authenticated user with real database data.
 - Matrix is ordered by position weight (gross market value)
 - Returns `available: false` if no calculation exists for the requested parameters
 - Self-correlations are always 1.0
+
+---
+
+### 17. Portfolio Diversification Score
+**Endpoint**: `GET /analytics/portfolio/{portfolio_id}/diversification-score`
+**Status**: ✅ Fully Implemented
+**File**: `app/api/v1/analytics/portfolio.py`
+**Function**: `get_diversification_score()` (lines 166–202)
+
+**Authentication**: Required (Bearer token)
+**Database Access**: Read-only via service layer
+**Service Layer**: `app/services/correlation_service.py`
+  - Class: `CorrelationService`
+  - Method: `get_weighted_correlation(portfolio_id, lookback_days, min_overlap)`
+  - Reads: `correlation_calculation` and `pairwise_correlations` tables
+  - Computes weighted absolute portfolio correlation (0–1) using position weights
+
+**Purpose**: Calculate portfolio diversification using weighted correlation analysis. Returns a single diversification score (0-1) where higher values indicate more diversification.
+**Missing Data Contract**: `200 OK` with `{ available:false, reason:"no_calculation_available" }`
+
+**Parameters**:
+- `portfolio_id` (path): Portfolio UUID
+- `lookback_days` (query, default 90, range 30-365): Lookback period for correlation calculation
+- `min_overlap` (query, default 30, range 10-365): Minimum overlapping data points required
+
+**Response Schema**: `DiversificationScoreResponse`
+```json
+{
+  "available": true,
+  "portfolio_id": "c0510ab8-c6b5-433c-adbc-3f74e1dbdb5e",
+  "diversification_score": 0.72,
+  "calculation_date": "2025-09-05",
+  "lookback_days": 90,
+  "positions_analyzed": 15,
+  "weighted_correlation": 0.28,
+  "metadata": {
+    "min_overlap": 30,
+    "data_quality": "high"
+  }
+}
+```
+
+**Implementation Notes**:
+- Uses pre-calculated correlations from nightly batch processing
+- Score calculation: `1 - weighted_absolute_correlation`
+- Weights based on position market values
+- Target response time: <300ms
+- Returns `available: false` if no correlation data exists
 
 ---
 
@@ -1944,7 +2023,523 @@ These endpoints manage portfolio-specific target prices for securities, enabling
 - ✅ SQL-level filtering and indexed lookups
 - ✅ Standardized response formats and error handling
 
-**Ready for**: Frontend integration, Phase 3 testing, production deployment---
+**Ready for**: Frontend integration, Phase 3 testing, production deployment
+
+---
+
+## F. Tag Management Endpoints
+
+These endpoints manage the **tag entities themselves** - creating, updating, and organizing tags as standalone objects. Tags are user-scoped labels that can be applied to positions for flexible organization and filtering.
+
+**Implementation Date**: October 2, 2025
+**Architecture**: 3-tier separation (position_tags.py, tags.py, tags_v2.py)
+**Database**: `tags_v2` table with user_id, display_order, usage_count, soft delete support
+**Frontend Service**: `src/services/tagsApi.ts` (methods: create, list, update, delete, restore, defaults, reorder, batchUpdate)
+
+### Base Information
+- **Base Path**: `/api/v1/tags`
+- **Authentication**: Required (Bearer token)
+- **User Scoping**: All tags scoped to authenticated user
+- **Soft Delete**: Tags archived (not deleted) to preserve history
+
+### 33. Create Tag
+**Endpoint**: `POST /tags/`
+**Status**: ✅ Fully Implemented
+**File**: `app/api/v1/tags.py`
+**Function**: `create_tag()` (lines 73-97)
+**Frontend Method**: `tagsApi.create()`
+
+**Authentication**: Required (Bearer token)
+**Database Access**: Insert into `tags_v2` table
+**Service Layer**: `app/services/tag_service.py`
+  - Class: `TagService`
+  - Method**: `create_tag(user_id, name, color, description, display_order)`
+  - Validates unique name per user
+  - Auto-increments display_order if not provided
+
+**Purpose**: Create a new user-scoped tag for position organization
+
+**Request Body** (CreateTagRequest):
+```json
+{
+  "name": "Growth Portfolio",
+  "color": "#3B82F6",
+  "description": "High-growth technology stocks",
+  "display_order": 1
+}
+```
+
+**Response** (TagResponse):
+```json
+{
+  "id": "uuid",
+  "user_id": "uuid",
+  "name": "Growth Portfolio",
+  "color": "#3B82F6",
+  "description": "High-growth technology stocks",
+  "display_order": 1,
+  "usage_count": 0,
+  "is_archived": false,
+  "created_at": "2025-10-04T12:00:00Z",
+  "updated_at": "2025-10-04T12:00:00Z"
+}
+```
+
+### 34. List Tags
+**Endpoint**: `GET /tags/`
+**Status**: ✅ Fully Implemented
+**File**: `app/api/v1/tags.py`
+**Function**: `list_tags()` (lines 100-128)
+**Frontend Method**: `tagsApi.list()`
+
+**Authentication**: Required (Bearer token)
+**Database Access**: Query `tags_v2` filtered by user_id
+**Service Layer**: `app/services/tag_service.py`
+  - Method: `get_user_tags(user_id, include_archived, include_usage_stats)`
+  - Ordered by display_order ASC
+
+**Parameters**:
+- `include_archived` (query, default false): Include archived tags
+- `include_usage_stats` (query, default true): Include position/strategy counts
+
+**Response** (TagListResponse):
+```json
+{
+  "tags": [
+    {
+      "id": "uuid1",
+      "name": "Growth",
+      "color": "#3B82F6",
+      "usage_count": 12
+    },
+    {
+      "id": "uuid2",
+      "name": "Value",
+      "color": "#10B981",
+      "usage_count": 8
+    }
+  ],
+  "total": 15,
+  "active_count": 15,
+  "archived_count": 0
+}
+```
+
+### 35. Get Tag
+**Endpoint**: `GET /tags/{tag_id}`
+**Status**: ✅ Fully Implemented
+**File**: `app/api/v1/tags.py`
+**Function**: `get_tag()` (lines 131-150)
+**Frontend Method**: `tagsApi.get()`
+
+**Authentication**: Required (Bearer token) + ownership validation
+**Database Access**: Query `tags_v2` by id
+**Service Layer**: `app/services/tag_service.py`
+  - Method: `get_tag(tag_id, include_strategies)`
+
+**Parameters**:
+- `tag_id` (path): Tag UUID
+- `include_strategies` (query, default false): Include associated strategies (deprecated)
+
+**Response**: TagResponse (see Create Tag response schema)
+
+### 36. Update Tag
+**Endpoint**: `PATCH /tags/{tag_id}`
+**Status**: ✅ Fully Implemented
+**File**: `app/api/v1/tags.py`
+**Function**: `update_tag()` (lines 153-182)
+**Frontend Method**: `tagsApi.update()`
+
+**Authentication**: Required (Bearer token) + ownership validation
+**Database Access**: Update `tags_v2` by id
+**Service Layer**: `app/services/tag_service.py`
+  - Method: `update_tag(tag_id, name, color, description, display_order)`
+  - Validates unique name if changed
+  - All fields optional (partial update)
+
+**Request Body** (UpdateTagRequest - all fields optional):
+```json
+{
+  "name": "Updated Growth",
+  "color": "#10B981",
+  "description": "Updated description"
+}
+```
+
+**Response**: TagResponse with updated values
+
+### 37. Archive Tag
+**Endpoint**: `POST /tags/{tag_id}/archive`
+**Status**: ✅ Fully Implemented (Soft Delete)
+**File**: `app/api/v1/tags.py`
+**Function**: `archive_tag()` (lines 185-206)
+**Frontend Method**: `tagsApi.delete()` (note: frontend calls this for "delete")
+
+**Authentication**: Required (Bearer token) + ownership validation
+**Database Access**: Update `tags_v2` set is_archived=true, archived_at, archived_by
+**Service Layer**: `app/services/tag_service.py`
+  - Method: `archive_tag(tag_id, archived_by)`
+  - Soft delete preserves tag history
+  - Removes tag from all positions/strategies
+
+**Response**:
+```json
+{
+  "message": "Tag archived successfully"
+}
+```
+
+### 38. Restore Tag
+**Endpoint**: `POST /tags/{tag_id}/restore`
+**Status**: ✅ Fully Implemented
+**File**: `app/api/v1/tags.py`
+**Function**: `restore_tag()` (lines 209-230)
+**Frontend Method**: `tagsApi.restore()`
+
+**Authentication**: Required (Bearer token) + ownership validation
+**Database Access**: Update `tags_v2` set is_archived=false, archived_at=null
+**Service Layer**: `app/services/tag_service.py`
+  - Method: `restore_tag(tag_id)`
+
+**Response**:
+```json
+{
+  "message": "Tag restored successfully"
+}
+```
+
+### 39. Create Default Tags
+**Endpoint**: `POST /tags/defaults`
+**Status**: ✅ Fully Implemented (Idempotent)
+**File**: `app/api/v1/tags.py`
+**Function**: `create_default_tags()` (lines 412-435)
+**Frontend Method**: `tagsApi.defaults()`
+
+**Authentication**: Required (Bearer token)
+**Database Access**: Bulk insert into `tags_v2`
+**Service Layer**: `app/services/tag_service.py`
+  - Method: `create_default_tags(user_id)`
+  - Creates standard tags: Growth, Value, Dividend, Speculative, Core, Satellite, Defensive
+  - Idempotent: returns existing tags if user already has tags
+
+**Purpose**: Initialize new users with standard tag set
+
+**Response**:
+```json
+{
+  "message": "Created 7 default tags",
+  "tags": [
+    { "id": "uuid1", "name": "Growth", "color": "#3B82F6" },
+    { "id": "uuid2", "name": "Value", "color": "#10B981" },
+    { "id": "uuid3", "name": "Dividend", "color": "#F59E0B" }
+  ]
+}
+```
+
+### 40. Reorder Tags
+**Endpoint**: `POST /tags/reorder`
+**Status**: ✅ Fully Implemented
+**File**: `app/api/v1/tags.py`
+**Function**: `reorder_tags()` (not shown in file snippet - exists)
+**Frontend Method**: `tagsApi.reorder()`
+
+**Authentication**: Required (Bearer token)
+**Database Access**: Bulk update `tags_v2.display_order`
+**Service Layer**: `app/services/tag_service.py`
+  - Method: `reorder_tags(tag_ids)`
+  - Updates display_order based on array position
+
+**Purpose**: Set custom display order for tags (drag-drop UI support)
+
+**Request Body**:
+```json
+{
+  "tag_ids": ["uuid3", "uuid1", "uuid2"]
+}
+```
+
+**Response**:
+```json
+{
+  "message": "Tags reordered successfully",
+  "updated_count": 3
+}
+```
+
+### 41. Get Strategies by Tag (DEPRECATED)
+**Endpoint**: `GET /tags/{tag_id}/strategies`
+**Status**: ⚠️ Deprecated
+**File**: `app/api/v1/tags.py`
+**Function**: `get_strategies_by_tag()` (lines 363-409)
+**Frontend Method**: `tagsApi.getStrategies()`
+
+**Deprecation Note**: Use `/tags/{id}/positions` for position tagging instead. This endpoint is kept for backward compatibility only.
+
+**Purpose**: Find strategies with this tag (legacy strategy tagging system)
+
+### 42. Batch Update Tags
+**Endpoint**: `POST /tags/batch-update`
+**Status**: ✅ Fully Implemented
+**File**: `app/api/v1/tags.py`
+**Function**: `batch_update_tags()` (not shown in file snippet - exists)
+**Frontend Method**: `tagsApi.batchUpdate()`
+
+**Authentication**: Required (Bearer token)
+**Database Access**: Bulk update `tags_v2`
+**Service Layer**: `app/services/tag_service.py`
+  - Method: `batch_update_tags(updates)`
+  - Validates ownership for all tags
+
+**Request Body**:
+```json
+{
+  "updates": [
+    { "id": "uuid1", "name": "New Name 1" },
+    { "id": "uuid2", "color": "#EF4444" },
+    { "id": "uuid3", "description": "Updated description" }
+  ]
+}
+```
+
+**Response**:
+```json
+{
+  "message": "Updated 3 tags successfully",
+  "tags": [
+    { "id": "uuid1", "name": "New Name 1", "color": "#3B82F6" },
+    { "id": "uuid2", "name": "Value", "color": "#EF4444" }
+  ]
+}
+```
+
+---
+
+## G. Position Tagging Endpoints
+
+These endpoints manage the **relationships between tags and positions** - applying tags TO positions. This is the **preferred tagging method** (replaces legacy strategy-based tagging).
+
+**Implementation Date**: October 2, 2025
+**Architecture**: Direct position-to-tag many-to-many relationships via `position_tags` junction table
+**Database**: `position_tags` table with unique constraint (position_id, tag_id), indexes for performance
+**Frontend Service**: `src/services/tagsApi.ts` (methods: addPositionTags, removePositionTags, getPositionTags, replacePositionTags, getPositionsByTag)
+
+### Base Information
+- **Base Path**: `/api/v1/positions/{position_id}/tags`
+- **Authentication**: Required (Bearer token) + portfolio ownership validation
+- **Batch Operations**: Support adding/removing multiple tags in single request
+- **Performance**: Batch fetching to prevent N+1 queries
+
+### 43. Add Tags to Position
+**Endpoint**: `POST /positions/{position_id}/tags`
+**Status**: ✅ Fully Implemented
+**File**: `app/api/v1/position_tags.py`
+**Function**: `assign_tags_to_position()` (lines 57-112)
+**Frontend Method**: `tagsApi.addPositionTags()`
+
+**Authentication**: Required (Bearer token) + portfolio ownership validation
+**Database Access**: Insert into `position_tags` junction table
+**Service Layer**: `app/services/position_tag_service.py`
+  - Class: `PositionTagService`
+  - Method: `bulk_assign_tags(position_id, tag_ids, assigned_by, replace_existing)`
+  - Unique constraint prevents duplicates
+  - Increments tag usage_count
+
+**Purpose**: Add multiple tags to a position (many-to-many relationship)
+
+**Request Body** (AssignTagsToPositionRequest):
+```json
+{
+  "tag_ids": ["uuid1", "uuid2", "uuid3"],
+  "replace_existing": false
+}
+```
+
+**Response** (BulkAssignResponse):
+```json
+{
+  "message": "Assigned 3 tags to position",
+  "assigned_count": 3,
+  "tag_ids": ["uuid1", "uuid2", "uuid3"]
+}
+```
+
+**Implementation Notes**:
+- `replace_existing=true` removes old tags first (replace all)
+- Validates user owns all tags and portfolio
+- Idempotent: duplicate tag assignments ignored
+
+### 44. Remove Tags from Position
+**Endpoint**: `DELETE /positions/{position_id}/tags` OR `POST /positions/{position_id}/tags/remove`
+**Status**: ✅ Fully Implemented (dual methods for compatibility)
+**File**: `app/api/v1/position_tags.py`
+**Functions**: `remove_tags_from_position()` (lines 155-191), `remove_tags_from_position_post()` (lines 115-152)
+**Frontend Method**: `tagsApi.removePositionTags()` (uses POST /remove)
+
+**Authentication**: Required (Bearer token) + portfolio ownership validation
+**Database Access**: Delete from `position_tags` junction table
+**Service Layer**: `app/services/position_tag_service.py`
+  - Method: `bulk_remove_tags(position_id, tag_ids)`
+  - Decrements tag usage_count
+
+**Request Body** (POST method - RemoveTagsFromPositionRequest):
+```json
+{
+  "tag_ids": ["uuid1", "uuid2"]
+}
+```
+
+**Query Parameters** (DELETE method):
+- `tag_ids` (query, array): Tag UUIDs to remove
+
+**Response**:
+```json
+{
+  "message": "Removed 2 tags from position",
+  "removed_count": 2
+}
+```
+
+**Implementation Notes**:
+- POST method at `/remove` provided for better frontend compatibility
+- DELETE method uses query parameters
+- Silently ignores non-existent tag assignments
+
+### 45. Get Position's Tags
+**Endpoint**: `GET /positions/{position_id}/tags`
+**Status**: ✅ Fully Implemented
+**File**: `app/api/v1/position_tags.py`
+**Function**: `get_position_tags()` (lines 194-231)
+**Frontend Method**: `tagsApi.getPositionTags()`
+
+**Authentication**: Required (Bearer token) + portfolio ownership validation
+**Database Access**: Query `position_tags` joined with `tags_v2`
+**Service Layer**: `app/services/position_tag_service.py`
+  - Method: `get_tags_for_position(position_id)`
+  - Returns tags ordered by display_order
+
+**Purpose**: Get all tags assigned to a specific position
+
+**Response** (Array of TagSummary):
+```json
+[
+  {
+    "id": "uuid1",
+    "name": "Growth",
+    "color": "#3B82F6",
+    "description": "High-growth stocks"
+  },
+  {
+    "id": "uuid2",
+    "name": "Tech",
+    "color": "#8B5CF6",
+    "description": "Technology sector"
+  }
+]
+```
+
+### 46. Replace All Position Tags
+**Endpoint**: `PATCH /positions/{position_id}/tags`
+**Status**: ✅ Fully Implemented
+**File**: `app/api/v1/position_tags.py`
+**Function**: `update_position_tags()` (lines 234-254)
+**Frontend Method**: `tagsApi.replacePositionTags()`
+
+**Authentication**: Required (Bearer token) + portfolio ownership validation
+**Database Access**: Delete old + Insert new in `position_tags` (transactional)
+**Service Layer**: Calls `assign_tags_to_position()` with `replace_existing=True`
+
+**Purpose**: Replace entire tag set for a position (atomic operation)
+
+**Request Body** (AssignTagsToPositionRequest):
+```json
+{
+  "tag_ids": ["uuid1", "uuid3"]
+}
+```
+
+**Response**: BulkAssignResponse (see Add Tags response)
+
+**Implementation Notes**:
+- Convenience endpoint equivalent to POST with replace_existing=True
+- Atomic operation: removes all old tags, adds all new tags
+- Usage counts updated correctly for both removed and added tags
+
+### 47. Get Positions by Tag (Reverse Lookup)
+**Endpoint**: `GET /tags/{tag_id}/positions`
+**Status**: ✅ Fully Implemented
+**File**: `app/api/v1/tags.py` (tag-centric endpoint)
+**Function**: `get_positions_by_tag()` (lines 438-489)
+**Frontend Method**: `tagsApi.getPositionsByTag()`
+
+**Authentication**: Required (Bearer token) + tag ownership + portfolio validation
+**Database Access**: Query `position_tags` joined with `positions` and `tags_v2`
+**Service Layer**: `app/services/position_tag_service.py`
+  - Method: `get_positions_by_tag(tag_id, portfolio_id)`
+  - Filters by portfolio_id for multi-portfolio support
+
+**Purpose**: Find all positions with a specific tag (reverse lookup from tag → positions)
+
+**Parameters**:
+- `tag_id` (path): Tag UUID
+- `portfolio_id` (query, optional): Filter by portfolio (defaults to user's portfolio)
+
+**Response**:
+```json
+{
+  "tag_id": "uuid",
+  "tag_name": "Growth",
+  "positions": [
+    {
+      "id": "position-uuid1",
+      "symbol": "AAPL",
+      "position_type": "LONG",
+      "quantity": 100.0,
+      "portfolio_id": "portfolio-uuid",
+      "investment_class": "PUBLIC"
+    },
+    {
+      "id": "position-uuid2",
+      "symbol": "MSFT",
+      "position_type": "LONG",
+      "quantity": 50.0,
+      "portfolio_id": "portfolio-uuid",
+      "investment_class": "PUBLIC"
+    }
+  ],
+  "total": 2
+}
+```
+
+**Implementation Notes**:
+- Tag-centric endpoint (located in tags.py for REST consistency)
+- Supports multi-portfolio filtering
+- Returns position summary data (not full position details)
+- Useful for tag-based portfolio filtering and organization
+
+### Position Tagging API Summary
+
+**Total Endpoints**: 5 fully implemented
+**Architecture**: REST many-to-many pattern (position-centric + tag-centric)
+**Database**: `position_tags` junction table with indexes and unique constraints
+**Performance**: Optimized batch operations, usage count tracking
+
+**Key Capabilities**:
+- ✅ Direct position-to-tag relationships (no strategies required)
+- ✅ Multiple tags per position for flexible organization
+- ✅ Batch operations for efficient bulk tagging
+- ✅ Reverse lookups (find positions by tag)
+- ✅ Automatic usage count tracking
+- ✅ Transactional tag replacement
+- ✅ Portfolio ownership validation for security
+
+**Integration Status**:
+- ✅ Backend API complete (October 2, 2025)
+- ✅ Database schema with position_tags junction table
+- ✅ Frontend service complete (src/services/tagsApi.ts)
+- ✅ React hooks (useTags.ts, usePositionTags.ts)
+- ✅ Organize page using position tagging system
+
+---
 
 ## Getting Started
 
