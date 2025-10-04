@@ -24,5 +24,5 @@ COPY backend/ ./
 # Expose port
 EXPOSE 8000
 
-# Start command
-CMD sh -c "uv run alembic upgrade head && uv run uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"
+# Start command - transform DATABASE_URL for asyncpg
+CMD sh -c "export DATABASE_URL=${DATABASE_URL//postgresql:\/\//postgresql+asyncpg:\/\/} && uv run alembic upgrade head && uv run uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"
