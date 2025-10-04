@@ -21,8 +21,11 @@ RUN uv sync
 # Copy rest of backend
 COPY backend/ ./
 
+# Make start script executable
+RUN chmod +x /app/start.sh
+
 # Expose port
 EXPOSE 8000
 
-# Start command - transform DATABASE_URL for asyncpg
-CMD sh -c "export DATABASE_URL=${DATABASE_URL//postgresql:\/\//postgresql+asyncpg:\/\/} && uv run alembic upgrade head && uv run uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"
+# Start command
+CMD ["/app/start.sh"]
