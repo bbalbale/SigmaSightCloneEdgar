@@ -14,8 +14,8 @@ RUN pip install --no-cache-dir uv
 # Set working directory
 WORKDIR /app
 
-# Copy backend files
-COPY backend/pyproject.toml backend/uv.lock ./
+# Copy backend dependency files
+COPY backend/pyproject.toml backend/uv.lock backend/README.md ./
 RUN uv sync
 
 # Copy rest of backend
