@@ -70,7 +70,7 @@ export function OrganizePositionCard({ position, onClick, onRemoveTag }: Organiz
     // PUBLIC (stocks/ETFs)
     return {
       primaryText: position.symbol,
-      secondaryText: position.company_name || 'Company',
+      secondaryText: position.company_name || position.symbol,
       primaryValue: formatCurrency(position.market_value),
       secondaryValue: '', // NO P&L on organize page
       secondaryValueColor: 'neutral' as const

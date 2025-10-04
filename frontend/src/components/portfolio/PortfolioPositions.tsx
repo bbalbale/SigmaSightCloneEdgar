@@ -8,7 +8,7 @@ import { PrivatePositions } from './PrivatePositions'
 interface Position {
   id?: string
   symbol: string
-  name?: string
+  company_name?: string
   marketValue: number
   pnl: number
   positive?: boolean

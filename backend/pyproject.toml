@@ -53,6 +53,7 @@ dependencies = [
     "playwright>=1.55.0",
     "websockets>=14.2",
     "yfinance>=0.2.66",
+    "yahooquery>=2.4.1",
 ]
 
 [project.optional-dependencies]

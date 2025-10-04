@@ -5,7 +5,7 @@ import { StockPositionCard } from '@/components/positions/StockPositionCard'
 interface Position {
   id?: string
   symbol: string
-  name?: string
+  company_name?: string
   quantity: number
   marketValue: number
   pnl: number

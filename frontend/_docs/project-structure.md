@@ -314,12 +314,15 @@ The portfolio page was refactored from a 540-line monolithic component to:
 - **1 utility file** - Shared formatting functions
 - **Result**: Clean, maintainable, ready for multi-page expansion
 
-#### Investment Class Components (Added 2025-09-29)
+#### Investment Class Components (Added 2025-09-29, Updated Oct 2025)
 The portfolio positions display now uses a 3-column layout with specialized components:
-- **PublicPositions.tsx** - Displays public equities/ETFs with Long/Short grouping
+- **PublicPositions.tsx** - Displays public equities/ETFs with Long/Short grouping, shows company names from company_profiles table
 - **OptionsPositions.tsx** - Shows options contracts with strike prices and expiration dates
 - **PrivatePositions.tsx** - Displays private/alternative investments with custom formatting
 - **PortfolioPositions.tsx** - Orchestrates the 3-column layout and maintains backward compatibility
+
+**Company Names Update (Oct 2025)**:
+All position cards now display company names (e.g., "The Procter & Gamble Company") instead of just ticker symbols. This data is fetched from the `company_profiles` table and included in all position API responses for optimal performance.
 
 #### Login Page
 The login page was refactored from a 190-line page file to:
@@ -399,7 +402,7 @@ Implemented a layered component architecture for position cards that enables reu
 Domain-specific adapters that transform data into BasePositionCard props:
 
 **StockPositionCard.tsx** - For stocks/ETFs
-- Looks up company names
+- Displays company names from `position.company_name` field (populated from company_profiles table)
 - Formats with `formatNumber()`
 - Handles LONG/SHORT display logic
 - Shows P&L with color coding
@@ -639,14 +642,15 @@ await removeTagsFromPosition(positionId, [tagId1])
 const positions = await getPositionsByTag(tagId)
 ```
 
-### Position Data with Tags
+### Position Data with Tags and Company Names
 
-All positions returned by `/api/v1/data/positions/details` now include a `tags` array:
+All positions returned by `/api/v1/data/positions/details` now include both `tags` and `company_name`:
 
 ```typescript
 interface Position {
   id: string
   symbol: string
+  company_name?: string  // NEW (Oct 2025) - From company_profiles table
   position_type: string
   quantity: number
   // ... other fields
@@ -655,9 +659,17 @@ interface Position {
     name: string
     color: string
     description?: string
-  }>  // NEW - automatically included
+  }>  // NEW (Oct 2025) - automatically included
 }
 ```
+
+**Company Names Implementation**:
+- **Database**: `company_profiles` table with symbol as unique key
+- **Data Source**: Hybrid yfinance (basic data) + yahooquery (revenue/earnings estimates)
+- **API Optimization**: Batch fetching (selects only 2 columns: symbol, company_name)
+- **Performance**: Query time ~50ms for all positions
+- **Coverage**: 55+ symbols populated with company names
+- **Fields**: company_name, sector, industry, market_cap, revenue estimates, earnings estimates, etc.
 
 ### Migration Strategy
 

@@ -11,6 +11,7 @@ import type { FactorExposure } from '../types/analytics'
 interface PositionDetail {
   id: string
   symbol: string
+  company_name?: string
   quantity: number
   position_type: string
   investment_class?: string  // PUBLIC, OPTIONS, PRIVATE
@@ -219,6 +220,7 @@ function transformPositionDetails(positions: PositionDetail[]) {
   return positions.map(pos => ({
     id: pos.id,
     symbol: pos.symbol,
+    company_name: pos.company_name,
     quantity: pos.quantity,
     price: pos.current_price,
     marketValue: pos.market_value,

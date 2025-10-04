@@ -14,7 +14,7 @@ export function OrganizeContainer() {
   const { theme } = useTheme()
 
   // Auto-scroll state for drag-drop
-  const [autoScrollInterval, setAutoScrollInterval] = React.useState<NodeJS.Timeout | null>(null)
+  const [autoScrollInterval, setAutoScrollInterval] = useState<NodeJS.Timeout | null>(null)
 
   // Fetch positions (includes tags array automatically from backend)
   const {
@@ -206,36 +206,6 @@ export function OrganizeContainer() {
             onCreate={handleCreateTag}
             onDelete={handleDeleteTag}
           />
-
-          {/* Test Drop Zone */}
-          <div
-            className="mt-4 p-4 border-2 border-dashed border-gray-400 rounded-lg text-center"
-            style={{ backgroundColor: '#f0f0f0' }}
-            onDragEnter={(e) => {
-              e.preventDefault()
-              console.log('TEST ZONE: DragEnter')
-              e.currentTarget.style.backgroundColor = '#e0e0ff'
-            }}
-            onDragLeave={(e) => {
-              e.preventDefault()
-              console.log('TEST ZONE: DragLeave')
-              e.currentTarget.style.backgroundColor = '#f0f0f0'
-            }}
-            onDragOver={(e) => {
-              e.preventDefault()
-              console.log('TEST ZONE: DragOver')
-            }}
-            onDrop={(e) => {
-              e.preventDefault()
-              console.log('TEST ZONE: DROP!')
-              const data = e.dataTransfer.getData('text/plain')
-              console.log('TEST ZONE: Received data:', data)
-              e.currentTarget.style.backgroundColor = '#f0f0f0'
-              alert(`Test drop zone received tag ID: ${data}`)
-            }}
-          >
-            <p>TEST DROP ZONE - Drag a tag here to test</p>
-          </div>
         </div>
       </section>
 
