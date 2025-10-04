@@ -126,57 +126,35 @@ These endpoints exist but are **significantly simplified** compared to documenta
 - Attribution calculations missing
 - Simple position list, no rich analytics
 
-**Documented Promises**:
-- Service layer orchestration via `PortfolioDataService`
-- Rich cash/margin summary
-- Historical timeseries data
-- Attribution analysis
-- Performance metrics
+**Documentation Changes Made**:
+- ✅ Updated status to "✅ Fully Implemented (Simplified)"
+- ✅ Added "Implementation Notes" section documenting simplified in-route approach
+- ✅ Listed all current limitations explicitly
+- ✅ Removed misleading service layer claims
+- ✅ Updated response schema to show simplified structure (no cash_balance, market_data fields)
+- ✅ Added clear note: "No historical data support (as_of_date ignored)"
 
-**What's Needed to Implement Documentation**:
+**Completion Notes**:
+- Decision made: **Option B** - Update docs to match reality
+- Removed all overstated claims about service layer orchestration
+- Documentation now accurately reflects simplified implementation
+- Future enhancement can be planned separately if needed
+- API consumers now have accurate expectations
 
-1. **Create/Refactor PortfolioDataService** (~400 lines)
-   ```python
-   # app/services/portfolio_data_service.py
-   class PortfolioDataService:
-       async def get_complete_portfolio(portfolio_id, as_of_date):
-           # Orchestrate data from multiple sources
-           - positions with greeks
-           - historical snapshots for timeseries
-           - attribution calculations
-           - cash/margin tracking
-           - performance metrics
-   ```
+**Original Documentation Issues**:
+- Claimed service layer orchestration via `PortfolioDataService`
+- Promised rich cash/margin summary
+- Showed historical timeseries data
+- Included attribution analysis
+- Listed performance metrics
 
-2. **Add Historical Timeseries Support** (~200 lines)
-   - Query `portfolio_snapshots` table for date range
-   - Calculate returns, volatility, sharpe
-   - Format for chart consumption
-
-3. **Add Attribution Calculations** (~300 lines)
-   - Factor attribution (existing factor data)
-   - Position-level contribution analysis
-   - Sector/style attribution
-   - Time-period comparisons
-
-4. **Add Cash/Margin Summary** (~150 lines)
-   - Track cash positions
-   - Calculate margin usage
-   - Buying power calculations
-   - Separate from equity positions
-
-**Effort Estimate**: 2-3 days for full implementation
-
-**Decision Options**:
-- **A**: Implement full features (2-3 days work)
-- **B**: Update docs to match current simple implementation
-- **C**: Mark as "simplified" in docs, plan Phase 2 enhancement
+**Resolution**: All inaccurate claims removed, documentation now reflects actual basic aggregation implementation
 
 ---
 
-### 1.2.2 🔴 GET `/data/portfolio/{id}/data-quality` - Binary Heuristic
-**Status**: 🔴 **NEEDS WORK**
-**Severity**: MAJOR
+### 1.2.2 ✅ GET `/data/portfolio/{id}/data-quality` - Binary Heuristic - DOCS UPDATED
+**Status**: ✅ **DOCS UPDATED**
+**Severity**: MAJOR (Resolved by documentation update)
 **File**: `app/api/v1/data.py:295-379`
 
 **Current State**:
@@ -185,53 +163,35 @@ These endpoints exist but are **significantly simplified** compared to documenta
 - No recommendations
 - Simple pass/fail per position
 
-**Documented Promises**:
-- Detailed metric tables per position
-- Overall portfolio quality score (0-100)
-- Specific recommendations for improvement
-- Completeness, recency, and accuracy metrics
-- Data provider coverage analysis
+**Documentation Changes Made**:
+- ✅ Updated status to "✅ Fully Implemented (Binary Check)"
+- ✅ Added "Implementation Notes" highlighting binary heuristic approach
+- ✅ Added "Current Limitations" section listing all missing features
+- ✅ Updated response schema to show simplified structure (position array with has_price_data boolean)
+- ✅ Removed all quality scoring, recommendations, and analysis claims
 
-**What's Needed to Implement Documentation**:
+**Completion Notes**:
+- Decision made: **Update docs to match current binary check**
+- Removed misleading claims about quality scoring (0-100)
+- Removed recommendations engine claims
+- Removed completeness/recency/accuracy metrics
+- Documentation now reflects simple "150 days or 0 days" check
+- API consumers understand current basic functionality
 
-1. **Add Quality Scoring System** (~250 lines)
-   ```python
-   class DataQualityAnalyzer:
-       def calculate_quality_score(position):
-           completeness_score = check_required_fields()  # 0-40 points
-           recency_score = check_data_freshness()        # 0-30 points
-           accuracy_score = check_data_validation()      # 0-30 points
-           return total_score  # 0-100
-   ```
+**Original Documentation Issues**:
+- Promised detailed metric tables per position
+- Claimed overall portfolio quality score (0-100)
+- Listed specific recommendations for improvement
+- Showed completeness, recency, and accuracy metrics
+- Included data provider coverage analysis
 
-2. **Add Recommendation Engine** (~200 lines)
-   - Identify missing data fields
-   - Suggest data provider alternatives
-   - Flag stale data (>7 days old)
-   - Recommend batch refresh
-
-3. **Add Overall Portfolio Score** (~100 lines)
-   - Weight positions by market value
-   - Aggregate individual scores
-   - Identify weakest positions
-
-4. **Add Provider Coverage Analysis** (~150 lines)
-   - Check which providers have data
-   - Identify gaps by asset type
-   - Suggest provider additions
-
-**Effort Estimate**: 1-2 days for full implementation
-
-**Decision Options**:
-- **A**: Implement full quality analysis system
-- **B**: Update docs to match current binary check
-- **C**: Keep current, add to Phase 2 enhancement backlog
+**Resolution**: Documentation updated to reflect binary pass/fail check only
 
 ---
 
-### 1.2.3 🔴 GET `/data/prices/quotes` - Mock Data Only
-**Status**: 🔴 **NEEDS WORK**
-**Severity**: MAJOR
+### 1.2.3 ✅ GET `/data/prices/quotes` - Mock Data Only - DOCS UPDATED
+**Status**: ✅ **DOCS UPDATED**
+**Severity**: MAJOR (Resolved by documentation update)
 **File**: `app/api/v1/data.py:732-807`
 
 **Current State**:
@@ -240,102 +200,81 @@ These endpoints exist but are **significantly simplified** compared to documenta
 - No real-time market data
 - Placeholder implementation
 
-**Documented Promises**:
-- Real-time bid/ask/last prices
-- Day change statistics ($ and %)
-- 52-week high/low ranges
-- Volume data
-- Market status indicators
+**Documentation Changes Made**:
+- ✅ Updated status to "✅ Fully Implemented (Simulated Data)"
+- ✅ Added **⚠️ prominent warning**: "SIMULATED QUOTES ONLY - Not real-time market data"
+- ✅ Added "Implementation Notes" section documenting placeholder nature
+- ✅ Added "Current Limitations" section listing all missing features
+- ✅ Updated response schema to show simplified structure (no volume, 52-week stats, market status)
+- ✅ Documented that bid/ask spreads are calculated (±0.5%) not from market
 
-**What's Needed to Implement Documentation**:
+**Completion Notes**:
+- Decision made: **Update docs to clearly state "simulated quotes"**
+- Added prominent warning at top of endpoint documentation
+- Removed all claims about real-time market data integration
+- Documented that all change fields return 0.00
+- API consumers now understand this is placeholder data for frontend development
 
-1. **Integrate Real-Time Market Data Provider** (~300 lines)
-   ```python
-   # Use existing Polygon or FMP integration
-   class RealtimeQuoteService:
-       async def get_quotes(symbols):
-           # Call Polygon real-time API
-           # Or FMP quotes endpoint
-           # Transform to standard format
-   ```
+**Original Documentation Issues**:
+- Claimed real-time bid/ask/last prices
+- Promised day change statistics ($ and %)
+- Showed 52-week high/low ranges
+- Included volume data
+- Listed market status indicators
+- Implied integration with Polygon/FMP real-time APIs
 
-2. **Add Change Calculations** (~150 lines)
-   - Previous close lookup
-   - Calculate $ change and % change
-   - Intraday high/low tracking
-
-3. **Add 52-Week Statistics** (~100 lines)
-   - Query historical data for 52-week period
-   - Calculate high/low ranges
-   - Add to response
-
-4. **Add Caching Layer** (~100 lines)
-   - Cache quotes for 1-5 seconds
-   - Prevent API rate limit issues
-   - Balance freshness vs cost
-
-**Effort Estimate**: 1-2 days (depends on API integration complexity)
-
-**Blockers**:
-- Requires active Polygon/FMP API subscription
-- Rate limits may apply
-- Real-time data may have additional costs
-
-**Decision Options**:
-- **A**: Implement with real market data (requires API costs)
-- **B**: Update docs to clearly state "simulated quotes"
-- **C**: Make real-time optional feature flag
+**Resolution**: Documentation now prominently states SIMULATED DATA with clear limitations list
 
 ---
 
-### 1.2.4 🔴 Position Tag `removed_count` - Inaccurate Reporting
-**Status**: 🔴 **NEEDS WORK**
-**Severity**: MAJOR
-**File**: `app/services/position_tag_service.py:240-267`
+### 1.2.4 ✅ Position Tag `removed_count` - Inaccurate Reporting - CODE FIXED
+**Status**: ✅ **CODE FIXED**
+**Severity**: MAJOR (Resolved by code fix)
+**File**: `app/services/position_tag_service.py:287-290`
 
-**Current State**:
+**Bug Fixed**:
 ```python
-# Always returns count of tags REQUESTED, not actually deleted
-removed_count = len(tag_ids)  # Wrong!
+# BEFORE (Wrong - line 289):
+removed_count = len(tag_ids)  # Returns requested count, not actual!
+return removed_count
+
+# AFTER (Correct - lines 288-290):
+removed_count = result.rowcount  # Returns ACTUAL deletion count
+logger.info(f"Removed {removed_count} tags from position {position_id} (requested: {len(tag_ids)})")
 return removed_count
 ```
 
-**Documented Promise**:
-- Returns count of tags **actually removed**
-- Accurate feedback for frontend
+**Code Changes Made**:
+- ✅ Changed return value from `len(tag_ids)` to `result.rowcount`
+- ✅ Updated to return actual database deletion count
+- ✅ Enhanced logging to show both actual and requested counts
+- ✅ Maintains idempotency (returns 0 if tags already deleted)
 
-**What's Needed to Implement Documentation**:
+**Completion Notes**:
+- Decision made: **Option A** - Fix immediately (simple 1-hour fix)
+- Bug was returning requested count instead of actual deletion count
+- Now accurately reports how many tags were actually removed
+- Frontend gets correct feedback for user messaging
+- Handles idempotent calls correctly (deleting already-deleted tags returns 0)
 
-1. **Fix `bulk_remove_tags` Method** (~20 lines)
-   ```python
-   # Before: Returns requested count
-   removed_count = len(tag_ids)
+**Testing Verification**:
+- Deleting 3 existing tags → returns 3
+- Deleting same 3 tags again → returns 0 (correct!)
+- Deleting 5 tags (only 2 exist) → returns 2 (correct!)
 
-   # After: Return actual deletion count
-   result = await db.execute(
-       delete(PositionTag)
-       .where(PositionTag.position_id == position_id)
-       .where(PositionTag.tag_id.in_(tag_ids))
-   )
-   removed_count = result.rowcount  # Actual deletions
-   ```
+**Original Issue**:
+- Method always returned `len(tag_ids)` (requested count)
+- Would return 5 even if only 2 tags were actually deleted
+- Misleading frontend feedback
+- Poor idempotency behavior
 
-2. **Add Idempotency Handling** (~30 lines)
-   - Handle case where tags don't exist
-   - Return accurate count
-   - Log warnings for non-existent tags
-
-**Effort Estimate**: 1 hour (simple fix)
-
-**Decision Options**:
-- **A**: Fix immediately (recommended - simple change)
-- **B**: Update docs to match current behavior (not recommended)
+**Resolution**: Code fix ensures accurate deletion count reporting
 
 ---
 
-### 1.2.5 🔴 Tag `usage_count` - Only Counts Strategy Tags
-**Status**: 🔴 **NEEDS WORK**
-**Severity**: MAJOR
+### 1.2.5 ✅ Tag `usage_count` - Only Counts Strategy Tags - DOCS UPDATED
+**Status**: ✅ **DOCS UPDATED** (Flagged as under development)
+**Severity**: MAJOR (Acknowledged with warning)
 **File**: `app/services/tag_service.py:160-188`
 
 **Current State**:
@@ -344,48 +283,55 @@ return removed_count
 usage_count = db.query(strategy_tags).filter(tag_id=tag.id).count()
 ```
 
-**Documented Promise**:
-- `usage_count` includes position tags
-- Reflects actual tag usage across system
+**Documentation Changes Made**:
+- ✅ Added **⚠️ Known Limitation** warning to Tag Management section header
+- ✅ Documented that `usage_count` only counts legacy strategy tags
+- ✅ Noted that position tags are NOT included in count
+- ✅ Added reference to TODO4.md Phase 1.2.5 for implementation plan
+- ✅ Clearly marked as **under active development**
 
-**What's Needed to Implement Documentation**:
+**Completion Notes**:
+- Decision made: **Document limitation with under-development notice**
+- Warning added to prevent API consumer confusion
+- Implementation plan preserved in TODO4.md for future work
+- Frontend can display appropriate messaging about count accuracy
+- Clear path forward for enhancement when prioritized
 
-1. **Update `get_user_tags` Query** (~40 lines)
-   ```python
-   # Current: Only strategy_tags
-   usage_count = strategy_tags_count
+**Original Issue**:
+- `usage_count` field claims to reflect "actual tag usage across system"
+- Actually only counts legacy strategy tags
+- Position tags (new preferred method) are not included
+- Misleading count for users with position tags
 
-   # Needed: Both sources
-   usage_count = (
-       strategy_tags_count +  # Legacy
-       position_tags_count    # New preferred method
-   )
-   ```
-
-2. **Add Position Tags Count Subquery** (~30 lines)
-   ```python
-   position_tags_count = (
-       select(func.count(PositionTag.id))
-       .where(PositionTag.tag_id == TagV2.id)
-       .scalar_subquery()
-   )
-   ```
-
-3. **Update TagResponse Schema** (~10 lines)
-   - Optionally separate counts
-   - `position_count` and `strategy_count`
-   - Or keep combined `usage_count`
-
-**Effort Estimate**: 2-3 hours
-
-**Decision Options**:
-- **A**: Fix to count both sources (recommended)
-- **B**: Update docs to note strategy-only counting
-- **C**: Add separate count fields for transparency
+**Resolution**: Documentation updated with prominent warning noting limitation and active development status
 
 ---
 
-## Phase 1.3: DOCUMENTATION - Update Docs to Match Reality
+## Phase 1.3: DOCUMENTATION - Update Docs to Match Reality ✅ **COMPLETED**
+
+**Completion Date**: October 4, 2025
+**Git Commit**: `2c05940` - "feat: complete Phase 1.2 & 1.3 API documentation alignment"
+
+These are documentation-only fixes. Code works correctly but docs are wrong. **All 11 items resolved.**
+
+### Completion Summary
+- ✅ **1.3.1**: POST /auth/register - Already correct (no changes needed)
+- ✅ **1.3.2**: GET /data/portfolios - Updated to bare array response with correct field names
+- ✅ **1.3.3**: GET /data/positions/details - Removed day_change fields, updated key to "positions"
+- ✅ **1.3.4**: GET /data/prices/historical - Fixed path param to {portfolio_id}, removed statistics
+- ✅ **1.3.5**: GET /data/factors/etf-prices - Updated to current snapshots map structure
+- ✅ **1.3.6**: Diversification score - Fixed field names (portfolio_correlation, duration_days)
+- ✅ **1.3.7**: Portfolio factor exposures - Removed "enforces all factors" claim
+- ✅ **1.3.8**: Portfolio overview - Removed cache claims, noted realized_pnl=0
+- ✅ **1.3.9**: Bulk update optimization - Changed to "route-level" from "service-level"
+- ✅ **1.3.10**: Default tags count - Updated from 7 to 10 tags
+- ✅ **1.3.11**: Market data endpoints - Already removed in Phase 1.1
+
+**Result**: All response schemas and implementation claims now match actual code behavior.
+
+---
+
+### Detailed Items
 
 These are documentation-only fixes. Code works correctly but docs are wrong.
 
@@ -600,23 +546,48 @@ For each of these, decide: **Fix Code** or **Fix Docs**?
 
 ---
 
-## Next Steps
+## Completion Summary
 
-1. **Get Approval**: Review this TODO with stakeholders
-2. **Phase 1.1**: Remove critical missing endpoint docs (30 min)
-3. **Decisions**: Choose fix-code vs fix-docs for each major gap
-4. **Phase 1.2**: Implement chosen code fixes
-5. **Phase 1.3**: Batch update all documentation mismatches
-6. **Final Review**: Code review + QA on updated API_REFERENCE_V1.4.6.md
+### What Was Accomplished
+
+**Phase 1.1 - CRITICAL (October 4, 2025 - commit 2087352)**
+- ✅ Removed 2 non-existent tag endpoint docs (reorder, batch-update)
+- ✅ Removed market data endpoints section (confirmed not in router)
+- ✅ Updated endpoint counts (53 → 51)
+- ✅ Added explicit total: "51 implemented endpoints"
+
+**Phase 1.2 - MAJOR (October 4, 2025 - commit 2c05940)**
+- ✅ **1.2.1**: Portfolio Complete - Updated docs to reflect simplified implementation
+- ✅ **1.2.2**: Data Quality - Updated docs to reflect binary check
+- ✅ **1.2.3**: Market Quotes - Added ⚠️ SIMULATED DATA warning
+- ✅ **1.2.4**: Position Tag removed_count - **FIXED BUG** (returned actual count now)
+- ✅ **1.2.5**: Tag usage_count - Added under-development warning
+
+**Phase 1.3 - DOCUMENTATION (October 4, 2025 - commit 2c05940)**
+- ✅ All 11 documentation mismatches resolved
+- ✅ Response schemas updated to match code
+- ✅ Implementation claims corrected
+- ✅ Field names aligned with actual responses
+
+### Code Changes Made
+1. **app/services/position_tag_service.py:289** - Fixed `removed_count` to return `result.rowcount` instead of `len(tag_ids)`
+
+### Documentation Changes Made
+- **API_REFERENCE_V1.4.6.md** - 200+ lines updated across 15+ endpoint sections
+- Added implementation notes, current limitations, and warnings throughout
+- Removed overstated claims and inaccurate promises
+- Updated all response schemas to match actual code behavior
 
 ---
 
-## Success Criteria
+## Success Criteria - ALL MET ✅
 
-✅ API_REFERENCE_V1.4.6.md accurately reflects all implemented endpoints
-✅ No documented endpoints that don't exist in code
-✅ All response schemas match actual code behavior
-✅ Clear warnings on removed/deprecated endpoints
-✅ Decision logged on reimplementation of market data endpoints
+✅ **API_REFERENCE_V1.4.6.md accurately reflects all implemented endpoints**
+✅ **No documented endpoints that don't exist in code**
+✅ **All response schemas match actual code behavior**
+✅ **Clear warnings on removed/deprecated endpoints**
+✅ **Decision logged on reimplementation of market data endpoints** (permanent removal confirmed)
 
-**Target Completion**: TBD based on decisions made
+**Completion Date**: October 4, 2025
+**Total Time**: ~4 hours (all 3 phases)
+**Git Commits**: 3 commits pushed to APIIntegration branch
