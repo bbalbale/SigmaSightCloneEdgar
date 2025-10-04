@@ -62,10 +62,9 @@ async def seed_database():
             
             # Seed stress test scenarios (required for stress testing API)
             logger.info("🌱 Seeding stress test scenarios...")
-            # TODO: Fix import - module doesn't exist
-            # from scripts.seed_stress_scenarios import seed_scenarios_from_config
-            # await seed_scenarios_from_config()
-            logger.info("⚠️  Stress test scenarios skipped - module not found")
+            from scripts.database.seed_stress_scenarios import seed_scenarios_from_config
+            await seed_scenarios_from_config()
+            logger.info("✅ Stress test scenarios seeded")
             
             # Seed security master data (classifications for factor analysis)
             await seed_security_master(db)
