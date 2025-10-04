@@ -1,0 +1,9 @@
+# Ignore Node.js files in root (used for local Playwright testing only)
+/package.json
+/package-lock.json
+/node_modules
+
+# Ignore other non-essential files
+/.git
+/.vscode
+/.DS_Store
