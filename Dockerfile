@@ -1,4 +1,4 @@
-# Railway Dockerfile for SigmaSight Backend
+# Railway Dockerfile for SigmaSight Backend - v2
 FROM python:3.11-slim
 
 # Install system dependencies
