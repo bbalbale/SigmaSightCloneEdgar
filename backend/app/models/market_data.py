@@ -45,6 +45,91 @@ class MarketDataCache(Base):
     )
 
 
+class CompanyProfile(Base):
+    """Company profile information - comprehensive company metadata from yahooquery"""
+    __tablename__ = "company_profiles"
+
+    symbol: Mapped[str] = mapped_column(String(20), primary_key=True)
+
+    # Basic company info
+    company_name: Mapped[Optional[str]] = mapped_column(String(200))
+    sector: Mapped[Optional[str]] = mapped_column(String(100))
+    industry: Mapped[Optional[str]] = mapped_column(String(100))
+    exchange: Mapped[Optional[str]] = mapped_column(String(20))
+    country: Mapped[Optional[str]] = mapped_column(String(10))
+    market_cap: Mapped[Optional[Decimal]] = mapped_column(Numeric(18, 2))
+    description: Mapped[Optional[str]] = mapped_column(String(1000))
+
+    # Company type flags
+    is_etf: Mapped[Optional[bool]] = mapped_column(default=False)
+    is_fund: Mapped[Optional[bool]] = mapped_column(default=False)
+
+    # Company details
+    ceo: Mapped[Optional[str]] = mapped_column(String(100))
+    employees: Mapped[Optional[int]]
+    website: Mapped[Optional[str]] = mapped_column(String(200))
+
+    # Valuation metrics (updated periodically)
+    pe_ratio: Mapped[Optional[Decimal]] = mapped_column(Numeric(10, 2))
+    forward_pe: Mapped[Optional[Decimal]] = mapped_column(Numeric(10, 2))
+    dividend_yield: Mapped[Optional[Decimal]] = mapped_column(Numeric(8, 6))
+    beta: Mapped[Optional[Decimal]] = mapped_column(Numeric(8, 4))
+    week_52_high: Mapped[Optional[Decimal]] = mapped_column(Numeric(12, 4))
+    week_52_low: Mapped[Optional[Decimal]] = mapped_column(Numeric(12, 4))
+
+    # Analyst estimates and targets
+    target_mean_price: Mapped[Optional[Decimal]] = mapped_column(Numeric(12, 4))
+    target_high_price: Mapped[Optional[Decimal]] = mapped_column(Numeric(12, 4))
+    target_low_price: Mapped[Optional[Decimal]] = mapped_column(Numeric(12, 4))
+    number_of_analyst_opinions: Mapped[Optional[int]]
+    recommendation_mean: Mapped[Optional[Decimal]] = mapped_column(Numeric(3, 2))  # 1-5 scale
+    recommendation_key: Mapped[Optional[str]] = mapped_column(String(20))  # "buy", "hold", "sell"
+
+    # Forward estimates
+    forward_eps: Mapped[Optional[Decimal]] = mapped_column(Numeric(12, 4))
+    earnings_growth: Mapped[Optional[Decimal]] = mapped_column(Numeric(8, 6))  # As decimal
+    revenue_growth: Mapped[Optional[Decimal]] = mapped_column(Numeric(8, 6))  # As decimal
+    earnings_quarterly_growth: Mapped[Optional[Decimal]] = mapped_column(Numeric(8, 6))
+
+    # Profitability metrics
+    profit_margins: Mapped[Optional[Decimal]] = mapped_column(Numeric(8, 6))
+    operating_margins: Mapped[Optional[Decimal]] = mapped_column(Numeric(8, 6))
+    gross_margins: Mapped[Optional[Decimal]] = mapped_column(Numeric(8, 6))
+    return_on_assets: Mapped[Optional[Decimal]] = mapped_column(Numeric(8, 6))
+    return_on_equity: Mapped[Optional[Decimal]] = mapped_column(Numeric(8, 6))
+    total_revenue: Mapped[Optional[Decimal]] = mapped_column(Numeric(18, 2))  # TTM
+
+    # Current year estimates (0y period) - from yahooquery earnings_trend
+    current_year_revenue_avg: Mapped[Optional[Decimal]] = mapped_column(Numeric(18, 2))
+    current_year_revenue_low: Mapped[Optional[Decimal]] = mapped_column(Numeric(18, 2))
+    current_year_revenue_high: Mapped[Optional[Decimal]] = mapped_column(Numeric(18, 2))
+    current_year_revenue_growth: Mapped[Optional[Decimal]] = mapped_column(Numeric(8, 6))
+    current_year_earnings_avg: Mapped[Optional[Decimal]] = mapped_column(Numeric(12, 4))
+    current_year_earnings_low: Mapped[Optional[Decimal]] = mapped_column(Numeric(12, 4))
+    current_year_earnings_high: Mapped[Optional[Decimal]] = mapped_column(Numeric(12, 4))
+    current_year_end_date: Mapped[Optional[date]] = mapped_column(Date)
+
+    # Next year estimates (+1y period) - from yahooquery earnings_trend
+    next_year_revenue_avg: Mapped[Optional[Decimal]] = mapped_column(Numeric(18, 2))
+    next_year_revenue_low: Mapped[Optional[Decimal]] = mapped_column(Numeric(18, 2))
+    next_year_revenue_high: Mapped[Optional[Decimal]] = mapped_column(Numeric(18, 2))
+    next_year_revenue_growth: Mapped[Optional[Decimal]] = mapped_column(Numeric(8, 6))
+    next_year_earnings_avg: Mapped[Optional[Decimal]] = mapped_column(Numeric(12, 4))
+    next_year_earnings_low: Mapped[Optional[Decimal]] = mapped_column(Numeric(12, 4))
+    next_year_earnings_high: Mapped[Optional[Decimal]] = mapped_column(Numeric(12, 4))
+    next_year_end_date: Mapped[Optional[date]] = mapped_column(Date)
+
+    # Data tracking
+    data_source: Mapped[str] = mapped_column(String(50), default='yahooquery')
+    last_updated: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    __table_args__ = (
+        Index('ix_company_profiles_symbol', 'symbol'),
+    )
+
+
 class PositionGreeks(Base):
     """Position Greeks - stores calculated Greeks for options positions"""
     __tablename__ = "position_greeks"

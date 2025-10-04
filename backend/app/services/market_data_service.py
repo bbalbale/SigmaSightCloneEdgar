@@ -16,10 +16,11 @@ from sqlalchemy import select, insert, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 from app.config import settings
-from app.models.market_data import MarketDataCache
+from app.models.market_data import MarketDataCache, CompanyProfile
 from app.core.logging import get_logger
 from app.services.rate_limiter import polygon_rate_limiter, ExponentialBackoff
 from app.clients import market_data_factory, DataType
+from app.services.yahooquery_profile_fetcher import fetch_company_profiles as fetch_profiles_yahooquery
 
 logger = get_logger(__name__)
 
@@ -1173,7 +1174,198 @@ class MarketDataService:
             return {s: False for s in symbols}
         
         return results
-    
+
+    async def store_company_profile(
+        self,
+        db: AsyncSession,
+        symbol: str,
+        profile_data: Dict[str, Any]
+    ) -> bool:
+        """
+        Store or update a company profile in the database.
+
+        Args:
+            db: Database session
+            symbol: Ticker symbol
+            profile_data: Profile data dict from yahooquery_profile_fetcher
+
+        Returns:
+            True if successful, False otherwise
+        """
+        try:
+            # Prepare upsert statement
+            stmt = pg_insert(CompanyProfile).values(
+                symbol=symbol,
+                company_name=profile_data.get('company_name'),
+                sector=profile_data.get('sector'),
+                industry=profile_data.get('industry'),
+                exchange=profile_data.get('exchange'),
+                country=profile_data.get('country'),
+                market_cap=profile_data.get('market_cap'),
+                description=profile_data.get('description'),
+                is_etf=profile_data.get('is_etf', False),
+                is_fund=profile_data.get('is_fund', False),
+                ceo=profile_data.get('ceo'),
+                employees=profile_data.get('employees'),
+                website=profile_data.get('website'),
+                pe_ratio=profile_data.get('pe_ratio'),
+                forward_pe=profile_data.get('forward_pe'),
+                dividend_yield=profile_data.get('dividend_yield'),
+                beta=profile_data.get('beta'),
+                week_52_high=profile_data.get('week_52_high'),
+                week_52_low=profile_data.get('week_52_low'),
+                target_mean_price=profile_data.get('target_mean_price'),
+                target_high_price=profile_data.get('target_high_price'),
+                target_low_price=profile_data.get('target_low_price'),
+                number_of_analyst_opinions=profile_data.get('number_of_analyst_opinions'),
+                recommendation_mean=profile_data.get('recommendation_mean'),
+                recommendation_key=profile_data.get('recommendation_key'),
+                forward_eps=profile_data.get('forward_eps'),
+                earnings_growth=profile_data.get('earnings_growth'),
+                revenue_growth=profile_data.get('revenue_growth'),
+                earnings_quarterly_growth=profile_data.get('earnings_quarterly_growth'),
+                profit_margins=profile_data.get('profit_margins'),
+                operating_margins=profile_data.get('operating_margins'),
+                gross_margins=profile_data.get('gross_margins'),
+                return_on_assets=profile_data.get('return_on_assets'),
+                return_on_equity=profile_data.get('return_on_equity'),
+                total_revenue=profile_data.get('total_revenue'),
+                current_year_revenue_avg=profile_data.get('current_year_revenue_avg'),
+                current_year_revenue_low=profile_data.get('current_year_revenue_low'),
+                current_year_revenue_high=profile_data.get('current_year_revenue_high'),
+                current_year_revenue_growth=profile_data.get('current_year_revenue_growth'),
+                current_year_earnings_avg=profile_data.get('current_year_earnings_avg'),
+                current_year_earnings_low=profile_data.get('current_year_earnings_low'),
+                current_year_earnings_high=profile_data.get('current_year_earnings_high'),
+                current_year_end_date=profile_data.get('current_year_end_date'),
+                next_year_revenue_avg=profile_data.get('next_year_revenue_avg'),
+                next_year_revenue_low=profile_data.get('next_year_revenue_low'),
+                next_year_revenue_high=profile_data.get('next_year_revenue_high'),
+                next_year_revenue_growth=profile_data.get('next_year_revenue_growth'),
+                next_year_earnings_avg=profile_data.get('next_year_earnings_avg'),
+                next_year_earnings_low=profile_data.get('next_year_earnings_low'),
+                next_year_earnings_high=profile_data.get('next_year_earnings_high'),
+                next_year_end_date=profile_data.get('next_year_end_date'),
+                data_source=profile_data.get('data_source', 'yahooquery'),
+                last_updated=profile_data.get('last_updated', datetime.utcnow()),
+                created_at=datetime.utcnow(),
+                updated_at=datetime.utcnow()
+            )
+
+            # On conflict, update all fields except symbol and created_at
+            stmt = stmt.on_conflict_do_update(
+                index_elements=['symbol'],
+                set_={
+                    'company_name': stmt.excluded.company_name,
+                    'sector': stmt.excluded.sector,
+                    'industry': stmt.excluded.industry,
+                    'exchange': stmt.excluded.exchange,
+                    'country': stmt.excluded.country,
+                    'market_cap': stmt.excluded.market_cap,
+                    'description': stmt.excluded.description,
+                    'is_etf': stmt.excluded.is_etf,
+                    'is_fund': stmt.excluded.is_fund,
+                    'ceo': stmt.excluded.ceo,
+                    'employees': stmt.excluded.employees,
+                    'website': stmt.excluded.website,
+                    'pe_ratio': stmt.excluded.pe_ratio,
+                    'forward_pe': stmt.excluded.forward_pe,
+                    'dividend_yield': stmt.excluded.dividend_yield,
+                    'beta': stmt.excluded.beta,
+                    'week_52_high': stmt.excluded.week_52_high,
+                    'week_52_low': stmt.excluded.week_52_low,
+                    'target_mean_price': stmt.excluded.target_mean_price,
+                    'target_high_price': stmt.excluded.target_high_price,
+                    'target_low_price': stmt.excluded.target_low_price,
+                    'number_of_analyst_opinions': stmt.excluded.number_of_analyst_opinions,
+                    'recommendation_mean': stmt.excluded.recommendation_mean,
+                    'recommendation_key': stmt.excluded.recommendation_key,
+                    'forward_eps': stmt.excluded.forward_eps,
+                    'earnings_growth': stmt.excluded.earnings_growth,
+                    'revenue_growth': stmt.excluded.revenue_growth,
+                    'earnings_quarterly_growth': stmt.excluded.earnings_quarterly_growth,
+                    'profit_margins': stmt.excluded.profit_margins,
+                    'operating_margins': stmt.excluded.operating_margins,
+                    'gross_margins': stmt.excluded.gross_margins,
+                    'return_on_assets': stmt.excluded.return_on_assets,
+                    'return_on_equity': stmt.excluded.return_on_equity,
+                    'total_revenue': stmt.excluded.total_revenue,
+                    'current_year_revenue_avg': stmt.excluded.current_year_revenue_avg,
+                    'current_year_revenue_low': stmt.excluded.current_year_revenue_low,
+                    'current_year_revenue_high': stmt.excluded.current_year_revenue_high,
+                    'current_year_revenue_growth': stmt.excluded.current_year_revenue_growth,
+                    'current_year_earnings_avg': stmt.excluded.current_year_earnings_avg,
+                    'current_year_earnings_low': stmt.excluded.current_year_earnings_low,
+                    'current_year_earnings_high': stmt.excluded.current_year_earnings_high,
+                    'current_year_end_date': stmt.excluded.current_year_end_date,
+                    'next_year_revenue_avg': stmt.excluded.next_year_revenue_avg,
+                    'next_year_revenue_low': stmt.excluded.next_year_revenue_low,
+                    'next_year_revenue_high': stmt.excluded.next_year_revenue_high,
+                    'next_year_revenue_growth': stmt.excluded.next_year_revenue_growth,
+                    'next_year_earnings_avg': stmt.excluded.next_year_earnings_avg,
+                    'next_year_earnings_low': stmt.excluded.next_year_earnings_low,
+                    'next_year_earnings_high': stmt.excluded.next_year_earnings_high,
+                    'next_year_end_date': stmt.excluded.next_year_end_date,
+                    'data_source': stmt.excluded.data_source,
+                    'last_updated': stmt.excluded.last_updated,
+                    'updated_at': stmt.excluded.updated_at
+                }
+            )
+
+            await db.execute(stmt)
+            logger.info(f"Stored company profile for {symbol}")
+            return True
+
+        except Exception as e:
+            logger.error(f"Failed to store company profile for {symbol}: {str(e)}")
+            return False
+
+    async def fetch_and_cache_company_profiles(
+        self,
+        db: AsyncSession,
+        symbols: List[str]
+    ) -> Dict[str, bool]:
+        """
+        Fetch company profiles from yahooquery and cache them in database.
+
+        Args:
+            db: Database session
+            symbols: List of ticker symbols
+
+        Returns:
+            Dict mapping symbol to success status (True/False)
+        """
+        results = {}
+
+        try:
+            # Fetch profiles from yahooquery
+            logger.info(f"Fetching company profiles for {len(symbols)} symbols")
+            profiles = await fetch_profiles_yahooquery(symbols)
+
+            logger.info(f"Received profiles for {len(profiles)} symbols")
+
+            # Store each profile in database
+            for symbol, profile_data in profiles.items():
+                success = await self.store_company_profile(db, symbol, profile_data)
+                results[symbol] = success
+
+            # Mark symbols without profiles as unsuccessful
+            for symbol in symbols:
+                if symbol not in results:
+                    results[symbol] = False
+
+            await db.commit()
+
+            success_count = sum(1 for v in results.values() if v)
+            logger.info(f"Cached profiles for {success_count}/{len(symbols)} symbols")
+
+        except Exception as e:
+            logger.error(f"Error fetching and caching company profiles: {str(e)}")
+            await db.rollback()
+            return {s: False for s in symbols}
+
+        return results
+
     async def close(self):
         """Close all provider client sessions"""
         await market_data_factory.close_all()

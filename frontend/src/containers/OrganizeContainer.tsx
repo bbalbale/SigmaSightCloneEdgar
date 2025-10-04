@@ -14,7 +14,7 @@ export function OrganizeContainer() {
   const { theme } = useTheme()
 
   // Auto-scroll state for drag-drop
-  const [autoScrollInterval, setAutoScrollInterval] = React.useState<NodeJS.Timeout | null>(null)
+  const [autoScrollInterval, setAutoScrollInterval] = useState<NodeJS.Timeout | null>(null)
 
   // Fetch positions (includes tags array automatically from backend)
   const {

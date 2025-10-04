@@ -18,7 +18,7 @@ from app.models.users import Portfolio
 from app.models.tags_v2 import TagV2
 from app.models.positions import Position
 from app.models.position_tags import PositionTag
-from app.models.market_data import MarketDataCache
+from app.models.market_data import MarketDataCache, CompanyProfile
 from app.schemas.auth import CurrentUser
 from app.core.logging import get_logger
 from app.services.market_data_service import MarketDataService
@@ -514,6 +514,17 @@ async def get_positions_details(
     
     logger.info(f"[{request_id}] [{time.time() - start_time:.2f}s] Market data fetched for {len(market_data_map)} symbols")
 
+    # Batch fetch all company profiles to avoid N+1 queries
+    logger.info(f"[{request_id}] [{time.time() - start_time:.2f}s] Batch fetching company profiles")
+    if symbols:
+        profiles_stmt = select(CompanyProfile).where(CompanyProfile.symbol.in_(symbols))
+        profiles_result = await db.execute(profiles_stmt)
+        company_profiles_map = {p.symbol: p for p in profiles_result.scalars().all()}
+    else:
+        company_profiles_map = {}
+
+    logger.info(f"[{request_id}] [{time.time() - start_time:.2f}s] Company profiles fetched for {len(company_profiles_map)} symbols")
+
     # Batch fetch all position tags to avoid N+1 queries
     logger.info(f"[{request_id}] [{time.time() - start_time:.2f}s] Batch fetching position tags")
     from app.models.position_tags import PositionTag
@@ -572,10 +583,14 @@ async def get_positions_details(
         total_market_value += market_value
         total_unrealized_pnl += unrealized_pnl
             
+        # Get company profile from pre-fetched map
+        company_profile = company_profiles_map.get(position.symbol)
+
         positions_data.append({
             "id": str(position.id),
             "portfolio_id": str(position.portfolio_id),
             "symbol": position.symbol,
+            "company_name": company_profile.company_name if company_profile else None,
             "position_type": position.position_type.value,
             "investment_class": position.investment_class if position.investment_class else "PUBLIC",  # Default to PUBLIC if not set
             "investment_subtype": position.investment_subtype if position.investment_subtype else None,
