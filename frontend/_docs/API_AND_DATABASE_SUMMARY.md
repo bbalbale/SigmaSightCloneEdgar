@@ -1,9 +1,10 @@
 # SigmaSight API and Database Summary
 
 **Generated**: September 29, 2025
-**Last Updated**: October 2, 2025
+**Last Updated**: October 4, 2025
 **Status**: Production-Ready APIs with Complete Database Schema
 **Latest Updates**:
+- **October 4, 2025**: Added `company_profiles` table with company names, sectors, industry data, and revenue/earnings estimates
 - **October 3, 2025**: Added TAGGING_ARCHITECTURE.md guide - clarifies 3-file structure is intentional design
 - **October 2, 2025**: Position tagging system implemented (replaces strategy-based tagging)
 - **October 1, 2025**: Added strategy categorization (direction & primary_investment_class), implemented Combination View toggle
@@ -129,7 +130,7 @@ Authorization: Bearer <jwt_token>
 | GET | `/data/portfolios` | ✅ Ready | List user portfolios |
 | GET | `/data/portfolio/{id}/complete` | ✅ Ready | Full portfolio snapshot |
 | GET | `/data/portfolio/{id}/data-quality` | ✅ Ready | Data quality metrics |
-| GET | `/data/positions/details` | ✅ Ready | Position details with P&L, investment_class, and options data |
+| GET | `/data/positions/details` | ✅ Ready | Position details with P&L, investment_class, options data, and **company names** |
 | GET | `/data/positions/top/{id}` | ✅ Ready | Top positions by various metrics |
 | GET | `/data/prices/historical/{id}` | ✅ Ready | Historical price data |
 | GET | `/data/prices/quotes` | ✅ Ready | Real-time market quotes |
@@ -353,6 +354,28 @@ Authorization: Bearer <jwt_token>
                                                           │ created_at           │
                                                           └──────────────────────┘
 
+                                                ┌──────────────────────────────┐
+                                                │   COMPANY_PROFILES           │
+                                                ├──────────────────────────────┤
+                                                │ id (UUID)                 PK │
+                                                │ symbol                 UNIQUE│
+                                                │ company_name                 │
+                                                │ sector                       │
+                                                │ industry                     │
+                                                │ description                  │
+                                                │ market_cap                   │
+                                                │ employee_count               │
+                                                │ website                      │
+                                                │ headquarters                 │
+                                                │ current_year_revenue_avg     │
+                                                │ next_year_revenue_avg        │
+                                                │ current_year_earnings_avg    │
+                                                │ next_year_earnings_avg       │
+                                                │ data_source                  │
+                                                │ created_at                   │
+                                                │ updated_at                   │
+                                                └──────────────────────────────┘
+
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         CALCULATION RESULTS TABLES                          │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -546,6 +569,7 @@ Authorization: Bearer <jwt_token>
 9. **Portfolios → Target Prices**: One-to-Many (price targets per position)
 10. **Users → Conversations**: One-to-Many (chat threads)
 11. **Conversations → Messages**: One-to-Many (chat history)
+12. **Positions → Company Profiles**: Many-to-One via symbol (company metadata lookup)
 
 #### Investment Classification:
 - **Position.investment_class**: Database field (PUBLIC/OPTIONS/PRIVATE)
@@ -554,6 +578,7 @@ Authorization: Bearer <jwt_token>
   - PRIVATE: Private/alternative investments
 - **Position.investment_subtype**: Optional categorization within investment class
 - **API Response**: `/data/positions/details` now includes:
+  - **company_name**: Company name from company_profiles table (batch fetched for performance)
   - investment_class: String field for position categorization
   - investment_subtype: Optional subtype classification
   - strike_price: For options contracts
