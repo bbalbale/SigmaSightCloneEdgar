@@ -16,11 +16,9 @@ COPY backend/ .
 # Install dependencies
 RUN uv sync
 
-# Run migrations (will fail gracefully if DB not ready)
-RUN uv run alembic upgrade head || true
-
 # Expose port
 EXPOSE 8000
 
 # Start the application (Railway provides PORT environment variable)
-CMD uv run uvicorn app.main:app --host 0.0.0.0 --port $PORT
+# Run migrations first, then start server
+CMD uv run alembic upgrade head && uv run uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}
