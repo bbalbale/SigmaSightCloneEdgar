@@ -1,51 +1,31 @@
-# SigmaSight Backend API Specifications V1.4.5
+# SigmaSight Backend API Reference V1.4.6
 
-**Version**: 1.4.5  
-**Date**: September 5, 2025  
-**Status**: ⚠️ **CODE-VERIFIED CORRECTIONS** - Major discrepancies found  
-**Source of Truth**: **Direct code verification** (API_IMPLEMENTATION_STATUS.md was inaccurate)  
+**Version**: 1.4.6  
+**Date**: October 4, 2025  
+**Status**: ✅ **PRODUCTION-READY** - Code-verified implemented endpoints  
+**Purpose**: Reference documentation for all implemented API endpoints  
 
-> 📋 **Dual-Purpose Document**
-> 
-> **Part I**: ✅ **13 verified working endpoints** (corrected from claimed 18)  
-> **Part II**: 🎯 Planned endpoints - development specifications for future implementation  
+## Overview
 
-## Document Structure
+This document provides comprehensive reference documentation for all **implemented and production-ready endpoints** in the SigmaSight Backend API. All endpoints have been **code-verified** to access database data through direct ORM queries or service layers and are ready for frontend integration.
 
-### ✅ **Part I: Production-Ready Endpoints** 
-- **13 verified working endpoints** returning real database data
-- **Code-verified implementations** with file/function references 
-- **Analytics endpoint confirmed working** (was previously marked as non-existent)
-- **Admin endpoints exist but not registered** in router
-- Ready for frontend integration
-
-### 🎯 **Part II: Planned Endpoints** 
-- Development specifications for future API endpoints
-- Design guidance for analytics, management, export, and system namespaces
-- Implementation roadmap and priorities
-
----
-
-## Strategic Direction
-
-### Namespace Philosophy
-- **`/data/`**: Data for LLM consumption
-- **`/analytics/`**: All calculated metrics and derived values
-- **`/management/`**: Portfolio and position CRUD operations
-- **`/export/`**: Data export and report generation
-- **`/system/`**: System utilities and job management
+### Namespace Organization
+- **`/auth/`**: Authentication and user management
+- **`/data/`**: Raw data endpoints optimized for LLM consumption
+- **`/analytics/`**: Calculated metrics and derived analytics values
+- **`/chat/`**: AI chat conversation management
 
 ### Key Design Principles
-1. **Clear Separation**: Raw data vs. calculated metrics have distinct namespaces
-2. **Self-Documenting**: Endpoint paths immediately convey data type and purpose
+1. **Code-Verified**: All endpoints confirmed through direct code inspection
+2. **Database-Backed**: Real data from PostgreSQL via SQLAlchemy ORM
 3. **LLM-Optimized**: `/data/` endpoints return complete, denormalized datasets
-4. **Consistent Depth**: All major features at the second namespace level
+4. **Self-Documenting**: Endpoint paths clearly convey data type and purpose
 
 ---
 
-# PART I: PRODUCTION-READY ENDPOINTS ✅
+# IMPLEMENTED ENDPOINTS ✅
 
-This section documents the **13 fully implemented and production-ready endpoints** in the SigmaSight Backend API. These endpoints have been **code-verified** to access database data through direct ORM queries or service layers and are ready for frontend integration.
+This section documents all **fully implemented and production-ready endpoints** in the SigmaSight Backend API.
 
 ### Complete Endpoint List
 
@@ -2018,203 +1998,3 @@ curl -X GET "http://localhost:8000/api/v1/analytics/portfolio/e23ab931-a033-edfe
   -H "Authorization: Bearer $TOKEN"
 ```
 
----
-
-# PART II: PLANNED ENDPOINTS 🎯
-
-This section provides development specifications for future API endpoints. These are **NOT YET IMPLEMENTED** but serve as design guidance for development teams.
-
-> ⚠️ **Development Planning Section**
-> 
-> **Status**: Not implemented - design specifications only  
-> **Purpose**: Guide development of analytics, management, export, and system namespaces  
-> **Source**: API_SPECIFICATIONS_V1.4.4.md planned endpoints  
-
-## Namespace Organization
-
-### 🎯 **Planned Namespace Structure**
-- **`/analytics/`**: All calculated metrics and derived values
-- **`/management/`**: Portfolio and position CRUD operations  
-- **`/export/`**: Data export and report generation
-- **`/system/`**: System utilities and job management
-
-
----
-
-## Analytics Endpoints (/analytics/) 🧮
-
-**Status**: 📋 Under Development
-**Priority**: High - Core calculations and derived metrics
-
-
-### Risk Analytics
-
-#### A2. Portfolio Risk Metrics - PARTIALLY IMPLEMENTED BUT NOT TESTED. DECISION (09-07) TO DEFER INDEFINITELY
-```http
-GET /api/v1/analytics/portfolio/{portfolio_id}/risk-metrics
-```
-
-**Purpose**: Calculated risk metrics (beta, volatility, max drawdown)  
-**Implementation Notes**:
-- v1 minimal scope: excludes VaR/Expected Shortfall (planned for v1.1)
-- Benchmark is fixed to SPY (no `benchmark` query param)
-- lookback_days default 90 (bounds 30–252)
-- DB-first (no new regressions in v1):
-  - Portfolio Beta: read from FactorExposure ('Market Beta') — latest on/≤ end of window
-  - Volatility: aggregate from PortfolioSnapshot.daily_return (sample stddev × sqrt(252))
-  - Max Drawdown: compute from PortfolioSnapshot.total_value (running-peak percentage drawdown)
-  - Alignment: snapshot dates only (no forward-fill/interpolation); business days implied
-
-**Parameters**:
-- `lookback_days` (query, optional): default 90; min 30; max 252
-
-**Status**: 🚧 Implemented — Under Testing  
-**File/Function**: `app/api/v1/analytics/portfolio.py:get_portfolio_risk_metrics()`  
-**Service Layer**: `app/services/risk_metrics_service.py:RiskMetricsService.get_portfolio_risk_metrics(...)`
-
-**Response (v1)**:
-```json
-{
-  "available": true,
-  "portfolio_id": "uuid",
-  "risk_metrics": {
-    "portfolio_beta": 0.87,
-    "annualized_volatility": 0.142,
-    "max_drawdown": -0.185
-  },
-  "metadata": {
-    "lookback_days": 90,
-    "date_range": { "start": "2025-06-07", "end": "2025-09-05" },
-    "observations": 230,
-    "calculation_timestamp": "2025-09-07T16:45:12Z",
-    "beta_source": "factor_exposure",
-    "beta_calculation_date": "2025-09-05",
-    "beta_window_days": 150,
-    "warnings": []
-  }
-}
-```
-
-**Missing Data Contract**:
-- `200 OK` with `{ "available": false, "reason": "no_snapshots" }`
-- Partial results (available=true, with nulls) if some metrics cannot be computed; include `metadata.warnings`
-
-**cURL Example**:
-```bash
-TOKEN=$(curl -s -X POST http://localhost:8000/api/v1/auth/login \
-  -H 'Content-Type: application/json' \
-  -d '{"email":"demo_hnw@sigmasight.com","password":"demo12345"}' | jq -r .access_token)
-PID=$(curl -s -H "Authorization: Bearer $TOKEN" http://localhost:8000/api/v1/auth/me | jq -r .portfolio_id)
-curl -s -H "Authorization: Bearer $TOKEN" \
-  "http://localhost:8000/api/v1/analytics/portfolio/$PID/risk-metrics?lookback_days=90" | jq
-```
-
----
-
-## Management Endpoints (/management/) 📋
-
-**Status**: 📋 Planned - Pending Approval - Not Yet Implemented  
-**Priority**: Medium - CRUD operations for portfolios and positions
-
-### Portfolio Management
-
-#### M1. Create Portfolio
-```http
-POST /api/v1/management/portfolios
-```
-
-#### M2. Update Portfolio
-```http
-PUT /api/v1/management/portfolios/{portfolio_id}
-```
-
-#### M3. Delete Portfolio (Soft Delete)
-```http
-DELETE /api/v1/management/portfolios/{portfolio_id}
-```
-
-### Position Management
-
-#### M4. Add Position
-```http
-POST /api/v1/management/portfolios/{portfolio_id}/positions
-```
-
-#### M5. Update Position
-```http
-PUT /api/v1/management/positions/{position_id}
-```
-
-#### M6. Close Position
-```http
-POST /api/v1/management/positions/{position_id}/close
-```
-
-**Implementation Priority**: 
-1. Portfolio CRUD (M1-M3)
-2. Position management (M4-M6)
-3. Batch operations and validation
-
----
-
-
-
-### Implementation Notes
-
-#### Dependencies
-- **Analytics**: Requires completed batch processing infrastructure
-- **Management**: Needs proper authorization and validation frameworks
-- **Export**: Depends on analytics endpoints for calculated data
-- **System**: Can be implemented independently
-
-#### Data Quality Requirements
-- All analytical endpoints must handle graceful degradation for missing data
-- Calculated metrics should include confidence intervals and calculation metadata
-- Real-time vs. cached data strategy needs definition
-
-#### Authentication & Authorization
-- Extend existing JWT authentication to all new endpoints
-- Implement role-based access for management operations
-- Add audit logging for CRUD operations
-
----
-
-## Version History
-
-**V1.4.5** (September 5, 2025)
-- **NEW**: Added Part II - Planned Endpoints development specifications
-- **NEW**: Dual-purpose document structure (Production + Planning)
-- **BREAKING CHANGE**: Restructured from V1.4.4 to focus on implemented vs planned
-- **MAJOR UPDATE**: All 18 documented endpoints in Part I verified with real data (previously claimed only 9)
-- **NEW**: Added comprehensive response examples for all 18 endpoints (16 were missing examples)
-- Updated based on source code verification rather than API_IMPLEMENTATION_STATUS.md
-- Added OpenAPI descriptions, full parameters, and service layer documentation for each endpoint
-- Response examples include realistic data based on SigmaSight's portfolio risk analytics domain
-
-**Previous Versions**
-- V1.4.4: Included mixed implemented/unimplemented endpoints
-- Earlier: Mixed real and mock endpoint documentation
-
----
-
-## Support
-
-### Part I (Production Endpoints)
-For questions about production-ready endpoints:
-1. Verify endpoint status in `API_IMPLEMENTATION_STATUS.md`
-2. Test endpoints using the examples above  
-3. Check server logs for detailed error information
-
-**Server Health Check**: `GET /health` (no authentication required)
-
-### Part II (Planned Endpoints)
-For development planning questions:
-1. Review implementation roadmap and priorities
-2. Check dependencies and requirements before starting development
-3. Update this document as endpoints are implemented
-
----
-
-**Document Status**: ✅ Part I Production Ready | 🎯 Part II Development Planning  
-**Last Verified**: September 18, 2025  
-**Production endpoints confirmed working with real database data**
