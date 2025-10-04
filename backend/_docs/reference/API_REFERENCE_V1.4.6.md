@@ -2016,7 +2016,7 @@ These endpoints manage the **tag entities themselves** - creating, updating, and
 **Database**: `tags_v2` table with user_id, display_order, usage_count, soft delete support
 **Frontend Service**: `src/services/tagsApi.ts` (methods: create, list, update, delete, restore, defaults, reorder, batchUpdate)
 
-**⚠️ Known Limitation**: `usage_count` field currently only counts legacy strategy tags, not position tags. Accurate counting of both sources is **under active development**. See Phase 1.2.5 in TODO4.md for implementation plan.
+**Note**: `usage_count` field accurately counts both position tags (preferred method) and legacy strategy tags.
 
 ### Base Information
 - **Base Path**: `/api/v1/tags`

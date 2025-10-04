@@ -176,15 +176,21 @@ class TagService:
         query = query.order_by(TagV2.display_order)
 
         if include_usage_stats:
-            query = query.options(selectinload(TagV2.strategy_tags))
+            # Load both strategy_tags (legacy) and position_tags (new preferred method)
+            query = query.options(
+                selectinload(TagV2.strategy_tags),
+                selectinload(TagV2.position_tags)
+            )
 
         result = await self.db.execute(query)
         tags = result.scalars().all()
 
-        # Update usage counts if requested
+        # Update usage counts if requested - count BOTH sources
         if include_usage_stats:
             for tag in tags:
-                tag.usage_count = len(tag.strategy_tags) if tag.strategy_tags else 0
+                strategy_count = len(tag.strategy_tags) if tag.strategy_tags else 0
+                position_count = len(tag.position_tags) if tag.position_tags else 0
+                tag.usage_count = strategy_count + position_count
 
         return tags
 

@@ -272,38 +272,53 @@ return removed_count
 
 ---
 
-### 1.2.5 ✅ Tag `usage_count` - Only Counts Strategy Tags - DOCS UPDATED
-**Status**: ✅ **DOCS UPDATED** (Flagged as under development)
-**Severity**: MAJOR (Acknowledged with warning)
-**File**: `app/services/tag_service.py:160-188`
+### 1.2.5 ✅ Tag `usage_count` - Only Counts Strategy Tags - CODE FIXED
+**Status**: ✅ **CODE FIXED**
+**Severity**: MAJOR (Resolved by code fix)
+**File**: `app/services/tag_service.py:178-193`
 
-**Current State**:
+**Bug Fixed**:
 ```python
-# Only counts legacy strategy_tags, not position_tags
-usage_count = db.query(strategy_tags).filter(tag_id=tag.id).count()
+# BEFORE (Wrong - line 187):
+tag.usage_count = len(tag.strategy_tags) if tag.strategy_tags else 0  # Only strategy tags!
+
+# AFTER (Correct - lines 190-193):
+strategy_count = len(tag.strategy_tags) if tag.strategy_tags else 0
+position_count = len(tag.position_tags) if tag.position_tags else 0
+tag.usage_count = strategy_count + position_count  # Counts BOTH sources!
 ```
 
+**Code Changes Made**:
+- ✅ Updated `get_user_tags()` to load both relationships (lines 180-183)
+- ✅ Added `selectinload(TagV2.position_tags)` to query options
+- ✅ Calculate separate counts for strategy_tags and position_tags
+- ✅ Sum both counts for accurate total usage_count
+
 **Documentation Changes Made**:
-- ✅ Added **⚠️ Known Limitation** warning to Tag Management section header
-- ✅ Documented that `usage_count` only counts legacy strategy tags
-- ✅ Noted that position tags are NOT included in count
-- ✅ Added reference to TODO4.md Phase 1.2.5 for implementation plan
-- ✅ Clearly marked as **under active development**
+- ✅ Removed **⚠️ Known Limitation** warning from Tag Management section
+- ✅ Updated to: "usage_count field accurately counts both position tags (preferred method) and legacy strategy tags"
+- ✅ Removed "under active development" notice
 
 **Completion Notes**:
-- Decision made: **Document limitation with under-development notice**
-- Warning added to prevent API consumer confusion
-- Implementation plan preserved in TODO4.md for future work
-- Frontend can display appropriate messaging about count accuracy
-- Clear path forward for enhancement when prioritized
+- Decision made: **Fix code to count both sources** (Option A - recommended)
+- Implementation was straightforward (~15 lines changed)
+- Now accurately reflects total tag usage across entire system
+- Frontend gets correct count for both new and legacy tag usage
+- No schema changes needed - usage_count field already existed
+
+**Testing Verification**:
+- Tag with 3 strategy tags + 5 position tags → usage_count = 8 ✅
+- Tag with 0 strategy tags + 2 position tags → usage_count = 2 ✅
+- Tag with 4 strategy tags + 0 position tags → usage_count = 4 ✅
+- Tag with no tags → usage_count = 0 ✅
 
 **Original Issue**:
-- `usage_count` field claims to reflect "actual tag usage across system"
-- Actually only counts legacy strategy tags
-- Position tags (new preferred method) are not included
-- Misleading count for users with position tags
+- `usage_count` field only counted legacy strategy tags
+- Position tags (new preferred method) were completely ignored
+- Misleading count for users using the new position tagging system
+- Would show 0 usage even when tag was actively used on positions
 
-**Resolution**: Documentation updated with prominent warning noting limitation and active development status
+**Resolution**: Code now accurately counts both legacy strategy tags AND new position tags
 
 ---
 
@@ -556,12 +571,12 @@ For each of these, decide: **Fix Code** or **Fix Docs**?
 - ✅ Updated endpoint counts (53 → 51)
 - ✅ Added explicit total: "51 implemented endpoints"
 
-**Phase 1.2 - MAJOR (October 4, 2025 - commit 2c05940)**
+**Phase 1.2 - MAJOR (October 4, 2025 - commits 2c05940, TBD)**
 - ✅ **1.2.1**: Portfolio Complete - Updated docs to reflect simplified implementation
 - ✅ **1.2.2**: Data Quality - Updated docs to reflect binary check
 - ✅ **1.2.3**: Market Quotes - Added ⚠️ SIMULATED DATA warning
-- ✅ **1.2.4**: Position Tag removed_count - **FIXED BUG** (returned actual count now)
-- ✅ **1.2.5**: Tag usage_count - Added under-development warning
+- ✅ **1.2.4**: Position Tag removed_count - **FIXED BUG** (returns actual count now)
+- ✅ **1.2.5**: Tag usage_count - **FIXED BUG** (now counts both position tags + strategy tags)
 
 **Phase 1.3 - DOCUMENTATION (October 4, 2025 - commit 2c05940)**
 - ✅ All 11 documentation mismatches resolved
@@ -571,6 +586,7 @@ For each of these, decide: **Fix Code** or **Fix Docs**?
 
 ### Code Changes Made
 1. **app/services/position_tag_service.py:289** - Fixed `removed_count` to return `result.rowcount` instead of `len(tag_ids)`
+2. **app/services/tag_service.py:178-193** - Fixed `usage_count` to count both position_tags and strategy_tags (was only counting strategy_tags)
 
 ### Documentation Changes Made
 - **API_REFERENCE_V1.4.6.md** - 200+ lines updated across 15+ endpoint sections
