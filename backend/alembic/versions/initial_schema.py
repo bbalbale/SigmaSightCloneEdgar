@@ -94,6 +94,38 @@ def upgrade() -> None:
     op.create_index('idx_strategies_type', 'strategies', ['strategy_type'])
     op.create_index('idx_strategies_synthetic', 'strategies', ['is_synthetic'])
 
+    # Create positions table (MOVED HERE - must exist before strategy_legs)
+    op.create_table('positions',
+        sa.Column('id', postgresql.UUID(as_uuid=True), nullable=False),
+        sa.Column('portfolio_id', postgresql.UUID(as_uuid=True), nullable=False),
+        sa.Column('symbol', sa.String(length=20), nullable=False),
+        sa.Column('position_type', sa.Enum('LC', 'LP', 'SC', 'SP', 'LONG', 'SHORT', name='positiontype'), nullable=False),
+        sa.Column('quantity', sa.Numeric(precision=16, scale=4), nullable=False),
+        sa.Column('entry_price', sa.Numeric(precision=12, scale=4), nullable=False),
+        sa.Column('entry_date', sa.Date(), nullable=False),
+        sa.Column('exit_price', sa.Numeric(precision=12, scale=4), nullable=True),
+        sa.Column('exit_date', sa.Date(), nullable=True),
+        sa.Column('underlying_symbol', sa.String(length=10), nullable=True),
+        sa.Column('strike_price', sa.Numeric(precision=12, scale=4), nullable=True),
+        sa.Column('expiration_date', sa.Date(), nullable=True),
+        sa.Column('last_price', sa.Numeric(precision=12, scale=4), nullable=True),
+        sa.Column('market_value', sa.Numeric(precision=16, scale=2), nullable=True),
+        sa.Column('unrealized_pnl', sa.Numeric(precision=16, scale=2), nullable=True),
+        sa.Column('realized_pnl', sa.Numeric(precision=16, scale=2), nullable=True),
+        sa.Column('strategy_id', postgresql.UUID(as_uuid=True), nullable=False),
+        sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
+        sa.Column('updated_at', sa.DateTime(timezone=True), nullable=False),
+        sa.Column('deleted_at', sa.DateTime(timezone=True), nullable=True),
+        sa.ForeignKeyConstraint(['portfolio_id'], ['portfolios.id'], ),
+        sa.ForeignKeyConstraint(['strategy_id'], ['strategies.id'], ),
+        sa.PrimaryKeyConstraint('id')
+    )
+    op.create_index('ix_positions_portfolio_id', 'positions', ['portfolio_id'], unique=False)
+    op.create_index('ix_positions_symbol', 'positions', ['symbol'], unique=False)
+    op.create_index('ix_positions_deleted_at', 'positions', ['deleted_at'], unique=False)
+    op.create_index('ix_positions_exit_date', 'positions', ['exit_date'], unique=False)
+    op.create_index('ix_positions_strategy', 'positions', ['strategy_id'], unique=False)
+
     op.create_table('strategy_legs',
         sa.Column('strategy_id', postgresql.UUID(as_uuid=True), nullable=False),
         sa.Column('position_id', postgresql.UUID(as_uuid=True), nullable=False),
@@ -139,40 +171,6 @@ def upgrade() -> None:
     )
     op.create_index('idx_strategy_tags_strategy', 'strategy_tags', ['strategy_id'])
     op.create_index('idx_strategy_tags_tag', 'strategy_tags', ['tag_id'])
-
-    # Create positions table
-    op.create_table('positions',
-        sa.Column('id', postgresql.UUID(as_uuid=True), nullable=False),
-        sa.Column('portfolio_id', postgresql.UUID(as_uuid=True), nullable=False),
-        sa.Column('symbol', sa.String(length=20), nullable=False),
-        sa.Column('position_type', sa.Enum('LC', 'LP', 'SC', 'SP', 'LONG', 'SHORT', name='positiontype'), nullable=False),
-        sa.Column('quantity', sa.Numeric(precision=16, scale=4), nullable=False),
-        sa.Column('entry_price', sa.Numeric(precision=12, scale=4), nullable=False),
-        sa.Column('entry_date', sa.Date(), nullable=False),
-        sa.Column('exit_price', sa.Numeric(precision=12, scale=4), nullable=True),
-        sa.Column('exit_date', sa.Date(), nullable=True),
-        sa.Column('underlying_symbol', sa.String(length=10), nullable=True),
-        sa.Column('strike_price', sa.Numeric(precision=12, scale=4), nullable=True),
-        sa.Column('expiration_date', sa.Date(), nullable=True),
-        sa.Column('last_price', sa.Numeric(precision=12, scale=4), nullable=True),
-        sa.Column('market_value', sa.Numeric(precision=16, scale=2), nullable=True),
-        sa.Column('unrealized_pnl', sa.Numeric(precision=16, scale=2), nullable=True),
-        sa.Column('realized_pnl', sa.Numeric(precision=16, scale=2), nullable=True),
-        sa.Column('strategy_id', postgresql.UUID(as_uuid=True), nullable=False),
-        sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
-        sa.Column('updated_at', sa.DateTime(timezone=True), nullable=False),
-        sa.Column('deleted_at', sa.DateTime(timezone=True), nullable=True),
-        sa.ForeignKeyConstraint(['portfolio_id'], ['portfolios.id'], ),
-        sa.ForeignKeyConstraint(['strategy_id'], ['strategies.id'], ),
-        sa.PrimaryKeyConstraint('id')
-    )
-    op.create_index('ix_positions_portfolio_id', 'positions', ['portfolio_id'], unique=False)
-    op.create_index('ix_positions_symbol', 'positions', ['symbol'], unique=False)
-    op.create_index('ix_positions_deleted_at', 'positions', ['deleted_at'], unique=False)
-    op.create_index('ix_positions_exit_date', 'positions', ['exit_date'], unique=False)
-
-    # Index for strategy reference
-    op.create_index('ix_positions_strategy', 'positions', ['strategy_id'], unique=False)
 
     # Create market_data_cache table
     op.create_table('market_data_cache',
@@ -320,7 +318,7 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    # Drop all tables in reverse order
+    # Drop all tables in reverse order (respecting foreign key dependencies)
     op.drop_table('batch_job_schedules')
     op.drop_table('batch_jobs')
     op.drop_table('portfolio_snapshots')
@@ -328,11 +326,12 @@ def downgrade() -> None:
     op.drop_table('factor_definitions')
     op.drop_table('position_greeks')
     op.drop_table('market_data_cache')
-    op.drop_table('positions')
-    op.drop_table('strategy_tags')
-    op.drop_table('strategy_metrics')
-    op.drop_table('strategy_legs')
-    op.drop_table('strategies')
+    # Drop FK-dependent tables first
+    op.drop_table('strategy_legs')        # FK to positions - drop first
+    op.drop_table('strategy_tags')        # FK to strategies
+    op.drop_table('strategy_metrics')     # FK to strategies
+    op.drop_table('positions')            # FK to strategies - drop after strategy_legs
+    op.drop_table('strategies')           # Drop after all dependents
     op.drop_table('tags_v2')
     op.drop_table('portfolios')
     op.drop_table('users')
