@@ -64,7 +64,7 @@ cd /Users/elliottng/CascadeProjects/SigmaSight-BE/backend
 # Verify database is running
 docker ps | grep postgres
 
-# Verify API server is running  
+# Verify API server is running
 curl http://localhost:8000/health
 
 # Verify demo accounts exist
@@ -101,7 +101,7 @@ Create a client info JSON file for consistency:
 
 ```json
 {
-    "email": "john.smith@example.com", 
+    "email": "john.smith@example.com",
     "full_name": "John Smith",
     "password": "secure_client_password_123",
     "portfolio_name": "John Smith Investment Portfolio",
@@ -152,7 +152,7 @@ Based on existing `seed_demo_portfolios.py` pattern:
 ```python
 async def create_client_account(db: AsyncSession, client_info: dict) -> tuple[UUID, UUID]:
     """Create new client account with user and portfolio"""
-    
+
     # Create user
     hashed_password = get_password_hash(client_info["password"])
     user = User(
@@ -163,7 +163,7 @@ async def create_client_account(db: AsyncSession, client_info: dict) -> tuple[UU
         is_active=True
     )
     db.add(user)
-    
+
     # Create portfolio
     portfolio = Portfolio(
         id=generate_deterministic_uuid(f"{client_info['email']}_portfolio"),
@@ -173,7 +173,7 @@ async def create_client_account(db: AsyncSession, client_info: dict) -> tuple[UU
         currency=client_info.get("currency", "USD")
     )
     db.add(portfolio)
-    
+
     await db.commit()
     return user.id, portfolio.id
 ```
@@ -203,14 +203,14 @@ TSLA,-300,250.00,SHORT,2024-02-01,"Short Value Traps",,,
 - `entry_date`: YYYY-MM-DD format
 - `tags`: Comma-separated tags for categorization
 - `underlying_symbol`: (Options only) Underlying symbol - **MUST BE BLANK for equities**
-- `strike_price`: (Options only) Strike price - **MUST BE BLANK for equities**  
+- `strike_price`: (Options only) Strike price - **MUST BE BLANK for equities**
 - `expiration_date`: (Options only) Expiration date YYYY-MM-DD - **MUST BE BLANK for equities**
 
 **Important**: For equity positions (LONG/SHORT), always leave the option fields (`underlying_symbol`, `strike_price`, `expiration_date`) completely empty to avoid parsing issues.
 
 **Position Type Mapping:**
 - `LONG`: Long Stock
-- `SHORT`: Short Stock  
+- `SHORT`: Short Stock
 - `LC`: Long Call
 - `LP`: Long Put
 - `SC`: Short Call
@@ -237,26 +237,26 @@ Following the existing demo portfolio structure:
 
 ```python
 async def import_positions_from_csv(
-    db: AsyncSession, 
-    portfolio_id: UUID, 
+    db: AsyncSession,
+    portfolio_id: UUID,
     csv_file_path: str
 ) -> List[Position]:
     """Import positions from CSV file"""
-    
+
     # Get user_id from portfolio for tag association
     portfolio_result = await db.execute(select(Portfolio).where(Portfolio.id == portfolio_id))
     portfolio = portfolio_result.scalar_one()
     user_id = portfolio.user_id
-    
+
     positions = []
-    
+
     with open(csv_file_path, 'r') as file:
         reader = csv.DictReader(file)
-        
+
         for row in reader:
             # Parse position type
             position_type = parse_position_type(row['position_type'])
-            
+
             # Create position
             position = Position(
                 id=uuid4(),  # Use random UUID for positions
@@ -267,7 +267,7 @@ async def import_positions_from_csv(
                 position_type=position_type,
                 entry_date=datetime.strptime(row['entry_date'], '%Y-%m-%d').date()
             )
-            
+
             # Handle options metadata (if present and not empty)
             if row.get('underlying_symbol'):
                 position.underlying_symbol = row['underlying_symbol']
@@ -275,17 +275,17 @@ async def import_positions_from_csv(
                 position.strike_price = Decimal(row['strike_price'])
             if row.get('expiration_date'):
                 position.expiration_date = datetime.strptime(row['expiration_date'], '%Y-%m-%d').date()
-            
+
             db.add(position)
             positions.append(position)
-            
+
             # Process tags
             if row['tags']:
                 tag_names = [tag.strip() for tag in row['tags'].split(',')]
                 for tag_name in tag_names:
                     tag = await get_or_create_tag(db, tag_name, user_id)
                     position.tags.append(tag)  # Many-to-many relationship
-    
+
     await db.commit()
     return positions
 
@@ -293,7 +293,7 @@ def parse_position_type(position_type_str: str) -> PositionType:
     """Convert string to PositionType enum"""
     mapping = {
         'LONG': PositionType.LONG,
-        'SHORT': PositionType.SHORT, 
+        'SHORT': PositionType.SHORT,
         'LC': PositionType.LC,
         'SC': PositionType.SC,
         'LP': PositionType.LP,
@@ -334,31 +334,31 @@ async def backfill_portfolio_market_data(
     lookback_days: int = 730  # 2 years default
 ) -> Dict[str, Any]:
     """Backfill market data for all positions in portfolio"""
-    
+
     results = {
         "symbols_processed": [],
         "symbols_failed": [],
         "data_points_added": 0
     }
-    
+
     # Get all unique symbols from portfolio
     symbols = await get_portfolio_symbols(portfolio_id)
-    
+
     # Process each symbol
     for symbol in symbols:
         try:
             # Check existing data coverage
             data_gap = await check_market_data_coverage(symbol, lookback_days)
-            
+
             if data_gap:
                 # Fetch missing data from FMP/Polygon
                 await fetch_historical_data(symbol, data_gap)
                 results["symbols_processed"].append(symbol)
-                
+
         except Exception as e:
             logger.error(f"Failed to backfill {symbol}: {e}")
             results["symbols_failed"].append(symbol)
-    
+
     return results
 
 # Execute market data backfill
@@ -390,7 +390,7 @@ uv run python scripts/run_batch_with_reports.py --portfolio <portfolio_id>
 ### Calculation Engines Executed
 
 1. **Market Data Cache**: Daily price updates
-2. **Position Greeks**: ⚠️ **Currently disabled** in BatchOrchestratorV2  
+2. **Position Greeks**: ⚠️ **Currently disabled** in BatchOrchestratorV2
 3. **Factor Exposures**: Risk factor analysis
 4. **Portfolio Snapshots**: Daily portfolio state
 5. **Correlation Analysis**: Inter-position correlations
@@ -405,13 +405,13 @@ uv run python scripts/run_batch_with_reports.py --portfolio <portfolio_id>
 async def monitor_batch_progress(portfolio_id: UUID) -> Dict[str, Any]:
     """Monitor batch calculation progress"""
     from app.batch.batch_orchestrator_v2 import BatchOrchestratorV2
-    
+
     orchestrator = BatchOrchestratorV2()
     status = await orchestrator.run_daily_batch_sequence(
         portfolio_id=str(portfolio_id),
         run_correlations=True  # Enable full correlation matrix
     )
-    
+
     return {
         "engines_completed": len([r for r in status if r["status"] == "success"]),
         "engines_failed": len([r for r in status if r["status"] == "failed"]),
@@ -424,7 +424,7 @@ async def monitor_batch_progress(portfolio_id: UUID) -> Dict[str, Any]:
 
 After successful batch execution, verify:
 - ⚠️ Greeks calculations **currently disabled** in BatchOrchestratorV2 (line 177)
-- ✅ Factor exposures for all equity positions  
+- ✅ Factor exposures for all equity positions
 - ✅ Correlation matrix with adequate data coverage
 - ✅ Portfolio snapshots for last 30 days
 - ✅ Stress test scenarios executed
@@ -483,7 +483,7 @@ docker run -d -p 3005:3005 --name frontend sigmasight-frontend
 - ✅ Charts and visualizations display
 - ✅ No console errors in browser DevTools
 
-### 3. Chat Interface Verification  
+### 3. Chat Interface Verification
 
 Test AI chat functionality:
 
@@ -518,7 +518,7 @@ uv run python scripts/check_database_content.py  # Check database state
 
 **Data Quality Metrics:**
 - **Market Data Coverage**: >95% for last 90 days
-- **Calculation Completeness**: All engines successful  
+- **Calculation Completeness**: All engines successful
 - **Position Accuracy**: CSV import matches DB positions
 - **Risk Metrics**: All major metrics calculated
 - **Performance**: API response times <500ms
@@ -531,7 +531,7 @@ uv run python scripts/check_database_content.py  # Check database state
 
 #### Issue: "Portfolio not found" in frontend
 **Cause**: Portfolio ID not properly resolved or authentication issue
-**Solution**: 
+**Solution**:
 ```bash
 # Verify portfolio exists and user has access
 uv run python -c "
@@ -550,7 +550,7 @@ asyncio.run(check())
 "
 ```
 
-#### Issue: Missing market data for positions  
+#### Issue: Missing market data for positions
 **Cause**: API rate limits, invalid symbols, or provider issues
 **Solution**:
 ```bash
@@ -566,7 +566,7 @@ uv run python scripts/check_historical_data_coverage.py  # For coverage analysis
 
 #### Issue: Batch calculations failing
 **Cause**: Missing dependencies, async/sync mixing, or data quality issues
-**Solution**: 
+**Solution**:
 ```bash
 # Run diagnostic checks
 uv run python scripts/analyze_demo_calculation_engine_failures.py  # Diagnose batch issues
@@ -662,7 +662,7 @@ The onboarding process requires creating custom scripts that combine existing fu
    - Reference `scripts/check_database_content.py` for verification
    - Integrate with `app.batch.batch_orchestrator_v2.BatchOrchestratorV2`
 
-2. **`scripts/verify_client.py`** - End-to-end verification script  
+2. **`scripts/verify_client.py`** - End-to-end verification script
    - Use patterns from `scripts/verify_demo_portfolios.py`
    - Reference `scripts/test_api_endpoints.sh` for API testing
    - Check `scripts/analyze_demo_calculation_engine_failures.py` for diagnostics
@@ -680,7 +680,7 @@ The onboarding process requires creating custom scripts that combine existing fu
 This onboarding process provides a complete workflow for transforming a client's CSV portfolio data into a fully functional SigmaSight analytics platform. The process emphasizes:
 
 - **Data Integrity**: Comprehensive validation at each step
-- **Error Recovery**: Graceful handling of failures with retry capabilities  
+- **Error Recovery**: Graceful handling of failures with retry capabilities
 - **Verification**: End-to-end testing of both backend and frontend functionality
 - **Production Ready**: Security and scalability considerations built-in
 
@@ -704,7 +704,7 @@ This onboarding process integrates seamlessly with the initial setup workflow:
 
 2. **Then**: Use this guide for client onboarding
    - ✅ New client account creation
-   - ✅ CSV portfolio import  
+   - ✅ CSV portfolio import
    - ✅ Market data backfill
    - ✅ Frontend verification
 

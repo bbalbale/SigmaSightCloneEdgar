@@ -77,7 +77,7 @@ This document tracks Phase 3.0 (API Development) and future phases of the SigmaS
 
 ### 🎯 Implementation Priority:
 1. **Authentication** - Required for all endpoints
-2. **Raw Data APIs** (/data/) - Foundation for LLM testing  
+2. **Raw Data APIs** (/data/) - Foundation for LLM testing
 3. **Analytics APIs** (/analytics/) - Leverage existing calculations
 4. **Management APIs** (/management/) - CRUD operations
 5. **Export APIs** (/export/) - Reports and data export
@@ -201,7 +201,7 @@ This document tracks Phase 3.0 (API Development) and future phases of the SigmaS
 
 ##### 5. GET /api/v1/data/prices/historical
 - [x] ✅ Endpoint returns 200 OK
-- [x] ✅ Returns data for all portfolio symbols  
+- [x] ✅ Returns data for all portfolio symbols
 - [x] ✅ OHLCV data structure complete
 - [x] ✅ Covers 90+ days of data
 - [x] ✅ **REAL DATA** - Fixed 2025-08-26: Now uses 292 days from MarketDataCache
@@ -271,7 +271,7 @@ This document tracks Phase 3.0 (API Development) and future phases of the SigmaS
 ### 3.0.2.3 UTC ISO 8601 Date/Time Standardization (Priority for Agent Integration)
 *Standardize all datetime outputs to UTC ISO 8601 format for consistency across APIs*
 
-**Added: 2025-08-26 19:15 PST**  
+**Added: 2025-08-26 19:15 PST**
 **Risk Assessment Completed: 2025-08-27** - Overall Risk: **LOW-MEDIUM** (See UTC_ISO8601_RISK_ASSESSMENT.md)
 
 #### Problem Statement
@@ -303,11 +303,11 @@ This inconsistency causes issues for:
   ```python
   from datetime import datetime, date
   from typing import Optional, Any, Dict
-  
+
   def utc_now() -> datetime:
       """Get current UTC time (replaces datetime.now())"""
       return datetime.utcnow()
-  
+
   def to_utc_iso8601(dt: Optional[datetime]) -> Optional[str]:
       """Convert any datetime to UTC ISO 8601 with Z suffix"""
       if dt is None:
@@ -317,16 +317,16 @@ This inconsistency causes issues for:
           return dt.isoformat() + "Z"
       # Convert timezone-aware to UTC
       return dt.replace(tzinfo=None).isoformat() + "Z"
-      
+
   def to_iso_date(d: Optional[date]) -> Optional[str]:
       """Convert date to ISO 8601 date string"""
       return d.isoformat() if d else None
-      
+
   def standardize_datetime_dict(data: Dict[str, Any]) -> Dict[str, Any]:
       """Recursively standardize all datetime fields in a dict"""
       # Implementation with field detection logic
   ```
-  
+
 - [x] **Create comprehensive test suite FIRST**: ✅ **COMPLETED**
   - [x] `tests/test_datetime_utils.py` - Unit tests for utility functions (40 tests passing)
   - [ ] `tests/test_datetime_consistency.py` - Integration tests for all endpoints
@@ -359,7 +359,7 @@ This inconsistency causes issues for:
   - [x] Standardize all `calculated_at` fields in calculations module ✅
   - [x] Update batch processing timestamp handling ✅
   - [x] Fix cache timestamp comparisons (use UTC) ✅
-  
+
 - [x] **Add service layer tests**: ✅ **COMPLETED**
   - [x] Test date comparisons work correctly with UTC ✅
   - [x] Verify cache invalidation timing ✅
@@ -372,7 +372,7 @@ This inconsistency causes issues for:
   ```python
   # app/schemas/base.py
   from app.core.datetime_utils import to_utc_iso8601
-  
+
   class BaseSchema(BaseModel):
       model_config = ConfigDict(
           json_encoders={
@@ -409,7 +409,7 @@ This inconsistency causes issues for:
 
 - [ ] **Update remaining namespaces**:
   - [ ] Analytics endpoints (when implemented)
-  - [ ] Management endpoints (when implemented)  
+  - [ ] Management endpoints (when implemented)
   - [ ] Export endpoints (when implemented)
   - [ ] System endpoints (when implemented)
 
@@ -424,7 +424,7 @@ This inconsistency causes issues for:
   - [ ] Validate with all 3 demo portfolios
   - [ ] Test with Agent/LLM consumption
   - [ ] Frontend integration testing
-  
+
 - [ ] **Performance monitoring**:
   - [ ] Monitor API response times
   - [ ] Check for increased error rates
@@ -513,26 +513,26 @@ return standardize_datetime_dict(response)
 
 #### 3.0.3.1 Portfolio Overview API
 - [x] **3.0.3.1 GET /api/v1/analytics/portfolio/{id}/overview** - Portfolio metrics - ✅ **COMPLETED**
-  
+
   **Implementation Specification:**
   - **Service Layer**: Use existing `PortfolioDataService` + new `PortfolioAnalyticsService`
-  - **Database Tables**: 
+  - **Database Tables**:
     - `portfolios` (metadata), `positions` (holdings), `position_greeks` (options data)
     - `position_factor_exposures` (factor analysis), `portfolio_aggregations` (cached totals)
   - **Data Access**: Direct ORM queries with async/await patterns
   - **Response Format**: Portfolio dashboard metrics with exposures, P&L, position counts
   - **Performance**: <500ms target, 5-minute cache TTL for expensive calculations
   - **Error Handling**: Graceful degradation for missing calculation data
-  
+
   **Technical Tasks:**
   - [x] Create `app/services/portfolio_analytics_service.py`
-  - [x] Add `app/api/v1/analytics/__init__.py` and `portfolio.py` router  
+  - [x] Add `app/api/v1/analytics/__init__.py` and `portfolio.py` router
   - [x] Create Pydantic schemas in `app/schemas/analytics.py`
   - [x] Add endpoint: `GET /analytics/portfolio/{portfolio_id}/overview`
   - [x] Register router in main application
   - [x] Test with demo portfolios and validate response format
   - [x] Add authentication and portfolio ownership validation
-  
+
   **✅ COMPLETION NOTES (2025-01-15)**:
   - **Files Created**: `PortfolioAnalyticsService`, analytics router structure, Pydantic schemas
   - **Database Integration**: Uses `get_db()` dependency with correct field mappings (`entry_price`, `close`)
@@ -540,7 +540,7 @@ return standardize_datetime_dict(response)
   - **Error Handling**: Fixed import issues, database session handling, field name mismatches
   - **Performance**: Service layer with graceful degradation for missing calculation data
   - **Status**: Endpoint functional at `/api/v1/analytics/portfolio/{portfolio_id}/overview`
-  
+
   **Response Schema** (based on API_SPECIFICATIONS_V1.4.5.md):
   ```json
   {
@@ -594,7 +594,7 @@ return standardize_datetime_dict(response)
 
 #### 3.0.3.10 Correlation Matrix API - ✅ COMPLETED
 - [x] Endpoint: `GET /api/v1/analytics/portfolio/{portfolio_id}/correlation-matrix` — Position pairwise correlation matrix
-  
+
   Prompt Inputs (see `backend/IMPLEMENT_NEW_API_PROMPT.md`):
   - Endpoint ID: 3.0.3.10
   - Path/Method: GET `/api/v1/analytics/portfolio/{portfolio_id}/correlation-matrix`
@@ -638,42 +638,42 @@ return standardize_datetime_dict(response)
   - Performance: < 100ms response time
   - Fixed `Position.is_closed` issue by using `Position.exit_date.is_(None)`
   - Function location: `app/api/v1/analytics/portfolio.py` lines 80-147
-  
+
   **Files and Objects Modified for Code Review**:
-  
+
   1. **app/api/v1/analytics/portfolio.py**
      - Added imports: `Query` from fastapi, `time` module, `CorrelationMatrixResponse`, `CorrelationService`
      - Added function: `get_correlation_matrix()` (lines 80-147)
      - HTTP endpoint: GET `/portfolio/{portfolio_id}/correlation-matrix`
-  
+
   2. **app/api/v1/analytics/router.py**
      - Removed import: `from app.api.v1.analytics.correlation import router as correlation_router`
      - Removed router registration: `router.include_router(correlation_router)`
-  
+
   3. **app/schemas/analytics.py**
      - Added class: `CorrelationMatrixData` (Pydantic model)
      - Added class: `CorrelationMatrixResponse` (Pydantic model)
      - Response schema structure: `{available, data: {matrix, average_correlation}, metadata}`
-  
+
   4. **app/services/correlation_service.py**
      - Added method: `get_matrix()` (lines 652-773)
      - Fixed bug: Changed `Position.is_closed == False` to `Position.exit_date.is_(None)` (line 718)
      - Method returns: Dict with correlation matrix or unavailable status
-  
+
   5. **app/api/v1/analytics/correlation.py**
      - File deleted (was created initially but removed per requirements)
-  
+
   6. **Test Files Created** (for manual testing, can be removed):
      - `test_correlation_api.py` - Direct service testing
      - `test_correlation_endpoint.py` - HTTP endpoint testing
      - `get_demo_portfolio.py` - Helper to get portfolio IDs
-  
+
   **Database Tables Accessed** (read-only):
   - `correlation_calculations` - Latest calculation lookup
   - `pairwise_correlations` - Correlation values retrieval
   - `positions` - Current position weights
   - `portfolios` - Ownership validation
-  
+
   **Key Dependencies**:
   - FastAPI decorators and dependencies
   - SQLAlchemy async ORM queries
@@ -699,7 +699,7 @@ return standardize_datetime_dict(response)
 
   Resolution Summary:
   - The code review incorrectly stated the endpoint was missing
-  - The endpoint actually existed but had a metadata validation error  
+  - The endpoint actually existed but had a metadata validation error
   - Fixed all issues and endpoint is now fully functional
 
   Completed Tasks:
@@ -996,7 +996,7 @@ uv run python test_factor_exposures_api.py
 
 **Test Coverage:** 7/7 categories passed
 - Basic functionality: 17 positions with 7 factors each
-- Pagination: Supports limits 5-200, offsets work correctly  
+- Pagination: Supports limits 5-200, offsets work correctly
 - Symbol filtering: CSV filtering functional (AAPL,AMZN tested)
 - Error handling: Proper 422/401/500 responses
 - Performance: ~7ms response time for all request sizes
@@ -1033,7 +1033,7 @@ uv run python test_factor_exposures_api.py
 
 **Testing Requirements:**
 - Test with no stress test results
-- Test with no portfolio snapshot  
+- Test with no portfolio snapshot
 - Test with scenario filtering
 - Test with invalid scenario IDs
 - Test portfolio ownership validation
@@ -1586,7 +1586,7 @@ We will support **BOTH** JWT Bearer tokens AND HTTP-only cookies because:
             token = auth_cookie
         else:
             raise HTTPException(401, "No valid authentication provided")
-        
+
         # Same JWT verification logic regardless of source
         try:
             payload = jwt.decode(token, settings.SECRET_KEY, algorithms=["HS256"])
@@ -1640,7 +1640,7 @@ We will support **BOTH** JWT Bearer tokens AND HTTP-only cookies because:
     curl -c cookies.txt -X POST localhost:8000/api/v1/auth/login \
       -H "Content-Type: application/json" \
       -d '{"email":"demo_individual@sigmasight.com","password":"demo12345"}'
-    
+
     # Use cookie for protected endpoint
     curl -b cookies.txt localhost:8000/api/v1/data/portfolios
     ```
@@ -1676,7 +1676,7 @@ We will support **BOTH** JWT Bearer tokens AND HTTP-only cookies because:
 
 ✅ **Test Results:**
 - Bearer token authentication: Working (logs "method: bearer")
-- Cookie authentication: Working (logs "method: cookie") 
+- Cookie authentication: Working (logs "method: cookie")
 - Precedence: Bearer takes priority when both provided
 - Cookie setting/clearing: Verified working
 
@@ -1744,9 +1744,9 @@ For production deployment with cross-site requirements:
 - [ ] **Streamline README.md** by consolidating existing guides (WINDOWS_SETUP_GUIDE.md, WINDSURF_SETUP.md):
   - [ ] Add unified "5-Minute Quick Start" section at the top
   - [ ] Simplify to: `git clone → docker compose up -d → ./scripts/setup_dev_environment.py`
-  - [ ] Include demo user credentials prominently: 
+  - [ ] Include demo user credentials prominently:
     - `demo_individual@sigmasight.com / demo12345`
-    - `demo_hnw@sigmasight.com / demo12345` 
+    - `demo_hnw@sigmasight.com / demo12345`
     - `demo_hedgefundstyle@sigmasight.com / demo12345`
   - [ ] Move platform-specific details to appendix
 - [ ] **Enhance existing setup guides** rather than creating new ones:
@@ -1884,7 +1884,7 @@ exposure_dollar = float(beta_value) * float(portfolio_value)
   - [ ] Analyze job persistence requirements vs. current MemoryJobStore limitations
 - [ ] **External Job Queue Options**: Research async-native alternatives
   - [ ] **Arq** - Redis-based async job queue, lightweight, FastAPI compatible
-  - [ ] **Dramatiq** - Multi-broker async task queue with Redis/RabbitMQ support  
+  - [ ] **Dramatiq** - Multi-broker async task queue with Redis/RabbitMQ support
   - [ ] **Celery + async workers** - Traditional choice with recent async improvements
   - [ ] **RQ** - Simple Redis-based queue (sync, but could work with adaptation)
 - [ ] **Infrastructure-Based Solutions**: Evaluate platform-native scheduling
@@ -1898,7 +1898,7 @@ exposure_dollar = float(beta_value) * float(portfolio_value)
 
 **Decision Criteria**:
 - [ ] **Async Compatibility**: Native async support without greenlet errors
-- [ ] **Job Persistence**: Survive application restarts and crashes  
+- [ ] **Job Persistence**: Survive application restarts and crashes
 - [ ] **Scalability**: Support multiple app instances and load balancing
 - [ ] **Monitoring**: Job history, failure tracking, alerting capabilities
 - [ ] **Operational Complexity**: Deployment, maintenance, debugging overhead
@@ -1906,19 +1906,19 @@ exposure_dollar = float(beta_value) * float(portfolio_value)
 
 **Deliverables**:
 - [ ] **Technical Comparison Matrix** - Feature comparison across all options
-- [ ] **Architecture Recommendation** - Preferred solution with rationale  
+- [ ] **Architecture Recommendation** - Preferred solution with rationale
 - [ ] **Implementation Plan** - Migration steps from current MemoryJobStore
 - [ ] **Rollback Strategy** - Fallback options if chosen solution has issues
 
 **Notes**: Current MemoryJobStore works for development but lacks production reliability. Decision should balance immediate needs vs. long-term architecture goals.
 
 #### 4.2.4 UUID Serialization Root Cause Investigation
-- [ ] **Investigate asyncpg UUID serialization issue** 
+- [ ] **Investigate asyncpg UUID serialization issue**
   - **Background**: Multiple batch jobs fail with `'asyncpg.pgproto.pgproto.UUID' object has no attribute 'replace'`
   - **Current Status**: Working with pragmatic workaround (detects error and treats job as successful)
   - **Affected Areas Using Workaround**:
     - **Factor Analysis** (`_calculate_factors`) - UUID conversion in fresh DB session
-    - **Market Risk Scenarios** (`_calculate_market_risk`) - UUID conversion for market beta/scenarios  
+    - **Market Risk Scenarios** (`_calculate_market_risk`) - UUID conversion for market beta/scenarios
     - **Stress Testing** (`_run_stress_tests`) - UUID conversion for stress test execution
     - **Portfolio Snapshot** (`_create_snapshot`) - UUID conversion for snapshot creation
     - **Note**: All jobs work correctly when UUID type handling is applied
@@ -2085,7 +2085,7 @@ exposure_dollar = float(beta_value) * float(portfolio_value)
 #### ❌ What's NOT Needed (Can Skip):
 - **Analytics APIs** - LLM agent can calculate from raw data
 - **Management APIs** - Demo data is sufficient for MVP
-- **Export APIs** - Agent can format its own reports  
+- **Export APIs** - Agent can format its own reports
 - **System APIs** - Not needed for prototype
 - **Remaining 27 endpoints** - Can be built after frontend/agent proven
 
@@ -2147,17 +2147,17 @@ missing_symbols = symbols - cached_symbols  # Incorrectly excludes partial data
 1. **Production Code**:
    - `app/batch/market_data_sync.py` - 3 calls (sync_market_data, fetch_missing_historical_data, validate_and_ensure)
    - `app/api/v1/market_data.py` - 1 call (API endpoint)
-   
+
 2. **Test Scripts** (Can Delete if Outdated):
    - `scripts/test_fmp_factor_etf_coverage.py`
-   - `scripts/test_post_yfinance_removal.py` 
+   - `scripts/test_post_yfinance_removal.py`
    - `scripts/backfill_factor_etfs.py`
    - `scripts/test_fmp_hybrid_integration.py`
    - `scripts/test_polygon_connection.py`
    - `scripts/backfill_position_symbols.py`
 
 ##### 6.1.2.4 Task 1: Change from UPSERT to Smart INSERT in `bulk_fetch_and_cache()`
-**File**: `app/services/market_data_service.py`  
+**File**: `app/services/market_data_service.py`
 **Function**: Modify data storage logic in `update_market_data_cache()`
 
 **Current Problem** (line ~607):
@@ -2173,60 +2173,60 @@ stmt = stmt.on_conflict_do_update(  # <-- THIS IS THE PROBLEM!
 **Enhanced Implementation**:
 ```python
 async def bulk_fetch_and_cache(
-    self, 
-    db: AsyncSession, 
+    self,
+    db: AsyncSession,
     symbols: List[str],
     days_back: int = 90  # Keep same parameter name for compatibility
 ) -> Dict[str, Any]:
     """
     Bulk fetch historical data and cache for multiple symbols
-    
+
     ENHANCED BEHAVIOR (internal change only):
     - First run: Fetches initial historical data up to days_back
     - Subsequent runs: Preserves existing data, only fills gaps
     - No longer overwrites older data with UPSERT
     - Accumulates history over time
-    
+
     Args (unchanged):
         db: Database session
         symbols: List of symbols to fetch
         days_back: Target number of days of historical data
-        
+
     Returns (unchanged):
         Summary statistics of the operation
     """
     results = {}
-    
+
     for symbol in symbols:
         # Step 1: Check what dates we already have cached
         existing_dates = await self._get_cached_dates(db, symbol)
-        
+
         # Step 2: Determine target date range
         target_start = date.today() - timedelta(days=days_back)
         target_end = date.today()
-        
+
         # Step 3: Find missing dates (not in cache)
         missing_dates = self._find_missing_trading_days(
             existing_dates, target_start, target_end
         )
-        
+
         # Step 4: Fetch ONLY missing dates from provider
         if missing_dates:
             # Provider handles its own limits (180 days for FMP, etc.)
             new_data = await self.fetch_historical_data_hybrid(
-                [symbol], 
+                [symbol],
                 start_date=min(missing_dates),
                 end_date=max(missing_dates)
             )
-            
+
             # Step 5: INSERT only - preserve existing data!
             await self._insert_only_new_records(db, symbol, new_data[symbol])
-            
+
         results[symbol] = {
             "fetched_records": len(new_data) if date_ranges_to_fetch else 0,
             "total_days_cached": await self._count_cached_days(db, symbol)
         }
-    
+
     return {"symbols_processed": len(symbols), "details": results}
 ```
 
@@ -2240,9 +2240,9 @@ async def _get_cached_dates(self, db: AsyncSession, symbol: str) -> Set[date]:
     )
     result = await db.execute(stmt)
     return set(result.scalars().all())
-    
+
 def _find_missing_trading_days(
-    self, existing_dates: Set[date], 
+    self, existing_dates: Set[date],
     start_date: date, end_date: date
 ) -> List[date]:
     """Find trading days we don't have data for"""
@@ -2253,17 +2253,17 @@ def _find_missing_trading_days(
         if current.weekday() < 5:  # Monday=0, Friday=4
             all_days.append(current)
         current += timedelta(days=1)
-    
+
     # Return days we don't have
     return [d for d in all_days if d not in existing_dates]
-    
+
 async def _insert_only_new_records(
     self, db: AsyncSession, symbol: str, data: List[Dict]
 ):
     """INSERT only - skip conflicts instead of updating"""
     if not data:
         return
-        
+
     # Use ON CONFLICT DO NOTHING instead of DO UPDATE
     stmt = pg_insert(MarketDataCache).values(data)
     stmt = stmt.on_conflict_do_nothing(  # <-- KEY CHANGE!
@@ -2285,22 +2285,22 @@ async def ensure_data_coverage(
     """
     Ensures minimum data coverage for a specific symbol (on-demand)
     Used by API endpoints when user requests data NOW
-    
+
     Args:
         db: Database session
         symbol: Single symbol to check/fetch
         min_days: Minimum days of history required
-        
+
     Returns:
         True if minimum coverage is met (after fetching if needed)
     """
     existing = await self._get_cached_date_range(db, symbol)
-    
+
     if len(existing) < min_days:
         # User needs it NOW - fetch immediately
         await self.bulk_fetch_and_cache(db, [symbol], days_back=min_days)
         existing = await self._get_cached_date_range(db, symbol)
-    
+
     return len(existing) >= min_days
 ```
 
@@ -2310,7 +2310,7 @@ async def analyze_data_coverage(db: AsyncSession) -> dict:
     """
     Comprehensive analysis of MarketDataCache coverage
     Used for monitoring and diagnostics
-    
+
     Returns per symbol:
     - total_trading_days_available
     - continuous_days_from_today
@@ -2462,10 +2462,10 @@ for symbol in symbols:
         )
     )
     count = await db.execute(stmt).scalar()
-    
+
     # Calculate required days (weekdays in range)
     required_days = calculate_trading_days(start_date, end_date)
-    
+
     if count < required_days * 0.8:  # Allow 80% coverage threshold
         symbols_to_fetch.append(symbol)
 ```
@@ -2500,8 +2500,8 @@ async def _get_cached_dates(self, db: AsyncSession, symbol: str) -> set:
 ```python
 # In bulk_fetch_and_cache():
 async def bulk_fetch_and_cache(
-    self, 
-    db: AsyncSession, 
+    self,
+    db: AsyncSession,
     symbols: List[str],
     days_back: int = 90,
     include_gics: bool = False  # Changed default from True
@@ -2514,7 +2514,7 @@ async def bulk_fetch_and_cache(
 
 ##### Fix 4: Simplify Data Source Priority (Keep Current Behavior)
 **Decision**: Keep current INSERT with on_conflict_do_nothing()
-**Rationale**: 
+**Rationale**:
 - Simple to understand and debug
 - First data wins, no complex priority logic needed
 - If we need to refresh, we can manually delete and re-fetch
@@ -2537,9 +2537,9 @@ async def bulk_fetch_and_cache(
 **RESOLVED**: 2025-09-06
 
 #### Problem Details
-**Endpoint**: `/api/v1/analytics/portfolio/{id}/overview`  
-**Method**: GET  
-**Original Status**: ❌ 404 Not Found  
+**Endpoint**: `/api/v1/analytics/portfolio/{id}/overview`
+**Method**: GET
+**Original Status**: ❌ 404 Not Found
 **Current Status**: ✅ Endpoint registered and accessible (has service implementation bug)
 **Root Cause**: Incorrect import in `app/api/v1/router.py`
 
@@ -2584,8 +2584,8 @@ curl -X GET "http://localhost:8000/api/v1/analytics/portfolio/{id}/overview" \
 **RESOLVED**: 2025-09-06
 
 #### Problem Details
-**Endpoint**: `/api/v1/analytics/portfolio/{id}/overview`  
-**Original Errors**: 
+**Endpoint**: `/api/v1/analytics/portfolio/{id}/overview`
+**Original Errors**:
 1. `name 'cost_basis' is not defined` - Line 121
 2. `STOCK` - Invalid PositionType enum value
 **Location**: `app/services/portfolio_analytics_service.py`
@@ -2717,7 +2717,7 @@ uv run python -c "from app.batch.batch_orchestrator_v2 import batch_orchestrator
 
 **Implementation Summary**:
 1. ✅ **Greeks Calculation Disabled** - Commented out in job_sequence (line 177)
-2. ✅ **Correlations Run Daily** - Removed conditional logic, always appended (line 185)  
+2. ✅ **Correlations Run Daily** - Removed conditional logic, always appended (line 185)
 3. ✅ **Report Generation Removed** - Commented out from job_sequence (line 188)
 
 **Verification**:
@@ -2763,7 +2763,7 @@ rm -rf reports/portfolio-*
 # KEEP app/reports/portfolio_report_generator.py
 # This has useful logic that can be adapted for API endpoints:
 # - build_md_report() - For markdown API responses
-# - build_json_report() - For structured API responses  
+# - build_json_report() - For structured API responses
 # - build_csv_report() - For export API endpoints
 ```
 
@@ -2812,7 +2812,7 @@ Implement an API endpoint to run portfolio stress tests (e.g., scenario shocks t
 - System retried 3 times then gave up
 - User saw no response in chat interface
 
-**Root Cause**: 
+**Root Cause**:
 - Bug in `app/agent/services/openai_service.py` in the `stream_responses` method
 - Variable `result_json` was referenced before being initialized in the continuation flow
 - Occurred specifically when handling tool results with OpenAI Responses API
@@ -2913,7 +2913,7 @@ MarketDataService has extensive internal usage and cannot be safely removed:
 
 **Critical Internal Dependencies Found:**
 - `app/batch/batch_orchestrator_v2.py` - Uses `fetch_stock_prices_hybrid()` and `get_cached_prices()`
-- `app/batch/market_data_sync.py` - Heavily uses `bulk_fetch_and_cache()` for ETL operations  
+- `app/batch/market_data_sync.py` - Heavily uses `bulk_fetch_and_cache()` for ETL operations
 - `app/calculations/market_data.py` - Uses price fetching and caching methods
 - Multiple calculation engines depend on MarketDataService for data operations
 
@@ -3014,7 +3014,7 @@ Tests to delete or rewrite
 
 **Add to `scripts/onboard_client.py`:**
 - [ ] **Dry-run mode**: `--dry-run` validates client JSON + CSV and prints intended changes without writing
-- [ ] **Idempotency**: Get-or-create semantics; skip re-import unless `--force` passed  
+- [ ] **Idempotency**: Get-or-create semantics; skip re-import unless `--force` passed
 - [ ] **Duplicate protection**: Guard against duplicate positions on reruns
 - [ ] **Structured logging**: JSON output per step (email, user_id, portfolio_id, step, status, duration, error)
 - [ ] **Rate limiting**: Wrap API calls with per-provider backoff and retry logic
@@ -3029,7 +3029,7 @@ Tests to delete or rewrite
   - **Reference**: `uuid4()` from `uuid` module vs deterministic generation
   - **Environment detection**: Use `app.config.settings` to detect dev vs prod
 - [ ] Add audit logging for all onboarding activities
-  - **Reference patterns**: `app.core.logging.get_logger(__name__)` 
+  - **Reference patterns**: `app.core.logging.get_logger(__name__)`
   - **Log events**: Account creation, CSV import, market data backfill, batch completion
   - **Include**: user_id, portfolio_id, timestamp, step_status, error_details
 - [ ] Create client data backup/restore procedures
