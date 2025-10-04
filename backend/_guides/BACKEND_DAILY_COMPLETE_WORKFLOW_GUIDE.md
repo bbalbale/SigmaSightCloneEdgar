@@ -361,30 +361,16 @@ Expected: 105 target price records (35 symbols × 3 portfolios)
 3. **DO NOT RUN REPORTS** - Use `--skip-reports` flag for all batch operations.
 
 ```bash
-# Run batch processing WITHOUT reports (Mac/Linux)
-uv run python scripts/batch_processing/run_batch_with_reports.py --skip-reports
-
-# Run batch processing WITHOUT reports (Windows - MUST USE UTF-8)
+# Run batch processing WITHOUT reports (ALL PLATFORMS)
 uv run python scripts/batch_processing/run_batch_with_reports.py --skip-reports
 
 # Run batch for specific portfolio WITHOUT reports
-# UTF-8 handling is now built into all scripts (as of 2025-09-11)
-
 # Examples with actual portfolio IDs (ALL PLATFORMS):
+
 # Individual portfolio only
 uv run python scripts/batch_processing/run_batch_with_reports.py --portfolio 1d8ddd95-3b45-0ac5-35bf-cf81af94a5fe --skip-reports
 
-# High Net Worth portfolio only  
-uv run python scripts/batch_processing/run_batch_with_reports.py --portfolio e23ab931-a033-edfe-ed4f-9d02474780b4 --skip-reports
-
-# Hedge Fund portfolio only
-uv run python scripts/batch_processing/run_batch_with_reports.py --portfolio fcd71196-e93e-f000-5a74-31a9eead3118 --skip-reports
-
-# The commands work identically on all platforms now!
-# Individual portfolio only
-uv run python scripts/batch_processing/run_batch_with_reports.py --portfolio 1d8ddd95-3b45-0ac5-35bf-cf81af94a5fe --skip-reports
-
-# High Net Worth portfolio only  
+# High Net Worth portfolio only
 uv run python scripts/batch_processing/run_batch_with_reports.py --portfolio e23ab931-a033-edfe-ed4f-9d02474780b4 --skip-reports
 
 # Hedge Fund portfolio only
@@ -397,7 +383,7 @@ uv run python scripts/batch_processing/run_batch_with_reports.py --portfolio fcd
 3. Greeks calculation (options sensitivities)
 4. Factor analysis (7-factor regression)
 5. Market risk scenarios (±5%, ±10%, ±20%)
-6. Stress testing (15 extreme scenarios)
+6. Stress testing (18 scenarios across 5 categories)
 7. Portfolio snapshots (daily state capture)
 8. Position correlations (relationship analysis)
 9. ~~Report generation~~ (DEPRECATED - use API instead)
@@ -593,10 +579,8 @@ asyncio.run(check())
 
 ### Verify Calculation Results
 ```bash
-# Check if calculations exist for portfolio
-# Windows users: Use UTF-8 encoding for scripts with emoji output
-uv run python scripts/verification/verify_demo_portfolios.py  # Windows
-uv run python scripts/verification/verify_demo_portfolios.py                          # Mac/Linux
+# Check if calculations exist for portfolio (ALL PLATFORMS)
+uv run python scripts/verification/verify_demo_portfolios.py
 
 # Check specific calculation data
 uv run python -c "
@@ -805,7 +789,7 @@ curl -H "Authorization: Bearer $TOKEN" http://localhost:8000/api/v1/data/portfol
 - [ ] ⚠️ Database migrations applied (CRITICAL - check after every pull)
 - [ ] Market data synced
 - [ ] Target prices populated (if using Target Price APIs)
-- [ ] Batch calculations run (Windows: use PYTHONIOENCODING=utf-8)
+- [ ] Batch calculations run
 - [ ] API server started
 - [ ] Agent system verified
 - [ ] ~~Reports generated~~ (SKIP - use API instead)
@@ -822,7 +806,7 @@ curl -H "Authorization: Bearer $TOKEN" http://localhost:8000/api/v1/data/portfol
 - **Agent System**: Uses OpenAI API (check usage/costs)
 - **Batch Processing**: Takes ~60 seconds per portfolio
 - **Database Backups**: Volumes persist between container restarts
-- **⚠️ Unicode on Windows**: ALWAYS use `PYTHONIOENCODING=utf-8` prefix for scripts
+- **✅ Unicode Encoding**: Fixed - scripts now handle UTF-8 automatically on all platforms
 - **⚠️ Database Changes**: ALWAYS run `uv run alembic upgrade head` after pulling code
 - **Equity System**: Portfolios now have equity_balance field for risk calculations
 
