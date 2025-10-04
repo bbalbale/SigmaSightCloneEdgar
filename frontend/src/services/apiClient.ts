@@ -72,7 +72,7 @@ export class ApiClient {
     } = {}
   ) {
     this.baseURL = baseURL.replace(/\/$/, ''); // Remove trailing slash
-    this.defaultTimeout = options.timeout || 10000;
+    this.defaultTimeout = options.timeout || 30000;
     this.defaultRetries = options.retries || 2;
     this.defaultRetryDelay = options.retryDelay || 1000;
   }

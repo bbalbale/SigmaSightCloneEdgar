@@ -514,12 +514,12 @@ async def get_positions_details(
     
     logger.info(f"[{request_id}] [{time.time() - start_time:.2f}s] Market data fetched for {len(market_data_map)} symbols")
 
-    # Batch fetch all company profiles to avoid N+1 queries
-    logger.info(f"[{request_id}] [{time.time() - start_time:.2f}s] Batch fetching company profiles")
+    # Batch fetch company names only (not full profiles for performance)
+    logger.info(f"[{request_id}] [{time.time() - start_time:.2f}s] Batch fetching company names")
     if symbols:
-        profiles_stmt = select(CompanyProfile).where(CompanyProfile.symbol.in_(symbols))
+        profiles_stmt = select(CompanyProfile.symbol, CompanyProfile.company_name).where(CompanyProfile.symbol.in_(symbols))
         profiles_result = await db.execute(profiles_stmt)
-        company_profiles_map = {p.symbol: p for p in profiles_result.scalars().all()}
+        company_profiles_map = {row[0]: row[1] for row in profiles_result.all()}
     else:
         company_profiles_map = {}
 
@@ -583,14 +583,14 @@ async def get_positions_details(
         total_market_value += market_value
         total_unrealized_pnl += unrealized_pnl
             
-        # Get company profile from pre-fetched map
-        company_profile = company_profiles_map.get(position.symbol)
+        # Get company name from pre-fetched map
+        company_name = company_profiles_map.get(position.symbol)
 
         positions_data.append({
             "id": str(position.id),
             "portfolio_id": str(position.portfolio_id),
             "symbol": position.symbol,
-            "company_name": company_profile.company_name if company_profile else None,
+            "company_name": company_name,
             "position_type": position.position_type.value,
             "investment_class": position.investment_class if position.investment_class else "PUBLIC",  # Default to PUBLIC if not set
             "investment_subtype": position.investment_subtype if position.investment_subtype else None,
