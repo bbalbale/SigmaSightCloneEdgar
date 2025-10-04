@@ -357,16 +357,68 @@ uv run pytest --cov=app
 
 ## Deployment
 
-### Development
-- Backend: Local (http://localhost:8000)
-- Frontend: Docker (http://localhost:3005) or npm
-- Database: Docker Compose (PostgreSQL)
+### Development (Local)
+- **Backend**: `uv run python run.py` → http://localhost:8000
+- **Frontend**: `npm run dev` → http://localhost:3005 (or Docker)
+- **Database**: `docker-compose up -d` → PostgreSQL on localhost:5432
 
-### Production (Planned - Phase 2)
-- Platform: Railway
-- Backend: Nixpacks auto-deployment
-- Database: Railway Managed PostgreSQL
-- Environment: Separate dev/staging/prod
+### Production (Docker) ✅ Ready
+
+**Build Docker Image:**
+```bash
+docker build -t sigmasight-backend:prod .
+```
+
+**Run Locally:**
+```bash
+docker run -d -p 8000:8000 \
+  -e DATABASE_URL="postgresql://user:pass@host:port/db" \
+  -e SECRET_KEY="$(openssl rand -hex 32)" \
+  -e POLYGON_API_KEY="your-key" \
+  -e FMP_API_KEY="your-key" \
+  -e OPENAI_API_KEY="your-key" \
+  sigmasight-backend:prod
+```
+
+**Deploy to Railway:**
+```bash
+# Install Railway CLI
+brew install railway
+
+# Login and link
+railway login
+railway link
+
+# Deploy
+railway up --detach
+```
+
+**Deploy to Other Providers:**
+- **AWS ECS/Fargate**: Push to ECR → Create ECS service
+- **Google Cloud Run**: `gcloud run deploy --image ...`
+- **DigitalOcean**: Connect GitHub → Dockerfile auto-detected
+- **Heroku**: `heroku container:push web && heroku container:release web`
+- **Azure Container Apps**: `az containerapp create --image ...`
+
+### Production Environment Variables
+
+**Required:**
+- `DATABASE_URL` - PostgreSQL connection (auto-transformed to asyncpg)
+- `SECRET_KEY` - JWT secret key
+- `POLYGON_API_KEY` - Market data
+- `FMP_API_KEY` - Financial data
+
+**Optional:**
+- `OPENAI_API_KEY` - AI chat
+- `FRED_API_KEY` - Treasury rates
+- `PORT` - Server port (default: 8000)
+
+**Container Features:**
+- ✅ Automatic DATABASE_URL transformation (`postgresql://` → `postgresql+asyncpg://`)
+- ✅ Alembic migrations run on startup
+- ✅ Health check endpoint: `/health`
+- ✅ FastAPI docs: `/docs`
+- ✅ Tested and verified locally
 
 **Deployment Plan**: See `backend/_docs/requirements/Dockerization_and_Deployment_Plan_v1.4.md`
 
