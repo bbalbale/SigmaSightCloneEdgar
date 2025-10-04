@@ -334,7 +334,9 @@ factor_etf_exports/
 
 ## 17. Frontend Cleanup Considerations
 
-**New Frontend Architecture Changes:**
+**Scope:** Frontend cleanup is **OUT OF SCOPE** for this backend repository cleanup effort.
+
+**New Frontend Architecture Changes (Informational Only):**
 - Deleted deprecated: `src/hooks/useStrategies.ts`
 - Added: `src/hooks/usePositionTags.ts`
 - Deleted: `src/components/strategies/` directory
@@ -344,9 +346,9 @@ factor_etf_exports/
 - `_docs/TAGGING_ARCHITECTURE.md` (496 lines)
 - `_docs/CompanyProfilesTableRec.md` (859 lines)
 - `_docs/redotagging.md` (343 lines)
-- `_docs/redo organize` (280 lines) - **Note:** Unusual filename without `.md`
+- `_docs/redo organize` (280 lines) - Unusual filename without `.md`
 
-**Action:** Consider renaming `redo organize` to `redo_organize.md` for consistency.
+**Action:** None - Frontend directory not part of backend cleanup scope.
 
 ---
 
@@ -371,10 +373,9 @@ factor_etf_exports/
 5. Update `.env.example` with current requirements
 
 ### Low Priority
-1. Archive workflow guides
+1. Archive workflow guides (SKIPPED - kept in backend root per user request)
 2. Archive git history snapshots
 3. Consolidate platform-specific docs
-4. Fix `redo organize` filename in frontend
 
 ---
 
