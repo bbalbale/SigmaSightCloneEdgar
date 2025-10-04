@@ -81,6 +81,10 @@ This creates:
   - `demo_hedgefundstyle@sigmasight.com` → Portfolio: `fcd71196-e93e-f000-5a74-31a9eead3118`
 - **All passwords**: `demo12345`
 - **63 positions** across 3 portfolios
+- **8 Factor Definitions** (Market Beta, Momentum, Value, Growth, Quality, Size, Low Volatility, Short Interest)
+- **18 Stress Test Scenarios** across 5 categories (market risk, interest rate risk, factor rotations, volatility risk, historical replays)
+- **Security Master Data** (sector/industry classifications for 43 symbols)
+- **Initial Price Cache** (current prices for all portfolio symbols)
 
 > **Note**: Portfolio IDs are now deterministic and will be identical across all machines. See [SETUP_DETERMINISTIC_IDS.md](../SETUP_DETERMINISTIC_IDS.md) for details.
 
@@ -163,7 +167,7 @@ This will:
 3. ~~Calculate Greeks~~ (Disabled - no reliable options data)
 4. Run factor analysis (7 factors)
 5. Generate market risk scenarios
-6. Run 15 stress test scenarios
+6. Run 18 stress test scenarios (across 5 categories)
 7. Create portfolio snapshots
 8. Calculate correlations (runs daily)
 
@@ -408,7 +412,7 @@ The batch orchestrator runs calculation engines in sequence:
 3. ~~**Greeks Calculation**~~ - Disabled (no reliable options data)
 4. **Factor Analysis** - 7-factor model betas
 5. **Market Risk Scenarios** - ±5%, ±10%, ±20% scenarios
-6. **Stress Testing** - 15 extreme scenarios
+6. **Stress Testing** - 18 scenarios across 5 categories (market, rates, factor rotations, volatility, historical replays)
 7. **Portfolio Snapshot** - Daily state capture
 8. **Correlations** - Now runs daily (not optional)
 
