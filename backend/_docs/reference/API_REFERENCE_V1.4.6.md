@@ -428,55 +428,68 @@ Clears the HTTP-only auth cookie and returns success message. Client should also
 ## B. Data Endpoints
 
 ### 6. Get Portfolios
-**Endpoint**: `GET /data/portfolios`  
-**Status**: ✅ Fully Implemented  
-**File**: `app/api/v1/data.py`  
-**Function**: `get_user_portfolios()`  
-**Authentication**: Required  
-**OpenAPI Description**: "Get all portfolios for authenticated user"  
-**Database Access**: Direct ORM query to `Portfolio` table with `selectinload(Portfolio.positions)` (lines 47-52)  
-**Service Layer**: None - direct database access with manual calculation of total_value  
+**Endpoint**: `GET /data/portfolios`
+**Status**: ✅ Fully Implemented
+**File**: `app/api/v1/data.py`
+**Function**: `get_user_portfolios()` (lines 34-81)
+**Authentication**: Required
+**OpenAPI Description**: "Get all portfolios for authenticated user"
+**Database Access**: Direct ORM query to `Portfolio` table with `selectinload(Portfolio.positions)` (lines 47-52)
+**Service Layer**: None - direct database access with manual calculation of total_value
 
 Returns all portfolios for the authenticated user with real database data.
 
-**Response**:
+**Response** (Bare Array):
 ```json
-{
-  "data": [
-    {
-      "id": "c0510ab8-c6b5-433c-adbc-3f74e1dbdb5e",
-      "name": "Demo High Net Worth Investor Portfolio",
-      "type": "HNW",
-      "created_at": "2025-08-08T12:00:00Z",
-      "positions_count": 21,
-      "total_value": 1662126.38
-    }
-  ]
-}
+[
+  {
+    "id": "c0510ab8-c6b5-433c-adbc-3f74e1dbdb5e",
+    "name": "Demo High Net Worth Investor Portfolio",
+    "description": "HNW portfolio description",
+    "currency": "USD",
+    "created_at": "2025-08-08T12:00:00Z",
+    "updated_at": "2025-09-05T10:00:00Z",
+    "equity_balance": 1662126.38,
+    "position_count": 21
+  }
+]
 ```
 
 ### 6. Get Complete Portfolio
-**Endpoint**: `GET /data/portfolio/{portfolio_id}/complete`  
-**Status**: ✅ Fully Implemented  
-**File**: `app/api/v1/data.py`  
-**Function**: `get_portfolio_complete()`  
-**Authentication**: Required  
-**OpenAPI Description**: "Get complete portfolio data with optional sections"  
-**Database Access**: Direct ORM queries to Portfolio, Position, MarketDataCache tables (lines 97-103, 124+)  
-**Service Layer**: **Minimal usage** - Only uses:
-  - File: `app/services/portfolio_data_service.py`
-  - Class: `PortfolioDataService`
-  - Method: `get_portfolio_overview()` (called at line 788)
-  - Note: Most logic uses direct ORM queries, not service layer  
+**Endpoint**: `GET /data/portfolio/{portfolio_id}/complete`
+**Status**: ✅ Fully Implemented (Simplified)
+**File**: `app/api/v1/data.py`
+**Function**: `get_portfolio_complete()` (lines 83-294)
+**Authentication**: Required
+**OpenAPI Description**: "Get complete portfolio data with optional sections"
+
+**Implementation Notes**:
+- **Simplified in-route implementation** - All logic built directly in endpoint
+- No dedicated service layer orchestration
+- Direct ORM queries for Portfolio and Position tables
+- Basic aggregation and summarization
+- Placeholder timeseries data (not historical)
+- No attribution calculations or advanced analytics
+
+**Database Access**: Direct ORM queries only
+- `Portfolio` table for portfolio details
+- `Position` table for position list
+- `MarketDataCache` for current prices
+- No service layer dependencies
 
 **Parameters**:
 - `portfolio_id` (path): Portfolio UUID
-- `sections` (query, optional): Comma-separated list of sections to include
-- `as_of_date` (query, optional): Date for historical data (YYYY-MM-DD format)
+- `sections` (query, optional): Comma-separated list of sections to include (currently not used)
+- `as_of_date` (query, optional): Date for historical data (currently not implemented)
 
-**Special Notes**: Cash balance calculated as 5% of portfolio value (not stored in database)
+**Current Limitations**:
+- Timeseries data is placeholder only
+- No historical data support (as_of_date ignored)
+- No cash/margin tracking
+- No attribution analysis
+- Simple position aggregation only
 
-**Response**:
+**Response** (Simplified Structure):
 ```json
 {
   "portfolio": {
@@ -501,67 +514,72 @@ Returns all portfolios for the authenticated user with real database data.
   ],
   "summary": {
     "total_value": 1662126.38,
-    "cash_balance": 83106.32,
     "total_pnl": 125432.18,
     "positions_count": 21
-  },
-  "market_data": {
-    "last_updated": "2025-09-05T15:30:00Z",
-    "data_quality": 95.5
   }
 }
 ```
 
 ### 7. Get Data Quality
-**Endpoint**: `GET /data/portfolio/{portfolio_id}/data-quality`  
-**Status**: ✅ Fully Implemented  
-**Authentication**: Required  
-**OpenAPI Description**: "Get data quality metrics for portfolio"  
-**Database Access**: Position, MarketDataCache tables  
-**Service Layer**: Direct ORM queries  
+**Endpoint**: `GET /data/portfolio/{portfolio_id}/data-quality`
+**Status**: ✅ Fully Implemented (Binary Check)
+**File**: `app/api/v1/data.py`
+**Function**: `get_data_quality()` (lines 295-379)
+**Authentication**: Required
+**OpenAPI Description**: "Get data quality metrics for portfolio"
+
+**Implementation Notes**:
+- **Binary heuristic check** - Simple pass/fail per position
+- Checks if historical price data exists (150 days or 0 days)
+- No overall quality scoring system
+- No recommendations engine
+- No detailed metric breakdowns
+
+**Database Access**: Direct ORM queries
+- `Position` table for position list
+- `MarketDataCache` for price data availability check
+- No service layer dependencies
 
 **Parameters**:
 - `portfolio_id` (path): Portfolio UUID
 
-**Response**:
+**Current Limitations**:
+- No overall portfolio quality score (0-100)
+- No completeness, recency, or accuracy metrics
+- No specific recommendations
+- No data provider coverage analysis
+- Simple binary check only: has data or doesn't
+
+**Response** (Simplified Structure):
 ```json
 {
   "portfolio_id": "c0510ab8-c6b5-433c-adbc-3f74e1dbdb5e",
-  "overall_score": 95.5,
-  "metrics": {
-    "price_coverage": {
-      "score": 98.0,
-      "total_positions": 21,
-      "positions_with_prices": 21,
-      "missing_prices": 0
+  "positions": [
+    {
+      "position_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+      "symbol": "AAPL",
+      "has_price_data": true,
+      "data_points": 150
     },
-    "data_freshness": {
-      "score": 93.0,
-      "last_updated": "2025-09-05T15:30:00Z",
-      "hours_since_update": 2.5
-    },
-    "greeks_coverage": {
-      "score": 85.0,
-      "options_positions": 8,
-      "positions_with_greeks": 7,
-      "missing_greeks": 1
+    {
+      "position_id": "b2c3d4e5-f6g7-8901-bcde-fg2345678901",
+      "symbol": "TSLA",
+      "has_price_data": false,
+      "data_points": 0
     }
-  },
-  "recommendations": [
-    "Update options Greeks for SPY position",
-    "Refresh intraday prices during market hours"
-  ],
-  "last_assessed": "2025-09-05T18:00:00Z"
+  ]
 }
 ```
 
 ### 8. Get Position Details
-**Endpoint**: `GET /data/positions/details`  
-**Status**: ✅ Fully Implemented  
-**Authentication**: Required  
-**OpenAPI Description**: "Get detailed position information with P&L calculations"  
-**Database Access**: Position, MarketDataCache tables  
-**Service Layer**: Direct ORM queries with P&L calculations  
+**Endpoint**: `GET /data/positions/details`
+**Status**: ✅ Fully Implemented
+**File**: `app/api/v1/data.py`
+**Function**: `get_position_details()` (lines 433-626)
+**Authentication**: Required
+**OpenAPI Description**: "Get detailed position information with P&L calculations"
+**Database Access**: Position, MarketDataCache tables
+**Service Layer**: Direct ORM queries with P&L calculations
 
 **Parameters**:
 - `portfolio_id` (query): Portfolio UUID
@@ -571,7 +589,7 @@ Returns all portfolios for the authenticated user with real database data.
 **Response**:
 ```json
 {
-  "data": [
+  "positions": [
     {
       "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
       "symbol": "AAPL",
@@ -582,8 +600,6 @@ Returns all portfolios for the authenticated user with real database data.
       "market_value": 17525.00,
       "unrealized_pnl": 1525.00,
       "unrealized_pnl_percent": 9.53,
-      "day_change": 285.00,
-      "day_change_percent": 1.65,
       "created_at": "2025-08-15T10:30:00Z",
       "updated_at": "2025-09-05T15:30:00Z"
     },
@@ -597,8 +613,6 @@ Returns all portfolios for the authenticated user with real database data.
       "market_value": 2100.00,
       "unrealized_pnl": 675.00,
       "unrealized_pnl_percent": 47.37,
-      "day_change": 125.00,
-      "day_change_percent": 6.33,
       "created_at": "2025-08-20T14:15:00Z",
       "updated_at": "2025-09-05T15:30:00Z"
     }
@@ -616,18 +630,21 @@ Returns all portfolios for the authenticated user with real database data.
 ```
 
 ### 9. Get Historical Prices
-**Endpoint**: `GET /data/prices/historical/{symbol_or_position_id}`  
-**Status**: ✅ Fully Implemented  
-**Authentication**: Required  
-**OpenAPI Description**: "Get historical price data for symbol or position"  
-**Database Access**: MarketDataCache table  
+**Endpoint**: `GET /data/prices/historical/{portfolio_id}`
+**Status**: ✅ Fully Implemented
+**File**: `app/api/v1/data.py`
+**Function**: `get_historical_prices()` (lines 627-722)
+**Authentication**: Required
+**OpenAPI Description**: "Get historical price data for all symbols in portfolio"
+
+**Database Access**: MarketDataCache table
 **Service Layer**: Uses market data service:
   - File: `app/services/market_data_service.py`
   - Class: `MarketDataService`
-  - Method: `get_historical_prices()`  
+  - Method: `get_historical_prices()`
 
 **Parameters**:
-- `symbol_or_position_id` (path): Symbol or position UUID
+- `portfolio_id` (path): Portfolio UUID (aggregates all portfolio symbols)
 - `days` (query, optional): Number of days of history (default 30)
 - `start_date` (query, optional): Start date (YYYY-MM-DD)
 - `end_date` (query, optional): End date (YYYY-MM-DD)
@@ -635,19 +652,14 @@ Returns all portfolios for the authenticated user with real database data.
 **Response**:
 ```json
 {
-  "symbol": "AAPL",
-  "data_points": 30,
-  "start_date": "2025-08-06",
-  "end_date": "2025-09-05",
-  "prices": [
+  "AAPL": [
     {
       "date": "2025-09-05",
       "open": 174.80,
       "high": 176.15,
       "low": 174.25,
       "close": 175.25,
-      "volume": 58432100,
-      "adjusted_close": 175.25
+      "volume": 58432100
     },
     {
       "date": "2025-09-04",
@@ -655,143 +667,118 @@ Returns all portfolios for the authenticated user with real database data.
       "high": 175.20,
       "low": 173.10,
       "close": 174.65,
-      "volume": 62145800,
-      "adjusted_close": 174.65
+      "volume": 62145800
     }
   ],
-  "statistics": {
-    "period_return": 0.0953,
-    "volatility": 0.285,
-    "max_price": 178.95,
-    "min_price": 160.12,
-    "avg_volume": 55328450
-  },
-  "last_updated": "2025-09-05T20:00:00Z"
+  "MSFT": [
+    {
+      "date": "2025-09-05",
+      "open": 424.50,
+      "high": 426.80,
+      "low": 423.90,
+      "close": 425.18,
+      "volume": 24785900
+    }
+  ]
 }
 ```
 
 ### 10. Get Market Quotes
-**Endpoint**: `GET /data/prices/quotes`  
-**Status**: ✅ Fully Implemented  
-**Authentication**: Required  
-**OpenAPI Description**: "Get real-time market quotes for symbols"  
-**Database Access**: MarketDataCache table (latest prices)  
-**Service Layer**: Uses market data service:
-  - File: `app/services/market_data_service.py`
-  - Class: `MarketDataService`
-  - Method: `get_real_time_quotes()`  
+**Endpoint**: `GET /data/prices/quotes`
+**Status**: ✅ Fully Implemented (Simulated Data)
+**File**: `app/api/v1/data.py`
+**Function**: `get_market_quotes()` (lines 732-807)
+**Authentication**: Required
+**OpenAPI Description**: "Get market quotes for symbols"
+
+**⚠️ Implementation Notes**:
+- **SIMULATED QUOTES ONLY** - Not real-time market data
+- Bid/ask spreads are calculated (current_price ± 0.5%)
+- All change fields return zero (no day change data)
+- No 52-week high/low ranges
+- No volume data
+- Placeholder implementation for frontend development
+
+**Database Access**: MarketDataCache table for current prices only
+- No real-time market data integration
+- No external API calls (Polygon/FMP)
 
 **Parameters**:
 - `symbols` (query): Comma-separated list of symbols
 
-**Response**:
+**Current Limitations**:
+- Not real-time data
+- No actual bid/ask from market
+- No intraday statistics
+- No market status indicators
+- Simple price lookup with simulated spread
+
+**Response** (Simulated Data):
 ```json
 {
   "quotes": [
     {
       "symbol": "AAPL",
       "price": 175.25,
-      "change": 0.60,
-      "change_percent": 0.34,
-      "volume": 58432100,
-      "bid": 175.20,
-      "ask": 175.30,
-      "bid_size": 200,
-      "ask_size": 300,
-      "high_52_week": 199.62,
-      "low_52_week": 164.08,
-      "market_cap": 2658745000000,
+      "bid": 174.38,
+      "ask": 176.13,
+      "change": 0.00,
+      "change_percent": 0.00,
       "timestamp": "2025-09-05T20:00:00Z"
     },
     {
       "symbol": "MSFT",
       "price": 425.18,
-      "change": -2.42,
-      "change_percent": -0.57,
-      "volume": 24785900,
-      "bid": 425.10,
-      "ask": 425.25,
-      "bid_size": 100,
-      "ask_size": 150,
-      "high_52_week": 468.35,
-      "low_52_week": 362.90,
-      "market_cap": 3158924000000,
+      "bid": 422.93,
+      "ask": 427.43,
+      "change": 0.00,
+      "change_percent": 0.00,
       "timestamp": "2025-09-05T20:00:00Z"
     }
   ],
-  "market_status": "closed",
   "last_updated": "2025-09-05T20:00:00Z"
 }
 ```
 
 ### 11. Get Factor ETF Prices
-**Endpoint**: `GET /data/factors/etf-prices`  
-**Status**: ✅ Fully Implemented  
-**Authentication**: Required  
-**OpenAPI Description**: "Get current and historical prices for factor ETFs"  
-**Database Access**: MarketDataCache table  
+**Endpoint**: `GET /data/factors/etf-prices`
+**Status**: ✅ Fully Implemented (Current Snapshots Only)
+**File**: `app/api/v1/data.py`
+**Function**: `get_factor_etf_prices()` (lines 813-875)
+**Authentication**: Required
+**OpenAPI Description**: "Get current prices for factor ETFs"
+
+**Implementation Notes**:
+- Returns **current snapshots only** (single point-in-time data)
+- No historical price arrays
+- Simplified map structure keyed by symbol
+
+**Database Access**: MarketDataCache table
 **Service Layer**: Uses market data service:
   - File: `app/services/market_data_service.py`
   - Class: `MarketDataService`
-  - Method: `get_factor_etf_prices()`  
+  - Method: `get_factor_etf_prices()`
 
 **Parameters**:
-- `symbols` (query, optional): Specific ETF symbols to retrieve
-- `days` (query, optional): Number of days of history
+- `lookback_days` (query, optional): Number of days (parameter accepted but not used for historical)
+- `factors` (query, optional): Specific factor types to retrieve
 
-**Response**:
+**Response** (Current Snapshots Map):
 ```json
 {
-  "factor_etfs": [
-    {
-      "symbol": "VTI",
-      "name": "Vanguard Total Stock Market ETF",
-      "factor_type": "market",
-      "current_price": 268.45,
-      "change": -1.25,
-      "change_percent": -0.46,
-      "volume": 2845200,
-      "last_updated": "2025-09-05T20:00:00Z",
-      "historical_prices": [
-        {"date": "2025-09-05", "close": 268.45},
-        {"date": "2025-09-04", "close": 269.70},
-        {"date": "2025-09-03", "close": 271.15}
-      ]
-    },
-    {
-      "symbol": "VEA",
-      "name": "Vanguard FTSE Developed Markets ETF",
-      "factor_type": "international",
-      "current_price": 52.18,
-      "change": 0.15,
-      "change_percent": 0.29,
-      "volume": 5928400,
-      "last_updated": "2025-09-05T20:00:00Z",
-      "historical_prices": [
-        {"date": "2025-09-05", "close": 52.18},
-        {"date": "2025-09-04", "close": 52.03},
-        {"date": "2025-09-03", "close": 51.89}
-      ]
-    },
-    {
-      "symbol": "VWO",
-      "name": "Vanguard FTSE Emerging Markets ETF",
-      "factor_type": "emerging_markets",
-      "current_price": 45.32,
-      "change": 0.87,
-      "change_percent": 1.96,
-      "volume": 8234600,
-      "last_updated": "2025-09-05T20:00:00Z",
-      "historical_prices": [
-        {"date": "2025-09-05", "close": 45.32},
-        {"date": "2025-09-04", "close": 44.45},
-        {"date": "2025-09-03", "close": 44.12}
-      ]
-    }
-  ],
-  "summary": {
-    "total_etfs": 7,
-    "data_coverage": "100%",
+  "VTI": {
+    "symbol": "VTI",
+    "price": 268.45,
+    "last_updated": "2025-09-05T20:00:00Z"
+  },
+  "VEA": {
+    "symbol": "VEA",
+    "price": 52.18,
+    "last_updated": "2025-09-05T20:00:00Z"
+  },
+  "VWO": {
+    "symbol": "VWO",
+    "price": 45.32,
     "last_updated": "2025-09-05T20:00:00Z"
   }
 }
@@ -814,12 +801,13 @@ Returns all portfolios for the authenticated user with real database data.
   - Method: `get_portfolio_overview()` (lines 26-86)
   - Uses async ORM queries with aggregations
 
-**Purpose**: Portfolio aggregate metrics for dashboard cards (exposures, P&L, totals)  
-**Implementation Notes**: 
-- Uses existing aggregation engine results from batch processing
+**Purpose**: Portfolio aggregate metrics for dashboard cards (exposures, P&L, totals)
+**Implementation Notes**:
+- Direct ORM queries with in-route calculations (no caching)
 - Returns calculated exposures (long/short/gross/net)
 - Includes P&L metrics and portfolio totals
-- Leverages existing calculation data with graceful degradation
+- **Note**: `realized_pnl` currently returns 0 (placeholder implementation)
+- No service-level caching or batch data reuse
 - **Frontend Integration**: Required for portfolio page aggregate cards at `http://localhost:3005/portfolio`
 
 **Parameters**:
@@ -915,11 +903,12 @@ Returns all portfolios for the authenticated user with real database data.
 **Database Access**: Read-only via service layer  
 **Service Layer**: `app/services/factor_exposure_service.py`
   - Class: `FactorExposureService`
-  - Method: `get_portfolio_exposures(portfolio_id)`
+  - Method: `get_portfolio_exposures(portfolio_id)` (lines 52-143)
   - Reads: `factor_exposures` joined with `factor_definitions`
-  - Enforces latest complete set: selects the most recent `calculation_date` where all active factors have exposures
+  - Returns available factors only (not enforcing complete set)
+  - Reports completeness in metadata
 
-**Purpose**: Return portfolio-level factor betas (and optional dollar exposures) from the latest complete calculation set for dashboards and reports.  
+**Purpose**: Return portfolio-level factor betas (and optional dollar exposures) from available factors for dashboards and reports.
 **Missing Data Contract**: `200 OK` with `{ available:false, reason:"no_calculation_available" }`  
 
 **Parameters**:
@@ -1033,16 +1022,15 @@ Returns all portfolios for the authenticated user with real database data.
 - `lookback_days` (query, default 90, range 30-365): Lookback period for correlation calculation
 - `min_overlap` (query, default 30, range 10-365): Minimum overlapping data points required
 
-**Response Schema**: `DiversificationScoreResponse`
+**Response Schema**: `DiversificationScoreResponse` (from `app/schemas/analytics.py:73-114`)
 ```json
 {
   "available": true,
   "portfolio_id": "c0510ab8-c6b5-433c-adbc-3f74e1dbdb5e",
-  "diversification_score": 0.72,
+  "portfolio_correlation": 0.28,
   "calculation_date": "2025-09-05",
-  "lookback_days": 90,
+  "duration_days": 90,
   "positions_analyzed": 15,
-  "weighted_correlation": 0.28,
   "metadata": {
     "min_overlap": 30,
     "data_quality": "high"
@@ -1856,14 +1844,14 @@ These endpoints manage portfolio-specific target prices for securities, enabling
 
 ### 30. Bulk Update Target Prices
 
-**Endpoint**: `PUT /target-prices/{portfolio_id}/bulk-update`  
-**Status**: ✅ Fully Implemented with Performance Optimization  
-**File**: `app/api/v1/target_prices.py` → `bulk_update_target_prices()`  
-**Service**: Optimized with indexing for O(1) lookups  
+**Endpoint**: `PUT /target-prices/{portfolio_id}/bulk-update`
+**Status**: ✅ Fully Implemented with Performance Optimization
+**File**: `app/api/v1/target_prices.py` → `bulk_update_target_prices()` (lines 278-319)
+**Optimization**: Route-level in-memory indexing for O(1) lookups
 **Authentication**: Required (Bearer token)
 
-**OpenAPI Summary**: "Bulk update target prices by symbol"  
-**OpenAPI Description**: "Updates multiple target prices by symbol and position type with optimized performance and comprehensive error tracking. Uses indexed lookups for efficient bulk operations."
+**OpenAPI Summary**: "Bulk update target prices by symbol"
+**OpenAPI Description**: "Updates multiple target prices by symbol and position type with route-level optimization and comprehensive error tracking. Uses in-route indexed lookups for efficient bulk operations."
 
 **Parameters**:
 - `portfolio_id` (path, required): Portfolio UUID
@@ -2027,6 +2015,8 @@ These endpoints manage the **tag entities themselves** - creating, updating, and
 **Architecture**: 3-tier separation (position_tags.py, tags.py, tags_v2.py)
 **Database**: `tags_v2` table with user_id, display_order, usage_count, soft delete support
 **Frontend Service**: `src/services/tagsApi.ts` (methods: create, list, update, delete, restore, defaults, reorder, batchUpdate)
+
+**⚠️ Known Limitation**: `usage_count` field currently only counts legacy strategy tags, not position tags. Accurate counting of both sources is **under active development**. See Phase 1.2.5 in TODO4.md for implementation plan.
 
 ### Base Information
 - **Base Path**: `/api/v1/tags`
@@ -2211,7 +2201,7 @@ These endpoints manage the **tag entities themselves** - creating, updating, and
 **Database Access**: Bulk insert into `tags_v2`
 **Service Layer**: `app/services/tag_service.py`
   - Method: `create_default_tags(user_id)`
-  - Creates standard tags: Growth, Value, Dividend, Speculative, Core, Satellite, Defensive
+  - Creates **10 standard tags** (see `TagV2.default_tags()` in `app/models/tags_v2.py:135-149` for complete list)
   - Idempotent: returns existing tags if user already has tags
 
 **Purpose**: Initialize new users with standard tag set
@@ -2219,7 +2209,7 @@ These endpoints manage the **tag entities themselves** - creating, updating, and
 **Response**:
 ```json
 {
-  "message": "Created 7 default tags",
+  "message": "Created 10 default tags",
   "tags": [
     { "id": "uuid1", "name": "Growth", "color": "#3B82F6" },
     { "id": "uuid2", "name": "Value", "color": "#10B981" },

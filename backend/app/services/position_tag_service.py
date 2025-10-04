@@ -284,9 +284,10 @@ class PositionTagService:
         )
         await self.db.commit()
 
-        # The rowcount might not be accurate in async, but we return 0 as placeholder
-        logger.info(f"Removed tags {tag_ids} from position {position_id}")
-        return len(tag_ids)
+        # Return actual count of deleted records
+        removed_count = result.rowcount
+        logger.info(f"Removed {removed_count} tags from position {position_id} (requested: {len(tag_ids)})")
+        return removed_count
 
     async def replace_tags_for_position(
         self,
