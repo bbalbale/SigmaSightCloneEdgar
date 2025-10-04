@@ -261,54 +261,6 @@ async def seed_initial_prices(db: AsyncSession) -> None:
     logger.info(f"✅ Updated market values for {updated_positions} positions")
     logger.info("🎯 Initial price cache ready for Batch Job 1!")
 
-async def seed_historical_prices(db: AsyncSession, days_back: int = 30) -> None:
-    """Optional: Seed some historical price data for factor calculations"""
-    logger.info(f"📊 Seeding {days_back} days of historical prices...")
-    
-    symbols = await get_all_portfolio_symbols(db)
-    historical_count = 0
-    
-    for symbol in symbols:
-        if symbol in CURRENT_PRICES:
-            current_price = CURRENT_PRICES[symbol]
-            
-            # Generate mock historical prices (random walk)
-            price = current_price
-            for day_offset in range(1, days_back + 1):
-                # Simple random walk for demo purposes
-                price_date = date.today() - timedelta(days=day_offset)
-                
-                # Mock price variation (±2% daily)
-                variation = Decimal('0.98') if day_offset % 3 == 0 else Decimal('1.02')
-                price = price * variation
-                
-                # Check if historical data already exists
-                result = await db.execute(
-                    select(MarketDataCache).where(
-                        and_(
-                            MarketDataCache.symbol == symbol,
-                            MarketDataCache.date == price_date
-                        )
-                    )
-                )
-                existing = result.scalar_one_or_none()
-                
-                if not existing:
-                    historical_data = MarketDataCache(
-                        symbol=symbol,
-                        date=price_date,
-                        open=price * Decimal('1.001'),
-                        high=price * Decimal('1.005'),
-                        low=price * Decimal('0.995'),
-                        close=price,
-                        volume=500000,
-                        data_source="seed_historical_mock"
-                    )
-                    db.add(historical_data)
-                    historical_count += 1
-    
-    logger.info(f"✅ Added {historical_count} historical price records")
-
 async def main():
     """Main function for testing"""
     from app.database import get_async_session
@@ -316,10 +268,6 @@ async def main():
     async with get_async_session() as db:
         try:
             await seed_initial_prices(db)
-            
-            # Optional: Add some historical data
-            # await seed_historical_prices(db, days_back=30)
-            
             await db.commit()
             logger.info("✅ Initial price seeding completed successfully")
         except Exception as e:
