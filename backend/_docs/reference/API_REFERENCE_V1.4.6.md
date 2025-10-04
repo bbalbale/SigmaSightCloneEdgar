@@ -29,6 +29,8 @@ This section documents all **fully implemented and production-ready endpoints** 
 
 ### Complete Endpoint List
 
+**Total: 51 implemented endpoints** across 7 categories
+
 Base prefix for all endpoints below: `/api/v1`
 
 #### Authentication (5 endpoints)
@@ -79,7 +81,7 @@ Base prefix for all endpoints below: `/api/v1`
 - POST `/target-prices/{portfolio_id}/import-csv`
 - POST `/target-prices/{portfolio_id}/export`
 
-#### Tag Management (10 endpoints) ✨ **NEW - October 2, 2025**
+#### Tag Management (8 endpoints) ✨ **NEW - October 2, 2025**
 - POST `/tags/` - Create tag
 - GET `/tags/` - List user tags
 - GET `/tags/{id}` - Get tag details
@@ -87,9 +89,7 @@ Base prefix for all endpoints below: `/api/v1`
 - POST `/tags/{id}/archive` - Archive tag (soft delete)
 - POST `/tags/{id}/restore` - Restore archived tag
 - POST `/tags/defaults` - Create default tags (idempotent)
-- POST `/tags/reorder` - Reorder tags
 - GET `/tags/{id}/strategies` - Get strategies by tag (deprecated)
-- POST `/tags/batch-update` - Batch update tags
 
 #### Position Tagging (5 endpoints) ✨ **NEW - October 2, 2025 - PREFERRED METHOD**
 - POST `/positions/{id}/tags` - Add tags to position
@@ -122,14 +122,6 @@ These placeholder endpoints were removed and are no longer exposed.
 - (removed) GET `/modeling/sessions`
 - (removed) POST `/modeling/sessions`
 - (removed) GET `/modeling/sessions/{session_id}`
-
-#### Market Data (removed in v1.2)
-These endpoints were removed from the public API. Service‑level functionality for market data remains available internally.
-- (removed) GET `/market-data/prices/{symbol}`
-- (removed) GET `/market-data/current-prices` (query: `symbols`)
-- (removed) GET `/market-data/sectors` (query: `symbols`)
-- (removed) POST `/market-data/refresh`
-- (removed) GET `/market-data/options/{symbol}`
 
 #### Administration (not registered)
 Admin endpoints exist in `app/api/v1/endpoints/admin_batch.py` but are not included in the router and are not accessible via the API.
@@ -2236,37 +2228,7 @@ These endpoints manage the **tag entities themselves** - creating, updating, and
 }
 ```
 
-### 40. Reorder Tags
-**Endpoint**: `POST /tags/reorder`
-**Status**: ✅ Fully Implemented
-**File**: `app/api/v1/tags.py`
-**Function**: `reorder_tags()` (not shown in file snippet - exists)
-**Frontend Method**: `tagsApi.reorder()`
-
-**Authentication**: Required (Bearer token)
-**Database Access**: Bulk update `tags_v2.display_order`
-**Service Layer**: `app/services/tag_service.py`
-  - Method: `reorder_tags(tag_ids)`
-  - Updates display_order based on array position
-
-**Purpose**: Set custom display order for tags (drag-drop UI support)
-
-**Request Body**:
-```json
-{
-  "tag_ids": ["uuid3", "uuid1", "uuid2"]
-}
-```
-
-**Response**:
-```json
-{
-  "message": "Tags reordered successfully",
-  "updated_count": 3
-}
-```
-
-### 41. Get Strategies by Tag (DEPRECATED)
+### 40. Get Strategies by Tag (DEPRECATED)
 **Endpoint**: `GET /tags/{tag_id}/strategies`
 **Status**: ⚠️ Deprecated
 **File**: `app/api/v1/tags.py`
@@ -2276,41 +2238,6 @@ These endpoints manage the **tag entities themselves** - creating, updating, and
 **Deprecation Note**: Use `/tags/{id}/positions` for position tagging instead. This endpoint is kept for backward compatibility only.
 
 **Purpose**: Find strategies with this tag (legacy strategy tagging system)
-
-### 42. Batch Update Tags
-**Endpoint**: `POST /tags/batch-update`
-**Status**: ✅ Fully Implemented
-**File**: `app/api/v1/tags.py`
-**Function**: `batch_update_tags()` (not shown in file snippet - exists)
-**Frontend Method**: `tagsApi.batchUpdate()`
-
-**Authentication**: Required (Bearer token)
-**Database Access**: Bulk update `tags_v2`
-**Service Layer**: `app/services/tag_service.py`
-  - Method: `batch_update_tags(updates)`
-  - Validates ownership for all tags
-
-**Request Body**:
-```json
-{
-  "updates": [
-    { "id": "uuid1", "name": "New Name 1" },
-    { "id": "uuid2", "color": "#EF4444" },
-    { "id": "uuid3", "description": "Updated description" }
-  ]
-}
-```
-
-**Response**:
-```json
-{
-  "message": "Updated 3 tags successfully",
-  "tags": [
-    { "id": "uuid1", "name": "New Name 1", "color": "#3B82F6" },
-    { "id": "uuid2", "name": "Value", "color": "#EF4444" }
-  ]
-}
-```
 
 ---
 
@@ -2329,7 +2256,7 @@ These endpoints manage the **relationships between tags and positions** - applyi
 - **Batch Operations**: Support adding/removing multiple tags in single request
 - **Performance**: Batch fetching to prevent N+1 queries
 
-### 43. Add Tags to Position
+### 41. Add Tags to Position
 **Endpoint**: `POST /positions/{position_id}/tags`
 **Status**: ✅ Fully Implemented
 **File**: `app/api/v1/position_tags.py`
@@ -2368,7 +2295,7 @@ These endpoints manage the **relationships between tags and positions** - applyi
 - Validates user owns all tags and portfolio
 - Idempotent: duplicate tag assignments ignored
 
-### 44. Remove Tags from Position
+### 42. Remove Tags from Position
 **Endpoint**: `DELETE /positions/{position_id}/tags` OR `POST /positions/{position_id}/tags/remove`
 **Status**: ✅ Fully Implemented (dual methods for compatibility)
 **File**: `app/api/v1/position_tags.py`
@@ -2404,7 +2331,7 @@ These endpoints manage the **relationships between tags and positions** - applyi
 - DELETE method uses query parameters
 - Silently ignores non-existent tag assignments
 
-### 45. Get Position's Tags
+### 43. Get Position's Tags
 **Endpoint**: `GET /positions/{position_id}/tags`
 **Status**: ✅ Fully Implemented
 **File**: `app/api/v1/position_tags.py`
@@ -2437,7 +2364,7 @@ These endpoints manage the **relationships between tags and positions** - applyi
 ]
 ```
 
-### 46. Replace All Position Tags
+### 44. Replace All Position Tags
 **Endpoint**: `PATCH /positions/{position_id}/tags`
 **Status**: ✅ Fully Implemented
 **File**: `app/api/v1/position_tags.py`
@@ -2464,7 +2391,7 @@ These endpoints manage the **relationships between tags and positions** - applyi
 - Atomic operation: removes all old tags, adds all new tags
 - Usage counts updated correctly for both removed and added tags
 
-### 47. Get Positions by Tag (Reverse Lookup)
+### 45. Get Positions by Tag (Reverse Lookup)
 **Endpoint**: `GET /tags/{tag_id}/positions`
 **Status**: ✅ Fully Implemented
 **File**: `app/api/v1/tags.py` (tag-centric endpoint)
