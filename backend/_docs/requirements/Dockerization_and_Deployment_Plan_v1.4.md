@@ -1,18 +1,16 @@
-# Dockerization and Deployment Plan v1.3
+# Dockerization and Deployment Plan v1.4
 
-Document Version: 1.3
-Date: 2025-09-08
-Status: Updated with minor enhancements
+Document Version: 1.4
+Date: 2025-10-04
+Status: Simplified deployment plan
 Target Platform: Railway.app
 
 ## Executive Summary
 
-This revision simplifies our approach to match current needs (speed now, low‑friction move to Railway soon).
+This revision simplifies our approach to focus on the essential deployment path.
 
 - Phase 1 — Active Development (current): frontend `npm run dev`, backend `uv run python run.py`, local Postgres in Docker.
-- Phase 2 — Shared Dev DB on Railway (Backend Local): keep FE/BE local with hot reload; move only Postgres to Railway Dev. Single-writer ETL via Cron Job; SSL and migration guardrails.
-- Phase 3 — Dev on Railway (Backend + Postgres): deploy Backend + Postgres to Railway (dev env), keep frontend local. Add structured logging and request correlation for remote debugging.
-- Phase 4 — Backend Dockerization (if/when needed): switch backend from Nixpacks to a Dockerfile when we require tighter control, size, or security.
+- Phase 2 — Dev on Railway (Backend + Postgres): deploy Backend + Postgres to Railway (dev env), keep frontend local. Add structured logging and request correlation for remote debugging.
 
 Key defaults:
 - Use Nixpacks for backend on Railway Dev initially. Revisit a Dockerfile later.
@@ -38,43 +36,12 @@ cd backend && uv run python run.py
 cd backend && docker-compose up -d postgres
 ```
 
-When to move to Phase 2
-- Need a shared dev DB immediately while keeping full hot reload locally.
-- Expect to add another engineer and want consistent data.
-- Want built‑in backups/observability without running our own infra.
+When to move to Phase 2:
+- Want to validate backend deploy/runtime (CORS/auth/healthchecks) on Railway.
+- Want centralized logs/rollbacks for API changes or to share a stable API URL with external testers.
+- Need managed Postgres with built-in backups/observability.
 
-## Phase 2 — Shared Dev DB on Railway (Backend Local)
-
-Goal: Use a managed, persistent Postgres on Railway Dev while keeping both frontend and backend running locally with hot reload.
-
-### Setup
-- Provision Railway Postgres (v15) in the Dev environment; enable scheduled backups. Reference: https://docs.railway.com/reference/backups
-- Backend local config
-  - Keep using `uv run python run.py` locally.
-  - Set `DATABASE_URL` in `backend/.env.local` to the Railway URL (include `?sslmode=require`).
-  - SQLAlchemy engine: `create_async_engine(url, pool_pre_ping=True, connect_args={"ssl": "require"}, pool_recycle=1800, pool_timeout=30)`.
-  - Alembic: run migrations against the Railway DB: `alembic upgrade head` (use Railway shell once if preferred).
-- Quick test before full deployment:
-  ```bash
-  # Test Railway Postgres with local backend
-  railway run uv run python run.py
-  ```
-- Frontend local config remains unchanged (`npm run dev`).
-
-### ETL (Daily OHLCV)
-- Make Railway the single writer: run the ETL as a Cron Job service that upserts by `(symbol, date)` and exits. Reference: https://docs.railway.com/guides/cron-jobs
-- Record runs in an `etl_run` table; add retry/backoff to respect provider limits.
-
-### Guardrails
-- Migration discipline: designate a migration owner or require migrations only after merge to `main`.
-- SSL required (`sslmode=require`), least‑privilege DB roles for app vs. admin.
-- Latency: expect higher latency vs. local DB; avoid chatty queries in dev paths.
-
-### When to move to Phase 3
-- You want to validate backend deploy/runtime (CORS/auth/healthchecks) on Railway.
-- You want centralized logs/rollbacks for API changes or to share a stable API URL with external testers.
-
-## Phase 3 — Dev on Railway (Backend + Postgres)
+## Phase 2 — Dev on Railway (Backend + Postgres)
 
 Goal: Stand up a shared dev backend and database on Railway while keeping the frontend local for speed.
 
@@ -132,21 +99,6 @@ Goal: Stand up a shared dev backend and database on Railway while keeping the fr
 - Revisit Dockerfile when we need image hardening/size control or custom system deps.
   - Dockerfiles on Railway: https://docs.railway.com/reference/dockerfiles
 
-## Phase 4 — Backend Dockerization (If/When Needed)
-
-Triggers
-- Need to pin base image/OS libs, reduce attack surface (alpine/distroless).
-- Image size/perf tuning (multi‑stage, wheel caching, no build tools in runtime).
-- Security posture (non‑root user, read‑only FS, dropped capabilities) and image scanning.
-
-Tasks
-- Author `backend/Dockerfile` (multi‑stage: builder + slim runtime) with non‑root user, `HEALTHCHECK`, `CMD`.
-- Switch Railway backend service to Dockerfile builder.
-- Validate: health checks, structured logs, migrations, rollbacks.
-
-Rollback
-- Use Railway "Rollback to this deployment" to revert to the last good Nixpacks build during transition. Reference: https://docs.railway.com/deploy/deployments
-
 ## Migration and Rollback Plan (Dev → Staging/Prod)
 
 1) Migrations
@@ -180,15 +132,16 @@ Rollback
 
 ## Document Status and Next Steps
 
-Status: Updated (v1.3) with minor enhancements
+Status: Simplified (v1.4)
 
-Proposed next steps
+Proposed next steps:
 1. Create Railway Dev project: Postgres + Backend (Nixpacks) with `/api/v1/health` and env vars.
 2. Point local frontend to the Railway backend; configure CORS.
 3. Add structured logging + `X-Request-ID` middleware; verify logs in Railway.
-4. Decide later whether to move backend to a Dockerfile (Phase 4 triggers).
+4. Decide later whether to move backend to a Dockerfile if needed.
 
 ## Version History
+- v1.4 (2025-10-04): Simplified to 2 phases - removed Phase 2 (Shared Dev DB) and Phase 4 (Backend Dockerization)
 - v1.3 (2025-09-08): Added cost breakdown, migration safety in start command, quick test command, frontend dev clarity, and health check path specification
 - v1.2 (2025-09-08): Initial Railway-focused revision
 - v1.1: Original Docker-first approach
