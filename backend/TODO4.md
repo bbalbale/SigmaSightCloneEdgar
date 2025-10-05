@@ -1134,8 +1134,9 @@ scripts/testing/test_report_generator.py: from app.reports.portfolio_report_gene
 ## Decisions Made
 
 ✅ **Migration Approach**: Hard delete (no archive tables)
-- Current database has 0 strategies, 0 legs, 0 metrics
-- No historical data to preserve
+- ⚠️ **Current Reality**: Seed script creates 1 strategy per position (63 strategies for demo data)
+- Seed script must be refactored FIRST to stop creating strategies
+- Migration will include cleanup step to NULL out existing strategy_id values
 - No conversion to tags (technically impossible for multi-leg metadata)
 
 ✅ **API Versioning**: Bump to v1.5 (breaking change)
@@ -1149,6 +1150,76 @@ scripts/testing/test_report_generator.py: from app.reports.portfolio_report_gene
 ---
 
 ## Proposed Work Breakdown
+
+### Phase 3.0.0: Seed Script Refactor ⚠️ **PREREQUISITE**
+**Purpose**: Stop creating strategies in seed script BEFORE migration
+
+**Current Problem**:
+- `app/db/seed_demo_portfolios.py:356` calls `StrategyService.auto_create_standalone_strategy(position)`
+- Creates 1 strategy + 1 strategy_leg per position (63 total for demo data)
+- Migration will drop these tables with data in them
+
+**Required Changes**:
+- [ ] Remove strategy creation from `seed_demo_portfolios.py`:
+  ```python
+  # REMOVE these lines (around line 353-356):
+  s_service = StrategyService(db)
+  t_service = TagService(db)
+  strategy = await s_service.auto_create_standalone_strategy(position)
+
+  # REMOVE strategy-level tag assignment (around line 358-364):
+  if pos_data.get("tags"):
+      await db.flush()
+      tag_ids = []
+      for tag_name in pos_data.get("tags", []):
+          tag = await get_or_create_tag(db, user.id, tag_name)
+          tag_ids.append(tag.id)
+      await t_service.bulk_assign_tags(strategy.id, tag_ids, assigned_by=user.id, replace_existing=False)
+
+  # REPLACE with direct position-tag assignment:
+  # (Use PositionTagService to assign tags directly to position, not strategy)
+  ```
+
+- [ ] Update tag assignment to use position-level tagging:
+  ```python
+  # Use new position tagging system
+  from app.services.position_tag_service import PositionTagService
+
+  if pos_data.get("tags"):
+      await db.flush()
+      pt_service = PositionTagService(db)
+      for tag_name in pos_data["tags"]:
+          tag = await get_or_create_tag(db, user.id, tag_name)
+          await pt_service.assign_tag(position.id, tag.id, assigned_by=user.id)
+  ```
+
+- [ ] Test seed script after changes:
+  ```bash
+  # Reset and reseed with new approach
+  uv run python scripts/database/reset_and_seed.py reset --confirm
+
+  # Verify no strategies created
+  uv run python -c "
+  import asyncio
+  from sqlalchemy import select, func
+  from app.database import get_async_session
+  from app.models.strategies import Strategy
+
+  async def check():
+      async with get_async_session() as db:
+          count = await db.execute(select(func.count(Strategy.id)))
+          print(f'Strategies: {count.scalar()} (should be 0)')
+
+  asyncio.run(check())
+  "
+  ```
+
+**Success Criteria**:
+- Seed script runs without creating any strategies
+- Tags are assigned directly to positions via position_tags table
+- All 63 demo positions still get their tags
+
+---
 
 ### Phase 3.0.1: Frontend Coordination & Verification ⚠️ **BLOCKER**
 **Purpose**: Ensure frontend doesn't rely on strategy APIs before deletion
@@ -1246,18 +1317,28 @@ def upgrade() -> None:
     Remove strategy system in correct dependency order.
 
     Critical Order:
-    1. Drop position.strategy_id FK first (dependent on strategies table)
-    2. Drop child tables (no FKs depend on them)
-    3. Drop parent table (strategies) last
+    1. Clean up existing strategy_id references (NULL them out)
+    2. Drop position.strategy_id FK and column
+    3. Drop child tables (no FKs depend on them)
+    4. Drop parent table (strategies) last
 
     NOTE: No PostgreSQL enum to drop - strategy_type uses String column with CHECK constraint
+
+    PREREQUISITE: Seed script must be refactored first (Phase 3.0.0) to stop creating strategies
     """
 
     # ============================================================================
-    # STEP 1: Remove positions.strategy_id column and FK constraint
+    # STEP 1: Clean up existing strategy_id references (if any)
     # ============================================================================
     # NOTE: positions.strategy_id was made nullable in migration a252603b90f8
-    # with the comment "plan to eventually remove the strategies structure"
+    # This cleanup ensures no orphaned references before dropping tables
+
+    op.execute('UPDATE positions SET strategy_id = NULL WHERE strategy_id IS NOT NULL')
+
+
+    # ============================================================================
+    # STEP 2: Remove positions.strategy_id column and FK constraint
+    # ============================================================================
 
     # Drop the FK constraint first (references strategies.id)
     op.drop_constraint(
@@ -1271,7 +1352,7 @@ def upgrade() -> None:
 
 
     # ============================================================================
-    # STEP 2: Drop child tables (tables that reference strategies via FK)
+    # STEP 3: Drop child tables (tables that reference strategies via FK)
     # ============================================================================
     # Order doesn't matter for these - none have FKs to each other
 
@@ -1295,7 +1376,7 @@ def upgrade() -> None:
 
 
     # ============================================================================
-    # STEP 3: Drop parent strategies table
+    # STEP 4: Drop parent strategies table
     # ============================================================================
     # Must be last - other tables reference it via FK
     # - Contains: strategy metadata, aggregated financials
@@ -1331,13 +1412,18 @@ def downgrade() -> None:
 #### Migration Safety Checks
 
 **Pre-Execution Verification**:
-- [ ] Confirm database state:
+- [ ] Confirm Phase 3.0.0 complete (seed script refactored)
+
+- [ ] Check current database state:
   ```sql
-  -- Should all return 0:
-  SELECT COUNT(*) FROM strategies;
-  SELECT COUNT(*) FROM strategy_legs;
-  SELECT COUNT(*) FROM strategy_metrics;
-  SELECT COUNT(*) FROM strategy_tags;
+  -- Strategy counts (may be non-zero if using old seed script):
+  SELECT COUNT(*) FROM strategies;          -- Will be cleaned up by migration
+  SELECT COUNT(*) FROM strategy_legs;       -- Will be dropped
+  SELECT COUNT(*) FROM strategy_metrics;    -- Should be 0 (no metrics calculated)
+  SELECT COUNT(*) FROM strategy_tags;       -- Will be dropped
+
+  -- Verify positions.strategy_id is nullable:
+  SELECT COUNT(*) FROM positions WHERE strategy_id IS NOT NULL;  -- Will be NULLed by migration
   ```
 
 - [ ] Test on database copy:
