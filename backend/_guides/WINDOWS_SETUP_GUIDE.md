@@ -283,7 +283,7 @@ After initial setup, here's how to start SigmaSight each day:
 5. **Option B: Run Batch Processing and Generate Reports**
    ```bash
    # Process all portfolios and generate reports
-   uv run python scripts/run_batch_with_reports.py
+   uv run python scripts/batch_processing/run_batch.py
    
    # View generated reports
    explorer reports  # Opens reports folder
@@ -365,7 +365,7 @@ set PYTHONIOENCODING=utf-8 && uv run python scripts/setup_minimal_demo.py
 set PYTHONIOENCODING=utf-8 && uv run python scripts/test_auth.py
 
 # Run batch processing and generate reports
-set PYTHONIOENCODING=utf-8 && uv run python scripts/run_batch_with_reports.py
+set PYTHONIOENCODING=utf-8 && uv run python scripts/batch_processing/run_batch.py
 
 # List all portfolios with IDs
 set PYTHONIOENCODING=utf-8 && uv run python scripts/list_portfolios.py

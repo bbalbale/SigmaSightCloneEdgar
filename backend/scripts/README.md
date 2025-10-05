@@ -71,7 +71,7 @@ This directory contains all utility scripts for the SigmaSight backend, organize
 6. **Initial Batch Processing** (First run only)
    ```bash
    # Process all portfolios (30-60 seconds per portfolio)
-   uv run python scripts/batch_processing/run_batch_with_reports.py --skip-reports
+   uv run python scripts/batch_processing/run_batch.py
    ```
 
 ---
@@ -124,20 +124,17 @@ asyncio.run(validate())
 #### **3. Batch Calculations** ⭐ **Main Operations Script**
 ```bash
 # Run all 8 calculation engines (WITHOUT reports)
-uv run python scripts/batch_processing/run_batch_with_reports.py --skip-reports
+uv run python scripts/batch_processing/run_batch.py
 
 # Run for specific portfolio (using deterministic IDs)
 # Individual portfolio: 1d8ddd95-3b45-0ac5-35bf-cf81af94a5fe
-uv run python scripts/batch_processing/run_batch_with_reports.py \
-  --portfolio 1d8ddd95-3b45-0ac5-35bf-cf81af94a5fe --skip-reports
+uv run python scripts/batch_processing/run_batch.py --portfolio 1d8ddd95-3b45-0ac5-35bf-cf81af94a5fe
 
 # High Net Worth portfolio: e23ab931-a033-edfe-ed4f-9d02474780b4
-uv run python scripts/batch_processing/run_batch_with_reports.py \
-  --portfolio e23ab931-a033-edfe-ed4f-9d02474780b4 --skip-reports
+uv run python scripts/batch_processing/run_batch.py --portfolio e23ab931-a033-edfe-ed4f-9d02474780b4
 
 # Hedge Fund portfolio: fcd71196-e93e-f000-5a74-31a9eead3118
-uv run python scripts/batch_processing/run_batch_with_reports.py \
-  --portfolio fcd71196-e93e-f000-5a74-31a9eead3118 --skip-reports
+uv run python scripts/batch_processing/run_batch.py --portfolio fcd71196-e93e-f000-5a74-31a9eead3118
 ```
 
 **What Batch Processing Does:**
@@ -190,9 +187,8 @@ scripts/
 │   ├── verify_migrations.py         ⭐ Verify Alembic migrations
 │   └── list_symbols.py              List all symbols
 │
-├── batch_processing/     # Main calculation and report generation
-│   ├── run_batch_with_reports.py  ⭐ MAIN - Run all calculations
-│   └── generate_all_reports.py
+├── batch_processing/     # Main calculation processing
+│   └── run_batch.py  ⭐ MAIN - Run all calculations
 │
 ├── database/            # Database setup, seeding, migrations
 │   ├── reset_and_seed.py          ⭐ Authoritative seeding
@@ -257,7 +253,7 @@ uv run python scripts/database/seed_database.py
 uv run python scripts/verification/validate_setup.py
 
 # 4. Run initial batch processing
-uv run python scripts/batch_processing/run_batch_with_reports.py --skip-reports
+uv run python scripts/batch_processing/run_batch.py
 ```
 
 ### Daily Workflow
@@ -279,7 +275,7 @@ asyncio.run(sync_market_data())
 "
 
 # 4. Run batch calculations
-uv run python scripts/batch_processing/run_batch_with_reports.py --skip-reports
+uv run python scripts/batch_processing/run_batch.py
 
 # 5. Verify results
 uv run python scripts/verification/verify_demo_portfolios.py
@@ -305,12 +301,12 @@ cd backend
 - `alembic upgrade head` (migrations)
 - `database/reset_and_seed.py` or `database/seed_database.py`
 - `verification/validate_setup.py`
-- `batch_processing/run_batch_with_reports.py --skip-reports` (initial)
+- `batch_processing/run_batch.py` (initial)
 
 ### Critical for Operations ⚙️
 - `alembic upgrade head` (after every git pull)
 - Market data sync (inline Python commands)
-- `batch_processing/run_batch_with_reports.py --skip-reports` (daily)
+- `batch_processing/run_batch.py` (daily)
 - `database/check_database_content.py` (health check)
 
 ### Monitoring & Debugging 🔍
@@ -374,7 +370,7 @@ cd backend
 
 **38 completed/deprecated scripts** have been archived to `../_archive/scripts/`:
 - **20 migration scripts** - Completed one-time data migrations and fixes
-- **1 deprecated script** - `run_batch_calculations.py` (replaced by `run_batch_with_reports.py`)
+- **2 deprecated scripts** - `run_batch_calculations.py` and `run_batch_with_reports.py` (both replaced by `run_batch.py`)
 - **14 test scripts** - Completed version-specific and one-time tests
 - **3 debug scripts** - Completed debugging/analysis tasks
 

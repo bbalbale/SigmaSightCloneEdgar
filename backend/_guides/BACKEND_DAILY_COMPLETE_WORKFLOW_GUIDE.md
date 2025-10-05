@@ -36,7 +36,7 @@
 ```bash
 # ✅ Now works on ALL platforms (Windows, Mac, Linux)
 uv run python scripts/verification/verify_demo_portfolios.py
-uv run python scripts/batch_processing/run_batch_with_reports.py --skip-reports
+uv run python scripts/batch_processing/run_batch.py
 
 # No PYTHONIOENCODING prefix needed anymore!
 ```
@@ -88,7 +88,7 @@ Leverage = Gross Exposure / Equity
 **New Directory Structure**:
 ```
 scripts/
-├── batch_processing/     # run_batch_with_reports.py, generate_all_reports.py
+├── batch_processing/     # run_batch.py (main batch processing)
 ├── database/            # seed_database.py, reset_and_seed.py, check_database_content.py
 ├── testing/             # All test_*.py scripts
 ├── verification/        # verify_demo_portfolios.py, verify_setup.py
@@ -100,7 +100,7 @@ scripts/
 ```
 
 **Quick Reference - Common Scripts**:
-- Batch processing: `scripts/batch_processing/run_batch_with_reports.py`
+- Batch processing: `scripts/batch_processing/run_batch.py`
 - Database seeding: `scripts/database/seed_database.py`
 - Verify portfolios: `scripts/verification/verify_demo_portfolios.py`
 - Check database: `scripts/database/check_database_content.py`
@@ -362,7 +362,7 @@ Expected: 105 target price records (35 symbols × 3 portfolios)
 
 ```bash
 # Run batch processing WITHOUT reports (ALL PLATFORMS)
-uv run python scripts/batch_processing/run_batch_with_reports.py --skip-reports
+uv run python scripts/batch_processing/run_batch.py
 
 # Run batch for specific portfolio WITHOUT reports
 # Examples with actual portfolio IDs (ALL PLATFORMS):
@@ -675,14 +675,13 @@ ps aux | grep python | awk '{sum+=$6} END {print "Python Memory: " sum/1024 " MB
 
 ## End of Day Shutdown
 
-### 1. Generate End of Day Reports
+### 1. Verify Day's Data
 ```bash
-# Generate final reports for the day
-uv run python scripts/batch_processing/run_batch_with_reports.py --skip-batch
+# Verify all calculations completed successfully
+uv run python scripts/verification/verify_demo_portfolios.py
 
-# Backup reports
-cp -r reports/ reports_backup_$(date +%Y%m%d)/    # Mac/Linux
-xcopy reports reports_backup_%date:~10,4%%date:~4,2%%date:~7,2% /I    # Windows
+# Check database content
+uv run python scripts/database/check_database_content.py
 ```
 
 ### 2. Stop Services Gracefully
@@ -739,7 +738,7 @@ docker-compose up -d && uv run python run.py
 docker ps && curl http://localhost:8000/health
 
 # Run batch processing
-uv run python scripts/batch_processing/run_batch_with_reports.py
+uv run python scripts/batch_processing/run_batch.py
 
 # Stop everything
 docker-compose stop && pkill -f "python run.py"

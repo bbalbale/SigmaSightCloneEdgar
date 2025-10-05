@@ -1,45 +1,52 @@
 # Batch Processing Scripts
 
-Core scripts for running batch calculations and generating portfolio reports.
+Core script for running batch calculations for portfolio analytics.
 
-## Key Scripts
+## Key Script
 
-- **run_batch_with_reports.py** ⭐ **MAIN** - Batch processor with integrated report generation (use with --skip-reports flag)
-- **generate_all_reports.py** - Standalone report generation for all portfolios (deprecated - use API instead)
+- **run_batch.py** ⭐ **MAIN** - Batch processor for all portfolio calculations
 
-> **Note**: `run_batch_calculations.py` has been deprecated and archived. Use `run_batch_with_reports.py --skip-reports` instead.
+> **Note**: Report generation has been removed. All data is now accessed via REST API endpoints.
 
 ## Usage
 
-### Run calculations and reports for all portfolios:
+### Run calculations for all portfolios:
 ```bash
 cd backend
-uv run python scripts/batch_processing/run_batch_with_reports.py
+uv run python scripts/batch_processing/run_batch.py
 ```
 
 ### Run for specific portfolio:
 ```bash
-uv run python scripts/batch_processing/run_batch_with_reports.py --portfolio <UUID>
+uv run python scripts/batch_processing/run_batch.py --portfolio <UUID>
 ```
 
-### Skip report generation:
+### Include correlation calculations (normally Tuesday only):
 ```bash
-uv run python scripts/batch_processing/run_batch_with_reports.py --skip-reports
-```
-
-### Generate reports only:
-```bash
-uv run python scripts/batch_processing/generate_all_reports.py
+uv run python scripts/batch_processing/run_batch.py --correlations
 ```
 
 ## Calculation Engines
 
-Runs 8 sequential calculation engines:
-1. Greeks (options pricing)
-2. Factor Analysis
-3. Correlations
-4. Market Risk
-5. Portfolio Snapshots
-6. Stress Testing
-7. Performance Attribution
-8. Data Quality Monitoring
+Runs 7 sequential calculation engines:
+1. Portfolio Aggregation - Delta, notional, exposure calculations
+2. Greeks - Options pricing (delta, gamma, theta, vega)
+3. Factor Analysis - Multi-factor exposure (7 factors)
+4. Market Risk Scenarios - Monte Carlo simulations
+5. Portfolio Snapshots - Daily portfolio state
+6. Position Correlations - Cross-position correlations
+7. Factor Correlations - Factor-to-position relationships
+
+## Output
+
+All calculation results are stored in PostgreSQL and accessible via:
+- `/api/v1/data/portfolio/{id}/complete` - Full portfolio snapshot
+- `/api/v1/analytics/position-greeks` - Greeks calculations
+- `/api/v1/analytics/factor-exposure` - Factor analysis
+- Other analytics endpoints (see API_REFERENCE_V1.4.6.md)
+
+## Archived
+
+- `run_batch_with_reports.py` - Replaced by run_batch.py (October 2025)
+- `generate_all_reports.py` - Report generation removed (October 2025)
+- `run_batch_calculations.py` - Deprecated (September 2025)

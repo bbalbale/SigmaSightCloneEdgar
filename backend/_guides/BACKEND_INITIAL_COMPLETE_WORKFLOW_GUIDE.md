@@ -177,14 +177,7 @@ This will:
 
 ```bash
 # Replace <PORTFOLIO_ID> with actual UUID from Step 4
-uv run python scripts/run_batch_with_reports.py --portfolio <PORTFOLIO_ID>
-```
-
-### Option C: Skip Batch, Only Generate Reports (if batch already ran)
-
-```bash
-# Generate reports using existing calculation data
-uv run python scripts/run_batch_with_reports.py --skip-batch
+uv run python scripts/batch_processing/run_batch.py --portfolio <PORTFOLIO_ID>
 ```
 
 ---

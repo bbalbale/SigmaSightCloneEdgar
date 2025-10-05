@@ -384,7 +384,7 @@ Execute the complete 8-engine calculation workflow using existing batch orchestr
 
 ```bash
 # Run complete batch processing for new portfolio
-uv run python scripts/run_batch_with_reports.py --portfolio <portfolio_id>
+uv run python scripts/batch_processing/run_batch.py --portfolio <portfolio_id>
 ```
 
 ### Calculation Engines Executed
@@ -709,7 +709,7 @@ This onboarding process integrates seamlessly with the initial setup workflow:
    - ✅ Frontend verification
 
 ### **Shared Components:**
-- **Batch Processing**: Uses same `run_batch_with_reports.py` script
+- **Batch Processing**: Uses same `run_batch.py` script
 - **API Testing**: Uses same authentication and endpoint patterns
 - **Verification**: Uses same health checks and validation scripts
 - **Database**: Uses same PostgreSQL instance and models
