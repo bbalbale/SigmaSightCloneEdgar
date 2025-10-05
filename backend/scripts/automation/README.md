@@ -63,10 +63,11 @@ uv run python scripts/automation/railway_daily_batch.py --force
 1. Deploy the service (it will exit immediately since no cron schedule yet)
 2. Go to service **Deployments** tab
 3. Find latest deployment → Click **"View Logs"**
-4. Manually trigger by re-deploying or using Railway CLI:
+4. Manually trigger using Railway CLI (ensure you're targeting the cron service):
    ```bash
-   railway run uv run python scripts/automation/railway_daily_batch.py --force
+   railway run --service sigmasight-backend-cron uv run python scripts/automation/railway_daily_batch.py --force
    ```
+   **Note**: The `--service` flag is critical - without it, Railway runs on the default web service.
 5. Monitor logs for:
    - ✅ Trading day detection working
    - ✅ Market data sync completing
@@ -75,12 +76,15 @@ uv run python scripts/automation/railway_daily_batch.py --force
 
 #### Step 4: Enable Cron Schedule (after successful manual test)
 
-1. Go to service **Settings**
-2. Add **Cron Schedule**: `30 23 * * 1-5`
+1. Go to service **Settings** tab
+2. Scroll down to **Cron Schedule** section
+3. Click **"Add Cron Schedule"** or edit the existing field
+4. Enter schedule: `30 23 * * 1-5`
    - This means: 11:30 PM UTC, Monday-Friday
    - **Standard Time (Nov-Mar)**: 11:30 PM UTC = 6:30 PM EST
    - **Daylight Time (Mar-Nov)**: 11:30 PM UTC = 7:30 PM EDT
-3. **Save** and verify cron is enabled
+5. Click **"Deploy"** to save changes
+6. Verify cron is enabled by checking the Settings page shows the schedule
 
 #### Step 5: Monitor First Automated Run
 
