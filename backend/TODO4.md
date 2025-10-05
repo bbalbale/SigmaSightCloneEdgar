@@ -14,25 +14,25 @@
 ## Overview
 
 Analysis of API_REFERENCE_V1.4.6.md revealed significant discrepancies between documented and actual API behavior. This phase addresses:
-- 2 **CRITICAL** missing implementations ✅ **RESOLVED** (Phase 1.1)
-- 5 **MAJOR** implementation gaps ✅ **RESOLVED** (Phase 1.2 - Updated docs to match reality)
-- 11 **DOCUMENTATION** mismatches ✅ **RESOLVED** (Phase 1.3)
+- 2 **CRITICAL** missing implementations ✅ **RESOLVED** (Phase 1.0.1)
+- 5 **MAJOR** implementation gaps ✅ **RESOLVED** (Phase 1.0.2 - Updated docs to match reality)
+- 11 **DOCUMENTATION** mismatches ✅ **RESOLVED** (Phase 1.0.3)
 
 **Source**: External code review feedback (October 4, 2025)
 
 ### Phase Progress
-- ✅ **Phase 1.1**: CRITICAL - Missing Implementations (COMPLETED October 4, 2025 - commit 2087352)
-- ✅ **Phase 1.2**: MAJOR - Implementation Gaps (COMPLETED October 4, 2025 - commit 2c05940)
-- ✅ **Phase 1.3**: DOCUMENTATION - Update Docs to Match Reality (COMPLETED October 4, 2025 - commit 2c05940)
+- ✅ **Phase 1.0.1**: CRITICAL - Missing Implementations (COMPLETED October 4, 2025 - commit 2087352)
+- ✅ **Phase 1.0.2**: MAJOR - Implementation Gaps (COMPLETED October 4, 2025 - commit 2c05940)
+- ✅ **Phase 1.0.3**: DOCUMENTATION - Update Docs to Match Reality (COMPLETED October 4, 2025 - commit 2c05940)
 
 ---
 
-## Phase 1.1: CRITICAL - Missing Implementations ✅ **COMPLETED**
+## Phase 1.0.1: CRITICAL - Missing Implementations ✅ **COMPLETED**
 
 **Completion Date**: October 4, 2025
-**Git Commit**: `2087352` - "docs: complete Phase 1.1 API documentation cleanup"
+**Git Commit**: `2087352` - "docs: complete Phase 1.0.1 API documentation cleanup"
 
-### 1.1.1 ✅ Tag Management: Missing Endpoints - COMPLETED
+### 1.0.1.1 ✅ Tag Management: Missing Endpoints - COMPLETED
 **Status**: ✅ **COMPLETED**
 **Severity**: CRITICAL
 **Location**: `_docs/reference/API_REFERENCE_V1.4.6.md`
@@ -68,7 +68,7 @@ Two documented tag management endpoints **do not exist** in codebase:
 
 ---
 
-### 1.1.2 ✅ Market Data Endpoints - REMOVED BUT DOCUMENTED - COMPLETED
+### 1.0.1.2 ✅ Market Data Endpoints - REMOVED BUT DOCUMENTED - COMPLETED
 **Status**: ✅ **COMPLETED**
 **Severity**: CRITICAL
 **Location**: API router removed these in v1.2
@@ -104,17 +104,17 @@ Market data endpoints documented but **removed from router since v1.2**:
 
 ---
 
-## Phase 1.2: MAJOR - Implementation Gaps ✅ **COMPLETED**
+## Phase 1.0.2: MAJOR - Implementation Gaps ✅ **COMPLETED**
 
 **Completion Date**: October 4, 2025
-**Git Commit**: `2c05940` - "feat: complete Phase 1.2 & 1.3 API documentation alignment"
+**Git Commit**: `2c05940` - "feat: complete Phase 1.0.2 & 1.0.3 API documentation alignment"
 **Resolution**: Updated all documentation to accurately reflect simplified implementations
 
 These endpoints exist but are **significantly simplified** compared to documentation. **Decision made: Update docs to match reality rather than implement complex features.**
 
 ---
 
-### 1.2.1 ✅ GET `/data/portfolio/{id}/complete` - Placeholder Implementation - DOCS UPDATED
+### 1.0.2.1 ✅ GET `/data/portfolio/{id}/complete` - Placeholder Implementation - DOCS UPDATED
 **Status**: ✅ **DOCS UPDATED**
 **Severity**: MAJOR (Resolved by documentation update)
 **File**: `app/api/v1/data.py:83-294`
@@ -152,7 +152,7 @@ These endpoints exist but are **significantly simplified** compared to documenta
 
 ---
 
-### 1.2.2 ✅ GET `/data/portfolio/{id}/data-quality` - Binary Heuristic - DOCS UPDATED
+### 1.0.2.2 ✅ GET `/data/portfolio/{id}/data-quality` - Binary Heuristic - DOCS UPDATED
 **Status**: ✅ **DOCS UPDATED**
 **Severity**: MAJOR (Resolved by documentation update)
 **File**: `app/api/v1/data.py:295-379`
@@ -189,7 +189,7 @@ These endpoints exist but are **significantly simplified** compared to documenta
 
 ---
 
-### 1.2.3 ✅ GET `/data/prices/quotes` - Mock Data Only - DOCS UPDATED
+### 1.0.2.3 ✅ GET `/data/prices/quotes` - Mock Data Only - DOCS UPDATED
 **Status**: ✅ **DOCS UPDATED**
 **Severity**: MAJOR (Resolved by documentation update)
 **File**: `app/api/v1/data.py:732-807`
@@ -227,7 +227,7 @@ These endpoints exist but are **significantly simplified** compared to documenta
 
 ---
 
-### 1.2.4 ✅ Position Tag `removed_count` - Inaccurate Reporting - CODE FIXED
+### 1.0.2.4 ✅ Position Tag `removed_count` - Inaccurate Reporting - CODE FIXED
 **Status**: ✅ **CODE FIXED**
 **Severity**: MAJOR (Resolved by code fix)
 **File**: `app/services/position_tag_service.py:287-290`
@@ -272,7 +272,7 @@ return removed_count
 
 ---
 
-### 1.2.5 ✅ Tag `usage_count` - Only Counts Strategy Tags - CODE FIXED
+### 1.0.2.5 ✅ Tag `usage_count` - Only Counts Strategy Tags - CODE FIXED
 **Status**: ✅ **CODE FIXED**
 **Severity**: MAJOR (Resolved by code fix)
 **File**: `app/services/tag_service.py:178-193`
@@ -322,25 +322,25 @@ tag.usage_count = strategy_count + position_count  # Counts BOTH sources!
 
 ---
 
-## Phase 1.3: DOCUMENTATION - Update Docs to Match Reality ✅ **COMPLETED**
+## Phase 1.0.3: DOCUMENTATION - Update Docs to Match Reality ✅ **COMPLETED**
 
 **Completion Date**: October 4, 2025
-**Git Commit**: `2c05940` - "feat: complete Phase 1.2 & 1.3 API documentation alignment"
+**Git Commit**: `2c05940` - "feat: complete Phase 1.0.2 & 1.0.3 API documentation alignment"
 
 These are documentation-only fixes. Code works correctly but docs are wrong. **All 11 items resolved.**
 
 ### Completion Summary
-- ✅ **1.3.1**: POST /auth/register - Already correct (no changes needed)
-- ✅ **1.3.2**: GET /data/portfolios - Updated to bare array response with correct field names
-- ✅ **1.3.3**: GET /data/positions/details - Removed day_change fields, updated key to "positions"
-- ✅ **1.3.4**: GET /data/prices/historical - Fixed path param to {portfolio_id}, removed statistics
-- ✅ **1.3.5**: GET /data/factors/etf-prices - Updated to current snapshots map structure
-- ✅ **1.3.6**: Diversification score - Fixed field names (portfolio_correlation, duration_days)
-- ✅ **1.3.7**: Portfolio factor exposures - Removed "enforces all factors" claim
-- ✅ **1.3.8**: Portfolio overview - Removed cache claims, noted realized_pnl=0
-- ✅ **1.3.9**: Bulk update optimization - Changed to "route-level" from "service-level"
-- ✅ **1.3.10**: Default tags count - Updated from 7 to 10 tags
-- ✅ **1.3.11**: Market data endpoints - Already removed in Phase 1.1
+- ✅ **1.0.3.1**: POST /auth/register - Already correct (no changes needed)
+- ✅ **1.0.3.2**: GET /data/portfolios - Updated to bare array response with correct field names
+- ✅ **1.0.3.3**: GET /data/positions/details - Removed day_change fields, updated key to "positions"
+- ✅ **1.0.3.4**: GET /data/prices/historical - Fixed path param to {portfolio_id}, removed statistics
+- ✅ **1.0.3.5**: GET /data/factors/etf-prices - Updated to current snapshots map structure
+- ✅ **1.0.3.6**: Diversification score - Fixed field names (portfolio_correlation, duration_days)
+- ✅ **1.0.3.7**: Portfolio factor exposures - Removed "enforces all factors" claim
+- ✅ **1.0.3.8**: Portfolio overview - Removed cache claims, noted realized_pnl=0
+- ✅ **1.0.3.9**: Bulk update optimization - Changed to "route-level" from "service-level"
+- ✅ **1.0.3.10**: Default tags count - Updated from 7 to 10 tags
+- ✅ **1.0.3.11**: Market data endpoints - Already removed in Phase 1.0.1
 
 **Result**: All response schemas and implementation claims now match actual code behavior.
 
@@ -350,7 +350,7 @@ These are documentation-only fixes. Code works correctly but docs are wrong. **A
 
 These are documentation-only fixes. Code works correctly but docs are wrong.
 
-### 1.3.1 📝 POST `/auth/register` - Response Schema Mismatch
+### 1.0.3.1 📝 POST `/auth/register` - Response Schema Mismatch
 **Status**: 🟡 **DOC UPDATE NEEDED**
 **File**: `app/schemas/auth.py:33-57`
 **Location**: API_REFERENCE_V1.4.6.md
@@ -365,7 +365,7 @@ These are documentation-only fixes. Code works correctly but docs are wrong.
 
 ---
 
-### 1.3.2 📝 GET `/data/portfolios` - Response Structure Mismatch
+### 1.0.3.2 📝 GET `/data/portfolios` - Response Structure Mismatch
 **Status**: 🟡 **DOC UPDATE NEEDED**
 **File**: `app/api/v1/data.py:34-81`
 
@@ -381,7 +381,7 @@ These are documentation-only fixes. Code works correctly but docs are wrong.
 
 ---
 
-### 1.3.3 📝 GET `/data/positions/details` - Missing Day Change
+### 1.0.3.3 📝 GET `/data/positions/details` - Missing Day Change
 **Status**: 🟡 **DOC UPDATE NEEDED**
 **File**: `app/api/v1/data.py:433-626`
 
@@ -396,7 +396,7 @@ These are documentation-only fixes. Code works correctly but docs are wrong.
 
 ---
 
-### 1.3.4 📝 GET `/data/prices/historical/{portfolio_id}` - Path Parameter Mismatch
+### 1.0.3.4 📝 GET `/data/prices/historical/{portfolio_id}` - Path Parameter Mismatch
 **Status**: 🟡 **DOC UPDATE NEEDED**
 **File**: `app/api/v1/data.py:627-722`
 
@@ -411,7 +411,7 @@ These are documentation-only fixes. Code works correctly but docs are wrong.
 
 ---
 
-### 1.3.5 📝 GET `/data/factors/etf-prices` - Historical vs Current
+### 1.0.3.5 📝 GET `/data/factors/etf-prices` - Historical vs Current
 **Status**: 🟡 **DOC UPDATE NEEDED**
 **File**: `app/api/v1/data.py:813-875`
 
@@ -426,7 +426,7 @@ These are documentation-only fixes. Code works correctly but docs are wrong.
 
 ---
 
-### 1.3.6 📝 GET `/analytics/portfolio/{id}/diversification-score` - Field Names
+### 1.0.3.6 📝 GET `/analytics/portfolio/{id}/diversification-score` - Field Names
 **Status**: 🟡 **DOC UPDATE NEEDED**
 **File**: `app/schemas/analytics.py:73-114`
 
@@ -442,7 +442,7 @@ These are documentation-only fixes. Code works correctly but docs are wrong.
 
 ---
 
-### 1.3.7 📝 GET `/analytics/portfolio/{id}/factor-exposures` - Overstated Guarantee
+### 1.0.3.7 📝 GET `/analytics/portfolio/{id}/factor-exposures` - Overstated Guarantee
 **Status**: 🟡 **DOC UPDATE NEEDED**
 **File**: `app/services/factor_exposure_service.py:52-143`
 
@@ -457,7 +457,7 @@ These are documentation-only fixes. Code works correctly but docs are wrong.
 
 ---
 
-### 1.3.8 📝 GET `/analytics/portfolio/{id}/overview` - Missing Cache Claim
+### 1.0.3.8 📝 GET `/analytics/portfolio/{id}/overview` - Missing Cache Claim
 **Status**: 🟡 **DOC UPDATE NEEDED**
 **File**: `app/api/v1/analytics/portfolio.py:23-78`
 
@@ -472,7 +472,7 @@ These are documentation-only fixes. Code works correctly but docs are wrong.
 
 ---
 
-### 1.3.9 📝 Target Prices Bulk Update - Optimization Layer
+### 1.0.3.9 📝 Target Prices Bulk Update - Optimization Layer
 **Status**: 🟡 **DOC UPDATE NEEDED**
 **File**: `app/api/v1/target_prices.py:278-319`
 
@@ -486,7 +486,7 @@ These are documentation-only fixes. Code works correctly but docs are wrong.
 
 ---
 
-### 1.3.10 📝 Default Tags Count - 10 vs 7
+### 1.0.3.10 📝 Default Tags Count - 10 vs 7
 **Status**: 🟡 **DOC UPDATE NEEDED**
 **File**: `app/models/tags_v2.py:135-149`
 
@@ -501,7 +501,7 @@ These are documentation-only fixes. Code works correctly but docs are wrong.
 
 ---
 
-### 1.3.11 📝 Market Data Endpoints - Removed but Documented
+### 1.0.3.11 📝 Market Data Endpoints - Removed but Documented
 **Status**: 🟡 **DOC UPDATE NEEDED** (covered in 1.1.2)
 
 **Fix**:
@@ -513,29 +513,29 @@ These are documentation-only fixes. Code works correctly but docs are wrong.
 
 ## Progress Tracking
 
-### Phase 1.1: Critical Issues
-- [ ] 1.1.1: Remove missing tag endpoint docs (reorder, batch-update)
-- [ ] 1.1.2: Add warning about removed market data endpoints
+### Phase 1.0.1: Critical Issues
+- [x] 1.0.1.1: Remove missing tag endpoint docs (reorder, batch-update)
+- [x] 1.0.1.2: Add warning about removed market data endpoints
 
-### Phase 1.2: Implementation Gaps (Decision Needed)
-- [ ] 1.2.1: `/data/portfolio/{id}/complete` - Decide: Implement vs Update Docs
-- [ ] 1.2.2: `/data/portfolio/{id}/data-quality` - Decide: Implement vs Update Docs
-- [ ] 1.2.3: `/data/prices/quotes` - Decide: Implement vs Update Docs
-- [ ] 1.2.4: Position tag `removed_count` - Fix (simple, 1 hour)
-- [ ] 1.2.5: Tag `usage_count` - Fix to count both sources
+### Phase 1.0.2: Implementation Gaps (Decision Needed)
+- [x] 1.0.2.1: `/data/portfolio/{id}/complete` - Decide: Implement vs Update Docs
+- [x] 1.0.2.2: `/data/portfolio/{id}/data-quality` - Decide: Implement vs Update Docs
+- [x] 1.0.2.3: `/data/prices/quotes` - Decide: Implement vs Update Docs
+- [x] 1.0.2.4: Position tag `removed_count` - Fix (simple, 1 hour)
+- [x] 1.0.2.5: Tag `usage_count` - Fix to count both sources
 
-### Phase 1.3: Documentation Updates (11 items)
-- [ ] 1.3.1: `/auth/register` response schema
-- [ ] 1.3.2: `/data/portfolios` structure
-- [ ] 1.3.3: `/data/positions/details` day change
-- [ ] 1.3.4: `/data/prices/historical` path parameter
-- [ ] 1.3.5: `/data/factors/etf-prices` historical vs current
-- [ ] 1.3.6: Diversification score field names
-- [ ] 1.3.7: Factor exposures guarantee
-- [ ] 1.3.8: Overview cache claim
-- [ ] 1.3.9: Bulk update optimization layer
-- [ ] 1.3.10: Default tags count
-- [ ] 1.3.11: Market data removed (duplicate of 1.1.2)
+### Phase 1.0.3: Documentation Updates (11 items)
+- [x] 1.0.3.1: `/auth/register` response schema
+- [x] 1.0.3.2: `/data/portfolios` structure
+- [x] 1.0.3.3: `/data/positions/details` day change
+- [x] 1.0.3.4: `/data/prices/historical` path parameter
+- [x] 1.0.3.5: `/data/factors/etf-prices` historical vs current
+- [x] 1.0.3.6: Diversification score field names
+- [x] 1.0.3.7: Factor exposures guarantee
+- [x] 1.0.3.8: Overview cache claim
+- [x] 1.0.3.9: Bulk update optimization layer
+- [x] 1.0.3.10: Default tags count
+- [x] 1.0.3.11: Market data removed (duplicate of 1.0.1.2)
 
 ---
 
@@ -565,20 +565,20 @@ For each of these, decide: **Fix Code** or **Fix Docs**?
 
 ### What Was Accomplished
 
-**Phase 1.1 - CRITICAL (October 4, 2025 - commit 2087352)**
+**Phase 1.0.1 - CRITICAL (October 4, 2025 - commit 2087352)**
 - ✅ Removed 2 non-existent tag endpoint docs (reorder, batch-update)
 - ✅ Removed market data endpoints section (confirmed not in router)
 - ✅ Updated endpoint counts (53 → 51)
 - ✅ Added explicit total: "51 implemented endpoints"
 
-**Phase 1.2 - MAJOR (October 4, 2025 - commits 2c05940, TBD)**
-- ✅ **1.2.1**: Portfolio Complete - Updated docs to reflect simplified implementation
-- ✅ **1.2.2**: Data Quality - Updated docs to reflect binary check
-- ✅ **1.2.3**: Market Quotes - Added ⚠️ SIMULATED DATA warning
-- ✅ **1.2.4**: Position Tag removed_count - **FIXED BUG** (returns actual count now)
-- ✅ **1.2.5**: Tag usage_count - **FIXED BUG** (now counts both position tags + strategy tags)
+**Phase 1.0.2 - MAJOR (October 4, 2025 - commits 2c05940, TBD)**
+- ✅ **1.0.2.1**: Portfolio Complete - Updated docs to reflect simplified implementation
+- ✅ **1.0.2.2**: Data Quality - Updated docs to reflect binary check
+- ✅ **1.0.2.3**: Market Quotes - Added ⚠️ SIMULATED DATA warning
+- ✅ **1.0.2.4**: Position Tag removed_count - **FIXED BUG** (returns actual count now)
+- ✅ **1.0.2.5**: Tag usage_count - **FIXED BUG** (now counts both position tags + strategy tags)
 
-**Phase 1.3 - DOCUMENTATION (October 4, 2025 - commit 2c05940)**
+**Phase 1.0.3 - DOCUMENTATION (October 4, 2025 - commit 2c05940)**
 - ✅ All 11 documentation mismatches resolved
 - ✅ Response schemas updated to match code
 - ✅ Implementation claims corrected
