@@ -607,3 +607,309 @@ For each of these, decide: **Fix Code** or **Fix Docs**?
 **Completion Date**: October 4, 2025
 **Total Time**: ~4 hours (all 3 phases)
 **Git Commits**: 3 commits pushed to APIIntegration branch
+
+---
+
+# Phase 2.0: Report Generator Cleanup & Removal
+
+**Phase**: 2.0 - Technical Debt Cleanup
+**Status**: 📋 Planning
+**Created**: 2025-10-04
+**Rationale**: Report generator was a legacy pre-API/pre-frontend feature. Now that we have a full REST API and React frontend, the report generator (MD/JSON/CSV file generation) is obsolete.
+
+---
+
+## Overview
+
+The portfolio report generator was built before the API and frontend existed to provide visibility into portfolio data. It generates markdown, JSON, and CSV reports written to disk. This functionality is now superseded by:
+
+1. **REST API endpoints** - Real-time data access via `/api/v1/data/*` endpoints
+2. **React frontend** - Interactive UI for portfolio visualization
+3. **Frontend exports** - Client-side export capabilities (CSV, JSON, etc.)
+
+---
+
+## Affected Files & Components
+
+### 1. Core Report Generator Module ❌ DELETE
+```
+app/reports/
+├── __init__.py
+└── portfolio_report_generator.py (43KB - main implementation)
+```
+
+**Impact**:
+- Used by CLI tool, batch orchestrator (commented out), and standalone scripts
+- No API dependencies - safe to delete
+
+---
+
+### 2. CLI Tools ❌ DELETE
+```
+app/cli/report_generator_cli.py
+```
+
+**Usage**:
+```python
+from app.reports.portfolio_report_generator import PortfolioReportGenerator
+# Provides command-line interface for generating reports
+```
+
+**Impact**: No other modules import this CLI tool
+
+---
+
+### 3. Scripts ❌ DELETE
+
+#### `scripts/batch_processing/generate_all_reports.py`
+- Generates reports for all 3 demo portfolios
+- Writes MD/JSON/CSV files to `reports/` directory
+- Used by: Nothing (standalone script)
+
+#### `scripts/batch_processing/run_batch_with_reports.py`
+- Combined batch processing + report generation
+- ~340 lines including argparse, error handling
+- Used by: Railway seeding attempted to use this (but failed with ModuleNotFoundError)
+
+#### `scripts/testing/test_report_generator.py`
+- Manual test script for report generation
+- Used by: Nothing
+
+---
+
+### 4. Tests ❌ DELETE
+```
+tests/batch/test_batch_with_reports.py
+```
+
+**Impact**: Tests the report generation functionality
+
+---
+
+### 5. Batch Orchestrator Cleanup ⚠️ MODIFY
+
+**File**: `app/batch/batch_orchestrator_v2.py`
+
+**Current state** (lines 188, 569-595):
+```python
+# Line 188 - Already commented out in job sequence:
+# job_sequence.append(("report_generation", self._generate_report, [portfolio_id]))  # REMOVED: Use API instead
+
+# Lines 569-595 - Unused method that needs deletion:
+async def _generate_report(self, db: AsyncSession, portfolio_id: str):
+    """Generate portfolio report (MD, JSON, CSV)"""
+    from app.reports.portfolio_report_generator import PortfolioReportGenerator
+
+    generator = PortfolioReportGenerator(db)
+    portfolio_uuid = ensure_uuid(portfolio_id)
+
+    # Generate all three formats
+    results = {}
+    for format_type in ['md', 'json', 'csv']:
+        try:
+            report = await generator.generate_report(
+                portfolio_uuid,
+                date.today(),
+                format=format_type
+            )
+            results[format_type] = report
+            logger.info(f"✅ Generated {format_type.upper()} report for portfolio {portfolio_id}")
+        except Exception as e:
+            logger.error(f"❌ Failed to generate {format_type.upper()} report: {e}")
+            results[format_type] = None
+
+    return results
+```
+
+**Action**: Delete the entire `_generate_report` method (lines 569-595)
+
+---
+
+### 6. Documentation Updates ⚠️ MODIFY
+
+#### Files mentioning reports:
+```
+_guides/BACKEND_INITIAL_COMPLETE_WORKFLOW_GUIDE.md
+_guides/BACKEND_DAILY_COMPLETE_WORKFLOW_GUIDE.md
+_guides/WINDOWS_SETUP_GUIDE.md
+_guides/ONBOARDING_NEW_ACCOUNT_PORTFOLIO.md
+_docs/generated/Calculation_Engine_White_Paper.md
+scripts/batch_processing/README.md
+scripts/README.md
+```
+
+**Action**: Review each file and remove/update references to:
+- `generate_all_reports.py`
+- `run_batch_with_reports.py`
+- Report generation workflow steps
+- Report output directories
+
+---
+
+### 7. Railway Seeding Script ⚠️ UPDATE
+
+**File**: `scripts/railway_initial_seed.sh`
+
+**Current** (lines 97-117):
+```bash
+# Step 6: Run batch processing to populate all calculation data
+echo ""
+echo -e "${YELLOW}[Step 6/6] Running batch processing for all portfolios...${NC}"
+...
+if uv run python scripts/batch_processing/run_batch_with_reports.py; then
+    echo -e "${GREEN}✓ Batch processing completed successfully${NC}"
+else
+    echo -e "${YELLOW}⚠ Batch processing encountered errors (some may be expected)${NC}"
+fi
+```
+
+**Issue**: This step already fails on Railway with:
+```
+ModuleNotFoundError: No module named 'app.reports'
+```
+
+**Action**:
+- Remove Step 6 entirely from railway_initial_seed.sh
+- Update step count from "[Step 6/6]" to "[Step 5/5]"
+- Update `scripts/RAILWAY_SEEDING_README.md` accordingly
+- Add note that batch processing can be run separately if needed
+
+---
+
+### 8. Already Archived ✅ NO ACTION NEEDED
+
+These files are already in `_archive/` and don't need cleanup:
+```
+_archive/legacy_scripts_for_reference_only/legacy_analytics_for_reference/reporting_plotting_analytics.py
+_archive/planning/PRD_PORTFOLIO_REPORT_SPEC.md
+_archive/incidents/BACKEND_COMPUTE_ERROR.md (mentions reports)
+```
+
+---
+
+## Execution Plan
+
+### Phase 2.1: Safe Deletions ✅ (No dependencies)
+- [ ] Delete `scripts/testing/test_report_generator.py`
+- [ ] Delete `scripts/batch_processing/generate_all_reports.py`
+- [ ] Delete `tests/batch/test_batch_with_reports.py`
+- [ ] Delete `app/cli/report_generator_cli.py`
+
+### Phase 2.2: Railway Script Update ⚠️ (Update before deletion)
+- [ ] Remove Step 6 from `scripts/railway_initial_seed.sh`
+- [ ] Update step numbering ("[Step 6/6]" → "[Step 5/5]")
+- [ ] Update `scripts/RAILWAY_SEEDING_README.md` to remove batch processing step
+- [ ] Add note: "Batch processing can be run separately if calculation data needed"
+- [ ] Test modified script on Railway
+
+### Phase 2.3: Batch Orchestrator Cleanup
+- [ ] Delete `_generate_report` method from `app/batch/batch_orchestrator_v2.py` (lines 569-595)
+- [ ] Verify no other code references this method
+- [ ] Run tests to ensure batch orchestrator still works
+
+### Phase 2.4: Core Module Deletion
+- [ ] Delete `scripts/batch_processing/run_batch_with_reports.py`
+- [ ] Delete `app/reports/` directory entirely
+- [ ] Run full test suite
+
+### Phase 2.5: Documentation Cleanup
+- [ ] Review and update `_guides/BACKEND_INITIAL_COMPLETE_WORKFLOW_GUIDE.md`
+- [ ] Review and update `_guides/BACKEND_DAILY_COMPLETE_WORKFLOW_GUIDE.md`
+- [ ] Review and update `_guides/WINDOWS_SETUP_GUIDE.md`
+- [ ] Review and update `_guides/ONBOARDING_NEW_ACCOUNT_PORTFOLIO.md`
+- [ ] Review and update `_docs/generated/Calculation_Engine_White_Paper.md`
+- [ ] Update `scripts/batch_processing/README.md`
+- [ ] Update `scripts/README.md`
+
+### Phase 2.6: Verification & Cleanup
+- [ ] Run full test suite
+- [ ] Test local development workflow
+- [ ] Test Railway deployment and seeding
+- [ ] Verify API endpoints still work
+- [ ] Check for orphaned `reports/` output directories
+- [ ] Add `reports/` to `.gitignore` if any exist in repo
+
+---
+
+## Risk Assessment
+
+### ✅ Low Risk (Safe to delete immediately)
+- Test files and standalone scripts
+- CLI tools (not imported anywhere)
+
+### ⚠️ Medium Risk (Need careful update)
+- `railway_initial_seed.sh` - Currently tries to use `run_batch_with_reports.py`
+  - **Note**: This already fails on Railway due to missing `app.reports` module
+  - **Resolution**: Remove Step 6 entirely (batch processing not critical for initial seeding)
+
+### ✅ Low Risk (Already commented out)
+- Batch orchestrator `_generate_report` method
+  - Already excluded from job sequence (line 188)
+  - Safe to delete the method implementation
+
+---
+
+## Dependencies Verified
+
+Confirmed these are the ONLY imports of report generator:
+```bash
+app/cli/report_generator_cli.py: from app.reports.portfolio_report_generator import ...
+app/batch/batch_orchestrator_v2.py: from app.reports.portfolio_report_generator import ...
+scripts/batch_processing/generate_all_reports.py: from app.reports.portfolio_report_generator import ...
+scripts/batch_processing/run_batch_with_reports.py: from app.reports.portfolio_report_generator import ...
+scripts/testing/test_report_generator.py: from app.reports.portfolio_report_generator import ...
+```
+
+✅ **Confirmed**: No API endpoints or other critical services use the report generator
+
+---
+
+## Alternative Solutions Considered (NOT RECOMMENDED)
+
+### Option A: Keep for backward compatibility
+- **Pros**: No breaking changes
+- **Cons**: Maintains unused code, confuses future developers, adds maintenance burden
+
+### Option B: Archive instead of delete
+- **Pros**: Can recover if needed
+- **Cons**: Still clutters codebase, git history provides recovery anyway
+
+### Option C: Convert to API endpoint
+- **Pros**: Provides programmatic report generation
+- **Cons**: Duplicates frontend export functionality, adds API surface area
+
+**Decision**: Proceed with full deletion (recommended)
+
+---
+
+## Success Criteria
+
+- [ ] All report generator code deleted
+- [ ] All tests passing
+- [ ] Railway seeding works without report generation
+- [ ] No orphaned imports or references
+- [ ] Documentation updated
+- [ ] Git commit history clean
+
+---
+
+## Notes
+
+- **Portfolio data is still fully accessible** via `/api/v1/data/portfolio/{id}/complete` endpoint
+- **Frontend handles all user-facing exports** (CSV, JSON via client-side generation)
+- **Report generator output directory** (`reports/`) should be added to `.gitignore` if present
+- **This cleanup aligns with modern architecture** - separation of concerns (backend = API, frontend = presentation)
+
+---
+
+## Related Documentation
+
+- `_archive/planning/PRD_PORTFOLIO_REPORT_SPEC.md` - Original report generator PRD (archived)
+- `_docs/reference/API_REFERENCE_V1.4.6.md` - Current API endpoints that replace report functionality
+- `TODO3.md` - Current Phase 3.0 API development work
+- `_archive/todos/TODO2.md` - Phase 2 where report generator was originally built
+
+---
+
+**Last Updated**: 2025-10-04
+**Status**: 📋 Planning - Awaiting approval to proceed with Phase 2.1 deletions
