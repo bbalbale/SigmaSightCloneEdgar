@@ -1190,7 +1190,7 @@ scripts/testing/test_report_generator.py: from app.reports.portfolio_report_gene
       pt_service = PositionTagService(db)
       for tag_name in pos_data["tags"]:
           tag = await get_or_create_tag(db, user.id, tag_name)
-          await pt_service.assign_tag(position.id, tag.id, assigned_by=user.id)
+          await pt_service.assign_tag_to_position(position.id, tag.id, assigned_by=user.id)
   ```
 
 - [ ] Test seed script after changes:
@@ -1298,6 +1298,11 @@ Create Date: 2025-10-05
 Complete removal of strategy system (never adopted - 0 records in production).
 This migration has NO DOWNGRADE - strategy tables are permanently deleted.
 
+PREREQUISITES:
+1. Migration a252603b90f8 applied (made positions.strategy_id nullable) ✅
+2. Seed script refactored (Phase 3.0.0) to stop creating strategies
+3. Frontend verified not using /api/v1/strategies/* endpoints
+
 Trade-off: Multi-leg options strategy management (Iron Condor, Butterfly, etc.)
 no longer supported. Use position-level tagging for grouping.
 """
@@ -1330,8 +1335,14 @@ def upgrade() -> None:
     # ============================================================================
     # STEP 1: Clean up existing strategy_id references (if any)
     # ============================================================================
-    # NOTE: positions.strategy_id was made nullable in migration a252603b90f8
-    # This cleanup ensures no orphaned references before dropping tables
+    # PREREQUISITE: Migration a252603b90f8 already made strategy_id nullable (Oct 4, 2025)
+    # This migration revises from a252603b90f8, so strategy_id IS nullable.
+    #
+    # This step cleans up any existing strategy_id values before dropping the column.
+    # Safe because:
+    # - Column is nullable (a252603b90f8)
+    # - Foreign key still exists (dropped in next step)
+    # - No data loss (strategies never adopted - 0 multi-leg strategies in production)
 
     op.execute('UPDATE positions SET strategy_id = NULL WHERE strategy_id IS NOT NULL')
 
