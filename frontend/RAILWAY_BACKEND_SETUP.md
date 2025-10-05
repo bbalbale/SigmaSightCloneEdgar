@@ -20,35 +20,89 @@ This guide shows how to run your **local frontend** (npm dev server) against the
 
 ---
 
+## Prerequisites: Install Railway CLI
+
+**You'll need Railway CLI to get the backend URL.**
+
+### Installation
+
+**macOS**:
+```bash
+brew install railway
+```
+
+**npm** (cross-platform):
+```bash
+npm install -g @railway/cli
+```
+
+**Windows** (via Scoop):
+```bash
+scoop install railway
+```
+
+**Direct download**: https://docs.railway.app/develop/cli#installation
+
+### Login & Link
+
+```bash
+# Login to Railway
+railway login
+
+# Link to your project (run this in backend directory)
+cd backend
+railway link
+# Select "SigmaSight" (or your project name) from the list
+```
+
+### Verify Installation
+
+```bash
+railway --version
+# Should show: railway version X.X.X
+```
+
+---
+
 ## Quick Start (Two Methods)
 
 ### Method 1: Command-Line Override (Recommended)
 
-Run dev server with Railway backend URL as environment variable:
+**Prerequisites**: Install Railway CLI first (see above if not installed)
 
+**Get your Railway URL**:
 ```bash
-cd frontend
-NEXT_PUBLIC_BACKEND_API_URL=https://your-app.railway.app/api/v1 npm run dev
+cd backend
+railway domain
+# Returns: your-app-production.up.railway.app
 ```
 
-**Pros**: One command, no file editing
-**Cons**: Must type Railway URL each time
+**Run dev server with Railway backend**:
+```bash
+cd frontend
+NEXT_PUBLIC_BACKEND_API_URL=https://your-app-production.up.railway.app/api/v1 npm run dev
+```
+
+**Pros**: One command, no file editing, easy to switch back
+**Cons**: Must type Railway URL each time (or create an alias)
 
 ---
 
 ### Method 2: Edit .env File
 
+**Prerequisites**: Install Railway CLI first (see below if not installed)
+
 **1. Get your Railway backend URL**:
 ```bash
 cd backend
-railway status
-# Look for: URL: https://sigmasight-backend-production.up.railway.app
+railway domain
+# Returns: sigmasight-backend-production.up.railway.app
 ```
 
 **2. Update `frontend/.env`**:
 ```env
-# Change this line:
-NEXT_PUBLIC_BACKEND_API_URL=https://your-app.railway.app/api/v1
+# Change this line (add https:// prefix and /api/v1 suffix):
+NEXT_PUBLIC_BACKEND_API_URL=https://your-app-production.up.railway.app/api/v1
 ```
 
 **3. Restart dev server**:
@@ -478,8 +532,13 @@ railway logs --tail 100
 
 ### To Connect to Railway Backend:
 
-1. **Get Railway URL**: `railway status`
-2. **Update .env**: `NEXT_PUBLIC_BACKEND_API_URL=https://your-app.railway.app/api/v1`
+1. **Get Railway URL**:
+   ```bash
+   cd backend
+   railway domain
+   # Returns: your-app-production.up.railway.app
+   ```
+2. **Update .env**: `NEXT_PUBLIC_BACKEND_API_URL=https://your-app-production.up.railway.app/api/v1`
 3. **Restart frontend**: `npm run dev`
 4. **Test login**: `demo_hnw@sigmasight.com` / `demo12345`
 5. **Verify in DevTools**: API calls go to Railway URL
@@ -510,7 +569,10 @@ npm run dev
 
 ```bash
 # Find Railway URL
-railway status
+cd backend
+railway domain
+# Returns: your-app-production.up.railway.app
+# Add https:// prefix and /api/v1 suffix when using it
 
 # Start with Railway backend
 NEXT_PUBLIC_BACKEND_API_URL=https://your-app.railway.app/api/v1 npm run dev
