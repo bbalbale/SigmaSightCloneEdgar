@@ -627,9 +627,9 @@ The portfolio report generator was built before the API and frontend existed to 
 2. **React frontend** - Interactive UI for portfolio visualization
 3. **Frontend exports** - Client-side export capabilities (CSV, JSON, etc.)
 
-### ⚠️ IMPORTANT DISCOVERY (2025-10-04)
+### ⚠️ IMPORTANT DISCOVERIES (2025-10-04)
 
-**`run_batch_with_reports.py` is the PRIMARY batch processing script!**
+**Discovery #1: `run_batch_with_reports.py` is the PRIMARY batch processing script!**
 
 Initial plan was to delete this file, but investigation revealed:
 - All workflow guides use: `run_batch_with_reports.py --skip-reports` for batch processing
@@ -640,6 +640,28 @@ Initial plan was to delete this file, but investigation revealed:
 - ❌ Do NOT delete `run_batch_with_reports.py`
 - ✅ REFACTOR it: Remove report code, rename to `run_batch.py`
 - ✅ UPDATE all documentation: Replace references with new `run_batch.py` script
+
+---
+
+**Discovery #2: Additional References Found (AI Agent Feedback)**
+
+Three categories of stale references not in original plan:
+
+1. **Helper Scripts** - `scripts/database/list_portfolios.py` (lines 82-91)
+   - Recommends `run_batch_with_reports.py --portfolio`
+   - Recommends `app.cli.report_generator_cli`
+   - **Impact**: Users will get import errors after deletion
+
+2. **Analysis Scripts** - `scripts/analysis/analyze_exposure_dependencies.py` (lines 94-117)
+   - References "Report generator (line 430 sign fix)"
+   - Troubleshooting guide points to `portfolio_report_generator.py:430`
+   - **Impact**: Troubleshooting instructions will be broken
+
+3. **Archived TODOs** - `_archive/todos/TODO3.md` (line 2734)
+   - Marks `app/reports/portfolio_report_generator.py` as "KEEP - still useful for API"
+   - **Impact**: Future cleanup might try to resurrect the deleted file
+
+**Updated Plan**: All three added to Phase 2.0.5 cleanup checklist
 
 ---
 
@@ -858,7 +880,8 @@ _archive/incidents/BACKEND_COMPUTE_ERROR.md (mentions reports)
 - [ ] Delete `app/reports/` directory entirely
 - [ ] Run full test suite
 
-### Phase 2.0.5: Documentation Cleanup
+### Phase 2.0.5: Documentation & Code Cleanup
+**Workflow Guides:**
 - [ ] **`_guides/BACKEND_DAILY_COMPLETE_WORKFLOW_GUIDE.md`** - CRITICAL
   - [ ] Replace all `run_batch_with_reports.py --skip-reports` → `run_batch.py`
   - [ ] Remove references to `generate_all_reports.py`
@@ -873,13 +896,34 @@ _archive/incidents/BACKEND_COMPUTE_ERROR.md (mentions reports)
 - [ ] **`_guides/ONBOARDING_NEW_ACCOUNT_PORTFOLIO.md`**
   - [ ] Replace `run_batch_with_reports.py --portfolio` → `run_batch.py --portfolio`
   - [ ] Update shared components section
-- [ ] **`_docs/generated/Calculation_Engine_White_Paper.md`**
-  - [ ] Review for report generation references (if any)
+
+**Script Documentation:**
 - [ ] **`scripts/batch_processing/README.md`**
   - [ ] Document new `run_batch.py` script
   - [ ] Remove `run_batch_with_reports.py` and `generate_all_reports.py` docs
 - [ ] **`scripts/README.md`**
   - [ ] Update quick reference section
+
+**Helper Scripts (AI Agent Feedback):**
+- [ ] **`scripts/database/list_portfolios.py`** (lines 82-91)
+  - [ ] Replace: `scripts/run_batch_with_reports.py --portfolio` → `scripts/batch_processing/run_batch.py --portfolio`
+  - [ ] Remove: CLI example `uv run python -m app.cli.report_generator_cli generate --portfolio-id <ID>`
+  - [ ] Update example at line 91 with new script path
+
+**Analysis Scripts (AI Agent Feedback):**
+- [ ] **`scripts/analysis/analyze_exposure_dependencies.py`** (lines 94-117)
+  - [ ] Remove "NEEDS COORDINATION" section referencing report generator (lines 93-95)
+  - [ ] Remove "4.1 SHORT EXPOSURE FIX" section pointing to portfolio_report_generator.py:430 (lines 101-105)
+  - [ ] Update troubleshooting guidance to remove report generator references
+
+**Archived TODOs (AI Agent Feedback):**
+- [ ] **`_archive/todos/TODO3.md`** (line 2734)
+  - [ ] Update: `app/reports/portfolio_report_generator.py` - Core report generation logic (~~KEEP - still useful for API~~ → **DELETED in Phase 2.0**)
+  - [ ] Add note: "Report generator removed in Phase 2.0 - superseded by REST API and frontend exports"
+
+**Other Documentation:**
+- [ ] **`_docs/generated/Calculation_Engine_White_Paper.md`**
+  - [ ] Review for report generation references (if any)
 
 ### Phase 2.0.6: Verification & Cleanup
 - [ ] Run full test suite
