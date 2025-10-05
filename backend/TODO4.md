@@ -1094,3 +1094,803 @@ scripts/testing/test_report_generator.py: from app.reports.portfolio_report_gene
 
 **Last Updated**: 2025-10-04
 **Status**: 📋 Planning - Awaiting approval to proceed with Phase 2.1 deletions
+
+---
+
+# Phase 3.0: Strategy System Sunset Plan
+
+**Phase**: 3.0 - Strategy Decommissioning
+**Status**: 📋 Draft Proposal (pending approval)
+**Created**: 2025-10-05
+**Rationale**: Simplify portfolio modeling by removing the **never-adopted** strategy container concept. Despite being built with multi-leg options support (Iron Condor, Butterfly, Covered Call, etc.), strategies have **0 records in production**. Position-level tagging provides sufficient grouping for current needs. Time constraints prevent maintaining dual systems (strategies + tags).
+
+**Trade-off Accepted**: Multi-leg options strategy management will NOT be supported. Complex options positions will be managed as individual positions with optional tag grouping.
+
+---
+
+## Objectives
+
+1. Remove all `Strategy*` models, tables, and API code paths (hard delete, no archival)
+2. Enforce position-level tagging as the single organizational mechanism
+3. Coordinate with frontend team to ensure no breaking changes
+4. Update documentation to reflect simplified tag-based model
+
+---
+
+## Scope Summary
+
+| Area | Action |
+| --- | --- |
+| **Database** | Drop `strategies`, `strategy_legs`, `strategy_metrics`, `strategy_tags` tables; remove `positions.strategy_id` column; drop `strategytype` enum |
+| **ORM Models** | Delete `app/models/strategies.py`; remove Strategy relationships from Position, Portfolio, User, TagV2 |
+| **Alembic** | Single atomic migration to drop all 4 tables + column + constraints (no downgrade support) |
+| **Services & APIs** | Delete `app/api/v1/strategies.py` (457 lines); remove router registration; delete schemas/services |
+| **Batch Processing** | Verify no residual strategy references in `batch_orchestrator_v2` or scripts |
+| **Tests** | Delete or rewrite tests that construct strategies |
+| **Docs** | Update to v1.5, remove strategy terminology, add sunset notice |
+
+---
+
+## Decisions Made
+
+✅ **Migration Approach**: Hard delete (no archive tables)
+- Current database has 0 strategies, 0 legs, 0 metrics
+- No historical data to preserve
+- No conversion to tags (technically impossible for multi-leg metadata)
+
+✅ **API Versioning**: Bump to v1.5 (breaking change)
+- Immediate removal of `/api/v1/strategies/*` endpoints
+- No external API consumers (only frontend)
+
+✅ **Frontend Coordination**: MANDATORY checkpoint before execution
+- Recent commits (c276afc, e184d0c, 5203115) mention "strategy categorization"
+- Must verify these use tags, not Strategy model
+
+---
+
+## Proposed Work Breakdown
+
+### Phase 3.0.1: Frontend Coordination & Verification ⚠️ **BLOCKER**
+**Purpose**: Ensure frontend doesn't rely on strategy APIs before deletion
+
+- [ ] **CRITICAL**: Meet with frontend team to verify recent commits:
+  - `c276afc` (Oct 4) - "fix: resolve Organize page issues with strategy display and deletion"
+  - `e184d0c` (Oct 3) - "feat: implement Combination View toggle with complete strategy categorization deployment"
+  - `5203115` (Oct 3) - "feat: implement strategy categorization system for investment class filtering"
+
+- [ ] Questions to answer:
+  - Do these features use `/api/v1/strategies/*` endpoints?
+  - Or do they use position attributes (direction, investment_class)?
+  - Will frontend break if strategy endpoints return 404?
+
+- [ ] Frontend codebase audit:
+  ```bash
+  # In frontend repo:
+  grep -r "strategies" src/
+  grep -r "/api/v1/strategies" src/
+  grep -r "strategy_id" src/
+  ```
+
+- [ ] Database verification (should be 0):
+  ```sql
+  SELECT COUNT(*) AS strategy_count FROM strategies;
+  SELECT COUNT(*) AS leg_count FROM strategy_legs;
+  SELECT COUNT(*) AS metrics_count FROM strategy_metrics;
+  SELECT COUNT(*) AS tags_count FROM strategy_tags;
+  ```
+
+- [ ] **Go/No-Go Decision**: Only proceed if:
+  - ✅ Frontend confirms no dependency on strategy APIs
+  - ✅ Database contains 0 strategy records
+  - ✅ Recent "categorization" features use tags or position attributes
+
+---
+
+### Phase 3.0.2: Alembic Migration Design & Expert Review
+
+**Migration File**: `alembic/versions/YYYYMMDD_remove_strategy_system.py`
+
+#### Migration Strategy - Detailed Approach
+
+**Principle**: Atomic deletion with clear dependency ordering (no downgrade support)
+
+**Pre-Migration State**:
+```
+Tables: strategies, strategy_legs, strategy_metrics, strategy_tags
+Foreign Keys:
+  - positions.strategy_id → strategies.id
+  - strategy_legs.strategy_id → strategies.id
+  - strategy_legs.position_id → positions.id
+  - strategy_metrics.strategy_id → strategies.id
+  - strategy_tags.strategy_id → strategies.id
+  - strategy_tags.tag_id → tags_v2.id
+Enum: strategytype
+```
+
+**Post-Migration State**:
+```
+Tables: (all 4 strategy tables deleted)
+Foreign Keys: (all strategy FKs removed)
+positions.strategy_id column: DELETED
+Enum: strategytype DELETED
+```
+
+#### Detailed Migration Code (For Expert Review)
+
+```python
+"""remove_strategy_system
+
+Revision ID: xxxxx
+Revises: a252603b90f8
+Create Date: 2025-10-05
+
+Complete removal of strategy system (never adopted - 0 records in production).
+This migration has NO DOWNGRADE - strategy tables are permanently deleted.
+
+Trade-off: Multi-leg options strategy management (Iron Condor, Butterfly, etc.)
+no longer supported. Use position-level tagging for grouping.
+"""
+from alembic import op
+import sqlalchemy as sa
+from sqlalchemy.dialects import postgresql
+
+# revision identifiers
+revision = 'xxxxx'
+down_revision = 'a252603b90f8'
+branch_labels = None
+depends_on = None
+
+
+def upgrade() -> None:
+    """
+    Remove strategy system in correct dependency order.
+
+    Critical Order:
+    1. Drop position.strategy_id FK first (dependent on strategies table)
+    2. Drop child tables (no FKs depend on them)
+    3. Drop parent table (strategies) last
+    4. Drop enum type
+    """
+
+    # ============================================================================
+    # STEP 1: Remove positions.strategy_id column and FK constraint
+    # ============================================================================
+    # NOTE: positions.strategy_id was made nullable in migration a252603b90f8
+    # with the comment "plan to eventually remove the strategies structure"
+
+    # Drop the FK constraint first (references strategies.id)
+    op.drop_constraint(
+        'positions_strategy_id_fkey',
+        'positions',
+        type_='foreignkey'
+    )
+
+    # Drop the column
+    op.drop_column('positions', 'strategy_id')
+
+
+    # ============================================================================
+    # STEP 2: Drop child tables (tables that reference strategies via FK)
+    # ============================================================================
+    # Order doesn't matter for these - none have FKs to each other
+
+    # Drop strategy_metrics table
+    # - Contains: aggregated Greeks, P&L, break-even points
+    # - FK: strategy_id → strategies.id
+    # - Unique constraint: (strategy_id, calculation_date)
+    op.drop_table('strategy_metrics')
+
+    # Drop strategy_legs table (junction for multi-leg strategies)
+    # - Contains: strategy-position relationships, leg ordering
+    # - FKs: strategy_id → strategies.id, position_id → positions.id
+    # - Composite PK: (strategy_id, position_id)
+    op.drop_table('strategy_legs')
+
+    # Drop strategy_tags table (junction for strategy tagging)
+    # - Contains: strategy-tag relationships
+    # - FKs: strategy_id → strategies.id, tag_id → tags_v2.id
+    # - Unique constraint: (strategy_id, tag_id)
+    op.drop_table('strategy_tags')
+
+
+    # ============================================================================
+    # STEP 3: Drop parent strategies table
+    # ============================================================================
+    # Must be last - other tables reference it via FK
+    # - Contains: strategy metadata, aggregated financials
+    # - FK to: portfolios.id, users.id (created_by)
+    # - Check constraint: valid_strategy_type (uses strategytype enum)
+    op.drop_table('strategies')
+
+
+    # ============================================================================
+    # STEP 4: Drop strategytype enum
+    # ============================================================================
+    # Must be after strategies table drop (table has CHECK constraint using enum)
+    # Enum values: standalone, covered_call, protective_put, iron_condor,
+    #              straddle, strangle, butterfly, pairs_trade, custom
+    op.execute('DROP TYPE IF EXISTS strategytype')
+
+
+def downgrade() -> None:
+    """
+    Downgrade NOT supported - strategy tables permanently deleted.
+
+    To restore:
+    1. Restore database from backup taken before this migration
+    2. Revert application code to commit before strategy removal
+    3. Do NOT run this migration
+
+    Recreation not possible because:
+    - Multi-leg strategy relationships lost
+    - Aggregated metrics (Greeks, P&L) not recoverable
+    - Strategy metadata (leg ordering, types) not preserved
+    """
+    raise NotImplementedError(
+        "Downgrade not supported - strategy system permanently removed. "
+        "Restore from backup if needed."
+    )
+```
+
+#### Migration Safety Checks
+
+**Pre-Execution Verification**:
+- [ ] Confirm database state:
+  ```sql
+  -- Should all return 0:
+  SELECT COUNT(*) FROM strategies;
+  SELECT COUNT(*) FROM strategy_legs;
+  SELECT COUNT(*) FROM strategy_metrics;
+  SELECT COUNT(*) FROM strategy_tags;
+  ```
+
+- [ ] Test on database copy:
+  ```bash
+  # Create test database
+  createdb sigmasight_test
+  pg_dump sigmasight_db | psql sigmasight_test
+
+  # Run migration on test copy
+  DATABASE_URL=postgresql+asyncpg://...sigmasight_test alembic upgrade head
+
+  # Verify tables dropped
+  psql sigmasight_test -c "\dt strategies*"  # Should show nothing
+  ```
+
+**Post-Execution Verification**:
+- [ ] Verify tables don't exist:
+  ```sql
+  \dt strategies          -- Should not exist
+  \dt strategy_legs       -- Should not exist
+  \dt strategy_metrics    -- Should not exist
+  \dt strategy_tags       -- Should not exist
+  ```
+
+- [ ] Verify column removed from positions:
+  ```sql
+  \d positions  -- Should NOT show strategy_id column
+  ```
+
+- [ ] Verify enum dropped:
+  ```sql
+  \dT strategytype  -- Should not exist
+  ```
+
+#### Migration Risks & Mitigations
+
+**🔴 CRITICAL RISKS:**
+
+1. **Incorrect Drop Order → Cascade Failures**
+   - **Risk**: Dropping strategies table before child tables fails due to FK constraints
+   - **Mitigation**: Explicit ordering in migration (child tables first, parent last)
+   - **Verification**: Test on database copy before production
+
+2. **positions.strategy_id FK Constraint Failure**
+   - **Risk**: FK constraint name might differ from 'positions_strategy_id_fkey'
+   - **Mitigation**: Check actual constraint name first:
+     ```sql
+     SELECT conname FROM pg_constraint
+     WHERE conrelid = 'positions'::regclass
+     AND contype = 'f'
+     AND confrelid = 'strategies'::regclass;
+     ```
+   - **Fallback**: Use `op.drop_constraint()` with `type_='foreignkey'` (finds by type)
+
+3. **Enum Drop Timing**
+   - **Risk**: Enum still in use by CHECK constraint when drop attempted
+   - **Mitigation**: Drop enum AFTER strategies table (constraint owner)
+   - **Verification**: `DROP TYPE IF EXISTS` prevents error if already gone
+
+**🟡 MODERATE RISKS:**
+
+4. **SQLAlchemy Metadata Cache**
+   - **Risk**: Application still has Strategy models in memory after migration
+   - **Mitigation**: Remove models from codebase BEFORE running migration
+   - **Verification**: Import test after migration (should fail)
+
+5. **Alembic History Corruption**
+   - **Risk**: Downgrade attempts corrupt migration history
+   - **Mitigation**: Explicitly raise NotImplementedError in downgrade()
+   - **Documentation**: Add warning in migration docstring
+
+---
+
+### Phase 3.0.3: Alembic Execution & Verification
+
+- [ ] **Pre-Migration Backup** (MANDATORY):
+  ```bash
+  pg_dump sigmasight_db > backups/pre_strategy_sunset_$(date +%Y%m%d_%H%M%S).sql
+  ```
+
+- [ ] Verify FK constraint name:
+  ```sql
+  SELECT conname FROM pg_constraint
+  WHERE conrelid = 'positions'::regclass
+  AND contype = 'f'
+  AND confrelid = 'strategies'::regclass;
+  ```
+
+- [ ] Create migration file:
+  ```bash
+  alembic revision -m "remove_strategy_system"
+  # Edit with detailed code from Phase 3.0.2 above
+  ```
+
+- [ ] Test on database copy:
+  ```bash
+  # Create test copy
+  createdb sigmasight_test
+  pg_dump sigmasight_db | psql sigmasight_test
+
+  # Run migration
+  DATABASE_URL=postgresql+asyncpg://localhost/sigmasight_test alembic upgrade head
+
+  # Verify success
+  psql sigmasight_test -c "\dt strategies"  # Should return no rows
+  psql sigmasight_test -c "\d positions" | grep strategy_id  # Should return nothing
+  ```
+
+- [ ] Execute on production:
+  ```bash
+  alembic upgrade head
+  ```
+
+- [ ] Post-migration verification:
+  ```sql
+  -- All should return "does not exist":
+  \dt strategies
+  \dt strategy_legs
+  \dt strategy_metrics
+  \dt strategy_tags
+  \dT strategytype
+
+  -- positions.strategy_id should be gone:
+  \d positions
+  ```
+
+- [ ] Update `app/database.py` metadata (remove strategy model imports):
+  ```python
+  # Remove these imports:
+  # from app.models.strategies import Strategy, StrategyLeg, StrategyMetrics, StrategyTag
+  ```
+
+---
+
+### Phase 3.0.4: Application Code Cleanup
+
+**Files to Delete:**
+- [ ] `app/models/strategies.py` (209 lines)
+  - Contains: Strategy, StrategyLeg, StrategyMetrics, StrategyTag models
+  - Contains: StrategyType enum
+
+- [ ] `app/api/v1/strategies.py` (457 lines)
+  - Full CRUD API for strategy management
+  - 10+ endpoints (create, read, update, delete, list, etc.)
+
+- [ ] `app/schemas/strategy.py` (if exists)
+  - Pydantic models for strategy requests/responses
+
+- [ ] `app/services/strategy_service.py` (if exists)
+  - Business logic for strategy operations
+
+**Files to Update:**
+
+- [ ] `app/models/positions.py`
+  - Remove `strategy` relationship: `strategy = relationship("Strategy", back_populates="positions")`
+  - Remove import: `from app.models.strategies import Strategy`
+
+- [ ] `app/models/users.py` (Portfolio model)
+  - Remove `strategies` relationship: `strategies = relationship("Strategy", back_populates="portfolio")`
+  - Remove import: `from app.models.strategies import Strategy`
+
+- [ ] `app/models/tags_v2.py`
+  - Remove `strategy_tags` relationship: `strategy_tags = relationship("StrategyTag", back_populates="tag")`
+  - Remove import: `from app.models.strategies import StrategyTag`
+
+- [ ] `app/api/v1/router.py`
+  - Remove import: `from app.api.v1.strategies import router as strategies_router`
+  - Remove router registration: `api_router.include_router(strategies_router)`
+  - Remove comment about strategy management APIs
+
+**Search for Remaining References:**
+- [ ] Grep for strategy imports:
+  ```bash
+  grep -r "from app.models.strategies import" app/
+  grep -r "import.*strategies" app/
+  ```
+
+- [ ] Grep for strategy usage:
+  ```bash
+  grep -r "Strategy(" app/ tests/
+  grep -r "\.strategy" app/ tests/
+  grep -r "strategy_id" app/ tests/
+  ```
+
+**Tests to Update:**
+- [ ] Find strategy test fixtures:
+  ```bash
+  grep -r "Strategy(" tests/
+  grep -r "@pytest.fixture.*strategy" tests/
+  ```
+
+- [ ] Delete or rewrite:
+  - Tests constructing Strategy objects
+  - Tests expecting strategy relationships
+  - Fixtures creating strategies
+
+- [ ] Update portfolio tests to use position-only model
+
+---
+
+### Phase 3.0.5: Documentation & Breaking Change Communication
+
+**API Version Bump:**
+- [ ] Bump API version to **v1.5** in:
+  - `app/config.py` - Update version constant
+  - `app/main.py` - Update OpenAPI metadata
+  - API docs - Create new version file
+
+**API Documentation:**
+- [ ] Create `_docs/reference/API_REFERENCE_V1.5.0.md`:
+  - Copy from v1.4.6
+  - Remove all strategy endpoint documentation (10+ endpoints)
+  - Add breaking change notice at top
+
+- [ ] Add breaking change notice:
+  ```markdown
+  ## ⚠️ BREAKING CHANGE - v1.5 (October 2025)
+
+  **Removed**: All `/api/v1/strategies/*` endpoints
+
+  **Reason**: Strategy system never adopted (0 records in production). Multi-leg
+  options strategy management adds complexity without usage.
+
+  **Impact**:
+  - Multi-leg options strategies (Iron Condor, Butterfly, Covered Call, etc.) NOT supported
+  - Aggregated Greeks across strategy legs NOT calculated
+  - Max profit/loss for multi-leg strategies NOT available
+
+  **Migration Path**:
+  - Use position-level tags for grouping: `/api/v1/position-tags`
+  - Manage complex options as individual positions
+  - Tag related positions for organizational purposes
+
+  **Endpoints Removed**:
+  - POST   /api/v1/strategies
+  - GET    /api/v1/strategies
+  - GET    /api/v1/strategies/{id}
+  - PUT    /api/v1/strategies/{id}
+  - DELETE /api/v1/strategies/{id}
+  - ... (full list in v1.4.6 docs)
+  ```
+
+**Create Sunset Notice Document:**
+- [ ] Create `_docs/STRATEGY_SUNSET_NOTICE.md`:
+  ```markdown
+  # Strategy System Sunset Notice
+
+  **Effective Date**: October 2025
+  **API Version**: v1.5
+
+  ## What Was Removed
+
+  The entire strategy system has been permanently removed:
+  - `strategies` database table and 3 related tables
+  - `/api/v1/strategies/*` API endpoints (10+ endpoints)
+  - Strategy ORM models and relationships
+  - Multi-leg options strategy support
+
+  ## Why
+
+  - **Never Adopted**: 0 strategy records in production database
+  - **Complexity**: Maintaining both strategies and tags doubles system complexity
+  - **Time Constraints**: Focus on core features (position tagging works well)
+
+  ## What's Lost
+
+  ### Multi-Leg Options Strategy Management
+  - Iron Condor, Butterfly, Covered Call strategies NOT supported
+  - Aggregated Greeks across strategy legs NOT calculated
+  - Strategy-level P&L, max profit/loss NOT available
+  - Break-even point calculations for multi-leg NOT available
+
+  ### Strategy Grouping
+  - Cannot group positions into named strategies
+  - Cannot track multi-leg relationships
+  - Cannot order legs within a strategy
+
+  ## Migration Path
+
+  ### For Position Grouping
+  **Before (Strategies)**:
+  ```json
+  {
+    "strategy_id": "...",
+    "strategy_name": "Tech Growth",
+    "positions": [...]
+  }
+  ```
+
+  **After (Tags)**:
+  ```json
+  {
+    "position_id": "...",
+    "tags": [{"name": "Tech Growth", ...}]
+  }
+  ```
+
+  Use `/api/v1/position-tags` endpoints to assign tags to positions.
+
+  ### For Multi-Leg Options
+  **Not Supported**: Manage legs as individual positions
+
+  Example - Covered Call:
+  - Create position 1: Long 100 AAPL shares
+  - Create position 2: Short 1 AAPL call option
+  - Tag both with "AAPL Covered Call" for grouping
+  - Manual Greeks calculation at position level
+
+  ## Technical Details
+
+  ### Database Changes
+  - Dropped tables: `strategies`, `strategy_legs`, `strategy_metrics`, `strategy_tags`
+  - Removed column: `positions.strategy_id`
+  - Dropped enum: `strategytype`
+
+  ### No Downgrade Path
+  The migration is irreversible. To restore strategy support would require:
+  - Full database restore from pre-v1.5 backup
+  - Application code rollback
+  - Re-implementation of strategy features
+
+  ## Questions?
+
+  Contact development team if you have questions about this change.
+  ```
+
+**Update Workflow Guides:**
+- [ ] `_guides/ONBOARDING_NEW_ACCOUNT_PORTFOLIO.md`
+  - Remove strategy creation steps
+  - Show tag-based organization examples
+  - Reference position-tags API endpoints
+
+- [ ] `_guides/BACKEND_DAILY_COMPLETE_WORKFLOW_GUIDE.md`
+  - Remove strategy management workflows
+  - Document tag-based position grouping
+
+- [ ] `_guides/BACKEND_INITIAL_COMPLETE_WORKFLOW_GUIDE.md`
+  - Remove strategy references
+  - Update data model diagrams (if any)
+
+---
+
+### Phase 3.0.6: Verification & Rollback Plan
+
+**Import Verification:**
+- [ ] Test strategy imports (should fail):
+  ```python
+  # Should raise ImportError:
+  python -c "from app.models.strategies import Strategy"
+
+  # Should work:
+  python -c "from app.models.positions import Position; print('OK')"
+  python -c "from app.models.tags_v2 import TagV2; print('OK')"
+  ```
+
+**API Endpoint Verification:**
+- [ ] Strategy endpoints return 404:
+  ```bash
+  curl http://localhost:8000/api/v1/strategies  # Should 404
+  curl http://localhost:8000/api/v1/strategies/123  # Should 404
+  ```
+
+- [ ] Other endpoints still work:
+  ```bash
+  curl http://localhost:8000/api/v1/position-tags  # Should work
+  curl http://localhost:8000/api/v1/data/positions/details  # Should work
+  ```
+
+**Database Verification:**
+- [ ] Tables don't exist:
+  ```sql
+  \dt strategies          -- Should not exist
+  \dt strategy_legs       -- Should not exist
+  \dt strategy_metrics    -- Should not exist
+  \dt strategy_tags       -- Should not exist
+  ```
+
+- [ ] Column removed from positions:
+  ```sql
+  SELECT column_name
+  FROM information_schema.columns
+  WHERE table_name = 'positions' AND column_name = 'strategy_id';
+  -- Should return 0 rows
+  ```
+
+- [ ] Enum dropped:
+  ```sql
+  \dT strategytype  -- Should not exist
+  ```
+
+**Frontend Smoke Test** (with FE team):
+- [ ] Portfolio loading works
+- [ ] Position display works
+- [ ] Tag filtering works (if applicable)
+- [ ] No console errors about missing strategy endpoints
+- [ ] No 404 errors in network tab for strategy requests
+
+**Batch Processing Verification:**
+- [ ] Run batch processing:
+  ```bash
+  uv run python scripts/batch_processing/run_batch.py
+  ```
+
+- [ ] Check for strategy-related errors in logs
+- [ ] Verify all calculation engines run successfully
+
+**Rollback Plan:**
+- [ ] **Pre-Migration Backup Location**:
+  ```
+  backups/pre_strategy_sunset_YYYYMMDD_HHMMSS.sql
+  ```
+
+- [ ] **Rollback Steps** (if critical issues found):
+  ```bash
+  # 1. Stop application
+  pkill -f "python run.py"
+
+  # 2. Restore database
+  dropdb sigmasight_db
+  createdb sigmasight_db
+  psql sigmasight_db < backups/pre_strategy_sunset_YYYYMMDD_HHMMSS.sql
+
+  # 3. Revert application code
+  git revert <migration_commit_sha>
+  git revert <code_cleanup_commit_sha>
+
+  # 4. Restart application
+  uv run python run.py
+  ```
+
+- [ ] **Rollback Conditions** (when to rollback):
+  - Frontend completely broken (404 errors, missing data)
+  - Critical backend errors on startup (import errors)
+  - Database corruption (tables in inconsistent state)
+  - User-facing functionality lost (not just multi-leg strategies)
+
+---
+
+## Success Criteria
+
+✅ **Frontend Coordination Complete**
+- Frontend team confirms no dependency on strategy APIs
+- Recent "categorization" features verified to use tags/position attributes
+- Deployment coordinated (backend + frontend together if needed)
+
+✅ **Alembic Migration Executed Successfully**
+- All 4 strategy tables dropped
+- positions.strategy_id column removed
+- strategytype enum dropped
+- No foreign key constraint errors
+- Migration history clean
+
+✅ **Code Cleanup Complete**
+- All strategy models, APIs, services deleted (666+ lines removed)
+- No imports of `app.models.strategies` anywhere in codebase
+- Tests updated or deleted (no strategy fixtures)
+- No `grep` hits for strategy references in active code
+
+✅ **Documentation Updated**
+- API reference updated to v1.5 with breaking change notice
+- STRATEGY_SUNSET_NOTICE.md created explaining lost functionality
+- Workflow guides updated to show tag-based organization
+- Migration guide provided for position grouping
+
+✅ **Verification Complete**
+- Backend imports work (no strategy references)
+- API endpoints return 404 for `/strategies/*`
+- Database tables confirmed dropped
+- Frontend smoke test passes (with FE team)
+- Batch processing runs without errors
+- No unexpected errors in logs
+
+✅ **No Regressions**
+- Position management works
+- Tag-based grouping works
+- Portfolio data endpoints work
+- All calculation engines run successfully
+
+---
+
+## Risk Assessment
+
+### 🔴 CRITICAL RISKS
+
+**1. Multi-Leg Options Functionality Permanently Lost**
+- **Risk**: Users cannot manage complex options strategies (Iron Condor, Butterfly, Covered Call)
+- **Impact**: This is a **permanent capability removal**, not a migration
+- **Accepted Trade-off**: Time constraints + 0 current usage = acceptable loss
+- **Mitigation**:
+  - Document clearly in sunset notice
+  - Provide tag-based workarounds for simple grouping
+  - Future feature request would require new build (not restoration)
+
+**2. Frontend Breaking Changes**
+- **Risk**: Recent frontend "strategy categorization" features may break
+- **Impact**: 404 errors, missing data, UI failures
+- **Mitigation**:
+  - **MANDATORY**: Frontend team verification in Phase 3.0.1
+  - Coordinate deployment (backend + frontend together)
+  - Verify features use tags/position attributes, not Strategy model
+
+**3. Incorrect Migration Drop Order**
+- **Risk**: FK constraint violations if drop order wrong
+- **Impact**: Migration fails, database in inconsistent state
+- **Mitigation**:
+  - Explicit detailed ordering in migration code
+  - Test on database copy before production
+  - Pre-migration backup for rollback
+
+### 🟡 MODERATE RISKS
+
+**4. SQLAlchemy Metadata Cache Issues**
+- **Risk**: Application tries to use Strategy models after migration
+- **Impact**: Import errors, relationship failures
+- **Mitigation**:
+  - Remove models from codebase BEFORE running migration
+  - Import verification test after migration
+  - Application restart after deployment
+
+**5. Alembic Downgrade Attempts**
+- **Risk**: Developer tries to downgrade, corrupts migration history
+- **Impact**: Migration history inconsistency
+- **Mitigation**:
+  - Explicit `NotImplementedError` in downgrade()
+  - Documentation warning about irreversibility
+  - Rollback plan uses database restore, not alembic downgrade
+
+### 🟢 LOW RISKS
+
+**6. Data Loss**
+- **Risk**: Loss of historical strategy data
+- **Impact**: Minimal (0 strategies currently exist)
+- **Mitigation**: Database backup taken before migration
+
+---
+
+## Timeline Estimate
+
+**Total Estimated Time**: 1-2 days (with FE coordination)
+
+- **Phase 3.0.1** (FE Coordination): 2-4 hours ⚠️ BLOCKER
+- **Phase 3.0.2** (Migration Design): 1-2 hours
+- **Phase 3.0.3** (Alembic Execution): 2-3 hours
+- **Phase 3.0.4** (Code Cleanup): 3-4 hours
+- **Phase 3.0.5** (Documentation): 2-3 hours
+- **Phase 3.0.6** (Verification): 1-2 hours
+
+**Critical Path**: Phase 3.0.1 (Frontend coordination) must complete before any other work
+
+---
+
+**Status**: Ready for expert review of Alembic migration approach (Phase 3.0.2-3.0.3)
