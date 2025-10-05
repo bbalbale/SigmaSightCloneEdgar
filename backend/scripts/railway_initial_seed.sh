@@ -79,7 +79,7 @@ uv run python scripts/list_portfolios.py
 
 # Step 5: Seed target prices (optional but recommended)
 echo ""
-echo -e "${YELLOW}[Step 5/6] Seeding target prices...${NC}"
+echo -e "${YELLOW}[Step 5/5] Seeding target prices...${NC}"
 echo "Creating 105 target price records (35 symbols × 3 portfolios)"
 echo ""
 
@@ -92,28 +92,6 @@ if [ -f "data/target_prices_import.csv" ]; then
     fi
 else
     echo -e "${YELLOW}⚠ Target prices CSV not found - skipping${NC}"
-fi
-
-# Step 6: Run batch processing to populate all calculation data
-echo ""
-echo -e "${YELLOW}[Step 6/6] Running batch processing for all portfolios...${NC}"
-echo "This will:"
-echo "  1. Fetch latest market data"
-echo "  2. Calculate portfolio aggregations"
-echo "  3. Run factor analysis (7 factors)"
-echo "  4. Generate market risk scenarios"
-echo "  5. Run 18 stress test scenarios"
-echo "  6. Create portfolio snapshots"
-echo "  7. Calculate correlations"
-echo ""
-echo "Expected time: ~30-60 seconds per portfolio (3 portfolios total)"
-echo ""
-
-if uv run python scripts/batch_processing/run_batch_with_reports.py; then
-    echo -e "${GREEN}✓ Batch processing completed successfully${NC}"
-else
-    echo -e "${YELLOW}⚠ Batch processing encountered errors (some may be expected)${NC}"
-    echo "Check logs above for details"
 fi
 
 # Final summary

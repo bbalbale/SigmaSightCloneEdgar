@@ -25,9 +25,8 @@ This **single command** will:
 3. ✅ Validate database setup
 4. ✅ Verify portfolio IDs are deterministic
 5. ✅ Seed target prices (105 records)
-6. ✅ Run batch processing to populate all calculations
 
-**Expected Time:** 2-5 minutes
+**Expected Time:** 1-2 minutes
 
 ## What Gets Created
 
@@ -53,7 +52,6 @@ Hedge Fund Style: fcd71196-e93e-f000-5a74-31a9eead3118
 - **105 target price records** (35 symbols × 3 portfolios)
 - **Security master data** (sector/industry classifications)
 - **Initial price cache** (current market prices)
-- **Calculation data** (factor exposures, correlations, snapshots, market risk scenarios)
 
 ## Alternative: Manual Step-by-Step
 
@@ -83,11 +81,6 @@ railway ssh uv run python scripts/list_portfolios.py
 ```bash
 railway ssh uv run python scripts/data_operations/populate_target_prices_via_service.py \
   --csv-file data/target_prices_import.csv --execute
-```
-
-### 6. Run Batch Processing
-```bash
-railway ssh uv run python scripts/batch_processing/run_batch_with_reports.py
 ```
 
 ## Verify Deployment
@@ -128,15 +121,10 @@ curl -X GET https://sigmasight-be-production.up.railway.app/api/v1/data/portfoli
 - Press `Ctrl+C` to cancel if you don't want to overwrite existing data
 - Or let it continue to re-seed (useful for resetting to known state)
 
-### Batch Processing Errors
-- Some errors are expected (e.g., missing options data for Greeks)
+### API Returns No Data
+- Verify seeding completed successfully
 - Check Railway logs: `railway logs --lines 100`
-- Look for "✓ Batch processing completed" or "⚠ encountered errors"
-
-### API Returns Empty Data
-- Verify batch processing completed successfully
-- Check Railway logs for calculation engine errors
-- Re-run batch processing: `railway ssh uv run python scripts/batch_processing/run_batch_with_reports.py`
+- Re-run seeding script: `railway ssh bash scripts/railway_initial_seed.sh`
 
 ## View Logs
 
