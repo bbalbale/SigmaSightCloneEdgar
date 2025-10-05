@@ -627,6 +627,20 @@ The portfolio report generator was built before the API and frontend existed to 
 2. **React frontend** - Interactive UI for portfolio visualization
 3. **Frontend exports** - Client-side export capabilities (CSV, JSON, etc.)
 
+### ⚠️ IMPORTANT DISCOVERY (2025-10-04)
+
+**`run_batch_with_reports.py` is the PRIMARY batch processing script!**
+
+Initial plan was to delete this file, but investigation revealed:
+- All workflow guides use: `run_batch_with_reports.py --skip-reports` for batch processing
+- `run_batch_calculations.py` (referenced in guides) **does not exist**
+- This is the **ONLY** batch processing script in `scripts/batch_processing/`
+
+**Updated Plan**:
+- ❌ Do NOT delete `run_batch_with_reports.py`
+- ✅ REFACTOR it: Remove report code, rename to `run_batch.py`
+- ✅ UPDATE all documentation: Replace references with new `run_batch.py` script
+
 ---
 
 ## Affected Files & Components
@@ -659,19 +673,42 @@ from app.reports.portfolio_report_generator import PortfolioReportGenerator
 
 ---
 
-### 3. Scripts ❌ DELETE
+### 3. Scripts
 
-#### `scripts/batch_processing/generate_all_reports.py`
+#### ❌ DELETE: `scripts/batch_processing/generate_all_reports.py`
 - Generates reports for all 3 demo portfolios
 - Writes MD/JSON/CSV files to `reports/` directory
 - Used by: Nothing (standalone script)
 
-#### `scripts/batch_processing/run_batch_with_reports.py`
-- Combined batch processing + report generation
-- ~340 lines including argparse, error handling
-- Used by: Railway seeding attempted to use this (but failed with ModuleNotFoundError)
+#### ⚠️ MODIFY & RENAME: `scripts/batch_processing/run_batch_with_reports.py`
+**CRITICAL**: This is the **PRIMARY batch processing script** used throughout the codebase!
 
-#### `scripts/testing/test_report_generator.py`
+**Current Usage** (from workflow guides):
+```bash
+# BACKEND_DAILY_COMPLETE_WORKFLOW_GUIDE.md (lines 39, 365, 371, 374, 377)
+uv run python scripts/batch_processing/run_batch_with_reports.py --skip-reports
+
+# ONBOARDING_NEW_ACCOUNT_PORTFOLIO.md (line 387)
+uv run python scripts/run_batch_with_reports.py --portfolio <portfolio_id>
+
+# Railway seeding script (attempted, failed due to missing app.reports)
+```
+
+**Current Flags**:
+- `--skip-reports` - Run batch only (MAIN USE CASE)
+- `--skip-batch` - Generate reports only
+- `--portfolio <UUID>` - Run for specific portfolio
+
+**Action Plan**:
+1. Remove all report generation code (imports, PortfolioReportGenerator, report methods)
+2. Remove `--skip-reports` and `--skip-batch` flags (no longer needed)
+3. Keep `--portfolio` flag for targeted processing
+4. Rename file: `run_batch_with_reports.py` → `run_batch.py`
+5. Update all documentation references
+
+**Note**: `BACKEND_INITIAL_COMPLETE_WORKFLOW_GUIDE.md` references `scripts/run_batch_calculations.py` which **does not exist** - this is a documentation error that should be fixed to reference the renamed `run_batch.py`
+
+#### ❌ DELETE: `scripts/testing/test_report_generator.py`
 - Manual test script for report generation
 - Used by: Nothing
 
@@ -769,10 +806,10 @@ ModuleNotFoundError: No module named 'app.reports'
 ```
 
 **Action**:
-- Remove Step 6 entirely from railway_initial_seed.sh
+- Remove Step 6 entirely from railway_initial_seed.sh (attempts to use run_batch_with_reports.py which depends on app.reports)
 - Update step count from "[Step 6/6]" to "[Step 5/5]"
 - Update `scripts/RAILWAY_SEEDING_README.md` accordingly
-- Add note that batch processing can be run separately if needed
+- Add note: "After cleanup, batch processing can be run separately using: `railway ssh uv run python scripts/batch_processing/run_batch.py`"
 
 ---
 
@@ -807,19 +844,42 @@ _archive/incidents/BACKEND_COMPUTE_ERROR.md (mentions reports)
 - [ ] Verify no other code references this method
 - [ ] Run tests to ensure batch orchestrator still works
 
-### Phase 2.4: Core Module Deletion
-- [ ] Delete `scripts/batch_processing/run_batch_with_reports.py`
+### Phase 2.4: Refactor Main Batch Script
+- [ ] Create `scripts/batch_processing/run_batch.py` by:
+  - [ ] Copy `run_batch_with_reports.py` to `run_batch.py`
+  - [ ] Remove import: `from app.reports.portfolio_report_generator import PortfolioReportGenerator`
+  - [ ] Remove `run_report_generation()` method entirely
+  - [ ] Remove `--skip-reports` and `--skip-batch` arguments from argparse
+  - [ ] Simplify main() to only call `run_batch_processing()`
+  - [ ] Update docstring to remove report references
+  - [ ] Test with: `uv run python scripts/batch_processing/run_batch.py`
+  - [ ] Test with portfolio flag: `uv run python scripts/batch_processing/run_batch.py --portfolio <UUID>`
+- [ ] Delete original `scripts/batch_processing/run_batch_with_reports.py`
 - [ ] Delete `app/reports/` directory entirely
 - [ ] Run full test suite
 
 ### Phase 2.5: Documentation Cleanup
-- [ ] Review and update `_guides/BACKEND_INITIAL_COMPLETE_WORKFLOW_GUIDE.md`
-- [ ] Review and update `_guides/BACKEND_DAILY_COMPLETE_WORKFLOW_GUIDE.md`
-- [ ] Review and update `_guides/WINDOWS_SETUP_GUIDE.md`
-- [ ] Review and update `_guides/ONBOARDING_NEW_ACCOUNT_PORTFOLIO.md`
-- [ ] Review and update `_docs/generated/Calculation_Engine_White_Paper.md`
-- [ ] Update `scripts/batch_processing/README.md`
-- [ ] Update `scripts/README.md`
+- [ ] **`_guides/BACKEND_DAILY_COMPLETE_WORKFLOW_GUIDE.md`** - CRITICAL
+  - [ ] Replace all `run_batch_with_reports.py --skip-reports` → `run_batch.py`
+  - [ ] Remove references to `generate_all_reports.py`
+  - [ ] Update batch processing directory listing
+- [ ] **`_guides/BACKEND_INITIAL_COMPLETE_WORKFLOW_GUIDE.md`**
+  - [ ] Fix non-existent `run_batch_calculations.py` → `run_batch.py`
+  - [ ] Replace `run_batch_with_reports.py --portfolio` → `run_batch.py --portfolio`
+  - [ ] Remove `--skip-batch` flag references (report generation section)
+- [ ] **`_guides/WINDOWS_SETUP_GUIDE.md`**
+  - [ ] Replace `run_batch_with_reports.py` → `run_batch.py`
+  - [ ] Remove report generation examples
+- [ ] **`_guides/ONBOARDING_NEW_ACCOUNT_PORTFOLIO.md`**
+  - [ ] Replace `run_batch_with_reports.py --portfolio` → `run_batch.py --portfolio`
+  - [ ] Update shared components section
+- [ ] **`_docs/generated/Calculation_Engine_White_Paper.md`**
+  - [ ] Review for report generation references (if any)
+- [ ] **`scripts/batch_processing/README.md`**
+  - [ ] Document new `run_batch.py` script
+  - [ ] Remove `run_batch_with_reports.py` and `generate_all_reports.py` docs
+- [ ] **`scripts/README.md`**
+  - [ ] Update quick reference section
 
 ### Phase 2.6: Verification & Cleanup
 - [ ] Run full test suite
@@ -853,14 +913,16 @@ _archive/incidents/BACKEND_COMPUTE_ERROR.md (mentions reports)
 
 Confirmed these are the ONLY imports of report generator:
 ```bash
-app/cli/report_generator_cli.py: from app.reports.portfolio_report_generator import ...
-app/batch/batch_orchestrator_v2.py: from app.reports.portfolio_report_generator import ...
-scripts/batch_processing/generate_all_reports.py: from app.reports.portfolio_report_generator import ...
-scripts/batch_processing/run_batch_with_reports.py: from app.reports.portfolio_report_generator import ...
-scripts/testing/test_report_generator.py: from app.reports.portfolio_report_generator import ...
+app/cli/report_generator_cli.py: from app.reports.portfolio_report_generator import ...        [DELETE]
+app/batch/batch_orchestrator_v2.py: from app.reports.portfolio_report_generator import ...      [MODIFY - remove method]
+scripts/batch_processing/generate_all_reports.py: from app.reports.portfolio_report_generator import ...  [DELETE]
+scripts/batch_processing/run_batch_with_reports.py: from app.reports.portfolio_report_generator import ... [MODIFY - strip import, rename to run_batch.py]
+scripts/testing/test_report_generator.py: from app.reports.portfolio_report_generator import ... [DELETE]
 ```
 
 ✅ **Confirmed**: No API endpoints or other critical services use the report generator
+
+**CRITICAL**: `run_batch_with_reports.py` is the **primary batch processing script** - must refactor, not delete!
 
 ---
 
@@ -884,12 +946,15 @@ scripts/testing/test_report_generator.py: from app.reports.portfolio_report_gene
 
 ## Success Criteria
 
-- [ ] All report generator code deleted
+- [ ] All report generator code deleted (app/reports/, generate_all_reports.py, test_report_generator.py, report_generator_cli.py)
+- [ ] `run_batch.py` script working correctly without report dependencies
 - [ ] All tests passing
-- [ ] Railway seeding works without report generation
-- [ ] No orphaned imports or references
-- [ ] Documentation updated
+- [ ] Railway seeding works (Step 6 removed, can run batch manually after if needed)
+- [ ] No orphaned imports or references to app.reports module
+- [ ] All documentation updated with new `run_batch.py` script name
 - [ ] Git commit history clean
+- [ ] Batch processing works locally: `uv run python scripts/batch_processing/run_batch.py`
+- [ ] Batch processing works with portfolio flag: `uv run python scripts/batch_processing/run_batch.py --portfolio <UUID>`
 
 ---
 
