@@ -1,6 +1,7 @@
 {
   "$schema": "https://railway.com/railway.schema.json",
   "deploy": {
+    "cronSchedule": "30 23 * * 1-5",
     "restartPolicyType": "ON_FAILURE",
     "restartPolicyMaxRetries": 3,
     "startCommand": "uv run python scripts/automation/railway_daily_batch.py"
