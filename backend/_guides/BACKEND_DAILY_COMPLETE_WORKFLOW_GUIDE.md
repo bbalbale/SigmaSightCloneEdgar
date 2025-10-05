@@ -1,11 +1,13 @@
 # Backend Daily Complete Workflow Guide
 
-> **Last Updated**: 2025-09-11  
-> **Purpose**: Daily operational guide for backend development after initial setup  
-> **Platforms**: Windows & Mac  
-> **Covers**: Database, API Server, Batch Processing, Agent System, Market Data
-> 
-> ⚠️ **CRITICAL CHANGES (2025-09-11)**:
+> **Last Updated**: 2025-10-05
+> **Purpose**: Daily operational guide for backend development after initial setup
+> **Platforms**: Windows & Mac
+> **Covers**: Database, API Server, Batch Processing, Agent System, Market Data, Tags
+>
+> ⚠️ **CRITICAL CHANGES (2025-10-05)**:
+> - **Tag System Added**: New position tagging system for portfolio organization (October 2, 2025)
+> - **Strategy System Sunset**: Strategy system planned for removal (Phase 3.0) - use tags instead
 > - **Scripts Reorganized**: All scripts now organized into subdirectories by function (see note below)
 > - **Unicode Encoding**: ✅ FIXED - Scripts now handle UTF-8 automatically on all platforms
 > - **Database Migrations**: ALWAYS run migrations after pulling code changes
@@ -18,10 +20,11 @@
 4. [Verify System Health](#verify-system-health)
 5. [Daily Data Updates](#daily-data-updates)
 6. [API Server Operations](#api-server-operations)
-7. [Agent System Operations](#agent-system-operations)
-8. [Batch Processing](#batch-processing)
-9. [Monitoring & Troubleshooting](#monitoring--troubleshooting)
-10. [End of Day Shutdown](#end-of-day-shutdown)
+7. [Tag System Operations](#tag-system-operations)
+8. [Agent System Operations](#agent-system-operations)
+9. [Batch Processing](#batch-processing)
+10. [Monitoring & Troubleshooting](#monitoring--troubleshooting)
+11. [End of Day Shutdown](#end-of-day-shutdown)
 
 ---
 
@@ -361,20 +364,20 @@ Expected: 105 target price records (35 symbols × 3 portfolios)
 3. **DO NOT RUN REPORTS** - Use `--skip-reports` flag for all batch operations.
 
 ```bash
-# Run batch processing WITHOUT reports (ALL PLATFORMS)
+# Run batch processing for all portfolios (ALL PLATFORMS)
 uv run python scripts/batch_processing/run_batch.py
 
-# Run batch for specific portfolio WITHOUT reports
+# Run batch for specific portfolio
 # Examples with actual portfolio IDs (ALL PLATFORMS):
 
 # Individual portfolio only
-uv run python scripts/batch_processing/run_batch_with_reports.py --portfolio 1d8ddd95-3b45-0ac5-35bf-cf81af94a5fe --skip-reports
+uv run python scripts/batch_processing/run_batch.py --portfolio 1d8ddd95-3b45-0ac5-35bf-cf81af94a5fe
 
 # High Net Worth portfolio only
-uv run python scripts/batch_processing/run_batch_with_reports.py --portfolio e23ab931-a033-edfe-ed4f-9d02474780b4 --skip-reports
+uv run python scripts/batch_processing/run_batch.py --portfolio e23ab931-a033-edfe-ed4f-9d02474780b4
 
 # Hedge Fund portfolio only
-uv run python scripts/batch_processing/run_batch_with_reports.py --portfolio fcd71196-e93e-f000-5a74-31a9eead3118 --skip-reports
+uv run python scripts/batch_processing/run_batch.py --portfolio fcd71196-e93e-f000-5a74-31a9eead3118
 ```
 
 **What Batch Processing Does:**
@@ -424,8 +427,8 @@ curl -X POST "http://localhost:8000/api/v1/auth/login" \
   -d '{"email": "demo_individual@sigmasight.com", "password": "demo12345"}'
 ```
 
-### Common API Endpoints (13 Verified Working)
-**Reference**: See `backend/_docs/requirements/API_SPECIFICATIONS_V1.4.5.md` for complete documentation
+### Common API Endpoints (Verified Working)
+**Reference**: See `backend/_docs/reference/API_REFERENCE_V1.4.6.md` for complete documentation
 
 ```bash
 # Set your auth token (from login response)
@@ -464,6 +467,109 @@ curl -H "Authorization: Bearer $TOKEN" \
 # Get portfolio overview with exposures and P&L
 curl -H "Authorization: Bearer $TOKEN" \
   http://localhost:8000/api/v1/analytics/portfolio/e23ab931-a033-edfe-ed4f-9d02474780b4/overview
+```
+
+---
+
+## Tag System Operations
+
+### Overview (Added October 2, 2025)
+
+The tag system provides flexible position categorization and organization:
+- **Tag Management**: Create, update, delete custom tags for portfolio organization
+- **Position Tagging**: Assign tags to positions for grouping and filtering
+- **Tag-Based Analysis**: Filter and analyze positions by tags
+
+⚠️ **Note**: The strategy system is planned for removal (Phase 3.0). Use tags for position grouping instead.
+
+### Tag Management Endpoints
+
+```bash
+# Set your auth token (from login response)
+TOKEN="your_jwt_token_here"
+
+# Create a new tag
+curl -X POST "http://localhost:8000/api/v1/tags" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Tech Stocks",
+    "color": "#3B82F6",
+    "description": "Technology sector positions"
+  }'
+
+# List all tags for user
+curl -H "Authorization: Bearer $TOKEN" \
+  http://localhost:8000/api/v1/tags
+
+# Update a tag
+curl -X PUT "http://localhost:8000/api/v1/tags/{tag_id}" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Technology",
+    "color": "#2563EB",
+    "description": "Technology sector holdings"
+  }'
+
+# Delete a tag
+curl -X DELETE "http://localhost:8000/api/v1/tags/{tag_id}" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+### Position Tagging Endpoints
+
+```bash
+# Assign tag to position
+curl -X POST "http://localhost:8000/api/v1/position-tags" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "position_id": "position-uuid-here",
+    "tag_id": "tag-uuid-here"
+  }'
+
+# Get all tags for a position
+curl -H "Authorization: Bearer $TOKEN" \
+  "http://localhost:8000/api/v1/position-tags/position/{position_id}"
+
+# Get all positions with a specific tag
+curl -H "Authorization: Bearer $TOKEN" \
+  "http://localhost:8000/api/v1/position-tags/tag/{tag_id}/positions"
+
+# Remove tag from position
+curl -X DELETE "http://localhost:8000/api/v1/position-tags/{position_tag_id}" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+### Common Tag Workflows
+
+**Example: Create and apply sector tags**
+```bash
+# 1. Create "Technology" tag
+TAG_TECH=$(curl -s -X POST http://localhost:8000/api/v1/tags \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"Technology","color":"#3B82F6"}' | jq -r '.id')
+
+# 2. Create "Healthcare" tag
+TAG_HEALTH=$(curl -s -X POST http://localhost:8000/api/v1/tags \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"Healthcare","color":"#10B981"}' | jq -r '.id')
+
+# 3. Get positions for portfolio
+POSITIONS=$(curl -s -H "Authorization: Bearer $TOKEN" \
+  "http://localhost:8000/api/v1/data/positions/details?portfolio_id=e23ab931-a033-edfe-ed4f-9d02474780b4" \
+  | jq -r '.positions[] | select(.symbol=="AAPL" or .symbol=="MSFT") | .id')
+
+# 4. Tag tech positions
+for POS in $POSITIONS; do
+  curl -X POST http://localhost:8000/api/v1/position-tags \
+    -H "Authorization: Bearer $TOKEN" \
+    -H "Content-Type: application/json" \
+    -d "{\"position_id\":\"$POS\",\"tag_id\":\"$TAG_TECH\"}"
+done
 ```
 
 ---
@@ -802,11 +908,13 @@ curl -H "Authorization: Bearer $TOKEN" http://localhost:8000/api/v1/data/portfol
 - **Market Data**: FMP/Polygon API rate limits reset daily
 - **Options Data**: Limited availability, expect some failures
 - **Factor Analysis**: Requires 252 days of historical data (7 factors now, Short Interest disabled)
-- **Agent System**: Uses OpenAI API (check usage/costs)
+- **Agent System**: Uses OpenAI Responses API (check usage/costs)
 - **Batch Processing**: Takes ~60 seconds per portfolio
 - **Database Backups**: Volumes persist between container restarts
 - **✅ Unicode Encoding**: Fixed - scripts now handle UTF-8 automatically on all platforms
 - **⚠️ Database Changes**: ALWAYS run `uv run alembic upgrade head` after pulling code
 - **Equity System**: Portfolios now have equity_balance field for risk calculations
+- **Tag System**: New position tagging added October 2, 2025 for flexible organization
+- **Strategy Sunset**: Strategy system planned for removal (Phase 3.0) - use tags instead
 
 For initial setup, see [BACKEND_INITIAL_COMPLETE_WORKFLOW_GUIDE.md](BACKEND_INITIAL_COMPLETE_WORKFLOW_GUIDE.md)

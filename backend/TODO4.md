@@ -1981,3 +1981,814 @@ def downgrade() -> None:
 ---
 
 **Status**: Ready for expert review of Alembic migration approach (Phase 3.0.2-3.0.3)
+
+---
+---
+
+# Phase 4.0: Railway Automated Daily Workflow System
+
+**Phase**: 4.0 - Production Automation & Scheduled Tasks
+**Status**: 📋 PLANNING
+**Created**: 2025-10-05
+**Goal**: Implement automated daily market data updates and batch calculations on Railway using cron jobs
+
+---
+
+## 4.1 Overview
+
+### 4.1.1 Purpose
+Automate daily post-market-close workflows on Railway production environment to:
+- Sync latest market data after markets close
+- Run batch calculations for all portfolios
+- Ensure data freshness without manual intervention
+- Enable reliable production operations
+
+### 4.1.2 Scope
+- Daily automated execution after US market close (4:00 PM ET / 20:00-21:00 UTC)
+- Run only on trading days (Monday-Friday, excluding holidays)
+- Graceful error handling and retry logic
+- Monitoring and alerting for failures
+- Zero impact on running API services
+
+### 4.1.3 Key Requirements
+- **Timing**: Execute after market close when data is available
+- **Trading Day Detection**: Skip weekends and US market holidays
+- **Idempotency**: Safe to run multiple times without data corruption
+- **Isolation**: Separate service from main API (no impact on web traffic)
+- **Observability**: Comprehensive logging and error reporting
+- **Reliability**: Retry failed operations, alert on persistent failures
+
+---
+
+## 4.2 Railway Architecture
+
+### 4.2.1 Service Configuration Strategy
+
+**Option A: Dedicated Cron Service** (RECOMMENDED)
+```
+Services in Railway:
+1. sigmasight-backend-web      (Main FastAPI, always running)
+2. sigmasight-backend-cron     (Daily automation, cron schedule)
+3. sigmasight-backend-postgres (Database, always running)
+```
+
+**Benefits**:
+- ✅ Clean separation of concerns
+- ✅ Independent scaling and resource allocation
+- ✅ No impact on web service during batch processing
+- ✅ Easy to monitor and debug separately
+- ✅ Can restart cron service without affecting API
+
+**Option B: Single Service with Background Task** (NOT RECOMMENDED)
+- ❌ Batch processing impacts API performance
+- ❌ Harder to isolate failures
+- ❌ Resource contention during batch runs
+
+**DECISION**: Use Option A (Dedicated Cron Service)
+
+### 4.2.2 Railway Configuration Files
+
+**4.2.2.1 Railway.json for Cron Service**
+```json
+{
+  "$schema": "https://railway.com/railway.schema.json",
+  "deploy": {
+    "cronSchedule": "30 20 * * 1-5",
+    "restartPolicyType": "ON_FAILURE",
+    "restartPolicyMaxRetries": 3
+  }
+}
+```
+
+**Cron Schedule Explanation**:
+- `30 20 * * 1-5` = 8:30 PM UTC, Monday-Friday
+- Runs 30 minutes after market close (4:00 PM ET = 20:00 UTC standard time)
+- Accounts for 30-minute settlement period for final prices
+- Monday-Friday only (trading days)
+
+**Note**: Adjust for Daylight Saving Time (DST):
+- Standard Time (Nov-Mar): 4:00 PM ET = 21:00 UTC → use `30 21 * * 1-5`
+- Daylight Time (Mar-Nov): 4:00 PM ET = 20:00 UTC → use `30 20 * * 1-5`
+
+**4.2.2.2 Environment Variables Required**
+```bash
+# Database (shared with main service)
+DATABASE_URL=postgresql+asyncpg://...
+
+# Market Data APIs
+FMP_API_KEY=...
+POLYGON_API_KEY=...
+FRED_API_KEY=...
+
+# Monitoring & Alerts (new)
+SLACK_WEBHOOK_URL=...          # For failure notifications
+DATADOG_API_KEY=...            # Optional: metrics tracking
+RAILWAY_ENVIRONMENT=production
+
+# Job Configuration
+BATCH_TIMEOUT_SECONDS=3600     # 1 hour max runtime
+MAX_RETRY_ATTEMPTS=3
+SKIP_HOLIDAYS=true             # Skip US market holidays
+```
+
+### 4.2.3 Deployment Strategy
+
+**Service Setup Steps**:
+1. Create new Railway service: "sigmasight-backend-cron"
+2. Link to same GitHub repository
+3. Set Root Directory to `/backend` (same as web service)
+4. Configure environment variables (share DATABASE_URL with web service)
+5. Set Custom Start Command (see 4.3.1)
+6. Deploy and test manually first
+7. Enable cron schedule after successful manual test
+
+---
+
+## 4.3 Implementation Design
+
+### 4.3.1 Script Structure
+
+**4.3.1.1 Main Entry Point**
+File: `scripts/automation/railway_daily_batch.py`
+
+```python
+#!/usr/bin/env python3
+"""
+Railway Daily Automation Script
+Runs after market close on trading days to sync data and calculate metrics.
+
+Usage:
+  uv run python scripts/automation/railway_daily_batch.py [--force]
+
+Options:
+  --force    Run even on non-trading days (for testing)
+"""
+
+async def main():
+    # 4.3.2.1: Check if today is a trading day
+    # 4.3.2.2: Sync market data (last 5 trading days)
+    # 4.3.2.3: Run batch calculations for all portfolios
+    # 4.3.2.4: Send completion notification
+    # 4.3.2.5: Handle errors and retry logic
+```
+
+**Railway Custom Start Command**:
+```bash
+uv run python scripts/automation/railway_daily_batch.py
+```
+
+### 4.3.2 Core Workflow Steps
+
+**4.3.2.1 Trading Day Detection**
+```python
+def is_trading_day(date: datetime.date) -> bool:
+    """
+    Check if given date is a US market trading day.
+    
+    Rules:
+    - Must be Monday-Friday (weekday)
+    - Not a US market holiday (NYSE calendar)
+    - Returns False for weekends
+    
+    Implementation:
+    - Use pandas_market_calendars library
+    - NYSE calendar is authoritative source
+    - Cache calendar for performance
+    """
+    # Check if weekend
+    if date.weekday() >= 5:  # Saturday=5, Sunday=6
+        return False
+    
+    # Check NYSE calendar for holidays
+    import pandas_market_calendars as mcal
+    nyse = mcal.get_calendar('NYSE')
+    schedule = nyse.schedule(start_date=date, end_date=date)
+    
+    return len(schedule) > 0  # Trading day if schedule exists
+```
+
+**US Market Holidays to Handle** (2025):
+- New Year's Day (Jan 1)
+- Martin Luther King Jr. Day (3rd Monday in Jan)
+- Presidents' Day (3rd Monday in Feb)
+- Good Friday (varies)
+- Memorial Day (last Monday in May)
+- Juneteenth (June 19)
+- Independence Day (July 4)
+- Labor Day (1st Monday in Sep)
+- Thanksgiving (4th Thursday in Nov)
+- Christmas Day (Dec 25)
+
+**4.3.2.2 Market Data Sync**
+```python
+async def sync_market_data_step():
+    """
+    Sync latest market data from providers.
+    
+    Steps:
+    1. Fetch latest prices for all public positions
+    2. Update last 5 trading days (ensure fresh data)
+    3. Exclude private positions (real estate, PE, etc.)
+    4. Validate data completeness
+    5. Log any symbols with fetch failures
+    
+    Dependencies:
+    - app.batch.market_data_sync.sync_market_data()
+    - FMP API for daily prices
+    - Polygon API for options data
+    """
+    from app.batch.market_data_sync import sync_market_data
+    
+    logger.info("Starting market data sync...")
+    result = await sync_market_data(days_back=5)
+    logger.info(f"Market data sync complete: {result}")
+    
+    return result
+```
+
+**4.3.2.3 Batch Calculations**
+```python
+async def run_batch_calculations_step():
+    """
+    Run batch calculations for all active portfolios.
+    
+    Calculation Engines (8 total):
+    1. Portfolio aggregation (exposures, P&L)
+    2. Position Greeks (options sensitivities)
+    3. Factor analysis (7-factor regression)
+    4. Market risk scenarios (±5%, ±10%, ±20%)
+    5. Stress testing (18 scenarios across 5 categories)
+    6. Portfolio snapshots (daily state capture)
+    7. Position correlations (relationship analysis)
+    8. Factor correlations (factor-to-factor)
+    
+    Error Handling:
+    - Continue processing other portfolios if one fails
+    - Log failures with portfolio IDs
+    - Return summary of successes/failures
+    """
+    from app.batch.batch_orchestrator_v2 import batch_orchestrator_v2
+    
+    logger.info("Starting batch calculations for all portfolios...")
+    
+    # Get all active portfolios
+    async with AsyncSessionLocal() as db:
+        portfolios = await db.scalars(
+            select(Portfolio).where(Portfolio.deleted_at.is_(None))
+        )
+        portfolio_list = list(portfolios.all())
+    
+    results = []
+    for portfolio in portfolio_list:
+        try:
+            result = await batch_orchestrator_v2.run_daily_batch_sequence(
+                portfolio_id=str(portfolio.id)
+            )
+            results.append({"portfolio_id": portfolio.id, "status": "success", "result": result})
+            logger.info(f"✅ Batch complete for portfolio {portfolio.id}: {portfolio.name}")
+        except Exception as e:
+            results.append({"portfolio_id": portfolio.id, "status": "error", "error": str(e)})
+            logger.error(f"❌ Batch failed for portfolio {portfolio.id}: {e}")
+    
+    return results
+```
+
+**4.3.2.4 Notification & Reporting**
+```python
+async def send_completion_notification(results: dict):
+    """
+    Send notification about job completion.
+    
+    Channels:
+    - Slack webhook for failures
+    - Datadog metrics for monitoring (optional)
+    - Railway logs (always)
+    
+    Notification Content:
+    - Job start/end time
+    - Total runtime
+    - Portfolios processed (success/failure count)
+    - Any error summaries
+    - Data freshness metrics
+    """
+    if os.getenv("SLACK_WEBHOOK_URL"):
+        await send_slack_notification(results)
+    
+    logger.info(f"Daily batch job complete: {results['summary']}")
+```
+
+**4.3.2.5 Error Handling & Retry Logic**
+```python
+async def execute_with_retry(func, max_retries=3, delay=60):
+    """
+    Execute function with exponential backoff retry.
+    
+    Retry Strategy:
+    - Retry on transient errors (API rate limits, network issues)
+    - Don't retry on permanent errors (bad API keys, data validation)
+    - Exponential backoff: 60s, 120s, 240s
+    - Log each retry attempt
+    """
+    for attempt in range(max_retries):
+        try:
+            return await func()
+        except TransientError as e:
+            if attempt < max_retries - 1:
+                wait_time = delay * (2 ** attempt)
+                logger.warning(f"Attempt {attempt+1} failed: {e}. Retrying in {wait_time}s...")
+                await asyncio.sleep(wait_time)
+            else:
+                logger.error(f"All {max_retries} attempts failed: {e}")
+                raise
+        except PermanentError as e:
+            logger.error(f"Permanent error, not retrying: {e}")
+            raise
+```
+
+### 4.3.3 Logging & Monitoring
+
+**4.3.3.1 Structured Logging**
+```python
+import structlog
+
+logger = structlog.get_logger()
+
+# Log with context
+logger.info(
+    "batch_calculation_complete",
+    portfolio_id=portfolio_id,
+    runtime_seconds=runtime,
+    calculations_run=8,
+    success=True
+)
+```
+
+**4.3.3.2 Metrics to Track**
+- Job execution time (total, per portfolio)
+- Success/failure rate
+- Market data API call counts
+- Database query performance
+- Memory/CPU usage during batch
+
+**4.3.3.3 Alert Conditions**
+- Job takes >90 minutes (timeout warning)
+- >50% portfolios fail calculations
+- Market data sync fails completely
+- Database connection errors
+- Out of memory errors
+
+---
+
+## 4.4 Testing Strategy
+
+### 4.4.1 Local Testing
+
+**4.4.1.1 Test Script Manually**
+```bash
+# Test on a non-trading day (should skip)
+uv run python scripts/automation/railway_daily_batch.py
+
+# Force execution for testing
+uv run python scripts/automation/railway_daily_batch.py --force
+
+# Test with single portfolio
+uv run python scripts/automation/railway_daily_batch.py --portfolio e23ab931-a033-edfe-ed4f-9d02474780b4 --force
+```
+
+**4.4.1.2 Test Trading Day Detection**
+```python
+# In Python shell
+import datetime
+from scripts.automation.railway_daily_batch import is_trading_day
+
+# Test various dates
+is_trading_day(datetime.date(2025, 10, 6))  # Monday - True
+is_trading_day(datetime.date(2025, 10, 11))  # Saturday - False
+is_trading_day(datetime.date(2025, 12, 25))  # Christmas - False
+```
+
+### 4.4.2 Railway Staging Environment
+
+**4.4.2.1 Manual Trigger Test**
+```bash
+# SSH into Railway cron service
+railway ssh --service sigmasight-backend-cron
+
+# Run script manually
+uv run python scripts/automation/railway_daily_batch.py --force
+
+# Check logs
+railway logs --service sigmasight-backend-cron --tail 100
+```
+
+**4.4.2.2 Cron Schedule Test**
+- Temporarily set cron to run every 5 minutes: `*/5 * * * *`
+- Monitor for successful executions
+- Verify trading day detection works (should skip on weekends)
+- Restore production schedule after testing
+
+### 4.4.3 Production Validation
+
+**4.4.3.1 Deployment Checklist**
+- [ ] Script tested locally with `--force` flag
+- [ ] Trading day detection verified
+- [ ] Environment variables configured in Railway
+- [ ] Slack webhook tested (if configured)
+- [ ] Manual execution successful in Railway
+- [ ] Database connection verified
+- [ ] Market data APIs accessible
+- [ ] Logs visible in Railway dashboard
+
+**4.4.3.2 Post-Deployment Monitoring (First Week)**
+- Monitor first 5 executions closely
+- Verify correct trading day behavior
+- Check data freshness after execution
+- Validate calculation results
+- Monitor for any performance issues
+
+---
+
+## 4.5 File Structure
+
+### 4.5.1 New Files to Create
+
+```
+backend/
+├── scripts/
+│   └── automation/
+│       ├── __init__.py
+│       ├── railway_daily_batch.py      # Main cron script
+│       ├── trading_calendar.py         # US market holiday logic
+│       ├── notification_service.py     # Slack/Datadog notifications
+│       └── README.md                   # Documentation
+│
+├── railway-cron.json                   # Railway config for cron service
+└── .railway/
+    └── railway-cron.json               # Alternative config location
+```
+
+### 4.5.2 Configuration Files
+
+**railway-cron.json** (in backend root):
+```json
+{
+  "$schema": "https://railway.com/railway.schema.json",
+  "deploy": {
+    "cronSchedule": "30 20 * * 1-5",
+    "restartPolicyType": "ON_FAILURE",
+    "restartPolicyMaxRetries": 3
+  }
+}
+```
+
+**scripts/automation/README.md**:
+```markdown
+# Railway Daily Automation
+
+## Overview
+Automated daily batch processing for SigmaSight production.
+
+## Schedule
+- Runs: 8:30 PM UTC (Mon-Fri)
+- After: US market close (4:00 PM ET + 30min settlement)
+- Skips: Weekends and US market holidays
+
+## Usage
+```bash
+# Normal execution (checks trading day)
+uv run python scripts/automation/railway_daily_batch.py
+
+# Force execution (testing only)
+uv run python scripts/automation/railway_daily_batch.py --force
+```
+
+## Monitoring
+- Railway Logs: `railway logs --service sigmasight-backend-cron`
+- Slack Alerts: Configured via SLACK_WEBHOOK_URL env var
+- Datadog Metrics: Optional, via DATADOG_API_KEY
+```
+
+---
+
+## 4.6 Dependencies
+
+### 4.6.1 Python Packages (Add to pyproject.toml)
+
+```toml
+[tool.uv.dependencies]
+# Existing dependencies...
+
+# Automation & Scheduling
+pandas-market-calendars = "^4.3.0"  # US market holiday calendar
+structlog = "^24.1.0"                # Structured logging
+httpx = "^0.27.0"                   # Async HTTP for notifications (may already exist)
+```
+
+### 4.6.2 Railway Platform Requirements
+
+- Railway CLI (for local testing and SSH access)
+- Railway Project with PostgreSQL database
+- Environment variables configured
+- Separate service for cron jobs
+
+---
+
+## 4.7 Rollout Plan
+
+### 4.7.1 Phase 4.1: Development & Local Testing (1 day)
+**Tasks**:
+1. Create `scripts/automation/` directory structure
+2. Implement `railway_daily_batch.py` with all core logic
+3. Implement `trading_calendar.py` with NYSE holiday detection
+4. Implement `notification_service.py` for Slack alerts
+5. Add dependencies to pyproject.toml
+6. Write comprehensive docstrings and README
+7. Test locally with --force flag
+8. Test trading day detection with various dates
+9. Commit code (do not enable cron yet)
+
+**Acceptance Criteria**:
+- [ ] Script runs successfully locally with `--force`
+- [ ] Trading day detection works correctly
+- [ ] Market data sync completes
+- [ ] Batch calculations run for all portfolios
+- [ ] Notifications send (if configured)
+- [ ] All error cases handled gracefully
+
+### 4.7.2 Phase 4.2: Railway Staging Deployment (0.5 days)
+**Tasks**:
+1. Create new Railway service "sigmasight-backend-cron-staging"
+2. Configure environment variables (copy from web service)
+3. Set custom start command
+4. **Do not set cron schedule yet**
+5. Deploy service
+6. SSH into service and run manually
+7. Monitor logs for successful execution
+8. Verify data updated in staging database
+
+**Acceptance Criteria**:
+- [ ] Service deploys successfully
+- [ ] Manual execution completes without errors
+- [ ] Database writes verified
+- [ ] Logs are clear and informative
+- [ ] No impact on staging web service performance
+
+### 4.7.3 Phase 4.3: Cron Schedule Testing (2-3 days)
+**Tasks**:
+1. Set cron schedule to run every 15 minutes (testing): `*/15 * * * *`
+2. Monitor 10+ automated executions
+3. Verify trading day logic:
+   - Runs on weekdays
+   - Skips on Saturday
+   - Skips on Sunday
+4. Check for any memory leaks or resource issues
+5. Validate idempotency (safe to run multiple times)
+6. Test manual override with --force flag
+
+**Acceptance Criteria**:
+- [ ] 10+ successful automated executions
+- [ ] Trading day detection works (skips weekends)
+- [ ] No memory leaks observed
+- [ ] No database contention issues
+- [ ] Logs are clean and informative
+
+### 4.7.4 Phase 4.4: Production Deployment (0.5 days)
+**Tasks**:
+1. Create production Railway service "sigmasight-backend-cron"
+2. Configure production environment variables
+3. Set production cron schedule: `30 20 * * 1-5` (or `30 21 * * 1-5` for DST)
+4. Deploy and verify first manual execution
+5. Enable cron schedule
+6. Monitor first automated execution closely
+7. Document runbook for troubleshooting
+
+**Acceptance Criteria**:
+- [ ] Production service deployed
+- [ ] First automated execution successful
+- [ ] Notifications working (if configured)
+- [ ] Data freshness verified
+- [ ] No errors in logs
+- [ ] Runbook documented
+
+### 4.7.5 Phase 4.5: Monitoring & Optimization (Ongoing)
+**Tasks**:
+1. Monitor first week of automated executions
+2. Track execution times and identify bottlenecks
+3. Optimize slow queries if needed
+4. Adjust timeout values based on actual runtime
+5. Fine-tune notification thresholds
+6. Document any issues and resolutions
+
+**Acceptance Criteria**:
+- [ ] 5+ successful automated executions
+- [ ] Average runtime < 30 minutes
+- [ ] No manual interventions required
+- [ ] All stakeholders notified of failures (if any)
+- [ ] Performance baseline established
+
+---
+
+## 4.8 Operational Runbook
+
+### 4.8.1 Common Issues & Resolutions
+
+**Issue: Cron job didn't run on expected day**
+```
+Diagnosis:
+1. Check if it was a market holiday: railway logs --service sigmasight-backend-cron
+2. Check Railway cron service health: railway status
+3. Check for deployment failures: railway logs --service sigmasight-backend-cron --since 24h
+
+Resolution:
+- If market holiday: Expected behavior, no action needed
+- If service down: Restart service via Railway dashboard
+- If deployment failed: Check build logs and fix errors
+```
+
+**Issue: Market data sync failed**
+```
+Diagnosis:
+1. Check API key validity: Test FMP_API_KEY manually
+2. Check API rate limits: Review error messages in logs
+3. Check network connectivity: SSH into service and test curl
+
+Resolution:
+- API key expired: Update POLYGON_API_KEY/FMP_API_KEY in Railway
+- Rate limit exceeded: Wait for reset, retry manually
+- Network issue: Typically transient, will retry next day
+```
+
+**Issue: Batch calculations timeout**
+```
+Diagnosis:
+1. Check job runtime: railway logs --service sigmasight-backend-cron
+2. Identify slow portfolio: Look for last successful portfolio in logs
+3. Check database performance: Monitor Railway database metrics
+
+Resolution:
+- Increase BATCH_TIMEOUT_SECONDS environment variable
+- Run calculations manually for problem portfolio to debug
+- Consider splitting batch into smaller chunks
+```
+
+**Issue: Database connection errors**
+```
+Diagnosis:
+1. Check DATABASE_URL environment variable
+2. Check Railway PostgreSQL service status
+3. Check for connection pool exhaustion
+
+Resolution:
+- Verify DATABASE_URL matches web service configuration
+- Restart PostgreSQL service if unhealthy
+- Increase connection pool size if needed
+```
+
+### 4.8.2 Manual Override Procedures
+
+**Run batch calculations manually**:
+```bash
+# SSH into cron service
+railway ssh --service sigmasight-backend-cron
+
+# Run for all portfolios
+uv run python scripts/automation/railway_daily_batch.py --force
+
+# Run for specific portfolio
+uv run python scripts/automation/railway_daily_batch.py --portfolio <UUID> --force
+```
+
+**Disable automated execution temporarily**:
+```
+1. Go to Railway dashboard
+2. Select sigmasight-backend-cron service
+3. Variables tab → Remove or comment out cronSchedule
+4. Redeploy service
+```
+
+**Re-run calculations for missed day**:
+```bash
+# Modify script to accept --date parameter
+uv run python scripts/automation/railway_daily_batch.py --date 2025-10-03 --force
+```
+
+---
+
+## 4.9 Success Metrics
+
+### 4.9.1 Reliability Metrics
+- **Uptime**: >99% successful automated executions
+- **Data Freshness**: <24 hours old for all portfolios
+- **Error Rate**: <5% portfolio calculation failures
+- **Recovery Time**: Manual intervention <1 hour when needed
+
+### 4.9.2 Performance Metrics
+- **Execution Time**: <30 minutes average, <60 minutes max
+- **API Calls**: Stay within FMP/Polygon daily limits
+- **Database Load**: <10% increase during batch window
+- **Memory Usage**: <512MB per cron job execution
+
+### 4.9.3 Operational Metrics
+- **Notifications**: All failures trigger Slack alerts
+- **Manual Interventions**: <2 per month
+- **False Alarms**: <5% alert false positive rate
+- **Documentation**: All issues documented in runbook
+
+---
+
+## 4.10 Timeline & Milestones
+
+| Phase | Duration | Deliverable | Status |
+|-------|----------|------------|--------|
+| 4.1 Development | 1 day | Working script tested locally | 📋 Planned |
+| 4.2 Staging Deploy | 0.5 days | Manual execution successful | 📋 Planned |
+| 4.3 Cron Testing | 2-3 days | 10+ automated runs validated | 📋 Planned |
+| 4.4 Production Deploy | 0.5 days | First automated run successful | 📋 Planned |
+| 4.5 Monitoring | Ongoing | Performance baseline established | 📋 Planned |
+| **TOTAL** | **4-5 days** | **Fully automated production system** | 📋 Planned |
+
+---
+
+## 4.11 Risk Assessment
+
+### 4.11.1 High Risks
+
+**1. Market Holiday Detection Failure**
+- **Impact**: Wasted API calls, unnecessary batch runs
+- **Mitigation**: Use pandas-market-calendars (well-tested library)
+- **Mitigation**: Test with known holiday dates before production
+
+**2. API Rate Limit Exhaustion**
+- **Impact**: Incomplete data sync, calculation failures
+- **Mitigation**: Implement retry with exponential backoff
+- **Mitigation**: Monitor API usage daily
+- **Mitigation**: Cache frequently accessed data
+
+**3. Database Lock Contention**
+- **Impact**: Slow queries, potential deadlocks
+- **Mitigation**: Run during low-traffic window (8:30 PM UTC)
+- **Mitigation**: Use read replicas if available
+- **Mitigation**: Implement query timeout limits
+
+### 4.11.2 Medium Risks
+
+**4. Railway Service Outage**
+- **Impact**: Missed batch execution for the day
+- **Mitigation**: Manual execution procedure documented
+- **Mitigation**: Slack alerts for job failures
+- **Mitigation**: Ability to backfill missed days
+
+**5. Script Bugs in Production**
+- **Impact**: Data corruption, incorrect calculations
+- **Mitigation**: Comprehensive local testing before deployment
+- **Mitigation**: Staging environment testing
+- **Mitigation**: Database backups before first run
+
+### 4.11.3 Low Risks
+
+**6. DST Timezone Changes**
+- **Impact**: Job runs at wrong time twice per year
+- **Mitigation**: Document DST adjustment needed
+- **Mitigation**: Set calendar reminders for March/November
+- **Mitigation**: Consider using market close trigger instead of fixed time
+
+---
+
+## 4.12 Future Enhancements
+
+### 4.12.1 Short-term (Next 3 months)
+- Add intraday price updates (every 15 minutes during market hours)
+- Implement email notifications in addition to Slack
+- Add Datadog metrics and dashboards
+- Support for manual backfill of historical dates
+
+### 4.12.2 Medium-term (6 months)
+- Event-driven triggers (run when market closes, not fixed time)
+- Parallel processing for multiple portfolios (reduce runtime)
+- Machine learning for optimal execution time prediction
+- Auto-scaling based on portfolio count
+
+### 4.12.3 Long-term (12+ months)
+- Real-time calculation updates during market hours
+- Multi-region deployment for redundancy
+- Self-healing automation (auto-retry, auto-diagnosis)
+- Predictive alerting (detect issues before they occur)
+
+---
+
+**Status**: 📋 PLANNING COMPLETE - Ready for implementation approval
+
+**Estimated Total Effort**: 4-5 days (development + testing + deployment)
+
+**Dependencies**: 
+- Railway platform access with cron job support ✅ Available
+- pandas-market-calendars library ⚠️ Need to add to dependencies
+- Slack webhook URL 📋 To be configured
+- Production database access ✅ Available
+
+**Next Steps**:
+1. Review and approve this plan
+2. Add pandas-market-calendars to pyproject.toml
+3. Create scripts/automation/ directory structure
+4. Begin Phase 4.1 (Development & Local Testing)
+
