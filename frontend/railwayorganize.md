@@ -248,8 +248,39 @@ When issue is resolved, you should see:
 - **Issue**: Tag endpoints return 401 while other endpoints work
 - **Next**: Check Railway database for tag tables
 
-### To Be Updated...
-(Add findings as you investigate)
+### 2025-10-05 - Root Cause Found ✅
+- **Test Result**: Direct fetch to Railway backend returned **200 OK** with 17 tags
+- **Conclusion**: Railway backend works perfectly!
+- **Real Issue**: Frontend `apiClient.ts` had Authorization header code **commented out** (lines 326-337)
+- **Impact**: All apiClient requests missing auth token, causing 401 errors
+- **Fix Applied**: Uncommented and implemented auth header attachment in request interceptor
+
+### 2025-10-05 - Solution Implemented
+**File**: `frontend/src/services/apiClient.ts` (lines 325-337)
+
+**Changed from** (commented out):
+```javascript
+// const token = getAuthToken();
+// if (token) {
+//   config.headers = {
+//     ...config.headers,
+//     'Authorization': `Bearer ${token}`,
+//   };
+// }
+```
+
+**Changed to** (active):
+```javascript
+const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
+if (token) {
+  config.headers = {
+    ...config.headers,
+    'Authorization': `Bearer ${token}`,
+  };
+}
+```
+
+**Status**: ✅ **FIXED** - Organize page tagging should now work
 
 ---
 
