@@ -11,6 +11,7 @@ Step-by-step guide to deploy the cron service using Railway CLI.
 3. **Variable references don't work in CLI**: `${{Postgres.DATABASE_URL}}` syntax only works in Dashboard
 4. **Async driver requirement**: Must use `postgresql+asyncpg://` not `postgresql://` for SQLAlchemy async
 5. **Services and Environments are siblings**: Both belong to Project, not parent-child relationship
+6. **Dockerfile overrides railway.json**: Repository has Dockerfile that takes precedence over `railway.json` startCommand - must override in Dashboard Settings
 
 ## Prerequisites
 
@@ -85,17 +86,34 @@ Verify variables were set:
 railway variables --service sigmasight-backend-cron --kv
 ```
 
-## Step 3: Verify Initial Deployment
+## Step 3: Override Start Command in Dashboard
 
-Check deployment status:
+⚠️ **CRITICAL**: The repository has a Dockerfile that starts the FastAPI web server. Railway gives Dockerfile priority over `railway.json` startCommand, so you MUST override it.
+
+**Via Railway Dashboard**:
+1. Go to Railway Dashboard → Your project
+2. Select `sigmasight-backend-cron` service
+3. Go to **Settings** tab
+4. Scroll to **Start Command** section
+5. Enter: `uv run python scripts/automation/railway_daily_batch.py`
+6. Click **Save**
+7. Service will redeploy automatically
+
+**⚠️ Skip this step and the service will run the web server instead of the batch job!**
+
+## Step 4: Verify Deployment
+
+Check deployment logs to ensure batch script is running (not web server):
 ```bash
 # View recent logs
 railway logs --service sigmasight-backend-cron --tail 50
 ```
 
+**Expected**: Logs show batch script starting, not `Uvicorn running on http://0.0.0.0:8080`
+
 The service will exit immediately since no cron schedule is set yet. This is expected.
 
-## Step 4: Manual Testing (CRITICAL - Test Before Enabling Cron)
+## Step 5: Manual Testing (CRITICAL - Test Before Enabling Cron)
 
 Test the script manually to ensure it works:
 
@@ -115,7 +133,7 @@ Monitor logs in another terminal:
 railway logs --service sigmasight-backend-cron
 ```
 
-## Step 5: Enable Cron Schedule (After Successful Test)
+## Step 6: Enable Cron Schedule (After Successful Test)
 
 **Recommended Method**: Update `railway.json` and redeploy via CLI.
 
@@ -148,7 +166,7 @@ railway up --service sigmasight-backend-cron --detach
 6. Enter: `30 23 * * 1-5`
 7. Click **"Deploy"**
 
-## Step 6: Verify Cron Schedule
+## Step 7: Verify Cron Schedule
 
 Check that the cron schedule is active:
 
@@ -242,6 +260,27 @@ railway run --service sigmasight-backend-cron <command>
 ### Railway variable references like ${{Postgres.DATABASE_URL}} don't work
 Railway's variable reference syntax (`${{...}}`) only works in the Railway Dashboard, not in CLI. You must use the actual values when setting variables via CLI.
 
+### Cron service running web server instead of batch script
+**Symptom**: Deploy logs show `INFO: Uvicorn running on http://0.0.0.0:8080`
+
+**Problem**: Railway is using the Dockerfile's `CMD ["/app/start.sh"]` which starts the FastAPI web server.
+
+**Root Cause**: Railway's service detection priority:
+1. Dockerfile CMD (if exists) ← Takes precedence
+2. `railway.json` startCommand ← Ignored when Dockerfile exists
+
+**Solution**: Override start command in Railway Dashboard
+
+1. Go to Railway Dashboard → Your project
+2. Select `sigmasight-backend-cron` service
+3. Go to **Settings** tab
+4. Scroll to **Start Command** section
+5. Enter: `uv run python scripts/automation/railway_daily_batch.py`
+6. Click **Save**
+7. Service will redeploy automatically
+
+After fix, logs should show batch script starting, not Uvicorn.
+
 ## Complete Deployment Checklist
 
 - [ ] Railway CLI installed and logged in
@@ -249,6 +288,8 @@ Railway's variable reference syntax (`${{...}}`) only works in the Railway Dashb
 - [ ] Cron service created via first deploy: `railway up --service sigmasight-backend-cron --detach`
 - [ ] Environment variables copied from web service and set with `postgresql+asyncpg://` driver
 - [ ] Variables verified: `railway variables --service sigmasight-backend-cron --kv`
+- [ ] **CRITICAL**: Start command overridden in Railway Dashboard Settings to `uv run python scripts/automation/railway_daily_batch.py`
+- [ ] Deployment verified (logs show batch script, not Uvicorn)
 - [ ] Manual test successful: `railway run --service sigmasight-backend-cron uv run python scripts/automation/railway_daily_batch.py --force`
 - [ ] Cron schedule enabled via `railway.json` update and redeploy
 - [ ] First automated run verified via logs: `railway logs --service sigmasight-backend-cron --follow`

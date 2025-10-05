@@ -60,6 +60,11 @@ uv run python scripts/automation/railway_daily_batch.py --force
 
 1. Go to service **Settings**:
    - **Start Command**: `uv run python scripts/automation/railway_daily_batch.py`
+
+     ⚠️ **CRITICAL**: You MUST set this custom start command in the Railway Dashboard Settings → Start Command field. The repository has a Dockerfile that starts the FastAPI web server (`CMD ["/app/start.sh"]`). Railway gives Dockerfile CMD priority over `railway.json` startCommand, so you must override it manually in the Dashboard.
+
+     **Without this override**: The cron service will run the web server instead of the batch script!
+
    - **Cron Schedule**: Leave DISABLED initially (test manually first)
 
 2. Configure environment variables in the **Variables** tab:
@@ -141,6 +146,30 @@ Project → Services → sigmasight-backend-cron → Deployments → View Logs
 - **Critical**: Ensure `DATABASE_URL` uses `postgresql+asyncpg://` not `postgresql://`
 - Check PostgreSQL service is running
 - Verify database credentials match your Postgres service
+
+#### Cron Service Running Web Server Instead of Batch Script
+**Symptom**: Deploy logs show `INFO: Uvicorn running on http://0.0.0.0:8080`
+
+**Problem**: Railway is using the Dockerfile's `CMD ["/app/start.sh"]` which starts the FastAPI web server, ignoring the `railway.json` startCommand.
+
+**Root Cause**: Railway's service detection priority:
+1. Dockerfile CMD (if exists) ← Takes precedence
+2. `railway.json` startCommand ← Ignored when Dockerfile exists
+3. Nixpacks detection (fallback)
+
+**Solution**: Override start command in Railway Dashboard Settings
+
+1. Go to Railway Dashboard → Project → `sigmasight-backend-cron` service
+2. Click **Settings** tab
+3. Scroll to **Start Command** section
+4. Enter: `uv run python scripts/automation/railway_daily_batch.py`
+5. Click **Save**
+6. Service will redeploy automatically
+
+**Expected Behavior After Fix**:
+- Service exits immediately (no cron schedule yet)
+- Logs show batch script starting, not Uvicorn
+- Once cron schedule is set, job runs at scheduled time
 
 #### "asyncio extension requires an async driver" Error
 This error means your `DATABASE_URL` is using the wrong driver.
