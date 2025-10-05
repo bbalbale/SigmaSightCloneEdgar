@@ -91,26 +91,20 @@ async def analyze_exposure_dependencies():
     print("   • Stress test results (realistic scenarios)")
     
     print("\n🔄 NEEDS COORDINATION:")
-    print("   • Report generator (line 430 sign fix)")
     print("   • Stress testing (use corrected factor exposures)")
-    
+    print("   • API responses (ensure consistent sign conventions)")
+
     print("\n" + "=" * 80)
     print("4. IMPLEMENTATION SAFETY CHECKLIST:")
     print("-" * 40)
-    
-    print("\n4.1 SHORT EXPOSURE FIX:")
-    print("   Location: portfolio_report_generator.py line 430")
-    print("   Change: 'exposure': market_val × (-1 if SHORT else 1)")
-    print("   Impact: ONLY affects report display")
-    print("   Breaking: NO - isolated to report layer")
-    
-    print("\n4.2 FACTOR EXPOSURE FIX:")
+
+    print("\n4.1 FACTOR EXPOSURE FIX:")
     print("   Location: app/calculations/factors.py")
     print("   Change: Use position-level attribution")
     print("   Impact: ONLY affects FactorExposure table")
     print("   Breaking: NO - other calculations don't use this")
     
-    print("\n4.3 STRESS TEST FIX:")
+    print("\n4.2 STRESS TEST FIX:")
     print("   Location: app/calculations/stress_testing.py")
     print("   Change: Use corrected factor exposures")
     print("   Impact: More realistic stress scenarios")

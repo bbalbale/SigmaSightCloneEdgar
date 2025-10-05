@@ -79,17 +79,18 @@ async def list_portfolios(verbose: bool = False):
     
     print("-"*60)
     print("\n📝 To use these IDs in commands:\n")
-    print("  # Run batch for specific portfolio:")
-    print("  uv run python scripts/run_batch_with_reports.py --portfolio <ID>")
+    print("  # Run batch processing for specific portfolio:")
+    print("  uv run python scripts/batch_processing/run_batch.py --portfolio <ID>")
     print()
-    print("  # Generate report for specific portfolio:")
-    print("  uv run python -m app.cli.report_generator_cli generate --portfolio-id <ID>")
+    print("  # Access portfolio data via API:")
+    print("  curl -H 'Authorization: Bearer <TOKEN>' \\")
+    print("    http://localhost:8000/api/v1/data/portfolio/<ID>/complete")
     print()
     print("  # Example with first portfolio ID:")
     if portfolios:
         first_id = str(portfolios[0].id)
-        print(f"  uv run python scripts/run_batch_with_reports.py --portfolio {first_id}")
-    
+        print(f"  uv run python scripts/batch_processing/run_batch.py --portfolio {first_id}")
+
     print("\n" + "="*60 + "\n")
 
 

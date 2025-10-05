@@ -2729,10 +2729,10 @@ uv run python -c "from app.batch.batch_orchestrator_v2 import batch_orchestrator
 ### 6.5 **Delete Legacy Report Generator (generate_all_reports.py)**
 **Context**: The report generator was built in Phase 2 (TODO2.md) before APIs were available. It generates MD, JSON, and CSV files to disk for LLM consumption. Now that we have APIs providing real-time data access, this file-based approach is obsolete.
 
-**Legacy System Components**:
-- `scripts/generate_all_reports.py` - Script that generates reports for all demo portfolios
-- `app/reports/portfolio_report_generator.py` - Core report generation logic (KEEP - still useful for API)
-- Generated files in `reports/` directory - Static files accumulating on disk
+**Legacy System Components** (ALL DELETED in Phase 2.0 - October 2025):
+- `scripts/generate_all_reports.py` - Script that generates reports for all demo portfolios (DELETED)
+- `app/reports/portfolio_report_generator.py` - Core report generation logic (~~KEEP - still useful for API~~ DELETED - superseded by REST API)
+- Generated files in `reports/` directory - Static files accumulating on disk (REMOVED)
 
 **What Was It**:
 ```python
