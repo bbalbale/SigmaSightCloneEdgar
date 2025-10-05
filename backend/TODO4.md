@@ -2112,29 +2112,78 @@ uv run python scripts/automation/daily_workflow.py
 
 ---
 
-#### 4. Environment Variable Propagation Between Services ⚠️ HIGH
+#### 4. Environment Variable Propagation Between Services ✅ RESOLVED (2025-10-05)
+
 **Issue**: Plan mentions sharing DATABASE_URL and API keys but doesn't document HOW to propagate secrets from web service to cron service on Railway.
 
-**Questions**:
-- Does Railway have shared environment variable groups?
-- Do we manually copy all env vars to the new service?
-- Are secrets synced automatically?
+**Research Findings** (from Railway docs via Context7):
+Railway supports 3 methods for sharing environment variables between services:
+1. **Shared Variables**: `${{shared.VARIABLE_NAME}}` - Project-level variables accessible to all services
+2. **Service References**: `${{ServiceName.VARIABLE_NAME}}` - Reference another service's variables
+3. **Railway CLI**: `railway variables --set "VAR=value" --service service-name`
 
-**Action Item**:
-1. Research Railway's shared variables feature (check docs or Context7)
-2. Document exact steps to ensure cron service has same env vars as web service
-3. Add to Section 4.2.2.2 with specific Railway UI/CLI commands
+**Decision**: ✅ **Use Project-Level Shared Variables** (`${{shared.*}}` syntax)
 
-**Expected Documentation**:
+**Rationale**:
+- ✅ Single source of truth for all environment variables
+- ✅ Update once, applies to all services automatically
+- ✅ Prevents drift between web and cron services
+- ✅ Easier to manage than manual duplication
+
+**Required Shared Variables**:
 ```bash
-# Example using Railway CLI (if supported)
-railway variables:set --service cron-service DATABASE_URL=$DATABASE_URL
+# Core Database
+DATABASE_URL=postgresql+asyncpg://user:pass@host:port/dbname
 
-# Or document Railway UI steps:
-# 1. Go to web service → Variables
-# 2. Copy all variable names/values
-# 3. Go to cron service → Variables
-# 4. Paste all variables
+# Market Data APIs
+POLYGON_API_KEY=pk_***
+FMP_API_KEY=***
+FRED_API_KEY=***
+
+# Authentication & Security
+SECRET_KEY=***
+OPENAI_API_KEY=sk-***
+
+# Optional Monitoring (see blocker #5)
+SLACK_WEBHOOK_URL=https://hooks.slack.com/services/***
+```
+
+**Implementation Steps**:
+
+**Method 1: Railway Dashboard (Recommended)**
+```
+1. Navigate to Project Settings → Shared Variables
+2. Add each variable with name and value
+3. Both web and cron services automatically receive these variables
+4. Reference in code as: os.getenv("DATABASE_URL")
+```
+
+**Method 2: Railway CLI**
+```bash
+# Set shared variables at project level
+railway variables --set "DATABASE_URL=postgresql+asyncpg://..." --shared
+railway variables --set "POLYGON_API_KEY=pk_***" --shared
+railway variables --set "FMP_API_KEY=***" --shared
+railway variables --set "FRED_API_KEY=***" --shared
+railway variables --set "SECRET_KEY=***" --shared
+railway variables --set "OPENAI_API_KEY=sk-***" --shared
+
+# Verify shared variables are set
+railway variables --shared
+```
+
+**Cron Service Configuration**:
+No additional variable configuration needed! Shared variables are automatically available to the cron service once set at the project level.
+
+**Testing Variable Access**:
+```python
+# In scripts/automation/daily_workflow.py
+import os
+from app.config import settings
+
+# These will automatically use shared variables
+db_url = settings.DATABASE_URL  # From ${{shared.DATABASE_URL}}
+polygon_key = settings.POLYGON_API_KEY  # From ${{shared.POLYGON_API_KEY}}
 ```
 
 ---
@@ -2165,12 +2214,12 @@ Before proceeding to Phase 4.1 (Development), verify:
 - [x] **Dependency**: pandas-market-calendars added to pyproject.toml ✅ (2025-10-05)
 - [x] **Runtime**: UV availability confirmed (production logs show UV active) ✅ (2025-10-05)
 - [x] **DST**: Safe UTC time chosen (23:30 UTC = 6:30pm EST / 7:30pm EDT) ✅ (2025-10-05)
-- [ ] **Env Vars**: Railway variable propagation method documented with specific steps
+- [x] **Env Vars**: Railway shared variables method documented with specific steps ✅ (2025-10-05)
 - [ ] **Slack**: Webhook URL obtained and added to Railway env vars OR fallback chosen
 
 **Once all 5 items checked, update Phase 4.0 status from ⚠️ BLOCKED → 🚀 READY FOR IMPLEMENTATION**
 
-**Progress**: 3/5 blockers resolved (60%)
+**Progress**: 4/5 blockers resolved (80%)
 
 ---
 
