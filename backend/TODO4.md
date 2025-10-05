@@ -2043,28 +2043,38 @@ grep "pandas-market-calendars" pyproject.toml
 
 ---
 
-#### 2. UV Runtime Availability on Railway ⚠️ HIGH
+#### 2. UV Runtime Availability on Railway ✅ RESOLVED (2025-10-05)
+
 **Issue**: Plan assumes `uv run python ...` but Railway runtime may not have uv installed.
 
-**Current Behavior**: Web service may use `python app/main.py` directly (no uv)
+**Resolution**: ✅ **UV IS AVAILABLE** - Confirmed from Railway production logs
 
-**Solutions**:
-- **Option A (Preferred)**: Install uv in Railway environment
-  ```dockerfile
-  # Add to Dockerfile or Railway nixpacks config
-  RUN pip install uv
-  ```
+**Evidence from Railway logs**:
+```
+✅ "warning: The `tool.uv.dev-dependencies` field (used in `pyproject.toml`)"
+✅ "Building backend @ file:///app"
+✅ "Built backend @ file:///app"
+✅ Uses `.venv` virtual environment at `/app/.venv/lib/python3.11/`
+```
 
-- **Option B (Fallback)**: Use standard Python without uv
-  ```bash
-  # Cron start command:
-  python scripts/automation/daily_workflow.py
-  ```
+**Architecture Confirmed**:
+- Railway uses Nixpacks build system
+- Nixpacks detects `pyproject.toml` + `uv.lock` → automatically uses UV
+- Web service already running with UV successfully
+- Cron service will use **same build environment** (same repo, same Nixpacks detection)
 
-**Action Item**:
-1. Check if existing Railway web service uses uv
-2. If yes, document that cron service must use same runtime
-3. If no, update all Phase 4 commands to use `python` instead of `uv run python`
+**Decision**: ✅ **Use `uv run python` for cron service**
+
+**Cron Start Command**:
+```bash
+uv run python scripts/automation/daily_workflow.py
+```
+
+**Why this is safe**:
+- UV already installed and working on Railway (confirmed in production)
+- Both services build from same `backend/` directory
+- Explicit UV usage ensures correct Python environment and dependency isolation
+- No additional setup or configuration needed
 
 ---
 
@@ -2161,14 +2171,14 @@ railway variables:set --service cron-service DATABASE_URL=$DATABASE_URL
 Before proceeding to Phase 4.1 (Development), verify:
 
 - [x] **Dependency**: pandas-market-calendars added to pyproject.toml ✅ (2025-10-05)
-- [ ] **Runtime**: UV availability confirmed OR commands updated to use `python`
+- [x] **Runtime**: UV availability confirmed (production logs show UV active) ✅ (2025-10-05)
 - [ ] **DST**: Dynamic market-close detection implemented OR safe UTC time chosen
 - [ ] **Env Vars**: Railway variable propagation method documented with specific steps
 - [ ] **Slack**: Webhook URL obtained and added to Railway env vars OR fallback chosen
 
 **Once all 5 items checked, update Phase 4.0 status from ⚠️ BLOCKED → 🚀 READY FOR IMPLEMENTATION**
 
-**Progress**: 1/5 blockers resolved (20%)
+**Progress**: 2/5 blockers resolved (40%)
 
 ---
 
@@ -2937,24 +2947,25 @@ See Section 4.1.4 for 5 critical blockers that must be addressed before implemen
 
 **Critical Blockers** (see 4.1.4 for details):
 1. ✅ pandas-market-calendars added to pyproject.toml (RESOLVED 2025-10-05)
-2. ⚠️ UV runtime availability on Railway unknown
+2. ✅ UV runtime confirmed available on Railway (RESOLVED 2025-10-05)
 3. ❌ DST manual chore - cron fires at wrong time half the year
 4. ⚠️ Environment variable propagation between services not documented
 5. ⚠️ Slack webhook may not exist (alerting won't work)
 
 **Resolution Checklist** (from Section 4.1.5):
 - [x] **Dependency**: pandas-market-calendars added to pyproject.toml ✅
-- [ ] **Runtime**: UV availability confirmed OR commands updated to use `python`
+- [x] **Runtime**: UV availability confirmed (production logs show UV active) ✅
 - [ ] **DST**: Dynamic market-close detection OR safe UTC time chosen
 - [ ] **Env Vars**: Railway variable propagation method documented
 - [ ] **Slack**: Webhook URL obtained OR fallback chosen
 
-**Progress**: 1/5 blockers resolved (20%)
+**Progress**: 2/5 blockers resolved (40%)
 
 **Next Steps**:
 1. ✅ Review feedback on Phase 4.0 plan (DONE)
 2. ✅ Resolve blocker #1: pandas-market-calendars dependency (DONE)
-3. ❌ **RESOLVE REMAINING 4 BLOCKERS** (see Section 4.1.4)
-4. Update Phase 4.0 status from ⚠️ BLOCKED → 🚀 READY FOR IMPLEMENTATION
-5. Begin Phase 4.1 (Development & Local Testing)
+3. ✅ Resolve blocker #2: UV runtime availability (DONE - confirmed from logs)
+4. ❌ **RESOLVE REMAINING 3 BLOCKERS** (see Section 4.1.4)
+5. Update Phase 4.0 status from ⚠️ BLOCKED → 🚀 READY FOR IMPLEMENTATION
+6. Begin Phase 4.1 (Development & Local Testing)
 
