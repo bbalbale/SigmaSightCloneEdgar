@@ -56,7 +56,7 @@ const BACKEND_URL = process.env.BACKEND_URL ||
   (process.env.DOCKER_ENV === 'true' ? 'http://host.docker.internal:8000' : 'http://localhost:8000')
 ```
 
-**Option A: Use NEXT_PUBLIC_BACKEND_API_URL** (Recommended - Single variable):
+**Required Change** (Use NEXT_PUBLIC_BACKEND_API_URL):
 ```typescript
 // Remove /api/v1 suffix if present since proxy adds the path
 const getBackendUrl = () => {
@@ -73,51 +73,21 @@ const getBackendUrl = () => {
 const BACKEND_URL = getBackendUrl();
 ```
 
-**Option B: Require both variables** (Less user-friendly):
-```typescript
-// Keep as-is, but document that users must set BOTH variables
-const BACKEND_URL = process.env.BACKEND_URL ||
-  (process.env.DOCKER_ENV === 'true' ? 'http://host.docker.internal:8000' : 'http://localhost:8000')
-```
-
-**Recommendation**: Option A
+**Why this approach**:
 - Users only need to set ONE variable: `NEXT_PUBLIC_BACKEND_API_URL`
 - Consistent with documentation in RAILWAY_BACKEND_SETUP.md
 - Less confusing for developers
+- Maintains backward compatibility with BACKEND_URL if already set
 
 ---
 
-### Change 2: Update RAILWAY_BACKEND_SETUP.md
+### Change 2: No Documentation Changes Needed
 
 **File**: `frontend/RAILWAY_BACKEND_SETUP.md`
 
-**Current**: Only mentions `NEXT_PUBLIC_BACKEND_API_URL`
-
-**If keeping Option B above** (two variables required):
-
-Add to "Environment Variable Reference" section:
-
-```markdown
-### Required Variables (Both Needed)
-
-**NEXT_PUBLIC_BACKEND_API_URL** - Client-side requests:
-```env
-NEXT_PUBLIC_BACKEND_API_URL=https://sigmasight-be-production.up.railway.app/api/v1
-```
-
-**BACKEND_URL** - Server-side proxy route:
-```env
-BACKEND_URL=https://sigmasight-be-production.up.railway.app
-```
-
-**Important**:
-- `NEXT_PUBLIC_BACKEND_API_URL` includes `/api/v1` suffix
-- `BACKEND_URL` does NOT include `/api/v1` (proxy adds paths)
-```
-
-**If using Option A** (recommended):
-- No documentation changes needed
-- Current docs are correct
+**Status**: Current documentation is correct
+- Users only need to set `NEXT_PUBLIC_BACKEND_API_URL`
+- Proxy code change handles the rest automatically
 
 ---
 
@@ -146,36 +116,64 @@ curl -X POST https://sigmasight-be-production.up.railway.app/api/v1/auth/login \
 ### Test 2: Apply Frontend Changes Locally
 
 **Steps**:
-1. Make code changes (Option A recommended)
-2. Restart frontend:
-   ```bash
-   NEXT_PUBLIC_BACKEND_API_URL=https://sigmasight-be-production.up.railway.app/api/v1 npm run dev
-   ```
-3. Test login at http://localhost:3005
-4. Verify in DevTools Network tab that requests go to Railway URL
-5. Document any additional issues below
+1. ✅ Made code changes (Option A - single variable approach)
+2. ✅ Restarted frontend with Railway backend URL
+3. ✅ Tested login at http://localhost:3005
+4. ✅ Verified requests go to Railway URL in logs and Network tab
+5. ✅ Documented results below
+
+**Test Results** (2025-10-05):
+
+✅ **Proxy Configuration**:
+```
+Proxy Backend URL: https://sigmasight-be-production.up.railway.app
+NEXT_PUBLIC_BACKEND_API_URL: https://sigmasight-be-production.up.railway.app/api/v1
+```
+- /api/v1 suffix correctly stripped by getBackendUrl() function
+- Environment variable correctly read from NEXT_PUBLIC_BACKEND_API_URL
+
+✅ **Login Test**:
+- Credentials: demo_hnw@sigmasight.com / demo12345
+- Result: **Login successful**
+- Redirected to /portfolio page
+- JWT token stored in localStorage
+
+✅ **API Requests**:
+- POST /api/proxy/api/v1/auth/login → 200 OK
+- GET /api/proxy/api/v1/data/portfolios → 200 OK
+- POST /api/proxy/api/v1/chat/conversations → 201 Created
+- GET /api/proxy/api/v1/auth/me → 200 OK
+- GET /api/proxy/api/v1/analytics/portfolio/{id}/overview → 200 OK
+- GET /api/proxy/api/v1/data/positions/details → 200 OK
+- GET /api/proxy/api/v1/analytics/portfolio/{id}/factor-exposures → 200 OK
+
+✅ **Portfolio Data**:
+- 24 positions loaded successfully
+- $2.9M equity balance displayed
+- Portfolio metrics showing correctly
+- Private investments (2) and long positions (22) rendered
+
+✅ **Console Logs**:
+- No authentication errors
+- Portfolio ID correctly resolved
+- Chat conversation initialized
+- No CORS errors
+- All API calls routed through Railway backend
+
+**Screenshot**: `.playwright-mcp/railway-backend-success.png`
 
 ---
 
 ## Additional Issues Found During Testing
 
-### Issue 2: [To be filled during testing]
+**Status**: ✅ **No additional issues found**
 
-**Symptom**:
-
-**Root Cause**:
-
-**Required Change**:
-
----
-
-### Issue 3: [To be filled during testing]
-
-**Symptom**:
-
-**Root Cause**:
-
-**Required Change**:
+The fix works perfectly:
+- Single environment variable (NEXT_PUBLIC_BACKEND_API_URL) is all users need to set
+- Proxy correctly strips /api/v1 suffix before forwarding requests
+- All API endpoints work correctly through Railway backend
+- Authentication, portfolio data, and chat initialization all functional
+- No changes needed to RAILWAY_BACKEND_SETUP.md documentation
 
 ---
 
@@ -183,23 +181,28 @@ curl -X POST https://sigmasight-be-production.up.railway.app/api/v1/auth/login \
 
 Before reverting changes and handing off to FE team:
 
-- [ ] All issues documented in this file
-- [ ] All required changes clearly specified with code examples
-- [ ] Testing verified all issues are resolved
-- [ ] Git changes reverted: `git reset --hard HEAD`
+- [x] All issues documented in this file
+- [x] All required changes clearly specified with code examples
+- [x] Testing verified all issues are resolved
+- [ ] Git changes reverted (revert proxy route changes only, keep TODO)
 - [ ] This TODO file committed for FE team reference
 - [ ] FE team notified of required changes
+
+**Next Steps**:
+1. Revert `frontend/app/api/proxy/[...path]/route.ts` to original state
+2. Commit this TODO file to document findings
+3. Hand off to FE team for permanent implementation
 
 ---
 
 ## Implementation Notes for FE Team
 
-### Recommended Approach
+### Implementation Steps
 
-1. **Implement Option A** (single environment variable):
-   - Update `frontend/app/api/proxy/[...path]/route.ts` with getBackendUrl() function
-   - Keeps documentation simple (only NEXT_PUBLIC_BACKEND_API_URL needed)
-   - More user-friendly
+1. **Update proxy route file**:
+   - File: `frontend/app/api/proxy/[...path]/route.ts`
+   - Replace lines 4-5 with getBackendUrl() function (see Change 1 above)
+   - Maintains backward compatibility with BACKEND_URL
 
 2. **Test locally**:
    ```bash
@@ -208,18 +211,13 @@ Before reverting changes and handing off to FE team:
 
 3. **Verify**:
    - Login works with demo credentials
-   - Network tab shows requests to Railway URL
+   - Network tab shows requests to Railway URL (not localhost)
    - No console errors
+   - Proxy logs show correct backend URL
 
-4. **Update .env.example** if needed
-
-### Alternative Approach (Option B)
-
-If you prefer to keep two separate variables:
-
-1. Document that BOTH variables are required in RAILWAY_BACKEND_SETUP.md
-2. Add validation/warning when BACKEND_URL is not set
-3. Update command-line examples to include both variables
+4. **No documentation changes needed**:
+   - RAILWAY_BACKEND_SETUP.md is already correct
+   - .env.example already has NEXT_PUBLIC_BACKEND_API_URL
 
 ---
 
@@ -241,9 +239,9 @@ curl https://sigmasight-be-production.up.railway.app/health
 
 ## Questions for FE Team
 
-1. Do you prefer Option A (single variable) or Option B (two variables)?
-2. Are there any other services/routes that use BACKEND_URL?
-3. Should we add runtime validation when BACKEND_URL/NEXT_PUBLIC_BACKEND_API_URL mismatch?
+1. Are there any other services/routes that use BACKEND_URL?
+2. Should we add console warning when NEXT_PUBLIC_BACKEND_API_URL is set but gets stripped?
+3. Any concerns about the /api/v1 suffix stripping logic?
 
 ---
 
