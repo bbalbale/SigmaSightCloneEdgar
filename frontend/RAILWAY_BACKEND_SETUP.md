@@ -2,6 +2,23 @@
 
 This guide explains how to configure your local frontend development environment to connect to the remote Railway backend instead of localhost.
 
+## CORS Configuration
+
+**Good news**: The Railway backend already allows `http://localhost:3005` in its CORS configuration!
+
+The backend (`app/config.py`) has these allowed origins:
+- `http://localhost:3000` (React dev)
+- `http://localhost:3005` (Next.js dev) ✅ **Your local frontend**
+- `http://localhost:5173` (Vite dev)
+- `https://sigmasight-frontend.vercel.app` (Production)
+
+**This means**:
+- ✅ Local frontend (localhost:3005) → Railway backend: **Works immediately**
+- ✅ No CORS configuration needed for development
+- ⚠️ If deploying frontend to production, you'll need to add that URL to backend's ALLOWED_ORIGINS
+
+---
+
 ## Quick Start
 
 ### Option 1: Environment Variable Override (Recommended)
@@ -277,25 +294,44 @@ console.log('Backend URL:', process.env.NEXT_PUBLIC_BACKEND_API_URL)
 
 **Symptom**: `Access-Control-Allow-Origin` errors in console
 
-**Solutions**:
-1. **Verify Railway backend CORS settings**:
+**Important**: The Railway backend **already allows** `http://localhost:3005`, so CORS should work by default.
+
+**If you still see CORS errors**:
+
+1. **Verify the backend is actually on Railway**:
    ```bash
-   railway logs
-   # Check for CORS configuration in startup logs
+   # Check Network tab in DevTools - requests should go to Railway URL
+   # NOT localhost:8000
    ```
 
-2. **Check backend allows frontend origin**:
-   ```python
-   # backend/app/main.py should have:
-   origins = [
-       "http://localhost:3005",
-       "https://your-frontend.railway.app"
-   ]
+2. **Hard refresh browser** (clear cached CORS preflight responses):
+   ```
+   Ctrl+Shift+R (Windows/Linux)
+   Cmd+Shift+R (Mac)
    ```
 
-3. **Use Next.js proxy** (already configured):
-   - API calls go through `/api/proxy/*` route
-   - This should handle CORS automatically
+3. **Check Railway backend logs** for CORS-related errors:
+   ```bash
+   railway logs --tail 100
+   # Look for "CORS" or "Access-Control-Allow-Origin"
+   ```
+
+4. **Verify backend CORS config** (should already include localhost:3005):
+   ```bash
+   # In backend repo:
+   grep -A 5 "ALLOWED_ORIGINS" app/config.py
+   # Should show: "http://localhost:3005"
+   ```
+
+5. **If deploying frontend to production** (not localhost):
+   - Add your production URL to `backend/app/config.py` ALLOWED_ORIGINS:
+     ```python
+     ALLOWED_ORIGINS: List[str] = [
+         "http://localhost:3005",
+         "https://your-frontend.railway.app",  # Add this
+     ]
+     ```
+   - Redeploy backend to Railway
 
 ### Issue: Authentication Fails
 
@@ -426,7 +462,16 @@ console.log(process.env.NEXT_PUBLIC_BACKEND_API_URL)
 - ✅ Set environment variables in Railway/Vercel dashboard
 - ✅ Never commit Railway URLs to git (use env vars)
 - ✅ Use Railway private networking if both frontend/backend on Railway
-- ✅ Enable CORS for production frontend domain
+- ✅ **CRITICAL**: Add production frontend URL to backend CORS:
+  ```python
+  # backend/app/config.py
+  ALLOWED_ORIGINS: List[str] = [
+      "http://localhost:3005",  # Local dev
+      "https://your-production-frontend.com",  # Add this!
+  ]
+  ```
+  - Then redeploy backend to Railway
+  - Without this, production frontend will get CORS errors
 
 ---
 
