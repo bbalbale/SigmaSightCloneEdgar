@@ -18,6 +18,13 @@ echo "SigmaSight Railway - Initial Database Setup"
 echo "============================================"
 echo ""
 
+# Transform DATABASE_URL for async driver (same as start.sh)
+if [ -n "$DATABASE_URL" ]; then
+    export DATABASE_URL=$(echo "$DATABASE_URL" | sed 's|postgresql://|postgresql+asyncpg://|')
+    echo "✓ DATABASE_URL transformed for asyncpg driver"
+fi
+echo ""
+
 # Color codes for output
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
