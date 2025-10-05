@@ -2,6 +2,16 @@
 
 Step-by-step guide to deploy the cron service using Railway CLI.
 
+## ⚠️ Railway CLI Key Learnings
+
+**Critical points discovered during actual deployment that differ from typical documentation:**
+
+1. **No standalone service create command**: Use `railway up --service <name>` to auto-create services
+2. **Variables do NOT auto-inherit**: Must manually copy environment variables between services
+3. **Variable references don't work in CLI**: `${{Postgres.DATABASE_URL}}` syntax only works in Dashboard
+4. **Async driver requirement**: Must use `postgresql+asyncpg://` not `postgresql://` for SQLAlchemy async
+5. **Services and Environments are siblings**: Both belong to Project, not parent-child relationship
+
 ## Prerequisites
 
 1. **Install Railway CLI**:
@@ -24,80 +34,68 @@ Step-by-step guide to deploy the cron service using Railway CLI.
    # Select your SigmaSight project when prompted
    ```
 
-## Step 1: Create Cron Service
+## Step 1: Create and Deploy Cron Service
+
+**Note**: Railway CLI doesn't have a standalone `service create` command. The service is created automatically when you first deploy to it.
 
 ```bash
-# Create a new service in your Railway project
-railway service create sigmasight-backend-cron
+# Navigate to backend directory
+cd backend
+
+# Deploy to new cron service (auto-creates the service)
+railway up --service sigmasight-backend-cron --detach
 ```
 
-This creates a new service but doesn't deploy anything yet.
+This will:
+- Create the `sigmasight-backend-cron` service in your project
+- Upload and build the code
+- Deploy (will exit immediately since no cron schedule is set yet)
 
-## Step 2: Link CLI to Cron Service
+## Step 2: Set Environment Variables
+
+**CRITICAL**: Environment variables do NOT automatically inherit between services. You must manually copy them from your web service to the cron service.
+
+First, check what variables your web service has:
+```bash
+railway variables --service SigmaSight-BE --kv
+```
+
+Then set all required variables for the cron service:
 
 ```bash
-# Switch to the new cron service
-railway service
-# Select "sigmasight-backend-cron" from the list
+# IMPORTANT: DATABASE_URL must use postgresql+asyncpg:// for async compatibility
+railway variables --service sigmasight-backend-cron \
+  --set 'DATABASE_URL=postgresql+asyncpg://user:pass@postgres.railway.internal:5432/railway' \
+  --set 'POLYGON_API_KEY=your_key' \
+  --set 'FMP_API_KEY=your_key' \
+  --set 'FRED_API_KEY=your_key' \
+  --set 'SECRET_KEY=your_key' \
+  --set 'OPENAI_API_KEY=your_key' \
+  --skip-deploys
 ```
 
-Alternatively, specify the service directly:
+**Key Points**:
+- ⚠️ Use `postgresql+asyncpg://` NOT `postgresql://` (async driver requirement)
+- ⚠️ Railway's `${{Postgres.DATABASE_URL}}` reference syntax doesn't work in CLI
+- ⚠️ Copy the actual connection string from your web service
+- ⚠️ Use `--skip-deploys` to set all variables before triggering a redeploy
+
+Verify variables were set:
 ```bash
-export RAILWAY_SERVICE=sigmasight-backend-cron
+railway variables --service sigmasight-backend-cron --kv
 ```
 
-## Step 3: Set Environment Variables
+## Step 3: Verify Initial Deployment
 
-Since you're using **shared variables at project level**, the cron service should automatically inherit them. Verify:
-
+Check deployment status:
 ```bash
-# Check current environment variables for cron service
-railway variables --service sigmasight-backend-cron
+# View recent logs
+railway logs --service sigmasight-backend-cron --tail 50
 ```
 
-**Expected variables** (should auto-inherit from project-level shared variables):
-- `DATABASE_URL`
-- `POLYGON_API_KEY`
-- `FMP_API_KEY`
-- `FRED_API_KEY`
-- `SECRET_KEY`
-- `OPENAI_API_KEY`
+The service will exit immediately since no cron schedule is set yet. This is expected.
 
-If any are missing, set them at the **project level** (shared):
-```bash
-# Set shared variable (available to all services)
-railway variables --set DATABASE_URL="postgresql+asyncpg://..." --shared
-railway variables --set POLYGON_API_KEY="pk_..." --shared
-railway variables --set FMP_API_KEY="..." --shared
-railway variables --set FRED_API_KEY="..." --shared
-railway variables --set SECRET_KEY="..." --shared
-railway variables --set OPENAI_API_KEY="sk-..." --shared
-```
-
-Or verify they're already set:
-```bash
-# List all shared variables
-railway variables --shared
-```
-
-## Step 4: Deploy the Service
-
-The `railway.json` file in the backend directory already configures the start command and restart policy.
-
-Deploy from the backend directory:
-```bash
-# Make sure you're in the backend directory
-cd /path/to/SigmaSight-BE/backend
-
-# Deploy to cron service
-railway up --service sigmasight-backend-cron
-
-# The deployment will exit immediately (no cron schedule set yet)
-```
-
-**Note**: The service will deploy but exit immediately since no cron schedule is set. This is expected.
-
-## Step 5: Manual Testing (CRITICAL - Test Before Enabling Cron)
+## Step 4: Manual Testing (CRITICAL - Test Before Enabling Cron)
 
 Test the script manually to ensure it works:
 
@@ -117,20 +115,9 @@ Monitor logs in another terminal:
 railway logs --service sigmasight-backend-cron
 ```
 
-## Step 6: Enable Cron Schedule (After Successful Test)
+## Step 5: Enable Cron Schedule (After Successful Test)
 
-Unfortunately, **cron schedules cannot be set via Railway CLI** - you must use the dashboard for this.
-
-**Via Railway Dashboard**:
-1. Go to Railway dashboard → Your project
-2. Select `sigmasight-backend-cron` service
-3. Go to **Settings** tab
-4. Scroll to **Cron Schedule** section
-5. Click **"Add Cron Schedule"**
-6. Enter: `30 23 * * 1-5`
-7. Click **"Deploy"**
-
-**Or update railway.json and redeploy**:
+**Recommended Method**: Update `railway.json` and redeploy via CLI.
 
 Edit `backend/railway.json` to add the cron schedule:
 ```json
@@ -145,12 +132,23 @@ Edit `backend/railway.json` to add the cron schedule:
 }
 ```
 
-Then redeploy:
+Commit and redeploy:
 ```bash
-railway up --service sigmasight-backend-cron
+git add railway.json
+git commit -m "feat: enable cron schedule for daily automation"
+railway up --service sigmasight-backend-cron --detach
 ```
 
-## Step 7: Verify Cron Schedule
+**Alternative**: Via Railway Dashboard:
+1. Go to Railway dashboard → Your project
+2. Select `sigmasight-backend-cron` service
+3. Go to **Settings** tab
+4. Scroll to **Cron Schedule** section
+5. Click **"Add Cron Schedule"**
+6. Enter: `30 23 * * 1-5`
+7. Click **"Deploy"**
+
+## Step 6: Verify Cron Schedule
 
 Check that the cron schedule is active:
 
@@ -196,9 +194,9 @@ railway run --service sigmasight-backend-cron uv run python scripts/automation/r
 ## Troubleshooting
 
 ### "Service not found"
-Make sure you created the service first:
+The service is created automatically on first deploy. Use:
 ```bash
-railway service create sigmasight-backend-cron
+railway up --service sigmasight-backend-cron --detach
 ```
 
 ### "No environment found"
@@ -209,35 +207,51 @@ railway environment
 ```
 
 ### Variables not showing up
-Check if they're set as shared at project level:
+Environment variables must be set per-service. Check:
 ```bash
-railway variables --shared
+railway variables --service sigmasight-backend-cron --kv
+```
+
+Copy from your web service:
+```bash
+railway variables --service SigmaSight-BE --kv
+```
+
+### "asyncio extension requires an async driver"
+Your `DATABASE_URL` is using `postgresql://` instead of `postgresql+asyncpg://`. Fix:
+```bash
+railway variables --service sigmasight-backend-cron \
+  --set 'DATABASE_URL=postgresql+asyncpg://user:pass@host:port/db' \
+  --skip-deploys
 ```
 
 ### Deployment fails
 Check build logs:
 ```bash
-railway logs --service sigmasight-backend-cron --deployment
+railway logs --service sigmasight-backend-cron --tail 100
 ```
 
 ### Wrong service targeted
-Always specify the service explicitly:
+Always specify the service explicitly with `--service`:
 ```bash
 railway logs --service sigmasight-backend-cron
 railway up --service sigmasight-backend-cron
 railway run --service sigmasight-backend-cron <command>
 ```
 
+### Railway variable references like ${{Postgres.DATABASE_URL}} don't work
+Railway's variable reference syntax (`${{...}}`) only works in the Railway Dashboard, not in CLI. You must use the actual values when setting variables via CLI.
+
 ## Complete Deployment Checklist
 
 - [ ] Railway CLI installed and logged in
 - [ ] Project linked via `railway link`
-- [ ] Cron service created: `railway service create sigmasight-backend-cron`
-- [ ] Shared variables verified: `railway variables --shared`
-- [ ] Service deployed: `railway up --service sigmasight-backend-cron`
-- [ ] Manual test successful: `railway run --service sigmasight-backend-cron ...`
-- [ ] Cron schedule enabled (via dashboard or railway.json update)
-- [ ] First automated run verified via logs
+- [ ] Cron service created via first deploy: `railway up --service sigmasight-backend-cron --detach`
+- [ ] Environment variables copied from web service and set with `postgresql+asyncpg://` driver
+- [ ] Variables verified: `railway variables --service sigmasight-backend-cron --kv`
+- [ ] Manual test successful: `railway run --service sigmasight-backend-cron uv run python scripts/automation/railway_daily_batch.py --force`
+- [ ] Cron schedule enabled via `railway.json` update and redeploy
+- [ ] First automated run verified via logs: `railway logs --service sigmasight-backend-cron --follow`
 
 ## Next Steps After Deployment
 
