@@ -826,25 +826,25 @@ _archive/incidents/BACKEND_COMPUTE_ERROR.md (mentions reports)
 
 ## Execution Plan
 
-### Phase 2.1: Safe Deletions ✅ (No dependencies)
+### Phase 2.0.1: Safe Deletions ✅ (No dependencies)
 - [ ] Delete `scripts/testing/test_report_generator.py`
 - [ ] Delete `scripts/batch_processing/generate_all_reports.py`
 - [ ] Delete `tests/batch/test_batch_with_reports.py`
 - [ ] Delete `app/cli/report_generator_cli.py`
 
-### Phase 2.2: Railway Script Update ⚠️ (Update before deletion)
+### Phase 2.0.2: Railway Script Update ⚠️ (Update before deletion)
 - [ ] Remove Step 6 from `scripts/railway_initial_seed.sh`
 - [ ] Update step numbering ("[Step 6/6]" → "[Step 5/5]")
 - [ ] Update `scripts/RAILWAY_SEEDING_README.md` to remove batch processing step
 - [ ] Add note: "Batch processing can be run separately if calculation data needed"
 - [ ] Test modified script on Railway
 
-### Phase 2.3: Batch Orchestrator Cleanup
+### Phase 2.0.3: Batch Orchestrator Cleanup
 - [ ] Delete `_generate_report` method from `app/batch/batch_orchestrator_v2.py` (lines 569-595)
 - [ ] Verify no other code references this method
 - [ ] Run tests to ensure batch orchestrator still works
 
-### Phase 2.4: Refactor Main Batch Script
+### Phase 2.0.4: Refactor Main Batch Script
 - [ ] Create `scripts/batch_processing/run_batch.py` by:
   - [ ] Copy `run_batch_with_reports.py` to `run_batch.py`
   - [ ] Remove import: `from app.reports.portfolio_report_generator import PortfolioReportGenerator`
@@ -858,7 +858,7 @@ _archive/incidents/BACKEND_COMPUTE_ERROR.md (mentions reports)
 - [ ] Delete `app/reports/` directory entirely
 - [ ] Run full test suite
 
-### Phase 2.5: Documentation Cleanup
+### Phase 2.0.5: Documentation Cleanup
 - [ ] **`_guides/BACKEND_DAILY_COMPLETE_WORKFLOW_GUIDE.md`** - CRITICAL
   - [ ] Replace all `run_batch_with_reports.py --skip-reports` → `run_batch.py`
   - [ ] Remove references to `generate_all_reports.py`
@@ -881,7 +881,7 @@ _archive/incidents/BACKEND_COMPUTE_ERROR.md (mentions reports)
 - [ ] **`scripts/README.md`**
   - [ ] Update quick reference section
 
-### Phase 2.6: Verification & Cleanup
+### Phase 2.0.6: Verification & Cleanup
 - [ ] Run full test suite
 - [ ] Test local development workflow
 - [ ] Test Railway deployment and seeding
