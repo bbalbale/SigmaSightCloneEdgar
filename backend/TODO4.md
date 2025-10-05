@@ -1988,8 +1988,9 @@ def downgrade() -> None:
 # Phase 4.0: Railway Automated Daily Workflow System
 
 **Phase**: 4.0 - Production Automation & Scheduled Tasks
-**Status**: 📋 PLANNING
+**Status**: ⚠️ BLOCKED (5 pre-implementation requirements - see 4.1.4)
 **Created**: 2025-10-05
+**Updated**: 2025-10-05 (added blocker documentation)
 **Goal**: Implement automated daily market data updates and batch calculations on Railway using cron jobs
 
 ---
@@ -2017,6 +2018,155 @@ Automate daily post-market-close workflows on Railway production environment to:
 - **Isolation**: Separate service from main API (no impact on web traffic)
 - **Observability**: Comprehensive logging and error reporting
 - **Reliability**: Retry failed operations, alert on persistent failures
+
+### 4.1.4 Pre-Implementation Requirements ⚠️ BLOCKERS
+
+**Status**: ❌ **MUST RESOLVE BEFORE PHASE 4.1**
+
+The following critical gaps must be addressed before implementation begins:
+
+#### 1. Missing Dependency: pandas-market-calendars ❌ CRITICAL
+**Issue**: pandas-market-calendars is the linchpin for holiday detection, but it's NOT declared in `backend/pyproject.toml` (only in lockfile).
+
+**Impact**: `uv run` on Railway won't find it → cron job will fail on first run
+
+**Solution Required**:
+```bash
+# Add to pyproject.toml dependencies:
+uv add pandas-market-calendars
+
+# Verify it appears in [project.dependencies] section
+grep "pandas-market-calendars" pyproject.toml
+```
+
+**Action Item**: Add pandas-market-calendars to pyproject.toml BEFORE Phase 4.1
+
+---
+
+#### 2. UV Runtime Availability on Railway ⚠️ HIGH
+**Issue**: Plan assumes `uv run python ...` but Railway runtime may not have uv installed.
+
+**Current Behavior**: Web service may use `python app/main.py` directly (no uv)
+
+**Solutions**:
+- **Option A (Preferred)**: Install uv in Railway environment
+  ```dockerfile
+  # Add to Dockerfile or Railway nixpacks config
+  RUN pip install uv
+  ```
+
+- **Option B (Fallback)**: Use standard Python without uv
+  ```bash
+  # Cron start command:
+  python scripts/automation/daily_workflow.py
+  ```
+
+**Action Item**:
+1. Check if existing Railway web service uses uv
+2. If yes, document that cron service must use same runtime
+3. If no, update all Phase 4 commands to use `python` instead of `uv run python`
+
+---
+
+#### 3. DST Manual Chore - Cron Schedule Wrong Half the Year ❌ CRITICAL
+**Issue**: Proposed schedule `30 20 * * 1-5` will fire at wrong time for half the year:
+- **Standard Time (Nov-Mar)**: 4:00 PM ET = 21:00 UTC → fires 1 hour early
+- **Daylight Time (Mar-Nov)**: 4:00 PM ET = 20:00 UTC → fires correctly
+
+**Impact**: Job runs before market data is available during DST, or someone must manually update cron twice/year
+
+**Solutions**:
+- **Option A (RECOMMENDED)**: Dynamic market-close detection
+  ```python
+  # Job runs at fixed safe time (e.g., 11:00 PM UTC)
+  # Script checks if market closed today and if job already ran
+  def should_run_today():
+      nyse = mcal.get_calendar('NYSE')
+      today = datetime.now(ZoneInfo('America/New_York')).date()
+
+      # Check if trading day
+      schedule = nyse.schedule(start_date=today, end_date=today)
+      if len(schedule) == 0:
+          return False
+
+      # Check if past market close (4:00 PM ET)
+      market_close = schedule.iloc[0]['market_close'].astimezone(ZoneInfo('America/New_York'))
+      now = datetime.now(ZoneInfo('America/New_York'))
+
+      return now > market_close
+  ```
+
+- **Option B (Acceptable)**: Pick safe UTC time year-round
+  ```
+  # 11:00 PM UTC = 6:00 PM ET (standard) / 7:00 PM ET (daylight)
+  # Always after 4:00 PM ET market close
+  cronSchedule: "0 23 * * 1-5"
+  ```
+
+**Action Item**:
+1. Choose Option A (dynamic) or Option B (fixed safe time)
+2. Update Section 4.2.2.1 with chosen solution
+3. Remove DST manual adjustment notes from plan
+
+---
+
+#### 4. Environment Variable Propagation Between Services ⚠️ HIGH
+**Issue**: Plan mentions sharing DATABASE_URL and API keys but doesn't document HOW to propagate secrets from web service to cron service on Railway.
+
+**Questions**:
+- Does Railway have shared environment variable groups?
+- Do we manually copy all env vars to the new service?
+- Are secrets synced automatically?
+
+**Action Item**:
+1. Research Railway's shared variables feature (check docs or Context7)
+2. Document exact steps to ensure cron service has same env vars as web service
+3. Add to Section 4.2.2.2 with specific Railway UI/CLI commands
+
+**Expected Documentation**:
+```bash
+# Example using Railway CLI (if supported)
+railway variables:set --service cron-service DATABASE_URL=$DATABASE_URL
+
+# Or document Railway UI steps:
+# 1. Go to web service → Variables
+# 2. Copy all variable names/values
+# 3. Go to cron service → Variables
+# 4. Paste all variables
+```
+
+---
+
+#### 5. Slack Webhook Assumption - May Not Exist ⚠️ MEDIUM
+**Issue**: Section 4.3.3 and monitoring strategy depend on Slack webhook that may not exist yet.
+
+**Impact**: Alerting won't work, failures will be silent
+
+**Action Item**:
+1. Verify team has Slack workspace and webhook capability
+2. Create webhook URL if missing: https://api.slack.com/messaging/webhooks
+3. Add `SLACK_WEBHOOK_URL` to Railway environment variables
+4. Update Section 4.2.2.2 to list it as required env var
+5. If Slack not available, plan fallback (email alerts, logging only, etc.)
+
+**Fallback Options**:
+- Email via SendGrid/AWS SES
+- Logging only (Railway dashboard)
+- Railway notifications (if available)
+
+---
+
+### 4.1.5 Resolution Checklist
+
+Before proceeding to Phase 4.1 (Development), verify:
+
+- [ ] **Dependency**: pandas-market-calendars added to pyproject.toml
+- [ ] **Runtime**: UV availability confirmed OR commands updated to use `python`
+- [ ] **DST**: Dynamic market-close detection implemented OR safe UTC time chosen
+- [ ] **Env Vars**: Railway variable propagation method documented with specific steps
+- [ ] **Slack**: Webhook URL obtained and added to Railway env vars OR fallback chosen
+
+**Once all 5 items checked, update Phase 4.0 status from 📋 PLANNING → 🚀 READY FOR IMPLEMENTATION**
 
 ---
 
@@ -2776,19 +2926,30 @@ uv run python scripts/automation/railway_daily_batch.py --date 2025-10-03 --forc
 
 ---
 
-**Status**: 📋 PLANNING COMPLETE - Ready for implementation approval
+**Status**: ⚠️ **BLOCKED - Pre-Implementation Requirements Must Be Resolved**
+
+See Section 4.1.4 for 5 critical blockers that must be addressed before implementation.
 
 **Estimated Total Effort**: 4-5 days (development + testing + deployment)
+**Blocker Resolution Time**: 1-2 days (dependencies, research, configuration)
 
-**Dependencies**: 
-- Railway platform access with cron job support ✅ Available
-- pandas-market-calendars library ⚠️ Need to add to dependencies
-- Slack webhook URL 📋 To be configured
-- Production database access ✅ Available
+**Critical Blockers** (see 4.1.4 for details):
+1. ❌ pandas-market-calendars NOT in pyproject.toml (only in lockfile)
+2. ⚠️ UV runtime availability on Railway unknown
+3. ❌ DST manual chore - cron fires at wrong time half the year
+4. ⚠️ Environment variable propagation between services not documented
+5. ⚠️ Slack webhook may not exist (alerting won't work)
+
+**Resolution Checklist** (from Section 4.1.5):
+- [ ] **Dependency**: pandas-market-calendars added to pyproject.toml
+- [ ] **Runtime**: UV availability confirmed OR commands updated to use `python`
+- [ ] **DST**: Dynamic market-close detection OR safe UTC time chosen
+- [ ] **Env Vars**: Railway variable propagation method documented
+- [ ] **Slack**: Webhook URL obtained OR fallback chosen
 
 **Next Steps**:
-1. Review and approve this plan
-2. Add pandas-market-calendars to pyproject.toml
-3. Create scripts/automation/ directory structure
+1. ✅ Review feedback on Phase 4.0 plan (DONE)
+2. ❌ **RESOLVE ALL 5 BLOCKERS** (see Section 4.1.4)
+3. Update Phase 4.0 status from ⚠️ BLOCKED → 🚀 READY FOR IMPLEMENTATION
 4. Begin Phase 4.1 (Development & Local Testing)
 
