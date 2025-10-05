@@ -1121,7 +1121,7 @@ scripts/testing/test_report_generator.py: from app.reports.portfolio_report_gene
 
 | Area | Action |
 | --- | --- |
-| **Database** | Drop `strategies`, `strategy_legs`, `strategy_metrics`, `strategy_tags` tables; remove `positions.strategy_id` column; drop `strategytype` enum |
+| **Database** | Drop `strategies`, `strategy_legs`, `strategy_metrics`, `strategy_tags` tables; remove `positions.strategy_id` column |
 | **ORM Models** | Delete `app/models/strategies.py`; remove Strategy relationships from Position, Portfolio, User, TagV2 |
 | **Alembic** | Single atomic migration to drop all 4 tables + column + constraints (no downgrade support) |
 | **Services & APIs** | Delete `app/api/v1/strategies.py` (457 lines); remove router registration; delete schemas/services |
@@ -1153,15 +1153,15 @@ scripts/testing/test_report_generator.py: from app.reports.portfolio_report_gene
 ### Phase 3.0.1: Frontend Coordination & Verification ⚠️ **BLOCKER**
 **Purpose**: Ensure frontend doesn't rely on strategy APIs before deletion
 
-- [ ] **CRITICAL**: Meet with frontend team to verify recent commits:
-  - `c276afc` (Oct 4) - "fix: resolve Organize page issues with strategy display and deletion"
-  - `e184d0c` (Oct 3) - "feat: implement Combination View toggle with complete strategy categorization deployment"
-  - `5203115` (Oct 3) - "feat: implement strategy categorization system for investment class filtering"
+- [ ] **CRITICAL**: Meet with frontend team to verify recent "strategy categorization" features:
+  - Recent frontend work references "strategy categorization", "strategy display", and "Combination View"
+  - **Goal**: Determine if these features rely on the backend Strategy model/API
 
 - [ ] Questions to answer:
-  - Do these features use `/api/v1/strategies/*` endpoints?
-  - Or do they use position attributes (direction, investment_class)?
-  - Will frontend break if strategy endpoints return 404?
+  - Do any frontend features use `/api/v1/strategies/*` endpoints?
+  - Or do they use position attributes (direction, investment_class, tags)?
+  - Will frontend break if strategy endpoints are removed?
+  - Is "strategy categorization" actually using position-level categorization (direction/investment_class)?
 
 - [ ] Frontend codebase audit:
   ```bash
@@ -1249,7 +1249,8 @@ def upgrade() -> None:
     1. Drop position.strategy_id FK first (dependent on strategies table)
     2. Drop child tables (no FKs depend on them)
     3. Drop parent table (strategies) last
-    4. Drop enum type
+
+    NOTE: No PostgreSQL enum to drop - strategy_type uses String column with CHECK constraint
     """
 
     # ============================================================================
@@ -1299,17 +1300,12 @@ def upgrade() -> None:
     # Must be last - other tables reference it via FK
     # - Contains: strategy metadata, aggregated financials
     # - FK to: portfolios.id, users.id (created_by)
-    # - Check constraint: valid_strategy_type (uses strategytype enum)
+    # - Check constraint: valid_strategy_type (validates against Python StrategyType enum)
+    # - Note: strategy_type column is String(50), NOT a PostgreSQL enum type
     op.drop_table('strategies')
 
-
-    # ============================================================================
-    # STEP 4: Drop strategytype enum
-    # ============================================================================
-    # Must be after strategies table drop (table has CHECK constraint using enum)
-    # Enum values: standalone, covered_call, protective_put, iron_condor,
-    #              straddle, strangle, butterfly, pairs_trade, custom
-    op.execute('DROP TYPE IF EXISTS strategytype')
+    # Note: No PostgreSQL enum to drop. The StrategyType is a Python enum used
+    # only for validation. The database column is String(50) with a CHECK constraint.
 
 
 def downgrade() -> None:
