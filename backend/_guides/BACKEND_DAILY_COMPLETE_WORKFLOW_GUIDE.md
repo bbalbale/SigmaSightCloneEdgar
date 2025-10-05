@@ -70,9 +70,9 @@ uv run alembic current
 **Impact**: All portfolio calculations now use equity-based formulas
 
 **Current Equity Values**:
-- Demo Individual: $600,000
-- Demo HNW: $2,000,000  
-- Demo Hedge Fund: $4,000,000
+- Demo Individual: $485,000
+- Demo HNW: $2,850,000
+- Demo Hedge Fund: $3,200,000
 
 **Key Formulas**:
 ```
@@ -520,26 +520,30 @@ curl -X DELETE "http://localhost:8000/api/v1/tags/{tag_id}" \
 ### Position Tagging Endpoints
 
 ```bash
-# Assign tag to position
-curl -X POST "http://localhost:8000/api/v1/position-tags" \
+# Assign tags to position
+curl -X POST "http://localhost:8000/api/v1/positions/{position_id}/tags" \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
-    "position_id": "position-uuid-here",
-    "tag_id": "tag-uuid-here"
+    "tag_ids": ["tag-uuid-1", "tag-uuid-2"],
+    "replace_existing": false
   }'
 
 # Get all tags for a position
 curl -H "Authorization: Bearer $TOKEN" \
-  "http://localhost:8000/api/v1/position-tags/position/{position_id}"
+  "http://localhost:8000/api/v1/positions/{position_id}/tags"
 
-# Get all positions with a specific tag
+# Get all positions with a specific tag (reverse lookup)
 curl -H "Authorization: Bearer $TOKEN" \
-  "http://localhost:8000/api/v1/position-tags/tag/{tag_id}/positions"
+  "http://localhost:8000/api/v1/tags/{tag_id}/positions"
 
-# Remove tag from position
-curl -X DELETE "http://localhost:8000/api/v1/position-tags/{position_tag_id}" \
-  -H "Authorization: Bearer $TOKEN"
+# Remove tags from position
+curl -X DELETE "http://localhost:8000/api/v1/positions/{position_id}/tags" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "tag_ids": ["tag-uuid-1"]
+  }'
 ```
 
 ### Common Tag Workflows
@@ -565,10 +569,10 @@ POSITIONS=$(curl -s -H "Authorization: Bearer $TOKEN" \
 
 # 4. Tag tech positions
 for POS in $POSITIONS; do
-  curl -X POST http://localhost:8000/api/v1/position-tags \
+  curl -X POST "http://localhost:8000/api/v1/positions/$POS/tags" \
     -H "Authorization: Bearer $TOKEN" \
     -H "Content-Type: application/json" \
-    -d "{\"position_id\":\"$POS\",\"tag_id\":\"$TAG_TECH\"}"
+    -d "{\"tag_ids\":[\"$TAG_TECH\"],\"replace_existing\":false}"
 done
 ```
 
@@ -604,21 +608,26 @@ cat ../frontend/CHAT_TESTING_GUIDE.md
 - **Console Monitoring**: Frontend guide includes browser console capture
 
 ### Backend-Only Verification (Limited)
-If you only need to verify the backend agent endpoints exist:
+If you only need to verify the backend chat/agent endpoints exist:
 
 ```bash
-# Check if agent endpoints are registered (won't work without auth)
-curl http://localhost:8000/api/v1/agent/health
-
 # Test direct backend auth (limited functionality)
 TOKEN=$(curl -s -X POST http://localhost:8000/api/v1/auth/login \
   -H "Content-Type: application/json" \
   -d '{"email":"demo_hnw@sigmasight.com","password":"demo12345"}' \
   | jq -r '.access_token')
 
-# This may return 401 due to missing cookie auth
+# Create a conversation (basic test)
+curl -X POST "http://localhost:8000/api/v1/chat/conversations" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"title": "Test Conversation"}'
+
+# List conversations
 curl -H "Authorization: Bearer $TOKEN" \
-  http://localhost:8000/api/v1/agent/tools
+  http://localhost:8000/api/v1/chat/conversations
+
+# Note: SSE streaming (/api/v1/chat/send) requires frontend cookie auth
 ```
 
 ### Agent System Components (Backend)
@@ -858,9 +867,9 @@ docker exec -it backend_postgres_1 psql -U sigmasight -d sigmasight
 
 ### Portfolio IDs (Deterministic - Same on All Machines)
 ```
-Individual: 1d8ddd95-3b45-0ac5-35bf-cf81af94a5fe (Equity: $600,000)
-High Net Worth: e23ab931-a033-edfe-ed4f-9d02474780b4 (Equity: $2,000,000)
-Hedge Fund: fcd71196-e93e-f000-5a74-31a9eead3118 (Equity: $4,000,000)
+Individual: 1d8ddd95-3b45-0ac5-35bf-cf81af94a5fe (Equity: $485,000)
+High Net Worth: e23ab931-a033-edfe-ed4f-9d02474780b4 (Equity: $2,850,000)
+Hedge Fund: fcd71196-e93e-f000-5a74-31a9eead3118 (Equity: $3,200,000)
 ```
 **Note**: These are deterministic UUIDs generated from email hashes.
 **Equity Values**: Set via database migration (add_equity_balance_to_portfolio)
