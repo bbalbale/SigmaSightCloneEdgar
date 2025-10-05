@@ -93,8 +93,8 @@ export const API_ENDPOINTS = {
 
   // Tag management endpoints (user-scoped tags)
   TAGS: {
-    LIST: '/api/v1/tags/',
-    CREATE: '/api/v1/tags/',
+    LIST: '/api/v1/tags',
+    CREATE: '/api/v1/tags',
     GET: (id: string) => `/api/v1/tags/${id}`,
     UPDATE: (id: string) => `/api/v1/tags/${id}`,
     ARCHIVE: (id: string) => `/api/v1/tags/${id}/archive`,

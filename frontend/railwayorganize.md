@@ -280,7 +280,71 @@ if (token) {
 }
 ```
 
-**Status**: ✅ **FIXED** - Organize page tagging should now work
+**Status**: ✅ **PARTIAL FIX** - Authorization header now attached, but still getting 401 on tags endpoint
+
+---
+
+### 2025-10-05 - Additional Fix: Trailing Slash Issue
+**File**: `frontend/src/config/api.ts` (lines 96-97)
+
+**Root Cause Found**: Trailing slashes in API endpoint URLs were causing **308 Permanent Redirect** responses, which **lose the Authorization header** during the redirect.
+
+**Changed from**:
+```typescript
+TAGS: {
+  LIST: '/api/v1/tags/',    // ❌ Trailing slash causes 308 redirect
+  CREATE: '/api/v1/tags/',  // ❌ Authorization header lost
+  ...
+}
+```
+
+**Changed to**:
+```typescript
+TAGS: {
+  LIST: '/api/v1/tags',     // ✅ No redirect
+  CREATE: '/api/v1/tags',   // ✅ Authorization header preserved
+  ...
+}
+```
+
+**Network Request Flow (Before Fix)**:
+1. `GET /api/proxy/api/v1/tags/?include_archived=false` → **308 Permanent Redirect**
+2. Redirects to: `GET /api/proxy/api/v1/tags?include_archived=false` → **401 Unauthorized** (no auth header)
+
+**Network Request Flow (After Fix)**:
+1. `GET /api/proxy/api/v1/tags?include_archived=false` → **401 Unauthorized** (auth header present)
+
+**Status**: ✅ **TRAILING SLASH FIXED** - No more 308 redirects, but **still getting 401**
+
+---
+
+### 2025-10-05 - Remaining Issue: 401 on Tags Endpoint (MYSTERY)
+
+**Observation**: After both fixes AND fresh login with Railway-issued token, tags endpoint STILL returns 401:
+- ✅ `/api/v1/auth/me` → **200 OK** (same token, same backend)
+- ✅ `/api/v1/data/positions/details` → **200 OK**
+- ✅ `/api/v1/analytics/portfolio/.../overview` → **200 OK**
+- ❌ `/api/v1/tags?include_archived=false` → **401 Unauthorized**
+
+**Evidence**:
+- Fresh login with Railway backend (confirmed via proxy logs)
+- JWT token issued by Railway backend
+- Auth token properly attached to ALL requests (confirmed via browser test)
+- Same token works for other Railway endpoints
+- Both auth and tags endpoints use `Depends(get_current_user)` - IDENTICAL auth dependency
+
+**What We Ruled Out**:
+- ❌ Token mismatch (local vs Railway) - Token is Railway-issued
+- ❌ Trailing slash redirect - Fixed, no more 308 redirects
+- ❌ Missing Authorization header - Header is attached correctly
+- ❌ Proxy not forwarding headers - `/auth/me` works with same proxy
+
+**Most Likely Cause**: There's something SPECIFIC about the Railway backend's tags endpoint that rejects valid auth tokens, even though:
+1. The token works for other endpoints
+2. The endpoint code looks identical to working endpoints
+3. User confirmed `tags_v2` table exists in Railway database
+
+**Next Step**: Need to check Railway backend logs to see WHY the tags endpoint specifically is rejecting the valid token
 
 ---
 

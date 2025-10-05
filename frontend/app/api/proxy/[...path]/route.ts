@@ -128,25 +128,15 @@ export async function POST(
   }
   
   console.log('Proxy POST to:', url)
-  
-  const forwardHeaders: Record<string, string> = {}
-  request.headers.forEach((value, key) => {
-    const lower = key.toLowerCase()
-    if (lower === 'content-length' || lower === 'connection' || lower === 'host') {
-      return
-    }
-    forwardHeaders[key] = value
-  })
 
-  forwardHeaders['content-type'] = contentType || 'application/json'
-
-  if (!forwardHeaders['accept']) {
-    forwardHeaders['accept'] = 'application/json'
-  }
-
+  // Forward all headers like GET handler does (ensures Authorization header is preserved)
   const response = await handleProxyRequest(url, {
     method: 'POST',
-    headers: forwardHeaders,
+    headers: {
+      ...Object.fromEntries(request.headers.entries()),
+      'host': new URL(BACKEND_URL).host,
+      'content-type': contentType || 'application/json',
+    },
     body: typeof body === 'string' ? body : JSON.stringify(body),
     credentials: 'include',
   })
@@ -201,27 +191,16 @@ export async function PUT(
   
 
   const body = await request.json()
-  
   const contentType = request.headers.get('content-type') || 'application/json'
 
-  const forwardHeaders: Record<string, string> = {}
-  request.headers.forEach((value, key) => {
-    const lower = key.toLowerCase()
-    if (lower === 'content-length' || lower === 'connection' || lower === 'host') {
-      return
-    }
-    forwardHeaders[key] = value
-  })
-
-  forwardHeaders['content-type'] = contentType
-
-  if (!forwardHeaders['accept']) {
-    forwardHeaders['accept'] = 'application/json'
-  }
-
+  // Forward all headers like GET handler does (ensures Authorization header is preserved)
   const response = await handleProxyRequest(url, {
     method: 'PUT',
-    headers: forwardHeaders,
+    headers: {
+      ...Object.fromEntries(request.headers.entries()),
+      'host': new URL(BACKEND_URL).host,
+      'content-type': contentType,
+    },
     body: typeof body === 'string' ? body : JSON.stringify(body),
     credentials: 'include',
   })
@@ -244,27 +223,60 @@ export async function PUT(
   return proxyResponse
 }
 
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: { path: string[] } }
+) {
+  const path = params.path.join('/')
+  const url = `${BACKEND_URL}/${path}`
+
+  const body = await request.json()
+  const contentType = request.headers.get('content-type') || 'application/json'
+
+  // Forward all headers like GET handler does (ensures Authorization header is preserved)
+  const response = await handleProxyRequest(url, {
+    method: 'PATCH',
+    headers: {
+      ...Object.fromEntries(request.headers.entries()),
+      'host': new URL(BACKEND_URL).host,
+      'content-type': contentType,
+    },
+    body: typeof body === 'string' ? body : JSON.stringify(body),
+    credentials: 'include',
+  })
+
+  const data = await response.text()
+
+  const proxyResponse = new NextResponse(data, {
+    status: response.status,
+    headers: {
+      'Content-Type': response.headers.get('Content-Type') || 'application/json',
+    },
+  })
+
+  // Forward Set-Cookie headers
+  const setCookieHeaders = response.headers.getSetCookie()
+  setCookieHeaders.forEach(cookie => {
+    proxyResponse.headers.append('Set-Cookie', cookie)
+  })
+
+  return proxyResponse
+}
+
 export async function DELETE(
   request: NextRequest,
   { params }: { params: { path: string[] } }
 ) {
   const path = params.path.join('/')
   const url = `${BACKEND_URL}/${path}`
-  
 
-  
-  const forwardHeaders: Record<string, string> = {}
-  request.headers.forEach((value, key) => {
-    const lower = key.toLowerCase()
-    if (lower === 'content-length' || lower === 'connection' || lower === 'host') {
-      return
-    }
-    forwardHeaders[key] = value
-  })
-
+  // Forward all headers like GET handler does (ensures Authorization header is preserved)
   const response = await handleProxyRequest(url, {
     method: 'DELETE',
-    headers: forwardHeaders,
+    headers: {
+      ...Object.fromEntries(request.headers.entries()),
+      'host': new URL(BACKEND_URL).host,
+    },
     credentials: 'include',
   })
   
@@ -286,13 +298,16 @@ export async function DELETE(
   return proxyResponse
 }
 
-export async function OPTIONS() {
+export async function OPTIONS(request: NextRequest) {
+  // Get origin from request or use wildcard for same-origin
+  const origin = request.headers.get('origin') || '*'
+
   return new NextResponse(null, {
     status: 200,
     headers: {
-      'Access-Control-Allow-Origin': 'http://localhost:3005',
-      'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+      'Access-Control-Allow-Origin': origin,
+      'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization, Cookie',
       'Access-Control-Allow-Credentials': 'true',
     },
   })
