@@ -1,11 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server'
 
 // Use environment variable or detect Docker environment
-const BACKEND_URL = process.env.BACKEND_URL || 
-  (process.env.DOCKER_ENV === 'true' ? 'http://host.docker.internal:8000' : 'http://localhost:8000')
+// Remove /api/v1 suffix if present since proxy adds the path
+const getBackendUrl = () => {
+  const publicUrl = process.env.NEXT_PUBLIC_BACKEND_API_URL;
+  if (publicUrl) {
+    // Remove /api/v1 suffix if present
+    return publicUrl.replace(/\/api\/v1\/?$/, '');
+  }
+  // Fallback to BACKEND_URL or localhost
+  return process.env.BACKEND_URL ||
+    (process.env.DOCKER_ENV === 'true' ? 'http://host.docker.internal:8000' : 'http://localhost:8000');
+};
+
+const BACKEND_URL = getBackendUrl();
 const PROXY_TIMEOUT = 30000 // 30 seconds
 
 console.log('Proxy Backend URL:', BACKEND_URL)
+console.log('NEXT_PUBLIC_BACKEND_API_URL:', process.env.NEXT_PUBLIC_BACKEND_API_URL)
 console.log('Docker Environment:', process.env.DOCKER_ENV)
 
 /**
