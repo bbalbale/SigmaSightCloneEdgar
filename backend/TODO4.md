@@ -1127,7 +1127,7 @@ scripts/testing/test_report_generator.py: from app.reports.portfolio_report_gene
 | **Services & APIs** | Delete `app/api/v1/strategies.py` (457 lines); remove router registration; delete schemas/services |
 | **Batch Processing** | Verify no residual strategy references in `batch_orchestrator_v2` or scripts |
 | **Tests** | Delete or rewrite tests that construct strategies |
-| **Docs** | Update to v1.5, remove strategy terminology, add sunset notice |
+| **Docs** | Update API reference, remove strategy terminology, add sunset notice (no version bump - pre-launch) |
 
 ---
 
@@ -1139,7 +1139,7 @@ scripts/testing/test_report_generator.py: from app.reports.portfolio_report_gene
 - Migration will include cleanup step to NULL out existing strategy_id values
 - No conversion to tags (technically impossible for multi-leg metadata)
 
-✅ **API Versioning**: Bump to v1.5 (breaking change)
+✅ **API Versioning**: Keep as v1 (pre-launch, no version bump needed)
 - Immediate removal of `/api/v1/strategies/*` endpoints
 - No external API consumers (only frontend)
 
@@ -1637,21 +1637,15 @@ def downgrade() -> None:
 
 ### Phase 3.0.5: Documentation & Breaking Change Communication
 
-**API Version Bump:**
-- [ ] Bump API version to **v1.5** in:
-  - `app/config.py` - Update version constant
-  - `app/main.py` - Update OpenAPI metadata
-  - API docs - Create new version file
-
 **API Documentation:**
-- [ ] Create `_docs/reference/API_REFERENCE_V1.5.0.md`:
-  - Copy from v1.4.6
+- [ ] Update `_docs/reference/API_REFERENCE_V1.4.6.md`:
   - Remove all strategy endpoint documentation (10+ endpoints)
   - Add breaking change notice at top
+  - Note: Keeping as v1 since product hasn't launched yet
 
 - [ ] Add breaking change notice:
   ```markdown
-  ## ⚠️ BREAKING CHANGE - v1.5 (October 2025)
+  ## ⚠️ BREAKING CHANGE (October 2025)
 
   **Removed**: All `/api/v1/strategies/*` endpoints
 
@@ -1683,7 +1677,7 @@ def downgrade() -> None:
   # Strategy System Sunset Notice
 
   **Effective Date**: October 2025
-  **API Version**: v1.5
+  **API Version**: v1 (pre-launch removal)
 
   ## What Was Removed
 
@@ -1752,7 +1746,7 @@ def downgrade() -> None:
 
   ### No Downgrade Path
   The migration is irreversible. To restore strategy support would require:
-  - Full database restore from pre-v1.5 backup
+  - Full database restore from backup
   - Application code rollback
   - Re-implementation of strategy features
 
@@ -1894,8 +1888,8 @@ def downgrade() -> None:
 - No `grep` hits for strategy references in active code
 
 ✅ **Documentation Updated**
-- API reference updated to v1.5 with breaking change notice
-- STRATEGY_SUNSET_NOTICE.md created explaining lost functionality
+- API reference updated with breaking change notice (no version bump - pre-launch)
+- STRATEGY_SUNSET_NOTICE.md created explaining removed functionality
 - Workflow guides updated to show tag-based organization
 - Migration guide provided for position grouping
 
