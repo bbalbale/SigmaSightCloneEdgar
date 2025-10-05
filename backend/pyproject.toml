@@ -41,7 +41,7 @@ dependencies = [
     "mibian>=0.1.3", # Black-Scholes Greeks calculations
     "statsmodels>=0.14.0", # Factor regression analysis
     "empyrical>=0.5.5", # Risk metrics (Sharpe, VaR, etc.)
-    "pandas_market_calendars>=4.0.0", # Trading calendar for market days
+    "pandas-market-calendars>=4.0.0", # Trading calendar for market days
     # Utils
     "httpx>=0.25.0",
     "aiohttp>=3.9.0",

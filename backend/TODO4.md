@@ -2160,13 +2160,15 @@ railway variables:set --service cron-service DATABASE_URL=$DATABASE_URL
 
 Before proceeding to Phase 4.1 (Development), verify:
 
-- [ ] **Dependency**: pandas-market-calendars added to pyproject.toml
+- [x] **Dependency**: pandas-market-calendars added to pyproject.toml ✅ (2025-10-05)
 - [ ] **Runtime**: UV availability confirmed OR commands updated to use `python`
 - [ ] **DST**: Dynamic market-close detection implemented OR safe UTC time chosen
 - [ ] **Env Vars**: Railway variable propagation method documented with specific steps
 - [ ] **Slack**: Webhook URL obtained and added to Railway env vars OR fallback chosen
 
-**Once all 5 items checked, update Phase 4.0 status from 📋 PLANNING → 🚀 READY FOR IMPLEMENTATION**
+**Once all 5 items checked, update Phase 4.0 status from ⚠️ BLOCKED → 🚀 READY FOR IMPLEMENTATION**
+
+**Progress**: 1/5 blockers resolved (20%)
 
 ---
 
@@ -2934,22 +2936,25 @@ See Section 4.1.4 for 5 critical blockers that must be addressed before implemen
 **Blocker Resolution Time**: 1-2 days (dependencies, research, configuration)
 
 **Critical Blockers** (see 4.1.4 for details):
-1. ❌ pandas-market-calendars NOT in pyproject.toml (only in lockfile)
+1. ✅ pandas-market-calendars added to pyproject.toml (RESOLVED 2025-10-05)
 2. ⚠️ UV runtime availability on Railway unknown
 3. ❌ DST manual chore - cron fires at wrong time half the year
 4. ⚠️ Environment variable propagation between services not documented
 5. ⚠️ Slack webhook may not exist (alerting won't work)
 
 **Resolution Checklist** (from Section 4.1.5):
-- [ ] **Dependency**: pandas-market-calendars added to pyproject.toml
+- [x] **Dependency**: pandas-market-calendars added to pyproject.toml ✅
 - [ ] **Runtime**: UV availability confirmed OR commands updated to use `python`
 - [ ] **DST**: Dynamic market-close detection OR safe UTC time chosen
 - [ ] **Env Vars**: Railway variable propagation method documented
 - [ ] **Slack**: Webhook URL obtained OR fallback chosen
 
+**Progress**: 1/5 blockers resolved (20%)
+
 **Next Steps**:
 1. ✅ Review feedback on Phase 4.0 plan (DONE)
-2. ❌ **RESOLVE ALL 5 BLOCKERS** (see Section 4.1.4)
-3. Update Phase 4.0 status from ⚠️ BLOCKED → 🚀 READY FOR IMPLEMENTATION
-4. Begin Phase 4.1 (Development & Local Testing)
+2. ✅ Resolve blocker #1: pandas-market-calendars dependency (DONE)
+3. ❌ **RESOLVE REMAINING 4 BLOCKERS** (see Section 4.1.4)
+4. Update Phase 4.0 status from ⚠️ BLOCKED → 🚀 READY FOR IMPLEMENTATION
+5. Begin Phase 4.1 (Development & Local Testing)
 
