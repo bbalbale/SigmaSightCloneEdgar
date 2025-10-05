@@ -183,10 +183,7 @@ class BatchOrchestratorV2:
         
         # Always run correlations (important for risk metrics)
         job_sequence.append(("position_correlations", self._calculate_correlations, [portfolio_id]))
-        
-        # Remove report generation - should be on-demand via API
-        # job_sequence.append(("report_generation", self._generate_report, [portfolio_id]))  # REMOVED: Use API instead
-        
+
         # Execute jobs sequentially with isolated sessions
         for job_name, job_func, args in job_sequence:
             job_result = await self._execute_job_safely(
@@ -565,28 +562,6 @@ class BatchOrchestratorV2:
             portfolio_uuid,
             calculation_date=utc_now()
         )
-    
-    async def _generate_report(self, db: AsyncSession, portfolio_id: str):
-        """Generate portfolio report (MD, JSON, CSV)"""
-        from app.reports.portfolio_report_generator import PortfolioReportGenerator
-        
-        generator = PortfolioReportGenerator(db)
-        portfolio_uuid = ensure_uuid(portfolio_id)
-        
-        # Generate all three formats
-        results = {}
-        for format_type in ['md', 'json', 'csv']:
-            try:
-                report = await generator.generate_report(
-                    portfolio_id=portfolio_uuid,
-                    report_date=date.today(),
-                    format=format_type
-                )
-                results[format_type] = "generated"
-            except Exception as e:
-                results[format_type] = f"failed: {str(e)}"
-        
-        return results
 
 
 # Create singleton instance
