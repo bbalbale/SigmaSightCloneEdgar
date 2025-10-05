@@ -2078,45 +2078,37 @@ uv run python scripts/automation/daily_workflow.py
 
 ---
 
-#### 3. DST Manual Chore - Cron Schedule Wrong Half the Year ❌ CRITICAL
+#### 3. DST Manual Chore - Cron Schedule Wrong Half the Year ✅ RESOLVED (2025-10-05)
+
 **Issue**: Proposed schedule `30 20 * * 1-5` will fire at wrong time for half the year:
 - **Standard Time (Nov-Mar)**: 4:00 PM ET = 21:00 UTC → fires 1 hour early
 - **Daylight Time (Mar-Nov)**: 4:00 PM ET = 20:00 UTC → fires correctly
 
-**Impact**: Job runs before market data is available during DST, or someone must manually update cron twice/year
+**Resolution**: ✅ **Chose Option B - Fixed Safe UTC Time**
 
-**Solutions**:
-- **Option A (RECOMMENDED)**: Dynamic market-close detection
-  ```python
-  # Job runs at fixed safe time (e.g., 11:00 PM UTC)
-  # Script checks if market closed today and if job already ran
-  def should_run_today():
-      nyse = mcal.get_calendar('NYSE')
-      today = datetime.now(ZoneInfo('America/New_York')).date()
+**Decision**: Run at **23:30 UTC** (11:30 PM UTC)
 
-      # Check if trading day
-      schedule = nyse.schedule(start_date=today, end_date=today)
-      if len(schedule) == 0:
-          return False
+**Cron Schedule**: `30 23 * * 1-5`
 
-      # Check if past market close (4:00 PM ET)
-      market_close = schedule.iloc[0]['market_close'].astimezone(ZoneInfo('America/New_York'))
-      now = datetime.now(ZoneInfo('America/New_York'))
+**What this provides:**
+- **Standard Time (Nov-Mar)**: 23:30 UTC = **6:30 PM EST** (2.5 hours after market close)
+- **Daylight Time (Mar-Nov)**: 23:30 UTC = **7:30 PM EDT** (3.5 hours after market close)
 
-      return now > market_close
-  ```
+**Benefits:**
+- ✅ Always runs AFTER 4:00 PM ET market close (safe year-round)
+- ✅ Provides 2.5-3.5 hours for data settlement and availability
+- ✅ Stays on same UTC day (11:30 PM, not midnight)
+- ✅ No manual DST adjustments needed
+- ✅ Simple, maintainable solution
 
-- **Option B (Acceptable)**: Pick safe UTC time year-round
-  ```
-  # 11:00 PM UTC = 6:00 PM ET (standard) / 7:00 PM ET (daylight)
-  # Always after 4:00 PM ET market close
-  cronSchedule: "0 23 * * 1-5"
-  ```
+**Why Option B over Option A:**
+- Simpler implementation (no dynamic market-close detection logic needed)
+- More reliable (no dependency on pandas-market-calendars in cron logic)
+- Sufficient buffer time for all market conditions
+- Easier to debug and monitor
 
-**Action Item**:
-1. Choose Option A (dynamic) or Option B (fixed safe time)
-2. Update Section 4.2.2.1 with chosen solution
-3. Remove DST manual adjustment notes from plan
+**Trade-off Accepted:**
+- Summer (EDT): Runs at 7:30 PM instead of 6:30 PM (acceptable for overnight batch processing)
 
 ---
 
@@ -2172,13 +2164,13 @@ Before proceeding to Phase 4.1 (Development), verify:
 
 - [x] **Dependency**: pandas-market-calendars added to pyproject.toml ✅ (2025-10-05)
 - [x] **Runtime**: UV availability confirmed (production logs show UV active) ✅ (2025-10-05)
-- [ ] **DST**: Dynamic market-close detection implemented OR safe UTC time chosen
+- [x] **DST**: Safe UTC time chosen (23:30 UTC = 6:30pm EST / 7:30pm EDT) ✅ (2025-10-05)
 - [ ] **Env Vars**: Railway variable propagation method documented with specific steps
 - [ ] **Slack**: Webhook URL obtained and added to Railway env vars OR fallback chosen
 
 **Once all 5 items checked, update Phase 4.0 status from ⚠️ BLOCKED → 🚀 READY FOR IMPLEMENTATION**
 
-**Progress**: 2/5 blockers resolved (40%)
+**Progress**: 3/5 blockers resolved (60%)
 
 ---
 
@@ -2948,24 +2940,25 @@ See Section 4.1.4 for 5 critical blockers that must be addressed before implemen
 **Critical Blockers** (see 4.1.4 for details):
 1. ✅ pandas-market-calendars added to pyproject.toml (RESOLVED 2025-10-05)
 2. ✅ UV runtime confirmed available on Railway (RESOLVED 2025-10-05)
-3. ❌ DST manual chore - cron fires at wrong time half the year
+3. ✅ DST handled with safe UTC time: 23:30 UTC (RESOLVED 2025-10-05)
 4. ⚠️ Environment variable propagation between services not documented
 5. ⚠️ Slack webhook may not exist (alerting won't work)
 
 **Resolution Checklist** (from Section 4.1.5):
 - [x] **Dependency**: pandas-market-calendars added to pyproject.toml ✅
 - [x] **Runtime**: UV availability confirmed (production logs show UV active) ✅
-- [ ] **DST**: Dynamic market-close detection OR safe UTC time chosen
+- [x] **DST**: Safe UTC time chosen (23:30 UTC = 6:30pm EST / 7:30pm EDT) ✅
 - [ ] **Env Vars**: Railway variable propagation method documented
 - [ ] **Slack**: Webhook URL obtained OR fallback chosen
 
-**Progress**: 2/5 blockers resolved (40%)
+**Progress**: 3/5 blockers resolved (60%)
 
 **Next Steps**:
 1. ✅ Review feedback on Phase 4.0 plan (DONE)
 2. ✅ Resolve blocker #1: pandas-market-calendars dependency (DONE)
 3. ✅ Resolve blocker #2: UV runtime availability (DONE - confirmed from logs)
-4. ❌ **RESOLVE REMAINING 3 BLOCKERS** (see Section 4.1.4)
-5. Update Phase 4.0 status from ⚠️ BLOCKED → 🚀 READY FOR IMPLEMENTATION
-6. Begin Phase 4.1 (Development & Local Testing)
+4. ✅ Resolve blocker #3: DST handling (DONE - using 23:30 UTC safe time)
+5. ❌ **RESOLVE REMAINING 2 BLOCKERS** (see Section 4.1.4)
+6. Update Phase 4.0 status from ⚠️ BLOCKED → 🚀 READY FOR IMPLEMENTATION
+7. Begin Phase 4.1 (Development & Local Testing)
 
