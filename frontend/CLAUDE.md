@@ -53,7 +53,8 @@ npm install
 ### Key Configuration
 - **Port**: 3005 (configured to avoid conflicts)
 - **Docker Image**: sigmasight-frontend (~210MB optimized)
-- **Backend API**: Proxies through `/api/proxy/` to `localhost:8000`
+- **Backend API**: Proxies through `/api/proxy/` to `localhost:8000` (default)
+  - **Railway Backend**: See [RAILWAY_BACKEND_SETUP.md](./RAILWAY_BACKEND_SETUP.md) to connect to remote backend
 - **Authentication**: JWT tokens stored in localStorage
 - **Health Check**: `/api/health` endpoint for container monitoring
 - **Node.js Requirement**: Node.js 18.0 or higher
@@ -394,6 +395,15 @@ export default function PublicPositionsPage() {
 ---
 
 ## Backend Integration
+
+### Connecting to Railway Backend
+
+By default, frontend connects to **local backend** (`http://localhost:8000`).
+
+**To connect to Railway backend**:
+- See **[RAILWAY_BACKEND_SETUP.md](./RAILWAY_BACKEND_SETUP.md)** for complete guide
+- Quick: Update `.env` → `NEXT_PUBLIC_BACKEND_API_URL=https://your-app.railway.app/api/v1`
+- Restart frontend → Hard refresh browser
 
 ### API Proxy Pattern
 All API calls route through Next.js proxy to handle CORS:
