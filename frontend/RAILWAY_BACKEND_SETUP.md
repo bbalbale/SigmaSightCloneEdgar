@@ -98,8 +98,14 @@ OPENAI_API_KEY=...       # Backend only
 
 **Switch to Railway backend**:
 ```bash
-# Update .env
+# Update .env (macOS/BSD):
 sed -i '' 's|http://localhost:8000|https://your-app.railway.app|g' .env
+
+# Update .env (Linux/GNU):
+sed -i 's|http://localhost:8000|https://your-app.railway.app|g' .env
+
+# Update .env (Windows PowerShell):
+(Get-Content .env) -replace 'http://localhost:8000','https://your-app.railway.app' | Set-Content .env
 
 # Restart dev server
 npm run dev
@@ -107,8 +113,14 @@ npm run dev
 
 **Switch back to local backend**:
 ```bash
-# Update .env
+# macOS/BSD:
 sed -i '' 's|https://your-app.railway.app|http://localhost:8000|g' .env
+
+# Linux/GNU:
+sed -i 's|https://your-app.railway.app|http://localhost:8000|g' .env
+
+# Windows PowerShell:
+(Get-Content .env) -replace 'https://your-app.railway.app','http://localhost:8000' | Set-Content .env
 
 # Restart dev server
 npm run dev
@@ -407,6 +419,40 @@ NEXT_PUBLIC_BACKEND_API_URL=https://your-backend.railway.app/api/v1
 
 ---
 
+### Production Build Notes
+
+**Important**: Production builds (Docker or `next build`) bake environment variables at **build time**, not runtime.
+
+#### For Docker Builds:
+```bash
+# Pass env var at build time:
+docker build --build-arg NEXT_PUBLIC_BACKEND_API_URL=https://your-backend.railway.app/api/v1 -t frontend .
+
+# Run the built image:
+docker run -d -p 3005:3005 frontend
+```
+
+#### For Next.js Production Builds:
+```bash
+# Set env var before building:
+export NEXT_PUBLIC_BACKEND_API_URL=https://your-backend.railway.app/api/v1
+npm run build
+npm run start
+
+# Or inline:
+NEXT_PUBLIC_BACKEND_API_URL=https://your-backend.railway.app/api/v1 npm run build
+```
+
+**Key difference from dev mode**:
+- ✅ **Dev mode** (`npm run dev`): Reads .env at startup, can change without rebuild
+- ⚠️ **Production** (`npm run build`): Env var frozen at build time, requires rebuild to change
+
+**Platform deployments** (Railway, Vercel):
+- Set `NEXT_PUBLIC_BACKEND_API_URL` in platform dashboard
+- Platform rebuilds automatically when env vars change
+
+---
+
 ## Railway Backend Health Check
 
 Before connecting frontend, verify backend is healthy:
@@ -449,8 +495,10 @@ railway logs --tail 100
 ### Switch Back to Local:
 
 ```bash
-# Update .env
-sed -i '' 's|https://your-app.railway.app|http://localhost:8000|g' .env
+# Update .env (choose your platform):
+sed -i '' 's|https://your-app.railway.app|http://localhost:8000|g' .env  # macOS
+sed -i 's|https://your-app.railway.app|http://localhost:8000|g' .env     # Linux
+# Windows: Manually edit .env or use PowerShell command from Switching section
 
 # Restart
 npm run dev
