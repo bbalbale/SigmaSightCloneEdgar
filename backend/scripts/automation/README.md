@@ -28,17 +28,25 @@ uv run python scripts/automation/railway_daily_batch.py --force
 
 ## Railway Deployment
 
+### Deployment Methods
+
+- **Dashboard Deployment** (Recommended): Follow the steps below for easiest setup
+- **CLI Deployment**: See `RAILWAY_CLI_DEPLOYMENT.md` for command-line deployment
+- **CLI Quickstart**: See `RAILWAY_CLI_QUICKSTART.md` if you already have backend deployed
+
 ### Prerequisites
 
-1. **Shared Environment Variables** (set at Project level in Railway)
-   - `DATABASE_URL` - PostgreSQL connection string
+1. **Environment Variables** (must be set for each service individually)
+   - `DATABASE_URL` - PostgreSQL connection string (**Important**: Use `postgresql+asyncpg://` for async compatibility)
    - `POLYGON_API_KEY` - Market data API key
    - `FMP_API_KEY` - Financial Modeling Prep API key
    - `FRED_API_KEY` - Federal Reserve economic data API key
    - `SECRET_KEY` - JWT secret
    - `OPENAI_API_KEY` - OpenAI API key for chat
 
-### Deployment Steps
+**Note**: Environment variables do NOT automatically inherit between services. You must configure them separately for the cron service.
+
+### Dashboard Deployment Steps (Recommended)
 
 #### Step 1: Create Railway Service
 
@@ -54,9 +62,21 @@ uv run python scripts/automation/railway_daily_batch.py --force
    - **Start Command**: `uv run python scripts/automation/railway_daily_batch.py`
    - **Cron Schedule**: Leave DISABLED initially (test manually first)
 
-2. Verify environment variables (should auto-inherit from shared):
-   - Check **Variables** tab shows all required vars from project-level shared variables
-   - If not visible, ensure they're set as `${{shared.VARIABLE_NAME}}` at project level
+2. Configure environment variables in the **Variables** tab:
+
+   **Option A: Use Variable References** (Recommended)
+
+   Reference existing Postgres service and copy values from your web service:
+   - `DATABASE_URL` = `${{Postgres.DATABASE_URL}}` (**Important**: Edit to use `postgresql+asyncpg://` instead of `postgresql://`)
+   - `POLYGON_API_KEY` = Copy from web service
+   - `FMP_API_KEY` = Copy from web service
+   - `FRED_API_KEY` = Copy from web service
+   - `SECRET_KEY` = Copy from web service
+   - `OPENAI_API_KEY` = Copy from web service
+
+   **Option B: Use Raw Values**
+
+   Copy the actual connection string and API keys from your web service's Variables tab.
 
 #### Step 3: Manual Testing (REQUIRED before enabling cron)
 
@@ -117,9 +137,22 @@ Project → Services → sigmasight-backend-cron → Deployments → View Logs
 - Check Railway dashboard for deployment errors
 
 #### Database Connection Errors
-- Verify `DATABASE_URL` shared variable is set correctly
+- Verify `DATABASE_URL` is set correctly for the cron service (check Variables tab)
+- **Critical**: Ensure `DATABASE_URL` uses `postgresql+asyncpg://` not `postgresql://`
 - Check PostgreSQL service is running
-- Ensure cron service has access to shared variables
+- Verify database credentials match your Postgres service
+
+#### "asyncio extension requires an async driver" Error
+This error means your `DATABASE_URL` is using the wrong driver.
+
+**Problem**: `postgresql://user:pass@host:port/db`
+**Solution**: Edit the variable to use `postgresql+asyncpg://user:pass@host:port/db`
+
+In Railway Dashboard:
+1. Go to cron service → Variables tab
+2. Edit `DATABASE_URL`
+3. Change `postgresql://` to `postgresql+asyncpg://` at the beginning
+4. Save and redeploy
 
 #### API Rate Limits (429 Errors)
 - **Expected behavior** - script has fallback providers
@@ -128,7 +161,7 @@ Project → Services → sigmasight-backend-cron → Deployments → View Logs
 
 #### Market Data Sync Failures
 - Check API keys are valid and not expired
-- Verify API keys are set as shared variables
+- Verify API keys are set in cron service's Variables tab
 - Review logs for specific symbols failing
 
 #### Batch Calculation Failures
