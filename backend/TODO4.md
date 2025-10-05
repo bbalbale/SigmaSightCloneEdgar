@@ -1988,9 +1988,9 @@ def downgrade() -> None:
 # Phase 4.0: Railway Automated Daily Workflow System
 
 **Phase**: 4.0 - Production Automation & Scheduled Tasks
-**Status**: ⚠️ BLOCKED (5 pre-implementation requirements - see 4.1.4)
+**Status**: 🚀 READY FOR IMPLEMENTATION (all blockers resolved - see 4.1.5)
 **Created**: 2025-10-05
-**Updated**: 2025-10-05 (added blocker documentation)
+**Updated**: 2025-10-05 (resolved all 5 blockers)
 **Goal**: Implement automated daily market data updates and batch calculations on Railway using cron jobs
 
 ---
@@ -2188,22 +2188,45 @@ polygon_key = settings.POLYGON_API_KEY  # From ${{shared.POLYGON_API_KEY}}
 
 ---
 
-#### 5. Slack Webhook Assumption - May Not Exist ⚠️ MEDIUM
+#### 5. Slack Webhook Assumption - May Not Exist ✅ RESOLVED (2025-10-05)
+
 **Issue**: Section 4.3.3 and monitoring strategy depend on Slack webhook that may not exist yet.
 
-**Impact**: Alerting won't work, failures will be silent
+**Decision**: ✅ **Skip Slack Integration - Use Railway Dashboard Logging**
 
-**Action Item**:
-1. Verify team has Slack workspace and webhook capability
-2. Create webhook URL if missing: https://api.slack.com/messaging/webhooks
-3. Add `SLACK_WEBHOOK_URL` to Railway environment variables
-4. Update Section 4.2.2.2 to list it as required env var
-5. If Slack not available, plan fallback (email alerts, logging only, etc.)
+**Rationale**:
+- No Slack workspace available
+- Railway dashboard provides sufficient logging and monitoring
+- Keeps implementation simple and focused
+- Can add Slack later if needed (non-breaking change)
 
-**Fallback Options**:
-- Email via SendGrid/AWS SES
-- Logging only (Railway dashboard)
-- Railway notifications (if available)
+**Monitoring Approach**:
+1. **Primary**: Railway dashboard logs
+   - All print() statements visible in deployment logs
+   - Failed jobs show in Railway dashboard
+   - Can set up Railway email notifications
+
+2. **Application Logging**:
+   ```python
+   # scripts/automation/daily_workflow.py logs to stdout
+   logger.info("✅ Daily batch workflow completed successfully")
+   logger.error("❌ Daily batch workflow failed: {error}")
+   ```
+
+3. **Manual Monitoring** (Phase 4.0):
+   - Check Railway dashboard daily after 11:30 PM UTC
+   - Review logs for any failed batches
+   - Fix issues and re-run manually if needed
+
+4. **Future Enhancement** (Optional):
+   - Add Slack webhook when workspace available
+   - Add email alerts via SendGrid/AWS SES
+   - Set up Railway webhook notifications
+
+**Code Changes**:
+- Remove all `send_slack_alert()` calls from implementation plan
+- Keep comprehensive logging to stdout/stderr
+- Document log monitoring in operational guide
 
 ---
 
@@ -2215,11 +2238,11 @@ Before proceeding to Phase 4.1 (Development), verify:
 - [x] **Runtime**: UV availability confirmed (production logs show UV active) ✅ (2025-10-05)
 - [x] **DST**: Safe UTC time chosen (23:30 UTC = 6:30pm EST / 7:30pm EDT) ✅ (2025-10-05)
 - [x] **Env Vars**: Railway shared variables method documented with specific steps ✅ (2025-10-05)
-- [ ] **Slack**: Webhook URL obtained and added to Railway env vars OR fallback chosen
+- [x] **Slack**: Fallback chosen - Railway dashboard logging only ✅ (2025-10-05)
 
-**Once all 5 items checked, update Phase 4.0 status from ⚠️ BLOCKED → 🚀 READY FOR IMPLEMENTATION**
+**✅ ALL BLOCKERS RESOLVED - Phase 4.0 is 🚀 READY FOR IMPLEMENTATION**
 
-**Progress**: 4/5 blockers resolved (80%)
+**Progress**: 5/5 blockers resolved (100%)
 
 ---
 
@@ -2979,19 +3002,18 @@ uv run python scripts/automation/railway_daily_batch.py --date 2025-10-03 --forc
 
 ---
 
-**Status**: ⚠️ **BLOCKED - Pre-Implementation Requirements Must Be Resolved**
+**Status**: ✅ **READY FOR IMPLEMENTATION - All Blockers Resolved**
 
-See Section 4.1.4 for 5 critical blockers that must be addressed before implementation.
+All 5 pre-implementation requirements have been resolved. See Section 4.1.5 for full resolution details.
 
 **Estimated Total Effort**: 4-5 days (development + testing + deployment)
-**Blocker Resolution Time**: 1-2 days (dependencies, research, configuration)
 
-**Critical Blockers** (see 4.1.4 for details):
+**Critical Blockers** (ALL RESOLVED - see 4.1.4 for details):
 1. ✅ pandas-market-calendars added to pyproject.toml (RESOLVED 2025-10-05)
 2. ✅ UV runtime confirmed available on Railway (RESOLVED 2025-10-05)
 3. ✅ DST handled with safe UTC time: 23:30 UTC (RESOLVED 2025-10-05)
-4. ⚠️ Environment variable propagation between services not documented
-5. ⚠️ Slack webhook may not exist (alerting won't work)
+4. ✅ Environment variable propagation documented - Railway shared variables (RESOLVED 2025-10-05)
+5. ✅ Slack integration skipped - Railway dashboard logging (RESOLVED 2025-10-05)
 
 **Resolution Checklist** (from Section 4.1.5):
 - [x] **Dependency**: pandas-market-calendars added to pyproject.toml ✅
