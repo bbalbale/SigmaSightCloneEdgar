@@ -74,11 +74,12 @@ The batch orchestrator runs **8 calculation engines** sequentially per portfolio
 **Table:** `stress_test_results`
 **Populated by:** _run_stress_tests() job
 **Fields:**
-- scenario_name, scenario_type
-- portfolio_impact, position_impacts (JSONB)
+- portfolio_id, scenario_id
+- direct_pnl, correlated_pnl, correlation_effect
+- factor_impacts (JSONB), calculation_metadata (JSONB)
 - calculation_date
 
-**Status:** ⚠️ Table MISSING (known issue per TODO1.md Section 1.6.14)
+**Status:** ✅ Table EXISTS (created via migration b56aa92cde75 in Aug 2025)
 
 ---
 
@@ -229,7 +230,7 @@ The batch orchestrator runs **8 calculation engines** sequentially per portfolio
 
 **LOW PRIORITY:**
 6. Greeks - Disabled, no options feed
-7. Stress Tests - Table doesn't exist yet
+7. Stress Tests - Table exists but empty (batch hasn't run)
 
 ---
 

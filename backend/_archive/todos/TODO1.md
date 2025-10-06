@@ -2563,6 +2563,45 @@ This mysterious UUID serialization issue has been documented for future investig
 
 **RESOLUTION UPDATE**: Section 1.6.14 **FULLY COMPLETED**. All batch processing reliability issues resolved. System ready for **Phase 2.0 Portfolio Report Generator** and **demo launch**. **Proceeding to Section 2.0** for production portfolio report generation.
 
+---
+
+#### 🤖 AI AGENT NOTE: STRESS_TEST_RESULTS TABLE STATUS (2025-10-06)
+
+**IMPORTANT FOR FUTURE AI AGENTS:** Do NOT interpret this section as documenting a CURRENT issue.
+
+**HISTORICAL CONTEXT:**
+- **Issue Reported (2025-08-07):** `stress_test_results` table did not exist in database
+- **Resolution (2025-08-07):** Created migration `b56aa92cde75_create_missing_stress_test_tables.py`
+- **Current Status (2025-10-06):** ✅ TABLE EXISTS in both local and Railway databases
+
+**MIGRATION DETAILS:**
+- **File:** `alembic/versions/b56aa92cde75_create_missing_stress_test_tables.py`
+- **Tables Created:** `stress_test_scenarios` (scenario templates) AND `stress_test_results` (calculation results)
+- **Schema:** Complete with foreign keys to portfolios and scenarios, JSONB columns, indexes
+- **Applied:** Both local development and Railway production databases
+
+**VERIFICATION:**
+- Local DB: Table exists with proper schema ✅
+- Railway DB: Table exists, successfully queries (returns 0 results because batch hasn't run) ✅
+- Migration applied: Revision `b56aa92cde75` confirmed in alembic_version table ✅
+
+**DATA STATUS:**
+- `stress_test_scenarios` table: ✅ POPULATED with 18 scenario definitions (seeded)
+- `stress_test_results` table: ✅ EXISTS but EMPTY (no batch stress testing run yet)
+
+**COMMON CONFUSION:**
+- If you see "0 results" when querying `stress_test_results`, this means:
+  - ✅ Table EXISTS and query succeeded
+  - ❌ NOT that table is missing
+  - Simply means no batch calculations have been executed yet
+
+**WHAT TO DO:**
+- If verifying table existence: Check for actual SQL errors, not zero result count
+- If populating table: Run batch orchestrator's `_run_stress_tests()` job
+- Do NOT create another migration for this table (it already exists)
+
+**INVESTIGATION REPORT:** See `backend/STRESS_TEST_TABLE_INVESTIGATION.md` (2025-10-06) for full details on why previous documentation incorrectly stated this table was missing.
+
 ----
 
 ### 1.6.15 Batch Orchestrator Sequential Processing Implementation ✅ **COMPLETED**
