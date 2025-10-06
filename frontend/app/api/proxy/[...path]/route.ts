@@ -1,23 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 
-// Use environment variable or detect Docker environment
-// Remove /api/v1 suffix if present since proxy adds the path
-const getBackendUrl = () => {
-  const publicUrl = process.env.NEXT_PUBLIC_BACKEND_API_URL;
-  if (publicUrl) {
-    // Remove /api/v1 suffix if present
-    return publicUrl.replace(/\/api\/v1\/?$/, '');
-  }
-  // Fallback to BACKEND_URL or localhost
-  return process.env.BACKEND_URL ||
-    (process.env.DOCKER_ENV === 'true' ? 'http://host.docker.internal:8000' : 'http://localhost:8000');
-};
-
-const BACKEND_URL = getBackendUrl();
+// Use environment variable or default to Railway production
+const BACKEND_URL = process.env.BACKEND_URL || 'https://sigmasight-be-production.up.railway.app'
 const PROXY_TIMEOUT = 30000 // 30 seconds
 
 console.log('Proxy Backend URL:', BACKEND_URL)
-console.log('NEXT_PUBLIC_BACKEND_API_URL:', process.env.NEXT_PUBLIC_BACKEND_API_URL)
 console.log('Docker Environment:', process.env.DOCKER_ENV)
 
 /**
@@ -128,15 +115,25 @@ export async function POST(
   }
   
   console.log('Proxy POST to:', url)
+  
+  const forwardHeaders: Record<string, string> = {}
+  request.headers.forEach((value, key) => {
+    const lower = key.toLowerCase()
+    if (lower === 'content-length' || lower === 'connection' || lower === 'host') {
+      return
+    }
+    forwardHeaders[key] = value
+  })
 
-  // Forward all headers like GET handler does (ensures Authorization header is preserved)
+  forwardHeaders['content-type'] = contentType || 'application/json'
+
+  if (!forwardHeaders['accept']) {
+    forwardHeaders['accept'] = 'application/json'
+  }
+
   const response = await handleProxyRequest(url, {
     method: 'POST',
-    headers: {
-      ...Object.fromEntries(request.headers.entries()),
-      'host': new URL(BACKEND_URL).host,
-      'content-type': contentType || 'application/json',
-    },
+    headers: forwardHeaders,
     body: typeof body === 'string' ? body : JSON.stringify(body),
     credentials: 'include',
   })
@@ -191,16 +188,27 @@ export async function PUT(
   
 
   const body = await request.json()
+  
   const contentType = request.headers.get('content-type') || 'application/json'
 
-  // Forward all headers like GET handler does (ensures Authorization header is preserved)
+  const forwardHeaders: Record<string, string> = {}
+  request.headers.forEach((value, key) => {
+    const lower = key.toLowerCase()
+    if (lower === 'content-length' || lower === 'connection' || lower === 'host') {
+      return
+    }
+    forwardHeaders[key] = value
+  })
+
+  forwardHeaders['content-type'] = contentType
+
+  if (!forwardHeaders['accept']) {
+    forwardHeaders['accept'] = 'application/json'
+  }
+
   const response = await handleProxyRequest(url, {
     method: 'PUT',
-    headers: {
-      ...Object.fromEntries(request.headers.entries()),
-      'host': new URL(BACKEND_URL).host,
-      'content-type': contentType,
-    },
+    headers: forwardHeaders,
     body: typeof body === 'string' ? body : JSON.stringify(body),
     credentials: 'include',
   })
@@ -220,46 +228,6 @@ export async function PUT(
     proxyResponse.headers.append('Set-Cookie', cookie)
   })
   
-  return proxyResponse
-}
-
-export async function PATCH(
-  request: NextRequest,
-  { params }: { params: { path: string[] } }
-) {
-  const path = params.path.join('/')
-  const url = `${BACKEND_URL}/${path}`
-
-  const body = await request.json()
-  const contentType = request.headers.get('content-type') || 'application/json'
-
-  // Forward all headers like GET handler does (ensures Authorization header is preserved)
-  const response = await handleProxyRequest(url, {
-    method: 'PATCH',
-    headers: {
-      ...Object.fromEntries(request.headers.entries()),
-      'host': new URL(BACKEND_URL).host,
-      'content-type': contentType,
-    },
-    body: typeof body === 'string' ? body : JSON.stringify(body),
-    credentials: 'include',
-  })
-
-  const data = await response.text()
-
-  const proxyResponse = new NextResponse(data, {
-    status: response.status,
-    headers: {
-      'Content-Type': response.headers.get('Content-Type') || 'application/json',
-    },
-  })
-
-  // Forward Set-Cookie headers
-  const setCookieHeaders = response.headers.getSetCookie()
-  setCookieHeaders.forEach(cookie => {
-    proxyResponse.headers.append('Set-Cookie', cookie)
-  })
-
   return proxyResponse
 }
 
@@ -269,14 +237,21 @@ export async function DELETE(
 ) {
   const path = params.path.join('/')
   const url = `${BACKEND_URL}/${path}`
+  
 
-  // Forward all headers like GET handler does (ensures Authorization header is preserved)
+  
+  const forwardHeaders: Record<string, string> = {}
+  request.headers.forEach((value, key) => {
+    const lower = key.toLowerCase()
+    if (lower === 'content-length' || lower === 'connection' || lower === 'host') {
+      return
+    }
+    forwardHeaders[key] = value
+  })
+
   const response = await handleProxyRequest(url, {
     method: 'DELETE',
-    headers: {
-      ...Object.fromEntries(request.headers.entries()),
-      'host': new URL(BACKEND_URL).host,
-    },
+    headers: forwardHeaders,
     credentials: 'include',
   })
   
@@ -298,16 +273,13 @@ export async function DELETE(
   return proxyResponse
 }
 
-export async function OPTIONS(request: NextRequest) {
-  // Get origin from request or use wildcard for same-origin
-  const origin = request.headers.get('origin') || '*'
-
+export async function OPTIONS() {
   return new NextResponse(null, {
     status: 200,
     headers: {
-      'Access-Control-Allow-Origin': origin,
-      'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type, Authorization, Cookie',
+      'Access-Control-Allow-Origin': 'http://localhost:3005',
+      'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
       'Access-Control-Allow-Credentials': 'true',
     },
   })
