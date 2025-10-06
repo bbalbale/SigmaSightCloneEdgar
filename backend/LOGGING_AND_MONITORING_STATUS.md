@@ -69,13 +69,17 @@ logger.warning(f"Critical job {job_name} failed for {portfolio_name}, skipping r
 Each calculation module has logger calls:
 - `app/calculations/factors.py` - Factor analysis progress
 - `app/calculations/greeks.py` - Greeks calculation details
-- `app/calculations/correlations.py` - Correlation matrix progress
+- `app/services/correlation_service.py` - Correlation matrix progress
 - `app/batch/market_data_sync.py` - Market data fetch operations
 
 **Example from factors.py:**
 ```python
 logger.info(f"Calculating factor betas for portfolio {portfolio_id} as of {calculation_date}")
 logger.warning(f"Insufficient data: {len(common_dates)} days (minimum: {MIN_REGRESSION_DAYS})")
+```
+
+**Example from batch_orchestrator_v2.py (Greeks job):**
+```python
 logger.info(f"Fetched market data for {len(market_data)} symbols for Greeks calculation")
 ```
 
@@ -168,17 +172,34 @@ logger.info(f"Factor analysis: {len(position_betas)}/{total_positions} positions
 
 ---
 
-### 5. **No Data Quality Logging** ⚠️
+### 5. **Limited Data Quality Roll-up Logging** ⚠️
 
-**Problem:**
-- Hard to see WHY calculations might be incomplete
-- Missing: "23/75 positions had insufficient data for factor analysis"
-- Missing: "Factor ETF VTV has only 45 days of data (need 90)"
+**Current Status:**
+- ✅ Individual calculation quality logging exists (`app/calculations/factors.py:86-92, 408-427`)
+- ✅ Per-portfolio quality metadata captured
+- ❌ Missing: Aggregate batch-level summaries
+
+**What exists:**
+```python
+# app/calculations/factors.py lines 86-92
+logger.info(f"Factor returns calculated: {total_days} days of data")
+if missing_data.any():
+    logger.warning(f"Missing data in factor returns: {missing_data[missing_data > 0].to_dict()}")
+
+# lines 408-427
+'data_quality': {
+    'quality_flag': quality_flag,
+    'regression_days': len(common_dates),
+    'positions_processed': len(position_betas)
+}
+logger.info(f"Factor betas calculated: {len(position_betas)} positions, {quality_flag}")
+```
 
 **What's needed:**
 ```python
-logger.warning(f"Data quality issue: {insufficient_count}/{total_symbols} symbols have <90 days")
-logger.info(f"Factor analysis quality: {quality_flag} - used {len(common_dates)} days")
+# Aggregate summaries across batch run
+logger.info(f"Batch quality: {full_quality_count}/{total_portfolios} portfolios with full data")
+logger.info(f"Cross-portfolio data availability: {avg_data_days:.0f} days average")
 ```
 
 ---
@@ -213,57 +234,81 @@ logger.info(f"Factor analysis quality: {quality_flag} - used {len(common_dates)}
 
 ### Priority 1: Enable Database Batch Job Logging
 
-**Add to batch orchestrator:**
+**Implementation Challenge:**
+The current `_execute_job_safely()` method creates an isolated session for each job via `_get_isolated_session()`. BatchJob logging needs to happen either:
+- **OUTSIDE** the isolated session (using a separate tracking session)
+- **OR** passed into the session context as part of the job execution
+
+**Proposed Pattern:**
 ```python
 from app.models.snapshots import BatchJob
 
 async def _execute_job_safely(self, job_name, job_func, args, portfolio_name):
-    # Create BatchJob record
-    batch_job = BatchJob(
-        job_name=job_name,
-        job_type=self._get_job_type(job_name),
-        status="running",
-        started_at=utc_now()
-    )
-    db.add(batch_job)
-    await db.commit()
+    start_time = utc_now()
+
+    # Option 1: Create separate session for BatchJob tracking
+    async with self._get_isolated_session() as tracking_db:
+        batch_job = BatchJob(
+            job_name=job_name,
+            job_type=job_name.split("_")[0],  # Extract type from job name
+            status="running",
+            started_at=start_time
+        )
+        tracking_db.add(batch_job)
+        await tracking_db.commit()
+        job_id = batch_job.id
 
     try:
-        # Execute job...
-        result = await job_func(db, *args)
+        # Execute job in its own isolated session
+        async with self._get_isolated_session() as db:
+            result = await job_func(db, *args) if args else await job_func(db)
 
         # Update on success
-        batch_job.status = "success"
-        batch_job.completed_at = utc_now()
-        batch_job.duration_seconds = (utc_now() - batch_job.started_at).total_seconds()
-        batch_job.job_metadata = result
+        async with self._get_isolated_session() as tracking_db:
+            batch_job = await tracking_db.get(BatchJob, job_id)
+            batch_job.status = "success"
+            batch_job.completed_at = utc_now()
+            batch_job.duration_seconds = (utc_now() - start_time).total_seconds()
+            batch_job.job_metadata = result
+            await tracking_db.commit()
 
     except Exception as e:
         # Update on failure
-        batch_job.status = "failed"
-        batch_job.error_message = str(e)[:1000]
-
-    await db.commit()
+        async with self._get_isolated_session() as tracking_db:
+            batch_job = await tracking_db.get(BatchJob, job_id)
+            batch_job.status = "failed"
+            batch_job.error_message = str(e)[:1000]
+            batch_job.completed_at = utc_now()
+            batch_job.duration_seconds = (utc_now() - start_time).total_seconds()
+            await tracking_db.commit()
 ```
 
 **Benefit:** Query batch history via database/API instead of parsing Railway logs
 
+**Note:** This requires careful integration with existing retry logic and error handling in batch_orchestrator_v2.py
+
 ---
 
-### Priority 2: Create Batch History API Endpoint
+### Priority 2: Fix Existing Batch History API Endpoints
 
-```python
-@router.get("/batch/history")
-async def get_batch_history(
-    job_type: Optional[str] = None,
-    status: Optional[str] = None,
-    since: Optional[datetime] = None,
-    limit: int = 100
-):
-    """Query batch job execution history"""
-    # Query BatchJob table
-    # Return structured results
-```
+**Status:** ✅ Endpoints EXIST but ❌ BROKEN and UNUSED
+
+**Existing Endpoints:**
+- `GET /api/v1/admin/batch/jobs/status` (`app/api/v1/endpoints/admin_batch.py:212`)
+- `GET /api/v1/admin/batch/jobs/summary` (`app/api/v1/endpoints/admin_batch.py:258`)
+
+**Issues:**
+1. **Code bugs:**
+   - Line 234: References `BatchJob.portfolio_id` (field doesn't exist in model)
+   - Line 254: Calls `job.to_dict()` (method doesn't exist in model)
+
+2. **Data issue:**
+   - BatchJob table is empty (orchestrator doesn't populate it)
+
+**Required Fixes:**
+1. Add `portfolio_id: Mapped[Optional[UUID]]` to BatchJob model (app/models/snapshots.py)
+2. Add `to_dict()` method to BatchJob model OR remove references to it
+3. Integrate BatchJob logging into batch_orchestrator_v2.py (see Priority 1)
 
 **Benefit:** Can check batch status from anywhere (web UI, curl, monitoring)
 
@@ -296,23 +341,44 @@ logger.info(f"Correlation progress: Computed {pairs_done}/{total_pairs} pairwise
 
 ---
 
-### Priority 5: Data Quality Summary Logging
+### Priority 5: Enhance Data Quality Roll-up Logging
 
+**Current Status:** ✅ Individual calculation quality logging EXISTS
+
+**Existing Quality Logging in `app/calculations/factors.py`:**
 ```python
-# At start of each calculation
-logger.info(f"Data availability check:")
-logger.info(f"  - Positions with ≥90 days: {sufficient_count}/{total_count}")
-logger.info(f"  - Positions with <90 days: {insufficient_count}/{total_count}")
-logger.info(f"  - Factor ETFs data range: {min_date} to {max_date}")
+# Lines 86-92: Per-calculation data quality
+total_days = len(returns_df)
+missing_data = returns_df.isnull().sum()
 
-# At end
-logger.info(f"Calculation quality summary:")
-logger.info(f"  - Full quality: {full_quality_count}")
-logger.info(f"  - Limited quality: {limited_quality_count}")
-logger.info(f"  - Failed: {failed_count}")
+logger.info(f"Factor returns calculated: {total_days} days of data")
+if missing_data.any():
+    logger.warning(f"Missing data in factor returns: {missing_data[missing_data > 0].to_dict()}")
+
+# Lines 408-427: Per-portfolio quality metadata
+'data_quality': {
+    'quality_flag': quality_flag,
+    'regression_days': len(common_dates),
+    'required_days': MIN_REGRESSION_DAYS,
+    'positions_processed': len(position_betas),
+    'factors_processed': len(factor_returns_aligned.columns)
+}
+
+logger.info(f"Factor betas calculated and stored successfully: {len(position_betas)} positions, {quality_flag}")
 ```
 
-**Benefit:** Understand why calculations might be incomplete
+**What's Missing:** Aggregate summaries across batch runs
+```python
+# At batch completion - add roll-up summary
+logger.info(f"Batch run data quality summary:")
+logger.info(f"  - Portfolios with full quality: {full_quality_count}/{total_portfolios}")
+logger.info(f"  - Portfolios with limited quality: {limited_quality_count}/{total_portfolios}")
+logger.info(f"  - Portfolios failed: {failed_count}/{total_portfolios}")
+logger.info(f"  - Aggregate positions processed: {total_positions_processed}")
+logger.info(f"  - Cross-portfolio data availability: {avg_data_days:.0f} days average")
+```
+
+**Benefit:** Understand aggregate data quality across all portfolios in a batch run
 
 ---
 
@@ -350,10 +416,10 @@ logger.info(f"  - Failed: {failed_count}")
 | **Structured Format** | ✅ Good | JSON in production |
 | **Log Rotation** | ✅ Good | 50MB total |
 | **Error Context** | ✅ Good | Stack traces included |
-| **Database Persistence** | ❌ Missing | Critical gap |
-| **Batch History API** | ❌ Missing | Critical gap |
+| **Database Persistence** | ❌ Missing | Critical gap - needs implementation |
+| **Batch History API** | ⚠️ Broken | Endpoints exist but broken (see Priority 2) |
 | **Progress Indicators** | ⚠️ Partial | Could be better |
-| **Data Quality Logs** | ⚠️ Partial | Could be better |
+| **Data Quality Logs** | ⚠️ Partial | Individual logs exist, needs roll-up |
 | **Correlation IDs** | ❌ Missing | Hard to trace |
 
 ---
