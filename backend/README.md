@@ -84,6 +84,43 @@ railway link
 railway up --detach
 ```
 
+### Railway Operations
+
+**Database Setup (in Railway SSH):**
+```bash
+railway shell
+
+# Run migrations
+uv run python scripts/railway/railway_run_migration.py
+
+# Verify migration
+uv run python scripts/railway/verify_railway_migration.py
+
+# Reset and reseed (DESTRUCTIVE)
+uv run python scripts/railway/railway_reset_database.py
+```
+
+**Daily Batch Processing:**
+```bash
+# In Railway SSH
+uv run python scripts/automation/railway_daily_batch.py --force
+
+# Verify results
+uv run python scripts/verification/verify_batch_results.py
+uv run python scripts/verification/verify_database_state.py
+```
+
+**Audit from Local Machine (no SSH needed):**
+```bash
+# Audit portfolio/position data via API
+python scripts/railway/audit_railway_data.py
+
+# Audit market data with detailed per-position coverage
+python scripts/railway/audit_railway_market_data.py
+```
+
+**Note:** All Railway scripts (`scripts/railway/`) automatically convert Railway's `postgresql://` URLs to `postgresql+asyncpg://` for async compatibility.
+
 ## Features
 
 - **8 Calculation Engines**: Greeks, Factor Analysis, Correlations, Market Risk, Stress Testing, etc.
@@ -111,3 +148,4 @@ Optional:
 - **Complete README**: See `/README.md` at repository root
 - **API Reference**: `/docs` endpoint when server is running
 - **Codebase Guide**: `CLAUDE.md` for AI agents and developers
+- **Script Reference**: `scripts/README.md` for detailed script documentation
