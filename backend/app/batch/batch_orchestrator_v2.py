@@ -16,6 +16,7 @@ from app.database import AsyncSessionLocal
 from app.core.logging import get_logger
 from app.models.users import Portfolio
 from app.core.datetime_utils import utc_now
+from app.batch.batch_run_tracker import batch_run_tracker
 
 logger = get_logger(__name__)
 
@@ -79,21 +80,46 @@ class BatchOrchestratorV2:
                 return []
             
             logger.info(f"Processing {len(portfolios)} portfolios sequentially")
-            
+
+            # Calculate total jobs dynamically based on actual job count per portfolio
+            total_jobs = 0
+            for portfolio in portfolios:
+                if self._validate_portfolio_data(portfolio):
+                    total_jobs += self._count_jobs_for_portfolio(run_correlations)
+
+            # Initialize tracker with total job count
+            if batch_run_tracker.get_current():
+                batch_run_tracker.update(total_jobs=total_jobs)
+                logger.info(f"Batch run tracking initialized: {total_jobs} total jobs across {len(portfolios)} portfolios")
+
             # Process each portfolio independently to avoid connection pool conflicts
             all_results = []
+            completed_count = 0
+            failed_count = 0
+
             for i, portfolio in enumerate(portfolios, 1):
                 # Validate portfolio data before processing
                 if not self._validate_portfolio_data(portfolio):
                     logger.error(f"Skipping invalid portfolio {i}/{len(portfolios)}")
                     continue
-                
+
                 logger.info(f"Processing portfolio {i}/{len(portfolios)}: {portfolio.name}")
-                
+
+                # Update tracker with current portfolio
+                if batch_run_tracker.get_current():
+                    batch_run_tracker.update(portfolio_name=portfolio.name)
+
                 portfolio_results = await self._process_single_portfolio_safely(
                     portfolio, run_correlations
                 )
                 all_results.extend(portfolio_results)
+
+                # Update completion/failure counts
+                for result in portfolio_results:
+                    if result['status'] == 'completed':
+                        completed_count += 1
+                    elif result['status'] == 'failed':
+                        failed_count += 1
                 
                 # Add small delay between portfolios to allow connection cleanup
                 if i < len(portfolios):
@@ -101,13 +127,34 @@ class BatchOrchestratorV2:
             
             duration = utc_now() - start_time
             logger.info(f"Sequential batch processing completed in {duration.total_seconds():.2f}s")
-            
+
+            # Mark batch run as complete
+            if batch_run_tracker.get_current():
+                batch_run_tracker.complete()
+                logger.info(f"Batch run completed: {completed_count} succeeded, {failed_count} failed")
+
             return all_results
             
         except Exception as e:
             logger.error(f"Batch sequence failed: {str(e)}")
             raise
     
+    def _count_jobs_for_portfolio(self, run_correlations: bool = None) -> int:
+        """
+        Dynamically count the number of jobs that will run for a portfolio.
+        This ensures accurate progress tracking even when some jobs are disabled.
+        """
+        # Base job sequence (matches _process_single_portfolio_safely)
+        job_count = 7  # market_data, position_values, portfolio_agg, factors, market_risk, stress_test, snapshot
+
+        # Greeks is currently disabled (no options feed)
+        # job_count += 1  # would add greeks if enabled
+
+        # Correlations always run now
+        job_count += 1  # position_correlations
+
+        return job_count
+
     async def _get_portfolios_safely(self, portfolio_id: Optional[str] = None) -> List[Portfolio]:
         """
         Get portfolios with proper session management and eager loading.
@@ -202,31 +249,40 @@ class BatchOrchestratorV2:
         return results
     
     async def _execute_job_safely(
-        self, 
-        job_name: str, 
-        job_func, 
-        args: List, 
+        self,
+        job_name: str,
+        job_func,
+        args: List,
         portfolio_name: str = None
     ) -> Dict[str, Any]:
         """
         Execute a single job with proper error handling and session isolation.
         """
         start_time = utc_now()
-        
+
+        # Update tracker with current job name
+        if batch_run_tracker.get_current():
+            batch_run_tracker.update(job_name=job_name)
+
         for attempt in range(self.max_retries + 1):
             try:
                 logger.info(f"Starting job: {job_name} (attempt {attempt + 1})")
-                
+
                 # Execute job with isolated session
                 async with self._get_isolated_session() as db:
                     if args:
                         result = await job_func(db, *args)
                     else:
                         result = await job_func(db)
-                
+
                 duration = (utc_now() - start_time).total_seconds()
                 logger.info(f"Job {job_name} completed in {duration:.2f}s")
-                
+
+                # Update tracker on completion
+                if batch_run_tracker.get_current():
+                    current = batch_run_tracker.get_current()
+                    batch_run_tracker.update(completed=current.completed_jobs + 1)
+
                 return {
                     'job_name': job_name,
                     'status': 'completed',
@@ -260,6 +316,12 @@ class BatchOrchestratorV2:
                 # Skip retries for permanent errors unless it's the first attempt
                 if not is_transient and not is_greenlet and attempt > 0:
                     logger.info(f"Permanent error detected for {job_name}, skipping remaining retries")
+
+                    # Update tracker on failure
+                    if batch_run_tracker.get_current():
+                        current = batch_run_tracker.get_current()
+                        batch_run_tracker.update(failed=current.failed_jobs + 1)
+
                     return {
                         'job_name': job_name,
                         'status': 'failed',
@@ -270,13 +332,18 @@ class BatchOrchestratorV2:
                         'attempts': attempt + 1,
                         'error_type': 'permanent'
                     }
-                
+
                 if attempt < self.max_retries:
                     # Exponential backoff with configurable base delay
                     delay = DEFAULT_JOB_RETRY_DELAY ** attempt
                     await asyncio.sleep(delay)
                     continue
                 else:
+                    # Update tracker on final failure
+                    if batch_run_tracker.get_current():
+                        current = batch_run_tracker.get_current()
+                        batch_run_tracker.update(failed=current.failed_jobs + 1)
+
                     return {
                         'job_name': job_name,
                         'status': 'failed',
