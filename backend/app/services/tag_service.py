@@ -143,8 +143,8 @@ class TagService:
         tag = result.scalars().first()
 
         if tag and include_positions:
-            tag.position_count = len(tag.position_tags or [])
-            tag.usage_count = tag.position_count
+            position_count = len(tag.position_tags or [])
+            tag.usage_count = position_count
 
         return tag
 
@@ -183,7 +183,6 @@ class TagService:
         if include_usage_stats:
             for tag in tags:
                 position_count = len(tag.position_tags) if tag.position_tags else 0
-                tag.position_count = position_count
                 tag.usage_count = position_count
 
         return tags
