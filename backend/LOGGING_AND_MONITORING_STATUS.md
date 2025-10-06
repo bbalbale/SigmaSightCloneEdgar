@@ -466,37 +466,73 @@ logger.info(f"  - Cross-portfolio data availability: {avg_data_days:.0f} days av
 
 ## Existing Admin Batch Endpoints (app/api/v1/endpoints/admin_batch.py)
 
-### ✅ Keep Unchanged
+### 🚨 CRITICAL FINDING: Admin Batch Endpoints Are NOT Registered
+
+**Status:** The `admin_batch.py` router exists but is **completely orphaned** - it is NOT included in the FastAPI application.
+
+**Evidence:**
+- File exists: `app/api/v1/endpoints/admin_batch.py` (502 lines, 15 endpoints defined)
+- Router created: `router = APIRouter(prefix="/admin/batch", tags=["Admin - Batch Processing"])`
+- **NOT imported** in `app/api/v1/router.py`
+- **NOT registered** in the main API router
+- **NOT accessible** via HTTP requests
+
+**Impact:**
+- All 15 admin batch endpoints return 404 Not Found
+- Frontend cannot call these endpoints
+- Manual API testing would fail
+- The endpoints exist as dead code only
+
+**To Enable These Endpoints:**
+```python
+# In app/api/v1/router.py, add:
+from app.api.v1.endpoints import admin_batch
+
+api_router.include_router(
+    admin_batch.router,
+    tags=["Admin - Batch Processing"]
+)
+```
+
+**Recommendation:** Since we're planning to delete 9 of these 15 endpoints anyway, we should:
+1. Create the new `/admin/batch/run` endpoints with proper tracking
+2. Fix the 2 broken endpoints (jobs/status, jobs/summary)
+3. Register ONLY the new/fixed endpoints (6 total)
+4. Never register the 9 endpoints marked for deletion
+
+---
+
+### ✅ Keep Unchanged (After Registration)
 
 | Endpoint | Current Status | Reason |
 |----------|---------------|---------|
-| `POST /admin/batch/trigger/market-data` | ✅ Working | Useful standalone operation |
-| `POST /admin/batch/trigger/correlations` | ✅ Working | Weekly job, special case |
-| `GET /admin/batch/data-quality` | ✅ Working | Pre-flight validation |
-| `POST /admin/batch/data-quality/refresh` | ✅ Working | Targeted data refresh |
+| `POST /admin/batch/trigger/market-data` | ❌ Not Registered (code exists) | Useful standalone operation |
+| `POST /admin/batch/trigger/correlations` | ❌ Not Registered (code exists) | Weekly job, special case |
+| `GET /admin/batch/data-quality` | ❌ Not Registered (code exists) | Pre-flight validation |
+| `POST /admin/batch/data-quality/refresh` | ❌ Not Registered (code exists) | Targeted data refresh |
 
-### ⚠️ Fix Required
+### ⚠️ Fix Required (After Registration)
 
 | Endpoint | Issue | Fix Needed |
 |----------|-------|------------|
-| `GET /admin/batch/jobs/status` | Line 234: `BatchJob.portfolio_id` doesn't exist<br>Line 254: `job.to_dict()` doesn't exist | Add `portfolio_id` field to BatchJob model<br>Add `to_dict()` method or remove references |
-| `GET /admin/batch/jobs/summary` | Line 254: `job.to_dict()` doesn't exist | Same as above |
+| `GET /admin/batch/jobs/status` | ❌ Not Registered<br>Line 234: `BatchJob.portfolio_id` doesn't exist<br>Line 254: `job.to_dict()` doesn't exist | Register endpoint<br>Add `portfolio_id` field to BatchJob model<br>Add `to_dict()` method or remove references |
+| `GET /admin/batch/jobs/summary` | ❌ Not Registered<br>Line 254: `job.to_dict()` doesn't exist | Register endpoint<br>Same as above |
 
-### ❌ Delete and Replace
+### ❌ Delete and Replace (Never Register These)
 
 | Endpoint | Reason | Replacement |
 |----------|--------|-------------|
-| `POST /admin/batch/trigger/daily` | Lacks tracking, force flag, progress monitoring | **NEW:** `POST /admin/batch/run` |
-| `POST /admin/batch/trigger/greeks` | Redundant | Use `/admin/batch/run?portfolio_id={id}` |
-| `POST /admin/batch/trigger/factors` | Redundant | Use `/admin/batch/run?portfolio_id={id}` |
-| `POST /admin/batch/trigger/stress-tests` | Redundant | Use `/admin/batch/run?portfolio_id={id}` |
-| `POST /admin/batch/trigger/snapshot` | Redundant | Use `/admin/batch/run?portfolio_id={id}` |
-| `DELETE /admin/batch/jobs/{job_id}/cancel` | Won't work without batch run tracking | **NEW:** `POST /admin/batch/run/current/cancel` |
-| `GET /admin/batch/schedules` | **APScheduler not running** | Railway cron job (railway.json) |
-| `POST /admin/batch/scheduler/pause` | **APScheduler not running** | Railway dashboard to disable cron |
-| `POST /admin/batch/scheduler/resume` | **APScheduler not running** | Railway dashboard to enable cron |
+| `POST /admin/batch/trigger/daily` | ❌ Not Registered<br>Lacks tracking, force flag, progress monitoring | **NEW:** `POST /admin/batch/run` |
+| `POST /admin/batch/trigger/greeks` | ❌ Not Registered<br>Redundant | Use `/admin/batch/run?portfolio_id={id}` |
+| `POST /admin/batch/trigger/factors` | ❌ Not Registered<br>Redundant | Use `/admin/batch/run?portfolio_id={id}` |
+| `POST /admin/batch/trigger/stress-tests` | ❌ Not Registered<br>Redundant | Use `/admin/batch/run?portfolio_id={id}` |
+| `POST /admin/batch/trigger/snapshot` | ❌ Not Registered<br>Redundant | Use `/admin/batch/run?portfolio_id={id}` |
+| `DELETE /admin/batch/jobs/{job_id}/cancel` | ❌ Not Registered<br>Won't work without batch run tracking | **NEW:** `POST /admin/batch/run/current/cancel` |
+| `GET /admin/batch/schedules` | ❌ Not Registered<br>**APScheduler not running** | Railway cron job (railway.json) |
+| `POST /admin/batch/scheduler/pause` | ❌ Not Registered<br>**APScheduler not running** | Railway dashboard to disable cron |
+| `POST /admin/batch/scheduler/resume` | ❌ Not Registered<br>**APScheduler not running** | Railway dashboard to enable cron |
 
-**Rationale:** These individual calculation triggers are redundant when we have a comprehensive batch run endpoint. Delete them to reduce API surface area and maintenance burden.
+**Rationale:** These individual calculation triggers are redundant when we have a comprehensive batch run endpoint. Since they're not registered anyway, simply don't include them when registering the admin batch router.
 
 **APScheduler Investigation:** The APScheduler (`app/batch/scheduler_config.py`) is configured but **never started** in `app/main.py`. The application uses Railway's cron job system instead:
 - **Railway Cron:** Runs at 11:30 PM UTC (6:30 PM ET) weekdays via `railway.json`
@@ -1138,32 +1174,39 @@ Monitoring batch progress...
 
 ## 📊 API Endpoint Summary
 
-### Create New (4 endpoints)
+### 🚨 Current State: All Admin Batch Endpoints Return 404
+The `admin_batch.py` router is **NOT registered** in `app/api/v1/router.py`. All 15 existing endpoints are orphaned dead code.
+
+### Proposed Implementation Plan
+
+#### Create New (4 endpoints)
 1. `POST /admin/batch/run` - Start batch with tracking and force option
 2. `GET /admin/batch/run/current` - Poll current batch status (real-time)
 3. `GET /admin/batch/run/{batch_run_id}` - Get specific batch run status
 4. `POST /admin/batch/run/current/cancel` - Cancel current batch
 
-### Fix Existing (2 endpoints)
+#### Register + Fix Existing (2 endpoints)
 1. `GET /admin/batch/jobs/status` - Fix portfolio_id and to_dict() issues
 2. `GET /admin/batch/jobs/summary` - Fix to_dict() issue
 
-### Keep Unchanged (4 endpoints)
+#### Register Unchanged (4 endpoints)
 1. `POST /admin/batch/trigger/market-data`
 2. `POST /admin/batch/trigger/correlations`
 3. `GET /admin/batch/data-quality`
 4. `POST /admin/batch/data-quality/refresh`
 
-### Delete (9 endpoints)
+#### Never Register (9 endpoints - just delete code)
 1. `POST /admin/batch/trigger/daily` → Replaced by `/admin/batch/run`
-2. `POST /admin/batch/trigger/greeks` → Use `/admin/batch/run?portfolio_id={id}`
-3. `POST /admin/batch/trigger/factors` → Use `/admin/batch/run?portfolio_id={id}`
-4. `POST /admin/batch/trigger/stress-tests` → Use `/admin/batch/run?portfolio_id={id}`
-5. `POST /admin/batch/trigger/snapshot` → Use `/admin/batch/run?portfolio_id={id}`
-6. `DELETE /admin/batch/jobs/{job_id}/cancel` → Replaced by `/admin/batch/run/current/cancel`
-7. `GET /admin/batch/schedules` → Railway cron (not APScheduler)
-8. `POST /admin/batch/scheduler/pause` → Railway dashboard
-9. `POST /admin/batch/scheduler/resume` → Railway dashboard
+2. `POST /admin/batch/trigger/greeks` → Redundant
+3. `POST /admin/batch/trigger/factors` → Redundant
+4. `POST /admin/batch/trigger/stress-tests` → Redundant
+5. `POST /admin/batch/trigger/snapshot` → Redundant
+6. `DELETE /admin/batch/jobs/{job_id}/cancel` → Replaced by `/run/current/cancel`
+7. `GET /admin/batch/schedules` → APScheduler not running
+8. `POST /admin/batch/scheduler/pause` → APScheduler not running
+9. `POST /admin/batch/scheduler/resume` → APScheduler not running
+
+**Final Result:** 10 working admin batch endpoints (4 new + 2 fixed + 4 existing) instead of 0 current
 
 ---
 
@@ -1174,6 +1217,7 @@ Monitoring batch progress...
 3. **Concurrent Run Prevention:** Avoid conflicts with `force` flag override
 4. **Better Monitoring:** Track progress percent, current job, elapsed time
 5. **Scriptable:** Easy to automate with local scripts
-6. **Simpler API:** Consolidate 15 endpoints into 10 (delete 9, create 4, fix 2, keep 4)
+6. **Simpler API:** Create 6 working endpoints instead of registering 15 (4 new + 2 fixed = 6 total)
 7. **Audit Trail:** Track who triggered batches and when
-8. **Remove Dead Code:** Delete APScheduler endpoints that don't work (scheduler not running)
+8. **Remove Dead Code:** Never register 9 endpoints that are orphaned anyway
+9. **First Working Admin Endpoints:** Current endpoints are NOT registered (all return 404)
