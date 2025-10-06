@@ -213,18 +213,20 @@ async def verify_market_data_quality():
 
 async def validate_and_ensure_factor_analysis_data(db: AsyncSession) -> Dict[str, Any]:
     """
-    Validate 252-day historical data requirements for factor analysis and trigger backfill if needed
-    
+    Validate historical data requirements for factor analysis and trigger backfill if needed
+
+    Uses REGRESSION_WINDOW_DAYS from constants (currently 90 days)
+
     Args:
         db: Database session
-        
+
     Returns:
         Dictionary with validation results and backfill actions taken
     """
     from app.constants.factors import FACTOR_ETFS, REGRESSION_WINDOW_DAYS
     from sqlalchemy import func, and_
-    
-    logger.info("🔍 Validating 252-day historical data requirements for factor analysis")
+
+    logger.info(f"🔍 Validating {REGRESSION_WINDOW_DAYS}-day historical data requirements for factor analysis")
     start_time = utc_now()
     
     try:
@@ -233,11 +235,11 @@ async def validate_and_ensure_factor_analysis_data(db: AsyncSession) -> Dict[str
         factor_etf_symbols = set(FACTOR_ETFS.values())
         all_symbols = portfolio_symbols | factor_etf_symbols
         
-        logger.info(f"Checking 252-day coverage for {len(all_symbols)} symbols:")
+        logger.info(f"Checking {REGRESSION_WINDOW_DAYS}-day coverage for {len(all_symbols)} symbols:")
         logger.info(f"  Portfolio symbols: {len(portfolio_symbols)}")
         logger.info(f"  Factor ETF symbols: {len(factor_etf_symbols)}")
-        
-        # Check historical data coverage (252 days = REGRESSION_WINDOW_DAYS)
+
+        # Check historical data coverage (REGRESSION_WINDOW_DAYS from constants)
         required_date = date.today() - timedelta(days=REGRESSION_WINDOW_DAYS + 30)  # Extra buffer
         
         validation_results = {
@@ -286,7 +288,7 @@ async def validate_and_ensure_factor_analysis_data(db: AsyncSession) -> Dict[str
         
         # Trigger automatic backfill if coverage is insufficient
         if insufficient_count > 0:
-            logger.info(f"🔄 Triggering automatic 252-day backfill for {insufficient_count} symbols")
+            logger.info(f"🔄 Triggering automatic {REGRESSION_WINDOW_DAYS}-day backfill for {insufficient_count} symbols")
             insufficient_symbols = [item['symbol'] for item in validation_results['symbols_needing_backfill']]
             
             backfill_results = await market_data_service.bulk_fetch_and_cache(

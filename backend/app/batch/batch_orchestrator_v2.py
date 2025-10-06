@@ -311,13 +311,13 @@ class BatchOrchestratorV2:
     
     # Job implementation methods (these would be imported from the original orchestrator)
     async def _update_market_data(self, db: AsyncSession):
-        """Market data sync job with 252-day factor analysis validation"""
+        """Market data sync job with factor analysis historical data validation"""
         from app.batch.market_data_sync import sync_market_data, validate_and_ensure_factor_analysis_data
-        
+
         # Step 1: Standard daily market data sync (5 days)
         sync_results = await sync_market_data()
-        
-        # Step 2: Validate and ensure 252-day historical data for factor analysis
+
+        # Step 2: Validate and ensure sufficient historical data for factor analysis
         validation_results = await validate_and_ensure_factor_analysis_data(db)
         
         # Combine results for batch execution summary
