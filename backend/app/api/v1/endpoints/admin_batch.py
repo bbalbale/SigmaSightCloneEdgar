@@ -5,10 +5,12 @@ Simplified real-time monitoring endpoints
 from typing import Optional, Dict, Any
 from datetime import timedelta
 from uuid import uuid4
+import asyncio
 from fastapi import APIRouter, Depends, HTTPException, Query, BackgroundTasks
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.dependencies import get_db, require_admin
+from app.database import AsyncSessionLocal
 from app.batch.batch_orchestrator_v2 import batch_orchestrator_v2 as batch_orchestrator
 from app.batch.batch_run_tracker import batch_run_tracker, CurrentBatchRun
 from app.batch.data_quality import pre_flight_validation
@@ -18,6 +20,22 @@ from app.core.datetime_utils import utc_now
 logger = get_logger(__name__)
 
 router = APIRouter(prefix="/admin/batch", tags=["Admin - Batch Processing"])
+
+
+async def _run_market_data_refresh_with_session():
+    """
+    Helper function to run market data refresh with its own database session.
+    Required because BackgroundTasks closes the request's db session before task runs.
+    """
+    async with AsyncSessionLocal() as session:
+        try:
+            await batch_orchestrator._update_market_data(session)
+            logger.info("Background market data refresh completed successfully")
+        except Exception as e:
+            logger.error(f"Background market data refresh failed: {e}", exc_info=True)
+            await session.rollback()
+        finally:
+            await session.close()
 
 
 @router.post("/run")
@@ -225,11 +243,9 @@ async def refresh_market_data_for_quality(
             "timestamp": utc_now()
         }
     
-    # Run market data sync in background
-    background_tasks.add_task(
-        batch_orchestrator._update_market_data,
-        db
-    )
+    # Run market data sync in background with its own session
+    # Note: Using wrapper function because BackgroundTasks closes the request's db session
+    background_tasks.add_task(_run_market_data_refresh_with_session)
     
     logger.info(
         f"Market data refresh initiated by admin {admin_user.email} "

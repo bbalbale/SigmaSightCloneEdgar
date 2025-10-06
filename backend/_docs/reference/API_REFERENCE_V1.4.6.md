@@ -95,7 +95,7 @@ Base prefix for all endpoints below: `/api/v1`
 - POST `/target-prices/{portfolio_id}/import-csv`
 - POST `/target-prices/{portfolio_id}/export`
 
-#### Tag Management (8 endpoints) ✨ **NEW - October 2, 2025**
+#### Tag Management (7 endpoints) ✨ **NEW - October 2, 2025**
 - POST `/tags/` - Create tag
 - GET `/tags/` - List user tags
 - GET `/tags/{id}` - Get tag details
@@ -103,14 +103,13 @@ Base prefix for all endpoints below: `/api/v1`
 - POST `/tags/{id}/archive` - Archive tag (soft delete)
 - POST `/tags/{id}/restore` - Restore archived tag
 - POST `/tags/defaults` - Create default tags (idempotent)
-- GET `/tags/{id}/strategies` - Get strategies by tag (deprecated)
 
 #### Position Tagging (5 endpoints) ✨ **NEW - October 2, 2025 - PREFERRED METHOD**
 - POST `/positions/{id}/tags` - Add tags to position
 - DELETE `/positions/{id}/tags` - Remove tags from position
 - GET `/positions/{id}/tags` - Get position's tags
 - PATCH `/positions/{id}/tags` - Replace all position tags
-- GET `/tags/{id}/positions` - Get positions by tag (reverse lookup)
+- GET `/tags/{tag_id}/positions` - Get positions by tag (reverse lookup, uses tag_id for clarity)
 
 #### Admin Batch Processing (6 endpoints) ✨ **NEW - October 6, 2025**
 - POST `/admin/batch/run` - Trigger batch processing with real-time tracking
