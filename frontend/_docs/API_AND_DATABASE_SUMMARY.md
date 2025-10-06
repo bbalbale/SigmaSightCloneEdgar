@@ -1,9 +1,10 @@
 # SigmaSight API and Database Summary
 
 **Generated**: September 29, 2025
-**Last Updated**: October 4, 2025
+**Last Updated**: October 6, 2025
 **Status**: Production-Ready APIs with Complete Database Schema
 **Latest Updates**:
+- **October 6, 2025**: Added Admin Batch Processing endpoints (6 new endpoints for batch control and monitoring)
 - **October 5, 2025**: Removed `/strategies` API + strategy tables; position tagging now the sole grouping mechanism
 - **October 4, 2025**: Added `company_profiles` table with company names, sectors, industry data, and revenue/earnings estimates
 - **October 3, 2025**: Added TAGGING_ARCHITECTURE.md guide - clarifies 3-file structure is intentional design
@@ -224,21 +225,37 @@ The strategy system (backend APIs, database tables, and frontend services) has b
 - **Automatic Inclusion**: Position details endpoint now includes `tags` array
 - **Performance Optimized**: Batch fetching to prevent N+1 queries
 
-### ⚙️ Admin Endpoints (5 endpoints - Not Registered in Router)
+### ⚙️ Admin Batch Processing Endpoints (6 endpoints) ✨ **NEW - October 6, 2025**
 | Method | Endpoint | Status | Description |
 |--------|----------|--------|-------------|
-| GET | `/admin/batch/jobs/status` | ⚠️ Exists | Batch job status |
-| GET | `/admin/batch/jobs/summary` | ⚠️ Exists | Job statistics |
-| DELETE | `/admin/batch/jobs/{id}/cancel` | ⚠️ Exists | Cancel job |
-| GET | `/admin/batch/data-quality` | ⚠️ Exists | Data quality status |
-| POST | `/admin/batch/data-quality/refresh` | ⚠️ Exists | Refresh market data |
+| POST | `/admin/batch/run` | ✅ Ready | Trigger batch processing with real-time tracking |
+| GET | `/admin/batch/run/current` | ✅ Ready | Get current batch status (polling endpoint) |
+| POST | `/admin/batch/trigger/market-data` | ✅ Ready | Manually trigger market data update |
+| POST | `/admin/batch/trigger/correlations` | ✅ Ready | Manually trigger correlation calculations |
+| GET | `/admin/batch/data-quality` | ✅ Ready | Get data quality status and metrics |
+| POST | `/admin/batch/data-quality/refresh` | ✅ Ready | Refresh market data for quality improvement |
+
+**Key Features**:
+- **Real-time Monitoring**: Poll `/admin/batch/run/current` every 2-5 seconds for progress
+- **Concurrent Run Prevention**: 409 Conflict if batch already running (use `force=true` to override)
+- **In-Memory Tracking**: Lightweight status tracking without database overhead
+- **Targeted Operations**: Separate endpoints for market data sync and correlation calculations
 
 ### 📋 Summary Statistics
-- **Total Endpoints**: 71 (includes 5 new position tagging endpoints)
-- **Production Ready**: 66 (93%)
-- **Deprecated (Strategies)**: 12 (backward compatible)
-- **Admin (Not Registered)**: 5 (7%)
-- **Categories**: 9 (Auth, Data, Analytics, Chat, Target Prices, Strategies [Deprecated], Tags, Position Tagging [NEW], Admin)
+- **Total Endpoints**: 57 endpoints across 8 categories
+- **Production Ready**: 57 (100%)
+- **Removed (Strategies)**: 12 endpoints removed October 2025
+- **Categories**: 8 (Auth, Data, Analytics, Chat, Target Prices, Tags, Position Tagging, Admin Batch Processing)
+
+**Endpoint Breakdown**:
+- Authentication: 5 endpoints
+- Data: 10 endpoints
+- Analytics: 7 endpoints
+- Chat: 6 endpoints (SSE streaming)
+- Target Prices: 10 endpoints
+- Tag Management: 8 endpoints
+- Position Tagging: 5 endpoints
+- Admin Batch Processing: 6 endpoints ✨ **NEW**
 
 ---
 
@@ -738,5 +755,5 @@ All API calls route through Next.js proxy at `/api/proxy/` to handle CORS during
 - **Database Location**: PostgreSQL via Docker (`docker-compose up -d`)
 - **Migrations**: Managed via Alembic (`uv run alembic upgrade head`)
 - **Demo Data**: Pre-seeded with `scripts/seed_database.py`
-- **Admin Endpoints**: Implemented but require manual router registration
+- **Admin Endpoints**: ✅ Fully implemented and registered (6 batch processing endpoints)
 - **Testing**: Frontend API test page at `/dev/api-test` validates all endpoints
