@@ -30,7 +30,7 @@ position-based tagging metrics (usage counts, archiving, restoration).
 import logging
 from datetime import datetime
 from typing import List, Optional
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, update, delete, and_, func
