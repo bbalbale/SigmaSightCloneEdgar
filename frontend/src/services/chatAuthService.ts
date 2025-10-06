@@ -146,7 +146,7 @@ class ChatAuthService {
       const response = await fetch(`${this.baseUrl}/api/v1/chat/conversations`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${authManager.getAccessToken()}`,
+          'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
           'Content-Type': 'application/json',
         },
         credentials: 'include',
@@ -285,8 +285,8 @@ class ChatAuthService {
       throw new Error('Not authenticated');
     }
 
-    // Get Bearer token from authManager (centralized token management)
-    const token = authManager.getAccessToken();
+    // Get Bearer token from localStorage
+    const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
 
     return fetch(url, {
       ...options,

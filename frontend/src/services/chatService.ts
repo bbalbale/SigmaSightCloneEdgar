@@ -5,7 +5,6 @@
  */
 
 import { apiClient } from './apiClient'
-import { authManager } from './authManager'
 
 interface CreateConversationRequest {
   mode: 'green' | 'blue' | 'indigo' | 'violet'
@@ -156,7 +155,7 @@ class ChatService {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${authManager.getAccessToken()}`,
+          'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
         },
         credentials: 'include',
         body: JSON.stringify(payload),
@@ -182,7 +181,7 @@ class ChatService {
       const response = await fetch(`/api/proxy/api/v1/chat/conversations?limit=${limit}`, {
         method: 'GET',
         headers: {
-          'Authorization': `Bearer ${authManager.getAccessToken()}`,
+          'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
         },
         credentials: 'include',
       })
@@ -207,7 +206,7 @@ class ChatService {
       const response = await fetch(`/api/proxy/api/v1/chat/conversations/${conversationId}`, {
         method: 'DELETE',
         headers: {
-          'Authorization': `Bearer ${authManager.getAccessToken()}`,
+          'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
         },
         credentials: 'include',
       })
@@ -236,7 +235,7 @@ class ChatService {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${authManager.getAccessToken()}`,
+          'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
         },
         credentials: 'include',
         body: JSON.stringify({
@@ -279,7 +278,7 @@ class ChatService {
           method: 'PATCH',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${authManager.getAccessToken()}`,
+            'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
           },
           credentials: 'include',
           body: JSON.stringify({ mode }),
