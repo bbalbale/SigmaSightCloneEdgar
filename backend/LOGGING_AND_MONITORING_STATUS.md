@@ -475,9 +475,6 @@ logger.info(f"  - Cross-portfolio data availability: {avg_data_days:.0f} days av
 | `POST /admin/batch/trigger/correlations` | ✅ Working | **Keep** - weekly job, special case |
 | `GET /admin/batch/data-quality` | ✅ Working | **Keep** - pre-flight validation |
 | `POST /admin/batch/data-quality/refresh` | ✅ Working | **Keep** - targeted data refresh |
-| `GET /admin/batch/schedules` | ✅ Working | **Keep** - scheduler visibility |
-| `POST /admin/batch/scheduler/pause` | ✅ Working | **Keep** - operational control |
-| `POST /admin/batch/scheduler/resume` | ✅ Working | **Keep** - operational control |
 
 ### ⚠️ Fix Required
 
@@ -495,8 +492,17 @@ logger.info(f"  - Cross-portfolio data availability: {avg_data_days:.0f} days av
 | `POST /admin/batch/trigger/stress-tests` | Redundant | Use `/admin/batch/run?portfolio_id={id}` |
 | `POST /admin/batch/trigger/snapshot` | Redundant | Use `/admin/batch/run?portfolio_id={id}` |
 | `DELETE /admin/batch/jobs/{job_id}/cancel` | Won't work without batch run tracking | Replace with `/admin/batch/run/current/cancel` |
+| `GET /admin/batch/schedules` | **APScheduler not running** | Railway cron job (railway.json) |
+| `POST /admin/batch/scheduler/pause` | **APScheduler not running** | Railway dashboard to disable cron |
+| `POST /admin/batch/scheduler/resume` | **APScheduler not running** | Railway dashboard to enable cron |
 
 **Rationale:** These individual calculation triggers are redundant when we have a comprehensive batch run endpoint. Delete them to reduce API surface area and maintenance burden.
+
+**APScheduler Investigation:** The APScheduler (`app/batch/scheduler_config.py`) is configured but **never started** in `app/main.py`. The application uses Railway's cron job system instead:
+- **Railway Cron:** Runs at 11:30 PM UTC (6:30 PM ET) weekdays via `railway.json`
+- **Script:** `scripts/automation/railway_daily_batch.py`
+- **Workflow:** Checks trading day → Syncs market data → Runs batch calculations
+- **Scheduler Endpoints:** Return misleading information since APScheduler isn't running
 
 ---
 
@@ -1147,9 +1153,6 @@ Monitoring batch progress...
 2. `POST /admin/batch/trigger/correlations`
 3. `GET /admin/batch/data-quality`
 4. `POST /admin/batch/data-quality/refresh`
-5. `GET /admin/batch/schedules`
-6. `POST /admin/batch/scheduler/pause`
-7. `POST /admin/batch/scheduler/resume`
 
 ### Delete
 1. `POST /admin/batch/trigger/greeks` → Use `/run?portfolio_id={id}`
@@ -1157,6 +1160,9 @@ Monitoring batch progress...
 3. `POST /admin/batch/trigger/stress-tests` → Use `/run?portfolio_id={id}`
 4. `POST /admin/batch/trigger/snapshot` → Use `/run?portfolio_id={id}`
 5. `DELETE /admin/batch/jobs/{job_id}/cancel` → Use `/run/current/cancel`
+6. `GET /admin/batch/schedules` → Railway cron (not APScheduler)
+7. `POST /admin/batch/scheduler/pause` → Railway dashboard
+8. `POST /admin/batch/scheduler/resume` → Railway dashboard
 
 ---
 
@@ -1167,5 +1173,6 @@ Monitoring batch progress...
 3. **Concurrent Run Prevention:** Avoid conflicts with `force` flag override
 4. **Better Monitoring:** Track progress percent, current job, elapsed time
 5. **Scriptable:** Easy to automate with local scripts
-6. **Simpler API:** Consolidate 7 trigger endpoints into 1 comprehensive endpoint
+6. **Simpler API:** Consolidate 15 endpoints into 8 (delete 8, add 4, enhance 2, keep 4)
 7. **Audit Trail:** Track who triggered batches and when
+8. **Remove Dead Code:** Delete APScheduler endpoints that don't work (scheduler not running)
