@@ -486,7 +486,7 @@ logger.info(f"  - Cross-portfolio data availability: {avg_data_days:.0f} days av
 | `GET /admin/batch/jobs/status` | Line 234: `BatchJob.portfolio_id` doesn't exist<br>Line 254: `job.to_dict()` doesn't exist | Add `portfolio_id` field to BatchJob model<br>Add `to_dict()` method or remove references |
 | `GET /admin/batch/jobs/summary` | Line 254: `job.to_dict()` doesn't exist | Same as above |
 
-### ❌ Deprecate/Remove
+### ❌ Delete
 
 | Endpoint | Reason | Replacement |
 |----------|--------|-------------|
@@ -496,7 +496,7 @@ logger.info(f"  - Cross-portfolio data availability: {avg_data_days:.0f} days av
 | `POST /admin/batch/trigger/snapshot` | Redundant | Use `/admin/batch/run?portfolio_id={id}` |
 | `DELETE /admin/batch/jobs/{job_id}/cancel` | Won't work without batch run tracking | Replace with `/admin/batch/run/current/cancel` |
 
-**Rationale:** These individual calculation triggers are redundant when we have a comprehensive batch run endpoint. Reduces API surface area and maintenance burden.
+**Rationale:** These individual calculation triggers are redundant when we have a comprehensive batch run endpoint. Delete them to reduce API surface area and maintenance burden.
 
 ---
 
@@ -1151,7 +1151,7 @@ Monitoring batch progress...
 6. `POST /admin/batch/scheduler/pause`
 7. `POST /admin/batch/scheduler/resume`
 
-### Deprecate/Remove
+### Delete
 1. `POST /admin/batch/trigger/greeks` → Use `/run?portfolio_id={id}`
 2. `POST /admin/batch/trigger/factors` → Use `/run?portfolio_id={id}`
 3. `POST /admin/batch/trigger/stress-tests` → Use `/run?portfolio_id={id}`
