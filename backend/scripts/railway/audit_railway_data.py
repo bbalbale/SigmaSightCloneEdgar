@@ -75,11 +75,12 @@ def get_data_quality(portfolio_id: str, token: str) -> Dict[str, Any]:
         return {}
 
 
-def audit_portfolio(portfolio: Dict[str, Any], token: str) -> Dict[str, Any]:
+def audit_portfolio(portfolio: Dict[str, Any], token: str, report_file=None) -> Dict[str, Any]:
     """Comprehensive audit of a single portfolio"""
     portfolio_id = portfolio["id"]
     portfolio_name = portfolio["name"]
 
+    # Print to console
     print(f"\n{'='*80}")
     print(f"📊 PORTFOLIO: {portfolio_name}")
     print(f"{'='*80}")
@@ -88,6 +89,17 @@ def audit_portfolio(portfolio: Dict[str, Any], token: str) -> Dict[str, Any]:
     print(f"Total Value: ${portfolio.get('total_value', 0):,.2f}")
     print(f"Equity Balance: ${portfolio.get('equity_balance', 0):,.2f}")
     print(f"Market Value: ${portfolio.get('total_market_value', 0):,.2f}")
+
+    # Write to report file if provided
+    if report_file:
+        report_file.write(f"\n{'='*120}\n")
+        report_file.write(f"PORTFOLIO: {portfolio_name}\n")
+        report_file.write(f"{'='*120}\n")
+        report_file.write(f"ID: {portfolio_id}\n")
+        report_file.write(f"Position Count: {portfolio.get('position_count', 0)}\n")
+        report_file.write(f"Total Value: ${portfolio.get('total_value', 0):,.2f}\n")
+        report_file.write(f"Equity Balance: ${portfolio.get('equity_balance', 0):,.2f}\n")
+        report_file.write(f"Market Value: ${portfolio.get('total_market_value', 0):,.2f}\n")
 
     # Get complete portfolio data
     print(f"\n📦 Fetching complete portfolio data...")
@@ -103,6 +115,47 @@ def audit_portfolio(portfolio: Dict[str, Any], token: str) -> Dict[str, Any]:
     if complete_data:
         holdings = complete_data.get("holdings", [])
         print(f"✅ Holdings: {len(holdings)} positions")
+
+        # Print detailed position table
+        print(f"\n{'─'*120}")
+        print(f"DETAILED POSITION LIST")
+        print(f"{'─'*120}")
+        print(f"{'#':<3} {'SYMBOL':<16} {'TYPE':<6} {'QTY':<10} {'ENTRY $':<10} {'LAST $':<10} {'MKT VAL':<12} {'P&L $':<12} {'ENTRY DATE':<12}")
+        print(f"{'─'*120}")
+
+        # Write to report file
+        if report_file:
+            report_file.write(f"\n{'─'*120}\n")
+            report_file.write(f"DETAILED POSITION LIST\n")
+            report_file.write(f"{'─'*120}\n")
+            report_file.write(f"{'#':<3} {'SYMBOL':<16} {'TYPE':<6} {'QTY':<10} {'ENTRY $':<10} {'LAST $':<10} {'MKT VAL':<12} {'P&L $':<12} {'ENTRY DATE':<12}\n")
+            report_file.write(f"{'─'*120}\n")
+
+        for i, holding in enumerate(holdings, 1):
+            symbol = holding.get("symbol", "N/A")[:16]
+            pos_type = holding.get("position_type", "N/A")[:6]
+            quantity = holding.get("quantity", 0)
+            entry_price = holding.get("entry_price", 0)
+            last_price = holding.get("last_price", 0)
+            market_value = holding.get("market_value", 0)
+            unrealized_pnl = holding.get("unrealized_pnl", 0)
+            entry_date = holding.get("entry_date", "N/A")[:10]
+
+            # Format numbers
+            qty_str = f"{quantity:,.2f}" if quantity else "N/A"
+            entry_str = f"${entry_price:,.2f}" if entry_price else "N/A"
+            last_str = f"${last_price:,.2f}" if last_price else "N/A"
+            mkt_str = f"${market_value:,.2f}" if market_value else "N/A"
+            pnl_str = f"${unrealized_pnl:,.2f}" if unrealized_pnl else "N/A"
+
+            line = f"{i:<3} {symbol:<16} {pos_type:<6} {qty_str:<10} {entry_str:<10} {last_str:<10} {mkt_str:<12} {pnl_str:<12} {entry_date:<12}"
+            print(line)
+            if report_file:
+                report_file.write(line + "\n")
+
+        print(f"{'─'*120}")
+        if report_file:
+            report_file.write(f"{'─'*120}\n")
 
         # Analyze position types
         position_types = {}
@@ -179,52 +232,79 @@ def main():
 
     all_results = []
 
-    for user_info in DEMO_USERS:
-        print(f"\n{'#'*80}")
-        print(f"👤 USER: {user_info['name']} ({user_info['email']})")
-        print(f"{'#'*80}")
+    # Open output file for detailed report
+    report_filename = "railway_audit_detailed_report.txt"
 
-        # Login
-        auth_data = login(user_info["email"], user_info["password"])
-        if not auth_data:
-            continue
+    with open(report_filename, "w", encoding="utf-8") as report:
+        from datetime import datetime
+        report.write("=" * 120 + "\n")
+        report.write("RAILWAY DATABASE AUDIT - DETAILED REPORT\n")
+        report.write("=" * 120 + "\n")
+        report.write(f"Backend: {RAILWAY_URL}\n")
+        report.write(f"Date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n")
 
-        token = auth_data["access_token"]
-        print(f"✅ Logged in successfully")
+        for user_info in DEMO_USERS:
+            print(f"\n{'#'*80}")
+            print(f"👤 USER: {user_info['name']} ({user_info['email']})")
+            print(f"{'#'*80}")
 
-        # Get portfolios
-        portfolios = get_portfolios(token)
-        if not portfolios:
-            print(f"⚠️  No portfolios found for user")
-            continue
+            report.write(f"\n{'#'*120}\n")
+            report.write(f"USER: {user_info['name']} ({user_info['email']})\n")
+            report.write(f"{'#'*120}\n")
 
-        print(f"✅ Found {len(portfolios)} portfolio(s)")
+            # Login
+            auth_data = login(user_info["email"], user_info["password"])
+            if not auth_data:
+                continue
 
-        # Audit each portfolio
-        for portfolio in portfolios:
-            results = audit_portfolio(portfolio, token)
-            results["user"] = user_info["name"]
-            all_results.append(results)
+            token = auth_data["access_token"]
+            print(f"✅ Logged in successfully")
 
-    # Summary
-    print(f"\n\n{'='*80}")
-    print(f"📊 AUDIT SUMMARY")
-    print(f"{'='*80}")
+            # Get portfolios
+            portfolios = get_portfolios(token)
+            if not portfolios:
+                print(f"⚠️  No portfolios found for user")
+                continue
 
-    total_portfolios = len(all_results)
-    total_positions = sum(r.get("position_count", 0) for r in all_results)
-    total_value = sum(r.get("total_value", 0) for r in all_results)
+            print(f"✅ Found {len(portfolios)} portfolio(s)")
 
-    print(f"Total Portfolios: {total_portfolios}")
-    print(f"Total Positions: {total_positions}")
-    print(f"Total Value: ${total_value:,.2f}")
+            # Audit each portfolio
+            for portfolio in portfolios:
+                results = audit_portfolio(portfolio, token, report)
+                results["user"] = user_info["name"]
+                all_results.append(results)
+
+        # Summary
+        print(f"\n\n{'='*80}")
+        print(f"📊 AUDIT SUMMARY")
+        print(f"{'='*80}")
+
+        report.write(f"\n\n{'='*120}\n")
+        report.write(f"AUDIT SUMMARY\n")
+        report.write(f"{'='*120}\n")
+
+        total_portfolios = len(all_results)
+        total_positions = sum(r.get("position_count", 0) for r in all_results)
+        total_value = sum(r.get("total_value", 0) for r in all_results)
+
+        summary_lines = [
+            f"Total Portfolios: {total_portfolios}",
+            f"Total Positions: {total_positions}",
+            f"Total Value: ${total_value:,.2f}"
+        ]
+
+        for line in summary_lines:
+            print(line)
+            report.write(line + "\n")
 
     # Save results
     output_file = "railway_audit_results.json"
     with open(output_file, "w") as f:
         json.dump(all_results, f, indent=2)
 
-    print(f"\n✅ Audit complete! Results saved to: {output_file}")
+    print(f"\n✅ Audit complete!")
+    print(f"   - JSON results: {output_file}")
+    print(f"   - Detailed report: {report_filename}")
 
 
 if __name__ == "__main__":

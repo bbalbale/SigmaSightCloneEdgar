@@ -4,6 +4,7 @@ Railway Market Data Audit Script
 Assesses market data storage (company profiles, prices, factor ETFs)
 """
 import requests
+import json
 from typing import Dict, Any, List
 
 RAILWAY_URL = "https://sigmasight-be-production.up.railway.app/api/v1"
@@ -83,10 +84,14 @@ def test_market_quotes(symbols: List[str], token: str):
         return None
 
 
-def test_historical_prices(portfolio_id: str, symbols: List[str], token: str):
+def test_historical_prices(portfolio_id: str, symbols: List[str], token: str, report_file=None):
     """Test historical prices endpoint with detailed per-symbol breakdown"""
     print(f"\n📈 Testing Historical Prices - Detailed Per-Position Coverage")
     print(f"=" * 80)
+
+    if report_file:
+        report_file.write(f"\n📈 HISTORICAL PRICES - DETAILED PER-POSITION COVERAGE\n")
+        report_file.write(f"{'='*80}\n")
 
     response = requests.get(
         f"{RAILWAY_URL}/data/prices/historical/{portfolio_id}",
@@ -146,6 +151,10 @@ def test_historical_prices(portfolio_id: str, symbols: List[str], token: str):
         print(f"{'SYMBOL':<12} {'STATUS':<6} {'DAYS':<6} {'FIRST DATE':<12} {'LAST DATE':<12}")
         print(f"{'-'*12} {'-'*6} {'-'*6} {'-'*12} {'-'*12}")
 
+        if report_file:
+            report_file.write(f"\n{'SYMBOL':<12} {'STATUS':<6} {'DAYS':<6} {'FIRST DATE':<12} {'LAST DATE':<12}\n")
+            report_file.write(f"{'-'*12} {'-'*6} {'-'*6} {'-'*12} {'-'*12}\n")
+
         for entry in coverage_report:
             symbol = entry["symbol"]
             status = entry["status"]
@@ -153,7 +162,10 @@ def test_historical_prices(portfolio_id: str, symbols: List[str], token: str):
             first = entry["first_date"] or "N/A"
             last = entry["last_date"] or "N/A"
 
-            print(f"{symbol:<12} {status:<6} {days:<6} {first:<12} {last:<12}")
+            line = f"{symbol:<12} {status:<6} {days:<6} {first:<12} {last:<12}"
+            print(line)
+            if report_file:
+                report_file.write(line + "\n")
 
         # Summary stats
         with_data = sum(1 for e in coverage_report if e["days"] > 0)
@@ -166,6 +178,14 @@ def test_historical_prices(portfolio_id: str, symbols: List[str], token: str):
         print(f"   With Data: {with_data} ({with_data/len(coverage_report)*100:.1f}%)")
         print(f"   Missing Data: {without_data} ({without_data/len(coverage_report)*100:.1f}%)")
         print(f"   Average Days per Symbol: {avg_days:.1f}")
+
+        if report_file:
+            report_file.write(f"\n{'='*80}\n")
+            report_file.write(f"HISTORICAL DATA SUMMARY:\n")
+            report_file.write(f"   Total Symbols: {len(coverage_report)}\n")
+            report_file.write(f"   With Data: {with_data} ({with_data/len(coverage_report)*100:.1f}%)\n")
+            report_file.write(f"   Missing Data: {without_data} ({without_data/len(coverage_report)*100:.1f}%)\n")
+            report_file.write(f"   Average Days per Symbol: {avg_days:.1f}\n")
 
         return {
             "coverage_report": coverage_report,
@@ -212,10 +232,14 @@ def test_factor_etf_prices(token: str):
         return None
 
 
-def test_company_profiles(symbols: List[str], token: str):
+def test_company_profiles(symbols: List[str], token: str, report_file=None):
     """Test if company profiles exist (indirect via position details)"""
     print(f"\n🏢 Testing Company Profile Data")
     print(f"=" * 80)
+
+    if report_file:
+        report_file.write(f"\n🏢 COMPANY PROFILE DATA\n")
+        report_file.write(f"{'='*80}\n")
 
     # Get portfolios to find portfolio_id
     portfolios = requests.get(
@@ -246,8 +270,15 @@ def test_company_profiles(symbols: List[str], token: str):
         with_company_name = sum(1 for p in positions if p.get("company_name"))
         without_company_name = len(positions) - with_company_name
 
-        print(f"   With company name: {with_company_name} ({with_company_name/len(positions)*100:.1f}%)")
-        print(f"   Missing company name: {without_company_name} ({without_company_name/len(positions)*100:.1f}%)")
+        coverage_pct = (with_company_name/len(positions)*100) if positions else 0
+
+        print(f"   With company name: {with_company_name} ({coverage_pct:.1f}%)")
+        print(f"   Missing company name: {without_company_name} ({100-coverage_pct:.1f}%)")
+
+        if report_file:
+            report_file.write(f"Total positions: {len(positions)}\n")
+            report_file.write(f"With company name: {with_company_name} ({coverage_pct:.1f}%)\n")
+            report_file.write(f"Missing company name: {without_company_name} ({100-coverage_pct:.1f}%)\n")
 
         if with_company_name > 0:
             sample = next((p for p in positions if p.get("company_name")), None)
@@ -270,74 +301,108 @@ def main():
     print("🚀 Railway Market Data Audit")
     print(f"Backend: {RAILWAY_URL}\n")
 
-    # Login
-    print("🔐 Logging in...")
-    token = login()
-    if not token:
-        return
+    # Open output file for detailed report
+    report_filename = "railway_market_data_audit_report.txt"
 
-    print("✅ Authenticated\n")
+    with open(report_filename, "w", encoding="utf-8") as report:
+        from datetime import datetime
+        report.write("=" * 80 + "\n")
+        report.write("RAILWAY MARKET DATA AUDIT - DETAILED REPORT\n")
+        report.write("=" * 80 + "\n")
+        report.write(f"Backend: {RAILWAY_URL}\n")
+        report.write(f"Date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n")
 
-    # Get portfolio symbols
-    print("📋 Fetching portfolio symbols...")
-    symbols = get_portfolio_symbols(token)
-    print(f"✅ Found {len(symbols)} unique symbols\n")
-    print(f"   Symbols: {', '.join(symbols[:10])}{'...' if len(symbols) > 10 else ''}\n")
+        # Login
+        print("🔐 Logging in...")
+        token = login()
+        if not token:
+            return
 
-    # Test each market data endpoint
-    results = {}
+        print("✅ Authenticated\n")
 
-    # 1. Company Profiles
-    results["company_profiles"] = test_company_profiles(symbols, token)
+        # Get portfolio symbols
+        print("📋 Fetching portfolio symbols...")
+        symbols = get_portfolio_symbols(token)
+        print(f"✅ Found {len(symbols)} unique symbols\n")
+        print(f"   Symbols: {', '.join(symbols[:10])}{'...' if len(symbols) > 10 else ''}\n")
 
-    # 2. Market Quotes
-    results["market_quotes"] = test_market_quotes(symbols, token)
+        report.write(f"Total Unique Symbols: {len(symbols)}\n")
+        report.write(f"Symbols: {', '.join(symbols)}\n\n")
 
-    # 3. Historical Prices (with detailed per-symbol coverage)
-    portfolios = requests.get(
-        f"{RAILWAY_URL}/data/portfolios",
-        headers={"Authorization": f"Bearer {token}"}
-    ).json()
-    portfolio_id = portfolios[0]["id"] if portfolios else None
+        # Test each market data endpoint
+        results = {}
 
-    if portfolio_id:
-        results["historical_prices"] = test_historical_prices(portfolio_id, symbols, token)
+        # 1. Company Profiles
+        results["company_profiles"] = test_company_profiles(symbols, token, report)
 
-    # 4. Factor ETF Prices
-    results["factor_etfs"] = test_factor_etf_prices(token)
+        # 2. Market Quotes
+        results["market_quotes"] = test_market_quotes(symbols, token)
 
-    # Summary
-    print(f"\n\n{'='*80}")
-    print(f"📊 MARKET DATA AUDIT SUMMARY")
-    print(f"{'='*80}")
+        # 3. Historical Prices (with detailed per-symbol coverage)
+        portfolios = requests.get(
+            f"{RAILWAY_URL}/data/portfolios",
+            headers={"Authorization": f"Bearer {token}"}
+        ).json()
+        portfolio_id = portfolios[0]["id"] if portfolios else None
 
-    if results.get("company_profiles"):
-        cp = results["company_profiles"]
-        print(f"Company Profiles: {cp['with_profile']}/{cp['total']} ({cp['with_profile']/cp['total']*100:.1f}%)")
+        if portfolio_id:
+            results["historical_prices"] = test_historical_prices(portfolio_id, symbols, token, report)
 
-    if results.get("market_quotes"):
-        print(f"Market Quotes: ✅ Working")
-    else:
-        print(f"Market Quotes: ❌ Not available")
+        # 4. Factor ETF Prices
+        results["factor_etfs"] = test_factor_etf_prices(token)
 
-    if results.get("historical_prices"):
-        hp = results["historical_prices"]
-        summary = hp.get("summary", {})
-        total = summary.get("total_symbols", 0)
-        with_data = summary.get("with_data", 0)
-        avg_days = summary.get("avg_days", 0)
-        print(f"Historical Prices: {with_data}/{total} symbols with data ({avg_days:.1f} avg days)")
-    else:
-        print(f"Historical Prices: ❌ Not available")
+        # Summary
+        print(f"\n\n{'='*80}")
+        print(f"📊 MARKET DATA AUDIT SUMMARY")
+        print(f"{'='*80}")
 
-    if results.get("factor_etfs"):
-        fe = results["factor_etfs"]
-        etf_count = len(fe.get("factor_etfs", []))
-        print(f"Factor ETFs: {etf_count} tracked")
-    else:
-        print(f"Factor ETFs: ❌ Not available")
+        report.write(f"\n\n{'='*80}\n")
+        report.write(f"MARKET DATA AUDIT SUMMARY\n")
+        report.write(f"{'='*80}\n")
+
+        summary_lines = []
+
+        if results.get("company_profiles"):
+            cp = results["company_profiles"]
+            line = f"Company Profiles: {cp['with_profile']}/{cp['total']} ({cp['with_profile']/cp['total']*100:.1f}%)"
+            summary_lines.append(line)
+
+        if results.get("market_quotes"):
+            summary_lines.append("Market Quotes: ✅ Working")
+        else:
+            summary_lines.append("Market Quotes: ❌ Not available")
+
+        if results.get("historical_prices"):
+            hp = results["historical_prices"]
+            summary = hp.get("summary", {})
+            total = summary.get("total_symbols", 0)
+            with_data = summary.get("with_data", 0)
+            avg_days = summary.get("avg_days", 0)
+            line = f"Historical Prices: {with_data}/{total} symbols with data ({avg_days:.1f} avg days)"
+            summary_lines.append(line)
+        else:
+            summary_lines.append("Historical Prices: ❌ Not available")
+
+        if results.get("factor_etfs"):
+            fe = results["factor_etfs"]
+            etf_count = len(fe.get("factor_etfs", []))
+            line = f"Factor ETFs: {etf_count} tracked"
+            summary_lines.append(line)
+        else:
+            summary_lines.append("Factor ETFs: ❌ Not available")
+
+        for line in summary_lines:
+            print(line)
+            report.write(line + "\n")
+
+    # Save JSON results
+    json_filename = "railway_market_data_audit_results.json"
+    with open(json_filename, "w") as f:
+        json.dump(results, f, indent=2)
 
     print(f"\n✅ Market data audit complete!")
+    print(f"   - JSON results: {json_filename}")
+    print(f"   - Detailed report: {report_filename}")
 
 
 if __name__ == "__main__":
