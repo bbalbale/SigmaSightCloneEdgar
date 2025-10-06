@@ -3,7 +3,7 @@ Constants for factor analysis calculations
 """
 
 # Factor calculation parameters
-REGRESSION_WINDOW_DAYS = 150  # Adjusted for FMP API data availability (was 252 - ~12 months, ~6 months trading days)
+REGRESSION_WINDOW_DAYS = 90   # ~3 months of data for factor regression (reduced from 150 for faster calculations)
 MIN_REGRESSION_DAYS = 60      # 3-month minimum data requirement
 BETA_CAP_LIMIT = 3.0         # Cap factor betas at ±3 to prevent outliers
 

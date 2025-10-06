@@ -408,17 +408,17 @@ async def fetch_historical_prices(
 ) -> pd.DataFrame:
     """
     Fetch historical prices for multiple symbols over a date range
-    Used for factor analysis calculations requiring 252-day history
-    
+    Used for factor analysis calculations requiring historical lookback
+
     Args:
         db: Database session
         symbols: List of symbols to fetch
         start_date: Start date for historical data
         end_date: End date for historical data
-        
+
     Returns:
         DataFrame with dates as index and symbols as columns, containing closing prices
-        
+
     Note:
         This function is designed for factor calculations requiring long lookback periods
         It ensures data availability and handles missing data gracefully
@@ -480,18 +480,18 @@ async def fetch_historical_prices(
 async def validate_historical_data_availability(
     db: AsyncSession,
     symbols: List[str],
-    required_days: int = 252,
+    required_days: int = None,
     as_of_date: Optional[date] = None
 ) -> Dict[str, Tuple[bool, int, Optional[date], Optional[date]]]:
     """
     Validate if symbols have sufficient historical data for factor calculations
-    
+
     Args:
         db: Database session
         symbols: List of symbols to validate
-        required_days: Minimum number of days required (default 252 for factor analysis)
+        required_days: Minimum number of days required (defaults to REGRESSION_WINDOW_DAYS from constants)
         as_of_date: Date to calculate lookback from (defaults to today)
-        
+
     Returns:
         Dictionary mapping symbol to tuple of:
         - has_sufficient_data: Boolean indicating if minimum days available
@@ -499,6 +499,10 @@ async def validate_historical_data_availability(
         - first_date: Earliest date with data
         - last_date: Latest date with data
     """
+    # Use REGRESSION_WINDOW_DAYS if not specified
+    if required_days is None:
+        from app.constants.factors import REGRESSION_WINDOW_DAYS
+        required_days = REGRESSION_WINDOW_DAYS
     if not as_of_date:
         as_of_date = date.today()
     

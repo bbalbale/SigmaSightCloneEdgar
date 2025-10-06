@@ -223,14 +223,16 @@ async def calculate_factor_betas_hybrid(
     use_delta_adjusted: bool = False
 ) -> Dict[str, Any]:
     """
-    Calculate portfolio factor betas using 252-day regression analysis
-    
+    Calculate portfolio factor betas using regression analysis
+
+    Uses REGRESSION_WINDOW_DAYS from constants (currently 90 days)
+
     Args:
         db: Database session
         portfolio_id: Portfolio ID to analyze
         calculation_date: Date for the calculation (end of regression window)
         use_delta_adjusted: Use delta-adjusted exposures for options
-        
+
     Returns:
         Dictionary containing:
         - factor_betas: Dict mapping factor names to beta values

@@ -1,0 +1,38 @@
+{
+  "portfolio_snapshots": {
+    "total_snapshots": 0,
+    "portfolios_with_snapshots": 0,
+    "date_range": null
+  },
+  "factor_exposures": {
+    "total_exposures": 0,
+    "positions_with_factors": 0
+  },
+  "correlations": {
+    "calculation_records": 0,
+    "pairwise_correlations": 0,
+    "clusters": 0
+  },
+  "greeks": {
+    "total_greeks": 0,
+    "positions_with_greeks": 0
+  },
+  "interest_rate_betas": {
+    "total_ir_betas": 0,
+    "positions_with_ir_beta": 0
+  },
+  "stress_tests": {
+    "total_results": 0,
+    "portfolios_tested": 0
+  },
+  "batch_jobs": {
+    "total_jobs": 0,
+    "successful_jobs": 0,
+    "failed_jobs": 0
+  },
+  "metadata": {
+    "timestamp": "2025-10-06 07:12:11",
+    "assessment": "NO BATCH CALCULATIONS DETECTED",
+    "assessment_detail": "Database contains only seed data + market data sync. Batch orchestration has NOT been executed on Railway."
+  }
+}
