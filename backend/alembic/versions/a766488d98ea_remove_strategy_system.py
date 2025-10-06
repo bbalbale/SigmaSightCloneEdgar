@@ -32,8 +32,9 @@ def upgrade() -> None:
     op.execute("UPDATE positions SET strategy_id = NULL WHERE strategy_id IS NOT NULL")
 
     # Drop FK constraint, index, and column on positions
-    op.drop_index("idx_positions_strategy", table_name="positions")
-    op.drop_constraint("fk_positions_strategy", "positions", type_="foreignkey")
+    op.execute("DROP INDEX IF EXISTS idx_positions_strategy")
+    op.execute("ALTER TABLE positions DROP CONSTRAINT IF EXISTS fk_positions_strategy")
+    op.execute("ALTER TABLE positions DROP CONSTRAINT IF EXISTS positions_strategy_id_fkey")
     op.drop_column("positions", "strategy_id")
 
     # Drop child tables before the parent strategies table

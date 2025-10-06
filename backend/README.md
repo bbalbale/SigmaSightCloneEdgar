@@ -22,6 +22,44 @@ uv run python run.py
 Backend runs at: http://localhost:8000
 API Docs: http://localhost:8000/docs
 
+## Updating Your Local Environment
+
+### Database Migrations
+
+When pulling updates that include database migrations:
+
+```bash
+# 1. Pull latest code
+git pull origin main
+
+# 2. Apply migrations
+uv run alembic upgrade head
+
+# 3. If migration requires reset (check migration notes or errors):
+uv run python scripts/database/reset_and_seed.py reset --confirm
+```
+
+### ⚠️ Breaking Change: Strategy System Removal (October 2025)
+
+Migration `a766488d98ea` removes the legacy strategy system. **Requires full database reset.**
+
+```bash
+# After pulling this change:
+git pull origin main
+uv run alembic upgrade head  # Apply migration
+uv run python scripts/database/reset_and_seed.py reset --confirm  # Reset required
+```
+
+**What this does:**
+- Drops all tables and recreates schema with position tagging system
+- Seeds 3 demo portfolios with 75 positions and 130 position-tag relationships
+- Removes: strategies, strategy_legs, strategy_metrics, strategy_tags tables
+- Adds: Direct position-to-tag relationships via `position_tags` junction table
+
+**What you'll lose:**
+- Any custom data (demo data will be recreated)
+- Strategy configurations (deprecated system, now uses position tagging)
+
 ### Production (Docker)
 
 **Build:**

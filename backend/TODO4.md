@@ -1442,6 +1442,8 @@ def downgrade() -> None:
   ```
 
 - [x] Created migration `a766488d98ea_remove_strategy_system.py` (tested via `python -m compileall`).
+- [x] Executed `uv run python -m alembic upgrade head` against local dev database (Oct 5, 2025).
+- [x] Verified via SQL (`to_regclass('public.strategies')`, information_schema) that strategy tables/columns are gone locally.
 - [ ] Execute `alembic upgrade head` on staging/production during release window (pending devops schedule).
 - [ ] Post-migration DB verification (psql checks above) to be run after deployment.
 
@@ -1755,7 +1757,7 @@ def downgrade() -> None:
 
 - Seeding: `backend/app/db/seed_demo_portfolios.py` now uses `PositionTagService.bulk_assign_tags`; run `uv run python scripts/database/reset_and_seed.py reset --confirm` then confirm `strategies` table absent (see `a766488d98ea` migration).
 - Code cleanup: Strategy router/service/model/schemas deleted (`backend/app/api/v1/router.py`, `backend/app/api/v1/tags.py`, `backend/app/models/*`, `backend/app/services/*`, tests in `backend/scripts/manual_tests`). `uv run python -m compileall app` succeeds.
-- Migration: `backend/alembic/versions/a766488d98ea_remove_strategy_system.py` drops `positions.strategy_id` + strategy tables; downgrade raises `NotImplementedError`. Not yet applied (schedule `alembic upgrade head`).
+- Migration: `backend/alembic/versions/a766488d98ea_remove_strategy_system.py` drops `positions.strategy_id` + strategy tables; downgrade raises `NotImplementedError`. Applied locally via `uv run python -m alembic upgrade head`; staging/production run still pending.
 - Docs: API reference, README, CLAUDE, TODO4, Ben Mock portfolios, and frontend docs updated for tag-only architecture (see `backend/_docs/reference/API_REFERENCE_V1.4.6.md`, `README.md`, `frontend/_docs/API_AND_DATABASE_SUMMARY.md`, etc.).
 - Review guidance: focus diff review on `PositionTagService` usage, removal of strategy imports, migration ordering. Suggested commands: `git diff backend/app/db/seed_demo_portfolios.py`, `uv run python -m compileall app`.
 
@@ -3052,4 +3054,3 @@ All 5 pre-implementation requirements have been resolved. See Section 4.1.5 for 
 5. ❌ **RESOLVE REMAINING 2 BLOCKERS** (see Section 4.1.4)
 6. Update Phase 4.0 status from ⚠️ BLOCKED → 🚀 READY FOR IMPLEMENTATION
 7. Begin Phase 4.1 (Development & Local Testing)
-
