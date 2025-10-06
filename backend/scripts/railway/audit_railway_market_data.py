@@ -97,7 +97,7 @@ def test_historical_prices(portfolio_id: str, symbols: List[str], token: str, re
         f"{RAILWAY_URL}/data/prices/historical/{portfolio_id}",
         headers={"Authorization": f"Bearer {token}"},
         params={
-            "lookback_days": 90,  # Increased to see more data
+            "lookback_days": 252,  # One trading year of data
             "interval": "daily"
         }
     )
@@ -107,37 +107,29 @@ def test_historical_prices(portfolio_id: str, symbols: List[str], token: str, re
         print(f"✅ Historical Prices: {response.status_code}\n")
 
         # Get timeseries data per symbol
-        timeseries = prices.get("timeseries", {})
+        timeseries = prices.get("symbols", {})
 
         # Build detailed coverage report
         coverage_report = []
 
         for symbol in sorted(symbols):
-            symbol_data = timeseries.get(symbol, [])
+            symbol_data = timeseries.get(symbol, {})
 
-            if symbol_data:
-                # Calculate date range
-                dates = [entry.get("date") for entry in symbol_data if entry.get("date")]
-                if dates:
-                    min_date = min(dates)
-                    max_date = max(dates)
-                    days_count = len(dates)
+            # API returns {dates: [...], open: [...], close: [...], ...}
+            # Not a list of objects
+            if symbol_data and symbol_data.get("dates"):
+                dates = symbol_data["dates"]
+                min_date = min(dates)
+                max_date = max(dates)
+                days_count = len(dates)
 
-                    coverage_report.append({
-                        "symbol": symbol,
-                        "days": days_count,
-                        "first_date": min_date,
-                        "last_date": max_date,
-                        "status": "✅"
-                    })
-                else:
-                    coverage_report.append({
-                        "symbol": symbol,
-                        "days": 0,
-                        "first_date": None,
-                        "last_date": None,
-                        "status": "❌"
-                    })
+                coverage_report.append({
+                    "symbol": symbol,
+                    "days": days_count,
+                    "first_date": min_date,
+                    "last_date": max_date,
+                    "status": "✅"
+                })
             else:
                 coverage_report.append({
                     "symbol": symbol,
@@ -210,20 +202,21 @@ def test_factor_etf_prices(token: str):
     response = requests.get(
         f"{RAILWAY_URL}/data/factors/etf-prices",
         headers={"Authorization": f"Bearer {token}"},
-        params={"lookback_days": 90}
+        params={"lookback_days": 252}
     )
 
     if response.status_code == 200:
         factors = response.json()
         print(f"✅ Factor ETF Prices: {response.status_code}")
 
-        etfs = factors.get("factor_etfs", [])
-        print(f"   Factor ETFs tracked: {len(etfs)}")
+        # API returns {metadata: {...}, data: {symbol: {...}, ...}}
+        etf_data = factors.get("data", {})
+        print(f"   Factor ETFs tracked: {len(etf_data)}")
 
-        for etf in etfs[:5]:  # Show first 5
-            symbol = etf.get("symbol", "N/A")
-            data_points = len(etf.get("prices", []))
-            print(f"      {symbol}: {data_points} data points")
+        for symbol, data in list(etf_data.items())[:5]:  # Show first 5
+            factor_name = data.get("factor_name", "N/A")
+            current_price = data.get("current_price", 0)
+            print(f"      {symbol} ({factor_name}): ${current_price:.2f}")
 
         return factors
     else:
@@ -385,7 +378,7 @@ def main():
 
         if results.get("factor_etfs"):
             fe = results["factor_etfs"]
-            etf_count = len(fe.get("factor_etfs", []))
+            etf_count = len(fe.get("data", {}))
             line = f"Factor ETFs: {etf_count} tracked"
             summary_lines.append(line)
         else:
