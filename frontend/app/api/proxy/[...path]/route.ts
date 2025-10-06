@@ -13,25 +13,72 @@ console.log('Docker Environment:', process.env.DOCKER_ENV)
  * Includes error handling and timeout management
  */
 
+function mergeHeaders(...sources: Array<Record<string, string> | Headers | undefined | null>) {
+  const result: Record<string, string> = {}
+  for (const source of sources) {
+    if (!source) continue
+    if (source instanceof Headers) {
+      source.forEach((value, key) => {
+        result[key] = value
+      })
+    } else {
+      Object.assign(result, source)
+    }
+  }
+  return result
+}
+
 async function handleProxyRequest(
   url: string,
-  options: RequestInit
+  options: RequestInit,
+  redirectCount = 0
 ): Promise<Response> {
   try {
-    // Create AbortController for timeout
+    // Create AbortController for timeout and combine with caller signal if provided
     const controller = new AbortController()
     const timeoutId = setTimeout(() => controller.abort(), PROXY_TIMEOUT)
-    
+
+    const { signal: callerSignal, ...restOptions } = options
+    const signals = [controller.signal]
+    if (callerSignal) {
+      signals.push(callerSignal)
+    }
+    const combinedSignal = signals.length > 1 ? AbortSignal.any(signals) : signals[0]
+
     const response = await fetch(url, {
-      ...options,
-      signal: controller.signal,
+      ...restOptions,
+      headers: mergeHeaders(restOptions.headers),
+      redirect: 'manual',
+      signal: combinedSignal,
     })
-    
+
     clearTimeout(timeoutId)
+
+    // Manually follow redirects so we never drop auth headers
+    if ([301, 302, 303, 307, 308].includes(response.status)) {
+      const location = response.headers.get('location')
+      if (!location || redirectCount >= 5) {
+        return response
+      }
+
+      const nextUrl = new URL(location, url).toString()
+      const nextOptions: RequestInit = {
+        ...options,
+        headers: mergeHeaders(options.headers),
+      }
+
+      if (response.status === 303) {
+        nextOptions.method = 'GET'
+        delete nextOptions.body
+      }
+
+      return handleProxyRequest(nextUrl, nextOptions, redirectCount + 1)
+    }
+
     return response
   } catch (error: any) {
     console.error('Proxy request error:', error)
-    
+
     // Handle timeout errors
     if (error.name === 'AbortError') {
       return new Response(

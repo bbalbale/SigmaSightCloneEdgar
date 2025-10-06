@@ -1,4 +1,5 @@
 import { apiClient } from './apiClient';
+import { authManager } from './authManager';
 import { API_ENDPOINTS, REQUEST_CONFIGS } from '@/config/api';
 import type {
   TagItem,
@@ -36,60 +37,105 @@ import type {
  * - Docs: backend/TAGGING_ARCHITECTURE.md
  */
 export class TagsApi {
+  private getAuthHeaders() {
+    const token = authManager.getAccessToken();
+    if (!token) {
+      throw new Error('Not authenticated');
+    }
+
+    return {
+      Authorization: `Bearer ${token}`,
+    };
+  }
+
   // ===== TAG MANAGEMENT METHODS =====
   // Create, update, delete, and manage tags
   async list(includeArchived = false): Promise<TagItem[]> {
     const url = `${API_ENDPOINTS.TAGS.LIST}?include_archived=${includeArchived}`;
-    const resp = await apiClient.get(url, REQUEST_CONFIGS.STANDARD);
+    const resp = await apiClient.get(url, {
+      ...REQUEST_CONFIGS.STANDARD,
+      headers: this.getAuthHeaders(),
+    });
     return (resp.tags as TagItem[]) || [];
   }
 
   async create(name: string, color = '#4A90E2', description?: string): Promise<TagItem> {
-    const resp = await apiClient.post(API_ENDPOINTS.TAGS.CREATE, { name, color, description }, REQUEST_CONFIGS.STANDARD);
-    return resp.data as TagItem;
+    const resp = await apiClient.post(
+      API_ENDPOINTS.TAGS.CREATE,
+      { name, color, description },
+      {
+        ...REQUEST_CONFIGS.STANDARD,
+        headers: this.getAuthHeaders(),
+      }
+    );
+    return resp as TagItem;
   }
 
   async get(tagId: string): Promise<TagItem> {
     const url = API_ENDPOINTS.TAGS.GET(tagId);
-    const resp = await apiClient.get(url, REQUEST_CONFIGS.STANDARD);
-    return resp.data as TagItem;
+    const resp = await apiClient.get(url, {
+      ...REQUEST_CONFIGS.STANDARD,
+      headers: this.getAuthHeaders(),
+    });
+    return resp as TagItem;
   }
 
   async update(tagId: string, request: UpdateTagRequest): Promise<TagItem> {
     const url = API_ENDPOINTS.TAGS.UPDATE(tagId);
-    const resp = await apiClient.patch(url, request, REQUEST_CONFIGS.STANDARD);
-    return resp.data as TagItem;
+    const resp = await apiClient.patch(url, request, {
+      ...REQUEST_CONFIGS.STANDARD,
+      headers: this.getAuthHeaders(),
+    });
+    return resp as TagItem;
   }
 
   async delete(tagId: string): Promise<void> {
     const url = API_ENDPOINTS.TAGS.ARCHIVE(tagId);
-    await apiClient.post(url, {}, REQUEST_CONFIGS.STANDARD);
+    await apiClient.post(url, {}, {
+      ...REQUEST_CONFIGS.STANDARD,
+      headers: this.getAuthHeaders(),
+    });
   }
 
   async restore(tagId: string): Promise<TagItem> {
     const url = API_ENDPOINTS.TAGS.RESTORE(tagId);
-    const resp = await apiClient.post(url, {}, REQUEST_CONFIGS.STANDARD);
-    return resp.data as TagItem;
+    const resp = await apiClient.post(url, {}, {
+      ...REQUEST_CONFIGS.STANDARD,
+      headers: this.getAuthHeaders(),
+    });
+    return resp as TagItem;
   }
 
   async getStrategies(tagId: string): Promise<Array<{ id: string; name: string; strategy_type: string }>> {
     const url = API_ENDPOINTS.TAGS.STRATEGIES_BY_TAG(tagId);
-    const resp = await apiClient.get(url, REQUEST_CONFIGS.STANDARD);
-    return (resp.data?.strategies || []) as Array<{ id: string; name: string; strategy_type: string }>;
+    const resp = await apiClient.get(url, {
+      ...REQUEST_CONFIGS.STANDARD,
+      headers: this.getAuthHeaders(),
+    });
+    return (resp?.strategies || []) as Array<{ id: string; name: string; strategy_type: string }>;
   }
 
   async defaults(): Promise<TagItem[]> {
-    const resp = await apiClient.post(API_ENDPOINTS.TAGS.DEFAULTS, {}, REQUEST_CONFIGS.STANDARD);
-    return (resp.data?.tags || []) as TagItem[];
+    const resp = await apiClient.post(API_ENDPOINTS.TAGS.DEFAULTS, {}, {
+      ...REQUEST_CONFIGS.STANDARD,
+      headers: this.getAuthHeaders(),
+    });
+    return (resp?.tags || []) as TagItem[];
   }
 
   async reorder(tagIds: string[]): Promise<void> {
-    await apiClient.post('/api/v1/tags/reorder', { tag_ids: tagIds }, REQUEST_CONFIGS.STANDARD);
+    await apiClient.post('/api/v1/tags/reorder', { tag_ids: tagIds }, {
+      ...REQUEST_CONFIGS.STANDARD,
+      headers: this.getAuthHeaders(),
+    });
   }
 
   async batchUpdate(updates: BatchTagUpdate[]): Promise<TagItem[]> {
-    const resp = await apiClient.post('/api/v1/tags/batch-update', { updates }, REQUEST_CONFIGS.STANDARD);
-    return (resp.data?.tags || []) as TagItem[];
+    const resp = await apiClient.post('/api/v1/tags/batch-update', { updates }, {
+      ...REQUEST_CONFIGS.STANDARD,
+      headers: this.getAuthHeaders(),
+    });
+    return (resp?.tags || []) as TagItem[];
   }
 
   // ===== POSITION TAGGING METHODS (NEW SYSTEM - PREFERRED) =====
@@ -101,8 +147,11 @@ export class TagsApi {
    */
   async getPositionTags(positionId: string): Promise<TagItem[]> {
     const url = API_ENDPOINTS.POSITION_TAGS.GET(positionId);
-    const resp = await apiClient.get(url, REQUEST_CONFIGS.STANDARD);
-    return (Array.isArray(resp.data) ? resp.data : []) as TagItem[];
+    const resp = await apiClient.get(url, {
+      ...REQUEST_CONFIGS.STANDARD,
+      headers: this.getAuthHeaders(),
+    });
+    return (Array.isArray(resp) ? resp : []) as TagItem[];
   }
 
   /**
@@ -114,7 +163,10 @@ export class TagsApi {
    */
   async addPositionTags(positionId: string, tagIds: string[], replaceExisting = false): Promise<void> {
     const url = API_ENDPOINTS.POSITION_TAGS.ADD(positionId);
-    await apiClient.post(url, { tag_ids: tagIds, replace_existing: replaceExisting }, REQUEST_CONFIGS.STANDARD);
+    await apiClient.post(url, { tag_ids: tagIds, replace_existing: replaceExisting }, {
+      ...REQUEST_CONFIGS.STANDARD,
+      headers: this.getAuthHeaders(),
+    });
   }
 
   /**
@@ -126,7 +178,10 @@ export class TagsApi {
   async removePositionTags(positionId: string, tagIds: string[]): Promise<void> {
     const url = `${API_ENDPOINTS.POSITION_TAGS.REMOVE(positionId)}/remove`;
     // Use POST endpoint with body for better compatibility
-    await apiClient.post(url, { tag_ids: tagIds }, REQUEST_CONFIGS.STANDARD);
+    await apiClient.post(url, { tag_ids: tagIds }, {
+      ...REQUEST_CONFIGS.STANDARD,
+      headers: this.getAuthHeaders(),
+    });
   }
 
   /**
@@ -137,7 +192,10 @@ export class TagsApi {
    */
   async replacePositionTags(positionId: string, tagIds: string[]): Promise<void> {
     const url = API_ENDPOINTS.POSITION_TAGS.REPLACE(positionId);
-    await apiClient.patch(url, { tag_ids: tagIds }, REQUEST_CONFIGS.STANDARD);
+    await apiClient.patch(url, { tag_ids: tagIds }, {
+      ...REQUEST_CONFIGS.STANDARD,
+      headers: this.getAuthHeaders(),
+    });
   }
 
   /**
@@ -157,8 +215,11 @@ export class TagsApi {
     investment_class: string;
   }>> {
     const url = API_ENDPOINTS.TAGS.POSITIONS_BY_TAG(tagId);
-    const resp = await apiClient.get(url, REQUEST_CONFIGS.STANDARD);
-    return (resp.data?.positions || []) as Array<{
+    const resp = await apiClient.get(url, {
+      ...REQUEST_CONFIGS.STANDARD,
+      headers: this.getAuthHeaders(),
+    });
+    return (resp?.positions || []) as Array<{
       id: string;
       symbol: string;
       position_type: string;

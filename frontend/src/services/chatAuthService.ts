@@ -337,7 +337,7 @@ class ChatAuthService {
             'Accept': 'text/event-stream',
           },
           body: JSON.stringify({
-            message,
+            text: message,
             conversation_id: conversationId,
           }),
           signal: abortController.signal,
