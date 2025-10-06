@@ -466,15 +466,14 @@ logger.info(f"  - Cross-portfolio data availability: {avg_data_days:.0f} days av
 
 ## Existing Admin Batch Endpoints (app/api/v1/endpoints/admin_batch.py)
 
-### ✅ Keep and Enhance
+### ✅ Keep Unchanged
 
-| Endpoint | Current Status | Recommendation |
-|----------|---------------|----------------|
-| `POST /admin/batch/trigger/daily` | ✅ Working | **Enhance** → `/admin/batch/run` with force flag |
-| `POST /admin/batch/trigger/market-data` | ✅ Working | **Keep** - useful standalone operation |
-| `POST /admin/batch/trigger/correlations` | ✅ Working | **Keep** - weekly job, special case |
-| `GET /admin/batch/data-quality` | ✅ Working | **Keep** - pre-flight validation |
-| `POST /admin/batch/data-quality/refresh` | ✅ Working | **Keep** - targeted data refresh |
+| Endpoint | Current Status | Reason |
+|----------|---------------|---------|
+| `POST /admin/batch/trigger/market-data` | ✅ Working | Useful standalone operation |
+| `POST /admin/batch/trigger/correlations` | ✅ Working | Weekly job, special case |
+| `GET /admin/batch/data-quality` | ✅ Working | Pre-flight validation |
+| `POST /admin/batch/data-quality/refresh` | ✅ Working | Targeted data refresh |
 
 ### ⚠️ Fix Required
 
@@ -483,15 +482,16 @@ logger.info(f"  - Cross-portfolio data availability: {avg_data_days:.0f} days av
 | `GET /admin/batch/jobs/status` | Line 234: `BatchJob.portfolio_id` doesn't exist<br>Line 254: `job.to_dict()` doesn't exist | Add `portfolio_id` field to BatchJob model<br>Add `to_dict()` method or remove references |
 | `GET /admin/batch/jobs/summary` | Line 254: `job.to_dict()` doesn't exist | Same as above |
 
-### ❌ Delete
+### ❌ Delete and Replace
 
 | Endpoint | Reason | Replacement |
 |----------|--------|-------------|
+| `POST /admin/batch/trigger/daily` | Lacks tracking, force flag, progress monitoring | **NEW:** `POST /admin/batch/run` |
 | `POST /admin/batch/trigger/greeks` | Redundant | Use `/admin/batch/run?portfolio_id={id}` |
 | `POST /admin/batch/trigger/factors` | Redundant | Use `/admin/batch/run?portfolio_id={id}` |
 | `POST /admin/batch/trigger/stress-tests` | Redundant | Use `/admin/batch/run?portfolio_id={id}` |
 | `POST /admin/batch/trigger/snapshot` | Redundant | Use `/admin/batch/run?portfolio_id={id}` |
-| `DELETE /admin/batch/jobs/{job_id}/cancel` | Won't work without batch run tracking | Replace with `/admin/batch/run/current/cancel` |
+| `DELETE /admin/batch/jobs/{job_id}/cancel` | Won't work without batch run tracking | **NEW:** `POST /admin/batch/run/current/cancel` |
 | `GET /admin/batch/schedules` | **APScheduler not running** | Railway cron job (railway.json) |
 | `POST /admin/batch/scheduler/pause` | **APScheduler not running** | Railway dashboard to disable cron |
 | `POST /admin/batch/scheduler/resume` | **APScheduler not running** | Railway dashboard to enable cron |
@@ -506,12 +506,12 @@ logger.info(f"  - Cross-portfolio data availability: {avg_data_days:.0f} days av
 
 ---
 
-## 🎯 Proposed New/Enhanced Endpoints
+## 🎯 Proposed New Endpoints
 
-### 1. Enhanced Batch Execution Endpoint
+### 1. New Batch Execution Endpoint (Replaces /trigger/daily)
 
-**Replace:** `POST /admin/batch/trigger/daily`
-**New:** `POST /admin/batch/run`
+**Delete:** `POST /admin/batch/trigger/daily`
+**Create:** `POST /admin/batch/run`
 
 ```python
 @router.post("/run")
@@ -1138,31 +1138,32 @@ Monitoring batch progress...
 
 ## 📊 API Endpoint Summary
 
-### New Endpoints
+### Create New (4 endpoints)
 1. `POST /admin/batch/run` - Start batch with tracking and force option
 2. `GET /admin/batch/run/current` - Poll current batch status (real-time)
 3. `GET /admin/batch/run/{batch_run_id}` - Get specific batch run status
 4. `POST /admin/batch/run/current/cancel` - Cancel current batch
 
-### Enhanced Endpoints
+### Fix Existing (2 endpoints)
 1. `GET /admin/batch/jobs/status` - Fix portfolio_id and to_dict() issues
 2. `GET /admin/batch/jobs/summary` - Fix to_dict() issue
 
-### Keep Unchanged
+### Keep Unchanged (4 endpoints)
 1. `POST /admin/batch/trigger/market-data`
 2. `POST /admin/batch/trigger/correlations`
 3. `GET /admin/batch/data-quality`
 4. `POST /admin/batch/data-quality/refresh`
 
-### Delete
-1. `POST /admin/batch/trigger/greeks` → Use `/run?portfolio_id={id}`
-2. `POST /admin/batch/trigger/factors` → Use `/run?portfolio_id={id}`
-3. `POST /admin/batch/trigger/stress-tests` → Use `/run?portfolio_id={id}`
-4. `POST /admin/batch/trigger/snapshot` → Use `/run?portfolio_id={id}`
-5. `DELETE /admin/batch/jobs/{job_id}/cancel` → Use `/run/current/cancel`
-6. `GET /admin/batch/schedules` → Railway cron (not APScheduler)
-7. `POST /admin/batch/scheduler/pause` → Railway dashboard
-8. `POST /admin/batch/scheduler/resume` → Railway dashboard
+### Delete (9 endpoints)
+1. `POST /admin/batch/trigger/daily` → Replaced by `/admin/batch/run`
+2. `POST /admin/batch/trigger/greeks` → Use `/admin/batch/run?portfolio_id={id}`
+3. `POST /admin/batch/trigger/factors` → Use `/admin/batch/run?portfolio_id={id}`
+4. `POST /admin/batch/trigger/stress-tests` → Use `/admin/batch/run?portfolio_id={id}`
+5. `POST /admin/batch/trigger/snapshot` → Use `/admin/batch/run?portfolio_id={id}`
+6. `DELETE /admin/batch/jobs/{job_id}/cancel` → Replaced by `/admin/batch/run/current/cancel`
+7. `GET /admin/batch/schedules` → Railway cron (not APScheduler)
+8. `POST /admin/batch/scheduler/pause` → Railway dashboard
+9. `POST /admin/batch/scheduler/resume` → Railway dashboard
 
 ---
 
@@ -1173,6 +1174,6 @@ Monitoring batch progress...
 3. **Concurrent Run Prevention:** Avoid conflicts with `force` flag override
 4. **Better Monitoring:** Track progress percent, current job, elapsed time
 5. **Scriptable:** Easy to automate with local scripts
-6. **Simpler API:** Consolidate 15 endpoints into 8 (delete 8, add 4, enhance 2, keep 4)
+6. **Simpler API:** Consolidate 15 endpoints into 10 (delete 9, create 4, fix 2, keep 4)
 7. **Audit Trail:** Track who triggered batches and when
 8. **Remove Dead Code:** Delete APScheduler endpoints that don't work (scheduler not running)
