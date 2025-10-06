@@ -1179,23 +1179,32 @@ The `admin_batch.py` router is **NOT registered** in `app/api/v1/router.py`. All
 
 ### Proposed Implementation Plan
 
-#### Create New (4 endpoints)
+#### Step 1: Create New Endpoints (4 endpoints)
+**File:** `app/api/v1/endpoints/admin_batch.py`
+
 1. `POST /admin/batch/run` - Start batch with tracking and force option
 2. `GET /admin/batch/run/current` - Poll current batch status (real-time)
 3. `GET /admin/batch/run/{batch_run_id}` - Get specific batch run status
 4. `POST /admin/batch/run/current/cancel` - Cancel current batch
 
-#### Register + Fix Existing (2 endpoints)
+**Also Create:**
+- `app/batch/batch_run_tracker.py` - In-memory state tracker (see implementation section above)
+- Integrate tracking into `batch_orchestrator_v2.py`
+
+#### Step 2: Fix Existing Endpoints (2 endpoints)
+**File:** `app/api/v1/endpoints/admin_batch.py`
+
 1. `GET /admin/batch/jobs/status` - Fix portfolio_id and to_dict() issues
 2. `GET /admin/batch/jobs/summary` - Fix to_dict() issue
 
-#### Register Unchanged (4 endpoints)
-1. `POST /admin/batch/trigger/market-data`
-2. `POST /admin/batch/trigger/correlations`
-3. `GET /admin/batch/data-quality`
-4. `POST /admin/batch/data-quality/refresh`
+**Also Fix:**
+- Add `portfolio_id: Mapped[Optional[UUID]]` to `BatchJob` model (app/models/snapshots.py)
+- Add `to_dict()` method to `BatchJob` model
 
-#### Never Register (9 endpoints - just delete code)
+#### Step 3: Delete Unwanted Endpoints (9 endpoints)
+**File:** `app/api/v1/endpoints/admin_batch.py`
+
+Delete these endpoint functions (never register them):
 1. `POST /admin/batch/trigger/daily` → Replaced by `/admin/batch/run`
 2. `POST /admin/batch/trigger/greeks` → Redundant
 3. `POST /admin/batch/trigger/factors` → Redundant
@@ -1206,7 +1215,36 @@ The `admin_batch.py` router is **NOT registered** in `app/api/v1/router.py`. All
 8. `POST /admin/batch/scheduler/pause` → APScheduler not running
 9. `POST /admin/batch/scheduler/resume` → APScheduler not running
 
-**Final Result:** 10 working admin batch endpoints (4 new + 2 fixed + 4 existing) instead of 0 current
+#### Step 4: Register Router in FastAPI Application ⭐ **CRITICAL**
+**File:** `app/api/v1/router.py`
+
+Add the following import and registration:
+
+```python
+# Add to imports section
+from app.api.v1.endpoints import admin_batch
+
+# Add to router registration section (after existing routers)
+# Admin Batch Processing APIs (/admin/batch/) - batch management and monitoring
+api_router.include_router(
+    admin_batch.router,
+    tags=["Admin - Batch Processing"]
+)
+```
+
+**This step makes all endpoints accessible via:**
+- HTTP: `POST /api/v1/admin/batch/run`
+- HTTP: `GET /api/v1/admin/batch/run/current`
+- etc.
+
+#### Keep Unchanged (4 endpoints - already in admin_batch.py)
+These will become accessible after Step 4 (router registration):
+1. `POST /admin/batch/trigger/market-data`
+2. `POST /admin/batch/trigger/correlations`
+3. `GET /admin/batch/data-quality`
+4. `POST /admin/batch/data-quality/refresh`
+
+**Final Result:** 10 working, registered admin batch endpoints (4 new + 2 fixed + 4 existing) instead of 0 current
 
 ---
 
