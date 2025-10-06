@@ -23,11 +23,19 @@ Workflow:
   4. Log completion summary
 """
 
+import os
 import asyncio
 import sys
 import argparse
 import datetime
 from typing import Dict, List, Any
+
+# Fix Railway DATABASE_URL format BEFORE any imports
+if 'DATABASE_URL' in os.environ:
+    db_url = os.environ['DATABASE_URL']
+    if db_url.startswith('postgresql://'):
+        os.environ['DATABASE_URL'] = db_url.replace('postgresql://', 'postgresql+asyncpg://', 1)
+        print("✅ Converted DATABASE_URL to use asyncpg driver")
 
 # Add parent directory to path for imports
 sys.path.insert(0, '/app')  # Railway container path
