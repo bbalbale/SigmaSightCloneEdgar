@@ -43,7 +43,7 @@ This section documents all **fully implemented and production-ready endpoints** 
 
 ### Complete Endpoint List
 
-**Total: 48 implemented endpoints** across 7 categories
+**Total: 57 implemented endpoints** across 8 categories
 
 Base prefix for all endpoints below: `/api/v1`
 
@@ -112,6 +112,14 @@ Base prefix for all endpoints below: `/api/v1`
 - PATCH `/positions/{id}/tags` - Replace all position tags
 - GET `/tags/{id}/positions` - Get positions by tag (reverse lookup)
 
+#### Admin Batch Processing (6 endpoints) ✨ **NEW - October 6, 2025**
+- POST `/admin/batch/run` - Trigger batch processing with real-time tracking
+- GET `/admin/batch/run/current` - Get current batch status (polling endpoint)
+- POST `/admin/batch/trigger/market-data` - Manually trigger market data update
+- POST `/admin/batch/trigger/correlations` - Manually trigger correlation calculations
+- GET `/admin/batch/data-quality` - Get data quality status and metrics
+- POST `/admin/batch/data-quality/refresh` - Refresh market data for quality improvement
+
 #### Portfolio (removed in v1.2)
 These placeholder endpoints were removed and are no longer exposed.
 - (removed) GET `/portfolio/`
@@ -137,8 +145,8 @@ These placeholder endpoints were removed and are no longer exposed.
 - (removed) POST `/modeling/sessions`
 - (removed) GET `/modeling/sessions/{session_id}`
 
-#### Administration (not registered)
-Admin endpoints exist in `app/api/v1/endpoints/admin_batch.py` but are not included in the router and are not accessible via the API.
+#### Administration (removed/deprecated endpoints)
+Several admin batch endpoints were removed on October 6, 2025 in favor of the new real-time batch monitoring system. See Section D for currently implemented admin endpoints.
 
 ### Base URL
 ```
@@ -1133,437 +1141,310 @@ curl -s -H "Authorization: Bearer $TOKEN" \
 
 ## D. Administration Endpoints
 
-### 19. Get Batch Job Status
-**Endpoint**: `GET /admin/batch/jobs/status`  
-**Status**: ⚠️ Implemented but NOT registered in router  
-**File**: `app/api/v1/endpoints/admin_batch.py`  
-**Function**: `get_batch_job_status()` (lines 212-255)  
-**Authentication**: Required (Admin)  
-**OpenAPI Description**: "Get status of recent batch jobs"  
-**Database Access**: BatchJob table  
-**Service Layer**: Direct ORM queries  
+### Overview
+These endpoints provide administrative control over batch processing operations, including triggering batch runs, monitoring progress in real-time, and assessing data quality. All endpoints require admin authentication.
 
-**Parameters**:
-- `job_name` (query, optional): Filter by job name
-- `status` (query, optional): Filter by status
-- `portfolio_id` (query, optional): Filter by portfolio
-- `days_back` (query, optional): Number of days to look back (default 1)
+**Base Path**: `/api/v1/admin/batch`
+**Authentication**: Required (Admin users only)
+**Status**: ✅ **Fully Implemented and Registered** (as of October 6, 2025)
+**Router File**: `app/api/v1/endpoints/admin_batch.py`
 
-**Response**:
-```json
-{
-  "jobs": [
-    {
-      "id": "job_20250905_183045_market_data_update",
-      "job_name": "market_data_update",
-      "status": "completed",
-      "portfolio_id": "c0510ab8-c6b5-433c-adbc-3f74e1dbdb5e",
-      "started_at": "2025-09-05T18:30:45Z",
-      "completed_at": "2025-09-05T18:32:15Z",
-      "duration_seconds": 90,
-      "processed_items": 21,
-      "successful_items": 21,
-      "failed_items": 0,
-      "error_message": null,
-      "metadata": {
-        "source": "batch_orchestrator_v2",
-        "calculation_engines": ["market_data", "greeks", "factor_exposure"]
-      }
-    },
-    {
-      "id": "job_20250905_120030_full_calculation",
-      "job_name": "full_portfolio_calculation",
-      "status": "running",
-      "portfolio_id": "d1621bc9-d6c6-444d-becd-4f85f1ecdb5f",
-      "started_at": "2025-09-05T12:00:30Z",
-      "completed_at": null,
-      "duration_seconds": null,
-      "processed_items": 45,
-      "successful_items": 38,
-      "failed_items": 2,
-      "error_message": null,
-      "metadata": {
-        "source": "api_trigger",
-        "calculation_engines": ["all"]
-      }
-    },
-    {
-      "id": "job_20250905_060015_data_quality_check",
-      "job_name": "data_quality_assessment",
-      "status": "failed",
-      "portfolio_id": null,
-      "started_at": "2025-09-05T06:00:15Z",
-      "completed_at": "2025-09-05T06:02:45Z",
-      "duration_seconds": 150,
-      "processed_items": 0,
-      "successful_items": 0,
-      "failed_items": 0,
-      "error_message": "API rate limit exceeded for market data provider",
-      "metadata": {
-        "source": "scheduled_job",
-        "retry_count": 3
-      }
-    }
-  ],
-  "summary": {
-    "total_jobs": 3,
-    "completed": 1,
-    "running": 1,
-    "failed": 1,
-    "pending": 0
-  },
-  "filters_applied": {
-    "days_back": 1,
-    "job_name": null,
-    "status": null,
-    "portfolio_id": null
-  },
-  "last_updated": "2025-09-05T18:45:00Z"
-}
-```
-
-### 20. Get Batch Job Summary
-**Endpoint**: `GET /admin/batch/jobs/summary`  
-**Status**: ⚠️ Implemented but NOT registered in router  
-**File**: `app/api/v1/endpoints/admin_batch.py`  
-**Function**: `get_batch_job_summary()` (lines 258-313)  
-**Authentication**: Required (Admin)  
-**OpenAPI Description**: "Get summary statistics of batch jobs"  
-**Database Access**: BatchJob table  
-**Service Layer**: Direct ORM queries with statistical calculations  
-
-**Parameters**:
-- `days_back` (query, optional): Number of days for summary (default 7)
-
-**Response**:
-```json
-{
-  "period": {
-    "start_date": "2025-08-29",
-    "end_date": "2025-09-05",
-    "days_covered": 7
-  },
-  "job_statistics": {
-    "total_jobs": 42,
-    "completed_jobs": 35,
-    "running_jobs": 2,
-    "failed_jobs": 4,
-    "pending_jobs": 1,
-    "success_rate": 83.33,
-    "avg_duration_seconds": 125.5
-  },
-  "by_job_type": {
-    "market_data_update": {
-      "total": 14,
-      "completed": 13,
-      "failed": 1,
-      "success_rate": 92.86,
-      "avg_duration": 85.2
-    },
-    "full_portfolio_calculation": {
-      "total": 12,
-      "completed": 10,
-      "failed": 1,
-      "success_rate": 83.33,
-      "avg_duration": 245.8
-    },
-    "greeks_calculation": {
-      "total": 8,
-      "completed": 7,
-      "failed": 1,
-      "success_rate": 87.5,
-      "avg_duration": 65.4
-    },
-    "factor_analysis": {
-      "total": 6,
-      "completed": 5,
-      "failed": 1,
-      "success_rate": 83.33,
-      "avg_duration": 125.3
-    },
-    "data_quality_assessment": {
-      "total": 2,
-      "completed": 0,
-      "failed": 0,
-      "success_rate": 0.0,
-      "avg_duration": null
-    }
-  },
-  "performance_trends": {
-    "daily_job_counts": [
-      {"date": "2025-09-05", "total": 8, "completed": 6, "failed": 1},
-      {"date": "2025-09-04", "total": 6, "completed": 5, "failed": 1},
-      {"date": "2025-09-03", "total": 7, "completed": 7, "failed": 0},
-      {"date": "2025-09-02", "total": 5, "completed": 4, "failed": 1},
-      {"date": "2025-09-01", "total": 6, "completed": 5, "failed": 0},
-      {"date": "2025-08-31", "total": 5, "completed": 4, "failed": 1},
-      {"date": "2025-08-30", "total": 5, "completed": 4, "failed": 0}
-    ],
-    "avg_duration_trend": {
-      "current_week": 125.5,
-      "previous_week": 135.2,
-      "improvement_percent": 7.2
-    }
-  },
-  "error_analysis": {
-    "top_error_types": [
-      {
-        "error_pattern": "API rate limit exceeded",
-        "count": 2,
-        "percentage": 50.0
-      },
-      {
-        "error_pattern": "Database connection timeout",
-        "count": 1,
-        "percentage": 25.0
-      },
-      {
-        "error_pattern": "Invalid portfolio data",
-        "count": 1,
-        "percentage": 25.0
-      }
-    ],
-    "most_failed_job_type": "market_data_update"
-  },
-  "recommendations": [
-    "Consider implementing exponential backoff for API rate limits",
-    "Monitor database connection pool during peak hours",
-    "Add data validation checks before portfolio calculations"
-  ],
-  "last_updated": "2025-09-05T18:45:00Z"
-}
-```
-
-### Cancel Batch Job
-**Endpoint**: `DELETE /admin/batch/jobs/{job_id}/cancel`  
-**Status**: ⚠️ Implemented but NOT registered in router  
-**File**: `app/api/v1/endpoints/admin_batch.py`  
-**Function**: `cancel_batch_job()` (lines 383-420)  
-**Authentication**: Required (Admin)  
-**OpenAPI Description**: "Cancel a running batch job"  
-**Database Access**: BatchJob table (UPDATE operation)  
-**Service Layer**: Direct ORM queries  
-
-**Parameters**:
-- `job_id` (path): Batch job ID to cancel
-
-**Response**:
-```json
-{
-  "message": "Batch job cancelled successfully",
-  "job_details": {
-    "id": "job_20250905_120030_full_calculation",
-    "job_name": "full_portfolio_calculation",
-    "previous_status": "running",
-    "new_status": "cancelled",
-    "cancelled_at": "2025-09-05T18:47:30Z",
-    "runtime_before_cancellation": 385,
-    "processed_items": 45,
-    "successful_items": 38,
-    "items_in_progress": 5
-  },
-  "cleanup_actions": [
-    "Released database connections",
-    "Cleared temporary calculation cache",
-    "Updated job status in database"
-  ],
-  "impact_assessment": {
-    "affected_portfolios": 1,
-    "incomplete_calculations": 5,
-    "data_consistency_status": "maintained",
-    "rollback_required": false
-  }
-}
-```
-
-### 21. Get Data Quality Status
-**Endpoint**: `GET /admin/batch/data-quality`  
-**Status**: ⚠️ Implemented but NOT registered in router  
-**File**: `app/api/v1/endpoints/admin_batch.py`  
-**Function**: `get_data_quality_status()` (lines 423-455)  
-**Authentication**: Required (Admin)  
-**OpenAPI Description**: "Get data quality status and metrics for portfolios"  
-**Database Access**: Portfolio, Position, MarketDataCache tables  
-**Service Layer**: Uses batch validation:
-  - File: `app/batch/data_quality.py`
-  - Function: `pre_flight_validation()` (async function)  
-
-**Parameters**:
-- `portfolio_id` (query, optional): Specific portfolio ID or all portfolios
-
-**Response**:
-```json
-{
-  "system_overview": {
-    "total_portfolios": 8,
-    "active_portfolios": 8,
-    "total_positions": 74,
-    "overall_data_quality_score": 88.5,
-    "last_assessment": "2025-09-05T18:45:00Z"
-  },
-  "portfolio_quality": [
-    {
-      "portfolio_id": "c0510ab8-c6b5-433c-adbc-3f74e1dbdb5e",
-      "portfolio_name": "Demo High Net Worth Investor Portfolio",
-      "quality_score": 95.5,
-      "position_count": 21,
-      "data_completeness": {
-        "price_coverage": 100.0,
-        "greeks_coverage": 87.5,
-        "factor_coverage": 90.5,
-        "historical_data_coverage": 98.2
-      },
-      "data_freshness": {
-        "last_price_update": "2025-09-05T20:00:00Z",
-        "hours_since_update": 2.75,
-        "freshness_score": 93.0
-      },
-      "issues": [
-        "Missing Greeks for 1 options position",
-        "Historical data gap for 2 positions"
-      ]
-    },
-    {
-      "portfolio_id": "d1621bc9-d6c6-444d-becd-4f85f1ecdb5f",
-      "portfolio_name": "Demo Retail Investor Portfolio",
-      "quality_score": 82.3,
-      "position_count": 15,
-      "data_completeness": {
-        "price_coverage": 93.3,
-        "greeks_coverage": 75.0,
-        "factor_coverage": 86.7,
-        "historical_data_coverage": 89.5
-      },
-      "data_freshness": {
-        "last_price_update": "2025-09-05T19:30:00Z",
-        "hours_since_update": 3.25,
-        "freshness_score": 85.0
-      },
-      "issues": [
-        "Missing prices for 1 position",
-        "Stale Greeks data for 2 positions",
-        "Factor exposures need recalculation"
-      ]
-    }
-  ],
-  "data_source_status": {
-    "market_data_providers": {
-      "fmp": {
-        "status": "operational",
-        "last_successful_call": "2025-09-05T20:00:00Z",
-        "daily_api_calls": 1245,
-        "daily_limit": 10000,
-        "error_rate_24h": 0.02
-      },
-      "polygon": {
-        "status": "operational",
-        "last_successful_call": "2025-09-05T19:45:00Z",
-        "daily_api_calls": 358,
-        "daily_limit": 5000,
-        "error_rate_24h": 0.01
-      }
-    },
-    "database_health": {
-      "status": "healthy",
-      "connection_pool_usage": 45,
-      "avg_query_time_ms": 12.5,
-      "slow_queries_24h": 3
-    }
-  },
-  "quality_trends": {
-    "score_history_7d": [
-      {"date": "2025-09-05", "score": 88.5},
-      {"date": "2025-09-04", "score": 87.2},
-      {"date": "2025-09-03", "score": 89.1},
-      {"date": "2025-09-02", "score": 85.8},
-      {"date": "2025-09-01", "score": 84.5},
-      {"date": "2025-08-31", "score": 86.9},
-      {"date": "2025-08-30", "score": 88.0}
-    ],
-    "improvement_areas": [
-      "Options Greeks calculation frequency",
-      "Factor exposure refresh timing",
-      "Historical data backfill for new positions"
-    ]
-  },
-  "recommendations": [
-    "Increase Greeks calculation frequency to twice daily",
-    "Implement real-time factor exposure updates",
-    "Set up automated data quality alerts for scores below 80%",
-    "Consider adding backup data provider for critical market data"
-  ],
-  "last_updated": "2025-09-05T18:45:00Z"
-}
-```
-
-### 22. Refresh Market Data for Quality
-**Endpoint**: `POST /admin/batch/data-quality/refresh`  
-**Status**: ⚠️ Implemented but NOT registered in router  
-**File**: `app/api/v1/endpoints/admin_batch.py`  
-**Function**: `refresh_market_data_for_quality()` (lines 458-502)  
-**Authentication**: Required (Admin)  
-**OpenAPI Description**: "Refresh market data to improve data quality scores"  
-**Database Access**: Uses pre_flight_validation and batch orchestrator  
-**Service Layer**: Uses batch orchestration:
-  - File: `app/batch/batch_orchestrator_v2.py`
-  - Object: `batch_orchestrator_v2` (imported as `batch_orchestrator`)
-  - Method: `_update_market_data()` (private method)
-  - Execution: Via BackgroundTasks for async processing  
-
-**Parameters**:
-- `portfolio_id` (query, optional): Specific portfolio ID or all portfolios
-
-**Response**:
-```json
-{
-  "refresh_initiated": true,
-  "job_details": {
-    "job_id": "job_20250905_184800_data_quality_refresh",
-    "job_name": "data_quality_refresh",
-    "status": "running",
-    "initiated_at": "2025-09-05T18:48:00Z",
-    "estimated_duration_minutes": 15
-  },
-  "scope": {
-    "portfolios_targeted": 8,
-    "positions_to_refresh": 74,
-    "data_types": [
-      "market_prices",
-      "options_greeks",
-      "factor_exposures",
-      "historical_data"
-    ]
-  },
-  "pre_refresh_quality": {
-    "overall_score": 88.5,
-    "portfolios_below_threshold": 2,
-    "critical_issues": [
-      "Missing prices for 1 position",
-      "Stale Greeks for 3 options",
-      "Factor exposures outdated by 2 days"
-    ]
-  },
-  "expected_improvements": {
-    "estimated_score_increase": 6.5,
-    "target_quality_score": 95.0,
-    "issues_to_resolve": 5,
-    "data_freshness_improvement": "Will bring all data to within 1 hour"
-  },
-  "monitoring": {
-    "progress_endpoint": "/admin/batch/jobs/job_20250905_184800_data_quality_refresh/status",
-    "completion_webhook": null,
-    "notification_channels": ["system_log", "admin_dashboard"]
-  },
-  "backup_plan": {
-    "fallback_providers": ["polygon", "manual_entry"],
-    "rollback_available": true,
-    "previous_data_retained": true
-  },
-  "message": "Data quality refresh initiated successfully. Monitor progress via job status endpoint."
-}
-```
+### Recent Changes (October 6, 2025)
+- ✅ **Added**: Real-time batch monitoring with polling support
+- ✅ **Added**: New batch trigger endpoint with concurrent run prevention
+- ❌ **Removed**: Deprecated scheduler control endpoints
+- ❌ **Removed**: Old job history/summary endpoints (BatchJob table not used)
 
 ---
+
+### 19. Trigger Batch Processing
+**Endpoint**: `POST /admin/batch/run`
+**Status**: ✅ Fully Implemented
+**File**: `app/api/v1/endpoints/admin_batch.py`
+**Function**: `run_batch_processing()` (lines 23-71)
+**Authentication**: Required (Admin)
+**OpenAPI Description**: "Trigger batch processing with real-time tracking"
+**Database Access**: None (uses in-memory tracker)
+**Service Layer**: `batch_orchestrator_v2.run_daily_batch_sequence()`
+
+**Purpose**: Triggers batch calculation processing for all portfolios or a specific portfolio. Returns a `batch_run_id` for real-time progress monitoring via polling.
+
+**Concurrent Run Prevention**: Returns 409 Conflict if a batch is already running, unless `force=true` is specified.
+
+**Parameters**:
+- `portfolio_id` (query, optional): Specific portfolio UUID or omit for all portfolios
+- `force` (query, optional): Set to `true` to force run even if batch already running (default: `false`)
+
+**Response** (200 OK):
+```json
+{
+  "status": "started",
+  "batch_run_id": "84728a8c-f7ac-4c72-a7cb-8cdb212198c4",
+  "portfolio_id": "all",
+  "triggered_by": "admin@sigmasight.com",
+  "timestamp": "2025-10-06T13:28:00Z",
+  "poll_url": "/api/v1/admin/batch/run/current"
+}
+```
+
+**Response** (409 Conflict - Batch Already Running):
+```json
+{
+  "detail": "Batch already running. Use force=true to override."
+}
+```
+
+**Usage Notes**:
+- Poll `/admin/batch/run/current` every 2-5 seconds to monitor progress
+- Use `force=true` query parameter to override concurrent run prevention (not recommended)
+- Batch runs execute 8 calculation engines sequentially per portfolio
+- Background execution via FastAPI BackgroundTasks
+
+---
+
+### 20. Get Current Batch Status
+**Endpoint**: `GET /admin/batch/run/current`
+**Status**: ✅ Fully Implemented
+**File**: `app/api/v1/endpoints/admin_batch.py`
+**Function**: `get_current_batch_status()` (lines 74-115)
+**Authentication**: Required (Admin)
+**OpenAPI Description**: "Get status of currently running batch process"
+**Database Access**: None (uses in-memory tracker)
+**Service Layer**: `batch_run_tracker.get_current()`
+
+**Purpose**: Real-time status polling endpoint for monitoring batch progress. Returns "idle" if no batch is running, or detailed progress information if batch is active.
+
+**Polling Recommendation**: Poll every 2-5 seconds for real-time updates.
+
+**Parameters**: None
+
+**Response** (200 OK - Running):
+```json
+{
+  "status": "running",
+  "batch_run_id": "84728a8c-f7ac-4c72-a7cb-8cdb212198c4",
+  "started_at": "2025-10-06T13:28:00Z",
+  "elapsed_seconds": 135.2,
+  "triggered_by": "admin@sigmasight.com",
+  "jobs": {
+    "total": 8,
+    "completed": 3,
+    "failed": 0,
+    "pending": 5
+  },
+  "current_job": "position_factor_analysis_c0510ab8...",
+  "current_portfolio": "Demo High Net Worth Portfolio",
+  "progress_percent": 37.5
+}
+```
+
+**Response** (200 OK - Idle):
+```json
+{
+  "status": "idle",
+  "batch_run_id": null,
+  "message": "No batch processing currently running"
+}
+```
+
+**Usage Notes**:
+- Designed for frontend progress bars and real-time dashboards
+- Lightweight in-memory tracking (no database overhead)
+- Progress percentage calculated from completed/total jobs
+- Current job name truncated for display
+
+---
+
+### 21. Trigger Market Data Update
+**Endpoint**: `POST /admin/batch/trigger/market-data`
+**Status**: ✅ Fully Implemented
+**File**: `app/api/v1/endpoints/admin_batch.py`
+**Function**: `trigger_market_data_update()` (lines 118-138)
+**Authentication**: Required (Admin)
+**OpenAPI Description**: "Manually trigger market data update for all symbols"
+**Database Access**: Via market data sync service
+**Service Layer**: `app.batch.market_data_sync.sync_market_data()`
+
+**Purpose**: Manually triggers market data synchronization from external providers (FMP, Polygon, yfinance) for all active position symbols.
+
+**Parameters**: None
+
+**Response** (200 OK):
+```json
+{
+  "status": "started",
+  "message": "Market data update started",
+  "triggered_by": "admin@sigmasight.com",
+  "timestamp": "2025-10-06T14:30:00Z"
+}
+```
+
+**Usage Notes**:
+- Runs in background via FastAPI BackgroundTasks
+- Syncs data for all symbols in active positions
+- No waiting for completion (fire-and-forget)
+- Typically takes 30-60 seconds depending on symbol count
+
+---
+
+### 22. Trigger Correlation Calculation
+**Endpoint**: `POST /admin/batch/trigger/correlations`
+**Status**: ✅ Fully Implemented
+**File**: `app/api/v1/endpoints/admin_batch.py`
+**Function**: `trigger_correlation_calculation()` (lines 141-164)
+**Authentication**: Required (Admin)
+**OpenAPI Description**: "Manually trigger correlation calculations"
+**Database Access**: Via batch orchestrator
+**Service Layer**: `batch_orchestrator_v2.run_daily_batch_sequence(run_correlations=True)`
+
+**Purpose**: Manually triggers position correlation calculations (normally runs weekly on Tuesday).
+
+**Parameters**:
+- `portfolio_id` (query, optional): Specific portfolio UUID or omit for all portfolios
+
+**Response** (200 OK):
+```json
+{
+  "status": "started",
+  "message": "Correlation calculation started for all portfolios",
+  "triggered_by": "admin@sigmasight.com",
+  "timestamp": "2025-10-06T14:35:00Z"
+}
+```
+
+**Usage Notes**:
+- Runs full batch sequence with correlations enabled
+- Computationally intensive for large portfolios
+- Results saved to `correlation_calculations` and `pairwise_correlations` tables
+
+---
+
+### 23. Get Data Quality Status
+**Endpoint**: `GET /admin/batch/data-quality`
+**Status**: ✅ Fully Implemented
+**File**: `app/api/v1/endpoints/admin_batch.py`
+**Function**: `get_data_quality_status()` (lines 167-199)
+**Authentication**: Required (Admin)
+**OpenAPI Description**: "Get data quality status and metrics for portfolios"
+**Database Access**: Portfolio, Position, MarketDataCache tables
+**Service Layer**: `app.batch.data_quality.pre_flight_validation()`
+
+**Purpose**: Provides pre-flight validation results showing data completeness and quality scores without running batch processing.
+
+**Parameters**:
+- `portfolio_id` (query, optional): Specific portfolio UUID or omit for all portfolios
+
+**Response** (200 OK):
+```json
+{
+  "quality_score": 0.85,
+  "portfolios_assessed": 3,
+  "total_positions": 63,
+  "coverage_details": {
+    "current_prices": {
+      "total_positions": 63,
+      "positions_with_prices": 63,
+      "missing_prices": 0,
+      "coverage_percentage": 1.0
+    },
+    "historical_data": {
+      "total_positions": 63,
+      "positions_with_data": 29,
+      "sufficient_depth": 0,
+      "coverage_percentage": 0.0,
+      "depth_requirement": "90+ days for factor analysis"
+    }
+  },
+  "issues": [
+    "Insufficient historical data depth (need 90+ days, have 21 days avg)"
+  ],
+  "recommendations": [
+    "Backfill historical market data to at least 90 days",
+    "Current price coverage is excellent (100%)"
+  ],
+  "requested_by": "admin@sigmasight.com",
+  "request_timestamp": "2025-10-06T14:40:00Z"
+}
+```
+
+**Usage Notes**:
+- Does not modify any data
+- Fast read-only assessment
+- Quality score ranges from 0.0 to 1.0 (0% to 100%)
+- Use before running batch to identify data gaps
+
+---
+
+### 24. Refresh Market Data for Quality
+**Endpoint**: `POST /admin/batch/data-quality/refresh`
+**Status**: ✅ Fully Implemented
+**File**: `app/api/v1/endpoints/admin_batch.py`
+**Function**: `refresh_market_data_for_quality()` (lines 202-246)
+**Authentication**: Required (Admin)
+**OpenAPI Description**: "Refresh market data to improve data quality scores"
+**Database Access**: Via pre_flight_validation and batch orchestrator
+**Service Layer**: `batch_orchestrator_v2._update_market_data()`
+
+**Purpose**: Triggers targeted market data refresh based on data quality assessment recommendations.
+
+**Parameters**:
+- `portfolio_id` (query, optional): Specific portfolio UUID or omit for all portfolios
+
+**Response** (200 OK - Refresh Started):
+```json
+{
+  "status": "refresh_started",
+  "message": "Market data refresh started to improve data quality",
+  "current_quality_score": 0.85,
+  "recommendations": [
+    "Backfill historical market data to at least 90 days",
+    "Update stale price data for 3 positions",
+    "Sync missing company profiles"
+  ],
+  "requested_by": "admin@sigmasight.com",
+  "timestamp": "2025-10-06T14:45:00Z"
+}
+```
+
+**Response** (200 OK - No Action Needed):
+```json
+{
+  "status": "no_action_needed",
+  "message": "Data quality is already within acceptable thresholds",
+  "current_quality_score": 0.95,
+  "requested_by": "admin@sigmasight.com",
+  "timestamp": "2025-10-06T14:45:00Z"
+}
+```
+
+**Usage Notes**:
+- Runs in background via FastAPI BackgroundTasks
+- Only refreshes if quality score below thresholds
+- Intelligent targeting based on pre-flight validation
+- Shows top 3 recommendations for transparency
+
+---
+
+### Removed Endpoints (October 6, 2025)
+
+The following endpoints were **removed** and are no longer available:
+
+- ❌ `POST /admin/batch/scheduler/start` - Removed (scheduler control deprecated)
+- ❌ `POST /admin/batch/scheduler/stop` - Removed (scheduler control deprecated)
+- ❌ `POST /admin/batch/scheduler/pause` - Removed (scheduler control deprecated)
+- ❌ `POST /admin/batch/scheduler/resume` - Removed (scheduler control deprecated)
+- ❌ `GET /admin/batch/jobs/status` - Removed (BatchJob table not used)
+- ❌ `GET /admin/batch/jobs/summary` - Removed (BatchJob table not used)
+- ❌ `DELETE /admin/batch/jobs/{job_id}/cancel` - Removed (BatchJob table not used)
+- ❌ `POST /admin/batch/trigger/factors` - Removed (use POST /admin/batch/run instead)
+
+**Migration Path**:
+- For batch control: Use `POST /admin/batch/run` with optional `portfolio_id`
+- For monitoring: Poll `GET /admin/batch/run/current` for real-time status
+- For targeted operations: Use `POST /admin/batch/trigger/market-data` or `POST /admin/batch/trigger/correlations`
+
+---
+
 
 ## E. Target Prices Endpoints
 
