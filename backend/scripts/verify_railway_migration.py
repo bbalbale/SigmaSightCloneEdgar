@@ -2,16 +2,17 @@
 """
 Verify Railway database migration status
 """
-import asyncio
 import os
-from sqlalchemy import text
-from app.database import get_async_session
 
-# Fix Railway DATABASE_URL format
+# Fix Railway DATABASE_URL format BEFORE any imports
 if 'DATABASE_URL' in os.environ:
     db_url = os.environ['DATABASE_URL']
     if db_url.startswith('postgresql://'):
         os.environ['DATABASE_URL'] = db_url.replace('postgresql://', 'postgresql+asyncpg://', 1)
+
+import asyncio
+from sqlalchemy import text
+from app.database import get_async_session
 
 async def verify():
     async with get_async_session() as db:
