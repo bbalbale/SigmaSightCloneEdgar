@@ -726,10 +726,13 @@ class BatchRunTracker:
     def complete(self):
         self._current = None
 
-    def update(self, completed: int = None, failed: int = None,
-               job_name: str = None, portfolio_name: str = None):
+    def update(self, total_jobs: int = None, completed: int = None,
+               failed: int = None, job_name: str = None,
+               portfolio_name: str = None):
         if not self._current:
             return
+        if total_jobs is not None:
+            self._current.total_jobs = total_jobs  # Dynamic update
         if completed is not None:
             self._current.completed_jobs = completed
         if failed is not None:
@@ -812,7 +815,7 @@ async def get_current_batch_status(admin_user = Depends(require_admin)):
 #### Step 3: Minimal Orchestrator Integration
 **File:** `app/batch/batch_orchestrator_v2.py`
 
-Add lightweight tracking calls:
+Add lightweight tracking calls (with dynamic job counting):
 
 ```python
 async def _run_batch_with_tracking(batch_run_id: str, portfolio_id: Optional[str]):
@@ -822,28 +825,36 @@ async def _run_batch_with_tracking(batch_run_id: str, portfolio_id: Optional[str
         # Get portfolios
         portfolios = await _get_portfolios(portfolio_id)
 
-        # Set totals
-        tracker = batch_run_tracker.get_current()
-        if tracker:
-            tracker.total_jobs = len(portfolios) * 8  # 8 jobs per portfolio
-
-        # Run batch
+        # Initialize counters (don't pre-calculate total - jobs vary by portfolio)
+        total_jobs = 0
         completed = 0
         failed = 0
 
         for portfolio in portfolios:
             batch_run_tracker.update(portfolio_name=portfolio.name)
 
-            for job in ["market_data", "positions", "greeks", ...]:
-                batch_run_tracker.update(job_name=job)
+            # Get actual jobs to run for this portfolio (Greeks may be disabled, etc.)
+            jobs_to_run = _get_jobs_for_portfolio(portfolio)
+
+            for job in jobs_to_run:
+                total_jobs += 1  # Increment total as we discover jobs
+
+                batch_run_tracker.update(
+                    job_name=job,
+                    total_jobs=total_jobs  # Update total dynamically
+                )
 
                 try:
                     await _execute_job(job, portfolio)
                     completed += 1
-                except:
+                except Exception as e:
                     failed += 1
+                    logger.error(f"Job {job} failed: {e}")
 
-                batch_run_tracker.update(completed=completed, failed=failed)
+                batch_run_tracker.update(
+                    completed=completed,
+                    failed=failed
+                )
 
         batch_run_tracker.complete()
 
@@ -852,7 +863,12 @@ async def _run_batch_with_tracking(batch_run_id: str, portfolio_id: Optional[str
         batch_run_tracker.complete()
 ```
 
-**~40 lines of integration instead of complex session management**
+**Key Fix:** Dynamic job counting instead of hard-coded `len(portfolios) * 8`
+- Greeks disabled? Total doesn't include it
+- Stress tests skip? Total adjusts automatically
+- Progress % stays accurate
+
+**~50 lines of integration instead of complex session management**
 
 #### Step 4: Delete Unwanted Endpoints (9 endpoints)
 **File:** `app/api/v1/endpoints/admin_batch.py`
@@ -905,6 +921,32 @@ Already in admin_batch.py, just register them:
 
 **Total Implementation:** ~150 lines of new code instead of 800+
 **Final Endpoint Count:** 6 working endpoints (2 new + 4 existing)
+
+---
+
+## 📋 Agent Feedback & Decisions
+
+**Feedback Received:** Another agent suggested going even simpler - just register existing router, add summary log line, no real-time monitoring.
+
+**Our Decision:** Stick with current plan for real-time monitoring
+
+**Why:**
+1. **User requirement explicit:** "status endpoint that can be hit repeatedly to get the latest status of the currently running batch process"
+2. **Existing endpoints don't work:** `/jobs/status` and `/jobs/summary` query empty BatchJob table, don't show real-time progress
+3. **Real-time monitoring is the goal:** Summary logs only show results after completion, not during execution
+4. **Acceptable complexity:** ~150 lines is manageable vs. 800+ lines of full proposal
+
+**Feedback Incorporated:**
+- ✅ Fixed hard-coded "8 jobs per portfolio" bug - now uses dynamic job counting
+- ✅ Avoided DB persistence complexity (in-memory only)
+- ✅ Cut unnecessary features (cancel, history, data quality roll-ups)
+- ✅ Kept code minimal (~150 lines)
+
+**Risks Accepted:**
+- ⚠️ Server restart = lost tracking state (acceptable for MVP)
+- ⚠️ Railway cron + API trigger could conflict (mitigated by timing/manual coordination)
+- ⚠️ Background tasks die on server shutdown (acceptable - Railway cron is durable fallback)
+- ⚠️ No audit trail (Railway logs sufficient for now)
 
 ---
 
