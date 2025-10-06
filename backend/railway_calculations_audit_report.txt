@@ -1,0 +1,20 @@
+================================================================================
+RAILWAY CALCULATIONS AUDIT REPORT
+================================================================================
+Date: 2025-10-06 07:12:11
+
+SUMMARY:
+--------------------------------------------------------------------------------
+Portfolio Snapshots: 0 records
+Factor Exposures: 0 records
+Correlations: 0 calculations, 0 pairs
+Greeks: 0 records (DISABLED - expected 0)
+Interest Rate Betas: 0 records
+Stress Tests: 0 results
+Batch Jobs: 0 execution records
+
+================================================================================
+OVERALL ASSESSMENT:
+================================================================================
+NO BATCH CALCULATIONS DETECTED
+Database contains only seed data + market data sync. Batch orchestration has NOT been executed on Railway.

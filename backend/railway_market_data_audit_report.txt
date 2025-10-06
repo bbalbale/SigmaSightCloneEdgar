@@ -1,0 +1,66 @@
+================================================================================
+RAILWAY MARKET DATA AUDIT - DETAILED REPORT
+================================================================================
+Backend: https://sigmasight-be-production.up.railway.app/api/v1
+Date: 2025-10-06 07:00:53
+
+Total Unique Symbols: 29
+Symbols: NVDA, TWO_SIGMA_FUND, MSFT, TREASURY_BILLS, VTI, JPM, JNJ, PG, V, RENTAL_SFH, GOOGL, STARWOOD_REIT, HD, DJP, BX_PRIVATE_EQUITY, UNH, META, A16Z_VC_FUND, AMZN, QQQ, CRYPTO_BTC_ETH, MONEY_MARKET, HOME_EQUITY, SPY, AAPL, RENTAL_CONDO, ART_COLLECTIBLES, BRK.B, GLD
+
+
+🏢 COMPANY PROFILE DATA
+================================================================================
+Total positions: 29
+With company name: 0 (0.0%)
+Missing company name: 29 (100.0%)
+
+📈 HISTORICAL PRICES - DETAILED PER-POSITION COVERAGE
+================================================================================
+
+SYMBOL       STATUS DAYS   FIRST DATE   LAST DATE   
+------------ ------ ------ ------------ ------------
+A16Z_VC_FUND ✅      1      2025-10-06   2025-10-06  
+AAPL         ✅      124    2025-04-09   2025-10-06  
+AMZN         ✅      124    2025-04-09   2025-10-06  
+ART_COLLECTIBLES ✅      1      2025-10-06   2025-10-06  
+BRK.B        ✅      1      2025-10-06   2025-10-06  
+BX_PRIVATE_EQUITY ✅      1      2025-10-06   2025-10-06  
+CRYPTO_BTC_ETH ✅      1      2025-10-06   2025-10-06  
+DJP          ✅      124    2025-04-09   2025-10-06  
+GLD          ✅      124    2025-04-09   2025-10-06  
+GOOGL        ✅      124    2025-04-09   2025-10-06  
+HD           ✅      124    2025-04-09   2025-10-06  
+HOME_EQUITY  ✅      1      2025-10-06   2025-10-06  
+JNJ          ✅      124    2025-04-09   2025-10-06  
+JPM          ✅      124    2025-04-09   2025-10-06  
+META         ✅      124    2025-04-09   2025-10-06  
+MONEY_MARKET ✅      1      2025-10-06   2025-10-06  
+MSFT         ✅      124    2025-04-09   2025-10-06  
+NVDA         ✅      124    2025-04-09   2025-10-06  
+PG           ✅      124    2025-04-09   2025-10-06  
+QQQ          ✅      124    2025-04-09   2025-10-06  
+RENTAL_CONDO ✅      1      2025-10-06   2025-10-06  
+RENTAL_SFH   ✅      1      2025-10-06   2025-10-06  
+SPY          ✅      124    2025-04-09   2025-10-06  
+STARWOOD_REIT ✅      1      2025-10-06   2025-10-06  
+TREASURY_BILLS ✅      1      2025-10-06   2025-10-06  
+TWO_SIGMA_FUND ✅      1      2025-10-06   2025-10-06  
+UNH          ✅      124    2025-04-09   2025-10-06  
+V            ✅      124    2025-04-09   2025-10-06  
+VTI          ✅      124    2025-04-09   2025-10-06  
+
+================================================================================
+HISTORICAL DATA SUMMARY:
+   Total Symbols: 29
+   With Data: 29 (100.0%)
+   Missing Data: 0 (0.0%)
+   Average Days per Symbol: 73.1
+
+
+================================================================================
+MARKET DATA AUDIT SUMMARY
+================================================================================
+Company Profiles: 0/29 (0.0%)
+Market Quotes: ✅ Working
+Historical Prices: 29/29 symbols with data (73.1 avg days)
+Factor ETFs: 6 tracked
