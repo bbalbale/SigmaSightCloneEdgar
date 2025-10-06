@@ -1,7 +1,7 @@
 /**
  * Chat Authentication Service
- * Handles cookie-based authentication for chat streaming
- * Uses HttpOnly cookies with credentials:'include'
+ * Handles Bearer token authentication for chat streaming
+ * Uses JWT tokens stored in localStorage (Railway compatible)
  */
 
 import { portfolioResolver } from './portfolioResolver';
@@ -39,7 +39,7 @@ class ChatAuthService {
 
   /**
    * Login with email and password
-   * Sets HttpOnly cookie automatically via backend response
+   * Returns JWT token stored in localStorage via authManager
    */
   async login(email: string, password: string): Promise<LoginResponse> {
     try {
@@ -48,7 +48,6 @@ class ChatAuthService {
         headers: {
           'Content-Type': 'application/json',
         },
-        credentials: 'include', // Important: include cookies
         body: JSON.stringify({ email, password }),
       });
 
@@ -143,13 +142,18 @@ class ChatAuthService {
    */
   async initializeConversation(): Promise<string | null> {
     try {
+      const token = authManager.getAccessToken();
+      if (!token) {
+        console.error('[Auth] No access token available for conversation initialization');
+        return null;
+      }
+
       const response = await fetch(`${this.baseUrl}/api/v1/chat/conversations`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
+          'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
-        credentials: 'include',
         body: JSON.stringify({
           title: `Chat Session - ${new Date().toLocaleDateString()}`,
           mode: 'green', // Default mode
@@ -191,13 +195,14 @@ class ChatAuthService {
   }
 
   /**
-   * Logout - clears HttpOnly cookie via backend
+   * Logout - clears session on backend and client
    */
   async logout(): Promise<void> {
     try {
+      const token = authManager.getAccessToken();
       await fetch(`${this.baseUrl}/api/v1/auth/logout`, {
         method: 'POST',
-        credentials: 'include',
+        headers: token ? { 'Authorization': `Bearer ${token}` } : {},
       });
     } catch (error) {
       console.error('Logout error:', error);
@@ -221,13 +226,22 @@ class ChatAuthService {
 
   /**
    * Check authentication status
-   * Verifies cookie is still valid
+   * Verifies Bearer token is still valid
    */
   async checkAuth(): Promise<AuthUser | null> {
     try {
+      const token = authManager.getAccessToken();
+      if (!token) {
+        this.isAuthenticated = false;
+        this.currentUser = null;
+        return null;
+      }
+
       const response = await fetch(`${this.baseUrl}/api/v1/auth/me`, {
         method: 'GET',
-        credentials: 'include',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
       });
 
       if (response.ok) {
@@ -276,7 +290,7 @@ class ChatAuthService {
 
   /**
    * Make authenticated fetch request
-   * Automatically includes credentials and Bearer token
+   * Automatically includes Bearer token from authManager
    */
   async authenticatedFetch(url: string, options: RequestInit = {}): Promise<Response> {
     // Ensure we're authenticated
@@ -285,14 +299,16 @@ class ChatAuthService {
       throw new Error('Not authenticated');
     }
 
-    // Get Bearer token from localStorage
-    const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
+    // Get Bearer token from authManager
+    const token = authManager.getAccessToken();
+    if (!token) {
+      throw new Error('No access token available');
+    }
 
     return fetch(url, {
       ...options,
-      credentials: 'include', // Always include cookies
       headers: {
-        ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+        'Authorization': `Bearer ${token}`,
         ...options.headers,
       },
     });
