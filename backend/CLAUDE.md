@@ -608,7 +608,7 @@ except Exception as e:
 
 ### **Position Tagging System (October 2, 2025)**
 - **Preferred**: Direct position-to-tag relationships via `position_tags` junction table
-- **Deprecated**: Strategy-based tagging (kept for backward compatibility)
+- **Removed (Oct 2025)**: Strategy-based tagging (strategy models/tables dropped)
 - **Architecture**: 3-tier separation (position_tags.py, tags.py, tags_v2.py)
 
 ### **Trading Calendar Behavior**

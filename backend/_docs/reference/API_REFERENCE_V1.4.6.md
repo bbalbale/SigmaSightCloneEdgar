@@ -21,6 +21,20 @@ This document provides comprehensive reference documentation for all **implement
 3. **LLM-Optimized**: `/data/` endpoints return complete, denormalized datasets
 4. **Self-Documenting**: Endpoint paths clearly convey data type and purpose
 
+## ⚠️ Breaking Change (October 2025)
+
+**Removed**: All `/api/v1/strategies/*` endpoints and strategy tables. The platform now uses **position-level tagging only**.
+
+**Impact**:
+- Multi-leg strategy containers and metrics are no longer supported
+- SDKs or scripts calling `/strategies` routes must migrate to `/position-tags`
+- `usage_count` and related analytics reflect direct position-tag assignments
+
+**Migration Path**:
+1. Use `/api/v1/position-tags` endpoints to assign tags directly to positions
+2. Use `/api/v1/tags/{id}/positions` for reverse lookup instead of strategy queries
+3. Remove any references to `strategy_id` columns or `Strategy*` models in integrations
+
 ---
 
 # IMPLEMENTED ENDPOINTS ✅
@@ -29,7 +43,7 @@ This section documents all **fully implemented and production-ready endpoints** 
 
 ### Complete Endpoint List
 
-**Total: 51 implemented endpoints** across 7 categories
+**Total: 48 implemented endpoints** across 7 categories
 
 Base prefix for all endpoints below: `/api/v1`
 
@@ -2016,7 +2030,7 @@ These endpoints manage the **tag entities themselves** - creating, updating, and
 **Database**: `tags_v2` table with user_id, display_order, usage_count, soft delete support
 **Frontend Service**: `src/services/tagsApi.ts` (methods: create, list, update, delete, restore, defaults, reorder, batchUpdate)
 
-**Note**: `usage_count` field accurately counts both position tags (preferred method) and legacy strategy tags.
+**Note**: `usage_count` reflects the number of active position-tag assignments (strategy tags removed October 2025).
 
 ### Base Information
 - **Base Path**: `/api/v1/tags`
@@ -2028,7 +2042,7 @@ These endpoints manage the **tag entities themselves** - creating, updating, and
 **Endpoint**: `POST /tags/`
 **Status**: ✅ Fully Implemented
 **File**: `app/api/v1/tags.py`
-**Function**: `create_tag()` (lines 73-97)
+**Function**: `create_tag()` (lines 65-88)
 **Frontend Method**: `tagsApi.create()`
 
 **Authentication**: Required (Bearer token)
@@ -2061,6 +2075,8 @@ These endpoints manage the **tag entities themselves** - creating, updating, and
   "description": "High-growth technology stocks",
   "display_order": 1,
   "usage_count": 0,
+  "position_count": 0,
+  "strategy_count": 0,
   "is_archived": false,
   "created_at": "2025-10-04T12:00:00Z",
   "updated_at": "2025-10-04T12:00:00Z"
@@ -2071,7 +2087,7 @@ These endpoints manage the **tag entities themselves** - creating, updating, and
 **Endpoint**: `GET /tags/`
 **Status**: ✅ Fully Implemented
 **File**: `app/api/v1/tags.py`
-**Function**: `list_tags()` (lines 100-128)
+**Function**: `list_tags()` (lines 92-119)
 **Frontend Method**: `tagsApi.list()`
 
 **Authentication**: Required (Bearer token)
@@ -2082,7 +2098,7 @@ These endpoints manage the **tag entities themselves** - creating, updating, and
 
 **Parameters**:
 - `include_archived` (query, default false): Include archived tags
-- `include_usage_stats` (query, default true): Include position/strategy counts
+- `include_usage_stats` (query, default true): Include position usage counts
 
 **Response** (TagListResponse):
 ```json
@@ -2092,13 +2108,15 @@ These endpoints manage the **tag entities themselves** - creating, updating, and
       "id": "uuid1",
       "name": "Growth",
       "color": "#3B82F6",
-      "usage_count": 12
+      "usage_count": 12,
+      "position_count": 12
     },
     {
       "id": "uuid2",
       "name": "Value",
       "color": "#10B981",
-      "usage_count": 8
+      "usage_count": 8,
+      "position_count": 8
     }
   ],
   "total": 15,
@@ -2111,17 +2129,17 @@ These endpoints manage the **tag entities themselves** - creating, updating, and
 **Endpoint**: `GET /tags/{tag_id}`
 **Status**: ✅ Fully Implemented
 **File**: `app/api/v1/tags.py`
-**Function**: `get_tag()` (lines 131-150)
+**Function**: `get_tag()` (lines 123-141)
 **Frontend Method**: `tagsApi.get()`
 
 **Authentication**: Required (Bearer token) + ownership validation
 **Database Access**: Query `tags_v2` by id
 **Service Layer**: `app/services/tag_service.py`
-  - Method: `get_tag(tag_id, include_strategies)`
+  - Method: `get_tag(tag_id, include_positions)`
 
 **Parameters**:
 - `tag_id` (path): Tag UUID
-- `include_strategies` (query, default false): Include associated strategies (deprecated)
+- `include_positions` (query, default false): Include associated position-tag relationships
 
 **Response**: TagResponse (see Create Tag response schema)
 
@@ -2129,7 +2147,7 @@ These endpoints manage the **tag entities themselves** - creating, updating, and
 **Endpoint**: `PATCH /tags/{tag_id}`
 **Status**: ✅ Fully Implemented
 **File**: `app/api/v1/tags.py`
-**Function**: `update_tag()` (lines 153-182)
+**Function**: `update_tag()` (lines 145-173)
 **Frontend Method**: `tagsApi.update()`
 
 **Authentication**: Required (Bearer token) + ownership validation
@@ -2154,7 +2172,7 @@ These endpoints manage the **tag entities themselves** - creating, updating, and
 **Endpoint**: `POST /tags/{tag_id}/archive`
 **Status**: ✅ Fully Implemented (Soft Delete)
 **File**: `app/api/v1/tags.py`
-**Function**: `archive_tag()` (lines 185-206)
+**Function**: `archive_tag()` (lines 177-197)
 **Frontend Method**: `tagsApi.delete()` (note: frontend calls this for "delete")
 
 **Authentication**: Required (Bearer token) + ownership validation
@@ -2162,7 +2180,7 @@ These endpoints manage the **tag entities themselves** - creating, updating, and
 **Service Layer**: `app/services/tag_service.py`
   - Method: `archive_tag(tag_id, archived_by)`
   - Soft delete preserves tag history
-  - Removes tag from all positions/strategies
+  - Removes tag from all positions
 
 **Response**:
 ```json
@@ -2175,7 +2193,7 @@ These endpoints manage the **tag entities themselves** - creating, updating, and
 **Endpoint**: `POST /tags/{tag_id}/restore`
 **Status**: ✅ Fully Implemented
 **File**: `app/api/v1/tags.py`
-**Function**: `restore_tag()` (lines 209-230)
+**Function**: `restore_tag()` (lines 201-218)
 **Frontend Method**: `tagsApi.restore()`
 
 **Authentication**: Required (Bearer token) + ownership validation
@@ -2194,7 +2212,7 @@ These endpoints manage the **tag entities themselves** - creating, updating, and
 **Endpoint**: `POST /tags/defaults`
 **Status**: ✅ Fully Implemented (Idempotent)
 **File**: `app/api/v1/tags.py`
-**Function**: `create_default_tags()` (lines 412-435)
+**Function**: `create_default_tags()` (lines 225-248)
 **Frontend Method**: `tagsApi.defaults()`
 
 **Authentication**: Required (Bearer token)
@@ -2218,19 +2236,6 @@ These endpoints manage the **tag entities themselves** - creating, updating, and
 }
 ```
 
-### 40. Get Strategies by Tag (DEPRECATED)
-**Endpoint**: `GET /tags/{tag_id}/strategies`
-**Status**: ⚠️ Deprecated
-**File**: `app/api/v1/tags.py`
-**Function**: `get_strategies_by_tag()` (lines 363-409)
-**Frontend Method**: `tagsApi.getStrategies()`
-
-**Deprecation Note**: Use `/tags/{id}/positions` for position tagging instead. This endpoint is kept for backward compatibility only.
-
-**Purpose**: Find strategies with this tag (legacy strategy tagging system)
-
----
-
 ## G. Position Tagging Endpoints
 
 These endpoints manage the **relationships between tags and positions** - applying tags TO positions. This is the **preferred tagging method** (replaces legacy strategy-based tagging).
@@ -2246,11 +2251,11 @@ These endpoints manage the **relationships between tags and positions** - applyi
 - **Batch Operations**: Support adding/removing multiple tags in single request
 - **Performance**: Batch fetching to prevent N+1 queries
 
-### 41. Add Tags to Position
+### 40. Add Tags to Position
 **Endpoint**: `POST /positions/{position_id}/tags`
 **Status**: ✅ Fully Implemented
 **File**: `app/api/v1/position_tags.py`
-**Function**: `assign_tags_to_position()` (lines 57-112)
+**Function**: `assign_tags_to_position()` (lines 58-113)
 **Frontend Method**: `tagsApi.addPositionTags()`
 
 **Authentication**: Required (Bearer token) + portfolio ownership validation
@@ -2285,11 +2290,11 @@ These endpoints manage the **relationships between tags and positions** - applyi
 - Validates user owns all tags and portfolio
 - Idempotent: duplicate tag assignments ignored
 
-### 42. Remove Tags from Position
+### 41. Remove Tags from Position
 **Endpoint**: `DELETE /positions/{position_id}/tags` OR `POST /positions/{position_id}/tags/remove`
 **Status**: ✅ Fully Implemented (dual methods for compatibility)
 **File**: `app/api/v1/position_tags.py`
-**Functions**: `remove_tags_from_position()` (lines 155-191), `remove_tags_from_position_post()` (lines 115-152)
+**Functions**: `remove_tags_from_position_post()` (lines 116-154), `remove_tags_from_position()` (lines 156-194)
 **Frontend Method**: `tagsApi.removePositionTags()` (uses POST /remove)
 
 **Authentication**: Required (Bearer token) + portfolio ownership validation
@@ -2321,11 +2326,11 @@ These endpoints manage the **relationships between tags and positions** - applyi
 - DELETE method uses query parameters
 - Silently ignores non-existent tag assignments
 
-### 43. Get Position's Tags
+### 42. Get Position's Tags
 **Endpoint**: `GET /positions/{position_id}/tags`
 **Status**: ✅ Fully Implemented
 **File**: `app/api/v1/position_tags.py`
-**Function**: `get_position_tags()` (lines 194-231)
+**Function**: `get_position_tags()` (lines 195-231)
 **Frontend Method**: `tagsApi.getPositionTags()`
 
 **Authentication**: Required (Bearer token) + portfolio ownership validation
@@ -2354,11 +2359,11 @@ These endpoints manage the **relationships between tags and positions** - applyi
 ]
 ```
 
-### 44. Replace All Position Tags
+### 43. Replace All Position Tags
 **Endpoint**: `PATCH /positions/{position_id}/tags`
 **Status**: ✅ Fully Implemented
 **File**: `app/api/v1/position_tags.py`
-**Function**: `update_position_tags()` (lines 234-254)
+**Function**: `update_position_tags()` (lines 235-254)
 **Frontend Method**: `tagsApi.replacePositionTags()`
 
 **Authentication**: Required (Bearer token) + portfolio ownership validation
@@ -2381,11 +2386,11 @@ These endpoints manage the **relationships between tags and positions** - applyi
 - Atomic operation: removes all old tags, adds all new tags
 - Usage counts updated correctly for both removed and added tags
 
-### 45. Get Positions by Tag (Reverse Lookup)
+### 44. Get Positions by Tag (Reverse Lookup)
 **Endpoint**: `GET /tags/{tag_id}/positions`
 **Status**: ✅ Fully Implemented
 **File**: `app/api/v1/tags.py` (tag-centric endpoint)
-**Function**: `get_positions_by_tag()` (lines 438-489)
+**Function**: `get_positions_by_tag()` (lines 251-306)
 **Frontend Method**: `tagsApi.getPositionsByTag()`
 
 **Authentication**: Required (Bearer token) + tag ownership + portfolio validation
@@ -2509,4 +2514,3 @@ curl -X GET "http://localhost:8000/api/v1/data/prices/quotes?symbols=AAPL,MSFT" 
 curl -X GET "http://localhost:8000/api/v1/analytics/portfolio/e23ab931-a033-edfe-ed4f-9d02474780b4/overview" \
   -H "Authorization: Bearer $TOKEN"
 ```
-

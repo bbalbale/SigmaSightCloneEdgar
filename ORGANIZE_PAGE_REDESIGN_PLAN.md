@@ -1,5 +1,7 @@
 # Organize Page Redesign Plan - Tag-Based Position Management
 
+> **Update (Oct 2025)**: Backend strategy system has been sunset. Treat this plan as historical context; new Organize UX must rely solely on tags + position tagging workflows.
+
 **Date**: 2025-10-02
 **Status**: Draft for Review
 **Approach**: Minimal backend changes, fix frontend to match backend conventions

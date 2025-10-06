@@ -180,15 +180,12 @@ uv run python scripts/verification/check_equity_values.py
 
 ```
 scripts/
-├── Root-level utilities:
-│   ├── monitor_provider_usage.py    ⭐ Monitor API usage/limits
-│   ├── sync_position_prices.py      Sync market prices
-│   ├── populate_company_profiles.py Populate company data
-│   ├── verify_migrations.py         ⭐ Verify Alembic migrations
-│   └── list_symbols.py              List all symbols
+├── automation/          # Automated batch jobs and scheduling
+│   ├── railway_daily_batch.py  ⭐ Railway daily batch job
+│   └── trading_calendar.py     NYSE trading calendar utilities
 │
 ├── batch_processing/     # Main calculation processing
-│   └── run_batch.py  ⭐ MAIN - Run all calculations
+│   └── run_batch.py  ⭐ MAIN - Run all calculations (local)
 │
 ├── database/            # Database setup, seeding, migrations
 │   ├── reset_and_seed.py          ⭐ Authoritative seeding
@@ -204,20 +201,34 @@ scripts/
 │   ├── fetch_factor_etf_data.py
 │   ├── backfill_factor_etfs.py
 │   ├── backfill_position_symbols.py
-│   └── fetch_with_round_robin.py
+│   ├── populate_company_profiles.py  # Populate company data
+│   ├── sync_position_prices.py       # Sync market prices
+│   └── list_symbols.py               # List all symbols
+│
+├── railway/             # Railway deployment-specific ⭐ NEW
+│   ├── audit_railway_data.py         ⭐ Audit portfolio/position data via API
+│   ├── audit_railway_market_data.py  ⭐ Audit market data (detailed per-position)
+│   ├── railway_run_migration.py      ⭐ Run migrations on Railway
+│   ├── verify_railway_migration.py   Verify migration status
+│   ├── railway_reset_database.py     Reset and reseed (DESTRUCTIVE)
+│   ├── railway_initial_seed.sh       Initial setup workflow
+│   └── RAILWAY_SEEDING_README.md     Seeding documentation
 │
 ├── verification/        # Validation and verification scripts
-│   ├── validate_setup.py          ⭐ Comprehensive validation
+│   ├── validate_setup.py             ⭐ Comprehensive validation
 │   ├── verify_setup.py
-│   ├── verify_demo_portfolios.py  ⭐ Portfolio integrity
+│   ├── verify_demo_portfolios.py     ⭐ Portfolio integrity
+│   ├── verify_batch_results.py       ⭐ Verify batch calculation results
+│   ├── verify_database_state.py      ⭐ Comprehensive database state
 │   ├── verify_factor_data.py
+│   ├── verify_migrations.py          ⭐ Verify Alembic migrations
 │   ├── check_equity_values.py
 │   └── check_portfolio.py
 │
 ├── monitoring/          # System monitoring scripts
-│   ├── monitor_chat_interface.py  ⭐ Chat health
-│   ├── simple_monitor.py
-│   └── README.md
+│   ├── monitor_chat_interface.py     ⭐ Chat health
+│   ├── monitor_provider_usage.py     ⭐ Monitor API usage/limits
+│   └── simple_monitor.py
 │
 ├── manual_tests/        # Browser automation & manual testing
 │   ├── test_chat_flow.js         (Puppeteer)
@@ -281,6 +292,39 @@ uv run python scripts/batch_processing/run_batch.py
 uv run python scripts/verification/verify_demo_portfolios.py
 ```
 
+### Railway Production Workflow
+```bash
+# === IN RAILWAY SSH ===
+railway shell
+
+# 1. Run migrations
+uv run python scripts/railway/railway_run_migration.py
+
+# 2. Verify migration
+uv run python scripts/railway/verify_railway_migration.py
+
+# 3. Reset and reseed (DESTRUCTIVE - only if needed)
+uv run python scripts/railway/railway_reset_database.py
+
+# 4. Run daily batch job (--force for non-trading days)
+uv run python scripts/automation/railway_daily_batch.py --force
+
+# 5. Verify batch results
+uv run python scripts/verification/verify_batch_results.py
+
+# 6. Check database state
+uv run python scripts/verification/verify_database_state.py
+
+
+# === FROM LOCAL MACHINE (API Audits) ===
+
+# Audit portfolio and position data
+python scripts/railway/audit_railway_data.py
+
+# Audit market data (detailed per-position historical coverage)
+python scripts/railway/audit_railway_market_data.py
+```
+
 ### Client Onboarding (Future)
 ```bash
 cd backend
@@ -335,6 +379,12 @@ cd backend
 - **ALWAYS** run `alembic upgrade head` after pulling code
 - Recent critical migration: `add_equity_balance_to_portfolio`
 - Without migrations, API endpoints will return 500 errors
+
+### Railway Deployment ⭐ NEW
+- All Railway scripts (`scripts/railway/`) include automatic DATABASE_URL conversion
+- Converts `postgresql://` → `postgresql+asyncpg://` for async driver compatibility
+- Audit scripts (`audit_railway_*.py`) run from **local machine** and hit Railway API
+- No SSH needed for audits - just Python 3.11+ and `requests` library
 
 ### Market Data
 - Private positions (real estate, private equity, collectibles) are automatically excluded

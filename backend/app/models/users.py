@@ -47,7 +47,6 @@ class Portfolio(Base):
     # Relationships
     user: Mapped["User"] = relationship("User", back_populates="portfolio")
     positions: Mapped[List["Position"]] = relationship("Position", back_populates="portfolio")
-    strategies: Mapped[List["Strategy"]] = relationship("Strategy", back_populates="portfolio")
     snapshots: Mapped[List["PortfolioSnapshot"]] = relationship("PortfolioSnapshot", back_populates="portfolio")
     factor_exposures: Mapped[List["FactorExposure"]] = relationship("FactorExposure", back_populates="portfolio")
     market_risk_scenarios: Mapped[List["MarketRiskScenario"]] = relationship("MarketRiskScenario", back_populates="portfolio")

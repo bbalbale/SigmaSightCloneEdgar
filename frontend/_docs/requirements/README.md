@@ -92,7 +92,7 @@
 6. **[04-Organize-Implementation.md](./04-Organize-Implementation.md)**
    - Organize page guide (strategies + tags)
    - Hook creation (useStrategies, useTags)
-   - Strategy and tag management
+   - Tag management and position tagging (strategy UI removed Oct 2025)
    - Two-column layout
    - **When to implement**: Phase 4, Week 2-3
 
@@ -187,7 +187,7 @@ src/
 │   ├── navigation/
 │   │   └── NavigationDropdown.tsx # 🆕 Dropdown menu (6 pages)
 │   ├── positions/            # ✅ Reuse existing components
-│   ├── strategies/           # 🆕 Strategy components
+│   ├── strategies/           # 🗑️ Legacy strategy components (remove during redesign)
 │   ├── tags/                 # 🆕 Tag components
 │   └── settings/             # 🆕 Settings components
 ├── hooks/
@@ -378,7 +378,7 @@ Before starting any implementation, verify:
 - Follow: Phase 4-5 of checklist
 - Read: 04-Organize-Implementation.md
 - Read: 05-AIChat-Implementation.md
-- Implement: Strategy/tag management, chat interface
+- Implement: Tag/position tagging management, chat interface (strategy UI removed)
 
 **Week 4**: Settings & Testing
 - Follow: Phase 6-7 of checklist

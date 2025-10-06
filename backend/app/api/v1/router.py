@@ -8,7 +8,6 @@ from app.api.v1 import auth, data
 from app.api.v1.chat import router as chat_router
 from app.api.v1.analytics.router import router as analytics_router
 from app.api.v1.target_prices import router as target_prices_router
-from app.api.v1.strategies import router as strategies_router
 from app.api.v1.tags import router as tags_router
 from app.api.v1.position_tags import router as position_tags_router
 
@@ -30,9 +29,6 @@ api_router.include_router(analytics_router)
 
 # Target Prices APIs (/target-prices/) - portfolio-specific price targets
 api_router.include_router(target_prices_router)
-
-# Strategy Management APIs (/strategies/) - multi-leg strategy management
-api_router.include_router(strategies_router)
 
 # Tag Management APIs (/tags/) - user-scoped organizational tags
 api_router.include_router(tags_router)

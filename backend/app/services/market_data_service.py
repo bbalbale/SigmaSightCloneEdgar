@@ -24,15 +24,30 @@ from app.services.yahooquery_profile_fetcher import fetch_company_profiles as fe
 
 logger = get_logger(__name__)
 
+# Synthetic/placeholder symbols that should be skipped in market data fetching
+SYNTHETIC_SYMBOLS = {
+    'HOME_EQUITY', 'TREASURY_BILLS', 'CRYPTO_BTC_ETH', 'TWO_SIGMA_FUND',
+    'A16Z_VC_FUND', 'STARWOOD_REIT', 'BX_PRIVATE_EQUITY', 'RENTAL_SFH',
+    'ART_COLLECTIBLES', 'RENTAL_CONDO', 'MONEY_MARKET'
+}
+
 
 class MarketDataService:
     """Service for fetching and managing market data from external APIs"""
-    
+
     def __init__(self):
         self.polygon_client = RESTClient(api_key=settings.POLYGON_API_KEY)
         self._cache: Dict[str, Any] = {}
         # Initialize the market data factory
         market_data_factory.initialize()
+
+    def _filter_synthetic_symbols(self, symbols: List[str]) -> List[str]:
+        """Filter out synthetic/placeholder symbols that don't have market data"""
+        filtered = [s for s in symbols if s not in SYNTHETIC_SYMBOLS]
+        skipped = [s for s in symbols if s in SYNTHETIC_SYMBOLS]
+        if skipped:
+            logger.info(f"Skipping {len(skipped)} synthetic symbols: {', '.join(skipped)}")
+        return filtered
     
     # New hybrid provider methods (Section 1.4.9)
     
@@ -59,7 +74,13 @@ class MarketDataService:
             Dictionary with symbol as key and list of price data as value
         """
         logger.info(f"Fetching historical data (hybrid) for {len(symbols)} symbols")
-        
+
+        # Filter out synthetic symbols
+        symbols = self._filter_synthetic_symbols(symbols)
+        if not symbols:
+            logger.info("No real symbols to fetch after filtering synthetics")
+            return {}
+
         if not start_date:
             start_date = date.today() - timedelta(days=90)
         if not end_date:

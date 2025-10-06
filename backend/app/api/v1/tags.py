@@ -1,8 +1,8 @@
 """
 Tag Management API Endpoints - Tag Lifecycle + Reverse Lookups
 
-This module handles TAG-CENTRIC operations - creating, updating, and managing tags,
-plus finding positions that have a specific tag (reverse lookup pattern).
+This module handles tag-centric operations: creating, updating, archiving,
+and listing tags, plus the reverse lookup for positions by tag.
 
 **Architecture Context** (3-tier separation of concerns):
 - position_tags.py: Position-tag relationship operations
@@ -18,14 +18,8 @@ plus finding positions that have a specific tag (reverse lookup pattern).
 - POST   /tags/{id}/restore        → Restore archived tag
 - POST   /tags/defaults            → Create/get default tags
 
-**Endpoints - Reverse Lookups** (Find positions/strategies by tag):
-- GET    /tags/{id}/positions      → Get positions with this tag (NEW - preferred)
-- GET    /tags/{id}/strategies     → Get strategies with this tag (DEPRECATED)
-
-**Endpoints - Strategy Tagging** (DEPRECATED - kept for backward compatibility):
-- POST   /tags/assign              → Assign tag to strategy
-- DELETE /tags/assign              → Remove tag from strategy
-- POST   /tags/bulk-assign         → Bulk assign tags to strategy
+**Endpoint - Reverse Lookup**:
+- GET    /tags/{id}/positions      → Get positions with this tag (preferred grouping mechanism)
 
 **Why is the reverse lookup here?**
 This follows REST API design patterns for many-to-many relationships:
@@ -44,7 +38,7 @@ Registered in app/api/v1/router.py as:
   `api_router.include_router(tags_router)`
 Router has prefix="/tags" defined internally, creating routes like: /api/v1/tags/
 """
-from typing import List, Optional
+from typing import Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -54,15 +48,12 @@ from app.database import get_db
 from app.core.dependencies import get_current_user, validate_portfolio_ownership
 from app.models import User
 from app.services.tag_service import TagService
-from app.services.strategy_service import StrategyService
+from app.services.position_tag_service import PositionTagService
 from app.schemas.tag_schemas import (
     CreateTagRequest,
     UpdateTagRequest,
-    AssignTagRequest,
-    BulkAssignTagsRequest,
     TagResponse,
-    TagListResponse,
-    StrategyTagResponse
+    TagListResponse
 )
 from app.core.logging import get_logger
 
@@ -131,14 +122,14 @@ async def list_tags(
 @router.get("/{tag_id}", response_model=TagResponse)
 async def get_tag(
     tag_id: UUID,
-    include_strategies: bool = Query(False, description="Include associated strategies"),
+    include_positions: bool = Query(False, description="Include associated positions"),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     """Get a specific tag by ID"""
     service = TagService(db)
 
-    tag = await service.get_tag(tag_id, include_strategies=include_strategies)
+    tag = await service.get_tag(tag_id, include_positions=include_positions)
 
     if not tag:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tag not found")
@@ -230,185 +221,6 @@ async def restore_tag(
     return {"message": "Tag restored successfully"}
 
 
-@router.post("/assign")
-async def assign_tag_to_strategy(
-    request: AssignTagRequest,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    """
-    Assign a tag to a strategy
-
-    ⚠️ DEPRECATED: Use position tagging instead (/api/v1/positions/{id}/tags)
-    This endpoint is kept for backward compatibility only.
-    """
-    service = TagService(db)
-    strategy_service = StrategyService(db)
-
-    # Verify tag ownership
-    tag = await service.get_tag(request.tag_id)
-    if not tag:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tag not found")
-    if tag.user_id != current_user.id:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
-
-    # Verify strategy ownership via portfolio
-    strategy = await strategy_service.get_strategy(request.strategy_id, include_positions=False)
-    if not strategy:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Strategy not found")
-    try:
-        await validate_portfolio_ownership(db, strategy.portfolio_id, current_user.id)
-    except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
-
-    try:
-        strategy_tag = await service.assign_tag_to_strategy(
-            tag_id=request.tag_id,
-            strategy_id=request.strategy_id,
-            assigned_by=current_user.id
-        )
-
-        return {"message": "Tag assigned successfully", "id": strategy_tag.id}
-
-    except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
-
-
-@router.delete("/assign")
-async def remove_tag_from_strategy(
-    tag_id: UUID = Query(..., description="Tag to remove"),
-    strategy_id: UUID = Query(..., description="Strategy to remove from"),
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    """
-    Remove a tag from a strategy
-
-    ⚠️ DEPRECATED: Use position tagging instead (/api/v1/positions/{id}/tags)
-    This endpoint is kept for backward compatibility only.
-    """
-    service = TagService(db)
-    strategy_service = StrategyService(db)
-
-    # Verify tag ownership
-    tag = await service.get_tag(tag_id)
-    if not tag:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tag not found")
-    if tag.user_id != current_user.id:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
-
-    # Authorize strategy ownership via portfolio
-    strategy = await strategy_service.get_strategy(strategy_id, include_positions=False)
-    if not strategy:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Strategy not found")
-    try:
-        await validate_portfolio_ownership(db, strategy.portfolio_id, current_user.id)
-    except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
-
-    success = await service.remove_tag_from_strategy(tag_id, strategy_id)
-
-    if not success:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tag assignment not found")
-
-    return {"message": "Tag removed successfully"}
-
-
-@router.post("/bulk-assign")
-async def bulk_assign_tags(
-    request: BulkAssignTagsRequest,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    """
-    Assign multiple tags to a strategy at once
-
-    ⚠️ DEPRECATED: Use position tagging instead (/api/v1/positions/{id}/tags)
-    This endpoint is kept for backward compatibility only.
-    """
-    service = TagService(db)
-    strategy_service = StrategyService(db)
-
-    # Verify all tags belong to user
-    for tag_id in request.tag_ids:
-        tag = await service.get_tag(tag_id)
-        if not tag or tag.user_id != current_user.id:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail=f"Access denied or tag not found: {tag_id}"
-            )
-
-    # Authorize strategy ownership via portfolio
-    strategy = await strategy_service.get_strategy(request.strategy_id, include_positions=False)
-    if not strategy:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Strategy not found")
-    try:
-        await validate_portfolio_ownership(db, strategy.portfolio_id, current_user.id)
-    except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
-
-    created_tags = await service.bulk_assign_tags(
-        strategy_id=request.strategy_id,
-        tag_ids=request.tag_ids,
-        assigned_by=current_user.id,
-        replace_existing=request.replace_existing
-    )
-
-    return {
-        "message": f"Assigned {len(created_tags)} tags to strategy",
-        "assigned_count": len(created_tags)
-    }
-
-
-@router.get("/{tag_id}/strategies")
-async def get_strategies_by_tag(
-    tag_id: UUID,
-    portfolio_id: Optional[UUID] = Query(None, description="Filter by portfolio"),
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    """
-    Get all strategies with a specific tag
-
-    ⚠️ DEPRECATED: Use /tags/{id}/positions for position tagging instead
-    This endpoint is kept for backward compatibility only.
-    """
-    service = TagService(db)
-
-    # Verify tag ownership
-    tag = await service.get_tag(tag_id)
-    if not tag:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tag not found")
-    if tag.user_id != current_user.id:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
-
-    # Default to current user's portfolio, and authorize
-    effective_portfolio_id = portfolio_id or getattr(current_user, "portfolio_id", None)
-    if not effective_portfolio_id:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No portfolio context available")
-    try:
-        await validate_portfolio_ownership(db, effective_portfolio_id, current_user.id)
-    except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
-
-    strategies = await service.get_strategies_by_tag(tag_id, effective_portfolio_id)
-
-    return {
-        "tag_id": tag_id,
-        "tag_name": tag.name,
-        "strategies": [
-            {
-                "id": s.id,
-                "name": s.name,
-                "type": s.strategy_type,
-                "portfolio_id": s.portfolio_id
-            }
-            for s in strategies
-        ],
-        "total": len(strategies)
-    }
-
-
 @router.post("/defaults")
 async def create_default_tags(
     db: AsyncSession = Depends(get_db),
@@ -448,8 +260,6 @@ async def get_positions_by_tag(
     This replaces the /tags/{tag_id}/strategies endpoint for the new
     position-based tagging system.
     """
-    from app.services.position_tag_service import PositionTagService
-
     tag_service = TagService(db)
     position_tag_service = PositionTagService(db)
 

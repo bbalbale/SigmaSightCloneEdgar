@@ -133,67 +133,69 @@
 
 ### Long Positions (60% of portfolio)
 
+> **Tagging Note**: `Suggested Tags` mirror the tags applied in the seed data so the frontend can organize positions without strategy containers.
+
 #### Growth/Momentum Longs
-| Ticker | Shares | Value | Allocation | Strategy |
-|--------|--------|-------|------------|----------|
-| NVDA | 800 | $560,000 | 17.5% | AI semiconductor play |
-| MSFT | 1,000 | $420,000 | 13.1% | Cloud dominance |
-| AAPL | 1,500 | $337,500 | 10.5% | Ecosystem moat |
-| GOOGL | 1,800 | $288,000 | 9.0% | AI + Search moat |
-| META | 1,000 | $265,000 | 8.3% | Metaverse thesis |
-| AMZN | 1,400 | $238,000 | 7.4% | AWS growth |
-| TSLA | 800 | $204,000 | 6.4% | EV revolution |
-| AMD | 1,200 | $194,400 | 6.1% | Data center growth |
+| Ticker | Shares | Value | Allocation | Suggested Tags |
+|--------|--------|-------|------------|----------------|
+| NVDA | 800 | $560,000 | 17.5% | Long Momentum, AI Play |
+| MSFT | 1,000 | $420,000 | 13.1% | Long Momentum, Cloud Dominance |
+| AAPL | 1,500 | $337,500 | 10.5% | Long Momentum, Ecosystem Moat |
+| GOOGL | 1,800 | $288,000 | 9.0% | Long Momentum, AI & Search |
+| META | 1,000 | $265,000 | 8.3% | Long Momentum, Metaverse |
+| AMZN | 1,400 | $238,000 | 7.4% | Long Momentum, AWS Growth |
+| TSLA | 800 | $204,000 | 6.4% | Long Momentum, EV Revolution |
+| AMD | 1,200 | $194,400 | 6.1% | Long Momentum, Data Center |
 
 #### Quality/Value Longs
-| Ticker | Shares | Value | Allocation | Strategy |
-|--------|--------|-------|------------|----------|
-| BRK.B | 600 | $264,000 | 8.3% | Quality value |
-| JPM | 1,000 | $170,000 | 5.3% | Bank quality |
-| JNJ | 800 | $128,000 | 4.0% | Healthcare defensive |
-| UNH | 200 | $109,200 | 3.4% | Healthcare quality |
-| V | 350 | $93,800 | 2.9% | Payment network |
+| Ticker | Shares | Value | Allocation | Suggested Tags |
+|--------|--------|-------|------------|----------------|
+| BRK.B | 600 | $264,000 | 8.3% | Long Value, Quality |
+| JPM | 1,000 | $170,000 | 5.3% | Long Value, Bank Quality |
+| JNJ | 800 | $128,000 | 4.0% | Long Value, Healthcare Defensive |
+| UNH | 200 | $109,200 | 3.4% | Long Value, Healthcare Quality |
+| V | 350 | $93,800 | 2.9% | Long Value, Payment Network |
 
 **Total Long Positions:** $4,271,900 (133.5% of NAV)
 
 ### Short Positions (25% of portfolio)
 
 #### Overvalued Growth Shorts
-| Ticker | Shares | Value | Allocation | Strategy |
-|--------|--------|-------|------------|----------|
-| NFLX | -600 | -$294,000 | -9.2% | Streaming saturation |
-| SHOP | -1,000 | -$195,000 | -6.1% | E-commerce slowdown |
-| ZOOM | -2,000 | -$140,000 | -4.4% | Post-pandemic normalization |
-| PELOTON | -3,000 | -$120,000 | -3.8% | Fad product |
-| ROKU | -1,800 | -$108,000 | -3.4% | Streaming competition |
+| Ticker | Shares | Value | Allocation | Suggested Tags |
+|--------|--------|-------|------------|----------------|
+| NFLX | -600 | -$294,000 | -9.2% | Short Value Traps |
+| SHOP | -1,000 | -$195,000 | -6.1% | Short Value Traps |
+| ZM | -2,000 | -$140,000 | -4.4% | Short Value Traps |
+| PTON | -3,000 | -$120,000 | -3.8% | Short Value Traps |
+| ROKU | -1,800 | -$108,000 | -3.4% | Short Value Traps |
 
 #### Cyclical/Value Shorts
-| Ticker | Shares | Value | Allocation | Strategy |
-|--------|--------|-------|------------|----------|
-| XOM | -2,000 | -$220,000 | -6.9% | Energy transition |
-| F | -10,000 | -$120,000 | -3.8% | EV transition risk |
-| GE | -800 | -$112,000 | -3.5% | Industrial cyclical |
-| C | -2,000 | -$110,000 | -3.4% | Banking headwinds |
+| Ticker | Shares | Value | Allocation | Suggested Tags |
+|--------|--------|-------|------------|----------------|
+| XOM | -2,000 | -$220,000 | -6.9% | Short Value Traps |
+| F | -10,000 | -$120,000 | -3.8% | Short Value Traps |
+| GE | -800 | -$112,000 | -3.5% | Short Value Traps |
+| C | -2,000 | -$110,000 | -3.4% | Short Value Traps |
 
 **Total Short Positions:** -$1,419,000 (-44.3% of NAV)
 
 ### Options Positions (15% of portfolio)
 
 #### Long Options (Upside/Volatility)
-| Ticker | Type | Strike | Expiry | Contracts | Premium | Strategy |
-|--------|------|--------|--------|-----------|---------|----------|
-| SPY | Call | $460 | 2025-09-19 | 200 | $140,000 | Market upside |
-| QQQ | Call | $420 | 2025-08-15 | 150 | $105,000 | Tech momentum |
-| VIX | Call | $25 | 2025-07-16 | 300 | $75,000 | Tail risk hedge |
-| NVDA | Call | $800 | 2025-10-17 | 50 | $62,500 | Momentum play |
+| Ticker | Type | Strike | Expiry | Contracts | Premium | Suggested Tags |
+|--------|------|--------|--------|-----------|---------|----------------|
+| SPY | Call | $460 | 2025-09-19 | 200 | $140,000 | Options Overlay |
+| QQQ | Call | $420 | 2025-08-15 | 150 | $105,000 | Options Overlay |
+| VIX | Call | $25 | 2025-07-16 | 300 | $75,000 | Options Overlay |
+| NVDA | Call | $800 | 2025-10-17 | 50 | $62,500 | Options Overlay |
 
 #### Short Options (Premium Collection)
-| Ticker | Type | Strike | Expiry | Contracts | Premium | Strategy |
-|--------|------|--------|--------|-----------|---------|----------|
-| AAPL | Put | $200 | 2025-08-15 | -100 | -$45,000 | Income generation |
-| MSFT | Put | $380 | 2025-09-19 | -80 | -$40,000 | Income generation |
-| TSLA | Call | $300 | 2025-08-15 | -60 | -$48,000 | Covered call |
-| META | Put | $450 | 2025-09-19 | -50 | -$37,500 | Income generation |
+| Ticker | Type | Strike | Expiry | Contracts | Premium | Suggested Tags |
+|--------|------|--------|--------|-----------|---------|----------------|
+| AAPL | Put | $200 | 2025-08-15 | -100 | -$45,000 | Options Overlay |
+| MSFT | Put | $380 | 2025-09-19 | -80 | -$40,000 | Options Overlay |
+| TSLA | Call | $300 | 2025-08-15 | -60 | -$48,000 | Options Overlay |
+| META | Put | $450 | 2025-09-19 | -50 | -$37,500 | Options Overlay |
 
 **Total Options Premium:** $212,000 net long
 
