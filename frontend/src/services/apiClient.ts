@@ -322,17 +322,26 @@ export class ApiClient {
 // Default instance - uses Next.js proxy for backend API calls
 export const apiClient = new ApiClient('/api/proxy');
 
-// Add default request interceptor for auth (when needed)
+// Add default request interceptor for auth
+// Import dynamically to avoid circular dependency issues
 apiClient.addRequestInterceptor(async (url, config) => {
-  // Add auth headers here when authentication is implemented
-  // const token = getAuthToken();
-  // if (token) {
-  //   config.headers = {
-  //     ...config.headers,
-  //     'Authorization': `Bearer ${token}`,
-  //   };
-  // }
-  
+  // Get token from authManager (centralized token management)
+  if (typeof window !== 'undefined') {
+    try {
+      const { authManager } = await import('./authManager');
+      const token = authManager.getAccessToken();
+
+      if (token) {
+        config.headers = {
+          ...config.headers,
+          'Authorization': `Bearer ${token}`,
+        };
+      }
+    } catch (error) {
+      console.warn('Failed to add auth header:', error);
+    }
+  }
+
   return { url, config };
 });
 

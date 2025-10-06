@@ -62,4 +62,5 @@ test_screenshots/
 
 # Development artifacts
 cookies.txt
+*.cookies
 *.cache
