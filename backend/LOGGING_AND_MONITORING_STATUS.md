@@ -542,506 +542,13 @@ api_router.include_router(
 
 ---
 
-## 🎯 Proposed New Endpoints
+## 🎯 Simplified Design Details
 
-### 1. New Batch Execution Endpoint (Replaces /trigger/daily)
+### Endpoint 1: Trigger Batch (Replaces /trigger/daily)
 
-**Delete:** `POST /admin/batch/trigger/daily`
-**Create:** `POST /admin/batch/run`
+**Endpoint:** `POST /admin/batch/run`
 
-```python
-@router.post("/run")
-async def run_batch_processing(
-    portfolio_id: Optional[str] = Query(None, description="Specific portfolio or all"),
-    force: bool = Query(False, description="Force run even if batch already running"),
-    skip_market_data: bool = Query(False, description="Skip market data update"),
-    background_tasks: BackgroundTasks,
-    db: AsyncSession = Depends(get_db),
-    admin_user = Depends(require_admin)
-):
-    """
-    Trigger batch processing with real-time tracking.
-
-    Returns batch_run_id for status polling.
-    Prevents concurrent runs unless force=True.
-    """
-    # Check if batch already running
-    if batch_run_tracker.is_running() and not force:
-        current_run = batch_run_tracker.get_current()
-        raise HTTPException(
-            status_code=409,
-            detail={
-                "error": "Batch already running",
-                "current_batch_run_id": current_run.batch_run_id,
-                "started_at": current_run.started_at,
-                "progress": current_run.get_progress()
-            }
-        )
-
-    # Create new batch run
-    batch_run_id = str(uuid4())
-    batch_run = BatchRun(
-        batch_run_id=batch_run_id,
-        portfolio_id=portfolio_id,
-        started_at=utc_now(),
-        triggered_by=admin_user.email,
-        skip_market_data=skip_market_data
-    )
-
-    # Register with tracker
-    batch_run_tracker.start(batch_run)
-
-    # Execute in background
-    background_tasks.add_task(
-        _run_batch_with_tracking,
-        batch_run_id,
-        portfolio_id,
-        skip_market_data
-    )
-
-    return {
-        "status": "started",
-        "batch_run_id": batch_run_id,
-        "portfolio_id": portfolio_id or "all",
-        "triggered_by": admin_user.email,
-        "timestamp": utc_now(),
-        "status_url": f"/api/v1/admin/batch/run/{batch_run_id}",
-        "current_status_url": f"/api/v1/admin/batch/run/current"
-    }
-```
-
-**Response Example:**
-```json
-{
-  "status": "started",
-  "batch_run_id": "550e8400-e29b-41d4-a716-446655440000",
-  "portfolio_id": "all",
-  "triggered_by": "admin@sigmasight.com",
-  "timestamp": "2025-10-06T14:30:00Z",
-  "status_url": "/api/v1/admin/batch/run/550e8400-e29b-41d4-a716-446655440000",
-  "current_status_url": "/api/v1/admin/batch/run/current"
-}
-```
-
----
-
-### 2. Current Batch Status Endpoint (Polling)
-
-**New:** `GET /admin/batch/run/current`
-
-```python
-@router.get("/run/current")
-async def get_current_batch_status(
-    admin_user = Depends(require_admin)
-):
-    """
-    Get status of currently running batch process.
-
-    Returns null if no batch running.
-    Designed for polling every 2-5 seconds.
-    """
-    current_run = batch_run_tracker.get_current()
-
-    if not current_run:
-        return {
-            "status": "idle",
-            "batch_run_id": None,
-            "message": "No batch processing currently running"
-        }
-
-    return {
-        "status": "running",
-        "batch_run_id": current_run.batch_run_id,
-        "started_at": current_run.started_at,
-        "elapsed_seconds": (utc_now() - current_run.started_at).total_seconds(),
-        "triggered_by": current_run.triggered_by,
-
-        # Progress details
-        "portfolios": {
-            "total": current_run.total_portfolios,
-            "completed": current_run.completed_portfolios,
-            "current": current_run.current_portfolio_name
-        },
-
-        "jobs": {
-            "total": current_run.total_jobs,
-            "completed": current_run.completed_jobs,
-            "running": current_run.running_jobs,
-            "failed": current_run.failed_jobs,
-            "pending": current_run.pending_jobs
-        },
-
-        "current_job": {
-            "name": current_run.current_job_name,
-            "portfolio": current_run.current_portfolio_name,
-            "started_at": current_run.current_job_started_at
-        },
-
-        "progress_percent": round(
-            (current_run.completed_jobs / current_run.total_jobs * 100)
-            if current_run.total_jobs > 0 else 0,
-            1
-        )
-    }
-```
-
-**Response Example (Running):**
-```json
-{
-  "status": "running",
-  "batch_run_id": "550e8400-e29b-41d4-a716-446655440000",
-  "started_at": "2025-10-06T14:30:00Z",
-  "elapsed_seconds": 127.5,
-  "triggered_by": "admin@sigmasight.com",
-
-  "portfolios": {
-    "total": 3,
-    "completed": 1,
-    "current": "Sophisticated High Net Worth Portfolio"
-  },
-
-  "jobs": {
-    "total": 24,
-    "completed": 10,
-    "running": 1,
-    "failed": 1,
-    "pending": 12
-  },
-
-  "current_job": {
-    "name": "factor_analysis",
-    "portfolio": "Sophisticated High Net Worth Portfolio",
-    "started_at": "2025-10-06T14:32:15Z"
-  },
-
-  "progress_percent": 41.7
-}
-```
-
-**Response Example (Idle):**
-```json
-{
-  "status": "idle",
-  "batch_run_id": null,
-  "message": "No batch processing currently running"
-}
-```
-
----
-
-### 3. Historical Batch Run Status
-
-**New:** `GET /admin/batch/run/{batch_run_id}`
-
-```python
-@router.get("/run/{batch_run_id}")
-async def get_batch_run_status(
-    batch_run_id: str,
-    db: AsyncSession = Depends(get_db),
-    admin_user = Depends(require_admin)
-):
-    """
-    Get status of specific batch run (current or completed).
-    """
-    # Check in-memory tracker first (for current/recent runs)
-    run = batch_run_tracker.get(batch_run_id)
-
-    if run:
-        return run.to_dict()
-
-    # Check database for historical runs (if we add BatchRun table)
-    # For now, return 404
-    raise HTTPException(
-        status_code=404,
-        detail=f"Batch run {batch_run_id} not found"
-    )
-```
-
----
-
-### 4. Cancel Current Batch Run
-
-**New:** `POST /admin/batch/run/current/cancel`
-
-```python
-@router.post("/run/current/cancel")
-async def cancel_current_batch(
-    admin_user = Depends(require_admin)
-):
-    """
-    Cancel the currently running batch process.
-
-    Marks current job as cancelled and prevents new jobs from starting.
-    Jobs already running will complete.
-    """
-    current_run = batch_run_tracker.get_current()
-
-    if not current_run:
-        raise HTTPException(
-            status_code=404,
-            detail="No batch currently running"
-        )
-
-    # Mark as cancelled
-    current_run.status = "cancelled"
-    current_run.cancelled_by = admin_user.email
-    current_run.cancelled_at = utc_now()
-
-    logger.warning(
-        f"Batch run {current_run.batch_run_id} cancelled by {admin_user.email}"
-    )
-
-    return {
-        "status": "cancelled",
-        "batch_run_id": current_run.batch_run_id,
-        "cancelled_by": admin_user.email,
-        "jobs_completed": current_run.completed_jobs,
-        "jobs_pending": current_run.pending_jobs,
-        "timestamp": utc_now()
-    }
-```
-
----
-
-## 🔧 Implementation: Batch Run Tracker
-
-### In-Memory State Tracker (MVP)
-
-**Location:** `app/batch/batch_run_tracker.py`
-
-```python
-from dataclasses import dataclass, field
-from typing import Optional, Dict, List
-from datetime import datetime
-from uuid import UUID
-from app.core.datetime_utils import utc_now
-
-@dataclass
-class BatchRun:
-    """Tracks state of a batch processing run"""
-    batch_run_id: str
-    portfolio_id: Optional[str]
-    started_at: datetime
-    triggered_by: str
-    skip_market_data: bool = False
-
-    # Status
-    status: str = "running"  # running, completed, failed, cancelled
-    completed_at: Optional[datetime] = None
-    cancelled_by: Optional[str] = None
-    cancelled_at: Optional[datetime] = None
-
-    # Portfolio progress
-    total_portfolios: int = 0
-    completed_portfolios: int = 0
-    current_portfolio_name: Optional[str] = None
-
-    # Job progress
-    total_jobs: int = 0
-    completed_jobs: int = 0
-    running_jobs: int = 0
-    failed_jobs: int = 0
-    pending_jobs: int = 0
-
-    # Current job
-    current_job_name: Optional[str] = None
-    current_job_started_at: Optional[datetime] = None
-
-    # Results
-    job_results: List[Dict] = field(default_factory=list)
-
-    def to_dict(self) -> Dict:
-        """Serialize to dict for API response"""
-        return {
-            "batch_run_id": self.batch_run_id,
-            "portfolio_id": self.portfolio_id,
-            "started_at": self.started_at.isoformat(),
-            "completed_at": self.completed_at.isoformat() if self.completed_at else None,
-            "triggered_by": self.triggered_by,
-            "status": self.status,
-
-            "portfolios": {
-                "total": self.total_portfolios,
-                "completed": self.completed_portfolios,
-                "current": self.current_portfolio_name
-            },
-
-            "jobs": {
-                "total": self.total_jobs,
-                "completed": self.completed_jobs,
-                "running": self.running_jobs,
-                "failed": self.failed_jobs,
-                "pending": self.pending_jobs
-            },
-
-            "progress_percent": round(
-                (self.completed_jobs / self.total_jobs * 100)
-                if self.total_jobs > 0 else 0,
-                1
-            ),
-
-            "elapsed_seconds": (
-                (self.completed_at or utc_now()) - self.started_at
-            ).total_seconds(),
-
-            "results": self.job_results
-        }
-
-
-class BatchRunTracker:
-    """Singleton tracker for batch run state"""
-
-    def __init__(self):
-        self._current_run: Optional[BatchRun] = None
-        self._recent_runs: Dict[str, BatchRun] = {}  # Last 10 runs
-        self._max_recent = 10
-
-    def start(self, batch_run: BatchRun):
-        """Register new batch run as current"""
-        self._current_run = batch_run
-        self._recent_runs[batch_run.batch_run_id] = batch_run
-
-        # Trim old runs
-        if len(self._recent_runs) > self._max_recent:
-            oldest_id = min(
-                self._recent_runs.keys(),
-                key=lambda k: self._recent_runs[k].started_at
-            )
-            del self._recent_runs[oldest_id]
-
-    def complete(self, batch_run_id: str, status: str = "completed"):
-        """Mark batch run as complete"""
-        if self._current_run and self._current_run.batch_run_id == batch_run_id:
-            self._current_run.status = status
-            self._current_run.completed_at = utc_now()
-            self._current_run = None  # No longer current
-
-    def is_running(self) -> bool:
-        """Check if any batch is currently running"""
-        return self._current_run is not None
-
-    def get_current(self) -> Optional[BatchRun]:
-        """Get currently running batch"""
-        return self._current_run
-
-    def get(self, batch_run_id: str) -> Optional[BatchRun]:
-        """Get batch run by ID (current or recent)"""
-        if self._current_run and self._current_run.batch_run_id == batch_run_id:
-            return self._current_run
-        return self._recent_runs.get(batch_run_id)
-
-    def update_progress(
-        self,
-        batch_run_id: str,
-        completed_jobs: Optional[int] = None,
-        failed_jobs: Optional[int] = None,
-        current_job_name: Optional[str] = None,
-        current_portfolio_name: Optional[str] = None
-    ):
-        """Update progress for current batch run"""
-        run = self.get(batch_run_id)
-        if not run:
-            return
-
-        if completed_jobs is not None:
-            run.completed_jobs = completed_jobs
-            run.pending_jobs = run.total_jobs - completed_jobs - failed_jobs
-
-        if failed_jobs is not None:
-            run.failed_jobs = failed_jobs
-
-        if current_job_name:
-            run.current_job_name = current_job_name
-            run.current_job_started_at = utc_now()
-            run.running_jobs = 1
-
-        if current_portfolio_name:
-            run.current_portfolio_name = current_portfolio_name
-
-
-# Global singleton instance
-batch_run_tracker = BatchRunTracker()
-```
-
----
-
-### Integration with Batch Orchestrator
-
-**Modify:** `app/batch/batch_orchestrator_v2.py`
-
-```python
-async def _run_batch_with_tracking(
-    batch_run_id: str,
-    portfolio_id: Optional[str],
-    skip_market_data: bool
-):
-    """
-    Execute batch with real-time progress tracking.
-
-    Updates batch_run_tracker as jobs complete.
-    """
-    from app.batch.batch_run_tracker import batch_run_tracker
-
-    try:
-        # Get portfolios to process
-        async with get_async_session() as db:
-            if portfolio_id:
-                portfolio = await db.get(Portfolio, UUID(portfolio_id))
-                portfolios = [portfolio] if portfolio else []
-            else:
-                result = await db.execute(select(Portfolio))
-                portfolios = result.scalars().all()
-
-        # Calculate total jobs
-        jobs_per_portfolio = 8  # 8 calculation engines
-        total_jobs = len(portfolios) * jobs_per_portfolio
-
-        # Update tracker with totals
-        run = batch_run_tracker.get(batch_run_id)
-        run.total_portfolios = len(portfolios)
-        run.total_jobs = total_jobs
-        run.pending_jobs = total_jobs
-
-        # Execute batch with progress updates
-        completed_jobs = 0
-        failed_jobs = 0
-
-        for i, portfolio in enumerate(portfolios):
-            batch_run_tracker.update_progress(
-                batch_run_id,
-                current_portfolio_name=portfolio.name
-            )
-
-            # Run each job for this portfolio
-            for job_name in ["market_data", "positions", "greeks", ...]:
-                # Update current job
-                batch_run_tracker.update_progress(
-                    batch_run_id,
-                    current_job_name=job_name
-                )
-
-                try:
-                    # Execute job
-                    result = await self._execute_job(...)
-                    completed_jobs += 1
-                except Exception as e:
-                    failed_jobs += 1
-                    logger.error(f"Job {job_name} failed: {e}")
-
-                # Update progress
-                batch_run_tracker.update_progress(
-                    batch_run_id,
-                    completed_jobs=completed_jobs,
-                    failed_jobs=failed_jobs
-                )
-
-        # Mark complete
-        batch_run_tracker.complete(batch_run_id, "completed")
-
-    except Exception as e:
-        logger.error(f"Batch run {batch_run_id} failed: {e}")
-        batch_run_tracker.complete(batch_run_id, "failed")
-```
+**See implementation in Step 2 of the Simplified Implementation Plan above.**
 
 ---
 
@@ -1177,85 +684,239 @@ Monitoring batch progress...
 ### 🚨 Current State: All Admin Batch Endpoints Return 404
 The `admin_batch.py` router is **NOT registered** in `app/api/v1/router.py`. All 15 existing endpoints are orphaned dead code.
 
-### Proposed Implementation Plan
+### Simplified Implementation Plan (Option A - Minimal Real-Time Monitoring)
 
-#### Step 1: Create New Endpoints (4 endpoints)
-**File:** `app/api/v1/endpoints/admin_batch.py`
+**Goal:** Remote trigger + real-time progress polling, minimal complexity
 
-1. `POST /admin/batch/run` - Start batch with tracking and force option
-2. `GET /admin/batch/run/current` - Poll current batch status (real-time)
-3. `GET /admin/batch/run/{batch_run_id}` - Get specific batch run status
-4. `POST /admin/batch/run/current/cancel` - Cancel current batch
-
-**Also Create:**
-- `app/batch/batch_run_tracker.py` - In-memory state tracker (see implementation section above)
-- Integrate tracking into `batch_orchestrator_v2.py`
-
-#### Step 2: Fix Existing Endpoints (2 endpoints)
-**File:** `app/api/v1/endpoints/admin_batch.py`
-
-1. `GET /admin/batch/jobs/status` - Fix portfolio_id and to_dict() issues
-2. `GET /admin/batch/jobs/summary` - Fix to_dict() issue
-
-**Also Fix:**
-- Add `portfolio_id: Mapped[Optional[UUID]]` to `BatchJob` model (app/models/snapshots.py)
-- Add `to_dict()` method to `BatchJob` model
-
-#### Step 3: Delete Unwanted Endpoints (9 endpoints)
-**File:** `app/api/v1/endpoints/admin_batch.py`
-
-Delete these endpoint functions (never register them):
-1. `POST /admin/batch/trigger/daily` → Replaced by `/admin/batch/run`
-2. `POST /admin/batch/trigger/greeks` → Redundant
-3. `POST /admin/batch/trigger/factors` → Redundant
-4. `POST /admin/batch/trigger/stress-tests` → Redundant
-5. `POST /admin/batch/trigger/snapshot` → Redundant
-6. `DELETE /admin/batch/jobs/{job_id}/cancel` → Replaced by `/run/current/cancel`
-7. `GET /admin/batch/schedules` → APScheduler not running
-8. `POST /admin/batch/scheduler/pause` → APScheduler not running
-9. `POST /admin/batch/scheduler/resume` → APScheduler not running
-
-#### Step 4: Register Router in FastAPI Application ⭐ **CRITICAL**
-**File:** `app/api/v1/router.py`
-
-Add the following import and registration:
+#### Step 1: Create Minimal In-Memory Tracker
+**File:** `app/batch/batch_run_tracker.py`
 
 ```python
-# Add to imports section
+from dataclasses import dataclass
+from datetime import datetime
+from typing import Optional
+
+@dataclass
+class CurrentBatchRun:
+    """Minimal state for current batch run"""
+    batch_run_id: str
+    started_at: datetime
+    triggered_by: str
+
+    # Counts
+    total_jobs: int = 0
+    completed_jobs: int = 0
+    failed_jobs: int = 0
+
+    # Current state
+    current_job_name: Optional[str] = None
+    current_portfolio_name: Optional[str] = None
+
+class BatchRunTracker:
+    """Simple singleton - only tracks CURRENT run"""
+    def __init__(self):
+        self._current: Optional[CurrentBatchRun] = None
+
+    def start(self, run: CurrentBatchRun):
+        self._current = run
+
+    def get_current(self) -> Optional[CurrentBatchRun]:
+        return self._current
+
+    def complete(self):
+        self._current = None
+
+    def update(self, completed: int = None, failed: int = None,
+               job_name: str = None, portfolio_name: str = None):
+        if not self._current:
+            return
+        if completed is not None:
+            self._current.completed_jobs = completed
+        if failed is not None:
+            self._current.failed_jobs = failed
+        if job_name:
+            self._current.current_job_name = job_name
+        if portfolio_name:
+            self._current.current_portfolio_name = portfolio_name
+
+# Singleton
+batch_run_tracker = BatchRunTracker()
+```
+
+**~50 lines instead of 150+**
+
+#### Step 2: Create 2 New Endpoints
+**File:** `app/api/v1/endpoints/admin_batch.py`
+
+Add these two endpoints (delete the old trigger/daily):
+
+```python
+from app.batch.batch_run_tracker import batch_run_tracker, CurrentBatchRun
+
+@router.post("/run")
+async def run_batch_processing(
+    portfolio_id: Optional[str] = Query(None),
+    force: bool = Query(False),
+    background_tasks: BackgroundTasks,
+    admin_user = Depends(require_admin)
+):
+    """Trigger batch with real-time tracking"""
+    if batch_run_tracker.get_current() and not force:
+        raise HTTPException(409, "Batch already running")
+
+    run_id = str(uuid4())
+    run = CurrentBatchRun(
+        batch_run_id=run_id,
+        started_at=utc_now(),
+        triggered_by=admin_user.email
+    )
+    batch_run_tracker.start(run)
+
+    background_tasks.add_task(_run_batch_with_tracking, run_id, portfolio_id)
+
+    return {
+        "status": "started",
+        "batch_run_id": run_id,
+        "poll_url": "/api/v1/admin/batch/run/current"
+    }
+
+@router.get("/run/current")
+async def get_current_batch_status(admin_user = Depends(require_admin)):
+    """Poll for real-time progress"""
+    current = batch_run_tracker.get_current()
+
+    if not current:
+        return {"status": "idle", "message": "No batch running"}
+
+    elapsed = (utc_now() - current.started_at).total_seconds()
+    progress = (current.completed_jobs / current.total_jobs * 100) if current.total_jobs > 0 else 0
+
+    return {
+        "status": "running",
+        "batch_run_id": current.batch_run_id,
+        "started_at": current.started_at,
+        "elapsed_seconds": elapsed,
+        "jobs": {
+            "total": current.total_jobs,
+            "completed": current.completed_jobs,
+            "failed": current.failed_jobs
+        },
+        "current_job": current.current_job_name,
+        "current_portfolio": current.current_portfolio_name,
+        "progress_percent": round(progress, 1)
+    }
+```
+
+**~60 lines instead of 300+**
+
+#### Step 3: Minimal Orchestrator Integration
+**File:** `app/batch/batch_orchestrator_v2.py`
+
+Add lightweight tracking calls:
+
+```python
+async def _run_batch_with_tracking(batch_run_id: str, portfolio_id: Optional[str]):
+    from app.batch.batch_run_tracker import batch_run_tracker
+
+    try:
+        # Get portfolios
+        portfolios = await _get_portfolios(portfolio_id)
+
+        # Set totals
+        tracker = batch_run_tracker.get_current()
+        if tracker:
+            tracker.total_jobs = len(portfolios) * 8  # 8 jobs per portfolio
+
+        # Run batch
+        completed = 0
+        failed = 0
+
+        for portfolio in portfolios:
+            batch_run_tracker.update(portfolio_name=portfolio.name)
+
+            for job in ["market_data", "positions", "greeks", ...]:
+                batch_run_tracker.update(job_name=job)
+
+                try:
+                    await _execute_job(job, portfolio)
+                    completed += 1
+                except:
+                    failed += 1
+
+                batch_run_tracker.update(completed=completed, failed=failed)
+
+        batch_run_tracker.complete()
+
+    except Exception as e:
+        logger.error(f"Batch failed: {e}")
+        batch_run_tracker.complete()
+```
+
+**~40 lines of integration instead of complex session management**
+
+#### Step 4: Delete Unwanted Endpoints (9 endpoints)
+**File:** `app/api/v1/endpoints/admin_batch.py`
+
+Delete these functions entirely:
+1. `trigger_daily` → Replaced by `/run`
+2. `trigger_greeks`, `trigger_factors`, `trigger_stress_tests`, `trigger_snapshot` → Redundant
+3. `cancel_batch_job` → Not needed for MVP
+4. `get_batch_schedules`, `pause_scheduler`, `resume_scheduler` → APScheduler not running
+
+#### Step 5: Register Router ⭐ **CRITICAL**
+**File:** `app/api/v1/router.py`
+
+```python
 from app.api.v1.endpoints import admin_batch
 
-# Add to router registration section (after existing routers)
-# Admin Batch Processing APIs (/admin/batch/) - batch management and monitoring
 api_router.include_router(
     admin_batch.router,
     tags=["Admin - Batch Processing"]
 )
 ```
 
-**This step makes all endpoints accessible via:**
-- HTTP: `POST /api/v1/admin/batch/run`
-- HTTP: `GET /api/v1/admin/batch/run/current`
-- etc.
-
-#### Keep Unchanged (4 endpoints - already in admin_batch.py)
-These will become accessible after Step 4 (router registration):
+#### Keep Unchanged (4 endpoints)
+Already in admin_batch.py, just register them:
 1. `POST /admin/batch/trigger/market-data`
 2. `POST /admin/batch/trigger/correlations`
 3. `GET /admin/batch/data-quality`
 4. `POST /admin/batch/data-quality/refresh`
 
-**Final Result:** 10 working, registered admin batch endpoints (4 new + 2 fixed + 4 existing) instead of 0 current
+---
+
+### What We're NOT Doing (Complexity Cuts)
+
+❌ No per-job BatchJob DB persistence
+❌ No historical batch run lookups
+❌ No cancel endpoint
+❌ No fixing broken /jobs/status and /jobs/summary
+❌ No data quality roll-ups
+❌ No verbose progress logging
+❌ No job results storage
+
+### What We Get
+
+✅ Remote batch trigger (no SSH)
+✅ Real-time progress monitoring (poll every 3 seconds)
+✅ Force flag to override concurrent runs
+✅ Progress bar in local script
+✅ Know which job/portfolio is running
+✅ See completion % and elapsed time
+
+**Total Implementation:** ~150 lines of new code instead of 800+
+**Final Endpoint Count:** 6 working endpoints (2 new + 4 existing)
 
 ---
 
-## ✅ Benefits
+## ✅ Benefits of Simplified Approach
 
 1. **No SSH Required:** Trigger and monitor batches via API from local machine
-2. **Real-time Progress:** Poll `/run/current` to see live progress
+2. **Real-time Progress:** Poll `/run/current` every 3 seconds to see live progress
 3. **Concurrent Run Prevention:** Avoid conflicts with `force` flag override
-4. **Better Monitoring:** Track progress percent, current job, elapsed time
-5. **Scriptable:** Easy to automate with local scripts
-6. **Simpler API:** Create 6 working endpoints instead of registering 15 (4 new + 2 fixed = 6 total)
-7. **Audit Trail:** Track who triggered batches and when
-8. **Remove Dead Code:** Never register 9 endpoints that are orphaned anyway
-9. **First Working Admin Endpoints:** Current endpoints are NOT registered (all return 404)
+4. **Progress Monitoring:** Track completion %, current job, elapsed time
+5. **Scriptable:** Easy to automate with local bash/python scripts
+6. **Minimal Code:** ~150 lines of new code instead of 800+
+7. **No DB Complexity:** In-memory tracking, no session management headaches
+8. **Clean API:** 6 working endpoints (2 new + 4 existing) instead of 0
+9. **No Dead Code:** Delete 9 unused endpoints entirely
+10. **Fast to Ship:** Can implement in a few hours instead of days
