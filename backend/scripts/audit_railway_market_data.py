@@ -83,36 +83,99 @@ def test_market_quotes(symbols: List[str], token: str):
         return None
 
 
-def test_historical_prices(portfolio_id: str, token: str):
-    """Test historical prices endpoint"""
-    print(f"\n📈 Testing Historical Prices Endpoint")
+def test_historical_prices(portfolio_id: str, symbols: List[str], token: str):
+    """Test historical prices endpoint with detailed per-symbol breakdown"""
+    print(f"\n📈 Testing Historical Prices - Detailed Per-Position Coverage")
     print(f"=" * 80)
 
     response = requests.get(
         f"{RAILWAY_URL}/data/prices/historical/{portfolio_id}",
         headers={"Authorization": f"Bearer {token}"},
         params={
-            "lookback_days": 30,
+            "lookback_days": 90,  # Increased to see more data
             "interval": "daily"
         }
     )
 
     if response.status_code == 200:
         prices = response.json()
-        print(f"✅ Historical Prices: {response.status_code}")
+        print(f"✅ Historical Prices: {response.status_code}\n")
 
-        symbols_with_data = prices.get("symbols_with_data", [])
-        symbols_without_data = prices.get("symbols_without_data", [])
+        # Get timeseries data per symbol
+        timeseries = prices.get("timeseries", {})
 
-        print(f"   Symbols with data: {len(symbols_with_data)}")
-        print(f"   Symbols missing data: {len(symbols_without_data)}")
+        # Build detailed coverage report
+        coverage_report = []
 
-        if symbols_with_data:
-            print(f"   Sample symbols with data: {', '.join(symbols_with_data[:5])}")
-        if symbols_without_data:
-            print(f"   Sample symbols missing: {', '.join(symbols_without_data[:5])}")
+        for symbol in sorted(symbols):
+            symbol_data = timeseries.get(symbol, [])
 
-        return prices
+            if symbol_data:
+                # Calculate date range
+                dates = [entry.get("date") for entry in symbol_data if entry.get("date")]
+                if dates:
+                    min_date = min(dates)
+                    max_date = max(dates)
+                    days_count = len(dates)
+
+                    coverage_report.append({
+                        "symbol": symbol,
+                        "days": days_count,
+                        "first_date": min_date,
+                        "last_date": max_date,
+                        "status": "✅"
+                    })
+                else:
+                    coverage_report.append({
+                        "symbol": symbol,
+                        "days": 0,
+                        "first_date": None,
+                        "last_date": None,
+                        "status": "❌"
+                    })
+            else:
+                coverage_report.append({
+                    "symbol": symbol,
+                    "days": 0,
+                    "first_date": None,
+                    "last_date": None,
+                    "status": "❌"
+                })
+
+        # Print detailed table
+        print(f"{'SYMBOL':<12} {'STATUS':<6} {'DAYS':<6} {'FIRST DATE':<12} {'LAST DATE':<12}")
+        print(f"{'-'*12} {'-'*6} {'-'*6} {'-'*12} {'-'*12}")
+
+        for entry in coverage_report:
+            symbol = entry["symbol"]
+            status = entry["status"]
+            days = entry["days"]
+            first = entry["first_date"] or "N/A"
+            last = entry["last_date"] or "N/A"
+
+            print(f"{symbol:<12} {status:<6} {days:<6} {first:<12} {last:<12}")
+
+        # Summary stats
+        with_data = sum(1 for e in coverage_report if e["days"] > 0)
+        without_data = len(coverage_report) - with_data
+        avg_days = sum(e["days"] for e in coverage_report) / len(coverage_report) if coverage_report else 0
+
+        print(f"\n{'='*80}")
+        print(f"HISTORICAL DATA SUMMARY:")
+        print(f"   Total Symbols: {len(coverage_report)}")
+        print(f"   With Data: {with_data} ({with_data/len(coverage_report)*100:.1f}%)")
+        print(f"   Missing Data: {without_data} ({without_data/len(coverage_report)*100:.1f}%)")
+        print(f"   Average Days per Symbol: {avg_days:.1f}")
+
+        return {
+            "coverage_report": coverage_report,
+            "summary": {
+                "total_symbols": len(coverage_report),
+                "with_data": with_data,
+                "without_data": without_data,
+                "avg_days": avg_days
+            }
+        }
     else:
         print(f"❌ Historical Prices: {response.status_code}")
         print(f"   Response: {response.text[:200]}")
@@ -230,7 +293,7 @@ def main():
     # 2. Market Quotes
     results["market_quotes"] = test_market_quotes(symbols, token)
 
-    # 3. Historical Prices
+    # 3. Historical Prices (with detailed per-symbol coverage)
     portfolios = requests.get(
         f"{RAILWAY_URL}/data/portfolios",
         headers={"Authorization": f"Bearer {token}"}
@@ -238,7 +301,7 @@ def main():
     portfolio_id = portfolios[0]["id"] if portfolios else None
 
     if portfolio_id:
-        results["historical_prices"] = test_historical_prices(portfolio_id, token)
+        results["historical_prices"] = test_historical_prices(portfolio_id, symbols, token)
 
     # 4. Factor ETF Prices
     results["factor_etfs"] = test_factor_etf_prices(token)
@@ -259,9 +322,11 @@ def main():
 
     if results.get("historical_prices"):
         hp = results["historical_prices"]
-        total_symbols = len(hp.get("symbols_with_data", [])) + len(hp.get("symbols_without_data", []))
-        with_data = len(hp.get("symbols_with_data", []))
-        print(f"Historical Prices: {with_data}/{total_symbols} symbols with data")
+        summary = hp.get("summary", {})
+        total = summary.get("total_symbols", 0)
+        with_data = summary.get("with_data", 0)
+        avg_days = summary.get("avg_days", 0)
+        print(f"Historical Prices: {with_data}/{total} symbols with data ({avg_days:.1f} avg days)")
     else:
         print(f"Historical Prices: ❌ Not available")
 
