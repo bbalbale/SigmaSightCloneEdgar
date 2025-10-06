@@ -211,9 +211,8 @@ scripts/
 │   ├── railway_run_migration.py      ⭐ Run migrations on Railway
 │   ├── verify_railway_migration.py   Verify migration status
 │   ├── railway_reset_database.py     Reset and reseed (DESTRUCTIVE)
-│   ├── trigger_batch_railway.py      Trigger batch processing
-│   ├── trigger_railway_batch.py      Alternative batch trigger
-│   └── check_railway_tags_table.py   Check tags table
+│   ├── railway_initial_seed.sh       Initial setup workflow
+│   └── RAILWAY_SEEDING_README.md     Seeding documentation
 │
 ├── verification/        # Validation and verification scripts
 │   ├── validate_setup.py             ⭐ Comprehensive validation
