@@ -11,8 +11,7 @@ def test_model_imports():
         print("1. Testing import from app.models...")
         from app.models import (
             User, Portfolio, Position, Tag, PositionType, TagType,
-            Strategy, StrategyLeg, StrategyMetrics, StrategyTag, StrategyType,
-            TagV2
+            TagV2, PositionTag
         )
         print("   OK All models imported from app.models")
 
@@ -24,21 +23,14 @@ def test_model_imports():
         from app.models.positions import Position, Tag, PositionType, TagType
         print("   OK Position models imported")
 
-        from app.models.strategies import Strategy, StrategyLeg, StrategyMetrics, StrategyTag, StrategyType
-        print("   OK Strategy models imported")
-
         from app.models.tags_v2 import TagV2
         print("   OK TagV2 imported")
 
+        from app.models.position_tags import PositionTag
+        print("   OK PositionTag imported")
+
         # Test creating instances (without database)
         print("\n3. Testing model instantiation...")
-
-        # Create a strategy instance
-        strategy = Strategy(
-            name="Test Strategy",
-            strategy_type=StrategyType.STANDALONE.value
-        )
-        print(f"   OK Strategy created: {strategy}")
 
         # Create a tag instance
         tag = TagV2(
@@ -69,42 +61,37 @@ def test_relationships():
     print("-" * 50)
 
     try:
-        from app.models import Strategy, Position, Portfolio, User, TagV2, StrategyTag
-
-        # Check Strategy relationships
-        print("1. Checking Strategy relationships...")
-        assert hasattr(Strategy, 'portfolio'), "Strategy missing 'portfolio' relationship"
-        assert hasattr(Strategy, 'positions'), "Strategy missing 'positions' relationship"
-        assert hasattr(Strategy, 'strategy_legs'), "Strategy missing 'strategy_legs' relationship"
-        assert hasattr(Strategy, 'tags'), "Strategy missing 'tags' relationship"
-        assert hasattr(Strategy, 'metrics'), "Strategy missing 'metrics' relationship"
-        print("   OK Strategy relationships configured")
+        from app.models import Position, Portfolio, User, TagV2, PositionTag
 
         # Check Position relationships
-        print("\n2. Checking Position relationships...")
-        assert hasattr(Position, 'strategy'), "Position missing 'strategy' relationship"
-        assert hasattr(Position, 'strategy_legs'), "Position missing 'strategy_legs' relationship"
+        print("1. Checking Position relationships...")
         assert hasattr(Position, 'portfolio'), "Position missing 'portfolio' relationship"
+        assert hasattr(Position, 'position_tags'), "Position missing 'position_tags' relationship"
         print("   OK Position relationships configured")
 
         # Check Portfolio relationships
-        print("\n3. Checking Portfolio relationships...")
-        assert hasattr(Portfolio, 'strategies'), "Portfolio missing 'strategies' relationship"
+        print("\n2. Checking Portfolio relationships...")
         assert hasattr(Portfolio, 'positions'), "Portfolio missing 'positions' relationship"
         assert hasattr(Portfolio, 'user'), "Portfolio missing 'user' relationship"
         print("   OK Portfolio relationships configured")
 
         # Check User relationships
-        print("\n4. Checking User relationships...")
+        print("\n3. Checking User relationships...")
         assert hasattr(User, 'tags_v2'), "User missing 'tags_v2' relationship"
         assert hasattr(User, 'portfolio'), "User missing 'portfolio' relationship"
         print("   OK User relationships configured")
 
         # Check TagV2 relationships
-        print("\n5. Checking TagV2 relationships...")
+        print("\n4. Checking TagV2 relationships...")
         assert hasattr(TagV2, 'user'), "TagV2 missing 'user' relationship"
-        assert hasattr(TagV2, 'strategy_tags'), "TagV2 missing 'strategy_tags' relationship"
+        assert hasattr(TagV2, 'position_tags'), "TagV2 missing 'position_tags' relationship"
         print("   OK TagV2 relationships configured")
+
+        # Check PositionTag relationships
+        print("\n5. Checking PositionTag relationships...")
+        assert hasattr(PositionTag, 'position'), "PositionTag missing 'position' relationship"
+        assert hasattr(PositionTag, 'tag'), "PositionTag missing 'tag' relationship"
+        print("   OK PositionTag relationships configured")
 
         print("\n" + "=" * 50)
         print("SUCCESS: All relationships properly configured!")

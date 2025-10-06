@@ -28,7 +28,7 @@ class TagType(enum.Enum):
     STRATEGY = "STRATEGY"
 
 
-# Legacy position_tags removed in favor of strategy_tags; see tags_v2.py / strategies.py
+# Legacy position_tags removed in favor of position_tags junction table
 
 
 class Position(Base):
@@ -60,9 +60,6 @@ class Position(Base):
     unrealized_pnl: Mapped[Optional[Decimal]] = mapped_column(Numeric(16, 2), nullable=True)
     realized_pnl: Mapped[Optional[Decimal]] = mapped_column(Numeric(16, 2), nullable=True)
 
-    # Strategy relationship (added for tagging system)
-    strategy_id: Mapped[Optional[UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("strategies.id"), nullable=True)
-
     # Timestamps
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -72,9 +69,6 @@ class Position(Base):
     portfolio: Mapped["Portfolio"] = relationship("Portfolio", back_populates="positions")
     # Direct position tagging (new system)
     position_tags: Mapped[List["PositionTag"]] = relationship("PositionTag", back_populates="position", cascade="all, delete-orphan")
-    # Legacy strategy relationship (deprecated but kept for backward compatibility)
-    strategy: Mapped[Optional["Strategy"]] = relationship("Strategy", back_populates="positions", foreign_keys=[strategy_id])
-    strategy_legs: Mapped[List["StrategyLeg"]] = relationship("StrategyLeg", back_populates="position")
     greeks: Mapped[Optional["PositionGreeks"]] = relationship("PositionGreeks", back_populates="position", uselist=False)
     factor_exposures: Mapped[List["PositionFactorExposure"]] = relationship("PositionFactorExposure", back_populates="position")
     interest_rate_betas: Mapped[List["PositionInterestRateBeta"]] = relationship("PositionInterestRateBeta", back_populates="position")

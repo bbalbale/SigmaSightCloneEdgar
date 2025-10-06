@@ -16,8 +16,7 @@ from app.core.auth import get_password_hash
 from app.models.users import User, Portfolio
 from app.models.positions import Position, PositionType
 from app.models.tags_v2 import TagV2
-from app.services.strategy_service import StrategyService
-from app.services.tag_service import TagService
+from app.services.position_tag_service import PositionTagService
 
 logger = get_logger(__name__)
 
@@ -310,6 +309,7 @@ async def _add_positions_to_portfolio(db: AsyncSession, portfolio: Portfolio, po
         existing_symbols = set()
 
     position_count = 0
+    position_tag_service = PositionTagService(db)
     for pos_data in position_data_list:
         symbol = pos_data["symbol"]
 
@@ -349,19 +349,21 @@ async def _add_positions_to_portfolio(db: AsyncSession, portfolio: Portfolio, po
         
         db.add(position)
         await db.flush()  # Get position ID
-        
-        # Ensure strategy exists for the position and assign tags at strategy level
-        s_service = StrategyService(db)
-        t_service = TagService(db)
-        strategy = await s_service.auto_create_standalone_strategy(position)
 
+        # Assign tags directly to the position using the new tagging system
         if pos_data.get("tags"):
-            await db.flush()
             tag_ids = []
             for tag_name in pos_data.get("tags", []):
                 tag = await get_or_create_tag(db, user.id, tag_name)
                 tag_ids.append(tag.id)
-            await t_service.bulk_assign_tags(strategy.id, tag_ids, assigned_by=user.id, replace_existing=False)
+
+            if tag_ids:
+                await position_tag_service.bulk_assign_tags(
+                    position_id=position.id,
+                    tag_ids=tag_ids,
+                    assigned_by=user.id,
+                    replace_existing=False
+                )
         
         position_count += 1
         existing_symbols.add(symbol)  # Track newly added positions

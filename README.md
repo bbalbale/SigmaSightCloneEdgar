@@ -6,7 +6,7 @@
 
 SigmaSight is a full-stack portfolio analytics platform that provides:
 
-- 🎯 **Portfolio Management** - Multi-portfolio tracking with positions, tags, and strategies
+- 🎯 **Portfolio Management** - Multi-portfolio tracking with positions and tags (strategy containers removed Oct 2025)
 - 📊 **Risk Analytics** - 8 calculation engines (Greeks, Factor Analysis, Correlations, Market Risk, Stress Testing)
 - 🤖 **AI Agent** - OpenAI-powered chat interface with portfolio insights and analysis
 - 📈 **Real-time Data** - Market quotes, historical prices, and factor ETF tracking

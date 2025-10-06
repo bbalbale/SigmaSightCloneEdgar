@@ -11,7 +11,6 @@ from app.models.modeling import ModelingSessionSnapshot
 from app.models.history import ExportHistory
 from app.models.correlations import CorrelationCalculation, CorrelationCluster, CorrelationClusterPosition, PairwiseCorrelation
 from app.models.target_prices import TargetPrice
-from app.models.strategies import Strategy, StrategyLeg, StrategyMetrics, StrategyTag, StrategyType
 from app.models.tags_v2 import TagV2
 from app.models.position_tags import PositionTag
 
@@ -53,13 +52,6 @@ __all__ = [
 
     # Target prices module
     "TargetPrice",
-
-    # Strategies module
-    "Strategy",
-    "StrategyLeg",
-    "StrategyMetrics",
-    "StrategyTag",
-    "StrategyType",
 
     # Tags v2 module
     "TagV2",

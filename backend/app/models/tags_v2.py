@@ -1,24 +1,20 @@
 """
 Enhanced Tag Models - User-Scoped Organizational Metadata (Data Layer)
 
-Tags are user-level organizational tools that can be applied to positions (NEW)
-or strategies (DEPRECATED) for filtering and grouping purposes.
+Tags are user-level organizational tools applied directly to positions for
+filtering and grouping.
 
 **Architecture Context** (3-tier separation of concerns):
 - position_tags.py (API): Position-tag relationship operations
 - tags.py (API): Tag management + reverse lookups
-- THIS FILE (tags_v2.py): Database models (TagV2, relationships)
+- THIS FILE (tags_v2.py): Database model (TagV2) and relationships
 
-**Models Defined Here**:
+**Model Defined Here**:
 1. TagV2 - The main tag entity (name, color, description, etc.)
-2. Relationships:
-   - position_tags: Many-to-many with positions (NEW - preferred)
-   - strategy_tags: Many-to-many with strategies (DEPRECATED)
 
 **Database Tables**:
 - tags_v2: Main tag table
-- position_tags: Junction table (position_id, tag_id) [NEW]
-- strategy_tags: Junction table (strategy_id, tag_id) [DEPRECATED]
+- position_tags: Junction table (position_id, tag_id)
 
 **Related Files**:
 - Junction model: app/models/position_tags.py (PositionTag)
@@ -40,7 +36,6 @@ from app.database import Base
 
 if TYPE_CHECKING:
     from app.models.users import User
-    from app.models.strategies import StrategyTag
 
 
 class TagV2(Base):
@@ -82,11 +77,6 @@ class TagV2(Base):
     # Use this for all new features - tag positions directly
     position_tags = relationship("PositionTag", cascade="all, delete-orphan", back_populates="tag")
 
-    # ===== Strategy Tagging (DEPRECATED) =====
-    # Legacy strategy tagging - kept for backward compatibility only
-    # DO NOT use for new features - use position_tags instead
-    strategy_tags = relationship("StrategyTag", cascade="all, delete-orphan", back_populates="tag")
-
     def __repr__(self):
         return f"<TagV2(id={self.id}, name={self.name}, user={self.user_id})>"
 
@@ -96,10 +86,10 @@ class TagV2(Base):
         return not self.is_archived
 
     @property
-    def strategy_count(self) -> int:
-        """Get the number of strategies using this tag."""
+    def position_count(self) -> int:
+        """Get the number of positions using this tag."""
         try:
-            return len(self.strategy_tags) if self.strategy_tags is not None else 0
+            return len(self.position_tags) if self.position_tags is not None else 0
         except Exception:
             return 0
 
@@ -127,7 +117,7 @@ class TagV2(Base):
             "usage_count": self.usage_count,
             "is_archived": self.is_archived,
             "archived_at": self.archived_at.isoformat() if self.archived_at else None,
-            "strategy_count": self.strategy_count,
+            "position_count": self.position_count,
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
         }

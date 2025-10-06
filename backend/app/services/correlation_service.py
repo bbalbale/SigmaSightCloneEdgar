@@ -21,7 +21,7 @@ from app.models import (
     CorrelationClusterPosition, PairwiseCorrelation
 )
 from app.models.tags_v2 import TagV2
-from app.models.strategies import StrategyTag
+from app.models import PositionTag
 from app.schemas.correlations import (
     PositionFilterConfig, CorrelationCalculationCreate,
     PairwiseCorrelationCreate
@@ -309,27 +309,25 @@ class CorrelationService:
             if s in symbol_to_position
         ]
         
-        # 1. Check for common tags (new system: tags apply to strategies)
+        # 1. Check for common tags (position-level tagging system)
         if cluster_positions:
-            # Map strategies for positions
-            strategy_ids = [p.strategy_id for p in cluster_positions if p.strategy_id]
-            if strategy_ids:
+            position_ids = [p.id for p in cluster_positions if p.id]
+            if position_ids:
                 tag_query = (
                     select(TagV2)
-                    .join(StrategyTag, TagV2.id == StrategyTag.tag_id)
-                    .where(StrategyTag.strategy_id.in_(strategy_ids))
+                    .join(PositionTag, TagV2.id == PositionTag.tag_id)
+                    .where(PositionTag.position_id.in_(position_ids))
+                    .where(TagV2.is_archived == False)
                 )
                 result = await self.db.execute(tag_query)
                 tags = result.scalars().all()
 
-                # Count tag occurrences
                 tag_counts = defaultdict(int)
                 for tag in tags:
                     tag_counts[tag.name] += 1
 
                 if tag_counts:
                     most_common_tag = max(tag_counts, key=tag_counts.get)
-                    # Require common tag across 70% of positions
                     if tag_counts[most_common_tag] >= len(cluster_positions) * 0.7:
                         return most_common_tag
         
