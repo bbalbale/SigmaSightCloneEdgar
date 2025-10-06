@@ -74,7 +74,13 @@ class MarketDataService:
             Dictionary with symbol as key and list of price data as value
         """
         logger.info(f"Fetching historical data (hybrid) for {len(symbols)} symbols")
-        
+
+        # Filter out synthetic symbols
+        symbols = self._filter_synthetic_symbols(symbols)
+        if not symbols:
+            logger.info("No real symbols to fetch after filtering synthetics")
+            return {}
+
         if not start_date:
             start_date = date.today() - timedelta(days=90)
         if not end_date:
