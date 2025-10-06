@@ -155,13 +155,17 @@ async def audit_factor_exposures():
         min_date, max_date = result.first()
         print(f"📅 Calculation Date Range: {min_date} to {max_date}")
 
-        # 4. Average R-squared (model fit quality)
+        # 4. Quality flags (data quality indicator)
         result = await db.execute(
-            select(func.avg(PositionFactorExposure.r_squared))
+            select(PositionFactorExposure.quality_flag, func.count())
+            .group_by(PositionFactorExposure.quality_flag)
         )
-        avg_r_squared = result.scalar()
-        if avg_r_squared:
-            print(f"📐 Average R-squared: {float(avg_r_squared):.3f} (model fit quality)")
+        quality_flags = result.all()
+        if quality_flags:
+            print(f"📐 Data Quality Flags:")
+            for flag, count in quality_flags:
+                flag_name = flag or "none"
+                print(f"   {flag_name}: {count} exposures")
 
         # 5. Positions WITHOUT factor exposures
         result = await db.execute(
@@ -180,7 +184,7 @@ async def audit_factor_exposures():
         return {
             "total_exposures": total_exposures,
             "positions_with_factors": positions_with_factors,
-            "avg_r_squared": float(avg_r_squared) if avg_r_squared else None,
+            "quality_flags": {str(flag or "none"): count for flag, count in quality_flags} if quality_flags else {},
             "total_active_positions": total_active_positions,
             "missing_factors": missing
         }
