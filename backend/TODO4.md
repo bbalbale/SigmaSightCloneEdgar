@@ -3338,10 +3338,29 @@ const response = await fetch('/api/proxy/api/v1/chat/conversations', {
 # Phase 7.0: Batch Orchestrator Portfolio #2/#3 Diagnosis
 
 **Phase**: 7.0 - Debug "No Active Positions" Issue
-**Status**: 🟡 **PENDING**
+**Status**: ✅ **COMPLETED**
 **Created**: 2025-10-06
+**Completed**: 2025-10-06
 **Goal**: Diagnose why portfolios #2 and #3 report "No active positions" while portfolio #1 works
 **Reference**: See `LOGGING_AND_MONITORING_STATUS.md` line 13
+
+## Resolution Summary
+
+**Root Cause Identified**: UUID type mismatch in position query filtering
+- `_update_position_values` and `_calculate_portfolio_aggregation` methods were comparing `Position.portfolio_id` (UUID column) directly with `portfolio_id` parameter without UUID conversion
+- Other calculation methods (`_calculate_factors`, `_calculate_market_risk`, etc.) correctly used `ensure_uuid()` conversion
+
+**Fix Applied**:
+- Added `ensure_uuid(portfolio_id)` conversion in `_update_position_values` (`batch_orchestrator_v2.py` line 408)
+- Added `ensure_uuid(portfolio_id)` conversion in `_calculate_portfolio_aggregation` (`batch_orchestrator_v2.py` line 468)
+
+**Verification Results** (Railway Production Database):
+- ✅ Demo Individual Investor Portfolio: 16 positions
+- ✅ Demo High Net Worth Investor Portfolio: 29 positions
+- ✅ Demo Hedge Fund Style Investor Portfolio: 30 positions
+- ✅ Batch processing now completes successfully for all 3 portfolios
+
+**Commit**: `a8b323a` - "fix: add UUID conversion in batch orchestrator position queries"
 
 ---
 
