@@ -425,17 +425,20 @@ def _fetch_single_profile_with_retry(symbol: str, max_retries: int = 2):
 ```python
 async def fetch_and_cache_company_profiles(symbols: List[str]) -> Dict[str, Any]:
     # ❌ If fetcher raises exception, ALL symbols marked failed
-    profiles = await fetcher.fetch_company_profiles(symbols)
+    # ❌ Yahoo Finance/yahooquery throttle HARD at 50-100 symbol mark
+    profiles = await fetcher.fetch_company_profiles(symbols)  # Passes all 75 symbols
 
     # Only reaches here if fetcher didn't raise
     # ...
 ```
 
 **Impact**:
+- **Yahoo Finance throttling**: 50-100+ symbols in one batch triggers rate limits
 - Single timeout/network error loses entire batch
 - 75 successful fetches + 1 failure = 0 results cached
 - No visibility into partial success
 - Operators can't tell which symbols failed
+- Railway cron appears to "hang" on large portfolios
 
 **Required Fix (Phase 9.0 Task 3)**:
 
@@ -485,24 +488,43 @@ async def fetch_and_cache_company_profiles(symbols: List[str]) -> Dict[str, Any]
 
 ---
 
-### MEDIUM Issue #4: Silent Data Truncation
+### MEDIUM Issue #4: Silent Data Truncation (Code + Schema)
 
-**Location**: `app/services/yahooquery_profile_fetcher.py:87,88,90`
+**Location**:
+- `app/services/yahooquery_profile_fetcher.py:87,88,90` (code truncation)
+- `app/models/market_data.py:59` (schema constraint)
 
 **Problem**: Hard-slicing fields silently truncates data:
 
 ```python
+# Code layer truncation (fetcher)
 country = info.get('country', 'Unknown')[:10]        # "United States" → "United Sta"
 exchange = info.get('exchange', 'Unknown')[:20]      # Truncates legitimate exchanges
 website = info.get('website', '')[:255]              # May cut URL mid-path
+
+# Database schema constraint (model)
+country: Mapped[Optional[str]] = mapped_column(String(10))  # Only 10 chars!
 ```
 
 **Impact**:
 - Data corruption ("United Sta" instead of "United States")
+- Database silently truncates on INSERT due to String(10) constraint
 - Debugging nightmare (operators see mangled data)
-- Database constraints may reject silently truncated values
+- Values like "Switzerland", "Netherlands", "Philippines" all corrupted
 
 **Required Fix (Phase 9.0 Task 4)**:
+
+**Option A: Widen Database Column** (Recommended)
+```python
+# app/models/market_data.py:59
+country: Mapped[Optional[str]] = mapped_column(String(50))  # Wider constraint
+
+# Create Alembic migration
+alembic revision --autogenerate -m "widen country column to 50 chars"
+alembic upgrade head
+```
+
+**Option B: Keep Schema, Fix Code**
 
 ```python
 def _safe_truncate(value: str, max_length: int, field_name: str) -> str:
@@ -521,10 +543,89 @@ def _safe_truncate(value: str, max_length: int, field_name: str) -> str:
 
     return value[:max_length]
 
-# Usage:
+# Usage (if keeping 10 char limit):
 country = _safe_truncate(info.get('country', 'Unknown'), 10, 'country')
 exchange = _safe_truncate(info.get('exchange', 'Unknown'), 20, 'exchange')
 ```
+
+**Recommendation**: Use Option A (widen column) - avoids data corruption entirely
+
+---
+
+### BLOCKING Issue #5: Timezone-Naive datetime.utcnow()
+
+**Location**:
+- `app/models/market_data.py:124-126` (model defaults)
+- `app/services/market_data_service.py:1271-1273` (service layer)
+- `app/services/yahooquery_profile_fetcher.py` (fetcher layer)
+
+**Problem**: Using `datetime.utcnow()` (timezone-naive) with `DateTime(timezone=True)` columns:
+
+```python
+# MODEL: Defines timezone-aware column
+class CompanyProfile(Base):
+    last_updated: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),  # ← Expects timezone-aware datetime
+        nullable=False
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=datetime.utcnow  # ← BUG: timezone-NAIVE datetime
+    )
+
+# SERVICE: Writes timezone-naive values
+CompanyProfile(
+    last_updated=profile_data.get('last_updated', datetime.utcnow()),  # ← NAIVE
+    created_at=datetime.utcnow(),  # ← NAIVE
+    updated_at=datetime.utcnow()   # ← NAIVE
+)
+```
+
+**Impact**:
+- SQLAlchemy accepts naive timestamp but stores as "UTC without offset"
+- Breaks when comparing against tz-aware values
+- Inconsistent behavior across queries
+- Timezone bugs in production (hard to debug)
+
+**Required Fix (Phase 9.0 Task 5)**:
+
+```python
+from datetime import datetime, timezone
+
+# MODEL: Fix defaults (app/models/market_data.py)
+class CompanyProfile(Base):
+    last_updated: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc)  # ← FIX: tz-aware
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),  # ← FIX: tz-aware
+        onupdate=lambda: datetime.now(timezone.utc)  # ← FIX: tz-aware
+    )
+
+# SERVICE: Fix writes (app/services/market_data_service.py)
+CompanyProfile(
+    last_updated=profile_data.get('last_updated', datetime.now(timezone.utc)),  # ← FIX
+    created_at=datetime.now(timezone.utc),  # ← FIX
+    updated_at=datetime.now(timezone.utc)   # ← FIX
+)
+
+# FETCHER: Fix profile data (app/services/yahooquery_profile_fetcher.py)
+profile_data = {
+    ...
+    'last_updated': datetime.now(timezone.utc),  # ← FIX
+}
+```
+
+**Files to update**:
+- `app/models/market_data.py` (3 default values)
+- `app/services/market_data_service.py` (lines 1158, 1271-1273)
+- `app/services/yahooquery_profile_fetcher.py` (wherever datetime is set)
 
 ---
 
@@ -534,13 +635,14 @@ exchange = _safe_truncate(info.get('exchange', 'Unknown'), 20, 'exchange')
 1. ✅ Fix event loop blocking (#1) - Phase 9.0 Task 1
 2. ✅ Add batching/parallelism (#2) - Phase 9.0 Task 2
 3. ✅ Add per-batch error handling (#3) - Phase 9.0 Task 3
-4. ✅ Fix silent truncation (#4) - Phase 9.0 Task 4
+4. ✅ Fix silent truncation + schema (#4) - Phase 9.0 Task 4
+5. ✅ Fix timezone-naive datetimes (#5) - Phase 9.0 Task 5
 
 **THEN proceed with**:
-5. Railway cron integration (original Phase 9 tasks)
-6. Testing and deployment
+6. Railway cron integration (original Phase 9 tasks)
+7. Testing and deployment
 
-**Estimated effort**: 3-4 hours to fix all blocking issues
+**Estimated effort**: 4-5 hours to fix all blocking issues
 
 ---
 
