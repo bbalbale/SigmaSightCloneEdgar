@@ -3054,3 +3054,157 @@ All 5 pre-implementation requirements have been resolved. See Section 4.1.5 for 
 5. ❌ **RESOLVE REMAINING 2 BLOCKERS** (see Section 4.1.4)
 6. Update Phase 4.0 status from ⚠️ BLOCKED → 🚀 READY FOR IMPLEMENTATION
 7. Begin Phase 4.1 (Development & Local Testing)
+
+---
+
+# Phase 5.0: Frontend Authentication Cleanup
+
+**Phase**: 5.0 - Railway Migration Refactoring Cleanup
+**Status**: 🟡 **PENDING**
+**Created**: 2025-10-06
+**Goal**: Remove leftover cookie dependencies from Railway authentication migration
+**Context**: Frontend authentication was migrated to Bearer tokens for Railway compatibility. Some cookie-related code (`credentials: 'include'`) remains in chatService.ts but is unused and should be removed for code cleanliness.
+
+---
+
+## 5.1 Background
+
+### Migration Phases (Already Complete)
+- ✅ **Phase 1**: apiClient.ts auth interceptor enabled (Bearer tokens)
+- ✅ **Phase 2**: chatAuthService.ts cookie dependencies removed (5 instances)
+- ✅ **Phase 3**: chatService.ts Bearer tokens added
+- ⚠️ **Phase 4**: chatService.ts still has `credentials: 'include'` leftover code (harmless but should be removed)
+
+### Why This Worked Locally But Not on Railway
+- **Local**: Same-origin (localhost → localhost), cookies work fine
+- **Railway**: Cross-origin (localhost → railway.app), cookies blocked by browser security
+- **Solution**: Bearer tokens work in both same-origin and cross-origin scenarios
+
+### Current State
+- Authentication: ✅ Fully functional with Bearer tokens
+- SSE Streaming: ✅ Working perfectly without cookies
+- Leftover Code: ⚠️ `credentials: 'include'` present but ignored (5 instances)
+
+**Reference Documentation**:
+- `frontend/_docs/1.RAILWAY_FIX_INSTRUCTIONS.md` - Implementation guide
+- `frontend/_docs/2.authentication_process.md` - Auth flow v2.0
+- `frontend/_docs/3.RAILWAY_AUTH_IMPLEMENTATION_STATUS.md` - Status report
+
+---
+
+## 5.2 Tasks
+
+### 5.2.1 Remove Cookie Leftovers from chatService.ts
+
+**File**: `frontend/src/services/chatService.ts`
+
+**Locations to Clean Up**:
+- [ ] **Line 161**: `createConversation()` - Remove `credentials: 'include'`
+- [ ] **Line 187**: `listConversations()` - Remove `credentials: 'include'`
+- [ ] **Line 212**: `deleteConversation()` - Remove `credentials: 'include'`
+- [ ] **Line 241**: `sendMessage()` - Remove `credentials: 'include'`
+- [ ] **Line 284**: `updateConversationMode()` - Remove `credentials: 'include'`
+
+**Change Pattern** (repeat for each location):
+```typescript
+// BEFORE:
+const response = await fetch('/api/proxy/api/v1/chat/conversations', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+    'Authorization': `Bearer ${authManager.getAccessToken()}`,
+  },
+  credentials: 'include',  // ❌ Remove this line
+  body: JSON.stringify(payload),
+})
+
+// AFTER:
+const response = await fetch('/api/proxy/api/v1/chat/conversations', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+    'Authorization': `Bearer ${authManager.getAccessToken()}`,
+  },
+  body: JSON.stringify(payload),
+})
+```
+
+---
+
+### 5.2.2 Verify Token Access Consistency
+
+**Audit Checklist**:
+- [ ] Confirm all services use `authManager.getAccessToken()`
+- [ ] Verify no direct `localStorage.getItem('access_token')` calls remain
+- [ ] Check all fetch() calls include Bearer token in Authorization header
+- [ ] Verify no hybrid cookie + token patterns exist
+
+**Files to Audit**:
+- `frontend/src/services/chatService.ts`
+- `frontend/src/services/chatAuthService.ts`
+- `frontend/src/services/apiClient.ts`
+
+---
+
+### 5.2.3 Testing
+
+**Test Plan**:
+- [ ] **Chat Creation**: Create new conversation
+- [ ] **Message Sending**: Send chat messages
+- [ ] **SSE Streaming**: Verify streaming responses work
+- [ ] **Conversation Management**: List, delete conversations
+- [ ] **Mode Switching**: Update conversation mode (green/blue/indigo/violet)
+
+**Test Environment**:
+1. Local frontend (localhost:3005) → Railway backend
+2. Verify no authentication errors
+3. Check browser DevTools Network tab for clean requests (no cookies, only Bearer)
+
+---
+
+### 5.2.4 Documentation
+
+**Update Files**:
+- [ ] `frontend/_docs/3.RAILWAY_AUTH_IMPLEMENTATION_STATUS.md`
+  - Update status to ✅ **COMPLETE**
+  - Add Phase 4 cleanup completion details
+  - Document final verification results
+
+---
+
+## 5.3 Notes
+
+### Why These Leftovers Are Harmless
+- When `Authorization: Bearer <token>` header is present, backend uses Bearer authentication
+- `credentials: 'include'` is ignored when Bearer token takes precedence
+- Cookies are not sent cross-origin anyway (browser security)
+
+### Why We Should Remove Them Anyway
+- **Code clarity**: Avoid confusion about authentication method
+- **Consistency**: All services should use same pattern
+- **Documentation**: Makes code self-documenting (Bearer-only, no cookies)
+- **Future maintenance**: Prevents future developers from thinking cookies are needed
+
+---
+
+## 5.4 Success Criteria
+
+**Completion Checklist**:
+- [ ] All 5 `credentials: 'include'` instances removed from chatService.ts
+- [ ] All token access uses `authManager.getAccessToken()`
+- [ ] Full chat functionality tested and verified
+- [ ] Documentation updated to reflect cleanup completion
+- [ ] No authentication errors in production or local testing
+
+**Definition of Done**:
+- Code is consistent across all services (Bearer tokens only)
+- Tests pass (chat creation, messaging, streaming)
+- Documentation accurately reflects final state
+- Code review shows no cookie dependencies remain
+
+---
+
+**Estimated Effort**: 1-2 hours (cleanup + testing)
+**Priority**: Low (not blocking functionality, code quality improvement)
+**Dependencies**: None (can be done anytime)
+
