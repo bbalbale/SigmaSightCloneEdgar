@@ -850,13 +850,15 @@ class CorrelationService:
     ) -> Dict:
         """
         Retrieve pre-calculated correlation matrix for a portfolio.
-        
+
+        Phase 8.1 Task 13: Returns data_quality metrics when available=False
+
         Args:
             portfolio_id: Portfolio UUID
             lookback_days: Duration of the calculation period (must match existing calculation)
             min_overlap: Minimum data points required for correlation pairs
             max_symbols: Maximum number of symbols to include in matrix (by weight)
-            
+
         Returns:
             Dict with correlation matrix or unavailable status
         """
@@ -871,10 +873,19 @@ class CorrelationService:
             
             result = await self.db.execute(stmt)
             calculation = result.scalar_one_or_none()
-            
+
             if not calculation:
+                # Compute data_quality when no calculation available
+                data_quality = await self._compute_data_quality(
+                    portfolio_id=portfolio_id,
+                    flag="NO_CORRELATION_CALCULATION",
+                    message=f"No correlation calculation found for portfolio with {lookback_days}-day lookback",
+                    positions_analyzed=0,
+                    data_days=lookback_days
+                )
                 return {
                     "available": False,
+                    "data_quality": data_quality,
                     "metadata": {
                         "reason": "no_calculation_available",
                         "requested_lookback_days": lookback_days,
@@ -891,13 +902,22 @@ class CorrelationService:
             
             # Filter by min_overlap
             filtered_correlations = [
-                c for c in correlations 
+                c for c in correlations
                 if c.data_points >= min_overlap
             ]
-            
+
             if not filtered_correlations:
+                # Compute data_quality when insufficient data
+                data_quality = await self._compute_data_quality(
+                    portfolio_id=portfolio_id,
+                    flag="INSUFFICIENT_DATA",
+                    message=f"No correlations meet the minimum overlap requirement of {min_overlap} data points",
+                    positions_analyzed=0,
+                    data_days=lookback_days
+                )
                 return {
                     "available": False,
+                    "data_quality": data_quality,
                     "metadata": {
                         "reason": "insufficient_data",
                         "min_overlap": min_overlap,
@@ -963,21 +983,31 @@ class CorrelationService:
             
             # Check if we have enough symbols
             if len(ordered_symbols) < 2:
+                # Compute data_quality when insufficient symbols
+                data_quality = await self._compute_data_quality(
+                    portfolio_id=portfolio_id,
+                    flag="INSUFFICIENT_SYMBOLS",
+                    message=f"Need at least 2 symbols for correlation matrix, found {len(ordered_symbols)}",
+                    positions_analyzed=len(ordered_symbols),
+                    data_days=lookback_days
+                )
                 return {
                     "available": False,
+                    "data_quality": data_quality,
                     "metadata": {
                         "reason": "insufficient_symbols",
                         "symbols_found": len(ordered_symbols),
                         "message": f"Need at least 2 symbols for correlation matrix, found {len(ordered_symbols)}"
                     }
                 }
-            
+
             return {
                 "data": {
                     "matrix": matrix,
                     "average_correlation": float(calculation.overall_correlation) if calculation.overall_correlation else None
                 },
                 "available": True,
+                "data_quality": None,  # Phase 8.1: Future enhancement to compute quality metrics when available=True
                 "metadata": {
                     "calculation_date": calculation.calculation_date.isoformat() if calculation.calculation_date else None,
                     "duration_days": lookback_days,
@@ -992,3 +1022,62 @@ class CorrelationService:
         except Exception as e:
             logger.error(f"Error retrieving correlation matrix for portfolio {portfolio_id}: {str(e)}")
             raise
+
+    async def _compute_data_quality(
+        self,
+        portfolio_id: UUID,
+        flag: str,
+        message: str,
+        positions_analyzed: int,
+        data_days: int
+    ) -> Dict:
+        """
+        Compute data quality metrics for portfolio
+
+        Phase 8.1 Task 13: Computes position counts to explain why correlations were skipped
+
+        Args:
+            portfolio_id: Portfolio UUID
+            flag: Quality flag constant (e.g., NO_CORRELATION_CALCULATION)
+            message: Human-readable explanation
+            positions_analyzed: Number of positions included in calculation
+            data_days: Number of days of historical data used
+
+        Returns:
+            Dictionary with data_quality metrics matching DataQualityInfo schema
+        """
+        from sqlalchemy import func
+
+        # Count total positions in portfolio
+        total_stmt = select(func.count(Position.id)).where(
+            and_(
+                Position.portfolio_id == portfolio_id,
+                Position.quantity != 0  # Only count active positions
+            )
+        )
+        positions_total = (await self.db.execute(total_stmt)).scalar() or 0
+
+        # Count PUBLIC positions (exclude PRIVATE investment_class per Phase 8.1)
+        public_stmt = select(func.count(Position.id)).where(
+            and_(
+                Position.portfolio_id == portfolio_id,
+                Position.quantity != 0,
+                or_(
+                    Position.investment_class != 'PRIVATE',
+                    Position.investment_class.is_(None)  # Include NULL (not yet classified)
+                )
+            )
+        )
+        public_positions = (await self.db.execute(public_stmt)).scalar() or 0
+
+        # positions_skipped = total - analyzed
+        positions_skipped = positions_total - positions_analyzed
+
+        return {
+            "flag": flag,
+            "message": message,
+            "positions_analyzed": positions_analyzed,
+            "positions_total": positions_total,
+            "positions_skipped": positions_skipped,
+            "data_days": data_days
+        }
