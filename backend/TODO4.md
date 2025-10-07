@@ -4179,7 +4179,7 @@ if not factor_exposures:
 - ⚠️ New quality flags require updating `app/constants/factors.py` enum
 
 **CRITICAL IMPLEMENTATION NOTES**:
-1. **SYNTHETIC_SYMBOLS KEPT** - Removing skip list now would waste API rate limits on HOME_EQUITY, CRYPTO_BTC_ETH, etc. Keep for Phase 8.1, remove only after proxy generator ready.
+1. **SYNTHETIC_SYMBOLS REPLACED** - User correctly identified that investment_class filtering at source (get_active_portfolio_symbols) makes SYNTHETIC_SYMBOLS redundant. Better solution: Add investment_class != 'PRIVATE' filter to market_data_sync.py:84, then delete SYNTHETIC_SYMBOLS entirely.
 2. **Correlation Filtering Location** - Filter AFTER position loading (in Python), NOT in SQL WHERE clause - preserves relationship loading paths.
 3. **Orchestration Wrappers Required** - Batch orchestrator `_calculate_correlations()` must normalize both DB records AND skip dicts for consistent downstream handling.
 4. **Stress Test Shape** - MUST include `stress_test_results` top-level key with empty `direct_impacts`/`correlated_impacts` nested maps - orchestrator expects this for save_stress_test_results().
@@ -4192,7 +4192,21 @@ if not factor_exposures:
 **Tasks**:
 1. [✅] ~~Add `investment_class == 'PRIVATE'` filter to factor analysis~~ **ALREADY DONE** (app/calculations/factors.py:128-136)
 2. [ ] Add `investment_class == 'PRIVATE'` filter to correlation service - **AFTER** position loading, filter in Python (app/services/correlation_service.py - filter positions list after _get_portfolio_with_positions, NOT in SQL WHERE clause to preserve relationship loading)
-3. [ ] ~~DELETE SYNTHETIC_SYMBOLS~~ **DEFERRED** - Keep skip list for Phase 8.1 to prevent wasting API calls on HOME_EQUITY, CRYPTO_BTC_ETH, etc. Remove only after proxy generator backfills MarketDataCache
+3. [ ] **REPLACE** SYNTHETIC_SYMBOLS with investment_class filter (2 parts):
+   - 3a. Add `investment_class != 'PRIVATE'` filter to `get_active_portfolio_symbols()` (app/batch/market_data_sync.py:84):
+     ```python
+     # CURRENT (line 84):
+     stmt = select(distinct(Position.symbol)).where(Position.quantity != 0)
+
+     # CHANGE TO:
+     stmt = select(distinct(Position.symbol)).where(
+         and_(
+             Position.quantity != 0,
+             Position.investment_class != 'PRIVATE'  # Exclude PRIVATE positions
+         )
+     )
+     ```
+   - 3b. DELETE SYNTHETIC_SYMBOLS list and _filter_synthetic_symbols() method from market_data_service.py (lines 28-32, 44-50, 79 call)
 4. [ ] Add `QUALITY_FLAG_NO_PUBLIC_POSITIONS = "no_public_positions"` to constants (app/constants/factors.py:14-15)
 5. [ ] Modify `calculate_factor_betas_hybrid()` empty check to return EXACT skip structure (app/calculations/factors.py:271-272):
    ```python
