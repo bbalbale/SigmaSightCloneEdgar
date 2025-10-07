@@ -286,6 +286,264 @@ or testing purposes only.
 
 ---
 
+## 🚨 BLOCKING ISSUES - Must Fix Before Integration
+
+**⚠️ CRITICAL**: The company profile fetcher has fundamental architectural problems that MUST be fixed before integrating into Railway cron. Integrating the current implementation will cause production issues.
+
+---
+
+### BLOCKING Issue #1: Event Loop Blocking (Async/Sync Mismatch)
+
+**Location**: `app/services/yahooquery_profile_fetcher.py:68,78,79,99`
+
+**Problem**: `fetch_company_profiles()` is declared `async def` but performs synchronous network I/O:
+
+```python
+async def fetch_company_profiles(symbols: List[str]) -> Dict[str, Dict[str, Any]]:
+    # ❌ BLOCKING: These run synchronously on event loop
+    yq_ticker = Ticker(symbols)           # Line 68 - synchronous HTTP
+    yf_ticker = yf.Ticker(symbol)         # Line 78 - synchronous HTTP
+    info = yf_ticker.info                 # Line 79 - synchronous HTTP access
+    yq_data = yq_ticker.summary_detail    # Line 99 - synchronous HTTP
+```
+
+**Impact**:
+- **Blocks entire FastAPI event loop** during network I/O (30+ seconds for 75 symbols)
+- Other API requests timeout/hang while profile sync runs
+- Railway cron will appear hung, trigger timeout alerts
+- No parallelism despite being "async"
+
+**Required Fix (Phase 9.0 Task 1)**:
+```python
+import asyncio
+from functools import partial
+
+async def fetch_company_profiles(symbols: List[str]) -> Dict[str, Dict[str, Any]]:
+    loop = asyncio.get_running_loop()
+
+    # Run synchronous yfinance/yahooquery in executor (thread pool)
+    profiles = await loop.run_in_executor(
+        None,  # Use default ThreadPoolExecutor
+        partial(_fetch_profiles_sync, symbols)
+    )
+    return profiles
+
+def _fetch_profiles_sync(symbols: List[str]) -> Dict[str, Dict[str, Any]]:
+    """Synchronous implementation - runs in worker thread"""
+    # All yfinance/yahooquery calls here
+    # ...
+```
+
+**Alternative**: Remove `async` keyword, make function synchronous, and call from Railway cron with `loop.run_in_executor()`.
+
+---
+
+### HIGH-RISK Issue #2: Serial Execution with No Batching/Parallelism
+
+**Location**: `app/services/yahooquery_profile_fetcher.py:78-174`
+
+**Problem**: Processes symbols one-by-one serially:
+
+```python
+for symbol in symbols:
+    yf_ticker = yf.Ticker(symbol)  # Wait for HTTP request
+    info = yf_ticker.info          # Wait for response parsing
+    # Process symbol...
+    # Next symbol starts only after previous completes
+```
+
+**Impact**:
+- **75 symbols × ~2 seconds each = 150 seconds (2.5 minutes)** minimum
+- Prone to Yahoo Finance rate limits (no backoff/retry)
+- Single symbol timeout blocks entire batch
+- Easily exceeds Railway cron window on larger portfolios
+
+**Required Fix (Phase 9.0 Task 2)**:
+
+```python
+import concurrent.futures
+from itertools import islice
+
+def chunk_list(lst, chunk_size):
+    """Yield successive chunks from list"""
+    it = iter(lst)
+    while chunk := list(islice(it, chunk_size)):
+        yield chunk
+
+def _fetch_profiles_sync(symbols: List[str]) -> Dict[str, Dict[str, Any]]:
+    """Process symbols in parallel batches with retry logic"""
+    results = {}
+
+    # Process in batches of 10 with parallelism of 3
+    for batch in chunk_list(symbols, 10):
+        with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
+            futures = {
+                executor.submit(_fetch_single_profile_with_retry, sym): sym
+                for sym in batch
+            }
+
+            for future in concurrent.futures.as_completed(futures):
+                symbol = futures[future]
+                try:
+                    profile = future.result(timeout=10)
+                    results[symbol] = profile
+                except Exception as e:
+                    logger.warning(f"Failed to fetch {symbol}: {e}")
+                    results[symbol] = None
+
+        # Rate limit backoff between batches
+        time.sleep(1)
+
+    return results
+
+def _fetch_single_profile_with_retry(symbol: str, max_retries: int = 2):
+    """Fetch single profile with exponential backoff"""
+    for attempt in range(max_retries + 1):
+        try:
+            yf_ticker = yf.Ticker(symbol)
+            return yf_ticker.info
+        except Exception as e:
+            if attempt == max_retries:
+                raise
+            time.sleep(2 ** attempt)  # 1s, 2s backoff
+```
+
+**Benefits**:
+- **75 symbols in ~30-45 seconds** (vs 150+ seconds)
+- Resilient to individual symbol failures
+- Respects rate limits with batching + delays
+- Configurable parallelism
+
+---
+
+### HIGH-RISK Issue #3: All-or-Nothing Batch Failure
+
+**Location**: `app/services/market_data_service.py:1363-1378`
+
+**Problem**: `fetch_and_cache_company_profiles()` passes entire symbol list to fetcher in single call:
+
+```python
+async def fetch_and_cache_company_profiles(symbols: List[str]) -> Dict[str, Any]:
+    # ❌ If fetcher raises exception, ALL symbols marked failed
+    profiles = await fetcher.fetch_company_profiles(symbols)
+
+    # Only reaches here if fetcher didn't raise
+    # ...
+```
+
+**Impact**:
+- Single timeout/network error loses entire batch
+- 75 successful fetches + 1 failure = 0 results cached
+- No visibility into partial success
+- Operators can't tell which symbols failed
+
+**Required Fix (Phase 9.0 Task 3)**:
+
+```python
+async def fetch_and_cache_company_profiles(symbols: List[str]) -> Dict[str, Any]:
+    """Process symbols in smaller slices with per-batch error handling"""
+
+    results = {
+        'symbols_attempted': len(symbols),
+        'symbols_successful': 0,
+        'symbols_failed': 0,
+        'failed_symbols': [],
+        'profiles_cached': {}
+    }
+
+    # Process in slices of 20
+    for i in range(0, len(symbols), 20):
+        batch = symbols[i:i+20]
+
+        try:
+            # Fetch this batch
+            batch_profiles = await fetcher.fetch_company_profiles(batch)
+
+            # Cache successful profiles
+            for symbol, profile in batch_profiles.items():
+                if profile is not None:
+                    await _cache_single_profile(symbol, profile)
+                    results['symbols_successful'] += 1
+                    results['profiles_cached'][symbol] = profile
+                else:
+                    results['symbols_failed'] += 1
+                    results['failed_symbols'].append(symbol)
+
+        except Exception as e:
+            logger.error(f"Batch {i//20 + 1} failed: {e}")
+            # Mark entire batch as failed but continue to next batch
+            results['symbols_failed'] += len(batch)
+            results['failed_symbols'].extend(batch)
+
+    return results
+```
+
+**Benefits**:
+- Partial success preserved (60/75 better than 0/75)
+- Clear visibility: "60 succeeded, 15 failed: [BRK.B, ...]"
+- Batch isolation prevents cascade failures
+
+---
+
+### MEDIUM Issue #4: Silent Data Truncation
+
+**Location**: `app/services/yahooquery_profile_fetcher.py:87,88,90`
+
+**Problem**: Hard-slicing fields silently truncates data:
+
+```python
+country = info.get('country', 'Unknown')[:10]        # "United States" → "United Sta"
+exchange = info.get('exchange', 'Unknown')[:20]      # Truncates legitimate exchanges
+website = info.get('website', '')[:255]              # May cut URL mid-path
+```
+
+**Impact**:
+- Data corruption ("United Sta" instead of "United States")
+- Debugging nightmare (operators see mangled data)
+- Database constraints may reject silently truncated values
+
+**Required Fix (Phase 9.0 Task 4)**:
+
+```python
+def _safe_truncate(value: str, max_length: int, field_name: str) -> str:
+    """Truncate with validation and logging"""
+    if value is None:
+        return 'Unknown'
+
+    if len(value) <= max_length:
+        return value
+
+    # Log truncation for debugging
+    logger.warning(
+        f"Field '{field_name}' truncated: '{value}' "
+        f"→ '{value[:max_length]}' (max {max_length} chars)"
+    )
+
+    return value[:max_length]
+
+# Usage:
+country = _safe_truncate(info.get('country', 'Unknown'), 10, 'country')
+exchange = _safe_truncate(info.get('exchange', 'Unknown'), 20, 'exchange')
+```
+
+---
+
+### Implementation Order for Phase 9.0
+
+**BEFORE Railway Cron Integration**:
+1. ✅ Fix event loop blocking (#1) - Phase 9.0 Task 1
+2. ✅ Add batching/parallelism (#2) - Phase 9.0 Task 2
+3. ✅ Add per-batch error handling (#3) - Phase 9.0 Task 3
+4. ✅ Fix silent truncation (#4) - Phase 9.0 Task 4
+
+**THEN proceed with**:
+5. Railway cron integration (original Phase 9 tasks)
+6. Testing and deployment
+
+**Estimated effort**: 3-4 hours to fix all blocking issues
+
+---
+
 ## Critical Implementation Notes
 
 **⚠️ READ BEFORE CODING**: These details prevent common bugs and ensure correct integration.

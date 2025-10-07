@@ -4500,57 +4500,108 @@ Integrate company profile synchronization (yfinance + yahooquery) into the exist
 
 ---
 
-## 9.1 Implementation Tasks
+## 9.0 Implementation Tasks
 
-### Phase 9.1: Railway Cron Integration
+### 🚨 Phase 9.0: Fix Blocking Issues in Company Profile Fetcher (MUST DO FIRST)
 
-1. [ ] **Add company profile sync step** to `scripts/automation/railway_daily_batch.py`
-   - [ ] 1a. Create `sync_company_profiles_step()` function (lines ~78-110 pattern)
-   - [ ] 1b. Import `sync_company_profiles` from `app.batch.market_data_sync`
-   - [ ] 1c. Add error handling (non-blocking - don't raise on failure)
-   - [ ] 1d. Return result dict with status, duration, successful/failed/total counts
-   
+**⚠️ CRITICAL**: These issues MUST be fixed before integrating company profiles into Railway cron. The current implementation has fundamental architectural problems that will cause production issues.
+
+**Reference**: See `PHASE_9_RAILWAY_COMPANY_PROFILE_INTEGRATION.md` Section "BLOCKING ISSUES"
+
+---
+
+1. [ ] **Fix event loop blocking** in `app/services/yahooquery_profile_fetcher.py`
+   - [ ] 1a. Move synchronous yfinance/yahooquery calls to `run_in_executor()`
+   - [ ] 1b. Create `_fetch_profiles_sync()` function for worker thread execution
+   - [ ] 1c. Update `fetch_company_profiles()` to be truly async (await executor)
+   - [ ] 1d. Test that FastAPI API requests don't hang during profile sync
+
+   **Problem**: Currently blocks entire event loop for 30+ seconds, causing timeouts
+
+   **Reference**: BLOCKING Issue #1 in requirements doc
+
+2. [ ] **Add batching and parallelism** in `yahooquery_profile_fetcher.py`
+   - [ ] 2a. Implement `chunk_list()` helper for batching
+   - [ ] 2b. Create `_fetch_single_profile_with_retry()` with exponential backoff
+   - [ ] 2c. Use `ThreadPoolExecutor` with max_workers=3 for parallel fetching
+   - [ ] 2d. Process symbols in batches of 10 with 1-second delays between batches
+   - [ ] 2e. Test that 75 symbols complete in ~30-45 seconds (vs current 150+ seconds)
+
+   **Problem**: Serial execution takes 2.5+ minutes and is prone to rate limits
+
+   **Reference**: HIGH-RISK Issue #2 in requirements doc
+
+3. [ ] **Add per-batch error handling** in `app/services/market_data_service.py`
+   - [ ] 3a. Refactor `fetch_and_cache_company_profiles()` to process in slices of 20
+   - [ ] 3b. Add try/except per batch (continue on batch failure instead of aborting)
+   - [ ] 3c. Return detailed stats: symbols_attempted, symbols_successful, symbols_failed, failed_symbols
+   - [ ] 3d. Test that partial success is preserved (60/75 cached vs 0/75)
+
+   **Problem**: Single symbol timeout loses entire batch (75 fetches wasted)
+
+   **Reference**: HIGH-RISK Issue #3 in requirements doc
+
+4. [ ] **Fix silent data truncation** in `yahooquery_profile_fetcher.py`
+   - [ ] 4a. Create `_safe_truncate()` helper function with logging
+   - [ ] 4b. Replace all hard-slicing (`[:10]`, `[:20]`, `[:255]`) with safe truncation
+   - [ ] 4c. Add field_name parameter to truncation for debugging
+   - [ ] 4d. Test that truncations are logged: "Field 'country' truncated: 'United States' → 'United Sta'"
+
+   **Problem**: "United States" silently becomes "United Sta", causing data corruption
+
+   **Reference**: MEDIUM Issue #4 in requirements doc
+
+---
+
+### Phase 9.1: Railway Cron Integration (AFTER 9.0 Complete)
+
+5. [ ] **Add company profile sync step** to `scripts/automation/railway_daily_batch.py`
+   - [ ] 5a. Create `sync_company_profiles_step()` function (lines ~78-110 pattern)
+   - [ ] 5b. Import `sync_company_profiles` from `app.batch.market_data_sync`
+   - [ ] 5c. Add error handling (non-blocking - don't raise on failure)
+   - [ ] 5d. Return result dict with status, duration, successful/failed/total counts
+
    **Reference**: See `PHASE_9_RAILWAY_COMPANY_PROFILE_INTEGRATION.md` Section "Phase 9.1 Task 1"
 
-2. [ ] **Update main workflow** in `railway_daily_batch.py`
-   - [ ] 2a. Add Step 1.5 call between market data sync and batch calculations
-   - [ ] 2b. Capture `profile_result` variable
-   - [ ] 2c. Pass `profile_result` to `log_completion_summary()`
-   
+6. [ ] **Update main workflow** in `railway_daily_batch.py`
+   - [ ] 6a. Add Step 1.5 call between market data sync and batch calculations
+   - [ ] 6b. Capture `profile_result` variable
+   - [ ] 6c. Pass `profile_result` to `log_completion_summary()`
+
    **Reference**: See `PHASE_9_RAILWAY_COMPANY_PROFILE_INTEGRATION.md` Section "Phase 9.1 Task 2"
 
-3. [ ] **Update completion summary logging** in `railway_daily_batch.py`
-   - [ ] 3a. Add `profile_result` parameter to `log_completion_summary()` function signature
-   - [ ] 3b. Add profile sync line to completion summary output
-   - [ ] 3c. Format: `Company Profiles: {status} ({successful}/{total} symbols, {duration}s)`
-   - [ ] 3d. Verify exit code based ONLY on batch calculations (not profile failures)
-   
+7. [ ] **Update completion summary logging** in `railway_daily_batch.py`
+   - [ ] 7a. Add `profile_result` parameter to `log_completion_summary()` function signature
+   - [ ] 7b. Add profile sync line to completion summary output
+   - [ ] 7c. Format: `Company Profiles: {status} ({successful}/{total} symbols, {duration}s)`
+   - [ ] 7d. Verify exit code based ONLY on batch calculations (not profile failures)
+
    **Reference**: See `PHASE_9_RAILWAY_COMPANY_PROFILE_INTEGRATION.md` Section "Phase 9.1 Task 3"
 
 ---
 
 ### Phase 9.2: Documentation Updates
 
-4. [ ] **Update Railway automation README** (`scripts/automation/README.md`)
-   - [ ] 4a. Add company profile sync to workflow overview (line ~7-11)
-   - [ ] 4b. Add troubleshooting section for profile sync failures
-   - [ ] 4c. Document that profiles sync daily on trading days only
-   - [ ] 4d. Add expected duration update (~6-7 min total vs ~5 min)
-   
+8. [ ] **Update Railway automation README** (`scripts/automation/README.md`)
+   - [ ] 8a. Add company profile sync to workflow overview (line ~7-11)
+   - [ ] 8b. Add troubleshooting section for profile sync failures
+   - [ ] 8c. Document that profiles sync daily on trading days only
+   - [ ] 8d. Add expected duration update (~6-7 min total vs ~5 min)
+
    **Reference**: See `PHASE_9_RAILWAY_COMPANY_PROFILE_INTEGRATION.md` Section "Phase 9.2 Task 4"
 
-5. [ ] **Update API reference documentation** (`_docs/reference/API_REFERENCE_V1.4.6.md`)
-   - [ ] 5a. Mark `POST /admin/batch/trigger/company-profiles` as ⚠️ DEPRECATED
-   - [ ] 5b. Add note that profiles now sync automatically via Railway cron
-   - [ ] 5c. Document endpoint still available for manual/emergency syncs
-   
+9. [ ] **Update API reference documentation** (`_docs/reference/API_REFERENCE_V1.4.6.md`)
+   - [ ] 9a. Mark `POST /admin/batch/trigger/company-profiles` as ⚠️ DEPRECATED
+   - [ ] 9b. Add note that profiles now sync automatically via Railway cron
+   - [ ] 9c. Document endpoint still available for manual/emergency syncs
+
    **Reference**: See `PHASE_9_RAILWAY_COMPANY_PROFILE_INTEGRATION.md` Section "Phase 9.2 Task 5"
 
 ---
 
 ### Phase 9.3: Code Cleanup (Optional - Can Defer)
 
-6. [ ] **DECIDE**: Remove APScheduler code or keep for future use?
+10. [ ] **DECIDE**: Remove APScheduler code or keep for future use?
    - **Option A**: Remove dormant code
      - Delete `app/batch/scheduler_config.py`
      - Update `admin_batch.py` trigger endpoint to call `sync_company_profiles()` directly
@@ -4571,13 +4622,13 @@ Integrate company profile synchronization (yfinance + yahooquery) into the exist
 
 ### Local Testing
 
-7. [ ] **Test dry run on non-trading day**
+11. [ ] **Test dry run on non-trading day**
    ```bash
    uv run python scripts/automation/railway_daily_batch.py
    # Expected: "Not a trading day - skipping batch job"
    ```
 
-8. [ ] **Test force run with company profiles**
+12. [ ] **Test force run with company profiles**
    ```bash
    uv run python scripts/automation/railway_daily_batch.py --force
    # Expected:
@@ -4587,7 +4638,7 @@ Integrate company profile synchronization (yfinance + yahooquery) into the exist
    # - Exit code 0
    ```
 
-9. [ ] **Test profile sync failure handling**
+13. [ ] **Test profile sync failure handling**
    - [ ] Temporarily break yahooquery import or API access
    - [ ] Run with `--force`
    - [ ] Verify batch calculations still run despite profile failure
@@ -4595,7 +4646,7 @@ Integrate company profile synchronization (yfinance + yahooquery) into the exist
 
 ### Railway Testing
 
-10. [ ] **Manual Railway trigger with modified code**
+14. [ ] **Manual Railway trigger with modified code**
     ```bash
     railway ssh --service sigmasight-backend-cron "uv run python scripts/automation/railway_daily_batch.py --force"
     ```
@@ -4604,7 +4655,7 @@ Integrate company profile synchronization (yfinance + yahooquery) into the exist
     - [ ] Verify batch calculations still run
     - [ ] Verify job completes successfully (exit 0)
 
-11. [ ] **Production dry run on next trading day**
+15. [ ] **Production dry run on next trading day**
     - [ ] Wait for next weekday
     - [ ] Let Railway cron run automatically at 11:30 PM UTC
     - [ ] Check Railway deployment logs next morning
@@ -4617,36 +4668,38 @@ Integrate company profile synchronization (yfinance + yahooquery) into the exist
 
 ## 9.3 Deployment Plan
 
-12. [ ] **Commit changes to feature branch**
+16. [ ] **Commit changes to feature branch**
     ```bash
+    git add app/services/yahooquery_profile_fetcher.py
+    git add app/services/market_data_service.py
     git add scripts/automation/railway_daily_batch.py
     git add scripts/automation/README.md
     git add _docs/requirements/PHASE_9_RAILWAY_COMPANY_PROFILE_INTEGRATION.md
     git add TODO4.md
-    git commit -m "feat(phase9): integrate company profile sync into Railway cron"
+    git commit -m "feat(phase9): fix company profile fetcher and integrate into Railway cron"
     ```
 
-13. [ ] **Push to GitHub and verify Railway deployment**
+17. [ ] **Push to GitHub and verify Railway deployment**
     ```bash
     git push origin main
     ```
     - [ ] Check Railway dashboard for deployment success
     - [ ] Verify cron service status
 
-14. [ ] **Manual test on Railway**
+18. [ ] **Manual test on Railway**
     ```bash
     railway ssh --service sigmasight-backend-cron "uv run python scripts/automation/railway_daily_batch.py --force"
     ```
     - [ ] Verify company profile step runs
     - [ ] Verify job succeeds
 
-15. [ ] **Monitor first automated run**
+19. [ ] **Monitor first automated run**
     - [ ] Wait for next weekday 11:30 PM UTC
     - [ ] Check Railway logs following morning
     - [ ] Verify STEP 1.5 executed
     - [ ] Verify successful completion
 
-16. [ ] **Verify data population improvement**
+20. [ ] **Verify data population improvement**
     ```bash
     uv run python scripts/railway/audit_railway_data.py
     ```
