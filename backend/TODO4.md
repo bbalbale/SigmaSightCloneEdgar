@@ -4178,9 +4178,9 @@ if not factor_exposures:
 - ⚠️ Stress testing skip must maintain aggregated result shape (nested maps)
 - ⚠️ New quality flags require updating `app/constants/factors.py` enum
 
-**OPEN QUESTIONS** (need user decision):
-1. **Railway investment_class backfill**: Do we need to backfill investment_class for existing Railway records, or are we reseeding? (Task #11 depends on this)
-2. **Correlation skip persistence**: Should we persist a minimal DB record (keeping audit trails intact) or skip persistence entirely and return structured dict? (Task #6-7 depend on this)
+**DECISIONS MADE**:
+1. **Railway investment_class backfill**: ✅ YES - One-time backfill for current Railway database + update seeding scripts for future + investigate/implement auto-mapping for new position workflow
+2. **Correlation skip persistence**: ✅ **Option B** - Skip persistence entirely, return structured dict (simpler, no DB clutter, audit trail preserved via factor_exposures data_quality flag)
 
 **Tasks**:
 1. [✅] ~~Add `investment_class == 'PRIVATE'` filter to factor analysis~~ **ALREADY DONE** (app/calculations/factors.py:128-136)
@@ -4188,17 +4188,21 @@ if not factor_exposures:
 3. [ ] **DELETE** SYNTHETIC_SYMBOLS list and _filter_synthetic_symbols() method (app/services/market_data_service.py:28-32, 44-50, line 79 call)
 4. [ ] Add `QUALITY_FLAG_NO_PUBLIC_POSITIONS = "no_public_positions"` to constants (app/constants/factors.py:14-15)
 5. [ ] Modify `calculate_factor_betas_hybrid()` empty check to return complete skip result with ALL keys (app/calculations/factors.py:271-272) - **Note: already happens BEFORE persistence steps**
-6. [ ] **DECIDE**: Correlation skip strategy - persist minimal DB record OR return structured dict (affects orchestrator at batch_orchestrator_v2.py)
-7. [ ] Add graceful skip to correlation service empty check - implement chosen strategy from #6 (app/services/correlation_service.py:96-97, 103-104)
+6. [✅] ~~DECIDE: Correlation skip strategy~~ **DECIDED** - Option B (skip persistence, return structured dict)
+7. [ ] Add graceful skip to correlation service - **Option B**: Skip DB persistence, return dict with keys: {status, message, correlation_matrix, clusters, metrics} (app/services/correlation_service.py:96-97, 103-104)
 8. [ ] Add graceful skip to stress testing - **must maintain aggregated shape** with direct_impacts/correlated_impacts nested maps (app/calculations/stress_testing.py:299, return structure from lines 562-700)
 9. [ ] Add batch orchestrator error handling as fallback (optional - if #5 covers all cases)
 10. [ ] ~~Update snapshot creation to proceed without factor data~~ **REMOVED** - snapshots don't depend on factors
-11. [ ] **VERIFY**: Check if investment_class is populated on Railway data (may need backfill or reseed)
+11. [ ] **investment_class backfill & workflow** (3 sub-tasks):
+    - 11a. [ ] Create one-time backfill script for Railway database (scripts/migrations/backfill_investment_class.py)
+    - 11b. [ ] Update seeding scripts to include investment_class mapping (app/db/seed_demo_portfolios.py - verify determine_investment_class() is called)
+    - 11c. [ ] Investigate new position workflow: Does adding a position auto-map investment_class? If not, implement auto-mapping in position creation endpoint
 12. [ ] Identify API endpoints to expose data quality flags (likely app/api/v1/data.py analytics endpoints)
 13. [ ] Add data quality flags to API response schemas and update documentation
 14. [ ] Test with HNW and Hedge Fund portfolios locally
-15. [ ] Deploy to Railway and verify all 3 portfolios produce results
-16. [ ] Verify API responses include data quality metadata
+15. [ ] Run backfill script on Railway (one-time), then deploy code changes
+16. [ ] Verify all 3 portfolios produce results on Railway
+17. [ ] Verify API responses include data quality metadata
 
 ---
 
