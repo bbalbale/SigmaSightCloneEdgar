@@ -593,10 +593,46 @@ async def run_comprehensive_stress_test(
         stmt = select(Portfolio).where(Portfolio.id == portfolio_id)
         result = await db.execute(stmt)
         portfolio = result.scalar_one_or_none()
-        
+
         if not portfolio:
             raise ValueError(f"Portfolio {portfolio_id} not found")
-        
+
+        # Phase 8.1 Task 8: Check for factor exposures early to avoid trying every scenario
+        factor_check_stmt = select(FactorExposure).where(
+            and_(
+                FactorExposure.portfolio_id == portfolio_id,
+                FactorExposure.calculation_date <= calculation_date
+            )
+        ).limit(1)
+        factor_check_result = await db.execute(factor_check_stmt)
+        has_factor_exposures = factor_check_result.scalar_one_or_none() is not None
+
+        if not has_factor_exposures:
+            logger.warning(
+                f"No factor exposures found for portfolio {portfolio_id}. "
+                "Skipping stress test (likely all PRIVATE positions). Returning skip payload."
+            )
+            return {
+                'portfolio_id': str(portfolio_id),
+                'calculation_date': calculation_date,
+                'stress_test_results': {
+                    'skipped': True,  # CRITICAL: Task 9 will detect this flag
+                    'reason': 'no_factor_exposures',
+                    'message': 'Portfolio has no factor exposures (likely all PRIVATE positions)',
+                    'direct_impacts': {},
+                    'correlated_impacts': {},
+                    'summary_stats': {},
+                    'scenarios_tested': 0,
+                    'scenarios_skipped': 0
+                },
+                'config_metadata': {
+                    'scenarios_available': 0,
+                    'scenarios_tested': 0,
+                    'scenarios_skipped': 0,
+                    'categories_tested': 0
+                }
+            }
+
         # Run stress tests for all active scenarios
         stress_results = {
             'direct_impacts': {},

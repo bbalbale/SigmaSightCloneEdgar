@@ -616,12 +616,23 @@ class BatchOrchestratorV2:
         
         # Run stress tests
         results = await run_comprehensive_stress_test(db, portfolio_uuid, date.today())
-        
-        # Save results to database
+
+        # Phase 8.1 Task 9: Detect skip flag and bypass save_stress_test_results
+        # CRITICAL: save_stress_test_results will fail on empty dict, MUST check skip flag
         if results and 'stress_test_results' in results:
-            saved_count = await save_stress_test_results(db, portfolio_uuid, results)
-            results['saved_to_database'] = saved_count
-            
+            stress_test_results = results.get('stress_test_results', {})
+
+            if stress_test_results.get('skipped'):
+                logger.info(
+                    f"Stress tests skipped for portfolio {portfolio_id}: "
+                    f"{stress_test_results.get('reason', 'unknown reason')}"
+                )
+                results['saved_to_database'] = 0  # No persistence occurred
+            else:
+                # Only persist when NOT skipped
+                saved_count = await save_stress_test_results(db, portfolio_uuid, results)
+                results['saved_to_database'] = saved_count
+
         return results
     
     async def _create_snapshot(self, db: AsyncSession, portfolio_id: str):
