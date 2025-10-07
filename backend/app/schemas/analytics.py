@@ -126,12 +126,13 @@ class CorrelationMatrixData(BaseModel):
 class CorrelationMatrixResponse(BaseModel):
     """
     Correlation matrix response for portfolio positions
-    
+
     Returns pre-calculated pairwise correlations between portfolio positions
     ordered by position weight (gross market value).
     """
     data: Optional[CorrelationMatrixData] = Field(None, description="Correlation data when available")
     available: Optional[bool] = Field(None, description="Whether correlation data is available")
+    data_quality: Optional[DataQualityInfo] = Field(None, description="Data quality metrics when calculation is skipped or partial")
     metadata: Optional[Dict[str, Union[str, int]]] = Field(None, description="Error or status metadata")
     
     class Config:
@@ -205,6 +206,7 @@ class StressTestPayload(BaseModel):
 class StressTestResponse(BaseModel):
     available: bool = Field(..., description="Whether stress test results are available")
     data: Optional[StressTestPayload] = Field(None, description="Stress test payload when available")
+    data_quality: Optional[DataQualityInfo] = Field(None, description="Data quality metrics when calculation is skipped or partial")
     metadata: Optional[Dict[str, Union[str, List[str]]]] = Field(None, description="Additional metadata, including scenarios_requested if provided")
 
 
@@ -274,6 +276,7 @@ class PositionFactorExposuresResponse(BaseModel):
     available: bool = Field(..., description="Whether position factor exposures are available")
     portfolio_id: str = Field(..., description="Portfolio UUID")
     calculation_date: Optional[str] = Field(None, description="ISO date used for exposures")
+    data_quality: Optional[DataQualityInfo] = Field(None, description="Data quality metrics when calculation is skipped or partial")
     total: Optional[int] = Field(None, description="Total positions matched")
     limit: Optional[int] = Field(None, description="Page size")
     offset: Optional[int] = Field(None, description="Pagination offset")
