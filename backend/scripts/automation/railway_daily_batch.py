@@ -18,9 +18,11 @@ Environment Variables Required:
 
 Workflow:
   1. Check if today is a trading day (NYSE calendar)
-  2. Run batch calculations for all portfolios (market data synced per-portfolio)
-  3. Log completion summary
+  2. Sync company profiles for all position symbols (Phase 9.1)
+  3. Run batch calculations for all portfolios (market data synced per-portfolio)
+  4. Log completion summary
 
+Phase 9.1 Change: Added company profile sync step for comprehensive symbol metadata.
 Phase 10.1 Change: Removed upfront market data sync to eliminate 4x duplication.
 Market data is now synced once per portfolio by the batch orchestrator.
 """
@@ -77,6 +79,65 @@ async def check_trading_day(force: bool = False) -> bool:
         return False
 
 
+async def sync_company_profiles_step() -> Dict[str, Any]:
+    """
+    Sync company profiles for all active position symbols.
+
+    Phase 9.1: Added company profile sync to Railway cron workflow.
+    Non-blocking - failures don't stop batch job execution.
+
+    Returns:
+        Dictionary with sync statistics including status, total, successful, failed counts
+    """
+    from app.batch.market_data_sync import sync_company_profiles
+
+    logger.info("=" * 60)
+    logger.info("STEP 1: Company Profile Sync")
+    logger.info("=" * 60)
+
+    start_time = datetime.datetime.now()
+
+    try:
+        # Run company profile sync
+        result = await sync_company_profiles(force_refresh=False)
+
+        duration = (datetime.datetime.now() - start_time).total_seconds()
+
+        # Phase 9.1: Normalize result object (duration → duration_seconds)
+        normalized_result = {
+            'status': 'success',
+            'total': result.get('total', 0),
+            'successful': result.get('successful', 0),
+            'failed': result.get('failed', 0),
+            'duration_seconds': result.get('duration', duration)
+        }
+
+        logger.info(
+            f"✅ Company profiles synced: {normalized_result['successful']}/{normalized_result['total']} symbols "
+            f"({normalized_result['duration_seconds']:.1f}s)"
+        )
+
+        if normalized_result['failed'] > 0:
+            logger.warning(f"⚠️ {normalized_result['failed']} symbol(s) failed to sync")
+
+        return normalized_result
+
+    except Exception as e:
+        duration = (datetime.datetime.now() - start_time).total_seconds()
+        logger.error(f"❌ Company profile sync failed: {e}")
+        logger.exception(e)
+
+        # Phase 9.1: Keep failures non-blocking
+        return {
+            'status': 'failed',
+            'total': 0,
+            'successful': 0,
+            'failed': 0,
+            'duration_seconds': duration,
+            'error': str(e)
+        }
+
+
 async def run_batch_calculations_step() -> List[Dict[str, Any]]:
     """
     Run batch calculations for all active portfolios.
@@ -90,7 +151,7 @@ async def run_batch_calculations_step() -> List[Dict[str, Any]]:
     from app.batch.batch_orchestrator_v2 import batch_orchestrator_v2
 
     logger.info("=" * 60)
-    logger.info("STEP 1: Batch Calculations (with per-portfolio market data sync)")
+    logger.info("STEP 2: Batch Calculations (with per-portfolio market data sync)")
     logger.info("=" * 60)
 
     # Get all active portfolios
@@ -194,16 +255,19 @@ async def run_batch_calculations_step() -> List[Dict[str, Any]]:
 
 async def log_completion_summary(
     start_time: datetime.datetime,
+    profile_result: Dict[str, Any],
     batch_results: List[Dict[str, Any]]
 ) -> None:
     """
     Log final completion summary.
 
+    Phase 9.1: Added profile_result parameter for company profile sync stats.
     Phase 10.1: Removed market_data_result parameter (sync now per-portfolio).
     Phase 10.2: Enhanced with job-level failure details.
 
     Args:
         start_time: Job start timestamp
+        profile_result: Company profile sync statistics
         batch_results: List of portfolio batch results
     """
     end_time = datetime.datetime.now()
@@ -223,6 +287,17 @@ async def log_completion_summary(
     logger.info(f"End Time:      {end_time.strftime('%Y-%m-%d %H:%M:%S')}")
     logger.info(f"Total Runtime: {total_duration:.1f}s ({total_duration/60:.1f} minutes)")
     logger.info(f"")
+
+    # Phase 9.1: Log company profile sync results
+    profile_status = profile_result.get('status', 'unknown')
+    profile_successful = profile_result.get('successful', 0)
+    profile_total = profile_result.get('total', 0)
+    profile_duration = profile_result.get('duration_seconds', 0)
+    logger.info(
+        f"Company Profiles: {profile_status} ({profile_successful}/{profile_total} symbols, "
+        f"{profile_duration:.1f}s)"
+    )
+
     logger.info(f"Portfolios:    {success_count} succeeded, {fail_count} failed")
 
     # Phase 10.2: Log job-level failure details
@@ -275,12 +350,16 @@ async def main():
             logger.info("Exiting: Not a trading day")
             sys.exit(0)
 
-        # Step 1: Run batch calculations (includes per-portfolio market data sync)
+        # Step 1: Sync company profiles
+        # Phase 9.1: Added company profile sync for comprehensive symbol metadata
+        profile_result = await sync_company_profiles_step()
+
+        # Step 2: Run batch calculations (includes per-portfolio market data sync)
         # Phase 10.1: Removed upfront market data sync to eliminate 4x duplication
         batch_results = await run_batch_calculations_step()
 
-        # Step 2: Log completion summary
-        await log_completion_summary(job_start, batch_results)
+        # Step 3: Log completion summary
+        await log_completion_summary(job_start, profile_result, batch_results)
 
     except KeyboardInterrupt:
         logger.warning("⚠️ Job interrupted by user (Ctrl+C)")
