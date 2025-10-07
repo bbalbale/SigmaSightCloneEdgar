@@ -165,6 +165,11 @@ def _fetch_single_profile_with_retry(symbol: str, earnings_trend: Dict, max_retr
             # ===== YAHOOQUERY: Revenue/earnings estimates ONLY =====
             if isinstance(earnings_trend, dict) and symbol in earnings_trend:
                 et = earnings_trend[symbol]
+
+                # Handle nested structure: yahooquery returns {'trend': [...], 'maxAge': 1}
+                if isinstance(et, dict) and 'trend' in et:
+                    et = et['trend']
+
                 if isinstance(et, list):
                     # Loop through periods to find "0y" (current year) and "+1y" (next year)
                     for period_data in et:
