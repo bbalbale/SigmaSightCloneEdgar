@@ -71,20 +71,33 @@ class CorrelationService:
             portfolio_value = sum(
                 abs(p.quantity * p.last_price) for p in portfolio.positions
             )
-            
+
+            # Filter PRIVATE investment class positions (Phase 8.1 Task 2)
+            public_positions = [
+                p for p in portfolio.positions
+                if p.investment_class != 'PRIVATE'
+            ]
+            private_count = len(portfolio.positions) - len(public_positions)
+            if private_count > 0:
+                logger.info(
+                    f"Filtered {private_count} PRIVATE positions from correlation analysis "
+                    f"(total positions: {len(portfolio.positions)}, public: {len(public_positions)})"
+                )
+
             # Filter significant positions
             filtered_positions = self.filter_significant_positions(
-                portfolio.positions,
+                public_positions,  # Use filtered list instead of portfolio.positions
                 portfolio_value,
                 min_position_value,
                 min_portfolio_weight,
                 filter_mode
             )
-            
-            excluded_count = len(portfolio.positions) - len(filtered_positions)
+
+            excluded_count = private_count + (len(public_positions) - len(filtered_positions))
             logger.info(
                 f"Filtered {len(filtered_positions)} significant positions "
-                f"from {len(portfolio.positions)} total (excluded: {excluded_count})"
+                f"from {len(portfolio.positions)} total "
+                f"(excluded: {excluded_count} = {private_count} PRIVATE + {len(public_positions) - len(filtered_positions)} insignificant)"
             )
             
             # Get position returns data

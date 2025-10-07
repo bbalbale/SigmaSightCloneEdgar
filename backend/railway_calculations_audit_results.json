@@ -1,43 +1,39 @@
 {
-  "portfolio_snapshots": {
-    "total_snapshots": 1,
-    "portfolios_with_snapshots": 1,
-    "date_range": "2025-10-06 to 2025-10-06"
-  },
-  "factor_exposures": {
-    "total_exposures": 112,
-    "positions_with_factors": 16,
-    "quality_flags": {
-      "full_history": 112
+  "portfolios_audited": 3,
+  "timestamp": "2025-10-06 22:15:27",
+  "details_by_portfolio": {
+    "Demo Hedge Fund Style Investor Portfolio": {
+      "name": "Demo Hedge Fund Style Investor Portfolio",
+      "id": "fcd71196-e93e-f000-5a74-31a9eead3118",
+      "engines": {
+        "snapshots": "\u274c No data",
+        "factor_exposures": "\u274c No data",
+        "correlations": "\u274c No data",
+        "stress_tests": "\u274c No data",
+        "greeks": "\u274c No data (expected)"
+      }
     },
-    "total_active_positions": 75,
-    "missing_factors": 59
-  },
-  "correlations": {
-    "calculation_records": 1,
-    "pairwise_correlations": 256,
-    "clusters": 1
-  },
-  "greeks": {
-    "total_greeks": 0,
-    "positions_with_greeks": 0
-  },
-  "interest_rate_betas": {
-    "total_ir_betas": 0,
-    "positions_with_ir_beta": 0
-  },
-  "stress_tests": {
-    "total_results": 18,
-    "portfolios_tested": 1
-  },
-  "batch_jobs": {
-    "total_jobs": 0,
-    "successful_jobs": 0,
-    "failed_jobs": 0
-  },
-  "metadata": {
-    "timestamp": "2025-10-06 19:13:01",
-    "assessment": "BATCH CALCULATIONS ARE RUNNING",
-    "assessment_detail": "All critical calculation engines have produced results."
+    "Demo High Net Worth Investor Portfolio": {
+      "name": "Demo High Net Worth Investor Portfolio",
+      "id": "e23ab931-a033-edfe-ed4f-9d02474780b4",
+      "engines": {
+        "snapshots": "\u274c No data",
+        "factor_exposures": "\u274c No data",
+        "correlations": "\u274c No data",
+        "stress_tests": "\u274c No data",
+        "greeks": "\u274c No data (expected)"
+      }
+    },
+    "Demo Individual Investor Portfolio": {
+      "name": "Demo Individual Investor Portfolio",
+      "id": "1d8ddd95-3b45-0ac5-35bf-cf81af94a5fe",
+      "engines": {
+        "snapshots": "\u2705 Data found",
+        "factor_exposures": "\u2705 Data found",
+        "correlations": "\u2705 Data found",
+        "stress_tests": "\u2705 Data found",
+        "greeks": "\u274c No data (expected)"
+      }
+    }
   }
 }
