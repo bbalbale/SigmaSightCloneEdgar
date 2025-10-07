@@ -3659,11 +3659,13 @@ ORDER BY p.name;
 
 ## 8.1 Overview
 
-Alternative asset positions (private equity, crypto, collectibles, etc.) with insufficient historical market data are blocking entire portfolio calculations. When portfolios contain multiple positions with <2 days of price data, the factor analysis engine raises `ValueError`, causing cascading failures in:
+PRIVATE investment positions (real estate, private equity, crypto, venture capital, hedge funds) lack publicly traded market data and are blocking entire portfolio calculations. When portfolios contain multiple PRIVATE positions, the factor analysis engine raises `ValueError`, causing cascading failures in:
 - Factor exposures (zero results)
 - Portfolio snapshots (not created)
 - Stress tests (no data)
 - Correlations (no data)
+
+**Solution Approach**: **SKIP PRIVATE INVESTMENTS ENTIRELY** from calculation pipeline using `investment_class` field. No proxy data, no synthetic pricing, no calculations for PRIVATE positions. Calculate risk metrics **only for PUBLIC positions** with sufficient market data.
 
 **Evidence**: Railway audit shows only 1 of 3 portfolios has calculation results despite successful batch runs.
 
