@@ -4178,20 +4178,75 @@ if not factor_exposures:
 - ⚠️ Stress testing skip must maintain aggregated result shape (nested maps)
 - ⚠️ New quality flags require updating `app/constants/factors.py` enum
 
+**CRITICAL IMPLEMENTATION NOTES**:
+1. **SYNTHETIC_SYMBOLS KEPT** - Removing skip list now would waste API rate limits on HOME_EQUITY, CRYPTO_BTC_ETH, etc. Keep for Phase 8.1, remove only after proxy generator ready.
+2. **Correlation Filtering Location** - Filter AFTER position loading (in Python), NOT in SQL WHERE clause - preserves relationship loading paths.
+3. **Orchestration Wrappers Required** - Batch orchestrator `_calculate_correlations()` must normalize both DB records AND skip dicts for consistent downstream handling.
+4. **Stress Test Shape** - MUST include `stress_test_results` top-level key with empty `direct_impacts`/`correlated_impacts` nested maps - orchestrator expects this for save_stress_test_results().
+5. **Quality Flag Keys** - `data_quality.quality_flag` key REQUIRED for calculate_market_risk compatibility (separate from data_quality.flag).
+
 **DECISIONS MADE**:
 1. **Railway investment_class backfill**: ✅ YES - One-time backfill for current Railway database + update seeding scripts for future + investigate/implement auto-mapping for new position workflow
 2. **Correlation skip persistence**: ✅ **Option B** - Skip persistence entirely, return structured dict (simpler, no DB clutter, audit trail preserved via factor_exposures data_quality flag)
 
 **Tasks**:
 1. [✅] ~~Add `investment_class == 'PRIVATE'` filter to factor analysis~~ **ALREADY DONE** (app/calculations/factors.py:128-136)
-2. [ ] Add `investment_class == 'PRIVATE'` filter to correlation service query (app/services/correlation_service.py - needs WHERE clause in Position select)
-3. [ ] **DELETE** SYNTHETIC_SYMBOLS list and _filter_synthetic_symbols() method (app/services/market_data_service.py:28-32, 44-50, line 79 call)
+2. [ ] Add `investment_class == 'PRIVATE'` filter to correlation service - **AFTER** position loading, filter in Python (app/services/correlation_service.py - filter positions list after _get_portfolio_with_positions, NOT in SQL WHERE clause to preserve relationship loading)
+3. [ ] ~~DELETE SYNTHETIC_SYMBOLS~~ **DEFERRED** - Keep skip list for Phase 8.1 to prevent wasting API calls on HOME_EQUITY, CRYPTO_BTC_ETH, etc. Remove only after proxy generator backfills MarketDataCache
 4. [ ] Add `QUALITY_FLAG_NO_PUBLIC_POSITIONS = "no_public_positions"` to constants (app/constants/factors.py:14-15)
-5. [ ] Modify `calculate_factor_betas_hybrid()` empty check to return complete skip result with ALL keys (app/calculations/factors.py:271-272) - **Note: already happens BEFORE persistence steps**
+5. [ ] Modify `calculate_factor_betas_hybrid()` empty check to return EXACT skip structure (app/calculations/factors.py:271-272):
+   ```python
+   return {
+       'factor_betas': {},  # Empty dict
+       'position_betas': {},  # Empty dict
+       'data_quality': {
+           'flag': 'no_public_positions',  # Uses new constant from Task 4
+           'message': 'Portfolio contains no public positions with sufficient price history',
+           'positions_analyzed': 0,
+           'positions_total': len(positions),
+           'data_days': 0,
+           'quality_flag': 'no_public_positions'  # CRITICAL: calculate_market_risk expects this key
+       },
+       'metadata': {
+           'calculation_date': calculation_date,
+           'regression_window_days': 0,
+           'status': 'SKIPPED_NO_PUBLIC_POSITIONS',
+           'portfolio_id': str(portfolio_id)
+       },
+       'regression_stats': {},  # Empty dict
+       'storage_results': {'records_stored': 0, 'skipped': True}
+   }
+   ```
 6. [✅] ~~DECIDE: Correlation skip strategy~~ **DECIDED** - Option B (skip persistence, return structured dict)
-7. [ ] Add graceful skip to correlation service - **Option B**: Skip DB persistence, return dict with keys: {status, message, correlation_matrix, clusters, metrics} (app/services/correlation_service.py:96-97, 103-104)
-8. [ ] Add graceful skip to stress testing - **must maintain aggregated shape** with direct_impacts/correlated_impacts nested maps (app/calculations/stress_testing.py:299, return structure from lines 562-700)
-9. [ ] Add batch orchestrator error handling as fallback (optional - if #5 covers all cases)
+7. [ ] Add graceful skip to correlation service with orchestration wrapper (2 parts):
+   - 7a. Update `calculate_portfolio_correlations()` to return skip dict when no PUBLIC positions (app/services/correlation_service.py:96-97, 103-104)
+   - 7b. Update `_calculate_correlations()` in batch orchestrator to normalize BOTH DB records AND skip dicts before returning (batch_orchestrator_v2.py) - ensures consistent shape for logging and downstream code
+   - Skip dict structure:
+     ```python
+     {
+         'status': 'SKIPPED',
+         'message': 'No public positions with sufficient data',
+         'correlation_matrix': {},
+         'clusters': [],
+         'metrics': {'avg_correlation': 0.0, 'positions_analyzed': 0},
+         'calculation_date': calculation_date,
+         'duration_days': duration_days
+     }
+     ```
+8. [ ] Add graceful skip to stress testing - **CRITICAL: Must provide stress_test_results key** for save_stress_test_results() (app/calculations/stress_testing.py:299):
+   ```python
+   return {
+       'stress_test_results': {  # REQUIRED by _run_stress_tests
+           'direct_impacts': {},  # Empty nested map
+           'correlated_impacts': {},  # Empty nested map
+           'portfolio_id': str(portfolio_id),
+           'calculation_date': calculation_date,
+           'skipped': True,
+           'skip_reason': 'No factor exposures available (portfolio contains only private investments)'
+       }
+   }
+   ```
+9. [ ] Update batch orchestrator `_run_stress_tests()` to handle skip payloads gracefully - check for 'skipped' flag before calling save_stress_test_results (optional safety net if #8 provides correct structure)
 10. [ ] ~~Update snapshot creation to proceed without factor data~~ **REMOVED** - snapshots don't depend on factors
 11. [ ] **investment_class backfill & workflow** (3 sub-tasks):
     - 11a. [ ] Create one-time backfill script for Railway database (scripts/migrations/backfill_investment_class.py)
