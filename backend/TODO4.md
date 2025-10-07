@@ -4500,6 +4500,98 @@ Integrate company profile synchronization (yfinance + yahooquery) into the exist
 
 ---
 
+## 🎯 Recommended Implementation Sequence (Phase 9 + Phase 10)
+
+**⚠️ IMPORTANT**: Don't implement phases linearly (9 then 10). Instead, follow this order to build on solid foundations:
+
+### **Step 1: Stabilize Profile Fetcher** (Phase 9.0 - Tasks 1-5) ⚠️ **DO FIRST**
+**Fix blocking issues in company profile fetcher BEFORE touching Railway cron**
+
+- ✅ Make yahooquery/yfinance fetch async-safe (executor or sync wrapper)
+- ✅ Add batching + retry logic (large symbol lists don't blow up)
+- ✅ Fix partial-failure handling (60/75 success preserved, not 0/75)
+- ✅ Fix timezone-aware timestamps (datetime.now(timezone.utc))
+- ✅ Fix country truncation issue (widen column or safe truncate)
+
+**Why First**: These changes are self-contained and unblock everything else. Without these fixes, Railway integration will fail or hang.
+
+**Estimated**: 4-5 hours
+
+---
+
+### **Step 2: Harden Cron Pipeline** (Phase 10.1 + 10.2) ⚠️ **DO SECOND**
+**Fix cron reliability issues BEFORE adding new steps**
+
+- ✅ Eliminate duplicate market data syncs (Phase 10.1 - choose Option A or B)
+- ✅ Add post-run job failure inspection (Phase 10.2 - detect orchestrator failures)
+- ✅ Fix silent failure detection (critical vs non-critical job distinction)
+
+**Why Second**: Don't stack new work (company profiles) on top of brittle behavior. Fix the foundation before adding Step 1.5.
+
+**Estimated**: 2-3 hours
+
+---
+
+### **Step 3: (Optional) Cron Polish** (Phase 10.3 + 10.4)
+**Nice-to-have improvements - can defer if time-constrained**
+
+- Cache freshness checks (avoid redundant API calls)
+- Richer completion summaries (market data stats, failed job details)
+
+**Why Optional**: These are quality-of-life improvements, not critical for functionality.
+
+**Estimated**: 1-2 hours (or defer to Phase 11)
+
+---
+
+### **Step 4: Integrate Company Profiles into Cron** (Phase 9.1 - Tasks 6-8)
+**NOW safe to add company profile step to Railway cron**
+
+- ✅ Insert Step 1.5 into railway_daily_batch.py
+- ✅ Wire in normalized result object (duration → duration_seconds)
+- ✅ Keep profile failures non-blocking
+- ✅ Update log_completion_summary() signature/call sites
+
+**Why Fourth**: Fetcher is stable (Step 1), cron is reliable (Step 2), now safe to integrate.
+
+**Estimated**: 1-2 hours
+
+---
+
+### **Step 5: Update Documentation** (Phase 9.2 - Tasks 9-10)
+**Document the new behavior**
+
+- ✅ Refresh automation README (scripts/automation/README.md)
+- ✅ Update API reference (mark admin endpoint DEPRECATED)
+- ✅ Update Phase 9 plan with actual implementation details
+
+**Estimated**: 30 minutes - 1 hour
+
+---
+
+### **Step 6: Decide on APScheduler Cleanup** (Phase 9.3 / Phase 10 Follow-up - Task 11)
+**Clean up or document dormant code**
+
+- **Option A**: Document APScheduler as dormant (keep for future use)
+- **Option B**: Remove APScheduler code + dependencies
+
+**Why Last**: Only clean up after cron flow proves reliable in production.
+
+**Estimated**: 30 minutes - 1 hour
+
+---
+
+### **Total Estimated Effort**:
+- **Minimum (Steps 1, 2, 4, 5)**: 8-11 hours
+- **With Polish (Steps 1-6)**: 10-14 hours
+
+### **Critical Path**:
+Phase 9.0 (fetcher fixes) → Phase 10.1-10.2 (cron fixes) → Phase 9.1 (integration) → Phase 9.2 (docs)
+
+**This order keeps foundations solid (fetcher + cron reliability) before layering on the additional cron step and documentation work.**
+
+---
+
 ## 9.0 Implementation Tasks
 
 ### 🚨 Phase 9.0: Fix Blocking Issues in Company Profile Fetcher (MUST DO FIRST)
