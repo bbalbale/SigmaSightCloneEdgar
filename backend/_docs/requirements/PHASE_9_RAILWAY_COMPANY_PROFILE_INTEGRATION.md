@@ -29,7 +29,7 @@ Integrate company profile synchronization (yfinance + yahooquery) into the exist
 ✅ **Company Profile Fetcher** (`app/services/yahooquery_profile_fetcher.py`)
 - Hybrid yfinance (basics) + yahooquery (estimates) approach
 - 70+ fields: company name, sector, industry, revenue/earnings estimates
-- Batch processing with rate limiting (10 symbols at a time)
+- **⚠️ NO batching or rate limiting** - processes entire symbol list serially (see BLOCKING Issues below)
 
 ✅ **Railway Cron Job** (`scripts/automation/railway_daily_batch.py`)
 - Runs daily at 11:30 PM UTC (6:30 PM EST/7:30 PM EDT) on weekdays
@@ -678,29 +678,33 @@ async def log_completion_summary(..., profile_result, ...):
 
 ---
 
-### 2. Service Layer Return Value Mismatch
+### 2. Service Layer Return Value Mismatch ⚠️ **VERIFIED FROM CODE**
 
-**Actual Service** (`app/batch/market_data_sync.py:390`):
+**⚠️ IMPORTANT**: The actual service return schema differs from cron expectations. This is VERIFIED from live code at `app/batch/market_data_sync.py:389-394`.
+
+**Actual Service Return Schema** (`app/batch/market_data_sync.py:389-394`):
 ```python
 async def sync_company_profiles():
     return {
-        'total': int,
-        'successful': int,
-        'failed': int,
-        'duration': float  # NOT duration_seconds
+        'total': len(symbols_list),           # int
+        'successful': success_count,          # int
+        'failed': failed_count,               # int
+        'duration': duration.total_seconds()  # float - key is 'duration' NOT 'duration_seconds'
     }
 ```
 
-**Requirements Doc Example** (uses `duration_seconds`):
+**Cron Expectations** (for consistency with other steps):
 ```python
-return {
-    'status': 'success',
-    'duration_seconds': duration,  # Key mismatch!
-    ...
+{
+    'status': 'success',           # MISSING from service
+    'duration_seconds': float,     # Service returns 'duration'
+    'successful': int,             # ✅ Match
+    'failed': int,                 # ✅ Match
+    'total': int                   # ✅ Match
 }
 ```
 
-**Solution**: Normalize in wrapper, don't change service
+**Solution**: Normalize in wrapper, don't change service (maintains backward compatibility)
 ```python
 async def sync_company_profiles_step() -> Dict[str, Any]:
     """Thin wrapper that normalizes sync_company_profiles() return value."""
@@ -1206,6 +1210,46 @@ Company profile sync is designed to be non-blocking:
 - Only complete catastrophic failure (all symbols fail) marks step as "error"
 - Even in error state, batch calculations still proceed
 - No rollback needed unless profiles cause actual cron job crashes
+
+---
+
+### ⚠️ IMPORTANT: Database Migration Rollback
+
+**If Phase 9.0 Task 4 includes database schema changes** (widening `country` column from String(10) to String(50)):
+
+#### Schema Change Deployed
+If you deployed the Alembic migration:
+```bash
+# Phase 9.0 Task 4a: Migration created
+alembic revision --autogenerate -m "widen country column to 50 chars"
+alembic upgrade head  # ← This runs on Railway automatically
+```
+
+#### Code Rollback Does NOT Revert Schema
+**CRITICAL**: Rolling back code (Options 1-3 above) does NOT revert the database schema:
+- Git revert → restores old code, keeps String(50) column
+- Railway redeploy → restores old code, keeps String(50) column
+- String(50) is backward compatible with old code expecting String(10)
+
+#### If You Must Revert Schema
+Only needed if wider column causes issues (rare):
+
+```bash
+# On local machine with Railway DATABASE_URL
+export DATABASE_URL="postgresql+asyncpg://..."
+
+# Find the migration to revert
+alembic history
+
+# Downgrade by 1 revision (reverts country column)
+alembic downgrade -1
+
+# OR manually via Railway SSH
+railway ssh --service sigmasight-backend-cron
+uv run alembic downgrade -1
+```
+
+**Recommendation**: Don't revert schema unless absolutely necessary. String(50) is safe and backward compatible.
 
 ---
 
