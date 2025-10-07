@@ -4468,3 +4468,285 @@ if not factor_exposures:
 ---
 
 **End of Phase 8.0 Documentation**
+
+---
+
+## Phase 9.0: Railway Company Profile Integration
+
+**Status**: 🔄 Planning
+**Start Date**: October 7, 2025
+**Target Completion**: TBD
+**Goal**: Consolidate company profile sync into Railway daily batch cron job
+
+**Detailed Requirements**: See `_docs/requirements/PHASE_9_RAILWAY_COMPANY_PROFILE_INTEGRATION.md`
+
+---
+
+## 9.0 Overview
+
+Integrate company profile synchronization (yfinance + yahooquery) into the existing Railway daily batch cron job (`scripts/automation/railway_daily_batch.py`), replacing the dormant APScheduler-based approach that was never activated in production.
+
+**Why This Phase**:
+- APScheduler integration never completed (no FastAPI lifecycle integration)
+- Company profile sync jobs defined but never execute
+- Railway cron proven reliable for daily batch operations
+- Consolidation simplifies operations and monitoring
+
+**Key Changes**:
+- Add Step 1.5 to Railway cron: Company profile sync (non-blocking)
+- Sync 75+ symbols daily from yfinance + yahooquery
+- Update completion logging to include profile sync stats
+- Remove or defer APScheduler cleanup (optional)
+
+---
+
+## 9.1 Implementation Tasks
+
+### Phase 9.1: Railway Cron Integration
+
+1. [ ] **Add company profile sync step** to `scripts/automation/railway_daily_batch.py`
+   - [ ] 1a. Create `sync_company_profiles_step()` function (lines ~78-110 pattern)
+   - [ ] 1b. Import `sync_company_profiles` from `app.batch.market_data_sync`
+   - [ ] 1c. Add error handling (non-blocking - don't raise on failure)
+   - [ ] 1d. Return result dict with status, duration, successful/failed/total counts
+   
+   **Reference**: See `PHASE_9_RAILWAY_COMPANY_PROFILE_INTEGRATION.md` Section "Phase 9.1 Task 1"
+
+2. [ ] **Update main workflow** in `railway_daily_batch.py`
+   - [ ] 2a. Add Step 1.5 call between market data sync and batch calculations
+   - [ ] 2b. Capture `profile_result` variable
+   - [ ] 2c. Pass `profile_result` to `log_completion_summary()`
+   
+   **Reference**: See `PHASE_9_RAILWAY_COMPANY_PROFILE_INTEGRATION.md` Section "Phase 9.1 Task 2"
+
+3. [ ] **Update completion summary logging** in `railway_daily_batch.py`
+   - [ ] 3a. Add `profile_result` parameter to `log_completion_summary()` function signature
+   - [ ] 3b. Add profile sync line to completion summary output
+   - [ ] 3c. Format: `Company Profiles: {status} ({successful}/{total} symbols, {duration}s)`
+   - [ ] 3d. Verify exit code based ONLY on batch calculations (not profile failures)
+   
+   **Reference**: See `PHASE_9_RAILWAY_COMPANY_PROFILE_INTEGRATION.md` Section "Phase 9.1 Task 3"
+
+---
+
+### Phase 9.2: Documentation Updates
+
+4. [ ] **Update Railway automation README** (`scripts/automation/README.md`)
+   - [ ] 4a. Add company profile sync to workflow overview (line ~7-11)
+   - [ ] 4b. Add troubleshooting section for profile sync failures
+   - [ ] 4c. Document that profiles sync daily on trading days only
+   - [ ] 4d. Add expected duration update (~6-7 min total vs ~5 min)
+   
+   **Reference**: See `PHASE_9_RAILWAY_COMPANY_PROFILE_INTEGRATION.md` Section "Phase 9.2 Task 4"
+
+5. [ ] **Update API reference documentation** (`_docs/reference/API_REFERENCE_V1.4.6.md`)
+   - [ ] 5a. Mark `POST /admin/batch/trigger/company-profiles` as ⚠️ DEPRECATED
+   - [ ] 5b. Add note that profiles now sync automatically via Railway cron
+   - [ ] 5c. Document endpoint still available for manual/emergency syncs
+   
+   **Reference**: See `PHASE_9_RAILWAY_COMPANY_PROFILE_INTEGRATION.md` Section "Phase 9.2 Task 5"
+
+---
+
+### Phase 9.3: Code Cleanup (Optional - Can Defer)
+
+6. [ ] **DECIDE**: Remove APScheduler code or keep for future use?
+   - **Option A**: Remove dormant code
+     - Delete `app/batch/scheduler_config.py`
+     - Update `admin_batch.py` trigger endpoint to call `sync_company_profiles()` directly
+     - Remove APScheduler from `pyproject.toml` dependencies
+     - Update CLAUDE.md Part II architecture documentation
+   - **Option B**: Keep for future weekly/monthly jobs
+     - Leave code as-is (it's not hurting anything)
+     - Add comment noting APScheduler not currently integrated
+     - Defer cleanup to Phase 10
+   
+   **Current Recommendation**: Option B (defer cleanup)
+   
+   **Reference**: See `PHASE_9_RAILWAY_COMPANY_PROFILE_INTEGRATION.md` Section "Phase 9.3 Task 6"
+
+---
+
+## 9.2 Testing Strategy
+
+### Local Testing
+
+7. [ ] **Test dry run on non-trading day**
+   ```bash
+   uv run python scripts/automation/railway_daily_batch.py
+   # Expected: "Not a trading day - skipping batch job"
+   ```
+
+8. [ ] **Test force run with company profiles**
+   ```bash
+   uv run python scripts/automation/railway_daily_batch.py --force
+   # Expected:
+   # - STEP 1: Market Data Sync (✅)
+   # - STEP 1.5: Company Profile Sync (✅ 75/75 successful)
+   # - STEP 2: Batch Calculations (✅)
+   # - Exit code 0
+   ```
+
+9. [ ] **Test profile sync failure handling**
+   - [ ] Temporarily break yahooquery import or API access
+   - [ ] Run with `--force`
+   - [ ] Verify batch calculations still run despite profile failure
+   - [ ] Verify exit code 0 (profile failures don't fail job)
+
+### Railway Testing
+
+10. [ ] **Manual Railway trigger with modified code**
+    ```bash
+    railway ssh --service sigmasight-backend-cron "uv run python scripts/automation/railway_daily_batch.py --force"
+    ```
+    - [ ] Monitor Railway logs for STEP 1.5 execution
+    - [ ] Verify company profile counts logged
+    - [ ] Verify batch calculations still run
+    - [ ] Verify job completes successfully (exit 0)
+
+11. [ ] **Production dry run on next trading day**
+    - [ ] Wait for next weekday
+    - [ ] Let Railway cron run automatically at 11:30 PM UTC
+    - [ ] Check Railway deployment logs next morning
+    - [ ] Verify trading day detected
+    - [ ] Verify STEP 1.5 appears in logs
+    - [ ] Verify all portfolios processed
+    - [ ] Verify successful completion
+
+---
+
+## 9.3 Deployment Plan
+
+12. [ ] **Commit changes to feature branch**
+    ```bash
+    git add scripts/automation/railway_daily_batch.py
+    git add scripts/automation/README.md
+    git add _docs/requirements/PHASE_9_RAILWAY_COMPANY_PROFILE_INTEGRATION.md
+    git add TODO4.md
+    git commit -m "feat(phase9): integrate company profile sync into Railway cron"
+    ```
+
+13. [ ] **Push to GitHub and verify Railway deployment**
+    ```bash
+    git push origin main
+    ```
+    - [ ] Check Railway dashboard for deployment success
+    - [ ] Verify cron service status
+
+14. [ ] **Manual test on Railway**
+    ```bash
+    railway ssh --service sigmasight-backend-cron "uv run python scripts/automation/railway_daily_batch.py --force"
+    ```
+    - [ ] Verify company profile step runs
+    - [ ] Verify job succeeds
+
+15. [ ] **Monitor first automated run**
+    - [ ] Wait for next weekday 11:30 PM UTC
+    - [ ] Check Railway logs following morning
+    - [ ] Verify STEP 1.5 executed
+    - [ ] Verify successful completion
+
+16. [ ] **Verify data population improvement**
+    ```bash
+    uv run python scripts/railway/audit_railway_data.py
+    ```
+    - [ ] Check company name coverage improved from baseline (58.6% → >80%)
+    - [ ] Verify Individual portfolio now has company names (was 0%)
+    - [ ] Verify Hedge Fund portfolio now has company names (was 0%)
+
+---
+
+## 9.4 Success Metrics
+
+### Functional Metrics
+- [ ] Company profile sync executes daily on trading days
+- [ ] 100% of position symbols have profiles attempted
+- [ ] >80% success rate for profile fetches
+- [ ] Batch calculations complete successfully after profile step
+- [ ] Total cron job duration <10 minutes
+
+### Operational Metrics
+- [ ] Single Railway cron service handles all daily operations
+- [ ] All logs consolidated in one Railway deployment stream
+- [ ] No manual intervention required for profile updates
+- [ ] Company name coverage >80% across all portfolios
+
+### Data Quality Metrics
+**Baseline (2025-10-07)**:
+- Individual portfolio: 0/16 company names (0%)
+- HNW portfolio: 17/29 company names (58.6%)
+- Hedge Fund portfolio: 0/30 company names (0%)
+
+**Target after Phase 9**:
+- Individual portfolio: >13/16 company names (>80%)
+- HNW portfolio: >26/29 company names (>90%)
+- Hedge Fund portfolio: >24/30 company names (>80%)
+
+---
+
+## 9.5 Rollback Strategy
+
+### If Company Profile Step Breaks Cron Job
+
+**Option 1: Quick Disable (Comment Out)**
+```python
+# Step 1.5: Sync company profiles
+# DISABLED 2025-10-XX: Causing cron failures, needs investigation
+# profile_result = await sync_company_profiles_step()
+profile_result = {"status": "skipped", "duration_seconds": 0}
+```
+
+**Option 2: Git Revert**
+```bash
+git revert HEAD
+git push origin main
+```
+
+**Option 3: Railway Rollback**
+- Railway Dashboard → sigmasight-backend-cron → Deployments
+- Find previous working deployment → Redeploy
+
+**Note**: Profile sync designed to be non-blocking. Rollback only needed if cron crashes, not if profiles fail.
+
+---
+
+## 9.6 Dependencies & Blockers
+
+### Dependencies
+- ✅ Railway cron job working (proven in production)
+- ✅ Company profile fetcher working (`app/services/yahooquery_profile_fetcher.py`)
+- ✅ Market data sync function working (`app/batch/market_data_sync.py`)
+
+### Blockers
+None identified.
+
+---
+
+## 9.7 Related Work
+
+### Upstream
+- Phase 8.0/8.1: Alternative asset handling & data quality flags (COMPLETED)
+- Railway batch automation setup (COMPLETED)
+
+### Downstream
+- Phase 10: APScheduler cleanup (optional)
+- Future: Weekly deep profile sync with additional data
+- Future: Company profile API endpoint exposure
+- Future: Alerting on high profile sync failure rates
+
+---
+
+## 9.8 Future Enhancements (Out of Scope)
+
+These enhancements documented in detailed plan but deferred to future phases:
+
+1. **Weekly Deep Sync** - Comprehensive profile refresh with historical financials
+2. **Intelligent Refresh Logic** - Only fetch stale profiles (>7 days old)
+3. **Profile Data API Endpoint** - `GET /api/v1/data/company-profiles/{symbol}`
+4. **Alerting** - Slack/email alerts when >20% of symbols fail
+
+See `_docs/requirements/PHASE_9_RAILWAY_COMPANY_PROFILE_INTEGRATION.md` Section "Future Enhancements" for details.
+
+---
+
+**End of Phase 9.0 Planning**
