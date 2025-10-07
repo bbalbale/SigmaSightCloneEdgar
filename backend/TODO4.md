@@ -4181,11 +4181,12 @@ if not factor_exposures:
 - ⚠️ New quality flags require updating `app/constants/factors.py` enum
 
 **CRITICAL IMPLEMENTATION NOTES**:
-1. **SYNTHETIC_SYMBOLS REPLACED** - User correctly identified that investment_class filtering at source (get_active_portfolio_symbols) makes SYNTHETIC_SYMBOLS redundant. Better solution: Add investment_class != 'PRIVATE' filter to market_data_sync.py:84, then delete SYNTHETIC_SYMBOLS entirely.
-2. **Correlation Filtering Location** - Filter AFTER position loading (in Python), NOT in SQL WHERE clause - preserves relationship loading paths.
-3. **Orchestration Wrappers Required** - Batch orchestrator `_calculate_correlations()` must normalize both DB records AND skip dicts for consistent downstream handling.
-4. **Stress Test Shape** - MUST include `stress_test_results` top-level key with empty `direct_impacts`/`correlated_impacts` nested maps - orchestrator expects this for save_stress_test_results().
-5. **Quality Flag Keys** - `data_quality.quality_flag` key REQUIRED for calculate_market_risk compatibility (separate from data_quality.flag).
+1. **SYNTHETIC_SYMBOLS MUST STAY (for now)** - determine_investment_class() heuristic MISSING 7/11 non-tradable symbols (HOME_EQUITY, TREASURY_BILLS, CRYPTO_BTC_ETH, RENTAL_SFH, ART_COLLECTIBLES, RENTAL_CONDO, MONEY_MARKET). Must enhance heuristic FIRST, then keep SYNTHETIC_SYMBOLS as safety net until backfill confirms all positions correctly classified.
+2. **Factor Skip Payload Structure** - storage_results MUST be nested: {'position_storage': {...}, 'portfolio_storage': {...}} to match existing structure (lines 361, 401 in factors.py). Flat structure will break callers expecting nested objects.
+3. **Correlation Filtering Location** - Filter AFTER position loading (in Python), NOT in SQL WHERE clause - preserves relationship loading paths (CONFIRMED CORRECT in current plan).
+4. **Stress Test Skip Handling** - Orchestrator's _run_stress_tests() MUST detect skip flag and bypass save_stress_test_results() call entirely - empty dict will cause insertion failures.
+5. **Data Quality Schema Inventory** - MUST inventory existing Pydantic schemas (app/schemas/) BEFORE adding data_quality fields - most models don't have this field, will cause validation errors. Design optional field for backward compatibility.
+6. **Quality Flag Keys** - `data_quality.quality_flag` key REQUIRED for calculate_market_risk compatibility (separate from data_quality.flag).
 
 **DECISIONS MADE**:
 1. **Railway investment_class backfill**: ✅ YES - One-time backfill for current Railway database + update seeding scripts for future + investigate/implement auto-mapping for new position workflow
@@ -4194,21 +4195,20 @@ if not factor_exposures:
 **Tasks**:
 1. [✅] ~~Add `investment_class == 'PRIVATE'` filter to factor analysis~~ **ALREADY DONE** (app/calculations/factors.py:128-136)
 2. [ ] Add `investment_class == 'PRIVATE'` filter to correlation service - **AFTER** position loading, filter in Python (app/services/correlation_service.py - filter positions list after _get_portfolio_with_positions, NOT in SQL WHERE clause to preserve relationship loading)
-3. [ ] **REPLACE** SYNTHETIC_SYMBOLS with investment_class filter (2 parts):
-   - 3a. Add `investment_class != 'PRIVATE'` filter to `get_active_portfolio_symbols()` (app/batch/market_data_sync.py:84):
+3. [ ] **FIX** investment_class heuristic to catch all non-tradable symbols (2 parts):
+   - 3a. **CRITICAL**: Enhance `determine_investment_class()` heuristic (app/db/seed_demo_portfolios.py:275-291):
      ```python
-     # CURRENT (line 84):
-     stmt = select(distinct(Position.symbol)).where(Position.quantity != 0)
+     # CURRENT patterns (line 287): ['PRIVATE', 'FUND', '_VC_', '_PE_', 'REIT', 'SIGMA']
+     # MISSING 7/11 SYNTHETIC_SYMBOLS: HOME_EQUITY, TREASURY_BILLS, CRYPTO_BTC_ETH, RENTAL_SFH, ART_COLLECTIBLES, RENTAL_CONDO, MONEY_MARKET
 
-     # CHANGE TO:
-     stmt = select(distinct(Position.symbol)).where(
-         and_(
-             Position.quantity != 0,
-             Position.investment_class != 'PRIVATE'  # Exclude PRIVATE positions
-         )
-     )
+     # ADD TO PATTERNS:
+     patterns = [
+         'PRIVATE', 'FUND', '_VC_', '_PE_', 'REIT', 'SIGMA',
+         'HOME_', 'RENTAL_', 'ART_', 'CRYPTO_', 'TREASURY', 'MONEY_MARKET'  # NEW
+     ]
      ```
-   - 3b. DELETE SYNTHETIC_SYMBOLS list and _filter_synthetic_symbols() method from market_data_service.py (lines 28-32, 44-50, 79 call)
+   - 3b. Add `investment_class != 'PRIVATE'` filter to `get_active_portfolio_symbols()` (app/batch/market_data_sync.py:84)
+   - 3c. **KEEP** SYNTHETIC_SYMBOLS temporarily as safety net - only delete after confirming all demo positions correctly classified via backfill script (Task 11a)
 4. [ ] Add `QUALITY_FLAG_NO_PUBLIC_POSITIONS = "no_public_positions"` to constants (app/constants/factors.py:14-15)
 5. [ ] Modify `calculate_factor_betas_hybrid()` empty check to return EXACT skip structure (app/calculations/factors.py:271-272):
    ```python
@@ -4230,7 +4230,10 @@ if not factor_exposures:
            'portfolio_id': str(portfolio_id)
        },
        'regression_stats': {},  # Empty dict
-       'storage_results': {'records_stored': 0, 'skipped': True}
+       'storage_results': {  # CRITICAL: Must match nested structure (lines 361, 401)
+           'position_storage': {'records_stored': 0, 'skipped': True},
+           'portfolio_storage': {'records_stored': 0, 'skipped': True}
+       }
    }
    ```
 6. [✅] ~~DECIDE: Correlation skip strategy~~ **DECIDED** - Option B (skip persistence, return structured dict)
@@ -4262,14 +4265,30 @@ if not factor_exposures:
        }
    }
    ```
-9. [ ] Update batch orchestrator `_run_stress_tests()` to handle skip payloads gracefully - check for 'skipped' flag before calling save_stress_test_results (optional safety net if #8 provides correct structure)
+9. [ ] Update batch orchestrator `_run_stress_tests()` to detect skip and bypass persistence:
+   ```python
+   # CRITICAL: save_stress_test_results() will fail on empty dict
+   stress_results = await calculate_comprehensive_stress_tests(...)
+
+   if stress_results.get('stress_test_results', {}).get('skipped'):
+       logger.info("Stress tests skipped - no factor exposures available")
+       return stress_results  # Don't call save_stress_test_results
+   else:
+       await save_stress_test_results(...)  # Only persist when NOT skipped
+   ```
 10. [ ] ~~Update snapshot creation to proceed without factor data~~ **REMOVED** - snapshots don't depend on factors
 11. [ ] **investment_class backfill & workflow** (3 sub-tasks):
     - 11a. [ ] Create one-time backfill script for Railway database (scripts/migrations/backfill_investment_class.py)
     - 11b. [ ] Update seeding scripts to include investment_class mapping (app/db/seed_demo_portfolios.py - verify determine_investment_class() is called)
     - 11c. [ ] Investigate new position workflow: Does adding a position auto-map investment_class? If not, implement auto-mapping in position creation endpoint
-12. [ ] Identify API endpoints to expose data quality flags (likely app/api/v1/data.py analytics endpoints)
-13. [ ] Add data quality flags to API response schemas and update documentation
+12. [ ] **INVENTORY** API endpoints and schemas BEFORE adding data quality flags (2 parts):
+    - 12a. Identify which endpoints return factor/correlation/stress test data (app/api/v1/data.py, app/api/v1/analytics/)
+    - 12b. Document current Pydantic response schemas for each endpoint (most don't have data_quality section yet)
+    - 12c. Design data_quality schema addition that won't break existing API consumers
+13. [ ] Add data quality flags to API response schemas identified in Task 12 (app/schemas/*.py):
+    - Update Pydantic models to include optional data_quality field
+    - Ensure backward compatibility (field must be optional)
+    - Update API documentation (OpenAPI/Swagger)
 14. [ ] Test with HNW and Hedge Fund portfolios locally
 15. [ ] Run backfill script on Railway (one-time), then deploy code changes
 16. [ ] Verify all 3 portfolios produce results on Railway
