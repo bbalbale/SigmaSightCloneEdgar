@@ -9,6 +9,35 @@ from typing import Optional, Dict, Union, List
 from datetime import datetime
 
 
+class DataQualityInfo(BaseModel):
+    """
+    Data quality information for analytics calculations
+
+    Provides transparency about why calculations were skipped or partially completed,
+    including position filtering details and data availability metrics.
+
+    Added in Phase 8.1 Task 13 to expose internal quality metrics from graceful degradation.
+    """
+    flag: str = Field(..., description="Quality flag constant (e.g., QUALITY_FLAG_NO_PUBLIC_POSITIONS)")
+    message: str = Field(..., description="Human-readable explanation of quality status")
+    positions_analyzed: int = Field(..., description="Number of positions included in calculation")
+    positions_total: int = Field(..., description="Total number of positions in portfolio")
+    positions_skipped: int = Field(..., description="Number of positions excluded (PRIVATE + insufficient data)")
+    data_days: int = Field(..., description="Number of days of historical data used in calculation")
+
+    class Config:
+        schema_extra = {
+            "example": {
+                "flag": "QUALITY_FLAG_NO_PUBLIC_POSITIONS",
+                "message": "Portfolio contains no public positions for factor analysis",
+                "positions_analyzed": 0,
+                "positions_total": 8,
+                "positions_skipped": 8,
+                "data_days": 0
+            }
+        }
+
+
 class PortfolioExposures(BaseModel):
     """Portfolio exposure metrics"""
     long_exposure: float = Field(..., description="Total long exposure in dollars")
@@ -213,6 +242,7 @@ class PortfolioFactorExposuresResponse(BaseModel):
     available: bool = Field(..., description="Whether factor exposures are available")
     portfolio_id: str = Field(..., description="Portfolio UUID")
     calculation_date: Optional[str] = Field(None, description="ISO date of the factor exposure calculation")
+    data_quality: Optional[DataQualityInfo] = Field(None, description="Data quality metrics when calculation is skipped or partial")
     factors: Optional[List[PortfolioFactorItem]] = Field(None, description="List of factor exposures")
     metadata: Optional[Dict[str, Union[str, int]]] = Field(None, description="Additional metadata such as factor model details")
 
