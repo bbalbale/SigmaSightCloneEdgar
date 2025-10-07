@@ -3821,107 +3821,377 @@ if not factor_exposures:
 
 ---
 
-### 8.3.2 Alternative Asset Data Characteristics
+#### 8.3.1.7 Cascading Failure 3: Correlation Service Requires Returns
+**File**: `app/services/correlation_service.py`
+**Lines**: 92-97, 103-104
 
-**Asset Types Affected**:
-- Private Equity (TWO_SIGMA_FUND, A16Z_VC_FUND, PRIVATE_EQUITY_STARTUP_A)
-- Cryptocurrency (CRYPTO_BTC_ETH, CRYPTO_PRIVATE_COIN)
-- Real Estate (RE_COMMERCIAL_PROPERTY, RE_RESIDENTIAL_PROPERTY)
-- Collectibles (COLLECTIBLE_RARE_WINE, COLLECTIBLE_ART, COLLECTIBLE_VINTAGE_CAR)
-- Structured Products (STRUCTURED_NOTE_XYZ)
+```python
+# Line 92-97: First ValueError - no returns at all
+returns_df = await self._get_position_returns(
+    filtered_positions, start_date, calculation_date
+)
 
-**Data Availability**:
+if returns_df.empty:
+    raise ValueError("No return data available for correlation calculation")
+
+# Line 103-104: Second ValueError - no positions with sufficient data (min 20 days)
+if returns_df.empty:
+    raise ValueError("No positions have sufficient data for correlation calculation")
+```
+
+**Impact**: Same issue as factors - alternative assets cause empty returns_df → ValueError blocks correlation calculation.
+
+---
+
+#### 8.3.1.8 Cascading Failure 4: Market Risk Expects Factor Contract
+**File**: `app/calculations/market_risk.py`
+**Lines**: 90-97, 115
+
+```python
+# Line 90-97: Calls calculate_factor_betas_hybrid and dereferences result
+factor_analysis = await calculate_factor_betas_hybrid(
+    db=db,
+    portfolio_id=portfolio_id,
+    calculation_date=calculation_date,
+    use_delta_adjusted=False
+)
+
+portfolio_betas = factor_analysis['factor_betas']  # ← KeyError if skipped result missing keys
+
+# Line 115: Also dereferences data_quality
+'data_quality': factor_analysis['data_quality']  # ← KeyError if missing
+```
+
+**Impact**: Market risk calculation expects specific keys in factor_analysis result. Skipped result must maintain contract compatibility.
+
+---
+
+### 8.3.2 Investment Classification System (Already Implemented!)
+
+**Position Model** (`app/models/positions.py:54-55`):
+```python
+investment_class: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+# Values: 'PUBLIC', 'OPTIONS', 'PRIVATE'
+
+investment_subtype: Mapped[Optional[str]] = mapped_column(String(30), nullable=True)
+# For PRIVATE: 'PRIVATE_EQUITY', 'VENTURE_CAPITAL', 'PRIVATE_REIT', 'HEDGE_FUND'
+```
+
+**Classification Logic** (`app/db/seed_demo_portfolios.py:275-291`):
+```python
+def determine_investment_class(symbol: str) -> str:
+    # Check for private investment patterns
+    if any(pattern in symbol.upper() for pattern in
+           ['PRIVATE', 'FUND', '_VC_', '_PE_', 'REIT', 'SIGMA']):
+        return 'PRIVATE'
+    # Everything else is public equity
+    else:
+        return 'PUBLIC'
+```
+
+**Private Investment Examples**:
+- Private Equity: TWO_SIGMA_FUND, A16Z_VC_FUND, PRIVATE_EQUITY_STARTUP_A, BX_PRIVATE_EQUITY
+- Private REITs: STARWOOD_REIT
+- Hedge Funds: TWO_SIGMA_FUND
+- Other: CRYPTO_BTC_ETH (contains 'PRIVATE' pattern)
+
+**Data Availability for PRIVATE Investments**:
 - Only `entry_price` available (from Position.entry_price)
 - No market_data_cache entries (private assets don't trade publicly)
 - API providers (FMP, Polygon, FRED) have no data for these symbols
 
-**Current Seeding Behavior** (`app/db/seed_demo_portfolios.py`):
-- Alternative assets seeded with entry_price only
-- No historical price data generated
-- Expected: These assets should be handled gracefully
+**Database Support**:
+- ✅ Index: `ix_positions_investment_class` - Fast filtering
+- ✅ Index: `ix_positions_inv_class_subtype` - Composite filtering
+- ✅ Automatically populated during seeding
 
 ---
 
 ## 8.4 Root Cause Analysis
 
 ### 8.4.1 Primary Issue
-**Factor analysis requires minimum 2 days of data per position**, but alternative assets only have 1 day (entry_price). The calculation engine:
-1. Skips positions with <2 days (line 189-191)
-2. Returns empty DataFrame when all positions skipped (line 207-209)
-3. Raises ValueError blocking entire portfolio (line 271-272)
+**Two separate but related problems**:
+
+**Problem 1: Private Investments Have No Market Data**
+- Private positions (investment_class='PRIVATE') only have entry_price
+- No historical data in market_data_cache
+- Factor analysis cannot calculate returns without price history
+
+**Problem 2: Public Positions May Still Have Insufficient Data**
+- Even PUBLIC positions can have <2 days of data (new IPOs, data gaps, API failures)
+- Factor analysis requires minimum 2 days to calculate returns (line 189-191)
+- If all positions skipped (either PRIVATE or insufficient data), empty DataFrame returned (line 207-209)
+- ValueError raised, blocking entire portfolio (line 271-272)
+
+**Current Behavior**:
+1. Positions with <2 days are skipped with warning (line 189-191)
+2. Empty DataFrame returned when all positions skipped (line 207-209)
+3. ValueError raised, blocking entire portfolio (line 271-272)
 
 ### 8.4.2 Why Individual Portfolio Succeeds
-**Demo Individual Investor Portfolio** contains primarily:
-- Public equities (AAPL, GOOGL, MSFT, NVDA, TSLA, AMZN, JPM, V, JNJ)
-- ETFs (VTI, VTIAX, BND, VNQ)
-- Mutual funds (FCNTX, FMAGX, FXNAX)
-- Bond funds (FXNAX, BND)
+**Demo Individual Investor Portfolio** contains:
+- ✅ All PUBLIC positions with extensive historical data
+- Public equities: AAPL, GOOGL, MSFT, NVDA, TSLA, AMZN, JPM, V, JNJ
+- ETFs: VTI, VTIAX, BND, VNQ
+- Mutual funds: FCNTX, FMAGX, FXNAX
+- **investment_class**: All positions are 'PUBLIC'
 
-**All have extensive historical data** → factor analysis succeeds → cascading calculations succeed.
+**Result**: All positions have 90+ days of data → factor analysis succeeds → cascading calculations succeed.
 
 ### 8.4.3 Why HNW and Hedge Fund Portfolios Fail
 **HNW Portfolio** (17 positions):
-- 8 alternative assets with 1-day data
-- 9 public securities with full data
-- Ratio: 47% positions have insufficient data
+- 8 PRIVATE positions (TWO_SIGMA_FUND, A16Z_VC_FUND, BX_PRIVATE_EQUITY, STARWOOD_REIT, etc.)
+- 9 PUBLIC positions with full historical data
+- **Ratio**: 47% positions are PRIVATE (no market data)
 
 **Hedge Fund Portfolio** (30 positions):
-- 12 alternative assets with 1-day data
-- 18 public securities (but some are options with rate limit issues)
-- Ratio: 40% positions have insufficient data + API rate limits
+- 12 PRIVATE positions (same types as HNW)
+- 18 PUBLIC positions (some are options with Polygon rate limit issues)
+- **Ratio**: 40% positions are PRIVATE + rate limit failures
 
-**Result**: Too many positions skipped → empty position_returns → ValueError.
+**Result**:
+1. PRIVATE positions have no price data → skipped
+2. Some PUBLIC options hit rate limits → no data → skipped
+3. Too many positions skipped → empty position_returns → ValueError
 
 ---
 
-## 8.5 Proposed Solutions
+## 8.5 Proposed Solution: Investment Class Filtering + Graceful Degradation
 
-### 8.5.1 Solution 1: Graceful Degradation (Recommended)
-**Approach**: Allow factor analysis to proceed with available positions only.
+**Approach**: Two-tier filtering strategy
+1. **Skip PRIVATE investments entirely** (using `investment_class` field)
+2. **Skip PUBLIC positions with insufficient data** (existing <2 days check)
+3. **Return graceful results** when no positions remain (no ValueError)
 
-**Changes Required**:
-1. **`calculate_position_returns()`** (lines 207-209):
+### 8.5.1 Solution Architecture
+
+**Tier 1: Filter PRIVATE Investments** (NEW)
+```python
+# Skip before attempting to fetch price data
+if position.investment_class == 'PRIVATE':
+    logger.info(f"Skipping private investment {symbol}")
+    continue
+```
+
+**Tier 2: Filter Insufficient Data** (EXISTING - keep)
+```python
+# For PUBLIC positions, check if sufficient price history
+if len(prices) < 2:
+    logger.warning(f"Insufficient price data for {symbol}")
+    continue
+```
+
+**Tier 3: Return Graceful Results** (MODIFIED - no ValueError)
+```python
+# If all positions filtered, return empty but valid result
+if position_returns.empty:
+    return {...}  # Contract-compliant empty result
+```
+
+---
+
+### 8.5.2 Skipped Result Contract (CRITICAL for compatibility)
+
+All downstream callers expect these keys from `calculate_factor_betas_hybrid()`:
+- `factor_betas` (dict): Factor name → beta value mapping
+- `position_betas` (dict): Position ID → factor betas mapping
+- `data_quality` (dict): Quality metrics and flags
+- `metadata` (dict): Calculation metadata
+- `regression_stats` (dict): Statistical fit metrics
+- `storage_results` (dict): Database storage confirmation
+
+**Skipped result must include ALL keys** (even if empty) to prevent KeyError in:
+- `app/calculations/market_risk.py:97` - Dereferences `factor_analysis['factor_betas']`
+- `app/calculations/market_risk.py:115` - Dereferences `factor_analysis['data_quality']`
+- `app/batch/batch_orchestrator_v2.py:600` - May access other keys
+
+---
+
+### 8.5.3 Implementation Changes
+
+#### Change 1: Filter PRIVATE positions in `calculate_position_returns()`
+**File**: `app/calculations/factors.py`
+**Lines**: ~178-191 (in position loop)
+
+```python
+# BEFORE (line 178-191):
+for position in positions:
+    try:
+        symbol = position.symbol.upper()
+
+        if symbol not in price_df.columns:
+            logger.warning(f"No price data for position {position.id} ({symbol})")
+            continue
+
+        prices = price_df[symbol].dropna()
+
+        if len(prices) < 2:
+            logger.warning(f"Insufficient price data for position {position.id} ({symbol})")
+            continue
+
+# AFTER (add investment_class check FIRST):
+for position in positions:
+    try:
+        symbol = position.symbol.upper()
+
+        # NEW: Skip private investments entirely
+        if position.investment_class == 'PRIVATE':
+            logger.info(f"Skipping private investment {symbol} (investment_class=PRIVATE)")
+            continue
+
+        # EXISTING: Check if price data available
+        if symbol not in price_df.columns:
+            logger.warning(f"No price data for PUBLIC position {position.id} ({symbol})")
+            continue
+
+        # EXISTING: Check if sufficient price history
+        prices = price_df[symbol].dropna()
+
+        if len(prices) < 2:
+            logger.warning(f"Insufficient price data for PUBLIC position {position.id} ({symbol}): {len(prices)} days")
+            continue
+```
+
+---
+
+#### Change 2: Return graceful result in `calculate_factor_betas_hybrid()`
+**File**: `app/calculations/factors.py`
+**Lines**: 271-272
+```python
+# BEFORE:
+if position_returns.empty:
+    raise ValueError("No position returns data available")
+
+# AFTER:
+if position_returns.empty:
+    logger.warning("No public positions with sufficient data for factor analysis")
+    # Return complete contract-compliant result with ALL required keys
+    return {
+        'factor_betas': {},           # Empty dict - no portfolio-level betas
+        'position_betas': {},          # Empty dict - no position-level betas
+        'data_quality': {
+            'flag': 'QUALITY_FLAG_NO_PUBLIC_POSITIONS',
+            'message': 'Portfolio contains no public positions with sufficient price history',
+            'positions_analyzed': 0,
+            'positions_total': len(positions),
+            'data_days': 0
+        },
+        'metadata': {
+            'calculation_date': calculation_date,
+            'regression_window_days': 0,
+            'status': 'SKIPPED_NO_PUBLIC_POSITIONS',
+            'portfolio_id': str(portfolio_id)
+        },
+        'regression_stats': {},        # Empty dict - no regression performed
+        'storage_results': {           # Empty dict - nothing stored
+            'records_stored': 0,
+            'skipped': True
+        }
+    }
+```
+
+---
+
+#### Change 3: Filter PRIVATE positions in Correlation Service
+**File**: `app/services/correlation_service.py`
+**Lines**: ~92-97 (in `_get_position_returns()`)
+
+```python
+# Add same investment_class check as factor analysis
+for position in positions:
+    # NEW: Skip private investments
+    if position.investment_class == 'PRIVATE':
+        logger.info(f"Skipping private investment {position.symbol} from correlation analysis")
+        continue
+
+    # ... rest of existing code
+```
+
+**Also update empty check** (lines 96-97, 103-104):
+```python
+# BEFORE:
+if returns_df.empty:
+    raise ValueError("No return data available for correlation calculation")
+
+# AFTER:
+if returns_df.empty:
+    logger.warning("No public positions with sufficient data for correlation")
+    return {
+        'status': 'SKIPPED',
+        'message': 'No public positions with sufficient data',
+        'correlation_matrix': {},
+        'clusters': [],
+        'metrics': {'avg_correlation': 0.0, 'positions_analyzed': 0}
+    }
+```
+
+---
+
+#### Change 4: Handle missing factor exposures in Stress Testing
+**File**: `app/calculations/stress_testing.py`
+**Lines**: ~299
+
+```python
+# BEFORE:
+if not factor_exposures:
+    raise ValueError(f"No factor exposures found for portfolio {portfolio_id}")
+
+# AFTER:
+if not factor_exposures:
+    logger.warning(f"No factor exposures for portfolio {portfolio_id} - skipping stress test")
+    return {
+        'scenario_name': scenario_config.get('name'),
+        'portfolio_id': str(portfolio_id),
+        'total_direct_pnl': 0.0,
+        'calculation_method': 'skipped',
+        'message': 'No factor exposures available (portfolio may contain only private investments)'
+    }
+```
+
+---
+
+#### Change 5: Batch Orchestrator error handling (optional fallback)
+**File**: `app/batch/batch_orchestrator_v2.py`
+**Lines**: ~600-604
    ```python
-   # BEFORE:
-   if not position_returns:
-       logger.warning("No position returns calculated")
-       return pd.DataFrame()
+   # In calculate_portfolio_correlations() around lines 92-97
+   returns_df = await self._get_position_returns(
+       filtered_positions, start_date, calculation_date
+   )
 
-   # AFTER:
-   if not position_returns:
-       logger.warning("No position returns calculated - portfolio may contain only alternative assets")
-       # Return empty DataFrame is OK - handle in caller
-       return pd.DataFrame()
-   ```
-
-2. **`calculate_factor_betas_hybrid()`** (lines 271-272):
-   ```python
-   # BEFORE:
-   if position_returns.empty:
-       raise ValueError("No position returns data available")
-
-   # AFTER:
-   if position_returns.empty:
-       logger.warning("No position returns available - portfolio may contain only alternative assets")
-       # Return minimal results with quality flag
+   if returns_df.empty:
+       logger.warning("No return data available for correlation - portfolio may contain only alternative assets")
+       # Return skipped result instead of ValueError
        return {
-           'factor_betas': {},
-           'position_betas': {},
-           'data_quality': {
-               'flag': 'QUALITY_FLAG_NO_DATA',
-               'message': 'Portfolio contains no positions with sufficient price history',
-               'positions_analyzed': 0,
-               'positions_skipped': len(positions)
-           },
-           'metadata': {
-               'calculation_date': calculation_date,
-               'regression_window_days': 0,
-               'status': 'SKIPPED_INSUFFICIENT_DATA'
+           'status': 'SKIPPED',
+           'message': 'Insufficient return data for correlation calculation',
+           'correlation_matrix': {},
+           'clusters': [],
+           'metrics': {
+               'avg_correlation': 0.0,
+               'positions_analyzed': 0
            }
        }
    ```
 
-3. **Batch Orchestrator** - Add error handling:
+4. **Stress Testing** - Handle missing factor exposures:
+   ```python
+   # In calculate_direct_stress_impact() around lines 288-299
+   factor_exposures = result.scalars().all()
+
+   if not factor_exposures:
+       logger.warning(f"No factor exposures found for portfolio {portfolio_id} - skipping stress test")
+       # Return zero-exposure result instead of ValueError
+       return {
+           'scenario_name': scenario_config.get('name'),
+           'portfolio_id': str(portfolio_id),
+           'total_direct_pnl': 0.0,
+           'calculation_method': 'skipped',
+           'message': 'No factor exposures available'
+       }
+   ```
+
+5. **Batch Orchestrator** - Add error handling (optional fallback):
    ```python
    async def _calculate_factors(self, db: AsyncSession, portfolio_id: str):
        """Factor analysis job"""
@@ -3932,11 +4202,14 @@ if not factor_exposures:
            return await calculate_factor_betas_hybrid(db, portfolio_uuid, date.today())
        except ValueError as e:
            logger.warning(f"Factor calculation skipped for {portfolio_id}: {str(e)}")
+           # Fallback if calculate_factor_betas_hybrid still raises ValueError
            return {
-               'status': 'SKIPPED',
-               'reason': str(e),
                'factor_betas': {},
-               'position_betas': {}
+               'position_betas': {},
+               'data_quality': {'flag': 'QUALITY_FLAG_NO_DATA'},
+               'metadata': {'status': 'EXCEPTION_CAUGHT'},
+               'regression_stats': {},
+               'storage_results': {'records_stored': 0, 'skipped': True}
            }
    ```
 
@@ -4028,15 +4301,20 @@ if data_coverage_pct < MIN_DATA_COVERAGE:
 ### 8.6.1 Phase 8.1: Immediate Fix (Graceful Degradation)
 **Goal**: Unblock 2 failing portfolios with minimal code changes
 **Priority**: CRITICAL
-**Estimated Effort**: 4-6 hours
+**Estimated Effort**: 6-8 hours (revised from 4-6)
 
 **Tasks**:
-1. [ ] Modify `calculate_factor_betas_hybrid()` to return skip result instead of raising ValueError
-2. [ ] Add batch orchestrator error handling for factor calculation failures
-3. [ ] Update snapshot creation to proceed without factor data
-4. [ ] Add data quality flags to API responses
-5. [ ] Test with HNW and Hedge Fund portfolios
-6. [ ] Deploy to Railway and verify all 3 portfolios produce results
+1. [ ] Define skipped result contract with ALL required keys (factor_betas, position_betas, data_quality, metadata, regression_stats, storage_results)
+2. [ ] Modify `calculate_factor_betas_hybrid()` to return contract-compliant skip result instead of raising ValueError (app/calculations/factors.py:271-272)
+3. [ ] Add graceful skip to correlation service (app/services/correlation_service.py:96-97, 103-104)
+4. [ ] Add graceful skip to stress testing (app/calculations/stress_testing.py:299)
+5. [ ] Add batch orchestrator error handling as fallback (optional - if #2 covers all cases)
+6. [ ] ~~Update snapshot creation to proceed without factor data~~ **REMOVED** - snapshots don't depend on factors (app/calculations/snapshots.py:45)
+7. [ ] Identify API endpoints to expose data quality flags (likely app/api/v1/data.py analytics endpoints)
+8. [ ] Add data quality flags to API response schemas and update documentation
+9. [ ] Test with HNW and Hedge Fund portfolios locally
+10. [ ] Deploy to Railway and verify all 3 portfolios produce results
+11. [ ] Verify API responses include data quality metadata
 
 ---
 
