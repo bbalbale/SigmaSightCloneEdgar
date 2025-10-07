@@ -4,7 +4,7 @@ Updated for Section 1.4.9 - Hybrid provider approach with mutual fund holdings s
 """
 import asyncio
 import logging
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 from typing import Dict, List, Optional, Union, Any
 from app.core.datetime_utils import utc_now
@@ -1268,9 +1268,10 @@ class MarketDataService:
                 next_year_earnings_high=profile_data.get('next_year_earnings_high'),
                 next_year_end_date=profile_data.get('next_year_end_date'),
                 data_source=profile_data.get('data_source', 'yahooquery'),
-                last_updated=profile_data.get('last_updated', datetime.utcnow()),
-                created_at=datetime.utcnow(),
-                updated_at=datetime.utcnow()
+                # Phase 9.0: Use timezone-aware datetime for DateTime(timezone=True) columns
+                last_updated=profile_data.get('last_updated', datetime.now(timezone.utc)),
+                created_at=datetime.now(timezone.utc),
+                updated_at=datetime.now(timezone.utc)
             )
 
             # On conflict, update all fields except symbol and created_at
@@ -1345,45 +1346,97 @@ class MarketDataService:
         self,
         db: AsyncSession,
         symbols: List[str]
-    ) -> Dict[str, bool]:
+    ) -> Dict[str, Any]:
         """
         Fetch company profiles from yahooquery and cache them in database.
+
+        Phase 9.0 Fix: Process in slices of 20 with per-batch error handling.
+        If one batch fails, continue with remaining batches.
 
         Args:
             db: Database session
             symbols: List of ticker symbols
 
         Returns:
-            Dict mapping symbol to success status (True/False)
+            Dict with:
+                - symbols_attempted: int
+                - symbols_successful: int
+                - symbols_failed: int
+                - failed_symbols: List[str]
+                - profiles_cached: Dict[str, bool]
         """
-        results = {}
+        results = {
+            'symbols_attempted': len(symbols),
+            'symbols_successful': 0,
+            'symbols_failed': 0,
+            'failed_symbols': [],
+            'profiles_cached': {}
+        }
 
-        try:
-            # Fetch profiles from yahooquery
-            logger.info(f"Fetching company profiles for {len(symbols)} symbols")
-            profiles = await fetch_profiles_yahooquery(symbols)
+        # Phase 9.0 Fix: Process in slices of 20 to avoid all-or-nothing failure
+        BATCH_SIZE = 20
 
-            logger.info(f"Received profiles for {len(profiles)} symbols")
+        for i in range(0, len(symbols), BATCH_SIZE):
+            batch = symbols[i:i+BATCH_SIZE]
+            batch_num = i // BATCH_SIZE + 1
+            total_batches = (len(symbols) + BATCH_SIZE - 1) // BATCH_SIZE
 
-            # Store each profile in database
-            for symbol, profile_data in profiles.items():
-                success = await self.store_company_profile(db, symbol, profile_data)
-                results[symbol] = success
+            logger.info(f"Processing batch {batch_num}/{total_batches} ({len(batch)} symbols)")
 
-            # Mark symbols without profiles as unsuccessful
-            for symbol in symbols:
-                if symbol not in results:
-                    results[symbol] = False
+            try:
+                # Fetch profiles for this batch
+                batch_profiles = await fetch_profiles_yahooquery(batch)
+                logger.info(f"Batch {batch_num}: Received profiles for {len(batch_profiles)} symbols")
 
-            await db.commit()
+                # Cache successful profiles
+                for symbol, profile_data in batch_profiles.items():
+                    if profile_data is not None:
+                        try:
+                            success = await self.store_company_profile(db, symbol, profile_data)
+                            if success:
+                                results['symbols_successful'] += 1
+                                results['profiles_cached'][symbol] = True
+                            else:
+                                results['symbols_failed'] += 1
+                                results['failed_symbols'].append(symbol)
+                                results['profiles_cached'][symbol] = False
+                        except Exception as e:
+                            logger.error(f"Failed to store profile for {symbol}: {e}")
+                            results['symbols_failed'] += 1
+                            results['failed_symbols'].append(symbol)
+                            results['profiles_cached'][symbol] = False
+                    else:
+                        # Profile data is None (fetcher returned None for this symbol)
+                        results['symbols_failed'] += 1
+                        results['failed_symbols'].append(symbol)
+                        results['profiles_cached'][symbol] = False
 
-            success_count = sum(1 for v in results.values() if v)
-            logger.info(f"Cached profiles for {success_count}/{len(symbols)} symbols")
+                # Mark symbols that weren't in the response as failed
+                for symbol in batch:
+                    if symbol not in batch_profiles:
+                        results['symbols_failed'] += 1
+                        results['failed_symbols'].append(symbol)
+                        results['profiles_cached'][symbol] = False
 
-        except Exception as e:
-            logger.error(f"Error fetching and caching company profiles: {str(e)}")
-            await db.rollback()
-            return {s: False for s in symbols}
+                # Commit after each successful batch
+                await db.commit()
+                logger.info(f"Batch {batch_num}: Committed {len(batch_profiles)} profiles to database")
+
+            except Exception as e:
+                # Entire batch failed - mark all symbols in batch as failed but continue
+                logger.error(f"Batch {batch_num} failed entirely: {e}")
+                await db.rollback()
+
+                for symbol in batch:
+                    results['symbols_failed'] += 1
+                    results['failed_symbols'].append(symbol)
+                    results['profiles_cached'][symbol] = False
+
+        logger.info(
+            f"Company profile sync complete: "
+            f"{results['symbols_successful']}/{results['symbols_attempted']} successful, "
+            f"{results['symbols_failed']} failed"
+        )
 
         return results
 

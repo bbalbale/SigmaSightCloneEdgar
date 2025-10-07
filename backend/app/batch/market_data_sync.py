@@ -368,13 +368,14 @@ async def sync_company_profiles(force_refresh: bool = False):
 
             # Fetch and cache profiles using market_data_service
             # This uses the hybrid yfinance + yahooquery fetcher
+            # Phase 9.0: Returns detailed results dict instead of Dict[str, bool]
             results = await market_data_service.fetch_and_cache_company_profiles(
                 db, symbols_list
             )
 
             duration = utc_now() - start_time
-            success_count = sum(1 for v in results.values() if v)
-            failed_count = len(symbols_list) - success_count
+            success_count = results['symbols_successful']
+            failed_count = results['symbols_failed']
 
             logger.info(
                 f"Company profile sync completed in {duration.total_seconds():.2f}s: "
@@ -383,7 +384,7 @@ async def sync_company_profiles(force_refresh: bool = False):
 
             # Log failed symbols for debugging
             if failed_count > 0:
-                failed_symbols = [s for s, success in results.items() if not success]
+                failed_symbols = results['failed_symbols']
                 logger.warning(f"Failed to fetch profiles for: {failed_symbols[:10]}")
 
             return {

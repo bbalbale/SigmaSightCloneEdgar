@@ -1,7 +1,7 @@
 """
 Market data and analytics models
 """
-from datetime import datetime, date
+from datetime import datetime, date, timezone
 from uuid import uuid4
 from decimal import Decimal
 from sqlalchemy import String, DateTime, ForeignKey, Index, Numeric, Date, UniqueConstraint, Integer
@@ -55,8 +55,8 @@ class CompanyProfile(Base):
     company_name: Mapped[Optional[str]] = mapped_column(String(200))
     sector: Mapped[Optional[str]] = mapped_column(String(100))
     industry: Mapped[Optional[str]] = mapped_column(String(100))
-    exchange: Mapped[Optional[str]] = mapped_column(String(20))
-    country: Mapped[Optional[str]] = mapped_column(String(10))
+    exchange: Mapped[Optional[str]] = mapped_column(String(50))  # Phase 9.0: Widened from 20
+    country: Mapped[Optional[str]] = mapped_column(String(50))  # Phase 9.0: Widened from 10
     market_cap: Mapped[Optional[Decimal]] = mapped_column(Numeric(18, 2))
     description: Mapped[Optional[str]] = mapped_column(String(1000))
 
@@ -122,8 +122,9 @@ class CompanyProfile(Base):
     # Data tracking
     data_source: Mapped[str] = mapped_column(String(50), default='yahooquery')
     last_updated: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow)
+    # Phase 9.0: Use timezone-aware defaults for DateTime(timezone=True) columns
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
     __table_args__ = (
         Index('ix_company_profiles_symbol', 'symbol'),
