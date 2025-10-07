@@ -286,6 +286,347 @@ or testing purposes only.
 
 ---
 
+## Critical Implementation Notes
+
+**⚠️ READ BEFORE CODING**: These details prevent common bugs and ensure correct integration.
+
+### 1. Exit Code Semantics (Railway Cron Script)
+
+**Current Behavior** (`scripts/automation/railway_daily_batch.py`):
+- Job exits 0 (success) if all portfolios succeed
+- Job exits 1 (failure) if ANY portfolio fails
+- Exit code determines Railway retry behavior
+
+**Required for Phase 9**:
+- **Company profile failures MUST NOT change exit code**
+- Only batch calculation failures should trigger exit 1
+- Profile sync is non-critical enrichment data
+
+**Implementation**:
+```python
+async def log_completion_summary(..., profile_result, ...):
+    # ... existing code ...
+
+    # Exit code based ONLY on batch calculations (not profiles)
+    if fail_count > 0:
+        logger.warning(f"⚠️ Job completed with {fail_count} portfolio failure(s)")
+        sys.exit(1)  # Only batch failures trigger retry
+    else:
+        logger.info("✅ All operations completed successfully")
+        sys.exit(0)  # Profile failures don't affect exit code
+```
+
+---
+
+### 2. Service Layer Return Value Mismatch
+
+**Actual Service** (`app/batch/market_data_sync.py:390`):
+```python
+async def sync_company_profiles():
+    return {
+        'total': int,
+        'successful': int,
+        'failed': int,
+        'duration': float  # NOT duration_seconds
+    }
+```
+
+**Requirements Doc Example** (uses `duration_seconds`):
+```python
+return {
+    'status': 'success',
+    'duration_seconds': duration,  # Key mismatch!
+    ...
+}
+```
+
+**Solution**: Normalize in wrapper, don't change service
+```python
+async def sync_company_profiles_step() -> Dict[str, Any]:
+    """Thin wrapper that normalizes sync_company_profiles() return value."""
+    from app.batch.market_data_sync import sync_company_profiles
+
+    try:
+        start_time = datetime.datetime.now()
+        result = await sync_company_profiles()
+
+        # Normalize duration → duration_seconds
+        return {
+            "status": "success",
+            "duration_seconds": result.get('duration', 0),  # Rename key
+            "successful": result['successful'],
+            "failed": result['failed'],
+            "total": result['total']
+        }
+    except Exception as e:
+        # Ensure status field always exists for summary formatter
+        return {
+            "status": "error",
+            "error": str(e),
+            "duration_seconds": 0,
+            "successful": 0,
+            "failed": 0,
+            "total": 0
+        }
+```
+
+---
+
+### 3. Event Loop Blocking (yahooquery/yfinance)
+
+**Known Issue**: `yahooquery_profile_fetcher.py` uses synchronous HTTP calls
+- `yfinance.Ticker()` and `yahooquery.Ticker()` block event loop
+- Railway cron runs single asyncio process
+- Profile sync will block during each API request (~1-2s per batch of 10)
+
+**Impact**:
+- Market data sync and batch calc can't progress during profile fetches
+- Total job duration will be sum of all steps (not concurrent)
+- Acceptable for daily cron, but worth noting
+
+**Options**:
+
+**Option A: Add TODO comment (recommended for Phase 9)**
+```python
+async def sync_company_profiles_step() -> Dict[str, Any]:
+    """
+    Sync company profiles from yfinance + yahooquery.
+
+    TODO: yahooquery fetcher blocks event loop (synchronous HTTP).
+    Consider wrapping in loop.run_in_executor() if this becomes
+    a performance issue for large symbol counts.
+    """
+    # ... existing implementation ...
+```
+
+**Option B: Use run_in_executor (optional enhancement)**
+```python
+async def sync_company_profiles_step() -> Dict[str, Any]:
+    from app.batch.market_data_sync import sync_company_profiles
+    import asyncio
+
+    try:
+        start_time = datetime.datetime.now()
+        loop = asyncio.get_event_loop()
+
+        # Run blocking sync_company_profiles in thread pool
+        result = await loop.run_in_executor(None, lambda: asyncio.run(sync_company_profiles()))
+
+        # ... rest of implementation ...
+```
+
+**Recommendation**: Option A for Phase 9 (add TODO), defer Option B to Phase 10 unless profile sync duration exceeds 90 seconds.
+
+---
+
+### 4. Completion Summary Signature Mismatch
+
+**Current Signature**:
+```python
+async def log_completion_summary(
+    start_time: datetime.datetime,
+    market_data_result: Dict[str, Any],
+    batch_results: List[Dict[str, Any]]
+) -> None:
+```
+
+**Required Signature** (after Phase 9):
+```python
+async def log_completion_summary(
+    start_time: datetime.datetime,
+    market_data_result: Dict[str, Any],
+    profile_result: Dict[str, Any],  # NEW - add in correct position
+    batch_results: List[Dict[str, Any]]
+) -> None:
+```
+
+**Call Site Update Required**:
+```python
+# scripts/automation/railway_daily_batch.py main()
+
+# Step 1: Sync market data
+market_data_result = await sync_market_data_step()
+
+# Step 1.5: Sync company profiles (NEW)
+profile_result = await sync_company_profiles_step()
+
+# Step 2: Run batch calculations
+batch_results = await run_batch_calculations_step()
+
+# Step 3: Log completion summary
+await log_completion_summary(
+    job_start,
+    market_data_result,
+    profile_result,      # NEW - must be in correct position
+    batch_results
+)
+```
+
+**Critical**: Pass arguments in correct order to avoid assigning `batch_results` to `profile_result` slot, which would crash the summary formatter.
+
+---
+
+### 5. Railway README Step Numbering
+
+**Current README** (`scripts/automation/README.md:7-11`):
+```markdown
+## Overview
+
+This automation runs **every weekday at 11:30 PM UTC** to:
+1. Check if today is a trading day (NYSE calendar)
+2. Sync latest market data for all portfolio positions
+3. Run 8 calculation engines for all active portfolios
+4. Log completion summary
+```
+
+**After Phase 9** (re-number steps):
+```markdown
+## Overview
+
+This automation runs **every weekday at 11:30 PM UTC** to:
+1. Check if today is a trading day (NYSE calendar)
+2. Sync latest market data for all portfolio positions
+3. Sync company profiles (name, sector, industry, estimates)  <!-- NEW -->
+4. Run 8 calculation engines for all active portfolios
+5. Log completion summary
+```
+
+**Also Update**: Add profile sync to troubleshooting section
+```markdown
+### Company Profile Sync Failures
+- **Expected behavior**: yahooquery/yfinance have occasional API issues
+- Partial failures (some symbols succeed, some fail) are normal
+- Profile sync failures DO NOT stop batch calculations
+- Review logs for specific symbols failing
+- Check if Yahoo Finance is experiencing outages
+```
+
+---
+
+### 6. Admin Endpoint Documentation Update
+
+**Current Documentation** (`_docs/reference/API_REFERENCE_V1.4.6.md`):
+```markdown
+#### POST /api/v1/admin/batch/trigger/company-profiles
+
+**Status**: ✅ Fully Implemented
+
+**Description**: Manually trigger company profile synchronization.
+```
+
+**After Phase 9** (mark deprecated but retain usage):
+```markdown
+#### POST /api/v1/admin/batch/trigger/company-profiles
+
+**Status**: ⚠️ DEPRECATED - Now runs automatically via Railway cron daily
+
+**Description**: Manually trigger company profile synchronization.
+
+**Note**: As of Phase 9 (October 2025), company profiles sync automatically as part of
+daily Railway cron job (11:30 PM UTC on weekdays). This endpoint remains available for:
+- Emergency manual syncs outside scheduled window
+- Testing and development purposes
+- Re-drives after Yahoo Finance API outages
+
+Operations teams should rely on automatic sync for normal operations. Manual triggers
+only needed for exception handling.
+
+**Request**: POST /api/v1/admin/batch/trigger/company-profiles
+**Auth**: Requires admin role
+**Response**:
+```json
+{
+  "status": "started",
+  "message": "Company profile sync started for all portfolio symbols",
+  "triggered_by": "admin@example.com",
+  "timestamp": "2025-10-07T19:30:00Z"
+}
+```
+```
+
+---
+
+### 7. APScheduler Cleanup Verification
+
+**Before Deleting** `app/batch/scheduler_config.py`:
+
+1. **Check for imports**:
+```bash
+grep -r "from app.batch.scheduler_config import" backend/
+grep -r "import.*scheduler_config" backend/
+grep -r "batch_scheduler" backend/
+```
+
+2. **Verify app/main.py doesn't reference scheduler**:
+```python
+# app/main.py should NOT have:
+from app.batch.scheduler_config import start_batch_scheduler
+# or
+@app.on_event("startup")
+async def startup():
+    await start_batch_scheduler()
+```
+
+3. **Check admin endpoints**:
+```python
+# app/api/v1/endpoints/admin_batch.py line ~194
+# Currently imports batch_scheduler for manual trigger
+from app.batch.scheduler_config import batch_scheduler
+
+# After removal, call service directly:
+from app.batch.market_data_sync import sync_company_profiles
+background_tasks.add_task(sync_company_profiles)  # Direct call
+```
+
+**If Keeping APScheduler** (recommended for Phase 9):
+- Add comment to `scheduler_config.py`:
+  ```python
+  """
+  APScheduler Configuration for Batch Processing
+
+  ⚠️ NOTE (2025-10-07): This scheduler is NOT currently integrated into
+  the FastAPI application lifecycle. Railway cron handles all scheduled
+  jobs. This code remains for potential future use (weekly jobs, monthly
+  reports, etc.) but should be considered dormant technical debt.
+
+  See Phase 9 decision in TODO4.md for rationale.
+  """
+  ```
+
+---
+
+### 8. profile_result Always Has status Field
+
+**Critical for Summary Formatter**:
+```python
+# This will crash if profile_result doesn't have 'status':
+logger.info(f"Company Profiles: {profile_result['status']} ...")
+
+# Solution: ALWAYS include status in return dict
+async def sync_company_profiles_step() -> Dict[str, Any]:
+    try:
+        # ... success path ...
+        return {
+            "status": "success",  # REQUIRED
+            "duration_seconds": duration,
+            "successful": result['successful'],
+            "failed": result['failed'],
+            "total": result['total']
+        }
+    except Exception as e:
+        # Exception path MUST also include status
+        return {
+            "status": "error",  # REQUIRED
+            "error": str(e),
+            "duration_seconds": 0,
+            "successful": 0,
+            "failed": 0,
+            "total": 0
+        }
+```
+
+---
+
 ## Testing Strategy
 
 ### Local Testing
