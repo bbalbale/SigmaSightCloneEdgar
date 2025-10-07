@@ -91,17 +91,28 @@ class BatchScheduler:
             replace_existing=True
         )
         
-        # Market data quality check - Daily at 7:00 PM ET
+        # Company profile sync - Daily at 7:00 PM ET
         self.scheduler.add_job(
-            func=self._verify_market_data,
+            func=self._sync_company_profiles,
             trigger='cron',
             hour=19,  # 7:00 PM
             minute=0,
+            id='company_profile_sync',
+            name='Daily Company Profile Sync',
+            replace_existing=True
+        )
+
+        # Market data quality check - Daily at 7:30 PM ET
+        self.scheduler.add_job(
+            func=self._verify_market_data,
+            trigger='cron',
+            hour=19,  # 7:30 PM
+            minute=30,
             id='market_data_verification',
             name='Daily Market Data Quality Check',
             replace_existing=True
         )
-        
+
         # Historical data backfill - Weekly on Sunday at 2:00 AM ET
         self.scheduler.add_job(
             func=self._backfill_historical_data,
@@ -166,15 +177,42 @@ class BatchScheduler:
             await self._send_batch_alert(f"Correlation calculation failed: {str(e)}", None)
             raise
     
+    async def _sync_company_profiles(self):
+        """Sync company profiles for all portfolio symbols."""
+        from app.batch.market_data_sync import sync_company_profiles
+
+        logger.info("Starting scheduled company profile sync")
+
+        try:
+            result = await sync_company_profiles()
+
+            logger.info(
+                f"Company profile sync completed: {result['successful']}/{result['total']} successful"
+            )
+
+            # Alert if failure rate is high (>20%)
+            if result['total'] > 0:
+                failure_rate = result['failed'] / result['total']
+                if failure_rate > 0.2:
+                    await self._send_batch_alert(
+                        f"Company profile sync: {result['failed']}/{result['total']} failures ({failure_rate*100:.1f}%)",
+                        result
+                    )
+
+        except Exception as e:
+            logger.error(f"Company profile sync failed: {str(e)}")
+            await self._send_batch_alert(f"Company profile sync failed: {str(e)}", None)
+            raise
+
     async def _verify_market_data(self):
         """Verify market data quality and completeness."""
         from app.batch.market_data_sync import verify_market_data_quality
-        
+
         logger.info("Starting market data quality verification")
-        
+
         try:
             result = await verify_market_data_quality()
-            
+
             if result['stale_symbols'] > 0:
                 logger.warning(
                     f"Found {result['stale_symbols']} symbols with stale data"
@@ -185,7 +223,7 @@ class BatchScheduler:
                 )
             else:
                 logger.info("Market data quality check passed")
-                
+
         except Exception as e:
             logger.error(f"Market data verification failed: {str(e)}")
             raise
@@ -270,6 +308,12 @@ class BatchScheduler:
             portfolio_id=portfolio_id,
             run_correlations=True
         )
+
+    async def trigger_company_profile_sync(self):
+        """Manually trigger company profile sync."""
+        from app.batch.market_data_sync import sync_company_profiles
+        logger.info("Manual trigger: company profile sync")
+        return await sync_company_profiles()
 
 
 # Create singleton instance

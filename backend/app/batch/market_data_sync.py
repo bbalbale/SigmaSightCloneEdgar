@@ -320,10 +320,75 @@ async def validate_and_ensure_factor_analysis_data(db: AsyncSession) -> Dict[str
         }
 
 
+async def sync_company_profiles(force_refresh: bool = False):
+    """
+    Sync company profiles for all portfolio symbols
+    Updates company names, sectors, industries, revenue estimates, etc.
+    Uses hybrid yfinance + yahooquery approach for comprehensive data.
+
+    Args:
+        force_refresh: Force refresh even if profiles exist (default: False)
+
+    Returns:
+        Dictionary with sync statistics
+    """
+    start_time = utc_now()
+    logger.info(f"Starting company profile sync at {start_time}")
+
+    try:
+        async with AsyncSessionLocal() as db:
+            # Get all unique symbols from active positions
+            symbols = await get_active_portfolio_symbols(db)
+
+            if not symbols:
+                logger.info("No active portfolio symbols found, skipping company profile sync")
+                return {
+                    'total': 0,
+                    'successful': 0,
+                    'failed': 0,
+                    'duration': 0
+                }
+
+            # Convert set to list and filter out synthetic symbols
+            symbols_list = list(symbols)
+            logger.info(f"Syncing company profiles for {len(symbols_list)} symbols")
+
+            # Fetch and cache profiles using market_data_service
+            # This uses the hybrid yfinance + yahooquery fetcher
+            results = await market_data_service.fetch_and_cache_company_profiles(
+                db, symbols_list
+            )
+
+            duration = utc_now() - start_time
+            success_count = sum(1 for v in results.values() if v)
+            failed_count = len(symbols_list) - success_count
+
+            logger.info(
+                f"Company profile sync completed in {duration.total_seconds():.2f}s: "
+                f"{success_count}/{len(symbols_list)} successful, {failed_count} failed"
+            )
+
+            # Log failed symbols for debugging
+            if failed_count > 0:
+                failed_symbols = [s for s, success in results.items() if not success]
+                logger.warning(f"Failed to fetch profiles for: {failed_symbols[:10]}")
+
+            return {
+                'total': len(symbols_list),
+                'successful': success_count,
+                'failed': failed_count,
+                'duration': duration.total_seconds()
+            }
+
+    except Exception as e:
+        logger.error(f"Company profile sync failed: {str(e)}")
+        raise
+
+
 async def main():
     """Main CLI entry point for market data sync operations"""
     import sys
-    
+
     if len(sys.argv) > 1 and sys.argv[1] == 'validate-historical':
         # Run historical data validation
         async with AsyncSessionLocal() as db:
@@ -338,6 +403,14 @@ async def main():
                     print(f"Backfill completed: {results['backfill_results']}")
             else:
                 print(f"Error: {results.get('error')}")
+    elif len(sys.argv) > 1 and sys.argv[1] == 'sync-profiles':
+        # Run company profile sync
+        results = await sync_company_profiles()
+        print(f"\n✅ Company Profile Sync Results:")
+        print(f"Total: {results['total']}")
+        print(f"Successful: {results['successful']}")
+        print(f"Failed: {results['failed']}")
+        print(f"Duration: {results['duration']:.2f}s")
     else:
         # Run standard market data sync
         await sync_market_data()
