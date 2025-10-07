@@ -4174,17 +4174,18 @@ if not factor_exposures:
 **Tasks**:
 1. [ ] Add `investment_class == 'PRIVATE'` filter to factor analysis position loop (app/calculations/factors.py:~178-191)
 2. [ ] Add `investment_class == 'PRIVATE'` filter to correlation service (app/services/correlation_service.py:~92-97)
-3. [ ] Define skipped result contract with ALL required keys (factor_betas, position_betas, data_quality, metadata, regression_stats, storage_results)
-4. [ ] Modify `calculate_factor_betas_hybrid()` to return contract-compliant skip result instead of raising ValueError (app/calculations/factors.py:271-272)
-5. [ ] Add graceful skip to correlation service empty check (app/services/correlation_service.py:96-97, 103-104)
-6. [ ] Add graceful skip to stress testing (app/calculations/stress_testing.py:299)
-7. [ ] Add batch orchestrator error handling as fallback (optional - if #4 covers all cases)
-8. [ ] ~~Update snapshot creation to proceed without factor data~~ **REMOVED** - snapshots don't depend on factors
-9. [ ] Identify API endpoints to expose data quality flags (likely app/api/v1/data.py analytics endpoints)
-10. [ ] Add data quality flags to API response schemas and update documentation
-11. [ ] Test with HNW and Hedge Fund portfolios locally
-12. [ ] Deploy to Railway and verify all 3 portfolios produce results
-13. [ ] Verify API responses include data quality metadata
+3. [ ] **DELETE** SYNTHETIC_SYMBOLS list and _filter_synthetic_symbols() method (app/services/market_data_service.py:28-32, 44-50, line 79 call)
+4. [ ] Define skipped result contract with ALL required keys (factor_betas, position_betas, data_quality, metadata, regression_stats, storage_results)
+5. [ ] Modify `calculate_factor_betas_hybrid()` to return contract-compliant skip result instead of raising ValueError (app/calculations/factors.py:271-272)
+6. [ ] Add graceful skip to correlation service empty check (app/services/correlation_service.py:96-97, 103-104)
+7. [ ] Add graceful skip to stress testing (app/calculations/stress_testing.py:299)
+8. [ ] Add batch orchestrator error handling as fallback (optional - if #5 covers all cases)
+9. [ ] ~~Update snapshot creation to proceed without factor data~~ **REMOVED** - snapshots don't depend on factors
+10. [ ] Identify API endpoints to expose data quality flags (likely app/api/v1/data.py analytics endpoints)
+11. [ ] Add data quality flags to API response schemas and update documentation
+12. [ ] Test with HNW and Hedge Fund portfolios locally
+13. [ ] Deploy to Railway and verify all 3 portfolios produce results
+14. [ ] Verify API responses include data quality metadata
 
 ---
 
