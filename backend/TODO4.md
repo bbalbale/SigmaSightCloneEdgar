@@ -4154,64 +4154,6 @@ if not factor_exposures:
 **File**: `app/batch/batch_orchestrator_v2.py`
 **Lines**: ~600-604
    ```python
-   # In calculate_portfolio_correlations() around lines 92-97
-   returns_df = await self._get_position_returns(
-       filtered_positions, start_date, calculation_date
-   )
-
-   if returns_df.empty:
-       logger.warning("No return data available for correlation - portfolio may contain only alternative assets")
-       # Return skipped result instead of ValueError
-       return {
-           'status': 'SKIPPED',
-           'message': 'Insufficient return data for correlation calculation',
-           'correlation_matrix': {},
-           'clusters': [],
-           'metrics': {
-               'avg_correlation': 0.0,
-               'positions_analyzed': 0
-           }
-       }
-   ```
-
-4. **Stress Testing** - Handle missing factor exposures:
-   ```python
-   # In calculate_direct_stress_impact() around lines 288-299
-   factor_exposures = result.scalars().all()
-
-   if not factor_exposures:
-       logger.warning(f"No factor exposures found for portfolio {portfolio_id} - skipping stress test")
-       # Return zero-exposure result instead of ValueError
-       return {
-           'scenario_name': scenario_config.get('name'),
-           'portfolio_id': str(portfolio_id),
-           'total_direct_pnl': 0.0,
-           'calculation_method': 'skipped',
-           'message': 'No factor exposures available'
-       }
-   ```
-
-5. **Batch Orchestrator** - Add error handling (optional fallback):
-   ```python
-   async def _calculate_factors(self, db: AsyncSession, portfolio_id: str):
-       """Factor analysis job"""
-       from app.calculations.factors import calculate_factor_betas_hybrid
-       portfolio_uuid = ensure_uuid(portfolio_id)
-
-       try:
-           return await calculate_factor_betas_hybrid(db, portfolio_uuid, date.today())
-       except ValueError as e:
-           logger.warning(f"Factor calculation skipped for {portfolio_id}: {str(e)}")
-           # Fallback if calculate_factor_betas_hybrid still raises ValueError
-           return {
-               'factor_betas': {},
-               'position_betas': {},
-               'data_quality': {'flag': 'QUALITY_FLAG_NO_DATA'},
-               'metadata': {'status': 'EXCEPTION_CAUGHT'},
-               'regression_stats': {},
-               'storage_results': {'records_stored': 0, 'skipped': True}
-           }
-   ```
 
 **Benefits**:
 - Portfolios with alternative assets can proceed with partial data
@@ -4221,80 +4163,6 @@ if not factor_exposures:
 
 ---
 
-### 8.5.2 Solution 2: Alternative Asset Pricing Strategy
-**Approach**: Generate synthetic historical data for alternative assets.
-
-**Implementation Options**:
-
-**Option A: Flat Pricing** (Conservative)
-- Repeat entry_price for all historical dates
-- Returns = 0.0% daily (no volatility)
-- Pro: Simple, no assumptions
-- Con: Underestimates portfolio volatility
-
-**Option B: Asset Class Proxy** (Better)
-- Map alternative assets to proxy indices:
-  - Private Equity → S&P 500 (SPY) adjusted returns
-  - Crypto → Bitcoin (BTC-USD) returns
-  - Real Estate → Real Estate ETF (VNQ) returns
-  - Collectibles → Inflation index (CPI) returns
-- Apply returns to entry_price to generate historical prices
-- Pro: More realistic volatility and correlation
-- Con: Requires proxy mappings and scaling factors
-
-**Option C: Manual Data Entry**
-- Allow users to upload historical valuations for private positions
-- Store in market_data_cache with `source='USER_PROVIDED'`
-- Pro: Most accurate
-- Con: User burden, may not have data
-
-**Recommendation**: Implement Option B (Asset Class Proxy) with Option C (Manual Upload) as future enhancement.
-
----
-
-### 8.5.3 Solution 3: Position Type Flagging
-**Approach**: Flag alternative assets and exclude from factor analysis by default.
-
-**Changes Required**:
-1. Add `is_alternative_asset` boolean to Position model
-2. Update seeding to flag alternative assets
-3. Modify `calculate_position_returns()` to skip flagged positions (not just warn)
-4. Add `include_alternative_assets` parameter (default False)
-
-**Benefits**:
-- Clear separation between public and private assets
-- Explicit opt-in for alternative asset analysis
-- Avoid misleading factor exposures
-
-**Drawbacks**:
-- Requires migration to add column
-- Doesn't solve the fundamental data problem
-
----
-
-### 8.5.4 Solution 4: Minimum Position Threshold
-**Approach**: Require minimum % of positions to have data before calculating factors.
-
-**Implementation**:
-```python
-# In calculate_factor_betas_hybrid()
-total_positions = len(positions)
-positions_with_data = len(position_returns.columns)
-data_coverage_pct = positions_with_data / total_positions
-
-MIN_DATA_COVERAGE = 0.25  # Require 25% of positions to have data
-
-if data_coverage_pct < MIN_DATA_COVERAGE:
-    logger.warning(f"Only {data_coverage_pct:.1%} positions have data (minimum: {MIN_DATA_COVERAGE:.1%})")
-    # Return skip result instead of ValueError
-    return {...}
-```
-
-**Benefits**:
-- Prevents factor analysis on portfolios with mostly alternative assets
-- Still allows partial analysis when some data available
-
----
 
 ## 8.6 Recommended Implementation Plan
 
@@ -4304,63 +4172,19 @@ if data_coverage_pct < MIN_DATA_COVERAGE:
 **Estimated Effort**: 6-8 hours (revised from 4-6)
 
 **Tasks**:
-1. [ ] Define skipped result contract with ALL required keys (factor_betas, position_betas, data_quality, metadata, regression_stats, storage_results)
-2. [ ] Modify `calculate_factor_betas_hybrid()` to return contract-compliant skip result instead of raising ValueError (app/calculations/factors.py:271-272)
-3. [ ] Add graceful skip to correlation service (app/services/correlation_service.py:96-97, 103-104)
-4. [ ] Add graceful skip to stress testing (app/calculations/stress_testing.py:299)
-5. [ ] Add batch orchestrator error handling as fallback (optional - if #2 covers all cases)
-6. [ ] ~~Update snapshot creation to proceed without factor data~~ **REMOVED** - snapshots don't depend on factors (app/calculations/snapshots.py:45)
-7. [ ] Identify API endpoints to expose data quality flags (likely app/api/v1/data.py analytics endpoints)
-8. [ ] Add data quality flags to API response schemas and update documentation
-9. [ ] Test with HNW and Hedge Fund portfolios locally
-10. [ ] Deploy to Railway and verify all 3 portfolios produce results
-11. [ ] Verify API responses include data quality metadata
-
----
-
-### 8.6.2 Phase 8.2: Alternative Asset Proxy Pricing (Medium-term)
-**Goal**: Generate realistic historical data for alternative assets
-**Priority**: HIGH
-**Estimated Effort**: 12-16 hours
-
-**Tasks**:
-1. [ ] Design asset class proxy mapping (Private Equity → SPY, Crypto → BTC, etc.)
-2. [ ] Create `app/services/alternative_asset_pricing.py`
-3. [ ] Implement proxy-based historical price generation
-4. [ ] Add scaling factors (e.g., Private Equity = SPY * 0.8 + lag)
-5. [ ] Backfill historical data for existing alternative assets
-6. [ ] Update seeding to generate proxy data automatically
-7. [ ] Add admin endpoint to trigger historical data generation
-
----
-
-### 8.6.3 Phase 8.3: Position Type Flagging (Long-term)
-**Goal**: Explicit handling of alternative vs public assets
-**Priority**: MEDIUM
-**Estimated Effort**: 8-10 hours
-
-**Tasks**:
-1. [ ] Create Alembic migration to add `is_alternative_asset` column
-2. [ ] Update Position model with new field
-3. [ ] Modify seeding to flag alternative assets
-4. [ ] Add `include_alternative_assets` parameter to calculation functions
-5. [ ] Update API documentation with alternative asset handling
-6. [ ] Create admin UI to mark/unmark alternative assets
-
----
-
-### 8.6.4 Phase 8.4: Manual Valuation Upload (Future)
-**Goal**: Allow users to provide custom valuations
-**Priority**: LOW
-**Estimated Effort**: 20-24 hours
-
-**Tasks**:
-1. [ ] Design API endpoint for bulk valuation upload
-2. [ ] Add validation for user-provided data
-3. [ ] Create `source` field in market_data_cache ('USER_PROVIDED', 'FMP', 'POLYGON')
-4. [ ] Build frontend UI for valuation upload
-5. [ ] Add audit trail for manual valuations
-6. [ ] Implement data quality checks
+1. [ ] Add `investment_class == 'PRIVATE'` filter to factor analysis position loop (app/calculations/factors.py:~178-191)
+2. [ ] Add `investment_class == 'PRIVATE'` filter to correlation service (app/services/correlation_service.py:~92-97)
+3. [ ] Define skipped result contract with ALL required keys (factor_betas, position_betas, data_quality, metadata, regression_stats, storage_results)
+4. [ ] Modify `calculate_factor_betas_hybrid()` to return contract-compliant skip result instead of raising ValueError (app/calculations/factors.py:271-272)
+5. [ ] Add graceful skip to correlation service empty check (app/services/correlation_service.py:96-97, 103-104)
+6. [ ] Add graceful skip to stress testing (app/calculations/stress_testing.py:299)
+7. [ ] Add batch orchestrator error handling as fallback (optional - if #4 covers all cases)
+8. [ ] ~~Update snapshot creation to proceed without factor data~~ **REMOVED** - snapshots don't depend on factors
+9. [ ] Identify API endpoints to expose data quality flags (likely app/api/v1/data.py analytics endpoints)
+10. [ ] Add data quality flags to API response schemas and update documentation
+11. [ ] Test with HNW and Hedge Fund portfolios locally
+12. [ ] Deploy to Railway and verify all 3 portfolios produce results
+13. [ ] Verify API responses include data quality metadata
 
 ---
 
@@ -4371,7 +4195,7 @@ if data_coverage_pct < MIN_DATA_COVERAGE:
 - Create test portfolio with 10 alternative asset positions
 - No historical data available
 
-**Expected Behavior** (After Phase 2.1):
+**Expected Behavior** (After Phase 8.1):
 - Factor analysis returns SKIPPED status
 - Snapshot created with market value only
 - Stress tests gracefully skip
@@ -4384,26 +4208,14 @@ if data_coverage_pct < MIN_DATA_COVERAGE:
 - 5 public equities with full data
 - 5 alternative assets with 1-day data
 
-**Expected Behavior** (After Phase 2.1):
-- Factor analysis proceeds with 5 positions
+**Expected Behavior** (After Phase 8.1):
+- Factor analysis proceeds with 5 PUBLIC positions (5 PRIVATE positions skipped)
 - Data quality flag: QUALITY_FLAG_LIMITED_COVERAGE
 - Snapshot created
 - Stress tests run with available factor exposures
 
 ---
 
-### 8.7.3 Test Case 3: Portfolio with Alternative Assets + Proxy Data
-**Setup**:
-- 5 alternative assets with proxy-generated historical data
-- 5 public equities with real data
-
-**Expected Behavior** (After Phase 2.2):
-- Factor analysis proceeds with all 10 positions
-- Data quality flag: QUALITY_FLAG_PROXY_DATA
-- Snapshot created
-- Stress tests run with full factor exposures
-
----
 
 ## 8.8 Success Metrics
 
@@ -4412,19 +4224,6 @@ if data_coverage_pct < MIN_DATA_COVERAGE:
 - [ ] Zero `ValueError: No position returns data available` errors
 - [ ] Snapshots created for all portfolios
 - [ ] Data quality flags clearly indicate partial/no data scenarios
-
-### 8.8.2 Phase 8.2 (Proxy Pricing)
-- [ ] Alternative assets have 90+ days of historical data
-- [ ] Factor analysis runs on all positions
-- [ ] Correlation analysis includes alternative assets
-- [ ] Stress tests reflect alternative asset exposures
-
-### 8.8.3 Phase 8.3 (Position Flagging)
-- [ ] Alternative assets clearly marked in database
-- [ ] Factor analysis behavior documented and predictable
-- [ ] API endpoints support filtering by asset type
-
----
 
 ## 8.9 Related Work
 
@@ -4457,9 +4256,9 @@ if data_coverage_pct < MIN_DATA_COVERAGE:
    - Document graceful degradation patterns
 
 4. **Create `_docs/guides/ALTERNATIVE_ASSET_HANDLING.md`**
-   - Comprehensive guide for alternative asset data
-   - Proxy pricing methodology
-   - Manual valuation upload process
+   - Comprehensive guide for how PRIVATE investments are handled
+   - Investment class filtering approach (`investment_class` field)
+   - Data quality flags and graceful degradation patterns
 
 ---
 
