@@ -3332,3 +3332,273 @@ const response = await fetch('/api/proxy/api/v1/chat/conversations', {
 **Estimated Effort**: 3-4 hours (including testing)
 **Priority**: Medium (improves remote debugging, not blocking)
 
+
+---
+
+# Phase 7.0: Batch Orchestrator Portfolio #2/#3 Diagnosis
+
+**Phase**: 7.0 - Debug "No Active Positions" Issue
+**Status**: 🟡 **PENDING**
+**Created**: 2025-10-06
+**Goal**: Diagnose why portfolios #2 and #3 report "No active positions" while portfolio #1 works
+**Reference**: See `LOGGING_AND_MONITORING_STATUS.md` line 13
+
+---
+
+## 7.1 Problem Statement
+
+**Issue**: Batch orchestrator reports "No active positions" for portfolios #2 and #3
+- Portfolio #1: ✅ Works correctly
+- Portfolio #2: ❌ "No active positions" from `_update_position_values`
+- Portfolio #3: ❌ "No active positions" from `_update_position_values`
+- UUID comparisons appear correct
+- Database rows may be missing from queries despite existing in DB
+
+---
+
+## 7.2 Diagnostic Steps
+
+### Step 1: Quick Position Count Check
+**Run this first to confirm the issue:**
+
+```bash
+cd backend
+uv run python -c "
+import asyncio
+from sqlalchemy import select, func
+from app.database import get_async_session
+from app.models.users import Portfolio
+from app.models.positions import Position
+
+async def check():
+    async with get_async_session() as db:
+        portfolios = await db.execute(select(Portfolio))
+        for p in portfolios.scalars().all():
+            count = await db.execute(
+                select(func.count(Position.id))
+                .where(Position.portfolio_id == p.id)
+            )
+            print(f'{p.name}: {count.scalar()} positions')
+
+asyncio.run(check())
+"
+```
+
+**Expected output**: Should show position counts for all 3 portfolios
+
+**Tasks**:
+- [ ] Run quick diagnostic command
+- [ ] Document actual position counts per portfolio
+- [ ] Identify if positions exist in DB or are truly missing
+
+---
+
+### Step 2: Direct Database Inspection
+**Create**: `scripts/debug_portfolio_positions.py`
+
+```python
+import asyncio
+from sqlalchemy import select, func
+from app.database import get_async_session
+from app.models.users import Portfolio
+from app.models.positions import Position
+
+async def check_portfolios():
+    async with get_async_session() as db:
+        result = await db.execute(select(Portfolio))
+        portfolios = result.scalars().all()
+        
+        for portfolio in portfolios:
+            print(f"\n=== {portfolio.name} ({portfolio.id}) ===")
+            
+            # Count positions
+            count = await db.execute(
+                select(func.count(Position.id))
+                .where(Position.portfolio_id == portfolio.id)
+            )
+            total = count.scalar()
+            print(f"Total positions: {total}")
+            
+            # Get first 5 positions
+            pos_result = await db.execute(
+                select(Position.symbol, Position.position_type, Position.quantity)
+                .where(Position.portfolio_id == portfolio.id)
+                .limit(5)
+            )
+            
+            for symbol, ptype, qty in pos_result.all():
+                print(f"  - {symbol} ({ptype}): {qty}")
+
+asyncio.run(check_portfolios())
+```
+
+**Tasks**:
+- [ ] Create debug script
+- [ ] Run and capture output
+- [ ] Verify positions exist for portfolios #2 and #3
+
+---
+
+### Step 3: UUID Type Consistency Check
+**Create**: `scripts/check_uuid_types.py`
+
+```python
+import asyncio
+from sqlalchemy import select, func, text
+from app.database import get_async_session
+from app.models.users import Portfolio
+from app.models.positions import Position
+
+async def check_uuid_types():
+    async with get_async_session() as db:
+        portfolios = await db.execute(select(Portfolio.id, Portfolio.name))
+        
+        for pid, name in portfolios.all():
+            print(f"\n{name}:")
+            print(f"  Portfolio ID: {pid} (type: {type(pid).__name__})")
+            
+            # Direct SQL query (string cast)
+            raw_result = await db.execute(
+                text("SELECT COUNT(*) FROM positions WHERE portfolio_id = :pid"),
+                {"pid": str(pid)}
+            )
+            sql_count = raw_result.scalar()
+            
+            # ORM query (UUID object)
+            orm_result = await db.execute(
+                select(func.count(Position.id))
+                .where(Position.portfolio_id == pid)
+            )
+            orm_count = orm_result.scalar()
+            
+            print(f"  SQL count: {sql_count}")
+            print(f"  ORM count: {orm_count}")
+            
+            if sql_count != orm_count:
+                print(f"  ❌ MISMATCH DETECTED!")
+
+asyncio.run(check_uuid_types())
+```
+
+**Tasks**:
+- [ ] Create UUID type check script
+- [ ] Run and identify any SQL vs ORM mismatches
+- [ ] Document UUID handling discrepancies
+
+---
+
+### Step 4: Add Diagnostic Logging to Batch Orchestrator
+**File**: `app/batch/batch_orchestrator_v2.py`
+
+**Find the `_update_position_values` method and add:**
+
+```python
+async def _update_position_values(self, db: AsyncSession, portfolio_id: UUID):
+    # ADD DIAGNOSTIC LOGGING
+    logger.info(f"[DIAGNOSTIC] Querying positions for portfolio_id: {portfolio_id}")
+    logger.info(f"[DIAGNOSTIC] portfolio_id type: {type(portfolio_id)}")
+    
+    result = await db.execute(
+        select(Position).where(Position.portfolio_id == portfolio_id)
+    )
+    positions = result.scalars().all()
+    
+    # ADD DIAGNOSTIC LOGGING
+    logger.info(f"[DIAGNOSTIC] Query returned {len(positions)} positions")
+    if len(positions) == 0:
+        logger.error(f"[DIAGNOSTIC] NO POSITIONS FOUND for {portfolio_id}")
+        # Try direct SQL to compare
+        raw_result = await db.execute(
+            text("SELECT COUNT(*) FROM positions WHERE portfolio_id = :pid"),
+            {"pid": str(portfolio_id)}
+        )
+        raw_count = raw_result.scalar()
+        logger.error(f"[DIAGNOSTIC] Direct SQL shows {raw_count} positions")
+```
+
+**Tasks**:
+- [ ] Locate `_update_position_values` method
+- [ ] Add diagnostic logging
+- [ ] Run batch orchestrator
+- [ ] Capture and analyze diagnostic logs
+
+---
+
+### Step 5: Check Data Integrity
+**SQL Query** (run in Railway psql or local):
+
+```sql
+SELECT 
+    p.name as portfolio_name,
+    p.id as portfolio_id,
+    COUNT(pos.id) as total_positions,
+    COUNT(CASE WHEN pos.quantity != 0 THEN 1 END) as active_positions,
+    COUNT(CASE WHEN pos.quantity = 0 THEN 1 END) as zero_qty_positions
+FROM portfolios p
+LEFT JOIN positions pos ON pos.portfolio_id = p.id
+GROUP BY p.id, p.name
+ORDER BY p.name;
+```
+
+**Tasks**:
+- [ ] Run SQL query on Railway database
+- [ ] Check for zero-quantity positions
+- [ ] Verify JOIN conditions are matching correctly
+
+---
+
+## 7.3 Likely Root Causes
+
+1. **UUID String vs Object Mismatch** (Most Likely)
+   - `_get_portfolios_safely` returns string IDs
+   - SQLAlchemy query expects UUID objects
+   - PostgreSQL auto-casting may not work in all contexts
+
+2. **Query Filter Logic Issue**
+   - Filter checking for `quantity != 0` may be excluding all positions
+   - Position status/active flag may be filtering incorrectly
+
+3. **Data Seeding Problem**
+   - Positions may not have been seeded for portfolios #2/#3
+   - Foreign key relationships may be broken
+
+4. **Session/Transaction Isolation**
+   - Different database sessions seeing different data
+   - Uncommitted transactions causing visibility issues
+
+---
+
+## 7.4 Expected Outcomes
+
+### Scenario A: Positions Exist in DB
+- **Diagnosis**: UUID comparison issue in batch orchestrator
+- **Fix**: Ensure UUID type consistency in `_update_position_values`
+- **Action**: Add `ensure_uuid()` call or explicit UUID casting
+
+### Scenario B: Positions Missing from DB
+- **Diagnosis**: Data seeding or migration issue
+- **Fix**: Re-run seed script for portfolios #2 and #3
+- **Action**: Check `scripts/reset_and_seed.py` execution logs
+
+### Scenario C: Query Filter Too Restrictive
+- **Diagnosis**: Filter excluding valid positions
+- **Fix**: Adjust query filters or position criteria
+- **Action**: Review `where()` clauses in position queries
+
+---
+
+## 7.5 Success Criteria
+
+- [ ] Root cause identified and documented
+- [ ] All 3 portfolios return positions in batch orchestrator
+- [ ] Diagnostic logging shows correct position counts
+- [ ] Fix validated on Railway environment
+- [ ] Update LOGGING doc with findings
+
+---
+
+**Coordination**: This work is isolated to batch orchestrator diagnosis - no overlap with partner's market data work
+
+**Priority**: High (blocking batch orchestrator functionality)
+**Estimated Effort**: 2-3 hours (diagnosis + fix)
+
