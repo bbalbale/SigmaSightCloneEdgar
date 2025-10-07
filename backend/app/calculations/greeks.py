@@ -364,9 +364,12 @@ async def bulk_update_portfolio_greeks(
         Summary dictionary with update results
     """
     logger.info(f"Starting bulk Greeks update for portfolio {portfolio_id}")
-    
+
     try:
         # Get all positions for the portfolio
+        # TODO: Add UUID conversion if this function is re-enabled in batch orchestrator
+        # FIXME: portfolio_id is str, Position.portfolio_id is UUID - needs ensure_uuid() conversion
+        # See Phase 7.0 UUID fixes in batch_orchestrator_v2.py for pattern
         stmt = select(Position).where(
             Position.portfolio_id == portfolio_id,
             Position.deleted_at.is_(None)

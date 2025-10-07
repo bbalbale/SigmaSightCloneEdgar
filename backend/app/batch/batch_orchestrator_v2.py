@@ -549,11 +549,15 @@ class BatchOrchestratorV2:
     
     async def _calculate_greeks(self, db: AsyncSession, portfolio_id: str):
         """Greeks calculation job"""
+        # TODO: Add ensure_uuid() conversion before re-enabling this job
+        # This method has the same UUID mismatch issue fixed in Phase 7.0
+        # Required fix: portfolio_uuid = ensure_uuid(portfolio_id) before line 558
         from app.calculations.greeks import bulk_update_portfolio_greeks
         from app.services.market_data_service import market_data_service
         from app.models.positions import Position
-        
+
         # Get portfolio positions to extract symbols
+        # FIXME: portfolio_id is str, Position.portfolio_id is UUID - use ensure_uuid()
         stmt = select(Position).where(
             Position.portfolio_id == portfolio_id,
             Position.deleted_at.is_(None),

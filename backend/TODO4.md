@@ -3374,8 +3374,15 @@ const response = await fetch('/api/proxy/api/v1/chat/conversations', {
 **Scripts Created**:
 - `scripts/check_railway_positions_api.py` - API-based position verification
 - `scripts/test_railway_batch.py` - Batch processing test/monitor
+- `scripts/check_railway_snapshots.py` - Snapshot verification (endpoint doesn't exist yet)
 
-**Commits**: `a8b323a` (fix), `df2621c` (docs)
+**Residual Risk - Disabled Jobs**:
+- ⚠️ `_calculate_greeks` (line 558) and `bulk_update_portfolio_greeks` (greeks.py:371) still have UUID mismatch
+- Currently DISABLED (line 224: commented out in job list)
+- Added TODO/FIXME comments warning future developers
+- Must add `ensure_uuid()` conversion before re-enabling
+
+**Commits**: `a8b323a` (initial fix), `df2621c` (docs), `5b8bc4b` (enhanced notes), `2a539c5` (follow-up fixes), `fd86f5c` (snapshot script)
 
 ---
 
