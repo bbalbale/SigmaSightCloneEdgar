@@ -481,22 +481,323 @@ if (response.data_quality) {
 
 ---
 
+## Service Metrics Gap Analysis
+
+### Current State: Which Services Compute What?
+
+| Service | positions_analyzed | positions_total | positions_skipped | data_days | Notes |
+|---------|-------------------|-----------------|-------------------|-----------|-------|
+| **Factor Analysis** | ✅ Yes | ✅ Yes | ✅ Implicit | ✅ Yes | Full metrics (Phase 8.1 Task 5) |
+| **Correlation Service** | ❌ No | ❌ No | ❌ No | ❌ No | Only returns matrix, no metrics |
+| **Stress Tests** | ❌ No | ❌ No | ❌ No | ❌ No | Has skip flag but no position counts |
+| **Position Exposures** | ❌ No | ❌ No | ❌ No | ❌ No | Returns paginated list, no totals |
+
+### Required Service Enhancements
+
+**Before `DataQualityInfo` can be fully populated**, these services need enhancement:
+
+#### 1. Correlation Service (`app/services/correlation_service.py`)
+**Current**: Returns `None` when skipped (Phase 8.1 Task 7)
+
+**Needs to Calculate**:
+- `positions_total` = len(portfolio.positions)
+- `positions_analyzed` = len(filtered_positions after PRIVATE filter + data sufficiency)
+- `positions_skipped` = positions_total - positions_analyzed
+- `data_days` = duration_days parameter (already available)
+
+**Implementation Location**: Lines 75-130 (where filtering happens)
+
+#### 2. Stress Test Service (`app/calculations/stress_testing.py`)
+**Current**: Returns skip payload with flag/reason/message (Phase 8.1 Task 8)
+
+**Needs to Calculate**:
+- `positions_total` = Query portfolio.positions count
+- `positions_analyzed` = Count positions with factor exposures (currently 0 when skipped)
+- `positions_skipped` = positions_total (all skipped when no factor exposures)
+- `data_days` = Get from factor analysis metadata (if available)
+
+**Implementation Location**: Lines 610-641 (skip payload construction)
+
+#### 3. Position Factor Exposures Service (`app/services/factor_exposure_service.py`)
+**Current**: Returns paginated list of positions
+
+**Needs to Calculate**:
+- `positions_total` = Already has `total` field (count of positions with exposures)
+- `positions_analyzed` = Same as total (filtered list)
+- `positions_skipped` = Would need separate query for PRIVATE positions
+- `data_days` = Get from latest calculation metadata
+
+**Implementation Location**: TBD - Need to review `list_position_exposures()` method
+
+---
+
+## Contract Specification: `available` + `data_quality` Interaction
+
+### Decision Required: How do these fields interact when calculations are skipped?
+
+**Option A: available=false + populated data_quality** (RECOMMENDED)
+```json
+{
+  "available": false,
+  "data": null,
+  "data_quality": {
+    "flag": "no_public_positions",
+    "message": "8 PRIVATE positions excluded, 0 PUBLIC positions available",
+    "positions_analyzed": 0,
+    "positions_total": 8,
+    "positions_skipped": 8
+  }
+}
+```
+
+**Pros**: Clear semantics - "no data available BUT here's why"
+**Cons**: None
+
+**Option B: available=true + empty data + data_quality**
+```json
+{
+  "available": true,
+  "data": {
+    "factors": []  // Empty
+  },
+  "data_quality": {
+    "flag": "no_public_positions",
+    ...
+  }
+}
+```
+
+**Pros**: Technically data structure is "available" (just empty)
+**Cons**: Confusing - `available=true` but no actual data
+
+### RECOMMENDATION: **Option A** (available=false + populated data_quality)
+
+**Rationale**:
+- Clear semantics: "No usable data available"
+- Consistent with existing behavior (currently returns `available=false` when unavailable)
+- Frontend can check: `if (!response.available) { showQualityInfo(response.data_quality); }`
+- Backward compatible: Old clients ignore data_quality, still see `available=false`
+
+### Contract Rules
+
+1. **When calculation succeeds** (has real data):
+   ```python
+   available = True
+   data = {...}  # Populated
+   data_quality = {
+       "flag": "full_history" | "limited_history",
+       ...
+   }
+   ```
+
+2. **When calculation skipped** (no PUBLIC positions):
+   ```python
+   available = False
+   data = None
+   data_quality = {
+       "flag": "no_public_positions",
+       ...
+   }
+   ```
+
+3. **When calculation never run** (no calculation record):
+   ```python
+   available = False
+   data = None
+   data_quality = None  # Optional field not populated
+   metadata = {"reason": "no_calculation_available"}
+   ```
+
+---
+
+## Position-Level Quality Decision
+
+### Question: Portfolio-level or Per-Position Quality?
+
+**Endpoint**: `GET /analytics/{portfolio_id}/positions/factor-exposures`
+
+**Current Response**:
+```python
+{
+  "positions": [
+    {
+      "position_id": "uuid",
+      "symbol": "AAPL",
+      "exposures": {"Market": 0.95, ...}
+    }
+  ]
+}
+```
+
+### Option A: Portfolio-Level Quality (RECOMMENDED)
+```python
+{
+  "available": True,
+  "positions": [...],
+  "data_quality": {  # Single quality block for entire response
+    "flag": "limited_history",
+    "message": "8 PRIVATE positions excluded from analysis",
+    "positions_analyzed": 12,
+    "positions_total": 20,
+    "positions_skipped": 8
+  }
+}
+```
+
+**Pros**:
+- Simpler implementation
+- Consistent with other endpoints
+- User requested "what is easiest"
+
+**Cons**:
+- Can't show per-position quality (e.g., "AAPL has 45 days, MSFT has 90 days")
+
+### Option B: Per-Position Quality
+```python
+{
+  "positions": [
+    {
+      "position_id": "uuid",
+      "symbol": "AAPL",
+      "exposures": {...},
+      "data_quality": {  # Per-position quality
+        "data_days": 45,
+        "quality_flag": "limited_history"
+      }
+    }
+  ],
+  "data_quality": {  # Portfolio-level summary
+    "positions_analyzed": 12,
+    ...
+  }
+}
+```
+
+**Pros**:
+- More detailed information per position
+- Frontend can show per-symbol warnings
+
+**Cons**:
+- More complex implementation
+- Requires schema changes to `PositionFactorItem`
+- Need to compute per-position metrics
+
+### RECOMMENDATION: **Option A** (Portfolio-Level Quality)
+
+**Rationale**:
+- Simpler implementation (matches user preference)
+- Consistent with other 3 endpoints
+- Sufficient for MVP (can enhance to per-position later if needed)
+- Per-position details can go in metadata if absolutely needed
+
+---
+
+## Schema Location Decision
+
+### DECISION: `DataQualityInfo` will live in `app/schemas/analytics.py`
+
+**User Decision**: Option B (analytics.py)
+
+**Rationale**:
+- Specific to analytics calculation endpoints
+- Keeps analytics schemas cohesive
+- If other parts of API need similar schema later, can refactor to common.py then
+
+**Implementation**:
+```python
+# app/schemas/analytics.py
+
+class DataQualityInfo(BaseModel):
+    """
+    Data quality metadata for analytics calculations (Phase 8.1)
+
+    Location: app/schemas/analytics.py (analytics-specific)
+    Used by: Factor Exposures, Stress Tests, Correlations endpoints
+    """
+    ...
+```
+
+---
+
+## Implementation Prerequisites (CRITICAL)
+
+### ⚠️ Service Enhancement Must Happen BEFORE Schema Changes
+
+**Problem**: Proposed `DataQualityInfo` schema has fields that most services don't currently calculate.
+
+**Solution**: Two-phase implementation:
+
+#### Phase 1: Service Enhancement (Task 13a)
+Enhance services to calculate all required metrics:
+
+1. **Correlation Service**:
+   - Track positions_total, positions_analyzed, positions_skipped
+   - Already has duration_days parameter
+   - Add metrics to return dict when returning None
+
+2. **Stress Test Service**:
+   - Query positions count for positions_total
+   - Get positions_analyzed from factor exposure count
+   - Add metrics to skip payload
+
+3. **Position Exposures Service**:
+   - Already has `total` field
+   - Add positions_skipped calculation
+   - Add data_days from calculation metadata
+
+#### Phase 2: Schema Changes (Task 13b)
+Once services emit the data, update schemas:
+
+1. Create `DataQualityInfo` schema
+2. Update response models
+3. Wire up service data to populate schema fields
+
+### Minimum Viable `DataQualityInfo` Schema
+
+**For services that can't yet emit all fields**, use optional fields:
+
+```python
+class DataQualityInfo(BaseModel):
+    flag: str  # REQUIRED - Always present
+    message: Optional[str] = None  # REQUIRED - Always present
+    positions_analyzed: Optional[int] = None  # Optional - emit if available
+    positions_total: Optional[int] = None  # Optional - emit if available
+    positions_skipped: Optional[int] = None  # Optional - emit if available
+    data_days: Optional[int] = None  # Optional - emit if available
+```
+
+**This allows**:
+- Factor Analysis: Populate ALL fields ✅
+- Correlations: Populate flag, message, data_days (positions fields TBD)
+- Stress Tests: Populate flag, message (other fields TBD)
+- Position Exposures: Populate flag, message, total (skipped TBD)
+
+---
+
 ## Next Steps (Task 13)
 
 ### ⚠️ REQUIRES USER APPROVAL BEFORE IMPLEMENTATION
 
 1. **Review this inventory document**
-   - Confirm endpoints identified are correct
-   - Confirm proposed schema design
-   - Approve backward compatibility strategy
+   - ✅ Confirm endpoints identified are correct
+   - ✅ Confirm service metrics gap analysis
+   - ✅ Confirm `available` + `data_quality` contract (Option A recommended)
+   - ✅ Confirm position-level quality decision (Option A recommended)
+   - ✅ Confirm schema location (analytics.py decided)
 
-2. **Approve each endpoint change individually**
+2. **Decide implementation approach**:
+   - **Option A**: Full enhancement (Phase 1 → Phase 2) - all services emit all metrics before schema changes
+   - **Option B**: Minimum viable (start with optional fields) - services emit what they can, enhance later
+   - **Option C**: Phased by endpoint (Factor Exposures fully enhanced first, others follow)
+
+3. **Approve each endpoint change individually**
    - Will present each endpoint's proposed change
    - Get approval before modifying schemas
    - Get approval before modifying endpoint logic
 
-3. **Implementation order** (if approved):
-   - Create `DataQualityInfo` schema
+4. **Implementation order** (if approved):
+   - Enhance services to emit metrics (if Option A or C)
+   - Create `DataQualityInfo` schema in analytics.py
    - Update schemas one at a time (with approval)
    - Update endpoint logic to populate field
    - Test each endpoint
@@ -504,7 +805,7 @@ if (response.data_quality) {
 
 ---
 
-## Questions for User Approval
+## Questions for User Approval (UPDATED)
 
 1. **Should `DataQualityInfo` be in `app/schemas/common.py` or `app/schemas/analytics.py`?**
    - common.py: Shared across API (more generic)
