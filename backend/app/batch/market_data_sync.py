@@ -73,24 +73,32 @@ async def sync_market_data():
 async def get_active_portfolio_symbols(db: AsyncSession) -> Set[str]:
     """
     Get all unique symbols from active portfolio positions
-    
+
     Args:
         db: Database session
-        
+
     Returns:
-        Set of unique symbols
+        Set of unique symbols (excludes PRIVATE investment_class - Phase 8.1 Task 3b)
     """
-    # Get all unique symbols from positions
-    stmt = select(distinct(Position.symbol)).where(Position.quantity != 0)
+    # Get all unique symbols from positions (exclude PRIVATE investment_class - Phase 8.1 Task 3b)
+    stmt = select(distinct(Position.symbol)).where(
+        and_(
+            Position.quantity != 0,
+            Position.investment_class != 'PRIVATE'  # Phase 8.1: Filter at source to prevent API calls
+        )
+    )
     result = await db.execute(stmt)
     symbols = result.scalars().all()
-    
+
     # Also include factor ETF symbols for factor calculations
     factor_etfs = ['SPY', 'VTV', 'VUG', 'MTUM', 'QUAL', 'IWM', 'USMV']
-    
+
     all_symbols = set(symbols) | set(factor_etfs)
-    
-    logger.info(f"Found {len(symbols)} portfolio symbols and {len(factor_etfs)} factor ETFs")
+
+    logger.info(
+        f"Found {len(symbols)} PUBLIC portfolio symbols "
+        f"(PRIVATE positions excluded) and {len(factor_etfs)} factor ETFs"
+    )
     return all_symbols
 
 

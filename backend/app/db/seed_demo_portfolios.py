@@ -277,14 +277,20 @@ def determine_investment_class(symbol: str) -> str:
 
     Returns:
         'OPTIONS' for options (symbols with expiry/strike pattern)
-        'PRIVATE' for private investment funds
+        'PRIVATE' for private investment funds (Phase 8.1 Task 3a: enhanced to catch all 11 SYNTHETIC_SYMBOLS)
         'PUBLIC' for regular stocks and ETFs
     """
     # Check if it's an option (has expiry date and strike price pattern)
     if len(symbol) > 10 and any(char in symbol for char in ['C', 'P']):
         return 'OPTIONS'
-    # Check for private investment patterns
-    elif any(pattern in symbol.upper() for pattern in ['PRIVATE', 'FUND', '_VC_', '_PE_', 'REIT', 'SIGMA']):
+    # Check for private investment patterns (enhanced to catch all 11 SYNTHETIC_SYMBOLS)
+    # Original patterns: PRIVATE, FUND, _VC_, _PE_, REIT, SIGMA
+    # New patterns (Phase 8.1): HOME_, RENTAL_, ART_, CRYPTO_, TREASURY, MONEY_MARKET
+    private_patterns = [
+        'PRIVATE', 'FUND', '_VC_', '_PE_', 'REIT', 'SIGMA',  # Original
+        'HOME_', 'RENTAL_', 'ART_', 'CRYPTO_', 'TREASURY', 'MONEY_MARKET'  # New (Phase 8.1)
+    ]
+    if any(pattern in symbol.upper() for pattern in private_patterns):
         return 'PRIVATE'
     # Everything else is public equity (stocks, ETFs, mutual funds)
     else:
