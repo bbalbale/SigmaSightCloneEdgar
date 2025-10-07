@@ -403,10 +403,13 @@ class BatchOrchestratorV2:
         from app.services.market_data_service import market_data_service
         from sqlalchemy import select
         from decimal import Decimal
-        
+
+        # Convert portfolio_id to UUID
+        portfolio_uuid = ensure_uuid(portfolio_id)
+
         # Get portfolio positions
         stmt = select(Position).where(
-            Position.portfolio_id == portfolio_id,
+            Position.portfolio_id == portfolio_uuid,
             Position.deleted_at.is_(None),
             Position.exit_date.is_(None)
         )
@@ -460,10 +463,13 @@ class BatchOrchestratorV2:
         from app.calculations.portfolio import calculate_portfolio_exposures
         from app.models.positions import Position
         from sqlalchemy import select
-        
+
+        # Convert portfolio_id to UUID
+        portfolio_uuid = ensure_uuid(portfolio_id)
+
         # Get portfolio positions
         stmt = select(Position).where(
-            Position.portfolio_id == portfolio_id,
+            Position.portfolio_id == portfolio_uuid,
             Position.deleted_at.is_(None),
             Position.exit_date.is_(None)
         )
