@@ -48,7 +48,7 @@ class CorrelationService:
         correlation_threshold: Decimal = Decimal("0.7"),
         duration_days: int = 90,
         force_recalculate: bool = False
-    ) -> CorrelationCalculation:
+    ) -> Optional[CorrelationCalculation]:  # Phase 8.1 Task 7a: Can return None when skipped
         """
         Main orchestrator for portfolio correlation calculations
         """
@@ -105,16 +105,28 @@ class CorrelationService:
             returns_df = await self._get_position_returns(
                 filtered_positions, start_date, calculation_date
             )
-            
+
+            # Phase 8.1 Task 7a: Graceful skip instead of ValueError
             if returns_df.empty:
-                raise ValueError("No return data available for correlation calculation")
-            
+                logger.warning(
+                    f"No return data available for correlation calculation (portfolio {portfolio_id}). "
+                    f"All {private_count} PRIVATE positions were filtered. Skipping correlation calculation."
+                )
+                await self.db.rollback()
+                return None  # Option B: Skip persistence, return None
+
             # Validate data sufficiency (minimum 20 days)
             valid_positions = self._validate_data_sufficiency(returns_df, min_days=20)
             returns_df = returns_df[valid_positions]
-            
+
+            # Phase 8.1 Task 7a: Graceful skip instead of ValueError
             if returns_df.empty:
-                raise ValueError("No positions have sufficient data for correlation calculation")
+                logger.warning(
+                    f"No positions have sufficient data for correlation calculation (portfolio {portfolio_id}). "
+                    f"All positions have <20 days of data. Skipping correlation calculation."
+                )
+                await self.db.rollback()
+                return None  # Option B: Skip persistence, return None
             
             # Calculate pairwise correlations
             correlation_matrix = self.calculate_pairwise_correlations(returns_df)

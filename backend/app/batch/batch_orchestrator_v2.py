@@ -631,15 +631,30 @@ class BatchOrchestratorV2:
         return await create_portfolio_snapshot(db, portfolio_uuid, date.today())
     
     async def _calculate_correlations(self, db: AsyncSession, portfolio_id: str):
-        """Position correlations job"""
+        """Position correlations job (Phase 8.1 Task 7b: handle None for skipped portfolios)"""
         from app.services.correlation_service import CorrelationService
         from datetime import datetime
         correlation_service = CorrelationService(db)
         portfolio_uuid = ensure_uuid(portfolio_id)
-        return await correlation_service.calculate_portfolio_correlations(
+
+        # Phase 8.1 Task 7b: Handle graceful skip (returns None when no PUBLIC positions)
+        result = await correlation_service.calculate_portfolio_correlations(
             portfolio_uuid,
             calculation_date=utc_now()
         )
+
+        if result is None:
+            logger.info(
+                f"Correlation calculation skipped for portfolio {portfolio_id} "
+                "(no PUBLIC positions with sufficient data)"
+            )
+            return {
+                'status': 'SKIPPED_NO_PUBLIC_POSITIONS',
+                'portfolio_id': str(portfolio_uuid),
+                'message': 'No PUBLIC positions with sufficient data for correlation calculation'
+            }
+
+        return result
 
 
 # Create singleton instance
