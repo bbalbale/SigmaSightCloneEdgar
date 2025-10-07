@@ -3208,3 +3208,137 @@ const response = await fetch('/api/proxy/api/v1/chat/conversations', {
 **Priority**: Low (not blocking functionality, code quality improvement)
 **Dependencies**: None (can be done anytime)
 
+
+---
+
+# Phase 6.0: Batch Router Real-Time Monitoring
+
+**Phase**: 6.0 - API-Based Batch Management
+**Status**: 🟡 **PENDING**
+**Created**: 2025-10-06
+**Goal**: Enable remote batch triggering and real-time progress monitoring via API (no SSH required)
+**Reference**: See `LOGGING_AND_MONITORING_STATUS.md` for detailed implementation plan
+
+---
+
+## 6.1 Context
+
+**Problem**: 
+- Current workflow requires SSH (`railway run`) to trigger batches
+- No real-time progress visibility during execution
+- Railway logs are ephemeral and hard to search
+- Can't script batch execution and monitoring
+
+**Solution**: Simplified real-time monitoring (Option A from LOGGING doc)
+- In-memory state tracking (no database persistence)
+- 2 new API endpoints: trigger + status poll
+- ~150 lines of new code instead of 800+
+- Poll every 3 seconds for live progress
+
+---
+
+## 6.2 Files to Touch
+
+### ✅ Safe (No Partner Conflicts)
+
+1. **NEW**: `app/batch/batch_run_tracker.py` (~50 lines)
+   - [ ] Create `CurrentBatchRun` dataclass
+   - [ ] Create `BatchRunTracker` singleton
+   - [ ] Methods: `start()`, `get_current()`, `complete()`, `update()`
+
+2. **MODIFY**: `app/api/v1/endpoints/admin_batch.py` (~60 lines)
+   - [ ] Add `POST /admin/batch/run` endpoint (trigger with force flag)
+   - [ ] Add `GET /admin/batch/run/current` endpoint (poll for progress)
+   - [ ] Delete 9 unused endpoints (triggers, cancel, scheduler)
+
+### ⚠️ Coordination Required (Shared File)
+
+3. **MODIFY**: `app/batch/batch_orchestrator_v2.py` (~50 lines)
+   - [ ] **COORDINATE WITH PARTNER** (market data work in same file)
+   - [ ] Add `_run_batch_with_tracking()` wrapper function
+   - [ ] Add `batch_run_tracker.update()` calls in main loop
+   - [ ] Fix: Dynamic job counting (not hard-coded 8 jobs/portfolio)
+
+---
+
+## 6.3 Implementation Steps
+
+**Step 1**: Create batch_run_tracker.py
+- In-memory state only (survives until server restart)
+- Track: run ID, start time, job counts, current job/portfolio
+- No database complexity
+
+**Step 2**: Add 2 new endpoints to admin_batch.py
+- `POST /run` - Start batch, return run ID + poll URL
+- `GET /run/current` - Return live progress (%, elapsed time, current job)
+- Delete 9 old/broken endpoints
+
+**Step 3**: Integrate tracking into batch_orchestrator_v2.py
+- Wrap batch execution with tracking updates
+- Update progress after each job completion
+- Clear state when batch completes
+
+**Step 4**: Test locally
+- Trigger batch via API
+- Poll `/run/current` every 3 seconds
+- Verify progress % increases correctly
+- Confirm state clears when complete
+
+**Step 5**: Deploy to Railway
+- Test remote trigger (no SSH)
+- Verify real-time monitoring works
+- Document new endpoints in API_REFERENCE
+
+---
+
+## 6.4 What We're NOT Doing
+
+❌ No per-job BatchJob database persistence  
+❌ No historical batch run lookups  
+❌ No cancel endpoint  
+❌ No data quality roll-ups  
+❌ No job results storage  
+
+**Rationale**: Minimize complexity, ship fast MVP
+
+---
+
+## 6.5 Benefits
+
+✅ Remote batch trigger (no SSH)  
+✅ Real-time progress monitoring  
+✅ Force flag to override concurrent runs  
+✅ Scriptable with local bash/python  
+✅ Clean API (6 working endpoints)  
+✅ Minimal code (~150 lines)  
+
+---
+
+## 6.6 Risks Accepted
+
+⚠️ Server restart = lost tracking state (acceptable for MVP)  
+⚠️ Railway cron + API trigger could conflict (coordinate timing)  
+⚠️ No audit trail (Railway logs sufficient for now)  
+
+---
+
+## 6.7 Coordination Notes
+
+**Partner Working On**: Market data debugging + company profile fixes
+
+**Overlap**: `batch_orchestrator_v2.py` (shared file)
+- **Partner's area**: `_update_market_data()` method (lines ~400-500)
+- **Our area**: `run_daily_batch_sequence()` main loop (lines ~100-200)
+
+**Strategy**: 
+1. Create batch_run_tracker.py first (isolated)
+2. Add endpoints to admin_batch.py (isolated)
+3. Coordinate timing on batch_orchestrator_v2.py changes
+
+---
+
+**Detailed Implementation**: See `LOGGING_AND_MONITORING_STATUS.md` Section "Simplified Implementation Plan (Option A)"
+
+**Estimated Effort**: 3-4 hours (including testing)
+**Priority**: Medium (improves remote debugging, not blocking)
+
