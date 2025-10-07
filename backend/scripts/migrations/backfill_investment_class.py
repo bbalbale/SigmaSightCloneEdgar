@@ -23,6 +23,7 @@ Usage:
     # Target specific portfolio
     uv run python scripts/migrations/backfill_investment_class.py --portfolio-id <uuid> --apply
 """
+import os
 import asyncio
 import sys
 from pathlib import Path
@@ -31,6 +32,13 @@ from uuid import UUID
 
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+
+# Fix Railway DATABASE_URL format BEFORE any app imports
+if 'DATABASE_URL' in os.environ:
+    db_url = os.environ['DATABASE_URL']
+    if db_url.startswith('postgresql://'):
+        os.environ['DATABASE_URL'] = db_url.replace('postgresql://', 'postgresql+asyncpg://', 1)
+        print("✅ Converted DATABASE_URL to use asyncpg driver\n")
 
 from sqlalchemy import select, and_, func
 from sqlalchemy.ext.asyncio import AsyncSession
