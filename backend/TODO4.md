@@ -3354,12 +3354,17 @@ const response = await fetch('/api/proxy/api/v1/chat/conversations', {
 **Diagnostic Process**:
 1. ✅ Verified positions exist in Railway DB via API (16, 29, 30 positions confirmed)
 2. ✅ Compared working vs broken methods - found missing `ensure_uuid()` calls
-3. ✅ Confirmed `portfolio_data.id` returns UUID object, not string
+3. ✅ Confirmed `portfolio_data.id` is stored as `str` in dataclass (line 37), requires conversion to UUID for database comparisons
 
-**Fix Applied**:
+**Fix Applied** (Initial):
 - Added `portfolio_uuid = ensure_uuid(portfolio_id)` in `_update_position_values` (line 408)
 - Added `portfolio_uuid = ensure_uuid(portfolio_id)` in `_calculate_portfolio_aggregation` (line 468)
 - Both methods now use `portfolio_uuid` in WHERE clause
+
+**Follow-Up Fixes** (Post-Review):
+- Fixed `_calculate_portfolio_aggregation` line 514: Changed `Portfolio.id == portfolio_id` to `Portfolio.id == portfolio_uuid` (prevented crash when accessing `new_equity_balance`)
+- Fixed `_create_snapshot` line 626: Added `ensure_uuid()` conversion before calling `create_portfolio_snapshot` (snapshots were creating zero-position records)
+- Now 4 methods with UUID conversion: `_update_position_values`, `_calculate_portfolio_aggregation`, `_create_snapshot`, plus existing 4 calculation methods
 
 **Verification** (Railway Production):
 - ✅ All 3 portfolios: 16, 29, 30 positions processing correctly

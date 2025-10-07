@@ -511,7 +511,7 @@ class BatchOrchestratorV2:
         from decimal import Decimal
 
         # Get portfolio to access starting equity_balance from database
-        portfolio_stmt = select(Portfolio).where(Portfolio.id == portfolio_id)
+        portfolio_stmt = select(Portfolio).where(Portfolio.id == portfolio_uuid)
         portfolio_result = await db.execute(portfolio_stmt)
         portfolio = portfolio_result.scalar_one_or_none()
 
@@ -623,7 +623,8 @@ class BatchOrchestratorV2:
     async def _create_snapshot(self, db: AsyncSession, portfolio_id: str):
         """Portfolio snapshot job"""
         from app.calculations.snapshots import create_portfolio_snapshot
-        return await create_portfolio_snapshot(db, portfolio_id, date.today())
+        portfolio_uuid = ensure_uuid(portfolio_id)
+        return await create_portfolio_snapshot(db, portfolio_uuid, date.today())
     
     async def _calculate_correlations(self, db: AsyncSession, portfolio_id: str):
         """Position correlations job"""
