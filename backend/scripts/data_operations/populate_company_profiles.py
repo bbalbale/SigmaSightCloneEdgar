@@ -46,13 +46,14 @@ async def main():
 
                 try:
                     # Fetch and cache profiles for this batch
+                    # Phase 9.0: Returns detailed results dict instead of Dict[str, bool]
                     results = await market_data_service.fetch_and_cache_company_profiles(
                         db, batch
                     )
 
-                    # Count successes and failures
-                    batch_success = sum(1 for v in results.values() if v)
-                    batch_failed = len(batch) - batch_success
+                    # Count successes and failures from new return format
+                    batch_success = results['symbols_successful']
+                    batch_failed = results['symbols_failed']
 
                     total_success += batch_success
                     total_failed += batch_failed
@@ -63,8 +64,8 @@ async def main():
                     )
 
                     # Log individual failures
-                    for symbol, success in results.items():
-                        if not success:
+                    if results['failed_symbols']:
+                        for symbol in results['failed_symbols']:
                             logger.warning(f"  Failed to fetch profile for {symbol}")
 
                 except Exception as e:

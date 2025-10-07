@@ -1,69 +1,41 @@
 {
   "company_profiles": {
     "total": 29,
-    "with_profile": 0,
-    "without_profile": 29
+    "with_profile": 17,
+    "without_profile": 12
   },
   "market_quotes": {
     "quotes": [
       {
-        "symbol": "RENTAL_SFH",
-        "last_price": 100.0,
-        "bid": 99.99,
-        "ask": 100.01,
+        "symbol": "NVDA",
+        "last_price": 186.58,
+        "bid": 186.57000000000002,
+        "ask": 186.59,
         "bid_size": 100,
         "ask_size": 100,
-        "volume": 1000000,
+        "volume": 236981000,
         "day_change": 0,
         "day_change_percent": 0,
-        "day_high": 100.5,
-        "day_low": 99.0,
-        "timestamp": "2025-10-06T03:22:48.218969Z"
+        "day_high": 187.35,
+        "day_low": 181.48,
+        "timestamp": "2025-10-06T03:36:02.586955Z"
       },
       {
-        "symbol": "AMZN",
-        "last_price": 219.57,
-        "bid": 219.56,
-        "ask": 219.57999999999998,
+        "symbol": "JNJ",
+        "last_price": 185.42,
+        "bid": 185.41,
+        "ask": 185.42999999999998,
         "bid_size": 100,
         "ask_size": 100,
-        "volume": 48396400,
+        "volume": 11569000,
         "day_change": 0,
         "day_change_percent": 0,
-        "day_high": 222.24,
-        "day_low": 217.89,
-        "timestamp": "2025-10-06T03:36:02.939893Z"
+        "day_high": 185.99,
+        "day_low": 181.07,
+        "timestamp": "2025-10-06T03:36:02.908736Z"
       },
       {
-        "symbol": "BRK.B",
-        "last_price": 100.0,
-        "bid": 99.99,
-        "ask": 100.01,
-        "bid_size": 100,
-        "ask_size": 100,
-        "volume": 1000000,
-        "day_change": 0,
-        "day_change_percent": 0,
-        "day_high": 100.5,
-        "day_low": 99.0,
-        "timestamp": "2025-10-06T03:22:48.165020Z"
-      },
-      {
-        "symbol": "HD",
-        "last_price": 405.19,
-        "bid": 405.18,
-        "ask": 405.2,
-        "bid_size": 100,
-        "ask_size": 100,
-        "volume": 3211600,
-        "day_change": 0,
-        "day_change_percent": 0,
-        "day_high": 407.0,
-        "day_low": 403.48,
-        "timestamp": "2025-10-06T03:36:03.153288Z"
-      },
-      {
-        "symbol": "RENTAL_CONDO",
+        "symbol": "A16Z_VC_FUND",
         "last_price": 5.0,
         "bid": 4.99,
         "ask": 5.01,
@@ -74,20 +46,48 @@
         "day_change_percent": 0,
         "day_high": 5.025,
         "day_low": 4.95,
-        "timestamp": "2025-10-06T03:22:48.144990Z"
+        "timestamp": "2025-10-06T03:22:48.178887Z"
+      },
+      {
+        "symbol": "GOOGL",
+        "last_price": 243.1,
+        "bid": 243.09,
+        "ask": 243.10999999999999,
+        "bid_size": 100,
+        "ask_size": 100,
+        "volume": 34724300,
+        "day_change": 0,
+        "day_change_percent": 0,
+        "day_high": 243.29,
+        "day_low": 239.25,
+        "timestamp": "2025-10-06T03:36:03.039071Z"
+      },
+      {
+        "symbol": "CRYPTO_BTC_ETH",
+        "last_price": 5.0,
+        "bid": 4.99,
+        "ask": 5.01,
+        "bid_size": 100,
+        "ask_size": 100,
+        "volume": 1000000,
+        "day_change": 0,
+        "day_change_percent": 0,
+        "day_high": 5.025,
+        "day_low": 4.95,
+        "timestamp": "2025-10-06T03:22:48.157183Z"
       }
     ],
     "metadata": {
       "requested_symbols": [
-        "RENTAL_SFH",
-        "AMZN",
-        "BRK.B",
-        "HD",
-        "RENTAL_CONDO"
+        "NVDA",
+        "JNJ",
+        "A16Z_VC_FUND",
+        "GOOGL",
+        "CRYPTO_BTC_ETH"
       ],
       "successful_quotes": 5,
       "failed_quotes": 0,
-      "timestamp": "2025-10-06T21:35:05.977528Z"
+      "timestamp": "2025-10-07T13:20:26.297441Z"
     }
   },
   "historical_prices": {
@@ -307,7 +307,7 @@
     "metadata": {
       "factor_model": "7-factor",
       "etf_count": 6,
-      "timestamp": "2025-10-06T21:35:06.752837Z"
+      "timestamp": "2025-10-07T13:20:26.913638Z"
     },
     "data": {
       "SPY": {
@@ -327,13 +327,13 @@
       "VTV": {
         "factor_name": "Value",
         "symbol": "VTV",
-        "current_price": 186.49,
-        "open": 185.65,
-        "high": 186.6,
-        "low": 185.12,
-        "volume": 4248600,
-        "date": "2025-09-30",
-        "updated_at": "2025-10-06T03:36:03.502427Z",
+        "current_price": 187.33,
+        "open": 188.09,
+        "high": 188.09,
+        "low": 187.01,
+        "volume": 2121987,
+        "date": "2025-10-06",
+        "updated_at": "2025-10-07T01:30:01.670078Z",
         "data_source": "yfinance",
         "exchange": null,
         "market_cap": null
@@ -341,13 +341,13 @@
       "VUG": {
         "factor_name": "Growth",
         "symbol": "VUG",
-        "current_price": 479.61,
-        "open": 477.75,
-        "high": 480.07,
-        "low": 475.91,
-        "volume": 1897300,
-        "date": "2025-09-30",
-        "updated_at": "2025-10-06T03:36:03.564520Z",
+        "current_price": 485.01,
+        "open": 483.87,
+        "high": 486.08,
+        "low": 482.36,
+        "volume": 927087,
+        "date": "2025-10-06",
+        "updated_at": "2025-10-07T01:30:01.654173Z",
         "data_source": "yfinance",
         "exchange": null,
         "market_cap": null
@@ -355,13 +355,13 @@
       "MTUM": {
         "factor_name": "Momentum",
         "symbol": "MTUM",
-        "current_price": 256.45,
-        "open": 255.43,
-        "high": 256.67,
-        "low": 254.69,
-        "volume": 920000,
-        "date": "2025-09-30",
-        "updated_at": "2025-10-06T03:36:03.625949Z",
+        "current_price": 254.21,
+        "open": 255.2,
+        "high": 255.42,
+        "low": 253.72,
+        "volume": 1147623,
+        "date": "2025-10-06",
+        "updated_at": "2025-10-07T01:30:01.667159Z",
         "data_source": "yfinance",
         "exchange": null,
         "market_cap": null
@@ -369,13 +369,13 @@
       "QUAL": {
         "factor_name": "Quality",
         "symbol": "QUAL",
-        "current_price": 194.5,
-        "open": 193.05,
-        "high": 194.62,
-        "low": 192.97,
-        "volume": 1080300,
-        "date": "2025-09-30",
-        "updated_at": "2025-10-06T03:36:03.438711Z",
+        "current_price": 196.81,
+        "open": 196.91,
+        "high": 197.37,
+        "low": 196.39,
+        "volume": 1483506,
+        "date": "2025-10-06",
+        "updated_at": "2025-10-07T01:30:01.640819Z",
         "data_source": "yfinance",
         "exchange": null,
         "market_cap": null
@@ -383,13 +383,13 @@
       "USMV": {
         "factor_name": "Low Volatility",
         "symbol": "USMV",
-        "current_price": 95.14,
-        "open": 94.61,
-        "high": 95.2,
-        "low": 94.61,
-        "volume": 3545900,
-        "date": "2025-09-30",
-        "updated_at": "2025-10-06T03:36:03.686621Z",
+        "current_price": 95.08,
+        "open": 95.27,
+        "high": 95.27,
+        "low": 94.92,
+        "volume": 1659461,
+        "date": "2025-10-06",
+        "updated_at": "2025-10-07T01:30:01.664121Z",
         "data_source": "yfinance",
         "exchange": null,
         "market_cap": null

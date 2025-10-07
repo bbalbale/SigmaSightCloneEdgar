@@ -5,6 +5,13 @@
 
 ---
 
+## 🔄 2025-10-07 Verification Update
+
+- Confirmed `batch_orchestrator_v2` still skips `BatchJob` persistence; the `batch_jobs` table remains empty, so historical job audits are unavailable.
+- Verified the admin batch router is already registered via `app/api/v1/router.py:41`; earlier notes calling it orphaned are outdated even though most `/jobs/*` endpoints are still stubs.
+- Portfolio IDs are returned as strings from `_get_portfolios_safely`, but PostgreSQL casts them correctly; `_calculate_factors`, `_calculate_market_risk`, `_run_stress_tests`, and `_calculate_correlations` all call `ensure_uuid`, so the helper is used.
+- Portfolios #2 and #3 report "No active positions" from `_update_position_values`; additional logging or direct DB inspection is needed to learn why rows are missing despite correct UUID comparisons.
+
 ## ✅ Current Logging Infrastructure
 
 ### 1. **Console & File Logging** (app/core/logging.py)
@@ -289,28 +296,20 @@ async def _execute_job_safely(self, job_name, job_func, args, portfolio_name):
 
 ---
 
-### Priority 2: Fix Existing Batch History API Endpoints
+### Priority 2: Restore Batch History API Endpoints
 
-**Status:** ✅ Endpoints EXIST but ❌ BROKEN and UNUSED
+**Status:** The legacy `/admin/batch/jobs/status` and `/admin/batch/jobs/summary` routes were removed from `admin_batch.py`. To deliver historical visibility we need to reintroduce these endpoints (or replacements) once database persistence is wired up.
 
-**Existing Endpoints:**
-- `GET /api/v1/admin/batch/jobs/status` (`app/api/v1/endpoints/admin_batch.py:212`)
-- `GET /api/v1/admin/batch/jobs/summary` (`app/api/v1/endpoints/admin_batch.py:258`)
+**Missing Surfacing:**
+- No HTTP endpoint exposes `BatchJob` records (the table is empty anyway).
+- External tooling described elsewhere still references `/jobs/*`, leading to 404 responses.
 
-**Issues:**
-1. **Code bugs:**
-   - Line 234: References `BatchJob.portfolio_id` (field doesn't exist in model)
-   - Line 254: Calls `job.to_dict()` (method doesn't exist in model)
+**Rebuild Requirements:**
+1. Implement `BatchJob` persistence inside `batch_orchestrator_v2` (see Priority 1).
+2. Add a `portfolio_id` column and serializer (`to_dict()` or similar) to `BatchJob` when persistence arrives.
+3. Create new read endpoints that query the populated table (status summary + recent history).
 
-2. **Data issue:**
-   - BatchJob table is empty (orchestrator doesn't populate it)
-
-**Required Fixes:**
-1. Add `portfolio_id: Mapped[Optional[UUID]]` to BatchJob model (app/models/snapshots.py)
-2. Add `to_dict()` method to BatchJob model OR remove references to it
-3. Integrate BatchJob logging into batch_orchestrator_v2.py (see Priority 1)
-
-**Benefit:** Can check batch status from anywhere (web UI, curl, monitoring)
+**Benefit:** Enables remote auditing and aligns documentation with live API behavior.
 
 ---
 
@@ -466,39 +465,25 @@ logger.info(f"  - Cross-portfolio data availability: {avg_data_days:.0f} days av
 
 ## Existing Admin Batch Endpoints (app/api/v1/endpoints/admin_batch.py)
 
-### 🚨 CRITICAL FINDING: Admin Batch Endpoints Are NOT Registered
+### 🚨 CRITICAL FINDING: Admin Batch Endpoints Provide Only Ephemeral Monitoring
 
-**Status:** The `admin_batch.py` router exists but is **completely orphaned** - it is NOT included in the FastAPI application.
+**Status:** `app/api/v1/endpoints/admin_batch.py` is registered via `app/api/v1/router.py:41`, so the `POST /admin/batch/run`, `GET /admin/batch/run/current`, and trigger/data-quality routes are live. However, the router still depends entirely on the in-memory `batch_run_tracker`, and the historical `/jobs/*` endpoints referenced elsewhere were removed. Without `BatchJob` persistence the monitoring surface resets whenever the process restarts.
 
 **Evidence:**
-- File exists: `app/api/v1/endpoints/admin_batch.py` (502 lines, 15 endpoints defined)
-- Router created: `router = APIRouter(prefix="/admin/batch", tags=["Admin - Batch Processing"])`
-- **NOT imported** in `app/api/v1/router.py`
-- **NOT registered** in the main API router
-- **NOT accessible** via HTTP requests
+- Router created with prefix `/admin/batch` and included in the main FastAPI router (`app/api/v1/router.py:41`).
+- Trigger endpoints execute successfully but only reflect the current run because no database writes occur.
+- `batch_orchestrator_v2` never touches `BatchJob`, leaving `batch_jobs` empty and the audit trail unavailable.
+- Paths such as `/admin/batch/jobs/status` and `/admin/batch/jobs/summary` no longer exist, so external tooling cannot retrieve historical batches.
 
 **Impact:**
-- All 15 admin batch endpoints return 404 Not Found
-- Frontend cannot call these endpoints
-- Manual API testing would fail
-- The endpoints exist as dead code only
+- Admins can trigger batches and poll real-time status, but information disappears once the process stops.
+- No persisted history means incidents cannot be investigated after the fact.
+- Downstream documentation that expects `/jobs/*` endpoints will observe 404 responses.
 
-**To Enable These Endpoints:**
-```python
-# In app/api/v1/router.py, add:
-from app.api.v1.endpoints import admin_batch
-
-api_router.include_router(
-    admin_batch.router,
-    tags=["Admin - Batch Processing"]
-)
-```
-
-**Recommendation:** Since we're planning to delete 9 of these 15 endpoints anyway, we should:
-1. Create the new `/admin/batch/run` endpoints with proper tracking
-2. Fix the 2 broken endpoints (jobs/status, jobs/summary)
-3. Register ONLY the new/fixed endpoints (6 total)
-4. Never register the 9 endpoints marked for deletion
+**Recommendation:**
+1. Reintroduce durable endpoints backed by `BatchJob` once persistence is implemented.
+2. Document that `/run/current` reports only the active run and returns `idle` after restarts.
+3. Update any clients relying on `/jobs/*` to account for their removal or replacement.
 
 ---
 
@@ -506,17 +491,17 @@ api_router.include_router(
 
 | Endpoint | Current Status | Reason |
 |----------|---------------|---------|
-| `POST /admin/batch/trigger/market-data` | ❌ Not Registered (code exists) | Useful standalone operation |
-| `POST /admin/batch/trigger/correlations` | ❌ Not Registered (code exists) | Weekly job, special case |
-| `GET /admin/batch/data-quality` | ❌ Not Registered (code exists) | Pre-flight validation |
-| `POST /admin/batch/data-quality/refresh` | ❌ Not Registered (code exists) | Targeted data refresh |
+| `POST /admin/batch/trigger/market-data` | ✅ Registered (background task wrapper) | Useful standalone operation |
+| `POST /admin/batch/trigger/correlations` | ✅ Registered (runs orchestrator with correlations flag) | Weekly job, special case |
+| `GET /admin/batch/data-quality` | ✅ Registered (calls `pre_flight_validation`) | Pre-flight validation |
+| `POST /admin/batch/data-quality/refresh` | ✅ Registered (wraps market data sync) | Targeted data refresh |
 
 ### ⚠️ Fix Required (After Registration)
 
 | Endpoint | Issue | Fix Needed |
 |----------|-------|------------|
-| `GET /admin/batch/jobs/status` | ❌ Not Registered<br>Line 234: `BatchJob.portfolio_id` doesn't exist<br>Line 254: `job.to_dict()` doesn't exist | Register endpoint<br>Add `portfolio_id` field to BatchJob model<br>Add `to_dict()` method or remove references |
-| `GET /admin/batch/jobs/summary` | ❌ Not Registered<br>Line 254: `job.to_dict()` doesn't exist | Register endpoint<br>Same as above |
+| `GET /admin/batch/jobs/status` | ❌ Not Implemented<br>Legacy code removed with router simplification | Rebuild endpoint once BatchJob persistence exists |
+| `GET /admin/batch/jobs/summary` | ❌ Not Implemented<br>Legacy code removed with router simplification | Rebuild endpoint alongside status endpoint |
 
 ### ❌ Delete and Replace (Never Register These)
 
@@ -681,8 +666,8 @@ Monitoring batch progress...
 
 ## 📊 API Endpoint Summary
 
-### 🚨 Current State: All Admin Batch Endpoints Return 404
-The `admin_batch.py` router is **NOT registered** in `app/api/v1/router.py`. All 15 existing endpoints are orphaned dead code.
+### 🚨 Current State: Minimal Admin Batch Endpoints Online Only
+The `admin_batch.py` router is registered in `app/api/v1/router.py`, and the simplified `/run` + `/run/current` flow below is live. Historical `/jobs/*` endpoints were removed, so only real-time polling is supported and the guidance that follows should be treated as the current architecture rather than a future plan.
 
 ### Simplified Implementation Plan (Option A - Minimal Real-Time Monitoring)
 

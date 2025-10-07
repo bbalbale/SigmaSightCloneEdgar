@@ -146,8 +146,10 @@ async def get_correlation_matrix(
         
         # Return appropriate response based on availability
         if "available" in result and result["available"] is False:
+            # Phase 8.1 fix: Include data_quality field to expose transparency metrics
             return CorrelationMatrixResponse(
                 available=False,
+                data_quality=result.get("data_quality"),  # Include quality metrics computed by service
                 metadata=result.get("metadata", {})
             )
         else:

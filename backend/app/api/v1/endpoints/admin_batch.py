@@ -167,18 +167,42 @@ async def trigger_correlation_calculation(
     Manually trigger correlation calculations (normally runs weekly on Tuesday).
     """
     logger.info(f"Admin {admin_user.email} triggered correlations for portfolio {portfolio_id or 'all'}")
-    
+
     background_tasks.add_task(
         batch_orchestrator.run_daily_batch_sequence,
         portfolio_id,
         True  # run_correlations=True
     )
-    
+
     return {
         "status": "started",
         "message": f"Correlation calculation started for {'portfolio ' + portfolio_id if portfolio_id else 'all portfolios'}",
         "triggered_by": admin_user.email,
         "timestamp": utc_now()
+    }
+
+
+@router.post("/trigger/company-profiles")
+async def trigger_company_profile_sync(
+    background_tasks: BackgroundTasks,
+    admin_user = Depends(require_admin)
+):
+    """
+    Manually trigger company profile synchronization (normally runs daily at 7 PM ET).
+    Fetches company names, sectors, industries, and revenue/earnings estimates from yfinance + yahooquery.
+    """
+    from app.batch.scheduler_config import batch_scheduler
+
+    logger.info(f"Admin {admin_user.email} triggered company profile sync")
+
+    background_tasks.add_task(batch_scheduler.trigger_company_profile_sync)
+
+    return {
+        "status": "started",
+        "message": "Company profile sync started for all portfolio symbols",
+        "triggered_by": admin_user.email,
+        "timestamp": utc_now(),
+        "info": "This will fetch company data from yfinance and yahooquery APIs"
     }
 
 

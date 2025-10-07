@@ -2,17 +2,17 @@
 RAILWAY MARKET DATA AUDIT - DETAILED REPORT
 ================================================================================
 Backend: https://sigmasight-be-production.up.railway.app/api/v1
-Date: 2025-10-06 14:35:04
+Date: 2025-10-07 06:20:24
 
 Total Unique Symbols: 29
-Symbols: RENTAL_SFH, AMZN, BRK.B, HD, RENTAL_CONDO, JNJ, QQQ, V, TWO_SIGMA_FUND, A16Z_VC_FUND, GLD, PG, META, MSFT, BX_PRIVATE_EQUITY, NVDA, MONEY_MARKET, AAPL, STARWOOD_REIT, JPM, GOOGL, SPY, TREASURY_BILLS, UNH, VTI, DJP, HOME_EQUITY, ART_COLLECTIBLES, CRYPTO_BTC_ETH
+Symbols: NVDA, JNJ, A16Z_VC_FUND, GOOGL, CRYPTO_BTC_ETH, BRK.B, MSFT, VTI, STARWOOD_REIT, AAPL, ART_COLLECTIBLES, JPM, PG, RENTAL_CONDO, DJP, AMZN, RENTAL_SFH, GLD, HD, SPY, MONEY_MARKET, BX_PRIVATE_EQUITY, HOME_EQUITY, V, META, QQQ, UNH, TREASURY_BILLS, TWO_SIGMA_FUND
 
 
 🏢 COMPANY PROFILE DATA
 ================================================================================
 Total positions: 29
-With company name: 0 (0.0%)
-Missing company name: 29 (100.0%)
+With company name: 17 (58.6%)
+Missing company name: 12 (41.4%)
 
 📈 HISTORICAL PRICES - DETAILED PER-POSITION COVERAGE
 ================================================================================
@@ -60,7 +60,7 @@ HISTORICAL DATA SUMMARY:
 ================================================================================
 MARKET DATA AUDIT SUMMARY
 ================================================================================
-Company Profiles: 0/29 (0.0%)
+Company Profiles: 17/29 (58.6%)
 Market Quotes: ✅ Working
 Historical Prices: 29/29 symbols with data (73.1 avg days)
 Factor ETFs: 6 tracked

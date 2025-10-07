@@ -206,13 +206,19 @@ scripts/
 │   └── list_symbols.py               # List all symbols
 │
 ├── railway/             # Railway deployment-specific ⭐ NEW
-│   ├── audit_railway_data.py         ⭐ Audit portfolio/position data via API
-│   ├── audit_railway_market_data.py  ⭐ Audit market data (detailed per-position)
-│   ├── railway_run_migration.py      ⭐ Run migrations on Railway
-│   ├── verify_railway_migration.py   Verify migration status
-│   ├── railway_reset_database.py     Reset and reseed (DESTRUCTIVE)
-│   ├── railway_initial_seed.sh       Initial setup workflow
-│   └── RAILWAY_SEEDING_README.md     Seeding documentation
+│   ├── audit_railway_data.py                  ⭐ Audit portfolio/position data via API
+│   ├── audit_railway_market_data.py           ⭐ Audit market data (detailed per-position)
+│   ├── audit_railway_calculations_verbose.py  ⭐ Detailed calculation results audit
+│   ├── railway_run_migration.py               ⭐ Run migrations on Railway
+│   ├── verify_railway_migration.py            Verify migration status
+│   ├── railway_reset_database.py              Reset and reseed (DESTRUCTIVE)
+│   ├── railway_initial_seed.sh                Initial setup workflow
+│   ├── README.md                              ⭐ Complete Railway scripts guide
+│   └── RAILWAY_SEEDING_README.md              Seeding documentation
+│
+├── api_batch_monitor.py  ⭐ API-based batch trigger + monitor (NO SSH needed)
+├── test_railway_batch.py  Simple batch trigger via API
+├── check_batch_results.py Check batch status via API
 │
 ├── verification/        # Validation and verification scripts
 │   ├── validate_setup.py             ⭐ Comprehensive validation

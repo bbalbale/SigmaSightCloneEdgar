@@ -9,16 +9,17 @@ from uuid import UUID
 import pandas as pd
 import numpy as np
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, and_, delete
+from sqlalchemy import select, and_, or_, delete
 import statsmodels.api as sm
 
 from app.models.positions import Position
 from app.models.market_data import MarketDataCache, PositionFactorExposure, FactorDefinition
 from app.calculations.market_data import fetch_historical_prices
 from app.constants.factors import (
-    FACTOR_ETFS, REGRESSION_WINDOW_DAYS, MIN_REGRESSION_DAYS, 
-    BETA_CAP_LIMIT, POSITION_CHUNK_SIZE, QUALITY_FLAG_FULL_HISTORY, 
-    QUALITY_FLAG_LIMITED_HISTORY, OPTIONS_MULTIPLIER
+    FACTOR_ETFS, REGRESSION_WINDOW_DAYS, MIN_REGRESSION_DAYS,
+    BETA_CAP_LIMIT, POSITION_CHUNK_SIZE, QUALITY_FLAG_FULL_HISTORY,
+    QUALITY_FLAG_LIMITED_HISTORY, QUALITY_FLAG_NO_PUBLIC_POSITIONS,  # Phase 8.1 Task 5
+    OPTIONS_MULTIPLIER
 )
 from app.core.logging import get_logger
 
@@ -126,13 +127,18 @@ async def calculate_position_returns(
     
     # Get active positions for the portfolio
     # IMPORTANT: Exclude PRIVATE positions from factor analysis
+    # Phase 8.1: Handle NULL investment_class to avoid SQL three-valued logic issue
+    # NULL != 'PRIVATE' evaluates to NULL (unknown), which would exclude legitimate positions
     stmt = select(Position).where(
         and_(
             Position.portfolio_id == portfolio_id,
             Position.exit_date.is_(None),  # Only active positions
             # Exclude PRIVATE investment class from factor analysis
-            # None is allowed for backwards compatibility
-            Position.investment_class != 'PRIVATE'
+            # Explicitly include NULL for backwards compatibility (not yet classified)
+            or_(
+                Position.investment_class != 'PRIVATE',  # Exclude PRIVATE
+                Position.investment_class.is_(None)      # Include NULL (not yet classified)
+            )
         )
     )
     result = await db.execute(stmt)
@@ -267,9 +273,36 @@ async def calculate_factor_betas_hybrid(
             end_date=end_date,
             use_delta_adjusted=use_delta_adjusted
         )
-        
+
+        # Phase 8.1 Task 5: Return contract-compliant skip payload instead of raising ValueError
         if position_returns.empty:
-            raise ValueError("No position returns data available")
+            logger.warning(
+                f"No PUBLIC positions with sufficient price history for portfolio {portfolio_id}. "
+                "Returning skip payload (graceful degradation)."
+            )
+            return {
+                'factor_betas': {},
+                'position_betas': {},
+                'data_quality': {
+                    'flag': QUALITY_FLAG_NO_PUBLIC_POSITIONS,
+                    'message': 'Portfolio contains no public positions with sufficient price history',
+                    'positions_analyzed': 0,
+                    'positions_total': 0,  # Don't query for count - not critical for skip case
+                    'data_days': 0,
+                    'quality_flag': QUALITY_FLAG_NO_PUBLIC_POSITIONS  # CRITICAL: calculate_market_risk expects this key
+                },
+                'metadata': {
+                    'calculation_date': calculation_date.isoformat() if hasattr(calculation_date, 'isoformat') else str(calculation_date),
+                    'regression_window_days': 0,
+                    'status': 'SKIPPED_NO_PUBLIC_POSITIONS',
+                    'portfolio_id': str(portfolio_id)
+                },
+                'regression_stats': {},
+                'storage_results': {  # CRITICAL: Must match nested structure (lines 361, 401 of factors.py)
+                    'position_storage': {'records_stored': 0, 'skipped': True},
+                    'portfolio_storage': {'records_stored': 0, 'skipped': True}
+                }
+            }
         
         # Step 3: Align data on common dates
         common_dates = factor_returns.index.intersection(position_returns.index)

@@ -458,11 +458,34 @@ python scripts/railway/audit_railway_data.py
 
 ### Daily Batch Processing
 
+**Two Methods Available:**
+
+#### Method 1: API-Based (Recommended - No SSH Required)
+
+```bash
+# From local machine - triggers batch via REST API with real-time monitoring
+python scripts/api_batch_monitor.py --url https://sigmasight-be-production.up.railway.app --force
+
+# Specific portfolio only
+python scripts/api_batch_monitor.py --url https://sigmasight-be-production.up.railway.app --portfolio-id <uuid>
+
+# Check status without triggering
+python scripts/check_batch_results.py --url https://sigmasight-be-production.up.railway.app
+```
+
+**Features:**
+- ✅ No SSH access needed
+- ✅ Real-time progress monitoring with live updates
+- ✅ Works from local machine or CI/CD
+- ✅ Uses `/api/v1/admin/batch/run` and `/api/v1/admin/batch/run/current` endpoints
+
+#### Method 2: SSH-Based (Direct Execution)
+
 ```bash
 # 1. SSH into Railway
-railway shell
+railway ssh
 
-# 2. Run daily batch job (market data + calculations)
+# 2. Run daily batch job directly (market data + calculations)
 uv run python scripts/automation/railway_daily_batch.py --force
 
 # 3. Verify results
@@ -476,6 +499,11 @@ exit
 python scripts/railway/audit_railway_market_data.py
 ```
 
+**When to use SSH method:**
+- Debugging batch issues
+- Running verification scripts on Railway
+- Direct access to logs
+
 ---
 
 ### Troubleshooting Data Issues
@@ -484,21 +512,134 @@ python scripts/railway/audit_railway_market_data.py
 # 1. Check data quality (from local machine)
 python scripts/railway/audit_railway_data.py
 python scripts/railway/audit_railway_market_data.py
+python scripts/railway/audit_railway_calculations_verbose.py  # Detailed calculation results
 
 # 2. Identify issues from audit output
 
-# 3. If needed, reset database
-railway shell
+# 3. If needed, reset database (requires SSH)
+railway ssh
 uv run python scripts/railway/railway_reset_database.py
 exit
 
-# 4. Re-run batch processing
-railway shell
-uv run python scripts/automation/railway_daily_batch.py --force
-exit
+# 4. Re-run batch processing (use API method - easier)
+python scripts/api_batch_monitor.py --url https://sigmasight-be-production.up.railway.app --force
 
 # 5. Verify fix
 python scripts/railway/audit_railway_market_data.py
+python scripts/railway/audit_railway_calculations_verbose.py
+```
+
+---
+
+### 7. API Batch Monitoring (Recommended)
+
+**File:** `scripts/api_batch_monitor.py`
+
+**Purpose:** Trigger and monitor batch processing via REST API without SSH access.
+
+**Usage:**
+```bash
+# Railway production (recommended)
+python scripts/api_batch_monitor.py --url https://sigmasight-be-production.up.railway.app --force
+
+# Local development
+python scripts/api_batch_monitor.py
+
+# Specific portfolio
+python scripts/api_batch_monitor.py --url https://sigmasight-be-production.up.railway.app --portfolio-id <uuid>
+
+# Custom polling interval
+python scripts/api_batch_monitor.py --url https://sigmasight-be-production.up.railway.app --poll-interval 5
+```
+
+**What it does:**
+- Authenticates via `/auth/login` endpoint
+- Triggers batch via `POST /admin/batch/run` with optional `--force` flag
+- Monitors progress via `GET /admin/batch/run/current`
+- Shows real-time progress bar with job counts and status
+- Automatically polls every N seconds (default: 3)
+- Exits when batch completes (status: idle)
+
+**When to use:**
+- **Primary method** for triggering batch processing
+- CI/CD pipelines
+- Scheduled batch jobs
+- Remote batch triggering without Railway CLI
+- Real-time monitoring needed
+
+**Output:**
+```
+🔐 Authenticating as demo_individual@sigmasight.com...
+✅ Authentication successful
+
+🚀 Triggering batch run for all portfolios...
+✅ Batch started: fdd4b9f0-be3c-4ff4-9299-eae22d1972cc
+📊 Poll URL: /api/v1/admin/batch/run/current
+
+📡 Monitoring progress (polling every 3s)...
+================================================================================
+[22:03:55] [████████████████░░░░░░░░░░░░░░░░░░░░░░░] 41.7% | 3m 12s | 10/24 jobs | factor_analysis...
+```
+
+**Related Scripts:**
+- `scripts/test_railway_batch.py` - Simple batch trigger + verification
+- `scripts/check_batch_results.py` - Check batch status without triggering
+
+---
+
+### 8. Audit Calculation Results (Verbose)
+
+**File:** `scripts/railway/audit_railway_calculations_verbose.py`
+
+**Purpose:** Detailed audit of batch calculation results with sample data from each engine.
+
+**Usage:**
+```bash
+# From local machine (NO SSH needed)
+python scripts/railway/audit_railway_calculations_verbose.py
+```
+
+**What it does:**
+- Audits all 3 portfolios for calculation data
+- Shows detailed results from each calculation engine:
+  - **Snapshots**: Latest snapshot with full metrics
+  - **Factor Exposures**: Actual beta values per position (Market, Value, Growth, etc.)
+  - **Correlations**: Top 20 pairwise correlations with correlation values
+  - **Stress Tests**: All scenarios with P&L impacts (direct and correlated)
+  - **Greeks**: Options Greeks if any exist
+- Saves results to `railway_calculations_audit_report.txt` (detailed)
+- Saves summary to `railway_calculations_audit_results.json`
+
+**When to use:**
+- Verify batch calculations ran for all portfolios
+- Debug missing calculation data
+- Generate detailed calculation reports
+- Check which portfolios have data vs "No data"
+
+**Output:**
+```
+================================================================================
+📊 PORTFOLIO SNAPSHOTS: Demo Individual Investor Portfolio
+================================================================================
+Total snapshots found: 1
+
+Latest Snapshot (2025-10-06):
+  Position Count: 16
+  Total Market Value: $484,860.00
+  Long Value: $484,860.00
+  Portfolio Delta: 1.23
+
+================================================================================
+📈 FACTOR EXPOSURES: Demo Individual Investor Portfolio
+================================================================================
+Total exposure records: 112
+
+Factor Exposures by Position (sample, latest calculation):
+
+SYMBOL       FACTORS                                                      DATE
+----------------------------------------------------------------------------------------
+AAPL         Gro: 0.89, Low: 0.41, Mar: 1.14, Mom: 0.18, Qua: 0.97...   2025-10-06
+TSLA         Gro: 1.47, Low: 0.49, Mar: 2.08, Mom: 1.24, Qua: 1.57...   2025-10-06
 ```
 
 ---
@@ -608,19 +749,31 @@ uv run python scripts/railway/railway_run_migration.py
 
 ## Summary
 
-**7 focused scripts** for Railway deployment:
+**Railway Scripts Overview:**
 
-1. ✅ `railway_run_migration.py` - Run migrations (SSH)
-2. ✅ `verify_railway_migration.py` - Verify migrations (SSH)
-3. ✅ `railway_reset_database.py` - Reset database (SSH, DESTRUCTIVE)
-4. ✅ `railway_initial_seed.sh` - First-time setup (SSH)
-5. ✅ `audit_railway_data.py` - Audit portfolio data (Local)
-6. ✅ `audit_railway_market_data.py` - Audit market data (Local)
-7. ✅ `RAILWAY_SEEDING_README.md` - Documentation
+### SSH-Based (Require Railway CLI)
+1. ✅ `railway_run_migration.py` - Run Alembic migrations
+2. ✅ `verify_railway_migration.py` - Verify migration status
+3. ✅ `railway_reset_database.py` - Reset database (DESTRUCTIVE)
+4. ✅ `railway_initial_seed.sh` - First-time setup workflow
 
-**Clean, focused, no duplicates.** Each script has a specific purpose.
+### API-Based (No SSH Required) - **Recommended**
+5. ✅ `scripts/api_batch_monitor.py` - Trigger & monitor batch processing via API
+6. ✅ `audit_railway_data.py` - Audit portfolio/position data
+7. ✅ `audit_railway_market_data.py` - Audit market data with per-position coverage
+8. ✅ `audit_railway_calculations_verbose.py` - Detailed calculation results audit
+9. ✅ `scripts/test_railway_batch.py` - Simple batch trigger + verification
+10. ✅ `scripts/check_batch_results.py` - Check batch status
+
+### Batch Processing Methods
+- **API Method (Recommended)**: `python scripts/api_batch_monitor.py --url <railway-url> --force`
+  - No SSH needed, real-time monitoring, works from anywhere
+- **SSH Method**: `railway ssh` then `uv run python scripts/automation/railway_daily_batch.py --force`
+  - Direct execution, useful for debugging
+
+**Clean, focused, documented.** Each script has a specific purpose.
 
 ---
 
-**Last Updated**: October 5, 2025
-**Scripts Version**: 2.0 (Post-cleanup)
+**Last Updated**: October 6, 2025
+**Scripts Version**: 3.0 (API batch monitoring + verbose audit)

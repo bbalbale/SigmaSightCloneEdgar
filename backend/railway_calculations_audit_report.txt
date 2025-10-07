@@ -1,16 +1,16 @@
 ================================================================================
 RAILWAY CALCULATIONS AUDIT REPORT
 ================================================================================
-Date: 2025-10-06 14:36:14
+Date: 2025-10-07 13:21:49
 
 SUMMARY:
 --------------------------------------------------------------------------------
-Portfolio Snapshots: 1 records
-Factor Exposures: 112 records
-Correlations: 1 calculations, 256 pairs
+Portfolio Snapshots: 6 records
+Factor Exposures: 756 records
+Correlations: 26 calculations, 8,400 pairs
 Greeks: 0 records (DISABLED - expected 0)
 Interest Rate Betas: 0 records
-Stress Tests: 18 results
+Stress Tests: 108 results
 Batch Jobs: 0 execution records
 
 ================================================================================

@@ -48,7 +48,7 @@ class CorrelationService:
         correlation_threshold: Decimal = Decimal("0.7"),
         duration_days: int = 90,
         force_recalculate: bool = False
-    ) -> CorrelationCalculation:
+    ) -> Optional[CorrelationCalculation]:  # Phase 8.1 Task 7a: Can return None when skipped
         """
         Main orchestrator for portfolio correlation calculations
         """
@@ -71,20 +71,33 @@ class CorrelationService:
             portfolio_value = sum(
                 abs(p.quantity * p.last_price) for p in portfolio.positions
             )
-            
+
+            # Filter PRIVATE investment class positions (Phase 8.1 Task 2)
+            public_positions = [
+                p for p in portfolio.positions
+                if p.investment_class != 'PRIVATE'
+            ]
+            private_count = len(portfolio.positions) - len(public_positions)
+            if private_count > 0:
+                logger.info(
+                    f"Filtered {private_count} PRIVATE positions from correlation analysis "
+                    f"(total positions: {len(portfolio.positions)}, public: {len(public_positions)})"
+                )
+
             # Filter significant positions
             filtered_positions = self.filter_significant_positions(
-                portfolio.positions,
+                public_positions,  # Use filtered list instead of portfolio.positions
                 portfolio_value,
                 min_position_value,
                 min_portfolio_weight,
                 filter_mode
             )
-            
-            excluded_count = len(portfolio.positions) - len(filtered_positions)
+
+            excluded_count = private_count + (len(public_positions) - len(filtered_positions))
             logger.info(
                 f"Filtered {len(filtered_positions)} significant positions "
-                f"from {len(portfolio.positions)} total (excluded: {excluded_count})"
+                f"from {len(portfolio.positions)} total "
+                f"(excluded: {excluded_count} = {private_count} PRIVATE + {len(public_positions) - len(filtered_positions)} insignificant)"
             )
             
             # Get position returns data
@@ -92,16 +105,28 @@ class CorrelationService:
             returns_df = await self._get_position_returns(
                 filtered_positions, start_date, calculation_date
             )
-            
+
+            # Phase 8.1 Task 7a: Graceful skip instead of ValueError
             if returns_df.empty:
-                raise ValueError("No return data available for correlation calculation")
-            
+                logger.warning(
+                    f"No return data available for correlation calculation (portfolio {portfolio_id}). "
+                    f"All {private_count} PRIVATE positions were filtered. Skipping correlation calculation."
+                )
+                await self.db.rollback()
+                return None  # Option B: Skip persistence, return None
+
             # Validate data sufficiency (minimum 20 days)
             valid_positions = self._validate_data_sufficiency(returns_df, min_days=20)
             returns_df = returns_df[valid_positions]
-            
+
+            # Phase 8.1 Task 7a: Graceful skip instead of ValueError
             if returns_df.empty:
-                raise ValueError("No positions have sufficient data for correlation calculation")
+                logger.warning(
+                    f"No positions have sufficient data for correlation calculation (portfolio {portfolio_id}). "
+                    f"All positions have <20 days of data. Skipping correlation calculation."
+                )
+                await self.db.rollback()
+                return None  # Option B: Skip persistence, return None
             
             # Calculate pairwise correlations
             correlation_matrix = self.calculate_pairwise_correlations(returns_df)
@@ -825,13 +850,15 @@ class CorrelationService:
     ) -> Dict:
         """
         Retrieve pre-calculated correlation matrix for a portfolio.
-        
+
+        Phase 8.1 Task 13: Returns data_quality metrics when available=False
+
         Args:
             portfolio_id: Portfolio UUID
             lookback_days: Duration of the calculation period (must match existing calculation)
             min_overlap: Minimum data points required for correlation pairs
             max_symbols: Maximum number of symbols to include in matrix (by weight)
-            
+
         Returns:
             Dict with correlation matrix or unavailable status
         """
@@ -846,10 +873,19 @@ class CorrelationService:
             
             result = await self.db.execute(stmt)
             calculation = result.scalar_one_or_none()
-            
+
             if not calculation:
+                # Compute data_quality when no calculation available
+                data_quality = await self._compute_data_quality(
+                    portfolio_id=portfolio_id,
+                    flag="NO_CORRELATION_CALCULATION",
+                    message=f"No correlation calculation found for portfolio with {lookback_days}-day lookback",
+                    positions_analyzed=0,
+                    data_days=lookback_days
+                )
                 return {
                     "available": False,
+                    "data_quality": data_quality,
                     "metadata": {
                         "reason": "no_calculation_available",
                         "requested_lookback_days": lookback_days,
@@ -866,13 +902,22 @@ class CorrelationService:
             
             # Filter by min_overlap
             filtered_correlations = [
-                c for c in correlations 
+                c for c in correlations
                 if c.data_points >= min_overlap
             ]
-            
+
             if not filtered_correlations:
+                # Compute data_quality when insufficient data
+                data_quality = await self._compute_data_quality(
+                    portfolio_id=portfolio_id,
+                    flag="INSUFFICIENT_DATA",
+                    message=f"No correlations meet the minimum overlap requirement of {min_overlap} data points",
+                    positions_analyzed=0,
+                    data_days=lookback_days
+                )
                 return {
                     "available": False,
+                    "data_quality": data_quality,
                     "metadata": {
                         "reason": "insufficient_data",
                         "min_overlap": min_overlap,
@@ -938,21 +983,31 @@ class CorrelationService:
             
             # Check if we have enough symbols
             if len(ordered_symbols) < 2:
+                # Compute data_quality when insufficient symbols
+                data_quality = await self._compute_data_quality(
+                    portfolio_id=portfolio_id,
+                    flag="INSUFFICIENT_SYMBOLS",
+                    message=f"Need at least 2 symbols for correlation matrix, found {len(ordered_symbols)}",
+                    positions_analyzed=len(ordered_symbols),
+                    data_days=lookback_days
+                )
                 return {
                     "available": False,
+                    "data_quality": data_quality,
                     "metadata": {
                         "reason": "insufficient_symbols",
                         "symbols_found": len(ordered_symbols),
                         "message": f"Need at least 2 symbols for correlation matrix, found {len(ordered_symbols)}"
                     }
                 }
-            
+
             return {
                 "data": {
                     "matrix": matrix,
                     "average_correlation": float(calculation.overall_correlation) if calculation.overall_correlation else None
                 },
                 "available": True,
+                "data_quality": None,  # Phase 8.1: Future enhancement to compute quality metrics when available=True
                 "metadata": {
                     "calculation_date": calculation.calculation_date.isoformat() if calculation.calculation_date else None,
                     "duration_days": lookback_days,
@@ -967,3 +1022,62 @@ class CorrelationService:
         except Exception as e:
             logger.error(f"Error retrieving correlation matrix for portfolio {portfolio_id}: {str(e)}")
             raise
+
+    async def _compute_data_quality(
+        self,
+        portfolio_id: UUID,
+        flag: str,
+        message: str,
+        positions_analyzed: int,
+        data_days: int
+    ) -> Dict:
+        """
+        Compute data quality metrics for portfolio
+
+        Phase 8.1 Task 13: Computes position counts to explain why correlations were skipped
+
+        Args:
+            portfolio_id: Portfolio UUID
+            flag: Quality flag constant (e.g., NO_CORRELATION_CALCULATION)
+            message: Human-readable explanation
+            positions_analyzed: Number of positions included in calculation
+            data_days: Number of days of historical data used
+
+        Returns:
+            Dictionary with data_quality metrics matching DataQualityInfo schema
+        """
+        from sqlalchemy import func
+
+        # Count total positions in portfolio
+        total_stmt = select(func.count(Position.id)).where(
+            and_(
+                Position.portfolio_id == portfolio_id,
+                Position.quantity != 0  # Only count active positions
+            )
+        )
+        positions_total = (await self.db.execute(total_stmt)).scalar() or 0
+
+        # Count PUBLIC positions (exclude PRIVATE investment_class per Phase 8.1)
+        public_stmt = select(func.count(Position.id)).where(
+            and_(
+                Position.portfolio_id == portfolio_id,
+                Position.quantity != 0,
+                or_(
+                    Position.investment_class != 'PRIVATE',
+                    Position.investment_class.is_(None)  # Include NULL (not yet classified)
+                )
+            )
+        )
+        public_positions = (await self.db.execute(public_stmt)).scalar() or 0
+
+        # positions_skipped = total - analyzed
+        positions_skipped = positions_total - positions_analyzed
+
+        return {
+            "flag": flag,
+            "message": message,
+            "positions_analyzed": positions_analyzed,
+            "positions_total": positions_total,
+            "positions_skipped": positions_skipped,
+            "data_days": data_days
+        }
