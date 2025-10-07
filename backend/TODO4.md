@@ -3346,21 +3346,31 @@ const response = await fetch('/api/proxy/api/v1/chat/conversations', {
 
 ## Resolution Summary
 
-**Root Cause Identified**: UUID type mismatch in position query filtering
-- `_update_position_values` and `_calculate_portfolio_aggregation` methods were comparing `Position.portfolio_id` (UUID column) directly with `portfolio_id` parameter without UUID conversion
+**Root Cause**: UUID type mismatch in position query filtering
+- `_update_position_values` and `_calculate_portfolio_aggregation` were comparing `Position.portfolio_id` (UUID column) directly with `portfolio_id` parameter without UUID conversion
 - Other calculation methods (`_calculate_factors`, `_calculate_market_risk`, etc.) correctly used `ensure_uuid()` conversion
+- Pattern inconsistency: 4 methods had conversion, 2 didn't
+
+**Diagnostic Process**:
+1. ✅ Verified positions exist in Railway DB via API (16, 29, 30 positions confirmed)
+2. ✅ Compared working vs broken methods - found missing `ensure_uuid()` calls
+3. ✅ Confirmed `portfolio_data.id` returns UUID object, not string
 
 **Fix Applied**:
-- Added `ensure_uuid(portfolio_id)` conversion in `_update_position_values` (`batch_orchestrator_v2.py` line 408)
-- Added `ensure_uuid(portfolio_id)` conversion in `_calculate_portfolio_aggregation` (`batch_orchestrator_v2.py` line 468)
+- Added `portfolio_uuid = ensure_uuid(portfolio_id)` in `_update_position_values` (line 408)
+- Added `portfolio_uuid = ensure_uuid(portfolio_id)` in `_calculate_portfolio_aggregation` (line 468)
+- Both methods now use `portfolio_uuid` in WHERE clause
 
-**Verification Results** (Railway Production Database):
-- ✅ Demo Individual Investor Portfolio: 16 positions
-- ✅ Demo High Net Worth Investor Portfolio: 29 positions
-- ✅ Demo Hedge Fund Style Investor Portfolio: 30 positions
-- ✅ Batch processing now completes successfully for all 3 portfolios
+**Verification** (Railway Production):
+- ✅ All 3 portfolios: 16, 29, 30 positions processing correctly
+- ✅ Batch run completed with 24 jobs (0 failed)
+- ✅ No more "No active positions" errors
 
-**Commit**: `a8b323a` - "fix: add UUID conversion in batch orchestrator position queries"
+**Scripts Created**:
+- `scripts/check_railway_positions_api.py` - API-based position verification
+- `scripts/test_railway_batch.py` - Batch processing test/monitor
+
+**Commits**: `a8b323a` (fix), `df2621c` (docs)
 
 ---
 
