@@ -13,6 +13,7 @@ POSITION_CHUNK_SIZE = 1000   # Process positions in chunks for large portfolios
 # Data quality flags
 QUALITY_FLAG_FULL_HISTORY = "full_history"
 QUALITY_FLAG_LIMITED_HISTORY = "limited_history"
+QUALITY_FLAG_NO_PUBLIC_POSITIONS = "no_public_positions"  # Phase 8.1 Task 4: All PUBLIC positions filtered out
 
 # Factor ETF symbols (7-factor model for V1.4)
 FACTOR_ETFS = {
