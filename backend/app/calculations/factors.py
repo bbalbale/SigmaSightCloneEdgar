@@ -9,7 +9,7 @@ from uuid import UUID
 import pandas as pd
 import numpy as np
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, and_, delete
+from sqlalchemy import select, and_, or_, delete
 import statsmodels.api as sm
 
 from app.models.positions import Position
@@ -127,13 +127,18 @@ async def calculate_position_returns(
     
     # Get active positions for the portfolio
     # IMPORTANT: Exclude PRIVATE positions from factor analysis
+    # Phase 8.1: Handle NULL investment_class to avoid SQL three-valued logic issue
+    # NULL != 'PRIVATE' evaluates to NULL (unknown), which would exclude legitimate positions
     stmt = select(Position).where(
         and_(
             Position.portfolio_id == portfolio_id,
             Position.exit_date.is_(None),  # Only active positions
             # Exclude PRIVATE investment class from factor analysis
-            # None is allowed for backwards compatibility
-            Position.investment_class != 'PRIVATE'
+            # Explicitly include NULL for backwards compatibility (not yet classified)
+            or_(
+                Position.investment_class != 'PRIVATE',  # Exclude PRIVATE
+                Position.investment_class.is_(None)      # Include NULL (not yet classified)
+            )
         )
     )
     result = await db.execute(stmt)
