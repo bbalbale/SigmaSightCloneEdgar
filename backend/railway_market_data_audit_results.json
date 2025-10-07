@@ -1,38 +1,24 @@
 {
   "company_profiles": {
     "total": 29,
-    "with_profile": 0,
-    "without_profile": 29
+    "with_profile": 17,
+    "without_profile": 12
   },
   "market_quotes": {
     "quotes": [
       {
-        "symbol": "SPY",
-        "last_price": 666.18,
-        "bid": 666.17,
-        "ask": 666.1899999999999,
+        "symbol": "NVDA",
+        "last_price": 186.58,
+        "bid": 186.57000000000002,
+        "ask": 186.59,
         "bid_size": 100,
         "ask_size": 100,
-        "volume": 86288000,
+        "volume": 236981000,
         "day_change": 0,
         "day_change_percent": 0,
-        "day_high": 666.65,
-        "day_low": 661.61,
-        "timestamp": "2025-10-06T03:36:03.595548Z"
-      },
-      {
-        "symbol": "DJP",
-        "last_price": 35.44,
-        "bid": 35.43,
-        "ask": 35.449999999999996,
-        "bid_size": 100,
-        "ask_size": 100,
-        "volume": 97600,
-        "day_change": 0,
-        "day_change_percent": 0,
-        "day_high": 35.44,
-        "day_low": 35.29,
-        "timestamp": "2025-10-06T03:36:03.534002Z"
+        "day_high": 187.35,
+        "day_low": 181.48,
+        "timestamp": "2025-10-06T03:36:02.586955Z"
       },
       {
         "symbol": "JNJ",
@@ -49,7 +35,7 @@
         "timestamp": "2025-10-06T03:36:02.908736Z"
       },
       {
-        "symbol": "TWO_SIGMA_FUND",
+        "symbol": "A16Z_VC_FUND",
         "last_price": 5.0,
         "bid": 4.99,
         "ask": 5.01,
@@ -60,34 +46,48 @@
         "day_change_percent": 0,
         "day_high": 5.025,
         "day_low": 4.95,
-        "timestamp": "2025-10-06T03:22:48.233207Z"
+        "timestamp": "2025-10-06T03:22:48.178887Z"
       },
       {
-        "symbol": "BRK.B",
-        "last_price": 100.0,
-        "bid": 99.99,
-        "ask": 100.01,
+        "symbol": "GOOGL",
+        "last_price": 243.1,
+        "bid": 243.09,
+        "ask": 243.10999999999999,
+        "bid_size": 100,
+        "ask_size": 100,
+        "volume": 34724300,
+        "day_change": 0,
+        "day_change_percent": 0,
+        "day_high": 243.29,
+        "day_low": 239.25,
+        "timestamp": "2025-10-06T03:36:03.039071Z"
+      },
+      {
+        "symbol": "CRYPTO_BTC_ETH",
+        "last_price": 5.0,
+        "bid": 4.99,
+        "ask": 5.01,
         "bid_size": 100,
         "ask_size": 100,
         "volume": 1000000,
         "day_change": 0,
         "day_change_percent": 0,
-        "day_high": 100.5,
-        "day_low": 99.0,
-        "timestamp": "2025-10-06T03:22:48.165020Z"
+        "day_high": 5.025,
+        "day_low": 4.95,
+        "timestamp": "2025-10-06T03:22:48.157183Z"
       }
     ],
     "metadata": {
       "requested_symbols": [
-        "SPY",
-        "DJP",
+        "NVDA",
         "JNJ",
-        "TWO_SIGMA_FUND",
-        "BRK.B"
+        "A16Z_VC_FUND",
+        "GOOGL",
+        "CRYPTO_BTC_ETH"
       ],
       "successful_quotes": 5,
       "failed_quotes": 0,
-      "timestamp": "2025-10-07T02:12:52.329583Z"
+      "timestamp": "2025-10-07T13:20:26.297441Z"
     }
   },
   "historical_prices": {
@@ -307,7 +307,7 @@
     "metadata": {
       "factor_model": "7-factor",
       "etf_count": 6,
-      "timestamp": "2025-10-07T02:12:52.989501Z"
+      "timestamp": "2025-10-07T13:20:26.913638Z"
     },
     "data": {
       "SPY": {

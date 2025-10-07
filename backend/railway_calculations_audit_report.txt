@@ -1,175 +1,20 @@
 ================================================================================
-RAILWAY CALCULATIONS AUDIT - DETAILED REPORT
+RAILWAY CALCULATIONS AUDIT REPORT
 ================================================================================
-Generated: 2025-10-06 22:15:27
+Date: 2025-10-07 13:21:49
 
-
-
-################################################################################
-# PORTFOLIO: Demo Hedge Fund Style Investor Portfolio
-# ID: fcd71196-e93e-f000-5a74-31a9eead3118
-################################################################################
-
-📊 PORTFOLIO SNAPSHOTS: No data found
-
-📈 FACTOR EXPOSURES: No data found
-
-🔗 CORRELATION ANALYSIS: No data found
-
-⚠️  STRESS TEST RESULTS: No data found (table may not exist)
-
-📐 OPTIONS GREEKS: No data found (expected - disabled)
-
-
-################################################################################
-# PORTFOLIO: Demo High Net Worth Investor Portfolio
-# ID: e23ab931-a033-edfe-ed4f-9d02474780b4
-################################################################################
-
-📊 PORTFOLIO SNAPSHOTS: No data found
-
-📈 FACTOR EXPOSURES: No data found
-
-🔗 CORRELATION ANALYSIS: No data found
-
-⚠️  STRESS TEST RESULTS: No data found (table may not exist)
-
-📐 OPTIONS GREEKS: No data found (expected - disabled)
-
-
-################################################################################
-# PORTFOLIO: Demo Individual Investor Portfolio
-# ID: 1d8ddd95-3b45-0ac5-35bf-cf81af94a5fe
-################################################################################
-
-================================================================================
-📊 PORTFOLIO SNAPSHOTS: Demo Individual Investor Portfolio
-================================================================================
-Total snapshots found: 1
-
-Latest Snapshot (2025-10-06):
-  Position Count: 16
-  Total Market Value: $484860.00
-  Long Value: $484860.00
-  Short Value: $0.00
-  Net Exposure: $484860.00
-  Gross Exposure: $484860.00
-
-================================================================================
-📈 FACTOR EXPOSURES: Demo Individual Investor Portfolio
-================================================================================
-Total exposure records: 112
-
-Factor Exposures by Position (sample, latest calculation):
-
-SYMBOL       FACTORS                                                      DATE        
-----------------------------------------------------------------------------------------
-AAPL         Gro: 0.89, Low: 0.41, Mar: 1.14, Mom: 0.18, Qua: 0.97, Siz:  2025-10-06  
-AMZN         Gro: 1.34, Low: 0.17, Mar: 1.53, Mom: 0.59, Qua: 1.09, Siz:  2025-10-06  
-BND          Gro: 0.01, Low: 0.13, Mar: 0.05, Mom: 0.05, Qua: 0.08, Siz:  2025-10-06  
-FCNTX        Gro: 0.85, Low: 0.35, Mar: 1.03, Mom: 0.71, Qua: 0.80, Siz:  2025-10-06  
-FMAGX        Gro: 0.84, Low: 0.57, Mar: 1.06, Mom: 0.74, Qua: 0.87, Siz:  2025-10-06  
-FXNAX        Gro: -0.02, Low: 0.12, Mar: 0.02, Mom: 0.03, Qua: 0.06, Siz  2025-10-06  
-GOOGL        Gro: 1.10, Low: 0.15, Mar: 1.25, Mom: 0.45, Qua: 1.01, Siz:  2025-10-06  
-JNJ          Gro: -0.15, Low: 1.06, Mar: 0.17, Mom: -0.15, Qua: 0.42, Si  2025-10-06  
-JPM          Gro: 0.73, Low: 0.69, Mar: 1.15, Mom: 0.80, Qua: 0.88, Siz:  2025-10-06  
-MSFT         Gro: 0.77, Low: 0.22, Mar: 0.83, Mom: 0.64, Qua: 0.58, Siz:  2025-10-06  
-NVDA         Gro: 1.56, Low: -0.41, Mar: 1.63, Mom: 1.18, Qua: 1.10, Siz  2025-10-06  
-TSLA         Gro: 1.47, Low: 0.49, Mar: 2.08, Mom: 1.24, Qua: 1.57, Siz:  2025-10-06  
-V            Gro: 0.83, Low: 1.43, Mar: 1.29, Mom: 0.62, Qua: 1.52, Siz:  2025-10-06  
-VNQ          Gro: 0.09, Low: 1.00, Mar: 0.52, Mom: 0.14, Qua: 0.56, Siz:  2025-10-06  
-VTI          Gro: 0.71, Low: 0.59, Mar: 1.03, Mom: 0.58, Qua: 0.88, Siz:  2025-10-06  
-VTIAX        Gro: 0.47, Low: 0.51, Mar: 0.77, Mom: 0.37, Qua: 0.69, Siz:  2025-10-06  
-
-================================================================================
-🔗 CORRELATION ANALYSIS: Demo Individual Investor Portfolio
-================================================================================
-Calculation Date: 2025-10-07 02:19:50.060363+00:00
-Duration Days: 90
-Positions Included: 16
-
-Top 20 Strongest Correlations (by absolute value):
-SYMBOL 1     SYMBOL 2     CORRELATION  DATA POINTS 
+SUMMARY:
 --------------------------------------------------------------------------------
-AMZN         AMZN         1.0000       62          
-FCNTX        FCNTX        1.0000       62          
-V            V            1.0000       62          
-MSFT         MSFT         1.0000       62          
-JPM          JPM          1.0000       62          
-VTIAX        VTIAX        1.0000       62          
-TSLA         TSLA         1.0000       62          
-NVDA         NVDA         1.0000       62          
-AAPL         AAPL         1.0000       62          
-BND          BND          1.0000       62          
-JNJ          JNJ          1.0000       62          
-GOOGL        GOOGL        1.0000       62          
-FMAGX        FMAGX        1.0000       62          
-VNQ          VNQ          1.0000       62          
-FXNAX        FXNAX        1.0000       62          
-VTI          VTI          1.0000       62          
-VTI          FCNTX        0.9952       62          
-FCNTX        VTI          0.9952       62          
-FXNAX        FCNTX        -0.9942      62          
-FCNTX        FXNAX        -0.9942      62          
-
-Correlation Clusters (1 found):
-  Core Holdings: V
-    Avg Correlation: 0.2745
+Portfolio Snapshots: 6 records
+Factor Exposures: 756 records
+Correlations: 26 calculations, 8,400 pairs
+Greeks: 0 records (DISABLED - expected 0)
+Interest Rate Betas: 0 records
+Stress Tests: 108 results
+Batch Jobs: 0 execution records
 
 ================================================================================
-⚠️  STRESS TEST RESULTS: Demo Individual Investor Portfolio
+OVERALL ASSESSMENT:
 ================================================================================
-Total stress test results: 18
-
-Stress Test Scenarios (latest results):
-
-SCENARIO                         DIRECT P&L      CORR P&L        DATE        
---------------------------------------------------------------------------------
-2008 Financial Crisis Replay     $-293748.36     $-480011.40     2025-10-06  
-COVID-19 Crash Replay (March 2   $-205499.55     $-480011.40     2025-10-06  
-Dot-Com Crash Replay (2000-200   $-377110.34     $-480011.40     2025-10-06  
-Flight to Quality 12%            $20252.21       $72873.78       2025-10-06  
-Growth Rally 15%                 $68231.17       $202477.43      2025-10-06  
-Liquidity Crisis                 $-103325.27     $-353291.46     2025-10-06  
-Market Crash 35%                 $-141332.42     $-372010.85     2025-10-06  
-Market Decline 10%               $-40380.69      $-106288.81     2025-10-06  
-Market Rally 10%                 $40380.69       $106288.81      2025-10-06  
-Market Rally 25%                 $100951.73      $265722.04      2025-10-06  
-Rate Spike 300bp                 $0.00           $0.00           2025-10-06  
-Rates Down 100bp                 $0.00           $0.00           2025-10-06  
-Rates Down 25bp                  $0.00           $0.00           2025-10-06  
-Rates Up 100bp                   $0.00           $0.00           2025-10-06  
-Rates Up 25bp                    $0.00           $0.00           2025-10-06  
-Small Cap Outperformance 10%     $14406.60       $84320.45       2025-10-06  
-VIX Spike 150%                   $-109496.44     $-337696.65     2025-10-06  
-Value Rotation 20%               $19782.43       $84544.39       2025-10-06  
-
-📐 OPTIONS GREEKS: No data found (expected - disabled)
-
-
-================================================================================
-OVERALL SUMMARY
-================================================================================
-Portfolios Audited: 3
-
-
-Demo Hedge Fund Style Investor Portfolio:
-  snapshots: ❌ No data
-  factor_exposures: ❌ No data
-  correlations: ❌ No data
-  stress_tests: ❌ No data
-  greeks: ❌ No data (expected)
-
-Demo High Net Worth Investor Portfolio:
-  snapshots: ❌ No data
-  factor_exposures: ❌ No data
-  correlations: ❌ No data
-  stress_tests: ❌ No data
-  greeks: ❌ No data (expected)
-
-Demo Individual Investor Portfolio:
-  snapshots: ✅ Data found
-  factor_exposures: ✅ Data found
-  correlations: ✅ Data found
-  stress_tests: ✅ Data found
-  greeks: ❌ No data (expected)
+BATCH CALCULATIONS ARE RUNNING
+All critical calculation engines have produced results.

@@ -1,39 +1,43 @@
 {
-  "portfolios_audited": 3,
-  "timestamp": "2025-10-06 22:15:27",
-  "details_by_portfolio": {
-    "Demo Hedge Fund Style Investor Portfolio": {
-      "name": "Demo Hedge Fund Style Investor Portfolio",
-      "id": "fcd71196-e93e-f000-5a74-31a9eead3118",
-      "engines": {
-        "snapshots": "\u274c No data",
-        "factor_exposures": "\u274c No data",
-        "correlations": "\u274c No data",
-        "stress_tests": "\u274c No data",
-        "greeks": "\u274c No data (expected)"
-      }
+  "portfolio_snapshots": {
+    "total_snapshots": 6,
+    "portfolios_with_snapshots": 3,
+    "date_range": "2025-10-06 to 2025-10-07"
+  },
+  "factor_exposures": {
+    "total_exposures": 756,
+    "positions_with_factors": 54,
+    "quality_flags": {
+      "full_history": 756
     },
-    "Demo High Net Worth Investor Portfolio": {
-      "name": "Demo High Net Worth Investor Portfolio",
-      "id": "e23ab931-a033-edfe-ed4f-9d02474780b4",
-      "engines": {
-        "snapshots": "\u274c No data",
-        "factor_exposures": "\u274c No data",
-        "correlations": "\u274c No data",
-        "stress_tests": "\u274c No data",
-        "greeks": "\u274c No data (expected)"
-      }
-    },
-    "Demo Individual Investor Portfolio": {
-      "name": "Demo Individual Investor Portfolio",
-      "id": "1d8ddd95-3b45-0ac5-35bf-cf81af94a5fe",
-      "engines": {
-        "snapshots": "\u2705 Data found",
-        "factor_exposures": "\u2705 Data found",
-        "correlations": "\u2705 Data found",
-        "stress_tests": "\u2705 Data found",
-        "greeks": "\u274c No data (expected)"
-      }
-    }
+    "total_active_positions": 75,
+    "missing_factors": 21
+  },
+  "correlations": {
+    "calculation_records": 26,
+    "pairwise_correlations": 8400,
+    "clusters": 26
+  },
+  "greeks": {
+    "total_greeks": 0,
+    "positions_with_greeks": 0
+  },
+  "interest_rate_betas": {
+    "total_ir_betas": 0,
+    "positions_with_ir_beta": 0
+  },
+  "stress_tests": {
+    "total_results": 108,
+    "portfolios_tested": 3
+  },
+  "batch_jobs": {
+    "total_jobs": 0,
+    "successful_jobs": 0,
+    "failed_jobs": 0
+  },
+  "metadata": {
+    "timestamp": "2025-10-07 13:21:49",
+    "assessment": "BATCH CALCULATIONS ARE RUNNING",
+    "assessment_detail": "All critical calculation engines have produced results."
   }
 }
