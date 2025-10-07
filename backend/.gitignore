@@ -96,4 +96,6 @@ monitoring_screenshots/
 test_screenshots/
 cookies.txt
 *.cache
-railway_audit_results.json
+
+# Railway audit files (temporary audit results)
+railway_*_audit_*
