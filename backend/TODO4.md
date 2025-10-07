@@ -4750,3 +4750,387 @@ See `_docs/requirements/PHASE_9_RAILWAY_COMPANY_PROFILE_INTEGRATION.md` Section 
 ---
 
 **End of Phase 9.0 Planning**
+
+---
+
+## Phase 10.0: Railway Cron and Batch Orchestrator Improvements
+
+**Status**: 🔄 Planning
+**Start Date**: October 7, 2025
+**Target Completion**: TBD
+**Goal**: Fix critical reliability issues in Railway daily batch job
+
+**Detailed Requirements**: See section below
+
+---
+
+## 10.0 Overview
+
+Address two critical reliability issues discovered in the Railway cron job implementation:
+1. **HIGH-RISK**: Market data duplicated 4x (1 upfront + 3 per-portfolio syncs)
+2. **HIGH-RISK**: Silent failures (orchestrator job failures not detected by cron)
+
+Plus two secondary improvements:
+3. **MEDIUM**: Add cache validation to avoid redundant API calls
+4. **LOW**: Enhance completion summary with market data sync stats
+
+**Why This Phase**:
+- Current cron performs full market data sync 4x per run (slow, rate-limit prone)
+- Portfolio failures silently marked as success if orchestrator doesn't raise exception
+- Operators lack visibility into market data sync results (success/failure counts)
+- Wasted API quota and time due to duplicate syncs
+
+**Impact**:
+- Reduces job duration from ~6-7 minutes to ~2-3 minutes
+- Prevents silent failures from going undetected
+- Better ops visibility and troubleshooting
+- More reliable Railway cron execution
+
+---
+
+## 10.1 Implementation Tasks
+
+### Phase 10.1: Fix Market Data Duplication (HIGH-RISK)
+
+**Current Behavior**:
+```
+Cron STEP 1: sync_market_data()                    # 1x sync
+Cron STEP 2: For each portfolio (3 total):
+  └─ orchestrator.run_daily_batch_sequence()
+     └─ Job 1: _update_market_data()
+        └─ sync_market_data()                      # 3x sync (once per portfolio)
+
+Total: 4x full market data sync
+```
+
+**Two Solution Options**:
+
+#### **Option A: Remove Cron STEP 1 (Recommended)**
+
+1. [ ] **Remove upfront market data sync from cron**
+   - [ ] Delete `sync_market_data_step()` function from `railway_daily_batch.py` (lines 78-110)
+   - [ ] Remove Step 1 call from `main()` (line 257)
+   - [ ] Update `log_completion_summary()` to not require `market_data_result` parameter
+   - [ ] Update Step 2 comment to note market data synced per-portfolio
+
+   **Pros**:
+   - Simplest fix (delete code)
+   - Market data still synced 3x (once per portfolio at orchestrator start)
+   - No risk of stale data between Step 1 and Step 2
+
+   **Cons**:
+   - No early failure detection if market data APIs are down
+   - Still syncs 3x instead of 1x (one per portfolio)
+
+#### **Option B: Skip Orchestrator Market Data Job When Already Done**
+
+2. [ ] **Add skip_market_data flag to orchestrator**
+   - [ ] Add optional `skip_market_data: bool = False` parameter to `run_daily_batch_sequence()`
+   - [ ] Modify `run_daily_batch_sequence()` to skip market_data_update job when flag=True
+   - [ ] Update cron to pass `skip_market_data=True` when calling orchestrator (line 152)
+   - [ ] Keep upfront sync for early failure detection
+
+   **Pros**:
+   - Early failure detection (fails fast if APIs down)
+   - Only 1x market data sync per job run
+   - Maintains existing orchestrator job structure
+
+   **Cons**:
+   - More complex implementation
+   - Requires orchestrator API change
+   - Risk of stale data if upfront sync completes but portfolios run much later
+
+**DECISION REQUIRED**: Which option to implement?
+
+---
+
+### Phase 10.2: Fix Silent Failures (HIGH-RISK)
+
+**Current Behavior**:
+```python
+# Cron marks portfolio as success if orchestrator doesn't raise:
+batch_result = await batch_orchestrator_v2.run_daily_batch_sequence(portfolio_id=...)
+success_count += 1  # Always increments, even if jobs failed
+```
+
+**Problem**: Orchestrator returns `[{status: 'failed', ...}, ...]` without raising, so cron never detects failures.
+
+3. [ ] **Add post-run failure detection to cron**
+   - [ ] After orchestrator call (line 154), inspect `batch_result` list
+   - [ ] Check each job dict for `status == 'failed'`
+   - [ ] Distinguish critical vs non-critical failures:
+     - Critical: `market_data_update`, `portfolio_aggregation`
+     - Non-critical: other engines (warn but don't fail portfolio)
+   - [ ] Only increment `success_count` if no critical failures
+   - [ ] Increment `fail_count` and log errors if critical failures found
+
+   **Implementation Sketch**:
+   ```python
+   batch_result = await batch_orchestrator_v2.run_daily_batch_sequence(
+       portfolio_id=str(portfolio.id)
+   )
+
+   # Check for failures in batch result
+   critical_jobs = ['market_data_update', 'portfolio_aggregation']
+   failed_jobs = [j for j in batch_result if j.get('status') == 'failed']
+   critical_failures = [j for j in failed_jobs if j['job_name'] in critical_jobs]
+
+   if critical_failures:
+       fail_count += 1
+       logger.error(f"❌ Critical job failures for {portfolio.name}: {[j['job_name'] for j in critical_failures]}")
+       results.append({...status: "failed"...})
+   else:
+       success_count += 1
+       if failed_jobs:
+           logger.warning(f"⚠️ Non-critical job failures for {portfolio.name}: {[j['job_name'] for j in failed_jobs]}")
+       logger.info(f"✅ Batch complete for {portfolio.name}")
+       results.append({...status: "success"...})
+   ```
+
+4. [ ] **Enhance completion summary with job-level details**
+   - [ ] Add failed job counts to portfolio result dicts
+   - [ ] Add failed job names to error messages
+   - [ ] Include job-level stats in final summary:
+     ```
+     Portfolios: 2 succeeded, 1 failed
+       - Failed jobs: market_data_update (portfolio-123), factor_analysis (portfolio-456)
+     ```
+
+---
+
+### Phase 10.3: Add Cache Validation (MEDIUM - Optional)
+
+**Current Behavior**: Even with Option B above, orchestrator's `_update_market_data` will call `sync_market_data()` again if upfront sync was skipped.
+
+5. [ ] **Add "already fresh" detection to sync_market_data()**
+   - [ ] Check if market data was synced recently (within last 10 minutes)
+   - [ ] Store last sync timestamp in memory or database
+   - [ ] Return early with `{status: 'cached', fresh: True}` if recent
+   - [ ] Fall through to full sync if stale or no timestamp found
+
+   **Implementation Location**: `app/batch/market_data_sync.py`
+
+   **Benefits**:
+   - Prevents duplicate work if multiple processes call sync
+   - Useful for local development (repeated test runs)
+   - Provides safety net if duplication logic has bugs
+
+   **Defer?**: Can implement in Phase 11 if Phase 10.1/10.2 are sufficient
+
+---
+
+### Phase 10.4: Enhance Completion Summary (LOW)
+
+6. [ ] **Add market data sync stats to completion summary**
+   - [ ] Update `sync_market_data()` to return detailed stats dict:
+     ```python
+     {
+         'status': 'success',
+         'symbols_attempted': 75,
+         'symbols_successful': 73,
+         'symbols_failed': 2,
+         'failed_symbols': ['BRK.B', 'XYZ'],
+         'duration_seconds': 45.2
+     }
+     ```
+   - [ ] Update cron `sync_market_data_step()` to capture and return these stats
+   - [ ] Update `log_completion_summary()` to display these stats:
+     ```
+     Market Data Sync: success (73/75 symbols, 45.2s)
+       Failed symbols: BRK.B, XYZ
+     ```
+
+---
+
+## 10.2 Testing Strategy
+
+### Local Testing
+
+7. [ ] **Test Option A: Remove Cron STEP 1** (if chosen)
+   ```bash
+   uv run python scripts/automation/railway_daily_batch.py --force
+   # Expected:
+   # - No STEP 1 logged
+   # - STEP 2 shows 3 portfolios
+   # - Each portfolio logs market data sync at start of orchestrator
+   # - Total duration reduced to ~2-3 minutes (from ~6-7 min)
+   ```
+
+8. [ ] **Test Option B: Skip Flag** (if chosen)
+   ```bash
+   uv run python scripts/automation/railway_daily_batch.py --force
+   # Expected:
+   # - STEP 1 runs market data sync (✅)
+   # - STEP 2 shows 3 portfolios
+   # - Orchestrator SKIPS market_data_update job for each portfolio
+   # - Total duration reduced to ~2-3 minutes
+   ```
+
+9. [ ] **Test silent failure detection**
+   - [ ] Temporarily break a calculation engine (e.g., raise Exception in _calculate_factors)
+   - [ ] Run cron with `--force`
+   - [ ] Verify portfolio marked as FAILED (not success)
+   - [ ] Verify error logged with job name
+   - [ ] Verify exit code 1 (job failure)
+
+10. [ ] **Test non-critical failure handling**
+    - [ ] Break non-critical engine (e.g., stress_testing)
+    - [ ] Run cron with `--force`
+    - [ ] Verify portfolio marked as SUCCESS (with warning)
+    - [ ] Verify warning logged but portfolio continues
+    - [ ] Verify exit code 0 (non-critical failure doesn't fail job)
+
+### Railway Testing
+
+11. [ ] **Manual Railway trigger with modified code**
+    ```bash
+    railway ssh --service sigmasight-backend-cron "uv run python scripts/automation/railway_daily_batch.py --force"
+    ```
+    - [ ] Monitor Railway logs for reduced sync count
+    - [ ] Verify job duration reduced (~2-3 min vs ~6-7 min)
+    - [ ] Verify all portfolios complete successfully
+    - [ ] Verify completion summary shows correct stats
+
+12. [ ] **Production dry run on next trading day**
+    - [ ] Let Railway cron run automatically at 11:30 PM UTC
+    - [ ] Check Railway deployment logs next morning
+    - [ ] Verify reduced job duration
+    - [ ] Verify all portfolios completed
+    - [ ] Verify no duplicate market data sync logged
+
+---
+
+## 10.3 Deployment Plan
+
+13. [ ] **Commit changes to feature branch**
+    ```bash
+    git add scripts/automation/railway_daily_batch.py
+    git add app/batch/batch_orchestrator_v2.py  # If Option B chosen
+    git add app/batch/market_data_sync.py       # If cache validation added
+    git add TODO4.md
+    git commit -m "fix(phase10): eliminate market data duplication and silent failures in Railway cron"
+    ```
+
+14. [ ] **Push to GitHub and verify Railway deployment**
+    ```bash
+    git push origin main
+    ```
+    - [ ] Check Railway dashboard for deployment success
+    - [ ] Verify cron service status
+
+15. [ ] **Manual test on Railway**
+    ```bash
+    railway ssh --service sigmasight-backend-cron "uv run python scripts/automation/railway_daily_batch.py --force"
+    ```
+    - [ ] Verify reduced job duration
+    - [ ] Verify all portfolios succeed
+    - [ ] Verify proper error handling
+
+16. [ ] **Monitor first automated run**
+    - [ ] Wait for next weekday 11:30 PM UTC
+    - [ ] Check Railway logs following morning
+    - [ ] Verify reduced duration (~2-3 min vs ~6-7 min)
+    - [ ] Verify successful completion
+    - [ ] Verify proper failure detection if any engines fail
+
+---
+
+## 10.4 Success Metrics
+
+### Performance Metrics
+- [ ] Job duration reduced from ~6-7 minutes to ~2-3 minutes
+- [ ] Market data sync count reduced from 4x to 1x
+- [ ] No rate limit errors from market data providers
+- [ ] All portfolios complete within reasonable time (<5 min total)
+
+### Reliability Metrics
+- [ ] Zero silent failures (all failures detected and logged)
+- [ ] Critical failures properly fail portfolio and job (exit code 1)
+- [ ] Non-critical failures logged but don't stop processing
+- [ ] 100% of job failures visible in Railway logs
+
+### Operational Metrics
+- [ ] Completion summary shows detailed market data stats
+- [ ] Failed jobs clearly identified in logs with job names
+- [ ] Exit codes correctly reflect job success/failure
+- [ ] Operators can diagnose issues from logs alone
+
+---
+
+## 10.5 Rollback Strategy
+
+### If Job Breaks After Deployment
+
+**Option 1: Quick Revert**
+```bash
+git revert HEAD
+git push origin main
+```
+
+**Option 2: Railway Rollback**
+- Railway Dashboard → sigmasight-backend-cron → Deployments
+- Find previous working deployment → Redeploy
+
+**Option 3: Emergency Fix**
+```bash
+railway ssh --service sigmasight-backend-cron
+# Manually edit railway_daily_batch.py to restore previous behavior
+# Or restart with previous git commit
+```
+
+### If Silent Failures Persist
+
+- Review orchestrator return structure (might have changed)
+- Add debug logging to inspect `batch_result` structure
+- Verify critical job names match orchestrator job sequence
+
+---
+
+## 10.6 Dependencies & Blockers
+
+### Dependencies
+- ✅ Railway cron job working (proven in production)
+- ✅ Batch orchestrator returns job results as list of dicts
+- ✅ Market data sync callable independently
+
+### Blockers
+None identified.
+
+---
+
+## 10.7 Related Work
+
+### Upstream
+- Phase 9: Railway company profile integration (PLANNED)
+- Railway batch automation setup (COMPLETED)
+
+### Downstream
+- Phase 11: Cache validation improvements (optional)
+- Phase 12: Intelligent sync scheduling based on market hours
+- Future: Distributed locking for multi-instance cron deployments
+
+---
+
+## 10.8 Code Review Feedback Addressed
+
+This phase directly addresses agent code review feedback:
+
+**High-Risk Finding #1: Duplicate Market Data Syncs**
+- Feedback: "loops portfolios and for each one calls batch_orchestrator_v2.run_daily_batch_sequence(portfolio_id=…). Inside the orchestrator, the very first job in the sequence is market_data_update, which again runs sync_market_data() for all symbols"
+- Solution: Phase 10.1 tasks (Option A or B)
+
+**High-Risk Finding #2: Silent Failures**
+- Feedback: "The cron reports every portfolio as a success as long as the orchestrator call doesn't raise. batch_orchestrator_v2.run_daily_batch_sequence() returns a list of per‑job dicts where some entries can carry status: 'failed' without throwing"
+- Solution: Phase 10.2 tasks (failure detection)
+
+**Secondary Concern #1: Redundant API Calls**
+- Feedback: "even a single portfolio run will redo the same API calls you just completed in Step 1"
+- Solution: Phase 10.3 tasks (cache validation)
+
+**Secondary Concern #2: Completion Summary**
+- Feedback: "The cron's completion summary only shows elapsed seconds; returning the stats dict from sync_market_data() or flagging 'already fresh' would give ops context"
+- Solution: Phase 10.4 tasks (enhanced summary)
+
+---
+
+**End of Phase 10.0 Planning**
