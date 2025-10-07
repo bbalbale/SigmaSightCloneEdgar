@@ -5,9 +5,13 @@ Phase 8.1 Task 11a: One-time backfill script for Railway database
 
 This script:
 1. Identifies positions with NULL investment_class
-2. Applies the determine_investment_class() heuristic
+2. Applies determine_investment_class() from app.db.seed_demo_portfolios
 3. Updates investment_class and investment_subtype fields
 4. Reports results with position counts and classifications
+
+IMPORTANT: Reuses classification logic from seed_demo_portfolios.py to ensure
+consistency across seeding and backfill operations. Any heuristic updates should
+be made in seed_demo_portfolios.py and will automatically apply here.
 
 Usage:
     # Dry run (no changes)
@@ -34,67 +38,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_async_session
 from app.models.positions import Position
 from app.core.logging import get_logger
+from app.db.seed_demo_portfolios import determine_investment_class, determine_investment_subtype
 
 logger = get_logger(__name__)
-
-
-def determine_investment_class(symbol: str) -> str:
-    """
-    Determine investment class from symbol (same logic as seed_demo_portfolios.py)
-
-    Returns:
-        'OPTIONS' for options (symbols with expiry/strike pattern)
-        'PRIVATE' for private investment funds
-        'PUBLIC' for regular stocks and ETFs
-    """
-    # Check if it's an option (has expiry date and strike price pattern)
-    if len(symbol) > 10 and any(char in symbol for char in ['C', 'P']):
-        return 'OPTIONS'
-
-    # Check for private investment patterns (Phase 8.1 enhanced heuristic)
-    private_patterns = [
-        'PRIVATE', 'FUND', '_VC_', '_PE_', 'REIT', 'SIGMA',  # Original
-        'HOME_', 'RENTAL_', 'ART_', 'CRYPTO_', 'TREASURY', 'MONEY_MARKET'  # Phase 8.1
-    ]
-    if any(pattern in symbol.upper() for pattern in private_patterns):
-        return 'PRIVATE'
-
-    # Everything else is public equity (stocks, ETFs, mutual funds)
-    return 'PUBLIC'
-
-
-def determine_investment_subtype(symbol: str) -> str:
-    """
-    Determine investment subtype for PRIVATE positions
-    """
-    symbol_upper = symbol.upper()
-
-    # Private equity patterns
-    if any(pattern in symbol_upper for pattern in ['_PE_', 'PRIVATE_EQUITY', 'BX_', 'KKR_']):
-        return 'PRIVATE_EQUITY'
-
-    # Venture capital patterns
-    if any(pattern in symbol_upper for pattern in ['_VC_', 'VENTURE', 'A16Z_', 'SEQUOIA_']):
-        return 'VENTURE_CAPITAL'
-
-    # Private REIT patterns
-    if 'REIT' in symbol_upper and any(pattern in symbol_upper for pattern in ['PRIVATE', 'STARWOOD']):
-        return 'PRIVATE_REIT'
-
-    # Hedge fund patterns
-    if 'FUND' in symbol_upper and any(pattern in symbol_upper for pattern in ['SIGMA', 'CITADEL', 'RENAISSANCE']):
-        return 'HEDGE_FUND'
-
-    # Real estate patterns
-    if any(pattern in symbol_upper for pattern in ['HOME_', 'RENTAL_', 'RE_', 'PROPERTY']):
-        return 'PRIVATE_REAL_ESTATE'
-
-    # Alternative assets
-    if any(pattern in symbol_upper for pattern in ['CRYPTO_', 'ART_', 'TREASURY', 'MONEY_MARKET', 'COLLECTIBLE']):
-        return 'OTHER_ALTERNATIVE'
-
-    # Default for PRIVATE without specific subtype
-    return 'OTHER_PRIVATE'
 
 
 async def backfill_investment_class(
