@@ -3647,9 +3647,9 @@ ORDER BY p.name;
 ---
 ---
 
-# Phase 2.0: Insufficient Market Data Blocking Portfolio Calculations
+# Phase 8.0: Insufficient Market Data Blocking Portfolio Calculations
 
-**Phase**: 2.0 - Batch Processing Data Handling
+**Phase**: 8.0 - Batch Processing Data Handling
 **Status**: 🔴 **NOT STARTED**
 **Identified**: October 6, 2025
 **Priority**: CRITICAL
@@ -3657,7 +3657,7 @@ ORDER BY p.name;
 
 ---
 
-## Overview
+## 8.1 Overview
 
 Alternative asset positions (private equity, crypto, collectibles, etc.) with insufficient historical market data are blocking entire portfolio calculations. When portfolios contain multiple positions with <2 days of price data, the factor analysis engine raises `ValueError`, causing cascading failures in:
 - Factor exposures (zero results)
@@ -3669,9 +3669,9 @@ Alternative asset positions (private equity, crypto, collectibles, etc.) with in
 
 ---
 
-## Problem Statement
+## 8.2 Problem Statement
 
-### Observed Behavior (Railway Production - October 6, 2025)
+### 8.2.1 Observed Behavior (Railway Production - October 6, 2025)
 
 **Portfolio Status**:
 1. ✅ **Demo Individual Investor Portfolio** - Full results (snapshots, factors, correlations, stress tests)
@@ -3696,11 +3696,11 @@ Alternative asset positions (private equity, crypto, collectibles, etc.) with in
 
 ---
 
-## Technical Diagnosis
+## 8.3 Technical Diagnosis
 
-### 2.1 Code Flow Analysis
+### 8.3.1 Code Flow Analysis
 
-#### Entry Point: Batch Orchestrator
+#### 8.3.1.1 Entry Point: Batch Orchestrator
 **File**: `app/batch/batch_orchestrator_v2.py`
 **Line**: 600-604
 
@@ -3716,7 +3716,7 @@ async def _calculate_factors(self, db: AsyncSession, portfolio_id: str):
 
 ---
 
-#### Critical Path 1: Position Returns Calculation
+#### 8.3.1.2 Critical Path 1: Position Returns Calculation
 **File**: `app/calculations/factors.py`
 **Lines**: 170-216 (`calculate_position_returns`)
 
@@ -3737,7 +3737,7 @@ if not position_returns:
 
 ---
 
-#### Critical Path 2: Factor Betas Calculation
+#### 8.3.1.3 Critical Path 2: Factor Betas Calculation
 **File**: `app/calculations/factors.py`
 **Lines**: 219-272 (`calculate_factor_betas_hybrid`)
 
@@ -3761,7 +3761,7 @@ if position_returns.empty:
 
 ---
 
-#### Critical Path 3: Regression Requirements
+#### 8.3.1.4 Critical Path 3: Regression Requirements
 **File**: `app/calculations/factors.py`
 **Lines**: 274-281
 
@@ -3778,7 +3778,7 @@ if len(common_dates) < MIN_REGRESSION_DAYS:
 
 ---
 
-#### Cascading Failure 1: Snapshots Not Created
+#### 8.3.1.5 Cascading Failure 1: Snapshots Not Created
 **File**: `app/calculations/snapshots.py`
 **Lines**: 47-53
 
@@ -3797,7 +3797,7 @@ if not trading_calendar.is_trading_day(calculation_date):
 
 ---
 
-#### Cascading Failure 2: Stress Tests Require Factor Exposures
+#### 8.3.1.6 Cascading Failure 2: Stress Tests Require Factor Exposures
 **File**: `app/calculations/stress_testing.py`
 **Lines**: 288-299
 
@@ -3821,7 +3821,7 @@ if not factor_exposures:
 
 ---
 
-### 2.2 Alternative Asset Data Characteristics
+### 8.3.2 Alternative Asset Data Characteristics
 
 **Asset Types Affected**:
 - Private Equity (TWO_SIGMA_FUND, A16Z_VC_FUND, PRIVATE_EQUITY_STARTUP_A)
@@ -3842,15 +3842,15 @@ if not factor_exposures:
 
 ---
 
-## Root Cause Analysis
+## 8.4 Root Cause Analysis
 
-### Primary Issue
+### 8.4.1 Primary Issue
 **Factor analysis requires minimum 2 days of data per position**, but alternative assets only have 1 day (entry_price). The calculation engine:
 1. Skips positions with <2 days (line 189-191)
 2. Returns empty DataFrame when all positions skipped (line 207-209)
 3. Raises ValueError blocking entire portfolio (line 271-272)
 
-### Why Individual Portfolio Succeeds
+### 8.4.2 Why Individual Portfolio Succeeds
 **Demo Individual Investor Portfolio** contains primarily:
 - Public equities (AAPL, GOOGL, MSFT, NVDA, TSLA, AMZN, JPM, V, JNJ)
 - ETFs (VTI, VTIAX, BND, VNQ)
@@ -3859,7 +3859,7 @@ if not factor_exposures:
 
 **All have extensive historical data** → factor analysis succeeds → cascading calculations succeed.
 
-### Why HNW and Hedge Fund Portfolios Fail
+### 8.4.3 Why HNW and Hedge Fund Portfolios Fail
 **HNW Portfolio** (17 positions):
 - 8 alternative assets with 1-day data
 - 9 public securities with full data
@@ -3874,9 +3874,9 @@ if not factor_exposures:
 
 ---
 
-## Proposed Solutions
+## 8.5 Proposed Solutions
 
-### Solution 1: Graceful Degradation (Recommended)
+### 8.5.1 Solution 1: Graceful Degradation (Recommended)
 **Approach**: Allow factor analysis to proceed with available positions only.
 
 **Changes Required**:
@@ -3948,7 +3948,7 @@ if not factor_exposures:
 
 ---
 
-### Solution 2: Alternative Asset Pricing Strategy
+### 8.5.2 Solution 2: Alternative Asset Pricing Strategy
 **Approach**: Generate synthetic historical data for alternative assets.
 
 **Implementation Options**:
@@ -3979,7 +3979,7 @@ if not factor_exposures:
 
 ---
 
-### Solution 3: Position Type Flagging
+### 8.5.3 Solution 3: Position Type Flagging
 **Approach**: Flag alternative assets and exclude from factor analysis by default.
 
 **Changes Required**:
@@ -3999,7 +3999,7 @@ if not factor_exposures:
 
 ---
 
-### Solution 4: Minimum Position Threshold
+### 8.5.4 Solution 4: Minimum Position Threshold
 **Approach**: Require minimum % of positions to have data before calculating factors.
 
 **Implementation**:
@@ -4023,9 +4023,9 @@ if data_coverage_pct < MIN_DATA_COVERAGE:
 
 ---
 
-## Recommended Implementation Plan
+## 8.6 Recommended Implementation Plan
 
-### Phase 2.1: Immediate Fix (Graceful Degradation)
+### 8.6.1 Phase 8.1: Immediate Fix (Graceful Degradation)
 **Goal**: Unblock 2 failing portfolios with minimal code changes
 **Priority**: CRITICAL
 **Estimated Effort**: 4-6 hours
@@ -4040,7 +4040,7 @@ if data_coverage_pct < MIN_DATA_COVERAGE:
 
 ---
 
-### Phase 2.2: Alternative Asset Proxy Pricing (Medium-term)
+### 8.6.2 Phase 8.2: Alternative Asset Proxy Pricing (Medium-term)
 **Goal**: Generate realistic historical data for alternative assets
 **Priority**: HIGH
 **Estimated Effort**: 12-16 hours
@@ -4056,7 +4056,7 @@ if data_coverage_pct < MIN_DATA_COVERAGE:
 
 ---
 
-### Phase 2.3: Position Type Flagging (Long-term)
+### 8.6.3 Phase 8.3: Position Type Flagging (Long-term)
 **Goal**: Explicit handling of alternative vs public assets
 **Priority**: MEDIUM
 **Estimated Effort**: 8-10 hours
@@ -4071,7 +4071,7 @@ if data_coverage_pct < MIN_DATA_COVERAGE:
 
 ---
 
-### Phase 2.4: Manual Valuation Upload (Future)
+### 8.6.4 Phase 8.4: Manual Valuation Upload (Future)
 **Goal**: Allow users to provide custom valuations
 **Priority**: LOW
 **Estimated Effort**: 20-24 hours
@@ -4086,9 +4086,9 @@ if data_coverage_pct < MIN_DATA_COVERAGE:
 
 ---
 
-## Testing Strategy
+## 8.7 Testing Strategy
 
-### Test Case 1: Portfolio with All Alternative Assets
+### 8.7.1 Test Case 1: Portfolio with All Alternative Assets
 **Setup**:
 - Create test portfolio with 10 alternative asset positions
 - No historical data available
@@ -4101,7 +4101,7 @@ if data_coverage_pct < MIN_DATA_COVERAGE:
 
 ---
 
-### Test Case 2: Portfolio with Mixed Assets (50/50)
+### 8.7.2 Test Case 2: Portfolio with Mixed Assets (50/50)
 **Setup**:
 - 5 public equities with full data
 - 5 alternative assets with 1-day data
@@ -4114,7 +4114,7 @@ if data_coverage_pct < MIN_DATA_COVERAGE:
 
 ---
 
-### Test Case 3: Portfolio with Alternative Assets + Proxy Data
+### 8.7.3 Test Case 3: Portfolio with Alternative Assets + Proxy Data
 **Setup**:
 - 5 alternative assets with proxy-generated historical data
 - 5 public equities with real data
@@ -4127,34 +4127,34 @@ if data_coverage_pct < MIN_DATA_COVERAGE:
 
 ---
 
-## Success Metrics
+## 8.8 Success Metrics
 
-### Phase 2.1 (Immediate Fix)
+### 8.8.1 Phase 8.1 (Immediate Fix)
 - [ ] All 3 portfolios produce calculation results on Railway
 - [ ] Zero `ValueError: No position returns data available` errors
 - [ ] Snapshots created for all portfolios
 - [ ] Data quality flags clearly indicate partial/no data scenarios
 
-### Phase 2.2 (Proxy Pricing)
+### 8.8.2 Phase 8.2 (Proxy Pricing)
 - [ ] Alternative assets have 90+ days of historical data
 - [ ] Factor analysis runs on all positions
 - [ ] Correlation analysis includes alternative assets
 - [ ] Stress tests reflect alternative asset exposures
 
-### Phase 2.3 (Position Flagging)
+### 8.8.3 Phase 8.3 (Position Flagging)
 - [ ] Alternative assets clearly marked in database
 - [ ] Factor analysis behavior documented and predictable
 - [ ] API endpoints support filtering by asset type
 
 ---
 
-## Related Work
+## 8.9 Related Work
 
-### Dependencies
+### 8.9.1 Dependencies
 - Market data audit (completed - October 6, 2025)
 - Batch orchestrator UUID fixes (in progress - TODO4.md Section 7)
 
-### Future Enhancements
+### 8.9.2 Future Enhancements
 - Real-time valuation tracking for alternative assets
 - Appraisal workflow integration
 - NAV calculation for fund positions
@@ -4162,7 +4162,9 @@ if data_coverage_pct < MIN_DATA_COVERAGE:
 
 ---
 
-## Documentation Updates Required
+## 8.10 Documentation Updates Required
+
+### 8.10.1 Required Documentation Changes
 
 1. **Update `_guides/BACKEND_DAILY_COMPLETE_WORKFLOW_GUIDE.md`**
    - Document alternative asset limitations
@@ -4183,4 +4185,4 @@ if data_coverage_pct < MIN_DATA_COVERAGE:
 
 ---
 
-**End of Phase 2.0 Documentation**
+**End of Phase 8.0 Documentation**
