@@ -3643,3 +3643,544 @@ ORDER BY p.name;
 **Priority**: High (blocking batch orchestrator functionality)
 **Estimated Effort**: 2-3 hours (diagnosis + fix)
 
+---
+---
+---
+
+# Phase 2.0: Insufficient Market Data Blocking Portfolio Calculations
+
+**Phase**: 2.0 - Batch Processing Data Handling
+**Status**: 🔴 **NOT STARTED**
+**Identified**: October 6, 2025
+**Priority**: CRITICAL
+**Impact**: 2 of 3 portfolios fail to generate calculation results on Railway production
+
+---
+
+## Overview
+
+Alternative asset positions (private equity, crypto, collectibles, etc.) with insufficient historical market data are blocking entire portfolio calculations. When portfolios contain multiple positions with <2 days of price data, the factor analysis engine raises `ValueError`, causing cascading failures in:
+- Factor exposures (zero results)
+- Portfolio snapshots (not created)
+- Stress tests (no data)
+- Correlations (no data)
+
+**Evidence**: Railway audit shows only 1 of 3 portfolios has calculation results despite successful batch runs.
+
+---
+
+## Problem Statement
+
+### Observed Behavior (Railway Production - October 6, 2025)
+
+**Portfolio Status**:
+1. ✅ **Demo Individual Investor Portfolio** - Full results (snapshots, factors, correlations, stress tests)
+2. ❌ **Demo High Net Worth Portfolio** - Zero results (no snapshots, no factors, no correlations, no stress tests)
+3. ❌ **Demo Hedge Fund Style Portfolio** - Zero results (no snapshots, no factors, no correlations, no stress tests)
+
+**Batch Output** (from Railway SSH terminal):
+```
+⚠️ Insufficient price data for position ... (CRYPTO_BTC_ETH)
+⚠️ Insufficient price data for position ... (TWO_SIGMA_FUND)
+⚠️ Insufficient price data for position ... (A16Z_VC_FUND)
+⚠️ Insufficient price data for position ... (COLLECTIBLE_RARE_WINE)
+⚠️ Insufficient price data for position ... (PRIVATE_EQUITY_STARTUP_A)
+⚠️ Insufficient price data for position ... (RE_COMMERCIAL_PROPERTY)
+[... 20+ similar warnings]
+
+❌ No position returns calculated
+❌ ValueError: No position returns data available
+```
+
+**Root Cause**: Alternative assets only have 1 day of price data (entry_price only), but factor analysis requires minimum 2 days for returns calculation (line 189 in `app/calculations/factors.py`).
+
+---
+
+## Technical Diagnosis
+
+### 2.1 Code Flow Analysis
+
+#### Entry Point: Batch Orchestrator
+**File**: `app/batch/batch_orchestrator_v2.py`
+**Line**: 600-604
+
+```python
+async def _calculate_factors(self, db: AsyncSession, portfolio_id: str):
+    """Factor analysis job"""
+    from app.calculations.factors import calculate_factor_betas_hybrid
+    portfolio_uuid = ensure_uuid(portfolio_id)
+    return await calculate_factor_betas_hybrid(db, portfolio_uuid, date.today())
+```
+
+**Issue**: No try/except handling for ValueError from factor calculation
+
+---
+
+#### Critical Path 1: Position Returns Calculation
+**File**: `app/calculations/factors.py`
+**Lines**: 170-216 (`calculate_position_returns`)
+
+**Problem Code**:
+```python
+# Line 189-191: Positions with <2 days are SKIPPED
+if len(prices) < 2:
+    logger.warning(f"Insufficient price data for position {position.id} ({symbol})")
+    continue  # ← Position never added to position_returns dict
+
+# Line 207-209: If ALL positions skipped, returns EMPTY DataFrame
+if not position_returns:
+    logger.warning("No position returns calculated")
+    return pd.DataFrame()  # ← Empty DataFrame returned
+```
+
+**Impact**: When portfolio has many alternative assets with 1-day data, position_returns becomes empty.
+
+---
+
+#### Critical Path 2: Factor Betas Calculation
+**File**: `app/calculations/factors.py`
+**Lines**: 219-272 (`calculate_factor_betas_hybrid`)
+
+**Problem Code**:
+```python
+# Line 263-269: Calls calculate_position_returns
+position_returns = await calculate_position_returns(
+    db=db,
+    portfolio_id=portfolio_id,
+    start_date=start_date,
+    end_date=end_date,
+    use_delta_adjusted=use_delta_adjusted
+)
+
+# Line 271-272: RAISES EXCEPTION if empty
+if position_returns.empty:
+    raise ValueError("No position returns data available")  # ← BLOCKS ENTIRE PORTFOLIO
+```
+
+**Impact**: ValueError propagates up to batch orchestrator, blocking all subsequent calculations.
+
+---
+
+#### Critical Path 3: Regression Requirements
+**File**: `app/calculations/factors.py`
+**Lines**: 274-281
+
+```python
+# Line 277-281: Portfolio-level data quality check
+if len(common_dates) < MIN_REGRESSION_DAYS:
+    logger.warning(f"Insufficient data: {len(common_dates)} days (minimum: {MIN_REGRESSION_DAYS})")
+    quality_flag = QUALITY_FLAG_LIMITED_HISTORY
+```
+
+**Constant**: `MIN_REGRESSION_DAYS = 30` (from `app/constants/factors.py`)
+
+**Impact**: Even if some returns calculated, <30 days flags limited history but still proceeds.
+
+---
+
+#### Cascading Failure 1: Snapshots Not Created
+**File**: `app/calculations/snapshots.py`
+**Lines**: 47-53
+
+```python
+# Line 47-53: Snapshots only on trading days
+if not trading_calendar.is_trading_day(calculation_date):
+    logger.warning(f"{calculation_date} is not a trading day, skipping snapshot")
+    return {
+        "success": False,
+        "message": f"{calculation_date} is not a trading day",
+        "snapshot": None
+    }
+```
+
+**Issue**: While snapshots don't directly depend on factors, batch orchestrator's error handling may prevent snapshot creation when factor calculation fails.
+
+---
+
+#### Cascading Failure 2: Stress Tests Require Factor Exposures
+**File**: `app/calculations/stress_testing.py`
+**Lines**: 288-299
+
+```python
+# Line 288-299: Requires factor exposures
+stmt = select(FactorExposure).where(
+    and_(
+        FactorExposure.portfolio_id == portfolio_id,
+        FactorExposure.calculation_date <= calculation_date
+    )
+).order_by(FactorExposure.calculation_date.desc()).limit(50)
+
+result = await db.execute(stmt)
+factor_exposures = result.scalars().all()
+
+if not factor_exposures:
+    raise ValueError(f"No factor exposures found for portfolio {portfolio_id}")
+```
+
+**Impact**: No factor exposures from previous step → stress tests also fail.
+
+---
+
+### 2.2 Alternative Asset Data Characteristics
+
+**Asset Types Affected**:
+- Private Equity (TWO_SIGMA_FUND, A16Z_VC_FUND, PRIVATE_EQUITY_STARTUP_A)
+- Cryptocurrency (CRYPTO_BTC_ETH, CRYPTO_PRIVATE_COIN)
+- Real Estate (RE_COMMERCIAL_PROPERTY, RE_RESIDENTIAL_PROPERTY)
+- Collectibles (COLLECTIBLE_RARE_WINE, COLLECTIBLE_ART, COLLECTIBLE_VINTAGE_CAR)
+- Structured Products (STRUCTURED_NOTE_XYZ)
+
+**Data Availability**:
+- Only `entry_price` available (from Position.entry_price)
+- No market_data_cache entries (private assets don't trade publicly)
+- API providers (FMP, Polygon, FRED) have no data for these symbols
+
+**Current Seeding Behavior** (`app/db/seed_demo_portfolios.py`):
+- Alternative assets seeded with entry_price only
+- No historical price data generated
+- Expected: These assets should be handled gracefully
+
+---
+
+## Root Cause Analysis
+
+### Primary Issue
+**Factor analysis requires minimum 2 days of data per position**, but alternative assets only have 1 day (entry_price). The calculation engine:
+1. Skips positions with <2 days (line 189-191)
+2. Returns empty DataFrame when all positions skipped (line 207-209)
+3. Raises ValueError blocking entire portfolio (line 271-272)
+
+### Why Individual Portfolio Succeeds
+**Demo Individual Investor Portfolio** contains primarily:
+- Public equities (AAPL, GOOGL, MSFT, NVDA, TSLA, AMZN, JPM, V, JNJ)
+- ETFs (VTI, VTIAX, BND, VNQ)
+- Mutual funds (FCNTX, FMAGX, FXNAX)
+- Bond funds (FXNAX, BND)
+
+**All have extensive historical data** → factor analysis succeeds → cascading calculations succeed.
+
+### Why HNW and Hedge Fund Portfolios Fail
+**HNW Portfolio** (17 positions):
+- 8 alternative assets with 1-day data
+- 9 public securities with full data
+- Ratio: 47% positions have insufficient data
+
+**Hedge Fund Portfolio** (30 positions):
+- 12 alternative assets with 1-day data
+- 18 public securities (but some are options with rate limit issues)
+- Ratio: 40% positions have insufficient data + API rate limits
+
+**Result**: Too many positions skipped → empty position_returns → ValueError.
+
+---
+
+## Proposed Solutions
+
+### Solution 1: Graceful Degradation (Recommended)
+**Approach**: Allow factor analysis to proceed with available positions only.
+
+**Changes Required**:
+1. **`calculate_position_returns()`** (lines 207-209):
+   ```python
+   # BEFORE:
+   if not position_returns:
+       logger.warning("No position returns calculated")
+       return pd.DataFrame()
+
+   # AFTER:
+   if not position_returns:
+       logger.warning("No position returns calculated - portfolio may contain only alternative assets")
+       # Return empty DataFrame is OK - handle in caller
+       return pd.DataFrame()
+   ```
+
+2. **`calculate_factor_betas_hybrid()`** (lines 271-272):
+   ```python
+   # BEFORE:
+   if position_returns.empty:
+       raise ValueError("No position returns data available")
+
+   # AFTER:
+   if position_returns.empty:
+       logger.warning("No position returns available - portfolio may contain only alternative assets")
+       # Return minimal results with quality flag
+       return {
+           'factor_betas': {},
+           'position_betas': {},
+           'data_quality': {
+               'flag': 'QUALITY_FLAG_NO_DATA',
+               'message': 'Portfolio contains no positions with sufficient price history',
+               'positions_analyzed': 0,
+               'positions_skipped': len(positions)
+           },
+           'metadata': {
+               'calculation_date': calculation_date,
+               'regression_window_days': 0,
+               'status': 'SKIPPED_INSUFFICIENT_DATA'
+           }
+       }
+   ```
+
+3. **Batch Orchestrator** - Add error handling:
+   ```python
+   async def _calculate_factors(self, db: AsyncSession, portfolio_id: str):
+       """Factor analysis job"""
+       from app.calculations.factors import calculate_factor_betas_hybrid
+       portfolio_uuid = ensure_uuid(portfolio_id)
+
+       try:
+           return await calculate_factor_betas_hybrid(db, portfolio_uuid, date.today())
+       except ValueError as e:
+           logger.warning(f"Factor calculation skipped for {portfolio_id}: {str(e)}")
+           return {
+               'status': 'SKIPPED',
+               'reason': str(e),
+               'factor_betas': {},
+               'position_betas': {}
+           }
+   ```
+
+**Benefits**:
+- Portfolios with alternative assets can proceed with partial data
+- Snapshots created with market value only (no factor exposures)
+- Stress tests gracefully skip when no factor exposures available
+- Clear data quality flags for frontend
+
+---
+
+### Solution 2: Alternative Asset Pricing Strategy
+**Approach**: Generate synthetic historical data for alternative assets.
+
+**Implementation Options**:
+
+**Option A: Flat Pricing** (Conservative)
+- Repeat entry_price for all historical dates
+- Returns = 0.0% daily (no volatility)
+- Pro: Simple, no assumptions
+- Con: Underestimates portfolio volatility
+
+**Option B: Asset Class Proxy** (Better)
+- Map alternative assets to proxy indices:
+  - Private Equity → S&P 500 (SPY) adjusted returns
+  - Crypto → Bitcoin (BTC-USD) returns
+  - Real Estate → Real Estate ETF (VNQ) returns
+  - Collectibles → Inflation index (CPI) returns
+- Apply returns to entry_price to generate historical prices
+- Pro: More realistic volatility and correlation
+- Con: Requires proxy mappings and scaling factors
+
+**Option C: Manual Data Entry**
+- Allow users to upload historical valuations for private positions
+- Store in market_data_cache with `source='USER_PROVIDED'`
+- Pro: Most accurate
+- Con: User burden, may not have data
+
+**Recommendation**: Implement Option B (Asset Class Proxy) with Option C (Manual Upload) as future enhancement.
+
+---
+
+### Solution 3: Position Type Flagging
+**Approach**: Flag alternative assets and exclude from factor analysis by default.
+
+**Changes Required**:
+1. Add `is_alternative_asset` boolean to Position model
+2. Update seeding to flag alternative assets
+3. Modify `calculate_position_returns()` to skip flagged positions (not just warn)
+4. Add `include_alternative_assets` parameter (default False)
+
+**Benefits**:
+- Clear separation between public and private assets
+- Explicit opt-in for alternative asset analysis
+- Avoid misleading factor exposures
+
+**Drawbacks**:
+- Requires migration to add column
+- Doesn't solve the fundamental data problem
+
+---
+
+### Solution 4: Minimum Position Threshold
+**Approach**: Require minimum % of positions to have data before calculating factors.
+
+**Implementation**:
+```python
+# In calculate_factor_betas_hybrid()
+total_positions = len(positions)
+positions_with_data = len(position_returns.columns)
+data_coverage_pct = positions_with_data / total_positions
+
+MIN_DATA_COVERAGE = 0.25  # Require 25% of positions to have data
+
+if data_coverage_pct < MIN_DATA_COVERAGE:
+    logger.warning(f"Only {data_coverage_pct:.1%} positions have data (minimum: {MIN_DATA_COVERAGE:.1%})")
+    # Return skip result instead of ValueError
+    return {...}
+```
+
+**Benefits**:
+- Prevents factor analysis on portfolios with mostly alternative assets
+- Still allows partial analysis when some data available
+
+---
+
+## Recommended Implementation Plan
+
+### Phase 2.1: Immediate Fix (Graceful Degradation)
+**Goal**: Unblock 2 failing portfolios with minimal code changes
+**Priority**: CRITICAL
+**Estimated Effort**: 4-6 hours
+
+**Tasks**:
+1. [ ] Modify `calculate_factor_betas_hybrid()` to return skip result instead of raising ValueError
+2. [ ] Add batch orchestrator error handling for factor calculation failures
+3. [ ] Update snapshot creation to proceed without factor data
+4. [ ] Add data quality flags to API responses
+5. [ ] Test with HNW and Hedge Fund portfolios
+6. [ ] Deploy to Railway and verify all 3 portfolios produce results
+
+---
+
+### Phase 2.2: Alternative Asset Proxy Pricing (Medium-term)
+**Goal**: Generate realistic historical data for alternative assets
+**Priority**: HIGH
+**Estimated Effort**: 12-16 hours
+
+**Tasks**:
+1. [ ] Design asset class proxy mapping (Private Equity → SPY, Crypto → BTC, etc.)
+2. [ ] Create `app/services/alternative_asset_pricing.py`
+3. [ ] Implement proxy-based historical price generation
+4. [ ] Add scaling factors (e.g., Private Equity = SPY * 0.8 + lag)
+5. [ ] Backfill historical data for existing alternative assets
+6. [ ] Update seeding to generate proxy data automatically
+7. [ ] Add admin endpoint to trigger historical data generation
+
+---
+
+### Phase 2.3: Position Type Flagging (Long-term)
+**Goal**: Explicit handling of alternative vs public assets
+**Priority**: MEDIUM
+**Estimated Effort**: 8-10 hours
+
+**Tasks**:
+1. [ ] Create Alembic migration to add `is_alternative_asset` column
+2. [ ] Update Position model with new field
+3. [ ] Modify seeding to flag alternative assets
+4. [ ] Add `include_alternative_assets` parameter to calculation functions
+5. [ ] Update API documentation with alternative asset handling
+6. [ ] Create admin UI to mark/unmark alternative assets
+
+---
+
+### Phase 2.4: Manual Valuation Upload (Future)
+**Goal**: Allow users to provide custom valuations
+**Priority**: LOW
+**Estimated Effort**: 20-24 hours
+
+**Tasks**:
+1. [ ] Design API endpoint for bulk valuation upload
+2. [ ] Add validation for user-provided data
+3. [ ] Create `source` field in market_data_cache ('USER_PROVIDED', 'FMP', 'POLYGON')
+4. [ ] Build frontend UI for valuation upload
+5. [ ] Add audit trail for manual valuations
+6. [ ] Implement data quality checks
+
+---
+
+## Testing Strategy
+
+### Test Case 1: Portfolio with All Alternative Assets
+**Setup**:
+- Create test portfolio with 10 alternative asset positions
+- No historical data available
+
+**Expected Behavior** (After Phase 2.1):
+- Factor analysis returns SKIPPED status
+- Snapshot created with market value only
+- Stress tests gracefully skip
+- API returns clear "Insufficient data" message
+
+---
+
+### Test Case 2: Portfolio with Mixed Assets (50/50)
+**Setup**:
+- 5 public equities with full data
+- 5 alternative assets with 1-day data
+
+**Expected Behavior** (After Phase 2.1):
+- Factor analysis proceeds with 5 positions
+- Data quality flag: QUALITY_FLAG_LIMITED_COVERAGE
+- Snapshot created
+- Stress tests run with available factor exposures
+
+---
+
+### Test Case 3: Portfolio with Alternative Assets + Proxy Data
+**Setup**:
+- 5 alternative assets with proxy-generated historical data
+- 5 public equities with real data
+
+**Expected Behavior** (After Phase 2.2):
+- Factor analysis proceeds with all 10 positions
+- Data quality flag: QUALITY_FLAG_PROXY_DATA
+- Snapshot created
+- Stress tests run with full factor exposures
+
+---
+
+## Success Metrics
+
+### Phase 2.1 (Immediate Fix)
+- [ ] All 3 portfolios produce calculation results on Railway
+- [ ] Zero `ValueError: No position returns data available` errors
+- [ ] Snapshots created for all portfolios
+- [ ] Data quality flags clearly indicate partial/no data scenarios
+
+### Phase 2.2 (Proxy Pricing)
+- [ ] Alternative assets have 90+ days of historical data
+- [ ] Factor analysis runs on all positions
+- [ ] Correlation analysis includes alternative assets
+- [ ] Stress tests reflect alternative asset exposures
+
+### Phase 2.3 (Position Flagging)
+- [ ] Alternative assets clearly marked in database
+- [ ] Factor analysis behavior documented and predictable
+- [ ] API endpoints support filtering by asset type
+
+---
+
+## Related Work
+
+### Dependencies
+- Market data audit (completed - October 6, 2025)
+- Batch orchestrator UUID fixes (in progress - TODO4.md Section 7)
+
+### Future Enhancements
+- Real-time valuation tracking for alternative assets
+- Appraisal workflow integration
+- NAV calculation for fund positions
+- Illiquidity premium modeling
+
+---
+
+## Documentation Updates Required
+
+1. **Update `_guides/BACKEND_DAILY_COMPLETE_WORKFLOW_GUIDE.md`**
+   - Document alternative asset limitations
+   - Add section on data quality flags
+
+2. **Update `API_REFERENCE_V1.4.6.md`**
+   - Document data quality flags in responses
+   - Add alternative asset handling notes
+
+3. **Update `CLAUDE.md` Part II**
+   - Add alternative asset patterns to Common Issues
+   - Document graceful degradation patterns
+
+4. **Create `_docs/guides/ALTERNATIVE_ASSET_HANDLING.md`**
+   - Comprehensive guide for alternative asset data
+   - Proxy pricing methodology
+   - Manual valuation upload process
+
+---
+
+**End of Phase 2.0 Documentation**
