@@ -612,16 +612,23 @@ async def run_comprehensive_stress_test(
                 f"No factor exposures found for portfolio {portfolio_id}. "
                 "Skipping stress test (likely all PRIVATE positions). Returning skip payload."
             )
+            # CODE REVIEW FIX: Include ALL required fields to match ComprehensiveStressTestResponse contract
             return {
                 'portfolio_id': str(portfolio_id),
+                'portfolio_name': portfolio.name,  # REQUIRED by schema
                 'calculation_date': calculation_date,
+                'correlation_matrix_info': {  # REQUIRED by schema
+                    'calculation_date': calculation_date.isoformat() if hasattr(calculation_date, 'isoformat') else str(calculation_date),
+                    'data_days': 0,
+                    'mean_correlation': 0.0
+                },
                 'stress_test_results': {
                     'skipped': True,  # CRITICAL: Task 9 will detect this flag
                     'reason': 'no_factor_exposures',
                     'message': 'Portfolio has no factor exposures (likely all PRIVATE positions)',
                     'direct_impacts': {},
                     'correlated_impacts': {},
-                    'summary_stats': {},
+                    'summary_stats': {},  # Empty but present (required)
                     'scenarios_tested': 0,
                     'scenarios_skipped': 0
                 },

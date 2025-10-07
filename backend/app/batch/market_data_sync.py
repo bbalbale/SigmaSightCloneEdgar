@@ -5,7 +5,7 @@ import asyncio
 from datetime import datetime, date, timedelta
 from typing import List, Set, Dict, Any
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, distinct, func, and_
+from sqlalchemy import select, distinct, func, and_, or_
 
 from app.database import AsyncSessionLocal
 from app.services.market_data_service import market_data_service
@@ -81,10 +81,15 @@ async def get_active_portfolio_symbols(db: AsyncSession) -> Set[str]:
         Set of unique symbols (excludes PRIVATE investment_class - Phase 8.1 Task 3b)
     """
     # Get all unique symbols from positions (exclude PRIVATE investment_class - Phase 8.1 Task 3b)
+    # CODE REVIEW FIX: Handle NULL investment_class to avoid SQL three-valued logic issue
+    # NULL != 'PRIVATE' evaluates to NULL (unknown), which would exclude legitimate symbols
     stmt = select(distinct(Position.symbol)).where(
         and_(
             Position.quantity != 0,
-            Position.investment_class != 'PRIVATE'  # Phase 8.1: Filter at source to prevent API calls
+            or_(
+                Position.investment_class != 'PRIVATE',  # Exclude PRIVATE
+                Position.investment_class.is_(None)      # Include NULL (not yet classified)
+            )
         )
     )
     result = await db.execute(stmt)
