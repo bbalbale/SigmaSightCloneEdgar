@@ -4546,28 +4546,31 @@ Integrate company profile synchronization (yfinance + yahooquery) into the exist
 
 ---
 
-### **Step 4: Integrate Company Profiles into Cron** (Phase 9.1 - Tasks 6-8)
+### **Step 4: Integrate Company Profiles into Cron** (Phase 9.1 - Tasks 6-8) ✅ **COMPLETED**
 **NOW safe to add company profile step to Railway cron**
 
-- ✅ Insert Step 1.5 into railway_daily_batch.py
+- ✅ Insert Step 1 into railway_daily_batch.py (company profile sync)
 - ✅ Wire in normalized result object (duration → duration_seconds)
 - ✅ Keep profile failures non-blocking
 - ✅ Update log_completion_summary() signature/call sites
+- 📝 Commit: 05c26b3 (October 7, 2025)
 
 **Why Fourth**: Fetcher is stable (Step 1), cron is reliable (Step 2), now safe to integrate.
 
-**Estimated**: 1-2 hours
+**Estimated**: 1-2 hours | **Actual**: ~1 hour
 
 ---
 
-### **Step 5: Update Documentation** (Phase 9.2 - Tasks 9-10)
+### **Step 5: Update Documentation** (Phase 9.2 - Tasks 9-10) ✅ **COMPLETED**
 **Document the new behavior**
 
 - ✅ Refresh automation README (scripts/automation/README.md)
 - ✅ Update API reference (mark admin endpoint DEPRECATED)
-- ✅ Update Phase 9 plan with actual implementation details
+- ✅ Added comprehensive troubleshooting section for profile sync
+- ✅ Documented endpoint 22a with full deprecation notice
+- 📝 Commit: TBD (next commit)
 
-**Estimated**: 30 minutes - 1 hour
+**Estimated**: 30 minutes - 1 hour | **Actual**: ~45 minutes
 
 ---
 
@@ -4666,47 +4669,55 @@ Phase 9.0 (fetcher fixes) → Phase 10.1-10.2 (cron fixes) → Phase 9.1 (integr
 
 ---
 
-### Phase 9.1: Railway Cron Integration (AFTER 9.0 Complete)
+### Phase 9.1: Railway Cron Integration ✅ COMPLETED
 
-6. [ ] **Add company profile sync step** to `scripts/automation/railway_daily_batch.py`
-   - [ ] 6a. Create `sync_company_profiles_step()` function (lines ~78-110 pattern)
-   - [ ] 6b. Import `sync_company_profiles` from `app.batch.market_data_sync`
-   - [ ] 6c. Add error handling (non-blocking - don't raise on failure)
-   - [ ] 6d. Return result dict with status, duration, successful/failed/total counts
+**Status**: ✅ Completed October 7, 2025
+**Commit**: 05c26b3
+
+6. [x] **Add company profile sync step** to `scripts/automation/railway_daily_batch.py`
+   - [x] 6a. Create `sync_company_profiles_step()` function (lines 80-136)
+   - [x] 6b. Import `sync_company_profiles` from `app.batch.market_data_sync`
+   - [x] 6c. Add error handling (non-blocking - don't raise on failure)
+   - [x] 6d. Return result dict with status, duration_seconds, successful/failed/total counts
 
    **Reference**: See `PHASE_9_RAILWAY_COMPANY_PROFILE_INTEGRATION.md` Section "Phase 9.1 Task 1"
 
-7. [ ] **Update main workflow** in `railway_daily_batch.py`
-   - [ ] 7a. Add Step 1.5 call between market data sync and batch calculations
-   - [ ] 7b. Capture `profile_result` variable
-   - [ ] 7c. Pass `profile_result` to `log_completion_summary()`
+7. [x] **Update main workflow** in `railway_daily_batch.py`
+   - [x] 7a. Added Step 1: Company Profile Sync (before batch calculations)
+   - [x] 7b. Capture `profile_result` variable
+   - [x] 7c. Pass `profile_result` to `log_completion_summary()`
+   - [x] 7d. Renumbered existing steps (Batch Calculations now Step 2)
 
    **Reference**: See `PHASE_9_RAILWAY_COMPANY_PROFILE_INTEGRATION.md` Section "Phase 9.1 Task 2"
 
-8. [ ] **Update completion summary logging** in `railway_daily_batch.py`
-   - [ ] 8a. Add `profile_result` parameter to `log_completion_summary()` function signature
-   - [ ] 8b. Add profile sync line to completion summary output
-   - [ ] 8c. Format: `Company Profiles: {status} ({successful}/{total} symbols, {duration}s)`
-   - [ ] 8d. Verify exit code based ONLY on batch calculations (not profile failures)
+8. [x] **Update completion summary logging** in `railway_daily_batch.py`
+   - [x] 8a. Add `profile_result` parameter to `log_completion_summary()` function signature
+   - [x] 8b. Add profile sync line to completion summary output
+   - [x] 8c. Format: `Company Profiles: {status} ({successful}/{total} symbols, {duration}s)`
+   - [x] 8d. Verified exit code based ONLY on batch calculations (not profile failures)
 
    **Reference**: See `PHASE_9_RAILWAY_COMPANY_PROFILE_INTEGRATION.md` Section "Phase 9.1 Task 3"
 
 ---
 
-### Phase 9.2: Documentation Updates
+### Phase 9.2: Documentation Updates ✅ COMPLETED
 
-9. [ ] **Update Railway automation README** (`scripts/automation/README.md`)
-   - [ ] 9a. Add company profile sync to workflow overview (line ~7-11)
-   - [ ] 9b. Add troubleshooting section for profile sync failures
-   - [ ] 9c. Document that profiles sync daily on trading days only
-   - [ ] 9d. Add expected duration update (~6-7 min total vs ~5 min)
+**Status**: ✅ Completed October 7, 2025
+**Commit**: TBD (next commit)
+
+9. [x] **Update Railway automation README** (`scripts/automation/README.md`)
+   - [x] 9a. Added company profile sync to workflow overview (step 2 of 5)
+   - [x] 9b. Added comprehensive troubleshooting section for profile sync failures
+   - [x] 9c. Documented daily sync on trading days only
+   - [x] 9d. Added expected duration (6-7 minutes total)
 
    **Reference**: See `PHASE_9_RAILWAY_COMPANY_PROFILE_INTEGRATION.md` Section "Phase 9.2 Task 4"
 
-10. [ ] **Update API reference documentation** (`_docs/reference/API_REFERENCE_V1.4.6.md`)
-   - [ ] 10a. Mark `POST /admin/batch/trigger/company-profiles` as ⚠️ DEPRECATED
-   - [ ] 10b. Add note that profiles now sync automatically via Railway cron
-   - [ ] 10c. Document endpoint still available for manual/emergency syncs
+10. [x] **Update API reference documentation** (`_docs/reference/API_REFERENCE_V1.4.6.md`)
+   - [x] 10a. Marked `POST /admin/batch/trigger/company-profiles` as ⚠️ DEPRECATED
+   - [x] 10b. Added deprecation notice with Railway cron schedule details
+   - [x] 10c. Documented endpoint still available for manual/emergency syncs
+   - [x] 10d. Added complete endpoint documentation (endpoint 22a)
 
    **Reference**: See `PHASE_9_RAILWAY_COMPANY_PROFILE_INTEGRATION.md` Section "Phase 9.2 Task 5"
 

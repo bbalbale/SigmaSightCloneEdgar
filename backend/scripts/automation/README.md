@@ -6,9 +6,13 @@ Automated daily workflow for market data synchronization and portfolio calculati
 
 This automation runs **every weekday at 11:30 PM UTC** (6:30pm EST / 7:30pm EDT) to:
 1. Check if today is a trading day (NYSE calendar)
-2. Sync latest market data for all portfolio positions
-3. Run 8 calculation engines for all active portfolios
-4. Log completion summary
+2. **Sync company profiles** for all position symbols (names, sectors, revenue estimates) - Phase 9.1
+3. Sync latest market data for all portfolio positions
+4. Run 8 calculation engines for all active portfolios
+5. Log completion summary
+
+**Typical Duration**: 6-7 minutes total (includes company profile sync + market data + calculations)
+**Trading Days Only**: The job will automatically skip on weekends and holidays based on NYSE calendar
 
 ## Files
 
@@ -95,6 +99,7 @@ uv run python scripts/automation/railway_daily_batch.py --force
    **Note**: The `--service` flag is critical - without it, Railway runs on the default web service.
 5. Monitor logs for:
    - ✅ Trading day detection working
+   - ✅ **Company profile sync completing** (Phase 9.1)
    - ✅ Market data sync completing
    - ✅ Batch calculations running for all portfolios
    - ✅ Completion summary showing success
@@ -197,6 +202,36 @@ In Railway Dashboard:
 - Check if specific portfolio is causing issue
 - Review logs for detailed error messages
 - Verify database schema is up to date (run migrations)
+
+#### Company Profile Sync Failures (Phase 9.1)
+**Symptom**: Logs show `❌ Company profile sync failed` or warnings about failed symbols
+
+**Common Causes**:
+- **Synthetic symbols** (RENTAL_CONDO, CRYPTO_BTC_ETH, etc.) - Expected failures, these are gracefully skipped
+- **Options symbols** (e.g., AAPL250815P00200000) - May not have company profile data, this is normal
+- **Rate limiting** - Yahoo Finance API may throttle requests during high traffic
+
+**Expected Behavior**:
+- Job continues even if profile sync fails (non-blocking)
+- Partial failures are acceptable (e.g., 45/63 symbols synced successfully)
+- Exit code still 0 if batch calculations succeed
+
+**When to Investigate**:
+- If **ALL** symbols fail to sync (0/63 successful) - check API connectivity
+- If major stocks (AAPL, MSFT, etc.) fail consistently - check Yahoo Finance API status
+- If profile sync takes >60 seconds - may indicate network issues
+
+**Manual Recovery**:
+```bash
+# Manually trigger profile sync for testing
+railway run --service sigmasight-backend-cron uv run python -c "
+import asyncio
+from app.batch.market_data_sync import sync_company_profiles
+asyncio.run(sync_company_profiles(force_refresh=True))
+"
+```
+
+**Note**: Company profiles update daily but are not critical for calculations. Missing profiles only affect display metadata (company names, sectors, etc.).
 
 ### Cron Schedule Details
 
