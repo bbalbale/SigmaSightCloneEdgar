@@ -16,9 +16,10 @@ from app.models.positions import Position
 from app.models.market_data import MarketDataCache, PositionFactorExposure, FactorDefinition
 from app.calculations.market_data import fetch_historical_prices
 from app.constants.factors import (
-    FACTOR_ETFS, REGRESSION_WINDOW_DAYS, MIN_REGRESSION_DAYS, 
-    BETA_CAP_LIMIT, POSITION_CHUNK_SIZE, QUALITY_FLAG_FULL_HISTORY, 
-    QUALITY_FLAG_LIMITED_HISTORY, OPTIONS_MULTIPLIER
+    FACTOR_ETFS, REGRESSION_WINDOW_DAYS, MIN_REGRESSION_DAYS,
+    BETA_CAP_LIMIT, POSITION_CHUNK_SIZE, QUALITY_FLAG_FULL_HISTORY,
+    QUALITY_FLAG_LIMITED_HISTORY, QUALITY_FLAG_NO_PUBLIC_POSITIONS,  # Phase 8.1 Task 5
+    OPTIONS_MULTIPLIER
 )
 from app.core.logging import get_logger
 
@@ -267,9 +268,36 @@ async def calculate_factor_betas_hybrid(
             end_date=end_date,
             use_delta_adjusted=use_delta_adjusted
         )
-        
+
+        # Phase 8.1 Task 5: Return contract-compliant skip payload instead of raising ValueError
         if position_returns.empty:
-            raise ValueError("No position returns data available")
+            logger.warning(
+                f"No PUBLIC positions with sufficient price history for portfolio {portfolio_id}. "
+                "Returning skip payload (graceful degradation)."
+            )
+            return {
+                'factor_betas': {},
+                'position_betas': {},
+                'data_quality': {
+                    'flag': QUALITY_FLAG_NO_PUBLIC_POSITIONS,
+                    'message': 'Portfolio contains no public positions with sufficient price history',
+                    'positions_analyzed': 0,
+                    'positions_total': 0,  # Don't query for count - not critical for skip case
+                    'data_days': 0,
+                    'quality_flag': QUALITY_FLAG_NO_PUBLIC_POSITIONS  # CRITICAL: calculate_market_risk expects this key
+                },
+                'metadata': {
+                    'calculation_date': calculation_date.isoformat() if hasattr(calculation_date, 'isoformat') else str(calculation_date),
+                    'regression_window_days': 0,
+                    'status': 'SKIPPED_NO_PUBLIC_POSITIONS',
+                    'portfolio_id': str(portfolio_id)
+                },
+                'regression_stats': {},
+                'storage_results': {  # CRITICAL: Must match nested structure (lines 361, 401 of factors.py)
+                    'position_storage': {'records_stored': 0, 'skipped': True},
+                    'portfolio_storage': {'records_stored': 0, 'skipped': True}
+                }
+            }
         
         # Step 3: Align data on common dates
         common_dates = factor_returns.index.intersection(position_returns.index)
