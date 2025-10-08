@@ -26,10 +26,11 @@ from app.agent.schemas.sse import (
     SSEHeartbeatEvent
 )
 from app.agent.services.openai_service import openai_service
-from app.services.portfolio_data_service import PortfolioDataService
 from app.core.datetime_utils import utc_now
 from app.core.logging import get_logger
 from app.config import settings
+from app.api.v1.data import get_portfolio_complete as get_portfolio_complete_endpoint
+from uuid import UUID
 
 logger = get_logger(__name__)
 
@@ -125,10 +126,22 @@ async def sse_generator(
         portfolio_context = None
         portfolio_id = conversation.meta_data.get("portfolio_id") if conversation.meta_data else None
         if portfolio_id:
-            # Fetch portfolio data to include in context
+            # Fetch portfolio data to include in context using the existing API endpoint
             try:
-                portfolio_data_service = PortfolioDataService(db)
-                portfolio_snapshot = await portfolio_data_service.get_portfolio_complete(str(portfolio_id))
+                # Convert to UUID if needed
+                portfolio_uuid = UUID(portfolio_id) if isinstance(portfolio_id, str) else portfolio_id
+
+                # Call the endpoint function directly (it handles all the database queries)
+                portfolio_snapshot = await get_portfolio_complete_endpoint(
+                    portfolio_id=portfolio_uuid,
+                    include_holdings=True,
+                    include_position_tags=False,  # Don't need tags for AI context
+                    include_timeseries=False,
+                    include_attrib=False,
+                    as_of_date=None,
+                    current_user=current_user,
+                    db=db
+                )
 
                 portfolio_context = {
                     "portfolio_id": str(portfolio_id),
