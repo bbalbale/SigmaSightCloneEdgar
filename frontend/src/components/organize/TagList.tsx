@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { TagItem } from '@/services/tagsApi'
 import { TagBadge } from './TagBadge'
 import { TagCreator } from './TagCreator'
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import { Trash } from 'lucide-react'
 import { useTheme } from '@/contexts/ThemeContext'
 import {
@@ -45,76 +45,70 @@ export function TagList({
   }
 
   return (
-    <Card className={`transition-colors ${
-      theme === 'dark' ? 'bg-slate-800 border-slate-700' : 'bg-white border-gray-200'
-    }`}>
-      <CardHeader>
-        <div className="flex items-center justify-between">
-          <div>
-            <CardTitle className={`text-xl font-bold transition-colors duration-300 ${
-              theme === 'dark' ? 'text-white' : 'text-gray-900'
-            }`}>Portfolio Tagging & Grouping</CardTitle>
-            <p className={`text-sm mt-1 transition-colors duration-300 ${
-              theme === 'dark' ? 'text-slate-400' : 'text-gray-600'
+    <div className="space-y-4">
+      {/* Tag Creator - Thin Box */}
+      <Card className={`transition-colors ${
+        theme === 'dark' ? 'bg-slate-800 border-slate-700' : 'bg-white border-gray-200'
+      }`}>
+        <CardContent className="pt-6">
+          <TagCreator onCreate={onCreate} />
+        </CardContent>
+      </Card>
+
+      {/* Tags List - Wider Box */}
+      <Card className={`transition-colors ${
+        theme === 'dark' ? 'bg-slate-800 border-slate-700' : 'bg-white border-gray-200'
+      }`}>
+        <CardContent className="pt-6">
+          {tags.length === 0 ? (
+            <div className={`text-center py-8 transition-colors duration-300 ${
+              theme === 'dark' ? 'text-slate-400' : 'text-gray-500'
             }`}>
-              Drag tags, select & combine tickers, or click to rename
-            </p>
-          </div>
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {/* Tag Creator */}
-        <TagCreator onCreate={onCreate} />
-
-        {/* Tags List */}
-        {tags.length === 0 ? (
-          <div className={`text-center py-8 transition-colors duration-300 ${
-            theme === 'dark' ? 'text-slate-400' : 'text-gray-500'
-          }`}>
-            No tags yet. Create one to categorize your strategies.
-          </div>
-        ) : (
-          <div className="space-y-2">
-            <h3 className={`text-sm font-medium transition-colors duration-300 ${
-              theme === 'dark' ? 'text-slate-300' : 'text-gray-700'
-            }`}>Your Tags</h3>
-            <div className="flex flex-wrap gap-2">
-              {tags.map((tag) => (
-                <div
-                  key={tag.id}
-                  className={`flex items-center gap-2 rounded-lg p-2 pr-3 border transition-colors ${
-                    theme === 'dark'
-                      ? 'bg-slate-700 border-slate-600'
-                      : 'bg-gray-50 border-gray-200'
-                  }`}
-                >
-                  <TagBadge tag={tag} draggable={true} />
-
-                  {tag.usage_count !== undefined && (
-                    <span className={`text-xs transition-colors duration-300 ${
-                      theme === 'dark' ? 'text-slate-400' : 'text-gray-500'
-                    }`}>
-                      ({tag.usage_count})
-                    </span>
-                  )}
-
-                  <button
-                    onClick={() => setTagToDelete(tag)}
-                    className={`transition-colors ${
-                      theme === 'dark'
-                        ? 'text-slate-400 hover:text-red-400'
-                        : 'text-gray-400 hover:text-red-600'
-                    }`}
-                    title="Archive tag"
-                  >
-                    <Trash className="h-3 w-3" />
-                  </button>
-                </div>
-              ))}
+              No tags yet. Create one to categorize your strategies.
             </div>
-          </div>
-        )}
-      </CardContent>
+          ) : (
+            <div className="space-y-2">
+              <h3 className={`text-sm font-medium transition-colors duration-300 ${
+                theme === 'dark' ? 'text-slate-300' : 'text-gray-700'
+              }`}>Your Tags</h3>
+              <div className="flex flex-wrap gap-2">
+                {tags.map((tag) => (
+                  <div
+                    key={tag.id}
+                    className={`flex items-center gap-2 rounded-lg p-2 pr-3 border transition-colors ${
+                      theme === 'dark'
+                        ? 'bg-slate-700 border-slate-600'
+                        : 'bg-gray-50 border-gray-200'
+                    }`}
+                  >
+                    <TagBadge tag={tag} draggable={true} />
+
+                    {tag.usage_count !== undefined && (
+                      <span className={`text-xs transition-colors duration-300 ${
+                        theme === 'dark' ? 'text-slate-400' : 'text-gray-500'
+                      }`}>
+                        ({tag.usage_count})
+                      </span>
+                    )}
+
+                    <button
+                      onClick={() => setTagToDelete(tag)}
+                      className={`transition-colors ${
+                        theme === 'dark'
+                          ? 'text-slate-400 hover:text-red-400'
+                          : 'text-gray-400 hover:text-red-600'
+                      }`}
+                      title="Archive tag"
+                    >
+                      <Trash className="h-3 w-3" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Delete Confirmation Dialog */}
       <AlertDialog open={!!tagToDelete} onOpenChange={(open) => !open && setTagToDelete(null)}>
@@ -140,6 +134,6 @@ export function TagList({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </Card>
+    </div>
   )
 }
