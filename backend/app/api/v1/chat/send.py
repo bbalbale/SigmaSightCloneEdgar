@@ -125,11 +125,25 @@ async def sse_generator(
         portfolio_context = None
         portfolio_id = conversation.meta_data.get("portfolio_id") if conversation.meta_data else None
         if portfolio_id:
-            # For now, just pass the portfolio_id - we can add more context later
-            portfolio_context = {
-                "portfolio_id": str(portfolio_id)
-            }
-            logger.info(f"Using portfolio context for conversation: portfolio_id={portfolio_id}")
+            # Fetch portfolio data to include in context
+            try:
+                portfolio_data_service = PortfolioDataService(db)
+                portfolio_snapshot = await portfolio_data_service.get_portfolio_complete(str(portfolio_id))
+
+                portfolio_context = {
+                    "portfolio_id": str(portfolio_id),
+                    "portfolio_name": portfolio_snapshot.get("portfolio_name"),
+                    "total_value": portfolio_snapshot.get("total_market_value"),
+                    "position_count": len(portfolio_snapshot.get("holdings", [])),
+                    "holdings": portfolio_snapshot.get("holdings", [])[:50]  # Limit to top 50 positions
+                }
+                logger.info(f"Using portfolio context with {len(portfolio_snapshot.get('holdings', []))} positions for conversation: portfolio_id={portfolio_id}")
+            except Exception as e:
+                logger.warning(f"Failed to fetch portfolio data for context: {e}, using portfolio_id only")
+                portfolio_context = {
+                    "portfolio_id": str(portfolio_id)
+                }
+                logger.info(f"Using portfolio context (ID only) for conversation: portfolio_id={portfolio_id}")
         
         # [TRACE] TRACE-2 Send Context (Phase 9.12.1 investigation)
         logger.info(f"[TRACE] TRACE-2 Send Context: conversation={conversation.id} | portfolio_context={portfolio_context}")

@@ -74,7 +74,13 @@ You have access to these function tools:
 ### User Portfolio Access
 - User can only query their own portfolio
 - Portfolio ID: {portfolio_id}
+- Portfolio Name: {portfolio_name}
+- Total Value: {total_value}
+- Position Count: {position_count}
 - Never expose portfolio IDs in responses
+
+### Current Holdings
+{holdings}
 
 ### Privacy
 - Never include full account numbers

@@ -138,11 +138,11 @@ class PromptManager:
     def inject_variables(self, prompt: str, variables: Dict[str, Any]) -> str:
         """
         Inject variables into prompt template.
-        
+
         Args:
             prompt: Prompt template with {variable} placeholders
             variables: Dictionary of variables to inject
-            
+
         Returns:
             Prompt with variables replaced
         """
@@ -152,12 +152,31 @@ class PromptManager:
             'current_time': to_utc_iso8601(utc_now()),
             'model': 'gpt-5-2025-08-07',
         }
-        
+
         # Replace variables in prompt
         for key, value in variables.items():
             placeholder = f"{{{key}}}"
-            prompt = prompt.replace(placeholder, str(value))
-        
+
+            # Special handling for holdings array
+            if key == 'holdings' and isinstance(value, list):
+                if value:
+                    holdings_text = "Recent Portfolio Holdings (Top 50):\n"
+                    for holding in value:
+                        symbol = holding.get('symbol', 'N/A')
+                        quantity = holding.get('quantity', 0)
+                        market_value = holding.get('market_value', 0)
+                        position_type = holding.get('position_type', 'LONG')
+                        holdings_text += f"- {symbol}: {quantity} shares, ${market_value:,.2f} ({position_type})\n"
+                    prompt = prompt.replace(placeholder, holdings_text)
+                else:
+                    prompt = prompt.replace(placeholder, "No holdings data available")
+            elif value is None:
+                # Handle None values
+                prompt = prompt.replace(placeholder, "N/A")
+            else:
+                # Default string conversion
+                prompt = prompt.replace(placeholder, str(value))
+
         return prompt
     
     def get_metadata(self, mode: str, version: str = "v001") -> Dict[str, Any]:
