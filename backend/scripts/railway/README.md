@@ -19,9 +19,12 @@ Railway-specific scripts for database management, auditing, and operations. All 
 
 ### 📊 Audit Scripts (Run from Local Machine)
 
-**Data Auditing:**
+**Data Auditing (API-Based):**
 - `audit_railway_data.py` - Audit portfolio/position/tag data via API
 - `audit_railway_market_data.py` - Audit market data with per-position historical coverage
+
+**Calculation Auditing (Database-Direct):**
+- `audit_railway_calculations_verbose.py` - Detailed calculation results (requires `railway run`)
 
 ---
 
@@ -512,7 +515,7 @@ python scripts/railway/audit_railway_market_data.py
 # 1. Check data quality (from local machine)
 python scripts/railway/audit_railway_data.py
 python scripts/railway/audit_railway_market_data.py
-python scripts/railway/audit_railway_calculations_verbose.py  # Detailed calculation results
+railway run python scripts/railway/audit_railway_calculations_verbose.py  # Detailed calculation results
 
 # 2. Identify issues from audit output
 
@@ -526,7 +529,7 @@ python scripts/api_batch_monitor.py --url https://sigmasight-be-production.up.ra
 
 # 5. Verify fix
 python scripts/railway/audit_railway_market_data.py
-python scripts/railway/audit_railway_calculations_verbose.py
+railway run python scripts/railway/audit_railway_calculations_verbose.py
 ```
 
 ---
@@ -595,7 +598,11 @@ python scripts/api_batch_monitor.py --url https://sigmasight-be-production.up.ra
 
 **Usage:**
 ```bash
-# From local machine (NO SSH needed)
+# From local machine (requires Railway CLI to inject DATABASE_URL)
+railway run python scripts/railway/audit_railway_calculations_verbose.py
+
+# Alternative: Set DATABASE_URL manually then run
+export DATABASE_URL="postgresql://user:pass@host:port/db"
 python scripts/railway/audit_railway_calculations_verbose.py
 ```
 
@@ -658,11 +665,15 @@ This is required for SQLAlchemy async operations. **No manual configuration need
 
 ### Audit Scripts Run Locally
 
-The `audit_*.py` scripts **do NOT need Railway SSH**:
+Most `audit_*.py` scripts **do NOT need Railway SSH**:
 - Run from your local machine
-- Hit Railway API endpoints directly
+- Hit Railway API endpoints directly (except `audit_railway_calculations_verbose.py`)
 - Require `requests` library only
 - Faster than SSH for quick checks
+
+**Exception:** `audit_railway_calculations_verbose.py` requires direct database access:
+- Use `railway run` to inject DATABASE_URL
+- OR set DATABASE_URL environment variable manually
 
 ### SSH vs Local Execution
 
@@ -761,9 +772,11 @@ uv run python scripts/railway/railway_run_migration.py
 5. ✅ `scripts/api_batch_monitor.py` - Trigger & monitor batch processing via API
 6. ✅ `audit_railway_data.py` - Audit portfolio/position data
 7. ✅ `audit_railway_market_data.py` - Audit market data with per-position coverage
-8. ✅ `audit_railway_calculations_verbose.py` - Detailed calculation results audit
-9. ✅ `scripts/test_railway_batch.py` - Simple batch trigger + verification
-10. ✅ `scripts/check_batch_results.py` - Check batch status
+8. ✅ `scripts/test_railway_batch.py` - Simple batch trigger + verification
+9. ✅ `scripts/check_batch_results.py` - Check batch status
+
+### Database-Direct (Requires DATABASE_URL)
+10. ✅ `audit_railway_calculations_verbose.py` - Detailed calculation results audit (use `railway run`)
 
 ### Batch Processing Methods
 - **API Method (Recommended)**: `python scripts/api_batch_monitor.py --url <railway-url> --force`
