@@ -113,12 +113,32 @@ def test_portfolio_summary(portfolio_id: str, token: str, report_file):
         print(f"   Short Positions:                   {position_count.get('short_count', 0):>15}")
         print(f"   Options Positions:                 {position_count.get('option_count', 0):>15}")
 
-        # Write to report
+        # Write to report (client-friendly format)
         report_file.write(f"\n{'─'*120}\n")
         report_file.write(f"PORTFOLIO SUMMARY\n")
-        report_file.write(f"{'─'*120}\n")
-        report_file.write(json.dumps(data, indent=2, default=str))
-        report_file.write(f"\n")
+        report_file.write(f"{'─'*120}\n\n")
+        report_file.write(f"ACCOUNT VALUE\n")
+        report_file.write(f"{'-'*120}\n")
+        report_file.write(f"Total Equity:                      ${equity:>15,.2f}\n")
+        report_file.write(f"Cash Balance:                      ${data.get('cash_balance', 0):>15,.2f}\n")
+        report_file.write(f"Leverage Ratio:                    {data.get('leverage', 0):>15.2f}x\n\n")
+        report_file.write(f"PROFIT & LOSS\n")
+        report_file.write(f"{'-'*120}\n")
+        report_file.write(f"Total P&L:                         ${total_pnl:>15,.2f}  ({pnl_pct:+.2f}%)\n")
+        report_file.write(f"Unrealized P&L:                    ${unrealized:>15,.2f}\n")
+        report_file.write(f"Realized P&L:                      ${realized:>15,.2f}\n\n")
+        report_file.write(f"MARKET EXPOSURE\n")
+        report_file.write(f"{'-'*120}\n")
+        report_file.write(f"Long Exposure:                     ${long_exp:>15,.2f}  ({exposures.get('long_percentage', 0):>6.1f}%)\n")
+        report_file.write(f"Short Exposure:                    ${short_exp:>15,.2f}  ({exposures.get('short_percentage', 0):>6.1f}%)\n")
+        report_file.write(f"Gross Exposure:                    ${gross_exp:>15,.2f}  ({exposures.get('gross_percentage', 0):>6.1f}%)\n")
+        report_file.write(f"Net Exposure:                      ${net_exp:>15,.2f}  ({exposures.get('net_percentage', 0):>6.1f}%)\n\n")
+        report_file.write(f"POSITIONS\n")
+        report_file.write(f"{'-'*120}\n")
+        report_file.write(f"Total Positions:                   {position_count.get('total_positions', 0):>15}\n")
+        report_file.write(f"Long Positions:                    {position_count.get('long_count', 0):>15}\n")
+        report_file.write(f"Short Positions:                   {position_count.get('short_count', 0):>15}\n")
+        report_file.write(f"Options Positions:                 {position_count.get('option_count', 0):>15}\n")
 
         return data
     else:
@@ -177,12 +197,31 @@ def test_portfolio_exposures(portfolio_id: str, token: str, report_file):
             print(f"   • Beta < 0.5 = Low sensitivity")
             print(f"   • Negative beta = Inverse relationship to factor")
 
-        # Write to report
+        # Write to report (client-friendly format)
         report_file.write(f"\n{'─'*120}\n")
-        report_file.write(f"PORTFOLIO EXPOSURES\n")
-        report_file.write(f"{'─'*120}\n")
-        report_file.write(json.dumps(data, indent=2, default=str))
-        report_file.write(f"\n")
+        report_file.write(f"RISK FACTOR ANALYSIS\n")
+        report_file.write(f"{'─'*120}\n\n")
+        if not data.get('available'):
+            report_file.write(f"No factor analysis data available yet\n")
+            report_file.write(f"Run batch calculations to generate factor exposures\n")
+        else:
+            report_file.write(f"FACTOR EXPOSURES\n")
+            report_file.write(f"{'-'*120}\n")
+            report_file.write(f"Factor Model: {metadata.get('factor_model', 'N/A')}\n")
+            report_file.write(f"Calculation Date: {data.get('calculation_date', 'N/A')}\n\n")
+            report_file.write(f"{'RISK FACTOR':<20} {'BETA':<12} {'DOLLAR EXPOSURE':<20}\n")
+            report_file.write(f"{'-'*20} {'-'*12} {'-'*20}\n")
+            for factor in factors:
+                name = factor.get('name', 'N/A')
+                beta = factor.get('beta', 0)
+                exposure = factor.get('exposure_dollar', 0)
+                report_file.write(f"{name:<20} {beta:>11.3f}  ${exposure:>18,.2f}\n")
+            report_file.write(f"\nINTERPRETATION\n")
+            report_file.write(f"{'-'*120}\n")
+            report_file.write(f"• Beta > 1.0 = High sensitivity to factor movements\n")
+            report_file.write(f"• Beta 0.5-1.0 = Moderate sensitivity\n")
+            report_file.write(f"• Beta < 0.5 = Low sensitivity\n")
+            report_file.write(f"• Negative beta = Inverse relationship to factor\n")
 
         return data
     else:
@@ -249,12 +288,41 @@ def test_portfolio_greeks(portfolio_id: str, token: str, report_file):
             else:
                 print(f"\n   No position data available")
 
-        # Write to report
+        # Write to report (client-friendly format)
         report_file.write(f"\n{'─'*120}\n")
-        report_file.write(f"PORTFOLIO GREEKS\n")
-        report_file.write(f"{'─'*120}\n")
-        report_file.write(json.dumps(data, indent=2, default=str))
-        report_file.write(f"\n")
+        report_file.write(f"HOLDINGS FACTOR BREAKDOWN\n")
+        report_file.write(f"{'─'*120}\n\n")
+        if not data.get('available'):
+            report_file.write(f"No position-level factor data available yet\n")
+            report_file.write(f"Run batch calculations to generate factor exposures\n")
+        else:
+            if positions:
+                report_file.write(f"INDIVIDUAL POSITION FACTOR EXPOSURES\n")
+                report_file.write(f"{'-'*120}\n")
+                report_file.write(f"Showing {len(positions)} of {total} positions\n\n")
+                sorted_positions = sorted(positions, key=lambda x: abs(x.get('exposures', {}).get('Market Beta', 0)), reverse=True)
+                report_file.write(f"{'SYMBOL':<12} {'MKT BETA':>10} {'VALUE':>10} {'GROWTH':>10} {'MOMENTUM':>10} {'QUALITY':>10}\n")
+                report_file.write(f"{'-'*12} {'-'*10} {'-'*10} {'-'*10} {'-'*10} {'-'*10}\n")
+                for pos in sorted_positions[:15]:
+                    symbol = pos.get('symbol', 'N/A')
+                    exp = pos.get('exposures', {})
+                    market = exp.get('Market Beta', 0)
+                    value = exp.get('Value', 0)
+                    growth = exp.get('Growth', 0)
+                    momentum = exp.get('Momentum', 0)
+                    quality = exp.get('Quality', 0)
+                    report_file.write(f"{symbol:<12} {market:>10.3f} {value:>10.3f} {growth:>10.3f} {momentum:>10.3f} {quality:>10.3f}\n")
+                if len(sorted_positions) > 15:
+                    report_file.write(f"\n... and {len(sorted_positions) - 15} more positions\n")
+                report_file.write(f"\nFACTOR INTERPRETATION\n")
+                report_file.write(f"{'-'*120}\n")
+                report_file.write(f"• Market Beta: Sensitivity to overall market movements\n")
+                report_file.write(f"• Value: Exposure to undervalued stocks (low P/E, P/B ratios)\n")
+                report_file.write(f"• Growth: Exposure to high-growth companies\n")
+                report_file.write(f"• Momentum: Exposure to stocks with strong recent performance\n")
+                report_file.write(f"• Quality: Exposure to profitable, stable companies\n")
+            else:
+                report_file.write(f"No position data available\n")
 
         return data
     else:
@@ -401,12 +469,33 @@ def test_portfolio_correlations(portfolio_id: str, token: str, report_file):
                     val = corr.get('correlation', 0)
                     print(f"   {sym1:<12} {sym2:<12} {val:>14.2f}")
 
-        # Write to report
+        # Write to report (client-friendly format)
         report_file.write(f"\n{'─'*120}\n")
-        report_file.write(f"CORRELATION ANALYSIS\n")
-        report_file.write(f"{'─'*120}\n")
-        report_file.write(json.dumps(data, indent=2, default=str))
-        report_file.write(f"\n")
+        report_file.write(f"PORTFOLIO CORRELATION ANALYSIS\n")
+        report_file.write(f"{'─'*120}\n\n")
+        if not data.get('available'):
+            report_file.write(f"No correlation data available yet\n")
+            report_file.write(f"Requires 90 days of historical price data\n")
+        else:
+            report_file.write(f"CORRELATION MATRIX SUMMARY\n")
+            report_file.write(f"{'-'*120}\n")
+            report_file.write(f"Number of Holdings Analyzed:       {len(symbols):>15}\n")
+            report_file.write(f"Analysis Period:                   {quality.get('lookback_days', 90):>12} days\n")
+            report_file.write(f"Average Data Points:               {quality.get('avg_overlap', 0):>15.0f}\n")
+            if symbols and matrix and len(symbols) <= 10:
+                report_file.write(f"\nCORRELATION MATRIX\n")
+                report_file.write(f"{'-'*120}\n")
+                report_file.write(f"{'':12}")
+                for sym in symbols:
+                    report_file.write(f"{sym:<8}")
+                report_file.write(f"\n")
+                for i, row in enumerate(matrix):
+                    report_file.write(f"{symbols[i]:<12}")
+                    for val in row:
+                        marker = "█" if val > 0.7 else "▓" if val > 0.3 else "░" if val > -0.3 else "▒"
+                        report_file.write(f"{val:>7.2f}{marker}")
+                    report_file.write(f"\n")
+                report_file.write(f"\nKey: █ High (>0.7)  ▓ Medium (0.3-0.7)  ░ Low (±0.3)  ▒ Negative (<-0.3)\n")
 
         return data
     else:
@@ -471,12 +560,40 @@ def test_portfolio_scenarios(portfolio_id: str, token: str, report_file):
             else:
                 print(f"\n   No scenarios available")
 
-        # Write to report
+        # Write to report (client-friendly format)
         report_file.write(f"\n{'─'*120}\n")
-        report_file.write(f"SCENARIO ANALYSIS\n")
-        report_file.write(f"{'─'*120}\n")
-        report_file.write(json.dumps(data, indent=2, default=str))
-        report_file.write(f"\n")
+        report_file.write(f"PORTFOLIO STRESS TESTING\n")
+        report_file.write(f"{'─'*120}\n\n")
+        if not data.get('available'):
+            report_file.write(f"No stress test results available yet\n")
+            report_file.write(f"Run batch calculations to generate stress scenarios\n")
+        else:
+            if scenarios:
+                report_file.write(f"STRESS SCENARIO ANALYSIS\n")
+                report_file.write(f"{'-'*120}\n")
+                report_file.write(f"Current Portfolio Value:           ${baseline:>15,.2f}\n")
+                report_file.write(f"Number of Scenarios Tested:        {len(scenarios):>15}\n\n")
+                report_file.write(f"{'SCENARIO':<30} {'IMPACT':<20} {'CHANGE %':<12} {'NEW VALUE':<20}\n")
+                report_file.write(f"{'-'*30} {'-'*20} {'-'*12} {'-'*20}\n")
+                for scenario in scenarios:
+                    name = scenario.get('scenario_name', 'N/A')
+                    pnl = scenario.get('total_pnl', 0)
+                    pnl_pct = scenario.get('pnl_percent', 0)
+                    new_value = baseline + pnl
+                    pnl_str = f"${pnl:+,.2f}" if pnl != 0 else "$0.00"
+                    pct_str = f"{pnl_pct:+.2f}%" if pnl_pct != 0 else "0.00%"
+                    report_file.write(f"{name:<30} {pnl_str:<20} {pct_str:<12} ${new_value:>18,.2f}\n")
+                if len(scenarios) > 0:
+                    worst = min(scenarios, key=lambda x: x.get('total_pnl', 0))
+                    best = max(scenarios, key=lambda x: x.get('total_pnl', 0))
+                    report_file.write(f"\nKEY INSIGHTS\n")
+                    report_file.write(f"{'-'*120}\n")
+                    report_file.write(f"Worst Case Scenario:  {worst.get('scenario_name', 'N/A')}\n")
+                    report_file.write(f"└─ Impact: ${worst.get('total_pnl', 0):+,.2f} ({worst.get('pnl_percent', 0):+.2f}%)\n\n")
+                    report_file.write(f"Best Case Scenario:   {best.get('scenario_name', 'N/A')}\n")
+                    report_file.write(f"└─ Impact: ${best.get('total_pnl', 0):+,.2f} ({best.get('pnl_percent', 0):+.2f}%)\n")
+            else:
+                report_file.write(f"No scenarios available\n")
 
         return data
     else:
@@ -551,12 +668,49 @@ def test_diversification_score(portfolio_id: str, token: str, report_file):
                 print(f"   Many holdings move together - high concentration risk")
                 print(f"   Consider adding assets with different risk factors")
 
-        # Write to report
+        # Write to report (client-friendly format)
         report_file.write(f"\n{'─'*120}\n")
-        report_file.write(f"DIVERSIFICATION SCORE\n")
-        report_file.write(f"{'─'*120}\n")
-        report_file.write(json.dumps(data, indent=2, default=str))
-        report_file.write(f"\n")
+        report_file.write(f"PORTFOLIO DIVERSIFICATION ANALYSIS\n")
+        report_file.write(f"{'─'*120}\n\n")
+        if not data.get('available'):
+            report_file.write(f"No diversification data available yet\n")
+            report_file.write(f"Requires correlation calculations to complete\n")
+        else:
+            div_score = (1 - score) * 100
+            if div_score >= 80:
+                rating = "Excellent"
+                emoji = "🌟"
+            elif div_score >= 60:
+                rating = "Good"
+                emoji = "✅"
+            elif div_score >= 40:
+                rating = "Moderate"
+                emoji = "⚠️"
+            else:
+                rating = "Poor"
+                emoji = "❌"
+            report_file.write(f"DIVERSIFICATION SCORE\n")
+            report_file.write(f"{'-'*120}\n")
+            report_file.write(f"Diversification Score:             {div_score:>15.1f}/100  {emoji}\n")
+            report_file.write(f"Rating:                            {rating:>20}\n")
+            report_file.write(f"Average Correlation:               {score:>20.2f}\n\n")
+            report_file.write(f"DATA QUALITY\n")
+            report_file.write(f"{'-'*120}\n")
+            report_file.write(f"Symbols Analyzed:                  {quality.get('symbols_calculated', 0):>15}\n")
+            report_file.write(f"Analysis Period:                   {quality.get('lookback_days', 90):>12} days\n")
+            report_file.write(f"Average Data Points:               {quality.get('avg_overlap', 0):>15.0f}\n\n")
+            report_file.write(f"INTERPRETATION\n")
+            report_file.write(f"{'-'*120}\n")
+            if div_score >= 60:
+                report_file.write(f"✅ Your portfolio shows {rating.lower()} diversification\n")
+                report_file.write(f"Holdings tend to move independently, reducing concentration risk\n")
+            elif div_score >= 40:
+                report_file.write(f"⚠️  Your portfolio shows moderate diversification\n")
+                report_file.write(f"Some holdings move together - consider adding uncorrelated assets\n")
+            else:
+                report_file.write(f"❌ Your portfolio shows poor diversification\n")
+                report_file.write(f"Many holdings move together - high concentration risk\n")
+                report_file.write(f"Consider adding assets with different risk factors\n")
 
         return data
     else:
