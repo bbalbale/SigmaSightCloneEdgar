@@ -226,13 +226,13 @@ def test_factor_etf_prices(token: str):
 
 
 def test_company_profiles(symbols: List[str], token: str, report_file=None):
-    """Test if company profiles exist with full row and column details"""
-    print(f"\n🏢 Testing Company Profile Data - Full Table")
+    """Test company profiles endpoint - full access to all 53 fields"""
+    print(f"\n🏢 Testing Company Profile Data - Full Table (All 53 Fields)")
     print(f"=" * 80)
 
     if report_file:
-        report_file.write(f"\n🏢 COMPANY PROFILE DATA - FULL TABLE\n")
-        report_file.write(f"{'='*80}\n")
+        report_file.write(f"\n🏢 COMPANY PROFILE DATA - COMPLETE FIELD COVERAGE (53 FIELDS)\n")
+        report_file.write(f"{'='*120}\n")
 
     # Get portfolios to find portfolio_id
     portfolios = requests.get(
@@ -246,105 +246,220 @@ def test_company_profiles(symbols: List[str], token: str, report_file=None):
 
     portfolio_id = portfolios[0]["id"]
 
-    # Get position details (includes company_name from company_profiles)
+    # Use new company-profiles endpoint to get ALL fields
     response = requests.get(
-        f"{RAILWAY_URL}/data/positions/details",
+        f"{RAILWAY_URL}/data/company-profiles",
         headers={"Authorization": f"Bearer {token}"},
         params={"portfolio_id": portfolio_id}
     )
 
     if response.status_code == 200:
         data = response.json()
-        positions = data.get("positions", [])
+        profiles = data.get("profiles", [])
+        meta = data.get("meta", {})
 
-        print(f"✅ Position Details: {response.status_code}")
-        print(f"   Total positions: {len(positions)}")
+        print(f"✅ Company Profiles: {response.status_code}")
+        print(f"   Total requested: {len(meta.get('requested_symbols', []))}")
+        print(f"   Profiles returned: {meta.get('returned_profiles', 0)}")
+        print(f"   Missing profiles: {len(meta.get('missing_profiles', []))}")
 
-        with_company_name = sum(1 for p in positions if p.get("company_name"))
-        without_company_name = len(positions) - with_company_name
-        coverage_pct = (with_company_name/len(positions)*100) if positions else 0
-
-        print(f"   With company name: {with_company_name} ({coverage_pct:.1f}%)")
-        print(f"   Missing company name: {without_company_name} ({100-coverage_pct:.1f}%)")
-
-        # Build detailed table with all positions
-        print(f"\n   DETAILED COMPANY PROFILE TABLE:")
-        print(f"   {'-'*120}")
-
-        # Define column headers
-        header = f"   {'SYMBOL':<12} {'STATUS':<8} {'COMPANY NAME':<50} {'SECTOR':<20} {'INDUSTRY':<30}"
+        # Console: Show key fields table
+        print(f"\n   SUMMARY TABLE (Key Fields):")
+        print(f"   {'-'*130}")
+        header = f"   {'SYMBOL':<12} {'COMPANY NAME':<40} {'SECTOR':<20} {'MARKET CAP':<15} {'PE':<8} {'BETA':<8}"
         print(header)
-        print(f"   {'-'*120}")
+        print(f"   {'-'*130}")
 
-        if report_file:
-            report_file.write(f"\nTOTAL POSITIONS: {len(positions)}\n")
-            report_file.write(f"WITH COMPANY PROFILE: {with_company_name} ({coverage_pct:.1f}%)\n")
-            report_file.write(f"MISSING COMPANY PROFILE: {without_company_name} ({100-coverage_pct:.1f}%)\n\n")
-            report_file.write(f"DETAILED COMPANY PROFILE TABLE:\n")
-            report_file.write(f"{'-'*140}\n")
-            report_file.write(f"{'SYMBOL':<12} {'STATUS':<8} {'COMPANY NAME':<50} {'SECTOR':<20} {'INDUSTRY':<30}\n")
-            report_file.write(f"{'-'*140}\n")
+        for profile in sorted(profiles, key=lambda x: x.get("symbol", "")):
+            symbol = profile.get("symbol", "N/A")
+            company_name = (profile.get("company_name") or "N/A")[:37]
+            sector = (profile.get("sector") or "N/A")[:17]
 
-        # Build profile records
-        profile_records = []
+            market_cap = profile.get("market_cap")
+            if market_cap:
+                mc_display = f"${market_cap/1e9:.1f}B"
+            else:
+                mc_display = "N/A"
 
-        for position in sorted(positions, key=lambda x: x.get("symbol", "")):
-            symbol = position.get("symbol", "N/A")
-            company_name = position.get("company_name") or ""
-            sector = position.get("sector") or ""
-            industry = position.get("industry") or ""
+            pe_ratio = profile.get("pe_ratio")
+            pe_display = f"{pe_ratio:.2f}" if pe_ratio else "N/A"
 
-            status = "✅" if company_name else "❌"
+            beta = profile.get("beta")
+            beta_display = f"{beta:.3f}" if beta else "N/A"
 
-            # Truncate long values for display
-            company_display = (company_name[:47] + "...") if company_name and len(company_name) > 50 else company_name
-            sector_display = (sector[:17] + "...") if sector and len(sector) > 20 else sector
-            industry_display = (industry[:27] + "...") if industry and len(industry) > 30 else industry
-
-            # Print row
-            row = f"   {symbol:<12} {status:<8} {company_display:<50} {sector_display:<20} {industry_display:<30}"
+            row = f"   {symbol:<12} {company_name:<40} {sector:<20} {mc_display:<15} {pe_display:<8} {beta_display:<8}"
             print(row)
 
-            # Write to report (full values, not truncated)
-            if report_file:
-                report_row = f"{symbol:<12} {status:<8} {company_name or 'N/A':<50} {sector or 'N/A':<20} {industry or 'N/A':<30}\n"
-                report_file.write(report_row)
+        print(f"   {'-'*130}")
 
-            # Store for JSON output
-            profile_records.append({
-                "symbol": symbol,
-                "has_profile": bool(company_name),
-                "company_name": company_name or None,
-                "sector": sector or None,
-                "industry": industry or None
-            })
+        # Report file: Complete field dump for each position
+        if report_file:
+            report_file.write(f"\nTOTAL SYMBOLS: {len(meta.get('requested_symbols', []))}\n")
+            report_file.write(f"PROFILES RETURNED: {meta.get('returned_profiles', 0)}\n")
+            report_file.write(f"MISSING PROFILES: {len(meta.get('missing_profiles', []))}\n\n")
 
-        print(f"   {'-'*120}")
+            if meta.get('missing_profiles'):
+                report_file.write(f"MISSING (No Public Data): {', '.join(meta['missing_profiles'])}\n\n")
+
+            report_file.write(f"\n{'='*120}\n")
+            report_file.write(f"COMPLETE COMPANY PROFILES - ALL FIELDS\n")
+            report_file.write(f"{'='*120}\n\n")
+
+            # Field groups for organization
+            basic_fields = ['symbol', 'company_name', 'sector', 'industry', 'exchange', 'country', 'is_etf', 'is_fund']
+            company_fields = ['ceo', 'employees', 'website', 'description']
+            valuation_fields = ['market_cap', 'pe_ratio', 'forward_pe', 'forward_eps', 'dividend_yield', 'beta']
+            price_fields = ['week_52_high', 'week_52_low']
+            analyst_fields = ['target_mean_price', 'target_high_price', 'target_low_price',
+                            'number_of_analyst_opinions', 'recommendation_mean', 'recommendation_key']
+            profitability_fields = ['profit_margins', 'operating_margins', 'gross_margins',
+                                   'return_on_assets', 'return_on_equity']
+            growth_fields = ['earnings_growth', 'revenue_growth', 'earnings_quarterly_growth']
+            revenue_fields = ['total_revenue']
+            current_year_fields = ['current_year_revenue_avg', 'current_year_revenue_low',
+                                  'current_year_revenue_high', 'current_year_revenue_growth',
+                                  'current_year_earnings_avg', 'current_year_earnings_low',
+                                  'current_year_earnings_high', 'current_year_end_date']
+            next_year_fields = ['next_year_revenue_avg', 'next_year_revenue_low',
+                               'next_year_revenue_high', 'next_year_revenue_growth',
+                               'next_year_earnings_avg', 'next_year_earnings_low',
+                               'next_year_earnings_high', 'next_year_end_date']
+
+            for profile in sorted(profiles, key=lambda x: x.get("symbol", "")):
+                symbol = profile.get("symbol", "N/A")
+
+                report_file.write(f"\n{'─'*120}\n")
+                report_file.write(f"SYMBOL: {symbol}\n")
+                report_file.write(f"{'─'*120}\n")
+
+                # Basic Info
+                report_file.write(f"\nBASIC INFORMATION:\n")
+                for field in basic_fields:
+                    value = profile.get(field, "N/A")
+                    report_file.write(f"  {field:30} {value}\n")
+
+                # Company Details
+                report_file.write(f"\nCOMPANY DETAILS:\n")
+                for field in company_fields:
+                    value = profile.get(field, "N/A")
+                    if field == 'description' and value and value != "N/A":
+                        # Truncate long descriptions
+                        value = value[:200] + "..." if len(str(value)) > 200 else value
+                    report_file.write(f"  {field:30} {value}\n")
+
+                # Valuation Metrics
+                report_file.write(f"\nVALUATION METRICS:\n")
+                for field in valuation_fields:
+                    value = profile.get(field, "N/A")
+                    report_file.write(f"  {field:30} {value}\n")
+
+                # Price Range
+                report_file.write(f"\nPRICE RANGE (52-WEEK):\n")
+                for field in price_fields:
+                    value = profile.get(field, "N/A")
+                    report_file.write(f"  {field:30} {value}\n")
+
+                # Analyst Data
+                report_file.write(f"\nANALYST CONSENSUS:\n")
+                for field in analyst_fields:
+                    value = profile.get(field, "N/A")
+                    report_file.write(f"  {field:30} {value}\n")
+
+                # Profitability Margins
+                report_file.write(f"\nPROFITABILITY MARGINS:\n")
+                for field in profitability_fields:
+                    value = profile.get(field, "N/A")
+                    report_file.write(f"  {field:30} {value}\n")
+
+                # Growth Metrics
+                report_file.write(f"\nGROWTH METRICS:\n")
+                for field in growth_fields:
+                    value = profile.get(field, "N/A")
+                    report_file.write(f"  {field:30} {value}\n")
+
+                # Revenue
+                report_file.write(f"\nREVENUE:\n")
+                for field in revenue_fields:
+                    value = profile.get(field, "N/A")
+                    report_file.write(f"  {field:30} {value}\n")
+
+                # Current Year Estimates
+                report_file.write(f"\nCURRENT YEAR ESTIMATES:\n")
+                for field in current_year_fields:
+                    value = profile.get(field, "N/A")
+                    report_file.write(f"  {field:30} {value}\n")
+
+                # Next Year Estimates
+                report_file.write(f"\nNEXT YEAR ESTIMATES:\n")
+                for field in next_year_fields:
+                    value = profile.get(field, "N/A")
+                    report_file.write(f"  {field:30} {value}\n")
+
+            report_file.write(f"\n{'='*120}\n")
+
+        # Calculate field coverage statistics
+        field_coverage = {}
+        all_fields = set()
+        for profile in profiles:
+            all_fields.update(profile.keys())
+
+        # Remove 'symbol' from coverage calc (always present)
+        all_fields.discard('symbol')
+
+        for field in sorted(all_fields):
+            count = sum(1 for p in profiles if p.get(field) is not None)
+            pct = (count/len(profiles)*100) if profiles else 0
+            field_coverage[field] = {"count": count, "percent": pct}
+
+        # Print field coverage summary
+        print(f"\n   FIELD COVERAGE STATISTICS ({len(all_fields)} data fields):")
+        print(f"   {'-'*80}")
+
+        # Group by coverage level
+        high_coverage = {k: v for k, v in field_coverage.items() if v['percent'] >= 75}
+        medium_coverage = {k: v for k, v in field_coverage.items() if 25 <= v['percent'] < 75}
+        low_coverage = {k: v for k, v in field_coverage.items() if v['percent'] < 25}
+
+        print(f"   High Coverage (≥75%): {len(high_coverage)} fields")
+        for field in sorted(high_coverage.keys())[:5]:
+            stats = high_coverage[field]
+            print(f"      {field:30} {stats['count']:3}/{len(profiles):3} ({stats['percent']:5.1f}%)")
+        if len(high_coverage) > 5:
+            print(f"      ... and {len(high_coverage)-5} more")
+
+        print(f"\n   Medium Coverage (25-74%): {len(medium_coverage)} fields")
+        for field in sorted(medium_coverage.keys())[:5]:
+            stats = medium_coverage[field]
+            print(f"      {field:30} {stats['count']:3}/{len(profiles):3} ({stats['percent']:5.1f}%)")
+        if len(medium_coverage) > 5:
+            print(f"      ... and {len(medium_coverage)-5} more")
+
+        print(f"\n   Low Coverage (<25%): {len(low_coverage)} fields")
+        for field in sorted(low_coverage.keys())[:5]:
+            stats = low_coverage[field]
+            print(f"      {field:30} {stats['count']:3}/{len(profiles):3} ({stats['percent']:5.1f}%)")
+        if len(low_coverage) > 5:
+            print(f"      ... and {len(low_coverage)-5} more")
 
         if report_file:
-            report_file.write(f"{'-'*140}\n\n")
-            report_file.write(f"SUMMARY:\n")
-            report_file.write(f"  Total Symbols: {len(positions)}\n")
-            report_file.write(f"  With Company Profile Data: {with_company_name} ({coverage_pct:.1f}%)\n")
-            report_file.write(f"  Missing Company Profile Data: {without_company_name} ({100-coverage_pct:.1f}%)\n\n")
+            report_file.write(f"\nFIELD COVERAGE STATISTICS ({len(all_fields)} data fields):\n")
+            report_file.write(f"{'─'*80}\n")
 
-            # Add additional detail on available fields
-            with_sector = sum(1 for p in positions if p.get("sector"))
-            with_industry = sum(1 for p in positions if p.get("industry"))
-
-            report_file.write(f"FIELD COVERAGE:\n")
-            report_file.write(f"  Positions with Sector: {with_sector} ({with_sector/len(positions)*100:.1f}%)\n")
-            report_file.write(f"  Positions with Industry: {with_industry} ({with_industry/len(positions)*100:.1f}%)\n")
+            for field in sorted(field_coverage.keys()):
+                stats = field_coverage[field]
+                report_file.write(f"{field:40} {stats['count']:3}/{len(profiles):3} ({stats['percent']:5.1f}%)\n")
 
         return {
-            "total": len(positions),
-            "with_profile": with_company_name,
-            "without_profile": without_company_name,
-            "coverage_percent": coverage_pct,
-            "profile_records": profile_records
+            "total": len(meta.get('requested_symbols', [])),
+            "with_profile": meta.get('returned_profiles', 0),
+            "without_profile": len(meta.get('missing_profiles', [])),
+            "coverage_percent": (meta.get('returned_profiles', 0)/len(meta.get('requested_symbols', []))*100) if meta.get('requested_symbols') else 0,
+            "field_coverage": field_coverage,
+            "profiles": profiles
         }
     else:
-        print(f"❌ Position Details: {response.status_code}")
+        print(f"❌ Company Profiles: {response.status_code}")
+        print(f"   Response: {response.text[:200]}")
         return None
 
 
