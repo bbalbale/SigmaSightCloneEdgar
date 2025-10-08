@@ -1365,21 +1365,40 @@ class MarketDataService:
                 - failed_symbols: List[str]
                 - profiles_cached: Dict[str, bool]
         """
+        # Filter out synthetic/private symbols BEFORE hitting external APIs
+        # Defense-in-depth: Even if investment_class filter missed these, we catch them here
+        original_count = len(symbols)
+        filtered_symbols = [s for s in symbols if s not in SYNTHETIC_SYMBOLS]
+        skipped_symbols = [s for s in symbols if s in SYNTHETIC_SYMBOLS]
+
+        if skipped_symbols:
+            logger.info(f"Skipping {len(skipped_symbols)} PRIVATE/symbolic symbols: {skipped_symbols}")
+
         results = {
-            'symbols_attempted': len(symbols),
+            'symbols_attempted': original_count,
             'symbols_successful': 0,
             'symbols_failed': 0,
             'failed_symbols': [],
             'profiles_cached': {}
         }
 
+        # Mark skipped symbols as "successful" since we intentionally didn't fetch them
+        for symbol in skipped_symbols:
+            results['symbols_successful'] += 1
+            results['profiles_cached'][symbol] = True  # Not cached, but intentionally skipped
+
+        # If all symbols were filtered out, return early
+        if not filtered_symbols:
+            logger.info("All symbols were PRIVATE/synthetic, no API calls needed")
+            return results
+
         # Phase 9.0 Fix: Process in slices of 20 to avoid all-or-nothing failure
         BATCH_SIZE = 20
 
-        for i in range(0, len(symbols), BATCH_SIZE):
-            batch = symbols[i:i+BATCH_SIZE]
+        for i in range(0, len(filtered_symbols), BATCH_SIZE):
+            batch = filtered_symbols[i:i+BATCH_SIZE]
             batch_num = i // BATCH_SIZE + 1
-            total_batches = (len(symbols) + BATCH_SIZE - 1) // BATCH_SIZE
+            total_batches = (len(filtered_symbols) + BATCH_SIZE - 1) // BATCH_SIZE
 
             logger.info(f"Processing batch {batch_num}/{total_batches} ({len(batch)} symbols)")
 
