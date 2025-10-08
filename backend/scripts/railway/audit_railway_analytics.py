@@ -57,8 +57,8 @@ def get_portfolio(token: str) -> Optional[Dict[str, Any]]:
 
 def test_portfolio_summary(portfolio_id: str, token: str, report_file):
     """Test /analytics/portfolio/{id}/overview"""
-    print(f"\n   📊 Portfolio Overview")
-    print(f"   {'-'*100}")
+    print(f"\n   📊 PORTFOLIO SUMMARY")
+    print(f"   {'═'*100}")
 
     response = requests.get(
         f"{RAILWAY_URL}/analytics/portfolio/{portfolio_id}/overview",
@@ -67,27 +67,51 @@ def test_portfolio_summary(portfolio_id: str, token: str, report_file):
 
     if response.status_code == 200:
         data = response.json()
-        print(f"   ✅ Status: 200 OK")
 
-        # Display key metrics
-        print(f"\n   Portfolio Metrics:")
-        print(f"      Total Value: ${data.get('total_value', 0):,.2f}")
-        print(f"      Equity Balance: ${data.get('equity_balance', 0):,.2f}")
-        print(f"      Market Value: ${data.get('total_market_value', 0):,.2f}")
-        print(f"      Total P&L: ${data.get('total_pnl', 0):,.2f} ({data.get('total_pnl_percent', 0):.2f}%)")
-        print(f"      Position Count: {data.get('position_count', 0)}")
+        # Account Value Section
+        print(f"\n   ACCOUNT VALUE")
+        print(f"   {'-'*100}")
+        equity = data.get('equity_balance', 0)
+        exposures = data.get('exposures', {})
+        pnl_data = data.get('pnl', {})
 
-        # Position type breakdown
-        if data.get('position_types'):
-            print(f"\n   Position Types:")
-            for ptype, count in data['position_types'].items():
-                print(f"      {ptype}: {count}")
+        total_pnl = pnl_data.get('total_pnl', 0)
+        unrealized = pnl_data.get('unrealized_pnl', 0)
+        realized = pnl_data.get('realized_pnl', 0)
 
-        # Investment class breakdown
-        if data.get('investment_classes'):
-            print(f"\n   Investment Classes:")
-            for iclass, count in data['investment_classes'].items():
-                print(f"      {iclass}: {count}")
+        print(f"   Total Equity:                      ${equity:>15,.2f}")
+        print(f"   Cash Balance:                      ${data.get('cash_balance', 0):>15,.2f}")
+        print(f"   Leverage Ratio:                    {data.get('leverage', 0):>15.2f}x")
+
+        # P&L Section
+        print(f"\n   PROFIT & LOSS")
+        print(f"   {'-'*100}")
+        pnl_pct = (total_pnl / equity * 100) if equity else 0
+        print(f"   Total P&L:                         ${total_pnl:>15,.2f}  ({pnl_pct:+.2f}%)")
+        print(f"   Unrealized P&L:                    ${unrealized:>15,.2f}")
+        print(f"   Realized P&L:                      ${realized:>15,.2f}")
+
+        # Exposure Section
+        print(f"\n   MARKET EXPOSURE")
+        print(f"   {'-'*100}")
+        long_exp = exposures.get('long_exposure', 0)
+        short_exp = exposures.get('short_exposure', 0)
+        gross_exp = exposures.get('gross_exposure', 0)
+        net_exp = exposures.get('net_exposure', 0)
+
+        print(f"   Long Exposure:                     ${long_exp:>15,.2f}  ({exposures.get('long_percentage', 0):>6.1f}%)")
+        print(f"   Short Exposure:                    ${short_exp:>15,.2f}  ({exposures.get('short_percentage', 0):>6.1f}%)")
+        print(f"   Gross Exposure:                    ${gross_exp:>15,.2f}  ({exposures.get('gross_percentage', 0):>6.1f}%)")
+        print(f"   Net Exposure:                      ${net_exp:>15,.2f}  ({exposures.get('net_percentage', 0):>6.1f}%)")
+
+        # Position Count Section
+        position_count = data.get('position_count', {})
+        print(f"\n   POSITIONS")
+        print(f"   {'-'*100}")
+        print(f"   Total Positions:                   {position_count.get('total_positions', 0):>15}")
+        print(f"   Long Positions:                    {position_count.get('long_count', 0):>15}")
+        print(f"   Short Positions:                   {position_count.get('short_count', 0):>15}")
+        print(f"   Options Positions:                 {position_count.get('option_count', 0):>15}")
 
         # Write to report
         report_file.write(f"\n{'─'*120}\n")
@@ -106,8 +130,8 @@ def test_portfolio_summary(portfolio_id: str, token: str, report_file):
 
 def test_portfolio_exposures(portfolio_id: str, token: str, report_file):
     """Test /analytics/portfolio/{id}/factor-exposures"""
-    print(f"\n   📈 Portfolio Factor Exposures")
-    print(f"   {'-'*100}")
+    print(f"\n   📈 RISK FACTOR ANALYSIS")
+    print(f"   {'═'*100}")
 
     response = requests.get(
         f"{RAILWAY_URL}/analytics/portfolio/{portfolio_id}/factor-exposures",
@@ -116,27 +140,42 @@ def test_portfolio_exposures(portfolio_id: str, token: str, report_file):
 
     if response.status_code == 200:
         data = response.json()
-        print(f"   ✅ Status: 200 OK")
 
-        # Display exposures
-        exposures = data.get('exposures', {})
-        print(f"\n   Portfolio Exposures:")
-        print(f"      Gross Exposure: ${exposures.get('gross_exposure', 0):,.2f}")
-        print(f"      Net Exposure: ${exposures.get('net_exposure', 0):,.2f}")
-        print(f"      Long Exposure: ${exposures.get('long_exposure', 0):,.2f}")
-        print(f"      Short Exposure: ${exposures.get('short_exposure', 0):,.2f}")
+        if not data.get('available'):
+            print(f"\n   No factor analysis data available yet")
+            print(f"   Run batch calculations to generate factor exposures")
+        else:
+            factors = data.get('factors', [])
+            metadata = data.get('metadata', {})
 
-        # Delta adjusted exposure
-        if exposures.get('delta_adjusted_exposure') is not None:
-            print(f"      Delta Adjusted: ${exposures.get('delta_adjusted_exposure', 0):,.2f}")
+            print(f"\n   FACTOR EXPOSURES")
+            print(f"   {'-'*100}")
+            print(f"   Factor Model: {metadata.get('factor_model', 'N/A')}")
+            print(f"   Calculation Date: {data.get('calculation_date', 'N/A')}")
+            print(f"\n   {'RISK FACTOR':<20} {'BETA':<12} {'DOLLAR EXPOSURE':<20}")
+            print(f"   {'-'*20} {'-'*12} {'-'*20}")
 
-        # Sector exposures
-        if data.get('sector_exposures'):
-            print(f"\n   Top Sector Exposures:")
-            for sector in list(data['sector_exposures'])[:5]:
-                value = sector.get('exposure', 0)
-                pct = sector.get('percent_of_portfolio', 0)
-                print(f"      {sector.get('sector', 'Unknown'):20} ${value:>12,.2f} ({pct:>5.1f}%)")
+            for factor in factors:
+                name = factor.get('name', 'N/A')
+                beta = factor.get('beta', 0)
+                exposure = factor.get('exposure_dollar', 0)
+
+                # Interpret beta strength
+                if abs(beta) >= 1.0:
+                    strength = "High"
+                elif abs(beta) >= 0.5:
+                    strength = "Moderate"
+                else:
+                    strength = "Low"
+
+                print(f"   {name:<20} {beta:>11.3f}  ${exposure:>18,.2f}")
+
+            print(f"\n   INTERPRETATION")
+            print(f"   {'-'*100}")
+            print(f"   • Beta > 1.0 = High sensitivity to factor movements")
+            print(f"   • Beta 0.5-1.0 = Moderate sensitivity")
+            print(f"   • Beta < 0.5 = Low sensitivity")
+            print(f"   • Negative beta = Inverse relationship to factor")
 
         # Write to report
         report_file.write(f"\n{'─'*120}\n")
@@ -155,8 +194,8 @@ def test_portfolio_exposures(portfolio_id: str, token: str, report_file):
 
 def test_portfolio_greeks(portfolio_id: str, token: str, report_file):
     """Test /analytics/portfolio/{id}/positions/factor-exposures"""
-    print(f"\n   🏭 Position-Level Factor Exposures")
-    print(f"   {'-'*100}")
+    print(f"\n   🏭 HOLDINGS FACTOR BREAKDOWN")
+    print(f"   {'═'*100}")
 
     response = requests.get(
         f"{RAILWAY_URL}/analytics/portfolio/{portfolio_id}/positions/factor-exposures",
@@ -166,33 +205,49 @@ def test_portfolio_greeks(portfolio_id: str, token: str, report_file):
 
     if response.status_code == 200:
         data = response.json()
-        print(f"   ✅ Status: 200 OK")
 
-        # Display aggregated Greeks
-        greeks = data.get('aggregated_greeks', {})
-        print(f"\n   Aggregated Greeks:")
-        print(f"      Delta: {greeks.get('total_delta', 0):,.4f}")
-        print(f"      Gamma: {greeks.get('total_gamma', 0):,.4f}")
-        print(f"      Theta: {greeks.get('total_theta', 0):,.4f}")
-        print(f"      Vega: {greeks.get('total_vega', 0):,.4f}")
-        print(f"      Rho: {greeks.get('total_rho', 0):,.4f}")
+        if not data.get('available'):
+            print(f"\n   No position-level factor data available yet")
+            print(f"   Run batch calculations to generate factor exposures")
+        else:
+            positions = data.get('positions', [])
+            total = data.get('total', 0)
 
-        # Position-level Greeks
-        position_greeks = data.get('position_greeks', [])
-        if position_greeks:
-            print(f"\n   Position-Level Greeks ({len(position_greeks)} positions):")
-            print(f"      {'SYMBOL':<12} {'DELTA':>10} {'GAMMA':>10} {'THETA':>10} {'VEGA':>10}")
-            print(f"      {'-'*12} {'-'*10} {'-'*10} {'-'*10} {'-'*10}")
-            for pos in position_greeks[:10]:  # Show first 10
-                symbol = pos.get('symbol', 'N/A')
-                delta = pos.get('delta', 0) or 0
-                gamma = pos.get('gamma', 0) or 0
-                theta = pos.get('theta', 0) or 0
-                vega = pos.get('vega', 0) or 0
-                print(f"      {symbol:<12} {delta:>10.4f} {gamma:>10.4f} {theta:>10.4f} {vega:>10.4f}")
+            if positions:
+                print(f"\n   INDIVIDUAL POSITION FACTOR EXPOSURES")
+                print(f"   {'-'*100}")
+                print(f"   Showing {len(positions)} of {total} positions")
 
-            if len(position_greeks) > 10:
-                print(f"      ... and {len(position_greeks) - 10} more")
+                # Show top positions with highest market beta
+                sorted_positions = sorted(positions, key=lambda x: abs(x.get('exposures', {}).get('Market Beta', 0)), reverse=True)
+
+                print(f"\n   {'SYMBOL':<12} {'MKT BETA':>10} {'VALUE':>10} {'GROWTH':>10} {'MOMENTUM':>10} {'QUALITY':>10}")
+                print(f"   {'-'*12} {'-'*10} {'-'*10} {'-'*10} {'-'*10} {'-'*10}")
+
+                for pos in sorted_positions[:15]:  # Show top 15
+                    symbol = pos.get('symbol', 'N/A')
+                    exp = pos.get('exposures', {})
+
+                    market = exp.get('Market Beta', 0)
+                    value = exp.get('Value', 0)
+                    growth = exp.get('Growth', 0)
+                    momentum = exp.get('Momentum', 0)
+                    quality = exp.get('Quality', 0)
+
+                    print(f"   {symbol:<12} {market:>10.3f} {value:>10.3f} {growth:>10.3f} {momentum:>10.3f} {quality:>10.3f}")
+
+                if len(sorted_positions) > 15:
+                    print(f"\n   ... and {len(sorted_positions) - 15} more positions")
+
+                print(f"\n   FACTOR INTERPRETATION")
+                print(f"   {'-'*100}")
+                print(f"   • Market Beta: Sensitivity to overall market movements")
+                print(f"   • Value: Exposure to undervalued stocks (low P/E, P/B ratios)")
+                print(f"   • Growth: Exposure to high-growth companies")
+                print(f"   • Momentum: Exposure to stocks with strong recent performance")
+                print(f"   • Quality: Exposure to profitable, stable companies")
+            else:
+                print(f"\n   No position data available")
 
         # Write to report
         report_file.write(f"\n{'─'*120}\n")
@@ -268,8 +323,8 @@ def test_portfolio_factors(portfolio_id: str, token: str, report_file):
 
 def test_portfolio_correlations(portfolio_id: str, token: str, report_file):
     """Test /analytics/portfolio/{id}/correlation-matrix"""
-    print(f"\n   🔗 Correlation Matrix")
-    print(f"   {'-'*100}")
+    print(f"\n   🔗 PORTFOLIO CORRELATION ANALYSIS")
+    print(f"   {'═'*100}")
 
     response = requests.get(
         f"{RAILWAY_URL}/analytics/portfolio/{portfolio_id}/correlation-matrix",
@@ -279,54 +334,72 @@ def test_portfolio_correlations(portfolio_id: str, token: str, report_file):
 
     if response.status_code == 200:
         data = response.json()
-        print(f"   ✅ Status: 200 OK")
 
-        # Display correlation matrix info
-        matrix = data.get('correlation_matrix', [])
-        symbols = data.get('symbols', [])
+        if not data.get('available'):
+            print(f"\n   No correlation data available yet")
+            print(f"   Requires 90 days of historical price data")
+        else:
+            matrix = data.get('correlation_matrix', [])
+            symbols = data.get('symbols', [])
+            quality = data.get('data_quality') or {}
 
-        print(f"\n   Correlation Matrix:")
-        print(f"      Symbols: {len(symbols)}")
-        print(f"      Matrix size: {len(matrix)}x{len(matrix[0]) if matrix else 0}")
+            print(f"\n   CORRELATION MATRIX SUMMARY")
+            print(f"   {'-'*100}")
+            print(f"   Number of Holdings Analyzed:       {len(symbols):>15}")
+            print(f"   Analysis Period:                   {quality.get('lookback_days', 90):>12} days")
+            print(f"   Average Data Points:               {quality.get('avg_overlap', 0):>15.0f}")
 
-        if symbols and len(symbols) <= 10:
-            # Show small correlation matrices
-            print(f"\n      {'':<12}", end='')
-            for sym in symbols:
-                print(f"{sym:<8}", end='')
-            print()
-
-            for i, row in enumerate(matrix):
-                print(f"      {symbols[i]:<12}", end='')
-                for val in row:
-                    print(f"{val:>8.3f}", end='')
-                print()
-        elif symbols:
-            print(f"\n      Sample (first 5x5):")
-            print(f"      {'':<12}", end='')
-            for sym in symbols[:5]:
-                print(f"{sym:<8}", end='')
-            print()
-
-            for i in range(min(5, len(matrix))):
-                print(f"      {symbols[i]:<12}", end='')
-                for val in matrix[i][:5]:
-                    print(f"{val:>8.3f}", end='')
+            if symbols and len(symbols) <= 10:
+                # Show full correlation matrix for small portfolios
+                print(f"\n   CORRELATION MATRIX")
+                print(f"   {'-'*100}")
+                print(f"   {'':<12}", end='')
+                for sym in symbols:
+                    print(f"{sym:<8}", end='')
                 print()
 
-        # High/low correlations
-        high_corr = data.get('high_correlations', [])
-        low_corr = data.get('low_correlations', [])
+                for i, row in enumerate(matrix):
+                    print(f"   {symbols[i]:<12}", end='')
+                    for val in row:
+                        # Color code correlations
+                        if val > 0.7:
+                            marker = "█"  # High positive
+                        elif val > 0.3:
+                            marker = "▓"  # Medium positive
+                        elif val > -0.3:
+                            marker = "░"  # Low correlation
+                        else:
+                            marker = "▒"  # Negative
+                        print(f"{val:>7.2f}{marker}", end='')
+                    print()
 
-        if high_corr:
-            print(f"\n   Highest Correlations:")
-            for corr in high_corr[:5]:
-                print(f"      {corr.get('symbol_1', 'N/A'):8} - {corr.get('symbol_2', 'N/A'):8} : {corr.get('correlation', 0):>6.3f}")
+                print(f"\n   Key: █ High (>0.7)  ▓ Medium (0.3-0.7)  ░ Low (±0.3)  ▒ Negative (<-0.3)")
 
-        if low_corr:
-            print(f"\n   Lowest Correlations:")
-            for corr in low_corr[:5]:
-                print(f"      {corr.get('symbol_1', 'N/A'):8} - {corr.get('symbol_2', 'N/A'):8} : {corr.get('correlation', 0):>6.3f}")
+            # High/low correlations
+            high_corr = data.get('high_correlations', [])
+            low_corr = data.get('low_correlations', [])
+
+            if high_corr:
+                print(f"\n   HIGHLY CORRELATED PAIRS (Move together)")
+                print(f"   {'-'*100}")
+                print(f"   {'SYMBOL 1':<12} {'SYMBOL 2':<12} {'CORRELATION':<15}")
+                print(f"   {'-'*12} {'-'*12} {'-'*15}")
+                for corr in high_corr[:5]:
+                    sym1 = corr.get('symbol_1', 'N/A')
+                    sym2 = corr.get('symbol_2', 'N/A')
+                    val = corr.get('correlation', 0)
+                    print(f"   {sym1:<12} {sym2:<12} {val:>14.2f}")
+
+            if low_corr:
+                print(f"\n   NEGATIVELY CORRELATED PAIRS (Move opposite)")
+                print(f"   {'-'*100}")
+                print(f"   {'SYMBOL 1':<12} {'SYMBOL 2':<12} {'CORRELATION':<15}")
+                print(f"   {'-'*12} {'-'*12} {'-'*15}")
+                for corr in low_corr[:5]:
+                    sym1 = corr.get('symbol_1', 'N/A')
+                    sym2 = corr.get('symbol_2', 'N/A')
+                    val = corr.get('correlation', 0)
+                    print(f"   {sym1:<12} {sym2:<12} {val:>14.2f}")
 
         # Write to report
         report_file.write(f"\n{'─'*120}\n")
@@ -345,8 +418,8 @@ def test_portfolio_correlations(portfolio_id: str, token: str, report_file):
 
 def test_portfolio_scenarios(portfolio_id: str, token: str, report_file):
     """Test /analytics/portfolio/{id}/stress-test"""
-    print(f"\n   🎯 Stress Test Results")
-    print(f"   {'-'*100}")
+    print(f"\n   🎯 PORTFOLIO STRESS TESTING")
+    print(f"   {'═'*100}")
 
     response = requests.get(
         f"{RAILWAY_URL}/analytics/portfolio/{portfolio_id}/stress-test",
@@ -355,21 +428,48 @@ def test_portfolio_scenarios(portfolio_id: str, token: str, report_file):
 
     if response.status_code == 200:
         data = response.json()
-        print(f"   ✅ Status: 200 OK")
 
-        # Display scenarios
-        scenarios = data.get('scenarios', [])
+        if not data.get('available'):
+            print(f"\n   No stress test results available yet")
+            print(f"   Run batch calculations to generate stress scenarios")
+        else:
+            scenarios = data.get('scenarios', [])
+            baseline = data.get('baseline_value', 0)
 
-        if scenarios:
-            print(f"\n   Scenario Results ({len(scenarios)} scenarios):")
-            print(f"      {'SCENARIO':<25} {'P&L':>15} {'P&L %':>10}")
-            print(f"      {'-'*25} {'-'*15} {'-'*10}")
+            if scenarios:
+                print(f"\n   STRESS SCENARIO ANALYSIS")
+                print(f"   {'-'*100}")
+                print(f"   Current Portfolio Value:           ${baseline:>15,.2f}")
+                print(f"   Number of Scenarios Tested:        {len(scenarios):>15}")
 
-            for scenario in scenarios:
-                name = scenario.get('scenario_name', 'N/A')
-                pnl = scenario.get('total_pnl', 0)
-                pnl_pct = scenario.get('pnl_percent', 0)
-                print(f"      {name:<25} ${pnl:>14,.2f} {pnl_pct:>9.2f}%")
+                print(f"\n   {'SCENARIO':<30} {'IMPACT':<20} {'CHANGE %':<12} {'NEW VALUE':<20}")
+                print(f"   {'-'*30} {'-'*20} {'-'*12} {'-'*20}")
+
+                for scenario in scenarios:
+                    name = scenario.get('scenario_name', 'N/A')
+                    pnl = scenario.get('total_pnl', 0)
+                    pnl_pct = scenario.get('pnl_percent', 0)
+                    new_value = baseline + pnl
+
+                    # Format with + or - sign
+                    pnl_str = f"${pnl:+,.2f}" if pnl != 0 else "$0.00"
+                    pct_str = f"{pnl_pct:+.2f}%" if pnl_pct != 0 else "0.00%"
+
+                    print(f"   {name:<30} {pnl_str:<20} {pct_str:<12} ${new_value:>18,.2f}")
+
+                # Find worst and best scenarios
+                if len(scenarios) > 0:
+                    worst = min(scenarios, key=lambda x: x.get('total_pnl', 0))
+                    best = max(scenarios, key=lambda x: x.get('total_pnl', 0))
+
+                    print(f"\n   KEY INSIGHTS")
+                    print(f"   {'-'*100}")
+                    print(f"   Worst Case Scenario:  {worst.get('scenario_name', 'N/A')}")
+                    print(f"   └─ Impact: ${worst.get('total_pnl', 0):+,.2f} ({worst.get('pnl_percent', 0):+.2f}%)")
+                    print(f"\n   Best Case Scenario:   {best.get('scenario_name', 'N/A')}")
+                    print(f"   └─ Impact: ${best.get('total_pnl', 0):+,.2f} ({best.get('pnl_percent', 0):+.2f}%)")
+            else:
+                print(f"\n   No scenarios available")
 
         # Write to report
         report_file.write(f"\n{'─'*120}\n")
@@ -388,8 +488,8 @@ def test_portfolio_scenarios(portfolio_id: str, token: str, report_file):
 
 def test_diversification_score(portfolio_id: str, token: str, report_file):
     """Test /analytics/portfolio/{id}/diversification-score"""
-    print(f"\n   🎲 Diversification Score")
-    print(f"   {'-'*100}")
+    print(f"\n   🎲 PORTFOLIO DIVERSIFICATION ANALYSIS")
+    print(f"   {'═'*100}")
 
     response = requests.get(
         f"{RAILWAY_URL}/analytics/portfolio/{portfolio_id}/diversification-score",
@@ -399,40 +499,57 @@ def test_diversification_score(portfolio_id: str, token: str, report_file):
 
     if response.status_code == 200:
         data = response.json()
-        print(f"   ✅ Status: 200 OK")
 
-        # Display diversification metrics
-        print(f"\n   Diversification Metrics:")
-        print(f"      Overall Score: {data.get('overall_score', 0):.2f}/100")
-        print(f"      Rating: {data.get('rating', 'N/A')}")
+        if not data.get('available'):
+            print(f"\n   No diversification data available yet")
+            print(f"   Requires correlation calculations to complete")
+        else:
+            score = data.get('weighted_abs_correlation', 0)
+            quality = data.get('data_quality') or {}
 
-        # Component scores
-        components = data.get('component_scores', {})
-        if components:
-            print(f"\n   Component Scores:")
-            print(f"      Position Count: {components.get('position_count_score', 0):.2f}")
-            print(f"      Sector Diversity: {components.get('sector_diversity_score', 0):.2f}")
-            print(f"      Asset Class Diversity: {components.get('asset_class_diversity_score', 0):.2f}")
-            print(f"      Concentration Risk: {components.get('concentration_score', 0):.2f}")
-            print(f"      Correlation: {components.get('correlation_score', 0):.2f}")
+            print(f"\n   DIVERSIFICATION SCORE")
+            print(f"   {'-'*100}")
 
-        # Top holdings
-        top_holdings = data.get('top_holdings', [])
-        if top_holdings:
-            print(f"\n   Top Holdings:")
-            for holding in top_holdings[:5]:
-                symbol = holding.get('symbol', 'N/A')
-                pct = holding.get('percent_of_portfolio', 0)
-                print(f"      {symbol:10} {pct:>6.2f}%")
+            # Convert correlation to diversification score (0-100)
+            # Lower correlation = Higher diversification
+            div_score = (1 - score) * 100
 
-        # Sector breakdown
-        sectors = data.get('sector_breakdown', [])
-        if sectors:
-            print(f"\n   Sector Breakdown:")
-            for sector in sectors[:5]:
-                name = sector.get('sector', 'Unknown')
-                pct = sector.get('percent', 0)
-                print(f"      {name:20} {pct:>6.2f}%")
+            # Rating based on score
+            if div_score >= 80:
+                rating = "Excellent"
+                emoji = "🌟"
+            elif div_score >= 60:
+                rating = "Good"
+                emoji = "✅"
+            elif div_score >= 40:
+                rating = "Moderate"
+                emoji = "⚠️"
+            else:
+                rating = "Poor"
+                emoji = "❌"
+
+            print(f"   Diversification Score:             {div_score:>15.1f}/100  {emoji}")
+            print(f"   Rating:                            {rating:>20}")
+            print(f"   Average Correlation:               {score:>20.2f}")
+
+            print(f"\n   DATA QUALITY")
+            print(f"   {'-'*100}")
+            print(f"   Symbols Analyzed:                  {quality.get('symbols_calculated', 0):>15}")
+            print(f"   Analysis Period:                   {quality.get('lookback_days', 90):>12} days")
+            print(f"   Average Data Points:               {quality.get('avg_overlap', 0):>15.0f}")
+
+            print(f"\n   INTERPRETATION")
+            print(f"   {'-'*100}")
+            if div_score >= 60:
+                print(f"   ✅ Your portfolio shows {rating.lower()} diversification")
+                print(f"   Holdings tend to move independently, reducing concentration risk")
+            elif div_score >= 40:
+                print(f"   ⚠️  Your portfolio shows moderate diversification")
+                print(f"   Some holdings move together - consider adding uncorrelated assets")
+            else:
+                print(f"   ❌ Your portfolio shows poor diversification")
+                print(f"   Many holdings move together - high concentration risk")
+                print(f"   Consider adding assets with different risk factors")
 
         # Write to report
         report_file.write(f"\n{'─'*120}\n")
