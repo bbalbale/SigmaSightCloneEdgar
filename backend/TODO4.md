@@ -5357,3 +5357,994 @@ This phase directly addresses agent code review feedback:
 ---
 
 **End of Phase 10.0 Planning**
+
+---
+
+# Phase 11.0: Company Profile Data API Endpoint
+
+**Phase**: 11.0 - Data API Enhancement
+**Status**: 🟡 **PLANNED**
+**Created**: 2025-10-08
+**Priority**: MEDIUM
+**Impact**: Enables frontend/agents to access full company profile data (sector, industry, financials, analyst data)
+
+---
+
+## 11.0 Overview
+
+Create a new REST API endpoint to expose the comprehensive company profile data currently stored in the `company_profiles` database table. The table contains 40+ fields per symbol (sector, industry, market cap, analyst targets, growth metrics, profitability ratios) but no API currently exposes this data.
+
+**Why This Phase**:
+- Company profile data exists in database (populated by Phase 9 daily sync)
+- Frontend/agents currently only access `company_name` field (via `/data/positions/details`)
+- Audit scripts show 17/29 symbols (58.6%) have profiles, but Sector/Industry showing "N/A"
+- No API endpoint to retrieve sector, industry, analyst targets, financial metrics, etc.
+
+**Current State**:
+- ✅ `company_profiles` table: 40+ columns with rich data
+- ✅ Service layer: `MarketDataService.store_company_profile()` working
+- ✅ Daily sync: Phase 9 cron populating data from yahooquery
+- ❌ API layer: No endpoint to retrieve profile data
+- ❌ Frontend: Can only see company names, not sector/industry/metrics
+
+**Key Changes**:
+- Add new endpoint: `GET /api/v1/data/company-profiles`
+- Support flexible queries: by symbols, position_ids, or portfolio_id
+- Optional field filtering for performance
+- Return all 53 profile fields when requested
+
+---
+
+## 11.1 Problem Statement
+
+### 11.1.1 Current Limitation
+
+**API Coverage Gap**:
+```python
+# Currently available via /data/positions/details (line 82-84 in data.py):
+profiles_stmt = select(CompanyProfile.symbol, CompanyProfile.company_name).where(...)
+# Returns: {"company_name": "Apple Inc."}
+
+# What's in the database but NOT accessible via API (53 fields):
+
+# Basic Company Info (8 fields):
+- sector                    # e.g., "Technology", "Healthcare"
+- industry                  # e.g., "Consumer Electronics", "Pharmaceuticals"
+- exchange                  # e.g., "NASDAQ", "NYSE"
+- country                   # e.g., "United States", "Japan"
+- market_cap                # Market capitalization in dollars
+- description               # Company description (1000 chars)
+- is_etf                    # Boolean: Is this an ETF?
+- is_fund                   # Boolean: Is this a mutual fund?
+
+# Company Details (3 fields):
+- ceo                       # CEO name
+- employees                 # Number of employees
+- website                   # Company website URL
+
+# Valuation Metrics (6 fields):
+- pe_ratio                  # Price-to-earnings ratio
+- forward_pe                # Forward P/E ratio
+- dividend_yield            # Dividend yield (as decimal)
+- beta                      # Stock beta (volatility vs market)
+- week_52_high              # 52-week high price
+- week_52_low               # 52-week low price
+
+# Analyst Data (6 fields):
+- target_mean_price         # Mean analyst target price
+- target_high_price         # High analyst target price
+- target_low_price          # Low analyst target price
+- number_of_analyst_opinions # Number of analysts covering
+- recommendation_mean       # Mean recommendation (1-5 scale)
+- recommendation_key        # Recommendation text ("buy", "hold", "sell")
+
+# Growth & Forward Metrics (4 fields):
+- forward_eps               # Forward earnings per share
+- earnings_growth           # Earnings growth rate (decimal)
+- revenue_growth            # Revenue growth rate (decimal)
+- earnings_quarterly_growth # Quarterly earnings growth rate (decimal)
+
+# Profitability Metrics (5 fields):
+- profit_margins            # Net profit margin (decimal)
+- operating_margins         # Operating margin (decimal)
+- gross_margins             # Gross margin (decimal)
+- return_on_assets          # ROA (decimal)
+- return_on_equity          # ROE (decimal)
+
+# Revenue Data (10 fields):
+- total_revenue             # Total annual revenue
+- current_year_revenue_avg  # Current year revenue estimate (avg)
+- current_year_revenue_low  # Current year revenue estimate (low)
+- current_year_revenue_high # Current year revenue estimate (high)
+- current_year_revenue_growth # Current year revenue growth estimate
+- current_year_end_date     # Current fiscal year end date
+- next_year_revenue_avg     # Next year revenue estimate (avg)
+- next_year_revenue_low     # Next year revenue estimate (low)
+- next_year_revenue_high    # Next year revenue estimate (high)
+- next_year_revenue_growth  # Next year revenue growth estimate
+
+# Earnings Estimates (7 fields):
+- current_year_earnings_avg # Current year EPS estimate (avg)
+- current_year_earnings_low # Current year EPS estimate (low)
+- current_year_earnings_high # Current year EPS estimate (high)
+- next_year_earnings_avg    # Next year EPS estimate (avg)
+- next_year_earnings_low    # Next year EPS estimate (low)
+- next_year_earnings_high   # Next year EPS estimate (high)
+- next_year_end_date        # Next fiscal year end date
+
+# Metadata (4 fields):
+- data_source               # Data source ("yahooquery", "fmp")
+- last_updated              # When profile was last updated
+- created_at                # When record was created
+- updated_at                # When record was last modified
+
+# TOTAL: 53 fields NOT accessible via any API endpoint
+```
+
+**Evidence from Railway Audit** (2025-10-08):
+```
+SYMBOL       STATUS   COMPANY NAME                    SECTOR    INDUSTRY
+AAPL         ✅        Apple Inc.                      N/A       N/A
+GOOGL        ✅        Alphabet Inc.                   N/A       N/A
+META         ✅        Meta Platforms, Inc.            N/A       N/A
+
+FIELD COVERAGE:
+  Positions with Sector: 0 (0.0%)
+  Positions with Industry: 0 (0.0%)
+```
+
+**Root Cause**: 
+- Data EXISTS in database (populated by Phase 9 sync)
+- API endpoint doesn't expose sector/industry fields
+- `/data/positions/details` explicitly limits to `company_name` only for performance
+
+### 11.1.2 Use Cases Blocked
+
+**Frontend Portfolio View**:
+- Cannot display sector allocation pie chart
+- Cannot group positions by industry
+- Cannot show valuation metrics (P/E, forward P/E)
+- Cannot display analyst ratings/targets
+
+**AI Agent Analysis**:
+- Cannot answer "What's my sector exposure?"
+- Cannot analyze "Which positions have high P/E ratios?"
+- Cannot provide "Show me growth vs value stocks"
+- Cannot compare "Analyst targets vs current prices"
+
+**Audit/Reporting Scripts**:
+- Company profile audit shows N/A for sector/industry despite data existing
+- No way to verify data quality beyond company_name
+
+---
+
+## 11.2 Proposed Solution
+
+### 11.2.1 New API Endpoint Design
+
+**Endpoint**: `GET /api/v1/data/company-profiles`
+
+**Query Parameters (Mutually Exclusive)**:
+```python
+symbols: Optional[str] = Query(None, description="Comma-separated symbols (e.g., 'AAPL,MSFT,GOOGL')")
+position_ids: Optional[str] = Query(None, description="Comma-separated position IDs")
+portfolio_id: Optional[UUID] = Query(None, description="Get profiles for all portfolio symbols")
+fields: Optional[str] = Query(None, description="Comma-separated fields to include (default: all)")
+```
+
+**Parameter Validation**:
+- Exactly ONE of `symbols`, `position_ids`, or `portfolio_id` must be provided
+- Error 400 if none provided or if multiple provided
+- `fields` parameter is optional and works with any query type
+
+```python
+# Validation logic
+params_provided = sum([
+    symbols is not None,
+    position_ids is not None,
+    portfolio_id is not None
+])
+
+if params_provided == 0:
+    raise HTTPException(400, "One of symbols, position_ids, or portfolio_id required")
+if params_provided > 1:
+    raise HTTPException(400, "Only one of symbols, position_ids, or portfolio_id allowed")
+```
+
+---
+
+### **Use Case A: Query by Portfolio ID**
+
+**Request**:
+```bash
+GET /api/v1/data/company-profiles?portfolio_id=1d8ddd95-3b45-0ac5-35bf-cf81af94a5fe
+```
+
+**Response**:
+```json
+{
+  "profiles": [
+    {
+      "symbol": "AAPL",
+      "company_name": "Apple Inc.",
+      "sector": "Technology",
+      "industry": "Consumer Electronics",
+      "exchange": "NASDAQ",
+      "country": "United States",
+      "market_cap": 2800000000000,
+      "description": "Apple Inc. designs, manufactures...",
+      "is_etf": false,
+      "is_fund": false,
+      "ceo": "Timothy Cook",
+      "employees": 164000,
+      "website": "https://www.apple.com",
+      "pe_ratio": 28.5,
+      "forward_pe": 26.8,
+      "dividend_yield": 0.0052,
+      "beta": 1.24,
+      "week_52_high": 199.62,
+      "week_52_low": 164.08,
+      "target_mean_price": 195.50,
+      "target_high_price": 220.00,
+      "target_low_price": 158.00,
+      "number_of_analyst_opinions": 42,
+      "recommendation_mean": 1.85,
+      "recommendation_key": "buy",
+      "forward_eps": 7.12,
+      "earnings_growth": 0.089,
+      "revenue_growth": 0.051,
+      "earnings_quarterly_growth": 0.102,
+      "profit_margins": 0.265,
+      "operating_margins": 0.305,
+      "gross_margins": 0.438,
+      "return_on_assets": 0.223,
+      "return_on_equity": 0.625,
+      "total_revenue": 383285000000,
+      "current_year_revenue_avg": 395000000000,
+      "current_year_revenue_low": 390000000000,
+      "current_year_revenue_high": 400000000000,
+      "current_year_revenue_growth": 0.031,
+      "current_year_end_date": "2025-09-30",
+      "next_year_revenue_avg": 412000000000,
+      "next_year_revenue_low": 405000000000,
+      "next_year_revenue_high": 420000000000,
+      "next_year_revenue_growth": 0.043,
+      "current_year_earnings_avg": 6.85,
+      "current_year_earnings_low": 6.75,
+      "current_year_earnings_high": 6.95,
+      "next_year_earnings_avg": 7.45,
+      "next_year_earnings_low": 7.30,
+      "next_year_earnings_high": 7.60,
+      "next_year_end_date": "2026-09-30",
+      "data_source": "yahooquery",
+      "last_updated": "2025-10-07T19:30:00Z",
+      "created_at": "2025-09-15T10:00:00Z",
+      "updated_at": "2025-10-07T19:30:00Z"
+    },
+    {
+      "symbol": "MSFT",
+      "company_name": "Microsoft Corporation",
+      "sector": "Technology",
+      "industry": "Software - Infrastructure",
+      // ... all 53 fields
+    }
+  ],
+  "meta": {
+    "query_type": "portfolio",
+    "portfolio_id": "1d8ddd95-3b45-0ac5-35bf-cf81af94a5fe",
+    "requested_symbols": ["AAPL", "MSFT", "GOOGL", "HOME_EQUITY", "CRYPTO_BTC_ETH"],
+    "returned_profiles": 3,
+    "missing_profiles": ["HOME_EQUITY", "CRYPTO_BTC_ETH"],
+    "as_of": "2025-10-08T12:34:56Z"
+  }
+}
+```
+
+**Use Case**: Portfolio overview page showing sector allocation, viewing all company details
+
+---
+
+### **Use Case B: Query by Position IDs**
+
+**Request**:
+```bash
+GET /api/v1/data/company-profiles?position_ids=uuid1,uuid2,uuid3
+```
+
+**Response**:
+```json
+{
+  "profiles": [
+    {
+      "symbol": "AAPL",
+      "company_name": "Apple Inc.",
+      "sector": "Technology",
+      // ... all 53 fields
+    },
+    {
+      "symbol": "MSFT",
+      "company_name": "Microsoft Corporation",
+      "sector": "Technology",
+      // ... all 53 fields
+    }
+  ],
+  "meta": {
+    "query_type": "positions",
+    "position_ids": ["uuid1", "uuid2", "uuid3"],
+    "position_symbol_map": {
+      "uuid1": "AAPL",
+      "uuid2": "MSFT",
+      "uuid3": "GOOGL"
+    },
+    "requested_symbols": ["AAPL", "MSFT", "GOOGL"],
+    "returned_profiles": 3,
+    "missing_profiles": [],
+    "as_of": "2025-10-08T12:34:56Z"
+  }
+}
+```
+
+**Use Case**: Position detail views, fetching profiles for specific selected positions
+
+**Note**: `position_symbol_map` only returned for `position_ids` queries - helps frontend map profiles back to position UUIDs
+
+---
+
+### **Use Case C: Query by Symbols (Direct)**
+
+**Request**:
+```bash
+GET /api/v1/data/company-profiles?symbols=AAPL,MSFT,GOOGL
+```
+
+**Response**:
+```json
+{
+  "profiles": [
+    {
+      "symbol": "AAPL",
+      "company_name": "Apple Inc.",
+      "sector": "Technology",
+      // ... all 53 fields
+    },
+    {
+      "symbol": "MSFT",
+      "company_name": "Microsoft Corporation",
+      "sector": "Technology",
+      // ... all 53 fields
+    },
+    {
+      "symbol": "GOOGL",
+      "company_name": "Alphabet Inc.",
+      "sector": "Communication Services",
+      // ... all 53 fields
+    }
+  ],
+  "meta": {
+    "query_type": "symbols",
+    "requested_symbols": ["AAPL", "MSFT", "GOOGL"],
+    "returned_profiles": 3,
+    "missing_profiles": [],
+    "as_of": "2025-10-08T12:34:56Z"
+  }
+}
+```
+
+**Use Case**: Research tools, watchlists, ad-hoc symbol lookups, chatbot queries
+
+---
+
+### **Use Case D: Field Filtering (Performance Optimization)**
+
+**Request**:
+```bash
+GET /api/v1/data/company-profiles?symbols=AAPL,MSFT&fields=sector,industry,market_cap,pe_ratio
+```
+
+**Response**:
+```json
+{
+  "profiles": [
+    {
+      "symbol": "AAPL",
+      "sector": "Technology",
+      "industry": "Consumer Electronics",
+      "market_cap": 2800000000000,
+      "pe_ratio": 28.5
+    },
+    {
+      "symbol": "MSFT",
+      "sector": "Technology",
+      "industry": "Software - Infrastructure",
+      "market_cap": 3100000000000,
+      "pe_ratio": 35.2
+    }
+  ],
+  "meta": {
+    "query_type": "symbols",
+    "fields_requested": ["sector", "industry", "market_cap", "pe_ratio"],
+    "requested_symbols": ["AAPL", "MSFT"],
+    "returned_profiles": 2,
+    "missing_profiles": [],
+    "as_of": "2025-10-08T12:34:56Z"
+  }
+}
+```
+
+**Use Case**: Large portfolios (30+ positions) where only basic classification needed (sector/industry grouping)
+
+**Performance Impact**: Reduces response size by ~80% when requesting 5 fields vs all 53 fields
+
+---
+
+### **Design Rationale**
+
+**1. Single Endpoint with Mutually Exclusive Parameters**
+- ✅ One endpoint to maintain (vs 3 separate endpoints)
+- ✅ Consistent response shape across all query types
+- ✅ Clear intent (can't accidentally mix query types)
+- ✅ Frontend uses single function for all three cases
+
+**2. Consistent Response Shape**
+- ✅ Always returns `profiles` array (same structure)
+- ✅ Always returns `meta` object (with query context)
+- ✅ Frontend can handle all query types with same code
+- ✅ Easy to add new query types in future (e.g., `tag_id`)
+
+**3. Rich Metadata**
+- ✅ `query_type`: Frontend knows what was queried
+- ✅ `requested_symbols`: What symbols were requested (extracted from portfolio/positions)
+- ✅ `returned_profiles`: How many profiles found
+- ✅ `missing_profiles`: Symbols without profiles (PRIVATE positions, etc.)
+- ✅ `position_symbol_map`: (position_ids only) Maps UUID → symbol for frontend
+
+**4. Graceful Handling of Missing Profiles**
+- ✅ Some symbols won't have profiles (PRIVATE assets, newly added)
+- ✅ Return partial results rather than error
+- ✅ Frontend knows exactly which symbols are missing data
+
+**5. Optional Field Filtering**
+- ✅ Performance optimization for large portfolios
+- ✅ Reduces payload size by 80% when only needing basic fields
+- ✅ Works with any query type (symbols, position_ids, portfolio_id)
+
+---
+
+### **Alternative Designs Considered (Not Recommended)**
+
+**Alternative A: Three Separate Endpoints**
+```
+GET /data/company-profiles/portfolio/{portfolio_id}
+GET /data/company-profiles/positions/{position_ids}
+GET /data/company-profiles/symbols/{symbols}
+```
+
+**Rejected because:**
+- ❌ 3 endpoints to maintain (code duplication)
+- ❌ 3 sets of documentation
+- ❌ Frontend has 3 different API calls to remember
+- ❌ Response shapes might diverge over time
+- ❌ More complex routing logic
+
+**Alternative B: Allow Multiple Parameters (OR logic)**
+```bash
+GET /data/company-profiles?portfolio_id=uuid&symbols=AAPL,MSFT
+# Returns profiles for (portfolio symbols) OR (AAPL, MSFT)
+```
+
+**Rejected because:**
+- ❌ Confusing behavior (is it AND or OR?)
+- ❌ Hard to reason about for API consumers
+- ❌ Potential duplicates if portfolio already contains symbols
+- ❌ Unclear semantics (what takes precedence?)
+- ❌ Not recommended in REST best practices
+
+**Alternative C: Nested Endpoints Under Position/Portfolio**
+```
+GET /data/portfolios/{id}/company-profiles
+GET /data/positions/{id}/company-profile
+```
+
+**Rejected because:**
+- ❌ Company profiles aren't owned by positions/portfolios
+- ❌ Same profile data for AAPL regardless of which portfolio
+- ❌ Doesn't support direct symbol lookup (research, watchlist)
+- ❌ Requires multiple calls to get profiles for multiple positions
+- ❌ Breaks REST resource independence principle
+
+**Why Single Endpoint with Query Params Won:**
+- ✅ Standard REST pattern for filtering/querying
+- ✅ Minimal API surface (one endpoint)
+- ✅ Maximum flexibility (3 query modes)
+- ✅ Clear validation rules (mutually exclusive)
+- ✅ Consistent response shape
+- ✅ Easy to extend (could add `tag_id=...` in future)
+
+---
+
+### 11.2.2 Implementation Location
+
+**File**: `app/api/v1/data.py`
+
+**Why data.py**:
+- Follows existing pattern (`/data/prices/quotes`, `/data/prices/historical`, `/data/factors/etf-prices`)
+- Company profiles are reference data, not analytics
+- Already imports `CompanyProfile` model (line 6)
+- Consistent with Raw Data API namespace
+
+**Alternative Considered**: `/data/positions/company-profile`
+- ❌ Company profiles aren't position-specific (AAPL profile same for all AAPL positions)
+- ❌ Less flexible (harder to batch, harder to use outside position context)
+- ❌ Doesn't support research/watchlist use cases
+
+---
+
+### 11.2.3 Security & Data Access Policy
+
+**✅ DECIDED: Allow Arbitrary Symbol Lookups**
+
+**Decision**: Allow arbitrary symbol lookups via `symbols` parameter **without ownership check or policing**
+
+**Rationale:**
+
+**✅ Arguments FOR Allowing Arbitrary Lookups:**
+
+1. **Company profiles are public, non-proprietary data**
+   - Sourced from yahooquery/yfinance (public sources)
+   - Same data available free on Yahoo Finance, Google Finance, etc.
+   - No licensing restrictions on redistribution
+   - Not real-time market data (updated daily at most)
+
+2. **Enables legitimate use cases:**
+   - Research/watchlist functionality (user exploring new investments)
+   - Chatbot queries ("Tell me about Apple's fundamentals")
+   - Position comparison ("Compare AAPL vs MSFT before adding to portfolio")
+   - Due diligence on potential investments
+
+3. **Consistent with existing patterns:**
+   - `/data/prices/quotes?symbols=...` allows arbitrary symbols
+   - `/data/prices/historical/{portfolio_id}` restricts to portfolio symbols
+   - Pattern: Reference data (quotes, profiles) = open; user data (positions, P&L) = restricted
+
+4. **Data is already cached in our database:**
+   - Not hitting external APIs per request (already synchronized daily)
+   - No additional cost or rate limit concerns
+   - Pure database lookup performance
+
+**❌ Arguments AGAINST Allowing Arbitrary Lookups:**
+
+1. **Potential abuse vector:**
+   - Users could scrape all symbols systematically
+   - Could build a competing database of company profiles
+   - Bandwidth/compute cost if abused at scale
+
+2. **Licensing uncertainty:**
+   - While source data is public, unclear if aggregation/redistribution has limits
+   - Yahoo Finance TOS may restrict bulk redistribution
+   - Could expose liability if used commercially by users
+
+3. **Privacy by obscurity:**
+   - Restricting to owned positions limits data exposure surface
+   - Easier to track/audit usage patterns
+
+**Implementation Requirements:**
+
+1. **✅ Allow `symbols` parameter without ownership check** - enables research/watchlist use cases
+2. **✅ Require ownership for `position_ids` and `portfolio_id`** - protect user data
+3. **✅ No rate limiting required** - trust users, simple implementation
+4. **✅ Document in API reference**: "Company profile data is public information sourced from freely available data providers"
+
+**Security Model:**
+- `symbols` query: **No ownership check** (arbitrary symbols allowed)
+- `position_ids` query: **Ownership check required** (must own all positions)
+- `portfolio_id` query: **Ownership check required** (must own portfolio)
+
+**Benefits of This Decision:**
+- ✅ Enables full research/watchlist functionality
+- ✅ Simplifies implementation (no complex validation logic)
+- ✅ Consistent with `/data/prices/quotes` pattern
+- ✅ Provides best user experience
+- ✅ Data is already public (Yahoo Finance, etc.)
+- ✅ No licensing concerns for public data redistribution
+
+**Future Considerations:**
+- Monitor usage patterns for abuse
+- Add rate limiting later if needed
+- Can restrict access in future if licensing issues arise
+
+---
+
+## 11.3 Implementation Tasks
+
+### 11.3.1 Backend API Development
+
+1. [ ] **Create company profiles endpoint** in `app/api/v1/data.py`
+   - [ ] 1a. Add route handler: `@router.get("/company-profiles")`
+   - [ ] 1b. Define query parameters (symbols, position_ids, portfolio_id, fields)
+   - [ ] 1c. Add authentication dependency: `current_user: CurrentUser = Depends(get_current_user)`
+   - [ ] 1d. Add database dependency: `db: AsyncSession = Depends(get_db)`
+   - [ ] 1e. Add parameter validation: Exactly one of (symbols, position_ids, portfolio_id) required
+
+2. [ ] **Implement parameter resolution logic**
+   - [ ] 2a. If `position_ids`: Parse comma-separated UUIDs, fetch positions, extract symbols, build position_symbol_map, verify ownership
+   - [ ] 2b. If `portfolio_id`: Fetch all positions, extract symbols, verify ownership
+   - [ ] 2c. If `symbols`: Parse comma-separated list (no ownership check - arbitrary symbols allowed per Section 11.2.3)
+   - [ ] 2d. Store query_type for metadata: "positions", "portfolio", or "symbols"
+
+3. [ ] **Implement database query with optional field filtering**
+   - [ ] 3a. If `fields` parameter provided:
+     - [ ] Validate field names against CompanyProfile model attributes
+     - [ ] Build SELECT with specific columns: `select(CompanyProfile.symbol, CompanyProfile.field1, ...)`
+     - [ ] Execute query and use `result.mappings()` to get dict-like row objects
+     - [ ] Note: SQLAlchemy returns Row objects for column selects, NOT model instances
+   - [ ] 3b. If no `fields` parameter:
+     - [ ] Use full model select: `select(CompanyProfile).where(...)`
+     - [ ] Returns model instances that can be converted to dicts
+   - [ ] 3c. Filter by symbol list: `.where(CompanyProfile.symbol.in_(symbol_list))`
+   - [ ] 3d. Handle missing profiles gracefully (some symbols may lack profiles)
+
+4. [ ] **Build response object with rich metadata**
+   - [ ] 4a. Convert results to dicts:
+     - [ ] If field filtering used: `profiles = [dict(row) for row in result.mappings()]`
+     - [ ] If full model: `profiles = [model_to_dict(profile) for profile in result.scalars()]`
+   - [ ] 4b. Build meta object with query_type, requested_symbols, returned_profiles, missing_profiles, as_of
+   - [ ] 4c. Add position_symbol_map to meta if query_type is "positions"
+   - [ ] 4d. Add fields_requested to meta if fields parameter was provided
+   - [ ] 4e. Add portfolio_id to meta if query_type is "portfolio"
+   - [ ] 4f. Return standardized response structure
+
+5. [ ] **Add error handling**
+   - [ ] 5a. Handle invalid portfolio_id / position_ids (404)
+   - [ ] 5b. Handle unauthorized access (403)
+   - [ ] 5c. Handle invalid field names (400 with helpful error message)
+   - [ ] 5d. Handle database errors gracefully
+   - [ ] 5e. Handle parameter validation errors (400 if zero or multiple query params)
+
+### 11.3.2 Schema Definition
+
+6. [ ] **Create Pydantic schemas** in `app/schemas/` (or inline in data.py)
+   - [ ] 6a. `CompanyProfileResponse` schema (53 fields from model)
+   - [ ] 6b. `CompanyProfilesResponseMeta` schema
+   - [ ] 6c. `CompanyProfilesResponse` schema (profiles + meta)
+   - [ ] 6d. Add proper type hints:
+     - [ ] Use `Optional[Decimal]` for numeric fields (NOT float - preserve precision)
+     - [ ] Use `condecimal()` for fields with specific precision requirements
+     - [ ] FastAPI's JSON encoder handles Decimal → JSON number serialization automatically
+     - [ ] Preserves precision for market_cap (18,2), revenue (18,2), recommendation_mean (3,2)
+
+### 11.3.3 Testing
+
+7. [ ] **Create test script** `scripts/testing/test_company_profiles_endpoint.py`
+   - [ ] 7a. Test direct symbol lookup (AAPL, MSFT, GOOGL)
+   - [ ] 7b. Test position_ids resolution (multiple position UUIDs)
+   - [ ] 7c. Test portfolio_id resolution (all symbols)
+   - [ ] 7d. Test field filtering (only sector, industry)
+   - [ ] 7e. Test missing profiles (symbols without data)
+   - [ ] 7f. Test authentication (401 without token)
+   - [ ] 7g. Test authorization (403 for other user's positions)
+   - [ ] 7h. Test error cases (invalid UUID, invalid fields)
+
+8. [ ] **Test on Railway production**
+   - [ ] 8a. Run test script against Railway URL
+   - [ ] 8b. Verify 17/29 symbols return profile data
+   - [ ] 8c. Verify sector/industry fields populated (not N/A)
+   - [ ] 8d. Verify analyst data fields populated where available
+   - [ ] 8e. Verify field filtering reduces response size
+
+### 11.3.4 Documentation
+
+9. [ ] **Update API documentation**
+   - [ ] 9a. Add endpoint to `_docs/reference/API_REFERENCE_V1.4.6.md`
+   - [ ] 9b. Document all query parameters and security model:
+     - [ ] `symbols`: No ownership check (arbitrary symbols allowed)
+     - [ ] `position_ids`: Ownership check required
+     - [ ] `portfolio_id`: Ownership check required
+     - [ ] Note: "Company profile data is public information sourced from freely available data providers"
+   - [ ] 9c. Document response schema with example
+   - [ ] 9d. Document all 53 available fields
+   - [ ] 9e. Add usage examples (curl, Python requests)
+
+10. [ ] **Update audit script** `scripts/railway/audit_railway_market_data.py`
+    - [ ] 10a. Update `test_company_profiles()` to use new endpoint
+    - [ ] 10b. Show sector/industry data in audit report (not N/A)
+    - [ ] 10c. Add field coverage stats (which fields have data)
+    - [ ] 10d. Update report format to show more profile fields
+
+---
+
+## 11.4 Technical Specifications
+
+### 11.4.1 Database Schema Reference
+
+**Table**: `company_profiles`
+**Primary Key**: `symbol` (String, 20 chars)
+**Total Columns**: 54 (1 PK + 1 accessible via other endpoints + 53 not accessible via any endpoint)
+
+**Field Categories** (excluding symbol PK):
+
+**Basic Info** (9 fields):
+- company_name (accessible via `/data/positions/details`), sector, industry, exchange, country
+- market_cap, description, is_etf, is_fund
+
+**Company Details** (3 fields):
+- ceo, employees, website
+
+**Valuation Metrics** (6 fields):
+- pe_ratio, forward_pe, dividend_yield, beta
+- week_52_high, week_52_low
+
+**Analyst Data** (6 fields):
+- target_mean_price, target_high_price, target_low_price
+- number_of_analyst_opinions, recommendation_mean, recommendation_key
+
+**Growth Metrics** (4 fields):
+- forward_eps, earnings_growth, revenue_growth, earnings_quarterly_growth
+
+**Profitability Metrics** (5 fields):
+- profit_margins, operating_margins, gross_margins
+- return_on_assets, return_on_equity
+
+**Revenue Estimates** (9 fields):
+- total_revenue
+- current_year: revenue_avg, revenue_low, revenue_high, revenue_growth, end_date
+- next_year: revenue_avg, revenue_low, revenue_high, revenue_growth, end_date
+
+**Earnings Estimates** (6 fields):
+- current_year: earnings_avg, earnings_low, earnings_high
+- next_year: earnings_avg, earnings_low, earnings_high
+
+**Metadata** (3 fields):
+- data_source, last_updated, created_at, updated_at
+
+**Reference**: `app/models/market_data.py:52-127` (CompanyProfile class)
+
+### 11.4.2 Service Layer Reference
+
+**Existing Service Methods** (no changes needed):
+- `MarketDataService.fetch_company_profiles()` - Fetch from yfinance/yahooquery
+- `MarketDataService.store_company_profile()` - Store/update in database
+- `MarketDataService.fetch_and_cache_company_profiles()` - Fetch + cache pipeline
+
+**API Layer**: NEW - `get_company_profiles()` endpoint
+
+---
+
+## 11.5 Success Metrics
+
+### Functionality Metrics
+- [ ] Endpoint returns all 53 fields for symbols with data
+- [ ] Field filtering reduces response size by 50-80% (when using subset)
+- [ ] Missing profiles handled gracefully (partial success)
+- [ ] All query parameter modes work (symbols, position_ids, portfolio_id)
+
+### Performance Metrics
+- [ ] Response time < 200ms for 5 symbols
+- [ ] Response time < 500ms for 30 symbols (full portfolio)
+- [ ] Field filtering reduces response time by 20-30%
+- [ ] No N+1 query issues (batch fetch)
+
+### Data Quality Metrics
+- [ ] Sector/Industry fields populated for 17/29 symbols (58.6%)
+- [ ] Analyst data present for major stocks (AAPL, MSFT, GOOGL)
+- [ ] No data corruption or truncation issues
+- [ ] Timestamps properly formatted (ISO 8601 UTC)
+
+### Operational Metrics
+- [ ] Railway audit report shows sector/industry data (not N/A)
+- [ ] Frontend can display sector allocation charts
+- [ ] AI agents can answer sector/industry queries
+- [ ] Zero production errors after deployment
+
+---
+
+## 11.6 Testing Strategy
+
+### 11.6.1 Local Development Testing
+
+**Test Script**: `scripts/testing/test_company_profiles_endpoint.py`
+
+```python
+# Basic symbol lookup
+GET /data/company-profiles?symbols=AAPL,MSFT,GOOGL
+
+# Position context (single position)
+GET /data/company-profiles?position_ids=<demo-individual-position-1>
+
+# Position context (multiple positions)
+GET /data/company-profiles?position_ids=<uuid1>,<uuid2>,<uuid3>
+
+# Portfolio context
+GET /data/company-profiles?portfolio_id=1d8ddd95-3b45-0ac5-35bf-cf81af94a5fe
+
+# Field filtering
+GET /data/company-profiles?symbols=AAPL&fields=sector,industry,pe_ratio
+
+# Missing profiles (private positions)
+GET /data/company-profiles?symbols=CRYPTO_BTC_ETH,HOME_EQUITY
+# Expected: Empty profiles list, meta shows missing_profiles: 2
+
+# Error cases
+GET /data/company-profiles  # 400: No query params
+GET /data/company-profiles?symbols=AAPL&position_ids=<uuid>  # 400: Multiple params
+GET /data/company-profiles?position_ids=invalid  # 400: Invalid UUID
+GET /data/company-profiles?position_ids=<other-user-position>  # 403: Unauthorized
+```
+
+### 11.6.2 Railway Production Testing
+
+**Test Sequence**:
+1. Deploy to Railway
+2. Run `python scripts/railway/audit_railway_market_data.py`
+3. Verify audit report shows sector/industry (not N/A)
+4. Run test script against Railway URL
+5. Verify 17/29 symbols return profiles
+6. Verify field coverage stats
+
+---
+
+## 11.7 Deployment Plan
+
+### 11.7.1 Pre-Deployment Checklist
+
+- [ ] All implementation tasks complete (11.3.1 - 11.3.4)
+- [ ] Local testing passes (11.6.1)
+- [ ] Audit script updated to use new endpoint
+- [ ] API documentation updated
+- [ ] No breaking changes to existing endpoints
+
+### 11.7.2 Deployment Steps
+
+1. [ ] **Commit changes**
+   ```bash
+   git add app/api/v1/data.py
+   git add scripts/testing/test_company_profiles_endpoint.py
+   git add scripts/railway/audit_railway_market_data.py
+   git add _docs/reference/API_REFERENCE_V1.4.6.md
+   git commit -m "feat(api): add company profiles endpoint
+
+   - Add GET /api/v1/data/company-profiles endpoint
+   - Support flexible queries (symbols, position_id, portfolio_id)
+   - Optional field filtering for performance
+   - Exposes 40+ profile fields (sector, industry, analyst data, financials)
+   - Update audit script to show sector/industry data
+   
+   Closes #[issue-number] (if applicable)"
+   ```
+
+2. [ ] **Push to main branch**
+   ```bash
+   git push origin main
+   ```
+
+3. [ ] **Wait for Railway auto-deploy**
+   - Railway dashboard → Deployments → Monitor build logs
+   - Verify deployment success
+
+4. [ ] **Run Railway audit**
+   ```bash
+   python scripts/railway/audit_railway_market_data.py
+   ```
+
+5. [ ] **Verify audit report**
+   - Check sector/industry columns show data (not N/A)
+   - Verify field coverage stats updated
+   - Verify 17/29 symbols have profiles
+
+6. [ ] **Test endpoint manually**
+   ```bash
+   # Get auth token
+   export TOKEN=$(curl -s -X POST $RAILWAY_URL/auth/login \
+     -H "Content-Type: application/json" \
+     -d '{"email": "demo_individual@sigmasight.com", "password": "demo12345"}' \
+     | jq -r '.access_token')
+   
+   # Test endpoint
+   curl -s -H "Authorization: Bearer $TOKEN" \
+     "$RAILWAY_URL/data/company-profiles?symbols=AAPL,MSFT,GOOGL" | jq .
+   ```
+
+---
+
+## 11.8 Rollback Strategy
+
+### If Endpoint Breaks After Deployment
+
+**Option 1: Quick Revert**
+```bash
+git revert HEAD
+git push origin main
+# Railway auto-deploys reverted version
+```
+
+**Option 2: Hot Fix**
+- Fix issue in new commit
+- Push to main
+- Railway auto-deploys fix
+
+**Option 3: Railway Rollback**
+- Railway Dashboard → sigmasight-be-production → Deployments
+- Find previous working deployment → Redeploy
+
+### Risk Assessment
+
+**Low Risk Changes**:
+- ✅ New endpoint (no existing functionality affected)
+- ✅ Read-only operation (no data mutation)
+- ✅ No schema changes (uses existing table)
+- ✅ No service layer changes (uses existing data)
+
+**Medium Risk Areas**:
+- ⚠️ Database query performance (30+ symbols in one query)
+- ⚠️ Response size (40+ fields × 30 symbols = large JSON)
+- ⚠️ Field filtering logic (incorrect column names)
+
+**Mitigation**:
+- Batch query with IN clause (standard pattern)
+- Field filtering available to reduce response size
+- Validation on field parameter before query execution
+
+---
+
+## 11.9 Dependencies & Blockers
+
+### Dependencies
+- ✅ Phase 9: Company profile sync working (populates database)
+- ✅ `company_profiles` table schema stable (40+ columns)
+- ✅ MarketDataService layer complete (fetch + store methods)
+- ✅ Railway production database has profile data (17/29 symbols)
+
+### Blockers
+None identified.
+
+---
+
+## 11.10 Related Work
+
+### Upstream
+- Phase 9: Railway company profile integration (COMPLETED) - provides data source
+- Phase 8: Investment class filtering (COMPLETED) - handles missing profiles gracefully
+
+### Downstream
+- Phase 12: Frontend sector allocation charts (uses this endpoint)
+- Phase 13: AI agent financial analysis (uses analyst targets, growth metrics)
+- Future: Real-time profile updates (websocket for profile changes)
+
+### Related Endpoints
+- `/data/positions/details` - Currently returns only `company_name`
+- `/data/prices/quotes` - Similar batch query pattern
+- `/data/factors/etf-prices` - Similar reference data pattern
+
+---
+
+## 11.11 Future Enhancements (Out of Scope)
+
+**Not included in Phase 11**:
+
+1. **Caching Layer**
+   - Company profiles change infrequently (daily sync sufficient)
+   - Redis caching could reduce database load
+   - Defer to Phase 12 if needed
+
+2. **Bulk Export**
+   - CSV/Excel export of all profiles
+   - Useful for offline analysis
+   - Low priority (API sufficient for now)
+
+3. **Profile History**
+   - Track historical changes (market cap trends, analyst target changes)
+   - Requires new table: `company_profile_history`
+   - Significant scope increase
+
+4. **Comparison Endpoints**
+   - Compare metrics across symbols
+   - Peer analysis (compare to sector averages)
+   - Analytics layer, not raw data API
+
+5. **WebSocket Updates**
+   - Real-time profile change notifications
+   - Low value (profiles change daily at most)
+   - Complex infrastructure
+
+---
+
+**End of Phase 11.0 Planning**

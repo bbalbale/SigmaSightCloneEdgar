@@ -226,12 +226,12 @@ def test_factor_etf_prices(token: str):
 
 
 def test_company_profiles(symbols: List[str], token: str, report_file=None):
-    """Test if company profiles exist (indirect via position details)"""
-    print(f"\n🏢 Testing Company Profile Data")
+    """Test if company profiles exist with full row and column details"""
+    print(f"\n🏢 Testing Company Profile Data - Full Table")
     print(f"=" * 80)
 
     if report_file:
-        report_file.write(f"\n🏢 COMPANY PROFILE DATA\n")
+        report_file.write(f"\n🏢 COMPANY PROFILE DATA - FULL TABLE\n")
         report_file.write(f"{'='*80}\n")
 
     # Get portfolios to find portfolio_id
@@ -262,27 +262,86 @@ def test_company_profiles(symbols: List[str], token: str, report_file=None):
 
         with_company_name = sum(1 for p in positions if p.get("company_name"))
         without_company_name = len(positions) - with_company_name
-
         coverage_pct = (with_company_name/len(positions)*100) if positions else 0
 
         print(f"   With company name: {with_company_name} ({coverage_pct:.1f}%)")
         print(f"   Missing company name: {without_company_name} ({100-coverage_pct:.1f}%)")
 
-        if report_file:
-            report_file.write(f"Total positions: {len(positions)}\n")
-            report_file.write(f"With company name: {with_company_name} ({coverage_pct:.1f}%)\n")
-            report_file.write(f"Missing company name: {without_company_name} ({100-coverage_pct:.1f}%)\n")
+        # Build detailed table with all positions
+        print(f"\n   DETAILED COMPANY PROFILE TABLE:")
+        print(f"   {'-'*120}")
 
-        if with_company_name > 0:
-            sample = next((p for p in positions if p.get("company_name")), None)
-            if sample:
-                print(f"\n   Sample:")
-                print(f"      {sample['symbol']}: {sample.get('company_name', 'N/A')}")
+        # Define column headers
+        header = f"   {'SYMBOL':<12} {'STATUS':<8} {'COMPANY NAME':<50} {'SECTOR':<20} {'INDUSTRY':<30}"
+        print(header)
+        print(f"   {'-'*120}")
+
+        if report_file:
+            report_file.write(f"\nTOTAL POSITIONS: {len(positions)}\n")
+            report_file.write(f"WITH COMPANY PROFILE: {with_company_name} ({coverage_pct:.1f}%)\n")
+            report_file.write(f"MISSING COMPANY PROFILE: {without_company_name} ({100-coverage_pct:.1f}%)\n\n")
+            report_file.write(f"DETAILED COMPANY PROFILE TABLE:\n")
+            report_file.write(f"{'-'*140}\n")
+            report_file.write(f"{'SYMBOL':<12} {'STATUS':<8} {'COMPANY NAME':<50} {'SECTOR':<20} {'INDUSTRY':<30}\n")
+            report_file.write(f"{'-'*140}\n")
+
+        # Build profile records
+        profile_records = []
+
+        for position in sorted(positions, key=lambda x: x.get("symbol", "")):
+            symbol = position.get("symbol", "N/A")
+            company_name = position.get("company_name") or ""
+            sector = position.get("sector") or ""
+            industry = position.get("industry") or ""
+
+            status = "✅" if company_name else "❌"
+
+            # Truncate long values for display
+            company_display = (company_name[:47] + "...") if company_name and len(company_name) > 50 else company_name
+            sector_display = (sector[:17] + "...") if sector and len(sector) > 20 else sector
+            industry_display = (industry[:27] + "...") if industry and len(industry) > 30 else industry
+
+            # Print row
+            row = f"   {symbol:<12} {status:<8} {company_display:<50} {sector_display:<20} {industry_display:<30}"
+            print(row)
+
+            # Write to report (full values, not truncated)
+            if report_file:
+                report_row = f"{symbol:<12} {status:<8} {company_name or 'N/A':<50} {sector or 'N/A':<20} {industry or 'N/A':<30}\n"
+                report_file.write(report_row)
+
+            # Store for JSON output
+            profile_records.append({
+                "symbol": symbol,
+                "has_profile": bool(company_name),
+                "company_name": company_name or None,
+                "sector": sector or None,
+                "industry": industry or None
+            })
+
+        print(f"   {'-'*120}")
+
+        if report_file:
+            report_file.write(f"{'-'*140}\n\n")
+            report_file.write(f"SUMMARY:\n")
+            report_file.write(f"  Total Symbols: {len(positions)}\n")
+            report_file.write(f"  With Company Profile Data: {with_company_name} ({coverage_pct:.1f}%)\n")
+            report_file.write(f"  Missing Company Profile Data: {without_company_name} ({100-coverage_pct:.1f}%)\n\n")
+
+            # Add additional detail on available fields
+            with_sector = sum(1 for p in positions if p.get("sector"))
+            with_industry = sum(1 for p in positions if p.get("industry"))
+
+            report_file.write(f"FIELD COVERAGE:\n")
+            report_file.write(f"  Positions with Sector: {with_sector} ({with_sector/len(positions)*100:.1f}%)\n")
+            report_file.write(f"  Positions with Industry: {with_industry} ({with_industry/len(positions)*100:.1f}%)\n")
 
         return {
             "total": len(positions),
             "with_profile": with_company_name,
-            "without_profile": without_company_name
+            "without_profile": without_company_name,
+            "coverage_percent": coverage_pct,
+            "profile_records": profile_records
         }
     else:
         print(f"❌ Position Details: {response.status_code}")

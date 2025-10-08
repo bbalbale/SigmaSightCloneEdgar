@@ -597,16 +597,18 @@ Returns all portfolios for the authenticated user with real database data.
 **Endpoint**: `GET /data/positions/details`
 **Status**: ✅ Fully Implemented
 **File**: `app/api/v1/data.py`
-**Function**: `get_position_details()` (lines 433-626)
+**Function**: `get_positions_details()` (lines 433-622)
 **Authentication**: Required
-**OpenAPI Description**: "Get detailed position information with P&L calculations"
-**Database Access**: Position, MarketDataCache tables
-**Service Layer**: Direct ORM queries with P&L calculations
+**OpenAPI Description**: "Get detailed position information including entry prices, cost basis, and P&L calculations"
+**Database Access**: Position, MarketDataCache, CompanyProfile, PositionTag, TagV2 tables
+**Service Layer**: Direct ORM queries with P&L calculations and batch fetching
 
 **Parameters**:
-- `portfolio_id` (query): Portfolio UUID
-- `position_type` (query, optional): Filter by position type
-- `include_inactive` (query, optional): Include soft-deleted positions
+- `portfolio_id` (query, optional): Portfolio UUID - returns all positions in portfolio
+- `position_ids` (query, optional): Comma-separated position IDs - returns specific positions
+- `include_closed` (query, optional): Include closed positions (default: false)
+
+**Note**: Either `portfolio_id` OR `position_ids` is required (not both)
 
 **Response**:
 ```json
@@ -614,42 +616,97 @@ Returns all portfolios for the authenticated user with real database data.
   "positions": [
     {
       "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+      "portfolio_id": "1d8ddd95-3b45-0ac5-35bf-cf81af94a5fe",
       "symbol": "AAPL",
+      "company_name": "Apple Inc.",
       "position_type": "LONG",
+      "investment_class": "PUBLIC",
+      "investment_subtype": null,
       "quantity": 100.0,
-      "cost_basis": 160.00,
+      "entry_date": "2024-01-15",
+      "entry_price": 150.00,
+      "cost_basis": 15000.00,
       "current_price": 175.25,
       "market_value": 17525.00,
-      "unrealized_pnl": 1525.00,
-      "unrealized_pnl_percent": 9.53,
-      "created_at": "2025-08-15T10:30:00Z",
-      "updated_at": "2025-09-05T15:30:00Z"
+      "unrealized_pnl": 2525.00,
+      "unrealized_pnl_percent": 16.83,
+      "strike_price": null,
+      "expiration_date": null,
+      "underlying_symbol": null,
+      "tags": [
+        {
+          "id": "tag-uuid-1",
+          "name": "Technology",
+          "color": "#3B82F6",
+          "description": "Technology sector exposure"
+        }
+      ]
     },
     {
       "id": "b2c3d4e5-f6g7-8901-bcde-f23456789012",
-      "symbol": "SPY_240920C00550000",
-      "position_type": "CALL",
+      "portfolio_id": "1d8ddd95-3b45-0ac5-35bf-cf81af94a5fe",
+      "symbol": "SPY250919C00460000",
+      "company_name": "SPDR S&P 500 ETF",
+      "position_type": "LC",
+      "investment_class": "OPTIONS",
+      "investment_subtype": null,
       "quantity": 5.0,
-      "cost_basis": 2.85,
+      "entry_date": "2024-08-20",
+      "entry_price": 2.85,
+      "cost_basis": 1425.00,
       "current_price": 4.20,
       "market_value": 2100.00,
       "unrealized_pnl": 675.00,
       "unrealized_pnl_percent": 47.37,
-      "created_at": "2025-08-20T14:15:00Z",
-      "updated_at": "2025-09-05T15:30:00Z"
+      "strike_price": 460.00,
+      "expiration_date": "2025-09-19",
+      "underlying_symbol": "SPY",
+      "tags": []
     }
   ],
   "summary": {
     "total_positions": 21,
+    "total_cost_basis": 1536694.20,
     "total_market_value": 1662126.38,
-    "total_unrealized_pnl": 125432.18,
-    "total_day_change": -8942.15,
-    "long_positions": 15,
-    "short_positions": 2,
-    "options_positions": 4
+    "total_unrealized_pnl": 125432.18
   }
 }
 ```
+
+**Field Descriptions**:
+
+**Position Fields**:
+- `id`: Unique position identifier
+- `portfolio_id`: Parent portfolio identifier
+- `symbol`: Ticker symbol or option contract identifier
+- `company_name`: Company name from company_profiles table (may be null for private assets)
+- `position_type`: LONG, SHORT, LC (long call), LP (long put), SC (short call), SP (short put)
+- `investment_class`: PUBLIC, PRIVATE, or OPTIONS
+- `investment_subtype`: Additional classification (e.g., "REAL_ESTATE", "VENTURE_CAPITAL")
+- `quantity`: Number of shares/contracts held
+- `entry_date`: Date position was opened (ISO 8601 date, may be null)
+- `entry_price`: Original entry price per share/contract
+- `cost_basis`: Total cost basis (quantity × entry_price)
+- `current_price`: Current market price per share/contract
+- `market_value`: Current market value (quantity × current_price, negative for shorts)
+- `unrealized_pnl`: Unrealized profit/loss (market_value - cost_basis)
+- `unrealized_pnl_percent`: Unrealized P&L as percentage of cost basis
+- `strike_price`: Option strike price (null for non-options)
+- `expiration_date`: Option expiration date (ISO 8601 date, null for non-options)
+- `underlying_symbol`: Underlying symbol for options (null for non-options)
+- `tags`: Array of position tags (from position tagging system)
+
+**Summary Fields**:
+- `total_positions`: Count of positions returned
+- `total_cost_basis`: Sum of all position cost bases
+- `total_market_value`: Sum of all position market values
+- `total_unrealized_pnl`: Total unrealized profit/loss across all positions
+
+**Implementation Notes**:
+- Batch fetches company names from `company_profiles` table for performance
+- Batch fetches position tags to avoid N+1 queries
+- P&L calculations handle long/short positions correctly (shorts have negative market value)
+- `company_name` field is the ONLY company profile data returned by this endpoint (sector, industry, etc. not included)
 
 ### 9. Get Historical Prices
 **Endpoint**: `GET /data/prices/historical/{portfolio_id}`
