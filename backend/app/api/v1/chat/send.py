@@ -145,8 +145,8 @@ async def sse_generator(
 
                 portfolio_context = {
                     "portfolio_id": str(portfolio_id),
-                    "portfolio_name": portfolio_snapshot.get("portfolio_name"),
-                    "total_value": portfolio_snapshot.get("total_market_value"),
+                    "portfolio_name": portfolio_snapshot["portfolio"]["name"],
+                    "total_value": portfolio_snapshot["portfolio"]["total_value"],
                     "position_count": len(portfolio_snapshot.get("holdings", [])),
                     "holdings": portfolio_snapshot.get("holdings", [])[:50]  # Limit to top 50 positions
                 }
