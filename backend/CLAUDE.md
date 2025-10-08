@@ -247,6 +247,11 @@ app/
 
 scripts/              - Utility scripts
 ├── reset_and_seed.py - Main seeding script (AUTHORITATIVE)
+├── railway/          - Railway deployment & audit scripts (see scripts/railway/README.md)
+│   ├── audit_railway_data.py - Portfolio/position audit via API
+│   ├── audit_railway_market_data.py - Market data audit via API
+│   ├── audit_railway_analytics.py - Analytics audit via API (client-friendly)
+│   └── audit_railway_calculations_verbose.py - Calculation audit (requires SSH)
 ├── manual_tests/     - Manual testing scripts
 ├── verification/     - Verification and diagnostic scripts
 └── monitoring/       - Monitoring scripts
@@ -559,6 +564,59 @@ async def check():
 asyncio.run(check())
 "
 ```
+
+---
+
+## 🔍 Railway Audit Scripts
+
+### **API-Based Audits (No SSH Required)**
+
+All audit scripts can be run from your local machine against the Railway deployment:
+
+```bash
+# 1. Portfolio & Position Data Audit
+python scripts/railway/audit_railway_data.py
+# - Tests 3 demo portfolios
+# - Verifies position data, tags, investment classes
+# - Checks data quality metrics
+# - Saves: railway_audit_results.json
+
+# 2. Market Data Audit
+python scripts/railway/audit_railway_market_data.py
+# - Tests company profile data (all 53 fields)
+# - Historical price coverage per symbol
+# - Market quotes functionality
+# - Factor ETF prices
+# - Saves: railway_market_data_audit_report.txt
+
+# 3. Analytics Audit (Client-Friendly Reports) ⭐ NEW
+python scripts/railway/audit_railway_analytics.py
+# - Tests all 6 /analytics/ endpoints
+# - Portfolio summary, risk factors, holdings breakdown
+# - Correlation matrix, stress testing, diversification
+# - Business-friendly formatting (not JSON)
+# - Saves: railway_analytics_audit_report.txt (31KB, formatted)
+```
+
+### **Database-Direct Audit (Requires Railway SSH)**
+
+```bash
+# Calculation Results Audit (verbose with samples)
+railway run python scripts/railway/audit_railway_calculations_verbose.py
+# - Requires DATABASE_URL from Railway
+# - Audits snapshots, factor exposures, correlations, stress tests
+# - Shows actual beta values and scenario impacts
+# - Saves: railway_calculations_audit_report.txt
+```
+
+### **When to Run Audits**
+
+- **After deployment**: Verify all endpoints working
+- **After batch processing**: Check calculation completeness
+- **Before demo**: Generate client-ready analytics reports
+- **During development**: Validate API changes across all portfolios
+
+**Full Documentation**: See `scripts/railway/README.md` for complete audit script reference.
 
 ---
 

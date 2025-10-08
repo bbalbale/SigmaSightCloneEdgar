@@ -411,6 +411,115 @@ Factor ETFs: 8 tracked
 
 ---
 
+### 7. Audit Analytics (Client-Friendly Reports)
+
+**File:** `audit_railway_analytics.py`
+
+**Purpose:** Comprehensive analytics audit across all 6 `/analytics/` endpoints with client-ready formatting.
+
+**Usage:**
+```bash
+# From local machine (NO SSH needed)
+python scripts/railway/audit_railway_analytics.py
+```
+
+**What it does:**
+- Logs in to all 3 demo portfolios via Railway API
+- Tests all 6 analytics endpoints for each portfolio:
+  1. **Portfolio Summary** (`/analytics/portfolio/{id}/overview`)
+     - Account value, P&L, market exposure breakdown
+     - Leverage ratio, position counts
+  2. **Risk Factor Analysis** (`/analytics/portfolio/{id}/factor-exposures`)
+     - 7-factor model exposures with beta values
+     - Dollar exposure per factor
+  3. **Holdings Factor Breakdown** (`/analytics/portfolio/{id}/positions/factor-exposures`)
+     - Position-level factor exposures
+     - Sorted by market beta
+  4. **Correlation Analysis** (`/analytics/portfolio/{id}/correlation-matrix`)
+     - Position correlation matrix
+     - Data quality metrics
+  5. **Stress Testing** (`/analytics/portfolio/{id}/stress-test`)
+     - Scenario analysis with P&L impacts
+     - Best/worst case scenarios
+  6. **Diversification Score** (`/analytics/portfolio/{id}/diversification-score`)
+     - Diversification rating (0-100)
+     - Actionable insights
+- **Generates client-friendly reports** (not JSON dumps)
+- Saves to `railway_analytics_audit_report.txt` (31KB, formatted)
+- Saves JSON results to `railway_analytics_audit_results.json`
+
+**When to use:**
+- Verify all analytics endpoints are working
+- Generate client-ready analytics reports
+- Check calculation completeness across portfolios
+- Present portfolio analytics to stakeholders
+- Validate analytics API before frontend integration
+
+**Requirements:**
+- Python 3.11+ with `requests` library
+- Railway backend must be running and accessible
+
+**Output (Client-Friendly Format):**
+```
+🚀 Railway Analytics Audit
+Backend: https://sigmasight-be-production.up.railway.app/api/v1
+
+========================================================================================================================
+USER: Individual Investor (demo_individual@sigmasight.com)
+========================================================================================================================
+
+Portfolio: Demo Individual Investor Portfolio
+Portfolio ID: 1d8ddd95-3b45-0ac5-35bf-cf81af94a5fe
+Position Count: 16
+Total Value: $1,021,834.72
+
+   📊 PORTFOLIO SUMMARY
+   ════════════════════════════════════════════════════════════════════════════
+
+   ACCOUNT VALUE
+   ----------------------------------------------------------------------------
+   Total Equity:                      $     485,000.00
+   Cash Balance:                      $     -51,834.72
+   Leverage Ratio:                               1.11x
+
+   PROFIT & LOSS
+   ----------------------------------------------------------------------------
+   Total P&L:                         $      51,974.72  (+10.72%)
+   Unrealized P&L:                    $      51,974.72
+   Realized P&L:                      $           0.00
+
+   📈 RISK FACTOR ANALYSIS
+   ════════════════════════════════════════════════════════════════════════════
+
+   RISK FACTOR          BETA         DOLLAR EXPOSURE
+   -------------------- ------------ --------------------
+   Market Beta                0.535  $        259,617.82
+   Momentum                   0.544  $        263,944.87
+   Value                      0.484  $        234,935.60
+
+   🎲 PORTFOLIO DIVERSIFICATION ANALYSIS
+   ════════════════════════════════════════════════════════════════════════════
+
+   Diversification Score:                       100.0/100  🌟
+   Rating:                                       Excellent
+   Average Correlation:                               0.00
+
+✅ Analytics audit complete!
+   - JSON results: railway_analytics_audit_results.json
+   - Detailed report: railway_analytics_audit_report.txt
+```
+
+**Report File Format:**
+The report file uses business-friendly formatting instead of JSON:
+- Professional sections with headers and dividers
+- Currency formatting with alignment
+- Percentage changes with +/- signs
+- Emoji indicators for ratings
+- Interpretation guides for business users
+- Factor analysis with beta explanations
+
+---
+
 ## Common Workflows
 
 ### Initial Railway Deployment
@@ -534,7 +643,7 @@ railway run python scripts/railway/audit_railway_calculations_verbose.py
 
 ---
 
-### 7. API Batch Monitoring (Recommended)
+### 8. API Batch Monitoring (Recommended)
 
 **File:** `scripts/api_batch_monitor.py`
 
@@ -590,7 +699,7 @@ python scripts/api_batch_monitor.py --url https://sigmasight-be-production.up.ra
 
 ---
 
-### 8. Audit Calculation Results (Verbose)
+### 9. Audit Calculation Results (Verbose)
 
 **File:** `scripts/railway/audit_railway_calculations_verbose.py`
 
@@ -772,11 +881,12 @@ uv run python scripts/railway/railway_run_migration.py
 5. ✅ `scripts/api_batch_monitor.py` - Trigger & monitor batch processing via API
 6. ✅ `audit_railway_data.py` - Audit portfolio/position data
 7. ✅ `audit_railway_market_data.py` - Audit market data with per-position coverage
-8. ✅ `scripts/test_railway_batch.py` - Simple batch trigger + verification
-9. ✅ `scripts/check_batch_results.py` - Check batch status
+8. ✅ `audit_railway_analytics.py` - Audit analytics endpoints with client-friendly reports
+9. ✅ `scripts/test_railway_batch.py` - Simple batch trigger + verification
+10. ✅ `scripts/check_batch_results.py` - Check batch status
 
 ### Database-Direct (Requires DATABASE_URL)
-10. ✅ `audit_railway_calculations_verbose.py` - Detailed calculation results audit (use `railway run`)
+11. ✅ `audit_railway_calculations_verbose.py` - Detailed calculation results audit (use `railway run`)
 
 ### Batch Processing Methods
 - **API Method (Recommended)**: `python scripts/api_batch_monitor.py --url <railway-url> --force`
@@ -788,5 +898,5 @@ uv run python scripts/railway/railway_run_migration.py
 
 ---
 
-**Last Updated**: October 6, 2025
-**Scripts Version**: 3.0 (API batch monitoring + verbose audit)
+**Last Updated**: October 8, 2025
+**Scripts Version**: 3.1 (Added client-friendly analytics audit)
