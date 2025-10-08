@@ -6,6 +6,7 @@ import { MessageSquare, AlertCircle } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useChatStore } from '@/stores/chatStore'
 import { useStreamStore } from '@/stores/streamStore'
+import { usePortfolioStore } from '@/stores/portfolioStore'
 import { useFetchStreaming } from '@/hooks/useFetchStreaming'
 import type { StreamingOptions } from '@/hooks/useFetchStreaming'
 import { chatAuthService } from '@/services/chatAuthService'
@@ -59,6 +60,8 @@ export function ChatConversationPane({
     setAssistantMessageId,
     reset: resetStreamState,
   } = useStreamStore()
+
+  const { portfolioId } = usePortfolioStore()
 
   const { streamMessage, abortStream } = useFetchStreaming()
 
@@ -160,7 +163,7 @@ export function ChatConversationPane({
 
     if (!conversationId) {
       try {
-        const backendConversation = await chatService.createConversation(currentMode)
+        const backendConversation = await chatService.createConversation(currentMode, portfolioId || undefined)
         conversationId = backendConversation.id
         createConversation(currentMode, conversationId)
       } catch (error) {
