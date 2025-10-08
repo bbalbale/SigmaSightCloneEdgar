@@ -1,9 +1,12 @@
 # SigmaSight API and Database Summary
 
 **Generated**: September 29, 2025
-**Last Updated**: October 6, 2025
+**Last Updated**: October 7, 2025
 **Status**: Production-Ready APIs with Complete Database Schema
 **Latest Updates**:
+- **October 7, 2025 (Phase 10.1-10.2)**: Railway cron hardening - removed 4x market data duplication, added critical vs non-critical job failure detection
+- **October 7, 2025 (Phase 9.1-9.2)**: Company profile sync integrated into Railway cron workflow (daily automatic sync at 11:30 PM UTC)
+- **October 7, 2025 (Phase 9.0)**: Complete rewrite of company profile fetcher - async-safe, batching, retry logic, timezone-aware timestamps
 - **October 6, 2025 (PM)**: Fixed tag endpoint documentation - corrected count (9→7 endpoints), removed non-existent endpoints, updated reverse lookup path to `/tags/{tag_id}/positions`
 - **October 6, 2025**: Added Admin Batch Processing endpoints (6 new endpoints for batch control and monitoring)
 - **October 5, 2025**: Removed `/strategies` API + strategy tables; position tagging now the sole grouping mechanism
@@ -234,11 +237,19 @@ The strategy system (backend APIs, database tables, and frontend services) has b
 | GET | `/admin/batch/data-quality` | ✅ Ready | Get data quality status and metrics |
 | POST | `/admin/batch/data-quality/refresh` | ✅ Ready | Refresh market data for quality improvement |
 
+**Company Profile Sync** ⚠️ **DEPRECATED - Now Automatic** (Phase 9.1 - October 7, 2025)
+- **Endpoint**: `POST /admin/batch/trigger/company-profiles`
+- **Status**: ⚠️ **DEPRECATED** - Company profiles now sync **automatically** via Railway cron
+- **Schedule**: Daily at 11:30 PM UTC (6:30 PM EST / 7:30 PM EDT) on trading days
+- **Manual sync still available** for emergency use, but no longer needed for normal operations
+- **Workflow**: Railway cron runs company profile sync (Step 1) before batch calculations (Step 2)
+
 **Key Features**:
 - **Real-time Monitoring**: Poll `/admin/batch/run/current` every 2-5 seconds for progress
 - **Concurrent Run Prevention**: 409 Conflict if batch already running (use `force=true` to override)
 - **In-Memory Tracking**: Lightweight status tracking without database overhead
 - **Targeted Operations**: Separate endpoints for market data sync and correlation calculations
+- **Automated Company Profiles** (Phase 9.1): Daily sync at 11:30 PM UTC via Railway cron
 
 ### 📋 Summary Statistics
 - **Total Endpoints**: 56 endpoints across 8 categories
@@ -747,6 +758,27 @@ All API calls route through Next.js proxy at `/api/proxy/` to handle CORS during
 
 ## Recent Updates & Fixes
 
+### Phase 10.1-10.2: Railway Cron Hardening (October 7, 2025)
+- **Removed 4x market data duplication**: Eliminated upfront market data sync step in Railway cron workflow
+- **Market data now synced once per portfolio**: Batch orchestrator handles per-portfolio market data updates
+- **Critical vs non-critical job distinction**: Portfolio failures only on critical job failures (market_data_update, portfolio_aggregation)
+- **Enhanced failure detection**: Job-level failure details in completion summary with specific failed job names
+- **Improved logging**: Detailed failure tracking per portfolio with critical/non-critical counts
+
+### Phase 9.1-9.2: Company Profile Integration (October 7, 2025)
+- **Automated company profile sync**: Added Step 1 to Railway cron workflow (runs daily at 11:30 PM UTC)
+- **Non-blocking failures**: Profile sync failures don't stop batch calculations (graceful degradation)
+- **Deprecated manual endpoint**: `POST /admin/batch/trigger/company-profiles` no longer needed for normal operations
+- **Updated workflow**: 5-step process (trading day check → profile sync → batch calculations → summary)
+- **Documentation updated**: Railway README includes comprehensive troubleshooting for company profile sync failures
+
+### Phase 9.0: Company Profile Fetcher Rewrite (October 7, 2025)
+- **Complete async rewrite**: Migrated from blocking synchronous code to truly async via `run_in_executor()`
+- **Batching + parallelism**: Process symbols in batches of 10 with ThreadPoolExecutor (max_workers=3)
+- **Exponential backoff retry**: Retry failed fetches with 2^attempt second delays
+- **Timezone-aware timestamps**: All datetimes use `datetime.now(timezone.utc)` for consistency
+- **Database schema widened**: country/exchange columns expanded from 10/20 to 50 chars (Alembic migration 19c513d3bf90)
+- **Graceful degradation**: Per-batch error handling preserves partial successes
 
 
 ## Notes

@@ -111,11 +111,12 @@ Base prefix for all endpoints below: `/api/v1`
 - PATCH `/positions/{id}/tags` - Replace all position tags
 - GET `/tags/{tag_id}/positions` - Get positions by tag (reverse lookup, uses tag_id for clarity)
 
-#### Admin Batch Processing (6 endpoints) ✨ **NEW - October 6, 2025**
+#### Admin Batch Processing (7 endpoints) ✨ **NEW - October 6, 2025**
 - POST `/admin/batch/run` - Trigger batch processing with real-time tracking
 - GET `/admin/batch/run/current` - Get current batch status (polling endpoint)
 - POST `/admin/batch/trigger/market-data` - Manually trigger market data update
 - POST `/admin/batch/trigger/correlations` - Manually trigger correlation calculations
+- POST `/admin/batch/trigger/company-profiles` - ⚠️ **DEPRECATED** - Now runs automatically via Railway cron
 - GET `/admin/batch/data-quality` - Get data quality status and metrics
 - POST `/admin/batch/data-quality/refresh` - Refresh market data for quality improvement
 
@@ -1315,6 +1316,48 @@ These endpoints provide administrative control over batch processing operations,
 - Runs full batch sequence with correlations enabled
 - Computationally intensive for large portfolios
 - Results saved to `correlation_calculations` and `pairwise_correlations` tables
+
+---
+
+### 22a. Trigger Company Profile Sync ⚠️ **DEPRECATED**
+**Endpoint**: `POST /admin/batch/trigger/company-profiles`
+**Status**: ⚠️ **DEPRECATED - Now Automatic** (Phase 9.1 - October 7, 2025)
+**File**: `app/api/v1/endpoints/admin_batch.py`
+**Function**: `trigger_company_profile_sync()` (lines 185-206)
+**Authentication**: Required (Admin)
+**OpenAPI Description**: "Manually trigger company profile synchronization"
+
+**⚠️ Deprecation Notice**:
+- **As of October 7, 2025 (Phase 9.1)**: Company profiles now sync **automatically** via Railway cron
+- **Schedule**: Daily at 11:30 PM UTC (6:30 PM EST / 7:30 PM EDT) on trading days
+- **This endpoint remains available** for manual/emergency syncs but is no longer needed for normal operations
+
+**Purpose**: Fetches company metadata (names, sectors, industries, revenue estimates) from Yahoo Finance / yahooquery APIs for all portfolio position symbols.
+
+**Parameters**: None
+
+**Response** (200 OK):
+```json
+{
+  "status": "started",
+  "message": "Company profile sync started for all portfolio symbols",
+  "triggered_by": "admin@sigmasight.com",
+  "timestamp": "2025-10-07T14:30:00Z",
+  "info": "This will fetch company data from yfinance and yahooquery APIs"
+}
+```
+
+**Usage Notes**:
+- **Deprecated**: Use Railway cron for daily automatic syncs
+- **Manual use**: Still available for testing or emergency resync
+- **Duration**: Typically 15-30 seconds depending on symbol count
+- **Non-blocking**: Profile failures don't affect batch calculations
+- **Data sources**: Yahoo Finance (primary) + yahooquery (fallback)
+
+**Migration Path**:
+- **For daily updates**: No action needed - Railway cron handles this automatically
+- **For manual testing**: This endpoint still works but is unnecessary for production
+- **See**: `scripts/automation/railway_daily_batch.py` for automatic sync implementation
 
 ---
 
