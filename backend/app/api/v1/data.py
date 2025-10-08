@@ -1035,3 +1035,173 @@ async def get_demo_portfolio(portfolio_type: str):
             "position_count": len(positions)
         }
     }
+
+
+@router.get("/company-profiles")
+async def get_company_profiles(
+    symbols: Optional[str] = Query(None, description="Comma-separated symbols (e.g., 'AAPL,MSFT,GOOGL')"),
+    position_ids: Optional[str] = Query(None, description="Comma-separated position IDs"),
+    portfolio_id: Optional[UUID] = Query(None, description="Get profiles for all portfolio symbols"),
+    fields: Optional[str] = Query(None, description="Comma-separated fields to include (default: all)"),
+    current_user: CurrentUser = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Get company profiles. Exactly ONE of: symbols, position_ids, or portfolio_id required.
+
+    Query Modes:
+    - symbols: Direct symbol lookup (no ownership check - public data)
+    - position_ids: Fetch profiles for specific positions (ownership required)
+    - portfolio_id: Fetch profiles for all portfolio symbols (ownership required)
+
+    Optional field filtering for performance optimization.
+    """
+    from uuid import UUID as UUID_TYPE
+
+    # Parameter validation: Exactly one parameter must be provided
+    params_provided = sum([
+        symbols is not None,
+        position_ids is not None,
+        portfolio_id is not None
+    ])
+
+    if params_provided == 0:
+        raise HTTPException(400, "One of symbols, position_ids, or portfolio_id required")
+    if params_provided > 1:
+        raise HTTPException(400, "Only one of symbols, position_ids, or portfolio_id allowed")
+
+    # Resolve parameters to symbol list
+    symbol_list = []
+    query_type = ""
+    position_symbol_map = None
+    portfolio_id_str = None
+
+    if position_ids:
+        # Parse position IDs and fetch positions
+        try:
+            position_uuid_list = [UUID_TYPE(pid.strip()) for pid in position_ids.split(",")]
+        except ValueError:
+            raise HTTPException(400, "Invalid position ID format")
+
+        # Fetch positions and verify ownership
+        stmt = select(Position).where(Position.id.in_(position_uuid_list))
+        result = await db.execute(stmt)
+        positions = result.scalars().all()
+
+        if not positions:
+            raise HTTPException(404, "No positions found")
+
+        # Verify all positions belong to user's portfolios
+        portfolio_ids = {p.portfolio_id for p in positions}
+        portfolio_stmt = select(Portfolio).where(
+            and_(
+                Portfolio.id.in_(portfolio_ids),
+                Portfolio.user_id == (UUID_TYPE(str(current_user.id)) if not isinstance(current_user.id, UUID_TYPE) else current_user.id)
+            )
+        )
+        portfolio_result = await db.execute(portfolio_stmt)
+        user_portfolios = {p.id for p in portfolio_result.scalars().all()}
+
+        unauthorized_positions = [p for p in positions if p.portfolio_id not in user_portfolios]
+        if unauthorized_positions:
+            raise HTTPException(403, f"Unauthorized access to positions")
+
+        # Extract symbols and build map
+        symbol_list = [p.symbol for p in positions]
+        position_symbol_map = {str(p.id): p.symbol for p in positions}
+        query_type = "positions"
+
+    elif portfolio_id:
+        # Fetch portfolio and verify ownership
+        portfolio_uuid = portfolio_id if isinstance(portfolio_id, UUID_TYPE) else UUID_TYPE(str(portfolio_id))
+        stmt = select(Portfolio).where(
+            and_(
+                Portfolio.id == portfolio_uuid,
+                Portfolio.user_id == (UUID_TYPE(str(current_user.id)) if not isinstance(current_user.id, UUID_TYPE) else current_user.id)
+            )
+        ).options(selectinload(Portfolio.positions))
+
+        result = await db.execute(stmt)
+        portfolio = result.scalar_one_or_none()
+
+        if not portfolio:
+            raise HTTPException(404, "Portfolio not found")
+
+        # Extract symbols
+        symbol_list = [p.symbol for p in portfolio.positions]
+        portfolio_id_str = str(portfolio_id)
+        query_type = "portfolio"
+
+    else:  # symbols
+        # Parse comma-separated symbols (no ownership check - public data)
+        symbol_list = [s.strip() for s in symbols.split(",")]
+        query_type = "symbols"
+
+    # Build database query with optional field filtering
+    if fields:
+        # Validate and build column list
+        requested_fields = [f.strip() for f in fields.split(",")]
+
+        # Get valid CompanyProfile columns
+        valid_columns = [col.name for col in CompanyProfile.__table__.columns]
+        invalid_fields = [f for f in requested_fields if f not in valid_columns]
+
+        if invalid_fields:
+            raise HTTPException(400, f"Invalid field names: {', '.join(invalid_fields)}")
+
+        # Build SELECT with specific columns (always include symbol)
+        if 'symbol' not in requested_fields:
+            requested_fields.insert(0, 'symbol')
+
+        columns = [getattr(CompanyProfile, field) for field in requested_fields]
+        stmt = select(*columns).where(CompanyProfile.symbol.in_(symbol_list))
+
+        # Execute and convert to dicts using mappings()
+        result = await db.execute(stmt)
+        profiles = [dict(row) for row in result.mappings()]
+
+        fields_requested = requested_fields
+    else:
+        # Full model select
+        stmt = select(CompanyProfile).where(CompanyProfile.symbol.in_(symbol_list))
+        result = await db.execute(stmt)
+        profile_models = result.scalars().all()
+
+        # Convert models to dicts
+        profiles = []
+        for profile in profile_models:
+            profile_dict = {
+                col.name: getattr(profile, col.name)
+                for col in CompanyProfile.__table__.columns
+            }
+            profiles.append(profile_dict)
+
+        fields_requested = None
+
+    # Build metadata
+    returned_symbols = {p['symbol'] for p in profiles}
+    missing_symbols = [s for s in symbol_list if s not in returned_symbols]
+
+    meta = {
+        "query_type": query_type,
+        "requested_symbols": symbol_list,
+        "returned_profiles": len(profiles),
+        "missing_profiles": missing_symbols,
+        "as_of": to_utc_iso8601(utc_now())
+    }
+
+    # Add conditional metadata fields
+    if position_symbol_map:
+        meta["position_ids"] = list(position_symbol_map.keys())
+        meta["position_symbol_map"] = position_symbol_map
+
+    if portfolio_id_str:
+        meta["portfolio_id"] = portfolio_id_str
+
+    if fields_requested:
+        meta["fields_requested"] = fields_requested
+
+    return {
+        "profiles": profiles,
+        "meta": meta
+    }
