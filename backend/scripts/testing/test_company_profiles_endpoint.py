@@ -8,7 +8,7 @@ import json
 from typing import Optional
 
 # Configuration
-BASE_URL = "http://localhost:8000/api/v1"
+BASE_URL = "https://sigmasight-be-production.up.railway.app/api/v1"
 TEST_EMAIL = "demo_individual@sigmasight.com"
 TEST_PASSWORD = "demo12345"
 
@@ -327,20 +327,20 @@ def main():
         print("TEST SUMMARY")
         print("="*80)
 
-        passed = sum(results.values())
+        passed_count = sum(results.values())
         total = len(results)
 
-        for test_name, passed in results.items():
-            status = "✅ PASS" if passed else "❌ FAIL"
+        for test_name, test_passed in results.items():
+            status = "✅ PASS" if test_passed else "❌ FAIL"
             print(f"{status}: {test_name}")
 
-        print(f"\nOverall: {passed}/{total} tests passed")
+        print(f"\nOverall: {passed_count}/{total} tests passed")
 
-        if passed == total:
+        if passed_count == total:
             print("\n🎉 All tests passed!")
             return 0
         else:
-            print(f"\n⚠️  {total - passed} test(s) failed")
+            print(f"\n⚠️  {total - passed_count} test(s) failed")
             return 1
 
     except Exception as e:
