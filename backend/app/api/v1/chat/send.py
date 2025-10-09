@@ -150,30 +150,6 @@ async def sse_generator(
                     "position_count": len(portfolio_snapshot.get("holdings", [])),
                     "holdings": portfolio_snapshot.get("holdings", [])[:50]  # Limit to top 50 positions
                 }
-
-                # [DEBUG] Enhanced logging for portfolio context verification
-                try:
-                    holdings_list = portfolio_context.get("holdings", [])
-                    logger.info(
-                        f"[DEBUG] Portfolio Context Summary: "
-                        f"portfolio_id={portfolio_context.get('portfolio_id', 'N/A')}, "
-                        f"name={portfolio_context.get('portfolio_name', 'N/A')}, "
-                        f"total_value={portfolio_context.get('total_value', 'N/A')}, "
-                        f"holdings_count={len(holdings_list)}"
-                    )
-                    if holdings_list and len(holdings_list) > 0:
-                        # Log first holding for verification
-                        first_holding = holdings_list[0]
-                        logger.info(f"[DEBUG] Sample holding keys: {list(first_holding.keys())}")
-                        logger.info(
-                            f"[DEBUG] Sample holding: symbol={first_holding.get('symbol', 'N/A')}, "
-                            f"quantity={first_holding.get('quantity', 'N/A')}"
-                        )
-                    else:
-                        logger.warning("[DEBUG] No holdings in portfolio context - holdings list is empty!")
-                except Exception as log_error:
-                    logger.error(f"[DEBUG] Error logging portfolio context: {log_error}")
-
                 logger.info(f"Using portfolio context with {len(portfolio_snapshot.get('holdings', []))} positions for conversation: portfolio_id={portfolio_id}")
             except Exception as e:
                 logger.warning(f"Failed to fetch portfolio data for context: {e}, using portfolio_id only")
@@ -617,10 +593,7 @@ async def send_message(
         StreamingResponse with Server-Sent Events
     """
     try:
-        # Load conversation with detailed logging
-        logger.info(f"[DEBUG] Looking for conversation: {message_data.conversation_id} (type: {type(message_data.conversation_id)})")
-        logger.info(f"[DEBUG] User ID: {current_user.id}")
-
+        # Load conversation
         result = await db.execute(
             select(Conversation)
             .where(
@@ -630,14 +603,6 @@ async def send_message(
         conversation = result.scalar_one_or_none()
 
         if not conversation:
-            # Log all conversations for this user to help debug
-            all_convs_result = await db.execute(
-                select(Conversation.id, Conversation.user_id)
-                .where(Conversation.user_id == current_user.id)
-            )
-            all_convs = all_convs_result.all()
-            logger.error(f"[DEBUG] Conversation {message_data.conversation_id} not found. User {current_user.id} has {len(all_convs)} conversations: {[str(c.id) for c in all_convs]}")
-
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Conversation not found"
