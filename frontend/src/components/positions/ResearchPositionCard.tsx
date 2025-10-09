@@ -85,22 +85,34 @@ export function ResearchPositionCard({ position, onClick }: ResearchPositionCard
     }, 500)
   }, [handleSaveTargets])
 
+  // Check if position is short (return calculation needs to be inverted)
+  const isShort = ['SHORT', 'SC', 'SP'].includes(position.position_type)
+
   // Calculate returns for display
+  // For shorts: if target price goes UP, we LOSE money (inverse calculation)
   const targetReturnEOY = userTargetEOY && position.current_price
-    ? ((parseFloat(userTargetEOY) - position.current_price) / position.current_price * 100)
+    ? isShort
+      ? ((position.current_price - parseFloat(userTargetEOY)) / position.current_price * 100)
+      : ((parseFloat(userTargetEOY) - position.current_price) / position.current_price * 100)
     : null
 
   const targetReturnNextYear = userTargetNextYear && position.current_price
-    ? ((parseFloat(userTargetNextYear) - position.current_price) / position.current_price * 100)
+    ? isShort
+      ? ((position.current_price - parseFloat(userTargetNextYear)) / position.current_price * 100)
+      : ((parseFloat(userTargetNextYear) - position.current_price) / position.current_price * 100)
     : null
 
   // Calculate expected returns from current price (based on analyst target and user targets)
   const expectedReturnEOY = position.target_mean_price && position.current_price
-    ? ((position.target_mean_price - position.current_price) / position.current_price * 100)
+    ? isShort
+      ? ((position.current_price - position.target_mean_price) / position.current_price * 100)
+      : ((position.target_mean_price - position.current_price) / position.current_price * 100)
     : null
 
   const expectedReturnNextYear = userTargetNextYear && position.current_price
-    ? ((parseFloat(userTargetNextYear) - position.current_price) / position.current_price * 100)
+    ? isShort
+      ? ((position.current_price - parseFloat(userTargetNextYear)) / position.current_price * 100)
+      : ((parseFloat(userTargetNextYear) - position.current_price) / position.current_price * 100)
     : null
 
   // Calculate P/E ratios

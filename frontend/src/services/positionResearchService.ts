@@ -5,7 +5,8 @@ export interface EnhancedPosition {
   // Position basics
   id: string
   symbol: string
-  position_type: 'LONG' | 'SHORT'
+  position_type: 'LONG' | 'SHORT' | 'LC' | 'LP' | 'SC' | 'SP'
+  investment_class?: 'PUBLIC' | 'OPTIONS' | 'PRIVATE'
   quantity: number
   current_price: number
   market_value: number
@@ -106,18 +107,28 @@ export const positionResearchService = {
         ? (pos.market_value / portfolioEquity) * 100
         : 0
 
+      // Check if position is short (return calculation needs to be inverted)
+      const isShort = ['SHORT', 'SC', 'SP'].includes(pos.position_type)
+
       // Calculate target returns (user-entered targets)
+      // For shorts: if target price goes UP, we LOSE money (inverse calculation)
       const target_return_eoy = target?.target_price_eoy && pos.current_price
-        ? ((target.target_price_eoy - pos.current_price) / pos.current_price) * 100
+        ? isShort
+          ? ((pos.current_price - target.target_price_eoy) / pos.current_price) * 100
+          : ((target.target_price_eoy - pos.current_price) / pos.current_price) * 100
         : undefined
 
       const target_return_next_year = target?.target_price_next_year && pos.current_price
-        ? ((target.target_price_next_year - pos.current_price) / pos.current_price) * 100
+        ? isShort
+          ? ((pos.current_price - target.target_price_next_year) / pos.current_price) * 100
+          : ((target.target_price_next_year - pos.current_price) / pos.current_price) * 100
         : undefined
 
       // Calculate analyst-based returns (fallback when user hasn't entered targets)
       const analyst_return_eoy = profile?.target_mean_price && pos.current_price
-        ? ((profile.target_mean_price - pos.current_price) / pos.current_price) * 100
+        ? isShort
+          ? ((pos.current_price - profile.target_mean_price) / pos.current_price) * 100
+          : ((profile.target_mean_price - pos.current_price) / pos.current_price) * 100
         : undefined
 
       return {
@@ -144,9 +155,15 @@ export const positionResearchService = {
       }
     })
 
-    // Split into longs and shorts
-    const longPositions = enhanced.filter(p => p.position_type === 'LONG')
-    const shortPositions = enhanced.filter(p => p.position_type === 'SHORT')
+    // Split into longs and shorts (including options)
+    // Long: LONG stock + LC (Long Call) + LP (Long Put)
+    // Short: SHORT stock + SC (Short Call) + SP (Short Put)
+    const longPositions = enhanced.filter(p =>
+      p.position_type === 'LONG' || p.position_type === 'LC' || p.position_type === 'LP'
+    )
+    const shortPositions = enhanced.filter(p =>
+      p.position_type === 'SHORT' || p.position_type === 'SC' || p.position_type === 'SP'
+    )
 
     return {
       positions: enhanced,
