@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 
-// Use environment variable or default to Railway production
-const BACKEND_URL = process.env.BACKEND_URL || 'https://sigmasight-be-production.up.railway.app'
+// Use environment variable or default to Railway sandbox
+const BACKEND_URL = process.env.BACKEND_URL || 'https://sigmasight-be-sandbox-frontendrailway.up.railway.app'
 const PROXY_TIMEOUT = 30000 // 30 seconds
 
 console.log('Proxy Backend URL:', BACKEND_URL)
