@@ -251,11 +251,50 @@ The strategy system (backend APIs, database tables, and frontend services) has b
 - **Targeted Operations**: Separate endpoints for market data sync and correlation calculations
 - **Automated Company Profiles** (Phase 9.1): Daily sync at 11:30 PM UTC via Railway cron
 
+### 🏢 Company Profiles Endpoint (1 endpoint) ✨ **Phase 9.0 - October 7, 2025**
+| Method | Endpoint | Status | Description |
+|--------|----------|--------|-------------|
+| GET | `/data/company-profiles` | ✅ Ready | Get company profiles with 53+ fields (flexible query modes) |
+
+**Query Modes** (exactly one required):
+- **symbols**: Direct symbol lookup (e.g., `?symbols=AAPL,MSFT,GOOGL`) - public data, no ownership check
+- **position_ids**: Fetch profiles for specific positions (requires ownership)
+- **portfolio_id**: Fetch profiles for all portfolio symbols (requires ownership)
+
+**Optional Field Filtering**:
+- `?fields=symbol,company_name,sector,industry` - Returns only specified fields for performance optimization
+- Default: Returns all 53 fields
+
+**Company Profile Fields** (53 total):
+- **Basic Info**: company_name, sector, industry, exchange, country, market_cap, description
+- **Company Type**: is_etf, is_fund
+- **Company Details**: ceo, employees, website
+- **Valuation Metrics**: pe_ratio, forward_pe, dividend_yield, beta, week_52_high, week_52_low
+- **Analyst Data**: target_mean_price, target_high_price, target_low_price, number_of_analyst_opinions, recommendation_mean, recommendation_key
+- **Forward Estimates**: forward_eps, earnings_growth, revenue_growth, earnings_quarterly_growth
+- **Profitability**: profit_margins, operating_margins, gross_margins, return_on_assets, return_on_equity, total_revenue
+- **Current Year Estimates**: current_year_revenue_avg, current_year_revenue_low, current_year_revenue_high, current_year_revenue_growth, current_year_earnings_avg, current_year_earnings_low, current_year_earnings_high, current_year_end_date
+- **Next Year Estimates**: next_year_revenue_avg, next_year_revenue_low, next_year_revenue_high, next_year_revenue_growth, next_year_earnings_avg, next_year_earnings_low, next_year_earnings_high, next_year_end_date
+- **Data Tracking**: data_source, last_updated, created_at, updated_at
+
+**Integration Points**:
+- **Position Details**: Company names automatically included in `/data/positions/details` response
+- **Batch Fetching**: Optimized batch fetching prevents N+1 queries
+- **Automatic Sync**: Railway cron syncs profiles daily at 11:30 PM UTC
+- **Data Source**: Hybrid approach using yfinance (basic info) + yahooquery (estimates)
+
+**Example Requests**:
+```
+GET /data/company-profiles?symbols=AAPL,MSFT
+GET /data/company-profiles?portfolio_id=uuid-here
+GET /data/company-profiles?position_ids=uuid1,uuid2&fields=symbol,company_name,sector
+```
+
 ### 📋 Summary Statistics
-- **Total Endpoints**: 56 endpoints across 8 categories
-- **Production Ready**: 56 (100%)
+- **Total Endpoints**: 57 endpoints across 9 categories
+- **Production Ready**: 57 (100%)
 - **Removed (Strategies)**: 12 endpoints removed October 2025
-- **Categories**: 8 (Auth, Data, Analytics, Chat, Target Prices, Tags, Position Tagging, Admin Batch Processing)
+- **Categories**: 9 (Auth, Data, Analytics, Chat, Target Prices, Tags, Position Tagging, Admin Batch Processing, Company Profiles)
 
 **Endpoint Breakdown**:
 - Authentication: 5 endpoints
@@ -265,7 +304,8 @@ The strategy system (backend APIs, database tables, and frontend services) has b
 - Target Prices: 10 endpoints
 - Tag Management: 7 endpoints
 - Position Tagging: 5 endpoints
-- Admin Batch Processing: 6 endpoints ✨ **NEW**
+- Admin Batch Processing: 6 endpoints
+- Company Profiles: 1 endpoint ✨ **NEW**
 
 ---
 
@@ -366,27 +406,66 @@ The strategy system (backend APIs, database tables, and frontend services) has b
                                                           │ created_at           │
                                                           └──────────────────────┘
 
-                                                ┌──────────────────────────────┐
-                                                │   COMPANY_PROFILES           │
-                                                ├──────────────────────────────┤
-                                                │ id (UUID)                 PK │
-                                                │ symbol                 UNIQUE│
-                                                │ company_name                 │
-                                                │ sector                       │
-                                                │ industry                     │
-                                                │ description                  │
-                                                │ market_cap                   │
-                                                │ employee_count               │
-                                                │ website                      │
-                                                │ headquarters                 │
-                                                │ current_year_revenue_avg     │
-                                                │ next_year_revenue_avg        │
-                                                │ current_year_earnings_avg    │
-                                                │ next_year_earnings_avg       │
-                                                │ data_source                  │
-                                                │ created_at                   │
-                                                │ updated_at                   │
-                                                └──────────────────────────────┘
+                                    ┌──────────────────────────────────────┐
+                                    │   COMPANY_PROFILES (53 fields)   │
+                                    ├──────────────────────────────────────┤
+                                    │ symbol (PK)                     UNIQUE│
+                                    │                                      │
+                                    │ ── Basic Info ──                     │
+                                    │ company_name, sector, industry       │
+                                    │ exchange, country, market_cap        │
+                                    │ description, website                 │
+                                    │                                      │
+                                    │ ── Company Type ──                   │
+                                    │ is_etf, is_fund                      │
+                                    │                                      │
+                                    │ ── Company Details ──                │
+                                    │ ceo, employees                       │
+                                    │                                      │
+                                    │ ── Valuation Metrics ──              │
+                                    │ pe_ratio, forward_pe, dividend_yield │
+                                    │ beta, week_52_high, week_52_low      │
+                                    │                                      │
+                                    │ ── Analyst Data ──                   │
+                                    │ target_mean_price, target_high_price │
+                                    │ target_low_price                     │
+                                    │ number_of_analyst_opinions           │
+                                    │ recommendation_mean, recommendation_key│
+                                    │                                      │
+                                    │ ── Forward Estimates ──              │
+                                    │ forward_eps, earnings_growth         │
+                                    │ revenue_growth                       │
+                                    │ earnings_quarterly_growth            │
+                                    │                                      │
+                                    │ ── Profitability Metrics ──          │
+                                    │ profit_margins, operating_margins    │
+                                    │ gross_margins, return_on_assets      │
+                                    │ return_on_equity, total_revenue      │
+                                    │                                      │
+                                    │ ── Current Year (0y) ──              │
+                                    │ current_year_revenue_avg/_low/_high  │
+                                    │ current_year_revenue_growth          │
+                                    │ current_year_earnings_avg/_low/_high │
+                                    │ current_year_end_date                │
+                                    │                                      │
+                                    │ ── Next Year (+1y) ──                │
+                                    │ next_year_revenue_avg/_low/_high     │
+                                    │ next_year_revenue_growth             │
+                                    │ next_year_earnings_avg/_low/_high    │
+                                    │ next_year_end_date                   │
+                                    │                                      │
+                                    │ ── Data Tracking ──                  │
+                                    │ data_source (yfinance+yahooquery)    │
+                                    │ last_updated, created_at, updated_at │
+                                    └──────────────────────────────────────┘
+                                                    │
+                                                    │ Many-to-One (via symbol)
+                                                    ▼
+                                              ┌─────────────┐
+                                              │  POSITIONS  │
+                                              ├─────────────┤
+                                              │ symbol      │
+                                              └─────────────┘
 
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         CALCULATION RESULTS TABLES                          │
@@ -563,6 +642,9 @@ The strategy system (backend APIs, database tables, and frontend services) has b
 8. **Users → Conversations**: One-to-Many (chat threads)
 9. **Conversations → Messages**: One-to-Many (chat history)
 10. **Positions → Company Profiles**: Many-to-One via symbol (company metadata lookup)
+    - **CompanyProfile.symbol** (PK) ← **Position.symbol** (FK via application logic)
+    - Lookups optimized with batch fetching to prevent N+1 queries
+    - Company names automatically included in `/data/positions/details` response
 
 #### Investment Classification:
 - **Position.investment_class**: Database field (PUBLIC/OPTIONS/PRIVATE)
@@ -676,6 +758,7 @@ The frontend uses a layered service architecture to interact with the backend AP
 | **analyticsApi.ts** | Analytics & calculations | `/analytics/portfolio/{id}/overview`<br>`/analytics/portfolio/{id}/correlation-matrix`<br>`/analytics/portfolio/{id}/factor-exposures`<br>`/analytics/portfolio/{id}/stress-test` | Dashboard, Analytics pages |
 | **portfolioApi.ts** | Portfolio CRUD operations | `/data/portfolios`<br>`/data/portfolio/{id}/complete`<br>`/data/portfolio/{id}/data-quality` | Portfolio management |
 | **positionApiService.ts** | Position details & operations | `/data/positions/details` | Position components |
+| **companyProfilesApi.ts** | Company profile data | `/data/company-profiles` | ✨ **NEW** - Position cards, research views |
 | **strategiesApi.ts** | Strategy management | ❌ Removed | Delete service; migrate UI to tagsApi + position tags |
 | **tagsApi.ts** | Tag + position tagging | `/tags/`<br>`/tags/defaults`<br>`/positions/{id}/tags`<br>`/tags/{id}/positions` | TagEditor, Organize page |
 | **chatService.ts** | Chat conversation management | `/chat/conversations`<br>`/chat/send`<br>`/chat/conversations/{id}/mode` | ChatInterface component |
@@ -779,7 +862,68 @@ All API calls route through Next.js proxy at `/api/proxy/` to handle CORS during
 - **Timezone-aware timestamps**: All datetimes use `datetime.now(timezone.utc)` for consistency
 - **Database schema widened**: country/exchange columns expanded from 10/20 to 50 chars (Alembic migration 19c513d3bf90)
 - **Graceful degradation**: Per-batch error handling preserves partial successes
+- **Hybrid data source**: yfinance (basic info, reliable) + yahooquery (revenue/earnings estimates, unique data)
+- **53 comprehensive fields**: Basic info, valuation metrics, analyst targets, profitability, forward estimates (current year + next year)
 
+
+## Backend Services Architecture
+
+### Company Profile Fetcher Service
+**File**: `app/services/yahooquery_profile_fetcher.py`
+
+**Purpose**: Fetch comprehensive company profile data from external APIs
+
+**Data Sources**:
+- **yfinance**: Basic company info (reliable, no rate limits)
+  - Company name, sector, industry, description
+  - Valuation metrics (P/E, beta, 52-week ranges)
+  - Profitability metrics (margins, ROA, ROE)
+  - Analyst targets and recommendations
+- **yahooquery**: Revenue/earnings estimates (unique data)
+  - Current year (0y) revenue/earnings estimates
+  - Next year (+1y) revenue/earnings estimates
+  - Growth rates and end dates
+
+**Key Features**:
+- **Async-safe execution**: Uses `run_in_executor()` to prevent blocking FastAPI event loop
+- **Batching**: Processes symbols in batches of 10 to avoid rate limits
+- **Parallelism**: ThreadPoolExecutor with max_workers=3 for concurrent fetching
+- **Retry logic**: Exponential backoff (2^attempt seconds) for failed fetches
+- **Graceful degradation**: Per-batch error handling preserves partial successes
+- **Timezone-aware**: All timestamps use `datetime.now(timezone.utc)`
+
+**Usage Pattern**:
+```python
+from app.services.yahooquery_profile_fetcher import fetch_company_profiles
+
+# Fetch profiles for multiple symbols
+profiles = await fetch_company_profiles(['AAPL', 'MSFT', 'GOOGL'])
+
+# Returns: Dict[str, Dict[str, Any]]
+# {
+#   'AAPL': {
+#     'company_name': 'Apple Inc.',
+#     'sector': 'Technology',
+#     'industry': 'Consumer Electronics',
+#     'market_cap': Decimal('2800000000000'),
+#     'pe_ratio': Decimal('28.5'),
+#     ...  # 53 total fields
+#   },
+#   ...
+# }
+```
+
+**Performance**:
+- Batch of 10 symbols: ~3-5 seconds
+- Portfolio of 50 symbols: ~15-20 seconds (5 batches)
+- Rate limit backoff: 1 second between batches
+
+**Integration**:
+- **Automatic sync**: Railway cron runs daily at 11:30 PM UTC
+- **Position details**: Company names batch-fetched and included in `/data/positions/details`
+- **Manual sync**: Available via `/admin/batch/trigger/company-profiles` (deprecated in Phase 9.1)
+
+---
 
 ## Notes
 
@@ -787,4 +931,5 @@ All API calls route through Next.js proxy at `/api/proxy/` to handle CORS during
 - **Migrations**: Managed via Alembic (`uv run alembic upgrade head`)
 - **Demo Data**: Pre-seeded with `scripts/seed_database.py`
 - **Admin Endpoints**: ✅ Fully implemented and registered (6 batch processing endpoints)
+- **Company Profiles**: ✅ 53 comprehensive fields, automatic daily sync via Railway cron
 - **Testing**: Frontend API test page at `/dev/api-test` validates all endpoints
