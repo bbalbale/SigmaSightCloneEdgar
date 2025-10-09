@@ -1,7 +1,7 @@
 // src/components/positions/ResearchPositionCard.tsx
 'use client'
 
-import React, { useState, useCallback, useRef } from 'react'
+import React, { useState, useCallback, useRef, useEffect } from 'react'
 import { TagBadge } from '@/components/organize/TagBadge'
 import { Input } from '@/components/ui/input'
 import { formatCurrency, formatNumber } from '@/lib/formatters'
@@ -18,13 +18,40 @@ interface ResearchPositionCardProps {
 export function ResearchPositionCard({ position, onClick }: ResearchPositionCardProps) {
   const { theme } = useTheme()
   const { portfolioId } = usePortfolioStore()
-  // Prepopulate EOY target with analyst target if no user target exists
+  // Prepopulate EOY target with analyst target if no user target exists (treat 0 as no target)
   const [userTargetEOY, setUserTargetEOY] = useState(
-    position.user_target_eoy?.toString() || position.target_mean_price?.toString() || ''
+    position.user_target_eoy
+      ? position.user_target_eoy.toString()
+      : position.target_mean_price?.toString() || ''
   )
-  const [userTargetNextYear, setUserTargetNextYear] = useState(position.user_target_next_year?.toString() || '')
+  const [userTargetNextYear, setUserTargetNextYear] = useState(
+    position.user_target_next_year
+      ? position.user_target_next_year.toString()
+      : ''
+  )
   const [isSaving, setIsSaving] = useState(false)
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+
+  // Update state when position data changes (handles async data loading)
+  useEffect(() => {
+    // Prepopulate EOY target: user target takes precedence (if > 0), fallback to analyst
+    const eoyShouldBe = position.user_target_eoy
+      ? position.user_target_eoy.toString()
+      : position.target_mean_price?.toString() || ''
+
+    if (eoyShouldBe && !userTargetEOY) {
+      setUserTargetEOY(eoyShouldBe)
+    }
+
+    // Prepopulate next year target
+    const nextYearShouldBe = position.user_target_next_year
+      ? position.user_target_next_year.toString()
+      : ''
+
+    if (nextYearShouldBe && !userTargetNextYear) {
+      setUserTargetNextYear(nextYearShouldBe)
+    }
+  }, [position.user_target_eoy, position.target_mean_price, position.user_target_next_year])
 
   // Debounced save handler - saves both targets when either input changes
   const handleSaveTargets = useCallback(async () => {
