@@ -306,6 +306,22 @@ export function ChatConversationPane({
         streamState.stopStreaming()
       }
 
+      // Handle stale conversation ID (404 - Conversation not found)
+      if (error?.detail && typeof error.detail === 'string' && error.detail.includes('Conversation not found')) {
+        console.warn('[ChatConversationPane] Stale conversation detected, resetting...')
+        handleConversationReset()
+        addMessage(
+          {
+            conversationId: 'temp',
+            role: 'system',
+            content: 'Your conversation expired. Starting a new one. Please send your message again.',
+          },
+          `error-stale-${Date.now()}`
+        )
+        return
+      }
+
+      // Legacy error handling for old conversation ID format
       if (error?.detail && conversationId && conversationId.startsWith('conv_')) {
         handleConversationReset()
         return

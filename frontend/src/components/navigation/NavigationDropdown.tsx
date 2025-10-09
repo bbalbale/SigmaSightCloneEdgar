@@ -13,7 +13,8 @@ import {
   LogOut,
   Menu,
   User,
-  ChevronRight
+  ChevronRight,
+  Sparkles
 } from 'lucide-react'
 import {
   DropdownMenu,
@@ -33,6 +34,7 @@ const navigationItems = [
   { href: '/public-positions', label: 'Public Positions', icon: Building2 },
   { href: '/private-positions', label: 'Private Positions', icon: Shield },
   { href: '/organize', label: 'Organize', icon: PieChart },
+  { href: '/sigmasight-ai', label: 'SigmaSight AI', icon: Sparkles },
   { href: '/ai-chat', label: 'AI Chat', icon: Bot },
   { href: '/settings', label: 'Settings', icon: Settings },
 ]
