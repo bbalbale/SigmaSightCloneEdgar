@@ -19,6 +19,7 @@ export interface EnhancedPosition {
   company_name?: string
   sector?: string
   industry?: string
+  market_cap?: number
 
   // Analyst data
   target_mean_price?: number
@@ -35,6 +36,8 @@ export interface EnhancedPosition {
   percent_of_equity: number
   target_return_eoy?: number
   target_return_next_year?: number
+  analyst_return_eoy?: number
+  analyst_return_next_year?: number
 }
 
 interface FetchEnhancedPositionsParams {
@@ -103,7 +106,7 @@ export const positionResearchService = {
         ? (pos.market_value / portfolioEquity) * 100
         : 0
 
-      // Calculate target returns
+      // Calculate target returns (user-entered targets)
       const target_return_eoy = target?.target_price_eoy && pos.current_price
         ? ((target.target_price_eoy - pos.current_price) / pos.current_price) * 100
         : undefined
@@ -112,12 +115,18 @@ export const positionResearchService = {
         ? ((target.target_price_next_year - pos.current_price) / pos.current_price) * 100
         : undefined
 
+      // Calculate analyst-based returns (fallback when user hasn't entered targets)
+      const analyst_return_eoy = profile?.target_mean_price && pos.current_price
+        ? ((profile.target_mean_price - pos.current_price) / pos.current_price) * 100
+        : undefined
+
       return {
         ...pos,
         // Company profile fields
         company_name: profile?.company_name,
         sector: profile?.sector,
         industry: profile?.industry,
+        market_cap: profile?.market_cap,
         target_mean_price: profile?.target_mean_price,
         current_year_earnings_avg: profile?.current_year_earnings_avg,
         next_year_earnings_avg: profile?.next_year_earnings_avg,
@@ -129,7 +138,9 @@ export const positionResearchService = {
         // Calculated fields
         percent_of_equity,
         target_return_eoy,
-        target_return_next_year
+        target_return_next_year,
+        analyst_return_eoy,
+        analyst_return_next_year: undefined // No analyst data for next year
       }
     })
 
@@ -147,16 +158,21 @@ export const positionResearchService = {
 
   /**
    * Calculate weighted aggregate return for a set of positions
+   * @param positions - Array of enhanced positions
+   * @param returnField - Primary return field (user-entered targets)
+   * @param fallbackField - Fallback return field (analyst targets) when primary is null
    */
   calculateAggregateReturn(
     positions: EnhancedPosition[],
-    returnField: 'target_return_eoy' | 'target_return_next_year'
+    returnField: 'target_return_eoy' | 'target_return_next_year',
+    fallbackField?: 'analyst_return_eoy' | 'analyst_return_next_year'
   ): number {
     const totalWeight = positions.reduce((sum, p) => sum + p.percent_of_equity, 0)
     if (totalWeight === 0) return 0
 
     const weightedSum = positions.reduce((sum, p) => {
-      const ret = p[returnField] || 0
+      // Use user target if available, otherwise fall back to analyst target, then 0
+      const ret = p[returnField] ?? (fallbackField ? p[fallbackField] : null) ?? 0
       return sum + (ret * p.percent_of_equity)
     }, 0)
 

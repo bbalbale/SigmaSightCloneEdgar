@@ -80,96 +80,133 @@ export function EnhancedPositionsSection({
   }, [filteredPositions, sortBy, sortOrder])
 
   return (
-    <div>
+    <div className="space-y-4">
       {/* Section Header */}
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-2">
-          <h3 className={`text-lg font-semibold transition-colors duration-300 ${
-            theme === 'dark' ? 'text-white' : 'text-gray-900'
-          }`}>
-            {title}
-          </h3>
-          <Badge variant="secondary" className={`transition-colors duration-300 ${
-            theme === 'dark' ? 'bg-slate-700 text-slate-300' : 'bg-gray-200 text-gray-700'
-          }`}>
-            {filteredPositions.length}
-          </Badge>
-        </div>
+      <div className={`rounded-lg border p-4 transition-all duration-300 ${
+        theme === 'dark'
+          ? 'bg-slate-800/30 border-slate-700/50'
+          : 'bg-white border-gray-200'
+      }`}>
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <h3 className={`text-lg font-semibold transition-colors duration-300 ${
+              theme === 'dark' ? 'text-white' : 'text-gray-900'
+            }`}>
+              {title}
+            </h3>
+            <Badge variant="secondary" className={`transition-colors duration-300 ${
+              theme === 'dark' ? 'bg-slate-700 text-slate-300' : 'bg-gray-200 text-gray-700'
+            }`}>
+              {filteredPositions.length}
+            </Badge>
+          </div>
 
-        {/* Aggregate Returns */}
-        <div className={`text-right text-sm transition-colors duration-300 ${
-          theme === 'dark' ? 'text-slate-400' : 'text-gray-600'
-        }`}>
-          <p className="font-medium mb-1">Expected Return (Weighted)</p>
-          <div className="flex gap-4">
-            <div>
-              <span className="text-xs">EOY: </span>
-              <span className={`font-semibold ${aggregateReturnEOY >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+          {/* Aggregate Returns */}
+          <div className="flex gap-6">
+            <div className="text-right">
+              <div className={`text-xs font-medium mb-1 transition-colors duration-300 ${
+                theme === 'dark' ? 'text-slate-400' : 'text-gray-500'
+              }`}>
+                Expected Return EOY
+              </div>
+              <div className={`text-xl font-bold tabular-nums ${
+                aggregateReturnEOY >= 0 ? 'text-emerald-500' : 'text-rose-500'
+              }`}>
                 {aggregateReturnEOY >= 0 ? '+' : ''}{formatNumber(aggregateReturnEOY, 2)}%
-              </span>
+              </div>
             </div>
-            <div>
-              <span className="text-xs">Next Yr: </span>
-              <span className={`font-semibold ${aggregateReturnNextYear >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+            <div className="text-right">
+              <div className={`text-xs font-medium mb-1 transition-colors duration-300 ${
+                theme === 'dark' ? 'text-slate-400' : 'text-gray-500'
+              }`}>
+                Expected Return Next Year
+              </div>
+              <div className={`text-xl font-bold tabular-nums ${
+                aggregateReturnNextYear >= 0 ? 'text-emerald-500' : 'text-rose-500'
+              }`}>
                 {aggregateReturnNextYear >= 0 ? '+' : ''}{formatNumber(aggregateReturnNextYear, 2)}%
-              </span>
+              </div>
             </div>
           </div>
         </div>
-      </div>
 
-      {/* Filter and Sort Controls */}
-      <div className="flex gap-4 mb-4 flex-wrap">
-        {/* Filter By */}
-        <Select value={filterBy} onValueChange={(v: any) => { setFilterBy(v); setFilterValue('all') }}>
-          <SelectTrigger className="w-[180px]">
-            <SelectValue placeholder="Filter by..." />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Positions</SelectItem>
-            <SelectItem value="tag">Filter by Tag</SelectItem>
-            <SelectItem value="sector">Filter by Sector</SelectItem>
-            <SelectItem value="industry">Filter by Industry</SelectItem>
-          </SelectContent>
-        </Select>
-
-        {/* Filter Value */}
-        {filterBy !== 'all' && filterOptions.length > 0 && (
-          <Select value={filterValue} onValueChange={setFilterValue}>
-            <SelectTrigger className="w-[200px]">
-              <SelectValue placeholder={`Select ${filterBy}...`} />
+        {/* Filter and Sort Controls */}
+        <div className="flex gap-3 flex-wrap">
+          {/* Filter By */}
+          <Select value={filterBy} onValueChange={(v: any) => { setFilterBy(v); setFilterValue('all') }}>
+            <SelectTrigger className={`w-[180px] transition-colors duration-300 ${
+              theme === 'dark'
+                ? 'bg-slate-900/50 border-slate-600 hover:border-slate-500'
+                : 'bg-gray-50 border-gray-300 hover:border-gray-400'
+            }`}>
+              <SelectValue placeholder="Filter by..." />
             </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All {filterBy}s</SelectItem>
-              {filterOptions.map(option => (
-                <SelectItem key={option} value={option}>{option}</SelectItem>
-              ))}
+            <SelectContent className={`${
+              theme === 'dark' ? 'bg-slate-800 border-slate-700' : 'bg-white border-gray-200'
+            }`}>
+              <SelectItem value="all">All Positions</SelectItem>
+              <SelectItem value="tag">Filter by Tag</SelectItem>
+              <SelectItem value="sector">Filter by Sector</SelectItem>
+              <SelectItem value="industry">Filter by Industry</SelectItem>
             </SelectContent>
           </Select>
-        )}
 
-        {/* Sort By */}
-        <Select value={sortBy} onValueChange={(v: any) => setSortBy(v)}>
-          <SelectTrigger className="w-[180px]">
-            <SelectValue placeholder="Sort by..." />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="percent_of_equity">% of Portfolio</SelectItem>
-            <SelectItem value="symbol">Symbol (A-Z)</SelectItem>
-            <SelectItem value="target_return_eoy">Return EOY</SelectItem>
-          </SelectContent>
-        </Select>
+          {/* Filter Value */}
+          {filterBy !== 'all' && filterOptions.length > 0 && (
+            <Select value={filterValue} onValueChange={setFilterValue}>
+              <SelectTrigger className={`w-[200px] transition-colors duration-300 ${
+                theme === 'dark'
+                  ? 'bg-slate-900/50 border-slate-600 hover:border-slate-500'
+                  : 'bg-gray-50 border-gray-300 hover:border-gray-400'
+              }`}>
+                <SelectValue placeholder={`Select ${filterBy}...`} />
+              </SelectTrigger>
+              <SelectContent className={`${
+                theme === 'dark' ? 'bg-slate-800 border-slate-700' : 'bg-white border-gray-200'
+              }`}>
+                <SelectItem value="all">All {filterBy}s</SelectItem>
+                {filterOptions.map(option => (
+                  <SelectItem key={option} value={option}>{option}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
 
-        {/* Sort Order */}
-        <Select value={sortOrder} onValueChange={(v: any) => setSortOrder(v)}>
-          <SelectTrigger className="w-[140px]">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="desc">High to Low</SelectItem>
-            <SelectItem value="asc">Low to High</SelectItem>
-          </SelectContent>
-        </Select>
+          {/* Sort By */}
+          <Select value={sortBy} onValueChange={(v: any) => setSortBy(v)}>
+            <SelectTrigger className={`w-[180px] transition-colors duration-300 ${
+              theme === 'dark'
+                ? 'bg-slate-900/50 border-slate-600 hover:border-slate-500'
+                : 'bg-gray-50 border-gray-300 hover:border-gray-400'
+            }`}>
+              <SelectValue placeholder="Sort by..." />
+            </SelectTrigger>
+            <SelectContent className={`${
+              theme === 'dark' ? 'bg-slate-800 border-slate-700' : 'bg-white border-gray-200'
+            }`}>
+              <SelectItem value="percent_of_equity">% of Portfolio</SelectItem>
+              <SelectItem value="symbol">Symbol (A-Z)</SelectItem>
+              <SelectItem value="target_return_eoy">Return EOY</SelectItem>
+            </SelectContent>
+          </Select>
+
+          {/* Sort Order */}
+          <Select value={sortOrder} onValueChange={(v: any) => setSortOrder(v)}>
+            <SelectTrigger className={`w-[140px] transition-colors duration-300 ${
+              theme === 'dark'
+                ? 'bg-slate-900/50 border-slate-600 hover:border-slate-500'
+                : 'bg-gray-50 border-gray-300 hover:border-gray-400'
+            }`}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent className={`${
+              theme === 'dark' ? 'bg-slate-800 border-slate-700' : 'bg-white border-gray-200'
+            }`}>
+              <SelectItem value="desc">High to Low</SelectItem>
+              <SelectItem value="asc">Low to High</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
       {/* Position Cards */}

@@ -1,10 +1,11 @@
 "use client"
 
-import React from 'react'
+import React, { useState, useMemo } from 'react'
 import { useTheme } from '@/contexts/ThemeContext'
 
 // Custom hooks
 import { usePortfolioData } from '@/hooks/usePortfolioData'
+import { useTags } from '@/hooks/useTags'
 
 // Portfolio components
 import { PortfolioHeader } from '@/components/portfolio/PortfolioHeader'
@@ -32,6 +33,50 @@ function PortfolioPageContent() {
     dataLoaded,
     handleRetry
   } = usePortfolioData()
+
+  // Fetch tags for filtering
+  const { tags } = useTags()
+
+  // Filter state
+  const [selectedTagId, setSelectedTagId] = useState<string | null>(null)
+  const [selectedFactorName, setSelectedFactorName] = useState<string | null>(null)
+
+  // Filter positions based on selected tag
+  const filterPositionsByTag = useMemo(() => {
+    return (positionsList: any[]) => {
+      if (!selectedTagId) return positionsList
+      return positionsList.filter(p =>
+        p.tags?.some((tag: any) => tag.id === selectedTagId)
+      )
+    }
+  }, [selectedTagId])
+
+  // Filter positions based on selected factor exposure
+  const filterPositionsByFactor = useMemo(() => {
+    return (positionsList: any[]) => {
+      if (!selectedFactorName) return positionsList
+      return positionsList.filter(p =>
+        p.factor_exposures?.some((exp: any) => exp.factor_name === selectedFactorName)
+      )
+    }
+  }, [selectedFactorName])
+
+  // Apply both filters
+  const applyFilters = (positionsList: any[]) => {
+    let filtered = positionsList
+    if (selectedTagId) {
+      filtered = filterPositionsByTag(filtered)
+    }
+    if (selectedFactorName) {
+      filtered = filterPositionsByFactor(filtered)
+    }
+    return filtered
+  }
+
+  // Filtered positions
+  const filteredPublicPositions = useMemo(() => applyFilters(publicPositions), [publicPositions, selectedTagId, selectedFactorName])
+  const filteredOptionsPositions = useMemo(() => applyFilters(optionsPositions), [optionsPositions, selectedTagId, selectedFactorName])
+  const filteredPrivatePositions = useMemo(() => applyFilters(privatePositions), [privatePositions, selectedTagId, selectedFactorName])
 
   if (loading && !dataLoaded) {
     return (
@@ -89,14 +134,21 @@ function PortfolioPageContent() {
         <FactorExposureCards factors={factorExposures} />
       )}
 
-      <FilterBar />
+      <FilterBar
+        tags={tags}
+        factorExposures={factorExposures || []}
+        selectedTagId={selectedTagId}
+        selectedFactorName={selectedFactorName}
+        onTagFilterChange={setSelectedTagId}
+        onFactorFilterChange={setSelectedFactorName}
+      />
 
       <PortfolioPositions
         longPositions={positions}
         shortPositions={shortPositions}
-        publicPositions={publicPositions}
-        optionsPositions={optionsPositions}
-        privatePositions={privatePositions}
+        publicPositions={filteredPublicPositions}
+        optionsPositions={filteredOptionsPositions}
+        privatePositions={filteredPrivatePositions}
       />
     </div>
   )

@@ -59,22 +59,27 @@ export function usePublicPositions(): UsePublicPositionsReturn {
   }, [portfolioId])
 
   // Calculate aggregate returns using service method
+  // EOY returns use analyst targets as fallback when user hasn't entered targets
   const aggregateReturns = useMemo(() => ({
     longs_eoy: positionResearchService.calculateAggregateReturn(
       longPositions,
-      'target_return_eoy'
+      'target_return_eoy',
+      'analyst_return_eoy' // Fallback to analyst if user target is null
     ),
     longs_next_year: positionResearchService.calculateAggregateReturn(
       longPositions,
       'target_return_next_year'
+      // No fallback - analyst data doesn't include next year
     ),
     shorts_eoy: positionResearchService.calculateAggregateReturn(
       shortPositions,
-      'target_return_eoy'
+      'target_return_eoy',
+      'analyst_return_eoy' // Fallback to analyst if user target is null
     ),
     shorts_next_year: positionResearchService.calculateAggregateReturn(
       shortPositions,
       'target_return_next_year'
+      // No fallback - analyst data doesn't include next year
     )
   }), [longPositions, shortPositions])
 

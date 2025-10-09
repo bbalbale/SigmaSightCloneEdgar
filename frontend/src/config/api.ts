@@ -113,7 +113,17 @@ export const API_ENDPOINTS = {
     REMOVE: (positionId: string) => `/api/v1/positions/${positionId}/tags`,
     REPLACE: (positionId: string) => `/api/v1/positions/${positionId}/tags`,
   },
-  
+
+  // Target price endpoints (user-defined price targets)
+  TARGET_PRICES: {
+    LIST: (portfolioId: string) => `/api/v1/target-prices/${portfolioId}`,
+    CREATE: (portfolioId: string) => `/api/v1/target-prices/${portfolioId}`,
+    GET: (portfolioId: string, symbol: string, positionType: string) =>
+      `/api/v1/target-prices/${portfolioId}?symbol=${symbol}&position_type=${positionType}`,
+    UPDATE: (targetPriceId: string) => `/api/v1/target-prices/target/${targetPriceId}`,
+    BULK_UPDATE: (portfolioId: string) => `/api/v1/target-prices/${portfolioId}/bulk-update`,
+  },
+
   // Admin endpoints (for monitoring)
   ADMIN: {
     BATCH_STATUS: '/api/v1/admin/batch/status',

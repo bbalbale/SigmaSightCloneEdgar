@@ -11,18 +11,17 @@ export function PublicPositionsContainer() {
 
   if (loading && !longPositions.length && !shortPositions.length) {
     return (
-      <div className={`min-h-screen transition-colors duration-300 ${
+      <div className={`min-h-screen flex items-center justify-center transition-colors duration-300 ${
         theme === 'dark' ? 'bg-slate-900' : 'bg-gray-50'
       }`}>
-        <section className="px-4 py-8">
-          <div className="container mx-auto text-center">
-            <p className={`text-lg transition-colors duration-300 ${
-              theme === 'dark' ? 'text-slate-400' : 'text-gray-600'
-            }`}>
-              Loading positions...
-            </p>
-          </div>
-        </section>
+        <div className="text-center">
+          <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mb-4"></div>
+          <p className={`text-lg font-medium transition-colors duration-300 ${
+            theme === 'dark' ? 'text-slate-400' : 'text-gray-600'
+          }`}>
+            Loading positions...
+          </p>
+        </div>
       </div>
     )
   }
@@ -32,14 +31,24 @@ export function PublicPositionsContainer() {
       <div className={`min-h-screen transition-colors duration-300 ${
         theme === 'dark' ? 'bg-slate-900' : 'bg-gray-50'
       }`}>
-        <section className="px-4 py-8">
-          <div className="container mx-auto">
-            <h1 className={`text-3xl font-bold mb-2 transition-colors duration-300 ${
-              theme === 'dark' ? 'text-white' : 'text-gray-900'
+        <section className="px-6 py-12">
+          <div className="max-w-7xl mx-auto">
+            <div className={`rounded-xl border p-8 transition-all duration-300 ${
+              theme === 'dark'
+                ? 'bg-red-900/20 border-red-700/50'
+                : 'bg-red-50 border-red-200'
             }`}>
-              Public Positions Research
-            </h1>
-            <p className={`text-red-600 mt-4`}>{error}</p>
+              <h2 className={`text-2xl font-bold mb-2 transition-colors duration-300 ${
+                theme === 'dark' ? 'text-red-400' : 'text-red-900'
+              }`}>
+                Error Loading Positions
+              </h2>
+              <p className={`transition-colors duration-300 ${
+                theme === 'dark' ? 'text-red-300' : 'text-red-700'
+              }`}>
+                {error}
+              </p>
+            </div>
           </div>
         </section>
       </div>
@@ -53,15 +62,15 @@ export function PublicPositionsContainer() {
       {/* Header */}
       <section className="px-4 py-8">
         <div className="container mx-auto">
-          <h1 className={`text-3xl font-bold mb-2 transition-colors duration-300 ${
+          <h1 className={`text-2xl font-bold mb-2 transition-colors duration-300 ${
             theme === 'dark' ? 'text-white' : 'text-gray-900'
           }`}>
-            Public Positions Research
+            Public Positions
           </h1>
           <p className={`transition-colors duration-300 ${
             theme === 'dark' ? 'text-slate-400' : 'text-gray-600'
           }`}>
-            Comprehensive analysis with targets, analyst estimates, and EPS/revenue projections
+            Deep analysis with price targets, analyst estimates, and forward projections
           </p>
         </div>
       </section>
@@ -69,32 +78,24 @@ export function PublicPositionsContainer() {
       {/* Longs Section */}
       <section className="px-4 pb-8">
         <div className="container mx-auto">
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div className="lg:col-span-3">
-              <EnhancedPositionsSection
-                positions={longPositions}
-                title="Long Positions"
-                aggregateReturnEOY={aggregateReturns.longs_eoy}
-                aggregateReturnNextYear={aggregateReturns.longs_next_year}
-              />
-            </div>
-          </div>
+          <EnhancedPositionsSection
+            positions={longPositions}
+            title="Long Positions"
+            aggregateReturnEOY={aggregateReturns.longs_eoy}
+            aggregateReturnNextYear={aggregateReturns.longs_next_year}
+          />
         </div>
       </section>
 
       {/* Shorts Section */}
       <section className="px-4 pb-8">
         <div className="container mx-auto">
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div className="lg:col-span-3">
-              <EnhancedPositionsSection
-                positions={shortPositions}
-                title="Short Positions"
-                aggregateReturnEOY={aggregateReturns.shorts_eoy}
-                aggregateReturnNextYear={aggregateReturns.shorts_next_year}
-              />
-            </div>
-          </div>
+          <EnhancedPositionsSection
+            positions={shortPositions}
+            title="Short Positions"
+            aggregateReturnEOY={aggregateReturns.shorts_eoy}
+            aggregateReturnNextYear={aggregateReturns.shorts_next_year}
+          />
         </div>
       </section>
     </div>
