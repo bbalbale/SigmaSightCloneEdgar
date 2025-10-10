@@ -37,9 +37,9 @@ export function usePublicPositions(): UsePublicPositionsReturn {
 
     try {
       // Use service to fetch and merge all data
+      // Don't filter by investment class - we want both PUBLIC and OPTIONS
       const result = await positionResearchService.fetchEnhancedPositions({
-        portfolioId,
-        investmentClass: 'PUBLIC'
+        portfolioId
       })
 
       setLongPositions(result.longPositions)
