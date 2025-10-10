@@ -52,7 +52,7 @@ const nextConfig = {
         fs: false,
       }
     }
-    
+
     // Add polling for Windows Docker development
     if (dev && !isServer && process.env.DOCKER_ENV === 'development') {
       config.watchOptions = {
@@ -60,7 +60,13 @@ const nextConfig = {
         aggregateTimeout: 300,
       }
     }
-    
+
+    // Add support for importing .md files as raw strings
+    config.module.rules.push({
+      test: /\.md$/,
+      type: 'asset/source',
+    })
+
     return config
   },
 }

@@ -1,12 +1,14 @@
 /**
  * Fetch Streaming Hook
- * Handles SSE streaming with fetch() and manual parsing
- * Based on Technical Specifications Section 2
+ * Handles streaming with frontend chatService (OpenAI Chat Completions API)
+ * Migrated from backend SSE to direct OpenAI integration
  */
 
 import { useCallback, useRef } from 'react';
 import { useStreamStore } from '@/stores/streamStore';
-import { chatAuthService } from '@/services/chatAuthService';
+import { useChatStore } from '@/stores/chatStore';
+import { usePortfolioStore } from '@/stores/portfolioStore';
+import { chatService } from '@/services/ai/chatService';
 
 // SSE Event types from Technical Specifications
 interface SSEEvent {
@@ -76,14 +78,13 @@ export function useFetchStreaming() {
     // Check if conversation is locked
     if (isConversationLocked(conversationId)) {
       console.warn('Conversation is locked, queueing message');
-      // Message will be queued by the calling component
       return null;
     }
 
     // Generate run_id
     const runId = `run_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
-    // Create abort controller
+    // Create abort controller (for future implementation if needed)
     const abortController = new AbortController();
     activeStreams.current.set(runId, abortController);
     setAbortController(abortController);
@@ -92,262 +93,112 @@ export function useFetchStreaming() {
     startStreaming(conversationId, runId);
 
     try {
-      // Make authenticated request
-      console.log('Starting chat stream request:', { conversationId, message });
-      const response = await chatAuthService.authenticatedFetch(
-        '/api/proxy/api/v1/chat/send',
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Accept': 'text/event-stream',
-          },
-          body: JSON.stringify({
-            text: message,  // Backend expects 'text' not 'message'
-            conversation_id: conversationId,
-          }),
-          signal: abortController.signal,
-        }
-      );
-      
-      console.log('Response received:', {
-        ok: response.ok,
-        status: response.status,
-        contentType: response.headers.get('content-type'),
-        headers: Object.fromEntries(response.headers.entries())
+      console.log('[AI Chat] Starting stream with frontend chatService:', { conversationId, message });
+
+      // Get mode and portfolio ID from stores
+      const { currentMode } = useChatStore.getState();
+      const { portfolioId } = usePortfolioStore.getState();
+
+      // Build message history from chat store
+      const { getMessages } = useChatStore.getState();
+      const messages = getMessages(conversationId);
+
+      // Convert to OpenAI format (only user and assistant messages, exclude system messages)
+      const messageHistory = messages
+        .filter(m => m.role !== 'system')
+        .map(m => ({
+          role: m.role,
+          content: m.content
+        }));
+
+      console.log('[AI Chat] Using mode:', currentMode, 'portfolioId:', portfolioId, 'history:', messageHistory.length, 'messages');
+
+      // Create message IDs for user and assistant messages
+      const userMessageId = `user-${Date.now()}`;
+      const assistantMessageId = `assistant-${Date.now()}`;
+
+      console.log('[useFetchStreaming] Created message IDs:', {
+        userMessageId,
+        assistantMessageId,
+        conversationId,
+        hasCallback: !!options.onMessageCreated
       });
 
-      if (!response.ok) {
-        const error = await response.json();
-        throw error;
+      // Fire onMessageCreated callback immediately to create UI messages
+      if (options.onMessageCreated) {
+        console.log('[useFetchStreaming] Firing onMessageCreated callback');
+        options.onMessageCreated({
+          user_message_id: userMessageId,
+          assistant_message_id: assistantMessageId,
+          conversation_id: conversationId,
+          run_id: runId
+        });
+        console.log('[useFetchStreaming] onMessageCreated callback fired');
+      } else {
+        console.warn('[useFetchStreaming] No onMessageCreated callback provided!');
       }
 
-      // Check for SSE content type
-      const contentType = response.headers.get('content-type');
-      if (!contentType?.includes('text/event-stream')) {
-        throw new Error('Expected SSE response but got: ' + contentType);
-      }
+      // Call frontend chatService
+      await chatService.streamResponse({
+        conversationId,
+        message,
+        mode: currentMode,
+        portfolioId: portfolioId || '',
+        messageHistory,
 
-      // Parse SSE stream
-      const reader = response.body?.getReader();
-      const decoder = new TextDecoder();
+        // Map callbacks to existing interface
+        onToken: (token: string) => {
+          console.log('[AI Chat] Token received:', token.substring(0, 50));
+          addToBuffer(runId, token, 0);
+          options.onToken?.(token, runId);
+        },
 
-      if (!reader) {
-        throw new Error('No response body');
-      }
+        onToolCall: (toolName: string, args: any) => {
+          console.log('[AI Chat] Tool call:', toolName, args);
+          options.onToolCall?.(toolName, args);
+        },
 
-      let buffer = '';
-      let lastHeartbeat = Date.now();
-      const heartbeatInterval = 15000; // 15 seconds
+        onToolResult: (result: any) => {
+          console.log('[AI Chat] Tool result received');
+          options.onToolResult?.('tool', result);
+        },
 
-      // Process stream
-      while (true) {
-        // Check for heartbeat timeout
-        if (Date.now() - lastHeartbeat > heartbeatInterval * 2) {
-          console.warn('Heartbeat timeout, connection may be stale');
-        }
+        onError: (error: Error) => {
+          console.error('[AI Chat] Error:', error);
 
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        const chunk = decoder.decode(value, { stream: true });
-        buffer += chunk;
-
-        // Process complete SSE events (separated by double newlines)
-        const events = buffer.split('\n\n');
-        buffer = events.pop() || ''; // Keep incomplete event in buffer
-
-        for (const event of events) {
-          if (!event.trim()) continue;
-          
-          const lines = event.split('\n').map(line => line.trim()).filter(line => line);
-          let eventType = '';
-          let dataStr = '';
-          
-          console.log('Processing SSE event:', { event, lines });
-          
-          // Parse event/data pairs
-          for (const line of lines) {
-            if (line.startsWith('event:')) {
-              eventType = line.slice(6).trim();
-            } else if (line.startsWith('data:')) {
-              dataStr = line.slice(5).trim();
-            }
+          // Classify error type
+          let errorType: SSEEvent['data']['error_type'] = 'SERVER_ERROR';
+          if (error.message?.includes('auth') || error.message?.includes('API')) {
+            errorType = 'AUTH_EXPIRED';
+          } else if (error.message?.includes('rate')) {
+            errorType = 'RATE_LIMITED';
+          } else if (error.message?.includes('network') || error.message?.includes('fetch')) {
+            errorType = 'NETWORK_ERROR';
           }
-          
-          console.log('Parsed event:', { eventType, dataStr });
-          
-          // Handle message_created event specially (different format)
-          if (eventType === 'message_created' && dataStr) {
-            try {
-              const messageData = JSON.parse(dataStr);
-              console.log('Processing message_created event:', messageData);
-              
-              // Update the runId with the one from message_created event
-              if (messageData.run_id) {
-                // Store the backend-provided runId for future reference
-                const backendRunId = messageData.run_id;
-                // We may need to update our local runId mapping here
-              }
-              
-              options.onMessageCreated?.(messageData);
-              continue; // Skip to next event
-            } catch (e) {
-              console.error('Failed to parse message_created event:', e, dataStr);
-            }
-          }
-          
-          // Process the event if we have both type and data
-          if (eventType && dataStr) {
-            try {
-              const eventData = JSON.parse(dataStr) as SSEEvent;
-              
-              // Process based on event type
-              switch (eventData.type) {
-                case 'token':
-                  if (eventData.data.delta) {
-                    console.log('Adding token to buffer:', { runId, delta: eventData.data.delta, seq: eventData.seq });
-                    addToBuffer(runId, eventData.data.delta, eventData.seq);
-                    console.log('Calling onToken callback with:', eventData.data.delta, 'runId:', runId);
-                    options.onToken?.(eventData.data.delta, runId);
-                  }
-                  break;
-                
-                case 'info':
-                  try {
-                    const infoPayload = {
-                      ...eventData.data,
-                      run_id: eventData.run_id,
-                      seq: eventData.seq,
-                      timestamp: eventData.timestamp,
-                    } as any;
-                    console.log('Info event received:', infoPayload);
-                    if (eventData.data?.info_type) {
-                      options.onInfo?.(infoPayload);
-                    }
-                  } catch (e) {
-                    console.warn('Failed processing info event', e);
-                  }
-                  break;
-                
-                case 'tool_call':
-                  if (eventData.data.tool_name && eventData.data.tool_args) {
-                    options.onToolCall?.(eventData.data.tool_name, eventData.data.tool_args);
-                  }
-                  break;
-                  
-                case 'tool_result':
-                  if (eventData.data.tool_name && eventData.data.tool_result) {
-                    options.onToolResult?.(eventData.data.tool_name, eventData.data.tool_result);
-                  }
-                  break;
-                  
-                case 'heartbeat':
-                  lastHeartbeat = Date.now();
-                  options.onHeartbeat?.();
-                  break;
-                  
-                case 'error':
-                  const error = {
-                    message: eventData.data.error || 'Unknown error',
-                    error_type: eventData.data.error_type,
-                    run_id: eventData.run_id,
-                  };
-                  options.onError?.(error);
-                  break;
-                  
-                case 'done':
-                  // Log metrics for observability
-                  const tokenCounts = eventData.data?.token_counts;
-                  const gaps = eventData.data?.post_tool_first_token_gaps_ms;
-                  if (tokenCounts || gaps) {
-                    console.log('Done metrics:', {
-                      token_counts: tokenCounts,
-                      post_tool_first_token_gaps_ms: gaps,
-                    });
-                  }
-                  if (Array.isArray(eventData.data?.event_timeline)) {
-                    console.log('Event timeline (ms since start):', eventData.data.event_timeline);
-                  }
-                  if (eventData.data?.fallback_used) {
-                    console.warn('Backend indicated it used upstream final_text fallback.');
-                  }
-                  if (Array.isArray(gaps) && gaps.length > 0) {
-                    const maxGap = Math.max(...gaps);
-                    if (maxGap > 2000) {
-                      console.warn('Detected large post-tool gap (ms):', gaps);
-                    }
-                  }
-                  // Decide final text with precise fallback logic
-                  const bufferedFinal = sealBuffer(runId);
-                  const backendFinal = eventData.data?.final_text || '';
-                  const continuationCount = (tokenCounts && typeof tokenCounts.continuation === 'number')
-                    ? tokenCounts.continuation
-                    : (tokenCounts?.['continuation'] ?? 0);
-                  let finalOut = bufferedFinal;
-                  if ((!bufferedFinal || bufferedFinal.trim().length === 0) && continuationCount === 0 && backendFinal) {
-                    console.warn('Using backend final_text fallback because no streamed tokens after tool_result were received.');
-                    finalOut = backendFinal;
-                  }
-                  options.onDone?.(finalOut);
-                  // IMPORTANT: Break the while loop when done event is received
-                  console.log('[useFetchStreaming] Done event received, breaking stream loop');
-                  return; // Exit the inner for loop and outer while loop
-                  break;
-              }
-            } catch (e) {
-              console.error('Failed to parse SSE event:', e, dataStr);
-            }
-          } else if (dataStr && !eventType) {
-            // Handle data-only lines (legacy format)
-            if (dataStr === '[DONE]') {
-              const finalText = sealBuffer(runId);
-              options.onDone?.(finalText);
-              break;
-            }
-            
-            try {
-              const data = JSON.parse(dataStr);
-              
-              // Handle different data formats
-              if (data.delta) {
-                // Simple delta format
-                addToBuffer(runId, data.delta, data.seq || 0);
-                options.onToken?.(data.delta, runId);
-              } else if (data.type === 'heartbeat') {
-                lastHeartbeat = Date.now();
-                options.onHeartbeat?.();
-              } else if (data.error_type) {
-                options.onError?.(data);
-              }
-            } catch (e) {
-              // Not JSON, might be plain text
-              if (dataStr && dataStr !== '[DONE]') {
-                addToBuffer(runId, dataStr, 0);
-                options.onToken?.(dataStr, runId);
-              }
-            }
-          }
-        }
-      }
+
+          options.onError?.({
+            message: error.message || 'AI service error',
+            error_type: errorType,
+            run_id: runId,
+          });
+        },
+
+        onDone: (finalText: string) => {
+          console.log('[AI Chat] Stream complete, final text length:', finalText?.length || 0);
+          const bufferedFinal = sealBuffer(runId);
+          // Use buffered text if available, otherwise use finalText from service
+          const finalOut = bufferedFinal || finalText || 'No response received.';
+          options.onDone?.(finalOut);
+        },
+      });
 
     } catch (error: any) {
       if (error.name !== 'AbortError') {
-        console.error('Streaming error:', error);
-        
-        // Classify error type
-        let errorType: SSEEvent['data']['error_type'] = 'SERVER_ERROR';
-        if (error.message?.includes('auth')) {
-          errorType = 'AUTH_EXPIRED';
-        } else if (error.message?.includes('rate')) {
-          errorType = 'RATE_LIMITED';
-        } else if (error.message?.includes('network')) {
-          errorType = 'NETWORK_ERROR';
-        }
-        
+        console.error('[AI Chat] Streaming error:', error);
+
         options.onError?.({
           message: error.message || 'Streaming failed',
-          error_type: errorType,
+          error_type: 'SERVER_ERROR',
           run_id: runId,
         });
       }
