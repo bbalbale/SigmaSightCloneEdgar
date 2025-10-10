@@ -31,6 +31,7 @@ export function ResearchPositionCard({ position, onClick }: ResearchPositionCard
   )
   const [isSaving, setIsSaving] = useState(false)
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const hasAutoSavedRef = useRef(false)
 
   // Update state when position data changes (handles async data loading)
   useEffect(() => {
@@ -52,6 +53,36 @@ export function ResearchPositionCard({ position, onClick }: ResearchPositionCard
       setUserTargetNextYear(nextYearShouldBe)
     }
   }, [position.user_target_eoy, position.target_mean_price, position.user_target_next_year])
+
+  // Auto-save analyst target as user target when no user target exists
+  useEffect(() => {
+    // Only run once per position
+    if (hasAutoSavedRef.current) return
+
+    // Check if we need to auto-save analyst target as user target
+    const needsAutoSave =
+      portfolioId &&
+      !position.user_target_eoy && // No user target exists (0, null, undefined)
+      position.target_mean_price && // Analyst target exists
+      position.target_mean_price > 0 // Valid analyst target
+
+    if (needsAutoSave) {
+      hasAutoSavedRef.current = true
+
+      // Automatically save analyst target as user target
+      targetPriceService.createOrUpdate(portfolioId, {
+        symbol: position.symbol,
+        position_type: position.position_type,
+        target_price_eoy: position.target_mean_price, // Save analyst as user target
+        current_price: position.current_price,
+        position_id: position.id,
+      }).catch(error => {
+        console.error('Failed to auto-save analyst target:', error)
+        // Reset flag on error so it can retry
+        hasAutoSavedRef.current = false
+      })
+    }
+  }, [portfolioId, position.user_target_eoy, position.target_mean_price, position.symbol, position.position_type, position.current_price, position.id])
 
   // Debounced save handler - saves both targets when either input changes
   const handleSaveTargets = useCallback(async () => {
