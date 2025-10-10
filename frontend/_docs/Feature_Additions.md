@@ -28,7 +28,7 @@
 - Tools limited to what frontend services can access
 - Simpler, faster for demos and prototyping
 
-What Backend APIs Currently Exist:
+### What Backend APIs Currently Exist:
 
   ✅ Conversations (already available):
   - POST /api/v1/chat/conversations - Create conversation
