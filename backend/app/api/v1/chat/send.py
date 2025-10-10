@@ -1,5 +1,25 @@
 """
 SSE streaming endpoint for chat messages
+
+NOTE: As of 2025-10-10, there are now TWO AI chat architectures in SigmaSight:
+
+1. **Backend SSE (this file)** - Production architecture
+   - Uses OpenAI Responses API (server-side)
+   - Secure API key management
+   - Conversation persistence in PostgreSQL
+   - Full audit trail and logging
+   - Centralized rate limiting
+   - **Recommended for production deployments**
+
+2. **Frontend Direct (frontend/src/services/ai/)** - Lightweight architecture
+   - Uses OpenAI Chat Completions API (browser-side)
+   - API key in browser (less secure, demo only)
+   - Ephemeral conversations (Zustand/localStorage)
+   - Simpler, faster for prototyping
+   - **Good for demos and development**
+
+Both architectures are maintained and serve different use cases.
+For production/multi-user deployments, use this backend approach.
 """
 from fastapi import APIRouter, Depends, HTTPException, status, Request
 from fastapi.responses import StreamingResponse
@@ -29,8 +49,6 @@ from app.agent.services.openai_service import openai_service
 from app.core.datetime_utils import utc_now
 from app.core.logging import get_logger
 from app.config import settings
-from app.api.v1.data import get_portfolio_complete as get_portfolio_complete_endpoint
-from uuid import UUID
 
 logger = get_logger(__name__)
 
@@ -123,40 +141,13 @@ async def sse_generator(
         message_history = await load_message_history(conversation.id, db)
         
         # Get portfolio context if available (stored in metadata)
+        # AI will use get_portfolio_complete tool to fetch holdings on-demand
         portfolio_context = None
-        portfolio_id = conversation.meta_data.get("portfolio_id") if conversation.meta_data else None
-        if portfolio_id:
-            # Fetch portfolio data to include in context using the existing API endpoint
-            try:
-                # Convert to UUID if needed
-                portfolio_uuid = UUID(portfolio_id) if isinstance(portfolio_id, str) else portfolio_id
-
-                # Call the endpoint function directly (it handles all the database queries)
-                portfolio_snapshot = await get_portfolio_complete_endpoint(
-                    portfolio_id=portfolio_uuid,
-                    include_holdings=True,
-                    include_position_tags=False,  # Don't need tags for AI context
-                    include_timeseries=False,
-                    include_attrib=False,
-                    as_of_date=None,
-                    current_user=current_user,
-                    db=db
-                )
-
-                portfolio_context = {
-                    "portfolio_id": str(portfolio_id),
-                    "portfolio_name": portfolio_snapshot["portfolio"]["name"],
-                    "total_value": portfolio_snapshot["portfolio"]["total_value"],
-                    "position_count": len(portfolio_snapshot.get("holdings", [])),
-                    "holdings": portfolio_snapshot.get("holdings", [])[:50]  # Limit to top 50 positions
-                }
-                logger.info(f"Using portfolio context with {len(portfolio_snapshot.get('holdings', []))} positions for conversation: portfolio_id={portfolio_id}")
-            except Exception as e:
-                logger.warning(f"Failed to fetch portfolio data for context: {e}, using portfolio_id only")
-                portfolio_context = {
-                    "portfolio_id": str(portfolio_id)
-                }
-                logger.info(f"Using portfolio context (ID only) for conversation: portfolio_id={portfolio_id}")
+        if conversation.meta_data and conversation.meta_data.get("portfolio_id"):
+            portfolio_context = {
+                "portfolio_id": str(conversation.meta_data.get("portfolio_id"))
+            }
+            logger.info(f"Using portfolio context for conversation: portfolio_id={portfolio_context['portfolio_id']}")
         
         # [TRACE] TRACE-2 Send Context (Phase 9.12.1 investigation)
         logger.info(f"[TRACE] TRACE-2 Send Context: conversation={conversation.id} | portfolio_context={portfolio_context}")
