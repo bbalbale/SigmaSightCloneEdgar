@@ -16,18 +16,21 @@ SigmaSight Frontend - A Next.js 14 multi-page portfolio analytics application wi
 ## Development Commands
 
 ### 🐳 Docker Commands (Preferred)
-```bash
-# Build and start frontend
-cd frontend && docker build -t sigmasight-frontend . && docker run -d -p 3005:3005 --name frontend sigmasight-frontend
+> **📖 Full Docker Guide**: See [DOCKER.md](./DOCKER.md) for comprehensive Docker documentation
 
-# Quick restart (if image exists)
-docker stop frontend && docker rm frontend && docker run -d -p 3005:3005 --name frontend sigmasight-frontend
+```bash
+# Using Docker Compose (Recommended - uses .env.local)
+cd frontend
+docker-compose up -d              # Build and start
+docker-compose logs -f            # View logs
+docker-compose down               # Stop and remove
+
+# Using Docker directly with env file
+docker build -t sigmasight-frontend .
+docker run -d -p 3005:3005 --env-file .env.local --name sigmasight-frontend sigmasight-frontend
 
 # Check health
 curl http://localhost:3005/api/health
-
-# View logs
-docker logs -f frontend
 ```
 
 ### Traditional NPM Commands
@@ -52,22 +55,30 @@ npm install
 
 ### Key Configuration
 - **Port**: 3005 (configured to avoid conflicts)
-- **Docker Image**: sigmasight-frontend (~210MB optimized)
-- **Backend API**: Proxies through `/api/proxy/` to `localhost:8000` (default)
-  - **Railway Backend**: See [RAILWAY_BACKEND_SETUP.md](./RAILWAY_BACKEND_SETUP.md) to connect to remote backend
+- **Docker Image**: sigmasight-frontend (~210MB optimized, Node 20 LTS)
+- **Backend API**: Configured via `.env.local` - switches between local/Railway
 - **Authentication**: JWT tokens stored in localStorage
 - **Health Check**: `/api/health` endpoint for container monitoring
-- **Node.js Requirement**: Node.js 18.0 or higher
+- **Node.js Requirement**: Node.js 20.0 or higher (updated 2025-10-09)
 
-### Docker Build with Environment Variables
+### Environment Configuration
+Backend URL is configured via `.env.local` (not hardcoded):
+
+**Local Backend:**
 ```bash
-# Build with custom environment variables
-docker build \
-  --build-arg NEXT_PUBLIC_BACKEND_API_URL=http://backend:8000/api/v1 \
-  -t sigmasight-frontend .
+BACKEND_URL=http://localhost:8000
+NEXT_PUBLIC_BACKEND_API_URL=http://localhost:8000/api/v1
+```
 
-# Or use different port to avoid conflicts
-docker run -p 3006:3005 sigmasight-frontend
+**Railway Backend:**
+```bash
+BACKEND_URL=https://sigmasight-be-sandbox-frontendrailway.up.railway.app
+NEXT_PUBLIC_BACKEND_API_URL=https://sigmasight-be-sandbox-frontendrailway.up.railway.app/api/v1
+```
+
+After changing `.env.local`, rebuild:
+```bash
+docker-compose down && docker-compose up -d --build
 ```
 
 ---
