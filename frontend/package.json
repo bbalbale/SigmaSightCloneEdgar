@@ -29,6 +29,7 @@
     "lucide-react": "^0.424.0",
     "next": "^14.2.5",
     "node-fetch": "^2.7.0",
+    "openai": "^6.3.0",
     "playwright": "^1.55.0",
     "postcss": "^8.4.40",
     "react": "^18.3.1",
