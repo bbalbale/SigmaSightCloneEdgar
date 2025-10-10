@@ -33,63 +33,80 @@ export function PublicPositionsContainer() {
   }, [longPositions, shortPositions])
 
   // Calculate aggregate returns for each section using service method with fallback logic
-  const aggregates = useMemo(() => ({
-    allOptions: {
-      eoy: positionResearchService.calculateAggregateReturn(
-        allOptions,
-        'target_return_eoy',
-        'analyst_return_eoy' // Fallback to analyst if user target is null
-      ),
-      nextYear: positionResearchService.calculateAggregateReturn(
-        allOptions,
-        'target_return_next_year'
-      )
-    },
-    longEquities: {
-      eoy: positionResearchService.calculateAggregateReturn(
-        longEquities,
-        'target_return_eoy',
-        'analyst_return_eoy'
-      ),
-      nextYear: positionResearchService.calculateAggregateReturn(
-        longEquities,
-        'target_return_next_year'
-      )
-    },
-    longOptions: {
-      eoy: positionResearchService.calculateAggregateReturn(
-        longOptions,
-        'target_return_eoy',
-        'analyst_return_eoy'
-      ),
-      nextYear: positionResearchService.calculateAggregateReturn(
-        longOptions,
-        'target_return_next_year'
-      )
-    },
-    shortEquities: {
-      eoy: positionResearchService.calculateAggregateReturn(
-        shortEquities,
-        'target_return_eoy',
-        'analyst_return_eoy'
-      ),
-      nextYear: positionResearchService.calculateAggregateReturn(
-        shortEquities,
-        'target_return_next_year'
-      )
-    },
-    shortOptions: {
-      eoy: positionResearchService.calculateAggregateReturn(
-        shortOptions,
-        'target_return_eoy',
-        'analyst_return_eoy'
-      ),
-      nextYear: positionResearchService.calculateAggregateReturn(
-        shortOptions,
-        'target_return_next_year'
-      )
+  const aggregates = useMemo(() => {
+    // Combine all positions for portfolio-level aggregate
+    const allPositions = [...longPositions, ...shortPositions]
+
+    return {
+      // Portfolio-level aggregate (all positions combined)
+      portfolio: {
+        eoy: positionResearchService.calculateAggregateReturn(
+          allPositions,
+          'target_return_eoy',
+          'analyst_return_eoy'
+        ),
+        nextYear: positionResearchService.calculateAggregateReturn(
+          allPositions,
+          'target_return_next_year'
+        )
+      },
+      allOptions: {
+        eoy: positionResearchService.calculateAggregateReturn(
+          allOptions,
+          'target_return_eoy',
+          'analyst_return_eoy' // Fallback to analyst if user target is null
+        ),
+        nextYear: positionResearchService.calculateAggregateReturn(
+          allOptions,
+          'target_return_next_year'
+        )
+      },
+      longEquities: {
+        eoy: positionResearchService.calculateAggregateReturn(
+          longEquities,
+          'target_return_eoy',
+          'analyst_return_eoy'
+        ),
+        nextYear: positionResearchService.calculateAggregateReturn(
+          longEquities,
+          'target_return_next_year'
+        )
+      },
+      longOptions: {
+        eoy: positionResearchService.calculateAggregateReturn(
+          longOptions,
+          'target_return_eoy',
+          'analyst_return_eoy'
+        ),
+        nextYear: positionResearchService.calculateAggregateReturn(
+          longOptions,
+          'target_return_next_year'
+        )
+      },
+      shortEquities: {
+        eoy: positionResearchService.calculateAggregateReturn(
+          shortEquities,
+          'target_return_eoy',
+          'analyst_return_eoy'
+        ),
+        nextYear: positionResearchService.calculateAggregateReturn(
+          shortEquities,
+          'target_return_next_year'
+        )
+      },
+      shortOptions: {
+        eoy: positionResearchService.calculateAggregateReturn(
+          shortOptions,
+          'target_return_eoy',
+          'analyst_return_eoy'
+        ),
+        nextYear: positionResearchService.calculateAggregateReturn(
+          shortOptions,
+          'target_return_next_year'
+        )
+      }
     }
-  }), [allOptions, longEquities, longOptions, shortEquities, shortOptions])
+  }, [longPositions, shortPositions, allOptions, longEquities, longOptions, shortEquities, shortOptions])
 
   // Determine which sections to show based on filter
   const showLongs = activeFilter === 'all' || activeFilter === 'longs'
@@ -169,27 +186,73 @@ export function PublicPositionsContainer() {
         </div>
       </section>
 
-      {/* Filter Tabs */}
+      {/* Filter Tabs with Portfolio Aggregate Cards */}
       <section className="px-4 pb-6">
         <div className="container mx-auto">
-          <div className="flex gap-2 overflow-x-auto">
-            {filters.map((filter) => (
-              <button
-                key={filter.value}
-                onClick={() => setActiveFilter(filter.value)}
-                className={`px-4 py-2 rounded-lg font-medium transition-all duration-200 whitespace-nowrap ${
-                  activeFilter === filter.value
-                    ? theme === 'dark'
-                      ? 'bg-blue-600 text-white'
-                      : 'bg-blue-500 text-white'
-                    : theme === 'dark'
-                    ? 'bg-slate-800 text-slate-300 hover:bg-slate-700'
-                    : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-200'
-                }`}
-              >
-                {filter.label} ({filter.count})
-              </button>
-            ))}
+          <div className="flex justify-between items-end gap-4">
+            {/* Filter Buttons - Left Side */}
+            <div className="flex gap-2 overflow-x-auto">
+              {filters.map((filter) => (
+                <button
+                  key={filter.value}
+                  onClick={() => setActiveFilter(filter.value)}
+                  className={`px-4 py-2 rounded-lg font-medium transition-all duration-200 whitespace-nowrap ${
+                    activeFilter === filter.value
+                      ? theme === 'dark'
+                        ? 'bg-blue-600 text-white'
+                        : 'bg-blue-500 text-white'
+                      : theme === 'dark'
+                      ? 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                      : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-200'
+                  }`}
+                >
+                  {filter.label} ({filter.count})
+                </button>
+              ))}
+            </div>
+
+            {/* Portfolio Aggregate Cards - Right Side (always visible) */}
+            <div className="flex gap-3">
+              {/* EOY Return Card */}
+              <div className={`rounded-lg border px-4 py-3 min-w-[180px] transition-all duration-300 ${
+                theme === 'dark'
+                  ? 'bg-slate-800 border-slate-700'
+                  : 'bg-white border-gray-200'
+              }`}>
+                <p className={`text-xs mb-1 transition-colors duration-300 ${
+                  theme === 'dark' ? 'text-slate-400' : 'text-gray-600'
+                }`}>
+                  Portfolio Return EOY
+                </p>
+                <p className={`text-xl font-bold transition-colors duration-300 ${
+                  aggregates.portfolio.eoy >= 0
+                    ? 'text-green-500'
+                    : 'text-red-500'
+                }`}>
+                  {aggregates.portfolio.eoy.toFixed(2)}%
+                </p>
+              </div>
+
+              {/* Next Year Return Card */}
+              <div className={`rounded-lg border px-4 py-3 min-w-[180px] transition-all duration-300 ${
+                theme === 'dark'
+                  ? 'bg-slate-800 border-slate-700'
+                  : 'bg-white border-gray-200'
+              }`}>
+                <p className={`text-xs mb-1 transition-colors duration-300 ${
+                  theme === 'dark' ? 'text-slate-400' : 'text-gray-600'
+                }`}>
+                  Portfolio Return Next Year
+                </p>
+                <p className={`text-xl font-bold transition-colors duration-300 ${
+                  aggregates.portfolio.nextYear >= 0
+                    ? 'text-green-500'
+                    : 'text-red-500'
+                }`}>
+                  {aggregates.portfolio.nextYear.toFixed(2)}%
+                </p>
+              </div>
+            </div>
           </div>
         </div>
       </section>

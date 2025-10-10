@@ -107,24 +107,16 @@ export const positionResearchService = {
         ? (pos.market_value / portfolioEquity) * 100
         : 0
 
-      // Check if position is short (return calculation needs to be inverted)
+      // Check if position is short (for analyst calculation only)
       const isShort = ['SHORT', 'SC', 'SP'].includes(pos.position_type)
 
-      // Calculate target returns (user-entered targets)
-      // For shorts: if target price goes UP, we LOSE money (inverse calculation)
-      const target_return_eoy = target?.target_price_eoy && pos.current_price
-        ? isShort
-          ? ((pos.current_price - target.target_price_eoy) / pos.current_price) * 100
-          : ((target.target_price_eoy - pos.current_price) / pos.current_price) * 100
-        : undefined
-
-      const target_return_next_year = target?.target_price_next_year && pos.current_price
-        ? isShort
-          ? ((pos.current_price - target.target_price_next_year) / pos.current_price) * 100
-          : ((target.target_price_next_year - pos.current_price) / pos.current_price) * 100
-        : undefined
+      // Use backend-calculated returns from target prices API
+      // Backend already handles short position inversion and stores calculated values
+      const target_return_eoy = target?.expected_return_eoy ?? undefined
+      const target_return_next_year = target?.expected_return_next_year ?? undefined
 
       // Calculate analyst-based returns (fallback when user hasn't entered targets)
+      // Only needed for display when no user target exists
       const analyst_return_eoy = profile?.target_mean_price && pos.current_price
         ? isShort
           ? ((pos.current_price - profile.target_mean_price) / pos.current_price) * 100
