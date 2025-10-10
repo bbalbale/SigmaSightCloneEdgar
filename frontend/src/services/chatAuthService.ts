@@ -97,12 +97,24 @@ class ChatAuthService {
           user: data.user ?? null,
         });
 
+        // Clear all conversation-related storage
         localStorage.removeItem('conversationId');
         localStorage.removeItem('chatHistory');
         localStorage.removeItem('currentConversationId');
+        localStorage.removeItem('chat-storage'); // Clear Zustand persisted store
         sessionStorage.removeItem('conversationId');
         sessionStorage.removeItem('chatHistory');
         console.log('[Auth] Cleared stale conversation state on login');
+
+        // Reset chat store to clear any in-memory state
+        try {
+          const { useChatStore } = await import('@/stores/chatStore');
+          const store = useChatStore.getState();
+          store.reset();
+          console.log('[Auth] Reset chat store state');
+        } catch (error) {
+          console.warn('[Auth] Could not reset chat store:', error);
+        }
       }
 
       let resolvedPortfolioId = data.portfolio_id ?? null;
@@ -218,8 +230,20 @@ class ChatAuthService {
         localStorage.removeItem('conversationId');
         localStorage.removeItem('chatHistory');
         localStorage.removeItem('currentConversationId');
+        localStorage.removeItem('chat-storage'); // Clear Zustand persisted store
         sessionStorage.removeItem('conversationId');
         sessionStorage.removeItem('chatHistory');
+
+        // Reset chat store
+        try {
+          // Import dynamically to avoid circular dependency
+          const { useChatStore } = await import('@/stores/chatStore');
+          const store = useChatStore.getState();
+          store.reset();
+          console.log('[Auth] Reset chat store on logout');
+        } catch (error) {
+          console.warn('[Auth] Could not reset chat store on logout:', error);
+        }
       }
     }
   }
