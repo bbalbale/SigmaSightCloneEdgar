@@ -14,7 +14,8 @@ import {
   Menu,
   User,
   ChevronRight,
-  Sparkles
+  Sparkles,
+  Briefcase
 } from 'lucide-react'
 import {
   DropdownMenu,
@@ -31,6 +32,7 @@ import { cn } from '@/lib/utils'
 
 const navigationItems = [
   { href: '/portfolio', label: 'Dashboard', icon: Home },
+  { href: '/portfolio-holdings', label: 'Portfolio Holdings', icon: Briefcase },
   { href: '/public-positions', label: 'Public Positions', icon: Building2 },
   { href: '/private-positions', label: 'Private Positions', icon: Shield },
   { href: '/organize', label: 'Organize', icon: PieChart },
