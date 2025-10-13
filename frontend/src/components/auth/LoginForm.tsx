@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { useAuth } from '../../../app/providers'
 import { AlertCircle, Loader2, User, Building2, TrendingUp } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -8,6 +9,7 @@ import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 
 export function LoginForm() {
+  const router = useRouter()
   const { login } = useAuth()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -168,6 +170,32 @@ export function LoginForm() {
                   </Button>
                 )
               })}
+            </div>
+
+            <div className="relative w-full mt-4">
+              <div className="absolute inset-0 flex items-center">
+                <span className="w-full border-t" />
+              </div>
+              <div className="relative flex justify-center text-xs uppercase">
+                <span className="bg-background px-2 text-muted-foreground">
+                  Test User Management
+                </span>
+              </div>
+            </div>
+
+            <div className="w-full mt-4">
+              <Button
+                type="button"
+                variant="secondary"
+                className="w-full"
+                onClick={() => {
+                  console.log('Create Test User button clicked!')
+                  console.log('Navigating to /test-user-creation')
+                  router.push('/test-user-creation')
+                }}
+              >
+                Create Test User
+              </Button>
             </div>
           </CardFooter>
         </Card>

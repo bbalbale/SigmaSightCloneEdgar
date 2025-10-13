@@ -32,7 +32,7 @@ export function useAuth() {
   return context
 }
 
-const publicPaths = ['/', '/landing', '/login']
+const publicPaths = ['/', '/landing', '/login', '/test-user-creation']
 
 const isPublicRoute = (path: string | null) => {
   if (!path) {
