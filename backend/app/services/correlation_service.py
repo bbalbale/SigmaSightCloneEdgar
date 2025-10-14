@@ -128,9 +128,14 @@ class CorrelationService:
                 await self.db.rollback()
                 return None  # Option B: Skip persistence, return None
             
-            # Calculate pairwise correlations
-            correlation_matrix = self.calculate_pairwise_correlations(returns_df)
-            
+            # Calculate pairwise correlations with adaptive minimum overlap requirement
+            # Require at least 1/3 of lookback period, minimum 20 days for statistical reliability
+            min_overlap = max(20, duration_days // 3)
+            correlation_matrix = self.calculate_pairwise_correlations(returns_df, min_periods=min_overlap)
+
+            # Validate and fix PSD property (Positive Semi-Definite matrix required for correlation)
+            correlation_matrix, psd_corrected = self._validate_and_fix_psd(correlation_matrix)
+
             # Detect correlation clusters
             clusters = await self.detect_correlation_clusters(
                 correlation_matrix, 
@@ -173,11 +178,35 @@ class CorrelationService:
             
             # Store clusters
             await self._store_clusters(
-                calculation.id, clusters, filtered_positions, portfolio_value
+                calculation.id, 
+                clusters, 
+                filtered_positions, 
+                portfolio_value,
+                correlation_matrix,
             )
-            
+
+            # Log comprehensive data quality metrics before commit
+            total_pairs = len(correlation_matrix) * len(correlation_matrix)
+            valid_pairs = (~correlation_matrix.isna()).sum().sum()
+            filtered_pairs = correlation_matrix.isna().sum().sum()
+
+            logger.info(
+                f"Correlation calculation data quality for portfolio {portfolio_id}:\n"
+                f"  - Duration: {duration_days} days\n"
+                f"  - Positions included: {len(valid_positions)}\n"
+                f"  - Positions excluded: {excluded_count + (len(filtered_positions) - len(valid_positions))}\n"
+                f"  - Min overlap required: {min_overlap} days\n"
+                f"  - Total correlation pairs: {total_pairs}\n"
+                f"  - Valid pairs (sufficient data): {valid_pairs}\n"
+                f"  - Filtered pairs (insufficient overlap): {filtered_pairs}\n"
+                f"  - PSD validation: {'CORRECTED' if psd_corrected else 'PASSED'}\n"
+                f"  - Overall correlation: {metrics['overall_correlation']:.4f}\n"
+                f"  - Effective positions: {metrics['effective_positions']:.2f}\n"
+                f"  - Correlation clusters detected: {len(clusters)}"
+            )
+
             await self.db.commit()
-            
+
             logger.info(
                 f"Completed correlation calculation for portfolio {portfolio_id}: "
                 f"overall_correlation={metrics['overall_correlation']:.4f}, "
@@ -238,19 +267,112 @@ class CorrelationService:
         
         return filtered
     
-    def calculate_pairwise_correlations(self, returns_df: pd.DataFrame) -> pd.DataFrame:
+    def calculate_pairwise_correlations(
+        self,
+        returns_df: pd.DataFrame,
+        min_periods: int = 30
+    ) -> pd.DataFrame:
         """
-        Calculate full pairwise correlation matrix using log returns
-        Returns full matrix including self-correlations and both directions
+        Calculate full pairwise correlation matrix using log returns with minimum overlap requirement.
+
+        Args:
+            returns_df: DataFrame with dates as index and symbols as columns
+            min_periods: Minimum number of overlapping observations required (default: 30)
+
+        Returns:
+            Correlation matrix with NaN for pairs with insufficient overlap.
+            Full matrix including self-correlations and both directions.
         """
-        # Calculate correlation matrix using pandas
-        correlation_matrix = returns_df.corr(method='pearson')
-        
+        # Calculate correlation matrix using pandas with minimum period requirement
+        correlation_matrix = returns_df.corr(method='pearson', min_periods=min_periods)
+
         # Ensure we have both directions and self-correlations
         # (pandas corr() already returns a symmetric matrix with diagonal = 1)
-        
+
+        # Log any pairs filtered out due to insufficient data
+        nan_count = correlation_matrix.isna().sum().sum()
+        total_pairs = len(correlation_matrix) * len(correlation_matrix)
+        if nan_count > 0:
+            logger.info(
+                f"Filtered {nan_count}/{total_pairs} correlation pairs due to insufficient overlap "
+                f"(min_periods={min_periods})"
+            )
+
         return correlation_matrix
-    
+
+    def _validate_and_fix_psd(
+        self,
+        correlation_matrix: pd.DataFrame
+    ) -> tuple[pd.DataFrame, bool]:
+        """
+        Validate that correlation matrix is Positive Semi-Definite (PSD).
+        If not PSD, log warning and apply nearest PSD correction.
+
+        A correlation matrix must be PSD (all eigenvalues >= 0) to be mathematically valid.
+        Non-PSD matrices can occur due to:
+        - Numerical precision issues
+        - Insufficient or inconsistent data
+        - Pairwise deletion with different date ranges per pair
+
+        Args:
+            correlation_matrix: Correlation matrix to validate
+
+        Returns:
+            Tuple of (corrected_matrix, was_corrected_flag)
+        """
+        # Handle empty or all-NaN matrices
+        if correlation_matrix.empty or correlation_matrix.isna().all().all():
+            logger.warning("Empty or all-NaN correlation matrix, skipping PSD validation")
+            return correlation_matrix, False
+
+        # Check for PSD property (all eigenvalues >= 0)
+        try:
+            eigenvalues = np.linalg.eigvalsh(correlation_matrix.values)
+            min_eigenvalue = np.min(eigenvalues)
+        except np.linalg.LinAlgError as e:
+            logger.error(f"Failed to compute eigenvalues for PSD validation: {e}")
+            return correlation_matrix, False
+
+        # Tolerance for numerical precision (-1e-10 allows for floating point errors)
+        if min_eigenvalue < -1e-10:
+            logger.warning(
+                f"Non-PSD correlation matrix detected. "
+                f"Min eigenvalue: {min_eigenvalue:.6f}. "
+                f"This indicates numerical issues or insufficient data. "
+                f"Applying nearest PSD correction..."
+            )
+
+            # Apply nearest PSD correction using eigenvalue clipping
+            # This is a simplified version of Higham's algorithm
+            eigenvalues_clipped = np.maximum(eigenvalues, 0)
+
+            # Reconstruct matrix from corrected eigenvalues
+            eigenvectors = np.linalg.eigh(correlation_matrix.values)[1]
+            corrected_matrix = eigenvectors @ np.diag(eigenvalues_clipped) @ eigenvectors.T
+
+            # Rescale to ensure diagonal = 1.0 (required for correlation matrix)
+            d = np.sqrt(np.diag(corrected_matrix))
+            # Avoid division by zero
+            d = np.where(d == 0, 1, d)
+            corrected_matrix = corrected_matrix / d[:, None] / d[None, :]
+
+            # Convert back to DataFrame with original index/columns
+            corrected_df = pd.DataFrame(
+                corrected_matrix,
+                index=correlation_matrix.index,
+                columns=correlation_matrix.columns
+            )
+
+            logger.info(
+                f"PSD correction applied. "
+                f"New min eigenvalue: {np.min(np.linalg.eigvalsh(corrected_df.values)):.6f}"
+            )
+
+            return corrected_df, True
+
+        # Matrix is already PSD
+        return correlation_matrix, False
+
     async def detect_correlation_clusters(
         self,
         correlation_matrix: pd.DataFrame,
@@ -525,10 +647,24 @@ class CorrelationService:
                 prices = [float(row.close) for row in price_data]
                 
                 price_series = pd.Series(prices, index=pd.DatetimeIndex(dates))
-                
+
                 # Calculate log returns: ln(price_t / price_t-1)
-                log_returns = np.log(price_series / price_series.shift(1)).dropna()
-                
+                # Use errstate to suppress warnings for zero/negative prices
+                with np.errstate(divide='ignore', invalid='ignore'):
+                    log_returns = np.log(price_series / price_series.shift(1))
+
+                # Handle infinite values from zero/negative prices
+                inf_count = np.isinf(log_returns).sum()
+                if inf_count > 0:
+                    logger.warning(
+                        f"Position {position.symbol}: {inf_count} infinite log returns "
+                        f"(likely from zero/negative prices). Replacing with NaN."
+                    )
+                    log_returns = log_returns.replace([np.inf, -np.inf], np.nan)
+
+                # Drop NaN values
+                log_returns = log_returns.dropna()
+
                 returns_data[position.symbol] = log_returns
         
         # Create DataFrame from returns data
@@ -587,6 +723,13 @@ class CorrelationService:
                         returns_df[symbol2].dropna()
                     )
                     statistical_significance = Decimal(str(1 - p_value))
+
+                    # Log low-confidence correlations (p > 0.05 = less than 95% confidence)
+                    if p_value > 0.05:
+                        logger.debug(
+                            f"Low-confidence correlation: {symbol1}-{symbol2} "
+                            f"(r={correlation_value:.3f}, p={p_value:.3f}, n={data_points})"
+                        )
                 else:
                     statistical_significance = Decimal("1") if symbol1 == symbol2 else None
                 
@@ -610,9 +753,10 @@ class CorrelationService:
         calculation_id: UUID,
         clusters: List[Dict],
         positions: List[Position],
-        portfolio_value: Decimal
+        portfolio_value: Decimal,
+        correlation_matrix: pd.DataFrame,
     ):
-        """Store correlation clusters and their positions"""
+        """Store correlation clusters and their positions with precise correlation stats"""
         # Create position lookup
         symbol_to_position = {p.symbol: p for p in positions}
         
@@ -642,33 +786,50 @@ class CorrelationService:
             await self.db.flush()
             
             # Add cluster positions
+            cluster_position_records: List[CorrelationClusterPosition] = []
             for position, position_value in cluster_positions:
                 # Calculate correlation to cluster (average correlation with other cluster members)
-                correlations_to_cluster = []
+                correlation_values: List[Decimal] = []
                 for other_symbol in cluster_data["symbols"]:
-                    if other_symbol != position.symbol:
-                        # This would need access to the correlation matrix
-                        # For now, use the average cluster correlation
-                        correlations_to_cluster.append(float(cluster_data["avg_correlation"]))
-                
-                avg_correlation_to_cluster = (
-                    Decimal(str(np.mean(correlations_to_cluster)))
-                    if correlations_to_cluster
-                    else cluster_data["avg_correlation"]
-                )
-                
-                cluster_position = CorrelationClusterPosition(
-                    cluster_id=cluster.id,
-                    position_id=position.id,
-                    symbol=position.symbol,
-                    value=position_value,
-                    portfolio_percentage=position_value / portfolio_value if portfolio_value > 0 else Decimal("0"),
-                    correlation_to_cluster=avg_correlation_to_cluster
-                )
-                
-            self.db.add(cluster_position)
-        
-            await self.db.flush()
+                     if other_symbol == position.symbol:
+                        continue
+
+                    if (
+                        position.symbol in correlation_matrix.index
+                        and other_symbol in correlation_matrix.columns
+                    ):
+                        correlation_values.append(
+                            Decimal(
+                                str(
+                                    correlation_matrix.loc[
+                                        position.symbol, other_symbol
+                                    ]
+                                )
+                            )
+                        )
+
+                if correlation_values:
+                    avg_correlation_to_cluster = sum(correlation_values) / Decimal(
+                        len(correlation_values)
+                    )
+                else:
+                    avg_correlation_to_cluster = cluster_data["avg_correlation"]
+
+                cluster_position_records.append(
+                    CorrelationClusterPosition(
+                        cluster_id=cluster.id,
+                        position_id=position.id,
+                        symbol=position.symbol,
+                        value=position_value,
+                        portfolio_percentage=position_value / portfolio_value if portfolio_value > 0 else Decimal("0"),
+                        correlation_to_cluster=avg_correlation_to_cluster,
+                    )
+                )      
+
+            if cluster_position_records:
+                self.db.add_all(cluster_position_records)
+
+            await self.db.flush()         
 
     async def get_weighted_correlation(
         self,
