@@ -30,6 +30,7 @@ interface PositionDetail {
 type LoadOptions = {
   portfolioId?: string | null
   forceRefresh?: boolean
+  skipFactorExposures?: boolean
 }
 
 /**
@@ -61,7 +62,7 @@ export async function loadPortfolioData(
 
     authManager.setPortfolioId(portfolioId)
 
-    const results = await fetchPortfolioDataFromApis(portfolioId, token, abortSignal)
+    const results = await fetchPortfolioDataFromApis(portfolioId, token, abortSignal, options.skipFactorExposures)
     return {
       ...results,
       portfolioId
@@ -80,9 +81,11 @@ export async function loadPortfolioData(
 async function fetchPortfolioDataFromApis(
   portfolioId: string,
   token: string,
-  abortSignal?: AbortSignal
+  abortSignal?: AbortSignal,
+  skipFactorExposures?: boolean
 ) {
-  const [overviewResult, positionsResult, factorExposuresResult] = await Promise.allSettled([
+  // Build the promises array conditionally based on skipFactorExposures
+  const promises: Promise<any>[] = [
     analyticsApi.getOverview(portfolioId),
     apiClient.get<{ positions: PositionDetail[] }>(
       `/api/v1/data/positions/details?portfolio_id=${portfolioId}`,
@@ -90,18 +93,30 @@ async function fetchPortfolioDataFromApis(
         headers: { Authorization: `Bearer ${token}` },
         signal: abortSignal
       }
-    ),
-    apiClient.get<any>(
-      `/api/v1/analytics/portfolio/${portfolioId}/factor-exposures`,
-      {
-        headers: { Authorization: `Bearer ${token}` },
-        signal: abortSignal
-      }
-    ).then(response => {
-      console.log('Factor exposures API response:', response)
-      return response
-    })
-  ])
+    )
+  ]
+
+  // Only add factor exposures call if not skipped
+  if (!skipFactorExposures) {
+    promises.push(
+      // Factor exposures can be slow - increase timeout and reduce retries
+      apiClient.get<any>(
+        `/api/v1/analytics/portfolio/${portfolioId}/factor-exposures`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+          signal: abortSignal,
+          timeout: 60000,  // Increased to 60 seconds (from default 30s)
+          retries: 1       // Reduced to 1 retry (from default 2) for faster failure
+        }
+      ).then(response => {
+        console.log('Factor exposures API response:', response)
+        return response
+      })
+    )
+  }
+
+  const results = await Promise.allSettled(promises)
+  const [overviewResult, positionsResult, factorExposuresResult] = results
 
   let portfolioInfo: { name: string } | null = null
   let exposures = [] as any[]
@@ -127,16 +142,27 @@ async function fetchPortfolioDataFromApis(
   }
 
   let factorExposures: FactorExposure[] | null = null
-  if (factorExposuresResult.status === 'fulfilled') {
-    if (factorExposuresResult.value?.data?.available && factorExposuresResult.value?.data?.factors) {
-      factorExposures = factorExposuresResult.value.data.factors
-    } else if (factorExposuresResult.value?.available && factorExposuresResult.value?.factors) {
-      factorExposures = factorExposuresResult.value.factors
-    } else {
-      console.log('Factor exposures not available in response')
+  // Only process factor exposures if they were fetched (not skipped)
+  if (factorExposuresResult) {
+    if (factorExposuresResult.status === 'fulfilled') {
+      if (factorExposuresResult.value?.data?.available && factorExposuresResult.value?.data?.factors) {
+        factorExposures = factorExposuresResult.value.data.factors
+        console.log('✅ Factor exposures loaded successfully:', factorExposures?.length || 0, 'factors')
+      } else if (factorExposuresResult.value?.available && factorExposuresResult.value?.factors) {
+        factorExposures = factorExposuresResult.value.factors
+        console.log('✅ Factor exposures loaded successfully:', factorExposures?.length || 0, 'factors')
+      } else {
+        console.log('⚠️ Factor exposures not available in response (may not be calculated yet)')
+      }
+    } else if (factorExposuresResult.status === 'rejected') {
+      console.error('❌ Failed to fetch factor exposures:', factorExposuresResult.reason)
+      // Check if it's a timeout error
+      if (factorExposuresResult.reason?.name === 'TimeoutError') {
+        console.error('💡 Suggestion: Factor exposures endpoint exceeded 60s timeout. Backend may need optimization.')
+      }
     }
-  } else if (factorExposuresResult.status === 'rejected') {
-    console.error('Failed to fetch factor exposures:', factorExposuresResult.reason)
+  } else if (skipFactorExposures) {
+    console.log('⏭️ Factor exposures skipped per request')
   }
 
   // Extract equity balance from overview for position category exposure calculations
@@ -154,7 +180,7 @@ async function fetchPortfolioDataFromApis(
     errors: {
       overview: overviewResult.status === 'rejected' ? overviewResult.reason : null,
       positions: positionsResult.status === 'rejected' ? positionsResult.reason : null,
-      factorExposures: factorExposuresResult.status === 'rejected' ? factorExposuresResult.reason : null
+      factorExposures: factorExposuresResult && factorExposuresResult.status === 'rejected' ? factorExposuresResult.reason : null
     }
   }
 }

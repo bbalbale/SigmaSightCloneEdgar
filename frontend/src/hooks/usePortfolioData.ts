@@ -9,6 +9,10 @@ interface ApiErrors {
   factorExposures?: any
 }
 
+interface UsePortfolioDataOptions {
+  skipFactorExposures?: boolean
+}
+
 interface UsePortfolioDataReturn {
   // State
   loading: boolean
@@ -30,7 +34,8 @@ interface UsePortfolioDataReturn {
   handleRetry: () => void
 }
 
-export function usePortfolioData(): UsePortfolioDataReturn {
+export function usePortfolioData(options: UsePortfolioDataOptions = {}): UsePortfolioDataReturn {
+  const { skipFactorExposures = false } = options
   // Use separate selectors to avoid creating new object references
   const portfolioId = usePortfolioStore(state => state.portfolioId)
   const setPortfolio = usePortfolioStore(state => state.setPortfolio)
@@ -61,7 +66,8 @@ export function usePortfolioData(): UsePortfolioDataReturn {
       try {
         const data = await loadPortfolioData(abortController.signal, {
           portfolioId,
-          forceRefresh: retryCount > 0
+          forceRefresh: retryCount > 0,
+          skipFactorExposures
         })
 
         if (!data) {
@@ -133,7 +139,7 @@ export function usePortfolioData(): UsePortfolioDataReturn {
       abortController.abort()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [portfolioId, retryCount])
+  }, [portfolioId, retryCount, skipFactorExposures])
 
   const handleRetry = () => {
     setRetryCount(prev => prev + 1)

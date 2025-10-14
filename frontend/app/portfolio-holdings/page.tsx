@@ -31,7 +31,7 @@ function PortfolioHoldingsPageContent() {
     dataLoaded,
     equityBalance,
     handleRetry
-  } = usePortfolioData()
+  } = usePortfolioData({ skipFactorExposures: true })
 
   // Fetch tags for filtering
   const { tags } = useTags()
