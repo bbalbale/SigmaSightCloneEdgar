@@ -1,5 +1,47 @@
 {
   "stress_scenarios": {
+    "base_cases": {
+      "market_up_5": {
+        "name": "Market Rally 5%",
+        "description": "Normal positive trading week",
+        "shocked_factors": {
+          "Market": 0.05
+        },
+        "category": "market",
+        "severity": "base",
+        "active": true
+      },
+      "market_down_5": {
+        "name": "Market Decline 5%",
+        "description": "Normal negative trading week",
+        "shocked_factors": {
+          "Market": -0.05
+        },
+        "category": "market",
+        "severity": "base",
+        "active": true
+      },
+      "rates_up_50bp": {
+        "name": "Rates Up 50bp",
+        "description": "Single Fed meeting rate hike",
+        "shocked_factors": {
+          "Interest_Rate": 0.005
+        },
+        "category": "rates",
+        "severity": "base",
+        "active": true
+      },
+      "rates_down_50bp": {
+        "name": "Rates Down 50bp",
+        "description": "Single Fed meeting rate cut",
+        "shocked_factors": {
+          "Interest_Rate": -0.005
+        },
+        "category": "rates",
+        "severity": "base",
+        "active": true
+      }
+    },
     "market_risk": {
       "market_up_10": {
         "name": "Market Rally 10%",
@@ -178,7 +220,8 @@
         },
         "category": "historical",
         "severity": "extreme",
-        "active": true,
+        "active": false,
+        "optional": true,
         "historical_period": "2008-09-15 to 2009-03-15"
       },
       "covid_crash_2020": {
@@ -193,7 +236,8 @@
         },
         "category": "historical",
         "severity": "extreme",
-        "active": true,
+        "active": false,
+        "optional": true,
         "historical_period": "2020-02-19 to 2020-03-23"
       },
       "dotcom_crash_2000": {
@@ -208,7 +252,8 @@
         },
         "category": "historical",
         "severity": "extreme",
-        "active": true,
+        "active": false,
+        "optional": true,
         "historical_period": "2000-03-10 to 2002-10-09"
       }
     }
@@ -233,21 +278,30 @@
     "Interest_Rate": "Treasury_10Y"
   },
   "severity_levels": {
+    "base": {
+      "description": "Normal day-to-day market movements, typical weekly volatility",
+      "impact_range": "0-5%",
+      "probability": "high"
+    },
     "mild": {
       "description": "Minor market movements, typical daily/weekly volatility",
-      "impact_range": "0-5%"
+      "impact_range": "5-10%",
+      "probability": "medium-high"
     },
     "moderate": {
       "description": "Significant but manageable market stress",
-      "impact_range": "5-15%"
+      "impact_range": "10-20%",
+      "probability": "medium"
     },
     "severe": {
       "description": "Major market disruption requiring risk management",
-      "impact_range": "15-35%"
+      "impact_range": "20-35%",
+      "probability": "low"
     },
     "extreme": {
       "description": "Crisis-level market stress, historical rare events",
-      "impact_range": "35%+"
+      "impact_range": "35%+",
+      "probability": "very-low"
     }
   }
 }
