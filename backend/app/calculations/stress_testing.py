@@ -16,7 +16,9 @@ from sqlalchemy import select, and_
 from app.models.positions import Position
 from app.models.market_data import FactorDefinition, PositionFactorExposure, FactorExposure, StressTestScenario, StressTestResult
 from app.models.users import Portfolio
+from app.models.snapshots import PortfolioSnapshot
 from app.calculations.factors import fetch_factor_returns
+from app.calculations.portfolio import calculate_portfolio_exposures
 from app.constants.factors import FACTOR_ETFS, REGRESSION_WINDOW_DAYS
 from app.core.logging import get_logger
 
@@ -32,6 +34,14 @@ OPTIONS_CONTRACT_MULTIPLIER = 100  # Standard options contract size
 
 def calculate_portfolio_market_value(positions, return_gross: bool = False) -> float:
     """
+    DEPRECATED: Use get_portfolio_exposures() instead.
+
+    This function duplicates logic that already exists in:
+    - app.calculations.portfolio.calculate_portfolio_exposures()
+    - app.models.snapshots.PortfolioSnapshot (gross_exposure, net_exposure columns)
+
+    Kept for backward compatibility only. Will be removed in future version.
+
     Calculate portfolio market value correctly handling options and short positions.
 
     ISSUE #1 FIX: Returns NET exposure by default (signed values)
@@ -54,6 +64,11 @@ def calculate_portfolio_market_value(positions, return_gross: bool = False) -> f
         - Net exposure = long positions - short positions (signed sum)
         - Gross exposure = sum of absolute values (total capital at risk)
     """
+    logger.warning(
+        "calculate_portfolio_market_value() is deprecated. "
+        "Use get_portfolio_exposures() instead to avoid recalculating stored values."
+    )
+
     net_total = 0.0
     gross_total = 0.0
 
@@ -91,6 +106,155 @@ def calculate_portfolio_market_value(positions, return_gross: bool = False) -> f
     # For hedged portfolios: net = $1.4M, gross = $5.6M (4x difference!)
     # CRITICAL: Gross = sum(abs values), NOT abs(sum values)
     return gross_total if return_gross else net_total
+
+
+async def get_portfolio_exposures(
+    db: AsyncSession,
+    portfolio_id: UUID,
+    calculation_date: date,
+    max_staleness_days: int = 3
+) -> Dict[str, Any]:
+    """
+    Get portfolio net and gross exposures from snapshot or calculate real-time.
+
+    This function eliminates duplicate calculation by using pre-calculated values from:
+    1. PortfolioSnapshot table (preferred - fast, already calculated by batch process)
+    2. Real-time calculation via calculate_portfolio_exposures() (fallback - slower)
+
+    Priority:
+    1. Use latest snapshot if recent (within max_staleness_days)
+    2. Calculate real-time from positions using calculate_portfolio_exposures()
+
+    Args:
+        db: Database session
+        portfolio_id: Portfolio UUID
+        calculation_date: Date for calculation
+        max_staleness_days: Maximum days snapshot can be old (default 3)
+
+    Returns:
+        Dict with:
+            - net_exposure: float (signed sum of positions)
+            - gross_exposure: float (sum of absolute values)
+            - source: 'snapshot' or 'real_time'
+            - snapshot_date: date (if from snapshot) or None
+
+    Example:
+        >>> exposures = await get_portfolio_exposures(db, portfolio_id, date.today())
+        >>> net = exposures['net_exposure']  # e.g., $2.3M for hedged portfolio
+        >>> gross = exposures['gross_exposure']  # e.g., $6.6M for hedged portfolio
+    """
+    from datetime import timedelta
+
+    # Try to get latest snapshot
+    snapshot_stmt = (
+        select(PortfolioSnapshot)
+        .where(
+            and_(
+                PortfolioSnapshot.portfolio_id == portfolio_id,
+                PortfolioSnapshot.snapshot_date <= calculation_date
+            )
+        )
+        .order_by(PortfolioSnapshot.snapshot_date.desc())
+        .limit(1)
+    )
+
+    snapshot_result = await db.execute(snapshot_stmt)
+    latest_snapshot = snapshot_result.scalar_one_or_none()
+
+    # Check if snapshot is recent enough
+    if latest_snapshot:
+        staleness = (calculation_date - latest_snapshot.snapshot_date).days
+        if staleness <= max_staleness_days:
+            logger.info(
+                f"Using snapshot exposures from {latest_snapshot.snapshot_date} "
+                f"({staleness} days old): net=${float(latest_snapshot.net_exposure):,.0f}, "
+                f"gross=${float(latest_snapshot.gross_exposure):,.0f}"
+            )
+            return {
+                'net_exposure': float(latest_snapshot.net_exposure),
+                'gross_exposure': float(latest_snapshot.gross_exposure),
+                'source': 'snapshot',
+                'snapshot_date': latest_snapshot.snapshot_date
+            }
+        else:
+            logger.warning(
+                f"Latest snapshot is {staleness} days old "
+                f"(max: {max_staleness_days}), calculating real-time"
+            )
+
+    # Fallback: Calculate real-time from positions
+    logger.info("No recent snapshot found, calculating exposures real-time")
+
+    positions_stmt = select(Position).where(
+        and_(
+            Position.portfolio_id == portfolio_id,
+            Position.deleted_at.is_(None)
+        )
+    )
+    positions_result = await db.execute(positions_stmt)
+    positions = positions_result.scalars().all()
+
+    if not positions:
+        logger.warning(f"No positions found for portfolio {portfolio_id}")
+        return {
+            'net_exposure': 0.0,
+            'gross_exposure': 0.0,
+            'source': 'real_time',
+            'snapshot_date': None
+        }
+
+    # Prepare position data for calculate_portfolio_exposures()
+    position_data = []
+
+    for pos in positions:
+        if pos.market_value is not None:
+            # Use pre-calculated market_value
+            signed_value = float(pos.market_value)
+            # Position.market_value is already signed (negative for shorts)
+            exposure = signed_value
+        elif pos.last_price is not None:
+            # Calculate from price
+            quantity = float(pos.quantity)
+            price = float(pos.last_price)
+
+            # Apply options multiplier
+            if pos.position_type.name in ['LC', 'LP', 'SC', 'SP']:
+                multiplier = OPTIONS_CONTRACT_MULTIPLIER
+            else:
+                multiplier = 1
+
+            # Apply sign for short positions
+            if pos.position_type.name in ['SHORT', 'SC', 'SP']:
+                sign = -1
+            else:
+                sign = 1
+
+            market_value = sign * quantity * price * multiplier
+            exposure = market_value
+        else:
+            logger.warning(f"Position {pos.id} has no price data, skipping")
+            continue
+
+        position_data.append({
+            'exposure': Decimal(str(exposure)),
+            'market_value': Decimal(str(abs(exposure))),
+            'position_type': pos.position_type.name
+        })
+
+    # Call the authoritative calculation function from portfolio.py
+    aggregations = calculate_portfolio_exposures(position_data)
+
+    logger.info(
+        f"Calculated exposures real-time: net=${float(aggregations['net_exposure']):,.0f}, "
+        f"gross=${float(aggregations['gross_exposure']):,.0f}"
+    )
+
+    return {
+        'net_exposure': float(aggregations['net_exposure']),
+        'gross_exposure': float(aggregations['gross_exposure']),
+        'source': 'real_time',
+        'snapshot_date': None
+    }
 
 
 async def calculate_factor_correlation_matrix(
@@ -292,24 +456,19 @@ async def calculate_direct_stress_impact(
         Dictionary containing direct stress impact results
     """
     logger.info(f"Calculating direct stress impact for scenario: {scenario_config.get('name')}")
-    
-    try:
-        # Get portfolio market value
-        from app.models.positions import Position
-        positions_stmt = select(Position).where(
-            and_(
-                Position.portfolio_id == portfolio_id,
-                Position.deleted_at.is_(None)  # Active positions have no deletion date
-            )
-        )
-        positions_result = await db.execute(positions_stmt)
-        positions = positions_result.scalars().all()
 
-        # Calculate portfolio market value using proper helper
-        portfolio_market_value = calculate_portfolio_market_value(positions)
+    try:
+        # Get portfolio exposures (from snapshot or real-time calculation)
+        exposures = await get_portfolio_exposures(
+            db=db,
+            portfolio_id=portfolio_id,
+            calculation_date=calculation_date
+        )
+
+        portfolio_market_value = exposures['net_exposure']  # Use net exposure for stress P&L
 
         if portfolio_market_value <= 0:
-            logger.warning(f"Portfolio {portfolio_id} has no market value")
+            logger.warning(f"Portfolio {portfolio_id} has no net exposure")
             portfolio_market_value = 1.0  # Avoid division by zero
 
         # ISSUE #3 FIX: Get portfolio factor exposures with joined query (eliminates N+1 problem)
@@ -457,7 +616,7 @@ async def calculate_correlated_stress_impact(
         Dictionary containing correlated stress impact results
     """
     logger.info(f"Calculating correlated stress impact for scenario: {scenario_config.get('name')}")
-    
+
     try:
         # First get direct impact
         direct_results = await calculate_direct_stress_impact(
@@ -466,22 +625,18 @@ async def calculate_correlated_stress_impact(
             scenario_config=scenario_config,
             calculation_date=calculation_date
         )
-        
-        # Get portfolio market value
-        from app.models.positions import Position
-        positions_stmt = select(Position).where(
-            and_(
-                Position.portfolio_id == portfolio_id,
-                Position.deleted_at.is_(None)  # Active positions have no deletion date
-            )
+
+        # Get portfolio exposures (from snapshot or real-time calculation)
+        exposures = await get_portfolio_exposures(
+            db=db,
+            portfolio_id=portfolio_id,
+            calculation_date=calculation_date
         )
-        positions_result = await db.execute(positions_stmt)
-        positions = positions_result.scalars().all()
-        
-        portfolio_market_value = calculate_portfolio_market_value(positions)
-        
+
+        portfolio_market_value = exposures['net_exposure']  # Use net exposure for stress P&L
+
         if portfolio_market_value <= 0:
-            logger.warning(f"Portfolio {portfolio_id} has no market value")
+            logger.warning(f"Portfolio {portfolio_id} has no net exposure")
             portfolio_market_value = 1.0  # Avoid division by zero
         
         # ISSUE #3 FIX: Get portfolio factor exposures with joined query (eliminates N+1 problem)
