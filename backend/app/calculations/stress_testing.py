@@ -54,12 +54,15 @@ def calculate_portfolio_market_value(positions, return_gross: bool = False) -> f
         - Net exposure = long positions - short positions (signed sum)
         - Gross exposure = sum of absolute values (total capital at risk)
     """
-    total = 0.0
+    net_total = 0.0
+    gross_total = 0.0
 
     for pos in positions:
         # Use pre-calculated market value if available
         if pos.market_value is not None:
-            total += float(pos.market_value)
+            signed_value = float(pos.market_value)
+            net_total += signed_value
+            gross_total += abs(signed_value)
         elif pos.last_price is not None:
             # Calculate market value based on position type
             quantity = float(pos.quantity)
@@ -79,13 +82,15 @@ def calculate_portfolio_market_value(positions, return_gross: bool = False) -> f
                 sign = 1
 
             market_value = sign * quantity * price * multiplier
-            total += market_value
+            net_total += market_value
+            gross_total += abs(market_value)
 
     # ISSUE #1 FIX: Return NET exposure by default
     # Factor exposures are calculated using signed position values
     # Beta already encodes directional sensitivity, so we need net exposure
     # For hedged portfolios: net = $1.4M, gross = $5.6M (4x difference!)
-    return abs(total) if return_gross else total
+    # CRITICAL: Gross = sum(abs values), NOT abs(sum values)
+    return gross_total if return_gross else net_total
 
 
 async def calculate_factor_correlation_matrix(
