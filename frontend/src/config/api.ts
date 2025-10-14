@@ -69,6 +69,7 @@ export const API_ENDPOINTS = {
   ANALYTICS: {
     OVERVIEW: (portfolioId: string) => `/api/v1/analytics/portfolio/${portfolioId}/overview`,
     CORRELATION_MATRIX: (portfolioId: string) => `/api/v1/analytics/portfolio/${portfolioId}/correlation-matrix`,
+    DIVERSIFICATION_SCORE: (portfolioId: string) => `/api/v1/analytics/portfolio/${portfolioId}/diversification-score`,
     FACTOR_EXPOSURES: (portfolioId: string) => `/api/v1/analytics/portfolio/${portfolioId}/factor-exposures`,
     POSITIONS_FACTOR_EXPOSURES: (portfolioId: string) => `/api/v1/analytics/portfolio/${portfolioId}/positions/factor-exposures`,
     STRESS_TEST: (portfolioId: string) => `/api/v1/analytics/portfolio/${portfolioId}/stress-test`,

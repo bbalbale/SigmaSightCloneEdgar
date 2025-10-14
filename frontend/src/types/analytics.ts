@@ -129,3 +129,22 @@ export interface StressTestResponse {
   reason?: string;
 }
 
+export interface DiversificationScoreResponse {
+  available: boolean;
+  data?: {
+    overall_score: number; // 0-100
+    category_scores: {
+      asset_class: number;
+      sector: number;
+      geography: number;
+      position_size: number;
+    };
+    recommendations?: string[];
+  };
+  metadata?: {
+    calculation_date: string; // ISO
+    position_count: number;
+  };
+  reason?: string;
+}
+
