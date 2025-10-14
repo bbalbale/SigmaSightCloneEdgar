@@ -1,6 +1,8 @@
 'use client'
 
 import React, { useMemo } from 'react'
+import { Card, CardContent } from '@/components/ui/card'
+import { useTheme } from '@/contexts/ThemeContext'
 
 interface Position {
   id?: string
@@ -20,11 +22,11 @@ interface PositionCategoryExposureCardsProps {
 
 // Category definitions - Using standard borders for consistency
 const CATEGORIES = [
-  { id: 'longs', label: 'Longs' },
-  { id: 'shorts', label: 'Shorts' },
-  { id: 'longOptions', label: 'Long Options' },
-  { id: 'shortOptions', label: 'Short Options' },
-  { id: 'private', label: 'Private' }
+  { id: 'longs', label: 'Longs', positive: true },
+  { id: 'shorts', label: 'Shorts', positive: false },
+  { id: 'longOptions', label: 'Long Options', positive: true },
+  { id: 'shortOptions', label: 'Short Options', positive: false },
+  { id: 'private', label: 'Private', positive: true }
 ]
 
 // Helper function to format currency
@@ -43,13 +45,21 @@ const formatCount = (count: number) => {
 }
 
 // Skeleton card for loading state
-const SkeletonCard = () => (
-  <div className="bg-white rounded-lg border border-gray-200 p-2 animate-pulse">
-    <div className="h-3 bg-gray-200 rounded w-20 mb-1"></div>
-    <div className="h-5 bg-gray-200 rounded w-16 mb-1"></div>
-    <div className="h-3 bg-gray-200 rounded w-24"></div>
-  </div>
-)
+const SkeletonCard = () => {
+  const { theme } = useTheme()
+  return (
+    <Card className={`transition-colors duration-300 ${
+      theme === 'dark' ? 'bg-slate-800 border-slate-700' : 'bg-white border-gray-200'
+    }`}>
+      <CardContent className="p-4 animate-pulse">
+        <div className="h-3 bg-gray-200 rounded w-20 mb-2"></div>
+        <div className="h-6 bg-gray-200 rounded w-16 mb-1"></div>
+        <div className="h-4 bg-gray-200 rounded w-24 mb-1"></div>
+        <div className="h-3 bg-gray-200 rounded w-28"></div>
+      </CardContent>
+    </Card>
+  )
+}
 
 // Individual category card
 interface CategoryCardProps {
@@ -57,29 +67,47 @@ interface CategoryCardProps {
   exposure: number
   count: number
   percentOfEquity: number
+  positive: boolean
 }
 
 const CategoryCard: React.FC<CategoryCardProps> = ({
   label,
   exposure,
   count,
-  percentOfEquity
+  percentOfEquity,
+  positive
 }) => {
+  const { theme } = useTheme()
+
   return (
-    <div className="rounded-lg border border-gray-200 bg-white p-2 transition-all duration-200 hover:shadow-md cursor-pointer">
-      <div className="text-xs font-medium text-gray-600 mb-0.5">
-        {label}
-      </div>
-      <div className="text-base font-bold mb-0.5">
-        {formatCurrency(exposure)}
-      </div>
-      <div className="text-xs text-gray-500 mb-0.5">
-        {formatCount(count)}
-      </div>
-      <div className="text-xs font-medium text-gray-700">
-        {percentOfEquity.toFixed(1)}% of Equity
-      </div>
-    </div>
+    <Card className={`transition-colors duration-300 ${
+      theme === 'dark' ? 'bg-slate-800 border-slate-700' : 'bg-white border-gray-200'
+    }`}>
+      <CardContent className="p-4">
+        <div className="flex items-center justify-between mb-2">
+          <div className={`text-xs transition-colors duration-300 ${
+            theme === 'dark' ? 'text-slate-400' : 'text-gray-600'
+          }`}>
+            {label}
+          </div>
+        </div>
+        <div className={`text-xl font-bold mb-1 ${
+          positive ? 'text-emerald-400' : 'text-red-400'
+        }`}>
+          {formatCurrency(exposure)}
+        </div>
+        <div className={`text-sm mb-1 transition-colors duration-300 ${
+          theme === 'dark' ? 'text-slate-300' : 'text-gray-700'
+        }`}>
+          {formatCount(count)}
+        </div>
+        <div className={`text-xs transition-colors duration-300 ${
+          theme === 'dark' ? 'text-slate-500' : 'text-gray-500'
+        }`}>
+          {percentOfEquity.toFixed(1)}% of Equity
+        </div>
+      </CardContent>
+    </Card>
   )
 }
 
@@ -145,14 +173,7 @@ export const PositionCategoryExposureCards: React.FC<PositionCategoryExposureCar
     return (
       <section className="px-4 pb-6">
         <div className="container mx-auto">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="text-sm font-medium text-gray-600">Position Category Exposures</h3>
-            <span className="text-xs text-gray-500">
-              {selectedTagId ? 'Filtered by tag' : 'All positions'}
-            </span>
-          </div>
-
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-8">
             {CATEGORIES.map((_, index) => (
               <SkeletonCard key={index} />
             ))}
@@ -164,30 +185,13 @@ export const PositionCategoryExposureCards: React.FC<PositionCategoryExposureCar
 
   // Handle no positions
   if (!positions || positions.length === 0) {
-    return (
-      <section className="px-4 pb-6">
-        <div className="container mx-auto">
-          <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
-            <p className="text-gray-600 text-sm">
-              No positions available
-            </p>
-          </div>
-        </div>
-      </section>
-    )
+    return null
   }
 
   return (
     <section className="px-4 pb-6">
       <div className="container mx-auto">
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="text-sm font-medium text-gray-600">Position Category Exposures</h3>
-          <span className="text-xs text-gray-500">
-            {selectedTagId ? 'Filtered by selected tag' : 'All positions'}
-          </span>
-        </div>
-
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-8">
           {CATEGORIES.map((category) => {
             const data = categoryData[category.id as keyof typeof categoryData]
             return (
@@ -197,6 +201,7 @@ export const PositionCategoryExposureCards: React.FC<PositionCategoryExposureCar
                 exposure={data.exposure}
                 count={data.count}
                 percentOfEquity={data.percentOfEquity}
+                positive={category.positive}
               />
             )
           })}
