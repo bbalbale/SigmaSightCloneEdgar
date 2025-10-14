@@ -139,11 +139,18 @@ async function fetchPortfolioDataFromApis(
     console.error('Failed to fetch factor exposures:', factorExposuresResult.reason)
   }
 
+  // Extract equity balance from overview for position category exposure calculations
+  let equityBalance = 0
+  if (overviewResult.status === 'fulfilled') {
+    equityBalance = overviewResult.value.data?.equity_balance || 0
+  }
+
   return {
     exposures,
     positions,
     portfolioInfo,
     factorExposures,
+    equityBalance,
     errors: {
       overview: overviewResult.status === 'rejected' ? overviewResult.reason : null,
       positions: positionsResult.status === 'rejected' ? positionsResult.reason : null,

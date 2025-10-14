@@ -12,6 +12,7 @@ import { PortfolioHeader } from '@/components/portfolio/PortfolioHeader'
 import { PortfolioPositions } from '@/components/portfolio/PortfolioPositions'
 import { PortfolioError, PortfolioErrorState } from '@/components/portfolio/PortfolioError'
 import { FilterBar } from '@/components/portfolio/FilterBar'
+import { PositionCategoryExposureCards } from '@/components/portfolio/PositionCategoryExposureCards'
 
 function PortfolioHoldingsPageContent() {
   const { theme } = useTheme()
@@ -28,6 +29,7 @@ function PortfolioHoldingsPageContent() {
     privatePositions,
     factorExposures,
     dataLoaded,
+    equityBalance,
     handleRetry
   } = usePortfolioData()
 
@@ -75,6 +77,15 @@ function PortfolioHoldingsPageContent() {
   const filteredOptionsPositions = useMemo(() => applyFilters(optionsPositions), [optionsPositions, selectedTagId, selectedFactorName])
   const filteredPrivatePositions = useMemo(() => applyFilters(privatePositions), [privatePositions, selectedTagId, selectedFactorName])
 
+  // Combine all positions for exposure calculation
+  const allPositions = useMemo(() => {
+    return [
+      ...publicPositions,
+      ...optionsPositions,
+      ...privatePositions
+    ]
+  }, [publicPositions, optionsPositions, privatePositions])
+
   if (loading && !dataLoaded) {
     return (
       <div className={`min-h-screen transition-colors duration-300 ${
@@ -119,6 +130,7 @@ function PortfolioHoldingsPageContent() {
         loading={loading}
         dataLoaded={dataLoaded}
         positionsCount={positions.length + shortPositions.length}
+        showAskSigmaSight={false}
       />
 
       <FilterBar
@@ -128,6 +140,13 @@ function PortfolioHoldingsPageContent() {
         selectedFactorName={selectedFactorName}
         onTagFilterChange={setSelectedTagId}
         onFactorFilterChange={setSelectedFactorName}
+      />
+
+      <PositionCategoryExposureCards
+        positions={allPositions}
+        selectedTagId={selectedTagId}
+        equityBalance={equityBalance}
+        loading={loading}
       />
 
       <PortfolioPositions

@@ -24,6 +24,7 @@ interface UsePortfolioDataReturn {
   dataLoaded: boolean
   factorExposures: FactorExposure[] | null
   portfolioId: string | null
+  equityBalance: number
 
   // Actions
   handleRetry: () => void
@@ -48,6 +49,7 @@ export function usePortfolioData(): UsePortfolioDataReturn {
   const [portfolioName, setPortfolioName] = useState('Loading...')
   const [dataLoaded, setDataLoaded] = useState(false)
   const [factorExposures, setFactorExposures] = useState<FactorExposure[] | null>(null)
+  const [equityBalance, setEquityBalance] = useState<number>(0)
 
   useEffect(() => {
     const abortController = new AbortController()
@@ -93,6 +95,7 @@ export function usePortfolioData(): UsePortfolioDataReturn {
         setOptionsPositions(optionsPos)
         setPrivatePositions(privatePos)
         setFactorExposures(data.factorExposures || null)
+        setEquityBalance(data.equityBalance || 0)
 
         if (data.portfolioInfo?.name) {
           setPortfolioName(data.portfolioInfo.name)
@@ -150,6 +153,7 @@ export function usePortfolioData(): UsePortfolioDataReturn {
     dataLoaded,
     factorExposures,
     portfolioId,
+    equityBalance,
     handleRetry
   }
 }
