@@ -49,7 +49,8 @@ export class ChatService {
 
     this.client = new OpenAI({
       apiKey: apiKey,
-      dangerouslyAllowBrowser: true  // OK for development, can proxy later
+      baseURL: `${window.location.origin}/api/openai-proxy`,  // Use absolute URL for proxy
+      dangerouslyAllowBrowser: true
     });
 
     return this.client;
