@@ -17,9 +17,10 @@ from sqlalchemy.orm import selectinload
 
 from app.models import (
     Portfolio, Position, MarketDataCache,
-    CorrelationCalculation, CorrelationCluster, 
+    CorrelationCalculation, CorrelationCluster,
     CorrelationClusterPosition, PairwiseCorrelation
 )
+from app.models.snapshots import PortfolioSnapshot
 from app.models.tags_v2 import TagV2
 from app.models import PositionTag
 from app.schemas.correlations import (
@@ -33,11 +34,62 @@ logger = logging.getLogger(__name__)
 
 class CorrelationService:
     """Service for calculating position-to-position correlations"""
-    
+
     def __init__(self, db: AsyncSession):
         self.db = db
         self.market_data_service = MarketDataService()
-    
+
+    async def _get_portfolio_value_from_snapshot(
+        self,
+        portfolio_id: UUID,
+        calculation_date: datetime,
+        max_staleness_days: int = 3
+    ) -> Optional[float]:
+        """
+        Get portfolio gross exposure (total value) from snapshot.
+
+        Priority:
+        1. Use latest snapshot if recent (within max_staleness_days)
+        2. Return None if no suitable snapshot found
+
+        Returns:
+            Portfolio gross exposure (total value) or None if unavailable
+        """
+        # Try to get latest snapshot
+        snapshot_stmt = (
+            select(PortfolioSnapshot)
+            .where(
+                and_(
+                    PortfolioSnapshot.portfolio_id == portfolio_id,
+                    PortfolioSnapshot.snapshot_date <= calculation_date.date()
+                )
+            )
+            .order_by(PortfolioSnapshot.snapshot_date.desc())
+            .limit(1)
+        )
+
+        snapshot_result = await self.db.execute(snapshot_stmt)
+        latest_snapshot = snapshot_result.scalar_one_or_none()
+
+        # Check if snapshot is recent enough
+        if latest_snapshot:
+            staleness = (calculation_date.date() - latest_snapshot.snapshot_date).days
+            if staleness <= max_staleness_days:
+                logger.info(
+                    f"Using snapshot gross_exposure from {latest_snapshot.snapshot_date} "
+                    f"({staleness} days old): ${float(latest_snapshot.gross_exposure):,.0f}"
+                )
+                return float(latest_snapshot.gross_exposure)
+            else:
+                logger.warning(
+                    f"Latest snapshot is too stale ({staleness} days old), "
+                    f"falling back to real-time calculation"
+                )
+        else:
+            logger.warning("No snapshot found, falling back to real-time calculation")
+
+        return None
+
     async def calculate_portfolio_correlations(
         self,
         portfolio_id: UUID,
@@ -66,11 +118,21 @@ class CorrelationService:
             portfolio = await self._get_portfolio_with_positions(portfolio_id)
             if not portfolio:
                 raise ValueError(f"Portfolio {portfolio_id} not found")
-            
-            # Calculate portfolio total value
-            portfolio_value = sum(
-                abs(p.quantity * p.last_price) for p in portfolio.positions
+
+            # Get portfolio total value from snapshot (preferred) or calculate
+            portfolio_value = await self._get_portfolio_value_from_snapshot(
+                portfolio_id, calculation_date
             )
+
+            if portfolio_value is None:
+                # Fallback: Calculate from positions if snapshot unavailable
+                logger.warning(
+                    "Calculating portfolio value from positions (snapshot unavailable). "
+                    "This duplicates work already done by portfolio aggregation."
+                )
+                portfolio_value = sum(
+                    abs(p.quantity * p.last_price) for p in portfolio.positions
+                )
 
             # Filter PRIVATE investment class positions (Phase 8.1 Task 2)
             public_positions = [
