@@ -20,6 +20,7 @@ from app.models import (
     CorrelationCalculation, CorrelationCluster,
     CorrelationClusterPosition, PairwiseCorrelation
 )
+from sqlalchemy import delete
 from app.models.snapshots import PortfolioSnapshot
 from app.models.tags_v2 import TagV2
 from app.models import PositionTag
@@ -90,6 +91,87 @@ class CorrelationService:
 
         return None
 
+    async def _cleanup_old_calculations(
+        self,
+        portfolio_id: UUID,
+        keep_most_recent: int = 5
+    ) -> int:
+        """
+        Clean up old correlation calculations to prevent stale data accumulation.
+
+        Deletes calculations in proper order respecting foreign key constraints:
+        1. correlation_cluster_positions
+        2. correlation_clusters
+        3. pairwise_correlations
+        4. correlation_calculations
+
+        Args:
+            portfolio_id: Portfolio to clean up
+            keep_most_recent: Number of most recent calculations to keep (default: 5)
+
+        Returns:
+            Number of calculations deleted
+        """
+        # Find calculations to delete (all except the N most recent)
+        stmt = (
+            select(CorrelationCalculation.id)
+            .where(CorrelationCalculation.portfolio_id == portfolio_id)
+            .order_by(CorrelationCalculation.calculation_date.desc())
+            .offset(keep_most_recent)  # Skip the N most recent
+        )
+
+        result = await self.db.execute(stmt)
+        old_calculation_ids = [row[0] for row in result.all()]
+
+        if not old_calculation_ids:
+            return 0
+
+        logger.info(
+            f"Cleaning up {len(old_calculation_ids)} old correlation calculations "
+            f"for portfolio {portfolio_id} (keeping {keep_most_recent} most recent)"
+        )
+
+        deleted_count = 0
+        for calc_id in old_calculation_ids:
+            # Get clusters for this calculation
+            cluster_stmt = select(CorrelationCluster).where(
+                CorrelationCluster.correlation_calculation_id == calc_id
+            )
+            cluster_result = await self.db.execute(cluster_stmt)
+            clusters = cluster_result.scalars().all()
+
+            # Delete cluster positions first (innermost foreign key)
+            for cluster in clusters:
+                delete_positions_stmt = delete(CorrelationClusterPosition).where(
+                    CorrelationClusterPosition.cluster_id == cluster.id
+                )
+                await self.db.execute(delete_positions_stmt)
+
+            # Delete clusters
+            delete_clusters_stmt = delete(CorrelationCluster).where(
+                CorrelationCluster.correlation_calculation_id == calc_id
+            )
+            await self.db.execute(delete_clusters_stmt)
+
+            # Delete pairwise correlations
+            delete_pairs_stmt = delete(PairwiseCorrelation).where(
+                PairwiseCorrelation.correlation_calculation_id == calc_id
+            )
+            await self.db.execute(delete_pairs_stmt)
+
+            # Delete calculation
+            delete_calc_stmt = delete(CorrelationCalculation).where(
+                CorrelationCalculation.id == calc_id
+            )
+            await self.db.execute(delete_calc_stmt)
+
+            deleted_count += 1
+
+        await self.db.flush()
+        logger.info(f"✅ Cleaned up {deleted_count} old correlation calculations")
+
+        return deleted_count
+
     async def calculate_portfolio_correlations(
         self,
         portfolio_id: UUID,
@@ -105,6 +187,10 @@ class CorrelationService:
         Main orchestrator for portfolio correlation calculations
         """
         try:
+            # Clean up old calculations to prevent stale data accumulation
+            # This ensures we don't accumulate unlimited historical calculations
+            await self._cleanup_old_calculations(portfolio_id, keep_most_recent=5)
+
             # Check for existing calculation (unless forced)
             if not force_recalculate:
                 existing = await self._get_existing_calculation(
