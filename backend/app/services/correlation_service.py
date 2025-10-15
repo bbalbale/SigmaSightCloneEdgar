@@ -44,7 +44,7 @@ class CorrelationService:
         portfolio_id: UUID,
         calculation_date: datetime,
         max_staleness_days: int = 3
-    ) -> Optional[float]:
+    ) -> Optional[Decimal]:
         """
         Get portfolio gross exposure (total value) from snapshot.
 
@@ -53,7 +53,7 @@ class CorrelationService:
         2. Return None if no suitable snapshot found
 
         Returns:
-            Portfolio gross exposure (total value) or None if unavailable
+            Portfolio gross exposure (total value) as Decimal or None if unavailable
         """
         # Try to get latest snapshot
         snapshot_stmt = (
@@ -79,7 +79,7 @@ class CorrelationService:
                     f"Using snapshot gross_exposure from {latest_snapshot.snapshot_date} "
                     f"({staleness} days old): ${float(latest_snapshot.gross_exposure):,.0f}"
                 )
-                return float(latest_snapshot.gross_exposure)
+                return Decimal(str(latest_snapshot.gross_exposure))
             else:
                 logger.warning(
                     f"Latest snapshot is too stale ({staleness} days old), "
@@ -715,7 +715,33 @@ class CorrelationService:
                 prices = [float(row.close) for row in price_rows]
 
                 price_series = pd.Series(prices, index=pd.DatetimeIndex(dates))
-                price_data[position.symbol] = price_series
+
+                # SANITIZATION 1: Remove duplicate dates (keep last value)
+                duplicates_count = price_series.index.duplicated().sum()
+                if duplicates_count > 0:
+                    logger.warning(
+                        f"Position {position.symbol}: {duplicates_count} duplicate dates found. "
+                        f"Keeping last value for each date."
+                    )
+                    price_series = price_series[~price_series.index.duplicated(keep='last')]
+
+                # SANITIZATION 2: Filter out zero or negative prices (prevents infinite log returns)
+                invalid_prices = (price_series <= 0).sum()
+                if invalid_prices > 0:
+                    logger.warning(
+                        f"Position {position.symbol}: {invalid_prices} non-positive prices found. "
+                        f"Removing these data points before return calculation."
+                    )
+                    price_series = price_series[price_series > 0]
+
+                # Check if we still have enough data after sanitization
+                if len(price_series) >= 2:
+                    price_data[position.symbol] = price_series
+                else:
+                    logger.warning(
+                        f"Position {position.symbol}: Insufficient valid data after sanitization "
+                        f"({len(price_series)} points remaining, need 2+). Excluding from analysis."
+                    )
 
         if not price_data:
             return pd.DataFrame()
@@ -799,16 +825,18 @@ class CorrelationService:
             for symbol2 in correlation_matrix.columns:
                 # Store all pairs including self-correlations
                 correlation_value = correlation_matrix.loc[symbol1, symbol2]
-                
-                # Count valid data points
-                data_points = returns_df[[symbol1, symbol2]].dropna().shape[0]
-                
+
+                # Get paired observations (both symbols must have data)
+                # CRITICAL: Use same observations for both data_points count and stats.pearsonr()
+                paired_data = returns_df[[symbol1, symbol2]].dropna()
+                data_points = len(paired_data)
+
                 # Calculate statistical significance (p-value)
                 if symbol1 != symbol2 and data_points >= 3:
-                    # Use scipy stats for p-value calculation
+                    # Use scipy stats for p-value calculation on SAME paired observations
                     _, p_value = stats.pearsonr(
-                        returns_df[symbol1].dropna(),
-                        returns_df[symbol2].dropna()
+                        paired_data[symbol1],  # ← Same observations as data_points
+                        paired_data[symbol2]   # ← Same observations as data_points
                     )
                     statistical_significance = Decimal(str(1 - p_value))
 
