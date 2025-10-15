@@ -36,6 +36,9 @@ from app.calculations.factor_utils import (
     # Phase 3: Portfolio context
     PortfolioContext,
     load_portfolio_context,
+    # Phase 4: Market value utilities
+    get_position_market_value,
+    get_position_signed_exposure,
 )
 from app.constants.factors import (
     FACTOR_ETFS, REGRESSION_WINDOW_DAYS, MIN_REGRESSION_DAYS,
@@ -617,7 +620,7 @@ async def calculate_factor_betas_hybrid(
 
             position_dicts = []
             for pos in context.active_positions:
-                market_value = float(pos.market_value) if pos.market_value else 0
+                market_value = float(get_position_market_value(pos, use_stored=True))
                 position_dicts.append({
                     'symbol': pos.symbol,
                     'quantity': float(pos.quantity),
@@ -762,9 +765,8 @@ async def _aggregate_portfolio_betas(
     total_market_value = Decimal('0')
 
     for position in positions:
-        # Calculate position market value
-        multiplier = OPTIONS_MULTIPLIER if _is_options_position(position) else 1
-        market_value = abs(position.quantity * (position.last_price or position.entry_price) * multiplier)
+        # Calculate position market value using centralized utility
+        market_value = get_position_market_value(position, recalculate=True)
         total_market_value += market_value
 
         # Weight = market value / portfolio equity
@@ -990,19 +992,12 @@ async def aggregate_portfolio_factor_exposures(
 
         # Phase 3: positions already loaded from context or database above
 
-        # Build position exposure map with correct signs
-        from app.models.positions import PositionType
+        # Build position exposure map with correct signs using centralized utility
         position_exposures = {}
         for position in positions:
             pos_id_str = str(position.id)
-            market_val = float(position.market_value) if position.market_value else 0
-
-            # Apply sign based on position type
-            if position.position_type in [PositionType.SHORT, PositionType.SC, PositionType.SP]:
-                signed_exposure = -abs(market_val)
-            else:
-                signed_exposure = abs(market_val)
-
+            # Use centralized signed exposure calculation
+            signed_exposure = float(get_position_signed_exposure(position))
             position_exposures[pos_id_str] = signed_exposure
 
         # Phase 3: portfolio_equity already loaded from context or database above

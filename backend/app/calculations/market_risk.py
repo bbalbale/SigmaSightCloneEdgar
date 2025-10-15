@@ -17,6 +17,7 @@ from app.models.positions import Position
 from app.models.market_data import MarketRiskScenario, PositionInterestRateBeta, FactorDefinition
 from app.models.users import Portfolio
 from app.calculations.factors import fetch_factor_returns, _aggregate_portfolio_betas
+from app.calculations.factor_utils import get_position_market_value
 from app.constants.factors import (
     FACTOR_ETFS, REGRESSION_WINDOW_DAYS, MIN_REGRESSION_DAYS,
     BETA_CAP_LIMIT, OPTIONS_MULTIPLIER
@@ -99,11 +100,10 @@ async def calculate_portfolio_market_beta(
         # Calculate market beta (SPY factor represents broad market exposure)
         market_beta = portfolio_betas.get('Market', 0.0)  # 'Market' from SPY factor
         
-        # Calculate portfolio value for exposure calculations
+        # Calculate portfolio value for exposure calculations using centralized utility
         portfolio_value = Decimal('0')
         for position in positions:
-            multiplier = OPTIONS_MULTIPLIER if _is_options_position(position) else 1
-            value = abs(position.quantity * (position.last_price or position.entry_price) * multiplier)
+            value = get_position_market_value(position, recalculate=True)
             portfolio_value += value
         
         results = {
@@ -404,10 +404,9 @@ async def calculate_interest_rate_scenarios(
         for position in positions:
             position_id = str(position.id)
             if position_id in position_ir_betas:
-                multiplier = OPTIONS_MULTIPLIER if _is_options_position(position) else 1
-                value = abs(position.quantity * (position.last_price or position.entry_price) * multiplier)
+                value = get_position_market_value(position, recalculate=True)
                 total_value += value
-                
+
                 ir_beta = position_ir_betas[position_id]['ir_beta']
                 weighted_ir_beta += ir_beta * float(value)
         
