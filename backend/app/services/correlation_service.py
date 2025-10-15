@@ -620,11 +620,17 @@ class CorrelationService:
         end_date: datetime
     ) -> pd.DataFrame:
         """
-        Get daily log returns for positions
+        Get daily log returns for positions, aligned to common trading dates
+
+        IMPORTANT: Returns are calculated AFTER date alignment to ensure all returns
+        are single-day returns over the same time periods. This prevents misaligned
+        correlation calculations (e.g., correlating 2-day returns with 1-day returns).
+
         Returns DataFrame with dates as index and symbols as columns
         """
-        returns_data = {}
-        
+        price_data = {}
+
+        # Step 1: Collect all price series (no return calculation yet)
         for position in positions:
             # Get price data from market data cache
             query = select(
@@ -637,43 +643,63 @@ class CorrelationService:
                     MarketDataCache.date <= end_date
                 )
             ).order_by(MarketDataCache.date)
-            
+
             result = await self.db.execute(query)
-            price_data = result.all()
-            
-            if len(price_data) >= 2:  # Need at least 2 points for returns
+            price_rows = result.all()
+
+            if len(price_rows) >= 2:  # Need at least 2 points for returns
                 # Convert to pandas Series
-                dates = [row.date for row in price_data]
-                prices = [float(row.close) for row in price_data]
-                
+                dates = [row.date for row in price_rows]
+                prices = [float(row.close) for row in price_rows]
+
                 price_series = pd.Series(prices, index=pd.DatetimeIndex(dates))
+                price_data[position.symbol] = price_series
 
-                # Calculate log returns: ln(price_t / price_t-1)
-                # Use errstate to suppress warnings for zero/negative prices
-                with np.errstate(divide='ignore', invalid='ignore'):
-                    log_returns = np.log(price_series / price_series.shift(1))
-
-                # Handle infinite values from zero/negative prices
-                inf_count = np.isinf(log_returns).sum()
-                if inf_count > 0:
-                    logger.warning(
-                        f"Position {position.symbol}: {inf_count} infinite log returns "
-                        f"(likely from zero/negative prices). Replacing with NaN."
-                    )
-                    log_returns = log_returns.replace([np.inf, -np.inf], np.nan)
-
-                # Drop NaN values
-                log_returns = log_returns.dropna()
-
-                returns_data[position.symbol] = log_returns
-        
-        # Create DataFrame from returns data
-        if returns_data:
-            # Align all series to common dates
-            returns_df = pd.DataFrame(returns_data)
-            return returns_df
-        else:
+        if not price_data:
             return pd.DataFrame()
+
+        # Step 2: Create price DataFrame with all positions
+        price_df = pd.DataFrame(price_data)
+
+        # Step 3: Drop dates where ANY position is missing (ensure alignment)
+        # This ensures all returns are calculated over the same dates
+        price_df_aligned = price_df.dropna()
+
+        if price_df_aligned.empty:
+            logger.warning("No overlapping dates found across all positions")
+            return pd.DataFrame()
+
+        logger.info(
+            f"Aligned {len(price_df_aligned)} common trading dates "
+            f"across {len(price_df_aligned.columns)} positions "
+            f"(original: {len(price_df)} dates before alignment)"
+        )
+
+        # Step 4: Calculate log returns on aligned price DataFrame
+        # Now .shift(1) operates on the same date sequence for all positions
+        with np.errstate(divide='ignore', invalid='ignore'):
+            returns_df = np.log(price_df_aligned / price_df_aligned.shift(1))
+
+        # Handle infinite values from zero/negative prices
+        inf_mask = np.isinf(returns_df)
+        if inf_mask.any().any():
+            inf_counts = inf_mask.sum()
+            for symbol in inf_counts[inf_counts > 0].index:
+                logger.warning(
+                    f"Position {symbol}: {inf_counts[symbol]} infinite log returns "
+                    f"(likely from zero/negative prices). Replacing with NaN."
+                )
+            returns_df = returns_df.replace([np.inf, -np.inf], np.nan)
+
+        # Drop NaN values (first row after shift, and any infinite values)
+        returns_df = returns_df.dropna()
+
+        logger.info(
+            f"Calculated {len(returns_df)} days of aligned returns "
+            f"for {len(returns_df.columns)} positions"
+        )
+
+        return returns_df
     
     def _validate_data_sufficiency(
         self, 
@@ -791,7 +817,7 @@ class CorrelationService:
                 # Calculate correlation to cluster (average correlation with other cluster members)
                 correlation_values: List[Decimal] = []
                 for other_symbol in cluster_data["symbols"]:
-                     if other_symbol == position.symbol:
+                    if other_symbol == position.symbol:
                         continue
 
                     if (

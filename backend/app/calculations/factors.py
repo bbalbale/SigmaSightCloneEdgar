@@ -55,27 +55,31 @@ async def fetch_factor_returns(
     end_date: date
 ) -> pd.DataFrame:
     """
-    Fetch factor returns calculated from ETF price changes
-    
+    Fetch factor returns calculated from ETF price changes, aligned to common trading dates
+
+    IMPORTANT: Returns are calculated AFTER date alignment to ensure all returns
+    are single-day returns over the same time periods. This prevents misaligned
+    factor beta calculations.
+
     Args:
         db: Database session
         symbols: List of factor ETF symbols (SPY, VTV, VUG, etc.)
         start_date: Start date for factor returns
         end_date: End date for factor returns
-        
+
     Returns:
         DataFrame with dates as index and factor names as columns, containing daily returns
-        
+
     Note:
         Returns are calculated as: (price_today - price_yesterday) / price_yesterday
-        Missing data is handled by forward-filling and then dropping NaN rows
+        Date alignment ensures all ETFs have data before calculating returns
     """
     logger.info(f"Fetching factor returns for {len(symbols)} factors from {start_date} to {end_date}")
-    
+
     if not symbols:
         logger.warning("Empty symbols list provided to fetch_factor_returns")
         return pd.DataFrame()
-    
+
     # Fetch historical prices using existing function
     price_df = await fetch_historical_prices(
         db=db,
@@ -83,37 +87,52 @@ async def fetch_factor_returns(
         start_date=start_date,
         end_date=end_date
     )
-    
+
     if price_df.empty:
         logger.warning("No price data available for factor return calculations")
         return pd.DataFrame()
-    
-    # Calculate daily returns for each ETF
+
+    # Drop dates where ANY factor ETF is missing (ensure alignment)
+    # This ensures all returns are calculated over the same dates
+    price_df_aligned = price_df.dropna()
+
+    if price_df_aligned.empty:
+        logger.warning("No overlapping dates found across all factor ETFs")
+        return pd.DataFrame()
+
+    logger.info(
+        f"Aligned {len(price_df_aligned)} common trading dates "
+        f"across {len(price_df_aligned.columns)} factor ETFs "
+        f"(original: {len(price_df)} dates before alignment)"
+    )
+
+    # Calculate daily returns on aligned price DataFrame
     # Using fill_method=None to avoid FutureWarning (Pandas 2.1+)
-    returns_df = price_df.pct_change(fill_method=None).dropna()
-    
+    # Now .pct_change() operates on the same date sequence for all ETFs
+    returns_df = price_df_aligned.pct_change(fill_method=None).dropna()
+
     # Map ETF symbols to factor names for cleaner output
     symbol_to_factor = {v: k for k, v in FACTOR_ETFS.items()}
     factor_columns = {}
-    
+
     for symbol in returns_df.columns:
         if symbol in symbol_to_factor:
             factor_name = symbol_to_factor[symbol]
             factor_columns[symbol] = factor_name
         else:
             factor_columns[symbol] = symbol
-    
+
     # Rename columns to factor names
     returns_df = returns_df.rename(columns=factor_columns)
-    
+
     # Log data quality
     total_days = len(returns_df)
     missing_data = returns_df.isnull().sum()
-    
-    logger.info(f"Factor returns calculated: {total_days} days of data")
+
+    logger.info(f"Factor returns calculated: {total_days} days of aligned data")
     if missing_data.any():
         logger.warning(f"Missing data in factor returns: {missing_data[missing_data > 0].to_dict()}")
-    
+
     return returns_df
 
 
@@ -197,11 +216,11 @@ async def calculate_position_returns(
     if not positions:
         logger.warning(f"No active non-PRIVATE positions found for portfolio {portfolio_id}")
         return pd.DataFrame()
-    
+
     # Get unique symbols for price fetching
     symbols = list(set(position.symbol for position in positions))
     logger.info(f"Found {len(positions)} positions with {len(symbols)} unique symbols")
-    
+
     # Fetch historical prices for all symbols
     price_df = await fetch_historical_prices(
         db=db,
@@ -209,51 +228,66 @@ async def calculate_position_returns(
         start_date=start_date,
         end_date=end_date
     )
-    
+
     if price_df.empty:
         logger.warning("No price data available for position return calculations")
         return pd.DataFrame()
-    
-    # Calculate returns for each position
+
+    # Drop dates where ANY symbol is missing (ensure alignment)
+    # This ensures all returns are calculated over the same dates
+    price_df_aligned = price_df.dropna()
+
+    if price_df_aligned.empty:
+        logger.warning("No overlapping dates found across all position symbols")
+        return pd.DataFrame()
+
+    logger.info(
+        f"Aligned {len(price_df_aligned)} common trading dates "
+        f"across {len(price_df_aligned.columns)} unique symbols "
+        f"(original: {len(price_df)} dates before alignment)"
+    )
+
+    # Calculate returns on aligned price DataFrame
+    # Using fill_method=None to avoid FutureWarning (Pandas 2.1+)
+    # Now .pct_change() operates on the same date sequence for all symbols
+    # Note: Any constant scaling (quantity, 100× multiplier) cancels in pct_change().
+    # Options delta adjustments are not applied here; handled in future redesign steps.
+    symbol_returns_df = price_df_aligned.pct_change(fill_method=None).dropna()
+
+    if symbol_returns_df.empty:
+        logger.warning("No returns calculated after alignment")
+        return pd.DataFrame()
+
+    # Map positions to their symbol returns
     position_returns = {}
-    
+
     for position in positions:
         try:
             symbol = position.symbol.upper()
-            
-            if symbol not in price_df.columns:
-                logger.warning(f"No price data for position {position.id} ({symbol})")
+
+            if symbol not in symbol_returns_df.columns:
+                logger.warning(f"No aligned return data for position {position.id} ({symbol})")
                 continue
-            
-            # Get price series for this symbol
-            prices = price_df[symbol].dropna()
-            
-            if len(prices) < 2:
-                logger.warning(f"Insufficient price data for position {position.id} ({symbol})")
-                continue
-            
-            # Compute daily returns from prices directly for clarity.
-            # Note: Any constant scaling (quantity, 100× multiplier) cancels in pct_change().
-            # Options delta adjustments are not applied here; handled in future redesign steps.
-            # Using fill_method=None to avoid FutureWarning (Pandas 2.1+)
-            returns = prices.pct_change(fill_method=None).dropna()
-            
+
+            # Get returns for this symbol from the aligned returns DataFrame
+            returns = symbol_returns_df[symbol]
+
             if not returns.empty:
                 position_returns[str(position.id)] = returns
-                logger.debug(f"Calculated returns for position {position.id}: {len(returns)} days")
-            
+                logger.debug(f"Mapped returns for position {position.id} ({symbol}): {len(returns)} days")
+
         except Exception as e:
-            logger.error(f"Error calculating returns for position {position.id}: {str(e)}")
+            logger.error(f"Error mapping returns for position {position.id}: {str(e)}")
             continue
-    
+
     if not position_returns:
-        logger.warning("No position returns calculated")
+        logger.warning("No position returns mapped")
         return pd.DataFrame()
-    
+
     # Combine all position returns into a DataFrame
+    # All returns are already aligned, so this creates a clean DataFrame
     returns_df = pd.DataFrame(position_returns)
-    
-    # Do not zero-fill; NaNs will be handled during regression alignment and dropna
+
     logger.info(f"Position returns calculated: {len(returns_df)} days, {len(returns_df.columns)} positions")
     return returns_df
 
@@ -422,7 +456,7 @@ async def calculate_factor_betas_hybrid(
                            'std_err': 0.0,
                            'observations': len(model_input)
                         }
-                      continue
+                    continue
 
                 y = model_input.iloc[:, 0].values
                 X = model_input.iloc[:, 1:]
