@@ -131,7 +131,8 @@ class CorrelationService:
                     "This duplicates work already done by portfolio aggregation."
                 )
                 portfolio_value = sum(
-                    abs(p.quantity * p.last_price) for p in portfolio.positions
+                    abs(p.quantity * (p.last_price if p.last_price is not None else p.entry_price or 0))
+                    for p in portfolio.positions
                 )
 
             # Filter PRIVATE investment class positions (Phase 8.1 Task 2)
@@ -300,10 +301,18 @@ class CorrelationService:
         - 'either': Positions must meet at least ONE threshold
         """
         filtered = []
-        
+
         for position in positions:
-            # Calculate position metrics
-            position_value = abs(position.quantity * position.last_price)
+            # Calculate position metrics (with fallback to entry_price if last_price is None)
+            price = position.last_price if position.last_price is not None else position.entry_price
+            if price is None:
+                logger.warning(
+                    f"Position {position.symbol} has no price data (last_price and entry_price both None). "
+                    f"Excluding from correlation analysis."
+                )
+                continue
+
+            position_value = abs(position.quantity * price)
             position_weight = position_value / portfolio_value if portfolio_value > 0 else 0
             
             # Apply filters based on mode
@@ -566,10 +575,10 @@ class CorrelationService:
         
         # 3. Use largest position + "lookalikes"
         if cluster_positions:
-            # Find largest position by value
+            # Find largest position by value (with fallback to entry_price)
             largest_position = max(
                 cluster_positions,
-                key=lambda p: abs(p.quantity * p.last_price)
+                key=lambda p: abs(p.quantity * (p.last_price if p.last_price is not None else p.entry_price or 0))
             )
             return f"{largest_position.symbol} lookalikes"
         
@@ -606,9 +615,14 @@ class CorrelationService:
         total_value = Decimal("0")
         
         for position in positions:
-            position_value = abs(position.quantity * position.last_price)
+            # Calculate position value with fallback to entry_price
+            price = position.last_price if position.last_price is not None else position.entry_price
+            if price is None:
+                continue  # Skip positions with no price data
+
+            position_value = abs(position.quantity * price)
             total_value += position_value
-            
+
             if position.symbol in clustered_symbols:
                 clustered_value += position_value
         
@@ -884,7 +898,12 @@ class CorrelationService:
             for symbol in cluster_data["symbols"]:
                 if symbol in symbol_to_position:
                     position = symbol_to_position[symbol]
-                    position_value = abs(position.quantity * position.last_price)
+                    # Calculate position value with fallback to entry_price
+                    price = position.last_price if position.last_price is not None else position.entry_price
+                    if price is None:
+                        continue  # Skip positions with no price data
+
+                    position_value = abs(position.quantity * price)
                     cluster_value += position_value
                     cluster_positions.append((position, position_value))
             
