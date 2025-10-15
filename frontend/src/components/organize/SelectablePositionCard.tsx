@@ -1,7 +1,14 @@
 import React from 'react'
 import { useTheme } from '@/contexts/ThemeContext'
-import { TagItem } from '@/services/tagsApi'
 import { TagBadge } from './TagBadge'
+
+// Simple tag interface for display - matches Position tags from API
+interface TagDisplay {
+  id: string
+  name: string
+  color: string
+  description?: string
+}
 
 interface SelectablePositionCardProps {
   children: React.ReactNode
@@ -9,7 +16,7 @@ interface SelectablePositionCardProps {
   symbol: string
   isSelected: boolean
   onToggleSelection: () => void
-  tags?: TagItem[]
+  tags?: TagDisplay[]
   onDropTag?: (tagId: string) => void
   onDropPosition?: (droppedPositionId: string, targetPositionId: string) => void
 }

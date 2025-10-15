@@ -1,41 +1,30 @@
 'use client'
 
 import { Position } from '@/hooks/usePositions'
-import { StrategyListItem } from '@/services/strategiesApi'
-import { SelectablePositionCard } from './SelectablePositionCard'
 import { OrganizePositionCard } from '@/components/positions/OrganizePositionCard'
-import { StrategyCard } from './StrategyCard'
+import { SelectablePositionCard } from './SelectablePositionCard'
 import { useTheme } from '@/contexts/ThemeContext'
 
 interface ShortPositionsListProps {
   positions: Position[]
-  strategies: StrategyListItem[]
   selectedIds: string[]
   isSelected: (id: string) => boolean
   onToggleSelection: (id: string) => void
   onDropTag?: (targetId: string, tagId: string) => void
-  onDropPosition?: (droppedPositionId: string, targetPositionId: string) => void
-  onEditStrategy?: (strategy: StrategyListItem) => void
-  onDeleteStrategy?: (strategyId: string) => void
 }
 
 export function ShortPositionsList({
   positions,
-  strategies,
   selectedIds,
   isSelected,
   onToggleSelection,
-  onDropTag,
-  onDropPosition,
-  onEditStrategy,
-  onDeleteStrategy
+  onDropTag
 }: ShortPositionsListProps) {
   const { theme } = useTheme()
 
-  // Filter for short strategies (by direction field), excluding private positions
-  // Note: All positions should be in strategies (either standalone or combined)
-  const shortStrategies = strategies.filter(s =>
-    s.direction === 'SHORT' && s.primary_investment_class !== 'PRIVATE'
+  // Filter for short positions, excluding private
+  const shortPositions = positions.filter(p =>
+    p.position_type === 'SHORT' && p.investment_class !== 'PRIVATE'
   )
 
   return (
@@ -45,7 +34,7 @@ export function ShortPositionsList({
       }`}>
         Short Stocks
       </h3>
-      {shortStrategies.length === 0 ? (
+      {shortPositions.length === 0 ? (
         <div className={`text-sm p-3 rounded-lg border transition-colors duration-300 ${
           theme === 'dark'
             ? 'text-empty-text-dark bg-empty-bg-dark border-empty-border-dark'
@@ -55,16 +44,18 @@ export function ShortPositionsList({
         </div>
       ) : (
         <div className="space-y-2">
-          {/* Render all strategies (both individual and combinations) */}
-          {shortStrategies.map(strategy => (
-            <StrategyCard
-              key={strategy.id}
-              strategy={strategy}
-              onEdit={onEditStrategy || (() => {})}
-              onDelete={onDeleteStrategy || (() => {})}
-              onDrop={onDropTag}
-              onDropStrategy={onDropPosition}
-            />
+          {shortPositions.map(position => (
+            <SelectablePositionCard
+              key={position.id}
+              positionId={position.id}
+              symbol={position.symbol}
+              isSelected={isSelected(position.id)}
+              onToggleSelection={() => onToggleSelection(position.id)}
+              tags={position.tags}
+              onDropTag={onDropTag ? (tagId) => onDropTag(position.id, tagId) : undefined}
+            >
+              <OrganizePositionCard position={position} />
+            </SelectablePositionCard>
           ))}
         </div>
       )}

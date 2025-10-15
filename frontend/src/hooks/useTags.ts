@@ -1,7 +1,8 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import tagsApi, { TagItem } from '@/services/tagsApi'
+import tagsApi from '@/services/tagsApi'
+import type { TagItem } from '@/types/strategies'
 
 interface UseTagsOptions {
   includeArchived?: boolean

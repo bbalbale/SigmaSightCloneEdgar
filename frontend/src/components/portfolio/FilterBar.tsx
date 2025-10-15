@@ -4,7 +4,7 @@ import React, { useState, useRef, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { useTheme } from '@/contexts/ThemeContext'
 import { TagBadge } from '@/components/organize/TagBadge'
-import type { TagItem } from '@/services/tagsApi'
+import type { TagItem } from '@/types/strategies'
 import type { FactorExposure } from '@/types/analytics'
 
 interface FilterBarProps {
@@ -203,13 +203,13 @@ export function FilterBar({
                     ) : (
                       factorExposures.map(factor => (
                         <button
-                          key={factor.factor_name}
+                          key={factor.name}
                           onClick={() => {
-                            onFactorFilterChange?.(factor.factor_name)
+                            onFactorFilterChange?.(factor.name)
                             setShowFactorMenu(false)
                           }}
                           className={`w-full text-left px-3 py-2 rounded text-sm transition-colors ${
-                            selectedFactorName === factor.factor_name
+                            selectedFactorName === factor.name
                               ? theme === 'dark'
                                 ? 'bg-slate-700 text-white'
                                 : 'bg-gray-100 text-gray-900'
@@ -218,7 +218,7 @@ export function FilterBar({
                                 : 'text-gray-700 hover:bg-gray-50'
                           }`}
                         >
-                          {factor.factor_name}
+                          {factor.name}
                         </button>
                       ))
                     )}

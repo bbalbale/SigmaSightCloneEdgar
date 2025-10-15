@@ -80,9 +80,45 @@ function PortfolioPageContent() {
         error={error}
       />
 
-      {factorExposures && (
+      {/* Factor Exposures Section */}
+      {factorExposures ? (
         <FactorExposureCards factors={factorExposures} />
-      )}
+      ) : apiErrors?.factorExposures ? (
+        <section className="px-4 pb-8">
+          <div className="container mx-auto">
+            <div className={`rounded-lg border p-6 text-center transition-colors duration-300 ${
+              theme === 'dark'
+                ? 'bg-slate-800 border-slate-700 text-slate-400'
+                : 'bg-white border-gray-200 text-gray-600'
+            }`}>
+              <p className="mb-2">Factor exposures temporarily unavailable</p>
+              <button
+                onClick={handleRetry}
+                className={`px-4 py-2 rounded-md text-sm transition-colors ${
+                  theme === 'dark'
+                    ? 'bg-blue-600 hover:bg-blue-700 text-white'
+                    : 'bg-blue-500 hover:bg-blue-600 text-white'
+                }`}
+              >
+                Retry
+              </button>
+            </div>
+          </div>
+        </section>
+      ) : loading ? (
+        <section className="px-4 pb-8">
+          <div className="container mx-auto">
+            <div className={`rounded-lg border p-6 text-center transition-colors duration-300 ${
+              theme === 'dark'
+                ? 'bg-slate-800 border-slate-700 text-slate-400'
+                : 'bg-white border-gray-200 text-gray-600'
+            }`}>
+              <p>Loading factor exposures...</p>
+              <p className="text-sm mt-2 opacity-70">(This may take up to 60 seconds)</p>
+            </div>
+          </div>
+        </section>
+      ) : null}
     </div>
   )
 }

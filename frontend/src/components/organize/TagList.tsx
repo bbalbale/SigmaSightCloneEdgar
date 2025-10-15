@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { TagItem } from '@/services/tagsApi'
+import type { TagItem } from '@/types/strategies'
 import { TagBadge } from './TagBadge'
 import { TagCreator } from './TagCreator'
 import { Card, CardContent } from '@/components/ui/card'
@@ -82,14 +82,6 @@ export function TagList({
                     }`}
                   >
                     <TagBadge tag={tag} draggable={true} />
-
-                    {tag.usage_count !== undefined && (
-                      <span className={`text-xs transition-colors duration-300 ${
-                        theme === 'dark' ? 'text-slate-400' : 'text-gray-500'
-                      }`}>
-                        ({tag.usage_count})
-                      </span>
-                    )}
 
                     <button
                       onClick={() => setTagToDelete(tag)}

@@ -1,0 +1,38 @@
+# SigmaSight Demo Walkthrough Plan
+
+## 1. Pre-demo Backend Preparation
+- Run migration, seeding, validation, and optional batch scripts so demo portfolios and analytics are ready before showing the UI. This keeps the FastAPI services populated and ensures market data, calculations, and targets are current.
+- Launch the backend (`uv run python run.py`) and the Next.js frontend (`npm run dev` or Docker) once the data is ready.
+
+## 2. Login & Onboarding
+- Start the tour on the login screen, highlighting the one-click demo identities that auto-fill credentials and route visitors into the experience with the shared demo password (`demo12345`).
+- Mention the “Create Test User” button if prospects want to see self-serve onboarding flows.
+
+## 3. Navigation Overview
+- After signing in, open the navigation dropdown to show every major workspace page—dashboard, holdings, public/private positions, organize, SigmaSight AI, AI chat, and settings—plus the contextual user/portfolio header and logout shortcut.
+- Emphasize that this menu travels with the user, making it easy to jump between analyses during the demo.
+
+## 4. Portfolio Dashboard
+- Walk through the dashboard page: portfolio header, exposure metrics, and factor cards all react to live data loaded through `usePortfolioData`, which coordinates backend overview, position, and factor-exposure endpoints.
+- Call out how the service layer resolves the viewer’s portfolio ID, fetches analytics endpoints, and merges responses (overview, position details, factor exposures) to populate the visuals.
+
+## 5. Public Positions Deep-Dive
+- Switch to the Public Positions page to show category filters (all/longs/shorts/options), aggregated return cards, and loading/error safeguards derived from the public positions hook and position research service.
+- Point out how the totals (EOY vs. next year) help compare analyst targets versus user targets in one glance.
+
+## 6. Private & Alternative Investments
+- Use the Private Positions view to demonstrate coverage of venture, private equity, and alternative holdings with consistent status handling for loading, errors, and aggregated return metrics.
+
+## 7. Organize & Tag Workflow
+- Open the Organize page to showcase drag-and-drop tagging: create tags, filter by tag, and drop them onto long/short public positions, options, or private investments. The container explains how tag creation, assignment, and refresh tie back to backend tag endpoints.
+- Highlight that filtered grids, counts, and drag-hover feedback help prospects imagine workflow adoption.
+
+## 8. AI Assistant Experience
+- Move into AI Chat to demonstrate authenticated, portfolio-aware conversations. Show the context banner (signed-in user, portfolio label), loading state, and the streaming chat pane that plugs into the backend’s OpenAI Responses pipeline.
+- Optionally note the SigmaSight AI page as space for upcoming curated content or guided insights.
+
+## 9. Close with Backend Credibility
+- Remind the audience that behind the scenes the backend delivers eight calculation engines, analytics endpoints, and scheduled scripts already exercised during setup, so every screen they saw is backed by real FastAPI services and reproducible batch workflows.
+
+## Summary
+- Compiled a step-by-step demo script that prepares backend data, then tours login, navigation, analytics dashboards, position pages, tagging workflows, and the AI assistant—tying each stop to the underlying components and services powering the experience.

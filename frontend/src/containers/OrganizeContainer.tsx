@@ -49,10 +49,10 @@ export function OrganizeContainer() {
   // Filter state
   const [selectedTagFilter, setSelectedTagFilter] = useState<string | null>(null)
 
-  // Auto-scroll helper function
+  // Auto-scroll helper function - improved for better UX
   const handleAutoScroll = React.useCallback((e: React.DragEvent) => {
-    const SCROLL_THRESHOLD = 100 // pixels from edge to trigger scroll
-    const SCROLL_SPEED = 10 // pixels per interval
+    const SCROLL_THRESHOLD = 150 // pixels from edge to trigger scroll (increased for easier triggering)
+    const SCROLL_SPEED = 15 // pixels per interval (increased for faster scrolling)
 
     const { clientY } = e
     const viewportHeight = window.innerHeight
@@ -63,18 +63,26 @@ export function OrganizeContainer() {
       setAutoScrollInterval(null)
     }
 
-    // Check if near top edge
-    if (clientY < SCROLL_THRESHOLD) {
+    // Calculate distance from edge for variable scroll speed
+    const distanceFromTop = clientY
+    const distanceFromBottom = viewportHeight - clientY
+
+    // Check if near top edge - scroll up
+    if (distanceFromTop < SCROLL_THRESHOLD && distanceFromTop > 0) {
+      // Variable speed based on proximity to edge
+      const speedMultiplier = 1 + (SCROLL_THRESHOLD - distanceFromTop) / SCROLL_THRESHOLD
       const interval = setInterval(() => {
-        window.scrollBy(0, -SCROLL_SPEED)
-      }, 20)
+        window.scrollBy(0, -SCROLL_SPEED * speedMultiplier)
+      }, 16) // ~60fps
       setAutoScrollInterval(interval)
     }
-    // Check if near bottom edge
-    else if (clientY > viewportHeight - SCROLL_THRESHOLD) {
+    // Check if near bottom edge - scroll down
+    else if (distanceFromBottom < SCROLL_THRESHOLD && distanceFromBottom > 0) {
+      // Variable speed based on proximity to edge
+      const speedMultiplier = 1 + (SCROLL_THRESHOLD - distanceFromBottom) / SCROLL_THRESHOLD
       const interval = setInterval(() => {
-        window.scrollBy(0, SCROLL_SPEED)
-      }, 20)
+        window.scrollBy(0, SCROLL_SPEED * speedMultiplier)
+      }, 16) // ~60fps
       setAutoScrollInterval(interval)
     }
   }, [autoScrollInterval])
@@ -198,8 +206,10 @@ export function OrganizeContainer() {
         </div>
       </section>
 
-      {/* Tag Management */}
-      <section className="px-4 pb-6">
+      {/* Tag Management - STICKY */}
+      <section className={`sticky top-0 z-40 px-4 pb-6 pt-4 transition-colors duration-300 ${
+        theme === 'dark' ? 'bg-slate-900 border-b border-slate-700' : 'bg-gray-50 border-b border-gray-200'
+      } shadow-sm`}>
         <div className="container mx-auto">
           <TagList
             tags={tags}
@@ -209,11 +219,13 @@ export function OrganizeContainer() {
         </div>
       </section>
 
-      {/* Filter by Tag (Optional) */}
+      {/* Filter by Tag (Optional) - STICKY BELOW TAGS */}
       {tags.length > 0 && (
-        <section className="px-4 pb-4">
+        <section className={`sticky z-30 px-4 pb-4 pt-2 transition-colors duration-300 ${
+          theme === 'dark' ? 'bg-slate-900 border-b border-slate-700' : 'bg-gray-50 border-b border-gray-200'
+        } shadow-sm`} style={{ top: '180px' }}>
           <div className="container mx-auto">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <span className={`text-sm font-medium transition-colors duration-300 ${
                 theme === 'dark' ? 'text-slate-300' : 'text-gray-700'
               }`}>

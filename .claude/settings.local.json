@@ -77,7 +77,11 @@
       "Bash(powershell:*)",
       "Bash(.venv\\Scripts\\alembic.exe upgrade head)",
       "Bash(.venvScriptspython.exe verify_strategy_tables.py)",
-      "Bash(git restore:*)"
+      "Bash(git restore:*)",
+      "Bash(mkdir:*)",
+      "Bash(npm run type-check:*)",
+      "Bash(del \"C:\\Users\\BenBalbale\\CascadeProjects\\SigmaSight\\frontend\\src\\components\\portfolio\\StrategyList.tsx\")",
+      "WebSearch"
     ],
     "additionalDirectories": [
       "C:\\c\\Users\\BenBalbale\\CascadeProjects\\SigmaSight-BE"

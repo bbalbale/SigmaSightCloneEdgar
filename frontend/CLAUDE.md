@@ -9,6 +9,9 @@ SigmaSight Frontend - A Next.js 14 multi-page portfolio analytics application wi
 
 > 🤖 **CRITICAL**: The backend uses **OpenAI Responses API**, NOT Chat Completions API.
 
+> 🤖 **CRITICAL**: Never commit changes unless explicity told to do so.
+
+
 **Current Status**: Phase 1 Complete (Core infrastructure) - Portfolio page working with real data, multi-page architecture implemented with navigation dropdown and global state management.
 
 ---

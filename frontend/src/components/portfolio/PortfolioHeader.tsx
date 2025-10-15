@@ -9,13 +9,15 @@ interface PortfolioHeaderProps {
   loading: boolean
   dataLoaded: boolean
   positionsCount: number
+  showAskSigmaSight?: boolean
 }
 
 export function PortfolioHeader({
   portfolioName,
   loading,
   dataLoaded,
-  positionsCount
+  positionsCount,
+  showAskSigmaSight = true
 }: PortfolioHeaderProps) {
   const router = useRouter()
   const { theme } = useTheme()
@@ -105,19 +107,21 @@ export function PortfolioHeader({
           </div>
         </div>
 
-        <div className="mt-6 flex items-center gap-4">
-          <h3 className={`text-lg font-semibold whitespace-nowrap transition-colors duration-300 ${
-            theme === "dark" ? "text-white" : "text-gray-900"
-          }`}
-          >
-            Ask SigmaSight
-          </h3>
-          <ChatInput
-            placeholder="What are my biggest risks? How correlated are my positions?"
-            className="flex-1"
-            onSubmit={handleSubmit}
-          />
-        </div>
+        {showAskSigmaSight && (
+          <div className="mt-6 flex items-center gap-4">
+            <h3 className={`text-lg font-semibold whitespace-nowrap transition-colors duration-300 ${
+              theme === "dark" ? "text-white" : "text-gray-900"
+            }`}
+            >
+              Ask SigmaSight
+            </h3>
+            <ChatInput
+              placeholder="What are my biggest risks? How correlated are my positions?"
+              className="flex-1"
+              onSubmit={handleSubmit}
+            />
+          </div>
+        )}
       </div>
     </section>
   )

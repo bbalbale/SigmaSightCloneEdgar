@@ -4,7 +4,7 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react'
 import { TagBadge } from '@/components/organize/TagBadge'
 import { Input } from '@/components/ui/input'
-import { formatCurrency, formatNumber } from '@/lib/formatters'
+import { formatCurrency } from '@/lib/formatters'
 import { useTheme } from '@/contexts/ThemeContext'
 import { usePortfolioStore } from '@/stores/portfolioStore'
 import targetPriceService from '@/services/targetPriceService'
@@ -13,9 +13,10 @@ import type { EnhancedPosition } from '@/services/positionResearchService'
 interface ResearchPositionCardProps {
   position: EnhancedPosition
   onClick?: () => void
+  onTargetPriceUpdate?: () => Promise<void>
 }
 
-export function ResearchPositionCard({ position, onClick }: ResearchPositionCardProps) {
+export function ResearchPositionCard({ position, onClick, onTargetPriceUpdate }: ResearchPositionCardProps) {
   const { theme } = useTheme()
   const { portfolioId } = usePortfolioStore()
   // Prepopulate EOY target with analyst target if no user target exists (treat 0 as no target)
@@ -99,12 +100,17 @@ export function ResearchPositionCard({ position, onClick }: ResearchPositionCard
         current_price: position.current_price,
         position_id: position.id,
       })
+
+      // Trigger refetch to update position data and aggregate returns
+      if (onTargetPriceUpdate) {
+        await onTargetPriceUpdate()
+      }
     } catch (error) {
       console.error('Failed to save target prices:', error)
     } finally {
       setIsSaving(false)
     }
-  }, [portfolioId, position, userTargetEOY, userTargetNextYear])
+  }, [portfolioId, position, userTargetEOY, userTargetNextYear, onTargetPriceUpdate])
 
   // Debounce save on blur (500ms delay)
   const debouncedSave = useCallback(() => {
@@ -197,7 +203,7 @@ export function ResearchPositionCard({ position, onClick }: ResearchPositionCard
                 <span className={`text-xs font-medium transition-colors duration-300 ${
                   theme === 'dark' ? 'text-slate-400' : 'text-gray-500'
                 }`}>
-                  {formatNumber(position.percent_of_equity, 2)}% of equity
+                  {position.percent_of_equity.toFixed(2)}% of equity
                 </span>
               )}
             </div>
@@ -225,7 +231,7 @@ export function ResearchPositionCard({ position, onClick }: ResearchPositionCard
                   ? expectedReturnEOY >= 0 ? 'text-emerald-500' : 'text-rose-500'
                   : theme === 'dark' ? 'text-slate-600' : 'text-gray-300'
               }`}>
-                {expectedReturnEOY !== null ? `${expectedReturnEOY >= 0 ? '+' : ''}${formatNumber(expectedReturnEOY, 1)}%` : '—'}
+                {expectedReturnEOY !== null ? `${expectedReturnEOY >= 0 ? '+' : ''}${expectedReturnEOY.toFixed(1)}%` : '—'}
               </div>
             </div>
             <div className="text-right">
@@ -239,7 +245,7 @@ export function ResearchPositionCard({ position, onClick }: ResearchPositionCard
                   ? expectedReturnNextYear >= 0 ? 'text-emerald-500' : 'text-rose-500'
                   : theme === 'dark' ? 'text-slate-600' : 'text-gray-300'
               }`}>
-                {expectedReturnNextYear !== null ? `${expectedReturnNextYear >= 0 ? '+' : ''}${formatNumber(expectedReturnNextYear, 1)}%` : '—'}
+                {expectedReturnNextYear !== null ? `${expectedReturnNextYear >= 0 ? '+' : ''}${expectedReturnNextYear.toFixed(1)}%` : '—'}
               </div>
             </div>
           </div>
@@ -349,7 +355,7 @@ export function ResearchPositionCard({ position, onClick }: ResearchPositionCard
                 <div className={`text-sm font-semibold tabular-nums transition-colors duration-300 ${
                   theme === 'dark' ? 'text-white' : 'text-gray-900'
                 }`}>
-                  {peThisYear !== null ? formatNumber(peThisYear, 1) : '—'}
+                  {peThisYear !== null ? peThisYear.toFixed(1) : '—'}
                 </div>
               </div>
 
@@ -364,7 +370,7 @@ export function ResearchPositionCard({ position, onClick }: ResearchPositionCard
                 <div className={`text-sm font-semibold tabular-nums transition-colors duration-300 ${
                   theme === 'dark' ? 'text-white' : 'text-gray-900'
                 }`}>
-                  {psThisYear !== null ? formatNumber(psThisYear, 2) : '—'}
+                  {psThisYear !== null ? psThisYear.toFixed(2) : '—'}
                 </div>
               </div>
 
@@ -419,7 +425,7 @@ export function ResearchPositionCard({ position, onClick }: ResearchPositionCard
                 <div className={`text-sm font-semibold tabular-nums transition-colors duration-300 ${
                   theme === 'dark' ? 'text-white' : 'text-gray-900'
                 }`}>
-                  {peNextYear !== null ? formatNumber(peNextYear, 1) : '—'}
+                  {peNextYear !== null ? peNextYear.toFixed(1) : '—'}
                 </div>
               </div>
 
@@ -434,7 +440,7 @@ export function ResearchPositionCard({ position, onClick }: ResearchPositionCard
                 <div className={`text-sm font-semibold tabular-nums transition-colors duration-300 ${
                   theme === 'dark' ? 'text-white' : 'text-gray-900'
                 }`}>
-                  {psNextYear !== null ? formatNumber(psNextYear, 2) : '—'}
+                  {psNextYear !== null ? psNextYear.toFixed(2) : '—'}
                 </div>
               </div>
 

@@ -1,42 +1,31 @@
 'use client'
 
 import { Position } from '@/hooks/usePositions'
-import { StrategyListItem } from '@/services/strategiesApi'
-import { SelectablePositionCard } from './SelectablePositionCard'
 import { OrganizePositionCard } from '@/components/positions/OrganizePositionCard'
-import { StrategyCard } from './StrategyCard'
+import { SelectablePositionCard } from './SelectablePositionCard'
 import { useTheme } from '@/contexts/ThemeContext'
 
 interface OptionsPositionsListProps {
   positions: Position[]
-  strategies: StrategyListItem[]
   selectedIds: string[]
   isSelected: (id: string) => boolean
   onToggleSelection: (id: string) => void
   onDropTag?: (targetId: string, tagId: string) => void
-  onDropPosition?: (droppedPositionId: string, targetPositionId: string) => void
-  onEditStrategy?: (strategy: StrategyListItem) => void
-  onDeleteStrategy?: (strategyId: string) => void
 }
 
 export function OptionsPositionsList({
   positions,
-  strategies,
   selectedIds,
   isSelected,
   onToggleSelection,
-  onDropTag,
-  onDropPosition,
-  onEditStrategy,
-  onDeleteStrategy
+  onDropTag
 }: OptionsPositionsListProps) {
   const { theme } = useTheme()
 
-  // Filter for long options strategies (LC = Long Call, LP = Long Put)
-  // Note: All positions should be in strategies (either standalone or combined)
-  const optionsStrategies = strategies.filter(s =>
-    s.primary_investment_class === 'OPTION' &&
-    (s.direction === 'LC' || s.direction === 'LP')
+  // Filter for long options positions (LC = Long Call, LP = Long Put)
+  const optionsPositions = positions.filter(p =>
+    p.investment_class === 'OPTIONS' &&
+    (p.position_type === 'LC' || p.position_type === 'LP')
   )
 
   return (
@@ -46,7 +35,7 @@ export function OptionsPositionsList({
       }`}>
         Long Options
       </h3>
-      {optionsStrategies.length === 0 ? (
+      {optionsPositions.length === 0 ? (
         <div className={`text-sm p-3 rounded-lg border transition-colors duration-300 ${
           theme === 'dark'
             ? 'text-empty-text-dark bg-empty-bg-dark border-empty-border-dark'
@@ -56,16 +45,18 @@ export function OptionsPositionsList({
         </div>
       ) : (
         <div className="space-y-2">
-          {/* Render all strategies (both individual and combinations) */}
-          {optionsStrategies.map(strategy => (
-            <StrategyCard
-              key={strategy.id}
-              strategy={strategy}
-              onEdit={onEditStrategy || (() => {})}
-              onDelete={onDeleteStrategy || (() => {})}
-              onDrop={onDropTag}
-              onDropStrategy={onDropPosition}
-            />
+          {optionsPositions.map(position => (
+            <SelectablePositionCard
+              key={position.id}
+              positionId={position.id}
+              symbol={position.symbol}
+              isSelected={isSelected(position.id)}
+              onToggleSelection={() => onToggleSelection(position.id)}
+              tags={position.tags}
+              onDropTag={onDropTag ? (tagId) => onDropTag(position.id, tagId) : undefined}
+            >
+              <OrganizePositionCard position={position} />
+            </SelectablePositionCard>
           ))}
         </div>
       )}
