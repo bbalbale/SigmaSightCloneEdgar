@@ -217,6 +217,8 @@ class BatchOrchestratorV2:
         portfolio_name = portfolio_data.name
         
         # Define job sequence with dependencies
+        # CRITICAL: portfolio_snapshot MUST run before stress_testing
+        # Stress testing uses snapshot values (gross/net exposure) via get_portfolio_exposures()
         job_sequence = [
             ("market_data_update", self._update_market_data, []),
             ("position_values_update", self._update_position_values, [portfolio_id]),
@@ -224,8 +226,8 @@ class BatchOrchestratorV2:
             # ("greeks_calculation", self._calculate_greeks, [portfolio_id]),  # DISABLED: No options feed
             ("factor_analysis", self._calculate_factors, [portfolio_id]),
             ("market_risk_scenarios", self._calculate_market_risk, [portfolio_id]),
-            ("stress_testing", self._run_stress_tests, [portfolio_id]),
-            ("portfolio_snapshot", self._create_snapshot, [portfolio_id]),
+            ("portfolio_snapshot", self._create_snapshot, [portfolio_id]),  # MUST run before stress_testing
+            ("stress_testing", self._run_stress_tests, [portfolio_id]),     # Uses snapshot values
         ]
         
         # Always run correlations (important for risk metrics)
