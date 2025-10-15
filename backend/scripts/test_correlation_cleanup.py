@@ -28,27 +28,27 @@ async def main():
         portfolio = result.scalar_one_or_none()
 
         if not portfolio:
-            print("❌ Test portfolio not found")
+            print("[FAIL] Test portfolio not found")
             return
 
-        print(f"✅ Found portfolio: {portfolio.name}")
-        print(f"   ID: {portfolio.id}")
+        print(f"[OK] Found portfolio: {portfolio.name}")
+        print(f"     ID: {portfolio.id}")
 
         # Count existing calculations before test
         count_stmt = select(func.count(CorrelationCalculation.id)).where(
             CorrelationCalculation.portfolio_id == portfolio.id
         )
         initial_count = (await db.execute(count_stmt)).scalar()
-        print(f"\n📊 Initial calculation count: {initial_count}")
+        print(f"\n[INFO] Initial calculation count: {initial_count}")
 
         # Create correlation service
         correlation_service = CorrelationService(db)
 
-        # Run 8 calculations with different dates (simulating multiple batch runs)
-        print(f"\n🔄 Running 8 correlation calculations...")
-        for i in range(8):
+        # Run 3 calculations with 90-day duration (should replace each other)
+        print(f"\n[TEST] Running 3 correlation calculations (90-day duration)...")
+        for i in range(3):
             calc_date = datetime.now() - timedelta(days=i)
-            print(f"   Calculation {i+1}/8 (date: {calc_date.date()})...", end=" ")
+            print(f"       Calculation {i+1}/3 (date: {calc_date.date()})...", end=" ")
 
             calculation = await correlation_service.calculate_portfolio_correlations(
                 portfolio_id=portfolio.id,
@@ -58,21 +58,41 @@ async def main():
             )
 
             if calculation:
-                print(f"✅ Done (ID: {calculation.id})")
+                print(f"[OK] ID: {calculation.id}")
             else:
-                print(f"⚠️  Skipped (insufficient data)")
+                print(f"[SKIP] Insufficient data")
 
-        # Count calculations after test
+        # Count calculations after 90-day runs
         final_count = (await db.execute(count_stmt)).scalar()
-        print(f"\n📊 Final calculation count: {final_count}")
-        print(f"   Expected: 5 (due to keep_most_recent=5 retention policy)")
+        print(f"\n[INFO] Final calculation count: {final_count}")
+        print(f"       Expected: 1 (each new calculation replaces the previous)")
 
-        if final_count == 5:
-            print(f"\n✅ CLEANUP WORKING: Kept exactly 5 most recent calculations")
-        elif final_count < 5:
-            print(f"\n⚠️  UNEXPECTED: Only {final_count} calculations found (expected 5)")
+        if final_count == 1:
+            print(f"\n[PASS] CLEANUP WORKING: Only 1 calculation exists (most recent replaced previous)")
         else:
-            print(f"\n❌ CLEANUP NOT WORKING: Found {final_count} calculations (expected 5)")
+            print(f"\n[FAIL] CLEANUP NOT WORKING: Found {final_count} calculations (expected 1)")
+
+        # Run 1 calculation with 30-day duration (should coexist with 90-day)
+        print(f"\n[TEST] Running 1 correlation calculation (30-day duration)...")
+        calculation_30d = await correlation_service.calculate_portfolio_correlations(
+            portfolio_id=portfolio.id,
+            calculation_date=datetime.now(),
+            force_recalculate=True,
+            duration_days=30
+        )
+
+        if calculation_30d:
+            print(f"       [OK] ID: {calculation_30d.id}")
+
+        # Count calculations after adding 30-day
+        final_count = (await db.execute(count_stmt)).scalar()
+        print(f"\n[INFO] Final calculation count: {final_count}")
+        print(f"       Expected: 2 (one 90-day + one 30-day)")
+
+        if final_count == 2:
+            print(f"\n[PASS] MULTI-DURATION WORKING: Different durations coexist correctly")
+        else:
+            print(f"\n[FAIL] MULTI-DURATION FAILED: Found {final_count} calculations (expected 2)")
 
         # Show remaining calculations
         list_stmt = (
@@ -82,9 +102,9 @@ async def main():
         )
         remaining = (await db.execute(list_stmt)).scalars().all()
 
-        print(f"\n📋 Remaining calculations:")
+        print(f"\n[INFO] Remaining calculations:")
         for i, calc in enumerate(remaining, 1):
-            print(f"   {i}. {calc.calculation_date.date()} - ID: {calc.id}")
+            print(f"       {i}. {calc.duration_days}-day duration | {calc.calculation_date.date()} | ID: {calc.id}")
 
         # Verify cluster cleanup by counting orphaned records
         cluster_stmt = select(func.count(CorrelationCluster.id)).where(
@@ -93,9 +113,9 @@ async def main():
         orphaned_clusters = (await db.execute(cluster_stmt)).scalar()
 
         if orphaned_clusters == 0:
-            print(f"\n✅ CLUSTER CLEANUP WORKING: No orphaned clusters found")
+            print(f"\n[PASS] CLUSTER CLEANUP WORKING: No orphaned clusters found")
         else:
-            print(f"\n❌ CLUSTER CLEANUP FAILED: Found {orphaned_clusters} orphaned clusters")
+            print(f"\n[FAIL] CLUSTER CLEANUP FAILED: Found {orphaned_clusters} orphaned clusters")
 
         print(f"\n{'='*80}\n")
 

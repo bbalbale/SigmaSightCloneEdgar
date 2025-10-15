@@ -94,12 +94,15 @@ class CorrelationService:
     async def _cleanup_old_calculations(
         self,
         portfolio_id: UUID,
-        keep_most_recent: int = 5
+        duration_days: int
     ) -> int:
         """
-        Clean up old correlation calculations to prevent stale data accumulation.
+        Clean up old correlation calculations for a specific portfolio and duration.
 
-        Deletes calculations in proper order respecting foreign key constraints:
+        Deletes ALL existing calculations for (portfolio_id, duration_days) to ensure
+        new calculation replaces old ones. Only the most recent calculation matters.
+
+        Deletes in proper order respecting foreign key constraints:
         1. correlation_cluster_positions
         2. correlation_clusters
         3. pairwise_correlations
@@ -107,17 +110,20 @@ class CorrelationService:
 
         Args:
             portfolio_id: Portfolio to clean up
-            keep_most_recent: Number of most recent calculations to keep (default: 5)
+            duration_days: Duration period to clean up (e.g., 90 for 90-day correlations)
 
         Returns:
             Number of calculations deleted
         """
-        # Find calculations to delete (all except the N most recent)
+        # Find ALL calculations for this portfolio and duration to delete
         stmt = (
             select(CorrelationCalculation.id)
-            .where(CorrelationCalculation.portfolio_id == portfolio_id)
-            .order_by(CorrelationCalculation.calculation_date.desc())
-            .offset(keep_most_recent)  # Skip the N most recent
+            .where(
+                and_(
+                    CorrelationCalculation.portfolio_id == portfolio_id,
+                    CorrelationCalculation.duration_days == duration_days
+                )
+            )
         )
 
         result = await self.db.execute(stmt)
@@ -127,8 +133,9 @@ class CorrelationService:
             return 0
 
         logger.info(
-            f"Cleaning up {len(old_calculation_ids)} old correlation calculations "
-            f"for portfolio {portfolio_id} (keeping {keep_most_recent} most recent)"
+            f"Cleaning up {len(old_calculation_ids)} old correlation calculation(s) "
+            f"for portfolio {portfolio_id} with {duration_days}-day duration "
+            f"(will be replaced by new calculation)"
         )
 
         deleted_count = 0
@@ -187,10 +194,6 @@ class CorrelationService:
         Main orchestrator for portfolio correlation calculations
         """
         try:
-            # Clean up old calculations to prevent stale data accumulation
-            # This ensures we don't accumulate unlimited historical calculations
-            await self._cleanup_old_calculations(portfolio_id, keep_most_recent=5)
-
             # Check for existing calculation (unless forced)
             if not force_recalculate:
                 existing = await self._get_existing_calculation(
@@ -199,6 +202,11 @@ class CorrelationService:
                 if existing:
                     logger.info(f"Using existing correlation calculation for portfolio {portfolio_id}")
                     return existing
+
+            # Clean up old calculations before creating new one
+            # Delete ALL existing calculations for this portfolio/duration
+            # This ensures exactly 1 calculation exists per (portfolio, duration) combination
+            await self._cleanup_old_calculations(portfolio_id, duration_days)
             
             # Get portfolio with positions
             portfolio = await self._get_portfolio_with_positions(portfolio_id)
