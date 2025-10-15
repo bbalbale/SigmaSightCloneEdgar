@@ -615,25 +615,16 @@ class BatchOrchestratorV2:
         """Stress testing job"""
         from app.calculations.stress_testing import run_comprehensive_stress_test, save_stress_test_results
         portfolio_uuid = ensure_uuid(portfolio_id)
-        
+
         # Run stress tests
         results = await run_comprehensive_stress_test(db, portfolio_uuid, date.today())
 
-        # Phase 8.1 Task 9: Detect skip flag and bypass save_stress_test_results
-        # CRITICAL: save_stress_test_results will fail on empty dict, MUST check skip flag
-        if results and 'stress_test_results' in results:
-            stress_test_results = results.get('stress_test_results', {})
-
-            if stress_test_results.get('skipped'):
-                logger.info(
-                    f"Stress tests skipped for portfolio {portfolio_id}: "
-                    f"{stress_test_results.get('reason', 'unknown reason')}"
-                )
-                results['saved_to_database'] = 0  # No persistence occurred
-            else:
-                # Only persist when NOT skipped
-                saved_count = await save_stress_test_results(db, portfolio_uuid, results)
-                results['saved_to_database'] = saved_count
+        # Save results to database (legacy skip check removed - stress testing now fixed)
+        if results:
+            saved_count = await save_stress_test_results(db, portfolio_uuid, results)
+            results['saved_to_database'] = saved_count
+        else:
+            results = {'saved_to_database': 0}
 
         return results
     
