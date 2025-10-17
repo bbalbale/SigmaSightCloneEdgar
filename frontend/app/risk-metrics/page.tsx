@@ -5,9 +5,11 @@ import { useTheme } from '@/contexts/ThemeContext'
 import { useCorrelationMatrix } from '@/hooks/useCorrelationMatrix'
 import { useDiversificationScore } from '@/hooks/useDiversificationScore'
 import { useStressTest } from '@/hooks/useStressTest'
+import { useVolatility } from '@/hooks/useVolatility'
 import { CorrelationMatrix } from '@/components/risk/CorrelationMatrix'
 import { DiversificationScore } from '@/components/risk/DiversificationScore'
 import { StressTest } from '@/components/risk/StressTest'
+import { VolatilityMetrics } from '@/components/risk/VolatilityMetrics'
 
 function RiskMetricsPageContent() {
   const { theme } = useTheme()
@@ -16,6 +18,7 @@ function RiskMetricsPageContent() {
   const correlationMatrix = useCorrelationMatrix()
   const diversificationScore = useDiversificationScore()
   const stressTest = useStressTest()
+  const volatility = useVolatility()
 
   return (
     <div className={`min-h-screen transition-colors duration-300 ${
@@ -38,6 +41,18 @@ function RiskMetricsPageContent() {
           }`}>
             Portfolio risk analysis and diversification metrics
           </p>
+        </div>
+      </section>
+
+      {/* Volatility Analysis Section */}
+      <section className="px-4 py-8">
+        <div className="container mx-auto">
+          <VolatilityMetrics
+            data={volatility.data}
+            loading={volatility.loading}
+            error={volatility.error}
+            onRetry={volatility.refetch}
+          />
         </div>
       </section>
 

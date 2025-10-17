@@ -26,6 +26,7 @@ from app.schemas.analytics import (
     PortfolioRiskMetricsResponse,
     SectorExposureResponse,
     ConcentrationMetricsResponse,
+    VolatilityMetricsResponse,
 )
 from app.services.portfolio_analytics_service import PortfolioAnalyticsService
 from app.services.correlation_service import CorrelationService
@@ -556,6 +557,98 @@ async def get_concentration_metrics(
     except Exception as e:
         logger.error(f"Concentration metrics failed for {portfolio_id}: {str(e)}")
         raise HTTPException(status_code=500, detail="Internal server error retrieving concentration metrics")
+
+
+@router.get("/{portfolio_id}/volatility", response_model=VolatilityMetricsResponse)
+async def get_volatility_metrics(
+    portfolio_id: UUID,
+    current_user: CurrentUser = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Get portfolio volatility metrics with HAR forecasting.
+
+    Returns portfolio volatility analytics including:
+    - Realized volatility over 21-day and 63-day windows (trading days)
+    - Expected volatility forecast using HAR (Heterogeneous Autoregressive) model
+    - Volatility trend analysis (increasing, decreasing, or stable)
+    - Volatility percentile vs 1-year historical distribution
+
+    The HAR model uses daily, weekly, and monthly volatility components to
+    forecast future volatility, providing more accurate predictions than simple
+    moving averages.
+
+    Part of Risk Metrics Phase 2 implementation.
+
+    Args:
+        portfolio_id: Portfolio UUID to analyze
+        current_user: Authenticated user from JWT token
+        db: Database session
+
+    Returns:
+        VolatilityMetricsResponse with volatility metrics or unavailable status
+
+    Raises:
+        404: Portfolio not found or not owned by user
+        500: Internal server error during calculation
+    """
+    try:
+        start = time.time()
+
+        # Validate portfolio ownership
+        await validate_portfolio_ownership(db, portfolio_id, current_user.id)
+
+        # Fetch volatility data from latest snapshot
+        from app.models.snapshots import PortfolioSnapshot
+        from sqlalchemy import select, and_
+
+        snapshot_query = select(PortfolioSnapshot).where(
+            PortfolioSnapshot.portfolio_id == portfolio_id
+        ).order_by(PortfolioSnapshot.snapshot_date.desc()).limit(1)
+
+        snapshot_result = await db.execute(snapshot_query)
+        snapshot = snapshot_result.scalar_one_or_none()
+
+        elapsed = time.time() - start
+        if elapsed > 0.5:
+            logger.warning(f"Slow volatility response: {elapsed:.2f}s for portfolio {portfolio_id}")
+        else:
+            logger.info(f"Volatility metrics retrieved in {elapsed:.3f}s for portfolio {portfolio_id}")
+
+        # Format response
+        if not snapshot or snapshot.realized_volatility_21d is None:
+            return VolatilityMetricsResponse(
+                available=False,
+                portfolio_id=str(portfolio_id),
+                metadata={"error": "No volatility data available"}
+            )
+
+        from datetime import date
+        return VolatilityMetricsResponse(
+            available=True,
+            portfolio_id=str(portfolio_id),
+            calculation_date=snapshot.snapshot_date.isoformat() if snapshot.snapshot_date else date.today().isoformat(),
+            data={
+                "realized_volatility_21d": float(snapshot.realized_volatility_21d),
+                "realized_volatility_63d": float(snapshot.realized_volatility_63d) if snapshot.realized_volatility_63d else None,
+                "expected_volatility_21d": float(snapshot.expected_volatility_21d) if snapshot.expected_volatility_21d else None,
+                "volatility_trend": snapshot.volatility_trend,
+                "volatility_percentile": float(snapshot.volatility_percentile) if snapshot.volatility_percentile else None
+            },
+            metadata={
+                "forecast_model": "HAR",
+                "trading_day_windows": "21d, 63d"
+            }
+        )
+
+    except HTTPException:
+        raise
+    except ValueError as e:
+        logger.warning(f"Portfolio not found: {portfolio_id} for user {current_user.id}")
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        logger.error(f"Volatility metrics failed for {portfolio_id}: {str(e)}")
+        raise HTTPException(status_code=500, detail="Internal server error retrieving volatility metrics")
 
 
 class UpdateEquityRequest(BaseModel):

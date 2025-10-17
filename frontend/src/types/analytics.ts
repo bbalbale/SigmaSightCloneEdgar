@@ -168,3 +168,23 @@ export interface DiversificationScoreResponse {
   reason?: string;
 }
 
+export interface VolatilityMetricsData {
+  realized_volatility_21d: number;
+  realized_volatility_63d: number;
+  expected_volatility_21d: number | null;
+  volatility_trend: string | null; // 'increasing', 'decreasing', 'stable'
+  volatility_percentile: number | null; // 0-1 scale
+}
+
+export interface VolatilityMetricsResponse {
+  available: boolean;
+  portfolio_id: string;
+  calculation_date: string | null;
+  data: VolatilityMetricsData | null;
+  metadata?: {
+    forecast_model?: string;
+    trading_day_windows?: string;
+    error?: string;
+  };
+}
+

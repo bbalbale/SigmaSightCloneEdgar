@@ -73,6 +73,9 @@ export const API_ENDPOINTS = {
     FACTOR_EXPOSURES: (portfolioId: string) => `/api/v1/analytics/portfolio/${portfolioId}/factor-exposures`,
     POSITIONS_FACTOR_EXPOSURES: (portfolioId: string) => `/api/v1/analytics/portfolio/${portfolioId}/positions/factor-exposures`,
     STRESS_TEST: (portfolioId: string) => `/api/v1/analytics/portfolio/${portfolioId}/stress-test`,
+    SECTOR_EXPOSURE: (portfolioId: string) => `/api/v1/analytics/portfolio/${portfolioId}/sector-exposure`,
+    CONCENTRATION: (portfolioId: string) => `/api/v1/analytics/portfolio/${portfolioId}/concentration`,
+    VOLATILITY: (portfolioId: string) => `/api/v1/analytics/portfolio/${portfolioId}/volatility`,
   },
 
   // Strategy management endpoints

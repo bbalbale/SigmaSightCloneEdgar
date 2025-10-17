@@ -145,7 +145,7 @@ class BatchOrchestratorV2:
         This ensures accurate progress tracking even when some jobs are disabled.
         """
         # Base job sequence (matches _process_single_portfolio_safely)
-        job_count = 9  # market_data, position_values, portfolio_agg, market_beta, sector_analysis, factors, market_risk, stress_test, snapshot
+        job_count = 10  # market_data, position_values, portfolio_agg, market_beta, sector_analysis, volatility_analytics, factors, market_risk, snapshot, stress_test
 
         # Greeks is currently disabled (no options feed)
         # job_count += 1  # would add greeks if enabled
@@ -225,6 +225,7 @@ class BatchOrchestratorV2:
             ("portfolio_aggregation", self._calculate_portfolio_aggregation, [portfolio_id]),
             ("market_beta_calculation", self._calculate_market_beta, [portfolio_id]),  # Phase 0: Single-factor market beta
             ("sector_concentration_analysis", self._calculate_sector_analysis, [portfolio_id]),  # Phase 1: Sector exposure & concentration
+            ("volatility_analytics", self._calculate_volatility_analytics, [portfolio_id]),  # Phase 2: Volatility analysis
             # ("greeks_calculation", self._calculate_greeks, [portfolio_id]),  # DISABLED: No options feed
             ("factor_analysis", self._calculate_factors, [portfolio_id]),
             ("market_risk_scenarios", self._calculate_market_risk, [portfolio_id]),
@@ -585,6 +586,43 @@ class BatchOrchestratorV2:
             )
 
         return sector_result
+
+    async def _calculate_volatility_analytics(self, db: AsyncSession, portfolio_id: str):
+        """Volatility analytics job (Phase 2: Realized + expected volatility with HAR forecasting)"""
+        from app.calculations.volatility_analytics import calculate_portfolio_volatility_batch
+
+        portfolio_uuid = ensure_uuid(portfolio_id)
+
+        logger.info(f"Calculating volatility analytics for portfolio {portfolio_id}")
+
+        volatility_result = await calculate_portfolio_volatility_batch(
+            db=db,
+            portfolio_id=portfolio_uuid,
+            calculation_date=date.today()
+        )
+
+        if volatility_result['success']:
+            # Log portfolio-level volatility
+            if volatility_result.get('portfolio_volatility'):
+                pv = volatility_result['portfolio_volatility']
+                logger.info(
+                    f"Portfolio volatility: 21d={pv.get('realized_volatility_21d', 0):.2%}, "
+                    f"expected={pv.get('expected_volatility_21d', 0):.2%}, "
+                    f"trend={pv.get('volatility_trend', 'N/A')}"
+                )
+
+            # Log position-level summary
+            positions_calculated = volatility_result.get('positions_calculated', 0)
+            positions_total = volatility_result.get('positions_total', 0)
+            logger.info(
+                f"Position volatility: {positions_calculated}/{positions_total} positions calculated"
+            )
+        else:
+            logger.warning(
+                f"Volatility analytics failed: {volatility_result.get('error', 'Unknown error')}"
+            )
+
+        return volatility_result
 
     async def _calculate_greeks(self, db: AsyncSession, portfolio_id: str):
         """Greeks calculation job"""

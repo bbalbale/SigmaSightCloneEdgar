@@ -7,6 +7,7 @@ import type {
   PortfolioFactorExposuresResponse,
   PositionFactorExposuresResponse,
   StressTestResponse,
+  VolatilityMetricsResponse,
 } from '@/types/analytics';
 
 function getAuthHeader(): Record<string, string> {
@@ -103,6 +104,19 @@ export const analyticsApi = {
     const url = apiClient.buildUrl(fullEndpoint);
     const data = await apiClient.get<StressTestResponse>(fullEndpoint, {
       ...REQUEST_CONFIGS.CALCULATION,
+      headers: { ...getAuthHeader() },
+    });
+    return { data, url };
+  },
+
+  async getVolatility(
+    portfolioId: string
+  ): Promise<{ data: VolatilityMetricsResponse; url: string }>
+  {
+    const endpoint = API_ENDPOINTS.ANALYTICS.VOLATILITY(portfolioId);
+    const url = apiClient.buildUrl(endpoint);
+    const data = await apiClient.get<VolatilityMetricsResponse>(endpoint, {
+      ...REQUEST_CONFIGS.STANDARD,
       headers: { ...getAuthHeader() },
     });
     return { data, url };

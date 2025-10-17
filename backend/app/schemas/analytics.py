@@ -420,3 +420,46 @@ class ConcentrationMetricsResponse(BaseModel):
                 }
             }
         }
+
+
+class VolatilityMetricsData(BaseModel):
+    """Portfolio volatility metrics with HAR forecasting"""
+    realized_volatility_21d: float = Field(..., description="21-day (~1 month) realized volatility")
+    realized_volatility_63d: float = Field(..., description="63-day (~3 months) realized volatility")
+    expected_volatility_21d: Optional[float] = Field(None, description="HAR model forecast for next 21 trading days")
+    volatility_trend: Optional[str] = Field(None, description="Volatility direction: increasing, decreasing, or stable")
+    volatility_percentile: Optional[float] = Field(None, description="Current volatility percentile vs 1-year history (0-1)")
+
+
+class VolatilityMetricsResponse(BaseModel):
+    """
+    Portfolio volatility metrics response (Phase 2: Risk Metrics)
+
+    Returns realized and expected volatility with trend analysis.
+    Uses HAR (Heterogeneous Autoregressive) model for forecasting.
+    """
+    available: bool = Field(..., description="Whether volatility metrics are available")
+    portfolio_id: str = Field(..., description="Portfolio UUID")
+    calculation_date: Optional[str] = Field(None, description="ISO date of calculation")
+    data: Optional[VolatilityMetricsData] = Field(None, description="Volatility metrics when available")
+    metadata: Optional[Dict[str, Union[str, int]]] = Field(None, description="Additional metadata")
+
+    class Config:
+        schema_extra = {
+            "example": {
+                "available": True,
+                "portfolio_id": "c0510ab8-c6b5-433c-adbc-3f74e1dbdb5e",
+                "calculation_date": "2025-10-17",
+                "data": {
+                    "realized_volatility_21d": 0.28,
+                    "realized_volatility_63d": 0.32,
+                    "expected_volatility_21d": 0.30,
+                    "volatility_trend": "decreasing",
+                    "volatility_percentile": 0.65
+                },
+                "metadata": {
+                    "forecast_model": "HAR",
+                    "trading_day_windows": "21d, 63d"
+                }
+            }
+        }
