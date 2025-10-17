@@ -388,6 +388,45 @@ async def _create_or_update_snapshot(
     else:
         logger.info("No market beta data available for snapshot")
 
+    # Phase 1: Sector exposure and concentration metrics
+    sector_exposure_json = None
+    hhi = None
+    effective_num_positions = None
+    top_3_concentration = None
+    top_10_concentration = None
+
+    try:
+        from app.calculations.sector_analysis import calculate_portfolio_sector_concentration
+
+        sector_result = await calculate_portfolio_sector_concentration(
+            db=db,
+            portfolio_id=portfolio_id,
+            calculation_date=calculation_date
+        )
+
+        if sector_result.get('success'):
+            # Extract sector exposure data
+            if sector_result.get('sector_exposure'):
+                se = sector_result['sector_exposure']
+                sector_exposure_json = se.get('portfolio_weights', {})
+                logger.info(f"Sector exposure: {len(sector_exposure_json)} sectors captured")
+
+            # Extract concentration metrics
+            if sector_result.get('concentration'):
+                conc = sector_result['concentration']
+                hhi = Decimal(str(conc.get('hhi', 0)))
+                effective_num_positions = Decimal(str(conc.get('effective_num_positions', 0)))
+                top_3_concentration = Decimal(str(conc.get('top_3_concentration', 0)))
+                top_10_concentration = Decimal(str(conc.get('top_10_concentration', 0)))
+                logger.info(
+                    f"Concentration metrics: HHI={float(hhi):.2f}, "
+                    f"Effective positions={float(effective_num_positions):.2f}"
+                )
+        else:
+            logger.warning(f"Sector analysis failed for snapshot: {sector_result.get('error')}")
+    except Exception as e:
+        logger.warning(f"Could not calculate sector/concentration metrics for snapshot: {e}")
+
     # Check if snapshot already exists
     existing_query = select(PortfolioSnapshot).where(
         and_(
@@ -422,7 +461,13 @@ async def _create_or_update_snapshot(
         "market_beta_weighted": market_beta_weighted,
         "market_beta_r_squared": market_beta_r_squared,
         "market_beta_observations": market_beta_observations,
-        "market_beta_direct": None  # Reserved for Phase 3 (portfolio-level regression)
+        "market_beta_direct": None,  # Reserved for Phase 3 (portfolio-level regression)
+        # Phase 1: Sector exposure and concentration
+        "sector_exposure": sector_exposure_json,
+        "hhi": hhi,
+        "effective_num_positions": effective_num_positions,
+        "top_3_concentration": top_3_concentration,
+        "top_10_concentration": top_10_concentration
     }
 
     if existing_snapshot:
