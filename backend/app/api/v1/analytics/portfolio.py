@@ -24,6 +24,8 @@ from app.schemas.analytics import (
     PositionFactorExposuresResponse,
     StressTestResponse,
     PortfolioRiskMetricsResponse,
+    SectorExposureResponse,
+    ConcentrationMetricsResponse,
 )
 from app.services.portfolio_analytics_service import PortfolioAnalyticsService
 from app.services.correlation_service import CorrelationService
@@ -369,10 +371,197 @@ async def get_portfolio_risk_metrics(
         raise HTTPException(status_code=500, detail="Internal server error retrieving risk metrics")
 
 
+@router.get("/{portfolio_id}/sector-exposure", response_model=SectorExposureResponse)
+async def get_sector_exposure(
+    portfolio_id: UUID,
+    current_user: CurrentUser = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Get portfolio sector exposure vs S&P 500 benchmark.
+
+    Returns portfolio sector weights compared to S&P 500 sector weights,
+    showing over/underweight positions by sector. Uses GICS sector classifications
+    from the market_data_cache table.
+
+    This endpoint provides:
+    - Portfolio sector weights (as percentage of total value)
+    - S&P 500 benchmark sector weights
+    - Over/underweight analysis (portfolio - benchmark)
+    - Largest overweight and underweight sectors
+    - Position count by sector
+    - Unclassified positions (no sector data available)
+
+    Part of Risk Metrics Phase 1 implementation.
+
+    Args:
+        portfolio_id: Portfolio UUID to analyze
+        current_user: Authenticated user from JWT token
+        db: Database session
+
+    Returns:
+        SectorExposureResponse with sector analysis or unavailable status
+
+    Raises:
+        404: Portfolio not found or not owned by user
+        500: Internal server error during calculation
+    """
+    try:
+        start = time.time()
+
+        # Validate portfolio ownership
+        await validate_portfolio_ownership(db, portfolio_id, current_user.id)
+
+        # Import and call sector analysis
+        from app.calculations.sector_analysis import calculate_sector_exposure
+        result = await calculate_sector_exposure(db, portfolio_id)
+
+        elapsed = time.time() - start
+        if elapsed > 0.5:
+            logger.warning(f"Slow sector-exposure response: {elapsed:.2f}s for portfolio {portfolio_id}")
+        else:
+            logger.info(f"Sector-exposure retrieved in {elapsed:.3f}s for portfolio {portfolio_id}")
+
+        # Format response
+        if not result.get('success'):
+            return SectorExposureResponse(
+                available=False,
+                portfolio_id=str(portfolio_id),
+                metadata={"error": result.get('error', 'Unknown error')}
+            )
+
+        from datetime import date
+        return SectorExposureResponse(
+            available=True,
+            portfolio_id=str(portfolio_id),
+            calculation_date=date.today().isoformat(),
+            data={
+                "portfolio_weights": result.get('portfolio_weights', {}),
+                "benchmark_weights": result.get('benchmark_weights', {}),
+                "over_underweight": result.get('over_underweight', {}),
+                "largest_overweight": result.get('largest_overweight'),
+                "largest_underweight": result.get('largest_underweight'),
+                "total_portfolio_value": result.get('total_portfolio_value', 0.0),
+                "positions_by_sector": result.get('positions_by_sector', {}),
+                "unclassified_value": result.get('unclassified_value', 0.0),
+                "unclassified_count": result.get('unclassified_count', 0)
+            },
+            metadata={
+                "benchmark": "SP500"
+            }
+        )
+
+    except HTTPException:
+        raise
+    except ValueError as e:
+        logger.warning(f"Portfolio not found: {portfolio_id} for user {current_user.id}")
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        logger.error(f"Sector exposure failed for {portfolio_id}: {str(e)}")
+        raise HTTPException(status_code=500, detail="Internal server error retrieving sector exposure")
+
+
+@router.get("/{portfolio_id}/concentration", response_model=ConcentrationMetricsResponse)
+async def get_concentration_metrics(
+    portfolio_id: UUID,
+    current_user: CurrentUser = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Get portfolio concentration metrics.
+
+    Returns concentration and diversification metrics including:
+    - Herfindahl-Hirschman Index (HHI) - measure of concentration (0-10000)
+    - Effective number of positions (10000 / HHI)
+    - Top 3 position concentration (sum of 3 largest weights)
+    - Top 10 position concentration (sum of 10 largest weights)
+
+    HHI Interpretation:
+    - HHI > 2500: Highly concentrated portfolio
+    - HHI 1500-2500: Moderately concentrated
+    - HHI < 1500: Well diversified
+
+    Part of Risk Metrics Phase 1 implementation.
+
+    Args:
+        portfolio_id: Portfolio UUID to analyze
+        current_user: Authenticated user from JWT token
+        db: Database session
+
+    Returns:
+        ConcentrationMetricsResponse with metrics or unavailable status
+
+    Raises:
+        404: Portfolio not found or not owned by user
+        500: Internal server error during calculation
+    """
+    try:
+        start = time.time()
+
+        # Validate portfolio ownership
+        await validate_portfolio_ownership(db, portfolio_id, current_user.id)
+
+        # Import and call concentration calculation
+        from app.calculations.sector_analysis import calculate_concentration_metrics
+        result = await calculate_concentration_metrics(db, portfolio_id)
+
+        elapsed = time.time() - start
+        if elapsed > 0.5:
+            logger.warning(f"Slow concentration response: {elapsed:.2f}s for portfolio {portfolio_id}")
+        else:
+            logger.info(f"Concentration metrics retrieved in {elapsed:.3f}s for portfolio {portfolio_id}")
+
+        # Format response
+        if not result.get('success'):
+            return ConcentrationMetricsResponse(
+                available=False,
+                portfolio_id=str(portfolio_id),
+                metadata={"error": result.get('error', 'Unknown error')}
+            )
+
+        from datetime import date
+        hhi = result.get('hhi', 0.0)
+
+        # Determine interpretation
+        if hhi > 2500:
+            interpretation = "Highly concentrated (HHI > 2500)"
+        elif hhi > 1500:
+            interpretation = "Moderately concentrated (HHI 1500-2500)"
+        else:
+            interpretation = "Well diversified (HHI < 1500)"
+
+        return ConcentrationMetricsResponse(
+            available=True,
+            portfolio_id=str(portfolio_id),
+            calculation_date=date.today().isoformat(),
+            data={
+                "hhi": hhi,
+                "effective_num_positions": result.get('effective_num_positions', 0.0),
+                "top_3_concentration": result.get('top_3_concentration', 0.0),
+                "top_10_concentration": result.get('top_10_concentration', 0.0),
+                "total_positions": result.get('total_positions', 0),
+                "position_weights": None  # Omit detailed weights for cleaner response
+            },
+            metadata={
+                "calculation_method": "market_value_weighted",
+                "interpretation": interpretation
+            }
+        )
+
+    except HTTPException:
+        raise
+    except ValueError as e:
+        logger.warning(f"Portfolio not found: {portfolio_id} for user {current_user.id}")
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        logger.error(f"Concentration metrics failed for {portfolio_id}: {str(e)}")
+        raise HTTPException(status_code=500, detail="Internal server error retrieving concentration metrics")
+
+
 class UpdateEquityRequest(BaseModel):
     """Request model for updating portfolio equity balance"""
     equity_balance: float
-    
+
     class Config:
         schema_extra = {
             "example": {

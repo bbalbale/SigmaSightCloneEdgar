@@ -300,3 +300,123 @@ class PositionFactorExposuresResponse(BaseModel):
                 ]
             }
         }
+
+
+class SectorExposureData(BaseModel):
+    """Sector exposure data comparing portfolio to S&P 500 benchmark"""
+    portfolio_weights: Dict[str, float] = Field(..., description="Portfolio sector weights (decimals summing to 1.0)")
+    benchmark_weights: Dict[str, float] = Field(..., description="S&P 500 sector weights (decimals summing to 1.0)")
+    over_underweight: Dict[str, float] = Field(..., description="Over/underweight vs benchmark (positive = overweight)")
+    largest_overweight: Optional[str] = Field(None, description="Sector with largest overweight")
+    largest_underweight: Optional[str] = Field(None, description="Sector with largest underweight")
+    total_portfolio_value: float = Field(..., description="Total portfolio value used for calculation")
+    positions_by_sector: Dict[str, int] = Field(..., description="Number of positions per sector")
+    unclassified_value: float = Field(..., description="Value of positions without sector classification")
+    unclassified_count: int = Field(..., description="Number of positions without sector classification")
+
+
+class SectorExposureResponse(BaseModel):
+    """
+    Portfolio sector exposure response (Phase 1: Risk Metrics)
+
+    Returns portfolio sector exposure vs S&P 500 benchmark with over/underweight analysis.
+    Uses GICS sector classifications from market_data_cache table.
+    """
+    available: bool = Field(..., description="Whether sector exposure data is available")
+    portfolio_id: str = Field(..., description="Portfolio UUID")
+    calculation_date: Optional[str] = Field(None, description="ISO date of calculation")
+    data: Optional[SectorExposureData] = Field(None, description="Sector exposure data when available")
+    metadata: Optional[Dict[str, Union[str, int]]] = Field(None, description="Additional metadata")
+
+    class Config:
+        schema_extra = {
+            "example": {
+                "available": True,
+                "portfolio_id": "c0510ab8-c6b5-433c-adbc-3f74e1dbdb5e",
+                "calculation_date": "2025-10-17",
+                "data": {
+                    "portfolio_weights": {
+                        "Technology": 0.45,
+                        "Healthcare": 0.20,
+                        "Financials": 0.15,
+                        "Consumer Discretionary": 0.10,
+                        "Industrials": 0.10
+                    },
+                    "benchmark_weights": {
+                        "Technology": 0.28,
+                        "Healthcare": 0.13,
+                        "Financials": 0.11,
+                        "Consumer Discretionary": 0.10,
+                        "Industrials": 0.08
+                    },
+                    "over_underweight": {
+                        "Technology": 0.17,
+                        "Healthcare": 0.07,
+                        "Financials": 0.04,
+                        "Consumer Discretionary": 0.0,
+                        "Industrials": 0.02
+                    },
+                    "largest_overweight": "Technology",
+                    "largest_underweight": "Energy",
+                    "total_portfolio_value": 1250000.00,
+                    "positions_by_sector": {
+                        "Technology": 8,
+                        "Healthcare": 4,
+                        "Financials": 3,
+                        "Consumer Discretionary": 2,
+                        "Industrials": 2
+                    },
+                    "unclassified_value": 0.0,
+                    "unclassified_count": 0
+                },
+                "metadata": {
+                    "benchmark": "SP500",
+                    "benchmark_date": "2025-10-17"
+                }
+            }
+        }
+
+
+class ConcentrationMetricsData(BaseModel):
+    """Portfolio concentration metrics"""
+    hhi: float = Field(..., description="Herfindahl-Hirschman Index (0-10000, higher = more concentrated)")
+    effective_num_positions: float = Field(..., description="Effective number of positions (10000 / HHI)")
+    top_3_concentration: float = Field(..., description="Sum of top 3 position weights (0-1)")
+    top_10_concentration: float = Field(..., description="Sum of top 10 position weights (0-1)")
+    total_positions: int = Field(..., description="Total number of active positions")
+    position_weights: Optional[Dict[str, float]] = Field(None, description="Individual position weights (optional)")
+
+
+class ConcentrationMetricsResponse(BaseModel):
+    """
+    Portfolio concentration metrics response (Phase 1: Risk Metrics)
+
+    Returns HHI, effective positions, and top-N concentration metrics.
+    Measures portfolio diversification and concentration risk.
+    """
+    available: bool = Field(..., description="Whether concentration metrics are available")
+    portfolio_id: str = Field(..., description="Portfolio UUID")
+    calculation_date: Optional[str] = Field(None, description="ISO date of calculation")
+    data: Optional[ConcentrationMetricsData] = Field(None, description="Concentration metrics when available")
+    metadata: Optional[Dict[str, Union[str, int]]] = Field(None, description="Additional metadata")
+
+    class Config:
+        schema_extra = {
+            "example": {
+                "available": True,
+                "portfolio_id": "c0510ab8-c6b5-433c-adbc-3f74e1dbdb5e",
+                "calculation_date": "2025-10-17",
+                "data": {
+                    "hhi": 625.0,
+                    "effective_num_positions": 16.0,
+                    "top_3_concentration": 0.35,
+                    "top_10_concentration": 0.75,
+                    "total_positions": 21,
+                    "position_weights": None
+                },
+                "metadata": {
+                    "calculation_method": "market_value_weighted",
+                    "interpretation": "Well diversified (HHI < 1500)"
+                }
+            }
+        }

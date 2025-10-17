@@ -81,7 +81,8 @@
       "Bash(mkdir:*)",
       "Bash(npm run type-check:*)",
       "Bash(del \"C:\\Users\\BenBalbale\\CascadeProjects\\SigmaSight\\frontend\\src\\components\\portfolio\\StrategyList.tsx\")",
-      "WebSearch"
+      "WebSearch",
+      "Bash(.venv/Scripts/python.exe:*)"
     ],
     "additionalDirectories": [
       "C:\\c\\Users\\BenBalbale\\CascadeProjects\\SigmaSight-BE"

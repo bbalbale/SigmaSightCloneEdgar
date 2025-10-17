@@ -11,7 +11,10 @@
 **Status:**
 - ✅ Migration 0: COMPLETE (Applied October 17, 2025)
 - ✅ Migration 1: COMPLETE (Applied October 17, 2025 - bug fixed)
-- ⏸️ Migration 2-5: Pending
+- ✅ Migration 2: COMPLETE (Applied October 17, 2025)
+- ✅ Migration 3: COMPLETE (Applied October 17, 2025)
+- ✅ Migration 4: COMPLETE (Applied October 17, 2025)
+- ✅ Migration 5: COMPLETE (Applied October 17, 2025)
 
 ---
 
@@ -144,9 +147,13 @@ asyncio.run(check())
 
 ## Phase 1: Benchmark Weights & Sector Analysis
 
-### Migration 2: Create benchmarks_sector_weights Table
+### Migration 2: Create benchmarks_sector_weights Table ✅
 
-**File:** `backend/alembic/versions/XXXX_create_benchmarks_sector_weights.py`
+**Status:** COMPLETE (Applied October 17, 2025)
+
+**File:** `backend/alembic/versions/7818709e948d_create_benchmarks_sector_weights.py`
+
+**Revision ID:** `7818709e948d`
 
 **Command:**
 ```bash
@@ -206,9 +213,13 @@ asyncio.run(check())
 
 ---
 
-### Migration 3: Add Sector & Concentration to portfolio_snapshots
+### Migration 3: Add Sector & Concentration to portfolio_snapshots ✅
 
-**File:** `backend/alembic/versions/XXXX_add_sector_concentration_to_snapshots.py`
+**Status:** COMPLETE (Applied October 17, 2025)
+
+**File:** `backend/alembic/versions/f67a98539656_add_sector_concentration_to_snapshots.py`
+
+**Revision ID:** `f67a98539656`
 
 **Command:**
 ```bash
@@ -574,10 +585,14 @@ uv run alembic upgrade head
 ---
 
 **Last Updated:** October 17, 2025
-**Status:** Phase 0 Complete (2/5 migrations applied)
+**Status:** Phase 0 & Phase 1 Complete (4/5 migrations applied)
 **Phase:**
-- ✅ Phase 0: COMPLETE (Migrations 0-1 applied successfully)
-- ⏸️ Phase 1: Pending (Migrations 2-3)
+- ✅ Phase 0: COMPLETE (Migrations 0-1 applied successfully - October 17, 2025)
+- ✅ Phase 1: COMPLETE (Migrations 2-3 applied successfully - October 17, 2025)
+  - Migration 2 (7818709e948d): benchmarks_sector_weights table created
+  - Migration 3 (f67a98539656): 5 columns added to portfolio_snapshots
+  - BenchmarkSectorWeight model added to market_data.py
+  - 12 S&P 500 sectors seeded successfully
 - ⏸️ Phase 2: Pending (Migrations 4-5)
 
 ## Lessons Learned

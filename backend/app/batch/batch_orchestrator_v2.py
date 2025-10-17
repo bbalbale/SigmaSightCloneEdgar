@@ -145,7 +145,7 @@ class BatchOrchestratorV2:
         This ensures accurate progress tracking even when some jobs are disabled.
         """
         # Base job sequence (matches _process_single_portfolio_safely)
-        job_count = 8  # market_data, position_values, portfolio_agg, market_beta, factors, market_risk, stress_test, snapshot
+        job_count = 9  # market_data, position_values, portfolio_agg, market_beta, sector_analysis, factors, market_risk, stress_test, snapshot
 
         # Greeks is currently disabled (no options feed)
         # job_count += 1  # would add greeks if enabled
@@ -224,6 +224,7 @@ class BatchOrchestratorV2:
             ("position_values_update", self._update_position_values, [portfolio_id]),
             ("portfolio_aggregation", self._calculate_portfolio_aggregation, [portfolio_id]),
             ("market_beta_calculation", self._calculate_market_beta, [portfolio_id]),  # Phase 0: Single-factor market beta
+            ("sector_concentration_analysis", self._calculate_sector_analysis, [portfolio_id]),  # Phase 1: Sector exposure & concentration
             # ("greeks_calculation", self._calculate_greeks, [portfolio_id]),  # DISABLED: No options feed
             ("factor_analysis", self._calculate_factors, [portfolio_id]),
             ("market_risk_scenarios", self._calculate_market_risk, [portfolio_id]),
@@ -547,6 +548,43 @@ class BatchOrchestratorV2:
             )
 
         return beta_result
+
+    async def _calculate_sector_analysis(self, db: AsyncSession, portfolio_id: str):
+        """Sector exposure and concentration analysis job (Phase 1)"""
+        from app.calculations.sector_analysis import calculate_portfolio_sector_concentration
+
+        portfolio_uuid = ensure_uuid(portfolio_id)
+
+        logger.info(f"Calculating sector exposure & concentration for portfolio {portfolio_id}")
+
+        sector_result = await calculate_portfolio_sector_concentration(
+            db=db,
+            portfolio_id=portfolio_uuid,
+            calculation_date=date.today()
+        )
+
+        if sector_result['success']:
+            # Log sector exposure summary
+            if sector_result.get('sector_exposure'):
+                se = sector_result['sector_exposure']
+                logger.info(
+                    f"Sector analysis complete: {len(se.get('portfolio_weights', {}))} sectors, "
+                    f"${se.get('total_portfolio_value', 0):,.0f} total value"
+                )
+
+            # Log concentration metrics
+            if sector_result.get('concentration'):
+                conc = sector_result['concentration']
+                logger.info(
+                    f"Concentration: HHI={conc.get('hhi', 0):.2f}, "
+                    f"Effective positions={conc.get('effective_num_positions', 0):.2f}"
+                )
+        else:
+            logger.warning(
+                f"Sector analysis failed: {sector_result.get('error', 'Unknown error')}"
+            )
+
+        return sector_result
 
     async def _calculate_greeks(self, db: AsyncSession, portfolio_id: str):
         """Greeks calculation job"""

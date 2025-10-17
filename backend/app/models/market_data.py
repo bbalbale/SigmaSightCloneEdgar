@@ -273,6 +273,30 @@ class PositionMarketBeta(Base):
     )
 
 
+class BenchmarkSectorWeight(Base):
+    """Benchmark sector weights - stores S&P 500 sector weights with historical tracking"""
+    __tablename__ = "benchmarks_sector_weights"
+
+    id: Mapped[UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid4)
+    benchmark_code: Mapped[str] = mapped_column(String(32), nullable=False)
+    asof_date: Mapped[date] = mapped_column(Date, nullable=False)
+    sector: Mapped[str] = mapped_column(String(64), nullable=False)
+    weight: Mapped[Decimal] = mapped_column(Numeric(12, 6), nullable=False)
+    market_cap: Mapped[Optional[Decimal]] = mapped_column(Numeric(20, 2), nullable=True)
+    num_constituents: Mapped[Optional[int]] = mapped_column(nullable=True)
+    data_source: Mapped[str] = mapped_column(String(32), nullable=False, server_default='FMP')
+
+    # Timestamps
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    __table_args__ = (
+        UniqueConstraint('benchmark_code', 'asof_date', 'sector', name='uq_benchmark_sector_date'),
+        Index('idx_benchmark_lookup', 'benchmark_code', 'asof_date'),
+        Index('idx_benchmark_sector', 'benchmark_code', 'sector', 'asof_date'),
+    )
+
+
 class MarketRiskScenario(Base):
     """Market risk scenarios - stores portfolio scenario results"""
     __tablename__ = "market_risk_scenarios"
@@ -310,6 +334,51 @@ class PositionInterestRateBeta(Base):
     
     __table_args__ = (
         Index('idx_ir_betas_position_date', 'position_id', 'calculation_date'),
+    )
+
+
+class PositionVolatility(Base):
+    """Position volatility - stores position-level volatility metrics and HAR forecasts"""
+    __tablename__ = "position_volatility"
+
+    id: Mapped[UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid4)
+    position_id: Mapped[UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("positions.id"), nullable=False)
+    calculation_date: Mapped[date] = mapped_column(Date, nullable=False)
+
+    # Realized volatility (trading day windows)
+    realized_vol_21d: Mapped[Optional[Decimal]] = mapped_column(Numeric(10, 4), nullable=True)  # 21 trading days (~1 month)
+    realized_vol_63d: Mapped[Optional[Decimal]] = mapped_column(Numeric(10, 4), nullable=True)  # 63 trading days (~3 months)
+
+    # HAR model components (for forecasting)
+    vol_daily: Mapped[Optional[Decimal]] = mapped_column(Numeric(10, 4), nullable=True)  # Daily volatility component
+    vol_weekly: Mapped[Optional[Decimal]] = mapped_column(Numeric(10, 4), nullable=True)  # Weekly (5d) volatility component
+    vol_monthly: Mapped[Optional[Decimal]] = mapped_column(Numeric(10, 4), nullable=True)  # Monthly (21d) volatility component
+
+    # Forecast
+    expected_vol_21d: Mapped[Optional[Decimal]] = mapped_column(Numeric(10, 4), nullable=True)  # HAR model forecast for next 21 trading days
+
+    # Trend analysis
+    vol_trend: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)  # Volatility direction: increasing, decreasing, stable
+    vol_trend_strength: Mapped[Optional[Decimal]] = mapped_column(Numeric(10, 4), nullable=True)  # Trend strength on 0-1 scale
+
+    # Percentile (vs 1-year history)
+    vol_percentile: Mapped[Optional[Decimal]] = mapped_column(Numeric(10, 4), nullable=True)  # Current volatility percentile vs 1-year history (0-1)
+
+    # Metadata
+    observations: Mapped[Optional[int]] = mapped_column(nullable=True)  # Number of data points used in calculation
+    model_r_squared: Mapped[Optional[Decimal]] = mapped_column(Numeric(10, 4), nullable=True)  # HAR model R-squared goodness of fit
+
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Relationships
+    position: Mapped["Position"] = relationship("Position", back_populates="volatility")
+
+    __table_args__ = (
+        UniqueConstraint('position_id', 'calculation_date', name='uq_position_volatility_date'),
+        Index('ix_position_volatility_position_id', 'position_id'),
+        Index('ix_position_volatility_calculation_date', 'calculation_date'),
+        Index('ix_position_volatility_lookup', 'position_id', 'calculation_date'),
     )
 
 
