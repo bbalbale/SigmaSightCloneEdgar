@@ -86,18 +86,38 @@ export interface FactorExposuresApiResponse {
 export interface PositionFactorExposureItem {
   position_id: string;
   symbol: string;
-  exposures: Record<string, number>; // factor name → exposure value
+  exposures: Record<string, number>; // factor name → exposure value (beta)
 }
 
+// Updated to match backend API response structure
 export interface PositionFactorExposuresResponse {
   available: boolean;
-  data?: PositionFactorExposureItem[];
+  portfolio_id: string;
+  calculation_date: string | null;
+  total: number | null;
+  limit: number | null;
+  offset: number | null;
+  positions: PositionFactorExposureItem[] | null;
+  data_quality?: {
+    flag: string;
+    message: string;
+    positions_analyzed: number;
+    positions_total: number;
+    positions_skipped: number;
+    data_days: number;
+  } | null;
   metadata?: {
-    count: number;
-    limit: number;
-    offset: number;
+    reason?: string;
   };
-  reason?: string;
+}
+
+// Helper type for factor beta display
+export interface PositionFactorData {
+  factorExposures: Map<string, Record<string, number>>; // symbol → { factor_name → beta }
+  companyBetas: Map<string, number>; // symbol → company market beta
+  loading: boolean;
+  error: string | null;
+  calculationDate: string | null;
 }
 
 export interface StressTestScenarioImpact {

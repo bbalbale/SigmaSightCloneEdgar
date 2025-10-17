@@ -1,4 +1,4 @@
-"use client"
+'use client'
 
 import React from 'react'
 import { useTheme } from '@/contexts/ThemeContext'
@@ -12,7 +12,7 @@ import { PortfolioMetrics } from '@/components/portfolio/PortfolioMetrics'
 import { PortfolioError, PortfolioErrorState } from '@/components/portfolio/PortfolioError'
 import { FactorExposureCards } from '@/components/portfolio/FactorExposureCards'
 
-function PortfolioPageContent() {
+export function DashboardContainer() {
   const { theme } = useTheme()
 
   const {
@@ -121,8 +121,4 @@ function PortfolioPageContent() {
       ) : null}
     </div>
   )
-}
-
-export default function Portfolio() {
-  return <PortfolioPageContent />
 }

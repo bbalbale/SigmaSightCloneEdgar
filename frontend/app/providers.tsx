@@ -115,7 +115,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
     const response = await chatAuthService.login(email, password)
     setUser(mapUser(response.user || null))
     await initializePortfolio()
-    router.push('/portfolio')
+    router.push('/dashboard')
   }, [initializePortfolio, mapUser, router])
 
   const logout = useCallback(async () => {

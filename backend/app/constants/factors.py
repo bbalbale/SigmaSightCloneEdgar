@@ -4,8 +4,8 @@ Constants for factor analysis calculations
 
 # Factor calculation parameters
 REGRESSION_WINDOW_DAYS = 90   # ~3 months of data for factor regression (reduced from 150 for faster calculations)
-MIN_REGRESSION_DAYS = 60      # 3-month minimum data requirement
-BETA_CAP_LIMIT = 3.0         # Cap factor betas at ±3 to prevent outliers
+MIN_REGRESSION_DAYS = 30      # Minimum 30 days for market beta regression
+BETA_CAP_LIMIT = 5.0         # Cap market betas at ±5 to prevent extreme outliers
 
 # Batch processing parameters
 POSITION_CHUNK_SIZE = 1000   # Process positions in chunks for large portfolios

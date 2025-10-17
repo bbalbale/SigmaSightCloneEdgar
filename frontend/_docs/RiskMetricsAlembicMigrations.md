@@ -6,6 +6,13 @@
 
 **Execution Order:** Must be run sequentially (Migration 0 → 1 → 2 → 3 → 4)
 
+**Last Updated:** October 17, 2025
+
+**Status:**
+- ✅ Migration 0: COMPLETE (Applied October 17, 2025)
+- ✅ Migration 1: COMPLETE (Applied October 17, 2025 - bug fixed)
+- ⏸️ Migration 2-5: Pending
+
 ---
 
 ## Quick Reference
@@ -22,11 +29,15 @@
 
 ## Phase 0: Market Beta Single-Factor Model
 
-### Migration 0: Create position_market_betas Table
+### Migration 0: Create position_market_betas Table ✅
 
-**File:** `backend/alembic/versions/XXXX_create_position_market_betas.py`
+**Status:** COMPLETE (Applied October 17, 2025)
 
-**Command:**
+**File:** `backend/alembic/versions/a1b2c3d4e5f6_create_position_market_betas.py`
+
+**Revision ID:** `a1b2c3d4e5f6`
+
+**Command Used:**
 ```bash
 cd backend
 uv run alembic revision -m "create_position_market_betas"
@@ -70,14 +81,24 @@ uv run python -c "from app.models.market_data import PositionMarketBeta; print('
 
 ---
 
-### Migration 1: Add Market Beta to portfolio_snapshots
+### Migration 1: Add Market Beta to portfolio_snapshots ✅
 
-**File:** `backend/alembic/versions/XXXX_add_market_beta_to_snapshots.py`
+**Status:** COMPLETE (Applied October 17, 2025 - Bug Fixed)
 
-**Command:**
+**File:** `backend/alembic/versions/b2c3d4e5f6g7_add_market_beta_to_snapshots.py`
+
+**Revision ID:** `b2c3d4e5f6g7`
+
+**Command Used:**
 ```bash
 uv run alembic revision -m "add_market_beta_to_snapshots"
 ```
+
+**⚠️ CRITICAL BUG FIXED:**
+- **Original Error:** Index used wrong column name `calculation_date` (doesn't exist)
+- **Correct Column:** `snapshot_date` (actual column in portfolio_snapshots table)
+- **Fix Applied:** Line 45 changed from `calculation_date` to `snapshot_date`
+- **Impact:** Migration failed during `uv run alembic upgrade head` until fixed
 
 **What it adds:**
 - **Modifies table:** `portfolio_snapshots`
@@ -92,7 +113,8 @@ market_beta_direct          NUMERIC(10,4)   Direct portfolio regression (Phase 3
 ```
 
 **New index:**
-- `idx_snapshots_beta` (portfolio_id, calculation_date, market_beta_weighted)
+- `idx_snapshots_beta` (portfolio_id, snapshot_date, market_beta_weighted)
+  - **Note:** Uses `snapshot_date` NOT `calculation_date` ✅
 
 **Note:** `market_beta_direct` reserved for Phase 3 (direct OLS regression of portfolio returns vs SPY)
 
@@ -551,6 +573,56 @@ uv run alembic upgrade head
 
 ---
 
-**Last Updated:** 2025-10-17
-**Status:** Ready for implementation
-**Phase:** 0-2 (Market Beta, Sector Analysis, Volatility)
+**Last Updated:** October 17, 2025
+**Status:** Phase 0 Complete (2/5 migrations applied)
+**Phase:**
+- ✅ Phase 0: COMPLETE (Migrations 0-1 applied successfully)
+- ⏸️ Phase 1: Pending (Migrations 2-3)
+- ⏸️ Phase 2: Pending (Migrations 4-5)
+
+## Lessons Learned
+
+### Bug Found and Fixed: Wrong Column Name in Index
+
+**Migration 1 Issue:**
+- **Problem:** Original migration script used `calculation_date` in index creation
+- **Error:** `column "calculation_date" does not exist`
+- **Root Cause:** portfolio_snapshots table uses `snapshot_date` not `calculation_date`
+- **Fix:** Changed line 45 in migration from:
+  ```python
+  op.create_index('idx_snapshots_beta', 'portfolio_snapshots',
+                  ['portfolio_id', 'calculation_date', 'market_beta_weighted'])
+  ```
+  To:
+  ```python
+  op.create_index('idx_snapshots_beta', 'portfolio_snapshots',
+                  ['portfolio_id', 'snapshot_date', 'market_beta_weighted'])
+  ```
+- **Prevention:** Always verify column names against existing table schema before creating indexes
+
+### Migration Testing Best Practice
+
+**Recommended workflow:**
+1. Generate migration: `uv run alembic revision -m "description"`
+2. **Review generated file** - Check column names match actual tables
+3. Test migration: `uv run alembic upgrade head`
+4. If error occurs:
+   - DO NOT delete migration file
+   - Fix the error in the migration file
+   - Downgrade if partially applied: `uv run alembic downgrade -1`
+   - Re-run: `uv run alembic upgrade head`
+5. Verify with database query
+6. Document fix in this file
+
+### Actual Results vs Planning
+
+**Columns Created:** ✅ All as planned
+
+**Performance:**
+- Migration 0: ~1.5 seconds
+- Migration 1: ~0.8 seconds (after fix)
+- Total: ~2.3 seconds
+
+**Database Size:**
+- position_market_betas: ~19 rows created in testing
+- portfolio_snapshots: 4 new columns added successfully

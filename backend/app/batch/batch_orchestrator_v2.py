@@ -145,7 +145,7 @@ class BatchOrchestratorV2:
         This ensures accurate progress tracking even when some jobs are disabled.
         """
         # Base job sequence (matches _process_single_portfolio_safely)
-        job_count = 7  # market_data, position_values, portfolio_agg, factors, market_risk, stress_test, snapshot
+        job_count = 8  # market_data, position_values, portfolio_agg, market_beta, factors, market_risk, stress_test, snapshot
 
         # Greeks is currently disabled (no options feed)
         # job_count += 1  # would add greeks if enabled
@@ -223,6 +223,7 @@ class BatchOrchestratorV2:
             ("market_data_update", self._update_market_data, []),
             ("position_values_update", self._update_position_values, [portfolio_id]),
             ("portfolio_aggregation", self._calculate_portfolio_aggregation, [portfolio_id]),
+            ("market_beta_calculation", self._calculate_market_beta, [portfolio_id]),  # Phase 0: Single-factor market beta
             # ("greeks_calculation", self._calculate_greeks, [portfolio_id]),  # DISABLED: No options feed
             ("factor_analysis", self._calculate_factors, [portfolio_id]),
             ("market_risk_scenarios", self._calculate_market_risk, [portfolio_id]),
@@ -519,7 +520,34 @@ class BatchOrchestratorV2:
             'has_options': has_options,
             'exposures': exposures
         }
-    
+
+    async def _calculate_market_beta(self, db: AsyncSession, portfolio_id: str):
+        """Market beta calculation job (Phase 0: Single-factor model)"""
+        from app.calculations.market_beta import calculate_portfolio_market_beta
+
+        portfolio_uuid = ensure_uuid(portfolio_id)
+
+        logger.info(f"Calculating market beta for portfolio {portfolio_id}")
+
+        beta_result = await calculate_portfolio_market_beta(
+            db=db,
+            portfolio_id=portfolio_uuid,
+            calculation_date=date.today(),
+            persist=True  # Save position betas to position_market_betas table
+        )
+
+        if beta_result['success']:
+            logger.info(
+                f"Market beta calculated successfully: {beta_result['market_beta']:.3f} "
+                f"(R²={beta_result['r_squared']:.3f}, {beta_result['positions_count']} positions)"
+            )
+        else:
+            logger.warning(
+                f"Market beta calculation failed: {beta_result.get('error', 'Unknown error')}"
+            )
+
+        return beta_result
+
     async def _calculate_greeks(self, db: AsyncSession, portfolio_id: str):
         """Greeks calculation job"""
         # TODO: Add ensure_uuid() conversion before re-enabling this job

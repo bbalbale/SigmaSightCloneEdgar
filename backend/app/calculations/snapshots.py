@@ -301,6 +301,7 @@ async def _create_or_update_snapshot(
 
     # Import Portfolio model for equity_balance lookup
     from app.models.users import Portfolio
+    from app.models.market_data import PositionMarketBeta
 
     # Get portfolio to access equity_balance
     portfolio_query = select(Portfolio).where(Portfolio.id == portfolio_id)
@@ -341,6 +342,52 @@ async def _create_or_update_snapshot(
     portfolio.equity_balance = today_equity
     await db.flush()
 
+    # Fetch market beta data (Phase 0: Single-factor model)
+    market_beta_query = select(PositionMarketBeta).where(
+        and_(
+            PositionMarketBeta.portfolio_id == portfolio_id,
+            PositionMarketBeta.calc_date == calculation_date
+        )
+    )
+    market_beta_result = await db.execute(market_beta_query)
+    market_beta_records = market_beta_result.scalars().all()
+
+    # Calculate portfolio-level market beta (equity-weighted average)
+    market_beta_weighted = None
+    market_beta_r_squared = None
+    market_beta_observations = None
+
+    if market_beta_records and today_equity > 0:
+        total_weighted_beta = Decimal('0')
+        total_weighted_r_squared = Decimal('0')
+        min_observations = None
+
+        for beta_record in market_beta_records:
+            # Get position to find market value
+            position_query = select(Position).where(Position.id == beta_record.position_id)
+            position_result = await db.execute(position_query)
+            position = position_result.scalar_one_or_none()
+
+            if position and position.market_value:
+                weight = position.market_value / today_equity
+                total_weighted_beta += beta_record.beta * weight
+                total_weighted_r_squared += (beta_record.r_squared or Decimal('0')) * weight
+
+                # Track minimum observations
+                if min_observations is None or beta_record.observations < min_observations:
+                    min_observations = beta_record.observations
+
+        market_beta_weighted = total_weighted_beta
+        market_beta_r_squared = total_weighted_r_squared
+        market_beta_observations = min_observations
+
+        logger.info(
+            f"Market beta for snapshot: {float(market_beta_weighted):.3f} "
+            f"(R²={float(market_beta_r_squared):.3f}, obs={market_beta_observations})"
+        )
+    else:
+        logger.info("No market beta data available for snapshot")
+
     # Check if snapshot already exists
     existing_query = select(PortfolioSnapshot).where(
         and_(
@@ -370,7 +417,12 @@ async def _create_or_update_snapshot(
         "num_positions": position_counts['total'],
         "num_long_positions": position_counts['long'],
         "num_short_positions": position_counts['short'],
-        "equity_balance": today_equity  # Use calculated equity
+        "equity_balance": today_equity,  # Use calculated equity
+        # Phase 0: Market beta (single-factor model)
+        "market_beta_weighted": market_beta_weighted,
+        "market_beta_r_squared": market_beta_r_squared,
+        "market_beta_observations": market_beta_observations,
+        "market_beta_direct": None  # Reserved for Phase 3 (portfolio-level regression)
     }
 
     if existing_snapshot:

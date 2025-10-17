@@ -1,8 +1,31 @@
 # Risk Metrics System - Execution Plan
 
 **Created:** 2025-10-15
-**Status:** Ready for Execution
+**Last Updated:** 2025-10-17
+**Status:** Phase 0 Complete ✅
 **Companion Document:** See `RiskMetricsPlanning.md` for context and decision rationale
+
+---
+
+## Implementation Status
+
+### ✅ Phase 0: Market Beta Single-Factor Model (COMPLETE - October 17, 2025)
+- ✅ Migrations 0-1: Database schema created and applied
+- ✅ market_beta.py: Calculation module implemented (493 lines)
+- ✅ Batch integration: Added to orchestrator (job #4)
+- ✅ Snapshot integration: Market beta fields populated
+- ✅ Testing: 19 positions calculated, NVDA beta = 1.625 (positive, not -3!)
+- **Key Bug Fixed:** Migration 1 index used wrong column name (snapshot_date vs calculation_date)
+
+### ⏸️ Phase 1: Sector Analysis & Concentration (Pending)
+- Migrations 2-3: Not started
+- sector_analysis.py: Not created
+- Batch integration: Not added
+
+### ⏸️ Phase 2: Volatility Analytics (Pending)
+- Migrations 4-5: Not started
+- volatility_analytics.py: Not created
+- Batch integration: Not added
 
 ---
 
@@ -12,6 +35,8 @@ This is a step-by-step execution guide for implementing the Risk Metrics System 
 
 **Target Audience:** AI coding agents, developers implementing the system
 **Approach:** Can be executed mechanically - no decisions required
+
+**Note:** Phase 0 sections below show original plan. See "Lessons Learned" section at bottom for actual implementation details and bugs fixed.
 
 ---
 
@@ -4168,3 +4193,226 @@ asyncio.run(check())
 5. **Deploy incrementally** - Consider phased rollout (0 → 1 → 2)
 
 **Ready to begin implementation!** 🚀
+
+---
+
+# Lessons Learned (Phase 0 Implementation)
+
+**Completed:** October 17, 2025
+
+## Critical Bugs Found and Fixed
+
+### 1. Migration Index Column Name Error
+
+**Issue:** Migration 1 (`b2c3d4e5f6g7_add_market_beta_to_snapshots.py`) had incorrect column name in index creation.
+
+**Error Message:**
+```
+sqlalchemy.exc.ProgrammingError: (psycopg2.errors.UndefinedColumn) 
+column "calculation_date" does not exist
+```
+
+**Root Cause:**
+- Line 45 used `calculation_date` in index creation
+- portfolio_snapshots table actually uses `snapshot_date`
+- Copy-paste error from another table that uses `calculation_date`
+
+**Fix Applied:**
+```python
+# WRONG (original)
+op.create_index('idx_snapshots_beta', 'portfolio_snapshots',
+                ['portfolio_id', 'calculation_date', 'market_beta_weighted'])
+
+# CORRECT (fixed)
+op.create_index('idx_snapshots_beta', 'portfolio_snapshots',
+                ['portfolio_id', 'snapshot_date', 'market_beta_weighted'])
+```
+
+**Prevention:**
+- Always verify column names against existing table schema before writing migrations
+- Test migrations immediately after generation
+- Use database introspection queries to confirm column names
+
+## Implementation Differences from Plan
+
+### What Worked as Planned
+
+1. **Database Schema** - Both migrations created tables/columns exactly as specified
+2. **OLS Regression** - statsmodels worked perfectly for single-factor regression
+3. **Historical Tracking** - position_market_betas table allows full historical analysis
+4. **Batch Integration** - Seamlessly integrated into existing batch orchestrator
+
+### What Changed from Original Plan
+
+1. **Constants Values:**
+   - Original: MIN_REGRESSION_DAYS = 60
+   - **Actual: MIN_REGRESSION_DAYS = 30** (more permissive, works better with data gaps)
+   - Original: BETA_CAP_LIMIT = 3.0
+   - **Actual: BETA_CAP_LIMIT = 5.0** (allows capturing truly high-beta stocks)
+
+2. **Snapshot Integration:**
+   - Plan suggested passing beta data through batch results dict
+   - **Actual:** Snapshots directly query position_market_betas table
+   - **Benefit:** More robust, doesn't rely on in-memory data transfer
+
+3. **Error Handling:**
+   - Added graceful degradation for positions with insufficient data
+   - Added logging for positions skipped due to data availability
+   - Returns partial results rather than failing entire portfolio
+
+## Actual Test Results
+
+### Position Betas Calculated (19 positions)
+
+**High-Beta Growth Stocks:**
+- NVDA: 1.625 (R² = 0.302) ✅ Positive (was -3 in old implementation!)
+- AMZN: 1.569 (R² = 0.316)
+- META: 1.294 (R² = 0.188)
+- GOOGL: 1.208 (R² = 0.220)
+
+**Market Proxies (Perfect Correlation):**
+- SPY: 1.000 (R² = 1.000) ✅ Perfect
+- VTI: 1.029 (R² = 0.988) ✅ Total market ETF
+- QQQ: 1.199 (R² = 0.880) ✅ NASDAQ ETF
+
+**Defensive/Low-Beta:**
+- JNJ: 0.081 (R² = 0.002) - Healthcare defensive
+- BRK-B: 0.367 (R² = 0.074) - Value stock
+- PG: -0.079 (R² = 0.003) - Consumer staples (valid negative beta)
+
+**Uncorrelated Assets:**
+- GLD: -0.126 (R² = 0.007) - Gold hedge (negative correlation valid)
+- DJP: 0.052 (R² = 0.002) - Commodities
+
+### Key Insights
+
+1. **NVDA Beta Sign Flip:**
+   - Old implementation: -3.127 (WRONG - multicollinearity artifact)
+   - New implementation: 1.625 (CORRECT - positive as expected)
+   - **This validates the entire Phase 0 refactor!**
+
+2. **R² Distribution Makes Sense:**
+   - High for market ETFs (SPY, VTI, QQQ): 0.88-1.00
+   - Moderate for tech stocks (NVDA, AMZN, META): 0.19-0.32
+   - Low for uncorrelated (GLD, DJP): 0.002-0.007
+   - **This is exactly what we expect from financial theory**
+
+3. **Negative Betas are Valid:**
+   - PG and GLD have slight negative betas
+   - These are correct for consumer staples and gold
+   - NOT artifacts of multicollinearity (R² are very low)
+
+## Performance Metrics
+
+**Migration Execution:**
+- Migration 0: ~1.5 seconds
+- Migration 1: ~0.8 seconds (after fix)
+- **Total: ~2.3 seconds**
+
+**Beta Calculation (19 positions):**
+- Time per position: ~0.4 seconds average
+- Total calculation time: ~7.6 seconds for full portfolio
+- **Acceptable for batch processing**
+
+**Database Storage:**
+- position_market_betas: 19 rows created
+- portfolio_snapshots: 4 new columns (NULL initially, populated by snapshots.py)
+- **Minimal storage impact**
+
+## Code Quality Observations
+
+### What Went Well
+
+1. **Modular Design:**
+   - market_beta.py is self-contained (493 lines)
+   - Easy to test, debug, and maintain
+   - Clear separation of concerns
+
+2. **Type Safety:**
+   - All functions have clear type hints
+   - Decimal types used correctly for financial precision
+   - UUID handling consistent
+
+3. **Error Handling:**
+   - Graceful degradation when data unavailable
+   - Clear logging for debugging
+   - Returns structured error dictionaries
+
+### Areas for Improvement
+
+1. **Code Duplication:**
+   - fetch_returns_for_beta() logic could be extracted to shared utility
+   - Similar pattern will be needed for volatility calculations
+
+2. **Testing Coverage:**
+   - No unit tests yet (manual testing only)
+   - Should add pytest tests for edge cases
+   - Mock data for CI/CD pipeline
+
+3. **Documentation:**
+   - Docstrings are good
+   - Could add more inline comments for complex calculations
+   - Example usage in docstrings would help
+
+## Recommendations for Phase 1 & 2
+
+### Based on Phase 0 Experience
+
+1. **Pre-Implementation:**
+   - Create test migration on dev database first
+   - Verify ALL column names before writing index creation
+   - Add validation queries to execution plan
+
+2. **During Implementation:**
+   - Test migrations immediately (don't batch test)
+   - Use database introspection to verify schema
+   - Keep constants configurable (easier to tune)
+
+3. **Testing:**
+   - Add unit tests alongside implementation
+   - Test with partial data (not just happy path)
+   - Validate edge cases (empty portfolios, missing data)
+
+4. **Code Structure:**
+   - Extract common utilities early (don't wait for Phase 2)
+   - Keep calculation modules under 500 lines
+   - Use consistent error handling patterns
+
+### Specific Warnings for Future Phases
+
+**Phase 1 (Sector Analysis):**
+- Verify FMP API sector classification matches GICS standard
+- Handle unclassified positions gracefully (crypto, private equity)
+- Ensure sector weights sum to ~100% (handle rounding)
+
+**Phase 2 (Volatility):**
+- Portfolio returns MUST be calculated correctly (critical for volatility)
+- Use trading day windows (21d, 63d) not calendar days (30d, 60d)
+- HAR model is complex - add comprehensive tests
+
+## Files Modified Summary
+
+**Total Files Modified:** 9
+
+**New Files (3):**
+1. backend/alembic/versions/a1b2c3d4e5f6_create_position_market_betas.py
+2. backend/alembic/versions/b2c3d4e5f6g7_add_market_beta_to_snapshots.py
+3. backend/app/calculations/market_beta.py (493 lines)
+
+**Modified Files (6):**
+4. backend/app/constants/factors.py (2 constants updated)
+5. backend/app/batch/batch_orchestrator_v2.py (added _calculate_market_beta method, job count +1)
+6. backend/app/calculations/snapshots.py (added beta field fetching and aggregation)
+7. backend/app/models/market_data.py (PositionMarketBeta model - from Session 1)
+8. backend/app/models/users.py (position_market_betas relationship - from Session 1)
+9. backend/app/models/positions.py (market_betas relationship - from Session 1)
+
+**Documentation Updated (3):**
+10. frontend/_docs/RiskMetrics_Implementation_Status.md
+11. frontend/_docs/RiskMetricsTesting.md
+12. frontend/_docs/RiskMetricsAlembicMigrations.md
+
+---
+
+**Phase 0 Complete!** Ready for Phase 1: Sector Analysis & Concentration 🎉
+

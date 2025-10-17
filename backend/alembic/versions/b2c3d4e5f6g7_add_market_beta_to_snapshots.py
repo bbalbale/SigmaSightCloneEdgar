@@ -42,7 +42,7 @@ def upgrade() -> None:
 
     # Add index for performance
     op.create_index('idx_snapshots_beta', 'portfolio_snapshots',
-                    ['portfolio_id', 'calculation_date', 'market_beta_weighted'],
+                    ['portfolio_id', 'snapshot_date', 'market_beta_weighted'],
                     postgresql_using='btree')
 
 
