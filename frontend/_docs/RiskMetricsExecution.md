@@ -45,24 +45,32 @@ This is a step-by-step execution guide for implementing the Risk Metrics System 
 
 ## Section 1: Database Changes (Alembic)
 
-### Migration 1: Add Market Beta Columns to portfolio_snapshots
+### Migration 0: Create position_market_betas Table
 
-**File:** `backend/alembic/versions/XXXX_add_market_beta_to_snapshots.py`
+**Why this table?**
+- Stores **historical** position-level betas (our old plan lost history)
+- Allows comparison of different calculation methods
+- Enables tracking beta stability over time
+- Cleaner schema separation (position vs portfolio level)
+
+**File:** `backend/alembic/versions/XXXX_create_position_market_betas.py`
 
 **Command to create:**
 ```bash
 cd backend
-uv run alembic revision -m "add_market_beta_to_snapshots"
+uv run alembic revision -m "create_position_market_betas"
 ```
 
 **Migration content:**
 
 ```python
-"""add_market_beta_to_snapshots
+"""create_position_market_betas
+
+Creates table for storing position-level market betas with full historical tracking.
 
 Revision ID: XXXX
 Revises: [previous_revision]
-Create Date: 2025-10-15
+Create Date: 2025-10-16
 
 """
 from alembic import op
@@ -77,23 +85,176 @@ depends_on = None
 
 
 def upgrade():
-    # Add columns to portfolio_snapshots table
-    op.add_column('portfolio_snapshots',
-        sa.Column('market_beta', sa.Numeric(10, 4), nullable=True)
+    # Create position_market_betas table
+    op.create_table(
+        'position_market_betas',
+        sa.Column('id', postgresql.UUID(as_uuid=True), primary_key=True, server_default=sa.text('gen_random_uuid()')),
+        sa.Column('portfolio_id', postgresql.UUID(as_uuid=True), nullable=False),
+        sa.Column('position_id', postgresql.UUID(as_uuid=True), nullable=False),
+        sa.Column('calc_date', sa.Date, nullable=False),
+
+        # OLS regression results
+        sa.Column('beta', sa.Numeric(12, 6), nullable=False),
+        sa.Column('alpha', sa.Numeric(12, 6), nullable=True),
+        sa.Column('r_squared', sa.Numeric(12, 6), nullable=True),
+        sa.Column('std_error', sa.Numeric(12, 6), nullable=True),
+        sa.Column('p_value', sa.Numeric(12, 6), nullable=True),
+        sa.Column('observations', sa.Integer, nullable=False),
+
+        # Calculation metadata
+        sa.Column('window_days', sa.Integer, nullable=False),  # e.g., 90
+        sa.Column('method', sa.String(32), nullable=False, server_default='OLS_SIMPLE'),  # Future: 'OLS_NW', 'GARCH', etc.
+        sa.Column('market_index', sa.String(16), nullable=False, server_default='SPY'),  # Future: 'QQQ', 'ACWI', etc.
+
+        # Timestamps
+        sa.Column('created_at', sa.DateTime, server_default=sa.func.now()),
+        sa.Column('updated_at', sa.DateTime, server_default=sa.func.now(), onupdate=sa.func.now()),
+
+        # Foreign keys
+        sa.ForeignKeyConstraint(['portfolio_id'], ['portfolios.id'], ondelete='CASCADE'),
+        sa.ForeignKeyConstraint(['position_id'], ['positions.id'], ondelete='CASCADE'),
+
+        # Unique constraint (one beta per position per date per method)
+        sa.UniqueConstraint('portfolio_id', 'position_id', 'calc_date', 'method', 'window_days', name='uq_position_beta_calc')
     )
-    op.add_column('portfolio_snapshots',
-        sa.Column('market_beta_r_squared', sa.Numeric(10, 4), nullable=True)
-    )
-    op.add_column('portfolio_snapshots',
-        sa.Column('market_beta_observations', sa.Integer, nullable=True)
-    )
+
+    # Indexes for query performance
+    op.create_index('idx_pos_beta_lookup', 'position_market_betas', ['portfolio_id', 'calc_date'], postgresql_using='btree')
+    op.create_index('idx_pos_beta_position', 'position_market_betas', ['position_id', 'calc_date'], postgresql_using='btree')
+    op.create_index('idx_pos_beta_created', 'position_market_betas', ['created_at'], postgresql_using='btree')
 
 
 def downgrade():
-    # Remove columns if rollback needed
+    # Drop indexes first
+    op.drop_index('idx_pos_beta_created')
+    op.drop_index('idx_pos_beta_position')
+    op.drop_index('idx_pos_beta_lookup')
+
+    # Drop table
+    op.drop_table('position_market_betas')
+```
+
+**Validation:**
+```bash
+# Run migration
+uv run alembic upgrade head
+
+# Verify table created
+uv run python -c "
+from app.database import AsyncSessionLocal
+from sqlalchemy import text
+import asyncio
+
+async def check():
+    async with AsyncSessionLocal() as db:
+        # Check table exists
+        result = await db.execute(text('''
+            SELECT table_name
+            FROM information_schema.tables
+            WHERE table_name='position_market_betas'
+        '''))
+        print(f'Table exists: {result.scalar() is not None}')
+
+        # Check columns
+        result = await db.execute(text('''
+            SELECT column_name, data_type
+            FROM information_schema.columns
+            WHERE table_name='position_market_betas'
+            ORDER BY ordinal_position
+        '''))
+        print('\\nColumns:')
+        for row in result:
+            print(f'  {row[0]}: {row[1]}')
+
+        # Check indexes
+        result = await db.execute(text('''
+            SELECT indexname
+            FROM pg_indexes
+            WHERE tablename='position_market_betas'
+        '''))
+        print('\\nIndexes:')
+        for row in result:
+            print(f'  {row[0]}')
+
+asyncio.run(check())
+"
+```
+
+---
+
+### Migration 1: Add Market Beta Columns to portfolio_snapshots
+
+**Why these columns?**
+- Stores **aggregated** portfolio-level beta (equity-weighted from positions)
+- Used by frontend for quick display (no need to query position_market_betas)
+- Keeps snapshot table as single source of truth for daily metrics
+
+**File:** `backend/alembic/versions/XXXX_add_market_beta_to_snapshots.py`
+
+**Command to create:**
+```bash
+cd backend
+uv run alembic revision -m "add_market_beta_to_snapshots"
+```
+
+**Migration content:**
+
+```python
+"""add_market_beta_to_snapshots
+
+Adds aggregated portfolio-level market beta columns to snapshots table.
+
+Revision ID: XXXX
+Revises: [previous_revision - create_position_market_betas]
+Create Date: 2025-10-16
+
+"""
+from alembic import op
+import sqlalchemy as sa
+
+# revision identifiers
+revision = 'XXXX'
+down_revision = '[create_position_market_betas_revision_id]'
+branch_labels = None
+depends_on = None
+
+
+def upgrade():
+    # Add portfolio-level beta columns
+    op.add_column('portfolio_snapshots',
+        sa.Column('market_beta_weighted', sa.Numeric(10, 4), nullable=True,
+                  comment='Equity-weighted average of position betas')
+    )
+    op.add_column('portfolio_snapshots',
+        sa.Column('market_beta_r_squared', sa.Numeric(10, 4), nullable=True,
+                  comment='Weighted R² of position betas')
+    )
+    op.add_column('portfolio_snapshots',
+        sa.Column('market_beta_observations', sa.Integer, nullable=True,
+                  comment='Min observations across positions')
+    )
+
+    # Future: direct portfolio regression (Phase 3)
+    op.add_column('portfolio_snapshots',
+        sa.Column('market_beta_direct', sa.Numeric(10, 4), nullable=True,
+                  comment='Direct OLS regression of portfolio returns vs SPY (Phase 3)')
+    )
+
+    # Create index for charting queries
+    op.create_index('idx_snapshots_beta', 'portfolio_snapshots',
+                    ['portfolio_id', 'calculation_date', 'market_beta_weighted'],
+                    postgresql_using='btree')
+
+
+def downgrade():
+    # Drop index
+    op.drop_index('idx_snapshots_beta')
+
+    # Remove columns
+    op.drop_column('portfolio_snapshots', 'market_beta_direct')
     op.drop_column('portfolio_snapshots', 'market_beta_observations')
     op.drop_column('portfolio_snapshots', 'market_beta_r_squared')
-    op.drop_column('portfolio_snapshots', 'market_beta')
+    op.drop_column('portfolio_snapshots', 'market_beta_weighted')
 ```
 
 **Validation:**
@@ -109,19 +270,25 @@ import asyncio
 
 async def check():
     async with AsyncSessionLocal() as db:
-        result = await db.execute(text(\"\"\"
-            SELECT column_name, data_type
+        result = await db.execute(text('''
+            SELECT column_name, data_type, column_default
             FROM information_schema.columns
             WHERE table_name='portfolio_snapshots'
             AND column_name LIKE '%market_beta%'
-        \"\"\"))
-        print(list(result))
+            ORDER BY ordinal_position
+        '''))
+        print('Market Beta Columns in portfolio_snapshots:')
+        for row in result:
+            print(f'  {row[0]}: {row[1]}')
 
 asyncio.run(check())
 "
 
 # Expected output:
-# [('market_beta', 'numeric'), ('market_beta_r_squared', 'numeric'), ('market_beta_observations', 'integer')]
+# market_beta_weighted: numeric
+# market_beta_r_squared: numeric
+# market_beta_observations: integer
+# market_beta_direct: numeric
 ```
 
 ---
@@ -356,13 +523,89 @@ async def calculate_position_market_beta(
         }
 
 
+async def persist_position_beta(
+    db: AsyncSession,
+    portfolio_id: UUID,
+    position_id: UUID,
+    beta_result: Dict[str, Any],
+    window_days: int,
+    market_index: str = 'SPY'
+) -> None:
+    """
+    Persist position beta to position_market_betas table with historical tracking.
+
+    Args:
+        db: Database session
+        portfolio_id: Portfolio UUID
+        position_id: Position UUID
+        beta_result: Result dictionary from calculate_position_market_beta
+        window_days: Regression window in days
+        market_index: Market index symbol (default 'SPY')
+    """
+    from app.models.market_data import PositionMarketBeta  # New model
+    import uuid
+
+    try:
+        # Check if record already exists for this calc date
+        stmt = select(PositionMarketBeta).where(
+            and_(
+                PositionMarketBeta.portfolio_id == portfolio_id,
+                PositionMarketBeta.position_id == position_id,
+                PositionMarketBeta.calc_date == beta_result['calculation_date'],
+                PositionMarketBeta.method == 'OLS_SIMPLE',
+                PositionMarketBeta.window_days == window_days
+            )
+        )
+        existing = await db.execute(stmt)
+        existing_record = existing.scalar_one_or_none()
+
+        if existing_record:
+            # Update existing record
+            existing_record.beta = Decimal(str(beta_result['beta']))
+            existing_record.alpha = Decimal(str(beta_result.get('alpha', 0.0)))
+            existing_record.r_squared = Decimal(str(beta_result['r_squared']))
+            existing_record.std_error = Decimal(str(beta_result['std_error']))
+            existing_record.p_value = Decimal(str(beta_result['p_value']))
+            existing_record.observations = beta_result['observations']
+            existing_record.updated_at = date.today()
+        else:
+            # Create new record
+            new_beta = PositionMarketBeta(
+                id=uuid.uuid4(),
+                portfolio_id=portfolio_id,
+                position_id=position_id,
+                calc_date=beta_result['calculation_date'],
+                beta=Decimal(str(beta_result['beta'])),
+                alpha=Decimal(str(beta_result.get('alpha', 0.0))),
+                r_squared=Decimal(str(beta_result['r_squared'])),
+                std_error=Decimal(str(beta_result['std_error'])),
+                p_value=Decimal(str(beta_result['p_value'])),
+                observations=beta_result['observations'],
+                window_days=window_days,
+                method='OLS_SIMPLE',
+                market_index=market_index
+            )
+            db.add(new_beta)
+
+        await db.commit()
+        logger.info(f"Persisted beta for position {position_id} to position_market_betas table")
+
+    except Exception as e:
+        logger.error(f"Error persisting position beta: {e}")
+        await db.rollback()
+        raise
+
+
 async def calculate_portfolio_market_beta(
     db: AsyncSession,
     portfolio_id: UUID,
-    calculation_date: date
+    calculation_date: date,
+    window_days: int = REGRESSION_WINDOW_DAYS,
+    persist: bool = True
 ) -> Dict[str, Any]:
     """
     Calculate portfolio-level market beta as equity-weighted average of position betas.
+    Persists position-level betas to position_market_betas table with historical tracking.
 
     Portfolio Beta = Σ(position_market_value_i × position_beta_i) / portfolio_equity
 
@@ -370,6 +613,8 @@ async def calculate_portfolio_market_beta(
         db: Database session
         portfolio_id: Portfolio UUID
         calculation_date: Date for calculation
+        window_days: Regression window in days (default from constants)
+        persist: If True, saves position betas to position_market_betas table
 
     Returns:
         {
@@ -434,7 +679,7 @@ async def calculate_portfolio_market_beta(
 
         for position in positions:
             beta_result = await calculate_position_market_beta(
-                db, position.id, calculation_date
+                db, position.id, calculation_date, window_days
             )
 
             if not beta_result['success']:
@@ -443,6 +688,12 @@ async def calculate_portfolio_market_beta(
                     f"{beta_result.get('error', 'Unknown error')}"
                 )
                 continue
+
+            # Persist position beta to position_market_betas table
+            if persist:
+                await persist_position_beta(
+                    db, portfolio_id, position.id, beta_result, window_days
+                )
 
             # Get position market value
             from app.calculations.factor_utils import get_position_market_value
@@ -484,7 +735,7 @@ async def calculate_portfolio_market_beta(
 
         logger.info(
             f"Portfolio beta calculated: {total_weighted_beta:.3f} "
-            f"({len(position_betas)} positions)"
+            f"({len(position_betas)} positions, persisted to position_market_betas)"
         )
 
         return result
@@ -530,6 +781,107 @@ asyncio.run(test())
 
 ---
 
+### Task 2: Add PositionMarketBeta Model
+
+**File:** `backend/app/models/market_data.py`
+
+**Add new model class** (after PositionFactorExposure):
+
+```python
+"""
+Position Market Beta Model - Single Factor Beta Storage
+Stores position-level market beta calculations with historical tracking.
+"""
+
+class PositionMarketBeta(Base):
+    __tablename__ = "position_market_betas"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    portfolio_id = Column(UUID(as_uuid=True), ForeignKey("portfolios.id"), nullable=False, index=True)
+    position_id = Column(UUID(as_uuid=True), ForeignKey("positions.id"), nullable=False, index=True)
+    calc_date = Column(Date, nullable=False, index=True)
+
+    # OLS regression results
+    beta = Column(Numeric(12, 6), nullable=False, comment="Market beta coefficient")
+    alpha = Column(Numeric(12, 6), nullable=True, comment="Regression intercept (alpha)")
+    r_squared = Column(Numeric(12, 6), nullable=True, comment="R-squared goodness of fit")
+    std_error = Column(Numeric(12, 6), nullable=True, comment="Standard error of beta estimate")
+    p_value = Column(Numeric(12, 6), nullable=True, comment="P-value for beta significance")
+    observations = Column(Integer, nullable=False, comment="Number of data points in regression")
+
+    # Calculation metadata
+    window_days = Column(Integer, nullable=False, default=90, comment="Regression window length")
+    method = Column(String(32), nullable=False, default="OLS_SIMPLE", comment="Calculation method")
+    market_index = Column(String(16), nullable=False, default="SPY", comment="Market benchmark used")
+
+    # Timestamps
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    # Relationships
+    portfolio = relationship("Portfolio", back_populates="position_market_betas")
+    position = relationship("Position", back_populates="market_betas")
+
+    # Unique constraint
+    __table_args__ = (
+        UniqueConstraint(
+            'portfolio_id', 'position_id', 'calc_date', 'method', 'window_days',
+            name='uq_position_beta_calc'
+        ),
+        Index('idx_pos_beta_lookup', 'portfolio_id', 'calc_date'),
+        Index('idx_pos_beta_position', 'position_id', 'calc_date'),
+    )
+
+    def __repr__(self):
+        return f"<PositionMarketBeta(position={self.position_id}, beta={self.beta}, date={self.calc_date})>"
+```
+
+**Update Portfolio model** (add relationship):
+```python
+# In Portfolio class
+position_market_betas = relationship("PositionMarketBeta", back_populates="portfolio", cascade="all, delete-orphan")
+```
+
+**Update Position model** (add relationship):
+```python
+# In Position class
+market_betas = relationship("PositionMarketBeta", back_populates="position", cascade="all, delete-orphan")
+```
+
+**Validation:**
+```bash
+# Test model import
+cd backend
+uv run python -c "from app.models.market_data import PositionMarketBeta; print('✓ Model import successful')"
+
+# Verify migration applied
+uv run alembic current
+# Should show: position_market_betas table exists
+
+# Check table structure
+uv run python -c "
+import asyncio
+from sqlalchemy import text
+from app.database import AsyncSessionLocal
+
+async def check():
+    async with AsyncSessionLocal() as db:
+        result = await db.execute(text('''
+            SELECT column_name, data_type, character_maximum_length
+            FROM information_schema.columns
+            WHERE table_name = 'position_market_betas'
+            ORDER BY ordinal_position
+        '''))
+        print('Columns in position_market_betas:')
+        for row in result:
+            print(f'  {row[0]}: {row[1]}')
+
+asyncio.run(check())
+"
+```
+
+---
+
 ## Section 3: API Changes
 
 ### No New API Endpoints Required
@@ -548,12 +900,19 @@ asyncio.run(test())
 {
   "snapshot": {
     ...existing fields...,
-    "market_beta": 1.24,
+    "market_beta_weighted": 1.24,
     "market_beta_r_squared": 0.68,
-    "market_beta_observations": 81
+    "market_beta_observations": 81,
+    "market_beta_direct": null
   }
 }
 ```
+
+**Column Naming:**
+- `market_beta_weighted`: Equity-weighted average of position betas (Phase 0)
+- `market_beta_direct`: Direct portfolio-level regression (Phase 3, currently null)
+- `market_beta_r_squared`: R-squared from weighted average of position R² values
+- `market_beta_observations`: Minimum observations across all positions
 
 ---
 
@@ -576,8 +935,9 @@ asyncio.run(test())
 interface PortfolioMetricsProps {
   metrics: {
     ...existing...
-    market_beta?: number;
+    market_beta_weighted?: number;  // Changed from market_beta
     market_beta_r_squared?: number;
+    market_beta_observations?: number;
   };
 }
 
@@ -594,19 +954,20 @@ interface PortfolioMetricsProps {
           <p>Measures sensitivity to market movements.</p>
           <p className="text-xs">Beta of 1.0 = moves with market</p>
           <p className="text-xs">Beta &gt; 1.0 = more volatile than market</p>
+          <p className="text-xs mt-1">Calculated from {metrics.market_beta_observations ?? 'N/A'} days</p>
         </TooltipContent>
       </Tooltip>
     </CardTitle>
   </CardHeader>
   <CardContent>
     <div className="text-2xl font-bold">
-      {metrics.market_beta?.toFixed(2) ?? 'N/A'}
+      {metrics.market_beta_weighted?.toFixed(2) ?? 'N/A'}
     </div>
     <p className="text-xs text-muted-foreground mt-1">
       R² = {metrics.market_beta_r_squared?.toFixed(2) ?? 'N/A'}
     </p>
     <p className="text-xs mt-1">
-      {getBetaInterpretation(metrics.market_beta)}
+      {getBetaInterpretation(metrics.market_beta_weighted)}
     </p>
   </CardContent>
 </Card>
@@ -676,7 +1037,7 @@ else:
 
 **Find:** `create_portfolio_snapshot()` function
 
-**Add** market beta fields to snapshot:
+**Add** market beta fields to snapshot (note: using `market_beta_weighted` column name from Migration 1):
 ```python
 # In create_portfolio_snapshot() function
 # After calculating other metrics
@@ -686,11 +1047,19 @@ market_beta_data = batch_results.get('market_beta', {})
 
 snapshot = PortfolioSnapshot(
     ...existing fields...,
-    market_beta=Decimal(str(market_beta_data.get('market_beta', 0))) if market_beta_data.get('success') else None,
+    # Equity-weighted average of position betas
+    market_beta_weighted=Decimal(str(market_beta_data.get('market_beta', 0))) if market_beta_data.get('success') else None,
     market_beta_r_squared=Decimal(str(market_beta_data.get('r_squared', 0))) if market_beta_data.get('success') else None,
-    market_beta_observations=market_beta_data.get('observations', 0) if market_beta_data.get('success') else None
+    market_beta_observations=market_beta_data.get('observations', 0) if market_beta_data.get('success') else None,
+    # market_beta_direct reserved for Phase 3 (portfolio-level regression)
+    market_beta_direct=None
 )
 ```
+
+**Note:**
+- `market_beta_weighted`: Equity-weighted average of position betas (Phase 0 implementation)
+- `market_beta_direct`: Direct OLS regression of portfolio returns vs SPY (Phase 3 future work)
+- Both columns added in Migration 1, but only `market_beta_weighted` is populated in Phase 0
 
 ### Task 3: Update Stress Testing
 
@@ -817,7 +1186,99 @@ asyncio.run(check())
 
 ## Section 1: Database Changes (Alembic)
 
-### Migration 2: Add Sector & Concentration Columns
+### Migration 2: Create Benchmark Sector Weights Table
+
+**File:** `backend/alembic/versions/XXXX_create_benchmarks_sector_weights.py`
+
+**Command:**
+```bash
+cd backend
+uv run alembic revision -m "create_benchmarks_sector_weights"
+```
+
+**Purpose:** Store S&P 500 sector weights fetched from FMP API with historical tracking
+
+**Migration content:**
+
+```python
+"""create_benchmarks_sector_weights
+
+Stores benchmark sector weights (S&P 500) from FMP API with historical tracking.
+
+Revision ID: XXXX
+Revises: [previous - market beta migration]
+Create Date: 2025-10-15
+"""
+from alembic import op
+import sqlalchemy as sa
+from sqlalchemy.dialects import postgresql
+
+revision = 'XXXX'
+down_revision = '[market_beta_migration_id]'
+branch_labels = None
+depends_on = None
+
+
+def upgrade():
+    op.create_table(
+        'benchmarks_sector_weights',
+        sa.Column('id', postgresql.UUID(as_uuid=True), primary_key=True),
+        sa.Column('benchmark_code', sa.String(32), nullable=False, comment='Benchmark identifier (e.g., SP500)'),
+        sa.Column('asof_date', sa.Date, nullable=False, comment='Date these weights are valid for'),
+        sa.Column('sector', sa.String(64), nullable=False, comment='GICS sector name'),
+        sa.Column('weight', sa.Numeric(12, 6), nullable=False, comment='Sector weight as decimal (0.28 = 28%)'),
+        sa.Column('market_cap', sa.Numeric(20, 2), nullable=True, comment='Total market cap for sector in USD'),
+        sa.Column('num_constituents', sa.Integer, nullable=True, comment='Number of stocks in this sector'),
+        sa.Column('data_source', sa.String(32), nullable=False, default='FMP', comment='Data provider (FMP, manual, etc)'),
+        sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.func.now()),
+        sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.func.now(), onupdate=sa.func.now()),
+
+        # Unique constraint: one weight per (benchmark, date, sector)
+        sa.UniqueConstraint('benchmark_code', 'asof_date', 'sector', name='uq_benchmark_sector_date')
+    )
+
+    # Indexes for performance
+    op.create_index('idx_benchmark_lookup', 'benchmarks_sector_weights',
+                   ['benchmark_code', 'asof_date'], postgresql_using='btree')
+    op.create_index('idx_benchmark_sector', 'benchmarks_sector_weights',
+                   ['benchmark_code', 'sector', 'asof_date'], postgresql_using='btree')
+
+
+def downgrade():
+    op.drop_index('idx_benchmark_sector', table_name='benchmarks_sector_weights')
+    op.drop_index('idx_benchmark_lookup', table_name='benchmarks_sector_weights')
+    op.drop_table('benchmarks_sector_weights')
+```
+
+**Validation:**
+```bash
+uv run alembic upgrade head
+
+# Verify table structure
+uv run python -c "
+import asyncio
+from sqlalchemy import text
+from app.database import AsyncSessionLocal
+
+async def check():
+    async with AsyncSessionLocal() as db:
+        result = await db.execute(text('''
+            SELECT column_name, data_type, character_maximum_length
+            FROM information_schema.columns
+            WHERE table_name = 'benchmarks_sector_weights'
+            ORDER BY ordinal_position
+        '''))
+        print('Columns in benchmarks_sector_weights:')
+        for row in result:
+            print(f'  {row[0]}: {row[1]}')
+
+asyncio.run(check())
+"
+```
+
+---
+
+### Migration 3: Add Sector & Concentration Columns to Snapshots
 
 **File:** `backend/alembic/versions/XXXX_add_sector_concentration_to_snapshots.py`
 
@@ -833,7 +1294,7 @@ uv run alembic revision -m "add_sector_concentration_to_snapshots"
 """add_sector_concentration_to_snapshots
 
 Revision ID: XXXX
-Revises: [previous - market beta migration]
+Revises: [benchmarks_sector_weights_migration_id]
 Create Date: 2025-10-15
 
 """
@@ -842,7 +1303,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 revision = 'XXXX'
-down_revision = '[market_beta_migration_id]'
+down_revision = '[benchmarks_sector_weights_migration_id]'
 branch_labels = None
 depends_on = None
 
@@ -903,9 +1364,377 @@ asyncio.run(check())
 
 ---
 
-## Section 2: Calculation Scripts
+## Section 2: Benchmark Data Management
 
-### Task 1: Create sector_analysis.py
+### Task 1: Add BenchmarkSectorWeight Model
+
+**File:** `backend/app/models/market_data.py`
+
+**Add new model class** (after PositionMarketBeta):
+
+```python
+"""
+Benchmark Sector Weights Model
+Stores benchmark sector weights (e.g., S&P 500) with historical tracking.
+"""
+
+class BenchmarkSectorWeight(Base):
+    __tablename__ = "benchmarks_sector_weights"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    benchmark_code = Column(String(32), nullable=False, index=True, comment="Benchmark identifier (e.g., SP500)")
+    asof_date = Column(Date, nullable=False, index=True, comment="Date these weights are valid for")
+    sector = Column(String(64), nullable=False, comment="GICS sector name")
+    weight = Column(Numeric(12, 6), nullable=False, comment="Sector weight as decimal (0.28 = 28%)")
+    market_cap = Column(Numeric(20, 2), nullable=True, comment="Total market cap for sector in USD")
+    num_constituents = Column(Integer, nullable=True, comment="Number of stocks in this sector")
+    data_source = Column(String(32), nullable=False, default="FMP", comment="Data provider")
+
+    # Timestamps
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    # Unique constraint
+    __table_args__ = (
+        UniqueConstraint('benchmark_code', 'asof_date', 'sector', name='uq_benchmark_sector_date'),
+        Index('idx_benchmark_lookup', 'benchmark_code', 'asof_date'),
+        Index('idx_benchmark_sector', 'benchmark_code', 'sector', 'asof_date'),
+    )
+
+    def __repr__(self):
+        return f"<BenchmarkSectorWeight(benchmark={self.benchmark_code}, sector={self.sector}, weight={self.weight})>"
+```
+
+**Validation:**
+```bash
+cd backend
+uv run python -c "from app.models.market_data import BenchmarkSectorWeight; print('✓ Model import successful')"
+```
+
+---
+
+### Task 2: Create FMP Benchmark Data Fetcher
+
+**File:** `backend/scripts/seed_benchmark_weights.py`
+
+**Purpose:** One-time script to fetch S&P 500 constituents from FMP and calculate sector weights
+
+**Full implementation:**
+
+```python
+"""
+Seed Benchmark Sector Weights
+Fetches S&P 500 constituents from FMP API and calculates sector weights.
+
+Usage:
+    uv run python scripts/seed_benchmark_weights.py
+"""
+import asyncio
+from datetime import date
+from decimal import Decimal
+from typing import Dict, List
+import uuid
+import os
+
+import httpx
+from sqlalchemy import select, and_
+
+from app.database import AsyncSessionLocal
+from app.models.market_data import BenchmarkSectorWeight
+from app.core.logging import get_logger
+
+logger = get_logger(__name__)
+
+FMP_API_KEY = os.getenv("FMP_API_KEY")
+if not FMP_API_KEY:
+    raise ValueError("FMP_API_KEY not found in environment")
+
+FMP_BASE_URL = "https://financialmodelingprep.com/api/v3"
+
+
+async def fetch_sp500_constituents() -> List[Dict]:
+    """
+    Fetch S&P 500 constituents from FMP API.
+
+    Returns:
+        List of dicts with keys: symbol, name, sector, subSector, marketCap, weight
+    """
+    url = f"{FMP_BASE_URL}/sp500_constituent"
+    params = {"apikey": FMP_API_KEY}
+
+    logger.info("Fetching S&P 500 constituents from FMP...")
+
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        response = await client.get(url, params=params)
+        response.raise_for_status()
+        constituents = response.json()
+
+    logger.info(f"Fetched {len(constituents)} S&P 500 constituents")
+    return constituents
+
+
+def calculate_sector_weights(constituents: List[Dict]) -> Dict[str, Dict]:
+    """
+    Calculate sector weights from market caps.
+
+    Args:
+        constituents: List of constituent dicts with sector and marketCap
+
+    Returns:
+        Dict mapping sector -> {weight, market_cap, num_constituents}
+    """
+    # Group by sector
+    sector_data = {}
+    total_market_cap = 0
+
+    for stock in constituents:
+        sector = stock.get("sector", "Unknown")
+        market_cap = float(stock.get("marketCap", 0))
+
+        if sector not in sector_data:
+            sector_data[sector] = {
+                "market_cap": 0,
+                "num_constituents": 0
+            }
+
+        sector_data[sector]["market_cap"] += market_cap
+        sector_data[sector]["num_constituents"] += 1
+        total_market_cap += market_cap
+
+    # Calculate weights
+    for sector in sector_data:
+        sector_data[sector]["weight"] = sector_data[sector]["market_cap"] / total_market_cap
+
+    logger.info(f"Calculated weights for {len(sector_data)} sectors")
+    logger.info(f"Total market cap: ${total_market_cap:,.0f}")
+
+    return sector_data
+
+
+async def store_benchmark_weights(
+    db: AsyncSession,
+    benchmark_code: str,
+    asof_date: date,
+    sector_weights: Dict[str, Dict]
+) -> int:
+    """
+    Store benchmark sector weights in database.
+
+    Returns:
+        Number of records inserted/updated
+    """
+    count = 0
+
+    for sector, data in sector_weights.items():
+        # Check if record exists
+        stmt = select(BenchmarkSectorWeight).where(
+            and_(
+                BenchmarkSectorWeight.benchmark_code == benchmark_code,
+                BenchmarkSectorWeight.asof_date == asof_date,
+                BenchmarkSectorWeight.sector == sector
+            )
+        )
+        result = await db.execute(stmt)
+        existing = result.scalar_one_or_none()
+
+        if existing:
+            # Update existing record
+            existing.weight = Decimal(str(data["weight"]))
+            existing.market_cap = Decimal(str(data["market_cap"]))
+            existing.num_constituents = data["num_constituents"]
+            existing.data_source = "FMP"
+            logger.info(f"Updated {sector}: {data['weight']:.4f}")
+        else:
+            # Insert new record
+            new_weight = BenchmarkSectorWeight(
+                id=uuid.uuid4(),
+                benchmark_code=benchmark_code,
+                asof_date=asof_date,
+                sector=sector,
+                weight=Decimal(str(data["weight"])),
+                market_cap=Decimal(str(data["market_cap"])),
+                num_constituents=data["num_constituents"],
+                data_source="FMP"
+            )
+            db.add(new_weight)
+            logger.info(f"Inserted {sector}: {data['weight']:.4f}")
+
+        count += 1
+
+    await db.commit()
+    return count
+
+
+async def main():
+    """Main execution"""
+    logger.info("=" * 60)
+    logger.info("Starting S&P 500 Benchmark Weights Seed")
+    logger.info("=" * 60)
+
+    try:
+        # Fetch constituents
+        constituents = await fetch_sp500_constituents()
+
+        # Calculate sector weights
+        sector_weights = calculate_sector_weights(constituents)
+
+        # Print sector breakdown
+        logger.info("\nSector Breakdown:")
+        for sector, data in sorted(sector_weights.items(), key=lambda x: x[1]["weight"], reverse=True):
+            logger.info(f"  {sector:30s} {data['weight']*100:6.2f}% ({data['num_constituents']:3d} stocks)")
+
+        # Store in database
+        async with AsyncSessionLocal() as db:
+            count = await store_benchmark_weights(
+                db,
+                benchmark_code="SP500",
+                asof_date=date.today(),
+                sector_weights=sector_weights
+            )
+
+        logger.info(f"\n✅ Successfully seeded {count} sector weights for S&P 500")
+
+    except Exception as e:
+        logger.error(f"❌ Error seeding benchmark weights: {e}")
+        raise
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
+```
+
+**Validation:**
+```bash
+# Run seed script
+cd backend
+uv run python scripts/seed_benchmark_weights.py
+
+# Verify data in database
+uv run python -c "
+import asyncio
+from sqlalchemy import select, func
+from app.database import AsyncSessionLocal
+from app.models.market_data import BenchmarkSectorWeight
+
+async def check():
+    async with AsyncSessionLocal() as db:
+        # Count records
+        count = await db.execute(select(func.count(BenchmarkSectorWeight.id)))
+        print(f'Total records: {count.scalar()}')
+
+        # Show all sectors
+        result = await db.execute(
+            select(BenchmarkSectorWeight)
+            .where(BenchmarkSectorWeight.benchmark_code == 'SP500')
+            .order_by(BenchmarkSectorWeight.weight.desc())
+        )
+
+        print('\\nS&P 500 Sector Weights:')
+        for record in result.scalars():
+            print(f'  {record.sector:30s} {float(record.weight)*100:6.2f}%')
+
+asyncio.run(check())
+"
+```
+
+---
+
+### Task 3: Create Benchmark Update Script
+
+**File:** `backend/scripts/update_benchmark_weights.py`
+
+**Purpose:** Scheduled script to update benchmark weights (run weekly/monthly)
+
+**Implementation:**
+
+```python
+"""
+Update Benchmark Sector Weights
+Updates S&P 500 sector weights from FMP API.
+Can be run as cron job or manually.
+
+Usage:
+    uv run python scripts/update_benchmark_weights.py [--force]
+
+Options:
+    --force: Update even if data exists for today
+"""
+import asyncio
+import argparse
+from datetime import date
+
+from sqlalchemy import select, and_
+from app.database import AsyncSessionLocal
+from app.models.market_data import BenchmarkSectorWeight
+from app.core.logging import get_logger
+
+# Reuse logic from seed script
+from scripts.seed_benchmark_weights import (
+    fetch_sp500_constituents,
+    calculate_sector_weights,
+    store_benchmark_weights
+)
+
+logger = get_logger(__name__)
+
+
+async def check_needs_update(db: AsyncSession, benchmark_code: str, today: date) -> bool:
+    """Check if benchmark weights need updating for today"""
+    stmt = select(BenchmarkSectorWeight).where(
+        and_(
+            BenchmarkSectorWeight.benchmark_code == benchmark_code,
+            BenchmarkSectorWeight.asof_date == today
+        )
+    )
+    result = await db.execute(stmt)
+    existing = result.first()
+
+    return existing is None
+
+
+async def main():
+    parser = argparse.ArgumentParser(description="Update benchmark sector weights")
+    parser.add_argument("--force", action="store_true", help="Force update even if data exists")
+    args = parser.parse_args()
+
+    today = date.today()
+
+    logger.info("Checking if benchmark weights need updating...")
+
+    async with AsyncSessionLocal() as db:
+        needs_update = await check_needs_update(db, "SP500", today)
+
+    if not needs_update and not args.force:
+        logger.info(f"✓ Benchmark weights already exist for {today}. Use --force to update anyway.")
+        return
+
+    logger.info(f"Updating S&P 500 sector weights for {today}...")
+
+    try:
+        # Fetch and calculate
+        constituents = await fetch_sp500_constituents()
+        sector_weights = calculate_sector_weights(constituents)
+
+        # Store
+        async with AsyncSessionLocal() as db:
+            count = await store_benchmark_weights(db, "SP500", today, sector_weights)
+
+        logger.info(f"✅ Updated {count} sector weights")
+
+    except Exception as e:
+        logger.error(f"❌ Error updating benchmark weights: {e}")
+        raise
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
+```
+
+---
+
+## Section 3: Sector Analysis Calculations
+
+### Task 4: Create sector_analysis.py
 
 **File:** `backend/app/calculations/sector_analysis.py`
 
@@ -1702,6 +2531,31 @@ asyncio.run(check())
 **Duration:** Weeks 3-4 (10 days)
 **Goal:** Add realized + expected volatility with HAR forecasting
 
+> ⚠️ **CRITICAL FIX REQUIRED**: Current volatility calculation is MATHEMATICALLY INCORRECT!
+>
+> **Current (WRONG) Approach:**
+> ```python
+> portfolio_vol = Σ(position_vol[i] * position_weight[i])  # Ignores correlations!
+> ```
+>
+> **Correct Approach (Alternative 1):**
+> ```python
+> # Step 1: Compute portfolio returns first
+> portfolio_returns[date] = Σ(position_weight[i] * position_return[i][date])
+>
+> # Step 2: Calculate volatility from portfolio returns
+> realized_vol_21d = sqrt(252) * std(portfolio_returns[-21:])  # Captures correlations!
+> ```
+>
+> **Why This Matters:**
+> - The wrong approach treats positions as independent (ignores diversification benefit)
+> - For a 50/50 TSLA+MSFT portfolio: wrong method shows 40% vol, correct shows 32% vol
+> - This is a ~400 line rewrite in the volatility calculation module
+>
+> **Implementation Change:**
+> - Windows changed from 30d/60d/90d (calendar) → 21d/63d (trading days)
+> - All portfolio volatility must compute from portfolio returns, not weighted position vols
+
 ## Objective
 
 **What:** Implement position and portfolio volatility analytics with forecasting.
@@ -1709,16 +2563,17 @@ asyncio.run(check())
 **Why:** Investors want to know current volatility and whether it's increasing/decreasing.
 
 **Metrics to Calculate:**
-1. **Realized Volatility** - Historical volatility over multiple windows (30d, 60d, 90d)
-2. **Expected Volatility** - HAR model forecast (next 30 days)
+1. **Realized Volatility** - Historical volatility over multiple windows (21d, 63d - trading days)
+2. **Expected Volatility** - HAR model forecast (next 21 days)
 3. **Volatility Trend** - Is volatility increasing or decreasing?
 4. **Volatility Percentile** - Current volatility vs 1-year historical distribution
 
 **Success Criteria:**
 - All positions have realized volatility calculated
+- **Portfolio volatility computed from portfolio returns** (NOT weighted position vols)
 - HAR model produces reasonable forecasts (not negative, not > 300%)
 - Volatility trend correctly identifies direction
-- Portfolio volatility aggregates position volatilities correctly
+- Trading day windows (21d, 63d) used instead of calendar days (30d, 60d, 90d)
 - Frontend displays volatility clearly with visual indicators
 
 ---
@@ -1757,33 +2612,41 @@ depends_on = None
 
 def upgrade():
     # Add portfolio-level volatility columns
+    # Note: Using trading day windows (21d ~1 month, 63d ~3 months)
     op.add_column('portfolio_snapshots',
-        sa.Column('realized_volatility_30d', sa.Numeric(10, 4), nullable=True)
+        sa.Column('realized_volatility_21d', sa.Numeric(10, 4), nullable=True,
+                  comment='Realized volatility over 21 trading days (~1 month)')
     )
     op.add_column('portfolio_snapshots',
-        sa.Column('realized_volatility_60d', sa.Numeric(10, 4), nullable=True)
+        sa.Column('realized_volatility_63d', sa.Numeric(10, 4), nullable=True,
+                  comment='Realized volatility over 63 trading days (~3 months)')
     )
     op.add_column('portfolio_snapshots',
-        sa.Column('realized_volatility_90d', sa.Numeric(10, 4), nullable=True)
+        sa.Column('expected_volatility_21d', sa.Numeric(10, 4), nullable=True,
+                  comment='HAR model forecast for next 21 trading days')
     )
     op.add_column('portfolio_snapshots',
-        sa.Column('expected_volatility_30d', sa.Numeric(10, 4), nullable=True)
+        sa.Column('volatility_trend', sa.String(20), nullable=True,
+                  comment='Volatility direction: increasing, decreasing, stable')
     )
     op.add_column('portfolio_snapshots',
-        sa.Column('volatility_trend', sa.String(20), nullable=True)
+        sa.Column('volatility_percentile', sa.Numeric(10, 4), nullable=True,
+                  comment='Current volatility percentile vs 1-year history')
     )
-    op.add_column('portfolio_snapshots',
-        sa.Column('volatility_percentile', sa.Numeric(10, 4), nullable=True)
-    )
+
+    # Add index for volatility lookups
+    op.create_index('idx_snapshots_volatility', 'portfolio_snapshots',
+                    ['portfolio_id', 'calculation_date', 'realized_volatility_21d'],
+                    postgresql_using='btree')
 
 
 def downgrade():
+    op.drop_index('idx_snapshots_volatility', table_name='portfolio_snapshots')
     op.drop_column('portfolio_snapshots', 'volatility_percentile')
     op.drop_column('portfolio_snapshots', 'volatility_trend')
-    op.drop_column('portfolio_snapshots', 'expected_volatility_30d')
-    op.drop_column('portfolio_snapshots', 'realized_volatility_90d')
-    op.drop_column('portfolio_snapshots', 'realized_volatility_60d')
-    op.drop_column('portfolio_snapshots', 'realized_volatility_30d')
+    op.drop_column('portfolio_snapshots', 'expected_volatility_21d')
+    op.drop_column('portfolio_snapshots', 'realized_volatility_63d')
+    op.drop_column('portfolio_snapshots', 'realized_volatility_21d')
 ```
 
 ### Migration 4: Create position_volatility Table
@@ -1823,29 +2686,39 @@ def upgrade():
         sa.Column('position_id', postgresql.UUID(as_uuid=True), nullable=False),
         sa.Column('calculation_date', sa.Date, nullable=False),
 
-        # Realized volatility (multiple windows)
-        sa.Column('realized_vol_30d', sa.Numeric(10, 4), nullable=True),
-        sa.Column('realized_vol_60d', sa.Numeric(10, 4), nullable=True),
-        sa.Column('realized_vol_90d', sa.Numeric(10, 4), nullable=True),
+        # Realized volatility (trading day windows)
+        sa.Column('realized_vol_21d', sa.Numeric(10, 4), nullable=True,
+                  comment='21 trading days (~1 month)'),
+        sa.Column('realized_vol_63d', sa.Numeric(10, 4), nullable=True,
+                  comment='63 trading days (~3 months)'),
 
-        # HAR model components
-        sa.Column('vol_daily', sa.Numeric(10, 4), nullable=True),
-        sa.Column('vol_weekly', sa.Numeric(10, 4), nullable=True),
-        sa.Column('vol_monthly', sa.Numeric(10, 4), nullable=True),
+        # HAR model components (for forecasting)
+        sa.Column('vol_daily', sa.Numeric(10, 4), nullable=True,
+                  comment='Daily volatility component'),
+        sa.Column('vol_weekly', sa.Numeric(10, 4), nullable=True,
+                  comment='Weekly (5d) volatility component'),
+        sa.Column('vol_monthly', sa.Numeric(10, 4), nullable=True,
+                  comment='Monthly (21d) volatility component'),
 
         # Forecast
-        sa.Column('expected_vol_30d', sa.Numeric(10, 4), nullable=True),
+        sa.Column('expected_vol_21d', sa.Numeric(10, 4), nullable=True,
+                  comment='HAR model forecast for next 21 trading days'),
 
         # Trend analysis
-        sa.Column('vol_trend', sa.String(20), nullable=True),  # 'increasing', 'decreasing', 'stable'
-        sa.Column('vol_trend_strength', sa.Numeric(10, 4), nullable=True),  # 0-1 scale
+        sa.Column('vol_trend', sa.String(20), nullable=True,
+                  comment='Volatility direction: increasing, decreasing, stable'),
+        sa.Column('vol_trend_strength', sa.Numeric(10, 4), nullable=True,
+                  comment='Trend strength on 0-1 scale'),
 
         # Percentile (vs 1-year history)
-        sa.Column('vol_percentile', sa.Numeric(10, 4), nullable=True),  # 0-1 scale
+        sa.Column('vol_percentile', sa.Numeric(10, 4), nullable=True,
+                  comment='Current volatility percentile vs 1-year history (0-1)'),
 
         # Metadata
-        sa.Column('observations', sa.Integer, nullable=True),
-        sa.Column('model_r_squared', sa.Numeric(10, 4), nullable=True),
+        sa.Column('observations', sa.Integer, nullable=True,
+                  comment='Number of data points used in calculation'),
+        sa.Column('model_r_squared', sa.Numeric(10, 4), nullable=True,
+                  comment='HAR model R-squared goodness of fit'),
         sa.Column('created_at', sa.DateTime, server_default=sa.func.now()),
         sa.Column('updated_at', sa.DateTime, server_default=sa.func.now(), onupdate=sa.func.now()),
 
@@ -1859,6 +2732,8 @@ def upgrade():
     # Indexes for query performance
     op.create_index('ix_position_volatility_position_id', 'position_volatility', ['position_id'])
     op.create_index('ix_position_volatility_calculation_date', 'position_volatility', ['calculation_date'])
+    op.create_index('ix_position_volatility_lookup', 'position_volatility',
+                   ['position_id', 'calculation_date'], postgresql_using='btree')
 
 
 def downgrade():
