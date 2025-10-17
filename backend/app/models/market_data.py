@@ -234,6 +234,45 @@ class PositionFactorExposure(Base):
     )
 
 
+class PositionMarketBeta(Base):
+    """Position market betas - stores position-level single-factor market betas with historical tracking"""
+    __tablename__ = "position_market_betas"
+
+    id: Mapped[UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid4)
+    portfolio_id: Mapped[UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("portfolios.id"), nullable=False)
+    position_id: Mapped[UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("positions.id"), nullable=False)
+    calc_date: Mapped[date] = mapped_column(Date, nullable=False)
+
+    # OLS regression results
+    beta: Mapped[Decimal] = mapped_column(Numeric(12, 6), nullable=False)
+    alpha: Mapped[Optional[Decimal]] = mapped_column(Numeric(12, 6), nullable=True)
+    r_squared: Mapped[Optional[Decimal]] = mapped_column(Numeric(12, 6), nullable=True)
+    std_error: Mapped[Optional[Decimal]] = mapped_column(Numeric(12, 6), nullable=True)
+    p_value: Mapped[Optional[Decimal]] = mapped_column(Numeric(12, 6), nullable=True)
+    observations: Mapped[int] = mapped_column(nullable=False)
+
+    # Calculation metadata
+    window_days: Mapped[int] = mapped_column(nullable=False, server_default='90')
+    method: Mapped[str] = mapped_column(String(32), nullable=False, server_default='OLS_SIMPLE')
+    market_index: Mapped[str] = mapped_column(String(16), nullable=False, server_default='SPY')
+
+    # Timestamps
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Relationships
+    portfolio: Mapped["Portfolio"] = relationship("Portfolio", back_populates="position_market_betas")
+    position: Mapped["Position"] = relationship("Position", back_populates="market_betas")
+
+    __table_args__ = (
+        UniqueConstraint('portfolio_id', 'position_id', 'calc_date', 'method', 'window_days',
+                        name='uq_position_beta_calc'),
+        Index('idx_pos_beta_lookup', 'portfolio_id', 'calc_date'),
+        Index('idx_pos_beta_position', 'position_id', 'calc_date'),
+        Index('idx_pos_beta_created', 'created_at'),
+    )
+
+
 class MarketRiskScenario(Base):
     """Market risk scenarios - stores portfolio scenario results"""
     __tablename__ = "market_risk_scenarios"
