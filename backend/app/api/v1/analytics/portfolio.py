@@ -803,7 +803,7 @@ class UpdateEquityRequest(BaseModel):
     equity_balance: float
 
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "equity_balance": 1000000.00
             }

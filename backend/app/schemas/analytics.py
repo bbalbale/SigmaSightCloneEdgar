@@ -26,7 +26,7 @@ class DataQualityInfo(BaseModel):
     data_days: int = Field(..., description="Number of days of historical data used in calculation")
 
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "flag": "QUALITY_FLAG_NO_PUBLIC_POSITIONS",
                 "message": "Portfolio contains no public positions for factor analysis",
@@ -86,7 +86,7 @@ class PortfolioOverviewResponse(BaseModel):
         json_encoders = {
             datetime: lambda v: v.isoformat() + "Z" if v else None
         }
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "portfolio_id": "c0510ab8-c6b5-433c-adbc-3f74e1dbdb5e",
                 "total_value": 1250000.00,
@@ -136,7 +136,7 @@ class CorrelationMatrixResponse(BaseModel):
     metadata: Optional[Dict[str, Union[str, int]]] = Field(None, description="Error or status metadata")
     
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "data": {
                     "matrix": {
@@ -164,7 +164,7 @@ class DiversificationScoreResponse(BaseModel):
     metadata: Optional[Dict[str, Union[str, int, float]]] = Field(None, description="Additional parameters and notes")
 
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "available": True,
                 "portfolio_id": "c0510ab8-c6b5-433c-adbc-3f74e1dbdb5e",
@@ -249,7 +249,7 @@ class PortfolioFactorExposuresResponse(BaseModel):
     metadata: Optional[Dict[str, Union[str, int]]] = Field(None, description="Additional metadata such as factor model details")
 
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "available": True,
                 "portfolio_id": "c0510ab8-c6b5-433c-adbc-3f74e1dbdb5e",
@@ -283,7 +283,7 @@ class PositionFactorExposuresResponse(BaseModel):
     positions: Optional[List[PositionFactorItem]] = Field(None, description="List of positions with factor exposures")
 
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "available": True,
                 "portfolio_id": "c0510ab8-c6b5-433c-adbc-3f74e1dbdb5e",
@@ -329,7 +329,7 @@ class SectorExposureResponse(BaseModel):
     metadata: Optional[Dict[str, Union[str, int]]] = Field(None, description="Additional metadata")
 
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "available": True,
                 "portfolio_id": "c0510ab8-c6b5-433c-adbc-3f74e1dbdb5e",
@@ -401,7 +401,7 @@ class ConcentrationMetricsResponse(BaseModel):
     metadata: Optional[Dict[str, Union[str, int]]] = Field(None, description="Additional metadata")
 
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "available": True,
                 "portfolio_id": "c0510ab8-c6b5-433c-adbc-3f74e1dbdb5e",
@@ -445,7 +445,7 @@ class VolatilityMetricsResponse(BaseModel):
     metadata: Optional[Dict[str, Union[str, int]]] = Field(None, description="Additional metadata")
 
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "available": True,
                 "portfolio_id": "c0510ab8-c6b5-433c-adbc-3f74e1dbdb5e",
@@ -490,7 +490,7 @@ class MarketBetaComparisonResponse(BaseModel):
     metadata: Optional[Dict[str, Union[str, int]]] = Field(None, description="Additional metadata")
 
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "available": True,
                 "portfolio_id": "c0510ab8-c6b5-433c-adbc-3f74e1dbdb5e",
