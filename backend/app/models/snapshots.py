@@ -48,6 +48,13 @@ class PortfolioSnapshot(Base):
     # Equity balance (starting capital + realized P&L)
     equity_balance: Mapped[Optional[Decimal]] = mapped_column(Numeric(16, 2), nullable=True)
 
+    # Phase 2: Volatility analytics (Risk Metrics)
+    realized_volatility_21d: Mapped[Optional[Decimal]] = mapped_column(Numeric(10, 4), nullable=True)
+    realized_volatility_63d: Mapped[Optional[Decimal]] = mapped_column(Numeric(10, 4), nullable=True)
+    expected_volatility_21d: Mapped[Optional[Decimal]] = mapped_column(Numeric(10, 4), nullable=True)
+    volatility_trend: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+    volatility_percentile: Mapped[Optional[Decimal]] = mapped_column(Numeric(10, 4), nullable=True)
+
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
     
     # Relationships
