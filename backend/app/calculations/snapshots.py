@@ -427,6 +427,41 @@ async def _create_or_update_snapshot(
     except Exception as e:
         logger.warning(f"Could not calculate sector/concentration metrics for snapshot: {e}")
 
+    # Phase 2: Volatility analytics
+    realized_volatility_21d = None
+    realized_volatility_63d = None
+    expected_volatility_21d = None
+    volatility_trend = None
+    volatility_percentile = None
+
+    try:
+        from app.calculations.volatility_analytics import calculate_portfolio_volatility_batch
+
+        volatility_result = await calculate_portfolio_volatility_batch(
+            db=db,
+            portfolio_id=portfolio_id,
+            calculation_date=calculation_date
+        )
+
+        if volatility_result.get('success'):
+            # Extract portfolio-level volatility data
+            if volatility_result.get('portfolio_volatility'):
+                pv = volatility_result['portfolio_volatility']
+                realized_volatility_21d = Decimal(str(pv.get('realized_volatility_21d', 0))) if pv.get('realized_volatility_21d') else None
+                realized_volatility_63d = Decimal(str(pv.get('realized_volatility_63d', 0))) if pv.get('realized_volatility_63d') else None
+                expected_volatility_21d = Decimal(str(pv.get('expected_volatility_21d', 0))) if pv.get('expected_volatility_21d') else None
+                volatility_trend = pv.get('volatility_trend')
+                volatility_percentile = Decimal(str(pv.get('volatility_percentile', 0))) if pv.get('volatility_percentile') else None
+                logger.info(
+                    f"Volatility metrics: 21d={float(realized_volatility_21d) if realized_volatility_21d else 0:.2%}, "
+                    f"expected={float(expected_volatility_21d) if expected_volatility_21d else 0:.2%}, "
+                    f"trend={volatility_trend}"
+                )
+        else:
+            logger.warning(f"Volatility analytics failed for snapshot: {volatility_result.get('error')}")
+    except Exception as e:
+        logger.warning(f"Could not calculate volatility metrics for snapshot: {e}")
+
     # Check if snapshot already exists
     existing_query = select(PortfolioSnapshot).where(
         and_(
@@ -467,7 +502,13 @@ async def _create_or_update_snapshot(
         "hhi": hhi,
         "effective_num_positions": effective_num_positions,
         "top_3_concentration": top_3_concentration,
-        "top_10_concentration": top_10_concentration
+        "top_10_concentration": top_10_concentration,
+        # Phase 2: Volatility analytics
+        "realized_volatility_21d": realized_volatility_21d,
+        "realized_volatility_63d": realized_volatility_63d,
+        "expected_volatility_21d": expected_volatility_21d,
+        "volatility_trend": volatility_trend,
+        "volatility_percentile": volatility_percentile
     }
 
     if existing_snapshot:
