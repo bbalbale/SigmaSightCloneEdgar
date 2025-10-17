@@ -509,44 +509,15 @@ class BatchOrchestratorV2:
         # For options portfolios, also calculate delta-adjusted exposure
         has_options = any(p.strike_price is not None for p in positions)
 
-        # Update portfolio equity_balance = starting equity balance (from DB) + total realized P&L
-        from decimal import Decimal
-
-        # Get portfolio to access starting equity_balance from database
-        portfolio_stmt = select(Portfolio).where(Portfolio.id == portfolio_uuid)
-        portfolio_result = await db.execute(portfolio_stmt)
-        portfolio = portfolio_result.scalar_one_or_none()
-
-        if portfolio:
-            # Use the equity_balance from database as starting balance
-            # This should be set to the initial capital when portfolio is created
-            starting_equity_balance = portfolio.equity_balance or Decimal("0")
-
-            total_realized_pnl = sum(
-                p.realized_pnl for p in positions
-                if p.realized_pnl
-            ) or Decimal("0")
-
-            # equity_balance = starting equity balance (from DB) + realized P&L
-            new_equity_balance = starting_equity_balance + total_realized_pnl
-
-            # Only update if it changed
-            if new_equity_balance != starting_equity_balance:
-                portfolio.equity_balance = new_equity_balance
-                await db.flush()
-
-                logger.info(
-                    f"Updated portfolio {portfolio_id} equity_balance: "
-                    f"${float(starting_equity_balance):,.2f} -> ${float(new_equity_balance):,.2f} "
-                    f"(realized P&L: ${float(total_realized_pnl):,.2f})"
-                )
+        # Phase 1: Equity balance is now calculated in snapshots.py
+        # No longer updating equity_balance here - it's handled by _create_snapshot()
+        # which calculates: equity = previous_equity + daily_pnl
 
         return {
             'portfolio_id': portfolio_id,
             'metrics_calculated': len(exposures),
             'has_options': has_options,
-            'exposures': exposures,
-            'equity_balance_updated': float(new_equity_balance) if new_equity_balance else None
+            'exposures': exposures
         }
     
     async def _calculate_greeks(self, db: AsyncSession, portfolio_id: str):

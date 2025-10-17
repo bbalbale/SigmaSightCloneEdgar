@@ -297,7 +297,7 @@ async def _create_or_update_snapshot(
     pnl_data: Dict[str, Decimal],
     position_counts: Dict[str, int]
 ) -> PortfolioSnapshot:
-    """Create or update portfolio snapshot"""
+    """Create or update portfolio snapshot AND update portfolio equity_balance"""
 
     # Import Portfolio model for equity_balance lookup
     from app.models.users import Portfolio
@@ -306,6 +306,40 @@ async def _create_or_update_snapshot(
     portfolio_query = select(Portfolio).where(Portfolio.id == portfolio_id)
     portfolio_result = await db.execute(portfolio_query)
     portfolio = portfolio_result.scalar_one_or_none()
+
+    if not portfolio:
+        raise ValueError(f"Portfolio {portfolio_id} not found")
+
+    # Phase 1 Implementation: Calculate today's equity from yesterday's equity + today's P&L
+    # Get previous snapshot to find yesterday's equity_balance
+    previous_snapshot_query = select(PortfolioSnapshot).where(
+        and_(
+            PortfolioSnapshot.portfolio_id == portfolio_id,
+            PortfolioSnapshot.snapshot_date < calculation_date
+        )
+    ).order_by(PortfolioSnapshot.snapshot_date.desc()).limit(1)
+
+    previous_result = await db.execute(previous_snapshot_query)
+    previous_snapshot = previous_result.scalar_one_or_none()
+
+    if previous_snapshot and previous_snapshot.equity_balance:
+        # Use yesterday's equity + today's P&L
+        previous_equity = previous_snapshot.equity_balance
+        today_equity = previous_equity + pnl_data['daily_pnl']
+        logger.info(
+            f"Calculating equity for {portfolio_id}: "
+            f"${float(previous_equity):,.2f} + ${float(pnl_data['daily_pnl']):,.2f} = ${float(today_equity):,.2f}"
+        )
+    else:
+        # First snapshot - use seed value from portfolio table
+        today_equity = portfolio.equity_balance or Decimal('0')
+        logger.info(
+            f"First snapshot for {portfolio_id}, using seed equity: ${float(today_equity):,.2f}"
+        )
+
+    # Update portfolio table with current equity
+    portfolio.equity_balance = today_equity
+    await db.flush()
 
     # Check if snapshot already exists
     existing_query = select(PortfolioSnapshot).where(
@@ -336,9 +370,9 @@ async def _create_or_update_snapshot(
         "num_positions": position_counts['total'],
         "num_long_positions": position_counts['long'],
         "num_short_positions": position_counts['short'],
-        "equity_balance": portfolio.equity_balance if portfolio else None
+        "equity_balance": today_equity  # Use calculated equity
     }
-    
+
     if existing_snapshot:
         # Update existing snapshot
         for key, value in snapshot_data.items():
@@ -350,7 +384,7 @@ async def _create_or_update_snapshot(
         snapshot = PortfolioSnapshot(**snapshot_data)
         db.add(snapshot)
         logger.info(f"Created new snapshot for {calculation_date}")
-    
+
     return snapshot
 
 
