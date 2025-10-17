@@ -8,6 +8,8 @@ import type {
   PositionFactorExposuresResponse,
   StressTestResponse,
   VolatilityMetricsResponse,
+  SectorExposureResponse,
+  ConcentrationMetricsResponse,
 } from '@/types/analytics';
 
 function getAuthHeader(): Record<string, string> {
@@ -116,6 +118,32 @@ export const analyticsApi = {
     const endpoint = API_ENDPOINTS.ANALYTICS.VOLATILITY(portfolioId);
     const url = apiClient.buildUrl(endpoint);
     const data = await apiClient.get<VolatilityMetricsResponse>(endpoint, {
+      ...REQUEST_CONFIGS.STANDARD,
+      headers: { ...getAuthHeader() },
+    });
+    return { data, url };
+  },
+
+  async getSectorExposure(
+    portfolioId: string
+  ): Promise<{ data: SectorExposureResponse; url: string }>
+  {
+    const endpoint = API_ENDPOINTS.ANALYTICS.SECTOR_EXPOSURE(portfolioId);
+    const url = apiClient.buildUrl(endpoint);
+    const data = await apiClient.get<SectorExposureResponse>(endpoint, {
+      ...REQUEST_CONFIGS.STANDARD,
+      headers: { ...getAuthHeader() },
+    });
+    return { data, url };
+  },
+
+  async getConcentration(
+    portfolioId: string
+  ): Promise<{ data: ConcentrationMetricsResponse; url: string }>
+  {
+    const endpoint = API_ENDPOINTS.ANALYTICS.CONCENTRATION(portfolioId);
+    const url = apiClient.buildUrl(endpoint);
+    const data = await apiClient.get<ConcentrationMetricsResponse>(endpoint, {
       ...REQUEST_CONFIGS.STANDARD,
       headers: { ...getAuthHeader() },
     });

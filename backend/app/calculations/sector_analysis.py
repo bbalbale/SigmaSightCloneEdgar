@@ -61,7 +61,10 @@ def calculate_effective_positions(hhi: float) -> float:
 
 def get_position_market_value(position: Position) -> Decimal:
     """
-    Calculate current market value for a position.
+    Get current market value for a position.
+
+    Note: Position model already has market_value field populated by batch processing.
+    We just return that value rather than recalculating.
 
     Args:
         position: Position object
@@ -69,25 +72,19 @@ def get_position_market_value(position: Position) -> Decimal:
     Returns:
         Market value as Decimal
     """
-    if position.position_type in ['LONG', 'SHORT']:
-        # Equity positions: shares * current_price
-        if position.current_price:
-            return Decimal(str(position.quantity)) * position.current_price
-        else:
-            # Fall back to entry price if current price not available
-            return Decimal(str(position.quantity)) * position.entry_price
-
-    elif position.position_type in ['LC', 'LP', 'SC', 'SP']:
-        # Options positions: contracts * 100 * option_price
-        if position.current_price:
-            return Decimal(str(position.quantity)) * Decimal('100') * position.current_price
-        else:
-            return Decimal(str(position.quantity)) * Decimal('100') * position.entry_price
-
+    # Use the pre-calculated market_value field from the Position model
+    if position.market_value is not None:
+        return position.market_value
     else:
-        # Unknown position type
-        logger.warning(f"Unknown position type {position.position_type} for position {position.id}")
-        return Decimal('0')
+        # Fallback: calculate from entry price if market_value not set
+        if position.position_type in ['LONG', 'SHORT']:
+            return Decimal(str(position.quantity)) * position.entry_price
+        elif position.position_type in ['LC', 'LP', 'SC', 'SP']:
+            # Options: contracts * 100 * price
+            return Decimal(str(position.quantity)) * Decimal('100') * position.entry_price
+        else:
+            logger.warning(f"Unknown position type {position.position_type} for position {position.id}")
+            return Decimal('0')
 
 
 async def get_sector_from_market_data(db: AsyncSession, symbol: str) -> Optional[str]:

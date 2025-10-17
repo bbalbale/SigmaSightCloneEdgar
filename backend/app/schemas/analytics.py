@@ -463,3 +463,62 @@ class VolatilityMetricsResponse(BaseModel):
                 }
             }
         }
+
+
+class PositionBetaComparison(BaseModel):
+    """Beta comparison for a single position"""
+    symbol: str = Field(..., description="Position symbol")
+    position_id: str = Field(..., description="Position UUID")
+    market_beta: Optional[float] = Field(None, description="Market beta from company profile (data provider)")
+    calculated_beta: Optional[float] = Field(None, description="Our calculated beta from OLS regression")
+    beta_r_squared: Optional[float] = Field(None, description="R-squared for calculated beta")
+    calculation_date: Optional[str] = Field(None, description="Date of beta calculation")
+    observations: Optional[int] = Field(None, description="Number of data points in regression")
+    beta_difference: Optional[float] = Field(None, description="Difference between calculated and market beta")
+
+
+class MarketBetaComparisonResponse(BaseModel):
+    """
+    Market beta comparison response (Phase 0: Risk Metrics)
+
+    Returns comparison between market betas (from data provider) and our calculated betas
+    for each position in the portfolio.
+    """
+    available: bool = Field(..., description="Whether beta comparison data is available")
+    portfolio_id: str = Field(..., description="Portfolio UUID")
+    positions: Optional[List[PositionBetaComparison]] = Field(None, description="Beta comparison for each position")
+    metadata: Optional[Dict[str, Union[str, int]]] = Field(None, description="Additional metadata")
+
+    class Config:
+        schema_extra = {
+            "example": {
+                "available": True,
+                "portfolio_id": "c0510ab8-c6b5-433c-adbc-3f74e1dbdb5e",
+                "positions": [
+                    {
+                        "symbol": "AAPL",
+                        "position_id": "e5e29f33-ac9f-411b-9494-bff119f435b2",
+                        "market_beta": 1.25,
+                        "calculated_beta": 1.18,
+                        "beta_r_squared": 0.85,
+                        "calculation_date": "2025-10-17",
+                        "observations": 90,
+                        "beta_difference": -0.07
+                    },
+                    {
+                        "symbol": "MSFT",
+                        "position_id": "f6f39044-bd0f-522c-a5a5-c00229g546c3",
+                        "market_beta": 0.95,
+                        "calculated_beta": 0.92,
+                        "beta_r_squared": 0.88,
+                        "calculation_date": "2025-10-17",
+                        "observations": 90,
+                        "beta_difference": -0.03
+                    }
+                ],
+                "metadata": {
+                    "total_positions": 18,
+                    "positions_with_data": 15
+                }
+            }
+        }

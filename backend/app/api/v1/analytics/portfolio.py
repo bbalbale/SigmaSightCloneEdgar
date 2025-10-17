@@ -27,6 +27,7 @@ from app.schemas.analytics import (
     SectorExposureResponse,
     ConcentrationMetricsResponse,
     VolatilityMetricsResponse,
+    MarketBetaComparisonResponse,
 )
 from app.services.portfolio_analytics_service import PortfolioAnalyticsService
 from app.services.correlation_service import CorrelationService
@@ -649,6 +650,152 @@ async def get_volatility_metrics(
     except Exception as e:
         logger.error(f"Volatility metrics failed for {portfolio_id}: {str(e)}")
         raise HTTPException(status_code=500, detail="Internal server error retrieving volatility metrics")
+
+
+@router.get("/{portfolio_id}/beta-comparison", response_model=MarketBetaComparisonResponse)
+async def get_market_beta_comparison(
+    portfolio_id: UUID,
+    current_user: CurrentUser = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Get comparison between market betas and calculated betas for portfolio positions.
+
+    Returns a comparison showing:
+    - Market beta (from company profile data provider)
+    - Calculated beta (from our OLS regression analysis)
+    - R-squared value for calculated beta
+    - Calculation date and observation count
+    - Beta difference (calculated - market)
+
+    This helps identify discrepancies between data provider betas and our
+    calculated betas, useful for validating risk factor exposures.
+
+    Part of Risk Metrics Phase 0 implementation.
+
+    Args:
+        portfolio_id: Portfolio UUID to analyze
+        current_user: Authenticated user from JWT token
+        db: Database session
+
+    Returns:
+        MarketBetaComparisonResponse with beta comparison or unavailable status
+
+    Raises:
+        404: Portfolio not found or not owned by user
+        500: Internal server error during calculation
+    """
+    try:
+        start = time.time()
+
+        # Validate portfolio ownership
+        await validate_portfolio_ownership(db, portfolio_id, current_user.id)
+
+        # Import models
+        from app.models.positions import Position
+        from app.models.market_data import CompanyProfile, PositionMarketBeta
+        from sqlalchemy import select, func, and_
+        from sqlalchemy.orm import aliased
+        from datetime import date
+
+        # Subquery to get the latest beta for each position
+        latest_beta_subq = (
+            select(
+                PositionMarketBeta.position_id,
+                func.max(PositionMarketBeta.calc_date).label("max_calc_date")
+            )
+            .group_by(PositionMarketBeta.position_id)
+            .subquery()
+        )
+
+        # Query positions with company profile and latest calculated beta data
+        query = (
+            select(
+                Position.id.label("position_id"),
+                Position.symbol,
+                CompanyProfile.beta.label("market_beta"),
+                PositionMarketBeta.beta.label("calculated_beta"),
+                PositionMarketBeta.r_squared,
+                PositionMarketBeta.observations,
+                PositionMarketBeta.calc_date,
+            )
+            .select_from(Position)
+            .outerjoin(CompanyProfile, Position.symbol == CompanyProfile.symbol)
+            .outerjoin(
+                latest_beta_subq,
+                latest_beta_subq.c.position_id == Position.id
+            )
+            .outerjoin(
+                PositionMarketBeta,
+                and_(
+                    PositionMarketBeta.position_id == Position.id,
+                    PositionMarketBeta.calc_date == latest_beta_subq.c.max_calc_date
+                )
+            )
+            .where(Position.portfolio_id == portfolio_id)
+            .order_by(Position.symbol)
+        )
+
+        result = await db.execute(query)
+        rows = result.all()
+
+        elapsed = time.time() - start
+        if elapsed > 0.5:
+            logger.warning(f"Slow beta-comparison response: {elapsed:.2f}s for portfolio {portfolio_id}")
+        else:
+            logger.info(f"Beta comparison retrieved in {elapsed:.3f}s for portfolio {portfolio_id}")
+
+        # Format response
+        if not rows:
+            return MarketBetaComparisonResponse(
+                available=False,
+                portfolio_id=str(portfolio_id),
+                metadata={"error": "No positions found for portfolio"}
+            )
+
+        # Build position comparisons
+        from app.schemas.analytics import PositionBetaComparison
+
+        positions = []
+        for row in rows:
+            market_beta = float(row.market_beta) if row.market_beta is not None else None
+            calculated_beta = float(row.calculated_beta) if row.calculated_beta is not None else None
+
+            # Calculate difference if both betas are available
+            beta_difference = None
+            if market_beta is not None and calculated_beta is not None:
+                beta_difference = calculated_beta - market_beta
+
+            positions.append(PositionBetaComparison(
+                symbol=row.symbol,
+                position_id=str(row.position_id),
+                market_beta=market_beta,
+                calculated_beta=calculated_beta,
+                beta_r_squared=float(row.r_squared) if row.r_squared is not None else None,
+                calculation_date=row.calc_date.isoformat() if row.calc_date else None,
+                observations=row.observations,
+                beta_difference=beta_difference
+            ))
+
+        return MarketBetaComparisonResponse(
+            available=True,
+            portfolio_id=str(portfolio_id),
+            positions=positions,
+            metadata={
+                "total_positions": len(positions),
+                "positions_with_market_beta": sum(1 for p in positions if p.market_beta is not None),
+                "positions_with_calculated_beta": sum(1 for p in positions if p.calculated_beta is not None),
+            }
+        )
+
+    except HTTPException:
+        raise
+    except ValueError as e:
+        logger.warning(f"Portfolio not found: {portfolio_id} for user {current_user.id}")
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        logger.error(f"Beta comparison failed for {portfolio_id}: {str(e)}")
+        raise HTTPException(status_code=500, detail="Internal server error retrieving beta comparison")
 
 
 class UpdateEquityRequest(BaseModel):

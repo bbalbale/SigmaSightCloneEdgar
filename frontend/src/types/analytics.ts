@@ -188,3 +188,47 @@ export interface VolatilityMetricsResponse {
   };
 }
 
+export interface SectorExposureData {
+  portfolio_weights: Record<string, number>; // sector name -> weight (0-1)
+  benchmark_weights: Record<string, number>; // sector name -> weight (0-1)
+  over_underweight: Record<string, number>; // sector name -> difference
+  largest_overweight: string | null;
+  largest_underweight: string | null;
+  total_portfolio_value: number;
+  positions_by_sector: Record<string, number>;
+  unclassified_value: number;
+  unclassified_count: number;
+}
+
+export interface SectorExposureResponse {
+  available: boolean;
+  portfolio_id: string;
+  calculation_date: string | null;
+  data: SectorExposureData | null;
+  metadata?: {
+    benchmark?: string;
+    error?: string;
+  };
+}
+
+export interface ConcentrationMetricsData {
+  hhi: number; // Herfindahl-Hirschman Index (0-10000)
+  effective_num_positions: number;
+  top_3_concentration: number; // 0-1 scale
+  top_10_concentration: number; // 0-1 scale
+  total_positions: number;
+  position_weights: Record<string, number> | null;
+}
+
+export interface ConcentrationMetricsResponse {
+  available: boolean;
+  portfolio_id: string;
+  calculation_date: string | null;
+  data: ConcentrationMetricsData | null;
+  metadata?: {
+    calculation_method?: string;
+    interpretation?: string;
+    error?: string;
+  };
+}
+
