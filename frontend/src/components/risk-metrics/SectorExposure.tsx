@@ -66,8 +66,17 @@ export function SectorExposure({ data, loading, error, onRetry }: SectorExposure
   const { portfolio_weights, benchmark_weights, over_underweight } = data.data
   const benchmarkCode = data.metadata?.benchmark || 'S&P 500'
 
-  // Get all sector names from portfolio weights
-  const sectors = Object.keys(portfolio_weights)
+  // Get all sector names from benchmark weights (not portfolio, which might be empty)
+  // This ensures we show all sectors even if portfolio has 0% allocation
+  const sectors = Object.keys(benchmark_weights)
+
+  console.log('🎯 SectorExposure Render:', {
+    portfolio_weights,
+    benchmark_weights,
+    over_underweight,
+    sectors,
+    sectorsLength: sectors.length
+  })
 
   if (sectors.length === 0) {
     return (
@@ -104,13 +113,30 @@ export function SectorExposure({ data, loading, error, onRetry }: SectorExposure
         </p>
       </CardHeader>
       <CardContent>
+        {/* Info message if portfolio has no classified positions */}
+        {Object.keys(portfolio_weights).length === 0 && (
+          <div className={`mb-4 p-3 rounded-lg ${
+            theme === 'dark' ? 'bg-blue-900/20 border border-blue-800' : 'bg-blue-50 border border-blue-200'
+          }`}>
+            <p className={`text-sm ${theme === 'dark' ? 'text-blue-300' : 'text-blue-800'}`}>
+              ℹ️ Your portfolio currently has no positions with sector classifications.
+              This may be due to private investments, options contracts, or positions without sector data.
+            </p>
+          </div>
+        )}
+
         <div className="space-y-4">
           {sectors.map((sector) => {
-            const portfolioPct = (portfolio_weights[sector] * 100).toFixed(1)
-            const benchmarkPct = (benchmark_weights[sector] * 100).toFixed(1)
-            const overUnderPct = (over_underweight[sector] * 100).toFixed(1)
-            const isOverweight = over_underweight[sector] > 0
-            const barWidth = Math.abs(over_underweight[sector]) / maxOverweight * 100
+            // Handle cases where sector might not exist in portfolio_weights
+            const portfolioWeight = portfolio_weights[sector] || 0
+            const benchmarkWeight = benchmark_weights[sector] || 0
+            const overUnder = over_underweight[sector] || 0
+
+            const portfolioPct = (portfolioWeight * 100).toFixed(1)
+            const benchmarkPct = (benchmarkWeight * 100).toFixed(1)
+            const overUnderPct = (overUnder * 100).toFixed(1)
+            const isOverweight = overUnder > 0
+            const barWidth = Math.abs(overUnder) / maxOverweight * 100
 
             return (
               <div key={sector} className="space-y-2">

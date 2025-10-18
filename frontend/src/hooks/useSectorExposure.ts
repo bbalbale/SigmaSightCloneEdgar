@@ -21,9 +21,13 @@ export function useSectorExposure() {
 
     try {
       const result = await analyticsApi.getSectorExposure(portfolioId)
+      console.log('🔍 Sector Exposure API Response:', result.data)
+      console.log('📊 Available:', result.data?.available)
+      console.log('📁 Data:', result.data?.data)
+      console.log('⚠️ Metadata:', result.data?.metadata)
       setData(result.data)
     } catch (err) {
-      console.error('Error fetching sector exposure:', err)
+      console.error('❌ Error fetching sector exposure:', err)
       setError(err instanceof Error ? err.message : 'Failed to fetch sector exposure')
     } finally {
       setLoading(false)

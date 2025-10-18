@@ -14,7 +14,7 @@ from sqlalchemy import select, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.positions import Position
-from app.models.market_data import MarketDataCache, BenchmarkSectorWeight
+from app.models.market_data import BenchmarkSectorWeight
 from app.core.logging import get_logger
 
 logger = get_logger(__name__)
@@ -89,7 +89,7 @@ def get_position_market_value(position: Position) -> Decimal:
 
 async def get_sector_from_market_data(db: AsyncSession, symbol: str) -> Optional[str]:
     """
-    Get sector for a symbol from market_data_cache table.
+    Get sector for a symbol from company_profiles table.
 
     Args:
         db: Database session
@@ -99,9 +99,12 @@ async def get_sector_from_market_data(db: AsyncSession, symbol: str) -> Optional
         Sector name or None if not found
     """
     try:
-        stmt = select(MarketDataCache.sector).where(
-            MarketDataCache.symbol == symbol.upper()
-        ).order_by(MarketDataCache.date.desc()).limit(1)
+        # Import CompanyProfile here to avoid circular imports
+        from app.models.market_data import CompanyProfile
+
+        stmt = select(CompanyProfile.sector).where(
+            CompanyProfile.symbol == symbol.upper()
+        ).limit(1)
 
         result = await db.execute(stmt)
         sector = result.scalar_one_or_none()
