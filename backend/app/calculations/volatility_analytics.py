@@ -120,7 +120,8 @@ async def calculate_position_volatility(
         vol_63d = _calculate_realized_vol(df['return'], window=63)
 
         # Calculate HAR components
-        vol_daily = _calculate_realized_vol(df['return'], window=1)
+        # Daily: Use absolute value of most recent return (annualized)
+        vol_daily = abs(df['return'].iloc[-1]) * np.sqrt(TRADING_DAYS_PER_YEAR) if len(df) > 0 else None
         vol_weekly = _calculate_realized_vol(df['return'], window=5)
         vol_monthly = _calculate_realized_vol(df['return'], window=21)
 
@@ -244,7 +245,8 @@ async def calculate_portfolio_volatility(
         vol_63d = _calculate_realized_vol(portfolio_returns, window=63)
 
         # Calculate HAR components for forecast
-        vol_daily = _calculate_realized_vol(portfolio_returns, window=1)
+        # Daily: Use absolute value of most recent return (annualized)
+        vol_daily = abs(portfolio_returns.iloc[-1]) * np.sqrt(TRADING_DAYS_PER_YEAR) if len(portfolio_returns) > 0 else None
         vol_weekly = _calculate_realized_vol(portfolio_returns, window=5)
         vol_monthly = _calculate_realized_vol(portfolio_returns, window=21)
 
@@ -443,6 +445,72 @@ async def calculate_portfolio_volatility_batch(
 # ============================================================================
 
 
+def _calculate_yang_zhang_volatility(df: pd.DataFrame) -> Optional[float]:
+    """
+    Calculate Yang-Zhang volatility estimator using OHLC data.
+
+    Yang-Zhang (2000) is the most efficient unbiased estimator that accounts for:
+    - Opening gaps
+    - Drift
+    - Overnight jumps
+
+    Formula: σ²_YZ = σ²_o + k·σ²_c + (1-k)·σ²_rs
+
+    Where:
+    - σ²_o = overnight variance (ln(O/C_prev))²
+    - σ²_c = close-to-close variance
+    - σ²_rs = Rogers-Satchell intraday variance
+    - k = weighting factor
+
+    Args:
+        df: DataFrame with columns: open, high, low, close (indexed by date)
+
+    Returns:
+        Annualized volatility (as decimal, e.g., 0.25 for 25%)
+    """
+    try:
+        if len(df) < 2:
+            return None
+
+        # Ensure we have all required columns
+        required_cols = ['open', 'high', 'low', 'close']
+        if not all(col in df.columns for col in required_cols):
+            return None
+
+        # Overnight variance: σ²_o = (1/n)Σ(ln(O_t/C_{t-1}))²
+        overnight_log_returns = np.log(df['open'] / df['close'].shift(1))
+        overnight_var = (overnight_log_returns ** 2).mean()
+
+        # Close-to-close variance: σ²_c = (1/(n-1))Σ(ln(C_t/C_{t-1}) - μ_c)²
+        close_log_returns = np.log(df['close'] / df['close'].shift(1))
+        close_var = close_log_returns.var()
+
+        # Rogers-Satchell intraday variance
+        # σ²_rs = (1/n)Σ[ln(H_t/C_t)·ln(H_t/O_t) + ln(L_t/C_t)·ln(L_t/O_t)]
+        h_c = np.log(df['high'] / df['close'])
+        h_o = np.log(df['high'] / df['open'])
+        l_c = np.log(df['low'] / df['close'])
+        l_o = np.log(df['low'] / df['open'])
+        rs_var = (h_c * h_o + l_c * l_o).mean()
+
+        # Calculate k weighting factor
+        # k = 0.34 / (1.34 + (n+1)/(n-1))
+        n = len(df)
+        k = 0.34 / (1.34 + (n + 1) / (n - 1)) if n > 1 else 0.5
+
+        # Combine components: σ²_YZ = σ²_o + k·σ²_c + (1-k)·σ²_rs
+        yang_zhang_var = overnight_var + k * close_var + (1 - k) * rs_var
+
+        # Convert to volatility and annualize
+        yang_zhang_vol = np.sqrt(yang_zhang_var) * np.sqrt(TRADING_DAYS_PER_YEAR)
+
+        return float(yang_zhang_vol)
+
+    except Exception as e:
+        logger.warning(f"Yang-Zhang calculation failed: {e}")
+        return None
+
+
 def _calculate_realized_vol(returns: pd.Series, window: int) -> Optional[float]:
     """
     Calculate realized volatility over a rolling window.
@@ -469,6 +537,32 @@ def _calculate_realized_vol(returns: pd.Series, window: int) -> Optional[float]:
     return float(annualized_vol)
 
 
+def _calculate_realized_vol_from_ohlc(df: pd.DataFrame, window: int = None) -> Optional[float]:
+    """
+    Calculate realized volatility using OHLC data with Yang-Zhang estimator.
+
+    If window is specified, uses the most recent 'window' days.
+    If window is None, uses all available data.
+
+    Args:
+        df: DataFrame with open, high, low, close columns
+        window: Number of days to use (None = all data)
+
+    Returns:
+        Annualized volatility (as decimal)
+    """
+    if len(df) < 2:
+        return None
+
+    # Take most recent window if specified
+    if window is not None:
+        if len(df) < window:
+            return None
+        df = df.tail(window)
+
+    return _calculate_yang_zhang_volatility(df)
+
+
 def _forecast_har(
     returns: pd.Series,
     vol_daily: Optional[float],
@@ -478,14 +572,17 @@ def _forecast_har(
     """
     Forecast volatility using HAR (Heterogeneous Autoregressive) model.
 
-    HAR Model:
+    HAR Model (Corsi 2009):
         RV(t+1) = β0 + β1*RV_daily + β2*RV_weekly + β3*RV_monthly + ε
+
+    For the daily component, we use squared returns (realized variance for single period).
+    For weekly/monthly, we use rolling standard deviation.
 
     Args:
         returns: Historical daily returns
-        vol_daily: Current daily volatility
-        vol_weekly: Current weekly volatility
-        vol_monthly: Current monthly volatility
+        vol_daily: Current daily volatility (annualized)
+        vol_weekly: Current weekly volatility (annualized)
+        vol_monthly: Current monthly volatility (annualized)
 
     Returns:
         (forecast, r_squared) tuple
@@ -499,8 +596,14 @@ def _forecast_har(
             return None, None
 
         # Calculate rolling volatilities for training
-        rv_daily = returns.rolling(1).std() * np.sqrt(TRADING_DAYS_PER_YEAR)
+        # Daily: Use squared returns (annualized) - this is the actual realized variance
+        rv_daily = (returns ** 2) * TRADING_DAYS_PER_YEAR  # Annualized variance
+        rv_daily = np.sqrt(rv_daily)  # Convert to volatility
+
+        # Weekly: Average volatility over 5-day rolling window
         rv_weekly = returns.rolling(5).std() * np.sqrt(TRADING_DAYS_PER_YEAR)
+
+        # Monthly: Average volatility over 21-day rolling window
         rv_monthly = returns.rolling(21).std() * np.sqrt(TRADING_DAYS_PER_YEAR)
 
         # Create dataset: predict tomorrow's daily vol from today's components
