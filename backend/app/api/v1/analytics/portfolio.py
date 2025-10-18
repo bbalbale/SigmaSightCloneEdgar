@@ -28,6 +28,9 @@ from app.schemas.analytics import (
     ConcentrationMetricsResponse,
     VolatilityMetricsResponse,
     MarketBetaComparisonResponse,
+    SingleFactorMarketBetaResponse,
+    CalculatedBeta90dResponse,
+    ProviderBeta1yResponse,
 )
 from app.services.portfolio_analytics_service import PortfolioAnalyticsService
 from app.services.correlation_service import CorrelationService
@@ -798,6 +801,94 @@ async def get_market_beta_comparison(
         raise HTTPException(status_code=500, detail="Internal server error retrieving beta comparison")
 
 
+@router.get("/{portfolio_id}/market-beta", response_model=SingleFactorMarketBetaResponse)
+async def get_single_factor_market_beta(
+    portfolio_id: UUID,
+    current_user: CurrentUser = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Get single-factor market beta from portfolio snapshot.
+
+    Returns portfolio-level market beta calculated from single-factor OLS regression
+    (Position returns ~ SPY returns). This is the equity-weighted average of
+    position-level betas.
+
+    Different from multi-factor beta (/factor-exposures endpoint) which controls
+    for additional factor exposures like Value, Growth, Momentum, etc.
+
+    Part of Risk Metrics Phase 0 implementation.
+
+    Args:
+        portfolio_id: Portfolio UUID to analyze
+        current_user: Authenticated user from JWT token
+        db: Database session
+
+    Returns:
+        SingleFactorMarketBetaResponse with market beta metrics or unavailable status
+
+    Raises:
+        404: Portfolio not found or not owned by user
+        500: Internal server error during retrieval
+    """
+    try:
+        start = time.time()
+
+        # Validate portfolio ownership
+        await validate_portfolio_ownership(db, portfolio_id, current_user.id)
+
+        # Fetch market beta from latest snapshot
+        from app.models.snapshots import PortfolioSnapshot
+        from sqlalchemy import select
+
+        snapshot_query = select(PortfolioSnapshot).where(
+            PortfolioSnapshot.portfolio_id == portfolio_id
+        ).order_by(PortfolioSnapshot.snapshot_date.desc()).limit(1)
+
+        snapshot_result = await db.execute(snapshot_query)
+        snapshot = snapshot_result.scalar_one_or_none()
+
+        elapsed = time.time() - start
+        if elapsed > 0.5:
+            logger.warning(f"Slow market-beta response: {elapsed:.2f}s for portfolio {portfolio_id}")
+        else:
+            logger.info(f"Market beta retrieved in {elapsed:.3f}s for portfolio {portfolio_id}")
+
+        # Format response using new field names
+        if not snapshot or snapshot.beta_calculated_90d is None:
+            return SingleFactorMarketBetaResponse(
+                available=False,
+                portfolio_id=str(portfolio_id),
+                metadata={"error": "No market beta data available"}
+            )
+
+        from datetime import date
+        return SingleFactorMarketBetaResponse(
+            available=True,
+            portfolio_id=str(portfolio_id),
+            calculation_date=snapshot.snapshot_date.isoformat() if snapshot.snapshot_date else date.today().isoformat(),
+            data={
+                "market_beta_weighted": float(snapshot.beta_calculated_90d),
+                "market_beta_r_squared": float(snapshot.beta_calculated_90d_r_squared) if snapshot.beta_calculated_90d_r_squared else None,
+                "market_beta_observations": snapshot.beta_calculated_90d_observations,
+                "market_beta_direct": float(snapshot.beta_portfolio_regression) if snapshot.beta_portfolio_regression else None
+            },
+            metadata={
+                "calculation_method": "equity_weighted_average",
+                "model_type": "single_factor_ols"
+            }
+        )
+
+    except HTTPException:
+        raise
+    except ValueError as e:
+        logger.warning(f"Portfolio not found: {portfolio_id} for user {current_user.id}")
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        logger.error(f"Market beta retrieval failed for {portfolio_id}: {str(e)}")
+        raise HTTPException(status_code=500, detail="Internal server error retrieving market beta")
+
+
 class UpdateEquityRequest(BaseModel):
     """Request model for updating portfolio equity balance"""
     equity_balance: float
@@ -857,3 +948,205 @@ async def update_portfolio_equity(
         logger.error(f"Failed to update equity for {portfolio_id}: {str(e)}")
         await db.rollback()
         raise HTTPException(status_code=500, detail="Internal server error updating equity balance")
+
+
+@router.get("/{portfolio_id}/beta-calculated-90d", response_model=CalculatedBeta90dResponse)
+async def get_calculated_beta_90d(
+    portfolio_id: UUID,
+    current_user: CurrentUser = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Get calculated beta (90-day OLS regression) from portfolio snapshot.
+
+    Returns portfolio-level calculated beta using 90-day rolling window OLS regression
+    (Position returns ~ SPY returns), equity-weighted averaged to portfolio level.
+    This represents our internally calculated beta based on historical return analysis.
+
+    Different from provider beta which uses 1-year betas from company profile data.
+
+    Part of Risk Metrics Phase 0 refactoring (field name clarity improvements).
+
+    Args:
+        portfolio_id: Portfolio UUID to analyze
+        current_user: Authenticated user from JWT token
+        db: Database session
+
+    Returns:
+        CalculatedBeta90dResponse with calculated beta metrics or unavailable status
+
+    Raises:
+        404: Portfolio not found or not owned by user
+        500: Internal server error during retrieval
+    """
+    try:
+        start = time.time()
+
+        # Validate portfolio ownership
+        await validate_portfolio_ownership(db, portfolio_id, current_user.id)
+
+        # Fetch calculated beta from latest snapshot
+        from app.models.snapshots import PortfolioSnapshot
+        from sqlalchemy import select
+
+        snapshot_query = select(PortfolioSnapshot).where(
+            PortfolioSnapshot.portfolio_id == portfolio_id
+        ).order_by(PortfolioSnapshot.snapshot_date.desc()).limit(1)
+
+        snapshot_result = await db.execute(snapshot_query)
+        snapshot = snapshot_result.scalar_one_or_none()
+
+        elapsed = time.time() - start
+        if elapsed > 0.5:
+            logger.warning(f"Slow beta-calculated-90d response: {elapsed:.2f}s for portfolio {portfolio_id}")
+        else:
+            logger.info(f"Calculated beta (90d) retrieved in {elapsed:.3f}s for portfolio {portfolio_id}")
+
+        # Format response
+        if not snapshot or snapshot.beta_calculated_90d is None:
+            return CalculatedBeta90dResponse(
+                available=False,
+                portfolio_id=str(portfolio_id),
+                metadata={"error": "No calculated beta data available"}
+            )
+
+        from datetime import date
+        return CalculatedBeta90dResponse(
+            available=True,
+            portfolio_id=str(portfolio_id),
+            calculation_date=snapshot.snapshot_date.isoformat() if snapshot.snapshot_date else date.today().isoformat(),
+            data={
+                "beta_calculated_90d": float(snapshot.beta_calculated_90d),
+                "beta_calculated_90d_r_squared": float(snapshot.beta_calculated_90d_r_squared) if snapshot.beta_calculated_90d_r_squared else None,
+                "beta_calculated_90d_observations": snapshot.beta_calculated_90d_observations
+            },
+            metadata={
+                "calculation_method": "equity_weighted_average_of_position_betas",
+                "model_type": "single_factor_ols",
+                "window_days": 90
+            }
+        )
+
+    except HTTPException:
+        raise
+    except ValueError as e:
+        logger.warning(f"Portfolio not found: {portfolio_id} for user {current_user.id}")
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        logger.error(f"Calculated beta retrieval failed for {portfolio_id}: {str(e)}")
+        raise HTTPException(status_code=500, detail="Internal server error retrieving calculated beta")
+
+
+@router.get("/{portfolio_id}/beta-provider-1y", response_model=ProviderBeta1yResponse)
+async def get_provider_beta_1y(
+    portfolio_id: UUID,
+    current_user: CurrentUser = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Get provider beta (1-year from company profiles) from portfolio snapshot.
+
+    Returns portfolio-level provider beta using 1-year betas from company profile data
+    (typically from data providers like yahooquery/FMP), equity-weighted averaged to
+    portfolio level. This represents externally sourced beta values.
+
+    Different from calculated beta which uses our 90-day OLS regression analysis.
+
+    Part of Risk Metrics Phase 0 refactoring (field name clarity improvements).
+
+    Args:
+        portfolio_id: Portfolio UUID to analyze
+        current_user: Authenticated user from JWT token
+        db: Database session
+
+    Returns:
+        ProviderBeta1yResponse with provider beta metrics or unavailable status
+
+    Raises:
+        404: Portfolio not found or not owned by user
+        500: Internal server error during retrieval
+    """
+    try:
+        start = time.time()
+
+        # Validate portfolio ownership
+        await validate_portfolio_ownership(db, portfolio_id, current_user.id)
+
+        # Fetch provider beta from latest snapshot
+        from app.models.snapshots import PortfolioSnapshot
+        from app.models.positions import Position
+        from sqlalchemy import select, and_
+
+        snapshot_query = select(PortfolioSnapshot).where(
+            PortfolioSnapshot.portfolio_id == portfolio_id
+        ).order_by(PortfolioSnapshot.snapshot_date.desc()).limit(1)
+
+        snapshot_result = await db.execute(snapshot_query)
+        snapshot = snapshot_result.scalar_one_or_none()
+
+        elapsed = time.time() - start
+        if elapsed > 0.5:
+            logger.warning(f"Slow beta-provider-1y response: {elapsed:.2f}s for portfolio {portfolio_id}")
+        else:
+            logger.info(f"Provider beta (1y) retrieved in {elapsed:.3f}s for portfolio {portfolio_id}")
+
+        # Format response
+        if not snapshot or snapshot.beta_provider_1y is None:
+            return ProviderBeta1yResponse(
+                available=False,
+                portfolio_id=str(portfolio_id),
+                metadata={"error": "No provider beta data available"}
+            )
+
+        # Get position count for metadata
+        positions_query = select(Position).where(
+            and_(
+                Position.portfolio_id == portfolio_id,
+                Position.exit_date.is_(None)
+            )
+        )
+        positions_result = await db.execute(positions_query)
+        positions = positions_result.scalars().all()
+        total_positions = len(positions)
+
+        # Get provider beta calculation details from snapshot metadata (if available)
+        # For now, we'll use the snapshot data and estimate coverage
+        from app.models.market_data import CompanyProfile
+
+        # Count positions with company profile beta
+        positions_with_beta = 0
+        for position in positions:
+            profile_query = select(CompanyProfile).where(CompanyProfile.symbol == position.symbol)
+            profile_result = await db.execute(profile_query)
+            profile = profile_result.scalar_one_or_none()
+            if profile and profile.beta is not None:
+                positions_with_beta += 1
+
+        coverage_percentage = (positions_with_beta / total_positions * 100) if total_positions > 0 else 0.0
+
+        from datetime import date
+        return ProviderBeta1yResponse(
+            available=True,
+            portfolio_id=str(portfolio_id),
+            calculation_date=snapshot.snapshot_date.isoformat() if snapshot.snapshot_date else date.today().isoformat(),
+            data={
+                "beta_provider_1y": float(snapshot.beta_provider_1y),
+                "positions_with_beta": positions_with_beta,
+                "positions_total": total_positions,
+                "coverage_percentage": round(coverage_percentage, 2)
+            },
+            metadata={
+                "calculation_method": "equity_weighted_average_of_company_profile_betas",
+                "data_source": "company_profile_table",
+                "typical_period": "1_year"
+            }
+        )
+
+    except HTTPException:
+        raise
+    except ValueError as e:
+        logger.warning(f"Portfolio not found: {portfolio_id} for user {current_user.id}")
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        logger.error(f"Provider beta retrieval failed for {portfolio_id}: {str(e)}")
+        raise HTTPException(status_code=500, detail="Internal server error retrieving provider beta")

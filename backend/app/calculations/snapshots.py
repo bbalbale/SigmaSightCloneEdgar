@@ -343,19 +343,33 @@ async def _create_or_update_snapshot(
     await db.flush()
 
     # Fetch market beta data (Phase 0: Single-factor model)
-    market_beta_query = select(PositionMarketBeta).where(
+    # Use latest available beta data as of calculation_date (not exact match)
+    latest_beta_date_query = select(PositionMarketBeta.calc_date).where(
         and_(
             PositionMarketBeta.portfolio_id == portfolio_id,
-            PositionMarketBeta.calc_date == calculation_date
+            PositionMarketBeta.calc_date <= calculation_date
         )
-    )
-    market_beta_result = await db.execute(market_beta_query)
-    market_beta_records = market_beta_result.scalars().all()
+    ).order_by(PositionMarketBeta.calc_date.desc()).limit(1)
 
-    # Calculate portfolio-level market beta (equity-weighted average)
-    market_beta_weighted = None
-    market_beta_r_squared = None
-    market_beta_observations = None
+    latest_beta_date_result = await db.execute(latest_beta_date_query)
+    latest_beta_date = latest_beta_date_result.scalar_one_or_none()
+
+    market_beta_records = []
+    if latest_beta_date:
+        market_beta_query = select(PositionMarketBeta).where(
+            and_(
+                PositionMarketBeta.portfolio_id == portfolio_id,
+                PositionMarketBeta.calc_date == latest_beta_date
+            )
+        )
+        market_beta_result = await db.execute(market_beta_query)
+        market_beta_records = market_beta_result.scalars().all()
+        logger.info(f"Using beta data from {latest_beta_date} for snapshot {calculation_date}")
+
+    # Calculate portfolio-level calculated beta (90-day OLS regression, equity-weighted average)
+    beta_calculated_90d = None
+    beta_calculated_90d_r_squared = None
+    beta_calculated_90d_observations = None
 
     if market_beta_records and today_equity > 0:
         total_weighted_beta = Decimal('0')
@@ -377,16 +391,39 @@ async def _create_or_update_snapshot(
                 if min_observations is None or beta_record.observations < min_observations:
                     min_observations = beta_record.observations
 
-        market_beta_weighted = total_weighted_beta
-        market_beta_r_squared = total_weighted_r_squared
-        market_beta_observations = min_observations
+        beta_calculated_90d = total_weighted_beta
+        beta_calculated_90d_r_squared = total_weighted_r_squared
+        beta_calculated_90d_observations = min_observations
 
         logger.info(
-            f"Market beta for snapshot: {float(market_beta_weighted):.3f} "
-            f"(R²={float(market_beta_r_squared):.3f}, obs={market_beta_observations})"
+            f"Calculated beta (90d) for snapshot: {float(beta_calculated_90d):.3f} "
+            f"(R²={float(beta_calculated_90d_r_squared):.3f}, obs={beta_calculated_90d_observations})"
         )
     else:
-        logger.info("No market beta data available for snapshot")
+        logger.info("No calculated beta data available for snapshot")
+
+    # Calculate provider beta (1-year, from CompanyProfile)
+    beta_provider_1y = None
+
+    try:
+        from app.calculations.market_beta import calculate_portfolio_provider_beta
+
+        provider_result = await calculate_portfolio_provider_beta(
+            db=db,
+            portfolio_id=portfolio_id,
+            calculation_date=calculation_date
+        )
+
+        if provider_result.get('success'):
+            beta_provider_1y = Decimal(str(provider_result['portfolio_beta']))
+            logger.info(
+                f"Provider beta (1y) for snapshot: {float(beta_provider_1y):.3f} "
+                f"({provider_result['positions_with_beta']}/{provider_result['positions_count']} positions)"
+            )
+        else:
+            logger.warning(f"Provider beta calculation failed: {provider_result.get('error')}")
+    except Exception as e:
+        logger.warning(f"Could not calculate provider beta for snapshot: {e}")
 
     # Phase 1: Sector exposure and concentration metrics
     sector_exposure_json = None
@@ -492,11 +529,12 @@ async def _create_or_update_snapshot(
         "num_long_positions": position_counts['long'],
         "num_short_positions": position_counts['short'],
         "equity_balance": today_equity,  # Use calculated equity
-        # Phase 0: Market beta (single-factor model)
-        "market_beta_weighted": market_beta_weighted,
-        "market_beta_r_squared": market_beta_r_squared,
-        "market_beta_observations": market_beta_observations,
-        "market_beta_direct": None,  # Reserved for Phase 3 (portfolio-level regression)
+        # Phase 0: Market beta (single-factor models)
+        "beta_calculated_90d": beta_calculated_90d,
+        "beta_calculated_90d_r_squared": beta_calculated_90d_r_squared,
+        "beta_calculated_90d_observations": beta_calculated_90d_observations,
+        "beta_provider_1y": beta_provider_1y,
+        "beta_portfolio_regression": None,  # Reserved for future (portfolio-level direct regression)
         # Phase 1: Sector exposure and concentration
         "sector_exposure": sector_exposure_json,
         "hhi": hhi,

@@ -55,6 +55,18 @@ class PortfolioSnapshot(Base):
     volatility_trend: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
     volatility_percentile: Mapped[Optional[Decimal]] = mapped_column(Numeric(10, 4), nullable=True)
 
+    # Phase 0: Market beta (single-factor models)
+    # Calculated beta: OLS regression on 90-day window (Position returns ~ SPY returns)
+    beta_calculated_90d: Mapped[Optional[Decimal]] = mapped_column(Numeric(10, 4), nullable=True)
+    beta_calculated_90d_r_squared: Mapped[Optional[Decimal]] = mapped_column(Numeric(10, 4), nullable=True)
+    beta_calculated_90d_observations: Mapped[Optional[int]] = mapped_column(nullable=True)
+
+    # Provider beta: Equity-weighted average of company profile betas (typically 1-year from provider)
+    beta_provider_1y: Mapped[Optional[Decimal]] = mapped_column(Numeric(10, 4), nullable=True)
+
+    # Portfolio-level direct regression: Reserved for future implementation (portfolio returns ~ SPY returns)
+    beta_portfolio_regression: Mapped[Optional[Decimal]] = mapped_column(Numeric(10, 4), nullable=True)
+
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
     
     # Relationships

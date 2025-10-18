@@ -440,3 +440,144 @@ async def calculate_portfolio_market_beta(
             'success': False,
             'error': str(e)
         }
+
+
+async def calculate_portfolio_provider_beta(
+    db: AsyncSession,
+    portfolio_id: UUID,
+    calculation_date: date
+) -> Dict[str, Any]:
+    """
+    Calculate portfolio-level beta using provider betas from CompanyProfile.
+
+    Returns equity-weighted average of company profile betas (typically 1-year beta from
+    data providers like yahooquery/FMP). This provides an alternative beta estimate
+    that doesn't require historical returns data or regression calculations.
+
+    Portfolio Provider Beta = Σ(position_market_value_i × provider_beta_i) / portfolio_equity
+
+    Args:
+        db: Database session
+        portfolio_id: Portfolio UUID
+        calculation_date: Date for calculation (not used for provider betas, but kept for API consistency)
+
+    Returns:
+        {
+            'portfolio_id': UUID,
+            'portfolio_beta': float,
+            'positions_count': int,
+            'positions_with_beta': int,
+            'positions_without_beta': int,
+            'calculation_date': date,
+            'success': bool,
+            'error': str (if failed)
+        }
+    """
+    logger.info(f"Calculating provider beta for portfolio {portfolio_id}")
+
+    try:
+        # Get portfolio
+        from app.models.users import Portfolio as PortfolioModel
+        from app.models.market_data import CompanyProfile
+        from app.models.positions import PositionType
+
+        portfolio_stmt = select(PortfolioModel).where(PortfolioModel.id == portfolio_id)
+        portfolio_result = await db.execute(portfolio_stmt)
+        portfolio = portfolio_result.scalar_one_or_none()
+
+        if not portfolio:
+            return {
+                'portfolio_id': portfolio_id,
+                'success': False,
+                'error': 'Portfolio not found'
+            }
+
+        # Validate equity balance
+        if not portfolio.equity_balance or portfolio.equity_balance <= 0:
+            return {
+                'portfolio_id': portfolio_id,
+                'success': False,
+                'error': 'Invalid portfolio equity balance'
+            }
+
+        portfolio_equity = float(portfolio.equity_balance)
+
+        # Get active stock positions (LONG/SHORT only, exclude options)
+        positions_stmt = select(Position).where(
+            and_(
+                Position.portfolio_id == portfolio_id,
+                Position.exit_date.is_(None),
+                Position.position_type.in_([PositionType.LONG, PositionType.SHORT])
+            )
+        )
+        positions_result = await db.execute(positions_stmt)
+        positions = positions_result.scalars().all()
+
+        if not positions:
+            return {
+                'portfolio_id': portfolio_id,
+                'success': False,
+                'error': 'No active stock positions found'
+            }
+
+        # Calculate provider beta for each position
+        total_weighted_beta = 0.0
+        positions_with_beta = 0
+        positions_without_beta = 0
+
+        for position in positions:
+            # Get company profile beta
+            profile_stmt = select(CompanyProfile).where(CompanyProfile.symbol == position.symbol)
+            profile_result = await db.execute(profile_stmt)
+            company_profile = profile_result.scalar_one_or_none()
+
+            if company_profile and company_profile.beta and position.market_value:
+                beta = float(company_profile.beta)
+                market_value = float(abs(position.market_value))  # Use absolute value for weighting
+                weight = market_value / portfolio_equity
+
+                total_weighted_beta += beta * weight
+                positions_with_beta += 1
+
+                logger.debug(
+                    f"{position.symbol}: beta={beta:.4f}, "
+                    f"weight={weight:.2%}, contribution={beta * weight:.4f}"
+                )
+            else:
+                positions_without_beta += 1
+                if not company_profile:
+                    logger.warning(f"No company profile for {position.symbol}")
+                elif not company_profile.beta:
+                    logger.warning(f"No provider beta for {position.symbol}")
+
+        if positions_with_beta == 0:
+            return {
+                'portfolio_id': portfolio_id,
+                'success': False,
+                'error': f'No positions have provider beta data (0/{len(positions)})'
+            }
+
+        result = {
+            'portfolio_id': portfolio_id,
+            'portfolio_beta': total_weighted_beta,
+            'positions_count': len(positions),
+            'positions_with_beta': positions_with_beta,
+            'positions_without_beta': positions_without_beta,
+            'calculation_date': calculation_date,
+            'success': True
+        }
+
+        logger.info(
+            f"Provider beta calculated: {total_weighted_beta:.3f} "
+            f"({positions_with_beta}/{len(positions)} positions with beta data)"
+        )
+
+        return result
+
+    except Exception as e:
+        logger.error(f"Error calculating provider beta: {e}")
+        return {
+            'portfolio_id': portfolio_id,
+            'success': False,
+            'error': str(e)
+        }

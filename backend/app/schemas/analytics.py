@@ -522,3 +522,144 @@ class MarketBetaComparisonResponse(BaseModel):
                 }
             }
         }
+
+
+class SingleFactorMarketBetaData(BaseModel):
+    """
+    Single-factor market beta data from portfolio snapshot (DEPRECATED)
+
+    Use CalculatedBeta90dData or ProviderBeta1yData instead for clearer naming.
+    This schema maintained for backward compatibility.
+    """
+    market_beta_weighted: float = Field(..., description="Portfolio-level equity-weighted market beta from single-factor OLS model")
+    market_beta_r_squared: Optional[float] = Field(None, description="R-squared for portfolio beta calculation")
+    market_beta_observations: Optional[int] = Field(None, description="Number of observations used in beta calculation")
+    market_beta_direct: Optional[float] = Field(None, description="Direct portfolio returns vs SPY regression beta (alternative calculation)")
+
+
+class CalculatedBeta90dData(BaseModel):
+    """
+    Calculated beta (90-day OLS regression) from portfolio snapshot
+
+    Beta calculated from position-level OLS regressions (Position returns ~ SPY returns)
+    over a 90-day rolling window, then equity-weighted averaged to portfolio level.
+    """
+    beta_calculated_90d: float = Field(..., description="Portfolio equity-weighted calculated beta from 90-day OLS regression")
+    beta_calculated_90d_r_squared: Optional[float] = Field(None, description="R-squared for portfolio beta calculation quality")
+    beta_calculated_90d_observations: Optional[int] = Field(None, description="Number of observations in 90-day regression window")
+
+
+class CalculatedBeta90dResponse(BaseModel):
+    """
+    Calculated beta (90-day) response (Phase 0: Risk Metrics Refactor)
+
+    Returns portfolio-level calculated beta using 90-day OLS regression.
+    This is the equity-weighted average of position-level betas from our calculations.
+    """
+    available: bool = Field(..., description="Whether calculated beta data is available")
+    portfolio_id: str = Field(..., description="Portfolio UUID")
+    calculation_date: Optional[str] = Field(None, description="ISO date of calculation")
+    data: Optional[CalculatedBeta90dData] = Field(None, description="Calculated beta metrics when available")
+    metadata: Optional[Dict[str, Union[str, int]]] = Field(None, description="Additional metadata")
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "available": True,
+                "portfolio_id": "c0510ab8-c6b5-433c-adbc-3f74e1dbdb5e",
+                "calculation_date": "2025-10-18",
+                "data": {
+                    "beta_calculated_90d": 0.874847,
+                    "beta_calculated_90d_r_squared": 0.85,
+                    "beta_calculated_90d_observations": 90
+                },
+                "metadata": {
+                    "calculation_method": "equity_weighted_average_of_position_betas",
+                    "model_type": "single_factor_ols",
+                    "window_days": 90
+                }
+            }
+        }
+
+
+class ProviderBeta1yData(BaseModel):
+    """
+    Provider beta (1-year from company profiles) from portfolio snapshot
+
+    Beta from company profile data (typically 1-year beta from data providers like
+    yahooquery/FMP), equity-weighted averaged to portfolio level.
+    """
+    beta_provider_1y: float = Field(..., description="Portfolio equity-weighted provider beta (1-year from company profiles)")
+    positions_with_beta: int = Field(..., description="Number of positions with beta data available")
+    positions_total: int = Field(..., description="Total number of active positions")
+    coverage_percentage: float = Field(..., description="Percentage of positions with beta data (0-100)")
+
+
+class ProviderBeta1yResponse(BaseModel):
+    """
+    Provider beta (1-year) response (Phase 0: Risk Metrics Refactor)
+
+    Returns portfolio-level provider beta from company profile data.
+    This is the equity-weighted average of 1-year betas from data providers.
+    """
+    available: bool = Field(..., description="Whether provider beta data is available")
+    portfolio_id: str = Field(..., description="Portfolio UUID")
+    calculation_date: Optional[str] = Field(None, description="ISO date of calculation")
+    data: Optional[ProviderBeta1yData] = Field(None, description="Provider beta metrics when available")
+    metadata: Optional[Dict[str, Union[str, int]]] = Field(None, description="Additional metadata")
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "available": True,
+                "portfolio_id": "c0510ab8-c6b5-433c-adbc-3f74e1dbdb5e",
+                "calculation_date": "2025-10-18",
+                "data": {
+                    "beta_provider_1y": 1.12,
+                    "positions_with_beta": 15,
+                    "positions_total": 16,
+                    "coverage_percentage": 93.75
+                },
+                "metadata": {
+                    "calculation_method": "equity_weighted_average_of_company_profile_betas",
+                    "data_source": "company_profile_table",
+                    "typical_period": "1_year"
+                }
+            }
+        }
+
+
+class SingleFactorMarketBetaResponse(BaseModel):
+    """
+    Single-factor market beta response (Phase 0: Risk Metrics)
+
+    Returns portfolio-level market beta from single-factor OLS regression model.
+    This is the equity-weighted average of position-level betas calculated from
+    Position ~ SPY returns regression.
+
+    Different from multi-factor beta which controls for additional factor exposures.
+    """
+    available: bool = Field(..., description="Whether single-factor market beta data is available")
+    portfolio_id: str = Field(..., description="Portfolio UUID")
+    calculation_date: Optional[str] = Field(None, description="ISO date of calculation")
+    data: Optional[SingleFactorMarketBetaData] = Field(None, description="Market beta metrics when available")
+    metadata: Optional[Dict[str, Union[str, int]]] = Field(None, description="Additional metadata")
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "available": True,
+                "portfolio_id": "c0510ab8-c6b5-433c-adbc-3f74e1dbdb5e",
+                "calculation_date": "2025-10-18",
+                "data": {
+                    "market_beta_weighted": 0.874847,
+                    "market_beta_r_squared": 0.85,
+                    "market_beta_observations": 90,
+                    "market_beta_direct": 0.880123
+                },
+                "metadata": {
+                    "calculation_method": "equity_weighted_average",
+                    "model_type": "single_factor_ols"
+                }
+            }
+        }
