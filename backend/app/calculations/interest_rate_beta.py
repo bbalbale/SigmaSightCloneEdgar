@@ -79,7 +79,8 @@ async def fetch_treasury_yield_changes(
 
     # Calculate yield changes (absolute change in percentage points)
     # Then convert to basis points (×100)
-    yield_changes = df['yield'].diff(fill_method=None).dropna() * 100  # Convert to bp
+    # Note: fill_method parameter removed in pandas 2.x
+    yield_changes = df['yield'].diff().dropna() * 100  # Convert to bp
 
     return yield_changes
 

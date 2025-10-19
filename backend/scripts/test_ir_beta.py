@@ -12,6 +12,7 @@ from uuid import UUID
 
 from app.database import get_async_session
 from app.models.users import Portfolio, User
+from app.models.positions import Position
 from app.models.market_data import MarketDataCache, PositionInterestRateBeta
 from app.calculations.interest_rate_beta import calculate_portfolio_ir_beta
 from app.core.logging import get_logger
@@ -111,7 +112,6 @@ async def test_ir_beta_calculation(portfolio: Portfolio):
                 )
             )
 
-            from app.models.positions import Position
             count_result = await db.execute(stmt)
             persisted_count = count_result.scalar()
 
