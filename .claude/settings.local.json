@@ -82,7 +82,11 @@
       "Bash(npm run type-check:*)",
       "Bash(del \"C:\\Users\\BenBalbale\\CascadeProjects\\SigmaSight\\frontend\\src\\components\\portfolio\\StrategyList.tsx\")",
       "WebSearch",
-      "Bash(.venv/Scripts/python.exe:*)"
+      "Bash(.venv/Scripts/python.exe:*)",
+      "Bash(timeout /t 3 /nobreak)",
+      "Bash(move:*)",
+      "Bash(del \"C:\\Users\\BenBalbale\\CascadeProjects\\SigmaSight\\backend\\scripts\\debug_portfolio_beta.py\")",
+      "Bash(del \"C:\\Users\\BenBalbale\\CascadeProjects\\SigmaSight\\backend\\scripts\\update_sept30_snapshot.py\")"
     ],
     "additionalDirectories": [
       "C:\\c\\Users\\BenBalbale\\CascadeProjects\\SigmaSight-BE"

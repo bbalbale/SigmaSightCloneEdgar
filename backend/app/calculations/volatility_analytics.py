@@ -74,6 +74,12 @@ async def calculate_position_volatility(
             logger.warning(f"Position {position_id} not found")
             return None
 
+        # For options, use underlying symbol for volatility calculation
+        # For equities/other assets, use the position symbol
+        symbol_for_volatility = position.underlying_symbol if position.underlying_symbol else position.symbol
+
+        logger.debug(f"Calculating volatility for position {position.symbol} using data from {symbol_for_volatility}")
+
         # Get historical prices (need ~90 days for 63-day window + lookback)
         lookback_days = 365  # Get 1 year for percentile calculation
         start_date = calculation_date - timedelta(days=lookback_days)
@@ -81,7 +87,7 @@ async def calculate_position_volatility(
         result = await db.execute(
             select(MarketDataCache)
             .where(
-                MarketDataCache.symbol == position.symbol,
+                MarketDataCache.symbol == symbol_for_volatility,
                 MarketDataCache.date >= start_date,
                 MarketDataCache.date <= calculation_date
             )
@@ -91,7 +97,7 @@ async def calculate_position_volatility(
 
         if len(prices) < min_observations:
             logger.warning(
-                f"Insufficient price data for {position.symbol}: "
+                f"Insufficient price data for {symbol_for_volatility} (position: {position.symbol}): "
                 f"{len(prices)} < {min_observations} required"
             )
             return None
@@ -200,14 +206,26 @@ async def calculate_portfolio_volatility(
             return None
 
         # Get historical prices for all positions
+        # For options, use underlying symbol; for equities use position symbol
         lookback_days = 365
         start_date = calculation_date - timedelta(days=lookback_days)
 
-        symbols = [p.symbol for p in positions]
+        # Build list of symbols to fetch (using underlying for options)
+        symbols_to_fetch = []
+        symbol_mapping = {}  # Maps fetch_symbol -> position_symbol for options
+        for p in positions:
+            fetch_symbol = p.underlying_symbol if p.underlying_symbol else p.symbol
+            symbols_to_fetch.append(fetch_symbol)
+            # For options, we need to map underlying back to option symbol
+            if p.underlying_symbol:
+                symbol_mapping[p.underlying_symbol] = p.symbol
+
+        symbols_to_fetch = list(set(symbols_to_fetch))  # Deduplicate
+
         result = await db.execute(
             select(MarketDataCache)
             .where(
-                MarketDataCache.symbol.in_(symbols),
+                MarketDataCache.symbol.in_(symbols_to_fetch),
                 MarketDataCache.date >= start_date,
                 MarketDataCache.date <= calculation_date
             )
@@ -220,11 +238,20 @@ async def calculate_portfolio_volatility(
             return None
 
         # Organize prices by symbol and date
+        # For options, store under both underlying and option symbol for flexibility
         price_data = {}
         for p in prices:
+            # Store under the fetched symbol
             if p.symbol not in price_data:
                 price_data[p.symbol] = []
             price_data[p.symbol].append({'date': p.date, 'close': float(p.close)})
+
+            # Also store under option symbol if this is an underlying
+            if p.symbol in symbol_mapping:
+                option_symbol = symbol_mapping[p.symbol]
+                if option_symbol not in price_data:
+                    price_data[option_symbol] = []
+                price_data[option_symbol].append({'date': p.date, 'close': float(p.close)})
 
         # Calculate portfolio returns using position weights
         portfolio_returns = _calculate_portfolio_returns(
@@ -758,16 +785,24 @@ def _calculate_portfolio_returns(
     """
     try:
         # Convert price data to DataFrames for each position
+        # Note: For options, price_data is keyed by both underlying and option symbol
         position_dfs = {}
         for position in positions:
-            if position.symbol not in price_data:
+            # Use underlying symbol for options, position symbol for equities
+            lookup_symbol = position.underlying_symbol if position.underlying_symbol else position.symbol
+
+            if lookup_symbol not in price_data and position.symbol not in price_data:
+                logger.debug(f"No price data for position {position.symbol} (lookup: {lookup_symbol})")
                 continue
 
-            df = pd.DataFrame(price_data[position.symbol])
+            # Try lookup_symbol first, fallback to position.symbol
+            symbol_key = lookup_symbol if lookup_symbol in price_data else position.symbol
+
+            df = pd.DataFrame(price_data[symbol_key])
             df['date'] = pd.to_datetime(df['date'])
             df = df.set_index('date').sort_index()
             df['return'] = df['close'].pct_change()
-            position_dfs[position.symbol] = df
+            position_dfs[position.symbol] = df  # Always key by position symbol for consistency
 
         if not position_dfs:
             return None

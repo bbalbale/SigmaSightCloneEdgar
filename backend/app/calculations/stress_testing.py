@@ -513,8 +513,41 @@ async def calculate_direct_stress_impact(
         shocked_factors = scenario_config.get('shocked_factors', {})
         direct_impacts = {}
         total_direct_pnl = 0.0
-        
+
+        # Check for Interest_Rate shocks and handle separately
+        from app.calculations.stress_testing_ir_integration import add_ir_shocks_to_stress_results
+
+        ir_results = await add_ir_shocks_to_stress_results(
+            db=db,
+            portfolio_id=portfolio_id,
+            shocked_factors=shocked_factors,
+            calculation_date=calculation_date
+        )
+
+        # Process Interest_Rate shock if present
+        if ir_results['has_ir_shock'] and ir_results['ir_impact']:
+            ir_impact = ir_results['ir_impact']
+            direct_impacts['Interest_Rate'] = {
+                'exposure_dollar': ir_results['ir_exposure_dollar'],
+                'shock_amount': shocked_factors['Interest_Rate'],
+                'factor_pnl': ir_impact['predicted_pnl'],
+                'calculation_method': 'ir_beta',
+                'ir_beta': ir_impact['portfolio_ir_beta'],
+                'positions_with_beta': ir_impact['positions_with_beta'],
+                'ir_beta_date': ir_impact['ir_beta_date']
+            }
+            total_direct_pnl += ir_impact['predicted_pnl']
+
+            logger.info(
+                f"Interest_Rate shock: {ir_impact['ir_shock_bps']:+.0f}bp → "
+                f"${ir_impact['predicted_pnl']:,.0f} P&L (β_IR={ir_impact['portfolio_ir_beta']:.4f})"
+            )
+
+        # Process other factor shocks (non-IR)
         for factor_name, shock_amount in shocked_factors.items():
+            # Skip Interest_Rate - already handled above
+            if factor_name == 'Interest_Rate':
+                continue
             # Map factor name if needed
             mapped_factor_name = FACTOR_NAME_MAP.get(factor_name, factor_name)
             if mapped_factor_name in latest_exposures:
@@ -669,14 +702,47 @@ async def calculate_correlated_stress_impact(
         shocked_factors = scenario_config.get('shocked_factors', {})
         correlated_impacts = {}
         total_correlated_pnl = 0.0
-        
-        # For each factor in the portfolio, calculate its correlated response
+
+        # Handle Interest_Rate shocks separately (no correlation with equity factors)
+        from app.calculations.stress_testing_ir_integration import add_ir_shocks_to_stress_results
+
+        ir_results = await add_ir_shocks_to_stress_results(
+            db=db,
+            portfolio_id=portfolio_id,
+            shocked_factors=shocked_factors,
+            calculation_date=calculation_date
+        )
+
+        # Add IR impact directly (IR doesn't correlate with equity factors)
+        if ir_results['has_ir_shock'] and ir_results['ir_impact']:
+            ir_impact = ir_results['ir_impact']
+            correlated_impacts['Interest_Rate'] = {
+                'exposure_dollar': ir_results['ir_exposure_dollar'],
+                'total_factor_impact': ir_impact['predicted_pnl'],
+                'impact_breakdown': {
+                    'Interest_Rate': {
+                        'original_shock': shocked_factors['Interest_Rate'],
+                        'correlation': 1.0,  # IR shock has no correlation with equity factors
+                        'correlated_shock': shocked_factors['Interest_Rate'],
+                        'correlated_pnl': ir_impact['predicted_pnl']
+                    }
+                },
+                'ir_beta': ir_impact['portfolio_ir_beta'],
+                'calculation_method': 'ir_beta_direct'
+            }
+            total_correlated_pnl += ir_impact['predicted_pnl']
+
+        # For each equity factor in the portfolio, calculate its correlated response
         for factor_name, exposure_data in latest_exposures.items():
             factor_impact = 0.0
             impact_breakdown = {}
             
             # Calculate impact from each shocked factor via correlation
             for shocked_factor, shock_amount in shocked_factors.items():
+                # Skip Interest_Rate - already handled separately above
+                if shocked_factor == 'Interest_Rate':
+                    continue
+
                 if shocked_factor in correlation_matrix and factor_name in correlation_matrix[shocked_factor]:
                     correlation = correlation_matrix[shocked_factor][factor_name]
                     # Correlated shock = Original shock × Correlation
@@ -701,6 +767,10 @@ async def calculate_correlated_stress_impact(
                         'correlated_pnl': correlated_pnl
                     }
                 elif shocked_factor == factor_name:
+                    # Skip Interest_Rate - already handled separately
+                    if shocked_factor == 'Interest_Rate':
+                        continue
+
                     # Direct impact (correlation = 1.0)
                     # ISSUE #2 FIX: Use exposure_dollar (primary) with beta fallback
                     exposure_dollar = exposure_data['exposure_dollar']

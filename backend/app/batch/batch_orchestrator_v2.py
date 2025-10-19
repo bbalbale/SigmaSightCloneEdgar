@@ -145,7 +145,7 @@ class BatchOrchestratorV2:
         This ensures accurate progress tracking even when some jobs are disabled.
         """
         # Base job sequence (matches _process_single_portfolio_safely)
-        job_count = 10  # market_data, position_values, portfolio_agg, market_beta, sector_analysis, volatility_analytics, factors, market_risk, snapshot, stress_test
+        job_count = 12  # market_data, position_values, portfolio_agg, market_beta, ir_beta, ridge_factors, sector_analysis, volatility_analytics, factors, market_risk, snapshot, stress_test
 
         # Greeks is currently disabled (no options feed)
         # job_count += 1  # would add greeks if enabled
@@ -223,14 +223,16 @@ class BatchOrchestratorV2:
             ("market_data_update", self._update_market_data, []),
             ("position_values_update", self._update_position_values, [portfolio_id]),
             ("portfolio_aggregation", self._calculate_portfolio_aggregation, [portfolio_id]),
-            ("market_beta_calculation", self._calculate_market_beta, [portfolio_id]),  # Phase 0: Single-factor market beta
+            ("market_beta_calculation", self._calculate_market_beta, [portfolio_id]),  # Phase 0: Single-factor market beta (OLS)
+            ("ir_beta_calculation", self._calculate_ir_beta, [portfolio_id]),  # Interest Rate beta (OLS vs Treasury yields)
+            ("ridge_factor_calculation", self._calculate_ridge_factors, [portfolio_id]),  # Ridge regression for 6 non-market factors
             ("sector_concentration_analysis", self._calculate_sector_analysis, [portfolio_id]),  # Phase 1: Sector exposure & concentration
             ("volatility_analytics", self._calculate_volatility_analytics, [portfolio_id]),  # Phase 2: Volatility analysis
             # ("greeks_calculation", self._calculate_greeks, [portfolio_id]),  # DISABLED: No options feed
-            ("factor_analysis", self._calculate_factors, [portfolio_id]),
+            ("factor_analysis", self._calculate_factors, [portfolio_id]),  # Legacy hybrid factor analysis (for comparison)
             ("market_risk_scenarios", self._calculate_market_risk, [portfolio_id]),
             ("portfolio_snapshot", self._create_snapshot, [portfolio_id]),  # MUST run before stress_testing
-            ("stress_testing", self._run_stress_tests, [portfolio_id]),     # Uses snapshot values
+            ("stress_testing", self._run_stress_tests, [portfolio_id]),     # Uses snapshot values + IR beta for IR shocks
         ]
         
         # Always run correlations (important for risk metrics)
@@ -549,6 +551,66 @@ class BatchOrchestratorV2:
             )
 
         return beta_result
+
+    async def _calculate_ir_beta(self, db: AsyncSession, portfolio_id: str):
+        """Interest Rate beta calculation job (Treasury yield sensitivity)"""
+        from app.calculations.interest_rate_beta import calculate_portfolio_ir_beta
+
+        portfolio_uuid = ensure_uuid(portfolio_id)
+
+        logger.info(f"Calculating Interest Rate beta for portfolio {portfolio_id}")
+
+        ir_beta_result = await calculate_portfolio_ir_beta(
+            db=db,
+            portfolio_id=portfolio_uuid,
+            calculation_date=date.today(),
+            window_days=90,  # 90-day regression window
+            treasury_symbol='DGS10',  # 10-Year Treasury
+            persist=True  # Save position IR betas to position_interest_rate_betas table
+        )
+
+        if ir_beta_result['success']:
+            logger.info(
+                f"IR beta calculated successfully: {ir_beta_result['portfolio_ir_beta']:.4f} "
+                f"({ir_beta_result['sensitivity_level']} sensitivity, "
+                f"R²={ir_beta_result['r_squared']:.3f}, {ir_beta_result['positions_count']} positions)"
+            )
+        else:
+            logger.warning(
+                f"IR beta calculation failed: {ir_beta_result.get('error', 'Unknown error')}"
+            )
+
+        return ir_beta_result
+
+    async def _calculate_ridge_factors(self, db: AsyncSession, portfolio_id: str):
+        """Ridge regression for 6 non-market factors (excludes Market beta)"""
+        from app.calculations.factors_ridge import calculate_factor_betas_ridge
+
+        portfolio_uuid = ensure_uuid(portfolio_id)
+
+        logger.info(f"Calculating Ridge factor betas (6 non-market factors) for portfolio {portfolio_id}")
+
+        ridge_result = await calculate_factor_betas_ridge(
+            db=db,
+            portfolio_id=portfolio_uuid,
+            calculation_date=date.today(),
+            regularization_alpha=1.0,  # L2 regularization strength
+            use_delta_adjusted=False,
+            context=None
+        )
+
+        if ridge_result.get('success'):
+            logger.info(
+                f"Ridge factor betas calculated successfully: "
+                f"{ridge_result.get('positions_calculated', 0)}/{ridge_result.get('positions_total', 0)} positions, "
+                f"VIF improved to ~{ridge_result.get('avg_vif', 0):.1f}"
+            )
+        else:
+            logger.warning(
+                f"Ridge factor calculation failed: {ridge_result.get('error', 'Unknown error')}"
+            )
+
+        return ridge_result
 
     async def _calculate_sector_analysis(self, db: AsyncSession, portfolio_id: str):
         """Sector exposure and concentration analysis job (Phase 1)"""
