@@ -8,15 +8,13 @@ TLT moves inversely to interest rates (rates up → TLT down)
 Interpretation: β_TLT = -0.20 means when TLT falls 10%, position falls 2%
               (i.e., when rates rise and bonds sell off, position gets hit)
 
-Created: 2025-10-18
-Updated: 2025-10-19 - Switched from DGS10 (Fed yields) to TLT (Bond ETF) for realistic P&L impacts
-Integrates with: Stress testing scenarios (IR shocks)
+Created: 2025-10-19
+Purpose: Compare with DGS10 approach to determine best IR sensitivity metric
 """
 from datetime import date, timedelta
 from decimal import Decimal
 from typing import Dict, Any, Optional
 from uuid import UUID
-import uuid
 
 import pandas as pd
 import numpy as np
@@ -25,7 +23,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 import statsmodels.api as sm
 
 from app.models.positions import Position
-from app.models.market_data import MarketDataCache, PositionInterestRateBeta
+from app.models.market_data import MarketDataCache
 from app.constants.factors import REGRESSION_WINDOW_DAYS, MIN_REGRESSION_DAYS, BETA_CAP_LIMIT
 from app.core.logging import get_logger
 
@@ -84,12 +82,11 @@ async def fetch_tlt_returns(
     return tlt_returns
 
 
-async def calculate_position_ir_beta(
+async def calculate_position_ir_beta_tlt(
     db: AsyncSession,
     position_id: UUID,
     calculation_date: date,
-    window_days: int = REGRESSION_WINDOW_DAYS,
-    treasury_symbol: str = 'TLT'  # Changed from DGS10 to TLT
+    window_days: int = REGRESSION_WINDOW_DAYS
 ) -> Dict[str, Any]:
     """
     Calculate interest rate beta for a single position using TLT (Bond ETF) returns.
@@ -109,7 +106,6 @@ async def calculate_position_ir_beta(
         position_id: Position UUID
         calculation_date: Date for calculation (end of window)
         window_days: Lookback period in days (default 90)
-        treasury_symbol: Bond ETF symbol to use (default 'TLT', kept as 'treasury_symbol' for backward compatibility)
 
     Returns:
         {
@@ -120,7 +116,7 @@ async def calculate_position_ir_beta(
             'p_value': float,
             'observations': int,
             'calculation_date': date,
-            'treasury_symbol': str,
+            'method': str ('TLT'),
             'success': bool,
             'error': str (if failed)
         }
@@ -233,7 +229,7 @@ async def calculate_position_ir_beta(
             'p_value': p_value,
             'observations': len(common_dates),
             'calculation_date': calculation_date,
-            'treasury_symbol': 'TLT',  # Always TLT now
+            'method': 'TLT',
             'is_significant': is_significant,
             'sensitivity_level': sensitivity,
             'success': True
@@ -247,7 +243,7 @@ async def calculate_position_ir_beta(
         return result
 
     except Exception as e:
-        logger.error(f"Error calculating IR beta for position {position_id}: {e}")
+        logger.error(f"Error calculating TLT beta for position {position_id}: {e}")
         return {
             'position_id': position_id,
             'success': False,
@@ -255,77 +251,22 @@ async def calculate_position_ir_beta(
         }
 
 
-async def persist_position_ir_beta(
-    db: AsyncSession,
-    position_id: UUID,
-    ir_beta_result: Dict[str, Any]
-) -> None:
-    """
-    Persist position IR beta to position_interest_rate_betas table.
-
-    Args:
-        db: Database session
-        position_id: Position UUID
-        ir_beta_result: Result dictionary from calculate_position_ir_beta
-    """
-    try:
-        # Check if record already exists for this calc date
-        stmt = select(PositionInterestRateBeta).where(
-            and_(
-                PositionInterestRateBeta.position_id == position_id,
-                PositionInterestRateBeta.calculation_date == ir_beta_result['calculation_date']
-            )
-        )
-        existing = await db.execute(stmt)
-        existing_record = existing.scalar_one_or_none()
-
-        if existing_record:
-            # Update existing record
-            existing_record.ir_beta = Decimal(str(ir_beta_result['ir_beta']))
-            existing_record.r_squared = Decimal(str(ir_beta_result['r_squared'])) if ir_beta_result.get('r_squared') else None
-        else:
-            # Create new record
-            new_ir_beta = PositionInterestRateBeta(
-                position_id=position_id,
-                ir_beta=Decimal(str(ir_beta_result['ir_beta'])),
-                r_squared=Decimal(str(ir_beta_result['r_squared'])) if ir_beta_result.get('r_squared') else None,
-                calculation_date=ir_beta_result['calculation_date']
-            )
-            db.add(new_ir_beta)
-
-        await db.commit()
-        logger.info(f"Persisted IR beta for position {position_id}")
-
-    except Exception as e:
-        logger.error(f"Error persisting IR beta: {e}")
-        await db.rollback()
-        raise
-
-
-async def calculate_portfolio_ir_beta(
+async def calculate_portfolio_ir_beta_tlt(
     db: AsyncSession,
     portfolio_id: UUID,
     calculation_date: date,
-    window_days: int = REGRESSION_WINDOW_DAYS,
-    treasury_symbol: str = 'TLT',  # Changed from DGS10 to TLT
-    persist: bool = True
+    window_days: int = REGRESSION_WINDOW_DAYS
 ) -> Dict[str, Any]:
     """
-    Calculate portfolio-level interest rate beta as equity-weighted average using TLT.
-    Persists position-level IR betas to position_interest_rate_betas table.
+    Calculate portfolio-level interest rate beta using TLT as equity-weighted average.
 
-    Portfolio IR Beta = Σ(position_market_value_i × position_ir_beta_i) / portfolio_equity
-
-    TLT-based beta provides realistic, measurable P&L impacts for stress testing.
-    Typical portfolio TLT betas: -0.001 to -0.006 (negative = falls when rates rise).
+    Portfolio TLT Beta = Σ(position_market_value_i × position_tlt_beta_i) / portfolio_equity
 
     Args:
         db: Database session
         portfolio_id: Portfolio UUID
         calculation_date: Date for calculation
         window_days: Regression window in days (default from constants)
-        treasury_symbol: Bond ETF symbol to use (default 'TLT', kept as 'treasury_symbol' for backward compatibility)
-        persist: If True, saves position IR betas to database
 
     Returns:
         {
@@ -337,6 +278,7 @@ async def calculate_portfolio_ir_beta(
             'calculation_date': date,
             'position_ir_betas': Dict[UUID, float],
             'sensitivity_level': str,
+            'method': str ('TLT'),
             'success': bool
         }
     """
@@ -383,27 +325,23 @@ async def calculate_portfolio_ir_beta(
                 'error': 'No active positions found'
             }
 
-        # Calculate IR beta for each position
+        # Calculate TLT beta for each position
         position_ir_betas = {}
         position_market_values = {}
         position_r_squareds = {}
         min_observations = float('inf')
 
         for position in positions:
-            ir_beta_result = await calculate_position_ir_beta(
-                db, position.id, calculation_date, window_days, treasury_symbol
+            ir_beta_result = await calculate_position_ir_beta_tlt(
+                db, position.id, calculation_date, window_days
             )
 
             if not ir_beta_result['success']:
                 logger.warning(
-                    f"Could not calculate IR beta for {position.symbol}: "
+                    f"Could not calculate TLT beta for {position.symbol}: "
                     f"{ir_beta_result.get('error', 'Unknown error')}"
                 )
                 continue
-
-            # Persist position IR beta
-            if persist:
-                await persist_position_ir_beta(db, position.id, ir_beta_result)
 
             # Get position market value
             from app.calculations.factor_utils import get_position_market_value
@@ -418,10 +356,10 @@ async def calculate_portfolio_ir_beta(
             return {
                 'portfolio_id': portfolio_id,
                 'success': False,
-                'error': 'No position IR betas could be calculated'
+                'error': 'No position TLT betas could be calculated'
             }
 
-        # Calculate equity-weighted portfolio IR beta
+        # Calculate equity-weighted portfolio TLT beta
         total_weighted_ir_beta = 0.0
         total_weighted_r_squared = 0.0
 
@@ -452,21 +390,21 @@ async def calculate_portfolio_ir_beta(
             'observations': int(min_observations) if min_observations != float('inf') else 0,
             'positions_count': len(position_ir_betas),
             'calculation_date': calculation_date,
-            'treasury_symbol': treasury_symbol,
+            'method': 'TLT',
             'position_ir_betas': {str(k): v for k, v in position_ir_betas.items()},
             'sensitivity_level': portfolio_sensitivity,
             'success': True
         }
 
         logger.info(
-            f"Portfolio IR beta calculated: {total_weighted_ir_beta:.4f} "
+            f"Portfolio TLT beta calculated: {total_weighted_ir_beta:.4f} "
             f"({portfolio_sensitivity} sensitivity, {len(position_ir_betas)} positions)"
         )
 
         return result
 
     except Exception as e:
-        logger.error(f"Error calculating portfolio IR beta: {e}")
+        logger.error(f"Error calculating portfolio TLT beta: {e}")
         return {
             'portfolio_id': portfolio_id,
             'success': False,

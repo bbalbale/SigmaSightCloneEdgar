@@ -553,19 +553,19 @@ class BatchOrchestratorV2:
         return beta_result
 
     async def _calculate_ir_beta(self, db: AsyncSession, portfolio_id: str):
-        """Interest Rate beta calculation job (Treasury yield sensitivity)"""
+        """Interest Rate beta calculation job (TLT Bond ETF sensitivity)"""
         from app.calculations.interest_rate_beta import calculate_portfolio_ir_beta
 
         portfolio_uuid = ensure_uuid(portfolio_id)
 
-        logger.info(f"Calculating Interest Rate beta for portfolio {portfolio_id}")
+        logger.info(f"Calculating Interest Rate beta (TLT-based) for portfolio {portfolio_id}")
 
         ir_beta_result = await calculate_portfolio_ir_beta(
             db=db,
             portfolio_id=portfolio_uuid,
             calculation_date=date.today(),
             window_days=90,  # 90-day regression window
-            treasury_symbol='DGS10',  # 10-Year Treasury
+            treasury_symbol='TLT',  # 20+ Year Treasury Bond ETF (default, can be omitted)
             persist=True  # Save position IR betas to position_interest_rate_betas table
         )
 

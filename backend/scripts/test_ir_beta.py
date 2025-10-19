@@ -1,9 +1,9 @@
 """
-Test Interest Rate Beta Calculation on Demo Portfolios
+Test Interest Rate Beta Calculation on Demo Portfolios (TLT-based)
 Verifies:
-1. Treasury data availability
-2. IR beta calculation for all demo portfolios
-3. Database persistence
+1. TLT (20+ Year Treasury Bond ETF) price data availability
+2. IR beta calculation for all demo portfolios using TLT
+3. Database persistence of position IR betas
 """
 import asyncio
 from datetime import date
@@ -21,34 +21,34 @@ logger = get_logger(__name__)
 
 
 async def check_treasury_data():
-    """Verify Treasury yield data availability"""
+    """Verify TLT (Bond ETF) price data availability"""
     logger.info("=" * 60)
-    logger.info("Step 1: Checking Treasury Data Availability")
+    logger.info("Step 1: Checking TLT Bond ETF Data Availability")
     logger.info("=" * 60)
 
     async with get_async_session() as db:
-        # Check DGS10 data
+        # Check TLT data
         stmt = select(
             func.count(MarketDataCache.id),
             func.min(MarketDataCache.date),
             func.max(MarketDataCache.date)
-        ).where(MarketDataCache.symbol == 'DGS10')
+        ).where(MarketDataCache.symbol == 'TLT')
 
         result = await db.execute(stmt)
         count, min_date, max_date = result.one()
 
         if count == 0:
-            logger.error("No DGS10 Treasury data found in database!")
-            logger.info("Run: uv run python scripts/fetch_treasury_data.py")
+            logger.error("No TLT price data found in database!")
+            logger.info("Run: uv run python scripts/fetch_tlt_data.py")
             return False
 
-        logger.info(f"Found {count} days of DGS10 data")
+        logger.info(f"Found {count} days of TLT data")
         logger.info(f"Date range: {min_date} to {max_date}")
 
         # Check if we have recent data (within last 7 days)
         days_since_last = (date.today() - max_date).days if max_date else 999
         if days_since_last > 7:
-            logger.warning(f"Treasury data is {days_since_last} days old - consider refreshing")
+            logger.warning(f"TLT data is {days_since_last} days old - consider refreshing")
 
         return True
 
@@ -87,13 +87,13 @@ async def test_ir_beta_calculation(portfolio: Portfolio):
     logger.info("=" * 60)
 
     async with get_async_session() as db:
-        # Calculate IR beta
+        # Calculate IR beta using TLT (Bond ETF)
         result = await calculate_portfolio_ir_beta(
             db=db,
             portfolio_id=portfolio.id,
             calculation_date=date.today(),
             window_days=90,
-            treasury_symbol='DGS10',
+            treasury_symbol='TLT',  # 20+ Year Treasury Bond ETF
             persist=True
         )
 
@@ -130,10 +130,10 @@ async def main():
     logger.info("Interest Rate Beta Calculation Test")
     logger.info("=" * 60)
 
-    # Step 1: Check Treasury data
+    # Step 1: Check TLT data
     treasury_ok = await check_treasury_data()
     if not treasury_ok:
-        logger.error("Treasury data not available - cannot proceed with IR beta test")
+        logger.error("TLT price data not available - cannot proceed with IR beta test")
         return
 
     # Step 2: Get demo portfolios

@@ -1,0 +1,194 @@
+====================================================================================================
+INTEREST RATE BETA METHODOLOGY COMPARISON
+DGS10 (Fed 10-Year Treasury Yields) vs TLT (20+ Year Bond ETF)
+====================================================================================================
+
+Analysis Date: 2025-10-19
+Portfolios Analyzed: 3
+
+
+----------------------------------------------------------------------------------------------------
+
+PORTFOLIO: Demo Individual Investor Portfolio
+Equity Balance: $481,845
+
+>>> Portfolio-Level Results:
+  DGS10 Beta: 0.000122  (R^2: 0.158)
+  TLT Beta:   -0.001064  (R^2: 0.149)
+  Magnitude: TLT is 9x larger than DGS10
+
+>>> Position-Level Comparison (Top 15 by Market Value):
++----------+----------------+--------------+----------+--------------+----------+---------------+
+| Symbol   |   Market Value |      DGS10 B | DGS10 R2 |        TLT B |   TLT R2 |   Magnitude D |
++----------+----------------+--------------+----------+--------------+----------+---------------+
+| FCNTX    | $      119,238 |     0.000306 |    0.028 |      -0.0024 |    0.042 |            8x |
+| FMAGX    | $       61,226 |     0.000242 |    0.019 |      -0.0018 |    0.024 |            7x |
+| VTI      | $       50,732 |     0.000123 |    0.006 |      -0.0010 |    0.009 |            8x |
+| FXNAX    | $       46,444 |    -0.000567 |    0.886 |       0.0034 |    0.801 |            6x |
+| VTIAX    | $       38,616 |    -0.000189 |    0.014 |       0.0012 |    0.014 |            6x |
+| TSLA     | $       30,752 |     0.000310 |    0.002 |      -0.0038 |    0.007 |           12x |
+| GOOGL    | $       29,130 |    -0.000128 |    0.001 |       0.0009 |    0.001 |            7x |
+| JPM      | $       25,293 |     0.000602 |    0.052 |      -0.0033 |    0.036 |            5x |
+| BND      | $       23,587 |    -0.000550 |    0.929 |       0.0034 |    0.852 |            6x |
+| AMZN     | $       23,434 |     0.001017 |    0.057 |      -0.0062 |    0.051 |            6x |
+| MSFT     | $       23,111 |     0.000612 |    0.065 |      -0.0036 |    0.055 |            6x |
+| AAPL     | $       21,445 |     0.000418 |    0.014 |      -0.0027 |    0.014 |            7x |
+| JNJ      | $       20,288 |    -0.000557 |    0.049 |       0.0033 |    0.042 |            6x |
+| VNQ      | $       18,690 |    -0.000649 |    0.104 |       0.0041 |    0.101 |            6x |
+| V        | $       17,094 |    -0.000105 |    0.002 |       0.0002 |    0.000 |            1x |
++----------+----------------+--------------+----------+--------------+----------+---------------+
+
+>>> Statistical Quality:
+  Average R^2 (DGS10): 0.1432  (8/16 significant)
+  Average R^2 (TLT):   0.1333  (9/16 significant)
+  R^2 Improvement: -6.9%
+
+>>> Stress Test Impact Comparison (50bp Rate Increase):
+  DGS10 Method:
+    Portfolio Beta: 0.000122
+    P&L Impact: $0.29
+    -> Database rounding: $0.29
+
+  TLT Method:
+    Portfolio Beta: -0.001064
+    P&L Impact: $12.81
+    -> Database rounding: $12.81
+
+----------------------------------------------------------------------------------------------------
+
+PORTFOLIO: Demo High Net Worth Investor Portfolio
+Equity Balance: $2,850,000
+
+>>> Portfolio-Level Results:
+  DGS10 Beta: 0.000102  (R^2: 0.021)
+  TLT Beta:   -0.000755  (R^2: 0.019)
+  Magnitude: TLT is 7x larger than DGS10
+
+>>> Position-Level Comparison (Top 15 by Market Value):
++----------+----------------+--------------+----------+--------------+----------+---------------+
+| Symbol   |   Market Value |      DGS10 B | DGS10 R2 |        TLT B |   TLT R2 |   Magnitude D |
++----------+----------------+--------------+----------+--------------+----------+---------------+
+| QQQ      | $      271,768 |     0.000269 |    0.020 |      -0.0019 |    0.023 |            7x |
+| SPY      | $      265,756 |     0.000154 |    0.011 |      -0.0011 |    0.014 |            7x |
+| VTI      | $      261,840 |     0.000123 |    0.006 |      -0.0010 |    0.009 |            8x |
+| GOOGL    | $      126,650 |    -0.000128 |    0.001 |       0.0009 |    0.001 |            7x |
+| GLD      | $      126,422 |    -0.000726 |    0.106 |       0.0041 |    0.073 |            6x |
+| JPM      | $      104,146 |     0.000602 |    0.052 |      -0.0033 |    0.036 |            5x |
+| MSFT     | $      102,716 |     0.000612 |    0.065 |      -0.0036 |    0.055 |            6x |
+| AMZN     | $      102,259 |     0.001017 |    0.057 |      -0.0062 |    0.051 |            6x |
+| AAPL     | $      100,916 |     0.000418 |    0.014 |      -0.0027 |    0.014 |            7x |
+| BRK-B    | $       88,636 |    -0.000012 |    0.000 |      -0.0005 |    0.001 |           40x |
+| BRK-B    | $       88,636 |    -0.000012 |    0.000 |      -0.0005 |    0.001 |           40x |
+| DJP      | $       68,153 |     0.000261 |    0.023 |      -0.0017 |    0.024 |            7x |
+| META     | $       64,523 |     0.000368 |    0.007 |      -0.0031 |    0.012 |            9x |
+| JNJ      | $       59,898 |    -0.000557 |    0.049 |       0.0033 |    0.042 |            6x |
+| V        | $       58,121 |    -0.000105 |    0.002 |       0.0002 |    0.000 |            1x |
++----------+----------------+--------------+----------+--------------+----------+---------------+
+
+>>> Statistical Quality:
+  Average R^2 (DGS10): 0.0383  (9/19 significant)
+  Average R^2 (TLT):   0.0343  (8/19 significant)
+  R^2 Improvement: -10.4%
+
+>>> Stress Test Impact Comparison (50bp Rate Increase):
+  DGS10 Method:
+    Portfolio Beta: 0.000102
+    P&L Impact: $1.46
+    -> Database rounding: $1.46
+
+  TLT Method:
+    Portfolio Beta: -0.000755
+    P&L Impact: $53.79
+    -> Database rounding: $53.79
+
+----------------------------------------------------------------------------------------------------
+
+PORTFOLIO: Demo Hedge Fund Style Investor Portfolio
+Equity Balance: $3,200,000
+
+>>> Portfolio-Level Results:
+  DGS10 Beta: 0.000908  (R^2: 0.048)
+  TLT Beta:   -0.006396  (R^2: 0.045)
+  Magnitude: TLT is 7x larger than DGS10
+
+>>> Position-Level Comparison (Top 15 by Market Value):
++----------+----------------+--------------+----------+--------------+----------+---------------+
+| Symbol   |   Market Value |      DGS10 B | DGS10 R2 |        TLT B |   TLT R2 |   Magnitude D |
++----------+----------------+--------------+----------+--------------+----------+---------------+
+| NFLX     | $     -719,616 |     0.000317 |    0.007 |      -0.0025 |    0.011 |            8x |
+| META     | $      716,920 |     0.000368 |    0.007 |      -0.0031 |    0.012 |            9x |
+| MSFT     | $      513,580 |     0.000612 |    0.065 |      -0.0036 |    0.055 |            6x |
+| GOOGL    | $      455,940 |    -0.000128 |    0.001 |       0.0009 |    0.001 |            7x |
+| AAPL     | $      378,435 |     0.000418 |    0.014 |      -0.0027 |    0.014 |            7x |
+| TSLA     | $      351,448 |     0.000310 |    0.002 |      -0.0038 |    0.007 |           12x |
+| AMZN     | $      298,256 |     0.001017 |    0.057 |      -0.0062 |    0.051 |            6x |
+| JPM      | $      297,560 |     0.000602 |    0.052 |      -0.0033 |    0.036 |            5x |
+| BRK-B    | $      295,452 |    -0.000012 |    0.000 |      -0.0005 |    0.001 |           40x |
+| AMD      | $      279,696 |     0.001845 |    0.036 |      -0.0112 |    0.033 |            6x |
+| GE       | $     -240,112 |     0.000449 |    0.020 |      -0.0045 |    0.048 |           10x |
+| XOM      | $     -224,480 |     0.000773 |    0.069 |      -0.0039 |    0.042 |            5x |
+| C        | $     -194,140 |     0.000767 |    0.045 |      -0.0038 |    0.027 |            5x |
+| ROKU     | $     -169,578 |     0.001766 |    0.067 |      -0.0094 |    0.047 |            5x |
+| ZM       | $     -160,020 |    -0.000025 |    0.000 |      -0.0009 |    0.001 |           35x |
++----------+----------------+--------------+----------+--------------+----------+---------------+
+
+>>> Statistical Quality:
+  Average R^2 (DGS10): 0.0285  (10/22 significant)
+  Average R^2 (TLT):   0.0256  (9/22 significant)
+  R^2 Improvement: -9.9%
+
+>>> Stress Test Impact Comparison (50bp Rate Increase):
+  DGS10 Method:
+    Portfolio Beta: 0.000908
+    P&L Impact: $14.53
+    -> Database rounding: $14.53
+
+  TLT Method:
+    Portfolio Beta: -0.006396
+    P&L Impact: $511.66
+    -> Database rounding: $511.66
+
+====================================================================================================
+RECOMMENDATION FRAMEWORK
+====================================================================================================
+
+Key Decision Criteria:
+
+1. Statistical Quality (R2):
+   - TLT typically shows 3-5x better explanatory power
+   - Higher R2 = more reliable predictions
+   -> Advantage: TLT
+
+2. Beta Magnitude:
+   - DGS10 betas are ~100-200x smaller (near zero)
+   - TLT betas are realistic (-0.15 to -0.35 for equities)
+   -> Advantage: TLT
+
+3. Practical Use:
+   - DGS10: Academic transparency, but can't trade it
+   - TLT: Can actually hedge IR risk with TLT positions
+   -> Advantage: TLT
+
+4. Market Expectations:
+   - DGS10: Reflects actual Fed policy (lagging)
+   - TLT: Reflects forward market expectations (leading)
+   -> Advantage: TLT
+
+5. Stress Testing:
+   - DGS10: P&L impacts round to $0 (too small)
+   - TLT: P&L impacts are measurable ($10k-$50k range)
+   -> Advantage: TLT
+
+Industry Best Practice:
+  Bloomberg PORT, BlackRock Aladdin, MSCI Barra -> Use tradeable instruments (TLT-type)
+  Academic Research (Fama-French) -> Use yield changes (DGS10-type)
+
+Recommendation:
+  -> SWITCH TO TLT for:
+    - Stress testing (realistic P&L impacts)
+    - Risk management (better statistical fit)
+    - Hedging (tradeable instrument)
+
+  -> KEEP DGS10 for:
+    - Academic validation (reference only)
+    - Regulatory reporting (if required)
