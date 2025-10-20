@@ -329,6 +329,8 @@ async def calculate_portfolio_spread_betas(
         # Step 4: Calculate spread betas for each position
         position_betas = {}  # {position_id: {spread_name: beta}}
         regression_stats = {}
+        skipped_count = 0
+        successful_count = 0
 
         for position_id in position_returns_aligned.columns:
             position_betas[position_id] = {}
@@ -346,12 +348,38 @@ async def calculate_portfolio_spread_betas(
                     spread_name=spread_name
                 )
 
-                position_betas[position_id][spread_name] = result['beta']
+                # Only store betas from successful regressions
+                if result.get('success', False):
+                    position_betas[position_id][spread_name] = result['beta']
+                    successful_count += 1
+                else:
+                    # Log skip reason but don't store zero beta
+                    skipped_count += 1
+                    logger.debug(
+                        f"Skipped {spread_name} for position {position_id}: "
+                        f"{result.get('error', 'Unknown error')}"
+                    )
+
+                # Always store regression stats for debugging
                 regression_stats[position_id][spread_name] = result
 
+        # Clean up: Remove positions with no successful regressions
+        positions_with_no_data = [
+            pos_id for pos_id, betas in position_betas.items()
+            if len(betas) == 0
+        ]
+        for pos_id in positions_with_no_data:
+            del position_betas[pos_id]
+
+        if positions_with_no_data:
+            logger.info(
+                f"Removed {len(positions_with_no_data)} positions with no successful regressions"
+            )
+
         logger.info(
-            f"Calculated spread betas for {len(position_betas)} positions, "
-            f"{len(SPREAD_FACTORS)} factors each"
+            f"Spread beta calculation: {successful_count} successful, "
+            f"{skipped_count} skipped (insufficient data), "
+            f"{len(position_betas)} positions with at least one valid beta"
         )
 
         # Step 5: Aggregate to portfolio level (equity-weighted)
@@ -384,7 +412,10 @@ async def calculate_portfolio_spread_betas(
                 'regression_days': len(common_dates),
                 'required_days': SPREAD_MIN_REGRESSION_DAYS,
                 'positions_processed': len(position_betas),
-                'factors_processed': len(SPREAD_FACTORS)
+                'factors_processed': len(SPREAD_FACTORS),
+                'successful_regressions': successful_count,
+                'skipped_regressions': skipped_count,
+                'success_rate': successful_count / (successful_count + skipped_count) if (successful_count + skipped_count) > 0 else 0.0
             },
             'metadata': {
                 'calculation_date': calculation_date.isoformat(),
