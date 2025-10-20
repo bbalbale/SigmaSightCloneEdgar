@@ -30,25 +30,89 @@ async def reset_portfolio_equity(db, portfolio_id: str, starting_equity: Decimal
 
 
 async def delete_calculation_results(db, portfolio_id: str, start_date: date):
-    """Delete calculation results from start_date onwards (keep market data)"""
+    """Delete calculation results from start_date onwards (keep market data)
 
-    # Tables with direct portfolio_id column
+    Deletes in proper order to respect foreign key constraints:
+    1. Child tables first (correlation_clusters, pairwise_correlations)
+    2. Parent tables (correlation_calculations)
+    3. Other calculation tables
+    """
+
+    total_deleted = 0
+
+    # STEP 1a: Delete correlation grandchild tables first (deepest level)
+    try:
+        # correlation_cluster_positions references correlation_clusters
+        result = await db.execute(text("""
+            DELETE FROM correlation_cluster_positions
+            WHERE cluster_id IN (
+                SELECT cc.id FROM correlation_clusters cc
+                JOIN correlation_calculations calc ON cc.correlation_calculation_id = calc.id
+                WHERE calc.portfolio_id = :portfolio_id
+                AND calc.calculation_date >= :start_date
+            )
+        """), {"portfolio_id": portfolio_id, "start_date": start_date})
+
+        await db.commit()
+        deleted_count = result.rowcount
+        total_deleted += deleted_count
+        print(f"  correlation_cluster_positions: deleted {deleted_count} records (via FK chain)")
+
+    except Exception as e:
+        await db.rollback()
+        print(f"  correlation_cluster_positions: ERROR - {str(e)}")
+
+    # STEP 1b: Delete correlation child tables (middle level)
+    correlation_child_tables = [
+        "correlation_clusters",
+        "pairwise_correlations",
+    ]
+
+    for table_name in correlation_child_tables:
+        try:
+            # These tables reference correlation_calculations
+            result = await db.execute(text(f"""
+                DELETE FROM {table_name}
+                WHERE correlation_calculation_id IN (
+                    SELECT id FROM correlation_calculations
+                    WHERE portfolio_id = :portfolio_id
+                    AND calculation_date >= :start_date
+                )
+            """), {"portfolio_id": portfolio_id, "start_date": start_date})
+
+            await db.commit()
+            deleted_count = result.rowcount
+            total_deleted += deleted_count
+            print(f"  {table_name}: deleted {deleted_count} records (via FK to correlation_calculations)")
+
+        except Exception as e:
+            await db.rollback()
+            print(f"  {table_name}: ERROR - {str(e)}")
+
+    # STEP 2: Delete parent correlation_calculations table
+    try:
+        result = await db.execute(text("""
+            DELETE FROM correlation_calculations
+            WHERE portfolio_id = :portfolio_id
+            AND calculation_date >= :start_date
+        """), {"portfolio_id": portfolio_id, "start_date": start_date})
+
+        await db.commit()
+        deleted_count = result.rowcount
+        total_deleted += deleted_count
+        print(f"  correlation_calculations: deleted {deleted_count} records")
+
+    except Exception as e:
+        await db.rollback()
+        print(f"  correlation_calculations: ERROR - {str(e)}")
+
+    # STEP 3: Delete other tables with direct portfolio_id column
     tables_with_portfolio_id = [
         ("portfolio_snapshots", "snapshot_date"),
         ("position_market_betas", "calc_date"),
         ("position_interest_rate_betas", "calculation_date"),
-        ("correlation_calculations", "calculation_date"),
     ]
 
-    # Tables without portfolio_id - need to delete via positions table JOIN
-    tables_via_position_join = [
-        ("position_factor_exposures", "calculation_date"),
-        ("position_volatility", "calculation_date"),
-    ]
-
-    total_deleted = 0
-
-    # Delete from tables with portfolio_id
     for table_name, date_column in tables_with_portfolio_id:
         try:
             result = await db.execute(text(f"""
@@ -57,14 +121,21 @@ async def delete_calculation_results(db, portfolio_id: str, start_date: date):
                 AND {date_column} >= :start_date
             """), {"portfolio_id": portfolio_id, "start_date": start_date})
 
+            await db.commit()
             deleted_count = result.rowcount
             total_deleted += deleted_count
             print(f"  {table_name}: deleted {deleted_count} records")
 
         except Exception as e:
-            print(f"  {table_name}: {str(e)}")
+            await db.rollback()
+            print(f"  {table_name}: ERROR - {str(e)}")
 
-    # Delete from tables via position JOIN
+    # STEP 4: Delete from tables without portfolio_id (via position JOIN)
+    tables_via_position_join = [
+        ("position_factor_exposures", "calculation_date"),
+        ("position_volatility", "calculation_date"),
+    ]
+
     for table_name, date_column in tables_via_position_join:
         try:
             result = await db.execute(text(f"""
@@ -76,14 +147,14 @@ async def delete_calculation_results(db, portfolio_id: str, start_date: date):
                 AND {date_column} >= :start_date
             """), {"portfolio_id": portfolio_id, "start_date": start_date})
 
+            await db.commit()
             deleted_count = result.rowcount
             total_deleted += deleted_count
             print(f"  {table_name}: deleted {deleted_count} records (via position JOIN)")
 
         except Exception as e:
-            print(f"  {table_name}: {str(e)}")
-
-    await db.commit()
+            await db.rollback()
+            print(f"  {table_name}: ERROR - {str(e)}")
 
     print(f"OK Total records deleted: {total_deleted}")
     return total_deleted
@@ -184,8 +255,8 @@ async def main():
     print("=" * 80)
     print()
 
-    portfolio_id = "fcd71196-e93e-f000-5a74-31a9eead3118"  # Hedge Fund Style
-    starting_equity = Decimal('3200000.00')  # Original starting equity from Sept 30
+    portfolio_id = "e23ab931-a033-edfe-ed4f-9d02474780b4"  # High Net Worth (testing deletion fix)
+    starting_equity = Decimal('2850000.00')  # Original starting equity from Sept 30
     start_date = date(2025, 9, 30)
     end_date = date.today()
 
