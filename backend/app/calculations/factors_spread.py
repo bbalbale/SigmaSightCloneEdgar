@@ -1,0 +1,489 @@
+"""
+Spread Factor Analysis - Long-Short Factor Betas
+Calculates portfolio exposure to 4 long-short spread factors using 180-day OLS regression.
+
+Addresses multicollinearity by using factor spreads instead of raw factor ETFs:
+- Growth-Value Spread (VUG - VTV): ~0.3 correlation with market (vs 0.93+ for raw)
+- Momentum Spread (MTUM - SPY): Independent momentum exposure
+- Size Spread (IWM - SPY): Small vs large cap tilt
+- Quality Spread (QUAL - SPY): Quality vs market exposure
+
+Created: 2025-10-20
+Architecture: 4 separate OLS regressions (one per spread factor)
+Regression Window: 180 days (6 months)
+"""
+from datetime import date, timedelta
+from decimal import Decimal
+from typing import Dict, List, Optional, Any
+from uuid import UUID
+import pandas as pd
+import numpy as np
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
+import statsmodels.api as sm
+
+from app.models.positions import Position
+from app.models.market_data import MarketDataCache, FactorDefinition
+from app.constants.factors import (
+    SPREAD_FACTORS, SPREAD_REGRESSION_WINDOW_DAYS,
+    SPREAD_MIN_REGRESSION_DAYS, BETA_CAP_LIMIT
+)
+from app.calculations.factor_utils import (
+    PortfolioContext, load_portfolio_context,
+    get_position_market_value, get_default_data_quality,
+    get_default_storage_results
+)
+from app.core.logging import get_logger
+
+logger = get_logger(__name__)
+
+
+async def fetch_spread_returns(
+    db: AsyncSession,
+    start_date: date,
+    end_date: date
+) -> pd.DataFrame:
+    """
+    Calculate daily returns for 4 spread factors.
+
+    Spread Return = Long ETF Return - Short ETF Return
+
+    This creates factors that are less correlated with the market, eliminating
+    the multicollinearity problem in traditional multi-factor models.
+
+    Args:
+        db: Database session
+        start_date: Start date for data fetch
+        end_date: End date for data fetch
+
+    Returns:
+        DataFrame with 4 columns (spread factor names) and date index.
+        Each cell contains the daily spread return for that factor.
+
+    Example:
+        VUG return = 1.5%, VTV return = 0.8%
+        → Growth-Value Spread return = 1.5% - 0.8% = 0.7%
+    """
+    logger.info(f"Fetching spread returns from {start_date} to {end_date}")
+
+    # Collect all unique ETF symbols needed
+    etf_symbols = set()
+    for long_etf, short_etf in SPREAD_FACTORS.values():
+        etf_symbols.add(long_etf)
+        etf_symbols.add(short_etf)
+
+    logger.info(f"Fetching prices for {len(etf_symbols)} ETFs: {etf_symbols}")
+
+    # Fetch prices for all ETFs
+    stmt = select(
+        MarketDataCache.symbol,
+        MarketDataCache.date,
+        MarketDataCache.close
+    ).where(
+        MarketDataCache.symbol.in_(list(etf_symbols)),
+        MarketDataCache.date >= start_date,
+        MarketDataCache.date <= end_date
+    ).order_by(MarketDataCache.date)
+
+    result = await db.execute(stmt)
+    records = result.all()
+
+    if not records:
+        raise ValueError("No price data available for spread factors")
+
+    # Convert to DataFrame and pivot
+    df = pd.DataFrame([
+        {'symbol': r.symbol, 'date': r.date, 'close': float(r.close)}
+        for r in records
+    ])
+    prices = df.pivot(index='date', columns='symbol', values='close')
+
+    # Calculate returns for each ETF
+    returns = prices.pct_change(fill_method=None).dropna()
+
+    # Calculate spread returns
+    spread_returns = pd.DataFrame(index=returns.index)
+
+    for spread_name, (long_etf, short_etf) in SPREAD_FACTORS.items():
+        if long_etf in returns.columns and short_etf in returns.columns:
+            spread_returns[spread_name] = returns[long_etf] - returns[short_etf]
+            logger.debug(
+                f"{spread_name}: Long={long_etf}, Short={short_etf}, "
+                f"Mean spread return={spread_returns[spread_name].mean():.4f}"
+            )
+        else:
+            logger.warning(f"Missing data for {spread_name}: {long_etf} or {short_etf}")
+            spread_returns[spread_name] = np.nan
+
+    # Drop rows with any NaN values
+    spread_returns = spread_returns.dropna()
+
+    logger.info(
+        f"Calculated spread returns for {len(spread_returns)} days, "
+        f"{len(spread_returns.columns)} factors"
+    )
+    return spread_returns
+
+
+async def calculate_position_spread_beta(
+    position_returns: pd.Series,
+    spread_returns: pd.Series,
+    spread_name: str
+) -> Dict[str, Any]:
+    """
+    Calculate single spread beta using OLS regression.
+
+    This function runs a simple univariate OLS regression:
+        position_return = alpha + beta * spread_return + error
+
+    Args:
+        position_returns: Position daily returns (aligned)
+        spread_returns: Spread factor daily returns (aligned)
+        spread_name: Name of spread factor (for logging)
+
+    Returns:
+        Dict with:
+        - beta: Regression coefficient
+        - r_squared: Model fit quality
+        - std_error: Standard error of beta
+        - p_value: Statistical significance
+        - observations: Number of data points
+        - success: Whether regression succeeded
+    """
+    # Align on common dates
+    data = pd.concat([position_returns, spread_returns], axis=1).dropna()
+
+    if len(data) < SPREAD_MIN_REGRESSION_DAYS:
+        logger.warning(
+            f"Insufficient data for {spread_name}: {len(data)} days "
+            f"(minimum: {SPREAD_MIN_REGRESSION_DAYS})"
+        )
+        return {
+            'beta': 0.0,
+            'r_squared': 0.0,
+            'std_error': 0.0,
+            'p_value': 1.0,
+            'observations': len(data),
+            'success': False,
+            'error': f'Insufficient data: {len(data)} days'
+        }
+
+    # Run OLS regression
+    y = data.iloc[:, 0].values  # Position returns
+    X = data.iloc[:, 1].values  # Spread returns
+    X_with_const = sm.add_constant(X)
+
+    try:
+        model = sm.OLS(y, X_with_const).fit()
+
+        beta = float(model.params[1])
+        alpha = float(model.params[0])
+        r_squared = float(model.rsquared)
+        std_error = float(model.bse[1])
+        p_value = float(model.pvalues[1])
+
+        # Cap beta to prevent extreme outliers
+        original_beta = beta
+        beta = max(-BETA_CAP_LIMIT, min(BETA_CAP_LIMIT, beta))
+
+        if abs(original_beta) > BETA_CAP_LIMIT:
+            logger.warning(
+                f"Beta capped for {spread_name}: {original_beta:.3f} -> {beta:.3f}"
+            )
+
+        logger.debug(
+            f"{spread_name} regression: beta={beta:.3f}, R²={r_squared:.3f}, "
+            f"p={p_value:.3f}, n={len(data)}"
+        )
+
+        return {
+            'beta': beta,
+            'alpha': alpha,
+            'r_squared': r_squared,
+            'std_error': std_error,
+            'p_value': p_value,
+            'observations': len(data),
+            'success': True
+        }
+
+    except Exception as e:
+        logger.error(f"OLS regression failed for {spread_name}: {e}")
+        return {
+            'beta': 0.0,
+            'r_squared': 0.0,
+            'std_error': 0.0,
+            'p_value': 1.0,
+            'observations': len(data),
+            'success': False,
+            'error': str(e)
+        }
+
+
+async def calculate_portfolio_spread_betas(
+    db: AsyncSession,
+    portfolio_id: UUID,
+    calculation_date: date,
+    context: Optional[PortfolioContext] = None
+) -> Dict[str, Any]:
+    """
+    Calculate portfolio-level spread factor betas using 180-day OLS regression.
+
+    This is the main entry point for spread factor calculation. It orchestrates:
+    1. Fetching spread returns (VUG-VTV, MTUM-SPY, IWM-SPY, QUAL-SPY)
+    2. Fetching position returns (reuse from factors.py)
+    3. Running 4 separate OLS regressions for each position
+    4. Aggregating to portfolio level (equity-weighted)
+    5. Storing results in factor_exposures tables
+
+    Args:
+        db: Database session
+        portfolio_id: Portfolio UUID
+        calculation_date: Calculation date (end of regression window)
+        context: Pre-loaded portfolio context (optional, for performance)
+
+    Returns:
+        Dict with:
+        - factor_betas: Portfolio-level spread betas
+        - position_betas: Position-level spread betas
+        - data_quality: Regression quality metrics
+        - metadata: Calculation metadata
+        - storage_results: Database storage results
+    """
+    logger.info(
+        f"Calculating spread factor betas for portfolio {portfolio_id} "
+        f"as of {calculation_date} (180-day window)"
+    )
+
+    # Load context if not provided
+    if context is None:
+        logger.info("Loading portfolio context")
+        context = await load_portfolio_context(db, portfolio_id, calculation_date)
+
+    # Define regression window (180 days + 30-day buffer for trading days)
+    end_date = calculation_date
+    start_date = end_date - timedelta(days=SPREAD_REGRESSION_WINDOW_DAYS + 30)
+
+    logger.info(f"Regression window: {start_date} to {end_date}")
+
+    try:
+        # Step 1: Fetch spread returns
+        spread_returns = await fetch_spread_returns(db, start_date, end_date)
+
+        if spread_returns.empty:
+            raise ValueError("No spread returns data available")
+
+        logger.info(f"Spread returns: {len(spread_returns)} days, {len(spread_returns.columns)} factors")
+
+        # Step 2: Fetch position returns (reuse from factors.py)
+        from app.calculations.factors import calculate_position_returns
+
+        position_returns = await calculate_position_returns(
+            db=db,
+            portfolio_id=portfolio_id,
+            start_date=start_date,
+            end_date=end_date,
+            use_delta_adjusted=False,
+            context=context
+        )
+
+        if position_returns.empty:
+            counts = context.get_position_count_summary()
+            logger.warning(
+                f"No position returns available for portfolio {portfolio_id}. "
+                f"Position counts: {counts}"
+            )
+            return {
+                'factor_betas': {},
+                'position_betas': {},
+                'data_quality': {
+                    **get_default_data_quality(),
+                    'positions_total': counts['total'],
+                    'positions_private': counts['private'],
+                    'skip_reason': 'NO_POSITION_RETURNS'
+                },
+                'metadata': {
+                    'calculation_date': calculation_date.isoformat(),
+                    'status': 'SKIPPED_NO_POSITIONS',
+                    'regression_window_days': SPREAD_REGRESSION_WINDOW_DAYS,
+                    'portfolio_id': str(portfolio_id)
+                },
+                'storage_results': get_default_storage_results()
+            }
+
+        logger.info(f"Position returns: {len(position_returns)} days, {len(position_returns.columns)} positions")
+
+        # Step 3: Align dates
+        common_dates = spread_returns.index.intersection(position_returns.index)
+
+        if len(common_dates) < SPREAD_MIN_REGRESSION_DAYS:
+            logger.warning(
+                f"Insufficient aligned data: {len(common_dates)} days "
+                f"(minimum: {SPREAD_MIN_REGRESSION_DAYS})"
+            )
+
+        spread_returns_aligned = spread_returns.loc[common_dates]
+        position_returns_aligned = position_returns.loc[common_dates]
+
+        logger.info(f"Aligned data: {len(common_dates)} common trading days")
+
+        # Step 4: Calculate spread betas for each position
+        position_betas = {}  # {position_id: {spread_name: beta}}
+        regression_stats = {}
+
+        for position_id in position_returns_aligned.columns:
+            position_betas[position_id] = {}
+            regression_stats[position_id] = {}
+
+            pos_returns = position_returns_aligned[position_id]
+
+            # Run 4 separate OLS regressions
+            for spread_name in SPREAD_FACTORS.keys():
+                spread_ret = spread_returns_aligned[spread_name]
+
+                result = await calculate_position_spread_beta(
+                    position_returns=pos_returns,
+                    spread_returns=spread_ret,
+                    spread_name=spread_name
+                )
+
+                position_betas[position_id][spread_name] = result['beta']
+                regression_stats[position_id][spread_name] = result
+
+        logger.info(
+            f"Calculated spread betas for {len(position_betas)} positions, "
+            f"{len(SPREAD_FACTORS)} factors each"
+        )
+
+        # Step 5: Aggregate to portfolio level (equity-weighted)
+        from app.calculations.factors import _aggregate_portfolio_betas
+
+        portfolio_betas = await _aggregate_portfolio_betas(
+            db=db,
+            portfolio_id=portfolio_id,
+            position_betas=position_betas,
+            context=context
+        )
+
+        logger.info(f"Portfolio-level spread betas: {portfolio_betas}")
+
+        # Step 6: Store in database
+        storage_results = await store_spread_factor_exposures(
+            db=db,
+            portfolio_id=portfolio_id,
+            position_betas=position_betas,
+            portfolio_betas=portfolio_betas,
+            calculation_date=calculation_date,
+            context=context
+        )
+
+        # Step 7: Prepare results
+        results = {
+            'factor_betas': portfolio_betas,
+            'position_betas': position_betas,
+            'data_quality': {
+                'regression_days': len(common_dates),
+                'required_days': SPREAD_MIN_REGRESSION_DAYS,
+                'positions_processed': len(position_betas),
+                'factors_processed': len(SPREAD_FACTORS)
+            },
+            'metadata': {
+                'calculation_date': calculation_date.isoformat(),
+                'start_date': common_dates[0].isoformat() if len(common_dates) > 0 else None,
+                'end_date': common_dates[-1].isoformat() if len(common_dates) > 0 else None,
+                'regression_window_days': SPREAD_REGRESSION_WINDOW_DAYS,
+                'portfolio_id': str(portfolio_id),
+                'method': 'OLS_SPREAD'
+            },
+            'regression_stats': regression_stats,
+            'storage_results': storage_results
+        }
+
+        logger.info(
+            f"✅ Spread factor calculation complete: "
+            f"{len(position_betas)} positions, {len(portfolio_betas)} portfolio factors"
+        )
+
+        return results
+
+    except Exception as e:
+        logger.error(f"❌ Error calculating spread factor betas: {e}", exc_info=True)
+        raise
+
+
+async def store_spread_factor_exposures(
+    db: AsyncSession,
+    portfolio_id: UUID,
+    position_betas: Dict[UUID, Dict[str, float]],
+    portfolio_betas: Dict[str, float],
+    calculation_date: date,
+    context: PortfolioContext
+) -> Dict[str, Any]:
+    """
+    Store spread factor exposures in factor_exposures tables.
+
+    Reuses existing storage functions from factors.py since spread factors
+    are stored in the same tables (just with factor_type='spread').
+
+    Args:
+        db: Database session
+        portfolio_id: Portfolio UUID
+        position_betas: Position-level betas {position_id: {factor_name: beta}}
+        portfolio_betas: Portfolio-level betas {factor_name: beta}
+        calculation_date: Calculation date
+        context: Portfolio context
+
+    Returns:
+        Dict with storage results (records stored, etc.)
+    """
+    from app.calculations.factors import (
+        store_position_factor_exposures,
+        aggregate_portfolio_factor_exposures
+    )
+
+    storage_results = {}
+
+    # Store position-level exposures
+    if position_betas:
+        logger.info("Storing position-level spread factor exposures")
+        position_storage = await store_position_factor_exposures(
+            db=db,
+            position_betas=position_betas,
+            calculation_date=calculation_date,
+            quality_flag='full_history',
+            context=context
+        )
+        storage_results['position_storage'] = position_storage
+        logger.info(f"✅ Stored {position_storage['records_stored']} position spread betas")
+
+    # Store portfolio-level exposures
+    if portfolio_betas:
+        logger.info("Storing portfolio-level spread factor exposures")
+
+        # Build position dicts for aggregation
+        position_dicts = []
+        for pos in context.active_positions:
+            market_value = float(get_position_market_value(pos, use_stored=True))
+            position_dicts.append({
+                'symbol': pos.symbol,
+                'quantity': float(pos.quantity),
+                'market_value': market_value,
+                'exposure': market_value,
+                'position_type': pos.position_type.value if pos.position_type else 'LONG',
+                'last_price': float(pos.last_price) if pos.last_price else 0
+            })
+
+        from app.calculations.portfolio import calculate_portfolio_exposures
+        portfolio_exposures = calculate_portfolio_exposures(position_dicts) if position_dicts else {}
+
+        portfolio_storage = await aggregate_portfolio_factor_exposures(
+            db=db,
+            position_betas=position_betas,
+            portfolio_exposures=portfolio_exposures,
+            portfolio_id=portfolio_id,
+            calculation_date=calculation_date,
+            context=context
+        )
+        storage_results['portfolio_storage'] = portfolio_storage
+        logger.info("✅ Portfolio spread betas stored successfully")
+
+    return storage_results
