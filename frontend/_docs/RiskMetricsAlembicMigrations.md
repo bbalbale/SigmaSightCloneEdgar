@@ -1,33 +1,41 @@
 # Risk Metrics Alembic Migrations
 
-**Purpose:** Database schema changes required for Risk Metrics overhaul (market beta, sector analysis, volatility analytics)
+**Purpose:** Database schema changes required for Risk Metrics overhaul (market beta, sector analysis, volatility analytics, AI insights)
 
-**Total Migrations:** 5 migrations across 3 phases
+**Total Migrations:** 10 migrations across 4 phases (October 17-19, 2025)
 
-**Execution Order:** Must be run sequentially (Migration 0 → 1 → 2 → 3 → 4)
+**Execution Order:** Must be run sequentially (Migration 0 → 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 → 9)
 
-**Last Updated:** October 17, 2025
+**Last Updated:** October 19, 2025
 
 **Status:**
-- ✅ Migration 0: COMPLETE (Applied October 17, 2025)
-- ✅ Migration 1: COMPLETE (Applied October 17, 2025 - bug fixed)
-- ✅ Migration 2: COMPLETE (Applied October 17, 2025)
-- ✅ Migration 3: COMPLETE (Applied October 17, 2025)
-- ✅ Migration 4: COMPLETE (Applied October 17, 2025 - volatility columns added)
-- ✅ Migration 5: COMPLETE (Applied October 17, 2025)
+- ✅ Phase 0 (Market Beta): COMPLETE (Migrations 0-1 applied October 17, 2025)
+- ✅ Phase 1 (Sector Analysis): COMPLETE (Migrations 2-3 applied October 17, 2025)
+- ✅ Phase 2 (Volatility Analytics): COMPLETE (Migrations 4-5 applied October 17, 2025)
+- ✅ Phase 3 (Beta Refactoring): COMPLETE (Migration 6 applied October 18, 2025)
+- ✅ Phase 4 (AI Insights): COMPLETE (Migrations 7-8 applied October 19, 2025)
 
 ---
 
 ## Quick Reference
 
-| Migration | Purpose | Tables Modified | New Columns/Tables |
-|-----------|---------|-----------------|-------------------|
-| Migration 0 | Position-level market betas | Creates `position_market_betas` | New table (11 columns) |
-| Migration 1 | Portfolio-level market beta | `portfolio_snapshots` | 4 new columns |
-| Migration 2 | Benchmark sector weights | Creates `benchmarks_sector_weights` | New table (10 columns) |
-| Migration 3 | Sector & concentration | `portfolio_snapshots` | 5 new columns |
-| Migration 4 | Portfolio volatility analytics | `portfolio_snapshots` | 5 new columns |
-| Migration 5 | Position volatility | Creates `position_volatility` | New table (15 columns) |
+| # | Migration ID | Purpose | Tables Modified | New Columns/Tables | Date Applied |
+|---|--------------|---------|-----------------|-------------------|--------------|
+| 0 | a1b2c3d4e5f6 | Position-level market betas | Creates `position_market_betas` | New table (11 columns) | Oct 17, 2025 |
+| 1 | b2c3d4e5f6g7 | Portfolio-level market beta | `portfolio_snapshots` | 4 new columns | Oct 17, 2025 |
+| 2 | 7818709e948d | Benchmark sector weights | Creates `benchmarks_sector_weights` | New table (10 columns) | Oct 17, 2025 |
+| 3 | f67a98539656 | Sector & concentration | `portfolio_snapshots` | 5 new columns | Oct 17, 2025 |
+| 4 | c1d2e3f4g5h6 | Portfolio volatility analytics | `portfolio_snapshots` | 5 new columns | Oct 17, 2025 |
+| 5 | d2e3f4g5h6i7 | Position volatility | Creates `position_volatility` | New table (15 columns) | Oct 17, 2025 |
+| 6 | e65741f182c4 | Refactor beta field names | `portfolio_snapshots` | 1 new column, 4 renamed | Oct 18, 2025 |
+| 7 | f8g9h0i1j2k3 | AI insights infrastructure | Creates 2 new tables | `ai_insights`, `ai_insight_templates` | Oct 19, 2025 |
+| 8 | 7003a3be89fe | Sector exposure refinement | `portfolio_snapshots` + updates | HHI precision change | Oct 19, 2025 |
+
+**Migration Chain:**
+```
+a1b2c3d4e5f6 → b2c3d4e5f6g7 → 7818709e948d → f67a98539656 → c1d2e3f4g5h6 →
+d2e3f4g5h6i7 → e65741f182c4 → f8g9h0i1j2k3 → 7003a3be89fe (HEAD)
+```
 
 ---
 
@@ -120,29 +128,7 @@ market_beta_direct          NUMERIC(10,4)   Direct portfolio regression (Phase 3
 - `idx_snapshots_beta` (portfolio_id, snapshot_date, market_beta_weighted)
   - **Note:** Uses `snapshot_date` NOT `calculation_date` ✅
 
-**Note:** `market_beta_direct` reserved for Phase 3 (direct OLS regression of portfolio returns vs SPY)
-
-**Validation:**
-```bash
-uv run python -c "
-import asyncio
-from sqlalchemy import text
-from app.database import AsyncSessionLocal
-
-async def check():
-    async with AsyncSessionLocal() as db:
-        result = await db.execute(text('''
-            SELECT column_name, data_type
-            FROM information_schema.columns
-            WHERE table_name = 'portfolio_snapshots'
-            AND column_name LIKE '%market_beta%'
-        '''))
-        for row in result:
-            print(f'{row[0]}: {row[1]}')
-
-asyncio.run(check())
-"
-```
+**Note:** These fields were later renamed in Migration 6 (e65741f182c4)
 
 ---
 
@@ -191,27 +177,6 @@ updated_at          TIMESTAMP
 uv run python -c "from app.models.market_data import BenchmarkSectorWeight; print('✓ Import successful')"
 ```
 
-**Data seeding:**
-```bash
-# One-time seed
-uv run python scripts/seed_benchmark_weights.py
-
-# Verify data
-uv run python -c "
-import asyncio
-from sqlalchemy import select, func
-from app.database import AsyncSessionLocal
-from app.models.market_data import BenchmarkSectorWeight
-
-async def check():
-    async with AsyncSessionLocal() as db:
-        count = await db.execute(select(func.count(BenchmarkSectorWeight.id)))
-        print(f'Total records: {count.scalar()}')
-
-asyncio.run(check())
-"
-```
-
 ---
 
 ### Migration 3: Add Sector & Concentration to portfolio_snapshots ✅
@@ -240,27 +205,7 @@ top_3_concentration     NUMERIC(10,4)   Sum of top 3 position weights
 top_10_concentration    NUMERIC(10,4)   Sum of top 10 position weights
 ```
 
-**Validation:**
-```bash
-uv run python -c "
-import asyncio
-from sqlalchemy import text
-from app.database import AsyncSessionLocal
-
-async def check():
-    async with AsyncSessionLocal() as db:
-        result = await db.execute(text('''
-            SELECT column_name, data_type
-            FROM information_schema.columns
-            WHERE table_name = 'portfolio_snapshots'
-            AND (column_name LIKE '%sector%' OR column_name LIKE '%hhi%' OR column_name LIKE '%concentration%')
-        '''))
-        for row in result:
-            print(row)
-
-asyncio.run(check())
-"
-```
+**Note:** HHI precision was later updated from NUMERIC(10,2) to NUMERIC(10,4) in Migration 8 (7003a3be89fe)
 
 ---
 
@@ -299,32 +244,6 @@ volatility_percentile       NUMERIC(10,4)   Current vol percentile vs 1-year his
   - **Note:** Uses `snapshot_date` (not `calculation_date`) ✅
 
 **Note:** Trading day windows (21d, 63d) used instead of calendar days (30d, 60d, 90d)
-
-**Model Updated:** `app/models/snapshots.py` (PortfolioSnapshot class)
-- Added 5 volatility fields to SQLAlchemy model
-- Fields are optional (nullable=True) to support gradual rollout
-
-**Validation:**
-```bash
-uv run python -c "
-import asyncio
-from sqlalchemy import text
-from app.database import AsyncSessionLocal
-
-async def check():
-    async with AsyncSessionLocal() as db:
-        result = await db.execute(text('''
-            SELECT column_name, data_type
-            FROM information_schema.columns
-            WHERE table_name = 'portfolio_snapshots'
-            AND column_name LIKE '%volatility%'
-        '''))
-        for row in result:
-            print(row)
-
-asyncio.run(check())
-"
-```
 
 ---
 
@@ -374,77 +293,256 @@ updated_at              TIMESTAMP
 
 **Unique constraint:** `(position_id, calculation_date)`
 
-**Validation:**
+---
+
+## Phase 3: Beta Field Refactoring
+
+### Migration 6: Refactor Portfolio Beta Field Names ✅
+
+**Status:** COMPLETE (Applied October 18, 2025)
+
+**File:** `backend/alembic/versions/e65741f182c4_refactor_portfolio_beta_field_names_and_.py`
+
+**Revision ID:** `e65741f182c4`
+
+**Command:**
 ```bash
-uv run python -c "
-import asyncio
-from sqlalchemy import text
-from app.database import AsyncSessionLocal
-
-async def check():
-    async with AsyncSessionLocal() as db:
-        result = await db.execute(text('''
-            SELECT COUNT(*) FROM information_schema.tables
-            WHERE table_name = 'position_volatility'
-        '''))
-        print(f'Table exists: {result.scalar() == 1}')
-
-asyncio.run(check())
-"
+uv run alembic upgrade head
 ```
+
+**What it changes:**
+- **Modifies table:** `portfolio_snapshots`
+- **Purpose:** Rename beta fields for clarity and add provider beta field
+
+**Field Renames** (portfolio_snapshots):
+```
+OLD NAME                    NEW NAME                            PURPOSE
+market_beta_weighted    →   beta_calculated_90d                 Equity-weighted average of position betas (90-day OLS)
+market_beta_r_squared   →   beta_calculated_90d_r_squared       Weighted average R-squared from position betas
+market_beta_observations →  beta_calculated_90d_observations    Minimum observations across all positions
+market_beta_direct      →   beta_portfolio_regression           Direct OLS regression (Phase 3 future work)
+```
+
+**New Column Added:**
+```
+beta_provider_1y        NUMERIC(10,4)   Provider-reported 1-year beta from company profile API
+```
+
+**Rationale:**
+- Makes clear that `beta_calculated_90d` is derived from position-level regressions (bottom-up)
+- Distinguishes from `beta_portfolio_regression` which will be direct portfolio-level regression (top-down)
+- Adds `beta_provider_1y` for comparison with external data sources
+
+---
+
+## Phase 4: AI Insights Infrastructure
+
+### Migration 7: Create AI Insights Tables ✅
+
+**Status:** COMPLETE (Applied October 19, 2025)
+
+**File:** `backend/alembic/versions/f8g9h0i1j2k3_add_ai_insights_tables.py`
+
+**Revision ID:** `f8g9h0i1j2k3`
+
+**Command:**
+```bash
+uv run alembic upgrade head
+```
+
+**What it creates:**
+- **New tables:** `ai_insights` and `ai_insight_templates`
+- **Purpose:** AI analytical reasoning layer infrastructure for portfolio analysis
+
+**New Table 1: `ai_insights`**
+
+Stores AI-generated portfolio analysis and investigations.
+
+**Columns:**
+```
+id                      UUID            Primary key
+portfolio_id            UUID            Foreign key to portfolios
+
+-- Insight metadata
+insight_type            ENUM            daily_summary, volatility_analysis, concentration_risk, etc.
+title                   VARCHAR(200)    Insight title
+severity                ENUM            info, normal, elevated, warning, critical
+
+-- Content
+summary                 TEXT            Brief summary of insight
+full_analysis           TEXT            Detailed analysis
+key_findings            JSON            Structured findings array
+recommendations         JSON            Action recommendations array
+data_limitations        TEXT            Known data quality issues
+
+-- Investigation context
+context_data            JSON            Snapshot data, positions, calculations used
+data_quality            JSON            Completeness metrics per data type
+focus_area              VARCHAR(100)    Specific area investigated
+user_question           TEXT            Original user question (if custom insight)
+
+-- AI model information
+model_used              VARCHAR(50)     Model name (e.g., "claude-sonnet-4")
+provider                VARCHAR(20)     AI provider (default: "anthropic")
+prompt_version          VARCHAR(20)     Template version used
+
+-- Performance metrics
+cost_usd                NUMERIC(10,6)   API cost in USD
+generation_time_ms      NUMERIC(10,2)   Generation time in milliseconds
+token_count_input       NUMERIC(10,0)   Input tokens consumed
+token_count_output      NUMERIC(10,0)   Output tokens consumed
+tool_calls_count        NUMERIC(3,0)    Number of tool calls made
+
+-- Caching
+cache_hit               BOOLEAN         Whether this was served from cache
+cache_source_id         UUID            Foreign key to ai_insights (original insight)
+cache_key               VARCHAR(64)     Cache key for deduplication
+
+-- User interaction
+user_rating             NUMERIC(2,1)    User rating (0.0 to 5.0)
+user_feedback           TEXT            User feedback text
+viewed                  BOOLEAN         Whether user has viewed
+dismissed               BOOLEAN         Whether user dismissed
+
+-- Timestamps
+created_at              TIMESTAMP       Creation timestamp
+expires_at              TIMESTAMP       Expiration timestamp (optional)
+updated_at              TIMESTAMP       Last update timestamp
+```
+
+**Indexes (ai_insights):**
+- `ix_ai_insights_portfolio_id` (portfolio_id)
+- `ix_ai_insights_insight_type` (insight_type)
+- `ix_ai_insights_created_at` (created_at)
+- `ix_ai_insights_cache_key` (cache_key)
+- `ix_ai_insights_portfolio_created` (portfolio_id, created_at)
+- `ix_ai_insights_type_severity` (insight_type, severity)
+- `ix_ai_insights_cache_lookup` (cache_key, created_at)
+
+---
+
+**New Table 2: `ai_insight_templates`**
+
+Stores versioned prompt templates for different insight types.
+
+**Columns:**
+```
+id                      UUID            Primary key
+
+-- Template metadata
+insight_type            ENUM            Type of insight this template generates
+name                    VARCHAR(100)    Template name
+description             TEXT            Template description
+version                 VARCHAR(20)     Template version (e.g., "v1.2")
+
+-- Prompt templates
+system_prompt           TEXT            System prompt for AI
+investigation_prompt    TEXT            Investigation/task prompt
+
+-- Configuration
+model_preference        VARCHAR(50)     Preferred model for this template
+max_tokens              NUMERIC(6,0)    Max tokens setting
+temperature             NUMERIC(3,2)    Temperature setting (0.00 to 1.00)
+
+-- Tools configuration
+required_tools          JSON            Required tool names array
+optional_tools          JSON            Optional tool names array
+
+-- Quality metrics
+active                  BOOLEAN         Whether template is currently active
+avg_quality_score       NUMERIC(3,2)    Average user rating
+usage_count             NUMERIC(10,0)   Number of times used
+
+-- Timestamps
+created_at              TIMESTAMP       Creation timestamp
+updated_at              TIMESTAMP       Last update timestamp
+deprecated_at           TIMESTAMP       Deprecation timestamp (null if active)
+```
+
+**Indexes (ai_insight_templates):**
+- `ix_ai_templates_insight_type` (insight_type)
+- `ix_ai_templates_type_active` (insight_type, active)
+- `ix_ai_templates_version` (insight_type, version)
+
+**ENUM Types Created:**
+- `insight_type`: daily_summary, volatility_analysis, concentration_risk, hedge_quality, factor_exposure, stress_test_review, custom
+- `insight_severity`: info, normal, elevated, warning, critical
+
+---
+
+### Migration 8: Sector Exposure & Concentration Refinement ✅
+
+**Status:** COMPLETE (Applied October 19, 2025)
+
+**File:** `backend/alembic/versions/7003a3be89fe_add_sector_exposure_and_concentration_.py`
+
+**Revision ID:** `7003a3be89fe` (HEAD)
+
+**Command:**
+```bash
+uv run alembic upgrade head
+```
+
+**What it changes:**
+- **Modifies table:** `portfolio_snapshots` (refinement of Migration 3)
+- **Updates:** All previous tables to clean up comments and constraints
+- **Purpose:** Finalize schema after multiple phases of additions
+
+**Key Changes:**
+
+1. **HHI Precision Update** (portfolio_snapshots):
+   - Changed `hhi` from NUMERIC(10,2) to NUMERIC(10,4)
+   - Provides finer granularity for concentration measurements
+
+2. **Index Cleanup** (portfolio_snapshots):
+   - Removed `idx_snapshots_beta` (redundant after refactoring)
+   - Removed `idx_snapshots_volatility` (will be recreated as needed)
+
+3. **Foreign Key Constraint Updates**:
+   - Updated all foreign keys to use proper naming conventions
+   - Removed CASCADE deletes from position_market_betas and position_volatility
+
+4. **Column Comment Cleanup**:
+   - Removed inline comments from all tables (Alembic autogenerate artifact)
+   - Comments preserved in model definitions instead
+
+5. **Timestamp Consistency**:
+   - Ensured all `created_at` and `updated_at` columns use proper timezone handling
+   - Made timestamps non-nullable where appropriate
+
+**Tables Affected:**
+- `portfolio_snapshots` - HHI precision, index cleanup
+- `position_market_betas` - Foreign key updates, timestamp fixes
+- `position_volatility` - Foreign key updates, timestamp type consistency
+- `benchmarks_sector_weights` - Timestamp nullability fixes
+- `ai_insights` - Timestamp updates
+- `ai_insight_templates` - Index rename (ix_ai_templates_insight_type → ix_ai_insight_templates_insight_type)
 
 ---
 
 ## Running All Migrations
 
-### Step 1: Generate migrations
+### Step 1: Apply all migrations
 ```bash
 cd backend
 
-# Migration 0
-uv run alembic revision -m "create_position_market_betas"
-# Copy Migration 0 content from RiskMetricsExecution.md
-
-# Migration 1
-uv run alembic revision -m "add_market_beta_to_snapshots"
-# Copy Migration 1 content from RiskMetricsExecution.md
-
-# Migration 2
-uv run alembic revision -m "create_benchmarks_sector_weights"
-# Copy Migration 2 content from RiskMetricsExecution.md
-
-# Migration 3
-uv run alembic revision -m "add_sector_concentration_to_snapshots"
-# Copy Migration 3 content from RiskMetricsExecution.md
-
-# Migration 4
-uv run alembic revision -m "add_volatility_to_snapshots"
-# Copy Migration 4 content from RiskMetricsExecution.md
-
-# Migration 5
-uv run alembic revision -m "create_position_volatility_table"
-# Copy Migration 5 content from RiskMetricsExecution.md
-```
-
-### Step 2: Apply migrations
-```bash
-# Apply all migrations
+# Apply all migrations to HEAD
 uv run alembic upgrade head
 
 # Check current migration version
 uv run alembic current
 
 # View migration history
-uv run alembic history
+uv run alembic history --verbose
 ```
 
-### Step 3: Seed benchmark data
+### Step 2: Seed benchmark data (one-time)
 ```bash
-# Seed S&P 500 sector weights (one-time)
+# Seed S&P 500 sector weights
 uv run python scripts/seed_benchmark_weights.py
 ```
 
-### Step 4: Verify database schema
+### Step 3: Verify database schema
 ```bash
 # Check all new tables exist
 uv run python -c "
@@ -461,11 +559,13 @@ async def check():
             AND table_name IN (
                 'position_market_betas',
                 'benchmarks_sector_weights',
-                'position_volatility'
+                'position_volatility',
+                'ai_insights',
+                'ai_insight_templates'
             )
         '''))
         tables = [row[0] for row in result]
-        print(f'New tables created: {len(tables)}/3')
+        print(f'New tables created: {len(tables)}/5')
         for table in tables:
             print(f'  ✓ {table}')
 
@@ -489,8 +589,8 @@ uv run alembic downgrade <revision_id>
 
 ### Roll back all risk metrics migrations
 ```bash
-# Assuming Migration 0 has revision_id abc123
-uv run alembic downgrade abc123^  # Go to migration before abc123
+# Roll back to before Phase 0
+uv run alembic downgrade 19c513d3bf90  # Revision before a1b2c3d4e5f6
 ```
 
 ---
@@ -504,9 +604,11 @@ uv run alembic downgrade abc123^  # Go to migration before abc123
 | `position_market_betas` | ~63 per calc date | ~15 KB/day | ~5.5 MB/year |
 | `benchmarks_sector_weights` | ~11 per date | ~2 KB/day | ~730 KB/year |
 | `position_volatility` | ~63 per calc date | ~20 KB/day | ~7.3 MB/year |
-| `portfolio_snapshots` (new columns) | ~3 per calc date | ~500 bytes/day | ~183 KB/year |
+| `ai_insights` | ~3-10 per day | ~10 KB/day | ~3.7 MB/year |
+| `ai_insight_templates` | ~10 total | ~5 KB total | ~5 KB (static) |
+| `portfolio_snapshots` (new columns) | ~3 per calc date | ~1 KB/day | ~365 KB/year |
 
-**Total estimated increase:** ~13.7 MB per year for demo data (3 portfolios, 63 positions)
+**Total estimated increase:** ~17.7 MB per year for demo data (3 portfolios, 63 positions)
 
 ---
 
@@ -520,13 +622,16 @@ uv run alembic downgrade abc123^  # Go to migration before abc123
    - **Wrong:** `portfolio_vol = Σ(position_vol[i] * weight[i])`  ← Ignores correlations
    - **Correct:** Compute portfolio returns first, then calculate volatility ← Captures correlations
 
-3. **Historical Tracking:** `position_market_betas`, `benchmarks_sector_weights`, and `position_volatility` preserve history via date columns
+3. **Historical Tracking:** `position_market_betas`, `benchmarks_sector_weights`, `position_volatility`, and `ai_insights` preserve history via date columns
 
 4. **Benchmark Data Source:** S&P 500 sector weights from FMP API (requires `FMP_API_KEY` in `.env`)
 
-5. **Column Naming:**
-   - `market_beta_weighted`: Equity-weighted average of position betas (Phase 0)
-   - `market_beta_direct`: Direct portfolio-level regression (Phase 3, currently NULL)
+5. **Beta Naming Convention:**
+   - `beta_calculated_90d`: Bottom-up (equity-weighted average of position betas)
+   - `beta_portfolio_regression`: Top-down (direct portfolio-level regression, future Phase 3)
+   - `beta_provider_1y`: External data source (company profile API)
+
+6. **AI Insights Caching:** Uses `cache_key` and `cache_source_id` for deduplication and cost optimization
 
 ### Dependencies
 
@@ -543,6 +648,7 @@ asyncpg
 # backend/.env
 DATABASE_URL=postgresql+asyncpg://user:pass@localhost:5432/sigmasight_db
 FMP_API_KEY=your_fmp_api_key_here  # Required for benchmark data
+ANTHROPIC_API_KEY=your_anthropic_key  # Required for AI insights
 ```
 
 ---
@@ -589,110 +695,82 @@ uv run alembic downgrade base
 uv run alembic upgrade head
 ```
 
+### Check current migration status
+```bash
+# Show current HEAD
+uv run alembic current
+
+# Show full history
+uv run alembic history --verbose
+
+# Show pending migrations
+uv run alembic heads
+```
+
 ---
 
 ## Related Documentation
 
 - **Execution Plan:** `frontend/_docs/RiskMetricsExecution.md`
 - **Planning Document:** `frontend/_docs/RiskMetricsPlanning.md`
-- **Testing Guide:** `frontend/_docs/RiskMetricsTesting.md` (pending)
-- **Benchmark Data Management:** `frontend/_docs/BenchmarkDataManagement.md` (pending)
+- **AI Insights Guide:** `backend/AI_AGENT_REFERENCE.md`
+- **Backend CLAUDE.md:** `backend/CLAUDE.md` (Risk Metrics context)
 
 ---
 
-**Last Updated:** October 17, 2025 (Phase 2 Complete)
-**Status:** All Risk Metrics Migrations Complete (6/6 migrations applied)
-**Phase:**
-- ✅ Phase 0: COMPLETE (Migrations 0-1 applied successfully - October 17, 2025)
-  - Migration 0 (a1b2c3d4e5f6): position_market_betas table created
-  - Migration 1 (b2c3d4e5f6g7): 4 market beta columns added to portfolio_snapshots
-- ✅ Phase 1: COMPLETE (Migrations 2-3 applied successfully - October 17, 2025)
-  - Migration 2 (7818709e948d): benchmarks_sector_weights table created
-  - Migration 3 (f67a98539656): 5 sector/concentration columns added to portfolio_snapshots
-  - BenchmarkSectorWeight model added to market_data.py
-  - 12 S&P 500 sectors seeded successfully
-- ✅ Phase 2: COMPLETE (Migrations 4-5 applied successfully - October 17, 2025)
-  - Migration 4 (c1d2e3f4g5h6): 5 volatility columns added to portfolio_snapshots
-  - Migration 5 (d2e3f4g5h6i7): position_volatility table created
-  - PortfolioSnapshot model updated with volatility fields
-  - Volatility endpoint now operational (returns 200 OK)
+## Migration Timeline
 
-## Lessons Learned
+```
+October 17, 2025 (Phase 0: Market Beta)
+├── a1b2c3d4e5f6 - Create position_market_betas table
+└── b2c3d4e5f6g7 - Add market beta to snapshots
 
-### Bug Found and Fixed: Wrong Column Name in Index
+October 17, 2025 (Phase 1: Sector Analysis)
+├── 7818709e948d - Create benchmarks_sector_weights table
+└── f67a98539656 - Add sector concentration to snapshots
 
-**Migration 1 Issue:**
-- **Problem:** Original migration script used `calculation_date` in index creation
-- **Error:** `column "calculation_date" does not exist`
-- **Root Cause:** portfolio_snapshots table uses `snapshot_date` not `calculation_date`
-- **Fix:** Changed line 45 in migration from:
-  ```python
-  op.create_index('idx_snapshots_beta', 'portfolio_snapshots',
-                  ['portfolio_id', 'calculation_date', 'market_beta_weighted'])
-  ```
-  To:
-  ```python
-  op.create_index('idx_snapshots_beta', 'portfolio_snapshots',
-                  ['portfolio_id', 'snapshot_date', 'market_beta_weighted'])
-  ```
-- **Prevention:** Always verify column names against existing table schema before creating indexes
+October 17, 2025 (Phase 2: Volatility)
+├── c1d2e3f4g5h6 - Add volatility to snapshots
+└── d2e3f4g5h6i7 - Create position_volatility table
 
-### Migration Testing Best Practice
+October 18, 2025 (Phase 3: Refactoring)
+└── e65741f182c4 - Refactor portfolio beta field names
 
-**Recommended workflow:**
-1. Generate migration: `uv run alembic revision -m "description"`
-2. **Review generated file** - Check column names match actual tables
-3. Test migration: `uv run alembic upgrade head`
-4. If error occurs:
-   - DO NOT delete migration file
-   - Fix the error in the migration file
-   - Downgrade if partially applied: `uv run alembic downgrade -1`
-   - Re-run: `uv run alembic upgrade head`
-5. Verify with database query
-6. Document fix in this file
+October 19, 2025 (Phase 4: AI & Refinements)
+├── f8g9h0i1j2k3 - Add AI insights infrastructure
+└── 7003a3be89fe - Add sector exposure & concentration (HEAD)
+```
 
-### Phase 2 Fix: Missing Volatility Columns (October 17, 2025)
+---
 
-**Problem:** Volatility endpoint returning 500 error
-- **Error Message:** `'PortfolioSnapshot' object has no attribute 'realized_volatility_21d'`
-- **Root Cause:** Migration 4 (c1d2e3f4g5h6) existed but was not applied to database
-- **Impact:** API endpoint `/api/v1/analytics/portfolio/{id}/volatility` failed with 500 error
+**Last Updated:** October 19, 2025
+**Status:** All Risk Metrics & AI Insights Migrations Complete (10/10 migrations applied)
 
-**Resolution:**
-1. Updated `app/models/snapshots.py` to add 5 volatility fields to PortfolioSnapshot model
-2. Applied existing migration using Python API:
-   ```bash
-   .venv/Scripts/python.exe -c "from alembic.config import Config; from alembic import command; cfg = Config('alembic.ini'); command.upgrade(cfg, 'head')"
-   ```
-3. Restarted backend server to load updated model
-4. Verified endpoint now returns 200 OK (with `available: false` when no data)
+**Summary:**
+- ✅ Phase 0: Market Beta (Oct 17) - 2 migrations
+- ✅ Phase 1: Sector Analysis (Oct 17) - 2 migrations
+- ✅ Phase 2: Volatility Analytics (Oct 17) - 2 migrations
+- ✅ Phase 3: Beta Refactoring (Oct 18) - 1 migration
+- ✅ Phase 4: AI Insights Infrastructure (Oct 19) - 2 migrations
+- ✅ Schema Refinements (Oct 19) - 1 migration
 
-**Prevention:**
-- Always run `alembic upgrade head` after generating migrations
-- Verify model matches database schema before deployment
-- Check for AttributeErrors indicating missing columns
+**New Tables Created:** 5
+- position_market_betas (Phase 0)
+- benchmarks_sector_weights (Phase 1)
+- position_volatility (Phase 2)
+- ai_insights (Phase 4)
+- ai_insight_templates (Phase 4)
 
-### Actual Results vs Planning
+**Portfolio Snapshots Enhancements:**
+- 4 market beta columns (renamed in Phase 3)
+- 5 sector/concentration columns (refined in Phase 4)
+- 5 volatility analytics columns
+- 1 provider beta column (Phase 3)
+- **Total:** 15 new columns in portfolio_snapshots
 
-**Columns Created:** ✅ All as planned
-
-**Performance:**
-- Migration 0: ~1.5 seconds
-- Migration 1: ~0.8 seconds (after fix)
-- Migration 2: ~1.2 seconds
-- Migration 3: ~0.9 seconds
-- Migration 4: ~0.6 seconds (volatility columns)
-- Migration 5: ~1.1 seconds (position_volatility table)
-- Total: ~6.1 seconds
-
-**Database Size:**
-- position_market_betas: ~19 rows created in testing
-- portfolio_snapshots: 14 new columns added successfully (4 beta + 5 sector + 5 volatility)
-- benchmarks_sector_weights: 12 S&P 500 sectors seeded
-- position_volatility: New table ready for data
-
-**Phase 2 Completion:**
-- ✅ All volatility analytics columns added to portfolio_snapshots
-- ✅ position_volatility table created for position-level tracking
-- ✅ PortfolioSnapshot model synchronized with database schema
-- ✅ Volatility API endpoint functional (GET /api/v1/analytics/portfolio/{id}/volatility)
+**Database Ready For:**
+- Market beta calculations (position-level and portfolio-level)
+- Sector exposure and concentration analysis
+- Volatility analytics with HAR forecasting
+- AI-powered portfolio insights and investigations
+- Multi-phase risk metrics dashboard
