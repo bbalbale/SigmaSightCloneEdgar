@@ -81,7 +81,7 @@ def interpret_spread_beta(factor_name: str, beta: float) -> Dict[str, str]:
             direction = "Momentum"
             explanation = (
                 f"{magnitude} momentum exposure. Portfolio follows trending stocks, "
-                f"gaining {abs_beta:.2f}% when momentum outperforms by 1%. Risk of reversal when trends break."
+                f"gaining {abs_beta:.2f}% when momentum outperforms the market by 1%. Risk of reversal when trends break."
             )
             if abs_beta > SPREAD_BETA_THRESHOLDS['strong']:
                 explanation += " High momentum risk - vulnerable to sudden trend reversals."
@@ -89,7 +89,7 @@ def interpret_spread_beta(factor_name: str, beta: float) -> Dict[str, str]:
             direction = "Contrarian"
             explanation = (
                 f"{magnitude} contrarian tilt. Portfolio benefits when momentum reverses, "
-                f"gaining {abs_beta:.2f}% when momentum underperforms by 1%. May lag during strong trends."
+                f"gaining {abs_beta:.2f}% when the market outperforms momentum by 1%. May lag during strong trends."
             )
         else:
             direction = "Neutral"
@@ -108,7 +108,7 @@ def interpret_spread_beta(factor_name: str, beta: float) -> Dict[str, str]:
             direction = "Large Cap"
             explanation = (
                 f"{magnitude} large cap tilt. Portfolio favors mega-cap stocks, "
-                f"gaining {abs_beta:.2f}% when large caps outperform by 1%. Lower volatility, may miss small cap premiums."
+                f"gaining {abs_beta:.2f}% when large caps outperform small caps by 1%. Lower volatility, may miss small cap premiums."
             )
         else:
             direction = "Balanced"
