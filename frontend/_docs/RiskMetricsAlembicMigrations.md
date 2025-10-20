@@ -2,9 +2,9 @@
 
 **Purpose:** Database schema changes required for Risk Metrics overhaul (market beta, sector analysis, volatility analytics, AI insights)
 
-**Total Migrations:** 10 migrations across 4 phases (October 17-19, 2025)
+**Total Migrations:** 11 migrations across 4 phases (October 17-19, 2025)
 
-**Execution Order:** Must be run sequentially (Migration 0 → 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 → 9)
+**Execution Order:** Must be run sequentially (Migration 0 → 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 → 9 → 10)
 
 **Last Updated:** October 19, 2025
 
@@ -30,11 +30,12 @@
 | 6 | e65741f182c4 | Refactor beta field names | `portfolio_snapshots` | 1 new column, 4 renamed | Oct 18, 2025 |
 | 7 | f8g9h0i1j2k3 | AI insights infrastructure | Creates 2 new tables | `ai_insights`, `ai_insight_templates` | Oct 19, 2025 |
 | 8 | 7003a3be89fe | Sector exposure refinement | `portfolio_snapshots` + updates | HHI precision change | Oct 19, 2025 |
+| 9 | h1i2j3k4l5m6 | Add portfolio_id to IR betas | `position_interest_rate_betas` | 1 new column + index | Oct 19, 2025 |
 
 **Migration Chain:**
 ```
 a1b2c3d4e5f6 → b2c3d4e5f6g7 → 7818709e948d → f67a98539656 → c1d2e3f4g5h6 →
-d2e3f4g5h6i7 → e65741f182c4 → f8g9h0i1j2k3 → 7003a3be89fe (HEAD)
+d2e3f4g5h6i7 → e65741f182c4 → f8g9h0i1j2k3 → 7003a3be89fe → h1i2j3k4l5m6 (HEAD)
 ```
 
 ---
@@ -520,6 +521,109 @@ uv run alembic upgrade head
 
 ---
 
+### Migration 9: Add Portfolio ID to Interest Rate Betas ✅
+
+**Status:** COMPLETE (Applied October 19, 2025)
+
+**File:** `backend/alembic/versions/h1i2j3k4l5m6_add_portfolio_id_to_interest_rate_betas.py`
+
+**Revision ID:** `h1i2j3k4l5m6` (HEAD)
+
+**Command:**
+```bash
+uv run alembic upgrade head
+```
+
+**What it changes:**
+- **Modifies table:** `position_interest_rate_betas`
+- **Purpose:** Add portfolio_id column for efficient deletion by portfolio and consistency with other calculation tables
+
+**Migration Steps:**
+
+1. **Add Column (nullable initially)**
+   ```sql
+   ALTER TABLE position_interest_rate_betas
+   ADD COLUMN portfolio_id UUID;
+   ```
+
+2. **Backfill Data**
+   ```sql
+   UPDATE position_interest_rate_betas pirb
+   SET portfolio_id = p.portfolio_id
+   FROM positions p
+   WHERE pirb.position_id = p.id;
+   ```
+
+3. **Make NOT NULL**
+   ```sql
+   ALTER TABLE position_interest_rate_betas
+   ALTER COLUMN portfolio_id SET NOT NULL;
+   ```
+
+4. **Add Foreign Key**
+   ```sql
+   ALTER TABLE position_interest_rate_betas
+   ADD CONSTRAINT fk_position_ir_betas_portfolio
+   FOREIGN KEY (portfolio_id) REFERENCES portfolios(id)
+   ON DELETE CASCADE;
+   ```
+
+5. **Create Index**
+   ```sql
+   CREATE INDEX idx_ir_betas_portfolio_date
+   ON position_interest_rate_betas (portfolio_id, calculation_date);
+   ```
+
+**New Column:**
+```
+portfolio_id        UUID            Foreign key to portfolios, NOT NULL
+```
+
+**New Index:**
+- `idx_ir_betas_portfolio_date` (portfolio_id, calculation_date)
+
+**Rationale:**
+- Enables efficient deletion of all IR beta records for a portfolio without joining through positions
+- Maintains consistency with `position_market_betas` and `position_volatility` tables (which both have portfolio_id)
+- Improves query performance for portfolio-level IR beta lookups
+- Required for the `reset_and_reprocess.py` utility script to efficiently clean calculation results
+
+**Before/After Comparison:**
+
+| Feature | Before Migration | After Migration |
+|---------|-----------------|-----------------|
+| Portfolio deletion | Requires JOIN through positions table | Direct WHERE portfolio_id = X |
+| Query efficiency | 2-table JOIN required | Single table query possible |
+| Consistency | Inconsistent with market_betas/volatility | Consistent across all calculation tables |
+| Index support | Only position_id indexed | Both position_id and portfolio_id indexed |
+
+**Validation:**
+```bash
+# Check column added
+uv run python -c "
+import asyncio
+from sqlalchemy import text
+from app.database import AsyncSessionLocal
+
+async def check():
+    async with AsyncSessionLocal() as db:
+        result = await db.execute(text('''
+            SELECT column_name, data_type, is_nullable
+            FROM information_schema.columns
+            WHERE table_name = 'position_interest_rate_betas'
+            AND column_name = 'portfolio_id'
+        '''))
+        for row in result:
+            print(f'Column: {row[0]}, Type: {row[1]}, Nullable: {row[2]}')
+
+asyncio.run(check())
+"
+```
+
+**Note:** This migration uses a 3-step approach (add nullable → backfill → make NOT NULL) to safely add a required column to an existing table with data.
+
+---
+
 ## Running All Migrations
 
 ### Step 1: Apply all migrations
@@ -738,21 +842,21 @@ October 18, 2025 (Phase 3: Refactoring)
 
 October 19, 2025 (Phase 4: AI & Refinements)
 ├── f8g9h0i1j2k3 - Add AI insights infrastructure
-└── 7003a3be89fe - Add sector exposure & concentration (HEAD)
+├── 7003a3be89fe - Add sector exposure & concentration
+└── h1i2j3k4l5m6 - Add portfolio_id to interest rate betas (HEAD)
 ```
 
 ---
 
 **Last Updated:** October 19, 2025
-**Status:** All Risk Metrics & AI Insights Migrations Complete (10/10 migrations applied)
+**Status:** All Risk Metrics & AI Insights Migrations Complete (11/11 migrations applied)
 
 **Summary:**
 - ✅ Phase 0: Market Beta (Oct 17) - 2 migrations
 - ✅ Phase 1: Sector Analysis (Oct 17) - 2 migrations
 - ✅ Phase 2: Volatility Analytics (Oct 17) - 2 migrations
 - ✅ Phase 3: Beta Refactoring (Oct 18) - 1 migration
-- ✅ Phase 4: AI Insights Infrastructure (Oct 19) - 2 migrations
-- ✅ Schema Refinements (Oct 19) - 1 migration
+- ✅ Phase 4: AI Insights & Schema Updates (Oct 19) - 4 migrations
 
 **New Tables Created:** 5
 - position_market_betas (Phase 0)
@@ -770,7 +874,9 @@ October 19, 2025 (Phase 4: AI & Refinements)
 
 **Database Ready For:**
 - Market beta calculations (position-level and portfolio-level)
+- Interest rate beta calculations (TLT-based sensitivity)
 - Sector exposure and concentration analysis
 - Volatility analytics with HAR forecasting
 - AI-powered portfolio insights and investigations
+- Efficient calculation cleanup and reprocessing
 - Multi-phase risk metrics dashboard

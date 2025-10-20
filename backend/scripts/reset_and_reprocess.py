@@ -32,18 +32,24 @@ async def reset_portfolio_equity(db, portfolio_id: str, starting_equity: Decimal
 async def delete_calculation_results(db, portfolio_id: str, start_date: date):
     """Delete calculation results from start_date onwards (keep market data)"""
 
-    tables_to_clean = [
+    # Tables with direct portfolio_id column
+    tables_with_portfolio_id = [
         ("portfolio_snapshots", "snapshot_date"),
         ("position_market_betas", "calc_date"),
-        ("position_interest_rate_betas", "calc_date"),
-        ("position_factor_exposures", "calc_date"),
-        ("position_volatility_analytics", "calc_date"),
+        ("position_interest_rate_betas", "calculation_date"),
         ("correlation_calculations", "calculation_date"),
+    ]
+
+    # Tables without portfolio_id - need to delete via positions table JOIN
+    tables_via_position_join = [
+        ("position_factor_exposures", "calculation_date"),
+        ("position_volatility", "calculation_date"),
     ]
 
     total_deleted = 0
 
-    for table_name, date_column in tables_to_clean:
+    # Delete from tables with portfolio_id
+    for table_name, date_column in tables_with_portfolio_id:
         try:
             result = await db.execute(text(f"""
                 DELETE FROM {table_name}
@@ -54,6 +60,25 @@ async def delete_calculation_results(db, portfolio_id: str, start_date: date):
             deleted_count = result.rowcount
             total_deleted += deleted_count
             print(f"  {table_name}: deleted {deleted_count} records")
+
+        except Exception as e:
+            print(f"  {table_name}: {str(e)}")
+
+    # Delete from tables via position JOIN
+    for table_name, date_column in tables_via_position_join:
+        try:
+            result = await db.execute(text(f"""
+                DELETE FROM {table_name}
+                WHERE position_id IN (
+                    SELECT id FROM positions
+                    WHERE portfolio_id = :portfolio_id
+                )
+                AND {date_column} >= :start_date
+            """), {"portfolio_id": portfolio_id, "start_date": start_date})
+
+            deleted_count = result.rowcount
+            total_deleted += deleted_count
+            print(f"  {table_name}: deleted {deleted_count} records (via position JOIN)")
 
         except Exception as e:
             print(f"  {table_name}: {str(e)}")

@@ -321,18 +321,21 @@ class MarketRiskScenario(Base):
 class PositionInterestRateBeta(Base):
     """Position interest rate betas - stores position-level interest rate sensitivities"""
     __tablename__ = "position_interest_rate_betas"
-    
+
     id: Mapped[UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid4)
+    portfolio_id: Mapped[UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("portfolios.id"), nullable=False)
     position_id: Mapped[UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("positions.id"), nullable=False)
     ir_beta: Mapped[Decimal] = mapped_column(Numeric(8, 6), nullable=False)  # Interest rate beta
     r_squared: Mapped[Optional[Decimal]] = mapped_column(Numeric(6, 4), nullable=True)  # Regression R²
     calculation_date: Mapped[date] = mapped_column(Date, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
-    
+
     # Relationships
+    portfolio: Mapped["Portfolio"] = relationship("Portfolio", back_populates="position_interest_rate_betas")
     position: Mapped["Position"] = relationship("Position", back_populates="interest_rate_betas")
-    
+
     __table_args__ = (
+        Index('idx_ir_betas_portfolio_date', 'portfolio_id', 'calculation_date'),
         Index('idx_ir_betas_position_date', 'position_id', 'calculation_date'),
     )
 
