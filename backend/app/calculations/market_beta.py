@@ -20,60 +20,11 @@ import statsmodels.api as sm
 from app.models.positions import Position
 from app.models.market_data import MarketDataCache, PositionMarketBeta
 from app.constants.factors import REGRESSION_WINDOW_DAYS, MIN_REGRESSION_DAYS, BETA_CAP_LIMIT
-from app.calculations.factor_utils import get_position_signed_exposure
+from app.calculations.market_data import get_position_value, get_returns
+from app.calculations.regression_utils import run_single_factor_regression
 from app.core.logging import get_logger
 
 logger = get_logger(__name__)
-
-
-async def fetch_returns_for_beta(
-    db: AsyncSession,
-    symbol: str,
-    start_date: date,
-    end_date: date
-) -> pd.Series:
-    """
-    Fetch historical prices and calculate returns for a symbol.
-
-    Args:
-        db: Database session
-        symbol: Symbol to fetch (e.g., 'NVDA', 'SPY')
-        start_date: Start date for data
-        end_date: End date for data
-
-    Returns:
-        Pandas Series of daily returns with date index
-    """
-    stmt = select(
-        MarketDataCache.date,
-        MarketDataCache.close
-    ).where(
-        and_(
-            MarketDataCache.symbol == symbol.upper(),
-            MarketDataCache.date >= start_date,
-            MarketDataCache.date <= end_date
-        )
-    ).order_by(MarketDataCache.date)
-
-    result = await db.execute(stmt)
-    records = result.all()
-
-    if not records:
-        logger.warning(f"No price data found for {symbol}")
-        return pd.Series(dtype=float)
-
-    # Convert to DataFrame
-    df = pd.DataFrame([
-        {'date': r.date, 'close': float(r.close)}
-        for r in records
-    ])
-    df['date'] = pd.to_datetime(df['date'])
-    df = df.set_index('date')
-
-    # Calculate returns
-    returns = df['close'].pct_change(fill_method=None).dropna()
-
-    return returns
 
 
 async def calculate_position_market_beta(
@@ -125,26 +76,34 @@ async def calculate_position_market_beta(
         end_date = calculation_date
         start_date = end_date - timedelta(days=window_days + 30)
 
-        # Fetch position returns
-        position_returns = await fetch_returns_for_beta(
-            db, position.symbol, start_date, end_date
+        # Fetch aligned returns for position and SPY using canonical function
+        # This replaces duplicate fetch + manual alignment logic
+        returns_df = await get_returns(
+            db=db,
+            symbols=[position.symbol, 'SPY'],
+            start_date=start_date,
+            end_date=end_date,
+            align_dates=True  # Ensures no NaN - only common trading days
         )
 
-        if position_returns.empty or len(position_returns) < MIN_REGRESSION_DAYS:
+        # Check if we have sufficient data
+        if returns_df.empty:
             return {
                 'position_id': position_id,
                 'symbol': position.symbol,
                 'success': False,
-                'error': f'Insufficient data: {len(position_returns)} days',
-                'observations': len(position_returns)
+                'error': 'No aligned data available for position and SPY'
             }
 
-        # Fetch SPY returns (market)
-        spy_returns = await fetch_returns_for_beta(
-            db, 'SPY', start_date, end_date
-        )
+        if position.symbol not in returns_df.columns:
+            return {
+                'position_id': position_id,
+                'symbol': position.symbol,
+                'success': False,
+                'error': f'No data found for {position.symbol}'
+            }
 
-        if spy_returns.empty:
+        if 'SPY' not in returns_df.columns:
             return {
                 'position_id': position_id,
                 'symbol': position.symbol,
@@ -152,62 +111,47 @@ async def calculate_position_market_beta(
                 'error': 'No SPY data available'
             }
 
-        # Align dates (only use common trading days)
-        common_dates = position_returns.index.intersection(spy_returns.index)
-
-        if len(common_dates) < MIN_REGRESSION_DAYS:
+        if len(returns_df) < MIN_REGRESSION_DAYS:
             return {
                 'position_id': position_id,
                 'symbol': position.symbol,
                 'success': False,
-                'error': f'Insufficient aligned data: {len(common_dates)} days',
-                'observations': len(common_dates)
+                'error': f'Insufficient aligned data: {len(returns_df)} days',
+                'observations': len(returns_df)
             }
 
-        # Get aligned returns
-        y = position_returns.loc[common_dates].values  # Position returns
-        X = spy_returns.loc[common_dates].values        # Market returns
+        # Get aligned returns (already aligned by get_returns with align_dates=True)
+        y = returns_df[position.symbol].values  # Position returns
+        x = returns_df['SPY'].values            # Market returns
 
-        # Run OLS regression: position_return = alpha + beta * market_return + error
-        X_with_const = sm.add_constant(X)
-        model = sm.OLS(y, X_with_const).fit()
+        # Run OLS regression using canonical function from regression_utils
+        # This handles: OLS regression, beta capping, significance testing
+        regression_result = run_single_factor_regression(
+            y=y,
+            x=x,
+            cap=BETA_CAP_LIMIT,  # Cap beta at ±5.0
+            confidence=0.10,     # 90% confidence level (relaxed)
+            return_diagnostics=True
+        )
 
-        # Extract results
-        beta = float(model.params[1])  # Slope coefficient
-        alpha = float(model.params[0])  # Intercept
-        r_squared = float(model.rsquared)
-        std_error = float(model.bse[1])
-        p_value = float(model.pvalues[1])
-
-        # Cap beta to prevent extreme outliers
-        original_beta = beta
-        beta = max(-BETA_CAP_LIMIT, min(BETA_CAP_LIMIT, beta))
-
-        if abs(original_beta) > BETA_CAP_LIMIT:
-            logger.warning(
-                f"Beta capped for {position.symbol}: {original_beta:.3f} -> {beta:.3f}"
-            )
-
-        # Determine significance
-        is_significant = p_value < 0.10  # 90% confidence
-
+        # Build result dictionary with consistent structure
         result = {
             'position_id': position_id,
             'symbol': position.symbol,
-            'beta': beta,
-            'alpha': alpha,
-            'r_squared': r_squared,
-            'std_error': std_error,
-            'p_value': p_value,
-            'observations': len(common_dates),
+            'beta': regression_result['beta'],
+            'alpha': regression_result['alpha'],
+            'r_squared': regression_result['r_squared'],
+            'std_error': regression_result['std_error'],
+            'p_value': regression_result['p_value'],
+            'observations': len(returns_df),
             'calculation_date': calculation_date,
-            'is_significant': is_significant,
+            'is_significant': regression_result['is_significant'],
             'success': True
         }
 
         logger.info(
-            f"Beta calculated for {position.symbol}: {beta:.3f} "
-            f"(R²={r_squared:.3f}, p={p_value:.3f}, n={len(common_dates)})"
+            f"Beta calculated for {position.symbol}: {result['beta']:.3f} "
+            f"(R²={result['r_squared']:.3f}, p={result['p_value']:.3f}, n={len(returns_df)})"
         )
 
         return result
@@ -398,7 +342,8 @@ async def calculate_portfolio_market_beta(
                 )
 
             # Get position signed exposure (positive for longs, negative for shorts)
-            signed_exposure = float(get_position_signed_exposure(position))
+            # Use canonical position value function (signed=True for directional exposure)
+            signed_exposure = float(get_position_value(position, signed=True))
 
             position_betas[position.id] = beta_result['beta']
             position_signed_exposures[position.id] = signed_exposure
@@ -564,7 +509,8 @@ async def calculate_portfolio_provider_beta(
             if company_profile and company_profile.beta and position.market_value:
                 beta = float(company_profile.beta)
                 # Use signed exposure (positive for longs, negative for shorts)
-                signed_exposure = float(get_position_signed_exposure(position))
+                # Use canonical position value function (signed=True for directional exposure)
+                signed_exposure = float(get_position_value(position, signed=True))
 
                 # Contribution to portfolio beta
                 contribution = signed_exposure * beta

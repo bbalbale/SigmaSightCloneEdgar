@@ -27,61 +27,11 @@ import statsmodels.api as sm
 from app.models.positions import Position
 from app.models.market_data import MarketDataCache, PositionInterestRateBeta
 from app.constants.factors import REGRESSION_WINDOW_DAYS, MIN_REGRESSION_DAYS, BETA_CAP_LIMIT
+from app.calculations.regression_utils import run_single_factor_regression
+from app.calculations.market_data import get_returns
 from app.core.logging import get_logger
 
 logger = get_logger(__name__)
-
-
-async def fetch_tlt_returns(
-    db: AsyncSession,
-    start_date: date,
-    end_date: date
-) -> pd.Series:
-    """
-    Fetch TLT (20+ Year Treasury Bond ETF) price data and calculate daily returns.
-
-    TLT is the iShares 20+ Year Treasury Bond ETF which moves inversely to long-term rates:
-    - When rates rise → TLT price falls (negative returns)
-    - When rates fall → TLT price rises (positive returns)
-
-    Args:
-        db: Database session
-        start_date: Start date for data
-        end_date: End date for data
-
-    Returns:
-        Pandas Series of daily TLT percentage returns with date index
-    """
-    stmt = select(
-        MarketDataCache.date,
-        MarketDataCache.close
-    ).where(
-        and_(
-            MarketDataCache.symbol == 'TLT',
-            MarketDataCache.date >= start_date,
-            MarketDataCache.date <= end_date
-        )
-    ).order_by(MarketDataCache.date)
-
-    result = await db.execute(stmt)
-    records = result.all()
-
-    if not records:
-        logger.warning("No TLT price data found")
-        return pd.Series(dtype=float)
-
-    # Convert to DataFrame
-    df = pd.DataFrame([
-        {'date': r.date, 'price': float(r.close)}
-        for r in records
-    ])
-    df['date'] = pd.to_datetime(df['date'])
-    df = df.set_index('date')
-
-    # Calculate percentage returns
-    tlt_returns = df['price'].pct_change().dropna() * 100  # Convert to percentage
-
-    return tlt_returns
 
 
 async def calculate_position_ir_beta(
@@ -144,26 +94,34 @@ async def calculate_position_ir_beta(
         end_date = calculation_date
         start_date = end_date - timedelta(days=window_days + 30)
 
-        # Fetch position returns (reuse from market_beta.py)
-        from app.calculations.market_beta import fetch_returns_for_beta
-
-        position_returns = await fetch_returns_for_beta(
-            db, position.symbol, start_date, end_date
+        # Fetch aligned returns for position and TLT using canonical function
+        # This replaces duplicate fetch + manual alignment logic
+        returns_df = await get_returns(
+            db=db,
+            symbols=[position.symbol, 'TLT'],
+            start_date=start_date,
+            end_date=end_date,
+            align_dates=True  # Ensures no NaN - only common trading days
         )
 
-        if position_returns.empty or len(position_returns) < MIN_REGRESSION_DAYS:
+        # Check if we have sufficient data
+        if returns_df.empty:
             return {
                 'position_id': position_id,
                 'symbol': position.symbol,
                 'success': False,
-                'error': f'Insufficient position data: {len(position_returns)} days',
-                'observations': len(position_returns)
+                'error': 'No aligned data available for position and TLT'
             }
 
-        # Fetch TLT returns
-        tlt_returns = await fetch_tlt_returns(db, start_date, end_date)
+        if position.symbol not in returns_df.columns:
+            return {
+                'position_id': position_id,
+                'symbol': position.symbol,
+                'success': False,
+                'error': f'No data found for {position.symbol}'
+            }
 
-        if tlt_returns.empty:
+        if 'TLT' not in returns_df.columns:
             return {
                 'position_id': position_id,
                 'symbol': position.symbol,
@@ -171,44 +129,31 @@ async def calculate_position_ir_beta(
                 'error': 'No TLT data available'
             }
 
-        # Align dates (only use common trading days)
-        common_dates = position_returns.index.intersection(tlt_returns.index)
-
-        if len(common_dates) < MIN_REGRESSION_DAYS:
+        if len(returns_df) < MIN_REGRESSION_DAYS:
             return {
                 'position_id': position_id,
                 'symbol': position.symbol,
                 'success': False,
-                'error': f'Insufficient aligned data: {len(common_dates)} days',
-                'observations': len(common_dates)
+                'error': f'Insufficient aligned data: {len(returns_df)} days',
+                'observations': len(returns_df)
             }
 
-        # Get aligned returns
-        y = position_returns.loc[common_dates].values  # Position returns (%)
-        X = tlt_returns.loc[common_dates].values       # TLT returns (%)
+        # Get aligned returns (already aligned by get_returns with align_dates=True)
+        y = returns_df[position.symbol].values  # Position returns
+        x = returns_df['TLT'].values            # TLT returns
 
-        # Run OLS regression: position_return = alpha + beta_TLT * tlt_return + error
-        X_with_const = sm.add_constant(X)
-        model = sm.OLS(y, X_with_const).fit()
+        # Run OLS regression using canonical function from regression_utils
+        # This handles: OLS regression, beta capping, significance testing
+        regression_result = run_single_factor_regression(
+            y=y,
+            x=x,
+            cap=BETA_CAP_LIMIT,  # Cap beta at ±5.0
+            confidence=0.10,     # 90% confidence level (relaxed)
+            return_diagnostics=True
+        )
 
-        # Extract results
-        ir_beta_tlt = float(model.params[1])  # Slope coefficient (sensitivity to TLT)
-        alpha = float(model.params[0])        # Intercept
-        r_squared = float(model.rsquared)
-        std_error = float(model.bse[1])
-        p_value = float(model.pvalues[1])
-
-        # Cap beta to prevent extreme outliers
-        original_beta = ir_beta_tlt
-        ir_beta_tlt = max(-BETA_CAP_LIMIT, min(BETA_CAP_LIMIT, ir_beta_tlt))
-
-        if abs(original_beta) > BETA_CAP_LIMIT:
-            logger.warning(
-                f"TLT beta capped for {position.symbol}: {original_beta:.3f} -> {ir_beta_tlt:.3f}"
-            )
-
-        # Determine significance
-        is_significant = p_value < 0.10  # 90% confidence
+        # Extract IR beta (TLT sensitivity)
+        ir_beta_tlt = regression_result['beta']
 
         # Interpret sensitivity level (based on absolute beta magnitude)
         abs_beta = abs(ir_beta_tlt)
@@ -223,25 +168,26 @@ async def calculate_position_ir_beta(
         else:
             sensitivity = "very high"
 
+        # Build result dictionary with consistent structure
         result = {
             'position_id': position_id,
             'symbol': position.symbol,
             'ir_beta': ir_beta_tlt,
-            'alpha': alpha,
-            'r_squared': r_squared,
-            'std_error': std_error,
-            'p_value': p_value,
-            'observations': len(common_dates),
+            'alpha': regression_result['alpha'],
+            'r_squared': regression_result['r_squared'],
+            'std_error': regression_result['std_error'],
+            'p_value': regression_result['p_value'],
+            'observations': len(returns_df),
             'calculation_date': calculation_date,
             'treasury_symbol': 'TLT',  # Always TLT now
-            'is_significant': is_significant,
+            'is_significant': regression_result['is_significant'],
             'sensitivity_level': sensitivity,
             'success': True
         }
 
         logger.info(
-            f"TLT beta calculated for {position.symbol}: {ir_beta_tlt:.4f} "
-            f"({sensitivity} sensitivity, R²={r_squared:.3f}, p={p_value:.3f}, n={len(common_dates)})"
+            f"TLT beta calculated for {position.symbol}: {result['ir_beta']:.4f} "
+            f"({sensitivity} sensitivity, R²={result['r_squared']:.3f}, p={result['p_value']:.3f}, n={len(returns_df)})"
         )
 
         return result
@@ -405,9 +351,10 @@ async def calculate_portfolio_ir_beta(
             if persist:
                 await persist_position_ir_beta(db, position.id, ir_beta_result)
 
-            # Get position market value
-            from app.calculations.factor_utils import get_position_market_value
-            market_value = float(get_position_market_value(position, recalculate=True))
+            # Get position market value (absolute value for weighting)
+            # Use canonical position value function (signed=False for absolute value)
+            from app.calculations.market_data import get_position_value
+            market_value = float(get_position_value(position, signed=False, recalculate=True))
 
             position_ir_betas[position.id] = ir_beta_result['ir_beta']
             position_market_values[position.id] = market_value

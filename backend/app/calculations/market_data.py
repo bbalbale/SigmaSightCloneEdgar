@@ -87,6 +87,174 @@ async def calculate_position_market_value(
     return result
 
 
+def get_position_value(
+    position: Position,
+    signed: bool = True,
+    recalculate: bool = False
+) -> Decimal:
+    """
+    Canonical position market value retrieval - SINGLE SOURCE OF TRUTH
+
+    This is the AUTHORITATIVE function for position valuation used throughout
+    the codebase. All other modules should call this instead of implementing
+    their own valuation logic.
+
+    Replaces:
+    - factor_utils.get_position_market_value() (returns absolute)
+    - factor_utils.get_position_signed_exposure() (returns signed)
+    - Inline calculations in stress_testing, market_risk, etc.
+
+    Args:
+        position: Position object
+        signed: If True, negative for shorts; if False, absolute value
+        recalculate: Force recalculation vs using cached position.market_value
+
+    Returns:
+        Signed or absolute market value as Decimal
+
+    Examples:
+        >>> # Long stock position
+        >>> pos = Position(quantity=100, last_price=Decimal('50.00'),
+        ...                position_type=PositionType.LONG, market_value=Decimal('5000.00'))
+        >>> get_position_value(pos, signed=True)  # Decimal('5000.00')
+        >>> get_position_value(pos, signed=False)  # Decimal('5000.00')
+
+        >>> # Short stock position
+        >>> pos = Position(quantity=Decimal('-100'), last_price=Decimal('50.00'),
+        ...                position_type=PositionType.SHORT, market_value=Decimal('-5000.00'))
+        >>> get_position_value(pos, signed=True)  # Decimal('-5000.00')
+        >>> get_position_value(pos, signed=False)  # Decimal('5000.00') - absolute
+
+        >>> # Long call option (100x multiplier)
+        >>> pos = Position(quantity=Decimal('10'), last_price=Decimal('5.00'),
+        ...                position_type=PositionType.LC, market_value=Decimal('5000.00'))
+        >>> get_position_value(pos, signed=True)  # Decimal('5000.00') - 10 × 5 × 100
+
+    Note:
+        - Uses cached position.market_value if available and recalculate=False
+        - Automatically applies 100x multiplier for options (LC, LP, SC, SP)
+        - Quantity sign determines position direction (negative for shorts)
+        - This function is synchronous for performance (no async overhead)
+    """
+    # Use cached value if available and not forcing recalculation
+    if not recalculate and position.market_value is not None:
+        value = position.market_value
+    else:
+        # Recalculate using canonical logic
+        multiplier = Decimal('100') if is_options_position(position) else Decimal('1')
+        price = position.last_price if position.last_price is not None else position.entry_price
+
+        if price is None:
+            logger.warning(f"Position {position.id} ({position.symbol}) has no price data")
+            value = Decimal('0')
+        else:
+            # Signed value: quantity already carries the sign
+            # - LONG/LC/LP: positive quantity → positive value
+            # - SHORT/SC/SP: negative quantity → negative value
+            value = position.quantity * price * multiplier
+
+    # Return signed or absolute value
+    if signed:
+        return value
+    else:
+        return abs(value)
+
+
+async def get_returns(
+    db: AsyncSession,
+    symbols: List[str],
+    start_date: date,
+    end_date: date,
+    align_dates: bool = True
+) -> pd.DataFrame:
+    """
+    Fetch aligned returns DataFrame for multiple symbols - CANONICAL RETURN FETCHER
+
+    This is the AUTHORITATIVE function for return retrieval used by all regression
+    modules. Replaces duplicate implementations in market_beta, interest_rate_beta,
+    factors, etc.
+
+    Replaces:
+    - market_beta.fetch_returns_for_beta() (fetch + pct_change inline)
+    - interest_rate_beta.fetch_tlt_returns() (fetch + pct_change inline)
+    - factors.fetch_factor_returns() (fetch + pct_change inline)
+
+    Args:
+        db: Database session
+        symbols: List of symbols to fetch (e.g., ['SPY', 'AAPL', 'GOOGL'])
+        start_date: Start date for returns
+        end_date: End date for returns
+        align_dates: If True, drop dates where ANY symbol is missing (ensures aligned data)
+
+    Returns:
+        DataFrame with dates as index, symbols as columns, containing daily returns
+
+    Examples:
+        >>> # Fetch SPY and AAPL returns for regression
+        >>> df = await get_returns(db, ['SPY', 'AAPL'], start_date, end_date)
+        >>> spy_returns = df['SPY']  # Series of SPY daily returns
+        >>> aapl_returns = df['AAPL']  # Series of AAPL daily returns
+        >>>
+        >>> # For beta calculation (must be aligned)
+        >>> df = await get_returns(db, ['NVDA', 'SPY'], start_date, end_date, align_dates=True)
+        >>> # df has no NaN values - all dates have both NVDA and SPY
+        >>>
+        >>> # For exploratory analysis (allow missing data)
+        >>> df = await get_returns(db, ['AAPL', 'OBSCURE'], start_date, end_date, align_dates=False)
+        >>> # df may have NaN for OBSCURE on some dates
+
+    Performance:
+        - Single database query for all symbols
+        - Efficient pandas vectorized pct_change()
+        - Date alignment done in-memory (fast)
+
+    Note:
+        - Returns are calculated as: (price_today - price_yesterday) / price_yesterday
+        - align_dates=True is REQUIRED for regressions (no NaN allowed)
+        - align_dates=False useful for exploratory analysis
+    """
+    logger.info(f"Fetching returns for {len(symbols)} symbols from {start_date} to {end_date}")
+
+    # Fetch historical prices using existing canonical function
+    price_df = await fetch_historical_prices(
+        db=db,
+        symbols=symbols,
+        start_date=start_date,
+        end_date=end_date
+    )
+
+    if price_df.empty:
+        logger.warning("No price data available for return calculations")
+        return pd.DataFrame()
+
+    # Optionally align dates (drop rows with ANY missing values)
+    if align_dates:
+        rows_before = len(price_df)
+        price_df = price_df.dropna()
+        rows_after = len(price_df)
+
+        if rows_after < rows_before:
+            logger.info(
+                f"Date alignment: dropped {rows_before - rows_after} rows with missing data "
+                f"({rows_after} aligned dates remain)"
+            )
+
+        if price_df.empty:
+            logger.warning("No overlapping dates found across all symbols after alignment")
+            return pd.DataFrame()
+
+    # Calculate daily returns
+    # Using fill_method=None to avoid FutureWarning (Pandas 2.1+)
+    returns_df = price_df.pct_change(fill_method=None).dropna()
+
+    logger.info(
+        f"Calculated returns for {len(symbols)} symbols over {len(returns_df)} days "
+        f"(aligned={align_dates})"
+    )
+
+    return returns_df
+
+
 async def get_previous_trading_day_price(
     db: AsyncSession, 
     symbol: str,

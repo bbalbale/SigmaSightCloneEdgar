@@ -26,16 +26,14 @@ from sklearn.preprocessing import StandardScaler
 
 from app.models.positions import Position
 from app.models.market_data import MarketDataCache, PositionFactorExposure, FactorDefinition
-from app.calculations.market_data import fetch_historical_prices
+from app.calculations.market_data import fetch_historical_prices, get_position_value
+from app.calculations.regression_utils import classify_r_squared
 from app.calculations.factor_utils import (
-    classify_r_squared,
     get_default_storage_results,
     get_default_data_quality,
     normalize_factor_name,
     PortfolioContext,
     load_portfolio_context,
-    get_position_market_value,
-    get_position_signed_exposure,
 )
 from app.constants.factors import (
     FACTOR_ETFS, REGRESSION_WINDOW_DAYS, MIN_REGRESSION_DAYS,
@@ -345,7 +343,8 @@ async def calculate_factor_betas_ridge(
             # Build position dicts for portfolio exposures
             position_dicts = []
             for pos in context.active_positions:
-                market_value = float(get_position_market_value(pos, use_stored=True))
+                # Use canonical position value function (signed=False for absolute value)
+                market_value = float(get_position_value(pos, signed=False, recalculate=False))
                 position_dicts.append({
                     'symbol': pos.symbol,
                     'quantity': float(pos.quantity),

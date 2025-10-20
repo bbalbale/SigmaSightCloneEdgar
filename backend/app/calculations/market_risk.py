@@ -17,7 +17,7 @@ from app.models.positions import Position
 from app.models.market_data import MarketRiskScenario, PositionInterestRateBeta, FactorDefinition
 from app.models.users import Portfolio
 
-from app.calculations.factor_utils import get_position_market_value
+from app.calculations.market_data import get_position_value
 from app.calculations.market_beta import calculate_portfolio_market_beta
 from app.constants.factors import (
     FACTOR_ETFS, REGRESSION_WINDOW_DAYS, MIN_REGRESSION_DAYS,
@@ -336,7 +336,8 @@ async def calculate_interest_rate_scenarios(
         for position in positions:
             position_id = str(position.id)
             if position_id in position_ir_betas:
-                value = get_position_market_value(position, recalculate=True)
+                # Use canonical position value function (signed=False for absolute value)
+                value = get_position_value(position, signed=False, recalculate=True)
                 total_value += value
 
                 ir_beta = position_ir_betas[position_id]['ir_beta']

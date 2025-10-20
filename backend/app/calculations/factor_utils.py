@@ -139,12 +139,15 @@ def get_default_data_quality() -> Dict[str, Any]:
 
 
 # ============================================================================
-# SECTION 3: MARKET VALUE UTILITIES
+# SECTION 3: MARKET VALUE UTILITIES (DEPRECATED - Use market_data.py)
 # ============================================================================
 
 def _is_options_position(position) -> bool:
     """
     Check if position is an options position.
+
+    ⚠️ DEPRECATED: This is an internal helper. Use market_data.get_position_value()
+    which handles options multiplier internally.
 
     Args:
         position: Position object
@@ -164,10 +167,10 @@ def get_position_market_value(
     recalculate: bool = False
 ) -> Decimal:
     """
-    Get position market value with consistent logic.
+    ⚠️ DEPRECATED: Use market_data.get_position_value(signed=False) instead.
 
-    This provides a single source of truth for market value calculation,
-    eliminating inconsistencies between functions.
+    This function is maintained for backward compatibility but redirects
+    to the canonical implementation in market_data.py.
 
     Args:
         position: Position object
@@ -175,67 +178,87 @@ def get_position_market_value(
         recalculate: If True, always recalculate (ignores use_stored)
 
     Returns:
-        Market value as Decimal
+        Market value as Decimal (always positive)
 
-    Note:
-        Recalculated value = |quantity × price × multiplier|
-        where multiplier = 100 for options, 1 for others
+    Migration:
+        from app.calculations.market_data import get_position_value
+        value = get_position_value(position, signed=False, recalculate=recalculate)
     """
-    if not recalculate and use_stored and position.market_value:
-        return Decimal(str(position.market_value))
+    import warnings
+    warnings.warn(
+        "get_position_market_value() is deprecated. "
+        "Use market_data.get_position_value(signed=False) instead.",
+        DeprecationWarning,
+        stacklevel=2
+    )
 
-    # Recalculate
-    multiplier = OPTIONS_MULTIPLIER if _is_options_position(position) else 1
-    price = position.last_price or position.entry_price
-
-    if price is None:
-        return Decimal('0')
-
-    return abs(Decimal(str(position.quantity)) * Decimal(str(price)) * multiplier)
+    from app.calculations.market_data import get_position_value
+    return get_position_value(position, signed=False, recalculate=recalculate)
 
 
 def get_position_signed_exposure(position) -> Decimal:
     """
-    Get signed exposure (negative for shorts, positive for longs).
+    ⚠️ DEPRECATED: Use market_data.get_position_value(signed=True) instead.
 
-    This is used for portfolio aggregation where direction matters.
+    This function is maintained for backward compatibility but redirects
+    to the canonical implementation in market_data.py.
 
     Args:
         position: Position object
 
     Returns:
         Positive for LONG/LC/LP, negative for SHORT/SC/SP
+
+    Migration:
+        from app.calculations.market_data import get_position_value
+        exposure = get_position_value(position, signed=True)
     """
-    from app.models.positions import PositionType
+    import warnings
+    warnings.warn(
+        "get_position_signed_exposure() is deprecated. "
+        "Use market_data.get_position_value(signed=True) instead.",
+        DeprecationWarning,
+        stacklevel=2
+    )
 
-    market_value = get_position_market_value(position)
-
-    # Apply sign based on position type
-    if position.position_type in [PositionType.SHORT, PositionType.SC, PositionType.SP]:
-        return -market_value
-    return market_value
+    from app.calculations.market_data import get_position_value
+    return get_position_value(position, signed=True)
 
 
 def get_position_magnitude_exposure(position) -> Decimal:
     """
-    Get absolute magnitude exposure (always positive).
+    ⚠️ DEPRECATED: Use market_data.get_position_value(signed=False) instead.
 
-    This is used for gross exposure calculations.
+    This function is maintained for backward compatibility but redirects
+    to the canonical implementation in market_data.py.
 
     Args:
         position: Position object
 
     Returns:
-        Absolute value of market value
+        Absolute value of market value (always positive)
+
+    Migration:
+        from app.calculations.market_data import get_position_value
+        magnitude = get_position_value(position, signed=False)
     """
-    return abs(get_position_market_value(position))
+    import warnings
+    warnings.warn(
+        "get_position_magnitude_exposure() is deprecated. "
+        "Use market_data.get_position_value(signed=False) instead.",
+        DeprecationWarning,
+        stacklevel=2
+    )
+
+    from app.calculations.market_data import get_position_value
+    return get_position_value(position, signed=False)
 
 
 # ============================================================================
-# SECTION 4: STATISTICAL CLASSIFICATION
+# SECTION 4: STATISTICAL CLASSIFICATION (DEPRECATED - Use regression_utils.py)
 # ============================================================================
 
-# R² thresholds
+# R² thresholds (kept for backward compatibility)
 R_SQUARED_THRESHOLDS = {
     'excellent': 0.70,
     'good': 0.50,
@@ -243,103 +266,68 @@ R_SQUARED_THRESHOLDS = {
     'poor': 0.10
 }
 
-# Significance thresholds
+# Significance thresholds (kept for backward compatibility)
 SIGNIFICANCE_THRESHOLD_STRICT = 0.05  # 95% confidence
 SIGNIFICANCE_THRESHOLD_RELAXED = 0.10  # 90% confidence
 
 
 def classify_r_squared(r_squared: float) -> Dict[str, Any]:
     """
-    Classify R² (goodness of fit) for factor model.
+    ⚠️ DEPRECATED: Use regression_utils.classify_r_squared() instead.
 
-    R² measures how much of position return variance is explained
-    by the factor model. Low R² indicates high idiosyncratic risk.
+    This function is maintained for backward compatibility but redirects
+    to the canonical implementation in regression_utils.py.
 
     Args:
         r_squared: R² value from regression (0 to 1)
 
     Returns:
-        Dictionary with:
-        - quality: str ('excellent', 'good', 'fair', 'poor', 'very_poor')
-        - interpretation: str
-        - variance_explained_pct: float (R² as percentage)
-        - idiosyncratic_risk_pct: float (100 - R²)
-        - r_squared: float (original value)
+        Dictionary with quality classification and metrics
 
-    Example:
-        >>> classify_r_squared(0.42)
-        {'quality': 'fair', 'variance_explained_pct': 42.0, ...}
+    Migration:
+        from app.calculations.regression_utils import classify_r_squared
+        result = classify_r_squared(r_squared)
     """
-    if r_squared >= R_SQUARED_THRESHOLDS['excellent']:
-        quality = 'excellent'
-        interpretation = 'Factor model explains most variance'
-    elif r_squared >= R_SQUARED_THRESHOLDS['good']:
-        quality = 'good'
-        interpretation = 'Factor model explains variance well'
-    elif r_squared >= R_SQUARED_THRESHOLDS['fair']:
-        quality = 'fair'
-        interpretation = 'Moderate factor explanation, some idiosyncratic risk'
-    elif r_squared >= R_SQUARED_THRESHOLDS['poor']:
-        quality = 'poor'
-        interpretation = 'High idiosyncratic risk, factor model limited'
-    else:
-        quality = 'very_poor'
-        interpretation = 'Very high idiosyncratic risk, factor model inadequate'
+    import warnings
+    warnings.warn(
+        "factor_utils.classify_r_squared() is deprecated. "
+        "Use regression_utils.classify_r_squared() instead.",
+        DeprecationWarning,
+        stacklevel=2
+    )
 
-    return {
-        'quality': quality,
-        'interpretation': interpretation,
-        'variance_explained_pct': round(r_squared * 100, 1),
-        'idiosyncratic_risk_pct': round((1 - r_squared) * 100, 1),
-        'r_squared': r_squared
-    }
+    from app.calculations.regression_utils import classify_r_squared as _classify
+    return _classify(r_squared)
 
 
 def classify_significance(p_value: float, strict: bool = False) -> Dict[str, Any]:
     """
-    Classify statistical significance of a regression coefficient.
+    ⚠️ DEPRECATED: Use regression_utils.classify_significance() instead.
 
-    Non-significant betas (high p-values) are unreliable and shouldn't
-    be trusted for portfolio decisions (AQR best practice).
+    This function is maintained for backward compatibility but redirects
+    to the canonical implementation in regression_utils.py.
 
     Args:
         p_value: P-value from regression
         strict: If True, use 0.05 threshold; if False, use 0.10
 
     Returns:
-        Dictionary with:
-        - is_significant: bool
-        - confidence_level: str ('***', '**', '*', 'ns')
-        - interpretation: str (human-readable)
-        - p_value: float
-        - threshold: float
+        Dictionary with significance classification
 
-    Example:
-        >>> classify_significance(0.08)
-        {'is_significant': True, 'confidence_level': '*', ...}
+    Migration:
+        from app.calculations.regression_utils import classify_significance
+        result = classify_significance(p_value, strict=strict)
     """
-    threshold = SIGNIFICANCE_THRESHOLD_STRICT if strict else SIGNIFICANCE_THRESHOLD_RELAXED
+    import warnings
+    warnings.warn(
+        "factor_utils.classify_significance() is deprecated. "
+        "Use regression_utils.classify_significance() instead.",
+        DeprecationWarning,
+        stacklevel=2
+    )
 
-    if p_value < 0.01:
-        level = '***'
-        interpretation = 'highly significant (p < 0.01)'
-    elif p_value < 0.05:
-        level = '**'
-        interpretation = 'significant (p < 0.05)'
-    elif p_value < 0.10:
-        level = '*'
-        interpretation = 'marginally significant (p < 0.10)'
-    else:
-        level = 'ns'
-        interpretation = 'not significant (p ≥ 0.10)'
-
-    return {
-        'is_significant': p_value < threshold,
-        'confidence_level': level,
-        'interpretation': interpretation,
-        'p_value': p_value,
-        'threshold': threshold
-    }
+    from app.calculations.regression_utils import classify_significance as _classify
+    return _classify(p_value, strict=strict)
 
 
 # ============================================================================
