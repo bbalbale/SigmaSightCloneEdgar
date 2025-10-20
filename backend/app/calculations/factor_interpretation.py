@@ -27,7 +27,7 @@ def interpret_spread_beta(factor_name: str, beta: float) -> Dict[str, str]:
 
     Returns:
         Dict with:
-        - magnitude: 'Strong', 'Moderate', or 'Weak'
+        - magnitude: 'Strong', 'Moderate', or 'Mild'
         - direction: Factor-specific direction (e.g., 'Growth', 'Value')
         - explanation: Plain English description with percentages
         - risk_level: 'high', 'medium', or 'low'
@@ -51,7 +51,7 @@ def interpret_spread_beta(factor_name: str, beta: float) -> Dict[str, str]:
         magnitude = "Moderate"
         risk_level = "medium"
     else:
-        magnitude = "Weak"
+        magnitude = "Mild"
         risk_level = "low"
 
     # Generate factor-specific interpretations
