@@ -184,8 +184,8 @@ async def main():
     print("=" * 80)
     print()
 
-    portfolio_id = "e23ab931-a033-edfe-ed4f-9d02474780b4"
-    starting_equity = Decimal('2850000.00')  # Original starting equity from Sept 30
+    portfolio_id = "fcd71196-e93e-f000-5a74-31a9eead3118"  # Hedge Fund Style
+    starting_equity = Decimal('3200000.00')  # Original starting equity from Sept 30
     start_date = date(2025, 9, 30)
     end_date = date.today()
 
