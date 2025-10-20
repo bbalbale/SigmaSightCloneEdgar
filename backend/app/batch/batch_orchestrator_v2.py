@@ -145,7 +145,7 @@ class BatchOrchestratorV2:
         This ensures accurate progress tracking even when some jobs are disabled.
         """
         # Base job sequence (matches _process_single_portfolio_safely)
-        job_count = 14  # market_data, position_values, equity_balance_update, portfolio_agg, market_beta, ir_beta, ridge_factors, spread_factors, sector_analysis, volatility_analytics, factors, market_risk, snapshot, stress_test
+        job_count = 13  # market_data, position_values, equity_balance_update, portfolio_agg, market_beta, ir_beta, ridge_factors, spread_factors, sector_analysis, volatility_analytics, market_risk, snapshot, stress_test
 
         # Greeks is currently disabled (no options feed)
         # job_count += 1  # would add greeks if enabled
@@ -231,7 +231,7 @@ class BatchOrchestratorV2:
             ("sector_concentration_analysis", self._calculate_sector_analysis, [portfolio_id]),  # Phase 1: Sector exposure & concentration
             ("volatility_analytics", self._calculate_volatility_analytics, [portfolio_id]),  # Phase 2: Volatility analysis
             # ("greeks_calculation", self._calculate_greeks, [portfolio_id]),  # DISABLED: No options feed
-            ("factor_analysis", self._calculate_factors, [portfolio_id]),  # Legacy hybrid factor analysis (for comparison)
+            # ("factor_analysis", self._calculate_factors, [portfolio_id]),  # REMOVED: Legacy 7-factor OLS replaced by Ridge (6 factors) + Market Beta (OLS)
             ("market_risk_scenarios", self._calculate_market_risk, [portfolio_id]),
             ("portfolio_snapshot", self._create_snapshot, [portfolio_id]),  # MUST run before stress_testing
             ("stress_testing", self._run_stress_tests, [portfolio_id]),     # Uses snapshot values + IR beta for IR shocks
@@ -877,11 +877,15 @@ class BatchOrchestratorV2:
             # Fallback with empty market data (will result in calculation failures)
             return await bulk_update_portfolio_greeks(db, portfolio_id, {})
     
-    async def _calculate_factors(self, db: AsyncSession, portfolio_id: str):
-        """Factor analysis job"""
-        from app.calculations.factors import calculate_factor_betas_hybrid
-        portfolio_uuid = ensure_uuid(portfolio_id)
-        return await calculate_factor_betas_hybrid(db, portfolio_uuid, date.today())
+    # REMOVED: Legacy 7-factor hybrid OLS calculation
+    # Factor exposures now calculated via:
+    # - Market beta: _calculate_market_beta() -> market_beta.py (OLS against SPY)
+    # - 6 style factors: _calculate_ridge_factors() -> factors_ridge.py (Ridge regression)
+    # async def _calculate_factors(self, db: AsyncSession, portfolio_id: str):
+    #     """Factor analysis job (LEGACY - REMOVED)"""
+    #     from app.calculations.factors import calculate_factor_betas_hybrid
+    #     portfolio_uuid = ensure_uuid(portfolio_id)
+    #     return await calculate_factor_betas_hybrid(db, portfolio_uuid, date.today())
     
     async def _calculate_market_risk(self, db: AsyncSession, portfolio_id: str):
         """Market risk scenarios job"""
