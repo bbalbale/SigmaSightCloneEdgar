@@ -16,8 +16,9 @@ from fredapi import Fred
 from app.models.positions import Position
 from app.models.market_data import MarketRiskScenario, PositionInterestRateBeta, FactorDefinition
 from app.models.users import Portfolio
-from app.calculations.factors import fetch_factor_returns, _aggregate_portfolio_betas
+
 from app.calculations.factor_utils import get_position_market_value
+from app.calculations.market_beta import calculate_portfolio_market_beta
 from app.constants.factors import (
     FACTOR_ETFS, REGRESSION_WINDOW_DAYS, MIN_REGRESSION_DAYS,
     BETA_CAP_LIMIT, OPTIONS_MULTIPLIER
@@ -53,75 +54,6 @@ TREASURY_SERIES = {
 }
 
 
-async def calculate_portfolio_market_beta(
-    db: AsyncSession,
-    portfolio_id: UUID,
-    calculation_date: date
-) -> Dict[str, Any]:
-    """
-    Calculate portfolio market beta using existing factor betas
-    
-    Args:
-        db: Database session
-        portfolio_id: Portfolio ID to analyze
-        calculation_date: Date for the calculation
-        
-    Returns:
-        Dictionary containing market beta and factor breakdown
-    """
-    logger.info(f"Calculating portfolio market beta for portfolio {portfolio_id}")
-    
-    try:
-        # Get active positions for the portfolio
-        stmt = select(Position).where(
-            and_(
-                Position.portfolio_id == portfolio_id,
-                Position.exit_date.is_(None)
-            )
-        )
-        result = await db.execute(stmt)
-        positions = result.scalars().all()
-        
-        if not positions:
-            raise ValueError(f"No active positions found for portfolio {portfolio_id}")
-        
-        # Get existing factor betas (reuse from Section 1.4.4)
-        from app.calculations.factors import calculate_factor_betas_hybrid
-        
-        factor_analysis = await calculate_factor_betas_hybrid(
-            db=db,
-            portfolio_id=portfolio_id,
-            calculation_date=calculation_date,
-            use_delta_adjusted=False
-        )
-        
-        portfolio_betas = factor_analysis['factor_betas']
-        
-        # Calculate market beta (SPY factor represents broad market exposure)
-        market_beta = portfolio_betas.get('Market', 0.0)  # 'Market' from SPY factor
-        
-        # Calculate portfolio value for exposure calculations using centralized utility
-        portfolio_value = Decimal('0')
-        for position in positions:
-            value = get_position_market_value(position, recalculate=True)
-            portfolio_value += value
-        
-        results = {
-            'portfolio_id': str(portfolio_id),
-            'calculation_date': calculation_date,
-            'market_beta': market_beta,
-            'portfolio_value': float(portfolio_value),
-            'factor_breakdown': portfolio_betas,
-            'data_quality': factor_analysis['data_quality'],
-            'positions_count': len(positions)
-        }
-        
-        logger.info(f"Portfolio market beta calculated: {market_beta:.4f}")
-        return results
-        
-    except Exception as e:
-        logger.error(f"Error calculating portfolio market beta: {str(e)}")
-        raise
 
 
 async def calculate_market_scenarios(

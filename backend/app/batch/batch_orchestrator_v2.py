@@ -889,7 +889,7 @@ class BatchOrchestratorV2:
     
     async def _calculate_market_risk(self, db: AsyncSession, portfolio_id: str):
         """Market risk scenarios job"""
-        from app.calculations.market_risk import calculate_portfolio_market_beta
+        from app.calculations.market_beta import calculate_portfolio_market_beta
         portfolio_uuid = ensure_uuid(portfolio_id)
         return await calculate_portfolio_market_beta(db, portfolio_uuid, date.today())
     

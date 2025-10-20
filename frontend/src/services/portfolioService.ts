@@ -113,42 +113,10 @@ async function fetchPortfolioDataFromApis(
         return response
       })
     )
-
-    // Add calculated beta (90-day OLS regression) call
-    promises.push(
-      apiClient.get<any>(
-        `/api/v1/analytics/portfolio/${portfolioId}/beta-calculated-90d`,
-        {
-          headers: { Authorization: `Bearer ${token}` },
-          signal: abortSignal,
-          timeout: 10000,  // 10 seconds should be plenty for snapshot lookup
-          retries: 1
-        }
-      ).then(response => {
-        console.log('Calculated beta (90d) API response:', response)
-        return response
-      })
-    )
-
-    // Add provider beta (1-year from company profiles) call
-    promises.push(
-      apiClient.get<any>(
-        `/api/v1/analytics/portfolio/${portfolioId}/beta-provider-1y`,
-        {
-          headers: { Authorization: `Bearer ${token}` },
-          signal: abortSignal,
-          timeout: 10000,  // 10 seconds should be plenty for snapshot lookup
-          retries: 1
-        }
-      ).then(response => {
-        console.log('Provider beta (1y) API response:', response)
-        return response
-      })
-    )
   }
 
   const results = await Promise.allSettled(promises)
-  const [overviewResult, positionsResult, factorExposuresResult, calculatedBetaResult, providerBetaResult] = results
+  const [overviewResult, positionsResult, factorExposuresResult] = results
 
   let portfolioInfo: { name: string } | null = null
   let exposures = [] as any[]
@@ -173,7 +141,7 @@ async function fetchPortfolioDataFromApis(
     console.error('Failed to fetch portfolio positions:', positionsResult.reason)
   }
 
-  // Extract equity balance from overview (needed for beta calculations below)
+  // Extract equity balance from overview for components that need it
   let equityBalance = 0
   if (overviewResult.status === 'fulfilled') {
     equityBalance = overviewResult.value.data?.equity_balance || 0
@@ -201,60 +169,6 @@ async function fetchPortfolioDataFromApis(
     }
   } else if (skipFactorExposures) {
     console.log('⏭️ Factor exposures skipped per request')
-  }
-
-  // Replace Market Beta with calculated beta (90d OLS) if available
-  if (calculatedBetaResult && factorExposures) {
-    if (calculatedBetaResult.status === 'fulfilled') {
-      const calculatedBetaData = calculatedBetaResult.value?.data
-      if (calculatedBetaData?.available && calculatedBetaData?.data?.beta_calculated_90d !== undefined) {
-        const calculatedBeta = calculatedBetaData.data.beta_calculated_90d
-        console.log('✅ Calculated beta (90d) loaded:', calculatedBeta)
-
-        // Find and replace Market Beta in factor exposures array
-        const marketBetaIndex = factorExposures.findIndex(f => f.name === 'Market Beta')
-        if (marketBetaIndex !== -1) {
-          // Calculate dollar exposure (beta * equity balance)
-          const dollarExposure = calculatedBeta * equityBalance
-
-          factorExposures[marketBetaIndex] = {
-            name: 'Market Beta (Calculated 90d)',
-            beta: calculatedBeta,
-            exposure_dollar: dollarExposure
-          }
-          console.log(`✅ Replaced multi-factor Market Beta with calculated beta (${calculatedBeta.toFixed(4)})`)
-        }
-      }
-    } else if (calculatedBetaResult.status === 'rejected') {
-      console.error('❌ Failed to fetch calculated beta (90d):', calculatedBetaResult.reason)
-    }
-  }
-
-  // Add provider beta (1y) as separate factor exposure if available
-  if (providerBetaResult && factorExposures) {
-    if (providerBetaResult.status === 'fulfilled') {
-      const providerBetaData = providerBetaResult.value?.data
-      if (providerBetaData?.available && providerBetaData?.data?.beta_provider_1y !== undefined) {
-        const providerBeta = providerBetaData.data.beta_provider_1y
-        console.log('✅ Provider beta (1y) loaded:', providerBeta)
-
-        // Calculate dollar exposure (beta * equity balance)
-        const dollarExposure = providerBeta * equityBalance
-
-        // Add as new factor exposure (after Market Beta)
-        const marketBetaIndex = factorExposures.findIndex(f => f.name.includes('Market Beta'))
-        if (marketBetaIndex !== -1) {
-          factorExposures.splice(marketBetaIndex + 1, 0, {
-            name: 'Market Beta (Provider 1y)',
-            beta: providerBeta,
-            exposure_dollar: dollarExposure
-          })
-          console.log(`✅ Added provider beta as separate factor (${providerBeta.toFixed(4)})`)
-        }
-      }
-    } else if (providerBetaResult.status === 'rejected') {
-      console.error('❌ Failed to fetch provider beta (1y):', providerBetaResult.reason)
-    }
   }
 
   return {

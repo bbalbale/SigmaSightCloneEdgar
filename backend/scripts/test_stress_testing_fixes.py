@@ -22,7 +22,7 @@ from app.models.users import Portfolio, User
 from app.models.positions import Position
 from app.models.market_data import FactorExposure, FactorDefinition
 from app.calculations.stress_testing import (
-    calculate_portfolio_market_value,
+    get_portfolio_exposures,
     calculate_factor_correlation_matrix,
     calculate_direct_stress_impact,
     load_stress_scenarios,
@@ -55,8 +55,14 @@ async def test_portfolio_value_calculation():
         positions = positions_result.scalars().all()
 
         # Calculate both net and gross
-        net_value = calculate_portfolio_market_value(positions, return_gross=False)
-        gross_value = calculate_portfolio_market_value(positions, return_gross=True)
+        # Use get_portfolio_exposures instead of deprecated function
+        exposures = await get_portfolio_exposures(
+            db=db,
+            portfolio_id=portfolio.id,
+            calculation_date=calculation_date
+        )
+        net_value = exposures['net_exposure']
+        gross_value = exposures['gross_exposure']
 
         print(f"\nPortfolio: {portfolio.name}")
         print(f"Net Exposure:  ${net_value:,.2f}")
