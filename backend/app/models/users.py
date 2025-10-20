@@ -54,6 +54,7 @@ class Portfolio(Base):
     stress_test_results: Mapped[List["StressTestResult"]] = relationship("StressTestResult", back_populates="portfolio")
     correlation_calculations: Mapped[List["CorrelationCalculation"]] = relationship("CorrelationCalculation", back_populates="portfolio")
     target_prices: Mapped[List["TargetPrice"]] = relationship("TargetPrice", back_populates="portfolio")
+    ai_insights: Mapped[List["AIInsight"]] = relationship("AIInsight", back_populates="portfolio")
 
     __table_args__ = (
         UniqueConstraint('user_id', name='uq_portfolios_user_id'),

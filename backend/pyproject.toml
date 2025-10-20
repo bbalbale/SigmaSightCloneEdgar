@@ -55,6 +55,7 @@ dependencies = [
     "yfinance>=0.2.66",
     "yahooquery>=2.4.1",
     "scikit-learn>=1.7.2",
+    "anthropic>=0.71.0",
 ]
 
 [project.optional-dependencies]
