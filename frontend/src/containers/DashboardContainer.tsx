@@ -5,12 +5,14 @@ import { useTheme } from '@/contexts/ThemeContext'
 
 // Custom hooks
 import { usePortfolioData } from '@/hooks/usePortfolioData'
+import { useSpreadFactors } from '@/hooks/useSpreadFactors'
 
 // Portfolio components
 import { PortfolioHeader } from '@/components/portfolio/PortfolioHeader'
 import { PortfolioMetrics } from '@/components/portfolio/PortfolioMetrics'
 import { PortfolioError, PortfolioErrorState } from '@/components/portfolio/PortfolioError'
 import { FactorExposureCards } from '@/components/portfolio/FactorExposureCards'
+import { SpreadFactorCards } from '@/components/portfolio/SpreadFactorCards'
 
 export function DashboardContainer() {
   const { theme } = useTheme()
@@ -27,6 +29,14 @@ export function DashboardContainer() {
     dataLoaded,
     handleRetry
   } = usePortfolioData()
+
+  // Fetch spread factor exposures
+  const {
+    spreadFactors,
+    loading: spreadLoading,
+    error: spreadError,
+    calculationDate
+  } = useSpreadFactors()
 
   if (loading && !dataLoaded) {
     return (
@@ -119,6 +129,14 @@ export function DashboardContainer() {
           </div>
         </section>
       ) : null}
+
+      {/* Spread Factor Exposures Section */}
+      <SpreadFactorCards
+        factors={spreadFactors}
+        loading={spreadLoading}
+        error={spreadError}
+        calculationDate={calculationDate}
+      />
     </div>
   )
 }

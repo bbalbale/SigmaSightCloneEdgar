@@ -20,6 +20,7 @@ import statsmodels.api as sm
 from app.models.positions import Position
 from app.models.market_data import MarketDataCache, PositionMarketBeta
 from app.constants.factors import REGRESSION_WINDOW_DAYS, MIN_REGRESSION_DAYS, BETA_CAP_LIMIT
+from app.calculations.factor_utils import get_position_signed_exposure
 from app.core.logging import get_logger
 
 logger = get_logger(__name__)
@@ -297,10 +298,17 @@ async def calculate_portfolio_market_beta(
     persist: bool = True
 ) -> Dict[str, Any]:
     """
-    Calculate portfolio-level market beta as equity-weighted average of position betas.
+    Calculate portfolio-level market beta using signed exposure-weighted position betas.
     Persists position-level betas to position_market_betas table with historical tracking.
 
-    Portfolio Beta = Σ(position_market_value_i × position_beta_i) / portfolio_equity
+    Portfolio Beta = Σ(signed_exposure_i × position_beta_i) / portfolio_equity
+
+    where signed_exposure_i is:
+    - Positive for LONG positions (LONG, LC, LP)
+    - Negative for SHORT positions (SHORT, SC, SP)
+
+    This ensures short positions reduce overall portfolio market exposure.
+    For example, shorting a high-beta stock will lower the portfolio's beta.
 
     Args:
         db: Database session
@@ -366,8 +374,9 @@ async def calculate_portfolio_market_beta(
 
         # Calculate beta for each position
         position_betas = {}
-        position_market_values = {}
+        position_signed_exposures = {}
         position_r_squareds = {}
+        position_objects = {}
         min_observations = float('inf')
 
         for position in positions:
@@ -388,13 +397,13 @@ async def calculate_portfolio_market_beta(
                     db, portfolio_id, position.id, beta_result, window_days
                 )
 
-            # Get position market value
-            from app.calculations.factor_utils import get_position_market_value
-            market_value = float(get_position_market_value(position, recalculate=True))
+            # Get position signed exposure (positive for longs, negative for shorts)
+            signed_exposure = float(get_position_signed_exposure(position))
 
             position_betas[position.id] = beta_result['beta']
-            position_market_values[position.id] = market_value
+            position_signed_exposures[position.id] = signed_exposure
             position_r_squareds[position.id] = beta_result['r_squared']
+            position_objects[position.id] = position
             min_observations = min(min_observations, beta_result['observations'])
 
         if not position_betas:
@@ -404,21 +413,36 @@ async def calculate_portfolio_market_beta(
                 'error': 'No position betas could be calculated'
             }
 
-        # Calculate equity-weighted portfolio beta
-        total_weighted_beta = 0.0
+        # Calculate equity-weighted portfolio beta using signed exposures
+        # This ensures short positions reduce overall market exposure
+        total_weighted_beta_numerator = 0.0
         total_weighted_r_squared = 0.0
+        total_abs_exposure = 0.0
 
         for pos_id, beta in position_betas.items():
-            market_value = position_market_values[pos_id]
-            weight = market_value / portfolio_equity
+            signed_exposure = position_signed_exposures[pos_id]
 
-            total_weighted_beta += beta * weight
-            total_weighted_r_squared += position_r_squareds[pos_id] * weight
+            # Portfolio beta: sum of (signed_exposure × beta) / equity
+            total_weighted_beta_numerator += signed_exposure * beta
+
+            # For R² weighting, use absolute exposure
+            abs_exposure = abs(signed_exposure)
+            total_abs_exposure += abs_exposure
+            total_weighted_r_squared += position_r_squareds[pos_id] * abs_exposure
+
+        # Calculate final portfolio beta
+        portfolio_beta = total_weighted_beta_numerator / portfolio_equity
+
+        # Calculate weighted R² (use absolute exposures for averaging)
+        if total_abs_exposure > 0:
+            avg_r_squared = total_weighted_r_squared / total_abs_exposure
+        else:
+            avg_r_squared = 0.0
 
         result = {
             'portfolio_id': portfolio_id,
-            'market_beta': total_weighted_beta,
-            'r_squared': total_weighted_r_squared,
+            'market_beta': portfolio_beta,
+            'r_squared': avg_r_squared,
             'observations': int(min_observations) if min_observations != float('inf') else 0,
             'positions_count': len(position_betas),
             'calculation_date': calculation_date,
@@ -427,7 +451,7 @@ async def calculate_portfolio_market_beta(
         }
 
         logger.info(
-            f"Portfolio beta calculated: {total_weighted_beta:.3f} "
+            f"Portfolio beta calculated: {portfolio_beta:.3f} "
             f"({len(position_betas)} positions, persisted to position_market_betas)"
         )
 
@@ -450,11 +474,17 @@ async def calculate_portfolio_provider_beta(
     """
     Calculate portfolio-level beta using provider betas from CompanyProfile.
 
-    Returns equity-weighted average of company profile betas (typically 1-year beta from
+    Returns signed exposure-weighted average of company profile betas (typically 1-year beta from
     data providers like yahooquery/FMP). This provides an alternative beta estimate
     that doesn't require historical returns data or regression calculations.
 
-    Portfolio Provider Beta = Σ(position_market_value_i × provider_beta_i) / portfolio_equity
+    Portfolio Provider Beta = Σ(signed_exposure_i × provider_beta_i) / portfolio_equity
+
+    where signed_exposure_i is:
+    - Positive for LONG positions
+    - Negative for SHORT positions
+
+    This ensures short positions reduce overall portfolio market exposure.
 
     Args:
         db: Database session
@@ -520,8 +550,8 @@ async def calculate_portfolio_provider_beta(
                 'error': 'No active stock positions found'
             }
 
-        # Calculate provider beta for each position
-        total_weighted_beta = 0.0
+        # Calculate provider beta for each position using signed exposures
+        total_weighted_beta_numerator = 0.0
         positions_with_beta = 0
         positions_without_beta = 0
 
@@ -533,15 +563,17 @@ async def calculate_portfolio_provider_beta(
 
             if company_profile and company_profile.beta and position.market_value:
                 beta = float(company_profile.beta)
-                market_value = float(abs(position.market_value))  # Use absolute value for weighting
-                weight = market_value / portfolio_equity
+                # Use signed exposure (positive for longs, negative for shorts)
+                signed_exposure = float(get_position_signed_exposure(position))
 
-                total_weighted_beta += beta * weight
+                # Contribution to portfolio beta
+                contribution = signed_exposure * beta
+                total_weighted_beta_numerator += contribution
                 positions_with_beta += 1
 
                 logger.debug(
                     f"{position.symbol}: beta={beta:.4f}, "
-                    f"weight={weight:.2%}, contribution={beta * weight:.4f}"
+                    f"signed_exposure=${signed_exposure:,.2f}, contribution={contribution:.4f}"
                 )
             else:
                 positions_without_beta += 1
@@ -557,9 +589,12 @@ async def calculate_portfolio_provider_beta(
                 'error': f'No positions have provider beta data (0/{len(positions)})'
             }
 
+        # Calculate final portfolio beta
+        portfolio_beta = total_weighted_beta_numerator / portfolio_equity
+
         result = {
             'portfolio_id': portfolio_id,
-            'portfolio_beta': total_weighted_beta,
+            'portfolio_beta': portfolio_beta,
             'positions_count': len(positions),
             'positions_with_beta': positions_with_beta,
             'positions_without_beta': positions_without_beta,
@@ -568,7 +603,7 @@ async def calculate_portfolio_provider_beta(
         }
 
         logger.info(
-            f"Provider beta calculated: {total_weighted_beta:.3f} "
+            f"Provider beta calculated: {portfolio_beta:.3f} "
             f"({positions_with_beta}/{len(positions)} positions with beta data)"
         )
 

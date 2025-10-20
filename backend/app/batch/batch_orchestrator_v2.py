@@ -145,7 +145,7 @@ class BatchOrchestratorV2:
         This ensures accurate progress tracking even when some jobs are disabled.
         """
         # Base job sequence (matches _process_single_portfolio_safely)
-        job_count = 13  # market_data, position_values, equity_balance_update, portfolio_agg, market_beta, ir_beta, ridge_factors, sector_analysis, volatility_analytics, factors, market_risk, snapshot, stress_test
+        job_count = 14  # market_data, position_values, equity_balance_update, portfolio_agg, market_beta, ir_beta, ridge_factors, spread_factors, sector_analysis, volatility_analytics, factors, market_risk, snapshot, stress_test
 
         # Greeks is currently disabled (no options feed)
         # job_count += 1  # would add greeks if enabled
@@ -227,6 +227,7 @@ class BatchOrchestratorV2:
             ("market_beta_calculation", self._calculate_market_beta, [portfolio_id]),  # Phase 0: Single-factor market beta (OLS)
             ("ir_beta_calculation", self._calculate_ir_beta, [portfolio_id]),  # Interest Rate beta (OLS vs Treasury yields)
             ("ridge_factor_calculation", self._calculate_ridge_factors, [portfolio_id]),  # Ridge regression for 6 non-market factors
+            ("spread_factor_calculation", self._calculate_spread_factors, [portfolio_id]),  # Spread factors (4 long-short factors, 180-day window)
             ("sector_concentration_analysis", self._calculate_sector_analysis, [portfolio_id]),  # Phase 1: Sector exposure & concentration
             ("volatility_analytics", self._calculate_volatility_analytics, [portfolio_id]),  # Phase 2: Volatility analysis
             # ("greeks_calculation", self._calculate_greeks, [portfolio_id]),  # DISABLED: No options feed
@@ -711,6 +712,46 @@ class BatchOrchestratorV2:
             )
 
         return ridge_result
+
+    async def _calculate_spread_factors(self, db: AsyncSession, portfolio_id: str):
+        """Spread factor calculation job (4 long-short factors with 180-day window)"""
+        from app.calculations.factors_spread import calculate_portfolio_spread_betas
+
+        portfolio_uuid = ensure_uuid(portfolio_id)
+
+        logger.info(f"Calculating spread factor betas (180-day window) for portfolio {portfolio_id}")
+
+        spread_result = await calculate_portfolio_spread_betas(
+            db=db,
+            portfolio_id=portfolio_uuid,
+            calculation_date=date.today(),
+            context=None  # Let function load its own context
+        )
+
+        # Check for skip condition (no positions)
+        if spread_result.get('metadata', {}).get('status') == 'SKIPPED_NO_POSITIONS':
+            logger.info(
+                f"Spread factor calculation skipped for portfolio {portfolio_id} "
+                "(no positions with sufficient data)"
+            )
+            return spread_result
+
+        # Log successful calculation
+        data_quality = spread_result.get('data_quality', {})
+        factor_betas = spread_result.get('factor_betas', {})
+
+        logger.info(
+            f"Spread factors calculated successfully: "
+            f"{data_quality.get('positions_processed', 0)} positions, "
+            f"{data_quality.get('regression_days', 0)}/{data_quality.get('required_days', 60)} days, "
+            f"{len(factor_betas)} factors"
+        )
+
+        # Log factor values
+        for factor_name, beta in factor_betas.items():
+            logger.debug(f"  {factor_name}: {beta:+.3f}")
+
+        return spread_result
 
     async def _calculate_sector_analysis(self, db: AsyncSession, portfolio_id: str):
         """Sector exposure and concentration analysis job (Phase 1)"""

@@ -46,6 +46,25 @@ BATCH_FACTOR_CALCULATION_TIMEOUT = 900   # 15 minutes for batch processing
 # Options multiplier
 OPTIONS_MULTIPLIER = 100  # Standard options contract multiplier
 
+# Spread factor definitions (180-day regression window)
+SPREAD_REGRESSION_WINDOW_DAYS = 180  # 6 months for better statistical power
+SPREAD_MIN_REGRESSION_DAYS = 60      # Minimum 60 days required for spread factor regression
+
+# Spread factors - long-short factor spreads to eliminate multicollinearity
+SPREAD_FACTORS = {
+    "Growth-Value Spread": ("VUG", "VTV"),  # Long Growth, Short Value
+    "Momentum Spread": ("MTUM", "SPY"),     # Long Momentum, Short Market
+    "Size Spread": ("IWM", "SPY"),          # Long Small Cap, Short Large Cap
+    "Quality Spread": ("QUAL", "SPY")       # Long Quality, Short Market
+}
+
+# Interpretation thresholds for spread betas
+SPREAD_BETA_THRESHOLDS = {
+    'strong': 0.5,      # |beta| > 0.5 = strong tilt
+    'moderate': 0.2,    # 0.2 < |beta| <= 0.5 = moderate tilt
+    'neutral': 0.2      # |beta| <= 0.2 = neutral/balanced
+}
+
 # Error messages
 ERROR_INSUFFICIENT_DATA = "Insufficient historical data for factor calculation"
 ERROR_NO_POSITIONS = "No positions found for portfolio"

@@ -269,11 +269,11 @@
   },
   "factor_mappings": {
     "Market": "SPY",
-    "Value": "VTV", 
+    "Value": "VTV",
     "Growth": "VUG",
     "Momentum": "MTUM",
     "Quality": "QUAL",
-    "Size": "SIZE",
+    "Size": "IWM",
     "Low Volatility": "USMV",
     "Interest_Rate": "Treasury_10Y"
   },

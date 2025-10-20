@@ -1003,9 +1003,14 @@ async def aggregate_portfolio_factor_exposures(
         # Phase 3: portfolio_equity already loaded from context or database above
 
         # Calculate factor dollar exposures using position-level attribution
-        # Use centralized factor name mapping (Phase 1 Enhancement)
-        from app.calculations.factor_utils import FACTOR_NAME_MAPPING
-        for factor_name in FACTOR_NAME_MAPPING.keys():
+        # Get all factor names from position_betas (includes both traditional and spread factors)
+        factor_names = set()
+        for pos_betas in position_betas.values():
+            factor_names.update(pos_betas.keys())
+
+        logger.info(f"Processing {len(factor_names)} factors for portfolio-level aggregation: {sorted(factor_names)}")
+
+        for factor_name in factor_names:
             factor_dollar_exposure = 0.0
             signed_weighted_beta = 0.0
             magnitude_weighted_beta = 0.0

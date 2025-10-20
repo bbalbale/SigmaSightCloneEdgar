@@ -182,13 +182,13 @@ async def calculate_portfolio_volatility(
         {
             'portfolio_id': UUID,
             'calculation_date': date,
-            'realized_vol_21d': float,
-            'realized_vol_63d': float,
-            'expected_vol_21d': float,
-            'vol_trend': str,
-            'vol_percentile': float,
-            'observations': int,
-            'positions_included': int
+            'realized_volatility_21d': float,  # Annualized 21-day realized vol
+            'realized_volatility_63d': float,  # Annualized 63-day realized vol
+            'expected_volatility_21d': float,  # HAR forecasted vol
+            'volatility_trend': str,  # 'increasing'|'decreasing'|'stable'
+            'volatility_percentile': float,  # 0-1 scale vs 1-year history
+            'observations': int,  # Number of return observations used
+            'positions_included': int  # Number of positions in calculation
         }
     """
     try:
@@ -294,11 +294,11 @@ async def calculate_portfolio_volatility(
         return {
             'portfolio_id': portfolio_id,
             'calculation_date': calculation_date,
-            'realized_vol_21d': vol_21d,
-            'realized_vol_63d': vol_63d,
-            'expected_vol_21d': expected_vol,
-            'vol_trend': trend,
-            'vol_percentile': percentile,
+            'realized_volatility_21d': vol_21d,  # Aligned with snapshot column name
+            'realized_volatility_63d': vol_63d,  # Aligned with snapshot column name
+            'expected_volatility_21d': expected_vol,  # Aligned with snapshot column name
+            'volatility_trend': trend,  # Aligned with snapshot column name
+            'volatility_percentile': percentile,  # Aligned with snapshot column name
             'observations': len(portfolio_returns),
             'positions_included': len(positions)
         }
