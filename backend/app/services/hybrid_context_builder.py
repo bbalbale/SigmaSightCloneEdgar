@@ -77,13 +77,18 @@ class HybridContextBuilder:
         if snapshot:
             context["snapshot"] = {
                 "date": snapshot.snapshot_date.isoformat(),
+                "equity_balance": float(snapshot.equity_balance) if snapshot.equity_balance else None,  # Current equity (rolled forward)
                 "total_value": float(snapshot.total_value) if snapshot.total_value else None,
+                "cash_value": float(snapshot.cash_value) if snapshot.cash_value else None,
+                "long_value": float(snapshot.long_value) if snapshot.long_value else None,
+                "short_value": float(snapshot.short_value) if snapshot.short_value else None,
                 "gross_exposure": float(snapshot.gross_exposure) if snapshot.gross_exposure else None,
                 "net_exposure": float(snapshot.net_exposure) if snapshot.net_exposure else None,
                 "portfolio_delta": float(snapshot.portfolio_delta) if snapshot.portfolio_delta else None,
                 "realized_volatility_21d": float(snapshot.realized_volatility_21d) if snapshot.realized_volatility_21d else None,
                 "beta_calculated_90d": float(snapshot.beta_calculated_90d) if snapshot.beta_calculated_90d else None,
                 "daily_pnl": float(snapshot.daily_pnl) if snapshot.daily_pnl else None,
+                "cumulative_pnl": float(snapshot.cumulative_pnl) if snapshot.cumulative_pnl else None,
                 "num_positions": snapshot.num_positions,
             }
 

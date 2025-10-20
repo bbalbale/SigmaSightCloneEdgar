@@ -67,6 +67,13 @@ class PortfolioSnapshot(Base):
     # Portfolio-level direct regression: Reserved for future implementation (portfolio returns ~ SPY returns)
     beta_portfolio_regression: Mapped[Optional[Decimal]] = mapped_column(Numeric(10, 4), nullable=True)
 
+    # Phase 1: Sector exposure and concentration metrics
+    sector_exposure: Mapped[Optional[Dict[str, Any]]] = mapped_column(JSON, nullable=True)
+    hhi: Mapped[Optional[Decimal]] = mapped_column(Numeric(10, 4), nullable=True)  # Herfindahl-Hirschman Index
+    effective_num_positions: Mapped[Optional[Decimal]] = mapped_column(Numeric(10, 2), nullable=True)
+    top_3_concentration: Mapped[Optional[Decimal]] = mapped_column(Numeric(10, 4), nullable=True)
+    top_10_concentration: Mapped[Optional[Decimal]] = mapped_column(Numeric(10, 4), nullable=True)
+
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
     
     # Relationships

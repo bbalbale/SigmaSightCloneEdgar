@@ -242,15 +242,23 @@ Provide your analysis in the following structure:
             prompt_parts.append(f"Name: {portfolio_summary.get('name')}")
             prompt_parts.append(f"Currency: {portfolio_summary.get('currency')}")
             if portfolio_summary.get('equity_balance'):
-                prompt_parts.append(f"Equity Balance: ${portfolio_summary.get('equity_balance'):,.2f}")
+                prompt_parts.append(f"Starting Equity (Day 0): ${portfolio_summary.get('equity_balance'):,.2f}")
 
         # Add latest snapshot data
         snapshot = context.get('snapshot')
         if snapshot:
             prompt_parts.append("\n\nLATEST SNAPSHOT:")
             prompt_parts.append(f"Date: {snapshot.get('date')}")
+            if snapshot.get('equity_balance'):
+                prompt_parts.append(f"Current Equity Balance: ${snapshot.get('equity_balance'):,.2f} (rolled forward with P&L)")
             if snapshot.get('total_value'):
-                prompt_parts.append(f"Total Value: ${snapshot.get('total_value'):,.2f}")
+                prompt_parts.append(f"Total Market Value: ${snapshot.get('total_value'):,.2f}")
+            if snapshot.get('cash_value'):
+                prompt_parts.append(f"Cash: ${snapshot.get('cash_value'):,.2f}")
+            if snapshot.get('long_value'):
+                prompt_parts.append(f"Long Positions: ${snapshot.get('long_value'):,.2f}")
+            if snapshot.get('short_value'):
+                prompt_parts.append(f"Short Positions: ${snapshot.get('short_value'):,.2f}")
             if snapshot.get('gross_exposure'):
                 prompt_parts.append(f"Gross Exposure: ${snapshot.get('gross_exposure'):,.2f}")
             if snapshot.get('net_exposure'):
@@ -263,6 +271,8 @@ Provide your analysis in the following structure:
                 prompt_parts.append(f"Market Beta (90d): {snapshot.get('beta_calculated_90d'):.2f}")
             if snapshot.get('daily_pnl'):
                 prompt_parts.append(f"Daily P&L: ${snapshot.get('daily_pnl'):,.2f}")
+            if snapshot.get('cumulative_pnl'):
+                prompt_parts.append(f"Cumulative P&L: ${snapshot.get('cumulative_pnl'):,.2f}")
 
         # Add positions
         positions = context.get('positions', {})

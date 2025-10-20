@@ -303,7 +303,7 @@ async def _create_or_update_snapshot(
     from app.models.users import Portfolio
     from app.models.market_data import PositionMarketBeta
 
-    # Get portfolio to access equity_balance
+    # Get portfolio to access equity_balance (already updated by equity_balance_update job)
     portfolio_query = select(Portfolio).where(Portfolio.id == portfolio_id)
     portfolio_result = await db.execute(portfolio_query)
     portfolio = portfolio_result.scalar_one_or_none()
@@ -311,36 +311,12 @@ async def _create_or_update_snapshot(
     if not portfolio:
         raise ValueError(f"Portfolio {portfolio_id} not found")
 
-    # Phase 1 Implementation: Calculate today's equity from yesterday's equity + today's P&L
-    # Get previous snapshot to find yesterday's equity_balance
-    previous_snapshot_query = select(PortfolioSnapshot).where(
-        and_(
-            PortfolioSnapshot.portfolio_id == portfolio_id,
-            PortfolioSnapshot.snapshot_date < calculation_date
-        )
-    ).order_by(PortfolioSnapshot.snapshot_date.desc()).limit(1)
-
-    previous_result = await db.execute(previous_snapshot_query)
-    previous_snapshot = previous_result.scalar_one_or_none()
-
-    if previous_snapshot and previous_snapshot.equity_balance:
-        # Use yesterday's equity + today's P&L
-        previous_equity = previous_snapshot.equity_balance
-        today_equity = previous_equity + pnl_data['daily_pnl']
-        logger.info(
-            f"Calculating equity for {portfolio_id}: "
-            f"${float(previous_equity):,.2f} + ${float(pnl_data['daily_pnl']):,.2f} = ${float(today_equity):,.2f}"
-        )
-    else:
-        # First snapshot - use seed value from portfolio table
-        today_equity = portfolio.equity_balance or Decimal('0')
-        logger.info(
-            f"First snapshot for {portfolio_id}, using seed equity: ${float(today_equity):,.2f}"
-        )
-
-    # Update portfolio table with current equity
-    portfolio.equity_balance = today_equity
-    await db.flush()
+    # Use the pre-calculated equity balance from the equity_balance_update job
+    # This job runs BEFORE factor calculations, ensuring factor betas use the correct equity
+    today_equity = portfolio.equity_balance or Decimal('0')
+    logger.info(
+        f"Using pre-calculated equity balance for {portfolio_id}: ${float(today_equity):,.2f}"
+    )
 
     # Fetch market beta data (Phase 0: Single-factor model)
     # Use latest available beta data as of calculation_date (not exact match)

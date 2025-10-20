@@ -86,7 +86,9 @@
       "Bash(timeout /t 3 /nobreak)",
       "Bash(move:*)",
       "Bash(del \"C:\\Users\\BenBalbale\\CascadeProjects\\SigmaSight\\backend\\scripts\\debug_portfolio_beta.py\")",
-      "Bash(del \"C:\\Users\\BenBalbale\\CascadeProjects\\SigmaSight\\backend\\scripts\\update_sept30_snapshot.py\")"
+      "Bash(del \"C:\\Users\\BenBalbale\\CascadeProjects\\SigmaSight\\backend\\scripts\\update_sept30_snapshot.py\")",
+      "Bash(.venvScriptsalembic.exe upgrade head)",
+      "Bash(.venvScriptspython.exe -m alembic current)"
     ],
     "additionalDirectories": [
       "C:\\c\\Users\\BenBalbale\\CascadeProjects\\SigmaSight-BE"

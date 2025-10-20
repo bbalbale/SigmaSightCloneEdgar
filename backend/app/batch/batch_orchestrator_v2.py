@@ -145,7 +145,7 @@ class BatchOrchestratorV2:
         This ensures accurate progress tracking even when some jobs are disabled.
         """
         # Base job sequence (matches _process_single_portfolio_safely)
-        job_count = 12  # market_data, position_values, portfolio_agg, market_beta, ir_beta, ridge_factors, sector_analysis, volatility_analytics, factors, market_risk, snapshot, stress_test
+        job_count = 13  # market_data, position_values, equity_balance_update, portfolio_agg, market_beta, ir_beta, ridge_factors, sector_analysis, volatility_analytics, factors, market_risk, snapshot, stress_test
 
         # Greeks is currently disabled (no options feed)
         # job_count += 1  # would add greeks if enabled
@@ -222,6 +222,7 @@ class BatchOrchestratorV2:
         job_sequence = [
             ("market_data_update", self._update_market_data, []),
             ("position_values_update", self._update_position_values, [portfolio_id]),
+            ("equity_balance_update", self._update_equity_balance, [portfolio_id]),  # Update Portfolio.equity_balance BEFORE factor calculations
             ("portfolio_aggregation", self._calculate_portfolio_aggregation, [portfolio_id]),
             ("market_beta_calculation", self._calculate_market_beta, [portfolio_id]),  # Phase 0: Single-factor market beta (OLS)
             ("ir_beta_calculation", self._calculate_ir_beta, [portfolio_id]),  # Interest Rate beta (OLS vs Treasury yields)
@@ -464,7 +465,106 @@ class BatchOrchestratorV2:
             'positions_total': len(positions),
             'errors': errors
         }
-    
+
+    async def _update_equity_balance(self, db: AsyncSession, portfolio_id: str):
+        """
+        Update portfolio equity balance for use in factor calculations.
+
+        This job runs BEFORE factor calculations to ensure they use current equity
+        for position weighting. It calculates equity using the rollforward method:
+        today_equity = yesterday_equity + daily_pnl
+
+        Then updates Portfolio.equity_balance so factor calculations can use it.
+        The full snapshot with sector/volatility metrics is created later.
+        """
+        from app.models.positions import Position
+        from app.models.snapshots import PortfolioSnapshot
+        from app.models.users import Portfolio
+        from app.calculations.portfolio import calculate_portfolio_exposures
+        from sqlalchemy import select, desc
+        from decimal import Decimal
+
+        portfolio_uuid = ensure_uuid(portfolio_id)
+
+        logger.info(f"Updating equity balance for portfolio {portfolio_id}")
+
+        # Step 1: Get portfolio
+        portfolio_stmt = select(Portfolio).where(Portfolio.id == portfolio_uuid)
+        portfolio_result = await db.execute(portfolio_stmt)
+        portfolio = portfolio_result.scalar_one_or_none()
+
+        if not portfolio:
+            raise ValueError(f"Portfolio {portfolio_id} not found")
+
+        # Step 2: Calculate current total value from positions
+        positions_stmt = select(Position).where(
+            Position.portfolio_id == portfolio_uuid,
+            Position.deleted_at.is_(None),
+            Position.exit_date.is_(None)
+        )
+        positions_result = await db.execute(positions_stmt)
+        positions = positions_result.scalars().all()
+
+        if not positions:
+            logger.warning(f"No positions found for portfolio {portfolio_id}")
+            return {'message': 'No positions', 'equity_balance': float(portfolio.equity_balance or 0)}
+
+        # Convert to position dicts for aggregation
+        position_dicts = []
+        for pos in positions:
+            market_value = float(pos.market_value) if pos.market_value else 0
+            position_dicts.append({
+                'symbol': pos.symbol,
+                'quantity': float(pos.quantity),
+                'market_value': market_value,
+                'exposure': market_value,
+                'position_type': pos.position_type.value if pos.position_type else 'LONG',
+                'last_price': float(pos.last_price) if pos.last_price else 0
+            })
+
+        # Calculate total portfolio value
+        exposures = calculate_portfolio_exposures(position_dicts)
+        current_value = exposures.get('gross_exposure', Decimal('0'))
+
+        # Step 3: Get latest snapshot for equity rollforward
+        latest_snapshot_stmt = select(PortfolioSnapshot).where(
+            PortfolioSnapshot.portfolio_id == portfolio_uuid
+        ).order_by(desc(PortfolioSnapshot.snapshot_date)).limit(1)
+
+        snapshot_result = await db.execute(latest_snapshot_stmt)
+        latest_snapshot = snapshot_result.scalar_one_or_none()
+
+        # Step 4: Calculate new equity
+        if latest_snapshot and latest_snapshot.equity_balance and latest_snapshot.total_value:
+            # Calculate daily P&L
+            previous_value = latest_snapshot.total_value
+            previous_equity = latest_snapshot.equity_balance
+            daily_pnl = current_value - previous_value
+            new_equity = previous_equity + daily_pnl
+
+            logger.info(
+                f"Equity rollforward for {portfolio_id}: "
+                f"${float(previous_equity):,.2f} + ${float(daily_pnl):,.2f} = ${float(new_equity):,.2f}"
+            )
+        else:
+            # First time or no previous snapshot - use starting equity
+            new_equity = portfolio.equity_balance or Decimal('0')
+            logger.info(f"Using starting equity for {portfolio_id}: ${float(new_equity):,.2f}")
+
+        # Step 5: Update Portfolio.equity_balance
+        portfolio.equity_balance = new_equity
+        await db.commit()
+
+        logger.info(f"Updated equity balance for {portfolio_id}: ${float(new_equity):,.2f}")
+
+        return {
+            'portfolio_id': portfolio_id,
+            'previous_equity': float(latest_snapshot.equity_balance) if latest_snapshot and latest_snapshot.equity_balance else 0,
+            'current_value': float(current_value),
+            'daily_pnl': float(current_value - latest_snapshot.total_value) if latest_snapshot and latest_snapshot.total_value else 0,
+            'new_equity': float(new_equity)
+        }
+
     async def _calculate_portfolio_aggregation(self, db: AsyncSession, portfolio_id: str):
         """Portfolio aggregation job"""
         from app.calculations.portfolio import calculate_portfolio_exposures
@@ -766,10 +866,101 @@ class BatchOrchestratorV2:
         return results
     
     async def _create_snapshot(self, db: AsyncSession, portfolio_id: str):
-        """Portfolio snapshot job"""
+        """
+        Portfolio snapshot job with automatic backfill.
+
+        Creates snapshots for all missing trading days between the last snapshot
+        and today. This ensures proper equity rollforward and P&L tracking even
+        if the batch doesn't run every day.
+        """
         from app.calculations.snapshots import create_portfolio_snapshot
+        from app.utils.trading_calendar import trading_calendar
+        from app.models.snapshots import PortfolioSnapshot
+        from sqlalchemy import select, desc
+        from datetime import timedelta
+
         portfolio_uuid = ensure_uuid(portfolio_id)
-        return await create_portfolio_snapshot(db, portfolio_uuid, date.today())
+
+        # Find the latest existing snapshot date
+        stmt = select(PortfolioSnapshot.snapshot_date).where(
+            PortfolioSnapshot.portfolio_id == portfolio_uuid
+        ).order_by(desc(PortfolioSnapshot.snapshot_date)).limit(1)
+
+        result = await db.execute(stmt)
+        latest_snapshot_date = result.scalar_one_or_none()
+
+        # Determine date range for backfill
+        today = date.today()
+
+        if latest_snapshot_date:
+            # Start from day after latest snapshot
+            start_date = latest_snapshot_date + timedelta(days=1)
+            logger.info(f"Last snapshot for {portfolio_id}: {latest_snapshot_date}, backfilling from {start_date}")
+        else:
+            # No snapshots exist - this shouldn't happen in production, but handle it
+            # Go back 30 days max for initial backfill
+            start_date = today - timedelta(days=30)
+            logger.warning(f"No snapshots found for {portfolio_id}, backfilling from {start_date}")
+
+        # Get all trading days between start_date and today
+        missing_dates = []
+        current_date = start_date
+
+        while current_date <= today:
+            if trading_calendar.is_trading_day(current_date):
+                missing_dates.append(current_date)
+            current_date += timedelta(days=1)
+
+        if not missing_dates:
+            logger.info(f"No missing snapshots for {portfolio_id}")
+            return {
+                "success": True,
+                "message": "No missing snapshots",
+                "snapshots_created": 0
+            }
+
+        logger.info(f"Creating {len(missing_dates)} missing snapshots for {portfolio_id}: {missing_dates[0]} to {missing_dates[-1]}")
+
+        # Create snapshots in chronological order (critical for equity rollforward)
+        results = []
+        successful = 0
+        failed = 0
+
+        for snapshot_date in missing_dates:
+            try:
+                result = await create_portfolio_snapshot(db, portfolio_uuid, snapshot_date)
+
+                if result.get('success'):
+                    successful += 1
+                    logger.info(f"Created snapshot for {portfolio_id} on {snapshot_date}")
+                else:
+                    failed += 1
+                    logger.warning(f"Failed to create snapshot for {portfolio_id} on {snapshot_date}: {result.get('message')}")
+
+                results.append({
+                    "date": snapshot_date,
+                    "success": result.get('success'),
+                    "message": result.get('message')
+                })
+
+            except Exception as e:
+                failed += 1
+                logger.error(f"Error creating snapshot for {portfolio_id} on {snapshot_date}: {str(e)}")
+                results.append({
+                    "date": snapshot_date,
+                    "success": False,
+                    "error": str(e)
+                })
+
+        logger.info(f"Snapshot backfill complete for {portfolio_id}: {successful} successful, {failed} failed")
+
+        return {
+            "success": True,
+            "snapshots_created": successful,
+            "snapshots_failed": failed,
+            "total_dates": len(missing_dates),
+            "results": results
+        }
     
     async def _calculate_correlations(self, db: AsyncSession, portfolio_id: str):
         """Position correlations job (Phase 8.1 Task 7b: handle None for skipped portfolios)"""
