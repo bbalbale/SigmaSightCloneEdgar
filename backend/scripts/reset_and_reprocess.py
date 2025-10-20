@@ -217,14 +217,17 @@ async def run_batch_for_single_portfolio(db, portfolio_id: str, calc_date: date)
         # Run ridge factors
         await batch_orchestrator_v2._calculate_ridge_factors(db, portfolio_id)
 
+        # Run spread factors (NEW - 4 long-short factors)
+        await batch_orchestrator_v2._calculate_spread_factors(db, portfolio_id)
+
         # Run sector analysis
         await batch_orchestrator_v2._calculate_sector_analysis(db, portfolio_id)
 
         # Run volatility analytics
         await batch_orchestrator_v2._calculate_volatility_analytics(db, portfolio_id)
 
-        # Run factors (legacy)
-        await batch_orchestrator_v2._calculate_factors(db, portfolio_id)
+        # Legacy factors removed - now using Ridge + Market Beta + Spread Factors
+        # await batch_orchestrator_v2._calculate_factors(db, portfolio_id)
 
         # Run market risk
         await batch_orchestrator_v2._calculate_market_risk(db, portfolio_id)
@@ -252,77 +255,112 @@ async def run_batch_for_single_portfolio(db, portfolio_id: str, calc_date: date)
 async def main():
     print("=" * 80)
     print("RESET AND REPROCESS HISTORICAL CALCULATIONS")
+    print("With Volatility Key Alignment + Size Factor Consistency + Spread Factors")
     print("=" * 80)
     print()
 
-    portfolio_id = "e23ab931-a033-edfe-ed4f-9d02474780b4"  # High Net Worth (testing deletion fix)
-    starting_equity = Decimal('2850000.00')  # Original starting equity from Sept 30
+    # All 3 demo portfolios with their starting equity values
+    portfolios = [
+        ("e23ab931-a033-edfe-ed4f-9d02474780b4", "High Net Worth", Decimal('2850000.00')),
+        ("1d8ddd95-3b45-0ac5-35bf-cf81af94a5fe", "Individual Investor", Decimal('250000.00')),
+        ("fcd71196-e93e-f000-5a74-31a9eead3118", "Hedge Fund Style", Decimal('5000000.00')),
+    ]
+
     start_date = date(2025, 9, 30)
     end_date = date.today()
 
-    print(f"Portfolio: {portfolio_id}")
-    print(f"Starting Equity: ${float(starting_equity):,.2f}")
+    print(f"Processing {len(portfolios)} portfolios")
     print(f"Date range: {start_date} to {end_date}")
     print()
 
     async with get_async_session() as db:
-        # Step 1: Reset portfolio equity to starting value
-        print("=" * 80)
-        print("STEP 1: Reset Starting Equity")
-        print("=" * 80)
-        await reset_portfolio_equity(db, portfolio_id, starting_equity)
-        print()
-
-        # Step 2: Delete old calculation results
-        print("=" * 80)
-        print("STEP 2: Delete Calculation Results")
-        print("=" * 80)
-        await delete_calculation_results(db, portfolio_id, start_date)
-        print()
-
-        # Step 3: Get trading days
+        # Get trading days once (same for all portfolios)
         trading_days = await get_trading_days(start_date, end_date)
         print("=" * 80)
-        print("STEP 3: Get Trading Days")
+        print("TRADING DAYS")
         print("=" * 80)
         print(f"Found {len(trading_days)} trading days to process")
         print(f"First: {trading_days[0]}, Last: {trading_days[-1]}")
         print()
 
-        # Step 4: Process each trading day
-        print("=" * 80)
-        print("STEP 4: Reprocess Calculations")
-        print("=" * 80)
-        print()
+        total_successful = 0
+        total_failed = 0
 
-        successful = 0
-        failed = 0
-
-        for i, calc_date in enumerate(trading_days, 1):
-            print(f"[{i}/{len(trading_days)}] Processing {calc_date}...", flush=True)
-
-            try:
-                result = await run_batch_for_single_portfolio(db, portfolio_id, calc_date)
-
-                if result.get('success'):
-                    successful += 1
-                    equity = result.get('equity', 0)
-                    print(f"  OK Complete - Equity: ${equity:,.2f}")
-                else:
-                    failed += 1
-                    print(f"  ERROR Failed")
-
-            except Exception as e:
-                failed += 1
-                print(f"  ERROR: {str(e)}")
-
+        # Process each portfolio
+        for portfolio_id, portfolio_name, starting_equity in portfolios:
+            print("\n")
+            print("=" * 80)
+            print(f"PORTFOLIO: {portfolio_name}")
+            print("=" * 80)
+            print(f"ID: {portfolio_id}")
+            print(f"Starting Equity: ${float(starting_equity):,.2f}")
             print()
 
+            # Step 1: Reset portfolio equity to starting value
+            print("=" * 80)
+            print("STEP 1: Reset Starting Equity")
+            print("=" * 80)
+            await reset_portfolio_equity(db, portfolio_id, starting_equity)
+            print()
+
+            # Step 2: Delete old calculation results
+            print("=" * 80)
+            print("STEP 2: Delete Calculation Results")
+            print("=" * 80)
+            await delete_calculation_results(db, portfolio_id, start_date)
+            print()
+
+            # Step 3: Reprocess each trading day
+            print("=" * 80)
+            print("STEP 3: Reprocess Calculations")
+            print("=" * 80)
+            print()
+
+            successful = 0
+            failed = 0
+
+            for i, calc_date in enumerate(trading_days, 1):
+                print(f"[{i}/{len(trading_days)}] Processing {calc_date}...", flush=True)
+
+                try:
+                    result = await run_batch_for_single_portfolio(db, portfolio_id, calc_date)
+
+                    if result.get('success'):
+                        successful += 1
+                        equity = result.get('equity', 0)
+                        print(f"  OK Complete - Equity: ${equity:,.2f}")
+                    else:
+                        failed += 1
+                        print(f"  ERROR Failed")
+
+                except Exception as e:
+                    failed += 1
+                    print(f"  ERROR: {str(e)}")
+
+                print()
+
+            print("=" * 80)
+            print(f"PORTFOLIO {portfolio_name} COMPLETE")
+            print("=" * 80)
+            print(f"Successful: {successful}/{len(trading_days)}")
+            print(f"Failed: {failed}/{len(trading_days)}")
+            print()
+
+            total_successful += successful
+            total_failed += failed
+
+        # Final summary
+        print("\n")
         print("=" * 80)
-        print("REPROCESSING COMPLETE")
+        print("ALL PORTFOLIOS COMPLETE")
         print("=" * 80)
-        print(f"Successful: {successful}/{len(trading_days)}")
-        print(f"Failed: {failed}/{len(trading_days)}")
+        print(f"Total Successful: {total_successful}/{len(portfolios) * len(trading_days)}")
+        print(f"Total Failed: {total_failed}/{len(portfolios) * len(trading_days)}")
+        print()
+        print("✅ Reprocessing complete with:")
+        print("   - Volatility key alignment (realized_vol_21d → realized_volatility_21d)")
+        print("   - Size factor consistency (SIZE → IWM)")
+        print("   - Spread factor calculations (4 long-short factors)")
         print()
 
 
