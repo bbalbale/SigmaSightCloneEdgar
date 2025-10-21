@@ -10,7 +10,6 @@ import pandas as pd
 import numpy as np
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_
-import statsmodels.api as sm
 from fredapi import Fred
 
 from app.models.positions import Position
@@ -19,6 +18,7 @@ from app.models.users import Portfolio
 
 from app.calculations.market_data import get_position_value
 from app.calculations.market_beta import calculate_portfolio_market_beta
+from app.calculations.regression_utils import run_single_factor_regression
 from app.constants.factors import (
     FACTOR_ETFS, REGRESSION_WINDOW_DAYS, MIN_REGRESSION_DAYS,
     BETA_CAP_LIMIT, OPTIONS_MULTIPLIER
@@ -230,28 +230,28 @@ async def calculate_position_interest_rate_betas(
                 # Get position and treasury data
                 y = returns_aligned[position_id].values  # Position returns
                 x = treasury_aligned.values  # Treasury changes
-                
-                # Run OLS regression: Position Return = α + β × Treasury Change + ε
-                x_with_const = sm.add_constant(x)
-                model = sm.OLS(y, x_with_const).fit()
-                
-                # Extract interest rate beta (slope coefficient)
-                ir_beta = model.params[1] if len(model.params) > 1 else 0.0
-                r_squared = model.rsquared
-                
-                # Cap beta to prevent extreme outliers
-                ir_beta = max(-BETA_CAP_LIMIT, min(BETA_CAP_LIMIT, ir_beta))
-                
+
+                # Phase 8 Refactoring: Use canonical run_single_factor_regression()
+                # This replaces ~20 lines of duplicate OLS code and ensures consistent
+                # beta capping, significance testing, and error handling
+                regression_result = run_single_factor_regression(
+                    y=y,
+                    x=x,
+                    cap=BETA_CAP_LIMIT,  # Cap beta at ±5.0
+                    confidence=0.10,      # 90% confidence level (relaxed)
+                    return_diagnostics=True
+                )
+
                 position_ir_betas[position_id] = {
-                    'ir_beta': float(ir_beta),
-                    'r_squared': float(r_squared)
+                    'ir_beta': regression_result['beta'],
+                    'r_squared': regression_result['r_squared']
                 }
                 
                 # Prepare record for database storage
                 record = PositionInterestRateBeta(
                     position_id=UUID(position_id),
-                    ir_beta=Decimal(str(ir_beta)),
-                    r_squared=Decimal(str(r_squared)),
+                    ir_beta=Decimal(str(regression_result['beta'])),
+                    r_squared=Decimal(str(regression_result['r_squared'])),
                     calculation_date=calculation_date
                 )
                 records_to_store.append(record)

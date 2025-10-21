@@ -35,7 +35,7 @@ from app.calculations.factor_utils import (
     load_portfolio_context,
 )
 from app.calculations.regression_utils import classify_r_squared, classify_significance
-from app.calculations.market_data import get_position_value
+from app.calculations.market_data import get_position_value, get_returns
 from app.constants.factors import (
     FACTOR_ETFS, REGRESSION_WINDOW_DAYS, MIN_REGRESSION_DAYS,
     BETA_CAP_LIMIT, POSITION_CHUNK_SIZE, QUALITY_FLAG_FULL_HISTORY,
@@ -54,11 +54,9 @@ async def fetch_factor_returns(
     end_date: date
 ) -> pd.DataFrame:
     """
-    Fetch factor returns calculated from ETF price changes, aligned to common trading dates
+    Fetch factor returns calculated from ETF price changes, aligned to common trading dates.
 
-    IMPORTANT: Returns are calculated AFTER date alignment to ensure all returns
-    are single-day returns over the same time periods. This prevents misaligned
-    factor beta calculations.
+    Phase 8.1: Now uses canonical get_returns() to eliminate duplicate return calculation logic.
 
     Args:
         db: Database session
@@ -79,36 +77,20 @@ async def fetch_factor_returns(
         logger.warning("Empty symbols list provided to fetch_factor_returns")
         return pd.DataFrame()
 
-    # Fetch historical prices using existing function
-    price_df = await fetch_historical_prices(
+    # Phase 8.1: Use canonical get_returns() instead of manual pipeline
+    returns_df = await get_returns(
         db=db,
         symbols=symbols,
         start_date=start_date,
-        end_date=end_date
+        end_date=end_date,
+        align_dates=True  # Ensures all returns aligned to common trading dates
     )
 
-    if price_df.empty:
-        logger.warning("No price data available for factor return calculations")
+    if returns_df.empty:
+        logger.warning("No factor returns data available")
         return pd.DataFrame()
 
-    # Drop dates where ANY factor ETF is missing (ensure alignment)
-    # This ensures all returns are calculated over the same dates
-    price_df_aligned = price_df.dropna()
-
-    if price_df_aligned.empty:
-        logger.warning("No overlapping dates found across all factor ETFs")
-        return pd.DataFrame()
-
-    logger.info(
-        f"Aligned {len(price_df_aligned)} common trading dates "
-        f"across {len(price_df_aligned.columns)} factor ETFs "
-        f"(original: {len(price_df)} dates before alignment)"
-    )
-
-    # Calculate daily returns on aligned price DataFrame
-    # Using fill_method=None to avoid FutureWarning (Pandas 2.1+)
-    # Now .pct_change() operates on the same date sequence for all ETFs
-    returns_df = price_df_aligned.pct_change(fill_method=None).dropna()
+    logger.info(f"Factor returns calculated: {len(returns_df)} days of aligned data across {len(returns_df.columns)} factors")
 
     # Map ETF symbols to factor names for cleaner output
     symbol_to_factor = {v: k for k, v in FACTOR_ETFS.items()}
@@ -125,10 +107,7 @@ async def fetch_factor_returns(
     returns_df = returns_df.rename(columns=factor_columns)
 
     # Log data quality
-    total_days = len(returns_df)
     missing_data = returns_df.isnull().sum()
-
-    logger.info(f"Factor returns calculated: {total_days} days of aligned data")
     if missing_data.any():
         logger.warning(f"Missing data in factor returns: {missing_data[missing_data > 0].to_dict()}")
 
@@ -220,42 +199,20 @@ async def calculate_position_returns(
     symbols = list(set(position.symbol for position in positions))
     logger.info(f"Found {len(positions)} positions with {len(symbols)} unique symbols")
 
-    # Fetch historical prices for all symbols
-    price_df = await fetch_historical_prices(
+    # Phase 8.1: Use canonical get_returns() instead of manual pipeline
+    symbol_returns_df = await get_returns(
         db=db,
         symbols=symbols,
         start_date=start_date,
-        end_date=end_date
+        end_date=end_date,
+        align_dates=True  # Ensures all returns aligned to common trading dates
     )
-
-    if price_df.empty:
-        logger.warning("No price data available for position return calculations")
-        return pd.DataFrame()
-
-    # Drop dates where ANY symbol is missing (ensure alignment)
-    # This ensures all returns are calculated over the same dates
-    price_df_aligned = price_df.dropna()
-
-    if price_df_aligned.empty:
-        logger.warning("No overlapping dates found across all position symbols")
-        return pd.DataFrame()
-
-    logger.info(
-        f"Aligned {len(price_df_aligned)} common trading dates "
-        f"across {len(price_df_aligned.columns)} unique symbols "
-        f"(original: {len(price_df)} dates before alignment)"
-    )
-
-    # Calculate returns on aligned price DataFrame
-    # Using fill_method=None to avoid FutureWarning (Pandas 2.1+)
-    # Now .pct_change() operates on the same date sequence for all symbols
-    # Note: Any constant scaling (quantity, 100× multiplier) cancels in pct_change().
-    # Options delta adjustments are not applied here; handled in future redesign steps.
-    symbol_returns_df = price_df_aligned.pct_change(fill_method=None).dropna()
 
     if symbol_returns_df.empty:
-        logger.warning("No returns calculated after alignment")
+        logger.warning("No position returns data available")
         return pd.DataFrame()
+
+    logger.info(f"Position returns calculated: {len(symbol_returns_df)} days of aligned data across {len(symbol_returns_df.columns)} symbols")
 
     # Map positions to their symbol returns
     position_returns = {}

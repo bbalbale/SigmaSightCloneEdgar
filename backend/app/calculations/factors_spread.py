@@ -20,7 +20,6 @@ import pandas as pd
 import numpy as np
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
-import statsmodels.api as sm
 
 from app.models.positions import Position
 from app.models.market_data import MarketDataCache, FactorDefinition
@@ -33,7 +32,8 @@ from app.calculations.factor_utils import (
     get_default_data_quality,
     get_default_storage_results
 )
-from app.calculations.market_data import get_position_value
+from app.calculations.market_data import get_position_value, get_returns
+from app.calculations.regression_utils import run_single_factor_regression
 from app.core.logging import get_logger
 
 logger = get_logger(__name__)
@@ -45,7 +45,7 @@ async def fetch_spread_returns(
     end_date: date
 ) -> pd.DataFrame:
     """
-    Calculate daily returns for 4 spread factors.
+    Calculate daily returns for 4 spread factors using canonical get_returns().
 
     Spread Return = Long ETF Return - Short ETF Return
 
@@ -64,6 +64,10 @@ async def fetch_spread_returns(
     Example:
         VUG return = 1.5%, VTV return = 0.8%
         → Growth-Value Spread return = 1.5% - 0.8% = 0.7%
+
+    Phase 8 Refactoring:
+        Now uses canonical get_returns() instead of manual price fetching + pct_change.
+        This eliminates ~50 lines of duplicate code and ensures consistent return calculation.
     """
     logger.info(f"Fetching spread returns from {start_date} to {end_date}")
 
@@ -73,34 +77,20 @@ async def fetch_spread_returns(
         etf_symbols.add(long_etf)
         etf_symbols.add(short_etf)
 
-    logger.info(f"Fetching prices for {len(etf_symbols)} ETFs: {etf_symbols}")
+    logger.info(f"Fetching returns for {len(etf_symbols)} ETFs: {etf_symbols}")
 
-    # Fetch prices for all ETFs
-    stmt = select(
-        MarketDataCache.symbol,
-        MarketDataCache.date,
-        MarketDataCache.close
-    ).where(
-        MarketDataCache.symbol.in_(list(etf_symbols)),
-        MarketDataCache.date >= start_date,
-        MarketDataCache.date <= end_date
-    ).order_by(MarketDataCache.date)
+    # Use canonical get_returns() function instead of manual price fetching
+    # This replaces ~30 lines of duplicate "fetch prices → pct_change" logic
+    returns = await get_returns(
+        db=db,
+        symbols=list(etf_symbols),
+        start_date=start_date,
+        end_date=end_date,
+        align_dates=True  # Drop dates with any missing data
+    )
 
-    result = await db.execute(stmt)
-    records = result.all()
-
-    if not records:
+    if returns.empty:
         raise ValueError("No price data available for spread factors")
-
-    # Convert to DataFrame and pivot
-    df = pd.DataFrame([
-        {'symbol': r.symbol, 'date': r.date, 'close': float(r.close)}
-        for r in records
-    ])
-    prices = df.pivot(index='date', columns='symbol', values='close')
-
-    # Calculate returns for each ETF
-    returns = prices.pct_change(fill_method=None).dropna()
 
     # Calculate spread returns
     spread_returns = pd.DataFrame(index=returns.index)
@@ -132,7 +122,7 @@ async def calculate_position_spread_beta(
     spread_name: str
 ) -> Dict[str, Any]:
     """
-    Calculate single spread beta using OLS regression.
+    Calculate single spread beta using canonical run_single_factor_regression().
 
     This function runs a simple univariate OLS regression:
         position_return = alpha + beta * spread_return + error
@@ -150,6 +140,11 @@ async def calculate_position_spread_beta(
         - p_value: Statistical significance
         - observations: Number of data points
         - success: Whether regression succeeded
+
+    Phase 8 Refactoring:
+        Now uses canonical run_single_factor_regression() instead of manual OLS.
+        This eliminates ~70 lines of duplicate regression code and ensures consistent
+        beta capping, significance testing, and error handling.
     """
     # Align on common dates
     data = pd.concat([position_returns, spread_returns], axis=1).dropna()
@@ -169,40 +164,33 @@ async def calculate_position_spread_beta(
             'error': f'Insufficient data: {len(data)} days'
         }
 
-    # Run OLS regression
+    # Extract aligned returns
     y = data.iloc[:, 0].values  # Position returns
-    X = data.iloc[:, 1].values  # Spread returns
-    X_with_const = sm.add_constant(X)
+    x = data.iloc[:, 1].values  # Spread returns
 
     try:
-        model = sm.OLS(y, X_with_const).fit()
-
-        beta = float(model.params[1])
-        alpha = float(model.params[0])
-        r_squared = float(model.rsquared)
-        std_error = float(model.bse[1])
-        p_value = float(model.pvalues[1])
-
-        # Cap beta to prevent extreme outliers
-        original_beta = beta
-        beta = max(-BETA_CAP_LIMIT, min(BETA_CAP_LIMIT, beta))
-
-        if abs(original_beta) > BETA_CAP_LIMIT:
-            logger.warning(
-                f"Beta capped for {spread_name}: {original_beta:.3f} -> {beta:.3f}"
-            )
+        # Use canonical regression function instead of manual statsmodels OLS
+        # This replaces ~40 lines of duplicate code (OLS setup, beta capping, error handling)
+        regression_result = run_single_factor_regression(
+            y=y,
+            x=x,
+            cap=BETA_CAP_LIMIT,  # Cap beta at ±5.0
+            confidence=0.10,     # 90% confidence level (relaxed)
+            return_diagnostics=True
+        )
 
         logger.debug(
-            f"{spread_name} regression: beta={beta:.3f}, R²={r_squared:.3f}, "
-            f"p={p_value:.3f}, n={len(data)}"
+            f"{spread_name} regression: beta={regression_result['beta']:.3f}, "
+            f"R²={regression_result['r_squared']:.3f}, "
+            f"p={regression_result['p_value']:.3f}, n={len(data)}"
         )
 
         return {
-            'beta': beta,
-            'alpha': alpha,
-            'r_squared': r_squared,
-            'std_error': std_error,
-            'p_value': p_value,
+            'beta': regression_result['beta'],
+            'alpha': regression_result['alpha'],
+            'r_squared': regression_result['r_squared'],
+            'std_error': regression_result['std_error'],
+            'p_value': regression_result['p_value'],
             'observations': len(data),
             'success': True
         }

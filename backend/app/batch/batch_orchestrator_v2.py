@@ -145,7 +145,7 @@ class BatchOrchestratorV2:
         This ensures accurate progress tracking even when some jobs are disabled.
         """
         # Base job sequence (matches _process_single_portfolio_safely)
-        job_count = 13  # market_data, position_values, equity_balance_update, portfolio_agg, market_beta, ir_beta, ridge_factors, spread_factors, sector_analysis, volatility_analytics, market_risk, snapshot, stress_test
+        job_count = 14  # market_data, position_values, equity_balance_update, portfolio_agg, market_beta, ir_beta, ridge_factors, spread_factors, sector_analysis, volatility_analytics, market_risk, snapshot, portfolio_target_snapshot, stress_test
 
         # Greeks is currently disabled (no options feed)
         # job_count += 1  # would add greeks if enabled
@@ -234,9 +234,10 @@ class BatchOrchestratorV2:
             # ("factor_analysis", self._calculate_factors, [portfolio_id]),  # REMOVED: Legacy 7-factor OLS replaced by Ridge (6 factors) + Market Beta (OLS)
             ("market_risk_scenarios", self._calculate_market_risk, [portfolio_id]),
             ("portfolio_snapshot", self._create_snapshot, [portfolio_id]),  # MUST run before stress_testing
+            ("portfolio_target_snapshot", self._update_portfolio_target_snapshot, [portfolio_id]),  # Update target price metrics in snapshot
             ("stress_testing", self._run_stress_tests, [portfolio_id]),     # Uses snapshot values + IR beta for IR shocks
         ]
-        
+
         # Always run correlations (important for risk metrics)
         job_sequence.append(("position_correlations", self._calculate_correlations, [portfolio_id]))
 
@@ -1032,6 +1033,32 @@ class BatchOrchestratorV2:
             }
 
         return result
+
+    async def _update_portfolio_target_snapshot(self, db: AsyncSession, portfolio_id: str):
+        """Update portfolio target price snapshot with aggregated position target metrics"""
+        from app.services.target_price_service import TargetPriceService
+
+        portfolio_uuid = ensure_uuid(portfolio_id)
+
+        logger.info(f"Updating portfolio target price snapshot for {portfolio_id}")
+
+        target_service = TargetPriceService()
+
+        try:
+            await target_service.update_portfolio_target_snapshot(db, portfolio_uuid)
+
+            return {
+                'success': True,
+                'portfolio_id': str(portfolio_uuid),
+                'message': 'Portfolio target snapshot updated successfully'
+            }
+        except Exception as e:
+            logger.warning(f"Failed to update portfolio target snapshot for {portfolio_id}: {e}")
+            return {
+                'success': False,
+                'portfolio_id': str(portfolio_uuid),
+                'error': str(e)
+            }
 
 
 # Create singleton instance

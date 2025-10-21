@@ -74,6 +74,24 @@ class PortfolioSnapshot(Base):
     top_3_concentration: Mapped[Optional[Decimal]] = mapped_column(Numeric(10, 4), nullable=True)
     top_10_concentration: Mapped[Optional[Decimal]] = mapped_column(Numeric(10, 4), nullable=True)
 
+    # Portfolio target price metrics (aggregated from position-level target prices)
+    target_price_return_eoy: Mapped[Optional[Decimal]] = mapped_column(Numeric(8, 4), nullable=True)  # Expected % return to EOY targets
+    target_price_return_next_year: Mapped[Optional[Decimal]] = mapped_column(Numeric(8, 4), nullable=True)  # Expected % return for next year
+    target_price_downside_return: Mapped[Optional[Decimal]] = mapped_column(Numeric(8, 4), nullable=True)  # Downside scenario % return
+
+    # Portfolio target price dollar values (absolute upside in $)
+    target_price_upside_eoy_dollars: Mapped[Optional[Decimal]] = mapped_column(Numeric(16, 2), nullable=True)  # Total dollar upside EOY
+    target_price_upside_next_year_dollars: Mapped[Optional[Decimal]] = mapped_column(Numeric(16, 2), nullable=True)  # Total dollar upside next year
+    target_price_downside_dollars: Mapped[Optional[Decimal]] = mapped_column(Numeric(16, 2), nullable=True)  # Total dollar downside
+
+    # Target coverage metadata
+    target_price_coverage_pct: Mapped[Optional[Decimal]] = mapped_column(Numeric(8, 4), nullable=True)  # % of positions with targets
+    target_price_positions_count: Mapped[Optional[int]] = mapped_column(nullable=True)  # Number of positions with targets
+    target_price_total_positions: Mapped[Optional[int]] = mapped_column(nullable=True)  # Total active positions
+
+    # Tracking
+    target_price_last_updated: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)  # When targets were last modified
+
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
     
     # Relationships

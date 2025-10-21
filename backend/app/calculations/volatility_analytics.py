@@ -29,6 +29,7 @@ from app.core.logging import get_logger
 from app.models.market_data import MarketDataCache, PositionVolatility
 from app.models.positions import Position
 from app.models.users import Portfolio
+from app.calculations.market_data import get_returns
 
 logger = get_logger(__name__)
 
@@ -84,66 +85,55 @@ async def calculate_position_volatility(
         lookback_days = 365  # Get 1 year for percentile calculation
         start_date = calculation_date - timedelta(days=lookback_days)
 
-        result = await db.execute(
-            select(MarketDataCache)
-            .where(
-                MarketDataCache.symbol == symbol_for_volatility,
-                MarketDataCache.date >= start_date,
-                MarketDataCache.date <= calculation_date
-            )
-            .order_by(MarketDataCache.date)
+        # Phase 8 Refactoring: Use canonical get_returns() instead of manual price fetching
+        # This replaces ~30 lines of duplicate MarketDataCache querying and pct_change logic
+        returns_df = await get_returns(
+            db=db,
+            symbols=[symbol_for_volatility],
+            start_date=start_date,
+            end_date=calculation_date,
+            align_dates=False  # Keep all dates, allow NaN for missing data
         )
-        prices = result.scalars().all()
 
-        if len(prices) < min_observations:
+        if returns_df.empty or symbol_for_volatility not in returns_df.columns:
             logger.warning(
-                f"Insufficient price data for {symbol_for_volatility} (position: {position.symbol}): "
-                f"{len(prices)} < {min_observations} required"
+                f"No price data available for {symbol_for_volatility} (position: {position.symbol})"
             )
             return None
 
-        # Convert to pandas DataFrame
-        df = pd.DataFrame([
-            {'date': p.date, 'close': float(p.close)}
-            for p in prices
-        ])
-        df['date'] = pd.to_datetime(df['date'])
-        df = df.set_index('date').sort_index()
+        # Extract returns series for this symbol
+        returns = returns_df[symbol_for_volatility].dropna()
 
-        # Calculate daily returns
-        df['return'] = df['close'].pct_change()
-        df = df.dropna()
-
-        if len(df) < min_observations:
+        if len(returns) < min_observations:
             logger.warning(
                 f"Insufficient returns for {position.symbol}: "
-                f"{len(df)} < {min_observations} after calculations"
+                f"{len(returns)} < {min_observations} required"
             )
             return None
 
         # Calculate realized volatility at different horizons
-        vol_21d = _calculate_realized_vol(df['return'], window=21)
-        vol_63d = _calculate_realized_vol(df['return'], window=63)
+        vol_21d = _calculate_realized_vol(returns, window=21)
+        vol_63d = _calculate_realized_vol(returns, window=63)
 
         # Calculate HAR components
         # Daily: Use absolute value of most recent return (annualized)
-        vol_daily = abs(df['return'].iloc[-1]) * np.sqrt(TRADING_DAYS_PER_YEAR) if len(df) > 0 else None
-        vol_weekly = _calculate_realized_vol(df['return'], window=5)
-        vol_monthly = _calculate_realized_vol(df['return'], window=21)
+        vol_daily = abs(returns.iloc[-1]) * np.sqrt(TRADING_DAYS_PER_YEAR) if len(returns) > 0 else None
+        vol_weekly = _calculate_realized_vol(returns, window=5)
+        vol_monthly = _calculate_realized_vol(returns, window=21)
 
         # HAR forecast (expected volatility)
         expected_vol, r_squared = _forecast_har(
-            df['return'],
+            returns,
             vol_daily=vol_daily,
             vol_weekly=vol_weekly,
             vol_monthly=vol_monthly
         )
 
         # Trend analysis
-        trend, trend_strength = _analyze_volatility_trend(df['return'], window=21)
+        trend, trend_strength = _analyze_volatility_trend(returns, window=21)
 
         # Percentile calculation (vs 1-year history)
-        percentile = _calculate_vol_percentile(df['return'], window=21)
+        percentile = _calculate_vol_percentile(returns, window=21)
 
         return {
             'position_id': position_id,
@@ -157,7 +147,7 @@ async def calculate_position_volatility(
             'vol_trend': trend,
             'vol_trend_strength': trend_strength,
             'vol_percentile': percentile,
-            'observations': len(df),
+            'observations': len(returns),
             'model_r_squared': r_squared
         }
 
@@ -210,53 +200,36 @@ async def calculate_portfolio_volatility(
         lookback_days = 365
         start_date = calculation_date - timedelta(days=lookback_days)
 
+        # Phase 8 Refactoring: Use canonical get_returns() instead of manual price fetching
+        # This replaces ~40 lines of duplicate MarketDataCache querying and DataFrame building
+
         # Build list of symbols to fetch (using underlying for options)
         symbols_to_fetch = []
-        symbol_mapping = {}  # Maps fetch_symbol -> position_symbol for options
+        symbol_to_position = {}  # Maps fetch_symbol -> Position object
         for p in positions:
             fetch_symbol = p.underlying_symbol if p.underlying_symbol else p.symbol
             symbols_to_fetch.append(fetch_symbol)
-            # For options, we need to map underlying back to option symbol
-            if p.underlying_symbol:
-                symbol_mapping[p.underlying_symbol] = p.symbol
+            symbol_to_position[fetch_symbol] = p
 
         symbols_to_fetch = list(set(symbols_to_fetch))  # Deduplicate
 
-        result = await db.execute(
-            select(MarketDataCache)
-            .where(
-                MarketDataCache.symbol.in_(symbols_to_fetch),
-                MarketDataCache.date >= start_date,
-                MarketDataCache.date <= calculation_date
-            )
-            .order_by(MarketDataCache.date)
+        # Fetch returns for all symbols using canonical function
+        returns_df = await get_returns(
+            db=db,
+            symbols=symbols_to_fetch,
+            start_date=start_date,
+            end_date=calculation_date,
+            align_dates=False  # Keep all dates, handle missing data below
         )
-        prices = result.scalars().all()
 
-        if not prices:
-            logger.warning(f"No price data found for portfolio {portfolio_id}")
+        if returns_df.empty:
+            logger.warning(f"No returns data found for portfolio {portfolio_id}")
             return None
 
-        # Organize prices by symbol and date
-        # For options, store under both underlying and option symbol for flexibility
-        price_data = {}
-        for p in prices:
-            # Store under the fetched symbol
-            if p.symbol not in price_data:
-                price_data[p.symbol] = []
-            price_data[p.symbol].append({'date': p.date, 'close': float(p.close)})
-
-            # Also store under option symbol if this is an underlying
-            if p.symbol in symbol_mapping:
-                option_symbol = symbol_mapping[p.symbol]
-                if option_symbol not in price_data:
-                    price_data[option_symbol] = []
-                price_data[option_symbol].append({'date': p.date, 'close': float(p.close)})
-
         # Calculate portfolio returns using position weights
-        portfolio_returns = _calculate_portfolio_returns(
+        portfolio_returns = _calculate_portfolio_returns_from_df(
             positions=positions,
-            price_data=price_data,
+            returns_df=returns_df,
             calculation_date=calculation_date
         )
 
@@ -759,13 +732,13 @@ def _calculate_vol_percentile(returns: pd.Series, window: int = 21) -> Optional[
         return None
 
 
-def _calculate_portfolio_returns(
+def _calculate_portfolio_returns_from_df(
     positions: List[Position],
-    price_data: Dict[str, List[Dict]],
+    returns_df: pd.DataFrame,
     calculation_date: date
 ) -> Optional[pd.Series]:
     """
-    Calculate daily portfolio returns using position weights.
+    Calculate daily portfolio returns using position weights from returns DataFrame.
 
     CRITICAL: This is the correct way to calculate portfolio volatility.
     Portfolio volatility ≠ weighted average of position volatilities!
@@ -777,35 +750,22 @@ def _calculate_portfolio_returns(
 
     Args:
         positions: List of Position objects
-        price_data: Dict mapping symbol -> list of {date, close} dicts
+        returns_df: DataFrame with returns (from get_returns())
         calculation_date: Date for weight calculation
 
     Returns:
         Series of daily portfolio returns
+
+    Phase 8 Refactoring:
+        Simplified version that works with returns DataFrame from get_returns()
+        instead of manually building DataFrames from raw price data.
     """
     try:
-        # Convert price data to DataFrames for each position
-        # Note: For options, price_data is keyed by both underlying and option symbol
-        position_dfs = {}
+        # Map position symbols to their fetch symbols (underlying for options)
+        symbol_mapping = {}  # Maps position symbol -> fetch symbol
         for position in positions:
-            # Use underlying symbol for options, position symbol for equities
-            lookup_symbol = position.underlying_symbol if position.underlying_symbol else position.symbol
-
-            if lookup_symbol not in price_data and position.symbol not in price_data:
-                logger.debug(f"No price data for position {position.symbol} (lookup: {lookup_symbol})")
-                continue
-
-            # Try lookup_symbol first, fallback to position.symbol
-            symbol_key = lookup_symbol if lookup_symbol in price_data else position.symbol
-
-            df = pd.DataFrame(price_data[symbol_key])
-            df['date'] = pd.to_datetime(df['date'])
-            df = df.set_index('date').sort_index()
-            df['return'] = df['close'].pct_change()
-            position_dfs[position.symbol] = df  # Always key by position symbol for consistency
-
-        if not position_dfs:
-            return None
+            fetch_symbol = position.underlying_symbol if position.underlying_symbol else position.symbol
+            symbol_mapping[position.symbol] = fetch_symbol
 
         # Calculate position weights based on market values
         total_value = sum(
@@ -814,6 +774,7 @@ def _calculate_portfolio_returns(
         )
 
         if total_value == 0:
+            logger.warning("Total portfolio value is zero, cannot calculate returns")
             return None
 
         weights = {
@@ -821,29 +782,18 @@ def _calculate_portfolio_returns(
             for p in positions
         }
 
-        # Find common dates across all positions
-        date_sets = [set(df.index) for df in position_dfs.values()]
-        common_dates = set.intersection(*date_sets) if date_sets else set()
-
-        if not common_dates:
-            return None
-
         # Calculate portfolio returns for each date
-        portfolio_returns = []
-        for dt in sorted(common_dates):
-            daily_return = sum(
-                weights[symbol] * position_dfs[symbol].loc[dt, 'return']
-                for symbol in position_dfs.keys()
-                if symbol in weights and dt in position_dfs[symbol].index
-            )
-            portfolio_returns.append({'date': dt, 'return': daily_return})
+        portfolio_returns = pd.Series(0.0, index=returns_df.index)
 
-        # Convert to Series
-        pr_df = pd.DataFrame(portfolio_returns)
-        pr_df['date'] = pd.to_datetime(pr_df['date'])
-        pr_df = pr_df.set_index('date').sort_index()
+        for position in positions:
+            fetch_symbol = symbol_mapping[position.symbol]
+            if fetch_symbol in returns_df.columns:
+                weight = weights[position.symbol]
+                portfolio_returns += weight * returns_df[fetch_symbol].fillna(0)
+            else:
+                logger.debug(f"No returns data for {position.symbol} (fetch: {fetch_symbol})")
 
-        return pr_df['return'].dropna()
+        return portfolio_returns.dropna()
 
     except Exception as e:
         logger.error(f"Error calculating portfolio returns: {e}", exc_info=True)

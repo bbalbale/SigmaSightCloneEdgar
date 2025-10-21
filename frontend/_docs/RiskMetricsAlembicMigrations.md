@@ -2,18 +2,19 @@
 
 **Purpose:** Database schema changes required for Risk Metrics overhaul (market beta, sector analysis, volatility analytics, AI insights)
 
-**Total Migrations:** 11 migrations across 4 phases (October 17-19, 2025)
+**Total Migrations:** 13 migrations across 5 phases (October 17-20, 2025)
 
-**Execution Order:** Must be run sequentially (Migration 0 → 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 → 9 → 10)
+**Execution Order:** Must be run sequentially (Migration 0 → 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 → 9 → 10 → 11)
 
-**Last Updated:** October 19, 2025
+**Last Updated:** October 20, 2025
 
 **Status:**
 - ✅ Phase 0 (Market Beta): COMPLETE (Migrations 0-1 applied October 17, 2025)
 - ✅ Phase 1 (Sector Analysis): COMPLETE (Migrations 2-3 applied October 17, 2025)
 - ✅ Phase 2 (Volatility Analytics): COMPLETE (Migrations 4-5 applied October 17, 2025)
 - ✅ Phase 3 (Beta Refactoring): COMPLETE (Migration 6 applied October 18, 2025)
-- ✅ Phase 4 (AI Insights): COMPLETE (Migrations 7-8 applied October 19, 2025)
+- ✅ Phase 4 (AI Insights): COMPLETE (Migrations 7-9 applied October 19, 2025)
+- ✅ Phase 5 (Spread Factors & Target Prices): COMPLETE (Migrations 10-11 applied October 20, 2025)
 
 ---
 
@@ -31,11 +32,14 @@
 | 7 | f8g9h0i1j2k3 | AI insights infrastructure | Creates 2 new tables | `ai_insights`, `ai_insight_templates` | Oct 19, 2025 |
 | 8 | 7003a3be89fe | Sector exposure refinement | `portfolio_snapshots` + updates | HHI precision change | Oct 19, 2025 |
 | 9 | h1i2j3k4l5m6 | Add portfolio_id to IR betas | `position_interest_rate_betas` | 1 new column + index | Oct 19, 2025 |
+| 10 | b9f866cb3838 | Spread factor definitions | `factor_definitions` | 4 new spread factors | Oct 20, 2025 |
+| 11 | 035e1888bea0 | Portfolio target price fields | `portfolio_snapshots`, `portfolio_target_prices` | 13 new columns (10 snapshot, 3 position) | Oct 20, 2025 |
 
 **Migration Chain:**
 ```
 a1b2c3d4e5f6 → b2c3d4e5f6g7 → 7818709e948d → f67a98539656 → c1d2e3f4g5h6 →
-d2e3f4g5h6i7 → e65741f182c4 → f8g9h0i1j2k3 → 7003a3be89fe → h1i2j3k4l5m6 (HEAD)
+d2e3f4g5h6i7 → e65741f182c4 → f8g9h0i1j2k3 → 7003a3be89fe → h1i2j3k4l5m6 →
+b9f866cb3838 → 035e1888bea0 (HEAD)
 ```
 
 ---
@@ -624,6 +628,162 @@ asyncio.run(check())
 
 ---
 
+## Phase 5: Spread Factors & Portfolio Target Prices
+
+### Migration 10: Add Spread Factor Definitions ✅
+
+**Status:** COMPLETE (Applied October 20, 2025)
+
+**File:** `backend/alembic/versions/b9f866cb3838_add_spread_factor_definitions.py`
+
+**Revision ID:** `b9f866cb3838`
+
+**Command:**
+```bash
+uv run alembic upgrade head
+```
+
+**What it does:**
+- **Modifies table:** `factor_definitions`
+- **Purpose:** Add 4 long-short spread factor definitions to address multicollinearity in traditional factor models
+
+**New Factor Definitions Added:**
+```
+Growth-Value Spread        VUG - VTV      Long-short spread factor
+Momentum Spread            MTUM - SPY     Momentum minus market
+Size Spread                IWM - SPY      Small cap minus large cap
+Quality Spread             QUAL - SPY     Quality minus market
+```
+
+**Rationale:**
+- Traditional 7-factor model has high multicollinearity (VIF > 5.0)
+- Spread factors reduce multicollinearity by using factor spreads instead of raw ETFs
+- Enables more stable regression coefficients
+- Used in `factors_spread.py` calculations
+
+**Data Insertion:**
+```sql
+INSERT INTO factor_definitions (name, description, etf_ticker, category, created_at, updated_at)
+VALUES
+  ('Growth-Value Spread', 'Long-short spread: Growth (VUG) minus Value (VTV)', 'VUG-VTV', 'spread_factor', NOW(), NOW()),
+  ('Momentum Spread', 'Long-short spread: Momentum (MTUM) minus Market (SPY)', 'MTUM-SPY', 'spread_factor', NOW(), NOW()),
+  ('Size Spread', 'Long-short spread: Small Cap (IWM) minus Large Cap (SPY)', 'IWM-SPY', 'spread_factor', NOW(), NOW()),
+  ('Quality Spread', 'Long-short spread: Quality (QUAL) minus Market (SPY)', 'QUAL-SPY', 'spread_factor', NOW(), NOW());
+```
+
+**Migration Notes:**
+- Auto-generated migration via `alembic revision --autogenerate`
+- No schema changes, only data insertion
+- Adds foreign key constraint update for `position_interest_rate_betas` table (cleanup from prior migration)
+
+---
+
+### Migration 11: Portfolio Target Price Fields ✅
+
+**Status:** COMPLETE (Applied October 20, 2025)
+
+**File:** `backend/alembic/versions/035e1888bea0_add_portfolio_target_price_fields.py`
+
+**Revision ID:** `035e1888bea0` (HEAD)
+
+**Command:**
+```bash
+uv run alembic upgrade head
+```
+
+**What it adds:**
+- **Modifies tables:** `portfolio_snapshots`, `portfolio_target_prices`
+- **Purpose:** Enable portfolio-level target return tracking based on position-level target prices
+
+**New Columns in `portfolio_target_prices`:**
+```
+target_upside_eoy_value          NUMERIC(16,2)   Dollar value of EOY upside (quantity × price diff)
+target_upside_next_year_value    NUMERIC(16,2)   Dollar value of next year upside
+target_downside_value            NUMERIC(16,2)   Dollar value of downside scenario
+```
+
+**New Columns in `portfolio_snapshots`:**
+```
+-- Portfolio target price return metrics
+target_price_return_eoy           NUMERIC(8,4)    Expected % return to EOY targets
+target_price_return_next_year     NUMERIC(8,4)    Expected % return for next year
+target_price_downside_return      NUMERIC(8,4)    Downside scenario % return
+
+-- Portfolio target price dollar values (absolute upside in $)
+target_price_upside_eoy_dollars   NUMERIC(16,2)   Total dollar upside EOY
+target_price_upside_next_year_dollars NUMERIC(16,2) Total dollar upside next year
+target_price_downside_dollars     NUMERIC(16,2)   Total dollar downside
+
+-- Target coverage metadata
+target_price_coverage_pct         NUMERIC(8,4)    % of positions with targets
+target_price_positions_count      INTEGER         Number of positions with targets
+target_price_total_positions      INTEGER         Total active positions
+
+-- Tracking
+target_price_last_updated         TIMESTAMP       When targets were last modified
+```
+
+**Calculation Logic:**
+
+**Position Level:**
+```
+LONG:  upside = quantity × (target_price - current_price)
+SHORT: upside = quantity × (current_price - target_price)
+
+Example:
+- LONG 100 shares @ $150, target $180 → upside = 100 × ($180 - $150) = $3,000
+- SHORT 50 shares @ $100, target $80 → upside = 50 × ($100 - $80) = $1,000
+```
+
+**Portfolio Level:**
+```
+Total portfolio upside = Σ(position upside values)
+Portfolio return % = (total_upside / equity_balance) × 100
+
+Example:
+- Position 1: $3,000 upside
+- Position 2: $2,500 upside
+- Total: $5,500 upside
+- Equity balance: $100,000
+- Portfolio return = ($5,500 / $100,000) × 100 = 5.5%
+```
+
+**Auto-Update Triggers:**
+- Target price create → update portfolio snapshot
+- Target price update → update portfolio snapshot
+- Target price delete → update portfolio snapshot
+- Bulk create → update portfolio snapshot
+
+**Batch Integration:**
+- Added `portfolio_target_snapshot` job to batch orchestrator
+- Runs after `portfolio_snapshot` job
+- Updates daily snapshots with latest target data
+
+**Validation:**
+```bash
+# Check new columns exist
+uv run python -c "
+from app.models.target_prices import TargetPrice
+from app.models.snapshots import PortfolioSnapshot
+print('✓ TargetPrice model updated')
+print('✓ PortfolioSnapshot model updated')
+"
+```
+
+**Service Integration:**
+- `TargetPriceService.update_portfolio_target_snapshot()` - Main aggregation method
+- Auto-called on all target price CRUD operations
+- Included in daily batch processing
+
+**Rationale:**
+- Enables portfolio-level target return tracking
+- Position-level dollar upsides aggregate to portfolio returns
+- Provides target coverage metrics
+- Historical tracking via daily snapshots
+- Auto-updates ensure snapshots always current
+
+---
+
 ## Running All Migrations
 
 ### Step 1: Apply all migrations
@@ -843,20 +1003,25 @@ October 18, 2025 (Phase 3: Refactoring)
 October 19, 2025 (Phase 4: AI & Refinements)
 ├── f8g9h0i1j2k3 - Add AI insights infrastructure
 ├── 7003a3be89fe - Add sector exposure & concentration
-└── h1i2j3k4l5m6 - Add portfolio_id to interest rate betas (HEAD)
+└── h1i2j3k4l5m6 - Add portfolio_id to interest rate betas
+
+October 20, 2025 (Phase 5: Spread Factors & Target Prices)
+├── b9f866cb3838 - Add spread factor definitions
+└── 035e1888bea0 - Add portfolio target price fields (HEAD)
 ```
 
 ---
 
-**Last Updated:** October 19, 2025
-**Status:** All Risk Metrics & AI Insights Migrations Complete (11/11 migrations applied)
+**Last Updated:** October 20, 2025
+**Status:** All Risk Metrics & Portfolio Target Price Migrations Complete (13/13 migrations applied)
 
 **Summary:**
 - ✅ Phase 0: Market Beta (Oct 17) - 2 migrations
 - ✅ Phase 1: Sector Analysis (Oct 17) - 2 migrations
 - ✅ Phase 2: Volatility Analytics (Oct 17) - 2 migrations
 - ✅ Phase 3: Beta Refactoring (Oct 18) - 1 migration
-- ✅ Phase 4: AI Insights & Schema Updates (Oct 19) - 4 migrations
+- ✅ Phase 4: AI Insights & Schema Updates (Oct 19) - 3 migrations
+- ✅ Phase 5: Spread Factors & Portfolio Target Prices (Oct 20) - 2 migrations
 
 **New Tables Created:** 5
 - position_market_betas (Phase 0)
@@ -870,7 +1035,8 @@ October 19, 2025 (Phase 4: AI & Refinements)
 - 5 sector/concentration columns (refined in Phase 4)
 - 5 volatility analytics columns
 - 1 provider beta column (Phase 3)
-- **Total:** 15 new columns in portfolio_snapshots
+- 10 portfolio target price columns (Phase 5)
+- **Total:** 25 new columns in portfolio_snapshots
 
 **Database Ready For:**
 - Market beta calculations (position-level and portfolio-level)
@@ -880,3 +1046,5 @@ October 19, 2025 (Phase 4: AI & Refinements)
 - AI-powered portfolio insights and investigations
 - Efficient calculation cleanup and reprocessing
 - Multi-phase risk metrics dashboard
+- Portfolio target price return tracking
+- Spread factor calculations with reduced multicollinearity

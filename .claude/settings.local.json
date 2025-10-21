@@ -88,7 +88,8 @@
       "Bash(del \"C:\\Users\\BenBalbale\\CascadeProjects\\SigmaSight\\backend\\scripts\\debug_portfolio_beta.py\")",
       "Bash(del \"C:\\Users\\BenBalbale\\CascadeProjects\\SigmaSight\\backend\\scripts\\update_sept30_snapshot.py\")",
       "Bash(.venvScriptsalembic.exe upgrade head)",
-      "Bash(.venvScriptspython.exe -m alembic current)"
+      "Bash(.venvScriptspython.exe -m alembic current)",
+      "Bash(.venvScriptspython.exe run.py)"
     ],
     "additionalDirectories": [
       "C:\\c\\Users\\BenBalbale\\CascadeProjects\\SigmaSight-BE"
