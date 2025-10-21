@@ -371,6 +371,12 @@ async def calculate_portfolio_spread_betas(
             f"{len(position_betas)} positions with at least one valid beta"
         )
 
+        # DEBUG: Log position_betas contents
+        logger.info(f"[DEBUG] position_betas keys: {list(position_betas.keys())[:5]}... (showing first 5)")
+        logger.info(f"[DEBUG] position_betas sample: {dict(list(position_betas.items())[:2])}")
+        for pid, betas in list(position_betas.items())[:3]:
+            logger.info(f"[DEBUG] Position {pid}: {betas}")
+
         # Step 5: Aggregate to portfolio level (equity-weighted)
         from app.calculations.factors import _aggregate_portfolio_betas
 
@@ -383,6 +389,13 @@ async def calculate_portfolio_spread_betas(
 
         logger.info(f"Portfolio-level spread betas: {portfolio_betas}")
 
+        # DEBUG: Log what's being passed to storage
+        logger.info(f"[DEBUG] BEFORE STORAGE: position_betas has {len(position_betas)} positions")
+        logger.info(f"[DEBUG] BEFORE STORAGE: portfolio_betas has {len(portfolio_betas)} factors")
+        logger.info(f"[DEBUG] BEFORE STORAGE: position_betas is empty? {len(position_betas) == 0}")
+        if len(position_betas) > 0:
+            logger.info(f"[DEBUG] BEFORE STORAGE: First position in position_betas: {list(position_betas.items())[0]}")
+
         # Step 6: Store in database
         storage_results = await store_spread_factor_exposures(
             db=db,
@@ -392,6 +405,9 @@ async def calculate_portfolio_spread_betas(
             calculation_date=calculation_date,
             context=context
         )
+
+        # DEBUG: Log storage results
+        logger.info(f"[DEBUG] AFTER STORAGE: storage_results = {storage_results}")
 
         # Step 7: Prepare results
         results = {
@@ -462,8 +478,13 @@ async def store_spread_factor_exposures(
 
     storage_results = {}
 
+    # DEBUG: Log what was received
+    logger.info(f"[DEBUG] store_spread_factor_exposures RECEIVED: position_betas has {len(position_betas)} positions")
+    logger.info(f"[DEBUG] store_spread_factor_exposures RECEIVED: portfolio_betas has {len(portfolio_betas)} factors")
+
     # Store position-level exposures
     if position_betas:
+        logger.info(f"[DEBUG] ENTERING position-level storage block with {len(position_betas)} positions")
         logger.info("Storing position-level spread factor exposures")
         position_storage = await store_position_factor_exposures(
             db=db,
@@ -474,6 +495,9 @@ async def store_spread_factor_exposures(
         )
         storage_results['position_storage'] = position_storage
         logger.info(f"✅ Stored {position_storage['records_stored']} position spread betas")
+    else:
+        logger.warning(f"[DEBUG] SKIPPING position-level storage - position_betas is empty or False!")
+        logger.warning(f"[DEBUG] position_betas type: {type(position_betas)}, len: {len(position_betas) if position_betas else 'N/A'}")
 
     # Store portfolio-level exposures
     if portfolio_betas:
