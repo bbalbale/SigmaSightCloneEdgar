@@ -89,7 +89,8 @@
       "Bash(del \"C:\\Users\\BenBalbale\\CascadeProjects\\SigmaSight\\backend\\scripts\\update_sept30_snapshot.py\")",
       "Bash(.venvScriptsalembic.exe upgrade head)",
       "Bash(.venvScriptspython.exe -m alembic current)",
-      "Bash(.venvScriptspython.exe run.py)"
+      "Bash(.venvScriptspython.exe run.py)",
+      "Bash(docker-compose ps:*)"
     ],
     "additionalDirectories": [
       "C:\\c\\Users\\BenBalbale\\CascadeProjects\\SigmaSight-BE"
