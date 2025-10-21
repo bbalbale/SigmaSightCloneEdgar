@@ -204,6 +204,7 @@ async def calculate_position_ir_beta(
 async def persist_position_ir_beta(
     db: AsyncSession,
     position_id: UUID,
+    portfolio_id: UUID,
     ir_beta_result: Dict[str, Any]
 ) -> None:
     """
@@ -212,6 +213,7 @@ async def persist_position_ir_beta(
     Args:
         db: Database session
         position_id: Position UUID
+        portfolio_id: Portfolio UUID (required for database constraint)
         ir_beta_result: Result dictionary from calculate_position_ir_beta
     """
     try:
@@ -232,6 +234,7 @@ async def persist_position_ir_beta(
         else:
             # Create new record
             new_ir_beta = PositionInterestRateBeta(
+                portfolio_id=portfolio_id,  # Fix: Added missing portfolio_id
                 position_id=position_id,
                 ir_beta=Decimal(str(ir_beta_result['ir_beta'])),
                 r_squared=Decimal(str(ir_beta_result['r_squared'])) if ir_beta_result.get('r_squared') else None,
@@ -349,7 +352,7 @@ async def calculate_portfolio_ir_beta(
 
             # Persist position IR beta
             if persist:
-                await persist_position_ir_beta(db, position.id, ir_beta_result)
+                await persist_position_ir_beta(db, position.id, portfolio_id, ir_beta_result)
 
             # Get position market value (absolute value for weighting)
             # Use canonical position value function (signed=False for absolute value)

@@ -249,6 +249,7 @@ async def calculate_position_interest_rate_betas(
                 
                 # Prepare record for database storage
                 record = PositionInterestRateBeta(
+                    portfolio_id=portfolio_id,  # Fix: Added missing portfolio_id
                     position_id=UUID(position_id),
                     ir_beta=Decimal(str(regression_result['beta'])),
                     r_squared=Decimal(str(regression_result['r_squared'])),
@@ -454,6 +455,7 @@ async def _calculate_mock_interest_rate_betas(
         
         # Store in database
         record = PositionInterestRateBeta(
+            portfolio_id=portfolio_id,  # Fix: Added missing portfolio_id
             position_id=position.id,
             ir_beta=Decimal(str(ir_beta)),
             r_squared=Decimal(str(r_squared)),
