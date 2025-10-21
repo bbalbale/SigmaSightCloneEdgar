@@ -3,27 +3,7 @@ import { BasePositionCard } from '@/components/common/BasePositionCard'
 import { formatCurrency } from '@/lib/formatters'
 import { TagBadge } from '@/components/organize/TagBadge'
 import { useTheme } from '@/contexts/ThemeContext'
-
-// Tag interface
-interface Tag {
-  id: string
-  name: string
-  color: string
-}
-
-// Position interface from usePositions hook
-interface Position {
-  id: string
-  symbol: string
-  company_name?: string
-  market_value: number
-  investment_class: string
-  position_type: string
-  strike_price?: number
-  expiration_date?: string
-  investment_subtype?: string
-  tags?: Tag[]
-}
+import { Position } from '@/hooks/usePositions'
 
 interface OrganizePositionCardProps {
   position: Position

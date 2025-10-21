@@ -13,7 +13,7 @@ console.log('Docker Environment:', process.env.DOCKER_ENV)
  * Includes error handling and timeout management
  */
 
-function mergeHeaders(...sources: Array<Record<string, string> | Headers | undefined | null>) {
+function mergeHeaders(...sources: Array<HeadersInit | undefined | null>) {
   const result: Record<string, string> = {}
   for (const source of sources) {
     if (!source) continue
@@ -21,7 +21,13 @@ function mergeHeaders(...sources: Array<Record<string, string> | Headers | undef
       source.forEach((value, key) => {
         result[key] = value
       })
+    } else if (Array.isArray(source)) {
+      // Handle [string, string][] format
+      source.forEach(([key, value]) => {
+        result[key] = value
+      })
     } else {
+      // Handle Record<string, string> format
       Object.assign(result, source)
     }
   }

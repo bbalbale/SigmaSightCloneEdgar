@@ -59,7 +59,7 @@ FACTOR_DEFINITIONS = [
         "description": "Exposure to small-cap vs large-cap stocks",
         "factor_type": "style",
         "calculation_method": "market_cap",
-        "etf_proxy": "SIZE",
+        "etf_proxy": "IWM",
         "display_order": 5
     },
     {

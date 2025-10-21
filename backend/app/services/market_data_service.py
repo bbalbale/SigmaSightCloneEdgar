@@ -91,7 +91,7 @@ class MarketDataService:
         # Known ETF symbols (common ones plus factor ETFs)
         KNOWN_ETFS = {
             'SPY', 'QQQ', 'VTI', 'IWM', 'VOO', 'VTV', 'VNQ', 'DJP', 'SLY',
-            'VUG', 'MTUM', 'QUAL', 'SIZE', 'USMV', 'IVV', 'EFA', 'AGG', 
+            'VUG', 'MTUM', 'QUAL', 'USMV', 'IVV', 'EFA', 'AGG', 
             'BND', 'GLD', 'TLT', 'XLF', 'XLK', 'XLE', 'XLV', 'XLI', 'XLY',
             'XLP', 'XLU', 'XLB', 'XLRE', 'VEA', 'VWO', 'VIG', 'VYM', 'SCHD'
         }

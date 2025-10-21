@@ -49,10 +49,13 @@ class Portfolio(Base):
     positions: Mapped[List["Position"]] = relationship("Position", back_populates="portfolio")
     snapshots: Mapped[List["PortfolioSnapshot"]] = relationship("PortfolioSnapshot", back_populates="portfolio")
     factor_exposures: Mapped[List["FactorExposure"]] = relationship("FactorExposure", back_populates="portfolio")
+    position_market_betas: Mapped[List["PositionMarketBeta"]] = relationship("PositionMarketBeta", back_populates="portfolio")
+    position_interest_rate_betas: Mapped[List["PositionInterestRateBeta"]] = relationship("PositionInterestRateBeta", back_populates="portfolio")
     market_risk_scenarios: Mapped[List["MarketRiskScenario"]] = relationship("MarketRiskScenario", back_populates="portfolio")
     stress_test_results: Mapped[List["StressTestResult"]] = relationship("StressTestResult", back_populates="portfolio")
     correlation_calculations: Mapped[List["CorrelationCalculation"]] = relationship("CorrelationCalculation", back_populates="portfolio")
     target_prices: Mapped[List["TargetPrice"]] = relationship("TargetPrice", back_populates="portfolio")
+    ai_insights: Mapped[List["AIInsight"]] = relationship("AIInsight", back_populates="portfolio")
 
     __table_args__ = (
         UniqueConstraint('user_id', name='uq_portfolios_user_id'),

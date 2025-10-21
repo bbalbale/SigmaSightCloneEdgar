@@ -77,7 +77,22 @@
       "Bash(powershell:*)",
       "Bash(.venv\\Scripts\\alembic.exe upgrade head)",
       "Bash(.venvScriptspython.exe verify_strategy_tables.py)",
-      "Bash(git restore:*)"
+      "Bash(git restore:*)",
+      "Bash(mkdir:*)",
+      "Bash(npm run type-check:*)",
+      "Bash(del \"C:\\Users\\BenBalbale\\CascadeProjects\\SigmaSight\\frontend\\src\\components\\portfolio\\StrategyList.tsx\")",
+      "WebSearch",
+      "Bash(.venv/Scripts/python.exe:*)",
+      "Bash(timeout /t 3 /nobreak)",
+      "Bash(move:*)",
+      "Bash(del \"C:\\Users\\BenBalbale\\CascadeProjects\\SigmaSight\\backend\\scripts\\debug_portfolio_beta.py\")",
+      "Bash(del \"C:\\Users\\BenBalbale\\CascadeProjects\\SigmaSight\\backend\\scripts\\update_sept30_snapshot.py\")",
+      "Bash(.venvScriptsalembic.exe upgrade head)",
+      "Bash(.venvScriptspython.exe -m alembic current)",
+      "Bash(.venvScriptspython.exe run.py)",
+      "Bash(docker-compose ps:*)",
+      "Bash(if exist backendnul del backendnul)",
+      "Bash(if exist nul del nul)"
     ],
     "additionalDirectories": [
       "C:\\c\\Users\\BenBalbale\\CascadeProjects\\SigmaSight-BE"

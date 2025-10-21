@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import tagsApi, { TagItem } from '@/services/tagsApi';
+import tagsApi from '@/services/tagsApi';
+import type { TagItem } from '@/types/strategies';
 
 interface TagEditorProps {
   strategyId: string;

@@ -13,6 +13,7 @@ from app.models.correlations import CorrelationCalculation, CorrelationCluster, 
 from app.models.target_prices import TargetPrice
 from app.models.tags_v2 import TagV2
 from app.models.position_tags import PositionTag
+from app.models.ai_insights import AIInsight
 
 # Export all models
 __all__ = [
@@ -58,4 +59,7 @@ __all__ = [
 
     # Position tags module
     "PositionTag",
+
+    # AI insights module
+    "AIInsight",
 ]

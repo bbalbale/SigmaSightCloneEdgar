@@ -14,7 +14,9 @@ import {
   Menu,
   User,
   ChevronRight,
-  Sparkles
+  Sparkles,
+  Briefcase,
+  TrendingUp
 } from 'lucide-react'
 import {
   DropdownMenu,
@@ -30,7 +32,9 @@ import { usePortfolioName } from '@/stores/portfolioStore'
 import { cn } from '@/lib/utils'
 
 const navigationItems = [
-  { href: '/portfolio', label: 'Dashboard', icon: Home },
+  { href: '/dashboard', label: 'Dashboard', icon: Home },
+  { href: '/portfolio-holdings', label: 'Portfolio Holdings', icon: Briefcase },
+  { href: '/risk-metrics', label: 'Risk Metrics', icon: TrendingUp },
   { href: '/public-positions', label: 'Public Positions', icon: Building2 },
   { href: '/private-positions', label: 'Private Positions', icon: Shield },
   { href: '/organize', label: 'Organize', icon: PieChart },

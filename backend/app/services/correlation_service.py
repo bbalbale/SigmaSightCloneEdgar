@@ -17,9 +17,11 @@ from sqlalchemy.orm import selectinload
 
 from app.models import (
     Portfolio, Position, MarketDataCache,
-    CorrelationCalculation, CorrelationCluster, 
+    CorrelationCalculation, CorrelationCluster,
     CorrelationClusterPosition, PairwiseCorrelation
 )
+from sqlalchemy import delete
+from app.models.snapshots import PortfolioSnapshot
 from app.models.tags_v2 import TagV2
 from app.models import PositionTag
 from app.schemas.correlations import (
@@ -33,11 +35,150 @@ logger = logging.getLogger(__name__)
 
 class CorrelationService:
     """Service for calculating position-to-position correlations"""
-    
+
     def __init__(self, db: AsyncSession):
         self.db = db
         self.market_data_service = MarketDataService()
-    
+
+    async def _get_portfolio_value_from_snapshot(
+        self,
+        portfolio_id: UUID,
+        calculation_date: datetime,
+        max_staleness_days: int = 3
+    ) -> Optional[Decimal]:
+        """
+        Get portfolio gross exposure (total value) from snapshot.
+
+        Priority:
+        1. Use latest snapshot if recent (within max_staleness_days)
+        2. Return None if no suitable snapshot found
+
+        Returns:
+            Portfolio gross exposure (total value) as Decimal or None if unavailable
+        """
+        # Try to get latest snapshot
+        snapshot_stmt = (
+            select(PortfolioSnapshot)
+            .where(
+                and_(
+                    PortfolioSnapshot.portfolio_id == portfolio_id,
+                    PortfolioSnapshot.snapshot_date <= calculation_date.date()
+                )
+            )
+            .order_by(PortfolioSnapshot.snapshot_date.desc())
+            .limit(1)
+        )
+
+        snapshot_result = await self.db.execute(snapshot_stmt)
+        latest_snapshot = snapshot_result.scalar_one_or_none()
+
+        # Check if snapshot is recent enough
+        if latest_snapshot:
+            staleness = (calculation_date.date() - latest_snapshot.snapshot_date).days
+            if staleness <= max_staleness_days:
+                logger.info(
+                    f"Using snapshot gross_exposure from {latest_snapshot.snapshot_date} "
+                    f"({staleness} days old): ${float(latest_snapshot.gross_exposure):,.0f}"
+                )
+                return Decimal(str(latest_snapshot.gross_exposure))
+            else:
+                logger.warning(
+                    f"Latest snapshot is too stale ({staleness} days old), "
+                    f"falling back to real-time calculation"
+                )
+        else:
+            logger.warning("No snapshot found, falling back to real-time calculation")
+
+        return None
+
+    async def _cleanup_old_calculations(
+        self,
+        portfolio_id: UUID,
+        duration_days: int
+    ) -> int:
+        """
+        Clean up old correlation calculations for a specific portfolio and duration.
+
+        Deletes ALL existing calculations for (portfolio_id, duration_days) to ensure
+        new calculation replaces old ones. Only the most recent calculation matters.
+
+        Deletes in proper order respecting foreign key constraints:
+        1. correlation_cluster_positions
+        2. correlation_clusters
+        3. pairwise_correlations
+        4. correlation_calculations
+
+        Args:
+            portfolio_id: Portfolio to clean up
+            duration_days: Duration period to clean up (e.g., 90 for 90-day correlations)
+
+        Returns:
+            Number of calculations deleted
+        """
+        # Find ALL calculations for this portfolio and duration to delete
+        stmt = (
+            select(CorrelationCalculation.id)
+            .where(
+                and_(
+                    CorrelationCalculation.portfolio_id == portfolio_id,
+                    CorrelationCalculation.duration_days == duration_days
+                )
+            )
+        )
+
+        result = await self.db.execute(stmt)
+        old_calculation_ids = [row[0] for row in result.all()]
+
+        if not old_calculation_ids:
+            return 0
+
+        logger.info(
+            f"Cleaning up {len(old_calculation_ids)} old correlation calculation(s) "
+            f"for portfolio {portfolio_id} with {duration_days}-day duration "
+            f"(will be replaced by new calculation)"
+        )
+
+        deleted_count = 0
+        for calc_id in old_calculation_ids:
+            # Get clusters for this calculation
+            cluster_stmt = select(CorrelationCluster).where(
+                CorrelationCluster.correlation_calculation_id == calc_id
+            )
+            cluster_result = await self.db.execute(cluster_stmt)
+            clusters = cluster_result.scalars().all()
+
+            # Delete cluster positions first (innermost foreign key)
+            for cluster in clusters:
+                delete_positions_stmt = delete(CorrelationClusterPosition).where(
+                    CorrelationClusterPosition.cluster_id == cluster.id
+                )
+                await self.db.execute(delete_positions_stmt)
+
+            # Delete clusters
+            delete_clusters_stmt = delete(CorrelationCluster).where(
+                CorrelationCluster.correlation_calculation_id == calc_id
+            )
+            await self.db.execute(delete_clusters_stmt)
+
+            # Delete pairwise correlations
+            delete_pairs_stmt = delete(PairwiseCorrelation).where(
+                PairwiseCorrelation.correlation_calculation_id == calc_id
+            )
+            await self.db.execute(delete_pairs_stmt)
+
+            # Delete calculation
+            delete_calc_stmt = delete(CorrelationCalculation).where(
+                CorrelationCalculation.id == calc_id
+            )
+            await self.db.execute(delete_calc_stmt)
+
+            deleted_count += 1
+
+        await self.db.flush()
+        logger.info(f"✅ Cleaned up {deleted_count} old correlation calculations")
+
+        return deleted_count
+
     async def calculate_portfolio_correlations(
         self,
         portfolio_id: UUID,
@@ -61,16 +202,32 @@ class CorrelationService:
                 if existing:
                     logger.info(f"Using existing correlation calculation for portfolio {portfolio_id}")
                     return existing
+
+            # Clean up old calculations before creating new one
+            # Delete ALL existing calculations for this portfolio/duration
+            # This ensures exactly 1 calculation exists per (portfolio, duration) combination
+            await self._cleanup_old_calculations(portfolio_id, duration_days)
             
             # Get portfolio with positions
             portfolio = await self._get_portfolio_with_positions(portfolio_id)
             if not portfolio:
                 raise ValueError(f"Portfolio {portfolio_id} not found")
-            
-            # Calculate portfolio total value
-            portfolio_value = sum(
-                abs(p.quantity * p.last_price) for p in portfolio.positions
+
+            # Get portfolio total value from snapshot (preferred) or calculate
+            portfolio_value = await self._get_portfolio_value_from_snapshot(
+                portfolio_id, calculation_date
             )
+
+            if portfolio_value is None:
+                # Fallback: Calculate from positions if snapshot unavailable
+                logger.warning(
+                    "Calculating portfolio value from positions (snapshot unavailable). "
+                    "This duplicates work already done by portfolio aggregation."
+                )
+                portfolio_value = sum(
+                    abs(p.quantity * (p.last_price if p.last_price is not None else p.entry_price or 0))
+                    for p in portfolio.positions
+                )
 
             # Filter PRIVATE investment class positions (Phase 8.1 Task 2)
             public_positions = [
@@ -128,9 +285,14 @@ class CorrelationService:
                 await self.db.rollback()
                 return None  # Option B: Skip persistence, return None
             
-            # Calculate pairwise correlations
-            correlation_matrix = self.calculate_pairwise_correlations(returns_df)
-            
+            # Calculate pairwise correlations with adaptive minimum overlap requirement
+            # Require at least 1/3 of lookback period, minimum 20 days for statistical reliability
+            min_overlap = max(20, duration_days // 3)
+            correlation_matrix = self.calculate_pairwise_correlations(returns_df, min_periods=min_overlap)
+
+            # Validate and fix PSD property (Positive Semi-Definite matrix required for correlation)
+            correlation_matrix, psd_corrected = self._validate_and_fix_psd(correlation_matrix)
+
             # Detect correlation clusters
             clusters = await self.detect_correlation_clusters(
                 correlation_matrix, 
@@ -173,11 +335,35 @@ class CorrelationService:
             
             # Store clusters
             await self._store_clusters(
-                calculation.id, clusters, filtered_positions, portfolio_value
+                calculation.id, 
+                clusters, 
+                filtered_positions, 
+                portfolio_value,
+                correlation_matrix,
             )
-            
+
+            # Log comprehensive data quality metrics before commit
+            total_pairs = len(correlation_matrix) * len(correlation_matrix)
+            valid_pairs = (~correlation_matrix.isna()).sum().sum()
+            filtered_pairs = correlation_matrix.isna().sum().sum()
+
+            logger.info(
+                f"Correlation calculation data quality for portfolio {portfolio_id}:\n"
+                f"  - Duration: {duration_days} days\n"
+                f"  - Positions included: {len(valid_positions)}\n"
+                f"  - Positions excluded: {excluded_count + (len(filtered_positions) - len(valid_positions))}\n"
+                f"  - Min overlap required: {min_overlap} days\n"
+                f"  - Total correlation pairs: {total_pairs}\n"
+                f"  - Valid pairs (sufficient data): {valid_pairs}\n"
+                f"  - Filtered pairs (insufficient overlap): {filtered_pairs}\n"
+                f"  - PSD validation: {'CORRECTED' if psd_corrected else 'PASSED'}\n"
+                f"  - Overall correlation: {metrics['overall_correlation']:.4f}\n"
+                f"  - Effective positions: {metrics['effective_positions']:.2f}\n"
+                f"  - Correlation clusters detected: {len(clusters)}"
+            )
+
             await self.db.commit()
-            
+
             logger.info(
                 f"Completed correlation calculation for portfolio {portfolio_id}: "
                 f"overall_correlation={metrics['overall_correlation']:.4f}, "
@@ -209,10 +395,18 @@ class CorrelationService:
         - 'either': Positions must meet at least ONE threshold
         """
         filtered = []
-        
+
         for position in positions:
-            # Calculate position metrics
-            position_value = abs(position.quantity * position.last_price)
+            # Calculate position metrics (with fallback to entry_price if last_price is None)
+            price = position.last_price if position.last_price is not None else position.entry_price
+            if price is None:
+                logger.warning(
+                    f"Position {position.symbol} has no price data (last_price and entry_price both None). "
+                    f"Excluding from correlation analysis."
+                )
+                continue
+
+            position_value = abs(position.quantity * price)
             position_weight = position_value / portfolio_value if portfolio_value > 0 else 0
             
             # Apply filters based on mode
@@ -238,19 +432,112 @@ class CorrelationService:
         
         return filtered
     
-    def calculate_pairwise_correlations(self, returns_df: pd.DataFrame) -> pd.DataFrame:
+    def calculate_pairwise_correlations(
+        self,
+        returns_df: pd.DataFrame,
+        min_periods: int = 30
+    ) -> pd.DataFrame:
         """
-        Calculate full pairwise correlation matrix using log returns
-        Returns full matrix including self-correlations and both directions
+        Calculate full pairwise correlation matrix using log returns with minimum overlap requirement.
+
+        Args:
+            returns_df: DataFrame with dates as index and symbols as columns
+            min_periods: Minimum number of overlapping observations required (default: 30)
+
+        Returns:
+            Correlation matrix with NaN for pairs with insufficient overlap.
+            Full matrix including self-correlations and both directions.
         """
-        # Calculate correlation matrix using pandas
-        correlation_matrix = returns_df.corr(method='pearson')
-        
+        # Calculate correlation matrix using pandas with minimum period requirement
+        correlation_matrix = returns_df.corr(method='pearson', min_periods=min_periods)
+
         # Ensure we have both directions and self-correlations
         # (pandas corr() already returns a symmetric matrix with diagonal = 1)
-        
+
+        # Log any pairs filtered out due to insufficient data
+        nan_count = correlation_matrix.isna().sum().sum()
+        total_pairs = len(correlation_matrix) * len(correlation_matrix)
+        if nan_count > 0:
+            logger.info(
+                f"Filtered {nan_count}/{total_pairs} correlation pairs due to insufficient overlap "
+                f"(min_periods={min_periods})"
+            )
+
         return correlation_matrix
-    
+
+    def _validate_and_fix_psd(
+        self,
+        correlation_matrix: pd.DataFrame
+    ) -> tuple[pd.DataFrame, bool]:
+        """
+        Validate that correlation matrix is Positive Semi-Definite (PSD).
+        If not PSD, log warning and apply nearest PSD correction.
+
+        A correlation matrix must be PSD (all eigenvalues >= 0) to be mathematically valid.
+        Non-PSD matrices can occur due to:
+        - Numerical precision issues
+        - Insufficient or inconsistent data
+        - Pairwise deletion with different date ranges per pair
+
+        Args:
+            correlation_matrix: Correlation matrix to validate
+
+        Returns:
+            Tuple of (corrected_matrix, was_corrected_flag)
+        """
+        # Handle empty or all-NaN matrices
+        if correlation_matrix.empty or correlation_matrix.isna().all().all():
+            logger.warning("Empty or all-NaN correlation matrix, skipping PSD validation")
+            return correlation_matrix, False
+
+        # Check for PSD property (all eigenvalues >= 0)
+        try:
+            eigenvalues = np.linalg.eigvalsh(correlation_matrix.values)
+            min_eigenvalue = np.min(eigenvalues)
+        except np.linalg.LinAlgError as e:
+            logger.error(f"Failed to compute eigenvalues for PSD validation: {e}")
+            return correlation_matrix, False
+
+        # Tolerance for numerical precision (-1e-10 allows for floating point errors)
+        if min_eigenvalue < -1e-10:
+            logger.warning(
+                f"Non-PSD correlation matrix detected. "
+                f"Min eigenvalue: {min_eigenvalue:.6f}. "
+                f"This indicates numerical issues or insufficient data. "
+                f"Applying nearest PSD correction..."
+            )
+
+            # Apply nearest PSD correction using eigenvalue clipping
+            # This is a simplified version of Higham's algorithm
+            eigenvalues_clipped = np.maximum(eigenvalues, 0)
+
+            # Reconstruct matrix from corrected eigenvalues
+            eigenvectors = np.linalg.eigh(correlation_matrix.values)[1]
+            corrected_matrix = eigenvectors @ np.diag(eigenvalues_clipped) @ eigenvectors.T
+
+            # Rescale to ensure diagonal = 1.0 (required for correlation matrix)
+            d = np.sqrt(np.diag(corrected_matrix))
+            # Avoid division by zero
+            d = np.where(d == 0, 1, d)
+            corrected_matrix = corrected_matrix / d[:, None] / d[None, :]
+
+            # Convert back to DataFrame with original index/columns
+            corrected_df = pd.DataFrame(
+                corrected_matrix,
+                index=correlation_matrix.index,
+                columns=correlation_matrix.columns
+            )
+
+            logger.info(
+                f"PSD correction applied. "
+                f"New min eigenvalue: {np.min(np.linalg.eigvalsh(corrected_df.values)):.6f}"
+            )
+
+            return corrected_df, True
+
+        # Matrix is already PSD
+        return correlation_matrix, False
+
     async def detect_correlation_clusters(
         self,
         correlation_matrix: pd.DataFrame,
@@ -382,10 +669,10 @@ class CorrelationService:
         
         # 3. Use largest position + "lookalikes"
         if cluster_positions:
-            # Find largest position by value
+            # Find largest position by value (with fallback to entry_price)
             largest_position = max(
                 cluster_positions,
-                key=lambda p: abs(p.quantity * p.last_price)
+                key=lambda p: abs(p.quantity * (p.last_price if p.last_price is not None else p.entry_price or 0))
             )
             return f"{largest_position.symbol} lookalikes"
         
@@ -422,9 +709,14 @@ class CorrelationService:
         total_value = Decimal("0")
         
         for position in positions:
-            position_value = abs(position.quantity * position.last_price)
+            # Calculate position value with fallback to entry_price
+            price = position.last_price if position.last_price is not None else position.entry_price
+            if price is None:
+                continue  # Skip positions with no price data
+
+            position_value = abs(position.quantity * price)
             total_value += position_value
-            
+
             if position.symbol in clustered_symbols:
                 clustered_value += position_value
         
@@ -498,11 +790,17 @@ class CorrelationService:
         end_date: datetime
     ) -> pd.DataFrame:
         """
-        Get daily log returns for positions
+        Get daily log returns for positions, aligned to common trading dates
+
+        IMPORTANT: Returns are calculated AFTER date alignment to ensure all returns
+        are single-day returns over the same time periods. This prevents misaligned
+        correlation calculations (e.g., correlating 2-day returns with 1-day returns).
+
         Returns DataFrame with dates as index and symbols as columns
         """
-        returns_data = {}
-        
+        price_data = {}
+
+        # Step 1: Collect all price series (no return calculation yet)
         for position in positions:
             # Get price data from market data cache
             query = select(
@@ -515,29 +813,89 @@ class CorrelationService:
                     MarketDataCache.date <= end_date
                 )
             ).order_by(MarketDataCache.date)
-            
+
             result = await self.db.execute(query)
-            price_data = result.all()
-            
-            if len(price_data) >= 2:  # Need at least 2 points for returns
+            price_rows = result.all()
+
+            if len(price_rows) >= 2:  # Need at least 2 points for returns
                 # Convert to pandas Series
-                dates = [row.date for row in price_data]
-                prices = [float(row.close) for row in price_data]
-                
+                dates = [row.date for row in price_rows]
+                prices = [float(row.close) for row in price_rows]
+
                 price_series = pd.Series(prices, index=pd.DatetimeIndex(dates))
-                
-                # Calculate log returns: ln(price_t / price_t-1)
-                log_returns = np.log(price_series / price_series.shift(1)).dropna()
-                
-                returns_data[position.symbol] = log_returns
-        
-        # Create DataFrame from returns data
-        if returns_data:
-            # Align all series to common dates
-            returns_df = pd.DataFrame(returns_data)
-            return returns_df
-        else:
+
+                # SANITIZATION 1: Remove duplicate dates (keep last value)
+                duplicates_count = price_series.index.duplicated().sum()
+                if duplicates_count > 0:
+                    logger.warning(
+                        f"Position {position.symbol}: {duplicates_count} duplicate dates found. "
+                        f"Keeping last value for each date."
+                    )
+                    price_series = price_series[~price_series.index.duplicated(keep='last')]
+
+                # SANITIZATION 2: Filter out zero or negative prices (prevents infinite log returns)
+                invalid_prices = (price_series <= 0).sum()
+                if invalid_prices > 0:
+                    logger.warning(
+                        f"Position {position.symbol}: {invalid_prices} non-positive prices found. "
+                        f"Removing these data points before return calculation."
+                    )
+                    price_series = price_series[price_series > 0]
+
+                # Check if we still have enough data after sanitization
+                if len(price_series) >= 2:
+                    price_data[position.symbol] = price_series
+                else:
+                    logger.warning(
+                        f"Position {position.symbol}: Insufficient valid data after sanitization "
+                        f"({len(price_series)} points remaining, need 2+). Excluding from analysis."
+                    )
+
+        if not price_data:
             return pd.DataFrame()
+
+        # Step 2: Create price DataFrame with all positions
+        price_df = pd.DataFrame(price_data)
+
+        # Step 3: Drop dates where ANY position is missing (ensure alignment)
+        # This ensures all returns are calculated over the same dates
+        price_df_aligned = price_df.dropna()
+
+        if price_df_aligned.empty:
+            logger.warning("No overlapping dates found across all positions")
+            return pd.DataFrame()
+
+        logger.info(
+            f"Aligned {len(price_df_aligned)} common trading dates "
+            f"across {len(price_df_aligned.columns)} positions "
+            f"(original: {len(price_df)} dates before alignment)"
+        )
+
+        # Step 4: Calculate log returns on aligned price DataFrame
+        # Now .shift(1) operates on the same date sequence for all positions
+        with np.errstate(divide='ignore', invalid='ignore'):
+            returns_df = np.log(price_df_aligned / price_df_aligned.shift(1))
+
+        # Handle infinite values from zero/negative prices
+        inf_mask = np.isinf(returns_df)
+        if inf_mask.any().any():
+            inf_counts = inf_mask.sum()
+            for symbol in inf_counts[inf_counts > 0].index:
+                logger.warning(
+                    f"Position {symbol}: {inf_counts[symbol]} infinite log returns "
+                    f"(likely from zero/negative prices). Replacing with NaN."
+                )
+            returns_df = returns_df.replace([np.inf, -np.inf], np.nan)
+
+        # Drop NaN values (first row after shift, and any infinite values)
+        returns_df = returns_df.dropna()
+
+        logger.info(
+            f"Calculated {len(returns_df)} days of aligned returns "
+            f"for {len(returns_df.columns)} positions"
+        )
+
+        return returns_df
     
     def _validate_data_sufficiency(
         self, 
@@ -575,18 +933,27 @@ class CorrelationService:
             for symbol2 in correlation_matrix.columns:
                 # Store all pairs including self-correlations
                 correlation_value = correlation_matrix.loc[symbol1, symbol2]
-                
-                # Count valid data points
-                data_points = returns_df[[symbol1, symbol2]].dropna().shape[0]
-                
+
+                # Get paired observations (both symbols must have data)
+                # CRITICAL: Use same observations for both data_points count and stats.pearsonr()
+                paired_data = returns_df[[symbol1, symbol2]].dropna()
+                data_points = len(paired_data)
+
                 # Calculate statistical significance (p-value)
                 if symbol1 != symbol2 and data_points >= 3:
-                    # Use scipy stats for p-value calculation
+                    # Use scipy stats for p-value calculation on SAME paired observations
                     _, p_value = stats.pearsonr(
-                        returns_df[symbol1].dropna(),
-                        returns_df[symbol2].dropna()
+                        paired_data[symbol1],  # ← Same observations as data_points
+                        paired_data[symbol2]   # ← Same observations as data_points
                     )
                     statistical_significance = Decimal(str(1 - p_value))
+
+                    # Log low-confidence correlations (p > 0.05 = less than 95% confidence)
+                    if p_value > 0.05:
+                        logger.debug(
+                            f"Low-confidence correlation: {symbol1}-{symbol2} "
+                            f"(r={correlation_value:.3f}, p={p_value:.3f}, n={data_points})"
+                        )
                 else:
                     statistical_significance = Decimal("1") if symbol1 == symbol2 else None
                 
@@ -610,9 +977,10 @@ class CorrelationService:
         calculation_id: UUID,
         clusters: List[Dict],
         positions: List[Position],
-        portfolio_value: Decimal
+        portfolio_value: Decimal,
+        correlation_matrix: pd.DataFrame,
     ):
-        """Store correlation clusters and their positions"""
+        """Store correlation clusters and their positions with precise correlation stats"""
         # Create position lookup
         symbol_to_position = {p.symbol: p for p in positions}
         
@@ -624,7 +992,12 @@ class CorrelationService:
             for symbol in cluster_data["symbols"]:
                 if symbol in symbol_to_position:
                     position = symbol_to_position[symbol]
-                    position_value = abs(position.quantity * position.last_price)
+                    # Calculate position value with fallback to entry_price
+                    price = position.last_price if position.last_price is not None else position.entry_price
+                    if price is None:
+                        continue  # Skip positions with no price data
+
+                    position_value = abs(position.quantity * price)
                     cluster_value += position_value
                     cluster_positions.append((position, position_value))
             
@@ -642,33 +1015,50 @@ class CorrelationService:
             await self.db.flush()
             
             # Add cluster positions
+            cluster_position_records: List[CorrelationClusterPosition] = []
             for position, position_value in cluster_positions:
                 # Calculate correlation to cluster (average correlation with other cluster members)
-                correlations_to_cluster = []
+                correlation_values: List[Decimal] = []
                 for other_symbol in cluster_data["symbols"]:
-                    if other_symbol != position.symbol:
-                        # This would need access to the correlation matrix
-                        # For now, use the average cluster correlation
-                        correlations_to_cluster.append(float(cluster_data["avg_correlation"]))
-                
-                avg_correlation_to_cluster = (
-                    Decimal(str(np.mean(correlations_to_cluster)))
-                    if correlations_to_cluster
-                    else cluster_data["avg_correlation"]
-                )
-                
-                cluster_position = CorrelationClusterPosition(
-                    cluster_id=cluster.id,
-                    position_id=position.id,
-                    symbol=position.symbol,
-                    value=position_value,
-                    portfolio_percentage=position_value / portfolio_value if portfolio_value > 0 else Decimal("0"),
-                    correlation_to_cluster=avg_correlation_to_cluster
-                )
-                
-            self.db.add(cluster_position)
-        
-            await self.db.flush()
+                    if other_symbol == position.symbol:
+                        continue
+
+                    if (
+                        position.symbol in correlation_matrix.index
+                        and other_symbol in correlation_matrix.columns
+                    ):
+                        correlation_values.append(
+                            Decimal(
+                                str(
+                                    correlation_matrix.loc[
+                                        position.symbol, other_symbol
+                                    ]
+                                )
+                            )
+                        )
+
+                if correlation_values:
+                    avg_correlation_to_cluster = sum(correlation_values) / Decimal(
+                        len(correlation_values)
+                    )
+                else:
+                    avg_correlation_to_cluster = cluster_data["avg_correlation"]
+
+                cluster_position_records.append(
+                    CorrelationClusterPosition(
+                        cluster_id=cluster.id,
+                        position_id=position.id,
+                        symbol=position.symbol,
+                        value=position_value,
+                        portfolio_percentage=position_value / portfolio_value if portfolio_value > 0 else Decimal("0"),
+                        correlation_to_cluster=avg_correlation_to_cluster,
+                    )
+                )      
+
+            if cluster_position_records:
+                self.db.add_all(cluster_position_records)
+
+            await self.db.flush()         
 
     async def get_weighted_correlation(
         self,

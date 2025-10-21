@@ -1,10 +1,16 @@
 'use client'
 
-import { TagItem } from '@/services/tagsApi'
 import { Badge } from '@/components/ui/badge'
 
+// Simple tag interface for display - only requires what's actually used
+interface TagDisplay {
+  id: string
+  name: string
+  color?: string
+}
+
 interface TagBadgeProps {
-  tag: TagItem
+  tag: TagDisplay
   draggable?: boolean
   onDelete?: (tagId: string) => void
   className?: string

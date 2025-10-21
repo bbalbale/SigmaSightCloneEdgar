@@ -1,0 +1,28 @@
+warning: `VIRTUAL_ENV=C:\Users\BenBalbale\CascadeProjects\SigmaSight\.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead
+============================================================
+Traceback (most recent call last):
+  File "C:\Users\BenBalbale\CascadeProjects\SigmaSight\backend\scripts\database\seed_stress_scenarios.py", line 180, in main
+    success = loop.run_until_complete(seed_scenarios_from_config())
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\BenBalbale\AppData\Roaming\uv\python\cpython-3.11.13-windows-x86_64-none\Lib\asyncio\base_events.py", line 654, in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+  File "C:\Users\BenBalbale\CascadeProjects\SigmaSight\backend\scripts\database\seed_stress_scenarios.py", line 50, in seed_scenarios_from_config
+    print("\U0001f331 SEEDING STRESS TEST SCENARIOS")
+  File "C:\Users\BenBalbale\AppData\Roaming\uv\python\cpython-3.11.13-windows-x86_64-none\Lib\encodings\cp1252.py", line 19, in encode
+    return codecs.charmap_encode(input,self.errors,encoding_table)[0]
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+UnicodeEncodeError: 'charmap' codec can't encode character '\U0001f331' in position 0: character maps to <undefined>
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\BenBalbale\CascadeProjects\SigmaSight\backend\scripts\database\seed_stress_scenarios.py", line 202, in <module>
+    sys.exit(main())
+             ^^^^^^
+  File "C:\Users\BenBalbale\CascadeProjects\SigmaSight\backend\scripts\database\seed_stress_scenarios.py", line 195, in main
+    print(f"\n\u274c Unexpected error: {str(e)}")
+  File "C:\Users\BenBalbale\AppData\Roaming\uv\python\cpython-3.11.13-windows-x86_64-none\Lib\encodings\cp1252.py", line 19, in encode
+    return codecs.charmap_encode(input,self.errors,encoding_table)[0]
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+UnicodeEncodeError: 'charmap' codec can't encode character '\u274c' in position 2: character maps to <undefined>

@@ -37,13 +37,20 @@ export function usePublicPositions(): UsePublicPositionsReturn {
 
     try {
       // Use service to fetch and merge all data
-      // Don't filter by investment class - we want both PUBLIC and OPTIONS
       const result = await positionResearchService.fetchEnhancedPositions({
         portfolioId
       })
 
-      setLongPositions(result.longPositions)
-      setShortPositions(result.shortPositions)
+      // Filter to only show PUBLIC and OPTIONS positions
+      const filteredLongPositions = result.longPositions.filter(
+        p => p.investment_class === 'PUBLIC' || p.investment_class === 'OPTIONS'
+      )
+      const filteredShortPositions = result.shortPositions.filter(
+        p => p.investment_class === 'PUBLIC' || p.investment_class === 'OPTIONS'
+      )
+
+      setLongPositions(filteredLongPositions)
+      setShortPositions(filteredShortPositions)
     } catch (err) {
       console.error('Failed to fetch positions:', err)
       setError('Failed to load positions data')

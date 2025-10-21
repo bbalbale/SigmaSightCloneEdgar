@@ -71,7 +71,9 @@ class Position(Base):
     position_tags: Mapped[List["PositionTag"]] = relationship("PositionTag", back_populates="position", cascade="all, delete-orphan")
     greeks: Mapped[Optional["PositionGreeks"]] = relationship("PositionGreeks", back_populates="position", uselist=False)
     factor_exposures: Mapped[List["PositionFactorExposure"]] = relationship("PositionFactorExposure", back_populates="position")
+    market_betas: Mapped[List["PositionMarketBeta"]] = relationship("PositionMarketBeta", back_populates="position")
     interest_rate_betas: Mapped[List["PositionInterestRateBeta"]] = relationship("PositionInterestRateBeta", back_populates="position")
+    volatility: Mapped[List["PositionVolatility"]] = relationship("PositionVolatility", back_populates="position")
     target_price: Mapped[Optional["TargetPrice"]] = relationship("TargetPrice", back_populates="position", uselist=False)
     
     __table_args__ = (

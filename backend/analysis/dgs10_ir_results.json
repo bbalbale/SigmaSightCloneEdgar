@@ -1,0 +1,631 @@
+{
+  "calculation_date": "2025-10-19",
+  "method": "DGS10",
+  "description": "Fed 10-Year Treasury Yield Changes (basis points)",
+  "portfolios": {
+    "1d8ddd95-3b45-0ac5-35bf-cf81af94a5fe": {
+      "name": "Demo Individual Investor Portfolio",
+      "equity_balance": 481844.66,
+      "portfolio_ir_beta": 0.000122,
+      "weighted_r_squared": 0.1582,
+      "positions_count": 16,
+      "total_positions": 16,
+      "sensitivity_level": "very low",
+      "observations": 80,
+      "positions": [
+        {
+          "symbol": "FCNTX",
+          "ir_beta": 0.000306,
+          "r_squared": 0.0284,
+          "p_value": 0.135,
+          "is_significant": false,
+          "sensitivity_level": "very low",
+          "market_value": 119238.21,
+          "observations": 80
+        },
+        {
+          "symbol": "FMAGX",
+          "ir_beta": 0.000242,
+          "r_squared": 0.0189,
+          "p_value": 0.2242,
+          "is_significant": false,
+          "sensitivity_level": "very low",
+          "market_value": 61226.4,
+          "observations": 80
+        },
+        {
+          "symbol": "VTI",
+          "ir_beta": 0.000123,
+          "r_squared": 0.0065,
+          "p_value": 0.477,
+          "is_significant": false,
+          "sensitivity_level": "very low",
+          "market_value": 50731.5,
+          "observations": 80
+        },
+        {
+          "symbol": "FXNAX",
+          "ir_beta": -0.000567,
+          "r_squared": 0.8856,
+          "p_value": 0.0,
+          "is_significant": true,
+          "sensitivity_level": "very low",
+          "market_value": 46443.6,
+          "observations": 80
+        },
+        {
+          "symbol": "VTIAX",
+          "ir_beta": -0.000189,
+          "r_squared": 0.0142,
+          "p_value": 0.2924,
+          "is_significant": false,
+          "sensitivity_level": "very low",
+          "market_value": 38615.7,
+          "observations": 80
+        },
+        {
+          "symbol": "TSLA",
+          "ir_beta": 0.00031,
+          "r_squared": 0.0019,
+          "p_value": 0.7016,
+          "is_significant": false,
+          "sensitivity_level": "very low",
+          "market_value": 30751.7,
+          "observations": 80
+        },
+        {
+          "symbol": "GOOGL",
+          "ir_beta": -0.000128,
+          "r_squared": 0.0011,
+          "p_value": 0.7713,
+          "is_significant": false,
+          "sensitivity_level": "very low",
+          "market_value": 29129.5,
+          "observations": 80
+        },
+        {
+          "symbol": "JPM",
+          "ir_beta": 0.000602,
+          "r_squared": 0.0521,
+          "p_value": 0.0417,
+          "is_significant": true,
+          "sensitivity_level": "very low",
+          "market_value": 25292.6,
+          "observations": 80
+        },
+        {
+          "symbol": "BND",
+          "ir_beta": -0.00055,
+          "r_squared": 0.9286,
+          "p_value": 0.0,
+          "is_significant": true,
+          "sensitivity_level": "very low",
+          "market_value": 23587.2,
+          "observations": 80
+        },
+        {
+          "symbol": "AMZN",
+          "ir_beta": 0.001017,
+          "r_squared": 0.0567,
+          "p_value": 0.0334,
+          "is_significant": true,
+          "sensitivity_level": "very low",
+          "market_value": 23434.4,
+          "observations": 80
+        },
+        {
+          "symbol": "MSFT",
+          "ir_beta": 0.000612,
+          "r_squared": 0.0646,
+          "p_value": 0.0229,
+          "is_significant": true,
+          "sensitivity_level": "very low",
+          "market_value": 23111.1,
+          "observations": 80
+        },
+        {
+          "symbol": "AAPL",
+          "ir_beta": 0.000418,
+          "r_squared": 0.0138,
+          "p_value": 0.2988,
+          "is_significant": false,
+          "sensitivity_level": "very low",
+          "market_value": 21444.65,
+          "observations": 80
+        },
+        {
+          "symbol": "JNJ",
+          "ir_beta": -0.000557,
+          "r_squared": 0.0494,
+          "p_value": 0.0476,
+          "is_significant": true,
+          "sensitivity_level": "very low",
+          "market_value": 20288.1,
+          "observations": 80
+        },
+        {
+          "symbol": "VNQ",
+          "ir_beta": -0.000649,
+          "r_squared": 0.1036,
+          "p_value": 0.0036,
+          "is_significant": true,
+          "sensitivity_level": "very low",
+          "market_value": 18689.85,
+          "observations": 80
+        },
+        {
+          "symbol": "V",
+          "ir_beta": -0.000105,
+          "r_squared": 0.0015,
+          "p_value": 0.7288,
+          "is_significant": false,
+          "sensitivity_level": "very low",
+          "market_value": 17094.5,
+          "observations": 80
+        },
+        {
+          "symbol": "NVDA",
+          "ir_beta": 0.001135,
+          "r_squared": 0.0636,
+          "p_value": 0.024,
+          "is_significant": true,
+          "sensitivity_level": "very low",
+          "market_value": 4580.5,
+          "observations": 80
+        }
+      ],
+      "stress_test_preview": {
+        "50bp_shock_pnl": 0.29,
+        "100bp_shock_pnl": 0.59,
+        "50bp_shock_formatted": "$0.29",
+        "100bp_shock_formatted": "$0.59"
+      }
+    },
+    "e23ab931-a033-edfe-ed4f-9d02474780b4": {
+      "name": "Demo High Net Worth Investor Portfolio",
+      "equity_balance": 2850000.0,
+      "portfolio_ir_beta": 0.000102,
+      "weighted_r_squared": 0.021,
+      "positions_count": 19,
+      "total_positions": 30,
+      "sensitivity_level": "very low",
+      "observations": 80,
+      "positions": [
+        {
+          "symbol": "QQQ",
+          "ir_beta": 0.000269,
+          "r_squared": 0.0204,
+          "p_value": 0.2058,
+          "is_significant": false,
+          "sensitivity_level": "very low",
+          "market_value": 271768.5,
+          "observations": 80
+        },
+        {
+          "symbol": "SPY",
+          "ir_beta": 0.000154,
+          "r_squared": 0.0109,
+          "p_value": 0.3556,
+          "is_significant": false,
+          "sensitivity_level": "very low",
+          "market_value": 265756.0,
+          "observations": 80
+        },
+        {
+          "symbol": "VTI",
+          "ir_beta": 0.000123,
+          "r_squared": 0.0065,
+          "p_value": 0.477,
+          "is_significant": false,
+          "sensitivity_level": "very low",
+          "market_value": 261840.0,
+          "observations": 80
+        },
+        {
+          "symbol": "GOOGL",
+          "ir_beta": -0.000128,
+          "r_squared": 0.0011,
+          "p_value": 0.7713,
+          "is_significant": false,
+          "sensitivity_level": "very low",
+          "market_value": 126650.0,
+          "observations": 80
+        },
+        {
+          "symbol": "GLD",
+          "ir_beta": -0.000726,
+          "r_squared": 0.1059,
+          "p_value": 0.0032,
+          "is_significant": true,
+          "sensitivity_level": "very low",
+          "market_value": 126421.75,
+          "observations": 80
+        },
+        {
+          "symbol": "JPM",
+          "ir_beta": 0.000602,
+          "r_squared": 0.0521,
+          "p_value": 0.0417,
+          "is_significant": true,
+          "sensitivity_level": "very low",
+          "market_value": 104146.0,
+          "observations": 80
+        },
+        {
+          "symbol": "MSFT",
+          "ir_beta": 0.000612,
+          "r_squared": 0.0646,
+          "p_value": 0.0229,
+          "is_significant": true,
+          "sensitivity_level": "very low",
+          "market_value": 102716.0,
+          "observations": 80
+        },
+        {
+          "symbol": "AMZN",
+          "ir_beta": 0.001017,
+          "r_squared": 0.0567,
+          "p_value": 0.0334,
+          "is_significant": true,
+          "sensitivity_level": "very low",
+          "market_value": 102259.2,
+          "observations": 80
+        },
+        {
+          "symbol": "AAPL",
+          "ir_beta": 0.000418,
+          "r_squared": 0.0138,
+          "p_value": 0.2988,
+          "is_significant": false,
+          "sensitivity_level": "very low",
+          "market_value": 100916.0,
+          "observations": 80
+        },
+        {
+          "symbol": "BRK-B",
+          "ir_beta": -1.2e-05,
+          "r_squared": 0.0,
+          "p_value": 0.9585,
+          "is_significant": false,
+          "sensitivity_level": "very low",
+          "market_value": 88635.6,
+          "observations": 80
+        },
+        {
+          "symbol": "BRK-B",
+          "ir_beta": -1.2e-05,
+          "r_squared": 0.0,
+          "p_value": 0.9585,
+          "is_significant": false,
+          "sensitivity_level": "very low",
+          "market_value": 88635.6,
+          "observations": 80
+        },
+        {
+          "symbol": "DJP",
+          "ir_beta": 0.000261,
+          "r_squared": 0.0232,
+          "p_value": 0.1778,
+          "is_significant": false,
+          "sensitivity_level": "very low",
+          "market_value": 68153.0,
+          "observations": 80
+        },
+        {
+          "symbol": "META",
+          "ir_beta": 0.000368,
+          "r_squared": 0.0066,
+          "p_value": 0.4736,
+          "is_significant": false,
+          "sensitivity_level": "very low",
+          "market_value": 64522.8,
+          "observations": 80
+        },
+        {
+          "symbol": "JNJ",
+          "ir_beta": -0.000557,
+          "r_squared": 0.0494,
+          "p_value": 0.0476,
+          "is_significant": true,
+          "sensitivity_level": "very low",
+          "market_value": 59898.2,
+          "observations": 80
+        },
+        {
+          "symbol": "V",
+          "ir_beta": -0.000105,
+          "r_squared": 0.0015,
+          "p_value": 0.7288,
+          "is_significant": false,
+          "sensitivity_level": "very low",
+          "market_value": 58121.3,
+          "observations": 80
+        },
+        {
+          "symbol": "HD",
+          "ir_beta": -0.00116,
+          "r_squared": 0.16,
+          "p_value": 0.0002,
+          "is_significant": true,
+          "sensitivity_level": "very low",
+          "market_value": 48987.5,
+          "observations": 80
+        },
+        {
+          "symbol": "PG",
+          "ir_beta": -0.000475,
+          "r_squared": 0.0464,
+          "p_value": 0.0549,
+          "is_significant": true,
+          "sensitivity_level": "very low",
+          "market_value": 37850.0,
+          "observations": 80
+        },
+        {
+          "symbol": "UNH",
+          "ir_beta": 0.001382,
+          "r_squared": 0.0452,
+          "p_value": 0.0584,
+          "is_significant": true,
+          "sensitivity_level": "very low",
+          "market_value": 30311.0,
+          "observations": 80
+        },
+        {
+          "symbol": "NVDA",
+          "ir_beta": 0.001135,
+          "r_squared": 0.0636,
+          "p_value": 0.024,
+          "is_significant": true,
+          "sensitivity_level": "very low",
+          "market_value": 12825.4,
+          "observations": 80
+        }
+      ],
+      "stress_test_preview": {
+        "50bp_shock_pnl": 1.46,
+        "100bp_shock_pnl": 2.92,
+        "50bp_shock_formatted": "$1.46",
+        "100bp_shock_formatted": "$2.92"
+      }
+    },
+    "fcd71196-e93e-f000-5a74-31a9eead3118": {
+      "name": "Demo Hedge Fund Style Investor Portfolio",
+      "equity_balance": 3200000.0,
+      "portfolio_ir_beta": 0.000908,
+      "weighted_r_squared": 0.0479,
+      "positions_count": 22,
+      "total_positions": 30,
+      "sensitivity_level": "very low",
+      "observations": 80,
+      "positions": [
+        {
+          "symbol": "NFLX",
+          "ir_beta": 0.000317,
+          "r_squared": 0.007,
+          "p_value": 0.4595,
+          "is_significant": false,
+          "sensitivity_level": "very low",
+          "market_value": -719616.0,
+          "observations": 80
+        },
+        {
+          "symbol": "META",
+          "ir_beta": 0.000368,
+          "r_squared": 0.0066,
+          "p_value": 0.4736,
+          "is_significant": false,
+          "sensitivity_level": "very low",
+          "market_value": 716920.0,
+          "observations": 80
+        },
+        {
+          "symbol": "MSFT",
+          "ir_beta": 0.000612,
+          "r_squared": 0.0646,
+          "p_value": 0.0229,
+          "is_significant": true,
+          "sensitivity_level": "very low",
+          "market_value": 513580.0,
+          "observations": 80
+        },
+        {
+          "symbol": "GOOGL",
+          "ir_beta": -0.000128,
+          "r_squared": 0.0011,
+          "p_value": 0.7713,
+          "is_significant": false,
+          "sensitivity_level": "very low",
+          "market_value": 455940.0,
+          "observations": 80
+        },
+        {
+          "symbol": "AAPL",
+          "ir_beta": 0.000418,
+          "r_squared": 0.0138,
+          "p_value": 0.2988,
+          "is_significant": false,
+          "sensitivity_level": "very low",
+          "market_value": 378435.0,
+          "observations": 80
+        },
+        {
+          "symbol": "TSLA",
+          "ir_beta": 0.00031,
+          "r_squared": 0.0019,
+          "p_value": 0.7016,
+          "is_significant": false,
+          "sensitivity_level": "very low",
+          "market_value": 351448.0,
+          "observations": 80
+        },
+        {
+          "symbol": "AMZN",
+          "ir_beta": 0.001017,
+          "r_squared": 0.0567,
+          "p_value": 0.0334,
+          "is_significant": true,
+          "sensitivity_level": "very low",
+          "market_value": 298256.0,
+          "observations": 80
+        },
+        {
+          "symbol": "JPM",
+          "ir_beta": 0.000602,
+          "r_squared": 0.0521,
+          "p_value": 0.0417,
+          "is_significant": true,
+          "sensitivity_level": "very low",
+          "market_value": 297560.0,
+          "observations": 80
+        },
+        {
+          "symbol": "BRK-B",
+          "ir_beta": -1.2e-05,
+          "r_squared": 0.0,
+          "p_value": 0.9585,
+          "is_significant": false,
+          "sensitivity_level": "very low",
+          "market_value": 295452.0,
+          "observations": 80
+        },
+        {
+          "symbol": "AMD",
+          "ir_beta": 0.001845,
+          "r_squared": 0.0362,
+          "p_value": 0.0909,
+          "is_significant": true,
+          "sensitivity_level": "very low",
+          "market_value": 279696.0,
+          "observations": 80
+        },
+        {
+          "symbol": "GE",
+          "ir_beta": 0.000449,
+          "r_squared": 0.0197,
+          "p_value": 0.2145,
+          "is_significant": false,
+          "sensitivity_level": "very low",
+          "market_value": -240112.0,
+          "observations": 80
+        },
+        {
+          "symbol": "XOM",
+          "ir_beta": 0.000773,
+          "r_squared": 0.0692,
+          "p_value": 0.0184,
+          "is_significant": true,
+          "sensitivity_level": "very low",
+          "market_value": -224480.0,
+          "observations": 80
+        },
+        {
+          "symbol": "C",
+          "ir_beta": 0.000767,
+          "r_squared": 0.0455,
+          "p_value": 0.0575,
+          "is_significant": true,
+          "sensitivity_level": "very low",
+          "market_value": -194140.0,
+          "observations": 80
+        },
+        {
+          "symbol": "ROKU",
+          "ir_beta": 0.001766,
+          "r_squared": 0.0669,
+          "p_value": 0.0205,
+          "is_significant": true,
+          "sensitivity_level": "very low",
+          "market_value": -169578.0,
+          "observations": 80
+        },
+        {
+          "symbol": "ZM",
+          "ir_beta": -2.5e-05,
+          "r_squared": 0.0,
+          "p_value": 0.9644,
+          "is_significant": false,
+          "sensitivity_level": "very low",
+          "market_value": -160020.0,
+          "observations": 80
+        },
+        {
+          "symbol": "SHOP",
+          "ir_beta": -0.00023,
+          "r_squared": 0.0008,
+          "p_value": 0.8091,
+          "is_significant": false,
+          "sensitivity_level": "very low",
+          "market_value": -157760.0,
+          "observations": 80
+        },
+        {
+          "symbol": "JNJ",
+          "ir_beta": -0.000557,
+          "r_squared": 0.0494,
+          "p_value": 0.0476,
+          "is_significant": true,
+          "sensitivity_level": "very low",
+          "market_value": 154576.0,
+          "observations": 80
+        },
+        {
+          "symbol": "NVDA",
+          "ir_beta": 0.001135,
+          "r_squared": 0.0636,
+          "p_value": 0.024,
+          "is_significant": true,
+          "sensitivity_level": "very low",
+          "market_value": 146576.0,
+          "observations": 80
+        },
+        {
+          "symbol": "V",
+          "ir_beta": -0.000105,
+          "r_squared": 0.0015,
+          "p_value": 0.7288,
+          "is_significant": false,
+          "sensitivity_level": "very low",
+          "market_value": 119661.5,
+          "observations": 80
+        },
+        {
+          "symbol": "F",
+          "ir_beta": 5e-05,
+          "r_squared": 0.0002,
+          "p_value": 0.9116,
+          "is_significant": false,
+          "sensitivity_level": "very low",
+          "market_value": -119200.0,
+          "observations": 80
+        },
+        {
+          "symbol": "UNH",
+          "ir_beta": 0.001382,
+          "r_squared": 0.0452,
+          "p_value": 0.0584,
+          "is_significant": true,
+          "sensitivity_level": "very low",
+          "market_value": 71320.0,
+          "observations": 80
+        },
+        {
+          "symbol": "PTON",
+          "ir_beta": 0.001578,
+          "r_squared": 0.024,
+          "p_value": 0.1701,
+          "is_significant": false,
+          "sensitivity_level": "very low",
+          "market_value": -22500.0,
+          "observations": 80
+        }
+      ],
+      "stress_test_preview": {
+        "50bp_shock_pnl": 14.53,
+        "100bp_shock_pnl": 29.07,
+        "50bp_shock_formatted": "$14.53",
+        "100bp_shock_formatted": "$29.07"
+      }
+    }
+  }
+}

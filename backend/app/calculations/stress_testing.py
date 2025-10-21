@@ -16,7 +16,10 @@ from sqlalchemy import select, and_
 from app.models.positions import Position
 from app.models.market_data import FactorDefinition, PositionFactorExposure, FactorExposure, StressTestScenario, StressTestResult
 from app.models.users import Portfolio
+from app.models.snapshots import PortfolioSnapshot
 from app.calculations.factors import fetch_factor_returns
+from app.calculations.portfolio import calculate_portfolio_exposures
+from app.services.portfolio_exposure_service import get_portfolio_exposures
 from app.constants.factors import FACTOR_ETFS, REGRESSION_WINDOW_DAYS
 from app.core.logging import get_logger
 
@@ -30,73 +33,39 @@ STRESS_MAGNITUDE_CAP = 1.0
 OPTIONS_CONTRACT_MULTIPLIER = 100  # Standard options contract size
 
 
-def calculate_portfolio_market_value(positions) -> float:
-    """
-    Calculate total portfolio market value correctly handling options and short positions.
-    
-    Args:
-        positions: List of Position objects
-        
-    Returns:
-        Absolute portfolio market value (gross exposure)
-        
-    Note:
-        - Uses Position.market_value if available
-        - Applies options contract multiplier (100)
-        - Handles SHORT positions correctly (negative values)
-        - Returns absolute value for stress testing (gross exposure)
-    """
-    total = 0.0
-    
-    for pos in positions:
-        # Use pre-calculated market value if available
-        if pos.market_value is not None:
-            total += float(pos.market_value)
-        elif pos.last_price is not None:
-            # Calculate market value based on position type
-            quantity = float(pos.quantity)
-            price = float(pos.last_price)
-            
-            # Apply options contract multiplier
-            if pos.position_type.name in ['LC', 'LP', 'SC', 'SP']:
-                multiplier = OPTIONS_CONTRACT_MULTIPLIER
-            else:
-                multiplier = 1
-            
-            # Apply sign for short positions
-            # Note: SHORT stock and short options (SC, SP) are negative
-            if pos.position_type.name in ['SHORT', 'SC', 'SP']:
-                sign = -1
-            else:
-                sign = 1
-            
-            market_value = sign * quantity * price * multiplier
-            total += market_value
-    
-    # Return absolute value (gross exposure) for stress testing
-    # Stress tests apply to total portfolio exposure regardless of long/short mix
-    return abs(total)
-
 
 async def calculate_factor_correlation_matrix(
     db: AsyncSession,
     lookback_days: int = DEFAULT_LOOKBACK_DAYS,
-    decay_factor: float = CORRELATION_DECAY_FACTOR
+    decay_factor: float = CORRELATION_DECAY_FACTOR,
+    config: Optional[Dict[str, Any]] = None
 ) -> Dict[str, Any]:
     """
     Calculate factor cross-correlation matrix with exponential decay weighting
-    
+
+    ISSUE #5 FIX: Now reads correlation bounds from config instead of hardcoded values
+
     Args:
         db: Database session
         lookback_days: Historical period for correlation calculation (default: 252 days)
         decay_factor: Exponential decay factor for historical data weighting (default: 0.94)
-        
+        config: Stress scenario configuration dict (optional, will load if not provided)
+
     Returns:
         Dictionary containing correlation matrix and metadata
     """
     logger.info(f"Calculating factor correlation matrix with {lookback_days} days lookback")
-    
+
     try:
+        # ISSUE #5 FIX: Load config to get correlation bounds
+        if config is None:
+            config = load_stress_scenarios()
+
+        # Read correlation bounds from configuration
+        bounds = config.get('configuration', {})
+        min_corr = bounds.get('min_factor_correlation', -0.95)
+        max_corr = bounds.get('max_factor_correlation', 0.95)
+        logger.info(f"Using correlation bounds from config: [{min_corr}, {max_corr}]")
         # Define calculation period
         end_date = date.today()
         start_date = end_date - timedelta(days=lookback_days + 30)  # Buffer for trading days
@@ -157,8 +126,8 @@ async def calculate_factor_correlation_matrix(
                     
                     if var1 > 0 and var2 > 0:
                         correlation = cov / (np.sqrt(var1) * np.sqrt(var2))
-                        # Cap correlation between -0.95 and 0.95 to prevent extreme values
-                        correlation = max(-0.95, min(0.95, correlation))
+                        # ISSUE #5 FIX: Apply correlation bounds from config (not hardcoded)
+                        correlation = max(min_corr, min(max_corr, correlation))
                         correlation_matrix[factor1][factor2] = float(correlation)
                     else:
                         correlation_matrix[factor1][factor2] = 0.0
@@ -264,52 +233,49 @@ async def calculate_direct_stress_impact(
         Dictionary containing direct stress impact results
     """
     logger.info(f"Calculating direct stress impact for scenario: {scenario_config.get('name')}")
-    
+
     try:
-        # Get portfolio market value
-        from app.models.positions import Position
-        positions_stmt = select(Position).where(
-            and_(
-                Position.portfolio_id == portfolio_id,
-                Position.deleted_at.is_(None)  # Active positions have no deletion date
-            )
+        # Get portfolio exposures (from snapshot or real-time calculation)
+        exposures = await get_portfolio_exposures(
+            db=db,
+            portfolio_id=portfolio_id,
+            calculation_date=calculation_date
         )
-        positions_result = await db.execute(positions_stmt)
-        positions = positions_result.scalars().all()
-        
-        # Calculate portfolio market value using proper helper
-        portfolio_market_value = calculate_portfolio_market_value(positions)
-        
+
+        portfolio_market_value = exposures['net_exposure']  # Use net exposure for stress P&L
+
         if portfolio_market_value <= 0:
-            logger.warning(f"Portfolio {portfolio_id} has no market value")
+            logger.warning(f"Portfolio {portfolio_id} has no net exposure")
             portfolio_market_value = 1.0  # Avoid division by zero
-        
-        # Get portfolio factor exposures
-        stmt = select(FactorExposure).where(
-            and_(
-                FactorExposure.portfolio_id == portfolio_id,
-                FactorExposure.calculation_date <= calculation_date
+
+        # ISSUE #3 FIX: Get portfolio factor exposures with joined query (eliminates N+1 problem)
+        # Single query joining FactorExposure and FactorDefinition
+        stmt = (
+            select(FactorExposure, FactorDefinition)
+            .join(FactorDefinition, FactorExposure.factor_id == FactorDefinition.id)
+            .where(
+                and_(
+                    FactorExposure.portfolio_id == portfolio_id,
+                    FactorExposure.calculation_date <= calculation_date
+                )
             )
-        ).order_by(FactorExposure.calculation_date.desc()).limit(50)  # Get recent exposures
-        
+            .order_by(FactorExposure.calculation_date.desc())
+            .limit(50)  # Get recent exposures
+        )
+
         result = await db.execute(stmt)
-        factor_exposures = result.scalars().all()
-        
-        if not factor_exposures:
+        exposure_rows = result.all()
+
+        if not exposure_rows:
             raise ValueError(f"No factor exposures found for portfolio {portfolio_id}")
-        
-        # Get the most recent factor exposures
+
+        # Build latest_exposures dictionary from joined results (single pass)
         latest_exposures = {}
-        for exposure in factor_exposures:
-            # Get factor definition to map to factor name
-            stmt = select(FactorDefinition).where(FactorDefinition.id == exposure.factor_id)
-            result = await db.execute(stmt)
-            factor_def = result.scalar_one_or_none()
-            
-            if factor_def and factor_def.name not in latest_exposures:
+        for exposure, factor_def in exposure_rows:
+            if factor_def.name not in latest_exposures:
                 latest_exposures[factor_def.name] = {
                     'exposure_value': float(exposure.exposure_value),
-                    'exposure_dollar': float(exposure.exposure_dollar) if exposure.exposure_dollar else 0.0,
+                    'exposure_dollar': float(exposure.exposure_dollar) if exposure.exposure_dollar else None,
                     'calculation_date': exposure.calculation_date
                 }
         
@@ -324,26 +290,72 @@ async def calculate_direct_stress_impact(
         shocked_factors = scenario_config.get('shocked_factors', {})
         direct_impacts = {}
         total_direct_pnl = 0.0
-        
+
+        # Check for Interest_Rate shocks and handle separately
+        from app.calculations.stress_testing_ir_integration import add_ir_shocks_to_stress_results
+
+        ir_results = await add_ir_shocks_to_stress_results(
+            db=db,
+            portfolio_id=portfolio_id,
+            shocked_factors=shocked_factors,
+            calculation_date=calculation_date
+        )
+
+        # Process Interest_Rate shock if present
+        if ir_results['has_ir_shock'] and ir_results['ir_impact']:
+            ir_impact = ir_results['ir_impact']
+            direct_impacts['Interest_Rate'] = {
+                'exposure_dollar': ir_results['ir_exposure_dollar'],
+                'shock_amount': shocked_factors['Interest_Rate'],
+                'factor_pnl': ir_impact['predicted_pnl'],
+                'calculation_method': 'ir_beta',
+                'ir_beta': ir_impact['portfolio_ir_beta'],
+                'positions_with_beta': ir_impact['positions_with_beta'],
+                'ir_beta_date': ir_impact['ir_beta_date']
+            }
+            total_direct_pnl += ir_impact['predicted_pnl']
+
+            logger.info(
+                f"Interest_Rate shock: {ir_impact['ir_shock_bps']:+.0f}bp → "
+                f"${ir_impact['predicted_pnl']:,.0f} P&L (β_IR={ir_impact['portfolio_ir_beta']:.4f})"
+            )
+
+        # Process other factor shocks (non-IR)
         for factor_name, shock_amount in shocked_factors.items():
+            # Skip Interest_Rate - already handled above
+            if factor_name == 'Interest_Rate':
+                continue
             # Map factor name if needed
             mapped_factor_name = FACTOR_NAME_MAP.get(factor_name, factor_name)
             if mapped_factor_name in latest_exposures:
-                exposure_value = latest_exposures[mapped_factor_name]['exposure_value']  # This is the beta
-                # Correct P&L = Portfolio Value × Beta × Shock Amount
-                # NOT: (Beta × Portfolio Value) × Shock Amount which double-counts beta
-                factor_pnl = portfolio_market_value * exposure_value * shock_amount
-                exposure_dollar = latest_exposures[mapped_factor_name]['exposure_dollar']  # Keep for reporting
+                exposure_dollar = latest_exposures[mapped_factor_name]['exposure_dollar']
+                exposure_value = latest_exposures[mapped_factor_name]['exposure_value']  # Beta
+
+                # ISSUE #2 FIX: Use exposure_dollar (primary) with beta fallback
+                # exposure_dollar already contains: sum(signed_position_exposure × position_beta)
+                # This is the correct dollar-delta approach used by Bloomberg/MSCI
+                if exposure_dollar is not None and exposure_dollar != 0:
+                    # Primary path: Use pre-calculated dollar exposure
+                    factor_pnl = exposure_dollar * shock_amount
+                    calculation_method = 'dollar_exposure'
+                else:
+                    # Fallback path: Calculate from beta when exposure_dollar is null
+                    # Uses net portfolio value (Issue #1 fix)
+                    factor_pnl = portfolio_market_value * exposure_value * shock_amount
+                    calculation_method = 'beta_fallback'
+                    logger.debug(f"Using beta fallback for {factor_name} (exposure_dollar is null)")
+
                 direct_impacts[factor_name] = {
-                    'exposure_dollar': exposure_dollar,
+                    'exposure_dollar': exposure_dollar if exposure_dollar is not None else 0.0,
                     'shock_amount': shock_amount,
-                    'factor_pnl': factor_pnl
+                    'factor_pnl': factor_pnl,
+                    'calculation_method': calculation_method
                 }
                 total_direct_pnl += factor_pnl
-                
+
                 logger.debug(f"Factor {factor_name} (mapped to {mapped_factor_name}): "
-                           f"${exposure_dollar:,.0f} exposure × "
-                           f"{shock_amount:+.1%} shock = ${factor_pnl:,.0f} P&L")
+                           f"${exposure_dollar if exposure_dollar else 0:,.0f} exposure × "
+                           f"{shock_amount:+.1%} shock = ${factor_pnl:,.0f} P&L ({calculation_method})")
             else:
                 logger.warning(f"No exposure found for shocked factor: {factor_name} "
                               f"(mapped to {mapped_factor_name})")
@@ -414,7 +426,7 @@ async def calculate_correlated_stress_impact(
         Dictionary containing correlated stress impact results
     """
     logger.info(f"Calculating correlated stress impact for scenario: {scenario_config.get('name')}")
-    
+
     try:
         # First get direct impact
         direct_results = await calculate_direct_stress_impact(
@@ -423,68 +435,119 @@ async def calculate_correlated_stress_impact(
             scenario_config=scenario_config,
             calculation_date=calculation_date
         )
-        
-        # Get portfolio market value
-        from app.models.positions import Position
-        positions_stmt = select(Position).where(
-            and_(
-                Position.portfolio_id == portfolio_id,
-                Position.deleted_at.is_(None)  # Active positions have no deletion date
-            )
+
+        # Get portfolio exposures (from snapshot or real-time calculation)
+        exposures = await get_portfolio_exposures(
+            db=db,
+            portfolio_id=portfolio_id,
+            calculation_date=calculation_date
         )
-        positions_result = await db.execute(positions_stmt)
-        positions = positions_result.scalars().all()
-        
-        portfolio_market_value = calculate_portfolio_market_value(positions)
-        
+
+        portfolio_market_value = exposures['net_exposure']  # Use net exposure for stress P&L
+
         if portfolio_market_value <= 0:
-            logger.warning(f"Portfolio {portfolio_id} has no market value")
+            logger.warning(f"Portfolio {portfolio_id} has no net exposure")
             portfolio_market_value = 1.0  # Avoid division by zero
         
-        # Get portfolio factor exposures (reuse from direct calculation)
-        stmt = select(FactorExposure).where(
-            and_(
-                FactorExposure.portfolio_id == portfolio_id,
-                FactorExposure.calculation_date <= calculation_date
+        # ISSUE #3 FIX: Get portfolio factor exposures with joined query (eliminates N+1 problem)
+        stmt = (
+            select(FactorExposure, FactorDefinition)
+            .join(FactorDefinition, FactorExposure.factor_id == FactorDefinition.id)
+            .where(
+                and_(
+                    FactorExposure.portfolio_id == portfolio_id,
+                    FactorExposure.calculation_date <= calculation_date
+                )
             )
-        ).order_by(FactorExposure.calculation_date.desc()).limit(50)
-        
+            .order_by(FactorExposure.calculation_date.desc())
+            .limit(50)
+        )
+
         result = await db.execute(stmt)
-        factor_exposures = result.scalars().all()
-        
-        # Map factor exposures by name
+        exposure_rows = result.all()
+
+        # Build latest_exposures dictionary from joined results (single pass)
         latest_exposures = {}
-        for exposure in factor_exposures:
-            stmt = select(FactorDefinition).where(FactorDefinition.id == exposure.factor_id)
-            result = await db.execute(stmt)
-            factor_def = result.scalar_one_or_none()
-            
-            if factor_def and factor_def.name not in latest_exposures:
+        for exposure, factor_def in exposure_rows:
+            if factor_def.name not in latest_exposures:
                 latest_exposures[factor_def.name] = {
                     'exposure_value': float(exposure.exposure_value),
-                    'exposure_dollar': float(exposure.exposure_dollar) if exposure.exposure_dollar else 0.0
+                    'exposure_dollar': float(exposure.exposure_dollar) if exposure.exposure_dollar else None
                 }
         
         # Calculate correlated impacts
         shocked_factors = scenario_config.get('shocked_factors', {})
         correlated_impacts = {}
         total_correlated_pnl = 0.0
-        
-        # For each factor in the portfolio, calculate its correlated response
+
+        # Handle Interest_Rate shocks separately (no correlation with equity factors)
+        from app.calculations.stress_testing_ir_integration import add_ir_shocks_to_stress_results
+
+        ir_results = await add_ir_shocks_to_stress_results(
+            db=db,
+            portfolio_id=portfolio_id,
+            shocked_factors=shocked_factors,
+            calculation_date=calculation_date
+        )
+
+        # Add IR impact directly (IR doesn't correlate with equity factors)
+        if ir_results['has_ir_shock'] and ir_results['ir_impact']:
+            ir_impact = ir_results['ir_impact']
+            correlated_impacts['Interest_Rate'] = {
+                'exposure_dollar': ir_results['ir_exposure_dollar'],
+                'total_factor_impact': ir_impact['predicted_pnl'],
+                'impact_breakdown': {
+                    'Interest_Rate': {
+                        'original_shock': shocked_factors['Interest_Rate'],
+                        'correlation': 1.0,  # IR shock has no correlation with equity factors
+                        'correlated_shock': shocked_factors['Interest_Rate'],
+                        'correlated_pnl': ir_impact['predicted_pnl']
+                    }
+                },
+                'ir_beta': ir_impact['portfolio_ir_beta'],
+                'calculation_method': 'ir_beta_direct'
+            }
+            total_correlated_pnl += ir_impact['predicted_pnl']
+
+        # BUGFIX: Map database factor names to correlation matrix names
+        # The correlation matrix uses ETF-based names like 'Market', 'Growth', etc.
+        # But database stores factors as 'Market Beta', 'Growth-Value Spread', etc.
+        REVERSE_FACTOR_MAP = {
+            'Market Beta': 'Market',
+            'Interest Rate Beta': 'Interest_Rate',
+            # Spread factors don't have direct ETF proxies, will be skipped in correlation lookup
+        }
+
+        # For each equity factor in the portfolio, calculate its correlated response
         for factor_name, exposure_data in latest_exposures.items():
             factor_impact = 0.0
             impact_breakdown = {}
-            
+
+            # Map database factor name to correlation matrix name for lookups
+            corr_factor_name = REVERSE_FACTOR_MAP.get(factor_name, factor_name)
+
             # Calculate impact from each shocked factor via correlation
             for shocked_factor, shock_amount in shocked_factors.items():
-                if shocked_factor in correlation_matrix and factor_name in correlation_matrix[shocked_factor]:
-                    correlation = correlation_matrix[shocked_factor][factor_name]
+                # Skip Interest_Rate - already handled separately above
+                if shocked_factor == 'Interest_Rate':
+                    continue
+
+                if shocked_factor in correlation_matrix and corr_factor_name in correlation_matrix[shocked_factor]:
+                    correlation = correlation_matrix[shocked_factor][corr_factor_name]
                     # Correlated shock = Original shock × Correlation
                     correlated_shock = shock_amount * correlation
-                    # Correct P&L = Portfolio Value × Beta × Correlated Shock
-                    exposure_value = exposure_data['exposure_value']  # This is the beta
-                    correlated_pnl = portfolio_market_value * exposure_value * correlated_shock
-                    
+
+                    # ISSUE #2 FIX: Use exposure_dollar (primary) with beta fallback
+                    exposure_dollar = exposure_data['exposure_dollar']
+                    exposure_value = exposure_data['exposure_value']  # Beta
+
+                    if exposure_dollar is not None and exposure_dollar != 0:
+                        # Primary path: Use pre-calculated dollar exposure
+                        correlated_pnl = exposure_dollar * correlated_shock
+                    else:
+                        # Fallback path: Calculate from beta
+                        correlated_pnl = portfolio_market_value * exposure_value * correlated_shock
+
                     factor_impact += correlated_pnl
                     impact_breakdown[shocked_factor] = {
                         'original_shock': shock_amount,
@@ -492,10 +555,24 @@ async def calculate_correlated_stress_impact(
                         'correlated_shock': correlated_shock,
                         'correlated_pnl': correlated_pnl
                     }
-                elif shocked_factor == factor_name:
+                elif shocked_factor == corr_factor_name:
+                    # Skip Interest_Rate - already handled separately
+                    if shocked_factor == 'Interest_Rate':
+                        continue
+
                     # Direct impact (correlation = 1.0)
-                    exposure_value = exposure_data['exposure_value']  # This is the beta
-                    direct_pnl = portfolio_market_value * exposure_value * shock_amount
+                    # This captures when shocked_factor matches the portfolio factor
+                    # ISSUE #2 FIX: Use exposure_dollar (primary) with beta fallback
+                    exposure_dollar = exposure_data['exposure_dollar']
+                    exposure_value = exposure_data['exposure_value']  # Beta
+
+                    if exposure_dollar is not None and exposure_dollar != 0:
+                        # Primary path: Use pre-calculated dollar exposure
+                        direct_pnl = exposure_dollar * shock_amount
+                    else:
+                        # Fallback path: Calculate from beta
+                        direct_pnl = portfolio_market_value * exposure_value * shock_amount
+
                     factor_impact += direct_pnl
                     impact_breakdown[shocked_factor] = {
                         'original_shock': shock_amount,

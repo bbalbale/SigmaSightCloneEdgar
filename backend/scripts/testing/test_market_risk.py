@@ -13,8 +13,8 @@ sys.path.append(str(Path(__file__).parent.parent))
 from app.database import AsyncSessionLocal
 from app.models.users import Portfolio, User
 from app.models.positions import Position
+from app.calculations.market_beta import calculate_portfolio_market_beta
 from app.calculations.market_risk import (
-    calculate_portfolio_market_beta,
     calculate_market_scenarios,
     calculate_position_interest_rate_betas,
     calculate_interest_rate_scenarios

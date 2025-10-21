@@ -11,7 +11,7 @@ type FilterType = 'all' | 'longs' | 'shorts' | 'options'
 
 export function PublicPositionsContainer() {
   const { theme } = useTheme()
-  const { longPositions, shortPositions, loading, error, aggregateReturns } = usePublicPositions()
+  const { longPositions, shortPositions, loading, error, aggregateReturns, refetch } = usePublicPositions()
   const [activeFilter, setActiveFilter] = useState<FilterType>('all')
 
   // Helper to check if position is an option (LC, LP, SC, SP)
@@ -266,6 +266,7 @@ export function PublicPositionsContainer() {
               title="All Options"
               aggregateReturnEOY={aggregates.allOptions.eoy}
               aggregateReturnNextYear={aggregates.allOptions.nextYear}
+              onTargetPriceUpdate={refetch}
             />
           </div>
         </section>
@@ -282,6 +283,7 @@ export function PublicPositionsContainer() {
                   title="Long Positions"
                   aggregateReturnEOY={aggregates.longEquities.eoy}
                   aggregateReturnNextYear={aggregates.longEquities.nextYear}
+                  onTargetPriceUpdate={refetch}
                 />
               </div>
             </section>
@@ -295,6 +297,7 @@ export function PublicPositionsContainer() {
                   title="Long Options"
                   aggregateReturnEOY={aggregates.longOptions.eoy}
                   aggregateReturnNextYear={aggregates.longOptions.nextYear}
+                  onTargetPriceUpdate={refetch}
                 />
               </div>
             </section>
@@ -313,6 +316,7 @@ export function PublicPositionsContainer() {
                   title="Short Positions"
                   aggregateReturnEOY={aggregates.shortEquities.eoy}
                   aggregateReturnNextYear={aggregates.shortEquities.nextYear}
+                  onTargetPriceUpdate={refetch}
                 />
               </div>
             </section>
@@ -326,6 +330,7 @@ export function PublicPositionsContainer() {
                   title="Short Options"
                   aggregateReturnEOY={aggregates.shortOptions.eoy}
                   aggregateReturnNextYear={aggregates.shortOptions.nextYear}
+                  onTargetPriceUpdate={refetch}
                 />
               </div>
             </section>

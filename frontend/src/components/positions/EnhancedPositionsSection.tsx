@@ -6,7 +6,6 @@ import { Badge } from '@/components/ui/badge'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { PositionList } from '@/components/common/PositionList'
 import { ResearchPositionCard } from '@/components/positions/ResearchPositionCard'
-import { formatNumber } from '@/lib/formatters'
 import { useTheme } from '@/contexts/ThemeContext'
 import type { EnhancedPosition } from '@/services/positionResearchService'
 
@@ -15,13 +14,15 @@ interface EnhancedPositionsSectionProps {
   title: string
   aggregateReturnEOY: number
   aggregateReturnNextYear: number
+  onTargetPriceUpdate?: () => Promise<void>
 }
 
 export function EnhancedPositionsSection({
   positions,
   title,
   aggregateReturnEOY,
-  aggregateReturnNextYear
+  aggregateReturnNextYear,
+  onTargetPriceUpdate
 }: EnhancedPositionsSectionProps) {
   const { theme } = useTheme()
   const [filterBy, setFilterBy] = useState<'all' | 'tag' | 'sector' | 'industry'>('all')
@@ -37,10 +38,10 @@ export function EnhancedPositionsSection({
       return Array.from(tags).sort()
     }
     if (filterBy === 'sector') {
-      return Array.from(new Set(positions.map(p => p.sector).filter(Boolean))).sort()
+      return Array.from(new Set(positions.map(p => p.sector).filter((s): s is string => Boolean(s)))).sort()
     }
     if (filterBy === 'industry') {
-      return Array.from(new Set(positions.map(p => p.industry).filter(Boolean))).sort()
+      return Array.from(new Set(positions.map(p => p.industry).filter((i): i is string => Boolean(i)))).sort()
     }
     return []
   }, [positions, filterBy])
@@ -112,7 +113,7 @@ export function EnhancedPositionsSection({
               <div className={`text-xl font-bold tabular-nums ${
                 aggregateReturnEOY >= 0 ? 'text-emerald-500' : 'text-rose-500'
               }`}>
-                {aggregateReturnEOY >= 0 ? '+' : ''}{formatNumber(aggregateReturnEOY, 2)}%
+                {aggregateReturnEOY >= 0 ? '+' : ''}{aggregateReturnEOY.toFixed(2)}%
               </div>
             </div>
             <div className="text-right">
@@ -124,7 +125,7 @@ export function EnhancedPositionsSection({
               <div className={`text-xl font-bold tabular-nums ${
                 aggregateReturnNextYear >= 0 ? 'text-emerald-500' : 'text-rose-500'
               }`}>
-                {aggregateReturnNextYear >= 0 ? '+' : ''}{formatNumber(aggregateReturnNextYear, 2)}%
+                {aggregateReturnNextYear >= 0 ? '+' : ''}{aggregateReturnNextYear.toFixed(2)}%
               </div>
             </div>
           </div>
@@ -216,6 +217,7 @@ export function EnhancedPositionsSection({
           <ResearchPositionCard
             key={position.id}
             position={position}
+            onTargetPriceUpdate={onTargetPriceUpdate}
           />
         )}
         emptyMessage={`No ${title.toLowerCase()} found`}

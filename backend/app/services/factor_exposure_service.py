@@ -149,6 +149,43 @@ class FactorExposureService:
             return 999
         factors.sort(key=_order_key)
 
+        # Fetch portfolio snapshot to get additional beta metrics
+        from app.models.snapshots import PortfolioSnapshot
+
+        snapshot_query = select(PortfolioSnapshot).where(
+            PortfolioSnapshot.portfolio_id == portfolio_id
+        ).order_by(PortfolioSnapshot.snapshot_date.desc()).limit(1)
+
+        snapshot_result = await self.db.execute(snapshot_query)
+        snapshot = snapshot_result.scalar_one_or_none()
+
+        logger.info(f"🔍 Snapshot found: {snapshot is not None}")
+        if snapshot:
+            logger.info(f"📊 Snapshot data - equity: {snapshot.equity_balance}, calc_beta: {snapshot.beta_calculated_90d}, provider_beta: {snapshot.beta_provider_1y}")
+            equity_balance = float(snapshot.equity_balance) if snapshot.equity_balance else 0.0
+
+            # Add Calculated Beta (90d OLS) if available
+            if snapshot.beta_calculated_90d is not None:
+                calculated_beta = float(snapshot.beta_calculated_90d)
+                logger.info(f"➕ Adding Calculated Beta: {calculated_beta}")
+                factors.append({
+                    "name": "Market Beta (Calculated 90d)",
+                    "beta": calculated_beta,
+                    "exposure_dollar": calculated_beta * equity_balance if equity_balance > 0 else None
+                })
+
+            # Add Provider Beta (1y from company profiles) if available
+            if snapshot.beta_provider_1y is not None:
+                provider_beta = float(snapshot.beta_provider_1y)
+                logger.info(f"➕ Adding Provider Beta: {provider_beta}")
+                factors.append({
+                    "name": "Market Beta (Provider 1y)",
+                    "beta": provider_beta,
+                    "exposure_dollar": provider_beta * equity_balance if equity_balance > 0 else None
+                })
+
+        logger.info(f"✅ Total factors after adding snapshot betas: {len(factors)}")
+
         # Derive metadata with information about partial vs complete
         factor_model = f"{len(factors)}-factor" if factors else None
         calc_methods = {getattr(defn, "calculation_method", None) for _, defn in rows}

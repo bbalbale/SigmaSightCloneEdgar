@@ -145,7 +145,7 @@ class BatchOrchestratorV2:
         This ensures accurate progress tracking even when some jobs are disabled.
         """
         # Base job sequence (matches _process_single_portfolio_safely)
-        job_count = 7  # market_data, position_values, portfolio_agg, factors, market_risk, stress_test, snapshot
+        job_count = 14  # market_data, position_values, equity_balance_update, portfolio_agg, market_beta, ir_beta, ridge_factors, spread_factors, sector_analysis, volatility_analytics, market_risk, snapshot, portfolio_target_snapshot, stress_test
 
         # Greeks is currently disabled (no options feed)
         # job_count += 1  # would add greeks if enabled
@@ -217,17 +217,27 @@ class BatchOrchestratorV2:
         portfolio_name = portfolio_data.name
         
         # Define job sequence with dependencies
+        # CRITICAL: portfolio_snapshot MUST run before stress_testing
+        # Stress testing uses snapshot values (gross/net exposure) via get_portfolio_exposures()
         job_sequence = [
             ("market_data_update", self._update_market_data, []),
             ("position_values_update", self._update_position_values, [portfolio_id]),
+            ("equity_balance_update", self._update_equity_balance, [portfolio_id]),  # Update Portfolio.equity_balance BEFORE factor calculations
             ("portfolio_aggregation", self._calculate_portfolio_aggregation, [portfolio_id]),
+            ("market_beta_calculation", self._calculate_market_beta, [portfolio_id]),  # Phase 0: Single-factor market beta (OLS)
+            ("ir_beta_calculation", self._calculate_ir_beta, [portfolio_id]),  # Interest Rate beta (OLS vs Treasury yields)
+            ("ridge_factor_calculation", self._calculate_ridge_factors, [portfolio_id]),  # Ridge regression for 6 non-market factors
+            ("spread_factor_calculation", self._calculate_spread_factors, [portfolio_id]),  # Spread factors (4 long-short factors, 180-day window)
+            ("sector_concentration_analysis", self._calculate_sector_analysis, [portfolio_id]),  # Phase 1: Sector exposure & concentration
+            ("volatility_analytics", self._calculate_volatility_analytics, [portfolio_id]),  # Phase 2: Volatility analysis
             # ("greeks_calculation", self._calculate_greeks, [portfolio_id]),  # DISABLED: No options feed
-            ("factor_analysis", self._calculate_factors, [portfolio_id]),
+            # ("factor_analysis", self._calculate_factors, [portfolio_id]),  # REMOVED: Legacy 7-factor OLS replaced by Ridge (6 factors) + Market Beta (OLS)
             ("market_risk_scenarios", self._calculate_market_risk, [portfolio_id]),
-            ("stress_testing", self._run_stress_tests, [portfolio_id]),
-            ("portfolio_snapshot", self._create_snapshot, [portfolio_id]),
+            ("portfolio_snapshot", self._create_snapshot, [portfolio_id]),  # MUST run before stress_testing
+            ("portfolio_target_snapshot", self._update_portfolio_target_snapshot, [portfolio_id]),  # Update target price metrics in snapshot
+            ("stress_testing", self._run_stress_tests, [portfolio_id]),     # Uses snapshot values + IR beta for IR shocks
         ]
-        
+
         # Always run correlations (important for risk metrics)
         job_sequence.append(("position_correlations", self._calculate_correlations, [portfolio_id]))
 
@@ -457,7 +467,106 @@ class BatchOrchestratorV2:
             'positions_total': len(positions),
             'errors': errors
         }
-    
+
+    async def _update_equity_balance(self, db: AsyncSession, portfolio_id: str):
+        """
+        Update portfolio equity balance for use in factor calculations.
+
+        This job runs BEFORE factor calculations to ensure they use current equity
+        for position weighting. It calculates equity using the rollforward method:
+        today_equity = yesterday_equity + daily_pnl
+
+        Then updates Portfolio.equity_balance so factor calculations can use it.
+        The full snapshot with sector/volatility metrics is created later.
+        """
+        from app.models.positions import Position
+        from app.models.snapshots import PortfolioSnapshot
+        from app.models.users import Portfolio
+        from app.calculations.portfolio import calculate_portfolio_exposures
+        from sqlalchemy import select, desc
+        from decimal import Decimal
+
+        portfolio_uuid = ensure_uuid(portfolio_id)
+
+        logger.info(f"Updating equity balance for portfolio {portfolio_id}")
+
+        # Step 1: Get portfolio
+        portfolio_stmt = select(Portfolio).where(Portfolio.id == portfolio_uuid)
+        portfolio_result = await db.execute(portfolio_stmt)
+        portfolio = portfolio_result.scalar_one_or_none()
+
+        if not portfolio:
+            raise ValueError(f"Portfolio {portfolio_id} not found")
+
+        # Step 2: Calculate current total value from positions
+        positions_stmt = select(Position).where(
+            Position.portfolio_id == portfolio_uuid,
+            Position.deleted_at.is_(None),
+            Position.exit_date.is_(None)
+        )
+        positions_result = await db.execute(positions_stmt)
+        positions = positions_result.scalars().all()
+
+        if not positions:
+            logger.warning(f"No positions found for portfolio {portfolio_id}")
+            return {'message': 'No positions', 'equity_balance': float(portfolio.equity_balance or 0)}
+
+        # Convert to position dicts for aggregation
+        position_dicts = []
+        for pos in positions:
+            market_value = float(pos.market_value) if pos.market_value else 0
+            position_dicts.append({
+                'symbol': pos.symbol,
+                'quantity': float(pos.quantity),
+                'market_value': market_value,
+                'exposure': market_value,
+                'position_type': pos.position_type.value if pos.position_type else 'LONG',
+                'last_price': float(pos.last_price) if pos.last_price else 0
+            })
+
+        # Calculate total portfolio value
+        exposures = calculate_portfolio_exposures(position_dicts)
+        current_value = exposures.get('gross_exposure', Decimal('0'))
+
+        # Step 3: Get latest snapshot for equity rollforward
+        latest_snapshot_stmt = select(PortfolioSnapshot).where(
+            PortfolioSnapshot.portfolio_id == portfolio_uuid
+        ).order_by(desc(PortfolioSnapshot.snapshot_date)).limit(1)
+
+        snapshot_result = await db.execute(latest_snapshot_stmt)
+        latest_snapshot = snapshot_result.scalar_one_or_none()
+
+        # Step 4: Calculate new equity
+        if latest_snapshot and latest_snapshot.equity_balance and latest_snapshot.total_value:
+            # Calculate daily P&L
+            previous_value = latest_snapshot.total_value
+            previous_equity = latest_snapshot.equity_balance
+            daily_pnl = current_value - previous_value
+            new_equity = previous_equity + daily_pnl
+
+            logger.info(
+                f"Equity rollforward for {portfolio_id}: "
+                f"${float(previous_equity):,.2f} + ${float(daily_pnl):,.2f} = ${float(new_equity):,.2f}"
+            )
+        else:
+            # First time or no previous snapshot - use starting equity
+            new_equity = portfolio.equity_balance or Decimal('0')
+            logger.info(f"Using starting equity for {portfolio_id}: ${float(new_equity):,.2f}")
+
+        # Step 5: Update Portfolio.equity_balance
+        portfolio.equity_balance = new_equity
+        await db.commit()
+
+        logger.info(f"Updated equity balance for {portfolio_id}: ${float(new_equity):,.2f}")
+
+        return {
+            'portfolio_id': portfolio_id,
+            'previous_equity': float(latest_snapshot.equity_balance) if latest_snapshot and latest_snapshot.equity_balance else 0,
+            'current_value': float(current_value),
+            'daily_pnl': float(current_value - latest_snapshot.total_value) if latest_snapshot and latest_snapshot.total_value else 0,
+            'new_equity': float(new_equity)
+        }
+
     async def _calculate_portfolio_aggregation(self, db: AsyncSession, portfolio_id: str):
         """Portfolio aggregation job"""
         from app.calculations.portfolio import calculate_portfolio_exposures
@@ -507,46 +616,218 @@ class BatchOrchestratorV2:
         # For options portfolios, also calculate delta-adjusted exposure
         has_options = any(p.strike_price is not None for p in positions)
 
-        # Update portfolio equity_balance = starting equity balance (from DB) + total realized P&L
-        from decimal import Decimal
-
-        # Get portfolio to access starting equity_balance from database
-        portfolio_stmt = select(Portfolio).where(Portfolio.id == portfolio_uuid)
-        portfolio_result = await db.execute(portfolio_stmt)
-        portfolio = portfolio_result.scalar_one_or_none()
-
-        if portfolio:
-            # Use the equity_balance from database as starting balance
-            # This should be set to the initial capital when portfolio is created
-            starting_equity_balance = portfolio.equity_balance or Decimal("0")
-
-            total_realized_pnl = sum(
-                p.realized_pnl for p in positions
-                if p.realized_pnl
-            ) or Decimal("0")
-
-            # equity_balance = starting equity balance (from DB) + realized P&L
-            new_equity_balance = starting_equity_balance + total_realized_pnl
-
-            # Only update if it changed
-            if new_equity_balance != starting_equity_balance:
-                portfolio.equity_balance = new_equity_balance
-                await db.flush()
-
-                logger.info(
-                    f"Updated portfolio {portfolio_id} equity_balance: "
-                    f"${float(starting_equity_balance):,.2f} -> ${float(new_equity_balance):,.2f} "
-                    f"(realized P&L: ${float(total_realized_pnl):,.2f})"
-                )
+        # Phase 1: Equity balance is now calculated in snapshots.py
+        # No longer updating equity_balance here - it's handled by _create_snapshot()
+        # which calculates: equity = previous_equity + daily_pnl
 
         return {
             'portfolio_id': portfolio_id,
             'metrics_calculated': len(exposures),
             'has_options': has_options,
-            'exposures': exposures,
-            'equity_balance_updated': float(new_equity_balance) if new_equity_balance else None
+            'exposures': exposures
         }
-    
+
+    async def _calculate_market_beta(self, db: AsyncSession, portfolio_id: str):
+        """Market beta calculation job (Phase 0: Single-factor model)"""
+        from app.calculations.market_beta import calculate_portfolio_market_beta
+
+        portfolio_uuid = ensure_uuid(portfolio_id)
+
+        logger.info(f"Calculating market beta for portfolio {portfolio_id}")
+
+        beta_result = await calculate_portfolio_market_beta(
+            db=db,
+            portfolio_id=portfolio_uuid,
+            calculation_date=date.today(),
+            persist=True  # Save position betas to position_market_betas table
+        )
+
+        if beta_result['success']:
+            logger.info(
+                f"Market beta calculated successfully: {beta_result['market_beta']:.3f} "
+                f"(R²={beta_result['r_squared']:.3f}, {beta_result['positions_count']} positions)"
+            )
+        else:
+            logger.warning(
+                f"Market beta calculation failed: {beta_result.get('error', 'Unknown error')}"
+            )
+
+        return beta_result
+
+    async def _calculate_ir_beta(self, db: AsyncSession, portfolio_id: str):
+        """Interest Rate beta calculation job (TLT Bond ETF sensitivity)"""
+        from app.calculations.interest_rate_beta import calculate_portfolio_ir_beta
+
+        portfolio_uuid = ensure_uuid(portfolio_id)
+
+        logger.info(f"Calculating Interest Rate beta (TLT-based) for portfolio {portfolio_id}")
+
+        ir_beta_result = await calculate_portfolio_ir_beta(
+            db=db,
+            portfolio_id=portfolio_uuid,
+            calculation_date=date.today(),
+            window_days=90,  # 90-day regression window
+            treasury_symbol='TLT',  # 20+ Year Treasury Bond ETF (default, can be omitted)
+            persist=True  # Save position IR betas to position_interest_rate_betas table
+        )
+
+        if ir_beta_result['success']:
+            logger.info(
+                f"IR beta calculated successfully: {ir_beta_result['portfolio_ir_beta']:.4f} "
+                f"({ir_beta_result['sensitivity_level']} sensitivity, "
+                f"R²={ir_beta_result['r_squared']:.3f}, {ir_beta_result['positions_count']} positions)"
+            )
+        else:
+            logger.warning(
+                f"IR beta calculation failed: {ir_beta_result.get('error', 'Unknown error')}"
+            )
+
+        return ir_beta_result
+
+    async def _calculate_ridge_factors(self, db: AsyncSession, portfolio_id: str):
+        """Ridge regression for 6 non-market factors (excludes Market beta)"""
+        from app.calculations.factors_ridge import calculate_factor_betas_ridge
+
+        portfolio_uuid = ensure_uuid(portfolio_id)
+
+        logger.info(f"Calculating Ridge factor betas (6 non-market factors) for portfolio {portfolio_id}")
+
+        ridge_result = await calculate_factor_betas_ridge(
+            db=db,
+            portfolio_id=portfolio_uuid,
+            calculation_date=date.today(),
+            regularization_alpha=1.0,  # L2 regularization strength
+            use_delta_adjusted=False,
+            context=None
+        )
+
+        if ridge_result.get('success'):
+            logger.info(
+                f"Ridge factor betas calculated successfully: "
+                f"{ridge_result.get('positions_calculated', 0)}/{ridge_result.get('positions_total', 0)} positions, "
+                f"VIF improved to ~{ridge_result.get('avg_vif', 0):.1f}"
+            )
+        else:
+            logger.warning(
+                f"Ridge factor calculation failed: {ridge_result.get('error', 'Unknown error')}"
+            )
+
+        return ridge_result
+
+    async def _calculate_spread_factors(self, db: AsyncSession, portfolio_id: str):
+        """Spread factor calculation job (4 long-short factors with 180-day window)"""
+        from app.calculations.factors_spread import calculate_portfolio_spread_betas
+
+        portfolio_uuid = ensure_uuid(portfolio_id)
+
+        logger.info(f"Calculating spread factor betas (180-day window) for portfolio {portfolio_id}")
+
+        spread_result = await calculate_portfolio_spread_betas(
+            db=db,
+            portfolio_id=portfolio_uuid,
+            calculation_date=date.today(),
+            context=None  # Let function load its own context
+        )
+
+        # Check for skip condition (no positions)
+        if spread_result.get('metadata', {}).get('status') == 'SKIPPED_NO_POSITIONS':
+            logger.info(
+                f"Spread factor calculation skipped for portfolio {portfolio_id} "
+                "(no positions with sufficient data)"
+            )
+            return spread_result
+
+        # Log successful calculation
+        data_quality = spread_result.get('data_quality', {})
+        factor_betas = spread_result.get('factor_betas', {})
+
+        logger.info(
+            f"Spread factors calculated successfully: "
+            f"{data_quality.get('positions_processed', 0)} positions, "
+            f"{data_quality.get('regression_days', 0)}/{data_quality.get('required_days', 60)} days, "
+            f"{len(factor_betas)} factors"
+        )
+
+        # Log factor values
+        for factor_name, beta in factor_betas.items():
+            logger.debug(f"  {factor_name}: {beta:+.3f}")
+
+        return spread_result
+
+    async def _calculate_sector_analysis(self, db: AsyncSession, portfolio_id: str):
+        """Sector exposure and concentration analysis job (Phase 1)"""
+        from app.calculations.sector_analysis import calculate_portfolio_sector_concentration
+
+        portfolio_uuid = ensure_uuid(portfolio_id)
+
+        logger.info(f"Calculating sector exposure & concentration for portfolio {portfolio_id}")
+
+        sector_result = await calculate_portfolio_sector_concentration(
+            db=db,
+            portfolio_id=portfolio_uuid,
+            calculation_date=date.today()
+        )
+
+        if sector_result['success']:
+            # Log sector exposure summary
+            if sector_result.get('sector_exposure'):
+                se = sector_result['sector_exposure']
+                logger.info(
+                    f"Sector analysis complete: {len(se.get('portfolio_weights', {}))} sectors, "
+                    f"${se.get('total_portfolio_value', 0):,.0f} total value"
+                )
+
+            # Log concentration metrics
+            if sector_result.get('concentration'):
+                conc = sector_result['concentration']
+                logger.info(
+                    f"Concentration: HHI={conc.get('hhi', 0):.2f}, "
+                    f"Effective positions={conc.get('effective_num_positions', 0):.2f}"
+                )
+        else:
+            logger.warning(
+                f"Sector analysis failed: {sector_result.get('error', 'Unknown error')}"
+            )
+
+        return sector_result
+
+    async def _calculate_volatility_analytics(self, db: AsyncSession, portfolio_id: str):
+        """Volatility analytics job (Phase 2: Realized + expected volatility with HAR forecasting)"""
+        from app.calculations.volatility_analytics import calculate_portfolio_volatility_batch
+
+        portfolio_uuid = ensure_uuid(portfolio_id)
+
+        logger.info(f"Calculating volatility analytics for portfolio {portfolio_id}")
+
+        volatility_result = await calculate_portfolio_volatility_batch(
+            db=db,
+            portfolio_id=portfolio_uuid,
+            calculation_date=date.today()
+        )
+
+        if volatility_result['success']:
+            # Log portfolio-level volatility
+            if volatility_result.get('portfolio_volatility'):
+                pv = volatility_result['portfolio_volatility']
+                logger.info(
+                    f"Portfolio volatility: 21d={pv.get('realized_volatility_21d', 0):.2%}, "
+                    f"expected={pv.get('expected_volatility_21d', 0):.2%}, "
+                    f"trend={pv.get('volatility_trend', 'N/A')}"
+                )
+
+            # Log position-level summary
+            positions_calculated = volatility_result.get('positions_calculated', 0)
+            positions_total = volatility_result.get('positions_total', 0)
+            logger.info(
+                f"Position volatility: {positions_calculated}/{positions_total} positions calculated"
+            )
+        else:
+            logger.warning(
+                f"Volatility analytics failed: {volatility_result.get('error', 'Unknown error')}"
+            )
+
+        return volatility_result
+
     async def _calculate_greeks(self, db: AsyncSession, portfolio_id: str):
         """Greeks calculation job"""
         # TODO: Add ensure_uuid() conversion before re-enabling this job
@@ -597,15 +878,19 @@ class BatchOrchestratorV2:
             # Fallback with empty market data (will result in calculation failures)
             return await bulk_update_portfolio_greeks(db, portfolio_id, {})
     
-    async def _calculate_factors(self, db: AsyncSession, portfolio_id: str):
-        """Factor analysis job"""
-        from app.calculations.factors import calculate_factor_betas_hybrid
-        portfolio_uuid = ensure_uuid(portfolio_id)
-        return await calculate_factor_betas_hybrid(db, portfolio_uuid, date.today())
+    # REMOVED: Legacy 7-factor hybrid OLS calculation
+    # Factor exposures now calculated via:
+    # - Market beta: _calculate_market_beta() -> market_beta.py (OLS against SPY)
+    # - 6 style factors: _calculate_ridge_factors() -> factors_ridge.py (Ridge regression)
+    # async def _calculate_factors(self, db: AsyncSession, portfolio_id: str):
+    #     """Factor analysis job (LEGACY - REMOVED)"""
+    #     from app.calculations.factors import calculate_factor_betas_hybrid
+    #     portfolio_uuid = ensure_uuid(portfolio_id)
+    #     return await calculate_factor_betas_hybrid(db, portfolio_uuid, date.today())
     
     async def _calculate_market_risk(self, db: AsyncSession, portfolio_id: str):
         """Market risk scenarios job"""
-        from app.calculations.market_risk import calculate_portfolio_market_beta
+        from app.calculations.market_beta import calculate_portfolio_market_beta
         portfolio_uuid = ensure_uuid(portfolio_id)
         return await calculate_portfolio_market_beta(db, portfolio_uuid, date.today())
     
@@ -613,33 +898,115 @@ class BatchOrchestratorV2:
         """Stress testing job"""
         from app.calculations.stress_testing import run_comprehensive_stress_test, save_stress_test_results
         portfolio_uuid = ensure_uuid(portfolio_id)
-        
+
         # Run stress tests
         results = await run_comprehensive_stress_test(db, portfolio_uuid, date.today())
 
-        # Phase 8.1 Task 9: Detect skip flag and bypass save_stress_test_results
-        # CRITICAL: save_stress_test_results will fail on empty dict, MUST check skip flag
-        if results and 'stress_test_results' in results:
-            stress_test_results = results.get('stress_test_results', {})
-
-            if stress_test_results.get('skipped'):
-                logger.info(
-                    f"Stress tests skipped for portfolio {portfolio_id}: "
-                    f"{stress_test_results.get('reason', 'unknown reason')}"
-                )
-                results['saved_to_database'] = 0  # No persistence occurred
-            else:
-                # Only persist when NOT skipped
-                saved_count = await save_stress_test_results(db, portfolio_uuid, results)
-                results['saved_to_database'] = saved_count
+        # Save results to database (legacy skip check removed - stress testing now fixed)
+        if results:
+            saved_count = await save_stress_test_results(db, portfolio_uuid, results)
+            results['saved_to_database'] = saved_count
+        else:
+            results = {'saved_to_database': 0}
 
         return results
     
     async def _create_snapshot(self, db: AsyncSession, portfolio_id: str):
-        """Portfolio snapshot job"""
+        """
+        Portfolio snapshot job with automatic backfill.
+
+        Creates snapshots for all missing trading days between the last snapshot
+        and today. This ensures proper equity rollforward and P&L tracking even
+        if the batch doesn't run every day.
+        """
         from app.calculations.snapshots import create_portfolio_snapshot
+        from app.utils.trading_calendar import trading_calendar
+        from app.models.snapshots import PortfolioSnapshot
+        from sqlalchemy import select, desc
+        from datetime import timedelta
+
         portfolio_uuid = ensure_uuid(portfolio_id)
-        return await create_portfolio_snapshot(db, portfolio_uuid, date.today())
+
+        # Find the latest existing snapshot date
+        stmt = select(PortfolioSnapshot.snapshot_date).where(
+            PortfolioSnapshot.portfolio_id == portfolio_uuid
+        ).order_by(desc(PortfolioSnapshot.snapshot_date)).limit(1)
+
+        result = await db.execute(stmt)
+        latest_snapshot_date = result.scalar_one_or_none()
+
+        # Determine date range for backfill
+        today = date.today()
+
+        if latest_snapshot_date:
+            # Start from day after latest snapshot
+            start_date = latest_snapshot_date + timedelta(days=1)
+            logger.info(f"Last snapshot for {portfolio_id}: {latest_snapshot_date}, backfilling from {start_date}")
+        else:
+            # No snapshots exist - this shouldn't happen in production, but handle it
+            # Go back 30 days max for initial backfill
+            start_date = today - timedelta(days=30)
+            logger.warning(f"No snapshots found for {portfolio_id}, backfilling from {start_date}")
+
+        # Get all trading days between start_date and today
+        missing_dates = []
+        current_date = start_date
+
+        while current_date <= today:
+            if trading_calendar.is_trading_day(current_date):
+                missing_dates.append(current_date)
+            current_date += timedelta(days=1)
+
+        if not missing_dates:
+            logger.info(f"No missing snapshots for {portfolio_id}")
+            return {
+                "success": True,
+                "message": "No missing snapshots",
+                "snapshots_created": 0
+            }
+
+        logger.info(f"Creating {len(missing_dates)} missing snapshots for {portfolio_id}: {missing_dates[0]} to {missing_dates[-1]}")
+
+        # Create snapshots in chronological order (critical for equity rollforward)
+        results = []
+        successful = 0
+        failed = 0
+
+        for snapshot_date in missing_dates:
+            try:
+                result = await create_portfolio_snapshot(db, portfolio_uuid, snapshot_date)
+
+                if result.get('success'):
+                    successful += 1
+                    logger.info(f"Created snapshot for {portfolio_id} on {snapshot_date}")
+                else:
+                    failed += 1
+                    logger.warning(f"Failed to create snapshot for {portfolio_id} on {snapshot_date}: {result.get('message')}")
+
+                results.append({
+                    "date": snapshot_date,
+                    "success": result.get('success'),
+                    "message": result.get('message')
+                })
+
+            except Exception as e:
+                failed += 1
+                logger.error(f"Error creating snapshot for {portfolio_id} on {snapshot_date}: {str(e)}")
+                results.append({
+                    "date": snapshot_date,
+                    "success": False,
+                    "error": str(e)
+                })
+
+        logger.info(f"Snapshot backfill complete for {portfolio_id}: {successful} successful, {failed} failed")
+
+        return {
+            "success": True,
+            "snapshots_created": successful,
+            "snapshots_failed": failed,
+            "total_dates": len(missing_dates),
+            "results": results
+        }
     
     async def _calculate_correlations(self, db: AsyncSession, portfolio_id: str):
         """Position correlations job (Phase 8.1 Task 7b: handle None for skipped portfolios)"""
@@ -666,6 +1033,32 @@ class BatchOrchestratorV2:
             }
 
         return result
+
+    async def _update_portfolio_target_snapshot(self, db: AsyncSession, portfolio_id: str):
+        """Update portfolio target price snapshot with aggregated position target metrics"""
+        from app.services.target_price_service import TargetPriceService
+
+        portfolio_uuid = ensure_uuid(portfolio_id)
+
+        logger.info(f"Updating portfolio target price snapshot for {portfolio_id}")
+
+        target_service = TargetPriceService()
+
+        try:
+            await target_service.update_portfolio_target_snapshot(db, portfolio_uuid)
+
+            return {
+                'success': True,
+                'portfolio_id': str(portfolio_uuid),
+                'message': 'Portfolio target snapshot updated successfully'
+            }
+        except Exception as e:
+            logger.warning(f"Failed to update portfolio target snapshot for {portfolio_id}: {e}")
+            return {
+                'success': False,
+                'portfolio_id': str(portfolio_uuid),
+                'error': str(e)
+            }
 
 
 # Create singleton instance
