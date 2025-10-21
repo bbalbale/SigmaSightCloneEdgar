@@ -113,7 +113,7 @@ async def get_portfolio_exposures(
                 'gross_exposure': float(latest_snapshot.gross_exposure),
                 'long_exposure': float(latest_snapshot.long_value),
                 'short_exposure': float(latest_snapshot.short_value),
-                'position_count': latest_snapshot.position_count,
+                'position_count': latest_snapshot.num_positions,
                 'source': 'snapshot',
                 'snapshot_date': latest_snapshot.snapshot_date
             }

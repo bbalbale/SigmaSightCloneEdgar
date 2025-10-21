@@ -253,96 +253,109 @@ async def run_batch_for_date(db, portfolio_id: str, calc_date: date):
 
 async def main():
     print("=" * 80)
-    print("HISTORICAL CALCULATION REPROCESSING")
+    print("HISTORICAL CALCULATION REPROCESSING - ALL PORTFOLIOS")
     print("With Corrected Equity Balance")
     print("=" * 80)
     print()
 
-    portfolio_id = "e23ab931-a033-edfe-ed4f-9d02474780b4"
+    # All three demo portfolios
+    portfolios = [
+        {"id": "e23ab931-a033-edfe-ed4f-9d02474780b4", "name": "High Net Worth"},
+        {"id": "1d8ddd95-3b45-0ac5-35bf-cf81af94a5fe", "name": "Individual Investor"},
+        {"id": "fcd71196-e93e-f000-5a74-31a9eead3118", "name": "Hedge Fund Style"},
+    ]
+
     start_date = date(2025, 9, 30)
     end_date = date.today()
 
-    print(f"Portfolio: {portfolio_id}")
+    print(f"Processing {len(portfolios)} portfolios")
     print(f"Date range: {start_date} to {end_date}")
     print()
 
-    async with get_async_session() as db:
-        # Step 1: Delete old calculation results
-        await delete_calculation_results(db, portfolio_id, start_date)
+    # Get trading days once (same for all portfolios)
+    trading_days = await get_trading_days(start_date, end_date)
+    print("=" * 80)
+    print("TRADING DAYS")
+    print("=" * 80)
+    print(f"Found {len(trading_days)} trading days to process")
+    print(f"First: {trading_days[0]}, Last: {trading_days[-1]}")
+    print()
 
-        # Step 2: Get all trading days
-        trading_days = await get_trading_days(start_date, end_date)
+    total_successful = 0
+    total_failed = 0
+
+    for portfolio in portfolios:
+        portfolio_id = portfolio["id"]
+        portfolio_name = portfolio["name"]
+
         print("=" * 80)
-        print("STEP 2: Get Trading Days")
+        print(f"PORTFOLIO: {portfolio_name}")
         print("=" * 80)
-        print(f"Found {len(trading_days)} trading days to process")
-        print(f"First: {trading_days[0]}, Last: {trading_days[-1]}")
+        print(f"ID: {portfolio_id}")
         print()
 
-        # Step 3: Process each trading day in chronological order
-        print("=" * 80)
-        print("STEP 3: Reprocess Calculations")
-        print("=" * 80)
-        print()
+        async with get_async_session() as db:
+            # Step 1: Delete old calculation results
+            await delete_calculation_results(db, portfolio_id, start_date)
 
-        successful = 0
-        failed = 0
+            # Step 2: Process each trading day in chronological order
+            successful = 0
+            failed = 0
 
-        for i, calc_date in enumerate(trading_days, 1):
-            print(f"[{i}/{len(trading_days)}] Processing {calc_date}...")
+            for i, calc_date in enumerate(trading_days, 1):
+                print(f"[{i}/{len(trading_days)}] Processing {calc_date}...")
 
-            try:
-                result = await run_batch_for_date(db, portfolio_id, calc_date)
+                try:
+                    result = await run_batch_for_date(db, portfolio_id, calc_date)
 
-                if result.get('success'):
-                    successful += 1
-                    equity = result.get('equity_balance', 0)
-                    print(f"  [OK] Complete - Equity: ${equity:,.2f}")
-                else:
+                    if result.get('success'):
+                        successful += 1
+                        equity = result.get('equity_balance', 0)
+                        print(f"  [OK] Complete - Equity: ${equity:,.2f}")
+                    else:
+                        failed += 1
+                        print(f"  [FAILED] Failed: {result.get('error')}")
+
+                except Exception as e:
                     failed += 1
-                    print(f"  [FAILED] Failed: {result.get('error')}")
+                    print(f"  [ERROR] Error: {str(e)}")
 
-            except Exception as e:
-                failed += 1
-                print(f"  [ERROR] Error: {str(e)}")
+                print()
 
+            total_successful += successful
+            total_failed += failed
+
+            print("-" * 80)
+            print(f"{portfolio_name} Complete: {successful}/{len(trading_days)} successful")
             print()
 
-        print("=" * 80)
-        print("REPROCESSING COMPLETE")
-        print("=" * 80)
-        print(f"Successful: {successful}/{len(trading_days)}")
-        print(f"Failed: {failed}/{len(trading_days)}")
-        print()
+            # Verify final state
+            from app.models.snapshots import PortfolioSnapshot
+            latest_snapshot_stmt = select(PortfolioSnapshot).where(
+                PortfolioSnapshot.portfolio_id == portfolio_id
+            ).order_by(desc(PortfolioSnapshot.snapshot_date)).limit(1)
 
-        # Step 4: Verify final state
-        print("=" * 80)
-        print("STEP 4: Verify Final State")
-        print("=" * 80)
-        print()
+            snapshot_result = await db.execute(latest_snapshot_stmt)
+            latest_snapshot = snapshot_result.scalar_one_or_none()
 
-        # Check latest snapshot
-        from app.models.snapshots import PortfolioSnapshot
-        latest_snapshot_stmt = select(PortfolioSnapshot).where(
-            PortfolioSnapshot.portfolio_id == portfolio_id
-        ).order_by(desc(PortfolioSnapshot.snapshot_date)).limit(1)
+            if latest_snapshot:
+                print(f"Latest Snapshot: {latest_snapshot.snapshot_date}")
+                print(f"  Equity Balance: ${float(latest_snapshot.equity_balance):,.2f}")
+                print(f"  Total Value: ${float(latest_snapshot.total_value):,.2f}")
+                print(f"  Cumulative P&L: ${float(latest_snapshot.cumulative_pnl):,.2f}")
+            else:
+                print("No snapshots found!")
+            print()
 
-        snapshot_result = await db.execute(latest_snapshot_stmt)
-        latest_snapshot = snapshot_result.scalar_one_or_none()
-
-        if latest_snapshot:
-            print(f"Latest Snapshot: {latest_snapshot.snapshot_date}")
-            print(f"  Equity Balance: ${float(latest_snapshot.equity_balance):,.2f}")
-            print(f"  Total Value: ${float(latest_snapshot.total_value):,.2f}")
-            print(f"  Daily P&L: ${float(latest_snapshot.daily_pnl):,.2f}")
-            print(f"  Cumulative P&L: ${float(latest_snapshot.cumulative_pnl):,.2f}")
-        else:
-            print("No snapshots found!")
-
-        print()
-        print("=" * 80)
-        print("[COMPLETE] REPROCESSING COMPLETE")
-        print("=" * 80)
+    print()
+    print("=" * 80)
+    print("ALL PORTFOLIOS COMPLETE")
+    print("=" * 80)
+    print(f"Total Successful: {total_successful}/{len(portfolios) * len(trading_days)}")
+    print(f"Total Failed: {total_failed}/{len(portfolios) * len(trading_days)}")
+    print()
+    print("[COMPLETE] REPROCESSING COMPLETE FOR ALL PORTFOLIOS")
+    print("=" * 80)
 
 
 if __name__ == "__main__":
