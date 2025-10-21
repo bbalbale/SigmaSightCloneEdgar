@@ -30,9 +30,10 @@ from app.constants.factors import (
 )
 from app.calculations.factor_utils import (
     PortfolioContext, load_portfolio_context,
-    get_position_market_value, get_default_data_quality,
+    get_default_data_quality,
     get_default_storage_results
 )
+from app.calculations.market_data import get_position_value
 from app.core.logging import get_logger
 
 logger = get_logger(__name__)
@@ -493,7 +494,7 @@ async def store_spread_factor_exposures(
         # Build position dicts for aggregation
         position_dicts = []
         for pos in context.active_positions:
-            market_value = float(get_position_market_value(pos, use_stored=True))
+            market_value = float(get_position_value(pos, signed=False, recalculate=False))
             position_dicts.append({
                 'symbol': pos.symbol,
                 'quantity': float(pos.quantity),

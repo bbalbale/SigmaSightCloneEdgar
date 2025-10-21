@@ -15,6 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.positions import Position
 from app.models.market_data import BenchmarkSectorWeight
+from app.calculations.market_data import get_position_value
 from app.core.logging import get_logger
 
 logger = get_logger(__name__)
@@ -57,34 +58,6 @@ def calculate_effective_positions(hhi: float) -> float:
     if hhi == 0:
         return 0.0
     return 10000 / hhi
-
-
-def get_position_market_value(position: Position) -> Decimal:
-    """
-    Get current market value for a position.
-
-    Note: Position model already has market_value field populated by batch processing.
-    We just return that value rather than recalculating.
-
-    Args:
-        position: Position object
-
-    Returns:
-        Market value as Decimal
-    """
-    # Use the pre-calculated market_value field from the Position model
-    if position.market_value is not None:
-        return position.market_value
-    else:
-        # Fallback: calculate from entry price if market_value not set
-        if position.position_type in ['LONG', 'SHORT']:
-            return Decimal(str(position.quantity)) * position.entry_price
-        elif position.position_type in ['LC', 'LP', 'SC', 'SP']:
-            # Options: contracts * 100 * price
-            return Decimal(str(position.quantity)) * Decimal('100') * position.entry_price
-        else:
-            logger.warning(f"Unknown position type {position.position_type} for position {position.id}")
-            return Decimal('0')
 
 
 async def get_sector_from_market_data(db: AsyncSession, symbol: str) -> Optional[str]:
@@ -216,7 +189,7 @@ async def calculate_sector_exposure(
         unclassified_count = 0
 
         for position in positions:
-            market_value = get_position_market_value(position)
+            market_value = get_position_value(position, signed=False)
             total_value += abs(market_value)  # Use absolute value for LONG/SHORT
 
             # Get sector from market_data_cache
@@ -341,7 +314,7 @@ async def calculate_concentration_metrics(
         total_value = Decimal('0')
 
         for position in positions:
-            market_value = get_position_market_value(position)
+            market_value = get_position_value(position, signed=False)
             position_values[str(position.id)] = abs(market_value)
             total_value += abs(market_value)
 

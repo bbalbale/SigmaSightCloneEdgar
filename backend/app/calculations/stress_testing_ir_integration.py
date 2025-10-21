@@ -15,7 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.positions import Position
 from app.models.market_data import PositionInterestRateBeta
-from app.calculations.factor_utils import get_position_market_value
+from app.calculations.market_data import get_position_value
 from app.core.logging import get_logger
 
 logger = get_logger(__name__)
@@ -122,7 +122,7 @@ async def get_portfolio_ir_beta(
 
         for position in positions:
             if position.id in position_ir_betas:
-                market_value = float(get_position_market_value(position, recalculate=True))
+                market_value = float(get_position_value(position, signed=False, recalculate=True))
                 weight = market_value / portfolio_equity
 
                 ir_beta = position_ir_betas[position.id]
