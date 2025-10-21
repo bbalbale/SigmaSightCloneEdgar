@@ -16,7 +16,7 @@ from app.models.positions import Position
 from app.models.market_data import MarketRiskScenario, PositionInterestRateBeta, FactorDefinition
 from app.models.users import Portfolio
 
-from app.calculations.market_data import get_position_value
+from app.calculations.market_data import get_position_value, is_options_position
 from app.calculations.market_beta import calculate_portfolio_market_beta
 from app.calculations.regression_utils import run_single_factor_regression
 from app.constants.factors import (
@@ -399,13 +399,7 @@ async def calculate_interest_rate_scenarios(
 
 
 # Helper functions
-
-def _is_options_position(position: Position) -> bool:
-    """Check if position is an options position"""
-    from app.models.positions import PositionType
-    return position.position_type in [
-        PositionType.LC, PositionType.LP, PositionType.SC, PositionType.SP
-    ]
+# Note: _is_options_position removed - use market_data.is_options_position() instead
 
 
 async def _calculate_mock_interest_rate_betas(

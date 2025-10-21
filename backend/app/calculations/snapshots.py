@@ -18,7 +18,8 @@ from app.calculations.portfolio import (
     calculate_portfolio_exposures,
     aggregate_portfolio_greeks
 )
-from app.calculations.market_data import calculate_position_market_value
+from app.calculations.market_data import calculate_position_market_value, is_options_position, get_position_value
+from app.services.portfolio_exposure_service import prepare_positions_for_aggregation
 from app.utils.trading_calendar import trading_calendar
 
 logger = logging.getLogger(__name__)
@@ -148,37 +149,48 @@ async def _prepare_position_data(
     positions: List[Position],
     calculation_date: date
 ) -> Dict[str, Any]:
-    """Prepare position data with market values and Greeks"""
-    position_data = []
+    """
+    Prepare position data with market values and Greeks.
+
+    Uses canonical prepare_positions_for_aggregation() for exposure calculations
+    and adds Greeks data for options positions.
+    """
     warnings = []
-    
-    # Import needed for price lookup
-    from app.models.market_data import MarketDataCache
-    from sqlalchemy import select, and_
-    
-    for position in positions:
+
+    # Use canonical service for exposure preparation
+    # This eliminates manual price fetching and market value calculations
+    try:
+        base_position_data = await prepare_positions_for_aggregation(db, positions)
+    except Exception as e:
+        logger.error(f"Error preparing positions for aggregation: {str(e)}")
+        return {
+            "positions": [],
+            "warnings": [f"Failed to prepare positions: {str(e)}"]
+        }
+
+    # Enhance with Greeks data and position metadata
+    position_data = []
+
+    # Create position lookup by ID for matching
+    position_by_id = {str(pos.id): pos for pos in positions}
+
+    # Note: prepare_positions_for_aggregation returns dicts without position IDs
+    # We need to match by index since both lists are derived from the same positions list
+    for idx, position in enumerate(positions):
         try:
-            # First, get the price for this position as of calculation_date
-            price_query = select(MarketDataCache.close).where(
-                and_(
-                    MarketDataCache.symbol == position.symbol,
-                    MarketDataCache.date <= calculation_date
-                )
-            ).order_by(MarketDataCache.date.desc()).limit(1)
-            
-            price_result = await db.execute(price_query)
-            current_price = price_result.scalar_one_or_none()
-            
-            if current_price is None:
-                warnings.append(f"No price data available for {position.symbol} as of {calculation_date}")
+            # Get the corresponding base data (if it exists - some may have been skipped)
+            # The service skips positions without price data, so check if we have data for this position
+            if idx >= len(base_position_data):
+                # Position was skipped by prepare_positions_for_aggregation (no price data)
+                warnings.append(f"No price data available for {position.symbol}")
                 continue
-            
-            # Calculate market value with correct function signature
-            market_value_result = await calculate_position_market_value(
-                position=position,
-                current_price=Decimal(str(current_price))
-            )
-            
+
+            base_data = base_position_data[idx] if idx < len(base_position_data) else None
+
+            if not base_data:
+                warnings.append(f"No exposure data for {position.symbol}")
+                continue
+
             # Fetch Greeks if available
             greeks_query = select(PositionGreeks).where(
                 and_(
@@ -188,7 +200,7 @@ async def _prepare_position_data(
             )
             greeks_result = await db.execute(greeks_query)
             greeks_record = greeks_result.scalar_one_or_none()
-            
+
             greeks = None
             if greeks_record:
                 greeks = {
@@ -198,23 +210,24 @@ async def _prepare_position_data(
                     "vega": greeks_record.vega,
                     "rho": greeks_record.rho
                 }
-            elif _is_options_position(position):
+            elif is_options_position(position):
                 warnings.append(f"Missing Greeks for options position {position.symbol}")
-            
+
+            # Build enhanced position dict with Greeks
             position_data.append({
                 "id": position.id,
                 "symbol": position.symbol,
                 "quantity": position.quantity,
-                "market_value": market_value_result["market_value"],  # Always positive
-                "exposure": market_value_result["exposure"],          # Signed value (negative for shorts)
+                "market_value": abs(base_data["exposure"]),  # Absolute value for market_value
+                "exposure": base_data["exposure"],            # Signed exposure
                 "position_type": position.position_type,
                 "greeks": greeks
             })
-            
+
         except Exception as e:
             logger.error(f"Error processing position {position.id}: {str(e)}")
             warnings.append(f"Error processing position {position.symbol}: {str(e)}")
-    
+
     return {
         "positions": position_data,
         "warnings": warnings
@@ -571,13 +584,5 @@ async def _create_zero_snapshot(
     
     db.add(snapshot)
     await db.commit()
-    
+
     return snapshot
-
-
-def _is_options_position(position: Position) -> bool:
-    """Check if position is an options position"""
-    return position.position_type in [
-        PositionType.LC, PositionType.LP, 
-        PositionType.SC, PositionType.SP
-    ]

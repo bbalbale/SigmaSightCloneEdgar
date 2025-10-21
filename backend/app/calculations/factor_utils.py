@@ -141,24 +141,9 @@ def get_default_data_quality() -> Dict[str, Any]:
 # ============================================================================
 # SECTION 3: MARKET VALUE UTILITIES (DEPRECATED - Use market_data.py)
 # ============================================================================
-
-def _is_options_position(position) -> bool:
-    """
-    Check if position is an options position.
-
-    ⚠️ DEPRECATED: This is an internal helper. Use market_data.get_position_value()
-    which handles options multiplier internally.
-
-    Args:
-        position: Position object
-
-    Returns:
-        True if position type is LC, LP, SC, or SP
-    """
-    from app.models.positions import PositionType
-    return position.position_type in [
-        PositionType.LC, PositionType.LP, PositionType.SC, PositionType.SP
-    ]
+# Note: All market value utilities have been consolidated into market_data.py
+# - Use market_data.get_position_value() for position valuation
+# - Use market_data.is_options_position() for option detection
 
 
 # ============================================================================

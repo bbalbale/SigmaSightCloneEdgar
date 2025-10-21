@@ -35,7 +35,7 @@ from app.calculations.factor_utils import (
     load_portfolio_context,
 )
 from app.calculations.regression_utils import classify_r_squared, classify_significance
-from app.calculations.market_data import get_position_value, get_returns
+from app.calculations.market_data import get_position_value, get_returns, is_options_position
 from app.constants.factors import (
     FACTOR_ETFS, REGRESSION_WINDOW_DAYS, MIN_REGRESSION_DAYS,
     BETA_CAP_LIMIT, POSITION_CHUNK_SIZE, QUALITY_FLAG_FULL_HISTORY,
@@ -631,22 +631,17 @@ async def calculate_factor_betas_hybrid(
 
 # Helper functions
 
-def _is_options_position(position: Position) -> bool:
-    """Check if position is an options position"""
-    from app.models.positions import PositionType
-    return position.position_type in [
-        PositionType.LC, PositionType.LP, PositionType.SC, PositionType.SP
-    ]
-
-
 async def _get_position_delta(db: AsyncSession, position: Position) -> Optional[float]:
     """
     Get delta for options position from Greeks table
     TODO: Integrate with Section 1.4.2 Greeks calculations
+
+    Uses canonical is_options_position() from market_data module.
     """
-    if not _is_options_position(position):
+    # Import canonical helper (already imported at top of module)
+    if not is_options_position(position):
         return 1.0 if position.quantity > 0 else -1.0
-    
+
     # For now, return None to indicate delta unavailable
     # This will be integrated with Greeks calculations later
     return None
