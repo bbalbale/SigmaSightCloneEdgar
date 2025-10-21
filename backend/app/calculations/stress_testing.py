@@ -509,19 +509,31 @@ async def calculate_correlated_stress_impact(
             }
             total_correlated_pnl += ir_impact['predicted_pnl']
 
+        # BUGFIX: Map database factor names to correlation matrix names
+        # The correlation matrix uses ETF-based names like 'Market', 'Growth', etc.
+        # But database stores factors as 'Market Beta', 'Growth-Value Spread', etc.
+        REVERSE_FACTOR_MAP = {
+            'Market Beta': 'Market',
+            'Interest Rate Beta': 'Interest_Rate',
+            # Spread factors don't have direct ETF proxies, will be skipped in correlation lookup
+        }
+
         # For each equity factor in the portfolio, calculate its correlated response
         for factor_name, exposure_data in latest_exposures.items():
             factor_impact = 0.0
             impact_breakdown = {}
-            
+
+            # Map database factor name to correlation matrix name for lookups
+            corr_factor_name = REVERSE_FACTOR_MAP.get(factor_name, factor_name)
+
             # Calculate impact from each shocked factor via correlation
             for shocked_factor, shock_amount in shocked_factors.items():
                 # Skip Interest_Rate - already handled separately above
                 if shocked_factor == 'Interest_Rate':
                     continue
 
-                if shocked_factor in correlation_matrix and factor_name in correlation_matrix[shocked_factor]:
-                    correlation = correlation_matrix[shocked_factor][factor_name]
+                if shocked_factor in correlation_matrix and corr_factor_name in correlation_matrix[shocked_factor]:
+                    correlation = correlation_matrix[shocked_factor][corr_factor_name]
                     # Correlated shock = Original shock × Correlation
                     correlated_shock = shock_amount * correlation
 
@@ -543,12 +555,13 @@ async def calculate_correlated_stress_impact(
                         'correlated_shock': correlated_shock,
                         'correlated_pnl': correlated_pnl
                     }
-                elif shocked_factor == factor_name:
+                elif shocked_factor == corr_factor_name:
                     # Skip Interest_Rate - already handled separately
                     if shocked_factor == 'Interest_Rate':
                         continue
 
                     # Direct impact (correlation = 1.0)
+                    # This captures when shocked_factor matches the portfolio factor
                     # ISSUE #2 FIX: Use exposure_dollar (primary) with beta fallback
                     exposure_dollar = exposure_data['exposure_dollar']
                     exposure_value = exposure_data['exposure_value']  # Beta

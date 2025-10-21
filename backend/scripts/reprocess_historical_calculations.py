@@ -27,7 +27,7 @@ async def delete_calculation_results(db, portfolio_id: str, start_date: date):
     tables_to_clean = [
         ("portfolio_snapshots", "snapshot_date"),
         ("position_market_betas", "calc_date"),
-        ("position_interest_rate_betas", "calc_date"),
+        ("position_interest_rate_betas", "calculation_date"),
         ("position_factor_exposures", "calc_date"),
         ("position_volatility_analytics", "calc_date"),
         ("correlation_calculations", "calculation_date"),
@@ -55,7 +55,7 @@ async def delete_calculation_results(db, portfolio_id: str, start_date: date):
 
     print()
     print(f"Total records deleted: {total_deleted}")
-    print("Market data cache preserved ✓")
+    print("Market data cache preserved [OK]")
     print()
 
 
@@ -297,14 +297,14 @@ async def main():
                 if result.get('success'):
                     successful += 1
                     equity = result.get('equity_balance', 0)
-                    print(f"  ✓ Complete - Equity: ${equity:,.2f}")
+                    print(f"  [OK] Complete - Equity: ${equity:,.2f}")
                 else:
                     failed += 1
-                    print(f"  ✗ Failed: {result.get('error')}")
+                    print(f"  [FAILED] Failed: {result.get('error')}")
 
             except Exception as e:
                 failed += 1
-                print(f"  ✗ Error: {str(e)}")
+                print(f"  [ERROR] Error: {str(e)}")
 
             print()
 
@@ -341,7 +341,7 @@ async def main():
 
         print()
         print("=" * 80)
-        print("✅ REPROCESSING COMPLETE")
+        print("[COMPLETE] REPROCESSING COMPLETE")
         print("=" * 80)
 
 
