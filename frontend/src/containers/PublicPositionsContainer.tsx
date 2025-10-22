@@ -11,7 +11,7 @@ type FilterType = 'all' | 'longs' | 'shorts' | 'options'
 
 export function PublicPositionsContainer() {
   const { theme } = useTheme()
-  const { longPositions, shortPositions, loading, error, aggregateReturns, refetch } = usePublicPositions()
+  const { longPositions, shortPositions, loading, error, aggregateReturns, portfolioSnapshot, refetch } = usePublicPositions()
   const [activeFilter, setActiveFilter] = useState<FilterType>('all')
 
   // Helper to check if position is an option (LC, LP, SC, SP)
@@ -38,17 +38,10 @@ export function PublicPositionsContainer() {
     const allPositions = [...longPositions, ...shortPositions]
 
     return {
-      // Portfolio-level aggregate (all positions combined)
+      // Portfolio-level aggregate - USE BACKEND CALCULATED VALUES from snapshot
       portfolio: {
-        eoy: positionResearchService.calculateAggregateReturn(
-          allPositions,
-          'target_return_eoy',
-          'analyst_return_eoy'
-        ),
-        nextYear: positionResearchService.calculateAggregateReturn(
-          allPositions,
-          'target_return_next_year'
-        )
+        eoy: portfolioSnapshot?.target_price_return_eoy ?? 0,
+        nextYear: portfolioSnapshot?.target_price_return_next_year ?? 0
       },
       allOptions: {
         eoy: positionResearchService.calculateAggregateReturn(
@@ -106,7 +99,7 @@ export function PublicPositionsContainer() {
         )
       }
     }
-  }, [longPositions, shortPositions, allOptions, longEquities, longOptions, shortEquities, shortOptions])
+  }, [longPositions, shortPositions, allOptions, longEquities, longOptions, shortEquities, shortOptions, portfolioSnapshot])
 
   // Determine which sections to show based on filter
   const showLongs = activeFilter === 'all' || activeFilter === 'longs'

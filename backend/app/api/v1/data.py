@@ -19,6 +19,7 @@ from app.models.tags_v2 import TagV2
 from app.models.positions import Position
 from app.models.position_tags import PositionTag
 from app.models.market_data import MarketDataCache, CompanyProfile
+from app.models.snapshots import PortfolioSnapshot
 from app.schemas.auth import CurrentUser
 from app.core.logging import get_logger
 from app.services.market_data_service import MarketDataService
@@ -287,6 +288,73 @@ async def get_portfolio_complete(
         return response
 
 
+@router.get("/portfolio/{portfolio_id}/snapshot")
+async def get_portfolio_snapshot(
+    portfolio_id: UUID,
+    current_user: CurrentUser = Depends(get_current_user),
+    db: AsyncSession = Depends(get_async_session)
+):
+    """
+    Get latest portfolio snapshot with target price metrics.
+
+    Returns portfolio-level aggregate target returns calculated by backend.
+    These values are automatically updated whenever target prices are modified.
+
+    Returns:
+        - target_price_return_eoy: Expected % return to EOY targets
+        - target_price_return_next_year: Expected % return for next year
+        - target_price_coverage_pct: % of positions with target prices
+        - Position counts and last update timestamp
+    """
+    async with db as session:
+        # Verify portfolio ownership
+        portfolio_stmt = select(Portfolio).where(
+            and_(
+                Portfolio.id == portfolio_id,
+                Portfolio.user_id == current_user.id
+            )
+        )
+        portfolio_result = await session.execute(portfolio_stmt)
+        portfolio = portfolio_result.scalar_one_or_none()
+
+        if not portfolio:
+            raise HTTPException(status_code=404, detail="Portfolio not found")
+
+        # Get latest snapshot
+        snapshot_stmt = (
+            select(PortfolioSnapshot)
+            .where(PortfolioSnapshot.portfolio_id == portfolio_id)
+            .order_by(PortfolioSnapshot.snapshot_date.desc())
+            .limit(1)
+        )
+        snapshot_result = await session.execute(snapshot_stmt)
+        snapshot = snapshot_result.scalar_one_or_none()
+
+        if not snapshot:
+            # No snapshot exists yet - return zeros
+            return {
+                "portfolio_id": str(portfolio_id),
+                "snapshot_date": None,
+                "target_price_return_eoy": 0.0,
+                "target_price_return_next_year": 0.0,
+                "target_price_coverage_pct": 0.0,
+                "target_price_positions_count": 0,
+                "target_price_total_positions": 0,
+                "target_price_last_updated": None
+            }
+
+        return {
+            "portfolio_id": str(portfolio_id),
+            "snapshot_date": snapshot.snapshot_date.isoformat() if snapshot.snapshot_date else None,
+            "target_price_return_eoy": float(snapshot.target_price_return_eoy) if snapshot.target_price_return_eoy else 0.0,
+            "target_price_return_next_year": float(snapshot.target_price_return_next_year) if snapshot.target_price_return_next_year else 0.0,
+            "target_price_coverage_pct": float(snapshot.target_price_coverage_pct) if snapshot.target_price_coverage_pct else 0.0,
+            "target_price_positions_count": snapshot.target_price_positions_count or 0,
+            "target_price_total_positions": snapshot.target_price_total_positions or 0,
+            "target_price_last_updated": snapshot.target_price_last_updated.isoformat() if snapshot.target_price_last_updated else None
+        }
+
+
 # Note: The /portfolios/{portfolio_id}/strategies endpoint has been removed
 # Use position tagging directly instead - positions now have tags attached
 # See /positions/details endpoint with position tags included
@@ -514,12 +582,24 @@ async def get_positions_details(
     
     logger.info(f"[{request_id}] [{time.time() - start_time:.2f}s] Market data fetched for {len(market_data_map)} symbols")
 
-    # Batch fetch company names only (not full profiles for performance)
-    logger.info(f"[{request_id}] [{time.time() - start_time:.2f}s] Batch fetching company names")
+    # Batch fetch company profiles (name, sector, industry)
+    logger.info(f"[{request_id}] [{time.time() - start_time:.2f}s] Batch fetching company profiles")
     if symbols:
-        profiles_stmt = select(CompanyProfile.symbol, CompanyProfile.company_name).where(CompanyProfile.symbol.in_(symbols))
+        profiles_stmt = select(
+            CompanyProfile.symbol,
+            CompanyProfile.company_name,
+            CompanyProfile.sector,
+            CompanyProfile.industry
+        ).where(CompanyProfile.symbol.in_(symbols))
         profiles_result = await db.execute(profiles_stmt)
-        company_profiles_map = {row[0]: row[1] for row in profiles_result.all()}
+        company_profiles_map = {
+            row[0]: {
+                "company_name": row[1],
+                "sector": row[2],
+                "industry": row[3]
+            }
+            for row in profiles_result.all()
+        }
     else:
         company_profiles_map = {}
 
@@ -582,15 +662,20 @@ async def get_positions_details(
         total_cost_basis += abs(cost_basis)
         total_market_value += market_value
         total_unrealized_pnl += unrealized_pnl
-            
-        # Get company name from pre-fetched map
-        company_name = company_profiles_map.get(position.symbol)
+
+        # Get company profile data from pre-fetched map
+        company_profile = company_profiles_map.get(position.symbol, {})
+        company_name = company_profile.get("company_name")
+        sector = company_profile.get("sector")
+        industry = company_profile.get("industry")
 
         positions_data.append({
             "id": str(position.id),
             "portfolio_id": str(position.portfolio_id),
             "symbol": position.symbol,
             "company_name": company_name,
+            "sector": sector,  # NEW: Sector classification
+            "industry": industry,  # NEW: Industry classification
             "position_type": position.position_type.value,
             "investment_class": position.investment_class if position.investment_class else "PUBLIC",  # Default to PUBLIC if not set
             "investment_subtype": position.investment_subtype if position.investment_subtype else None,
@@ -620,6 +705,69 @@ async def get_positions_details(
             "total_unrealized_pnl": total_unrealized_pnl
         }
     }
+
+
+@router.post("/positions/restore-sector-tags")
+async def restore_sector_tags(
+    portfolio_id: UUID = Query(..., description="Portfolio UUID to restore tags for"),
+    current_user: CurrentUser = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Restore sector tags for all positions in a portfolio.
+
+    This endpoint:
+    1. Fetches company profile data for all positions
+    2. Creates sector tags (if they don't exist) based on company sector
+    3. Removes existing sector tags and re-applies them
+    4. Returns statistics about the operation
+
+    Use cases:
+    - User accidentally deleted sector tags
+    - Initial setup of sector tags for existing portfolio
+    - Refresh sector tags after company profile updates
+    """
+    from app.services.sector_tag_service import restore_sector_tags_for_portfolio
+
+    # Verify portfolio ownership
+    port_stmt = select(Portfolio).where(
+        and_(
+            Portfolio.id == portfolio_id,
+            Portfolio.user_id == (UUID(str(current_user.id)) if not isinstance(current_user.id, UUID) else current_user.id)
+        )
+    )
+    port_result = await db.execute(port_stmt)
+    portfolio = port_result.scalar_one_or_none()
+
+    if not portfolio:
+        raise HTTPException(status_code=404, detail="Portfolio not found")
+
+    # Execute the restoration
+    try:
+        result = await restore_sector_tags_for_portfolio(
+            db=db,
+            portfolio_id=portfolio_id,
+            user_id=current_user.id if isinstance(current_user.id, UUID) else UUID(str(current_user.id))
+        )
+
+        logger.info(
+            f"Sector tags restored for portfolio {portfolio_id} by user {current_user.id}: "
+            f"{result['positions_tagged']} positions tagged"
+        )
+
+        return {
+            "success": True,
+            "portfolio_id": str(portfolio_id),
+            "portfolio_name": portfolio.name,
+            **result
+        }
+
+    except Exception as e:
+        logger.error(f"Error restoring sector tags for portfolio {portfolio_id}: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to restore sector tags: {str(e)}"
+        )
 
 
 # Price Data Endpoints

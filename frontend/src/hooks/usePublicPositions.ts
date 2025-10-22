@@ -7,6 +7,10 @@ import {
   positionResearchService,
   type EnhancedPosition
 } from '@/services/positionResearchService'
+import {
+  fetchPortfolioSnapshot,
+  type PortfolioSnapshot
+} from '@/services/portfolioService'
 
 interface UsePublicPositionsReturn {
   longPositions: EnhancedPosition[]
@@ -19,6 +23,7 @@ interface UsePublicPositionsReturn {
     shorts_eoy: number
     shorts_next_year: number
   }
+  portfolioSnapshot: PortfolioSnapshot | null
   refetch: () => Promise<void>
 }
 
@@ -26,6 +31,7 @@ export function usePublicPositions(): UsePublicPositionsReturn {
   const { portfolioId } = usePortfolioStore()
   const [longPositions, setLongPositions] = useState<EnhancedPosition[]>([])
   const [shortPositions, setShortPositions] = useState<EnhancedPosition[]>([])
+  const [portfolioSnapshot, setPortfolioSnapshot] = useState<PortfolioSnapshot | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -36,21 +42,23 @@ export function usePublicPositions(): UsePublicPositionsReturn {
     setError(null)
 
     try {
-      // Use service to fetch and merge all data
-      const result = await positionResearchService.fetchEnhancedPositions({
-        portfolioId
-      })
+      // Fetch both positions and snapshot in parallel
+      const [positionsResult, snapshotData] = await Promise.all([
+        positionResearchService.fetchEnhancedPositions({ portfolioId }),
+        fetchPortfolioSnapshot(portfolioId)
+      ])
 
       // Filter to only show PUBLIC and OPTIONS positions
-      const filteredLongPositions = result.longPositions.filter(
+      const filteredLongPositions = positionsResult.longPositions.filter(
         p => p.investment_class === 'PUBLIC' || p.investment_class === 'OPTIONS'
       )
-      const filteredShortPositions = result.shortPositions.filter(
+      const filteredShortPositions = positionsResult.shortPositions.filter(
         p => p.investment_class === 'PUBLIC' || p.investment_class === 'OPTIONS'
       )
 
       setLongPositions(filteredLongPositions)
       setShortPositions(filteredShortPositions)
+      setPortfolioSnapshot(snapshotData)
     } catch (err) {
       console.error('Failed to fetch positions:', err)
       setError('Failed to load positions data')
@@ -96,6 +104,7 @@ export function usePublicPositions(): UsePublicPositionsReturn {
     loading,
     error,
     aggregateReturns,
+    portfolioSnapshot,
     refetch: fetchData
   }
 }

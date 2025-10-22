@@ -12,6 +12,8 @@ interface PositionDetail {
   id: string
   symbol: string
   company_name?: string
+  sector?: string  // NEW: Company sector classification
+  industry?: string  // NEW: Company industry classification
   quantity: number
   position_type: string
   investment_class?: string  // PUBLIC, OPTIONS, PRIVATE
@@ -254,6 +256,8 @@ function transformPositionDetails(positions: PositionDetail[]) {
     id: pos.id,
     symbol: pos.symbol,
     company_name: pos.company_name,
+    sector: pos.sector,  // NEW: Sector classification
+    industry: pos.industry,  // NEW: Industry classification
     quantity: pos.quantity,
     price: pos.current_price,
     marketValue: pos.market_value,
@@ -277,4 +281,90 @@ function formatCurrency(value: number): string {
     return `$${(value / 1000).toFixed(1)}K`
   }
   return `$${value.toFixed(0)}`
+}
+
+/**
+ * Portfolio Snapshot Interface
+ * Contains portfolio-level target price metrics calculated by backend
+ */
+export interface PortfolioSnapshot {
+  portfolio_id: string
+  snapshot_date: string | null
+  target_price_return_eoy: number
+  target_price_return_next_year: number
+  target_price_coverage_pct: number
+  target_price_positions_count: number
+  target_price_total_positions: number
+  target_price_last_updated: string | null
+}
+
+/**
+ * Fetch latest portfolio snapshot with target price metrics
+ * These values are automatically calculated by backend when target prices change
+ */
+export async function fetchPortfolioSnapshot(portfolioId: string): Promise<PortfolioSnapshot> {
+  const token = authManager.getAccessToken()
+  if (!token) {
+    throw new Error('Authentication token unavailable')
+  }
+
+  return await apiClient.get<PortfolioSnapshot>(
+    `/api/v1/data/portfolio/${portfolioId}/snapshot`,
+    {
+      headers: { Authorization: `Bearer ${token}` }
+    }
+  )
+}
+
+/**
+ * Restore Sector Tags Response Interface
+ */
+export interface RestoreSectorTagsResponse {
+  success: boolean
+  portfolio_id: string
+  portfolio_name: string
+  positions_tagged: number
+  positions_skipped: number
+  tags_created: number
+  tags_applied: Array<{
+    tag_name: string
+    position_count: number
+  }>
+}
+
+/**
+ * Restore sector tags for all positions in a portfolio
+ *
+ * This function:
+ * 1. Fetches company profile data for all positions
+ * 2. Creates sector tags (if they don't exist) based on company sector
+ * 3. Removes existing sector tags and re-applies them
+ *
+ * Use cases:
+ * - User accidentally deleted sector tags
+ * - Initial setup of sector tags for existing portfolio
+ * - Refresh sector tags after company profile updates
+ */
+export async function restoreSectorTags(portfolioId: string): Promise<RestoreSectorTagsResponse> {
+  const token = authManager.getAccessToken()
+  if (!token) {
+    throw new Error('Authentication token unavailable')
+  }
+
+  console.log(`[restoreSectorTags] Restoring sector tags for portfolio ${portfolioId}`)
+
+  const response = await apiClient.post<RestoreSectorTagsResponse>(
+    `/api/v1/data/positions/restore-sector-tags?portfolio_id=${portfolioId}`,
+    {},  // Empty body, portfolio_id is in query params
+    {
+      headers: { Authorization: `Bearer ${token}` }
+    }
+  )
+
+  console.log(
+    `[restoreSectorTags] Success! Tagged ${response.positions_tagged} positions, ` +
+    `created ${response.tags_created} new tags, skipped ${response.positions_skipped} positions`
+  )
+
+  return response
 }
