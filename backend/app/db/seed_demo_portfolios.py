@@ -370,7 +370,23 @@ async def _add_positions_to_portfolio(db: AsyncSession, portfolio: Portfolio, po
                     assigned_by=user.id,
                     replace_existing=False
                 )
-        
+
+        # AUTO-TAG: Apply sector tag based on company profile
+        from app.services.sector_tag_service import apply_sector_tag_to_position
+        try:
+            sector_tag_result = await apply_sector_tag_to_position(
+                db=db,
+                position_id=position.id,
+                user_id=user.id
+            )
+            if sector_tag_result["success"]:
+                logger.debug(
+                    f"Auto-tagged position {symbol} with sector tag '{sector_tag_result['tag_name']}'"
+                )
+        except Exception as e:
+            logger.warning(f"Failed to auto-tag position {symbol} with sector: {e}")
+            # Continue even if sector tagging fails - it's not critical
+
         position_count += 1
         existing_symbols.add(symbol)  # Track newly added positions
     

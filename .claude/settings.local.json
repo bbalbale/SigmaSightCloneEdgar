@@ -92,7 +92,8 @@
       "Bash(.venvScriptspython.exe run.py)",
       "Bash(docker-compose ps:*)",
       "Bash(if exist backendnul del backendnul)",
-      "Bash(if exist nul del nul)"
+      "Bash(if exist nul del nul)",
+      "mcp__playwright__browser_drag"
     ],
     "additionalDirectories": [
       "C:\\c\\Users\\BenBalbale\\CascadeProjects\\SigmaSight-BE"

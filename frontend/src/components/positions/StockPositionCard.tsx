@@ -13,6 +13,8 @@ interface Tag {
 interface StockPosition {
   symbol: string
   company_name?: string
+  sector?: string  // NEW: Sector classification
+  industry?: string  // NEW: Industry classification
   marketValue: number
   pnl: number
   positive?: boolean
@@ -27,12 +29,13 @@ interface StockPositionCardProps {
 
 export function StockPositionCard({ position, onClick }: StockPositionCardProps) {
   const companyName = position.company_name || position.symbol
+  const sectorInfo = position.sector ? ` • ${position.sector}` : ''
 
   return (
     <div className="space-y-2">
       <BasePositionCard
         primaryText={position.symbol}
-        secondaryText={companyName}
+        secondaryText={`${companyName}${sectorInfo}`}
         primaryValue={formatNumber(position.marketValue)}
         secondaryValue={
           position.pnl === 0

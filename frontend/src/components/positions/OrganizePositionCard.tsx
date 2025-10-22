@@ -48,9 +48,12 @@ export function OrganizePositionCard({ position, onClick, onRemoveTag }: Organiz
     }
 
     // PUBLIC (stocks/ETFs)
+    const companyInfo = position.company_name || position.symbol
+    const sectorInfo = (position as any).sector ? ` • ${(position as any).sector}` : ''
+
     return {
       primaryText: position.symbol,
-      secondaryText: position.company_name || position.symbol,
+      secondaryText: `${companyInfo}${sectorInfo}`,
       primaryValue: formatCurrency(position.market_value),
       secondaryValue: '', // NO P&L on organize page
       secondaryValueColor: 'neutral' as const
