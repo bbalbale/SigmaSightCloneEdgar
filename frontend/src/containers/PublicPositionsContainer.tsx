@@ -11,7 +11,7 @@ type FilterType = 'all' | 'longs' | 'shorts' | 'options'
 
 export function PublicPositionsContainer() {
   const { theme } = useTheme()
-  const { longPositions, shortPositions, loading, error, aggregateReturns, portfolioSnapshot, refetch } = usePublicPositions()
+  const { longPositions, shortPositions, loading, error, aggregateReturns, portfolioSnapshot, refetch, updatePositionTargetOptimistic } = usePublicPositions()
   const [activeFilter, setActiveFilter] = useState<FilterType>('all')
 
   // Helper to check if position is an option (LC, LP, SC, SP)
@@ -38,10 +38,18 @@ export function PublicPositionsContainer() {
     const allPositions = [...longPositions, ...shortPositions]
 
     return {
-      // Portfolio-level aggregate - USE BACKEND CALCULATED VALUES from snapshot
+      // Portfolio-level aggregate - CALCULATE ON FRONTEND for instant updates
+      // Backend snapshot still updates in background for historical data
       portfolio: {
-        eoy: portfolioSnapshot?.target_price_return_eoy ?? 0,
-        nextYear: portfolioSnapshot?.target_price_return_next_year ?? 0
+        eoy: positionResearchService.calculateAggregateReturn(
+          allPositions,
+          'target_return_eoy',
+          'analyst_return_eoy' // Fallback to analyst if user target is null
+        ),
+        nextYear: positionResearchService.calculateAggregateReturn(
+          allPositions,
+          'target_return_next_year'
+        )
       },
       allOptions: {
         eoy: positionResearchService.calculateAggregateReturn(
@@ -259,7 +267,7 @@ export function PublicPositionsContainer() {
               title="All Options"
               aggregateReturnEOY={aggregates.allOptions.eoy}
               aggregateReturnNextYear={aggregates.allOptions.nextYear}
-              onTargetPriceUpdate={refetch}
+              onTargetPriceUpdate={updatePositionTargetOptimistic}
             />
           </div>
         </section>
@@ -276,7 +284,7 @@ export function PublicPositionsContainer() {
                   title="Long Positions"
                   aggregateReturnEOY={aggregates.longEquities.eoy}
                   aggregateReturnNextYear={aggregates.longEquities.nextYear}
-                  onTargetPriceUpdate={refetch}
+                  onTargetPriceUpdate={updatePositionTargetOptimistic}
                 />
               </div>
             </section>
@@ -290,7 +298,7 @@ export function PublicPositionsContainer() {
                   title="Long Options"
                   aggregateReturnEOY={aggregates.longOptions.eoy}
                   aggregateReturnNextYear={aggregates.longOptions.nextYear}
-                  onTargetPriceUpdate={refetch}
+                  onTargetPriceUpdate={updatePositionTargetOptimistic}
                 />
               </div>
             </section>
@@ -309,7 +317,7 @@ export function PublicPositionsContainer() {
                   title="Short Positions"
                   aggregateReturnEOY={aggregates.shortEquities.eoy}
                   aggregateReturnNextYear={aggregates.shortEquities.nextYear}
-                  onTargetPriceUpdate={refetch}
+                  onTargetPriceUpdate={updatePositionTargetOptimistic}
                 />
               </div>
             </section>
@@ -323,7 +331,7 @@ export function PublicPositionsContainer() {
                   title="Short Options"
                   aggregateReturnEOY={aggregates.shortOptions.eoy}
                   aggregateReturnNextYear={aggregates.shortOptions.nextYear}
-                  onTargetPriceUpdate={refetch}
+                  onTargetPriceUpdate={updatePositionTargetOptimistic}
                 />
               </div>
             </section>

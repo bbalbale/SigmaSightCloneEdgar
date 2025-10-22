@@ -1,7 +1,7 @@
 // src/hooks/usePublicPositions.ts
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import { usePortfolioStore } from '@/stores/portfolioStore'
 import {
   positionResearchService,
@@ -11,6 +11,9 @@ import {
   fetchPortfolioSnapshot,
   type PortfolioSnapshot
 } from '@/services/portfolioService'
+import targetPriceUpdateService, {
+  type TargetPriceUpdate
+} from '@/services/targetPriceUpdateService'
 
 interface UsePublicPositionsReturn {
   longPositions: EnhancedPosition[]
@@ -25,6 +28,7 @@ interface UsePublicPositionsReturn {
   }
   portfolioSnapshot: PortfolioSnapshot | null
   refetch: () => Promise<void>
+  updatePositionTargetOptimistic: (update: TargetPriceUpdate) => Promise<void>
 }
 
 export function usePublicPositions(): UsePublicPositionsReturn {
@@ -98,6 +102,45 @@ export function usePublicPositions(): UsePublicPositionsReturn {
     )
   }), [longPositions, shortPositions])
 
+  // Optimistic update for target prices - instant UI feedback
+  const updatePositionTargetOptimistic = useCallback(async (update: TargetPriceUpdate) => {
+    if (!portfolioId) return
+
+    // Combine all positions for optimistic update
+    const allPositions = [...longPositions, ...shortPositions]
+
+    // Update positions optimistically
+    const handleOptimisticUpdate = (updatedPositions: EnhancedPosition[]) => {
+      // Split back into longs and shorts
+      const updatedLongs = updatedPositions.filter(
+        p => p.investment_class === 'PUBLIC' || p.investment_class === 'OPTIONS'
+      ).filter(
+        p => p.position_type === 'LONG' || p.position_type === 'LC' || p.position_type === 'LP'
+      )
+      const updatedShorts = updatedPositions.filter(
+        p => p.investment_class === 'PUBLIC' || p.investment_class === 'OPTIONS'
+      ).filter(
+        p => p.position_type === 'SHORT' || p.position_type === 'SC' || p.position_type === 'SP'
+      )
+
+      setLongPositions(updatedLongs)
+      setShortPositions(updatedShorts)
+    }
+
+    // Use optimistic update service
+    await targetPriceUpdateService.updatePositionTarget(
+      portfolioId,
+      update,
+      allPositions,
+      handleOptimisticUpdate,
+      (error, previousState) => {
+        console.error('Failed to sync target price, reverted:', error)
+        setError(`Failed to update target price for ${update.symbol}`)
+        // Error handling - state already reverted by service
+      }
+    )
+  }, [portfolioId, longPositions, shortPositions])
+
   return {
     longPositions,
     shortPositions,
@@ -105,6 +148,7 @@ export function usePublicPositions(): UsePublicPositionsReturn {
     error,
     aggregateReturns,
     portfolioSnapshot,
-    refetch: fetchData
+    refetch: fetchData,
+    updatePositionTargetOptimistic
   }
 }

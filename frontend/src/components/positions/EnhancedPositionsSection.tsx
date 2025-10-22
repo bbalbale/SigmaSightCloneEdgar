@@ -8,13 +8,14 @@ import { PositionList } from '@/components/common/PositionList'
 import { ResearchPositionCard } from '@/components/positions/ResearchPositionCard'
 import { useTheme } from '@/contexts/ThemeContext'
 import type { EnhancedPosition } from '@/services/positionResearchService'
+import type { TargetPriceUpdate } from '@/services/targetPriceUpdateService'
 
 interface EnhancedPositionsSectionProps {
   positions: EnhancedPosition[]
   title: string
   aggregateReturnEOY: number
   aggregateReturnNextYear: number
-  onTargetPriceUpdate?: () => Promise<void>
+  onTargetPriceUpdate?: (update: TargetPriceUpdate) => Promise<void>
 }
 
 export function EnhancedPositionsSection({
