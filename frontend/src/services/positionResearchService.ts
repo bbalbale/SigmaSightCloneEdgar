@@ -1,6 +1,65 @@
 // src/services/positionResearchService.ts
 import { apiClient } from '@/services/apiClient'
 
+// Cache configuration
+interface CacheEntry<T> {
+  data: T
+  timestamp: number
+  ttl: number // milliseconds
+}
+
+class CacheManager {
+  private cache = new Map<string, CacheEntry<any>>()
+
+  set<T>(key: string, data: T, ttl: number) {
+    this.cache.set(key, {
+      data,
+      timestamp: Date.now(),
+      ttl
+    })
+  }
+
+  get<T>(key: string): T | null {
+    const entry = this.cache.get(key)
+    if (!entry) return null
+
+    const age = Date.now() - entry.timestamp
+    if (age > entry.ttl) {
+      // Expired - remove from cache
+      this.cache.delete(key)
+      return null
+    }
+
+    return entry.data as T
+  }
+
+  invalidate(key: string) {
+    this.cache.delete(key)
+  }
+
+  invalidatePattern(pattern: string) {
+    // Invalidate all keys matching pattern
+    for (const key of this.cache.keys()) {
+      if (key.includes(pattern)) {
+        this.cache.delete(key)
+      }
+    }
+  }
+
+  clear() {
+    this.cache.clear()
+  }
+}
+
+const cacheManager = new CacheManager()
+
+// Cache TTLs
+const CACHE_TTL = {
+  COMPANY_PROFILES: 60 * 60 * 1000, // 1 hour (rarely changes)
+  POSITIONS: 5 * 60 * 1000,          // 5 minutes (changes when positions added/removed)
+  // Target prices NOT cached - always fetch fresh
+}
+
 export interface EnhancedPosition {
   // Position basics
   id: string
@@ -64,19 +123,62 @@ export const positionResearchService = {
     portfolioId,
     investmentClass
   }: FetchEnhancedPositionsParams): Promise<EnhancedPositionsResult> {
-    // Fetch all data in parallel
-    const [positionsRes, profilesRes, targetsRes] = await Promise.all([
-      apiClient.get<{
-        positions: any[]
-        summary: { total_market_value: number }
-      }>(`/api/v1/data/positions/details?portfolio_id=${portfolioId}`),
+    // Cache keys
+    const positionsCacheKey = `positions:${portfolioId}`
+    const profilesCacheKey = `profiles:${portfolioId}`
 
-      apiClient.get<{ profiles: any[] }>(
-        `/api/v1/data/company-profiles?portfolio_id=${portfolioId}`
-      ),
+    // Try to get cached data
+    const cachedPositions = cacheManager.get<{
+      positions: any[]
+      summary: { total_market_value: number }
+    }>(positionsCacheKey)
 
+    const cachedProfiles = cacheManager.get<{ profiles: any[] }>(profilesCacheKey)
+
+    // Fetch data (use cache when available)
+    const fetchPromises: Promise<any>[] = []
+
+    // Positions - use cache or fetch
+    if (cachedPositions) {
+      console.log('✅ Using cached positions data')
+      fetchPromises.push(Promise.resolve(cachedPositions))
+    } else {
+      console.log('🔄 Fetching fresh positions data')
+      fetchPromises.push(
+        apiClient.get<{
+          positions: any[]
+          summary: { total_market_value: number }
+        }>(`/api/v1/data/positions/details?portfolio_id=${portfolioId}`)
+          .then(data => {
+            cacheManager.set(positionsCacheKey, data, CACHE_TTL.POSITIONS)
+            return data
+          })
+      )
+    }
+
+    // Company profiles - use cache or fetch
+    if (cachedProfiles) {
+      console.log('✅ Using cached company profiles')
+      fetchPromises.push(Promise.resolve(cachedProfiles))
+    } else {
+      console.log('🔄 Fetching fresh company profiles')
+      fetchPromises.push(
+        apiClient.get<{ profiles: any[] }>(
+          `/api/v1/data/company-profiles?portfolio_id=${portfolioId}`
+        ).then(data => {
+          cacheManager.set(profilesCacheKey, data, CACHE_TTL.COMPANY_PROFILES)
+          return data
+        })
+      )
+    }
+
+    // Target prices - ALWAYS fetch fresh (no cache)
+    console.log('🔄 Fetching fresh target prices (not cached)')
+    fetchPromises.push(
       apiClient.get<any[]>(`/api/v1/target-prices/${portfolioId}`)
-    ])
+    )
+
+    const [positionsRes, profilesRes, targetsRes] = await Promise.all(fetchPromises)
 
     // Filter by investment class if specified
     let filteredPositions = positionsRes.positions
@@ -186,5 +288,43 @@ export const positionResearchService = {
     }, 0)
 
     return weightedSum / totalWeight
+  },
+
+  /**
+   * Invalidate cached positions for a portfolio
+   * Call this when positions are added/removed
+   */
+  invalidatePositionsCache(portfolioId: string) {
+    const positionsCacheKey = `positions:${portfolioId}`
+    cacheManager.invalidate(positionsCacheKey)
+    console.log('🗑️ Invalidated positions cache for', portfolioId)
+  },
+
+  /**
+   * Invalidate cached company profiles for a portfolio
+   * Call this when company data changes (rare)
+   */
+  invalidateProfilesCache(portfolioId: string) {
+    const profilesCacheKey = `profiles:${portfolioId}`
+    cacheManager.invalidate(profilesCacheKey)
+    console.log('🗑️ Invalidated profiles cache for', portfolioId)
+  },
+
+  /**
+   * Invalidate all cached data for a portfolio
+   * Use when unsure what changed
+   */
+  invalidateAllCache(portfolioId: string) {
+    cacheManager.invalidatePattern(portfolioId)
+    console.log('🗑️ Invalidated all cache for', portfolioId)
+  },
+
+  /**
+   * Clear entire cache
+   * Use sparingly (e.g., on logout)
+   */
+  clearCache() {
+    cacheManager.clear()
+    console.log('🗑️ Cleared entire cache')
   }
 }

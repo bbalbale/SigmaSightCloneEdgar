@@ -121,6 +121,21 @@ export function ResearchPositionCard({ position, onClick, onTargetPriceUpdate }:
     }, 500)
   }, [handleSaveTargets])
 
+  // Handle Enter key - save immediately without debounce
+  const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      // Clear any pending debounced save
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current)
+      }
+      // Save immediately
+      handleSaveTargets()
+      // Blur the input to give visual feedback
+      e.currentTarget.blur()
+    }
+  }, [handleSaveTargets])
+
   // Check if position is short (return calculation needs to be inverted)
   const isShort = ['SHORT', 'SC', 'SP'].includes(position.position_type)
 
@@ -291,6 +306,7 @@ export function ResearchPositionCard({ position, onClick, onTargetPriceUpdate }:
               value={userTargetEOY}
               onChange={(e) => setUserTargetEOY(e.target.value)}
               onBlur={debouncedSave}
+              onKeyDown={handleKeyDown}
               placeholder="Enter"
               disabled={isSaving}
               className={`h-8 text-sm font-semibold tabular-nums transition-colors duration-300 ${
@@ -313,6 +329,7 @@ export function ResearchPositionCard({ position, onClick, onTargetPriceUpdate }:
               value={userTargetNextYear}
               onChange={(e) => setUserTargetNextYear(e.target.value)}
               onBlur={debouncedSave}
+              onKeyDown={handleKeyDown}
               placeholder="Enter"
               disabled={isSaving}
               className={`h-8 text-sm font-semibold tabular-nums transition-colors duration-300 ${
