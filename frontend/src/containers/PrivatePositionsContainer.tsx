@@ -7,7 +7,7 @@ import { useTheme } from '@/contexts/ThemeContext'
 
 export function PrivatePositionsContainer() {
   const { theme } = useTheme()
-  const { positions, loading, error, aggregateReturns } = usePrivatePositions()
+  const { positions, loading, error, aggregateReturns, updatePositionTargetOptimistic } = usePrivatePositions()
 
   if (loading && !positions.length) {
     return (
@@ -83,6 +83,7 @@ export function PrivatePositionsContainer() {
             title="Private Investments"
             aggregateReturnEOY={aggregateReturns.eoy}
             aggregateReturnNextYear={aggregateReturns.next_year}
+            onTargetPriceUpdate={updatePositionTargetOptimistic}
           />
         </div>
       </section>
