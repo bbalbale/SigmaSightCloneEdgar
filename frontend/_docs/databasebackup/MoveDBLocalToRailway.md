@@ -91,6 +91,16 @@ docker exec -e PGPASSWORD=[railway-password] backend-postgres-1 psql -h hopper.p
 docker exec -e PGPASSWORD=[railway-password] backend-postgres-1 psql -h hopper.proxy.rlwy.net -p 56725 -U postgres -d railway -c "SELECT COUNT(*) as company_profiles FROM company_profiles;"
 ```
 
+**Count users (CRITICAL - must be 3):**
+```powershell
+docker exec -e PGPASSWORD=[railway-password] backend-postgres-1 psql -h hopper.proxy.rlwy.net -p 56725 -U postgres -d railway -c "SELECT COUNT(*) as users FROM users;"
+```
+
+**List users with portfolios:**
+```powershell
+docker exec -e PGPASSWORD=[railway-password] backend-postgres-1 psql -h hopper.proxy.rlwy.net -p 56725 -U postgres -d railway -c "SELECT u.email, p.name FROM users u JOIN portfolios p ON u.id = p.user_id ORDER BY u.email;"
+```
+
 ## Expected Output
 
 ### During Restore
@@ -122,10 +132,15 @@ ERROR:  role "sigmasight" does not exist  # Railway uses "postgres" user
 ```
 ✅ Portfolios: 3
 ✅ Positions: 76
-✅ Users: 3
-✅ Company Profiles: 61
-✅ Portfolio Snapshots: 4
+✅ Users: 3 (CRITICAL - if 0, see Issue 5)
+✅ Company Profiles: 61 (60-61 acceptable, see Issue 4)
+✅ Portfolio Snapshots: 69
+✅ Factor Exposures: 29,262
+✅ Tags: 47
+✅ Position Tags: 131
 ```
+
+**⚠️ IMPORTANT**: If Users count is 0, you MUST fix this before attempting to login (see Issue 5 below).
 
 ## Common Issues & Solutions
 
@@ -177,6 +192,50 @@ docker exec -e PGPASSWORD=[railway-password] backend-postgres-1 psql -h hopper.p
 ```
 
 Or simply accept that 60/61 profiles loaded and the backend will re-fetch the missing one from market data APIs on next update.
+
+### Issue 5: Users Table Not Migrated (Login Fails)
+**Symptoms:**
+- Cannot login with demo credentials
+- Error: "Invalid credentials" or authentication fails
+- Railway database shows 0 users
+
+**Root Cause:** Sometimes the `users` table data doesn't migrate during the INSERT-based restore, even though the table structure is created. This causes all logins to fail.
+
+**Diagnosis:**
+```powershell
+# Check if users exist in Railway
+docker exec -e PGPASSWORD=[railway-password] backend-postgres-1 psql -h hopper.proxy.rlwy.net -p 56725 -U postgres -d railway -c "SELECT COUNT(*) FROM users;"
+```
+
+If the count is 0, users need to be manually migrated.
+
+**Solution - Manual User Migration:**
+
+```powershell
+# Step 1: Generate INSERT statements from local database
+docker exec -e PGPASSWORD=sigmasight_dev backend-postgres-1 psql -h localhost -U sigmasight -d sigmasight_db -t -c "SELECT 'INSERT INTO users (id, email, hashed_password, full_name, is_active, created_at, updated_at) VALUES (' || quote_literal(id::text) || '::uuid, ' || quote_literal(email) || ', ' || quote_literal(hashed_password) || ', ' || quote_literal(full_name) || ', ' || is_active || ', ' || quote_literal(created_at::text) || '::timestamptz, ' || quote_literal(updated_at::text) || '::timestamptz);' FROM users ORDER BY email;" > users_insert.sql
+
+# Step 2: Execute the INSERT statements on Railway
+powershell -Command "Get-Content users_insert.sql | docker exec -i -e PGPASSWORD=[railway-password] backend-postgres-1 psql -h hopper.proxy.rlwy.net -p 56725 -U postgres -d railway"
+
+# Step 3: Verify users were created
+docker exec -e PGPASSWORD=[railway-password] backend-postgres-1 psql -h hopper.proxy.rlwy.net -p 56725 -U postgres -d railway -c "SELECT email, full_name, is_active FROM users ORDER BY email;"
+```
+
+**Expected Output:**
+```
+               email                |           full_name            | is_active
+------------------------------------+--------------------------------+-----------
+ demo_hedgefundstyle@sigmasight.com | Demo Hedge Fund Style Investor | t
+ demo_hnw@sigmasight.com            | Demo High Net Worth Investor   | t
+ demo_individual@sigmasight.com     | Demo Individual Investor       | t
+(3 rows)
+```
+
+**Demo Credentials (after fix):**
+- Email: `demo_individual@sigmasight.com` / Password: `demo12345`
+- Email: `demo_hnw@sigmasight.com` / Password: `demo12345`
+- Email: `demo_hedgefundstyle@sigmasight.com` / Password: `demo12345`
 
 ## Complete Verification Script
 
@@ -257,10 +316,17 @@ docker exec -e PGPASSWORD=[railway-password] backend-postgres-1 psql -h hopper.p
 
 # Verify company profiles loaded
 docker exec -e PGPASSWORD=[railway-password] backend-postgres-1 psql -h hopper.proxy.rlwy.net -p 56725 -U postgres -d railway -c "SELECT COUNT(*) FROM company_profiles;"
+
+# CRITICAL: Verify users were migrated (must be 3)
+docker exec -e PGPASSWORD=[railway-password] backend-postgres-1 psql -h hopper.proxy.rlwy.net -p 56725 -U postgres -d railway -c "SELECT COUNT(*) FROM users;"
+
+# If users count is 0, see Issue 5 for manual fix
 ```
 
 ---
 
 **Last Updated:** 2025-10-23
 **Tested On:** Windows 11, PowerShell 7, Docker Desktop, PostgreSQL 15
-**Known Issues Fixed:** Company profiles VARCHAR encoding (use --inserts flag)
+**Known Issues Fixed:**
+- Company profiles VARCHAR encoding (use --inserts flag)
+- Users table silent migration failure (manual verification required)
