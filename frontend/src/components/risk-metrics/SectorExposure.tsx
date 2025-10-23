@@ -66,19 +66,29 @@ export function SectorExposure({ data, loading, error, onRetry }: SectorExposure
   const { portfolio_weights, benchmark_weights, over_underweight } = data.data
   const benchmarkCode = data.metadata?.benchmark || 'S&P 500'
 
-  // Get all sector names from benchmark weights (not portfolio, which might be empty)
-  // This ensures we show all sectors even if portfolio has 0% allocation
-  const sectors = Object.keys(benchmark_weights)
+  // Get all sector names from both benchmark and portfolio weights
+  // This ensures we show all sectors including ETFs and Unclassified (which are portfolio-only)
+  const allSectors = new Set([
+    ...Object.keys(benchmark_weights),
+    ...Object.keys(portfolio_weights)
+  ])
+
+  // Separate classified sectors from ETFs and Unclassified
+  const classifiedSectors = Array.from(allSectors).filter(s => s !== 'Unclassified' && s !== 'ETFs')
+  const hasETFs = portfolio_weights['ETFs'] !== undefined
+  const hasUnclassified = portfolio_weights['Unclassified'] !== undefined
 
   console.log('🎯 SectorExposure Render:', {
     portfolio_weights,
     benchmark_weights,
     over_underweight,
-    sectors,
-    sectorsLength: sectors.length
+    classifiedSectors,
+    hasETFs,
+    hasUnclassified,
+    classifiedSectorsLength: classifiedSectors.length
   })
 
-  if (sectors.length === 0) {
+  if (classifiedSectors.length === 0 && !hasETFs && !hasUnclassified) {
     return (
       <Card className={`transition-colors duration-300 ${
         theme === 'dark' ? 'bg-slate-800 border-slate-700' : 'bg-white border-gray-200'
@@ -125,81 +135,305 @@ export function SectorExposure({ data, loading, error, onRetry }: SectorExposure
           </div>
         )}
 
-        <div className="space-y-4">
-          {sectors.map((sector) => {
-            // Handle cases where sector might not exist in portfolio_weights
-            const portfolioWeight = portfolio_weights[sector] || 0
-            const benchmarkWeight = benchmark_weights[sector] || 0
-            const overUnder = over_underweight[sector] || 0
+        {/* Butterfly Chart - Mirror Design */}
+        <div className="space-y-3">
+          {/* Header Row */}
+          <div className="flex items-center gap-2 pb-2 border-b"
+            style={{
+              borderColor: theme === 'dark' ? 'rgb(51 65 85)' : 'rgb(229 231 235)'
+            }}
+          >
+            <div className={`flex-1 text-right text-sm font-semibold ${
+              theme === 'dark' ? 'text-gray-400' : 'text-gray-600'
+            }`}>
+              {benchmarkCode}
+            </div>
+            <div className={`min-w-[180px] text-center text-sm font-semibold ${
+              theme === 'dark' ? 'text-slate-300' : 'text-gray-700'
+            }`}>
+              Sector
+            </div>
+            <div className={`flex-1 text-left text-sm font-semibold ${
+              theme === 'dark' ? 'text-blue-400' : 'text-blue-600'
+            }`}>
+              Portfolio
+            </div>
+          </div>
 
-            const portfolioPct = (portfolioWeight * 100).toFixed(1)
-            const benchmarkPct = (benchmarkWeight * 100).toFixed(1)
-            const overUnderPct = (overUnder * 100).toFixed(1)
-            const isOverweight = overUnder > 0
-            const barWidth = Math.abs(overUnder) / maxOverweight * 100
+          {/* Classified sector rows sorted by benchmark weight */}
+          {classifiedSectors
+            .map(sector => ({
+              sector,
+              portfolioWeight: portfolio_weights[sector] || 0,
+              benchmarkWeight: benchmark_weights[sector] || 0,
+              overUnder: over_underweight[sector] || 0
+            }))
+            .sort((a, b) => b.benchmarkWeight - a.benchmarkWeight)
+            .map(({ sector, portfolioWeight, benchmarkWeight, overUnder }) => {
+              const portfolioPct = (portfolioWeight * 100).toFixed(1)
+              const benchmarkPct = (benchmarkWeight * 100).toFixed(1)
+              const overUnderPct = (overUnder * 100).toFixed(1)
+              const isOverweight = overUnder > 0
 
-            return (
-              <div key={sector} className="space-y-2">
-                {/* Sector name and weights */}
-                <div className="flex justify-between items-center">
-                  <span className={`text-sm font-medium ${
-                    theme === 'dark' ? 'text-white' : 'text-gray-900'
-                  }`}>
-                    {sector}
-                  </span>
-                  <div className="flex gap-4 text-sm">
-                    <span className={theme === 'dark' ? 'text-slate-300' : 'text-gray-700'}>
-                      Portfolio: <span className="font-semibold">{portfolioPct}%</span>
-                    </span>
-                    <span className={theme === 'dark' ? 'text-slate-400' : 'text-gray-500'}>
-                      {benchmarkCode}: {benchmarkPct}%
-                    </span>
+              // Calculate bar widths (scale to max for visual consistency)
+              // Use max from both benchmark AND portfolio weights
+              const maxWeight = Math.max(
+                ...Object.values(benchmark_weights),
+                ...Object.values(portfolio_weights)
+              )
+              const portfolioBarWidth = (portfolioWeight / maxWeight) * 100
+              const benchmarkBarWidth = (benchmarkWeight / maxWeight) * 100
+
+              return (
+                <div key={sector} className="flex items-center gap-2">
+                  {/* Benchmark bar (left side, extends left from center) */}
+                  <div className="flex-1 flex justify-end items-center">
+                    <div className="flex items-center gap-2 w-full justify-end">
+                      <span className={`text-xs font-medium min-w-[40px] text-right transition-colors duration-300 ${
+                        theme === 'dark' ? 'text-gray-400' : 'text-gray-600'
+                      }`}>
+                        {benchmarkPct}%
+                      </span>
+                      <div className="flex-1 max-w-[300px] h-7 flex justify-end">
+                        <div
+                          className="h-full bg-gray-400 dark:bg-gray-500 rounded-l transition-all duration-300"
+                          style={{ width: `${benchmarkBarWidth}%` }}
+                        />
+                      </div>
+                    </div>
                   </div>
-                </div>
 
-                {/* Over/underweight bar */}
-                <div className="relative h-6 bg-slate-100 dark:bg-slate-700 rounded">
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <span className={`text-xs font-medium ${
-                      theme === 'dark' ? 'text-slate-300' : 'text-gray-700'
+                  {/* Center label with delta badge */}
+                  <div className="flex flex-col items-center min-w-[180px]">
+                    <span className={`text-sm font-medium transition-colors duration-300 ${
+                      theme === 'dark' ? 'text-slate-200' : 'text-gray-800'
+                    }`}>
+                      {sector}
+                    </span>
+                    <span className={`text-xs font-semibold px-2 py-0.5 rounded mt-0.5 transition-colors duration-300 ${
+                      isOverweight
+                        ? theme === 'dark'
+                          ? 'bg-emerald-900/30 text-emerald-400'
+                          : 'bg-emerald-100 text-emerald-700'
+                        : Math.abs(overUnder) < 0.01
+                        ? theme === 'dark'
+                          ? 'bg-gray-800 text-gray-400'
+                          : 'bg-gray-100 text-gray-600'
+                        : theme === 'dark'
+                        ? 'bg-rose-900/30 text-rose-400'
+                        : 'bg-rose-100 text-rose-700'
                     }`}>
                       {isOverweight ? '+' : ''}{overUnderPct}%
                     </span>
                   </div>
-                  <div
-                    className={`absolute top-0 h-full rounded transition-all ${
-                      isOverweight
-                        ? 'bg-emerald-500/60 right-1/2'
-                        : 'bg-red-500/60 left-1/2'
-                    }`}
-                    style={{
-                      width: `${barWidth}%`,
-                    }}
-                  />
+
+                  {/* Portfolio bar (right side, extends right from center) */}
+                  <div className="flex-1 flex items-center">
+                    <div className="flex items-center gap-2 w-full">
+                      <div className="flex-1 max-w-[300px] h-7 flex">
+                        <div
+                          className="h-full bg-blue-500 dark:bg-blue-600 rounded-r transition-all duration-300"
+                          style={{ width: `${portfolioBarWidth}%` }}
+                        />
+                      </div>
+                      <span className={`text-xs font-medium min-w-[40px] transition-colors duration-300 ${
+                        theme === 'dark' ? 'text-blue-400' : 'text-blue-600'
+                      }`}>
+                        {portfolioPct}%
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              )
+            })}
+
+          {/* ETFs bar (if present) */}
+          {hasETFs && (() => {
+            const portfolioWeight = portfolio_weights['ETFs'] || 0
+            const benchmarkWeight = 0 // Benchmark has no ETFs
+            const overUnder = over_underweight['ETFs'] || portfolioWeight
+            const portfolioPct = (portfolioWeight * 100).toFixed(1)
+            const benchmarkPct = '0.0'
+            const overUnderPct = (overUnder * 100).toFixed(1)
+
+            // Calculate bar width
+            const maxWeight = Math.max(
+              ...Object.values(benchmark_weights),
+              ...Object.values(portfolio_weights)
+            )
+            const portfolioBarWidth = (portfolioWeight / maxWeight) * 100
+
+            return (
+              <div key="etfs" className="flex items-center gap-2 pt-2 mt-2 border-t"
+                style={{
+                  borderColor: theme === 'dark' ? 'rgb(51 65 85 / 0.5)' : 'rgb(229 231 235 / 0.5)'
+                }}
+              >
+                {/* Benchmark bar (left side - empty for ETFs) */}
+                <div className="flex-1 flex justify-end items-center">
+                  <div className="flex items-center gap-2 w-full justify-end">
+                    <span className={`text-xs font-medium min-w-[40px] text-right transition-colors duration-300 ${
+                      theme === 'dark' ? 'text-gray-400' : 'text-gray-600'
+                    }`}>
+                      {benchmarkPct}%
+                    </span>
+                    <div className="flex-1 max-w-[300px] h-7 flex justify-end">
+                      {/* No bar for benchmark */}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Center label with delta badge */}
+                <div className="flex flex-col items-center min-w-[180px]">
+                  <span className={`text-sm font-medium transition-colors duration-300 ${
+                    theme === 'dark' ? 'text-slate-200' : 'text-gray-800'
+                  }`}>
+                    ETFs / Index Funds
+                  </span>
+                  <span className={`text-xs font-semibold px-2 py-0.5 rounded mt-0.5 transition-colors duration-300 ${
+                    theme === 'dark'
+                      ? 'bg-purple-900/30 text-purple-400'
+                      : 'bg-purple-100 text-purple-700'
+                  }`}>
+                    +{overUnderPct}%
+                  </span>
+                </div>
+
+                {/* Portfolio bar (right side - purple color) */}
+                <div className="flex-1 flex items-center">
+                  <div className="flex items-center gap-2 w-full">
+                    <div className="flex-1 max-w-[300px] h-7 flex">
+                      <div
+                        className="h-full bg-purple-500 dark:bg-purple-600 rounded-r transition-all duration-300"
+                        style={{ width: `${portfolioBarWidth}%` }}
+                      />
+                    </div>
+                    <span className={`text-xs font-medium min-w-[40px] transition-colors duration-300 ${
+                      theme === 'dark' ? 'text-purple-400' : 'text-purple-600'
+                    }`}>
+                      {portfolioPct}%
+                    </span>
+                  </div>
                 </div>
               </div>
             )
-          })}
+          })()}
+
+          {/* Unclassified bar (if present) */}
+          {hasUnclassified && (() => {
+            const portfolioWeight = portfolio_weights['Unclassified'] || 0
+            const benchmarkWeight = 0 // Benchmark has no unclassified
+            const overUnder = over_underweight['Unclassified'] || portfolioWeight
+            const portfolioPct = (portfolioWeight * 100).toFixed(1)
+            const benchmarkPct = '0.0'
+            const overUnderPct = (overUnder * 100).toFixed(1)
+
+            // Calculate bar width
+            const maxWeight = Math.max(
+              ...Object.values(benchmark_weights),
+              ...Object.values(portfolio_weights)
+            )
+            const portfolioBarWidth = (portfolioWeight / maxWeight) * 100
+
+            return (
+              <div key="unclassified" className="flex items-center gap-2 pt-2 mt-2 border-t"
+                style={{
+                  borderColor: theme === 'dark' ? 'rgb(51 65 85 / 0.5)' : 'rgb(229 231 235 / 0.5)'
+                }}
+              >
+                {/* Benchmark bar (left side - empty for unclassified) */}
+                <div className="flex-1 flex justify-end items-center">
+                  <div className="flex items-center gap-2 w-full justify-end">
+                    <span className={`text-xs font-medium min-w-[40px] text-right transition-colors duration-300 ${
+                      theme === 'dark' ? 'text-gray-400' : 'text-gray-600'
+                    }`}>
+                      {benchmarkPct}%
+                    </span>
+                    <div className="flex-1 max-w-[300px] h-7 flex justify-end">
+                      {/* No bar for benchmark */}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Center label with delta badge */}
+                <div className="flex flex-col items-center min-w-[180px]">
+                  <span className={`text-sm font-medium transition-colors duration-300 ${
+                    theme === 'dark' ? 'text-slate-200' : 'text-gray-800'
+                  }`}>
+                    Unclassified
+                  </span>
+                  <span className={`text-xs font-semibold px-2 py-0.5 rounded mt-0.5 transition-colors duration-300 ${
+                    theme === 'dark'
+                      ? 'bg-amber-900/30 text-amber-400'
+                      : 'bg-amber-100 text-amber-700'
+                  }`}>
+                    +{overUnderPct}%
+                  </span>
+                </div>
+
+                {/* Portfolio bar (right side - amber color) */}
+                <div className="flex-1 flex items-center">
+                  <div className="flex items-center gap-2 w-full">
+                    <div className="flex-1 max-w-[300px] h-7 flex">
+                      <div
+                        className="h-full bg-amber-500 dark:bg-amber-600 rounded-r transition-all duration-300"
+                        style={{ width: `${portfolioBarWidth}%` }}
+                      />
+                    </div>
+                    <span className={`text-xs font-medium min-w-[40px] transition-colors duration-300 ${
+                      theme === 'dark' ? 'text-amber-400' : 'text-amber-600'
+                    }`}>
+                      {portfolioPct}%
+                    </span>
+                  </div>
+                </div>
+              </div>
+            )
+          })()}
         </div>
 
         {/* Legend */}
-        <div className="mt-6 pt-4 border-t flex justify-center gap-6 text-xs"
+        <div className="mt-6 pt-4 border-t flex justify-center gap-8 text-xs"
           style={{
             borderColor: theme === 'dark' ? 'rgb(51 65 85)' : 'rgb(229 231 235)'
           }}
         >
           <div className="flex items-center gap-2">
-            <div className="w-3 h-3 bg-emerald-500/60 rounded"></div>
-            <span className={theme === 'dark' ? 'text-slate-400' : 'text-gray-600'}>
-              Overweight vs {benchmarkCode}
+            <div className="w-4 h-4 bg-gray-400 dark:bg-gray-500 rounded"></div>
+            <span className={`transition-colors duration-300 ${
+              theme === 'dark' ? 'text-slate-400' : 'text-gray-600'
+            }`}>
+              {benchmarkCode}
             </span>
           </div>
           <div className="flex items-center gap-2">
-            <div className="w-3 h-3 bg-red-500/60 rounded"></div>
-            <span className={theme === 'dark' ? 'text-slate-400' : 'text-gray-600'}>
-              Underweight vs {benchmarkCode}
+            <div className="w-4 h-4 bg-blue-500 dark:bg-blue-600 rounded"></div>
+            <span className={`transition-colors duration-300 ${
+              theme === 'dark' ? 'text-slate-400' : 'text-gray-600'
+            }`}>
+              Portfolio
             </span>
           </div>
+          {hasETFs && (
+            <div className="flex items-center gap-2">
+              <div className="w-4 h-4 bg-purple-500 dark:bg-purple-600 rounded"></div>
+              <span className={`transition-colors duration-300 ${
+                theme === 'dark' ? 'text-slate-400' : 'text-gray-600'
+              }`}>
+                ETFs / Index Funds
+              </span>
+            </div>
+          )}
+          {hasUnclassified && (
+            <div className="flex items-center gap-2">
+              <div className="w-4 h-4 bg-amber-500 dark:bg-amber-600 rounded"></div>
+              <span className={`transition-colors duration-300 ${
+                theme === 'dark' ? 'text-slate-400' : 'text-gray-600'
+              }`}>
+                Unclassified
+              </span>
+            </div>
+          )}
         </div>
       </CardContent>
     </Card>

@@ -1,12 +1,14 @@
 'use client'
 
 import React from 'react'
-import type { FactorExposure } from '@/types/analytics'
+import type { FactorExposure, DataStalenessInfo, DataQualityInfo } from '@/types/analytics'
+import { DataQualityIndicator } from '../DataQualityIndicator'
 
 interface FactorExposureCardsProps {
   factors: FactorExposure[] | null
   loading?: boolean
   error?: any
+  dataQuality?: DataStalenessInfo | DataQualityInfo | null
 }
 
 // Factor order as specified
@@ -82,10 +84,11 @@ const FactorCard = ({ factor }: { factor: FactorExposure }) => {
   )
 }
 
-export const FactorExposureCards: React.FC<FactorExposureCardsProps> = ({ 
-  factors, 
-  loading = false, 
-  error 
+export const FactorExposureCards: React.FC<FactorExposureCardsProps> = ({
+  factors,
+  loading = false,
+  error,
+  dataQuality
 }) => {
   // Handle loading state
   if (loading) {
@@ -133,7 +136,10 @@ export const FactorExposureCards: React.FC<FactorExposureCardsProps> = ({
     <section className="px-4 pb-6">
       <div className="container mx-auto">
         <div className="flex items-center justify-between mb-3">
-          <h3 className="text-sm font-medium text-gray-600">Factor Exposures</h3>
+          <div className="flex items-center gap-3">
+            <h3 className="text-sm font-medium text-gray-600">Factor Exposures</h3>
+            <DataQualityIndicator dataQuality={dataQuality} />
+          </div>
           <span className="text-xs text-gray-500">Beta values and dollar exposures</span>
         </div>
 

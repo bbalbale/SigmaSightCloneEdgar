@@ -10,9 +10,10 @@ export const API_CONFIG = {
   
   // Request timeout settings (in milliseconds)
   TIMEOUT: {
-    DEFAULT: 10000,  // 10 seconds
-    LONG: 30000,     // 30 seconds for complex operations
-    SHORT: 5000,     // 5 seconds for quick operations
+    DEFAULT: 10000,   // 10 seconds
+    LONG: 30000,      // 30 seconds for complex operations
+    VERY_LONG: 120000, // 120 seconds (2 minutes) for heavy analytics
+    SHORT: 5000,      // 5 seconds for quick operations
   },
   
   // Retry configuration
@@ -159,21 +160,28 @@ export const REQUEST_CONFIGS = {
     retries: API_CONFIG.RETRY.COUNT,
     cache: API_CONFIG.CACHE.ENABLED,
   },
-  
+
   // Real-time market data (short timeout, no cache)
   REALTIME: {
     timeout: API_CONFIG.TIMEOUT.SHORT,
     retries: 1,
     cache: false,
   },
-  
+
   // Long-running calculations
   CALCULATION: {
     timeout: API_CONFIG.TIMEOUT.LONG,
     retries: 3,
     cache: false,
   },
-  
+
+  // Heavy analytics calculations (factor exposures, correlations)
+  ANALYTICS_HEAVY: {
+    timeout: API_CONFIG.TIMEOUT.VERY_LONG,
+    retries: 1,  // Only retry once for slow operations
+    cache: false,
+  },
+
   // Authentication requests
   AUTH: {
     timeout: API_CONFIG.TIMEOUT.DEFAULT,

@@ -164,6 +164,29 @@ async def calculate_sector_exposure(
     logger.info(f"Calculating sector exposure for portfolio {portfolio_id}")
 
     try:
+        # Get portfolio to access equity_balance
+        from app.models.users import Portfolio
+        portfolio_stmt = select(Portfolio).where(Portfolio.id == portfolio_id)
+        portfolio_result = await db.execute(portfolio_stmt)
+        portfolio = portfolio_result.scalar_one_or_none()
+
+        if not portfolio:
+            return {
+                'portfolio_id': str(portfolio_id),
+                'success': False,
+                'error': 'Portfolio not found'
+            }
+
+        # Use portfolio equity balance as denominator
+        portfolio_equity = portfolio.equity_balance or Decimal('0')
+
+        if portfolio_equity == 0:
+            return {
+                'portfolio_id': str(portfolio_id),
+                'success': False,
+                'error': 'Portfolio equity balance is zero'
+            }
+
         # Get active positions
         stmt = select(Position).where(
             and_(
@@ -187,12 +210,35 @@ async def calculate_sector_exposure(
         positions_by_sector = {}
         unclassified_value = Decimal('0')
         unclassified_count = 0
+        etf_value = Decimal('0')
+        etf_count = 0
 
         for position in positions:
             market_value = get_position_value(position, signed=False)
             total_value += abs(market_value)  # Use absolute value for LONG/SHORT
 
-            # Get sector from market_data_cache
+            # Only PUBLIC stocks participate in sector analysis
+            # PRIVATE/OPTIONS positions are always Unclassified
+            if position.investment_class in ('PRIVATE', 'OPTIONS'):
+                # Truly unclassifiable positions (private equity, real estate, etc.)
+                unclassified_value += abs(market_value)
+                unclassified_count += 1
+                continue
+
+            # For PUBLIC positions, check if it's an ETF first
+            from app.models.market_data import CompanyProfile
+            stmt = select(CompanyProfile).where(CompanyProfile.symbol == position.symbol.upper())
+            result = await db.execute(stmt)
+            profile = result.scalar_one_or_none()
+
+            if profile and profile.is_etf:
+                # ETF - categorize separately
+                etf_value += abs(market_value)
+                etf_count += 1
+                logger.info(f"Position {position.symbol} identified as ETF")
+                continue
+
+            # For non-ETF PUBLIC positions, get sector classification
             sector = await get_sector_from_market_data(db, position.symbol)
 
             if sector and sector != 'Unknown':
@@ -203,23 +249,24 @@ async def calculate_sector_exposure(
                 sector_values[sector] += abs(market_value)
                 positions_by_sector[sector] += 1
             else:
-                # Unclassified position
-                unclassified_value += abs(market_value)
-                unclassified_count += 1
-                logger.warning(f"Position {position.symbol} has no sector classification")
+                # PUBLIC position without sector and not an ETF
+                # These are excluded from sector analysis entirely
+                logger.warning(f"PUBLIC position {position.symbol} has no sector classification and is not an ETF - excluded from sector analysis")
 
-        # Calculate portfolio weights
-        if total_value == 0:
-            return {
-                'portfolio_id': str(portfolio_id),
-                'success': False,
-                'error': 'Total portfolio value is zero'
-            }
-
+        # Calculate portfolio weights using portfolio equity balance as denominator
+        # This accurately represents each sector as % of total portfolio equity
         portfolio_weights = {
-            sector: float(value / total_value)
+            sector: float(value / portfolio_equity)
             for sector, value in sector_values.items()
         }
+
+        # Add ETFs to portfolio weights if there are ETF positions
+        if etf_value > 0:
+            portfolio_weights['ETFs'] = float(etf_value / portfolio_equity)
+
+        # Add unclassified to portfolio weights if there are unclassified positions
+        if unclassified_value > 0:
+            portfolio_weights['Unclassified'] = float(unclassified_value / portfolio_equity)
 
         # Get benchmark weights
         benchmark_weights = await get_benchmark_sector_weights(db)
@@ -253,6 +300,8 @@ async def calculate_sector_exposure(
             'largest_underweight': largest_underweight,
             'total_portfolio_value': float(total_value),
             'positions_by_sector': positions_by_sector,
+            'etf_value': float(etf_value),
+            'etf_count': etf_count,
             'unclassified_value': float(unclassified_value),
             'unclassified_count': unclassified_count,
             'success': True

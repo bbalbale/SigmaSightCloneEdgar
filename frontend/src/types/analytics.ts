@@ -71,12 +71,33 @@ export interface FactorExposuresMetadata {
   has_market_beta: number;
 }
 
+// Data staleness information for latest-available pattern
+export interface DataStalenessInfo {
+  snapshot_date?: string;
+  calculation_date?: string;
+  age_hours?: number;
+  is_stale: boolean;
+  is_current: boolean;
+  should_recalculate?: boolean;
+}
+
+// Data quality information for calculation issues
+export interface DataQualityInfo {
+  flag: string;
+  message: string;
+  positions_analyzed: number;
+  positions_total: number;
+  positions_skipped: number;
+  data_days: number;
+}
+
 export interface FactorExposuresResponse {
   available: boolean;
   portfolio_id: string;
   calculation_date: string;
   factors: FactorExposure[];
   metadata: FactorExposuresMetadata;
+  data_quality?: DataStalenessInfo | DataQualityInfo | null;
 }
 
 export interface FactorExposuresApiResponse {
