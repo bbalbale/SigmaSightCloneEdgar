@@ -225,8 +225,8 @@ async def generate_insight(
             user_feedback=insight.user_feedback,
             performance=InsightPerformance(
                 cost_usd=float(insight.cost_usd) if insight.cost_usd else 0.0,
-                generation_time_ms=insight.generation_time_ms or 0,
-                token_count=insight.token_count or 0
+                generation_time_ms=int(insight.generation_time_ms) if insight.generation_time_ms else 0,
+                token_count=int(insight.token_count_input or 0) + int(insight.token_count_output or 0)
             )
         )
 
@@ -325,8 +325,8 @@ async def list_portfolio_insights(
                 user_feedback=insight.user_feedback,
                 performance=InsightPerformance(
                     cost_usd=float(insight.cost_usd) if insight.cost_usd else 0.0,
-                    generation_time_ms=insight.generation_time_ms or 0,
-                    token_count=insight.token_count or 0
+                    generation_time_ms=int(insight.generation_time_ms) if insight.generation_time_ms else 0,
+                    token_count=int(insight.token_count_input or 0) + int(insight.token_count_output or 0)
                 )
             ))
 
@@ -402,8 +402,8 @@ async def get_insight(
             user_feedback=insight.user_feedback,
             performance=InsightPerformance(
                 cost_usd=float(insight.cost_usd) if insight.cost_usd else 0.0,
-                generation_time_ms=insight.generation_time_ms or 0,
-                token_count=insight.token_count or 0
+                generation_time_ms=int(insight.generation_time_ms) if insight.generation_time_ms else 0,
+                token_count=int(insight.token_count_input or 0) + int(insight.token_count_output or 0)
             )
         )
 
@@ -480,8 +480,8 @@ async def update_insight(
             user_feedback=insight.user_feedback,
             performance=InsightPerformance(
                 cost_usd=float(insight.cost_usd) if insight.cost_usd else 0.0,
-                generation_time_ms=insight.generation_time_ms or 0,
-                token_count=insight.token_count or 0
+                generation_time_ms=int(insight.generation_time_ms) if insight.generation_time_ms else 0,
+                token_count=int(insight.token_count_input or 0) + int(insight.token_count_output or 0)
             )
         )
 
