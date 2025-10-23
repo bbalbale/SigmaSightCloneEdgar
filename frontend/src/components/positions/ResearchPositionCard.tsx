@@ -7,13 +7,13 @@ import { Input } from '@/components/ui/input'
 import { formatCurrency } from '@/lib/formatters'
 import { useTheme } from '@/contexts/ThemeContext'
 import { usePortfolioStore } from '@/stores/portfolioStore'
-import targetPriceService from '@/services/targetPriceService'
 import type { EnhancedPosition } from '@/services/positionResearchService'
+import type { TargetPriceUpdate } from '@/services/targetPriceUpdateService'
 
 interface ResearchPositionCardProps {
   position: EnhancedPosition
   onClick?: () => void
-  onTargetPriceUpdate?: () => Promise<void>
+  onTargetPriceUpdate?: (update: TargetPriceUpdate) => Promise<void>
 }
 
 export function ResearchPositionCard({ position, onClick, onTargetPriceUpdate }: ResearchPositionCardProps) {
@@ -86,27 +86,26 @@ export function ResearchPositionCard({ position, onClick, onTargetPriceUpdate }:
   }, [portfolioId, position.user_target_eoy, position.target_mean_price, position.symbol, position.position_type, position.current_price, position.id])
 
   // Debounced save handler - saves both targets when either input changes
+  // Uses optimistic update for instant UI feedback
   const handleSaveTargets = useCallback(async () => {
-    if (!portfolioId) return
+    if (!portfolioId || !onTargetPriceUpdate) return
 
     try {
       setIsSaving(true)
 
-      await targetPriceService.createOrUpdate(portfolioId, {
+      // Call optimistic update callback with target data
+      // This will update UI instantly and sync to backend in background
+      await onTargetPriceUpdate({
         symbol: position.symbol,
         position_type: position.position_type,
+        position_id: position.id,
+        current_price: position.current_price,
         target_price_eoy: userTargetEOY ? parseFloat(userTargetEOY) : undefined,
         target_price_next_year: userTargetNextYear ? parseFloat(userTargetNextYear) : undefined,
-        current_price: position.current_price,
-        position_id: position.id,
       })
-
-      // Trigger refetch to update position data and aggregate returns
-      if (onTargetPriceUpdate) {
-        await onTargetPriceUpdate()
-      }
     } catch (error) {
-      console.error('Failed to save target prices:', error)
+      console.error('Failed to update target prices:', error)
+      // Error is already handled by optimistic update service (rollback)
     } finally {
       setIsSaving(false)
     }
@@ -122,30 +121,38 @@ export function ResearchPositionCard({ position, onClick, onTargetPriceUpdate }:
     }, 500)
   }, [handleSaveTargets])
 
+  // Handle Enter key - save immediately without debounce
+  const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      // Clear any pending debounced save
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current)
+      }
+      // Save immediately
+      handleSaveTargets()
+      // Blur the input to give visual feedback
+      e.currentTarget.blur()
+    }
+  }, [handleSaveTargets])
+
   // Check if position is short (return calculation needs to be inverted)
   const isShort = ['SHORT', 'SC', 'SP'].includes(position.position_type)
 
-  // Calculate returns for display
+  // Calculate expected returns from current price
   // For shorts: if target price goes UP, we LOSE money (inverse calculation)
-  const targetReturnEOY = userTargetEOY && position.current_price
+  // EOY: Use user target first, fallback to analyst target
+  const expectedReturnEOY = userTargetEOY && position.current_price
     ? isShort
       ? ((position.current_price - parseFloat(userTargetEOY)) / position.current_price * 100)
       : ((parseFloat(userTargetEOY) - position.current_price) / position.current_price * 100)
-    : null
+    : position.target_mean_price && position.current_price
+      ? isShort
+        ? ((position.current_price - position.target_mean_price) / position.current_price * 100)
+        : ((position.target_mean_price - position.current_price) / position.current_price * 100)
+      : null
 
-  const targetReturnNextYear = userTargetNextYear && position.current_price
-    ? isShort
-      ? ((position.current_price - parseFloat(userTargetNextYear)) / position.current_price * 100)
-      : ((parseFloat(userTargetNextYear) - position.current_price) / position.current_price * 100)
-    : null
-
-  // Calculate expected returns from current price (based on analyst target and user targets)
-  const expectedReturnEOY = position.target_mean_price && position.current_price
-    ? isShort
-      ? ((position.current_price - position.target_mean_price) / position.current_price * 100)
-      : ((position.target_mean_price - position.current_price) / position.current_price * 100)
-    : null
-
+  // Next Year: Use user target only (no analyst data available for next year)
   const expectedReturnNextYear = userTargetNextYear && position.current_price
     ? isShort
       ? ((position.current_price - parseFloat(userTargetNextYear)) / position.current_price * 100)
@@ -299,6 +306,7 @@ export function ResearchPositionCard({ position, onClick, onTargetPriceUpdate }:
               value={userTargetEOY}
               onChange={(e) => setUserTargetEOY(e.target.value)}
               onBlur={debouncedSave}
+              onKeyDown={handleKeyDown}
               placeholder="Enter"
               disabled={isSaving}
               className={`h-8 text-sm font-semibold tabular-nums transition-colors duration-300 ${
@@ -321,6 +329,7 @@ export function ResearchPositionCard({ position, onClick, onTargetPriceUpdate }:
               value={userTargetNextYear}
               onChange={(e) => setUserTargetNextYear(e.target.value)}
               onBlur={debouncedSave}
+              onKeyDown={handleKeyDown}
               placeholder="Enter"
               disabled={isSaving}
               className={`h-8 text-sm font-semibold tabular-nums transition-colors duration-300 ${

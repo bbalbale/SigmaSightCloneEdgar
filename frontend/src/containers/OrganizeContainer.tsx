@@ -1,20 +1,24 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, useRef } from 'react'
 import { useTheme } from '@/contexts/ThemeContext'
 import { usePortfolioData } from '@/hooks/usePortfolioData'
 import { useTags } from '@/hooks/useTags'
 import { usePositionTags } from '@/hooks/usePositionTags'
+import { useRestoreSectorTags } from '@/hooks/useRestoreSectorTags'
+import { usePortfolioStore } from '@/stores/portfolioStore'
 import { TagList } from '@/components/organize/TagList'
 import { PositionList } from '@/components/common/PositionList'
 import { OrganizePositionCard } from '@/components/positions/OrganizePositionCard'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 
 export function OrganizeContainer() {
   const { theme } = useTheme()
+  const { portfolioId } = usePortfolioStore()
 
-  // Auto-scroll state for drag-drop
-  const [autoScrollInterval, setAutoScrollInterval] = useState<NodeJS.Timeout | null>(null)
+  // Auto-scroll ref for drag-drop (using ref to avoid stale closures)
+  const autoScrollIntervalRef = useRef<NodeJS.Timeout | null>(null)
 
   // Fetch positions (includes tags array automatically from backend)
   const {
@@ -46,6 +50,12 @@ export function OrganizeContainer() {
     loading: positionTagsLoading
   } = usePositionTags()
 
+  // Sector tag restoration
+  const {
+    restoreTags,
+    loading: restoringTags
+  } = useRestoreSectorTags()
+
   // Filter state
   const [selectedTagFilter, setSelectedTagFilter] = useState<string | null>(null)
 
@@ -58,9 +68,9 @@ export function OrganizeContainer() {
     const viewportHeight = window.innerHeight
 
     // Clear any existing interval
-    if (autoScrollInterval) {
-      clearInterval(autoScrollInterval)
-      setAutoScrollInterval(null)
+    if (autoScrollIntervalRef.current) {
+      clearInterval(autoScrollIntervalRef.current)
+      autoScrollIntervalRef.current = null
     }
 
     // Calculate distance from edge for variable scroll speed
@@ -74,7 +84,7 @@ export function OrganizeContainer() {
       const interval = setInterval(() => {
         window.scrollBy(0, -SCROLL_SPEED * speedMultiplier)
       }, 16) // ~60fps
-      setAutoScrollInterval(interval)
+      autoScrollIntervalRef.current = interval
     }
     // Check if near bottom edge - scroll down
     else if (distanceFromBottom < SCROLL_THRESHOLD && distanceFromBottom > 0) {
@@ -83,26 +93,46 @@ export function OrganizeContainer() {
       const interval = setInterval(() => {
         window.scrollBy(0, SCROLL_SPEED * speedMultiplier)
       }, 16) // ~60fps
-      setAutoScrollInterval(interval)
+      autoScrollIntervalRef.current = interval
     }
-  }, [autoScrollInterval])
+  }, [])
 
   // Stop auto-scroll when drag ends or leaves
   const stopAutoScroll = React.useCallback(() => {
-    if (autoScrollInterval) {
-      clearInterval(autoScrollInterval)
-      setAutoScrollInterval(null)
+    if (autoScrollIntervalRef.current) {
+      clearInterval(autoScrollIntervalRef.current)
+      autoScrollIntervalRef.current = null
     }
-  }, [autoScrollInterval])
+  }, [])
 
   // Cleanup auto-scroll on unmount
   React.useEffect(() => {
     return () => {
-      if (autoScrollInterval) {
-        clearInterval(autoScrollInterval)
+      if (autoScrollIntervalRef.current) {
+        clearInterval(autoScrollIntervalRef.current)
+        autoScrollIntervalRef.current = null
       }
     }
-  }, [autoScrollInterval])
+  }, [])
+
+  // Add global dragend listener as fallback to catch all drag end events
+  React.useEffect(() => {
+    const handleGlobalDragEnd = () => {
+      console.log('[OrganizeContainer] Global drag end detected, stopping auto-scroll')
+      stopAutoScroll()
+    }
+
+    // Listen for custom event from TagBadge
+    window.addEventListener('tagDragEnd', handleGlobalDragEnd)
+    // Listen for native dragend event as fallback
+    document.addEventListener('dragend', handleGlobalDragEnd)
+
+    return () => {
+      window.removeEventListener('tagDragEnd', handleGlobalDragEnd)
+      document.removeEventListener('dragend', handleGlobalDragEnd)
+      stopAutoScroll()  // Always cleanup on unmount
+    }
+  }, [stopAutoScroll])
 
   // Handle tag drop on position
   const handleTagDrop = async (positionId: string, tagId: string) => {
@@ -166,6 +196,35 @@ export function OrganizeContainer() {
     }
   }
 
+  // Handle restore sector tags
+  const handleRestoreSectorTags = async () => {
+    if (!portfolioId) {
+      console.error('No portfolio ID available')
+      alert('Error: Portfolio ID not found. Please refresh the page.')
+      return
+    }
+
+    try {
+      const result = await restoreTags(portfolioId)
+      console.log('Sector tags restored:', result)
+
+      // Show success message
+      alert(
+        `✅ Sector tags restored!\n\n` +
+        `• ${result.positions_tagged} positions tagged\n` +
+        `• ${result.tags_created} new tags created\n` +
+        `• ${result.positions_skipped} positions skipped\n\n` +
+        `Sectors applied: ${result.tags_applied.map(t => t.tag_name).join(', ')}`
+      )
+
+      // Refresh positions to show updated tags
+      refreshPositions()
+    } catch (error: any) {
+      console.error('Failed to restore sector tags:', error)
+      alert(`❌ Failed to restore sector tags: ${error?.message || 'Unknown error'}`)
+    }
+  }
+
   // Split positions by type
   const publicLongs = publicPositions.filter(p => p.type === 'LONG' || !p.type)
   const publicShorts = publicPositions.filter(p => p.type === 'SHORT')
@@ -193,16 +252,53 @@ export function OrganizeContainer() {
       {/* Header */}
       <section className="px-4 py-8">
         <div className="container mx-auto">
-          <h1 className={`text-3xl font-bold mb-2 transition-colors duration-300 ${
-            theme === 'dark' ? 'text-white' : 'text-gray-900'
-          }`}>
-            Organize & Tag Positions
-          </h1>
-          <p className={`transition-colors duration-300 ${
-            theme === 'dark' ? 'text-slate-400' : 'text-gray-600'
-          }`}>
-            Create tags and drag them onto positions to organize your portfolio
-          </p>
+          <div className="flex items-start justify-between mb-4">
+            <div>
+              <h1 className={`text-3xl font-bold mb-2 transition-colors duration-300 ${
+                theme === 'dark' ? 'text-white' : 'text-gray-900'
+              }`}>
+                Organize & Tag Positions
+              </h1>
+              <p className={`transition-colors duration-300 ${
+                theme === 'dark' ? 'text-slate-400' : 'text-gray-600'
+              }`}>
+                Create tags and drag them onto positions to organize your portfolio
+              </p>
+            </div>
+
+            {/* Restore Sector Tags Button */}
+            <Button
+              onClick={handleRestoreSectorTags}
+              disabled={restoringTags || loading}
+              className={`
+                flex items-center gap-2 px-4 py-2 rounded-md font-medium
+                transition-all duration-200
+                ${theme === 'dark'
+                  ? 'bg-blue-600 hover:bg-blue-700 text-white disabled:bg-slate-700 disabled:text-slate-500'
+                  : 'bg-blue-500 hover:bg-blue-600 text-white disabled:bg-gray-300 disabled:text-gray-500'
+                }
+                disabled:cursor-not-allowed
+              `}
+              title="Automatically create and apply sector tags to all positions based on company profiles"
+            >
+              {restoringTags ? (
+                <>
+                  <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  <span>Restoring...</span>
+                </>
+              ) : (
+                <>
+                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                  <span>Restore Sector Tags</span>
+                </>
+              )}
+            </Button>
+          </div>
         </div>
       </section>
 

@@ -1,12 +1,15 @@
 // src/hooks/usePrivatePositions.ts
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import { usePortfolioStore } from '@/stores/portfolioStore'
 import {
   positionResearchService,
   type EnhancedPosition
 } from '@/services/positionResearchService'
+import targetPriceUpdateService, {
+  type TargetPriceUpdate
+} from '@/services/targetPriceUpdateService'
 
 interface UsePrivatePositionsReturn {
   positions: EnhancedPosition[]
@@ -17,6 +20,7 @@ interface UsePrivatePositionsReturn {
     next_year: number
   }
   refetch: () => Promise<void>
+  updatePositionTargetOptimistic: (update: TargetPriceUpdate) => Promise<void>
 }
 
 export function usePrivatePositions(): UsePrivatePositionsReturn {
@@ -70,11 +74,35 @@ export function usePrivatePositions(): UsePrivatePositionsReturn {
     )
   }), [positions])
 
+  // Optimistic update for target prices - instant UI feedback
+  const updatePositionTargetOptimistic = useCallback(async (update: TargetPriceUpdate) => {
+    if (!portfolioId) return
+
+    // Update positions optimistically
+    const handleOptimisticUpdate = (updatedPositions: EnhancedPosition[]) => {
+      setPositions(updatedPositions)
+    }
+
+    // Use optimistic update service
+    await targetPriceUpdateService.updatePositionTarget(
+      portfolioId,
+      update,
+      positions,
+      handleOptimisticUpdate,
+      (error, previousState) => {
+        console.error('Failed to sync target price, reverted:', error)
+        setError(`Failed to update target price for ${update.symbol}`)
+        // Error handling - state already reverted by service
+      }
+    )
+  }, [portfolioId, positions])
+
   return {
     positions,
     loading,
     error,
     aggregateReturns,
-    refetch: fetchData
+    refetch: fetchData,
+    updatePositionTargetOptimistic
   }
 }

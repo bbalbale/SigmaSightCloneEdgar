@@ -149,17 +149,34 @@ class FactorExposureService:
             return 999
         factors.sort(key=_order_key)
 
-        # Fetch portfolio snapshot to get additional beta metrics
-        from app.models.snapshots import PortfolioSnapshot
+        # Fetch portfolio snapshot using latest available pattern
+        from app.db.snapshot_helpers import get_latest_portfolio_snapshot
+        from app.services.snapshot_refresh_service import check_and_trigger_refresh_if_needed
 
-        snapshot_query = select(PortfolioSnapshot).where(
-            PortfolioSnapshot.portfolio_id == portfolio_id
-        ).order_by(PortfolioSnapshot.snapshot_date.desc()).limit(1)
+        # Get latest snapshot with staleness metadata
+        snapshot, snapshot_metadata = await get_latest_portfolio_snapshot(self.db, portfolio_id)
 
-        snapshot_result = await self.db.execute(snapshot_query)
-        snapshot = snapshot_result.scalar_one_or_none()
+        # DISABLED: On-demand recalculation causes 30-60s API timeouts
+        # Ridge factor calculations are too expensive to run synchronously during API requests
+        # Rely on batch processing instead - runs asynchronously and doesn't block API responses
+        # See: snapshot_refresh_service.py for the expensive calculation logic
+        # refresh_check = await check_and_trigger_refresh_if_needed(self.db, portfolio_id)
 
         logger.info(f"🔍 Snapshot found: {snapshot is not None}")
+        if snapshot_metadata.get('is_stale'):
+            logger.warning(
+                f"⚠️ Serving stale snapshot for portfolio {portfolio_id}: "
+                f"{snapshot_metadata.get('age_hours')} hours old"
+            )
+
+        # Store staleness metadata for response
+        staleness_info = {
+            'snapshot_date': snapshot_metadata.get('snapshot_date'),
+            'age_hours': snapshot_metadata.get('age_hours'),
+            'is_stale': snapshot_metadata.get('is_stale', False),
+            'is_current': snapshot_metadata.get('is_current', False)
+        }
+
         if snapshot:
             logger.info(f"📊 Snapshot data - equity: {snapshot.equity_balance}, calc_beta: {snapshot.beta_calculated_90d}, provider_beta: {snapshot.beta_provider_1y}")
             equity_balance = float(snapshot.equity_balance) if snapshot.equity_balance else 0.0
@@ -201,7 +218,7 @@ class FactorExposureService:
             "available": True,
             "portfolio_id": str(portfolio_id),
             "calculation_date": latest_date.isoformat(),
-            "data_quality": None,  # Phase 8.1: Future enhancement to compute quality metrics when available=True
+            "data_quality": staleness_info,  # Staleness metadata for latest-available pattern
             "factors": factors,
             "metadata": {
                 "factor_model": factor_model,
@@ -284,6 +301,31 @@ class FactorExposureService:
                 "positions": [],
                 "metadata": {"reason": "no_calculation_available"},
             }
+
+        # Check staleness and trigger refresh if needed
+        from app.db.snapshot_helpers import calculate_data_age
+        from app.services.snapshot_refresh_service import check_and_trigger_refresh_if_needed
+
+        age_metrics = calculate_data_age(anchor_date)
+
+        # Log staleness warning
+        if age_metrics['is_stale']:
+            logger.warning(
+                f"⚠️ Serving stale position exposures for portfolio {portfolio_id}: "
+                f"{age_metrics['age_hours']} hours old (from {anchor_date})"
+            )
+
+        # Trigger refresh if needed (auto-trigger with rate limiting)
+        refresh_check = await check_and_trigger_refresh_if_needed(self.db, portfolio_id)
+
+        # Store staleness metadata for response
+        staleness_info = {
+            'calculation_date': anchor_date,
+            'age_hours': age_metrics['age_hours'],
+            'is_stale': age_metrics['is_stale'],
+            'is_current': age_metrics['is_current'],
+            'should_recalculate': age_metrics.get('should_recalculate', False)
+        }
 
         # Total distinct positions with exposures on anchor date
         total_stmt = (
@@ -387,7 +429,7 @@ class FactorExposureService:
             "available": True,
             "portfolio_id": str(portfolio_id),
             "calculation_date": anchor_date.isoformat(),
-            "data_quality": None,  # Phase 8.1: Future enhancement
+            "data_quality": staleness_info,  # Latest-available pattern with staleness metadata
             "total": total,
             "limit": limit,
             "offset": offset,

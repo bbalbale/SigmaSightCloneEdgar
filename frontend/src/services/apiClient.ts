@@ -103,6 +103,10 @@ export class ApiClient {
     return this.request<T>('PUT', endpoint, data, config);
   }
 
+  async patch<T = any>(endpoint: string, data?: any, config?: ApiRequestConfig): Promise<T> {
+    return this.request<T>('PATCH', endpoint, data, config);
+  }
+
   async delete<T = any>(endpoint: string, config?: ApiRequestConfig): Promise<T> {
     return this.request<T>('DELETE', endpoint, undefined, config);
   }
@@ -189,8 +193,8 @@ export class ApiClient {
         signal: config?.signal || controller.signal,
       };
 
-      // Add body for POST/PUT requests
-      if (data && (method === 'POST' || method === 'PUT')) {
+      // Add body for POST/PUT/PATCH requests
+      if (data && (method === 'POST' || method === 'PUT' || method === 'PATCH')) {
         requestConfig.body = JSON.stringify(data);
       }
 

@@ -32,11 +32,20 @@ export function TagBadge({
     }
   }
 
+  const handleDragEnd = (e: React.DragEvent) => {
+    if (draggable) {
+      console.log('Drag ended for tag:', tag.name)
+      // Dispatch custom event to stop auto-scroll
+      window.dispatchEvent(new CustomEvent('tagDragEnd'))
+    }
+  }
+
   return (
     <Badge
       variant="secondary"
       draggable={draggable}
       onDragStart={handleDragStart}
+      onDragEnd={handleDragEnd}
       className={`
         text-xs px-2 py-1
         ${draggable ? 'cursor-move' : ''}

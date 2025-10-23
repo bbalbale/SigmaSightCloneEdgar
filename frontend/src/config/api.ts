@@ -10,9 +10,10 @@ export const API_CONFIG = {
   
   // Request timeout settings (in milliseconds)
   TIMEOUT: {
-    DEFAULT: 10000,  // 10 seconds
-    LONG: 30000,     // 30 seconds for complex operations
-    SHORT: 5000,     // 5 seconds for quick operations
+    DEFAULT: 10000,   // 10 seconds
+    LONG: 30000,      // 30 seconds for complex operations
+    VERY_LONG: 120000, // 120 seconds (2 minutes) for heavy analytics
+    SHORT: 5000,      // 5 seconds for quick operations
   },
   
   // Retry configuration
@@ -128,6 +129,15 @@ export const API_ENDPOINTS = {
     BULK_UPDATE: (portfolioId: string) => `/api/v1/target-prices/${portfolioId}/bulk-update`,
   },
 
+  // AI Insights endpoints (Claude-powered portfolio analysis)
+  INSIGHTS: {
+    GENERATE: '/api/v1/insights/generate',
+    LIST: (portfolioId: string) => `/api/v1/insights/portfolio/${portfolioId}`,
+    GET: (insightId: string) => `/api/v1/insights/${insightId}`,
+    UPDATE: (insightId: string) => `/api/v1/insights/${insightId}`,
+    FEEDBACK: (insightId: string) => `/api/v1/insights/${insightId}/feedback`,
+  },
+
   // Admin endpoints (for monitoring)
   ADMIN: {
     BATCH_STATUS: '/api/v1/admin/batch/status',
@@ -150,21 +160,28 @@ export const REQUEST_CONFIGS = {
     retries: API_CONFIG.RETRY.COUNT,
     cache: API_CONFIG.CACHE.ENABLED,
   },
-  
+
   // Real-time market data (short timeout, no cache)
   REALTIME: {
     timeout: API_CONFIG.TIMEOUT.SHORT,
     retries: 1,
     cache: false,
   },
-  
+
   // Long-running calculations
   CALCULATION: {
     timeout: API_CONFIG.TIMEOUT.LONG,
     retries: 3,
     cache: false,
   },
-  
+
+  // Heavy analytics calculations (factor exposures, correlations)
+  ANALYTICS_HEAVY: {
+    timeout: API_CONFIG.TIMEOUT.VERY_LONG,
+    retries: 1,  // Only retry once for slow operations
+    cache: false,
+  },
+
   // Authentication requests
   AUTH: {
     timeout: API_CONFIG.TIMEOUT.DEFAULT,

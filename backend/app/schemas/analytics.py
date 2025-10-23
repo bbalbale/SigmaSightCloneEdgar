@@ -9,6 +9,35 @@ from typing import Optional, Dict, Union, List
 from datetime import datetime
 
 
+class DataStalenessInfo(BaseModel):
+    """
+    Data staleness information for latest-available pattern
+
+    Indicates when data was last calculated and whether it's considered stale.
+    Used by services that implement graceful fallback to most recent available data.
+
+    Added in Phase 9.0 to support weekends/holidays and prevent failures when
+    batch calculations haven't run for the current day.
+    """
+    snapshot_date: Optional[str] = Field(None, description="Date of the data snapshot (ISO format)")
+    calculation_date: Optional[str] = Field(None, description="Date of the calculation (ISO format)")
+    age_hours: Optional[int] = Field(None, description="Age of data in hours")
+    is_stale: bool = Field(False, description="Whether data exceeds staleness threshold (72 hours)")
+    is_current: bool = Field(True, description="Whether data is from current trading day")
+    should_recalculate: bool = Field(False, description="Whether recalculation should be triggered")
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "snapshot_date": "2025-10-20",
+                "age_hours": 48,
+                "is_stale": False,
+                "is_current": False,
+                "should_recalculate": False
+            }
+        }
+
+
 class DataQualityInfo(BaseModel):
     """
     Data quality information for analytics calculations
@@ -65,6 +94,17 @@ class PositionCount(BaseModel):
     option_count: int = Field(..., description="Number of option positions")
 
 
+class TargetReturns(BaseModel):
+    """Portfolio target return metrics from price targets"""
+    expected_return_eoy: Optional[float] = Field(None, description="Expected return by end of year (%)")
+    expected_return_next_year: Optional[float] = Field(None, description="Expected return for next year (%)")
+    downside_return: Optional[float] = Field(None, description="Downside scenario return (%)")
+    coverage_pct: Optional[float] = Field(None, description="Percentage of positions with price targets")
+    positions_with_targets: Optional[int] = Field(None, description="Number of positions with price targets")
+    total_positions: Optional[int] = Field(None, description="Total number of positions")
+    last_updated: Optional[str] = Field(None, description="ISO 8601 timestamp of last target price update")
+
+
 class PortfolioOverviewResponse(BaseModel):
     """
     Portfolio overview response matching API_SPECIFICATIONS_V1.4.5.md
@@ -80,6 +120,7 @@ class PortfolioOverviewResponse(BaseModel):
     exposures: PortfolioExposures = Field(..., description="Portfolio exposure metrics")
     pnl: PortfolioPnL = Field(..., description="Portfolio P&L metrics")
     position_count: PositionCount = Field(..., description="Position count breakdown")
+    target_returns: Optional[TargetReturns] = Field(None, description="Target return metrics from price targets")
     last_updated: str = Field(..., description="ISO 8601 timestamp of last calculation")
     
     class Config:
@@ -244,7 +285,10 @@ class PortfolioFactorExposuresResponse(BaseModel):
     available: bool = Field(..., description="Whether factor exposures are available")
     portfolio_id: str = Field(..., description="Portfolio UUID")
     calculation_date: Optional[str] = Field(None, description="ISO date of the factor exposure calculation")
-    data_quality: Optional[DataQualityInfo] = Field(None, description="Data quality metrics when calculation is skipped or partial")
+    data_quality: Optional[Union[DataStalenessInfo, DataQualityInfo, Dict]] = Field(
+        None,
+        description="Data quality metrics: staleness info when available=True, calculation quality when available=False"
+    )
     factors: Optional[List[PortfolioFactorItem]] = Field(None, description="List of factor exposures")
     metadata: Optional[Dict[str, Union[str, int]]] = Field(None, description="Additional metadata such as factor model details")
 
@@ -276,7 +320,10 @@ class PositionFactorExposuresResponse(BaseModel):
     available: bool = Field(..., description="Whether position factor exposures are available")
     portfolio_id: str = Field(..., description="Portfolio UUID")
     calculation_date: Optional[str] = Field(None, description="ISO date used for exposures")
-    data_quality: Optional[DataQualityInfo] = Field(None, description="Data quality metrics when calculation is skipped or partial")
+    data_quality: Optional[Union[DataStalenessInfo, DataQualityInfo, Dict]] = Field(
+        None,
+        description="Data quality metrics: staleness info when available=True, calculation quality when available=False"
+    )
     total: Optional[int] = Field(None, description="Total positions matched")
     limit: Optional[int] = Field(None, description="Page size")
     offset: Optional[int] = Field(None, description="Pagination offset")
