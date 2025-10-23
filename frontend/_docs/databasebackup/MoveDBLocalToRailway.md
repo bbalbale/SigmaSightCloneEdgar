@@ -37,10 +37,10 @@ Expected output: `backend-postgres-1`
 - Password: `[your-railway-password]`
 - Database: `railway`
 
-### Step 3: Create Database Dump
+### Step 3: Create Database Dump (Using INSERT Format)
 
 ```powershell
-docker exec -e PGPASSWORD=sigmasight_dev backend-postgres-1 pg_dump -h localhost -U sigmasight -d sigmasight_db --clean --if-exists > local_dump.sql
+docker exec -e PGPASSWORD=sigmasight_dev backend-postgres-1 pg_dump -h localhost -U sigmasight -d sigmasight_db --clean --if-exists --inserts --encoding=UTF8 > local_dump_inserts.sql
 ```
 
 **What this does:**
@@ -48,20 +48,26 @@ docker exec -e PGPASSWORD=sigmasight_dev backend-postgres-1 pg_dump -h localhost
 - `-e PGPASSWORD=...`: Sets password environment variable
 - `pg_dump`: PostgreSQL backup utility
 - `--clean --if-exists`: Drops existing objects before recreating
-- `> local_dump.sql`: Saves output to file
+- `--inserts`: Use INSERT statements instead of COPY (better for character encoding)
+- `--encoding=UTF8`: Explicitly set UTF-8 encoding
+- `> local_dump_inserts.sql`: Saves output to file
+
+**Why INSERT format?** The default COPY format can have issues with multi-byte UTF-8 characters at VARCHAR boundaries. INSERT format handles character encoding more reliably.
 
 ### Step 4: Restore to Railway
 
 ```powershell
-cat local_dump.sql | docker exec -i -e PGPASSWORD=[railway-password] backend-postgres-1 psql -h hopper.proxy.rlwy.net -p 56725 -U postgres -d railway
+powershell -Command "Get-Content local_dump_inserts.sql | docker exec -i -e PGPASSWORD=[railway-password] backend-postgres-1 psql -h hopper.proxy.rlwy.net -p 56725 -U postgres -d railway"
 ```
 
 **What this does:**
-- `cat local_dump.sql`: Reads the dump file
+- `Get-Content local_dump_inserts.sql`: Reads the dump file (PowerShell command)
 - `|`: Pipes content to next command
 - `docker exec -i`: Interactive mode to receive stdin
 - `psql`: PostgreSQL client to restore data
 - Railway connection parameters
+
+**Note:** Using `Get-Content` (PowerShell) is more reliable than `cat` on Windows systems.
 
 ### Step 5: Verify Data Push
 
@@ -99,8 +105,9 @@ DROP TABLE
 CREATE TABLE
 CREATE TABLE
 ...
-COPY 335
-COPY 140
+INSERT 0 1
+INSERT 0 1
+INSERT 0 1
 ...
 CREATE INDEX
 ...
@@ -108,6 +115,8 @@ ERROR:  role "sigmasight" does not exist  # These errors are HARMLESS
 ERROR:  role "sigmasight" does not exist  # Railway uses "postgres" user
 ...
 ```
+
+**Note:** `INSERT 0 1` means each row was successfully inserted. You'll see hundreds of these messages.
 
 ### Verification Results (Example)
 ```
@@ -151,6 +160,24 @@ could not connect to server: Connection timed out
 - Verify host/port are correct
 - Check your network/firewall settings
 
+### Issue 4: Company Profiles VARCHAR Character Encoding
+**Error:**
+```
+ERROR:  value too long for type character varying(1000)
+```
+
+**Root Cause:** PostgreSQL `VARCHAR(N)` enforces byte limit, not character limit. Multi-byte UTF-8 characters (like é, ñ, etc.) can cause a 1000-character string to exceed 1000 bytes.
+
+**Solution:** Use `--inserts` flag (recommended in Step 3). This handles most encoding issues automatically. If you still get this error for specific records (e.g., Home Depot):
+
+**Manual Fix:**
+```powershell
+# Insert the missing record with truncated description
+docker exec -e PGPASSWORD=[railway-password] backend-postgres-1 psql -h hopper.proxy.rlwy.net -p 56725 -U postgres -d railway -c "INSERT INTO company_profiles (symbol, company_name, sector, industry, exchange, country, market_cap, description, is_etf, is_fund, employees, website, pe_ratio, forward_pe, dividend_yield, beta, week_52_high, week_52_low, target_mean_price, target_high_price, target_low_price, number_of_analyst_opinions, recommendation_mean, recommendation_key, forward_eps, earnings_growth, revenue_growth, earnings_quarterly_growth, profit_margins, operating_margins, gross_margins, return_on_assets, return_on_equity, total_revenue, current_year_revenue_avg, current_year_revenue_low, current_year_revenue_high, current_year_revenue_growth, current_year_earnings_avg, current_year_earnings_low, current_year_earnings_high, current_year_end_date, next_year_revenue_avg, next_year_revenue_low, next_year_revenue_high, next_year_revenue_growth, next_year_earnings_avg, next_year_earnings_low, next_year_earnings_high, next_year_end_date, data_source, last_updated, created_at, updated_at) SELECT symbol, company_name, sector, industry, exchange, country, market_cap, LEFT(description, 995), is_etf, is_fund, employees, website, pe_ratio, forward_pe, dividend_yield, beta, week_52_high, week_52_low, target_mean_price, target_high_price, target_low_price, number_of_analyst_opinions, recommendation_mean, recommendation_key, forward_eps, earnings_growth, revenue_growth, earnings_quarterly_growth, profit_margins, operating_margins, gross_margins, return_on_assets, return_on_equity, total_revenue, current_year_revenue_avg, current_year_revenue_low, current_year_revenue_high, current_year_revenue_growth, current_year_earnings_avg, current_year_earnings_low, current_year_earnings_high, current_year_end_date, next_year_revenue_avg, next_year_revenue_low, next_year_revenue_high, next_year_revenue_growth, next_year_earnings_avg, next_year_earnings_low, next_year_earnings_high, next_year_end_date, data_source, last_updated, created_at, updated_at FROM company_profiles_local WHERE symbol = 'HD';"
+```
+
+Or simply accept that 60/61 profiles loaded and the backend will re-fetch the missing one from market data APIs on next update.
+
 ## Complete Verification Script
 
 Save this as `verify_railway_db.ps1`:
@@ -193,19 +220,23 @@ Write-Host "✅ Verification complete!" -ForegroundColor Green
 
 2. **Password Handling**: Use `-e PGPASSWORD=...` to pass passwords securely to Docker container commands.
 
-3. **Pipeline with Docker**: Use `cat file | docker exec -i ...` to pipe SQL files into the container for restoration.
+3. **Pipeline with Docker**: Use `Get-Content file | docker exec -i ...` (PowerShell) to pipe SQL files into the container for restoration.
 
 4. **Railway User Differences**: Railway uses `postgres` user, local uses `sigmasight`. Ownership errors are harmless.
 
-5. **Windows PowerShell**: Commands work in PowerShell but may need adjustment for CMD (use `type` instead of `cat`).
+5. **Windows PowerShell**: Commands work in PowerShell but may need adjustment for CMD (use `type` instead of `Get-Content`).
+
+6. **INSERT vs COPY Format**: Use `--inserts` flag for better character encoding handling. COPY format can fail on multi-byte UTF-8 characters at VARCHAR boundaries.
+
+7. **Character vs Byte Limits**: PostgreSQL `VARCHAR(N)` enforces byte limit, not character limit. Multi-byte characters count as multiple bytes.
 
 ## Backup Strategy
 
 Always keep a local dump before pushing:
 ```powershell
-# Create timestamped backup
+# Create timestamped backup (INSERT format recommended)
 $timestamp = Get-Date -Format "yyyyMMdd_HHmmss"
-docker exec -e PGPASSWORD=sigmasight_dev backend-postgres-1 pg_dump -h localhost -U sigmasight -d sigmasight_db --clean --if-exists > "backup_$timestamp.sql"
+docker exec -e PGPASSWORD=sigmasight_dev backend-postgres-1 pg_dump -h localhost -U sigmasight -d sigmasight_db --clean --if-exists --inserts --encoding=UTF8 > "backup_$timestamp.sql"
 ```
 
 ## Related Documentation
@@ -217,15 +248,19 @@ docker exec -e PGPASSWORD=sigmasight_dev backend-postgres-1 pg_dump -h localhost
 ## Quick Reference Commands
 
 ```powershell
-# Full push process (update passwords)
-docker exec -e PGPASSWORD=sigmasight_dev backend-postgres-1 pg_dump -h localhost -U sigmasight -d sigmasight_db --clean --if-exists > local_dump.sql
+# Full push process (INSERT format - recommended, update passwords)
+docker exec -e PGPASSWORD=sigmasight_dev backend-postgres-1 pg_dump -h localhost -U sigmasight -d sigmasight_db --clean --if-exists --inserts --encoding=UTF8 > local_dump_inserts.sql
 
-cat local_dump.sql | docker exec -i -e PGPASSWORD=[railway-password] backend-postgres-1 psql -h hopper.proxy.rlwy.net -p 56725 -U postgres -d railway
+powershell -Command "Get-Content local_dump_inserts.sql | docker exec -i -e PGPASSWORD=[railway-password] backend-postgres-1 psql -h hopper.proxy.rlwy.net -p 56725 -U postgres -d railway"
 
 docker exec -e PGPASSWORD=[railway-password] backend-postgres-1 psql -h hopper.proxy.rlwy.net -p 56725 -U postgres -d railway -c "SELECT COUNT(*) FROM portfolios;"
+
+# Verify company profiles loaded
+docker exec -e PGPASSWORD=[railway-password] backend-postgres-1 psql -h hopper.proxy.rlwy.net -p 56725 -U postgres -d railway -c "SELECT COUNT(*) FROM company_profiles;"
 ```
 
 ---
 
-**Last Updated:** 2025-10-09
+**Last Updated:** 2025-10-23
 **Tested On:** Windows 11, PowerShell 7, Docker Desktop, PostgreSQL 15
+**Known Issues Fixed:** Company profiles VARCHAR encoding (use --inserts flag)
