@@ -93,7 +93,9 @@ async function fetchPortfolioDataFromApis(
       `/api/v1/data/positions/details?portfolio_id=${portfolioId}`,
       {
         headers: { Authorization: `Bearer ${token}` },
-        signal: abortSignal
+        signal: abortSignal,
+        timeout: 120000,  // 2 minutes timeout for positions endpoint
+        retries: 1        // Retry once if it fails
       }
     )
   ]
@@ -101,19 +103,20 @@ async function fetchPortfolioDataFromApis(
   // Only add factor exposures and market beta calls if not skipped
   if (!skipFactorExposures) {
     promises.push(
-      // Factor exposures can be slow - increase timeout and reduce retries
-      apiClient.get<any>(
-        `/api/v1/analytics/portfolio/${portfolioId}/factor-exposures`,
-        {
-          headers: { Authorization: `Bearer ${token}` },
-          signal: abortSignal,
-          timeout: 60000,  // Increased to 60 seconds (from default 30s)
-          retries: 1       // Reduced to 1 retry (from default 2) for faster failure
-        }
-      ).then(response => {
-        console.log('Factor exposures API response:', response)
-        return response
-      })
+      // Use proper service layer for factor exposures
+      // analyticsApi now uses ANALYTICS_HEAVY config (120s timeout)
+      analyticsApi.getPortfolioFactorExposures(portfolioId)
+        .then(response => {
+          console.log('✅ Factor exposures loaded successfully via analyticsApi:', response.data)
+          return response.data  // Extract data from service response
+        })
+        .catch(error => {
+          console.error('❌ Factor exposures failed:', error)
+          if (error.name === 'TimeoutError') {
+            console.error('💡 Backend optimization needed: Factor calculation exceeded 120s timeout')
+          }
+          throw error
+        })
     )
   }
 
@@ -140,7 +143,10 @@ async function fetchPortfolioDataFromApis(
       positions = transformPositionDetails(positionData.positions)
     }
   } else {
-    console.error('Failed to fetch portfolio positions:', positionsResult.reason)
+    console.error('❌ Failed to fetch portfolio positions:', positionsResult.reason)
+    if (positionsResult.reason?.name === 'TimeoutError') {
+      console.error('💡 Backend optimization needed: Positions endpoint exceeded 120s timeout')
+    }
   }
 
   // Extract equity balance from overview for components that need it
@@ -150,15 +156,24 @@ async function fetchPortfolioDataFromApis(
   }
 
   let factorExposures: FactorExposure[] | null = null
+  let factorDataQuality: any = null
   // Only process factor exposures if they were fetched (not skipped)
   if (factorExposuresResult) {
     if (factorExposuresResult.status === 'fulfilled') {
       if (factorExposuresResult.value?.data?.available && factorExposuresResult.value?.data?.factors) {
         factorExposures = factorExposuresResult.value.data.factors
+        factorDataQuality = factorExposuresResult.value.data.data_quality || null
         console.log('✅ Factor exposures loaded successfully:', factorExposures?.length || 0, 'factors')
+        if (factorDataQuality) {
+          console.log('📊 Factor data quality:', factorDataQuality)
+        }
       } else if (factorExposuresResult.value?.available && factorExposuresResult.value?.factors) {
         factorExposures = factorExposuresResult.value.factors
+        factorDataQuality = factorExposuresResult.value.data_quality || null
         console.log('✅ Factor exposures loaded successfully:', factorExposures?.length || 0, 'factors')
+        if (factorDataQuality) {
+          console.log('📊 Factor data quality:', factorDataQuality)
+        }
       } else {
         console.log('⚠️ Factor exposures not available in response (may not be calculated yet)')
       }
@@ -166,7 +181,7 @@ async function fetchPortfolioDataFromApis(
       console.error('❌ Failed to fetch factor exposures:', factorExposuresResult.reason)
       // Check if it's a timeout error
       if (factorExposuresResult.reason?.name === 'TimeoutError') {
-        console.error('💡 Suggestion: Factor exposures endpoint exceeded 60s timeout. Backend may need optimization.')
+        console.error('💡 Backend optimization needed: Factor exposures endpoint exceeded 120s timeout')
       }
     }
   } else if (skipFactorExposures) {
@@ -178,6 +193,7 @@ async function fetchPortfolioDataFromApis(
     positions,
     portfolioInfo,
     factorExposures,
+    factorDataQuality,
     equityBalance,
     errors: {
       overview: overviewResult.status === 'rejected' ? overviewResult.reason : null,
@@ -246,6 +262,23 @@ function calculateExposuresFromOverview(overview: any) {
       positive: totalPnl >= 0
     }
   ]
+
+  // Add target return card if available
+  const targetReturns = overview?.target_returns
+  if (targetReturns && targetReturns.expected_return_eoy !== null) {
+    const returnValue = targetReturns.expected_return_eoy
+    const coverage = targetReturns.coverage_pct || 0
+
+    metrics.push({
+      title: 'Target Return EOY',
+      value: `${returnValue > 0 ? '+' : ''}${returnValue.toFixed(1)}%`,
+      subValue: `${coverage.toFixed(0)}% coverage`,
+      description: 'Based on price targets',
+      positive: returnValue >= 0
+    })
+  }
+
+  return metrics
 }
 
 /**

@@ -163,7 +163,10 @@ class PortfolioAnalyticsService:
         # Total P&L includes both realized and unrealized (for now, only unrealized)
         total_pnl = unrealized_pnl  # TODO: Add realized P&L from database
         realized_pnl = 0.0  # TODO: Calculate from historical data
-        
+
+        # Fetch target return data from latest PortfolioSnapshot
+        target_returns = await self._get_target_returns(db, portfolio_id)
+
         return {
             "equity_balance": round(equity_balance, 2) if equity_balance is not None else None,
             "total_value": round(portfolio_total, 2),
@@ -189,5 +192,49 @@ class PortfolioAnalyticsService:
                 "long_count": long_count,
                 "short_count": short_count,
                 "option_count": option_count
-            }
+            },
+            "target_returns": target_returns
         }
+
+    async def _get_target_returns(
+        self,
+        db: AsyncSession,
+        portfolio_id: UUID
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Fetch target return data from the latest PortfolioSnapshot.
+
+        Returns:
+            Dict with target return metrics or None if no data available
+        """
+        try:
+            from app.models.snapshots import PortfolioSnapshot
+
+            # Get the latest snapshot with target price data
+            result = await db.execute(
+                select(PortfolioSnapshot)
+                .where(PortfolioSnapshot.portfolio_id == portfolio_id)
+                .where(PortfolioSnapshot.target_price_return_eoy.isnot(None))
+                .order_by(PortfolioSnapshot.snapshot_date.desc())
+                .limit(1)
+            )
+            snapshot = result.scalar_one_or_none()
+
+            if not snapshot:
+                logger.debug(f"No target price data found in snapshots for portfolio {portfolio_id}")
+                return None
+
+            # Extract target return fields
+            return {
+                "expected_return_eoy": float(snapshot.target_price_return_eoy) if snapshot.target_price_return_eoy else None,
+                "expected_return_next_year": float(snapshot.target_price_return_next_year) if snapshot.target_price_return_next_year else None,
+                "downside_return": float(snapshot.target_price_downside_return) if snapshot.target_price_downside_return else None,
+                "coverage_pct": float(snapshot.target_price_coverage_pct) if snapshot.target_price_coverage_pct else None,
+                "positions_with_targets": snapshot.target_price_positions_count,
+                "total_positions": snapshot.target_price_total_positions,
+                "last_updated": to_utc_iso8601(snapshot.target_price_last_updated) if snapshot.target_price_last_updated else None
+            }
+
+        except Exception as e:
+            logger.warning(f"Error fetching target returns for portfolio {portfolio_id}: {e}")
+            return None
