@@ -10,6 +10,7 @@ from app.api.v1.analytics.router import router as analytics_router
 from app.api.v1.target_prices import router as target_prices_router
 from app.api.v1.tags import router as tags_router
 from app.api.v1.position_tags import router as position_tags_router
+from app.api.v1.insights import router as insights_router
 from app.api.v1.endpoints import admin_batch
 
 # Create the main v1 router
@@ -36,6 +37,9 @@ api_router.include_router(tags_router)
 
 # Position Tagging APIs (/positions/{id}/tags/) - direct position tagging (new system)
 api_router.include_router(position_tags_router, prefix="/positions")
+
+# AI Insights APIs (/insights/) - Claude-powered portfolio analysis
+api_router.include_router(insights_router)
 
 # Admin Batch Processing APIs (/admin/batch/) - batch job control and monitoring
 api_router.include_router(admin_batch.router)

@@ -128,6 +128,15 @@ export const API_ENDPOINTS = {
     BULK_UPDATE: (portfolioId: string) => `/api/v1/target-prices/${portfolioId}/bulk-update`,
   },
 
+  // AI Insights endpoints (Claude-powered portfolio analysis)
+  INSIGHTS: {
+    GENERATE: '/api/v1/insights/generate',
+    LIST: (portfolioId: string) => `/api/v1/insights/portfolio/${portfolioId}`,
+    GET: (insightId: string) => `/api/v1/insights/${insightId}`,
+    UPDATE: (insightId: string) => `/api/v1/insights/${insightId}`,
+    FEEDBACK: (insightId: string) => `/api/v1/insights/${insightId}/feedback`,
+  },
+
   // Admin endpoints (for monitoring)
   ADMIN: {
     BATCH_STATUS: '/api/v1/admin/batch/status',

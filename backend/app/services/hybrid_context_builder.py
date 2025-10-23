@@ -90,6 +90,17 @@ class HybridContextBuilder:
                 "daily_pnl": float(snapshot.daily_pnl) if snapshot.daily_pnl else None,
                 "cumulative_pnl": float(snapshot.cumulative_pnl) if snapshot.cumulative_pnl else None,
                 "num_positions": snapshot.num_positions,
+                # Target price analytics (portfolio-level)
+                "target_price_return_eoy": float(snapshot.target_price_return_eoy) if snapshot.target_price_return_eoy else None,
+                "target_price_return_next_year": float(snapshot.target_price_return_next_year) if snapshot.target_price_return_next_year else None,
+                "target_price_downside_return": float(snapshot.target_price_downside_return) if snapshot.target_price_downside_return else None,
+                "target_price_upside_eoy_dollars": float(snapshot.target_price_upside_eoy_dollars) if snapshot.target_price_upside_eoy_dollars else None,
+                "target_price_upside_next_year_dollars": float(snapshot.target_price_upside_next_year_dollars) if snapshot.target_price_upside_next_year_dollars else None,
+                "target_price_downside_dollars": float(snapshot.target_price_downside_dollars) if snapshot.target_price_downside_dollars else None,
+                "target_price_coverage_pct": float(snapshot.target_price_coverage_pct) if snapshot.target_price_coverage_pct else None,
+                "target_price_positions_count": snapshot.target_price_positions_count,
+                "target_price_total_positions": snapshot.target_price_total_positions,
+                "target_price_last_updated": snapshot.target_price_last_updated.isoformat() if snapshot.target_price_last_updated else None,
             }
 
         # 3. Get positions
@@ -108,11 +119,19 @@ class HybridContextBuilder:
         correlations = await self._get_correlations(db, portfolio_id)
         context["correlations"] = correlations
 
-        # 7. Assess data quality
+        # 7. Get volatility analytics
+        volatility_analytics = await self._get_volatility_analytics(db, portfolio_id)
+        context["volatility_analytics"] = volatility_analytics
+
+        # 8. Get spread factors
+        spread_factors = await self._get_spread_factors(db, portfolio_id)
+        context["spread_factors"] = spread_factors
+
+        # 9. Assess data quality
         data_quality = self._assess_data_quality(context)
         context["data_quality"] = data_quality
 
-        # 8. Build summary statistics
+        # 10. Build summary statistics
         context["summary_stats"] = self._build_summary_stats(context)
 
         logger.info(f"Context built: {len(positions.get('items', []))} positions, "
@@ -290,6 +309,135 @@ class HybridContextBuilder:
             "data_quality": correlation.data_quality,
         }
 
+    async def _get_volatility_analytics(
+        self,
+        db: AsyncSession,
+        portfolio_id: UUID,
+    ) -> Dict[str, Any]:
+        """
+        Get portfolio and position volatility analytics.
+
+        Returns realized volatility (21d, 63d), expected volatility (HAR forecast),
+        volatility trend, and percentile vs historical distribution.
+        """
+        # Get latest portfolio snapshot for portfolio-level volatility
+        result = await db.execute(
+            select(PortfolioSnapshot)
+            .where(PortfolioSnapshot.portfolio_id == portfolio_id)
+            .order_by(desc(PortfolioSnapshot.snapshot_date))
+            .limit(1)
+        )
+        snapshot = result.scalar_one_or_none()
+
+        if not snapshot:
+            return {"available": False}
+
+        return {
+            "available": True,
+            "portfolio_level": {
+                "realized_volatility_21d": float(snapshot.realized_volatility_21d) if snapshot.realized_volatility_21d else None,
+                "realized_volatility_63d": float(snapshot.realized_volatility_63d) if snapshot.realized_volatility_63d else None,
+                "expected_volatility_21d": float(snapshot.expected_volatility_21d) if snapshot.expected_volatility_21d else None,
+                "volatility_trend": snapshot.volatility_trend,
+                "volatility_percentile": float(snapshot.volatility_percentile) if snapshot.volatility_percentile else None,
+            }
+        }
+
+    async def _get_spread_factors(
+        self,
+        db: AsyncSession,
+        portfolio_id: UUID,
+    ) -> Dict[str, Any]:
+        """
+        Get spread factor exposures (Growth-Value, Momentum, Size, Quality).
+
+        Spread factors are long-short factors that eliminate multicollinearity:
+        - Growth-Value Spread (VUG - VTV)
+        - Momentum Spread (MTUM - SPY)
+        - Size Spread (IWM - SPY)
+        - Quality Spread (QUAL - SPY)
+        """
+        from app.models.market_data import FactorDefinition, FactorExposure
+        from sqlalchemy import and_, func
+
+        # Get active spread factors
+        spread_factors_stmt = (
+            select(FactorDefinition.id, FactorDefinition.name)
+            .where(and_(
+                FactorDefinition.is_active == True,
+                FactorDefinition.factor_type == 'spread'
+            ))
+            .order_by(FactorDefinition.display_order.asc())
+        )
+        spread_result = await db.execute(spread_factors_stmt)
+        spread_factor_ids = [row[0] for row in spread_result.all()]
+
+        if not spread_factor_ids:
+            return {"available": False}
+
+        # Find latest calculation date
+        latest_date_stmt = (
+            select(func.max(FactorExposure.calculation_date))
+            .where(and_(
+                FactorExposure.portfolio_id == portfolio_id,
+                FactorExposure.factor_id.in_(spread_factor_ids)
+            ))
+        )
+        latest_date_result = await db.execute(latest_date_stmt)
+        latest_date = latest_date_result.scalar_one_or_none()
+
+        if not latest_date:
+            return {"available": False}
+
+        # Load spread factor exposures
+        exposures_stmt = (
+            select(FactorExposure, FactorDefinition)
+            .join(FactorDefinition, FactorExposure.factor_id == FactorDefinition.id)
+            .where(and_(
+                FactorExposure.portfolio_id == portfolio_id,
+                FactorExposure.calculation_date == latest_date,
+                FactorExposure.factor_id.in_(spread_factor_ids)
+            ))
+        )
+        exposures_result = await db.execute(exposures_stmt)
+        exposure_rows = exposures_result.all()
+
+        if not exposure_rows:
+            return {"available": False}
+
+        # Build spread factors dict with interpretations
+        factors = {}
+        for exposure, definition in exposure_rows:
+            try:
+                from app.calculations.factor_interpretation import interpret_spread_beta
+
+                beta = float(exposure.exposure_value)
+                interpretation = interpret_spread_beta(definition.name, beta)
+
+                factors[definition.name] = {
+                    "beta": beta,
+                    "direction": interpretation['direction'],
+                    "magnitude": interpretation['magnitude'],
+                    "risk_level": interpretation['risk_level'],
+                    "explanation": interpretation['explanation']
+                }
+            except Exception as e:
+                logger.warning(f"Failed to interpret spread factor {definition.name}: {e}")
+                # Add basic data even if interpretation fails
+                factors[definition.name] = {
+                    "beta": float(exposure.exposure_value),
+                    "direction": "unknown",
+                    "magnitude": "unknown",
+                    "risk_level": "unknown",
+                    "explanation": "Interpretation unavailable"
+                }
+
+        return {
+            "available": True,
+            "calculation_date": latest_date.isoformat(),
+            "factors": factors
+        }
+
     def _assess_data_quality(self, context: Dict[str, Any]) -> Dict[str, str]:
         """
         Assess data quality for each metric.
@@ -341,11 +489,25 @@ class HybridContextBuilder:
         else:
             quality["correlations"] = "incomplete"
 
+        # Volatility analytics
+        vol = context.get("volatility_analytics", {})
+        if vol.get("available"):
+            quality["volatility_analytics"] = "complete"
+        else:
+            quality["volatility_analytics"] = "incomplete"
+
+        # Spread factors
+        spread = context.get("spread_factors", {})
+        if spread.get("available"):
+            quality["spread_factors"] = "complete"
+        else:
+            quality["spread_factors"] = "incomplete"
+
         # Overall quality
         complete_count = sum(1 for v in quality.values() if v == "complete")
-        if complete_count >= 4:
+        if complete_count >= 6:  # Increased from 4 to account for new metrics
             quality["overall"] = "complete"
-        elif complete_count >= 2:
+        elif complete_count >= 3:  # Increased from 2
             quality["overall"] = "partial"
         else:
             quality["overall"] = "incomplete"

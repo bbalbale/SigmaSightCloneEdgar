@@ -94,7 +94,7 @@ User Action (Generate Insight)
     ↓
 GenerateInsightModal
     ↓
-useGenerateInsight hook
+useGenerateInsight hook (gets portfolioId from portfolioStore)
     ↓
 insightsApi.generateInsight()
     ↓
@@ -104,32 +104,40 @@ Next.js Proxy (/api/proxy/*)
     ↓
 Backend: analytical_reasoning_service.investigate_portfolio()
     ↓
+Backend: hybrid_context_builder (aggregates portfolio data)
+    ↓
 Claude Sonnet 4 API
     ↓
 Database: ai_insights table
     ↓
 Response to Frontend
     ↓
-React Query cache update
+Custom hook updates local state
     ↓
-UI updates with new insight
+UI re-renders with new insight
 ```
 
-### State Management
+### State Management Pattern (Matches Existing App Architecture)
 
-**Server State** (React Query):
-- Insights list (cached, auto-refetch)
-- Individual insight details
-- Generation mutations
-- Feedback mutations
+**Zustand Store** (EXISTING `portfolioStore`):
+- `portfolioId` - Accessed via `usePortfolioStore(state => state.portfolioId)`
+- No new Zustand store needed!
 
-**Local State** (React useState):
+**Custom Hooks** (useState pattern like `useTags`, `usePortfolioData`):
+- `useInsights()` - List insights, loading, error
+- `useGenerateInsight()` - Generate mutation with loading state
+- `useInsightDetail()` - Single insight detail
+- `useSubmitFeedback()` - Feedback submission
+
+**Local Component State** (useState):
 - Selected insight ID (for modal)
 - Filter/sort preferences
 - Modal open/closed state
 - Form inputs
 
-**No Zustand needed** - Portfolio ID from existing `portfolioStore`
+**Service Layer** (like `tagsApi.ts`, `portfolioService.ts`):
+- `insightsApi.ts` - All API calls
+- Uses existing `apiClient` for authentication
 
 ---
 
@@ -138,6 +146,213 @@ UI updates with new insight
 **Goal**: Users can generate and view AI insights for their portfolio
 **Timeline**: 3-5 days
 **Cost**: ~$0.02 per insight generation
+
+### 1.0 Backend Context Enhancement (FIRST STEP)
+
+**CRITICAL**: Before building API endpoints, we need to update the backend to send volatility analytics and spread factors to Claude.
+
+**File**: `backend/app/services/hybrid_context_builder.py` (UPDATE)
+
+**Add Two New Methods**:
+
+```python
+async def _get_volatility_analytics(
+    self,
+    db: AsyncSession,
+    portfolio_id: UUID,
+) -> Dict[str, Any]:
+    """Get portfolio and position volatility analytics."""
+    from app.models.market_data import PositionVolatility
+    from app.models.snapshots import PortfolioSnapshot
+
+    # Get latest portfolio snapshot for portfolio-level volatility
+    result = await db.execute(
+        select(PortfolioSnapshot)
+        .where(PortfolioSnapshot.portfolio_id == portfolio_id)
+        .order_by(desc(PortfolioSnapshot.snapshot_date))
+        .limit(1)
+    )
+    snapshot = result.scalar_one_or_none()
+
+    if not snapshot:
+        return {"available": False}
+
+    return {
+        "available": True,
+        "portfolio_level": {
+            "realized_volatility_21d": float(snapshot.realized_volatility_21d) if snapshot.realized_volatility_21d else None,
+            "realized_volatility_63d": float(snapshot.realized_volatility_63d) if snapshot.realized_volatility_63d else None,
+            "expected_volatility_21d": float(snapshot.expected_volatility_21d) if snapshot.expected_volatility_21d else None,
+            "volatility_trend": snapshot.volatility_trend,
+            "volatility_percentile": float(snapshot.volatility_percentile) if snapshot.volatility_percentile else None,
+        }
+    }
+
+async def _get_spread_factors(
+    self,
+    db: AsyncSession,
+    portfolio_id: UUID,
+) -> Dict[str, Any]:
+    """Get spread factor exposures (Growth-Value, Momentum, Size, Quality)."""
+    from app.models.market_data import FactorDefinition, FactorExposure
+
+    # Get active spread factors
+    spread_factors_stmt = (
+        select(FactorDefinition.id, FactorDefinition.name)
+        .where(and_(
+            FactorDefinition.is_active == True,
+            FactorDefinition.factor_type == 'spread'
+        ))
+        .order_by(FactorDefinition.display_order.asc())
+    )
+    spread_result = await db.execute(spread_factors_stmt)
+    spread_factor_ids = [row[0] for row in spread_result.all()]
+
+    if not spread_factor_ids:
+        return {"available": False}
+
+    # Find latest calculation date
+    latest_date_stmt = (
+        select(func.max(FactorExposure.calculation_date))
+        .where(and_(
+            FactorExposure.portfolio_id == portfolio_id,
+            FactorExposure.factor_id.in_(spread_factor_ids)
+        ))
+    )
+    latest_date_result = await db.execute(latest_date_stmt)
+    latest_date = latest_date_result.scalar_one_or_none()
+
+    if not latest_date:
+        return {"available": False}
+
+    # Load spread factor exposures
+    exposures_stmt = (
+        select(FactorExposure, FactorDefinition)
+        .join(FactorDefinition, FactorExposure.factor_id == FactorDefinition.id)
+        .where(and_(
+            FactorExposure.portfolio_id == portfolio_id,
+            FactorExposure.calculation_date == latest_date,
+            FactorExposure.factor_id.in_(spread_factor_ids)
+        ))
+    )
+    exposures_result = await db.execute(exposures_stmt)
+    exposure_rows = exposures_result.all()
+
+    if not exposure_rows:
+        return {"available": False}
+
+    # Build spread factors dict
+    factors = {}
+    for exposure, definition in exposure_rows:
+        from app.calculations.factor_interpretation import interpret_spread_beta
+
+        beta = float(exposure.exposure_value)
+        interpretation = interpret_spread_beta(definition.name, beta)
+
+        factors[definition.name] = {
+            "beta": beta,
+            "direction": interpretation['direction'],
+            "magnitude": interpretation['magnitude'],
+            "risk_level": interpretation['risk_level'],
+            "explanation": interpretation['explanation']
+        }
+
+    return {
+        "available": True,
+        "calculation_date": latest_date.isoformat(),
+        "factors": factors
+    }
+```
+
+**Update `build_context()` method**:
+
+```python
+async def build_context(
+    self,
+    db: AsyncSession,
+    portfolio_id: UUID,
+    focus_area: Optional[str] = None,
+) -> Dict[str, Any]:
+    # ... existing code ...
+
+    # 6. Get correlations
+    correlations = await self._get_correlations(db, portfolio_id)
+    context["correlations"] = correlations
+
+    # 7. Get volatility analytics (NEW)
+    volatility_analytics = await self._get_volatility_analytics(db, portfolio_id)
+    context["volatility_analytics"] = volatility_analytics
+
+    # 8. Get spread factors (NEW)
+    spread_factors = await self._get_spread_factors(db, portfolio_id)
+    context["spread_factors"] = spread_factors
+
+    # 9. Assess data quality (update to include new metrics)
+    data_quality = self._assess_data_quality(context)
+    context["data_quality"] = data_quality
+
+    # ... rest of existing code ...
+```
+
+**Update `_assess_data_quality()` to include new metrics**:
+
+```python
+def _assess_data_quality(self, context: Dict[str, Any]) -> Dict[str, str]:
+    quality = {}
+
+    # ... existing quality checks ...
+
+    # Volatility analytics
+    vol = context.get("volatility_analytics", {})
+    if vol.get("available"):
+        quality["volatility_analytics"] = "complete"
+    else:
+        quality["volatility_analytics"] = "incomplete"
+
+    # Spread factors
+    spread = context.get("spread_factors", {})
+    if spread.get("available"):
+        quality["spread_factors"] = "complete"
+    else:
+        quality["spread_factors"] = "incomplete"
+
+    # Update overall quality calculation
+    complete_count = sum(1 for v in quality.values() if v == "complete")
+    if complete_count >= 6:  # Increased threshold
+        quality["overall"] = "complete"
+    elif complete_count >= 3:
+        quality["overall"] = "partial"
+    else:
+        quality["overall"] = "incomplete"
+
+    return quality
+```
+
+**Testing**:
+```bash
+# Test that context builder includes new data
+cd backend
+uv run python -c "
+import asyncio
+from uuid import UUID
+from app.services.hybrid_context_builder import hybrid_context_builder
+from app.database import get_async_session
+
+async def test():
+    async with get_async_session() as db:
+        # Use a demo portfolio ID
+        context = await hybrid_context_builder.build_context(
+            db=db,
+            portfolio_id=UUID('your-demo-portfolio-id')
+        )
+        print('Volatility available:', context.get('volatility_analytics', {}).get('available'))
+        print('Spread factors available:', context.get('spread_factors', {}).get('available'))
+
+asyncio.run(test())
+"
+```
+
+---
 
 ### 1.1 Backend API Endpoints
 
@@ -386,116 +601,218 @@ const insightsApi = {
 export default insightsApi
 ```
 
-### 1.3 Data Hooks
+### 1.3 Data Hooks (Following Existing Pattern)
 
 **File**: `frontend/src/hooks/useInsights.ts` (NEW)
 
-```typescript
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import insightsApi, { AIInsight, GenerateInsightRequest, InsightType } from '@/services/insightsApi'
-import { usePortfolioStore } from '@/stores/portfolioStore'
+**Pattern Reference**: Follows `useTags.ts` and `usePortfolioData.ts` patterns
 
-/**
- * Hook to fetch insights list for current portfolio
- */
-export function useInsights(options?: {
+```typescript
+'use client'
+
+import { useState, useEffect, useCallback } from 'react'
+import { usePortfolioStore } from '@/stores/portfolioStore'
+import insightsApi, { AIInsight, InsightType } from '@/services/insightsApi'
+
+interface UseInsightsOptions {
   insightType?: InsightType
   daysBack?: number
   limit?: number
-}) {
-  const { portfolioId } = usePortfolioStore()
+  autoRefresh?: boolean
+}
 
-  return useQuery({
-    queryKey: ['insights', portfolioId, options],
-    queryFn: () => {
-      if (!portfolioId) throw new Error('No portfolio ID')
-      return insightsApi.listInsights(portfolioId, options)
-    },
-    enabled: !!portfolioId,
-    staleTime: 1000 * 60 * 5, // 5 minutes
-  })
+interface UseInsightsReturn {
+  insights: AIInsight[]
+  loading: boolean
+  error: Error | null
+  total: number
+  hasMore: boolean
+  refresh: () => Promise<void>
 }
 
 /**
- * Hook to fetch a single insight
+ * Hook to fetch and manage insights list for current portfolio
+ *
+ * Pattern: Same as useTags - uses useState, calls service layer
  */
-export function useInsight(insightId: string | null) {
-  return useQuery({
-    queryKey: ['insight', insightId],
-    queryFn: () => {
-      if (!insightId) throw new Error('No insight ID')
-      return insightsApi.getInsight(insightId)
-    },
-    enabled: !!insightId,
-  })
+export function useInsights(options: UseInsightsOptions = {}): UseInsightsReturn {
+  const {
+    insightType,
+    daysBack = 30,
+    limit = 20,
+    autoRefresh = true
+  } = options
+
+  // Get portfolioId from existing Zustand store (like usePortfolioData does)
+  const portfolioId = usePortfolioStore(state => state.portfolioId)
+
+  // Local state (like useTags pattern)
+  const [insights, setInsights] = useState<AIInsight[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<Error | null>(null)
+  const [total, setTotal] = useState(0)
+  const [hasMore, setHasMore] = useState(false)
+
+  const fetchInsights = useCallback(async () => {
+    if (!portfolioId) {
+      setInsights([])
+      setLoading(false)
+      return
+    }
+
+    setLoading(true)
+    setError(null)
+
+    try {
+      const response = await insightsApi.listInsights(portfolioId, {
+        insightType,
+        daysBack,
+        limit,
+      })
+
+      setInsights(response.insights || [])
+      setTotal(response.total || 0)
+      setHasMore(response.has_more || false)
+    } catch (err) {
+      console.error('Failed to fetch insights:', err)
+      setError(err instanceof Error ? err : new Error('Failed to fetch insights'))
+      setInsights([])
+    } finally {
+      setLoading(false)
+    }
+  }, [portfolioId, insightType, daysBack, limit])
+
+  // Auto-fetch on mount and when dependencies change (like useTags)
+  useEffect(() => {
+    if (autoRefresh) {
+      fetchInsights()
+    }
+  }, [fetchInsights, autoRefresh])
+
+  return {
+    insights,
+    loading,
+    error,
+    total,
+    hasMore,
+    refresh: fetchInsights,
+  }
+}
+
+/**
+ * Hook to fetch a single insight detail
+ */
+export function useInsightDetail(insightId: string | null) {
+  const [insight, setInsight] = useState<AIInsight | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<Error | null>(null)
+
+  useEffect(() => {
+    if (!insightId) {
+      setInsight(null)
+      return
+    }
+
+    const fetchInsight = async () => {
+      setLoading(true)
+      setError(null)
+
+      try {
+        const data = await insightsApi.getInsight(insightId)
+        setInsight(data)
+      } catch (err) {
+        console.error('Failed to fetch insight:', err)
+        setError(err instanceof Error ? err : new Error('Failed to fetch insight'))
+        setInsight(null)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchInsight()
+  }, [insightId])
+
+  return { insight, loading, error }
 }
 
 /**
  * Hook to generate a new insight
- * Returns mutation with loading state
  */
 export function useGenerateInsight() {
-  const queryClient = useQueryClient()
-  const { portfolioId } = usePortfolioStore()
+  const portfolioId = usePortfolioStore(state => state.portfolioId)
+  const [generating, setGenerating] = useState(false)
+  const [error, setError] = useState<Error | null>(null)
 
-  return useMutation({
-    mutationFn: (request: Omit<GenerateInsightRequest, 'portfolio_id'>) => {
-      if (!portfolioId) throw new Error('No portfolio ID')
-      return insightsApi.generateInsight({
-        ...request,
+  const generate = useCallback(async (
+    insightType: InsightType,
+    focusArea?: string,
+    userQuestion?: string
+  ): Promise<AIInsight | null> => {
+    if (!portfolioId) {
+      throw new Error('No portfolio ID')
+    }
+
+    setGenerating(true)
+    setError(null)
+
+    try {
+      const insight = await insightsApi.generateInsight({
         portfolio_id: portfolioId,
+        insight_type: insightType,
+        focus_area: focusArea,
+        user_question: userQuestion,
       })
-    },
-    onSuccess: (newInsight) => {
-      // Invalidate insights list to refetch
-      queryClient.invalidateQueries({ queryKey: ['insights', portfolioId] })
-    },
-  })
+
+      return insight
+    } catch (err) {
+      console.error('Failed to generate insight:', err)
+      const error = err instanceof Error ? err : new Error('Failed to generate insight')
+      setError(error)
+      throw error
+    } finally {
+      setGenerating(false)
+    }
+  }, [portfolioId])
+
+  return {
+    generate,
+    generating,
+    error,
+  }
 }
 
 /**
- * Hook to update insight status
+ * Hook to submit feedback for an insight
  */
-export function useUpdateInsight() {
-  const queryClient = useQueryClient()
+export function useInsightFeedback() {
+  const [submitting, setSubmitting] = useState(false)
+  const [error, setError] = useState<Error | null>(null)
 
-  return useMutation({
-    mutationFn: ({
-      insightId,
-      updates,
-    }: {
-      insightId: string
-      updates: { viewed?: boolean; dismissed?: boolean }
-    }) => insightsApi.updateInsight(insightId, updates),
-    onSuccess: (updatedInsight) => {
-      // Update cache
-      queryClient.setQueryData(['insight', updatedInsight.id], updatedInsight)
-      queryClient.invalidateQueries({ queryKey: ['insights'] })
-    },
-  })
-}
+  const submitFeedback = useCallback(async (
+    insightId: string,
+    rating: number,
+    feedback?: string
+  ) => {
+    setSubmitting(true)
+    setError(null)
 
-/**
- * Hook to submit feedback
- */
-export function useSubmitFeedback() {
-  const queryClient = useQueryClient()
+    try {
+      await insightsApi.submitFeedback(insightId, { rating, feedback })
+    } catch (err) {
+      console.error('Failed to submit feedback:', err)
+      const error = err instanceof Error ? err : new Error('Failed to submit feedback')
+      setError(error)
+      throw error
+    } finally {
+      setSubmitting(false)
+    }
+  }, [])
 
-  return useMutation({
-    mutationFn: ({
-      insightId,
-      rating,
-      feedback,
-    }: {
-      insightId: string
-      rating: number
-      feedback?: string
-    }) => insightsApi.submitFeedback(insightId, { rating, feedback }),
-    onSuccess: (_, variables) => {
-      // Refetch the insight to get updated feedback
-      queryClient.invalidateQueries({ queryKey: ['insight', variables.insightId] })
-    },
-  })
+  return {
+    submitFeedback,
+    submitting,
+    error,
+  }
 }
 ```
 
@@ -1311,36 +1628,149 @@ backend/
 
 ### Week 1: Phase 1 MVP
 
-**Day 1: Backend API**
-1. Create `backend/app/api/v1/insights.py`
-2. Create Pydantic schemas
-3. Implement all 5 endpoints
-4. Add to router
-5. Test with Postman
+**Day 1: Backend Context Enhancement** ✅ **COMPLETE** (2025-10-22)
+1. ✅ Added `_get_volatility_analytics()` method to `hybrid_context_builder.py`
+2. ✅ Added `_get_spread_factors()` method to `hybrid_context_builder.py`
+3. ✅ Updated `build_context()` to include new data
+4. ✅ Updated `_assess_data_quality()` for new metrics
+5. ✅ Tested - context now includes volatility and spread factors
+6. ✅ Verified - no breaking changes, existing functionality preserved
 
-**Day 2: Frontend Service & Hooks**
-1. Create `insightsApi.ts` service
-2. Create `useInsights.ts` hooks
-3. Install dependencies
-4. Test API integration
+**Test Results** (Demo Individual Portfolio - 16 positions):
+- Volatility Analytics: 12.3% (21d), 10.59% (63d), Expected 9.42%, Trend: increasing
+- Spread Factors: 4 factors calculated (Growth +1.99, Momentum +0.23, Size -0.12, Quality -4.93)
+- Target Prices: 56.25% coverage (9 of 16 positions have analyst targets)
+- Data Quality: 8/8 metrics complete
 
-**Day 3: Core UI Components**
-1. Create `InsightCard.tsx`
-2. Create `InsightsList.tsx`
-3. Create `GenerateInsightModal.tsx`
-4. Basic styling
+**Bonus Addition**: Target price analytics added to snapshot data:
+- Portfolio-level returns (EOY, next year, downside scenarios)
+- Dollar upside/downside calculations
+- Coverage percentage and position counts
+- Last updated timestamps
 
-**Day 4: Detail View & Container**
-1. Create `InsightDetailModal.tsx`
-2. Update `SigmaSightAIContainer.tsx`
-3. Wire everything together
-4. Test end-to-end
+**Day 2-3: Backend API** ✅ **COMPLETE** (2025-10-22)
+1. ✅ Created `backend/app/api/v1/insights.py` (600+ lines)
+2. ✅ Created Pydantic schemas (inline, following project pattern)
+3. ✅ Implemented all 5 endpoints:
+   - POST `/api/v1/insights/generate` - Generate new insight
+   - GET `/api/v1/insights/portfolio/{portfolio_id}` - List insights with filtering
+   - GET `/api/v1/insights/{insight_id}` - Get single insight (auto-marks as viewed)
+   - PATCH `/api/v1/insights/{insight_id}` - Update metadata (viewed/dismissed)
+   - POST `/api/v1/insights/{insight_id}/feedback` - Submit rating/feedback
+4. ✅ Added to router in `app/api/v1/router.py`
+5. ✅ Verified all routes registered in FastAPI app
 
-**Day 5: Testing & Bug Fixes**
-1. Test all flows
-2. Fix bugs
-3. Polish UI
-4. Documentation
+**Implementation Details**:
+- Rate limiting: Max 10 insights per portfolio per day
+- Authentication: All endpoints require valid JWT token
+- Authorization: Validates portfolio ownership for all operations
+- Auto-mark viewed: GET endpoint automatically marks insights as viewed
+- Filtering: List endpoint supports insight_type, days_back, pagination
+- Performance tracking: Each insight records cost_usd, generation_time_ms, token_count
+- Error handling: Comprehensive error messages and HTTP status codes
+
+**Day 4: Frontend Service & Hooks** ✅ **COMPLETE** (2025-10-22)
+1. ✅ Created `frontend/src/services/insightsApi.ts` (225 lines)
+2. ✅ Created `frontend/src/hooks/useInsights.ts` (329 lines)
+3. ✅ Added `patch()` method to `apiClient.ts` (previously missing)
+4. ✅ Verified TypeScript compilation (no errors in insights code)
+
+**Implementation Details**:
+- Service layer: All 5 API methods implemented (generate, list, get, update, submit feedback)
+- Hooks: 5 custom hooks following existing app patterns:
+  - `useInsights()` - List insights with auto-refresh (matches `useTags` pattern)
+  - `useInsightDetail()` - Single insight detail
+  - `useGenerateInsight()` - Generate mutation with loading state
+  - `useInsightFeedback()` - Submit rating/feedback
+  - `useUpdateInsight()` - Update viewed/dismissed metadata
+- State management: Uses Zustand `portfolioStore` for portfolioId (no new stores needed)
+- API client: Added missing `patch()` HTTP method to support PATCH requests
+- Type safety: Full TypeScript interfaces for all request/response types
+- Error handling: Comprehensive try/catch with user-friendly error messages
+- Pattern compliance: Follows existing service layer and hooks patterns exactly
+
+**Day 5: Core UI Components** ✅ **COMPLETE** (2025-10-22)
+1. ✅ Created `InsightCard.tsx` - Preview card with severity badges, timestamps, and click-to-view
+2. ✅ Created `InsightsList.tsx` - List component with loading, error, and empty states
+3. ✅ Created `GenerateInsightModal.tsx` - Modal form with insight type selection and custom questions
+4. ✅ Created `InsightDetailModal.tsx` - Full detail view with markdown rendering and ratings
+5. ✅ Created missing UI components: `Textarea`, `Separator`, `Skeleton`
+6. ✅ Created index export file for easier imports
+7. ✅ Verified TypeScript compilation (no errors)
+
+**Implementation Details**:
+- **InsightCard.tsx** (87 lines): Severity badges with color coding, new indicator for unviewed, click handler
+- **InsightsList.tsx** (119 lines): Loading skeletons, error retry, empty state with emoji, load more pagination
+- **GenerateInsightModal.tsx** (235 lines): 6 insight types, focus area input, custom question textarea, form validation
+- **InsightDetailModal.tsx** (297 lines): Full detail display, custom markdown renderer, star ratings, auto-mark as viewed
+- **UI Components**: Added 3 shadcn/ui components following project patterns (textarea, separator, skeleton)
+- **Styling**: Full dark/light theme support, responsive design, hover states, loading animations
+- **Pattern Compliance**: All components follow React best practices and project conventions
+
+**Day 6: Container Integration & Testing** ✅ **COMPLETE** (2025-10-22)
+1. ✅ Updated `SigmaSightAIContainer.tsx` with full component integration (110 lines)
+2. ✅ Wired all modals and list together with proper callbacks
+3. ✅ Implemented complete flow: generate → auto-open detail → rate
+4. ✅ Verified dark/light theme support throughout
+5. ✅ Verified TypeScript compilation (no errors)
+
+**Implementation Details**:
+- **Header Section**: Sparkles icon, title, description, cost/time info, "Generate Insight" button
+- **Main Content**: InsightsList component with auto-refresh
+- **Modal Management**: State management for both modals (generate and detail)
+- **Flow Implementation**:
+  - Click "Generate Insight" → Opens GenerateInsightModal
+  - Select insight type and submit → Generates insight (~25-30s)
+  - On success → Automatically opens InsightDetailModal with new insight
+  - Click any insight card → Opens detail modal for that insight
+  - Rate insight → Submits feedback to backend
+  - List auto-refreshes after generation via useInsights hook
+- **Theme Support**: Full dark/light mode transitions on all elements
+- **Responsive**: Button placement adapts to screen size
+
+---
+
+## 🎉 Phase 1 MVP Status: READY FOR TESTING
+
+All core functionality is now implemented and ready for end-to-end testing!
+
+**What's Working** ✅:
+- ✅ Backend: 5 API endpoints with rate limiting and auth
+- ✅ Backend: Enhanced context with volatility, spread factors, and target prices
+- ✅ Frontend: Complete service layer (insightsApi.ts)
+- ✅ Frontend: 5 custom hooks following app patterns
+- ✅ Frontend: 4 core UI components (Card, List, Generate Modal, Detail Modal)
+- ✅ Frontend: 3 new UI primitives (Textarea, Separator, Skeleton)
+- ✅ Frontend: Full container integration with modal flow
+- ✅ TypeScript: Zero compilation errors
+- ✅ Theme: Full dark/light mode support
+
+**Ready to Test**:
+1. **Start Backend**: `cd backend && uv run python run.py`
+2. **Start Frontend**: `cd frontend && npm run dev` (or Docker)
+3. **Login**: Use demo credentials (e.g., `demo_hnw@sigmasight.com` / `demo12345`)
+4. **Navigate**: Go to `/sigmasight-ai` page
+5. **Test Flow**:
+   - Click "Generate Insight" button
+   - Select "Daily Summary" (or any type)
+   - Wait 25-30 seconds for generation
+   - View auto-opened insight detail
+   - Rate the insight (1-5 stars)
+   - Close modal and see insight in list
+   - Click insight card to re-open detail
+
+**Expected Costs**:
+- Each insight generation: ~$0.02
+- Rate limit: 10 per portfolio per day
+- Token usage: ~10,000-15,000 tokens per insight
+
+---
+
+**Day 7: Testing & Bug Fixes** (Optional - if needed)
+1. Manual testing of all flows
+2. Fix any bugs discovered
+3. Polish UI/UX issues
+4. Add any missing error handling
 
 ### Week 2: Phase 2 Enhanced Features
 
