@@ -1,8 +1,13 @@
 # SigmaSight Application Experience POV
 
 ## Executive Summary
+- This point of view is grounded in the `RiskMetricsLocal` branch, which introduces a DB-first risk analytics path through `RiskMetricsService` and the `GET /api/v1/analytics/portfolio/{id}/risk-metrics` endpoint. The branch keeps calculations local to existing portfolio snapshots and factor exposures while flagging incomplete data, giving us a reliable spine for surfacing beta, volatility, and drawdown insights in the UI.
 - Individual investors value a fast path to understanding "Am I on track? Where am I exposed? What should I do next?"—competitive products such as Personal Capital, Fidelity Portfolio Analysis, and Kubera lead with a consolidated health score, contextual insights, and clear calls to action. SigmaSight can differentiate by pairing institutional-grade risk analytics with human-readable storytelling, automation, and an AI copilot that understands the portfolio's structure.
 - The current application already surfaces a multi-asset dashboard, in-depth public equity research, tagging workflows, and an AI assistant. Leaning into these strengths while clarifying navigation, bundling workflows around core jobs, and amplifying proactive guidance will deliver a cohesive, high-value experience.
+
+## Branch Context
+- `RiskMetricsService` computes portfolio beta, annualized volatility, and max drawdown by walking portfolio snapshots inside the configured lookback window while preserving warnings when data is sparse. This ensures the risk surfaces we design can fall back gracefully instead of showing empty states.
+- The `GET /api/v1/analytics/portfolio/{id}/risk-metrics` route remains formally deprecated, but the branch scaffolds the full payload and metadata (lookback range, observation counts, warning codes) we need to power prototype experiences behind feature flags.
 
 ## Current Experience Snapshot
 ### Navigation & Page Framework
@@ -20,6 +25,9 @@
 
 ### AI Copilot
 - The AI Chat page anchors SigmaSight's conversational assistant with portfolio-aware context, status chips, and streaming conversation pane, signaling a powerful advisor experience.【F:frontend/src/containers/AIChatContainer.tsx†L11-L108】
+
+### Risk Metrics Foundation
+- The `RiskMetricsLocal` branch adds a local-only analytics pipeline so the backend can serve portfolio beta, annualized volatility, and max drawdown directly from stored snapshots without re-running regressions, while packaging metadata about observation counts and warning states for the UI.
 
 ## Competitive Landscape Insights
 - **Aggregators (Personal Capital, Kubera, Empower)** lead with a holistic balance sheet summary, goal tracking, and alerts for drifts or cash flow anomalies. They emphasize "one-glance" clarity plus dig-deeper modules.
@@ -50,8 +58,8 @@ Key takeaways: combine the consumer-grade clarity of aggregators, the automation
 - Surface "tag coverage" metrics (percentage of positions tagged, untagged exposure) next to the TagList header to reinforce progress.
 
 ### 4. Risk Diagnostics
-- Carve out a new **Risk** section focusing on factor decomposition, scenario analysis, and stress tests. Begin by elevating the existing Factor Exposure cards into a richer mosaic with trend charts and hedging ideas that link back to Organize tags or Research positions.【F:frontend/src/components/portfolio/FactorExposureCards.tsx†L12-L148】
-- Layer in saved scenarios (rate shock, sector rotation) and simulation outputs once backend endpoints mature.
+- Carve out a new **Risk** section focusing on factor decomposition, scenario analysis, and stress tests. Begin by elevating the existing Factor Exposure cards into a richer mosaic with trend charts, hedging ideas that link back to Organize tags or Research positions, and a panel that consumes `RiskMetricsService` payloads (beta, annualized volatility, max drawdown plus warnings).【F:frontend/src/components/portfolio/FactorExposureCards.tsx†L12-L148】
+- Layer in saved scenarios (rate shock, sector rotation) and simulation outputs once backend endpoints mature, while gating the risk metrics panel behind a feature flag until the deprecated endpoint is productionized.
 
 ### 5. AI Copilot Everywhere
 - Maintain `/ai-chat` as the full-screen assistant, but embed mini chat widgets in every primary surface so users can ask context-aware questions without losing place. The AI page can host conversation presets ("Assess diversification", "Draft quarterly letter", "Explain today's factor moves"), leveraging the current layout's header & callouts.【F:frontend/src/containers/AIChatContainer.tsx†L58-L108】
@@ -69,4 +77,5 @@ Key takeaways: combine the consumer-grade clarity of aggregators, the automation
 2. **Design Overview Hub prototypes** – Create lo-fi mocks showing Health Score, Risk Pulse, and Opportunities Queue modules stacked above existing metrics and factor cards to validate layout and copy needs.【F:frontend/app/portfolio/page.tsx†L62-L101】
 3. **Inventory AI entry points** – Map where inline chat launchers should live (metrics cards, tag lists, research tables) and define the context payload each should send to the assistant.【F:frontend/src/components/portfolio/PortfolioMetrics.tsx†L27-L58】【F:frontend/src/containers/OrganizeContainer.tsx†L201-L517】
 4. **Prioritize automation concepts** – Align with backend on feasibility for rule-based tagging, risk alerts, and hedging playbooks so UI affordances ship alongside actionable capabilities.【F:frontend/src/hooks/usePortfolioData.ts†L38-L155】
+5. **Validate Risk Metrics Local integration** – Exercise the `RiskMetricsService` pathway through the feature-flagged risk metrics endpoint, capture warning states (e.g., `few_snapshots`, `beta_unavailable`), and translate metadata into user-facing copy before promoting to broader audiences.
 
