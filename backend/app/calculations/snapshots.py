@@ -19,7 +19,6 @@ from app.calculations.portfolio import (
     aggregate_portfolio_greeks
 )
 from app.calculations.market_data import calculate_position_market_value, is_options_position, get_position_value
-from app.services.portfolio_exposure_service import prepare_positions_for_aggregation
 from app.utils.trading_calendar import trading_calendar
 
 logger = logging.getLogger(__name__)
@@ -152,44 +151,50 @@ async def _prepare_position_data(
     """
     Prepare position data with market values and Greeks.
 
-    Uses canonical prepare_positions_for_aggregation() for exposure calculations
-    and adds Greeks data for options positions.
+    CRITICAL: Uses HISTORICAL prices from market_data_cache for the calculation_date,
+    NOT current Position.market_value. This ensures snapshots reflect values as of
+    that specific date, enabling accurate historical P&L tracking.
     """
+    from app.services.market_data_service import market_data_service
+
     warnings = []
-
-    # Use canonical service for exposure preparation
-    # This eliminates manual price fetching and market value calculations
-    try:
-        base_position_data = await prepare_positions_for_aggregation(db, positions)
-    except Exception as e:
-        logger.error(f"Error preparing positions for aggregation: {str(e)}")
-        return {
-            "positions": [],
-            "warnings": [f"Failed to prepare positions: {str(e)}"]
-        }
-
-    # Enhance with Greeks data and position metadata
     position_data = []
 
-    # Create position lookup by ID for matching
-    position_by_id = {str(pos.id): pos for pos in positions}
+    # Get historical prices for all symbols as of calculation_date
+    symbols = [pos.symbol for pos in positions]
+    historical_prices = await market_data_service.get_cached_prices(
+        db=db,
+        symbols=symbols,
+        target_date=calculation_date
+    )
 
-    # Note: prepare_positions_for_aggregation returns dicts without position IDs
-    # We need to match by index since both lists are derived from the same positions list
-    for idx, position in enumerate(positions):
+    logger.info(f"Fetched historical prices for {len(historical_prices)} symbols as of {calculation_date}")
+
+    # Process each position using historical prices
+    for position in positions:
         try:
-            # Get the corresponding base data (if it exists - some may have been skipped)
-            # The service skips positions without price data, so check if we have data for this position
-            if idx >= len(base_position_data):
-                # Position was skipped by prepare_positions_for_aggregation (no price data)
-                warnings.append(f"No price data available for {position.symbol}")
+            # Get historical price for this symbol
+            historical_price = historical_prices.get(position.symbol)
+
+            if historical_price is None or historical_price == 0:
+                warnings.append(f"No historical price data for {position.symbol} on {calculation_date}")
                 continue
 
-            base_data = base_position_data[idx] if idx < len(base_position_data) else None
+            # Calculate market value using historical price
+            quantity = float(position.quantity)
+            price = float(historical_price)
 
-            if not base_data:
-                warnings.append(f"No exposure data for {position.symbol}")
-                continue
+            # Apply options multiplier (100 for options, 1 for stocks)
+            OPTIONS_MULTIPLIER = 100
+            if position.position_type.name in ['LC', 'LP', 'SC', 'SP']:
+                multiplier = OPTIONS_MULTIPLIER
+            else:
+                multiplier = 1
+
+            # Calculate market value (signed by quantity)
+            # For SHORT/SC/SP positions, quantity is negative
+            market_value = quantity * price * multiplier
+            exposure = market_value
 
             # Fetch Greeks if available
             greeks_query = select(PositionGreeks).where(
@@ -213,13 +218,13 @@ async def _prepare_position_data(
             elif is_options_position(position):
                 warnings.append(f"Missing Greeks for options position {position.symbol}")
 
-            # Build enhanced position dict with Greeks
+            # Build position dict with historical prices
             position_data.append({
                 "id": position.id,
                 "symbol": position.symbol,
                 "quantity": position.quantity,
-                "market_value": abs(base_data["exposure"]),  # Absolute value for market_value
-                "exposure": base_data["exposure"],            # Signed exposure
+                "market_value": abs(Decimal(str(market_value))),  # Absolute value
+                "exposure": Decimal(str(exposure)),                # Signed exposure
                 "position_type": position.position_type,
                 "greeks": greeks
             })
