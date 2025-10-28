@@ -61,16 +61,27 @@ class BatchOrchestratorV2:
         self.session_timeout = session_timeout
     
     async def run_daily_batch_sequence(
-        self, 
+        self,
         portfolio_id: Optional[str] = None,
-        run_correlations: bool = None
+        run_correlations: bool = None,
+        calculation_date: Optional[date] = None
     ) -> List[Dict[str, Any]]:
         """
         Main entry point - processes portfolios sequentially to avoid concurrency issues.
+
+        Args:
+            portfolio_id: Optional specific portfolio to process
+            run_correlations: Whether to run correlation calculations
+            calculation_date: Date to use for calculations (defaults to today)
         """
         start_time = utc_now()
-        logger.info(f"Starting sequential batch processing at {start_time}")
-        
+
+        # Default to today if not specified
+        if calculation_date is None:
+            calculation_date = date.today()
+
+        logger.info(f"Starting sequential batch processing at {start_time} for {calculation_date}")
+
         try:
             # Get portfolios to process
             portfolios = await self._get_portfolios_safely(portfolio_id)
@@ -110,7 +121,7 @@ class BatchOrchestratorV2:
                     batch_run_tracker.update(portfolio_name=portfolio.name)
 
                 portfolio_results = await self._process_single_portfolio_safely(
-                    portfolio, run_correlations
+                    portfolio, run_correlations, calculation_date
                 )
                 all_results.extend(portfolio_results)
 
@@ -205,17 +216,27 @@ class BatchOrchestratorV2:
                 await session.close()
     
     async def _process_single_portfolio_safely(
-        self, 
+        self,
         portfolio_data,
-        run_correlations: bool = None
+        run_correlations: bool = None,
+        calculation_date: Optional[date] = None
     ) -> List[Dict[str, Any]]:
         """
         Process a single portfolio with isolated session and error handling.
+
+        Args:
+            portfolio_data: Portfolio object
+            run_correlations: Whether to run correlation calculations
+            calculation_date: Date to use for calculations (defaults to today)
         """
         results = []
         portfolio_id = portfolio_data.id
         portfolio_name = portfolio_data.name
-        
+
+        # Default to today if not specified
+        if calculation_date is None:
+            calculation_date = date.today()
+
         # Define job sequence with dependencies
         # CRITICAL: portfolio_snapshot MUST run before stress_testing
         # Stress testing uses snapshot values (gross/net exposure) via get_portfolio_exposures()
@@ -224,22 +245,22 @@ class BatchOrchestratorV2:
             ("position_values_update", self._update_position_values, [portfolio_id]),
             ("equity_balance_update", self._update_equity_balance, [portfolio_id]),  # Update Portfolio.equity_balance BEFORE factor calculations
             ("portfolio_aggregation", self._calculate_portfolio_aggregation, [portfolio_id]),
-            ("market_beta_calculation", self._calculate_market_beta, [portfolio_id]),  # Phase 0: Single-factor market beta (OLS)
-            ("ir_beta_calculation", self._calculate_ir_beta, [portfolio_id]),  # Interest Rate beta (OLS vs Treasury yields)
-            ("ridge_factor_calculation", self._calculate_ridge_factors, [portfolio_id]),  # Ridge regression for 6 non-market factors
-            ("spread_factor_calculation", self._calculate_spread_factors, [portfolio_id]),  # Spread factors (4 long-short factors, 180-day window)
-            ("sector_concentration_analysis", self._calculate_sector_analysis, [portfolio_id]),  # Phase 1: Sector exposure & concentration
-            ("volatility_analytics", self._calculate_volatility_analytics, [portfolio_id]),  # Phase 2: Volatility analysis
+            ("market_beta_calculation", self._calculate_market_beta, [portfolio_id, calculation_date]),  # Phase 0: Single-factor market beta (OLS)
+            ("ir_beta_calculation", self._calculate_ir_beta, [portfolio_id, calculation_date]),  # Interest Rate beta (OLS vs Treasury yields)
+            ("ridge_factor_calculation", self._calculate_ridge_factors, [portfolio_id, calculation_date]),  # Ridge regression for 6 non-market factors
+            ("spread_factor_calculation", self._calculate_spread_factors, [portfolio_id, calculation_date]),  # Spread factors (4 long-short factors, 180-day window)
+            ("sector_concentration_analysis", self._calculate_sector_analysis, [portfolio_id, calculation_date]),  # Phase 1: Sector exposure & concentration
+            ("volatility_analytics", self._calculate_volatility_analytics, [portfolio_id, calculation_date]),  # Phase 2: Volatility analytics
             # ("greeks_calculation", self._calculate_greeks, [portfolio_id]),  # DISABLED: No options feed
             # ("factor_analysis", self._calculate_factors, [portfolio_id]),  # REMOVED: Legacy 7-factor OLS replaced by Ridge (6 factors) + Market Beta (OLS)
-            ("market_risk_scenarios", self._calculate_market_risk, [portfolio_id]),
-            ("portfolio_snapshot", self._create_snapshot, [portfolio_id]),  # MUST run before stress_testing
+            ("market_risk_scenarios", self._calculate_market_risk, [portfolio_id, calculation_date]),
+            ("portfolio_snapshot", self._create_snapshot, [portfolio_id, calculation_date]),  # MUST run before stress_testing
             ("portfolio_target_snapshot", self._update_portfolio_target_snapshot, [portfolio_id]),  # Update target price metrics in snapshot
-            ("stress_testing", self._run_stress_tests, [portfolio_id]),     # Uses snapshot values + IR beta for IR shocks
+            ("stress_testing", self._run_stress_tests, [portfolio_id, calculation_date]),     # Uses snapshot values + IR beta for IR shocks
         ]
 
         # Always run correlations (important for risk metrics)
-        job_sequence.append(("position_correlations", self._calculate_correlations, [portfolio_id]))
+        job_sequence.append(("position_correlations", self._calculate_correlations, [portfolio_id, calculation_date]))
 
         # Execute jobs sequentially with isolated sessions
         for job_name, job_func, args in job_sequence:
@@ -627,18 +648,18 @@ class BatchOrchestratorV2:
             'exposures': exposures
         }
 
-    async def _calculate_market_beta(self, db: AsyncSession, portfolio_id: str):
+    async def _calculate_market_beta(self, db: AsyncSession, portfolio_id: str, calculation_date: date):
         """Market beta calculation job (Phase 0: Single-factor model)"""
         from app.calculations.market_beta import calculate_portfolio_market_beta
 
         portfolio_uuid = ensure_uuid(portfolio_id)
 
-        logger.info(f"Calculating market beta for portfolio {portfolio_id}")
+        logger.info(f"Calculating market beta for portfolio {portfolio_id} on {calculation_date}")
 
         beta_result = await calculate_portfolio_market_beta(
             db=db,
             portfolio_id=portfolio_uuid,
-            calculation_date=date.today(),
+            calculation_date=calculation_date,
             persist=True  # Save position betas to position_market_betas table
         )
 
@@ -654,18 +675,18 @@ class BatchOrchestratorV2:
 
         return beta_result
 
-    async def _calculate_ir_beta(self, db: AsyncSession, portfolio_id: str):
+    async def _calculate_ir_beta(self, db: AsyncSession, portfolio_id: str, calculation_date: date):
         """Interest Rate beta calculation job (TLT Bond ETF sensitivity)"""
         from app.calculations.interest_rate_beta import calculate_portfolio_ir_beta
 
         portfolio_uuid = ensure_uuid(portfolio_id)
 
-        logger.info(f"Calculating Interest Rate beta (TLT-based) for portfolio {portfolio_id}")
+        logger.info(f"Calculating Interest Rate beta (TLT-based) for portfolio {portfolio_id} on {calculation_date}")
 
         ir_beta_result = await calculate_portfolio_ir_beta(
             db=db,
             portfolio_id=portfolio_uuid,
-            calculation_date=date.today(),
+            calculation_date=calculation_date,
             window_days=90,  # 90-day regression window
             treasury_symbol='TLT',  # 20+ Year Treasury Bond ETF (default, can be omitted)
             persist=True  # Save position IR betas to position_interest_rate_betas table
@@ -684,18 +705,18 @@ class BatchOrchestratorV2:
 
         return ir_beta_result
 
-    async def _calculate_ridge_factors(self, db: AsyncSession, portfolio_id: str):
+    async def _calculate_ridge_factors(self, db: AsyncSession, portfolio_id: str, calculation_date: date):
         """Ridge regression for 6 non-market factors (excludes Market beta)"""
         from app.calculations.factors_ridge import calculate_factor_betas_ridge
 
         portfolio_uuid = ensure_uuid(portfolio_id)
 
-        logger.info(f"Calculating Ridge factor betas (6 non-market factors) for portfolio {portfolio_id}")
+        logger.info(f"Calculating Ridge factor betas (6 non-market factors) for portfolio {portfolio_id} on {calculation_date}")
 
         ridge_result = await calculate_factor_betas_ridge(
             db=db,
             portfolio_id=portfolio_uuid,
-            calculation_date=date.today(),
+            calculation_date=calculation_date,
             regularization_alpha=1.0,  # L2 regularization strength
             use_delta_adjusted=False,
             context=None
@@ -714,18 +735,18 @@ class BatchOrchestratorV2:
 
         return ridge_result
 
-    async def _calculate_spread_factors(self, db: AsyncSession, portfolio_id: str):
+    async def _calculate_spread_factors(self, db: AsyncSession, portfolio_id: str, calculation_date: date):
         """Spread factor calculation job (4 long-short factors with 180-day window)"""
         from app.calculations.factors_spread import calculate_portfolio_spread_betas
 
         portfolio_uuid = ensure_uuid(portfolio_id)
 
-        logger.info(f"Calculating spread factor betas (180-day window) for portfolio {portfolio_id}")
+        logger.info(f"Calculating spread factor betas (180-day window) for portfolio {portfolio_id} on {calculation_date}")
 
         spread_result = await calculate_portfolio_spread_betas(
             db=db,
             portfolio_id=portfolio_uuid,
-            calculation_date=date.today(),
+            calculation_date=calculation_date,
             context=None  # Let function load its own context
         )
 
@@ -754,18 +775,18 @@ class BatchOrchestratorV2:
 
         return spread_result
 
-    async def _calculate_sector_analysis(self, db: AsyncSession, portfolio_id: str):
+    async def _calculate_sector_analysis(self, db: AsyncSession, portfolio_id: str, calculation_date: date):
         """Sector exposure and concentration analysis job (Phase 1)"""
         from app.calculations.sector_analysis import calculate_portfolio_sector_concentration
 
         portfolio_uuid = ensure_uuid(portfolio_id)
 
-        logger.info(f"Calculating sector exposure & concentration for portfolio {portfolio_id}")
+        logger.info(f"Calculating sector exposure & concentration for portfolio {portfolio_id} on {calculation_date}")
 
         sector_result = await calculate_portfolio_sector_concentration(
             db=db,
             portfolio_id=portfolio_uuid,
-            calculation_date=date.today()
+            calculation_date=calculation_date
         )
 
         if sector_result['success']:
@@ -791,18 +812,18 @@ class BatchOrchestratorV2:
 
         return sector_result
 
-    async def _calculate_volatility_analytics(self, db: AsyncSession, portfolio_id: str):
+    async def _calculate_volatility_analytics(self, db: AsyncSession, portfolio_id: str, calculation_date: date):
         """Volatility analytics job (Phase 2: Realized + expected volatility with HAR forecasting)"""
         from app.calculations.volatility_analytics import calculate_portfolio_volatility_batch
 
         portfolio_uuid = ensure_uuid(portfolio_id)
 
-        logger.info(f"Calculating volatility analytics for portfolio {portfolio_id}")
+        logger.info(f"Calculating volatility analytics for portfolio {portfolio_id} on {calculation_date}")
 
         volatility_result = await calculate_portfolio_volatility_batch(
             db=db,
             portfolio_id=portfolio_uuid,
-            calculation_date=date.today()
+            calculation_date=calculation_date
         )
 
         if volatility_result['success']:
@@ -888,19 +909,22 @@ class BatchOrchestratorV2:
     #     portfolio_uuid = ensure_uuid(portfolio_id)
     #     return await calculate_factor_betas_hybrid(db, portfolio_uuid, date.today())
     
-    async def _calculate_market_risk(self, db: AsyncSession, portfolio_id: str):
+    async def _calculate_market_risk(self, db: AsyncSession, portfolio_id: str, calculation_date: date):
         """Market risk scenarios job"""
         from app.calculations.market_beta import calculate_portfolio_market_beta
         portfolio_uuid = ensure_uuid(portfolio_id)
-        return await calculate_portfolio_market_beta(db, portfolio_uuid, date.today())
+        logger.info(f"Calculating market risk for portfolio {portfolio_id} on {calculation_date}")
+        return await calculate_portfolio_market_beta(db, portfolio_uuid, calculation_date)
     
-    async def _run_stress_tests(self, db: AsyncSession, portfolio_id: str):
+    async def _run_stress_tests(self, db: AsyncSession, portfolio_id: str, calculation_date: date):
         """Stress testing job"""
         from app.calculations.stress_testing import run_comprehensive_stress_test, save_stress_test_results
         portfolio_uuid = ensure_uuid(portfolio_id)
 
+        logger.info(f"Running stress tests for portfolio {portfolio_id} on {calculation_date}")
+
         # Run stress tests
-        results = await run_comprehensive_stress_test(db, portfolio_uuid, date.today())
+        results = await run_comprehensive_stress_test(db, portfolio_uuid, calculation_date)
 
         # Save results to database (legacy skip check removed - stress testing now fixed)
         if results:
@@ -911,12 +935,12 @@ class BatchOrchestratorV2:
 
         return results
     
-    async def _create_snapshot(self, db: AsyncSession, portfolio_id: str):
+    async def _create_snapshot(self, db: AsyncSession, portfolio_id: str, calculation_date: date):
         """
         Portfolio snapshot job with automatic backfill.
 
         Creates snapshots for all missing trading days between the last snapshot
-        and today. This ensures proper equity rollforward and P&L tracking even
+        and the calculation_date. This ensures proper equity rollforward and P&L tracking even
         if the batch doesn't run every day.
         """
         from app.calculations.snapshots import create_portfolio_snapshot
@@ -936,7 +960,7 @@ class BatchOrchestratorV2:
         latest_snapshot_date = result.scalar_one_or_none()
 
         # Determine date range for backfill
-        today = date.today()
+        target_date = calculation_date
 
         if latest_snapshot_date:
             # Start from day after latest snapshot
@@ -945,14 +969,14 @@ class BatchOrchestratorV2:
         else:
             # No snapshots exist - this shouldn't happen in production, but handle it
             # Go back 30 days max for initial backfill
-            start_date = today - timedelta(days=30)
+            start_date = target_date - timedelta(days=30)
             logger.warning(f"No snapshots found for {portfolio_id}, backfilling from {start_date}")
 
-        # Get all trading days between start_date and today
+        # Get all trading days between start_date and target_date
         missing_dates = []
         current_date = start_date
 
-        while current_date <= today:
+        while current_date <= target_date:
             if trading_calendar.is_trading_day(current_date):
                 missing_dates.append(current_date)
             current_date += timedelta(days=1)
@@ -1008,17 +1032,19 @@ class BatchOrchestratorV2:
             "results": results
         }
     
-    async def _calculate_correlations(self, db: AsyncSession, portfolio_id: str):
+    async def _calculate_correlations(self, db: AsyncSession, portfolio_id: str, calculation_date: date):
         """Position correlations job (Phase 8.1 Task 7b: handle None for skipped portfolios)"""
         from app.services.correlation_service import CorrelationService
         from datetime import datetime
         correlation_service = CorrelationService(db)
         portfolio_uuid = ensure_uuid(portfolio_id)
 
+        logger.info(f"Calculating position correlations for portfolio {portfolio_id} on {calculation_date}")
+
         # Phase 8.1 Task 7b: Handle graceful skip (returns None when no PUBLIC positions)
         result = await correlation_service.calculate_portfolio_correlations(
             portfolio_uuid,
-            calculation_date=utc_now()
+            calculation_date=calculation_date
         )
 
         if result is None:
