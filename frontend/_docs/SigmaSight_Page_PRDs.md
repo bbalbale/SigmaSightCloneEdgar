@@ -1,262 +1,204 @@
-# SigmaSight Application Page PRDs & AI Prompts
+# SigmaSight Page PRDs & AI Build Prompts (Revision 2)
 
-This document expands on the SigmaSight application experience POV by providing actionable product requirement documents (PRDs) and build prompts for the six core authenticated pages: Overview Hub, Research & Discovery, Playbooks, Risk Diagnostics, AI Copilot, and Account & Integrations. Each PRD is tuned for hand-off to an AI coding agent and aligns with the proposed navigation pillars.
-
-> **Branch Basis**: Requirements are validated against the `RiskMetricsLocal` branch. The branch exposes a DB-derived risk metrics payload (beta, annualized volatility, max drawdown, warning codes) through `RiskMetricsService` and the `GET /api/v1/analytics/portfolio/{id}/risk-metrics` route, so prompts below assume access to that service behind a feature flag.
-
----
-
-## Page: Overview Hub (Dashboard)
-
-### PRD
-- **Objective**: Deliver a single glance summary of portfolio health, risk posture, and AI-recommended actions that link to deeper workflows.
-- **Primary persona & job**: Self-directed investor assessing whether the portfolio is on track and what needs attention today.
-- **User flows**:
-  1. Land on `/portfolio` → see Health Score, Risk Pulse, Opportunities Queue → click into detail cards or launch AI insight.
-  2. Scroll to detailed metrics, factor exposures, and segmented position lists for drill-down.
-- **Key modules**:
-  - Health Score tile (aggregate drawdown risk, diversification, goal progress).
-  - Risk Pulse tile (top factor movers from existing factor exposures).
-  - Opportunities Queue (AI-curated tasks: rebalance, hedge, data fixes; deep links to other pages).
-  - Persistent AI prompt bar with suggested intents (open chat pre-filled context).
-  - Existing metrics cards, factor exposure cards, filtered position tables reused below hero tiles.
-- **Data requirements**:
-  - Portfolio summary metrics (existing `usePortfolioData`).
-  - Risk metrics payload (`portfolio_beta`, `annualized_volatility`, `max_drawdown`, warnings) fetched via the `RiskMetricsLocal` feature flag and cached on the client so Health Score logic can reflect volatility without blocking render.
-  - Factor exposures, beta deltas, and historical trend stub.
-  - AI recommendations endpoint (placeholder service returning list of actions with CTA metadata; allow mocked data).
-- **UX & states**:
-  - Loading skeletons per tile; empty state messaging (e.g., “No new opportunities”).
-  - Error banners tied to data quality issues surfaced by `usePortfolioData`.
-  - Responsive layout: hero tiles in grid (3-up desktop, stack on mobile).
-- **Actions & integrations**:
-  - CTA buttons: “View Factors” → Risk page, “Review Playbook” → Playbooks page.
-  - AI prompt bar triggers `/ai-chat` with query params describing context tile.
-- **Analytics**:
-  - Track tile clicks, AI prompt usage, completion of queued opportunities.
-- **Non-goals**: No goal-creation wizard, no new backend risk calculations.
-- **Risks/open questions**: Final formula for Health Score TBD; define fallback copy when AI recommendations unavailable.
-- **Acceptance criteria**:
-  - All modules render with mocked data if services unavailable.
-  - Navigation CTAs link correctly.
-  - Accessibility: keyboard focus, ARIA labels for tiles, color contrast.
-  - Risk metrics tile respects feature flag and surfaces warning badges when backend metadata includes warnings.
-
-#### Prompt for AI Coding Agent
-> Build/extend the `/portfolio` Overview Hub to include Health Score, Risk Pulse, Opportunities Queue, and an AI prompt bar above existing metrics and factor exposure sections. Use existing services/hooks (`usePortfolioData`, factor components) and stub a new `useOpportunitiesQueue` hook returning mocked actions. When the `RiskMetricsLocal` feature flag is on, fetch the risk metrics payload (beta, volatility, drawdown, warnings) once on mount and feed the Health Score tile; fall back to placeholder copy when disabled. Ensure responsive layout, loading states, and CTA wiring to `/risk` and `/playbooks`. Add analytics events with our `trackEvent` utility. Preserve current metrics, factor, and position sections below the new hero modules.
+This document updates our product requirements to reflect the new layout options described in the revised POV. Each section includes:
+- **Product Requirements** for Option 1 (Holistic Command Center) – our recommended baseline.
+- **Variations** outlining how Options 2 and 3 adjust the experience.
+- **AI Build Prompts** tuned for the SigmaSightAI container environment and the `RiskMetricsLocal` data path.
 
 ---
 
-## Page: Research & Discovery
-
-### PRD
-- **Objective**: Consolidate public, private, options, and watchlist research views into one tabbed workspace with AI briefs.
-- **Primary persona & job**: Investor evaluating individual holdings and seeking actionable intelligence.
-- **User flows**:
-  1. Arrive at `/research` → default to Public tab with AI brief and positions table.
-  2. Switch tabs (Private, Options, Watchlists) to filter dataset.
-  3. Apply filters/sorting, open detail drawers, or launch AI for deeper analysis.
-- **Key modules**:
-  - Header with AI-generated market brief (fetch via `researchInsightsService`, allow mock).
-  - Tab navigation for asset segments, each reusing `EnhancedPositionsSection` with segment-specific props.
-  - Inline AI quick actions (e.g., “Explain this position”) per row.
-  - Watchlist management CTA linking to modal or future page (stub).
-- **Data requirements**:
-  - Position datasets segmented by type (extend existing API client to accept `segment` param).
-  - AI brief endpoint returning summary paragraphs and highlight chips.
-  - Filter definitions reused from current Public Positions container.
-  - Optional ingestion of `RiskMetricsLocal` warnings so inline AI actions can reference volatility spikes or missing beta data.
-- **UX & states**:
-  - Loading skeleton for brief and table per tab.
-  - Empty state messaging per segment.
-  - Sticky filters row when scrolling.
-- **Actions & integrations**:
-  - “Send to Playbook” action triggers tag modal from Organize module.
-  - Inline AI actions open `/ai-chat` with context in query params.
-- **Analytics**:
-  - Track tab switches, filter usage, AI brief expansion, inline AI actions.
-- **Non-goals**: No new chart visualizations; watchlist CRUD can remain mocked.
-- **Risks/open questions**: Performance when switching tabs; confirm availability of private/options data.
-- **Acceptance criteria**:
-  - Tabs render with correct dataset filtering.
-  - AI brief gracefully handles null/empty responses.
-  - Accessibility: tabs keyboard navigable per WAI-ARIA.
-
-#### Prompt for AI Coding Agent
-> Implement a `/research` route using the container pattern. Create `ResearchContainer` that renders an AI market brief, tabbed segments (Public, Private, Options, Watchlists), and reuses `EnhancedPositionsSection` per tab. Integrate filters from `PublicPositionsContainer`, add mocked `useResearchInsights` hook for AI briefs, and wire inline AI quick actions to `/ai-chat`. When risk warnings are present from `RiskMetricsLocal`, surface them in the brief and pass them into AI quick actions as context. Ensure skeleton loading, empty states, analytics tracking, and ARIA-compliant tabs.
+## Global Considerations
+- **Branch context**: All risk analytics must read from the local pipeline exposed by `RiskMetricsService` and surfaced via `GET /api/v1/analytics/portfolio/{id}/risk-metrics`. Handle warning metadata (`few_snapshots`, `stale_data`) gracefully.
+- **SigmaSightAI container**: Use the shared container utilities (see `frontend/src/containers/AIChatContainer.tsx`) to embed contextual prompts. Every page must define at least one quick action that launches the copilot with pre-seeded instructions.
+- **Feature flags**: Continue to gate new risk panels behind the experimental flag (`RISK_METRICS_LOCAL_EXPERIMENT`) until backend sign-off.
+- **Analytics**: Emit events through the existing `trackEvent` helper with page + module identifiers; include context such as warning codes and selected tags to inform future personalization.
 
 ---
 
-## Page: Playbooks (Portfolio Organization & Automation)
+## Option 1 (Recommended): Holistic Command Center
 
-### PRD
-- **Objective**: Transform Organize into a Playbooks hub that blends manual tagging with automation setup.
-- **Primary persona & job**: Investor or advisor organizing holdings and configuring repeatable actions.
-- **User flows**:
-  1. Visit `/playbooks` → land on Manual Tagging tab with existing drag-and-drop groups.
-  2. Switch to Automation Rules tab to define/tag automation (stub backend).
-  3. View Tag Coverage metrics and launch AI to suggest playbooks.
-- **Key modules**:
-  - Tabbed layout: Manual Tagging (reuse `OrganizeContainer` core), Automation Rules (new list + modal), Templates (future stub list).
-  - Tag Coverage metrics card showing % of positions tagged, untagged exposure, last updated.
-  - AI assistant sidebar recommending automations.
-- **Data requirements**:
-  - Existing tagging data from Zustand store/services.
-  - Automation configs (mocked array with name, trigger, status).
-  - Coverage metrics calculated from positions + tags (compute client-side).
-  - Optional linkage to `RiskMetricsLocal` warnings so automations can highlight portfolios flagged for `beta_unavailable` or `few_snapshots`.
-- **UX & states**:
-  - Preserve drag-and-drop interactions.
-  - Modal for creating/editing automation rules (form validation, allow mock save).
-  - Empty states for automation/template tabs with CTA to create new.
-- **Actions & integrations**:
-  - “Send to AI” buttons push current tag selection to `/ai-chat` intent.
-  - Automation toggle should update local state and show toast; when risk warnings exist, surface a quick action to build a hedge playbook seeded by those warnings.
-- **Analytics**:
-  - Track tab usage, automation creation, AI sidebar interactions.
-- **Non-goals**: No backend persistence; no calendar scheduling.
-- **Risks/open questions**: Need to confirm automation rule schema with backend team.
-- **Acceptance criteria**:
-  - Manual tagging parity with current Organize page.
-  - Automation tab supports create/edit/delete in local state.
-  - Tag coverage metrics update on tag changes.
+### Page 1 – Launchpad (Replaces `/portfolio`)
+**Job statement**: “Give me a single glance at how I’m doing, where I’m exposed, and what to do next.”
 
-#### Prompt for AI Coding Agent
-> Refactor the existing Organize experience into `/playbooks`. Create a `PlaybooksContainer` with tabs for Manual Tagging (wrap existing drag-and-drop components), Automation Rules (local-state CRUD with modal), and Templates (placeholder list). Add a Tag Coverage metrics card fed by current portfolio + tag data, plus an AI recommendations sidebar using mocked `usePlaybookSuggestions`. When `RiskMetricsLocal` warnings exist, surface a banner that links to pre-built hedge automations seeded by those warnings. Ensure analytics events, responsive layout, and no regressions to tagging UX.
+**Primary modules**
+1. **Net Worth Stack** – stacked bar showing account types, asset classes, and external connections. Should support manual assets similar to Kubera.
+2. **Risk Pulse** – three metric tiles (beta, annualized volatility, max drawdown) plus sparkline + warning chips sourced from `RiskMetricsService`.
+3. **Action Queue** – AI-curated tasks (rebalance, fix data gaps, follow earnings). Each item has CTA buttons: "Open in Research", "Delegate to SigmaSightAI".
+4. **SigmaSightAI Prompt Bar** – persistent input with suggested prompts (“Explain today’s volatility jump”, “Draft a rebalance order for underweight tags”).
+5. **Supplemental panels** – Factor exposure mosaics, cash runway indicator, portfolio news digest.
 
----
+**User stories**
+- As an investor, I can see my aggregate net worth and diversification at a glance.
+- When risk metrics are stale or data is missing, I see warnings and suggested remediation tasks.
+- I can delegate an action to SigmaSightAI directly from the Action Queue.
 
-## Page: Risk Diagnostics
+**Data & API needs**
+- Existing `usePortfolioData` hook for holdings + exposures.
+- Risk metrics endpoint (local pipeline) with warning metadata.
+- Notifications API (placeholder) for drift alerts; until ready, stub sample data.
 
-### PRD
-- **Objective**: Provide a dedicated surface for factor decomposition, stress testing, and hedging ideas.
-- **Primary persona & job**: Investor monitoring portfolio risk drivers and evaluating mitigation strategies.
-- **User flows**:
-  1. Navigate to `/risk` → see risk overview cards and factor trend charts.
-  2. Drill into factor detail drawers, review hedging suggestions tied to tags or positions.
-  3. Save/view scenarios (mocked) for future reference.
-- **Key modules**:
-  - Risk overview tiles (Volatility, Drawdown, Concentration) derived from existing metrics.
-  - Factor mosaic (grid of factor cards with sparkline trend and exposure delta).
-  - Scenario list with ability to load mock stress test results.
-  - Hedging playbook suggestions linking to Playbooks/Research.
-- **Data requirements**:
-  - Risk metrics payload from the `RiskMetricsLocal` backend service (beta, annualized volatility, max drawdown, metadata warnings) with client-side caching and retry logic.
-  - Factor exposures and historical trends (extend service to include sparkline data; mock if necessary).
-  - Scenario definitions with outcome metrics (local JSON stub).
-  - Hedging ideas from `riskAdvisoryService` (mocked array referencing tags/positions).
-- **UX & states**:
-  - Loading skeletons for each module.
-  - Empty state copy if scenarios not yet saved.
-  - Detail drawer/side panel for factor deep dives (include chart, narrative, actions) that also surfaces risk metrics metadata (observation counts, warning badges) when available.
-- **Actions & integrations**:
-  - “View in Research” deep links to `/research?symbol=...`.
-  - “Add hedge to Playbook” button opens automation modal in `/playbooks` (via shared context or routing).
-  - AI quick prompt: “Summarize today’s risk changes”.
-- **Analytics**:
-  - Track factor card interactions, scenario loads, hedging CTA clicks.
-- **Non-goals**: No real-time risk recalculation; no backend persistence for scenarios yet.
-- **Risks/open questions**: Performance of sparkline charts; alignment with backend timeline for risk data.
-- **Acceptance criteria**:
-  - Factor cards render using real/mock data with trend sparkline.
-  - Scenario list interacts with detail panel and handles empty state.
-  - Hedging suggestions visible with clear CTAs and tooltips.
-  - Risk metrics panel hides entirely when feature flag disabled and shows inline warning pills when backend metadata includes warning codes.
+**AI integration**
+- Quick actions should call SigmaSightAI with payload `{ intent: 'summarize-risk', metrics, warnings }`.
+- Prompt bar seeds assistant with context: `"You are SigmaSightAI inside the Launchpad. User portfolioId=${portfolioId}, warnings=${warningCodes}. Provide succinct advice."`
 
-#### Prompt for AI Coding Agent
-> Create a `/risk` route with `RiskDiagnosticsContainer` delivering risk overview tiles, factor mosaic with sparklines, scenario list, and hedging suggestions. Reuse factor exposure data from the dashboard, augment with mocked trend data via `useRiskInsights`, and when the `RiskMetricsLocal` feature flag is active call the backend once to hydrate beta/volatility/drawdown plus warning codes. Buffer the response in local state so drawers can show metadata (observation count, calculation window) without refetching. Implement detail drawers, loading states, analytics tracking, and CTAs linking to `/research` and `/playbooks`. Include AI quick prompt component to launch `/ai-chat` focused on risk changes.
+**Analytics**
+- `launchpad_module_viewed` (module_id, warning_state)
+- `launchpad_action_taken` (action_type, delegated_to_ai)
+
+**AI build prompt**
+```
+You are coding inside the SigmaSight frontend (Next.js 14, TypeScript). Build a Launchpad page that replaces the existing portfolio dashboard.
+- Structure the page using the container pattern (`app/launchpad/page.tsx` imports `LaunchpadContainer`).
+- Compose modules: NetWorthStack, RiskPulseTiles (reading `RiskMetricsService` data), ActionQueue, SigmaSightAIPromptBar, FactorExposureMosaic.
+- Pull risk metrics via `/api/proxy/analytics/portfolio/${portfolioId}/risk-metrics` and merge warnings into UI badges.
+- Integrate SigmaSightAI quick actions using the shared `useSigmaSightAI()` hook from the SigmaSightAI container.
+- Respect the `RISK_METRICS_LOCAL_EXPERIMENT` flag; show fallback copy if disabled.
+- Emit analytics events via `trackEvent` when modules mount or actions fire.
+Return fully typed React components, hooks, and any supporting utility modules.
+```
 
 ---
 
-## Page: AI Copilot
+### Page 2 – Allocations & Research
+**Job statement**: “Help me explore holdings, ideas, and coverage gaps across asset classes.”
 
-### PRD
-- **Objective**: Evolve `/ai-chat` into the command center for conversational analysis, presets, and contextual entry points.
-- **Primary persona & job**: Investor seeking narrative insights or task execution through natural language.
-- **User flows**:
-  1. Open AI Copilot page → view conversation history and preset intents.
-  2. Select a preset (e.g., “Assess diversification”) or type custom prompt.
-  3. Review assistant response, trigger follow-up actions (export, push to Playbooks).
-- **Key modules**:
-  - Preset gallery (cards or chips) with categories: Risk, Research, Operations.
-  - Conversation pane with streaming responses, status chips, and context breadcrumb.
-  - Context inspector showing current portfolio, selected tags, or positions referenced.
-  - Export/share actions (copy, download transcript stub).
-- **Data requirements**:
-  - Existing AI chat service and message store.
-  - Preset definitions (static JSON with title, description, prompt, icon).
-  - Context data from portfolio store and query params (when launched from other pages), including optional `RiskMetricsLocal` payload snippets so the assistant can summarize warning codes or volatility shifts.
-- **UX & states**:
-  - Loading indicator for streaming responses.
-  - Empty state when no conversation yet with CTA to pick a preset.
-  - Error handling for API failures with retry.
-- **Actions & integrations**:
-  - Preset selection pre-fills chat input and triggers send.
-  - “Send to Playbook” pushes summary to automation tab (mocked handshake).
-  - Shortcut to open mini chat (future) but include stub link; when launched from risk modules, embed risk metrics metadata in the first assistant message context.
-- **Analytics**:
-  - Track preset usage, message count, export actions.
-- **Non-goals**: No voice input or real backend export yet.
-- **Risks/open questions**: Session persistence length; handling large context payloads.
-- **Acceptance criteria**:
-  - Presets render and initiate conversations.
-  - Context inspector updates when launched with query params.
-  - Error and empty states fully designed.
+**Modules**
+1. **Asset Tabs** – Public, Private, Options, Watchlists, External Accounts.
+2. **AI Brief Strip** – contextual summary card at top of each tab (“AI notes: 2 earnings this week, 1 untagged private deal”).
+3. **Position Tables** – reuse existing EnhancedPositionsSection with aggregator-inspired highlight rows (e.g., drift > 5%).
+4. **Tag coverage bar** – show coverage per asset tab.
+5. **In-line SigmaSightAI** – "Explain this position" button opens side drawer chat seeded with position metadata.
 
-#### Prompt for AI Coding Agent
-> Enhance `/ai-chat` by adding a preset gallery, context inspector, and export actions while keeping existing streaming chat behavior. Implement presets as a configurable JSON, wire selections to pre-fill and send messages via the current chat service, and show context from query params + portfolio store. When launched from risk surfaces, inject `RiskMetricsLocal` metadata (warnings, beta/volatility numbers) into the context inspector and first assistant payload. Add analytics events, loading/error states, and ensure accessibility for keyboard navigation.
+**AI build prompt**
+```
+Implement an AllocationsResearchContainer that unifies public/private/options/watchlist data.
+- Fetch data via existing services; ensure compatibility with RiskMetricsLocal tags.
+- Render AI Brief using a call to SigmaSightAI container (`generateBrief({ portfolioId, tab })`).
+- Provide buttons in each row to launch SigmaSightAI with position context.
+- Emit analytics for tab switches and AI launches.
+```
+
+**Variations**
+- *Option 2*: Rename page to **Opportunities Board**. Add Kanban swimlanes (Ideas, Data Fixes, Actions) fed by AI scoring.
+- *Option 3*: Convert to a slide-in **Data Room** that opens from chat; layout becomes vertical sections instead of full page.
 
 ---
 
-## Page: Account & Integrations (Settings)
+### Page 3 – Risk Studio
+**Job statement**: “Diagnose factor exposures, run scenarios, and understand potential drawdowns.”
 
-### PRD
-- **Objective**: Expand Settings into a central hub for account management, data connections, notifications, and audit trails.
-- **Primary persona & job**: Investor managing account preferences and ensuring data integrity.
-- **User flows**:
-  1. Visit `/settings` → review account profile and security details.
-  2. Connect or manage custodial integrations and data sources.
-  3. Configure notifications/automation toggles and review activity logs.
-- **Key modules**:
-  - Account profile card (name, email, plan, edit modal).
-  - Security section (2FA status, password update link placeholder).
-  - Integrations list (broker connections, status badges, connect/disconnect buttons).
-  - Notifications & automation preferences (toggles, frequency selectors).
-  - Audit log table showing recent actions/alerts sourced from data quality errors and feature flag changes.
-- **Data requirements**:
-  - User profile from auth store/service.
-  - Integrations data (mock service returning providers, status, last sync).
-  - Notification preferences (local state with save stub).
-  - Audit events (reuse errors/warnings from `usePortfolioData` fallback or mock list).
-  - Feature flag registry exposing tenant-level `RiskMetricsLocal` enablement status.
-- **UX & states**:
-  - Inline editing modals with validation.
-  - Loading skeleton for integrations list.
-  - Empty state messaging for audit log.
-  - Toast confirmations after preference updates.
-- **Actions & integrations**:
-  - “Reconnect” buttons trigger mock API and update status.
-  - “View data quality report” links to `/portfolio` data quality section.
-  - AI helper chip offering to audit settings (launch `/ai-chat`).
-  - Risk metrics beta toggle surfaces inline confirmation, logs an audit entry, and optionally triggers AI helper suggestion to explore the Risk Diagnostics page.
-- **Analytics**:
-  - Track integration connect/disconnect, notification toggles, audit log views.
-- **Non-goals**: No billing management; no real OAuth flows yet.
-- **Risks/open questions**: Final list of supported custodians.
-- **Acceptance criteria**:
-  - All sections render with mocked data if backend unavailable.
-  - Preference changes persist in session (local store) and show confirmations.
-  - Accessibility coverage for forms and tables.
+**Modules**
+1. **Factor Mosaic** – grid of factor cards with trend charts + SigmaSightAI "explain" button.
+2. **Scenario Timeline** – slider to compare baseline vs shocks (rate hike, sector rotation). Start with static presets; mark advanced simulations as “coming soon”.
+3. **Warning Console** – table summarizing warnings from risk metrics (e.g., `few_snapshots`), plus CTA to fetch more data.
+4. **Hedging Playbooks** – curated actions linking to Playbooks & Automation page.
+5. **AI Ask Strip** – prompts like “How would a 1% rate hike affect my beta?”
 
-#### Prompt for AI Coding Agent
-> Rework `/settings` into an Account & Integrations hub with profile, security, integrations, notification preferences, and audit log modules. Use existing auth store for profile basics, create mocked hooks for integrations and audit events, and wire action buttons with optimistic updates + toasts. Include a feature flag section that lets admins toggle the `RiskMetricsLocal` beta, writing to a mock registry and emitting audit entries. Ensure responsive layout, accessible forms, analytics tracking, and AI helper link to `/ai-chat`.
+**AI build prompt**
+```
+Create RiskStudioContainer with modules for factor visualization, scenario cards, warning console, and AI ask strip.
+- Consume risk metrics + factor exposure data.
+- Support feature flag gating for scenario components.
+- Use SigmaSightAI container hooks to request explanations or hedging suggestions.
+- Track interactions (scenario_selected, warning_expand, ai_prompt_sent).
+```
+
+**Variations**
+- *Option 2*: Rename to **Risk Lab**. Add control panel with sliders for stress test parameters.
+- *Option 3*: Implement as collapsible drawer launched from AI conversation when user types "show me risk".
 
 ---
 
-## Implementation Guidance for AI Agents
-- Follow the container pattern: thin route files importing containers from `src/containers`.
-- Reuse existing hooks/services where noted; create new hooks under `src/hooks` when stubbing data.
-- All new modules should emit analytics via `trackEvent` and respect the current design system (`@/components/ui`).
-- Ensure navigation dropdown labels align with page names and routes once implemented.
-- Gate new risk metrics panels behind a shared `RiskMetricsLocal` feature flag helper so experiences degrade gracefully when the backend endpoint is still marked experimental.
+### Page 4 – Playbooks & Automation
+**Job statement**: “Organize portfolio tags, automate rules, and manage workflows.”
 
+**Modules**
+1. **Manual Tagging Tab** – reuse OrganizeContainer drag-and-drop UI.
+2. **Smart Rules Tab** – wizard for auto-tagging (conditions, actions) with AI-suggested templates.
+3. **Automation Library** – cards for rebalancing scripts, hedging, reminders; each can be handed to SigmaSightAI for execution guidance.
+4. **Progress Tracker** – dial showing percentage of holdings covered by tags/automations.
+
+**AI build prompt**
+```
+Refactor OrganizeContainer into PlaybooksAutomationContainer with tabbed navigation (Manual, Smart Rules, Automations).
+- Persist rule configurations via backend (stub service if needed).
+- Offer "Generate rule with SigmaSightAI" CTA that pre-fills description and hands off to copilot.
+- Display tag coverage metrics using existing tagging state selectors.
+```
+
+**Variations**
+- *Option 2*: Rename to **Workflow Builder**; present modules as Kanban columns (Ideas → In Progress → Automated).
+- *Option 3*: Expose as **Builder Mode** overlay triggered from chat; UI shifts to step-by-step AI-guided wizard.
+
+---
+
+### Page 5 – SigmaSightAI Copilot
+**Job statement**: “Conversationally manage the portfolio, ask questions, and trigger automations.”
+
+**Modules**
+1. **Conversation Threads** – existing chat view with saved threads.
+2. **Preset Gallery** – "Explain daily moves", "Draft rebalance", "Summarize risk warnings".
+3. **Context Capsules** – show currently active portfolio, tag filters, warning states.
+4. **Shared Actions Log** – timeline of AI recommendations and whether user executed them.
+
+**AI build prompt**
+```
+Enhance AIChatContainer to add preset gallery, context capsules, and action log.
+- Pull warnings from RiskMetricsLocal endpoint when chat loads.
+- Allow presets to inject structured system prompts.
+- Persist action log to local storage (placeholder) with view filters.
+```
+
+**Variations**
+- *Option 2*: Rebrand page as **Collaborate** with shared notes and export to PDF.
+- *Option 3*: This becomes the default **Conversational Home**; embed Launchpad summary cards above the chat thread.
+
+---
+
+### Page 6 – Account & Integrations
+**Job statement**: “Manage connections, notifications, and data quality.”
+
+**Modules**
+1. **Connection Manager** – list of brokerage/API connections with sync status.
+2. **Notification Preferences** – toggles for alerts (risk spikes, drift, data gaps).
+3. **Data Quality Center** – scoreboard of missing positions, stale prices, warning counts.
+4. **Audit Trail** – chronological list of SigmaSightAI-generated actions and user decisions.
+
+**AI build prompt**
+```
+Build AccountIntegrationsContainer with sections for connections, notifications, data quality, audit trail.
+- Surface warning counts from RiskMetricsService metadata.
+- Provide "Ask SigmaSightAI" buttons next to each warning to request remediation steps.
+- Track toggles and connection events.
+```
+
+**Variations**
+- *Option 2*: Add workflow status (e.g., automation success/fail) and integrate with Workflow Builder board.
+- *Option 3*: Rename to **Settings & Trust Center**, focusing on permissions and data transparency for AI interactions.
+
+---
+
+## Option 2 Summary Adjustments
+If we pursue the **Risk Playbook Workbench**:
+- Rename Launchpad to **Today’s Briefing** and emphasize chronological feed (cards sorted by time) plus AI-generated daily summary.
+- Allocations & Research becomes **Opportunities Board** with Kanban layout and AI scoring chips.
+- Playbooks & Automation shifts to **Workflow Builder** with columns representing state; analytics track card movement.
+- SigmaSightAI Copilot evolves into **Collaborate** combining chat, shared notes, and export tools.
+- Add shared workspace metadata (owner, collaborators) to each module.
+
+## Option 3 Summary Adjustments
+For the **AI-First Conversational Shell**:
+- Default route is the SigmaSightAI Copilot page with Launchpad widgets pinned as cards.
+- Other pages manifest as drawers summoned by AI commands; navigation dropdown becomes secondary quick launcher.
+- Each module should expose a `renderInDrawer` variation compatible with chat-first interactions.
+- Prioritize voice input/output and multi-step AI workflows.
+
+---
+
+## Implementation Roadmap
+1. Validate preferred option with stakeholders; prototype Launchpad/Today’s Briefing or Conversational Home accordingly.
+2. Sprint 1: Stand up Launchpad (or Conversational Home) with Risk Pulse, Action Queue, AI prompt bar.
+3. Sprint 2: Ship Allocations/Opportunities workspace and Risk Studio/Lab, ensuring SigmaSightAI integration for explanations.
+4. Sprint 3: Refactor Organize into Playbooks/Workflow Builder and expand AI Copilot with presets + logging.
+5. Sprint 4: Harden Account & Integrations, add audit trails, and finalize analytics instrumentation.
+6. Continuous: Capture user feedback, iterate on SigmaSightAI prompt templates, and expand automation library.
