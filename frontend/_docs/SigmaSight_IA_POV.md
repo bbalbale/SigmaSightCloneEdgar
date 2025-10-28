@@ -1,81 +1,68 @@
-# SigmaSight Application Experience POV
+# SigmaSight Application Experience POV (Revision 2)
 
 ## Executive Summary
-- This point of view is grounded in the `RiskMetricsLocal` branch, which introduces a DB-first risk analytics path through `RiskMetricsService` and the `GET /api/v1/analytics/portfolio/{id}/risk-metrics` endpoint. The branch keeps calculations local to existing portfolio snapshots and factor exposures while flagging incomplete data, giving us a reliable spine for surfacing beta, volatility, and drawdown insights in the UI.
-- Individual investors value a fast path to understanding "Am I on track? Where am I exposed? What should I do next?"—competitive products such as Personal Capital, Fidelity Portfolio Analysis, and Kubera lead with a consolidated health score, contextual insights, and clear calls to action. SigmaSight can differentiate by pairing institutional-grade risk analytics with human-readable storytelling, automation, and an AI copilot that understands the portfolio's structure.
-- The current application already surfaces a multi-asset dashboard, in-depth public equity research, tagging workflows, and an AI assistant. Leaning into these strengths while clarifying navigation, bundling workflows around core jobs, and amplifying proactive guidance will deliver a cohesive, high-value experience.
+- SigmaSight should take cues from leading aggregators (Empower, Kubera, Personal Capital) by opening with a holistic financial pulse that fuses balances, cash flows, and risk exposure into a single command center. Investors expect to see their entire wealth posture before drilling down; the `RiskMetricsLocal` branch now enables us to blend institutional-grade risk with consumer-grade clarity.
+- The **SigmaSightAI container** already wraps our AI copilot logic. We should treat it as a ubiquitous concierge that can surface next actions, explain anomalies, and launch workflows directly from every page. All layout options below assume SigmaSightAI is embedded contextually, not relegated to a single route.
+- We outline three navigation models—**Holistic Command Center**, **Risk Playbook Workbench**, and **AI-First Conversational Shell**—each designed to highlight our differentiators: real-time risk diagnostics, tag-driven organization, and AI-assisted decisioning.
 
-## Branch Context
-- `RiskMetricsService` computes portfolio beta, annualized volatility, and max drawdown by walking portfolio snapshots inside the configured lookback window while preserving warnings when data is sparse. This ensures the risk surfaces we design can fall back gracefully instead of showing empty states.
-- The `GET /api/v1/analytics/portfolio/{id}/risk-metrics` route remains formally deprecated, but the branch scaffolds the full payload and metadata (lookback range, observation counts, warning codes) we need to power prototype experiences behind feature flags.
+## Research Insights from Aggregators & Risk Platforms
+1. **Aggregators** emphasize first-glance comprehension: Personal Capital’s dashboard stacks net worth trajectory, cash flow, and investment allocation before inviting deeper analysis; Kubera layers in manual asset tracking with confidence badges; Empower uses smart alerts for drift and fee drag.
+2. **Risk platforms** like BlackRock’s Advisor Center or MSCI RiskManager lead with scenario heatmaps and factor decompositions but often bury the narrative. Translating these visuals into "why it matters" copy is crucial for individual investors.
+3. **AI-powered fintech apps** (Copilot Money, Violet) weave conversational helpers into every module so users can ask "what changed today?" without context switching.
+4. Winning pattern: combine an aggregator-style launchpad, modular deep dives, and on-page AI prompts that feel like a proactive analyst.
 
-## Current Experience Snapshot
-### Navigation & Page Framework
-- The authenticated navigation dropdown centers on six destinations—Dashboard, Public Positions, Private Positions, Organize, AI Chat, and Settings—presented within a sticky header once a user is logged in.【F:frontend/src/components/navigation/NavigationDropdown.tsx†L31-L126】【F:frontend/app/layout.tsx†L5-L34】
-- Authenticated routes currently render through client-side containers that respect theme preferences, providing consistent theming scaffolding across pages.【F:frontend/app/portfolio/page.tsx†L1-L107】【F:frontend/src/containers/PublicPositionsContainer.tsx†L2-L102】
+## Experience Principles (Retained & Extended)
+1. **Holistic first glance** – Always surface an at-a-glance health signal that mixes performance, diversification, liquidity, and alerts.
+2. **Journey-based navigation** – Organize routes around investor jobs: assess, diagnose, plan, act, and explain.
+3. **Narrative-rich risk** – Convert factor math and warning metadata from `RiskMetricsService` into plain-English insights with recommended actions.
+4. **AI everywhere** – SigmaSightAI should be callable from nav, cards, and tables with context payloads (portfolio ID, tag set, warning codes).
+5. **Progress tracking** – Show completeness (data coverage, tagging coverage, playbook adoption) so investors feel momentum.
 
-### Portfolio Overview Dashboard
-- The dashboard orchestrates portfolio loading with `usePortfolioData`, rendering a header, summary metrics, factor exposure cards, filters, and segmented position lists once data resolves.【F:frontend/app/portfolio/page.tsx†L20-L101】【F:frontend/src/hooks/usePortfolioData.ts†L32-L155】
-- Summary metrics are displayed as responsive cards with sentiment-aware coloring, supporting quick scanning of performance, risk, or exposure KPIs.【F:frontend/src/components/portfolio/PortfolioMetrics.tsx†L19-L62】
-- Factor exposure chips translate betas and dollar exposures into sortable cards, hinting at SigmaSight's quantitative depth.【F:frontend/src/components/portfolio/FactorExposureCards.tsx†L12-L148】
+## Option 1 – Holistic Command Center (Recommended)
+**Navigation Pillars**
+1. **Launchpad** – Default route replacing `/portfolio` with a three-panel overview: Net Worth Stack (aggregated holdings + external connections), Risk Pulse (beta/volatility/drawdown + factor drift badges from `RiskMetricsLocal`), and Action Queue (AI-recommended tasks and alerts). A persistent "Ask SigmaSightAI" bar prompts contextual questions.
+2. **Allocations & Research** – Unify public, private, options, and watchlists with tabs, overlaying AI briefs (earnings catalysts, valuation flags) sourced via SigmaSightAI container prompts.
+3. **Risk Studio** – Dedicated diagnostics room featuring factor mosaics, scenario timelines, hedging playbooks, and a warning panel sourced from `RiskMetricsService` metadata.
+4. **Playbooks & Automation** – Tag management, rule builders, and rebalance templates arranged as cards (Manual Tagging, Smart Rules, Automations). Progress dials show tag coverage and automation adoption.
+5. **SigmaSightAI Copilot** – Full-screen chat for multi-step reasoning, saved threads, and shared insights. Launchpad quick actions deep link here with seeded prompts.
+6. **Account & Integrations** – Connections, notification preferences, audit log, and risk data quality center.
 
-### Research & Organization Workflows
-- Public Positions offers analyst consensus, return expectations, and filtering/sorting for long and short books, aligning with research workflows.【F:frontend/src/containers/PublicPositionsContainer.tsx†L8-L101】【F:frontend/src/components/positions/EnhancedPositionsSection.tsx†L1-L149】
-- The Organize workspace combines drag-and-drop tagging, multi-asset segmentation (public, private, options), and tag management in a single page, already delivering a differentiated organizing mechanic.【F:frontend/src/containers/OrganizeContainer.tsx†L13-L517】
+**Why it wins**: Mirrors aggregator clarity, keeps risk top-center, and frames AI as an embedded analyst.
 
-### AI Copilot
-- The AI Chat page anchors SigmaSight's conversational assistant with portfolio-aware context, status chips, and streaming conversation pane, signaling a powerful advisor experience.【F:frontend/src/containers/AIChatContainer.tsx†L11-L108】
+## Option 2 – Risk Playbook Workbench
+**Navigation Pillars**
+1. **Today’s Briefing** – Timeline of performance + alerts + AI summary ("Here’s what moved").
+2. **Risk Lab** – Expand Launchpad’s Risk Pulse into interactive charts (factor trends, sensitivity sliders, stress tests) with quick hedging recipes.
+3. **Opportunities Board** – Merges research and automation: long/short ideas, liquidity needs, tax-loss candidates, all filterable by tags.
+4. **Workflow Builder** – Kanban view for tagging, rebalancing, reporting tasks. Each card has "delegate to SigmaSightAI" button.
+5. **Collaborate** – Chat plus shared notes, preparing for advisor/client sharing.
 
-### Risk Metrics Foundation
-- The `RiskMetricsLocal` branch adds a local-only analytics pipeline so the backend can serve portfolio beta, annualized volatility, and max drawdown directly from stored snapshots without re-running regressions, while packaging metadata about observation counts and warning states for the UI.
+**Why it wins**: Emphasizes playbooks and repeatable workflows—ideal for power users managing multiple portfolios.
 
-## Competitive Landscape Insights
-- **Aggregators (Personal Capital, Kubera, Empower)** lead with a holistic balance sheet summary, goal tracking, and alerts for drifts or cash flow anomalies. They emphasize "one-glance" clarity plus dig-deeper modules.
-- **Brokerage platforms (Fidelity, Schwab, Vanguard)** highlight daily P&L, sector exposures, and alert banners; risk tools are often hidden under analytics tabs, making advanced insights harder to find.
-- **Institutional risk suites (BlackRock Aladdin, MSCI BarraOne)** surface factor decomposition, stress testing, and scenario analysis but are dense and require training; they lack human-friendly guidance.
-- **Robo-advisors (Betterment, Wealthfront)** differentiate with automated actions, nudges, and simulation tools (tax-loss harvesting, goal projections) that convert insights into recommendations.
+## Option 3 – AI-First Conversational Shell
+**Navigation Pillars**
+1. **Conversational Home** – Opening screen is a chat-first interface with snapshot cards pinned above the thread (net worth, risk alerts, cash runway). Users interact primarily via SigmaSightAI, with quick commands pinned below.
+2. **Data Rooms** – Contextual drawers (Portfolio, Research, Risk, Automations) slide in as SigmaSightAI references data, letting users inspect details without leaving the conversation.
+3. **Builder Mode** – Low-code automation studio where the agent scaffolds scripts/rules when users describe desired workflows.
+4. **Settings & Trust Center** – Manage integrations, data permissions, audit trails.
 
-Key takeaways: combine the consumer-grade clarity of aggregators, the automation of robo-advisors, and the analytics depth of institutional platforms, while keeping SigmaSight's AI fabric front-and-center.
+**Why it wins**: Differentiates SigmaSight as an AI-native command center but requires highest behavior change.
 
-## Guiding Experience Principles
-1. **Jobs-to-be-done alignment** – Organize navigation around user jobs: Understand portfolio health, Diagnose risk, Act on insights, and Collaborate with the AI copilot.
-2. **Progressive depth** – Lead with digestible summaries, then let users drill into positions, factors, or scenarios without losing context.
-3. **Actionable storytelling** – Every analytics surface should answer "What changed? Why it matters? What should I do?" with copy, alerts, or AI suggestions.
-4. **Automation-first** – Promote automations (tag rules, rebalance suggestions, hedging playbooks) so the app feels like an always-on analyst.
-5. **AI as navigator** – Treat the AI assistant as a shortcut to any task: triage errors, summarize risk, tag positions, or launch simulations.
-
-## Proposed App Organization
-### 1. Overview Hub (Dashboard)
-- Keep `/portfolio` as the primary landing page but elevate it into an "Overview Hub" with three tiles: **Health Score**, **Risk Pulse**, and **Opportunities Queue**. Health Score aggregates drawdown risk, diversification, and goal progress; Risk Pulse surfaces factor spikes from `FactorExposureCards`; Opportunities Queue lists AI-curated actions (rebalances, hedges, data quality fixes) with deep links to Organize or Research.【F:frontend/app/portfolio/page.tsx†L62-L101】【F:frontend/src/components/portfolio/FactorExposureCards.tsx†L12-L148】
-- Add an always-visible AI prompt bar summarizing "Ask SigmaSight to..." suggestions that open the chat with pre-filled intents, reusing the existing assistant pipeline.【F:frontend/src/containers/AIChatContainer.tsx†L47-L105】
-
-### 2. Research & Discovery
-- Merge Public and (future) Private Positions into a **Research** workspace with tabs for Public, Private, Options, and Watchlists. Reuse the EnhancedPositionsSection filters to maintain continuity while enabling cross-segment comparisons.【F:frontend/src/containers/PublicPositionsContainer.tsx†L53-L101】【F:frontend/src/components/positions/EnhancedPositionsSection.tsx†L18-L149】
-- Introduce AI-generated briefs (earnings catalysts, sentiment shifts) at the top of each tab to contrast SigmaSight with static broker research.
-
-### 3. Portfolio Organization & Playbooks
-- Preserve the Organize page as a dedicated **Playbooks** area that combines tagging, smart groups, and automation setup. The existing drag-and-drop tagging UX becomes the first tab (**Manual Tagging**). Additional tabs can host rule builders (e.g., auto-tag by sector) and rebalancing templates that output to the AI for execution.【F:frontend/src/containers/OrganizeContainer.tsx†L161-L517】
-- Surface "tag coverage" metrics (percentage of positions tagged, untagged exposure) next to the TagList header to reinforce progress.
-
-### 4. Risk Diagnostics
-- Carve out a new **Risk** section focusing on factor decomposition, scenario analysis, and stress tests. Begin by elevating the existing Factor Exposure cards into a richer mosaic with trend charts, hedging ideas that link back to Organize tags or Research positions, and a panel that consumes `RiskMetricsService` payloads (beta, annualized volatility, max drawdown plus warnings).【F:frontend/src/components/portfolio/FactorExposureCards.tsx†L12-L148】
-- Layer in saved scenarios (rate shock, sector rotation) and simulation outputs once backend endpoints mature, while gating the risk metrics panel behind a feature flag until the deprecated endpoint is productionized.
-
-### 5. AI Copilot Everywhere
-- Maintain `/ai-chat` as the full-screen assistant, but embed mini chat widgets in every primary surface so users can ask context-aware questions without losing place. The AI page can host conversation presets ("Assess diversification", "Draft quarterly letter", "Explain today's factor moves"), leveraging the current layout's header & callouts.【F:frontend/src/containers/AIChatContainer.tsx†L58-L108】
-
-### 6. Settings & Integrations
-- Expand Settings into an **Account & Integrations** area: custody connections, notification preferences, automation toggles, and audit logs. Highlight data quality alerts from `usePortfolioData` error handling to encourage proactive fixes.【F:frontend/src/hooks/usePortfolioData.ts†L38-L123】
+## Cross-Option Page Modules
+Regardless of option, each page should feature:
+- **Summary ribbons** showing status (e.g., "Risk metrics current as of yesterday"), warning badges for sparse data, and CTA to refresh pipeline.
+- **Embedded prompts** calling SigmaSightAI with context (portfolio ID, selected tags, warning codes). The SigmaSightAI container already exposes hooks for injecting system prompts alongside user input; use it to pass module metadata.
+- **Insight logging** storing AI recommendations with timestamps in Account & Integrations for auditability.
 
 ## Differentiators to Spotlight
-1. **Context-aware AI Analyst** – Unlike static research portals, SigmaSight's assistant references real-time portfolio IDs, names, and factor context for tailored guidance.【F:frontend/src/containers/AIChatContainer.tsx†L15-L105】
-2. **Tag-centric organization across asset classes** – Drag-and-drop tagging spanning public, private, and options positions makes categorization effortless compared to spreadsheets or manual labels in broker apps.【F:frontend/src/containers/OrganizeContainer.tsx†L161-L517】
-3. **Institutional-grade factor analytics in a consumer UX** – Factor exposure chips, summary metrics, and segmented position lists translate complex risk math into intuitive visuals.【F:frontend/app/portfolio/page.tsx†L62-L101】【F:frontend/src/components/portfolio/PortfolioMetrics.tsx†L19-L62】【F:frontend/src/components/portfolio/FactorExposureCards.tsx†L12-L148】
+1. **RiskMetricsLocal-backed analytics** – Local risk pipeline means lower latency and deterministic results, enabling responsive dashboards and scenario toggles.
+2. **Tag-centric organization** – Drag-and-drop tagging + rule builders unify asset classes, making SigmaSight feel more flexible than broker dashboards.
+3. **AI concierge** – SigmaSightAI container provides reusable actions (summaries, playbooks, explanations) and should be marketed as a digital co-pilot embedded in every surface.
 
 ## Implementation Next Steps
-1. **Refine navigation labels and grouping** – Update the dropdown to mirror the proposed pillars (Overview, Research, Playbooks, Risk, Copilot, Settings) and add secondary quick links for upcoming automations.【F:frontend/src/components/navigation/NavigationDropdown.tsx†L31-L126】
-2. **Design Overview Hub prototypes** – Create lo-fi mocks showing Health Score, Risk Pulse, and Opportunities Queue modules stacked above existing metrics and factor cards to validate layout and copy needs.【F:frontend/app/portfolio/page.tsx†L62-L101】
-3. **Inventory AI entry points** – Map where inline chat launchers should live (metrics cards, tag lists, research tables) and define the context payload each should send to the assistant.【F:frontend/src/components/portfolio/PortfolioMetrics.tsx†L27-L58】【F:frontend/src/containers/OrganizeContainer.tsx†L201-L517】
-4. **Prioritize automation concepts** – Align with backend on feasibility for rule-based tagging, risk alerts, and hedging playbooks so UI affordances ship alongside actionable capabilities.【F:frontend/src/hooks/usePortfolioData.ts†L38-L155】
-5. **Validate Risk Metrics Local integration** – Exercise the `RiskMetricsService` pathway through the feature-flagged risk metrics endpoint, capture warning states (e.g., `few_snapshots`, `beta_unavailable`), and translate metadata into user-facing copy before promoting to broader audiences.
-
+1. **Select preferred option** – Run stakeholder workshop; we recommend Option 1 for balance of familiarity and differentiation.
+2. **Prototype Launchpad** – Design aggregator-style overview with SigmaSightAI prompt bar and risk badges (beta, volatility, drawdown, warning tags).
+3. **Instrument SigmaSightAI hooks** – Standardize a utility for sending context payloads (portfolioId, activePage, warnings) into the container before invoking the assistant.
+4. **Refine navigation component** – Update `NavigationDropdown` labels and grouping to match chosen option; add quick actions that launch SigmaSightAI with seeded prompts.
+5. **Audit data coverage** – Ensure `RiskMetricsService` outputs include UI-friendly metadata (lookback windows, data freshness) so Launchpad and Risk Studio show trustworthy badges.
+6. **Plan phased rollout** – Use feature flags to ship Launchpad modules first, then embed SigmaSightAI entry points across Research, Risk, and Playbooks as we validate usage.
