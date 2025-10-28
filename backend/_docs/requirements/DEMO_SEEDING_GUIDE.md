@@ -20,25 +20,25 @@
 ### 1. Basic Demo Seeding (Recommended)
 ```bash
 # Safe seeding - adds demo data without destroying existing data
-python scripts/reset_and_seed.py seed
+python scripts/database/reset_and_seed.py seed
 ```
 
 ### 2. Complete Reset (DESTRUCTIVE - Development Only)
 ```bash
 # DANGER: Drops all tables and recreates with demo data
-python scripts/reset_and_seed.py reset --confirm
+python scripts/database/reset_and_seed.py reset --confirm
 ```
 
 ### 3. Validate Demo Environment
 ```bash
 # Check if demo data is properly seeded
-python scripts/reset_and_seed.py validate
+python scripts/database/reset_and_seed.py validate
 ```
 
 ### 4. Individual Seeding Components
 ```bash
 # Run just the orchestration script
-python scripts/seed_database.py
+python scripts/database/seed_database.py
 
 # Run individual components
 python app/db/seed_demo_portfolios.py
@@ -143,17 +143,17 @@ Once Section 1.6 Batch Processing Framework is implemented:
 ### Common Issues
 1. **Import Errors**: Ensure you're in the project root directory
 2. **Database Connection**: Check .env file has correct DATABASE_URL
-3. **Missing Users**: Run `python scripts/seed_database.py` first
+3. **Missing Users**: Run `python scripts/database/seed_database.py` first
 4. **API Errors**: Demo seeding uses mock data, so API failures are handled gracefully
 
 ### Reset Process
 If demo environment gets corrupted:
 ```bash
 # Complete reset (DESTRUCTIVE)
-python scripts/reset_and_seed.py reset --confirm
+python scripts/database/reset_and_seed.py reset --confirm
 
 # Or safer incremental approach
-python scripts/seed_database.py
+python scripts/database/seed_database.py
 ```
 
 ## Development Notes
@@ -162,11 +162,11 @@ python scripts/seed_database.py
 ```
 app/db/
 ├── seed_factors.py          # 8 factor definitions
-├── seed_demo_portfolios.py  # 3 portfolios with 63 positions  
+├── seed_demo_portfolios.py  # 3 portfolios with 63 positions
 ├── seed_security_master.py  # Security classifications
 └── seed_initial_prices.py   # Price cache bootstrap
 
-scripts/
+scripts/database/
 ├── seed_database.py         # Master orchestration
 ├── (seed_demo_users.py removed) # consolidated into seed_database.py
 └── reset_and_seed.py        # Reset & validation utilities

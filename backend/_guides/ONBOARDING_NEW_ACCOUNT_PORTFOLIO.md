@@ -307,7 +307,7 @@ def parse_position_type(position_type_str: str) -> PositionType:
 ```bash
 # Note: Custom onboarding script needs to be created based on this guide
 # Use existing scripts as reference:
-uv run python scripts/seed_database.py  # For database setup
+uv run python scripts/database/seed_database.py  # For database setup
 uv run python scripts/check_database_content.py  # For verification
 ```
 
@@ -658,7 +658,7 @@ uv run python scripts/analyze_demo_calculation_engine_failures.py  # Diagnose is
 The onboarding process requires creating custom scripts that combine existing functionality:
 
 1. **`scripts/onboard_client.py`** - Main onboarding orchestration script
-   - Use patterns from `scripts/seed_database.py` for database operations
+   - Use patterns from `scripts/database/seed_database.py` for database operations
    - Reference `scripts/check_database_content.py` for verification
    - Integrate with `app.batch.batch_orchestrator_v2.BatchOrchestratorV2`
 

@@ -246,7 +246,9 @@ app/
 └── database.py       - Database connection utilities
 
 scripts/              - Utility scripts
-├── reset_and_seed.py - Main seeding script (AUTHORITATIVE)
+├── database/         - Database seeding and setup scripts
+│   ├── seed_database.py      - Master seeding orchestration (AUTHORITATIVE)
+│   └── reset_and_seed.py     - Reset & validation utilities
 ├── railway/          - Railway deployment & audit scripts (see scripts/railway/README.md)
 │   ├── audit_railway_data.py - Portfolio/position audit via API
 │   ├── audit_railway_market_data.py - Market data audit via API
@@ -472,7 +474,7 @@ DEMO_USERS = [
 ### **Demo Data Commands**
 ```bash
 # Seed all demo data (AUTHORITATIVE script)
-python scripts/reset_and_seed.py seed
+python scripts/database/reset_and_seed.py seed
 
 # Check demo data status
 uv run python -c "
@@ -504,7 +506,7 @@ docker-compose up -d
 uv run alembic upgrade head
 
 # 3. Seed demo data (3 portfolios, 63 positions)
-python scripts/reset_and_seed.py seed
+python scripts/database/reset_and_seed.py seed
 
 # 4. Verify setup
 uv run python scripts/verification/verify_setup.py
