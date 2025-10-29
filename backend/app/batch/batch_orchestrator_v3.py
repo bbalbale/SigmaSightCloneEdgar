@@ -225,11 +225,29 @@ class BatchOrchestratorV3:
 
             if not phase2_result.get('success'):
                 result['errors'].append("Phase 2 had errors")
-                # Continue to Phase 3 even if Phase 2 has issues
+                # Continue to Phase 2.5 even if Phase 2 has issues
 
         except Exception as e:
             logger.error(f"Phase 2 error: {e}")
             result['errors'].append(f"Phase 2 error: {str(e)}")
+            # Continue to Phase 2.5
+
+        # Phase 2.5: Update Position Market Values (CRITICAL for Phase 3 analytics)
+        try:
+            logger.info("\n--- Phase 2.5: Update Position Market Values ---")
+            phase25_result = await self._update_all_position_market_values(
+                calculation_date=calculation_date,
+                db=db
+            )
+            result['phase_2_5'] = phase25_result
+
+            if not phase25_result.get('success'):
+                logger.warning("Phase 2.5 had errors, continuing to Phase 3")
+                # Continue to Phase 3 even if position updates fail
+
+        except Exception as e:
+            logger.error(f"Phase 2.5 error: {e}")
+            result['errors'].append(f"Phase 2.5 error: {str(e)}")
             # Continue to Phase 3
 
         # Phase 3: Risk Analytics
@@ -252,6 +270,97 @@ class BatchOrchestratorV3:
         result['success'] = len(result['errors']) == 0
 
         return result
+
+    async def _update_all_position_market_values(
+        self,
+        calculation_date: date,
+        db: AsyncSession
+    ) -> Dict[str, Any]:
+        """
+        Update last_price and market_value for all active positions
+
+        This is CRITICAL for Phase 3 analytics that rely on position.market_value
+        (e.g., provider beta calculation)
+
+        Args:
+            calculation_date: Date to get prices for
+            db: Database session
+
+        Returns:
+            Summary of positions updated
+        """
+        from app.models.market_data import MarketDataCache
+        from decimal import Decimal
+
+        logger.info(f"Updating position market values for {calculation_date}")
+
+        try:
+            # Get all active positions
+            positions_query = select(Position).where(
+                and_(
+                    Position.exit_date.is_(None),
+                    Position.deleted_at.is_(None)
+                )
+            )
+            positions_result = await db.execute(positions_query)
+            positions = positions_result.scalars().all()
+
+            logger.info(f"Found {len(positions)} active positions to update")
+
+            positions_updated = 0
+            positions_skipped = 0
+
+            for position in positions:
+                # Get current price from market_data_cache
+                price_query = select(MarketDataCache).where(
+                    and_(
+                        MarketDataCache.symbol == position.symbol,
+                        MarketDataCache.date == calculation_date
+                    )
+                )
+                price_result = await db.execute(price_query)
+                market_data = price_result.scalar_one_or_none()
+
+                if market_data and market_data.close and market_data.close > 0:
+                    current_price = market_data.close
+
+                    # Calculate market value
+                    # For stocks: quantity * price
+                    # For options: quantity * price * 100 (contract multiplier)
+                    multiplier = Decimal('100') if position.position_type.name in ['CALL', 'PUT', 'LC', 'LP', 'SC', 'SP'] else Decimal('1')
+                    market_value = position.quantity * current_price * multiplier
+
+                    # Update position
+                    position.last_price = current_price
+                    position.market_value = market_value
+
+                    positions_updated += 1
+                    logger.debug(f"  {position.symbol}: price=${float(current_price):.2f}, market_value=${float(market_value):,.2f}")
+                else:
+                    positions_skipped += 1
+                    logger.debug(f"  {position.symbol}: No price data available")
+
+            # Commit all position updates
+            await db.commit()
+
+            logger.info(f"Position market values updated: {positions_updated} updated, {positions_skipped} skipped")
+
+            return {
+                'success': True,
+                'positions_updated': positions_updated,
+                'positions_skipped': positions_skipped,
+                'total_positions': len(positions)
+            }
+
+        except Exception as e:
+            logger.error(f"Error updating position market values: {e}")
+            import traceback
+            logger.error(f"Traceback: {traceback.format_exc()}")
+            return {
+                'success': False,
+                'error': str(e),
+                'positions_updated': 0
+            }
 
     async def _get_last_batch_run_date(self, db: AsyncSession) -> Optional[date]:
         """Get the date of the last successful batch run"""

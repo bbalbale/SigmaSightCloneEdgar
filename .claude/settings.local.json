@@ -97,7 +97,8 @@
       "Bash(git cherry-pick:*)",
       "mcp__playwright__browser_resize",
       "Bash(cp:*)",
-      "Bash(tee:*)"
+      "Bash(tee:*)",
+      "Bash(git merge:*)"
     ],
     "additionalDirectories": [
       "C:\\c\\Users\\BenBalbale\\CascadeProjects\\SigmaSight-BE"

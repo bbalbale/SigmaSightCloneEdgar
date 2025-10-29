@@ -5,6 +5,10 @@ This script:
 1. Cleans all portfolio analysis, agent, and market data
 2. Reseeds 3 demo portfolios with July 1, 2025 entry dates
 3. Uses V3 batch orchestrator with automatic backfill
+   - Phase 1: Market Data Collection (1-year lookback)
+   - Phase 2: P&L Calculation & Snapshots
+   - Phase 2.5: Update Position Market Values (NEW - critical for analytics)
+   - Phase 3: Risk Analytics (betas, factors, correlations)
 4. Verifies results
 
 Estimated time: 30-40 minutes for 85 trading days (vs 5+ hours with V2)
@@ -255,11 +259,15 @@ async def main():
     print("  2. Reseed 3 portfolios with July 1, 2025 entry dates")
     print("  3. Run V3 batch orchestrator for ~85 trading days (July 1 - Oct 27)")
     print("  4. Verify results")
-    print("\nNew V3 Features:")
-    print("  - 1-year market data lookback (for volatility analysis)")
+    print("\nV3 Batch Phases:")
+    print("  - Phase 1: Market Data Collection (1-year lookback)")
+    print("  - Phase 2: P&L Calculation & Snapshots")
+    print("  - Phase 2.5: Update Position Market Values (NEW)")
+    print("  - Phase 3: Risk Analytics (betas, factors, correlations)")
+    print("\nV3 Features:")
     print("  - Provider priority: YFinance -> YahooQuery -> Polygon -> FMP")
     print("  - Automatic backfill detection")
-    print("  - Phase isolation (data -> P&L -> analytics)")
+    print("  - Position market values updated for accurate analytics")
     print("\nEstimated time: 30-40 minutes (vs 5+ hours with V2)")
     print("=" * 80 + "\n")
 

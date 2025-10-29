@@ -199,51 +199,61 @@ class MarketDataCollector:
         end_date: date
     ) -> Set[str]:
         """
-        Check which symbols already have sufficient data in cache
+        Check which symbols already have sufficient data in cache (OPTIMIZED)
 
         A symbol is considered "fully cached" if it has data for the
         calculation_date (end_date) AND has at least 250 days of history.
 
-        This is smarter than re-fetching the entire year every time:
-        - For daily runs, we only need to fetch the new day's data
-        - For backfills, we only fetch missing historical data
+        PERFORMANCE: Uses 2 bulk queries instead of 2*N queries (was 108 queries, now 2)
         """
-        cached = set()
+        from sqlalchemy import func, and_
 
-        # We need data up to end_date (calculation_date)
-        # AND at least 250 days of history for volatility/beta calculations
+        cached = set()
         min_required_days = 250  # ~1 year of trading days
 
-        for symbol in symbols:
-            # Check if we have data for the calculation_date (most recent date needed)
-            recent_query = select(MarketDataCache).where(
-                MarketDataCache.symbol == symbol,
+        # OPTIMIZATION 1: Bulk check for symbols with data on calculation_date
+        # Single query replaces N queries (54 -> 1)
+        recent_query = select(MarketDataCache.symbol).where(
+            and_(
+                MarketDataCache.symbol.in_(list(symbols)),
                 MarketDataCache.date == end_date,
                 MarketDataCache.close > 0
             )
-            recent_result = await db.execute(recent_query)
-            has_recent = recent_result.scalar_one_or_none() is not None
+        ).distinct()
+        recent_result = await db.execute(recent_query)
+        symbols_with_recent_data = {row[0] for row in recent_result.fetchall()}
 
-            if not has_recent:
-                # Don't have data for calculation_date, need to fetch
-                continue
+        if not symbols_with_recent_data:
+            logger.info("No symbols have data for calculation date, fetching all")
+            return cached
 
-            # Check if we have enough historical data
-            history_query = select(MarketDataCache).where(
-                MarketDataCache.symbol == symbol,
+        # OPTIMIZATION 2: Bulk count historical records using SQL COUNT + GROUP BY
+        # Single query replaces N queries + data loads (54 -> 1)
+        history_query = select(
+            MarketDataCache.symbol,
+            func.count(MarketDataCache.id).label('record_count')
+        ).where(
+            and_(
+                MarketDataCache.symbol.in_(list(symbols_with_recent_data)),
                 MarketDataCache.date >= start_date,
                 MarketDataCache.date <= end_date,
                 MarketDataCache.close > 0
             )
-            history_result = await db.execute(history_query)
-            cached_records = history_result.scalars().all()
+        ).group_by(MarketDataCache.symbol)
 
-            if len(cached_records) >= min_required_days:
+        history_result = await db.execute(history_query)
+        symbol_counts = {row[0]: row[1] for row in history_result.fetchall()}
+
+        # Determine which symbols are fully cached
+        for symbol in symbols_with_recent_data:
+            record_count = symbol_counts.get(symbol, 0)
+            if record_count >= min_required_days:
                 cached.add(symbol)
-                logger.debug(f"  {symbol}: Fully cached ({len(cached_records)} days)")
+                logger.debug(f"  {symbol}: Fully cached ({record_count} days)")
             else:
-                logger.debug(f"  {symbol}: Need more data ({len(cached_records)}/{min_required_days} days)")
+                logger.debug(f"  {symbol}: Need more data ({record_count}/{min_required_days} days)")
 
+        logger.info(f"Cache check: 2 bulk queries instead of {len(symbols)*2} individual queries")
         return cached
 
     async def _fetch_with_priority_chain(
