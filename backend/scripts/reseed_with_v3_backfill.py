@@ -257,7 +257,7 @@ async def main():
     print("  4. Verify results")
     print("\nNew V3 Features:")
     print("  - 1-year market data lookback (for volatility analysis)")
-    print("  - Provider priority: YahooQuery -> YFinance -> FMP -> Polygon")
+    print("  - Provider priority: YFinance -> YahooQuery -> Polygon -> FMP")
     print("  - Automatic backfill detection")
     print("  - Phase isolation (data -> P&L -> analytics)")
     print("\nEstimated time: 30-40 minutes (vs 5+ hours with V2)")

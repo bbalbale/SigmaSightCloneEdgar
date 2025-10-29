@@ -2,7 +2,7 @@
 Phase 1: Market Data Collection
 Fetches all required market data once per day with 1-year lookback for volatility analysis
 
-Provider Priority: YahooQuery → YFinance → FMP → Polygon
+Provider Priority: YFinance → YahooQuery → Polygon → FMP
 """
 import asyncio
 from datetime import date, timedelta
@@ -51,7 +51,7 @@ class MarketDataCollector:
 
     Features:
     - 1-year historical lookback for volatility/beta calculations
-    - Provider priority chain: YahooQuery → YFinance → FMP → Polygon
+    - Provider priority chain: YFinance → YahooQuery → Polygon → FMP
     - Bulk fetching for efficiency
     - Smart caching (don't re-fetch existing data)
     - Data coverage reporting
@@ -255,7 +255,7 @@ class MarketDataCollector:
         """
         Fetch data using provider priority chain
 
-        Priority: YahooQuery → YFinance → FMP → Polygon
+        Priority: YFinance → YahooQuery → Polygon → FMP
 
         Smart fetching:
         - For daily runs: Only fetches the new day (end_date)
@@ -279,36 +279,36 @@ class MarketDataCollector:
             # Long range (initial load or large backfill) - fetch full year
             logger.info(f"Fetching {days_to_fetch} days of data (historical backfill)")
 
-        # Try YahooQuery first
-        logger.info("Trying YahooQuery (primary provider)...")
+        # Try YFinance first
+        logger.info("Trying YFinance (primary provider)...")
         try:
-            yq_data = await yahooquery_service.fetch_historical_prices(
+            yf_data = await self.market_data_service.fetch_historical_data_hybrid(
                 remaining_symbols, start_date, end_date
             )
-            for symbol, data in yq_data.items():
+            for symbol, data in yf_data.items():
                 if data and len(data) > 0:
                     all_data[symbol] = data
-                    provider_counts['yahooquery'] += 1
-            remaining_symbols = [s for s in remaining_symbols if s not in yq_data]
-            logger.info(f"  YahooQuery: fetched {len(yq_data)} symbols")
+                    provider_counts['yfinance'] += 1
+            remaining_symbols = [s for s in remaining_symbols if s not in yf_data]
+            logger.info(f"  YFinance: fetched {len(yf_data)} symbols")
         except Exception as e:
-            logger.warning(f"  YahooQuery failed: {e}")
+            logger.warning(f"  YFinance failed: {e}")
 
-        # Try YFinance for remaining
+        # Try YahooQuery for remaining
         if remaining_symbols:
-            logger.info(f"Trying YFinance for {len(remaining_symbols)} remaining symbols...")
+            logger.info(f"Trying YahooQuery for {len(remaining_symbols)} remaining symbols...")
             try:
-                yf_data = await self.market_data_service.fetch_historical_data_hybrid(
+                yq_data = await yahooquery_service.fetch_historical_prices(
                     remaining_symbols, start_date, end_date
                 )
-                for symbol, data in yf_data.items():
+                for symbol, data in yq_data.items():
                     if data and len(data) > 0 and symbol not in all_data:
                         all_data[symbol] = data
-                        provider_counts['yfinance'] += 1
-                remaining_symbols = [s for s in remaining_symbols if s not in yf_data]
-                logger.info(f"  YFinance: fetched {len(yf_data)} symbols")
+                        provider_counts['yahooquery'] += 1
+                remaining_symbols = [s for s in remaining_symbols if s not in yq_data]
+                logger.info(f"  YahooQuery: fetched {len(yq_data)} symbols")
             except Exception as e:
-                logger.warning(f"  YFinance failed: {e}")
+                logger.warning(f"  YahooQuery failed: {e}")
 
         # Remaining symbols logged as missing (FMP/Polygon would go here)
         if remaining_symbols:
