@@ -82,12 +82,13 @@ Enable self-service onboarding for test users to create accounts and portfolios 
 
 ## 3. API Endpoint Specifications
 
-### **Phase 1: Core Onboarding - 2 Endpoints**
+### **Phase 1: Core Onboarding - 3 Endpoints**
 
 These are the MVP endpoints for user onboarding and portfolio creation:
 
 1. `POST /api/v1/onboarding/register` - User registration with single invite code
-2. `POST /api/v1/onboarding/create-portfolio` - Portfolio creation with CSV
+2. `POST /api/v1/onboarding/create-portfolio` - Portfolio creation with CSV (no automatic batch trigger)
+3. `POST /api/v1/portfolio/{portfolio_id}/calculate` - User-triggered portfolio calculations (in analytics file)
 
 ### **Phase 2: Admin & Superuser - 3 Endpoints** *(Separate Implementation)*
 
@@ -141,7 +142,7 @@ These admin tooling endpoints will be implemented after Phase 1 is working and t
 
 #### `POST /api/v1/onboarding/create-portfolio`
 
-**Description:** Create portfolio, import positions from CSV, run batch processing synchronously.
+**Description:** Create portfolio and import positions from CSV. Does NOT automatically trigger batch processing (use separate calculate endpoint).
 
 **Request:**
 ```
@@ -172,22 +173,8 @@ curl -X POST http://localhost:8000/api/v1/onboarding/create-portfolio \
   "description": "Main trading account at Schwab",
   "equity_balance": "500000.00",
   "positions_imported": 45,
-  "batch_processing": {
-    "status": "completed",
-    "duration_seconds": 42,
-    "engines_completed": [
-      "market_data_update",
-      "portfolio_aggregation",
-      "factor_analysis",
-      "market_risk_scenarios",
-      "portfolio_snapshot",
-      "correlations"
-    ],
-    "warnings": [
-      "Greeks calculation skipped - no options data available"
-    ]
-  },
-  "created_at": "2025-10-28T10:35:00Z"
+  "created_at": "2025-10-28T10:35:00Z",
+  "message": "Portfolio created successfully. Use /api/v1/portfolio/{portfolio_id}/calculate to run calculations."
 }
 ```
 
@@ -197,12 +184,59 @@ curl -X POST http://localhost:8000/api/v1/onboarding/create-portfolio \
 - `413` - File too large (>10MB)
 - `415` - Invalid file type (not .csv)
 - `422` - Missing required fields
-- `500` - Batch processing failed
-- `504` - Request timeout (batch took >60s)
 
 ---
 
-### 3.3 Admin: Impersonate User **[PHASE 2]**
+### 3.3 User-Triggered Portfolio Calculations
+
+#### `POST /api/v1/portfolio/{portfolio_id}/calculate`
+
+**File Location:** `app/api/v1/analytics/portfolio.py`
+
+**Description:** Trigger batch calculations for user's portfolio. Users can only trigger calculations for portfolios they own.
+
+**Request:**
+```bash
+curl -X POST http://localhost:8000/api/v1/portfolio/a3209353-9ed5-4885-81e8-d4bbc995f96c/calculate \
+  -H "Authorization: Bearer <JWT_TOKEN>"
+```
+
+**Response (202 Accepted):**
+```json
+{
+  "status": "started",
+  "batch_run_id": "f7b3c8a1-9d2e-4f56-8a7c-1b2d3e4f5a6b",
+  "portfolio_id": "a3209353-9ed5-4885-81e8-d4bbc995f96c",
+  "message": "Portfolio calculations started. This will take 30-60 seconds.",
+  "poll_url": "/api/v1/portfolio/a3209353-9ed5-4885-81e8-d4bbc995f96c/calculation-status"
+}
+```
+
+**Error Responses:**
+- `403` - Portfolio not owned by user
+- `404` - Portfolio not found
+- `409` - Calculations already running for this portfolio
+
+**Architecture Notes:**
+- This endpoint provides user-facing access to batch processing
+- Uses same underlying `batch_orchestrator.run_daily_batch_sequence()` as admin endpoint
+- Validates portfolio ownership before triggering calculations
+- Returns immediately with batch_run_id for status tracking
+- Separate from `POST /admin/batch/run` which is admin-only and can process all portfolios
+
+**Comparison with Admin Endpoint:**
+
+| Feature | User Endpoint | Admin Endpoint |
+|---------|---------------|----------------|
+| **Path** | `/api/v1/portfolio/{id}/calculate` | `/admin/batch/run` |
+| **Auth** | Portfolio ownership | Superuser required |
+| **Scope** | Single portfolio (owned by user) | Any portfolio or all portfolios |
+| **Force Override** | Not allowed | Can force with `force=true` |
+| **Use Case** | User-initiated refresh | System operations, troubleshooting |
+
+---
+
+### 3.4 Admin: Impersonate User **[PHASE 2]**
 
 #### `POST /api/v1/admin/impersonate`
 
@@ -247,7 +281,7 @@ curl -X GET http://localhost:8000/api/v1/data/portfolio/complete \
 
 ---
 
-### 3.8 Admin: Stop Impersonation **[PHASE 2]**
+### 3.5 Admin: Stop Impersonation **[PHASE 2]**
 
 #### `POST /api/v1/admin/stop-impersonation`
 
@@ -272,7 +306,7 @@ Authorization: Bearer <IMPERSONATION_TOKEN>
 
 ---
 
-### 3.9 Admin: List All Users **[PHASE 2]**
+### 3.6 Admin: List All Users **[PHASE 2]**
 
 #### `GET /api/v1/admin/users`
 
@@ -476,21 +510,21 @@ class OnboardingService:
         description: Optional[str] = None
     ) -> Dict[str, Any]:
         """
-        Create portfolio, import positions, run batch processing.
+        Create portfolio and import positions from CSV.
 
         Steps:
         1. Validate user has no existing portfolio
         2. Parse and validate CSV
         3. Create portfolio record
         4. Import positions
-        5. Run batch processing synchronously (30-60s)
-        6. Return results
+        5. Return results
+
+        Note: Does NOT trigger batch processing. User must call
+        POST /api/v1/portfolio/{portfolio_id}/calculate separately.
 
         Raises:
             PortfolioExistsError: User already has portfolio
             CSVValidationError: Invalid CSV data
-            BatchProcessingError: Batch failed
-            TimeoutError: Batch took >60s
         """
 ```
 
@@ -1173,9 +1207,10 @@ While Impersonating:
 3. Position import service
 4. Onboarding service orchestration
 
-**API Endpoints (2):**
+**API Endpoints (3):**
 - `POST /api/v1/onboarding/register`
-- `POST /api/v1/onboarding/create-portfolio`
+- `POST /api/v1/onboarding/create-portfolio` (no automatic batch trigger)
+- `POST /api/v1/portfolio/{portfolio_id}/calculate` (user-triggered calculations)
 
 **Additional Work:**
 - Error handling (~35 error codes)
@@ -1186,8 +1221,10 @@ While Impersonating:
 **Success Criteria:**
 - ✅ User can register with invite code `PRESCOTT-LINNAEAN-COWPERTHWAITE`
 - ✅ User can upload CSV and create portfolio
-- ✅ Batch processing runs synchronously (30-60s)
-- ✅ Position data appears in database
+- ✅ Portfolio created with positions imported (fast, <5s)
+- ✅ User can trigger calculations via separate endpoint
+- ✅ Batch processing runs when triggered (30-60s)
+- ✅ Position data and calculation results appear in database
 - ✅ Validation errors are clear and actionable
 - ✅ Can test by creating actual accounts directly (no impersonation needed)
 

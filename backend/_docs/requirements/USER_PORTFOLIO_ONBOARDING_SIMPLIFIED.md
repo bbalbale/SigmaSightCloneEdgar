@@ -252,12 +252,13 @@ ALTER TABLE users ADD COLUMN invited_by_code VARCHAR(50);
 
 ## 7. Revised API Scope
 
-### **Phase 1: Core Onboarding - 2 Endpoints**
+### **Phase 1: Core Onboarding - 3 Endpoints**
 
 Ship these first to get users onboarded:
 
 1. `POST /api/v1/onboarding/register` - User registration
-2. `POST /api/v1/onboarding/create-portfolio` - Portfolio creation with CSV
+2. `POST /api/v1/onboarding/create-portfolio` - Portfolio creation with CSV (no automatic batch trigger)
+3. `POST /api/v1/portfolio/{portfolio_id}/calculate` - User-triggered calculations (in analytics file)
 
 ### **Phase 2: Admin & Superuser - 3 Endpoints** *(Separate Implementation)*
 
@@ -289,12 +290,14 @@ Build after Phase 1 is working and tested:
 2. CSV parser service
 3. Position import service
 4. Onboarding service orchestration
-5. **2 API endpoints:**
+5. **3 API endpoints:**
    - `POST /api/v1/onboarding/register`
-   - `POST /api/v1/onboarding/create-portfolio`
+   - `POST /api/v1/onboarding/create-portfolio` (no batch trigger)
+   - `POST /api/v1/portfolio/{portfolio_id}/calculate` (user-triggered calculations)
 6. Simplified error handling (~35 codes)
 7. CSV template (static file)
-8. Testing with real user workflows
+8. Batch processing integration (triggered separately)
+9. Testing with real user workflows
 
 **Testing Strategy:**
 - Create test accounts directly (like demo accounts)
@@ -384,7 +387,7 @@ Build after Phase 1 is working and tested:
 | **Audit Logging** | Application logs only | Sufficient for 50 users |
 | **Account Types** | None (identify by email) | Unnecessary complexity |
 | **Error Codes** | ~35 (down from 60+) | Balanced detail |
-| **Batch Processing** | Synchronous (30-60s) | Same as before |
+| **Batch Processing** | User-triggered (separate endpoint) | Cleaner separation, better UX |
 | **CSV Validation** | Strict (all-or-nothing) | Data quality |
 | **Equity Balance** | Required field | Handle leverage |
 
