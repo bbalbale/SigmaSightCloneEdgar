@@ -257,7 +257,7 @@ async def main():
     print("\nThis will:")
     print("  1. Delete ALL portfolio, market data, and agent data")
     print("  2. Reseed 3 portfolios with July 1, 2025 entry dates")
-    print("  3. Run V3 batch orchestrator for ~85 trading days (July 1 - Oct 27)")
+    print("  3. Run V3 batch orchestrator for ~87 trading days (July 1 - Oct 29)")
     print("  4. Verify results")
     print("\nV3 Batch Phases:")
     print("  - Phase 1: Market Data Collection (1-year lookback)")
@@ -284,7 +284,7 @@ async def main():
         await reseed_portfolios_july_1()
 
         # Phase 3: V3 Backfill
-        target_date = date(2025, 10, 27)
+        target_date = date(2025, 10, 29)  # Today's date
         backfill_result = await run_v3_backfill(target_date)
 
         # Phase 4: Verify
