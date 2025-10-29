@@ -433,7 +433,7 @@ curl -X POST http://localhost:8000/api/v1/onboarding/register \
     "email": "elliott@sigmasight.io",
     "password": "SuperSecure123!",
     "full_name": "Elliott Ng",
-    "invite_code": "SIGMA-BETA-2025"
+    "invite_code": "PRESCOTT-LINNAEAN-COWPERTHWAITE"
   }'
 
 # 3. Promote to superuser

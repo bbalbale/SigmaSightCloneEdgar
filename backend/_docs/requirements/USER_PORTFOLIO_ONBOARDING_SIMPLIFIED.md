@@ -39,7 +39,7 @@ For an MVP serving 50 beta users with white-glove support, we're simplifying:
 
 ```python
 # app/config.py
-BETA_INVITE_CODE = "SIGMA-BETA-2025"  # Single master code
+BETA_INVITE_CODE = "PRESCOTT-LINNAEAN-COWPERTHWAITE"  # Single master code
 
 # app/services/invite_code_service.py (simplified)
 class InviteCodeService:
@@ -77,7 +77,7 @@ class InviteCodeService:
 - **No database table** - Just a config value
 - **No admin endpoints** - Endpoints 3 & 4 removed
 - **Looks unique** - Each user sees "their" code (cosmetic)
-- **Actually same** - All codes validate against `SIGMA-BETA-2025`
+- **Actually same** - All codes validate against `PRESCOTT-LINNAEAN-COWPERTHWAITE`
 - **White-glove friendly** - Just tell users the code in email
 
 ### **Updated Endpoints:**
@@ -314,7 +314,7 @@ ALTER TABLE users ADD COLUMN invited_by_code VARCHAR(50);
    - Manual database fixes if needed
 
 2. **Invite Code Distribution:**
-   - Send `SIGMA-BETA-2025` in welcome email
+   - Send `PRESCOTT-LINNAEAN-COWPERTHWAITE` in welcome email
    - Tell users "your exclusive code is..."
    - They enter it, feels personalized
 

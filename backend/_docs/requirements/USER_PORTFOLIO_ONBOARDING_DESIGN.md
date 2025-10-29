@@ -78,7 +78,7 @@ Enable self-service onboarding for test users to create accounts and portfolios 
 
 ## 3. API Endpoint Specifications
 
-**Phase 1 MVP: 5 Endpoints** ⭐ **SIMPLIFIED** (down from 10 originally)
+**Phase 1 MVP: 5 Endpoints**
 
 ### **Onboarding Endpoints (2)**
 1. `POST /api/v1/onboarding/register` - User registration with single invite code
@@ -89,14 +89,6 @@ Enable self-service onboarding for test users to create accounts and portfolios 
 4. `POST /api/v1/admin/stop-impersonation` - End impersonation
 5. `GET /api/v1/admin/users` - List all users
 
-**Simplified Away (no longer needed):**
-- ❌ `POST /api/v1/admin/invite-codes/generate` - Use config value instead
-- ❌ `GET /api/v1/admin/invite-codes` - No database table to query
-
-**Deferred to Phase 2:**
-- `POST /api/v1/onboarding/validate-csv` - Pre-validate CSV (use create-portfolio errors instead)
-- `GET /api/v1/onboarding/csv-template` - Download template (use static file instead)
-- `GET /api/v1/admin/users/{id}/portfolio` - View user portfolio (use impersonation instead)
 
 ---
 
@@ -112,7 +104,7 @@ Enable self-service onboarding for test users to create accounts and portfolios 
   "email": "user@example.com",
   "password": "SecurePass123!",
   "full_name": "John Doe",
-  "invite_code": "SIGMA-BETA-2025"
+  "invite_code": "PRESCOTT-LINNAEAN-COWPERTHWAITE"
 }
 ```
 
@@ -132,7 +124,7 @@ Enable self-service onboarding for test users to create accounts and portfolios 
 - `409` - Email already exists
 - `422` - Validation errors (password too weak, invalid email, etc.)
 
-**Note:** All users receive the same invite code (`SIGMA-BETA-2025`), validated against config value.
+**Note:** All users receive the same invite code (`PRESCOTT-LINNAEAN-COWPERTHWAITE`), validated against config value.
 
 ---
 
