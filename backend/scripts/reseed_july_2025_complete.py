@@ -245,9 +245,9 @@ async def main():
     print("\nThis will:")
     print("  1. Delete ALL portfolio, market data, and agent data")
     print("  2. Reseed 3 portfolios with July 1, 2025 entry dates")
-    print("  3. Run batch processor for ~85 trading days (July 1 - Oct 27)")
+    print("  3. Run batch processor for ~86 trading days (July 1 - Oct 28)")
     print("  4. Verify results")
-    print("\nEstimated time: 55-95 minutes")
+    print("\nEstimated time: 60-100 minutes")
     print("="*80 + "\n")
 
     response = input("Are you sure you want to proceed? (yes/no): ")
@@ -264,7 +264,7 @@ async def main():
 
         # Phase 3: Historical batch processing
         start_date = date(2025, 7, 1)
-        end_date = date(2025, 10, 27)
+        end_date = date(2025, 10, 28)  # Updated to today
 
         await run_historical_batch_loop(start_date, end_date)
 
