@@ -827,58 +827,93 @@ class CorrelationService:
 
         Returns DataFrame with dates as index and symbols as columns
         """
-        price_data = {}
+        price_data: Dict[str, pd.Series] = {}
 
-        # Step 1: Collect all price series (no return calculation yet)
-        for position in positions:
-            # Get price data from market data cache
-            query = select(
+        # Normalize date bounds to plain dates to match MarketDataCache schema
+        start_bound = start_date.date() if isinstance(start_date, datetime) else start_date
+        end_bound = end_date.date() if isinstance(end_date, datetime) else end_date
+
+        # Build unique list of symbols (preserve case) for a single batched query
+        symbols = [p.symbol for p in positions if p.symbol]
+        seen: Set[str] = set()
+        ordered_symbols: List[str] = []
+        for symbol in symbols:
+            if symbol not in seen:
+                ordered_symbols.append(symbol)
+                seen.add(symbol)
+
+        if not ordered_symbols:
+            return pd.DataFrame()
+
+        # Step 1: Fetch all price data with a single query to avoid N round-trips
+        price_query = (
+            select(
+                MarketDataCache.symbol,
                 MarketDataCache.date,
                 MarketDataCache.close
-            ).where(
+            )
+            .where(
                 and_(
-                    MarketDataCache.symbol == position.symbol,
-                    MarketDataCache.date >= start_date,
-                    MarketDataCache.date <= end_date
+                    MarketDataCache.symbol.in_(ordered_symbols),
+                    MarketDataCache.date >= start_bound,
+                    MarketDataCache.date <= end_bound
                 )
-            ).order_by(MarketDataCache.date)
+            )
+            .order_by(MarketDataCache.symbol, MarketDataCache.date)
+        )
 
-            result = await self.db.execute(query)
-            price_rows = result.all()
+        price_result = await self.db.execute(price_query)
+        rows = price_result.mappings().all()
 
-            if len(price_rows) >= 2:  # Need at least 2 points for returns
-                # Convert to pandas Series
-                dates = [row.date for row in price_rows]
-                prices = [float(row.close) for row in price_rows]
+        if not rows:
+            logger.warning(
+                "No historical price data found for correlation calculation after batched query"
+            )
+            return pd.DataFrame()
 
-                price_series = pd.Series(prices, index=pd.DatetimeIndex(dates))
+        symbol_to_rows: Dict[str, List[Tuple[date, float]]] = defaultdict(list)
+        for row in rows:
+            close_value = row["close"]
+            if close_value is None:
+                continue
+            symbol_to_rows[row["symbol"]].append((row["date"], float(close_value)))
 
-                # SANITIZATION 1: Remove duplicate dates (keep last value)
-                duplicates_count = price_series.index.duplicated().sum()
-                if duplicates_count > 0:
-                    logger.warning(
-                        f"Position {position.symbol}: {duplicates_count} duplicate dates found. "
-                        f"Keeping last value for each date."
-                    )
-                    price_series = price_series[~price_series.index.duplicated(keep='last')]
+        logger.info(
+            "Loaded %s price records across %s symbols for correlation returns calculation",
+            len(rows),
+            len(symbol_to_rows),
+        )
 
-                # SANITIZATION 2: Filter out zero or negative prices (prevents infinite log returns)
-                invalid_prices = (price_series <= 0).sum()
-                if invalid_prices > 0:
-                    logger.warning(
-                        f"Position {position.symbol}: {invalid_prices} non-positive prices found. "
-                        f"Removing these data points before return calculation."
-                    )
-                    price_series = price_series[price_series > 0]
+        for symbol, symbol_rows in symbol_to_rows.items():
+            if len(symbol_rows) < 2:
+                continue
 
-                # Check if we still have enough data after sanitization
-                if len(price_series) >= 2:
-                    price_data[position.symbol] = price_series
-                else:
-                    logger.warning(
-                        f"Position {position.symbol}: Insufficient valid data after sanitization "
-                        f"({len(price_series)} points remaining, need 2+). Excluding from analysis."
-                    )
+            symbol_rows.sort(key=lambda item: item[0])
+            dates = [record_date for record_date, _ in symbol_rows]
+            prices = [price for _, price in symbol_rows]
+
+            price_series = pd.Series(prices, index=pd.DatetimeIndex(dates))
+
+            duplicates_count = price_series.index.duplicated().sum()
+            if duplicates_count > 0:
+                logger.warning(
+                    f"Position {symbol}: {duplicates_count} duplicate dates found. Keeping last value for each date."
+                )
+                price_series = price_series[~price_series.index.duplicated(keep='last')]
+
+            invalid_prices = (price_series <= 0).sum()
+            if invalid_prices > 0:
+                logger.warning(
+                    f"Position {symbol}: {invalid_prices} non-positive prices found. Removing these data points before return calculation."
+                )
+                price_series = price_series[price_series > 0]
+
+            if len(price_series) >= 2:
+                price_data[symbol] = price_series
+            else:
+                logger.warning(
+                    f"Position {symbol}: Insufficient valid data after sanitization ({len(price_series)} points remaining, need 2+). Excluding from analysis."
+                )
 
         if not price_data:
             return pd.DataFrame()
