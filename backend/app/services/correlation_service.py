@@ -293,19 +293,16 @@ class CorrelationService:
             # Validate and fix PSD property (Positive Semi-Definite matrix required for correlation)
             correlation_matrix, psd_corrected = self._validate_and_fix_psd(correlation_matrix)
 
-            # Detect correlation clusters
-            clusters = await self.detect_correlation_clusters(
-                correlation_matrix, 
-                filtered_positions,
-                portfolio_value,
-                threshold=float(correlation_threshold)
-            )
-            
-            # Calculate portfolio-level metrics
+            # SKIP CLUSTER DETECTION - Not used by frontend, causes hang bug on 3rd consecutive day
+            # The cluster/nickname generation was querying market data in a way that hung after 2-3 days
+            # Pairwise correlations are sufficient for the correlation matrix display
+            clusters = []
+
+            # Calculate portfolio-level metrics (without clusters)
             metrics = self.calculate_portfolio_metrics(
-                correlation_matrix, 
+                correlation_matrix,
                 filtered_positions,
-                clusters
+                clusters  # Empty list
             )
             
             # Create calculation record
@@ -332,15 +329,10 @@ class CorrelationService:
             await self._store_correlation_matrix(
                 calculation.id, correlation_matrix, returns_df
             )
-            
-            # Store clusters
-            await self._store_clusters(
-                calculation.id, 
-                clusters, 
-                filtered_positions, 
-                portfolio_value,
-                correlation_matrix,
-            )
+
+            # SKIP STORING CLUSTERS - Not used by frontend/API
+            # Removed to eliminate hang bug in cluster nickname generation
+            # (was querying market data for sector info in a loop that hung on 3rd day)
 
             # Log comprehensive data quality metrics before commit
             total_pairs = len(correlation_matrix) * len(correlation_matrix)
@@ -359,7 +351,7 @@ class CorrelationService:
                 f"  - PSD validation: {'CORRECTED' if psd_corrected else 'PASSED'}\n"
                 f"  - Overall correlation: {metrics['overall_correlation']:.4f}\n"
                 f"  - Effective positions: {metrics['effective_positions']:.2f}\n"
-                f"  - Correlation clusters detected: {len(clusters)}"
+                f"  - Cluster detection: SKIPPED (not used by frontend, was causing hang bug)"
             )
 
             # Note: Do NOT commit here - let caller manage transaction boundaries
@@ -369,7 +361,7 @@ class CorrelationService:
             logger.info(
                 f"Completed correlation calculation for portfolio {portfolio_id}: "
                 f"overall_correlation={metrics['overall_correlation']:.4f}, "
-                f"clusters={len(clusters)}"
+                f"pairwise_correlations={total_pairs}"
             )
 
             return calculation
@@ -550,34 +542,38 @@ class CorrelationService:
         """
         Identify clusters of highly correlated positions using graph connectivity
         """
+        logger.debug(f"🔍 Detecting correlation clusters (threshold: {threshold})")
         symbols = list(correlation_matrix.columns)
         n = len(symbols)
-        
+        logger.debug(f"  Correlation matrix: {n} symbols")
+
         # Create adjacency matrix based on correlation threshold
         adj_matrix = (correlation_matrix.abs() >= threshold).values
-        
+
         # Find connected components using depth-first search
         visited = [False] * n
         clusters = []
-        
+
         def dfs(node: int, cluster: List[int]):
             visited[node] = True
             cluster.append(node)
-            
+
             for neighbor in range(n):
                 if not visited[neighbor] and adj_matrix[node][neighbor] and node != neighbor:
                     dfs(neighbor, cluster)
-        
+
         # Find all clusters
+        logger.debug(f"  Finding connected components via DFS...")
         for i in range(n):
             if not visited[i]:
                 cluster_indices = []
                 dfs(i, cluster_indices)
-                
+
                 # Only consider clusters with 2+ positions
                 if len(cluster_indices) >= 2:
                     cluster_symbols = [symbols[idx] for idx in cluster_indices]
-                    
+                    logger.debug(f"  Found cluster with {len(cluster_symbols)} symbols: {cluster_symbols[:3]}...")
+
                     # Calculate average correlation within cluster
                     cluster_corr_values = []
                     for j, idx1 in enumerate(cluster_indices):
@@ -585,13 +581,16 @@ class CorrelationService:
                             cluster_corr_values.append(
                                 correlation_matrix.iloc[idx1, idx2]
                             )
-                    
+
                     avg_correlation = np.mean(cluster_corr_values) if cluster_corr_values else 0
-                    
+                    logger.debug(f"    Avg correlation: {avg_correlation:.4f}")
+
                     # Generate cluster nickname
+                    logger.debug(f"    Generating nickname...")
                     nickname = await self.generate_cluster_nickname(
                         cluster_symbols, positions
                     )
+                    logger.debug(f"    ✅ Nickname generated: {nickname}")
                     
                     clusters.append({
                         "symbols": cluster_symbols,
@@ -599,14 +598,16 @@ class CorrelationService:
                         "avg_correlation": Decimal(str(avg_correlation)),
                         "nickname": nickname
                     })
-        
+                    logger.debug(f"    Cluster added to results")
+
         # Sort clusters by size (descending)
         clusters.sort(key=lambda x: len(x["symbols"]), reverse=True)
-        
+
+        logger.debug(f"✅ Detected {len(clusters)} clusters total")
         return clusters
     
     async def generate_cluster_nickname(
-        self, 
+        self,
         cluster_symbols: List[str],
         positions: List[Position]
     ) -> str:
@@ -616,15 +617,20 @@ class CorrelationService:
         2. Common sector
         3. Largest position + "lookalikes"
         """
+        logger.debug(f"🔍 Generating nickname for cluster: {cluster_symbols[:3]}... ({len(cluster_symbols)} symbols)")
+
         # Create symbol to position mapping
         symbol_to_position = {p.symbol: p for p in positions}
         cluster_positions = [
-            symbol_to_position[s] for s in cluster_symbols 
+            symbol_to_position[s] for s in cluster_symbols
             if s in symbol_to_position
         ]
-        
+
+        logger.debug(f"  Mapped {len(cluster_positions)} positions from {len(cluster_symbols)} symbols")
+
         # 1. Check for common tags (position-level tagging system)
         if cluster_positions:
+            logger.debug(f"  Step 1: Checking common tags for {len(cluster_positions)} positions")
             position_ids = [p.id for p in cluster_positions if p.id]
             if position_ids:
                 tag_query = (
@@ -635,6 +641,7 @@ class CorrelationService:
                 )
                 result = await self.db.execute(tag_query)
                 tags = result.scalars().all()
+                logger.debug(f"  Found {len(tags)} tags")
 
                 tag_counts = defaultdict(int)
                 for tag in tags:
@@ -643,43 +650,63 @@ class CorrelationService:
                 if tag_counts:
                     most_common_tag = max(tag_counts, key=tag_counts.get)
                     if tag_counts[most_common_tag] >= len(cluster_positions) * 0.7:
+                        logger.debug(f"  ✅ Using tag nickname: {most_common_tag}")
                         return most_common_tag
+
+            logger.debug(f"  No common tags found (threshold: 70%)")
         
         # 2. Check for common sector
+        logger.debug(f"  Step 2: Checking common sectors for {len(cluster_symbols)} symbols")
         sectors = []
-        for symbol in cluster_symbols:
+        for i, symbol in enumerate(cluster_symbols):
+            logger.debug(f"    Querying sector for symbol {i+1}/{len(cluster_symbols)}: {symbol}")
             # Query market data cache for sector info
             query = select(MarketDataCache).where(
                 MarketDataCache.symbol == symbol
             ).order_by(MarketDataCache.date.desc()).limit(1)
-            
+
             result = await self.db.execute(query)
             market_data = result.scalar_one_or_none()
-            
+
             if market_data and market_data.sector:
                 sectors.append(market_data.sector)
+                logger.debug(f"      Found sector: {market_data.sector}")
+            else:
+                logger.debug(f"      No sector data")
         
+        logger.debug(f"  Collected {len(sectors)} sector values from {len(cluster_symbols)} symbols")
+
         if sectors:
             # Find most common sector
             sector_counts = defaultdict(int)
             for sector in sectors:
                 sector_counts[sector] += 1
-            
+
             most_common_sector = max(sector_counts, key=sector_counts.get)
+            logger.debug(f"  Most common sector: {most_common_sector} ({sector_counts[most_common_sector]}/{len(cluster_symbols)} = {sector_counts[most_common_sector]/len(cluster_symbols)*100:.1f}%)")
+
             if sector_counts[most_common_sector] >= len(cluster_symbols) * 0.7:  # 70% threshold
+                logger.debug(f"  ✅ Using sector nickname: {most_common_sector}")
                 return most_common_sector
+
+        logger.debug(f"  No common sector found (threshold: 70%)")
         
         # 3. Use largest position + "lookalikes"
+        logger.debug(f"  Step 3: Using largest position fallback")
         if cluster_positions:
             # Find largest position by value (with fallback to entry_price)
             largest_position = max(
                 cluster_positions,
                 key=lambda p: abs(p.quantity * (p.last_price if p.last_price is not None else p.entry_price or 0))
             )
-            return f"{largest_position.symbol} lookalikes"
-        
+            nickname = f"{largest_position.symbol} lookalikes"
+            logger.debug(f"  ✅ Using largest position nickname: {nickname}")
+            return nickname
+
         # Fallback
-        return f"Cluster {cluster_symbols[0]}"
+        nickname = f"Cluster {cluster_symbols[0]}"
+        logger.debug(f"  ✅ Using fallback nickname: {nickname}")
+        return nickname
     
     def calculate_portfolio_metrics(
         self,
