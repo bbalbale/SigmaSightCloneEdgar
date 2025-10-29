@@ -1,8 +1,12 @@
 # Admin Authentication - Implementation Guide
 
+**🚨 PHASE 2 ONLY** - Implement after Phase 1 (Core Onboarding) is working and tested
+
 **Purpose**: Complete specification for superuser authentication system (missing from main design doc)
 
 **Context**: SigmaSight currently has no admin/superuser concept. This document explains how to build it from scratch.
+
+**When to Implement**: After Phase 1 endpoints are deployed and real users can successfully register and create portfolios. Admin tooling is nice-to-have for testing, but not required for core user onboarding.
 
 ---
 

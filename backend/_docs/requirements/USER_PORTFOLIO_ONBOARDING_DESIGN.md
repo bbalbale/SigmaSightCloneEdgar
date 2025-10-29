@@ -30,13 +30,17 @@ Enable self-service onboarding for test users to create accounts and portfolios 
 
 ### Scope
 
-**In Scope:**
+**Phase 1: Core Onboarding (MVP)**
 - API endpoints for user registration and portfolio creation
 - CSV parsing for broker-exported position data
-- Invite code security system
-- Superuser impersonation for testing
+- Invite code security system (config-based single code)
 - Full batch processing integration
 - Synchronous portfolio creation flow
+
+**Phase 2: Admin & Superuser Tooling** (Separate Implementation)
+- Superuser authentication and authorization
+- User impersonation for testing
+- Admin dashboard endpoints
 
 **Out of Scope:**
 - Frontend implementation details (FE team responsibility)
@@ -64,8 +68,8 @@ Enable self-service onboarding for test users to create accounts and portfolios 
 | **Entry Date** | Required in standardized CSV | Necessary for calculations |
 | **UUID Strategy** | Hybrid: deterministic for testing → random | Test thoroughly, maintain demos |
 | **Invite Codes** | Single master code (config-based) ⭐ **SIMPLIFIED** | No database, looks unique to users |
-| **Superuser Access** | Database flag + impersonation | Realistic testing |
 | **Batch Processing** | Synchronous (30-60s timeout) | Simpler for MVP |
+| **Superuser Access** | *Phase 2 only* | Not needed for core onboarding |
 | **Equity Balance** | Separate API field | Handle leverage correctly |
 | **CSV Validation** | All-or-nothing (strict) | Data quality |
 | **Demo Seeding** | Keep separate, share utilities | Don't break existing system |
@@ -78,17 +82,22 @@ Enable self-service onboarding for test users to create accounts and portfolios 
 
 ## 3. API Endpoint Specifications
 
-**Phase 1 MVP: 5 Endpoints**
+### **Phase 1: Core Onboarding - 2 Endpoints**
 
-### **Onboarding Endpoints (2)**
+These are the MVP endpoints for user onboarding and portfolio creation:
+
 1. `POST /api/v1/onboarding/register` - User registration with single invite code
 2. `POST /api/v1/onboarding/create-portfolio` - Portfolio creation with CSV
 
-### **Admin Endpoints (3)**
+### **Phase 2: Admin & Superuser - 3 Endpoints** *(Separate Implementation)*
+
+These admin tooling endpoints will be implemented after Phase 1 is working and tested:
+
 3. `POST /api/v1/admin/impersonate` - Start impersonation
 4. `POST /api/v1/admin/stop-impersonation` - End impersonation
 5. `GET /api/v1/admin/users` - List all users
 
+**Note:** Phase 2 also includes all work from `ADMIN_AUTH_SUPPLEMENT.md` (superuser authentication, JWT modifications, bootstrap script, etc.)
 
 ---
 
@@ -193,7 +202,7 @@ curl -X POST http://localhost:8000/api/v1/onboarding/create-portfolio \
 
 ---
 
-### 3.3 Admin: Impersonate User
+### 3.3 Admin: Impersonate User **[PHASE 2]**
 
 #### `POST /api/v1/admin/impersonate`
 
@@ -238,7 +247,7 @@ curl -X GET http://localhost:8000/api/v1/data/portfolio/complete \
 
 ---
 
-### 3.8 Admin: Stop Impersonation
+### 3.8 Admin: Stop Impersonation **[PHASE 2]**
 
 #### `POST /api/v1/admin/stop-impersonation`
 
@@ -263,7 +272,7 @@ Authorization: Bearer <IMPERSONATION_TOKEN>
 
 ---
 
-### 3.9 Admin: List All Users
+### 3.9 Admin: List All Users **[PHASE 2]**
 
 #### `GET /api/v1/admin/users`
 
@@ -1146,69 +1155,94 @@ While Impersonating:
 
 ## 10. Implementation Phases
 
-### Phase 1: Core Onboarding (Week 1-2)
+### **Phase 1: Core Onboarding** (~1.5 weeks)
 
 **Goals:**
 - User registration with invite codes
 - Portfolio creation with CSV import
-- Basic validation
+- Get real users onboarded ASAP
 
-**Tasks:**
-1. Database schema changes (Alembic migration)
-2. Invite code service and models
-3. CSV parser service
-4. Position import service
-5. Onboarding service orchestration
-6. API endpoints (2):
-   - `POST /api/v1/onboarding/register`
-   - `POST /api/v1/onboarding/create-portfolio`
-7. Error handling (validation in create-portfolio endpoint)
-8. CSV template (static file)
-9. Basic testing
+**Database:**
+- No new tables (invite code is config value)
+- No changes to users table (no `is_superuser` column yet)
+- Use existing User and Portfolio models
+
+**Services:**
+1. InviteCodeService (simple validation against config)
+2. CSV parser service
+3. Position import service
+4. Onboarding service orchestration
+
+**API Endpoints (2):**
+- `POST /api/v1/onboarding/register`
+- `POST /api/v1/onboarding/create-portfolio`
+
+**Additional Work:**
+- Error handling (~35 error codes)
+- CSV template (static file)
+- Batch processing integration
+- Testing with real user workflows
 
 **Success Criteria:**
-- ✅ User can register with invite code
+- ✅ User can register with invite code `PRESCOTT-LINNAEAN-COWPERTHWAITE`
 - ✅ User can upload CSV and create portfolio
-- ✅ Batch processing runs synchronously
+- ✅ Batch processing runs synchronously (30-60s)
 - ✅ Position data appears in database
-- ✅ Validation errors are clear
+- ✅ Validation errors are clear and actionable
+- ✅ Can test by creating actual accounts directly (no impersonation needed)
+
+**Testing Strategy:**
+- Create test accounts like demo accounts (just login directly)
+- Ask beta users for screenshots/screen shares for support
+- No admin tooling needed yet
 
 **UUID Strategy:** Deterministic (for testing)
 
 ---
 
-### Phase 2: Admin & Impersonation (Week 3)
+### **Phase 2: Admin & Superuser Tooling** (~1 week) *Implement after Phase 1 is working and tested*
 
 **Goals:**
-- Superuser functionality
-- User impersonation
-- Invite code management
+- Superuser authentication system
+- User impersonation for testing
+- Admin dashboard functionality
 
-**Tasks:**
-1. Impersonation service
-2. Invite code generation script
-3. API endpoints (5):
-   - `POST /api/v1/admin/impersonate`
-   - `POST /api/v1/admin/stop-impersonation`
-   - `POST /api/v1/admin/invite-codes/generate`
-   - `GET /api/v1/admin/invite-codes`
-   - `GET /api/v1/admin/users`
-4. Superuser authentication middleware
-5. Audit logging
-6. Testing with multiple test users
+**Database:**
+- Add `is_superuser` column to users table
+- Create bootstrap script for first superuser
 
-**Note:** To view a user's portfolio, superusers use impersonation + existing portfolio endpoints
+**All work from `ADMIN_AUTH_SUPPLEMENT.md`:**
+1. Database migration (`users.is_superuser` column)
+2. Bootstrap script (`scripts/admin/create_first_superuser.py`)
+3. JWT token modifications (add `is_superuser` claim)
+4. Auth dependencies (`get_current_superuser()`)
+5. Login response updates (include user info)
+
+**Services:**
+- ImpersonationService (token generation, switching)
+
+**API Endpoints (3):**
+- `POST /api/v1/admin/impersonate`
+- `POST /api/v1/admin/stop-impersonation`
+- `GET /api/v1/admin/users`
+
+**Testing:**
+- Bootstrap first superuser
+- Test impersonation flow
+- Test admin endpoint access control
+- Verify regular users cannot access admin endpoints
 
 **Success Criteria:**
-- ✅ Superuser can generate invite codes
+- ✅ Bootstrap script creates first superuser
 - ✅ Superuser can list all users
 - ✅ Superuser can impersonate any user
 - ✅ Impersonation token works correctly
-- ✅ Audit logs capture all admin actions
+- ✅ JWT tokens include `is_superuser` claim
+- ✅ Regular users get 403 on admin endpoints
 
 ---
 
-### Phase 3: Production Hardening (Week 4)
+### Phase 3: Production Hardening (Optional - Future)
 
 **Goals:**
 - Security improvements

@@ -214,22 +214,34 @@ ERR_INVITE_001: "Invalid invite code. Please check and try again."
 
 ## 6. Updated Database Schema
 
-### **Minimal Changes:**
-```sql
--- ONLY add to users table:
-ALTER TABLE users ADD COLUMN is_superuser BOOLEAN DEFAULT FALSE NOT NULL;
-CREATE INDEX idx_users_is_superuser ON users(is_superuser);
+### **Phase 1: Core Onboarding**
+**NO database changes required!**
 
--- That's it! No other changes needed for MVP.
+- Use existing User and Portfolio models
+- Invite code is config value (no table)
+- No superuser column yet (Phase 2 only)
+
+```python
+# app/config.py
+BETA_INVITE_CODE = "PRESCOTT-LINNAEAN-COWPERTHWAITE"
 ```
 
-### **What We're NOT Adding:**
+### **Phase 2: Admin & Superuser**
+**Minimal database changes:**
+
+```sql
+-- Add superuser flag to users table
+ALTER TABLE users ADD COLUMN is_superuser BOOLEAN DEFAULT FALSE NOT NULL;
+CREATE INDEX idx_users_is_superuser ON users(is_superuser);
+```
+
+### **What We're NOT Adding (Any Phase):**
 - ❌ No `invite_codes` table
 - ❌ No `account_type` column
-- ❌ No `invited_by_code` column (optional - could keep for tracking)
+- ❌ No `invited_by_code` column (optional tracking)
 - ❌ No `check_account_type` constraint
 
-### **Optional Tracking:**
+### **Optional Tracking (Phase 1 or 2):**
 ```sql
 -- OPTIONAL: Track which code they used (for analytics)
 ALTER TABLE users ADD COLUMN invited_by_code VARCHAR(50);
@@ -240,13 +252,17 @@ ALTER TABLE users ADD COLUMN invited_by_code VARCHAR(50);
 
 ## 7. Revised API Scope
 
-### **Phase 1 MVP: 5 Endpoints** (down from 7)
+### **Phase 1: Core Onboarding - 2 Endpoints**
 
-#### **Onboarding Endpoints (2)**
+Ship these first to get users onboarded:
+
 1. `POST /api/v1/onboarding/register` - User registration
 2. `POST /api/v1/onboarding/create-portfolio` - Portfolio creation with CSV
 
-#### **Admin Endpoints (3)**
+### **Phase 2: Admin & Superuser - 3 Endpoints** *(Separate Implementation)*
+
+Build after Phase 1 is working and tested:
+
 3. `POST /api/v1/admin/impersonate` - Start impersonation
 4. `POST /api/v1/admin/stop-impersonation` - End impersonation
 5. `GET /api/v1/admin/users` - List all users
@@ -259,49 +275,56 @@ ALTER TABLE users ADD COLUMN invited_by_code VARCHAR(50);
 
 ## 8. Updated Implementation Timeline
 
-### **Phase 1: Core Onboarding (Week 1-1.5)**
-**Reduced from 2 weeks → 1.5 weeks**
+### **Phase 1: Core Onboarding (~1.5 weeks)** - SHIP FIRST
 
-1. Minimal database migration (just `is_superuser` column)
-2. Simplified invite code validation (config-based)
-3. CSV parser service (same as before)
-4. Position import service (same as before)
-5. Onboarding service orchestration (simplified)
-6. **2 API endpoints:**
+**Goal**: Get real users onboarding ASAP
+
+**Database:**
+- No new tables (invite code is config value)
+- No schema changes (no `is_superuser` column yet)
+- Use existing User and Portfolio models
+
+**Work:**
+1. Simplified invite code validation (config-based)
+2. CSV parser service
+3. Position import service
+4. Onboarding service orchestration
+5. **2 API endpoints:**
    - `POST /api/v1/onboarding/register`
    - `POST /api/v1/onboarding/create-portfolio`
-7. Simplified error handling (~35 codes)
-8. CSV template (static file)
-9. Basic testing
+6. Simplified error handling (~35 codes)
+7. CSV template (static file)
+8. Testing with real user workflows
 
-### **Phase 2: Admin & Impersonation (Week 2)**
-**Reduced from Week 3 → Week 2**
+**Testing Strategy:**
+- Create test accounts directly (like demo accounts)
+- No admin tooling needed yet
+- Ask beta users for screenshots/support calls
 
-1. Impersonation service (same as before)
-2. **3 API endpoints:**
+### **Phase 2: Admin & Superuser (~1 week)** - IMPLEMENT AFTER PHASE 1
+
+**Goal**: Build admin tooling after validating Phase 1 works
+
+**Database:**
+- Add `is_superuser` column to users table
+- Create bootstrap script
+
+**Work (all from ADMIN_AUTH_SUPPLEMENT.md):**
+1. Database migration (`users.is_superuser` column)
+2. Bootstrap script (`create_first_superuser.py`)
+3. JWT token modifications (add `is_superuser` claim)
+4. Auth dependencies (`get_current_superuser()`)
+5. Login response updates
+6. Impersonation service
+7. **3 API endpoints:**
    - `POST /api/v1/admin/impersonate`
    - `POST /api/v1/admin/stop-impersonation`
    - `GET /api/v1/admin/users`
-3. Superuser authentication middleware
-4. Basic application logging (no structured audit)
-5. Testing with multiple test users
+8. Testing with impersonation flow
 
-### **Phase 3: Testing & Polish (Week 2.5-3)**
-**Simplified hardening**
+### **Total Timeline: ~2.5 weeks** (down from 4-5 weeks)
 
-1. **UUID Strategy:** Keep hybrid (deterministic for testing)
-2. **No rate limiting** (skip entirely)
-3. **No monitoring** (use existing logs)
-4. **Security review:**
-   - Auth bypass testing
-   - User isolation testing
-   - File upload security
-5. **Documentation:**
-   - API docs (Swagger)
-   - User CSV guide
-   - Simple admin guide
-
-### **Total Timeline: ~3 weeks** (down from 4 weeks)
+**Key Benefit**: Phase 1 ships in 1.5 weeks and delivers immediate value!
 
 ---
 
