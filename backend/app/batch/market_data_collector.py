@@ -1,6 +1,11 @@
 """
 Phase 1: Market Data Collection
-Fetches all required market data once per day with 1-year lookback for volatility analysis
+Smart incremental/gap-fill fetching with automatic backfill detection
+
+Fetch Modes:
+- Incremental: 1 day (when yesterday's data exists)
+- Gap Fill: 2-30 days (when missing a few days)
+- Backfill: 365 days (initial load or gaps >30 days)
 
 Provider Priority: YFinance → YahooQuery → Polygon → FMP
 """
@@ -50,9 +55,10 @@ class MarketDataCollector:
     Phase 1 of batch processing - collect all market data for the day
 
     Features:
-    - 1-year historical lookback for volatility/beta calculations
+    - Smart incremental/gap-fill fetching (1 day, 2-30 days, or 365 days)
+    - Automatic detection of missed days with intelligent backfill
     - Provider priority chain: YFinance → YahooQuery → Polygon → FMP
-    - Bulk fetching for efficiency
+    - Bulk fetching for efficiency (2 queries vs 108 per run)
     - Smart caching (don't re-fetch existing data)
     - Data coverage reporting
     """
@@ -117,24 +123,36 @@ class MarketDataCollector:
         symbols = await self._get_symbol_universe(db)
         logger.info(f"Symbol universe: {len(symbols)} symbols")
 
-        # Step 2: Determine date range - SMART INCREMENTAL FETCHING
-        # Check if we already have data for yesterday (incremental run vs backfill)
+        # Step 2: Determine date range - SMART INCREMENTAL/GAP FILL FETCHING
+        # Find the most recent date we have data for, then backfill from there
         end_date = calculation_date
-        yesterday = calculation_date - timedelta(days=1)
 
-        # Check if we have data for yesterday (indicates this is incremental, not backfill)
-        has_yesterday_data = await self._has_data_for_date(db, symbols, yesterday)
+        # Get most recent date with market data
+        most_recent_date = await self._get_most_recent_data_date(db, symbols)
 
-        if has_yesterday_data:
-            # Incremental daily run - only fetch TODAY's data
-            start_date = calculation_date
-            fetch_mode = "incremental"
-            logger.info(f"Incremental run: fetching only {calculation_date} (1 day)")
+        if most_recent_date:
+            days_gap = (calculation_date - most_recent_date).days
+
+            if days_gap == 1:
+                # Yesterday's data exists - incremental daily run
+                start_date = calculation_date
+                fetch_mode = "incremental"
+                logger.info(f"Incremental run: fetching only {calculation_date} (1 day)")
+            elif days_gap <= 30:
+                # Small gap (2-30 days) - fill only the missing days
+                start_date = most_recent_date + timedelta(days=1)
+                fetch_mode = "gap_fill"
+                logger.info(f"Gap fill: fetching {start_date} to {end_date} ({days_gap} missing days)")
+            else:
+                # Large gap (>30 days) - full backfill for historical analysis
+                start_date = calculation_date - timedelta(days=lookback_days)
+                fetch_mode = "backfill"
+                logger.info(f"Large gap detected ({days_gap} days), full backfill: {start_date} to {end_date}")
         else:
-            # Backfill run - fetch full lookback period for historical analysis
+            # No data at all - full backfill
             start_date = calculation_date - timedelta(days=lookback_days)
             fetch_mode = "backfill"
-            logger.info(f"Backfill run: fetching {start_date} to {end_date} ({lookback_days} days)")
+            logger.info(f"Initial backfill: fetching {start_date} to {end_date} ({lookback_days} days)")
 
         # Step 3: Check what data we already have in cache
         cached_symbols = await self._get_cached_symbols(db, symbols, start_date, end_date)
@@ -204,6 +222,56 @@ class MarketDataCollector:
         logger.info(f"  Filtered (real symbols): {len(real_symbols)}")
 
         return real_symbols
+
+    async def _get_most_recent_data_date(
+        self,
+        db: AsyncSession,
+        symbols: Set[str]
+    ) -> Optional[date]:
+        """
+        Find the most recent date that has market data for >= 80% of symbols
+
+        Returns:
+            Most recent date with sufficient data coverage, or None if no data exists
+        """
+        from sqlalchemy import func, and_, desc
+        from app.models.market_data import MarketDataCache
+
+        # Get the most recent date with data for at least 80% of symbols
+        # Strategy: Get the max date overall, then work backwards checking coverage
+        max_date_query = select(func.max(MarketDataCache.date)).where(
+            MarketDataCache.symbol.in_(list(symbols))
+        )
+        result = await db.execute(max_date_query)
+        max_date = result.scalar()
+
+        if not max_date:
+            logger.info("No market data found in cache")
+            return None
+
+        # Check backwards from max_date to find a date with good coverage
+        threshold = len(symbols) * 0.8
+        check_date = max_date
+
+        for _ in range(30):  # Check up to 30 days back
+            count_query = select(func.count(MarketDataCache.symbol.distinct())).where(
+                and_(
+                    MarketDataCache.symbol.in_(list(symbols)),
+                    MarketDataCache.date == check_date,
+                    MarketDataCache.close > 0
+                )
+            )
+            count_result = await db.execute(count_query)
+            symbols_with_data = count_result.scalar()
+
+            if symbols_with_data >= threshold:
+                logger.info(f"Most recent data: {check_date} ({symbols_with_data}/{len(symbols)} symbols)")
+                return check_date
+
+            check_date = check_date - timedelta(days=1)
+
+        logger.warning(f"No recent date found with >80% coverage (checked back to {check_date})")
+        return None
 
     async def _has_data_for_date(
         self,
