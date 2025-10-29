@@ -117,11 +117,24 @@ class MarketDataCollector:
         symbols = await self._get_symbol_universe(db)
         logger.info(f"Symbol universe: {len(symbols)} symbols")
 
-        # Step 2: Determine date range (1 year back for vol/beta)
+        # Step 2: Determine date range - SMART INCREMENTAL FETCHING
+        # Check if we already have data for yesterday (incremental run vs backfill)
         end_date = calculation_date
-        start_date = calculation_date - timedelta(days=lookback_days)
+        yesterday = calculation_date - timedelta(days=1)
 
-        logger.info(f"Date range: {start_date} to {end_date} ({lookback_days} days)")
+        # Check if we have data for yesterday (indicates this is incremental, not backfill)
+        has_yesterday_data = await self._has_data_for_date(db, symbols, yesterday)
+
+        if has_yesterday_data:
+            # Incremental daily run - only fetch TODAY's data
+            start_date = calculation_date
+            fetch_mode = "incremental"
+            logger.info(f"Incremental run: fetching only {calculation_date} (1 day)")
+        else:
+            # Backfill run - fetch full lookback period for historical analysis
+            start_date = calculation_date - timedelta(days=lookback_days)
+            fetch_mode = "backfill"
+            logger.info(f"Backfill run: fetching {start_date} to {end_date} ({lookback_days} days)")
 
         # Step 3: Check what data we already have in cache
         cached_symbols = await self._get_cached_symbols(db, symbols, start_date, end_date)
@@ -156,6 +169,7 @@ class MarketDataCollector:
             'calculation_date': calculation_date,
             'start_date': start_date,
             'end_date': end_date,
+            'fetch_mode': fetch_mode,  # 'incremental' or 'backfill'
             'symbols_requested': total_symbols,
             'symbols_fetched': len(fetched_data),
             'symbols_with_data': symbols_with_data,
@@ -190,6 +204,40 @@ class MarketDataCollector:
         logger.info(f"  Filtered (real symbols): {len(real_symbols)}")
 
         return real_symbols
+
+    async def _has_data_for_date(
+        self,
+        db: AsyncSession,
+        symbols: Set[str],
+        check_date: date
+    ) -> bool:
+        """
+        Quick check if we have market data for a specific date
+
+        Returns True if we have data for >= 80% of symbols on this date
+        (indicates this is an incremental run, not initial backfill)
+        """
+        from sqlalchemy import func, and_
+        from app.models.market_data import MarketDataCache
+
+        # Count how many symbols have data for this date
+        query = select(func.count(MarketDataCache.symbol.distinct())).where(
+            and_(
+                MarketDataCache.symbol.in_(list(symbols)),
+                MarketDataCache.date == check_date,
+                MarketDataCache.close > 0
+            )
+        )
+        result = await db.execute(query)
+        symbols_with_data = result.scalar()
+
+        # If we have data for >= 80% of symbols, consider it an incremental run
+        threshold = len(symbols) * 0.8
+        has_data = symbols_with_data >= threshold
+
+        logger.debug(f"Date {check_date}: {symbols_with_data}/{len(symbols)} symbols ({symbols_with_data/len(symbols)*100:.1f}%)")
+
+        return has_data
 
     async def _get_cached_symbols(
         self,
