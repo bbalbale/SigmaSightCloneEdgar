@@ -3,7 +3,7 @@ Position-to-position correlation analysis service
 """
 
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 from decimal import Decimal
 from typing import List, Dict, Optional, Tuple, Set
 from uuid import UUID
@@ -43,7 +43,7 @@ class CorrelationService:
     async def _get_portfolio_value_from_snapshot(
         self,
         portfolio_id: UUID,
-        calculation_date: datetime,
+        calculation_date: date,
         max_staleness_days: int = 3
     ) -> Optional[Decimal]:
         """
@@ -62,7 +62,7 @@ class CorrelationService:
             .where(
                 and_(
                     PortfolioSnapshot.portfolio_id == portfolio_id,
-                    PortfolioSnapshot.snapshot_date <= calculation_date.date()
+                    PortfolioSnapshot.snapshot_date <= calculation_date
                 )
             )
             .order_by(PortfolioSnapshot.snapshot_date.desc())
@@ -74,7 +74,7 @@ class CorrelationService:
 
         # Check if snapshot is recent enough
         if latest_snapshot:
-            staleness = (calculation_date.date() - latest_snapshot.snapshot_date).days
+            staleness = (calculation_date - latest_snapshot.snapshot_date).days
             if staleness <= max_staleness_days:
                 logger.info(
                     f"Using snapshot gross_exposure from {latest_snapshot.snapshot_date} "
@@ -182,7 +182,7 @@ class CorrelationService:
     async def calculate_portfolio_correlations(
         self,
         portfolio_id: UUID,
-        calculation_date: datetime,
+        calculation_date: date,
         min_position_value: Optional[Decimal] = Decimal("10000"),
         min_portfolio_weight: Optional[Decimal] = Decimal("0.01"),
         filter_mode: str = "both",
@@ -269,7 +269,7 @@ class CorrelationService:
                     f"No return data available for correlation calculation (portfolio {portfolio_id}). "
                     f"All {private_count} PRIVATE positions were filtered. Skipping correlation calculation."
                 )
-                await self.db.rollback()
+                # Note: No rollback needed - no changes were made, let caller manage transaction
                 return None  # Option B: Skip persistence, return None
 
             # Validate data sufficiency (minimum 20 days)
@@ -282,7 +282,7 @@ class CorrelationService:
                     f"No positions have sufficient data for correlation calculation (portfolio {portfolio_id}). "
                     f"All positions have <20 days of data. Skipping correlation calculation."
                 )
-                await self.db.rollback()
+                # Note: No rollback needed - no changes were made, let caller manage transaction
                 return None  # Option B: Skip persistence, return None
             
             # Calculate pairwise correlations with adaptive minimum overlap requirement
@@ -362,19 +362,21 @@ class CorrelationService:
                 f"  - Correlation clusters detected: {len(clusters)}"
             )
 
-            await self.db.commit()
+            # Note: Do NOT commit here - let caller manage transaction boundaries
+            # Committing expires session objects and causes greenlet errors
+            logger.debug(f"Staged correlations for portfolio {portfolio_id} (will be committed by caller)")
 
             logger.info(
                 f"Completed correlation calculation for portfolio {portfolio_id}: "
                 f"overall_correlation={metrics['overall_correlation']:.4f}, "
                 f"clusters={len(clusters)}"
             )
-            
+
             return calculation
-            
+
         except Exception as e:
             logger.error(f"Error calculating correlations for portfolio {portfolio_id}: {e}")
-            await self.db.rollback()
+            # Note: Do NOT rollback here - let caller manage transaction
             raise
     
     def filter_significant_positions(

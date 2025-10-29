@@ -341,13 +341,14 @@ async def save_position_volatility(
             )
             db.add(vol_record)
 
-        await db.commit()
+        # Note: Do NOT commit here - let caller manage transaction boundaries
+        # Committing expires session objects and causes greenlet errors
         return True
 
     except Exception as e:
         logger.error(f"Error saving position volatility: {e}", exc_info=True)
-        await db.rollback()
-        return False
+        # Note: Do NOT rollback here - let caller manage transaction
+        raise
 
 
 async def calculate_portfolio_volatility_batch(

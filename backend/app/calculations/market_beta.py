@@ -225,12 +225,13 @@ async def persist_position_beta(
             )
             db.add(new_beta)
 
-        await db.commit()
-        logger.info(f"Persisted beta for position {position_id} to position_market_betas table")
+        # Note: Do NOT commit here - let caller manage transaction boundaries
+        # Committing after each position expires session objects and causes greenlet errors
+        logger.debug(f"Staged beta for position {position_id} (will be committed by caller)")
 
     except Exception as e:
         logger.error(f"Error persisting position beta: {e}")
-        await db.rollback()
+        # Note: Do NOT rollback here - let caller manage transaction
         raise
 
 

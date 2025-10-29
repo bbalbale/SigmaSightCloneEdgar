@@ -148,7 +148,7 @@ async def run_batch_calculations_step() -> List[Dict[str, Any]]:
     Notes:
         Continues processing other portfolios if one fails
     """
-    from app.batch.batch_orchestrator_v2 import batch_orchestrator_v2
+    from app.batch.batch_orchestrator_v3 import batch_orchestrator_v3 as batch_orchestrator_v2
 
     logger.info("=" * 60)
     logger.info("STEP 2: Batch Calculations (with per-portfolio market data sync)")
