@@ -27,7 +27,7 @@ sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
 # Add parent directory to path
 sys.path.append(str(Path(__file__).parent.parent))
 
-from app.batch.batch_orchestrator_v2 import batch_orchestrator_v2
+from app.batch.batch_orchestrator_v3 import batch_orchestrator_v3 as batch_orchestrator_v2
 from app.core.logging import get_logger
 
 logger = get_logger(__name__)

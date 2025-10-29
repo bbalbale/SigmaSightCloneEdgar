@@ -1,0 +1,8 @@
+# Note: The following scripts reference batch_orchestrator_v2 which has been replaced by v3:
+# - scripts/migrations/refactor_calculations.py (migration script - not actively used)
+# - scripts/reset_and_reprocess.py (uses v2 internal methods - needs refactor)
+# - scripts/reprocess_historical_calculations.py (needs refactor)
+# - scripts/testing/test_database_regression.py (test script)
+# - scripts/testing/test_fmp_batch_integration.py (test script)
+#
+# These are not production-critical and can be updated as needed.

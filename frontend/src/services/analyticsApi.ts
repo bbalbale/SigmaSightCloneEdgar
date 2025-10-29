@@ -23,7 +23,7 @@ export const analyticsApi = {
     const endpoint = API_ENDPOINTS.ANALYTICS.OVERVIEW(portfolioId);
     const url = apiClient.buildUrl(endpoint);
     const data = await apiClient.get<PortfolioOverviewResponse>(endpoint, {
-      ...REQUEST_CONFIGS.STANDARD,
+      ...REQUEST_CONFIGS.ANALYTICS_HEAVY,
       headers: { ...getAuthHeader() },
     });
     return { data, url };
@@ -68,7 +68,7 @@ export const analyticsApi = {
     const endpoint = API_ENDPOINTS.ANALYTICS.FACTOR_EXPOSURES(portfolioId);
     const url = apiClient.buildUrl(endpoint);
     const data = await apiClient.get<PortfolioFactorExposuresResponse>(endpoint, {
-      ...REQUEST_CONFIGS.STANDARD,
+      ...REQUEST_CONFIGS.ANALYTICS_HEAVY,
       headers: { ...getAuthHeader() },
     });
     return { data, url };

@@ -242,12 +242,13 @@ async def persist_position_ir_beta(
             )
             db.add(new_ir_beta)
 
-        await db.commit()
-        logger.info(f"Persisted IR beta for position {position_id}")
+        # Note: Do NOT commit here - let caller manage transaction boundaries
+        # Committing after each position expires session objects and causes greenlet errors
+        logger.debug(f"Staged IR beta for position {position_id} (will be committed by caller)")
 
     except Exception as e:
         logger.error(f"Error persisting IR beta: {e}")
-        await db.rollback()
+        # Note: Do NOT rollback here - let caller manage transaction
         raise
 
 

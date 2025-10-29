@@ -93,7 +93,8 @@
       "Bash(docker-compose ps:*)",
       "Bash(if exist backendnul del backendnul)",
       "Bash(if exist nul del nul)",
-      "mcp__playwright__browser_drag"
+      "mcp__playwright__browser_drag",
+      "Bash(tee:*)"
     ],
     "additionalDirectories": [
       "C:\\c\\Users\\BenBalbale\\CascadeProjects\\SigmaSight-BE"

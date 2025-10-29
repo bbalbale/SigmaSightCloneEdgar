@@ -27,6 +27,7 @@ interface UsePortfolioDataReturn {
   portfolioName: string
   dataLoaded: boolean
   factorExposures: FactorExposure[] | null
+  factorDataQuality: any
   portfolioId: string | null
   equityBalance: number
 
@@ -54,6 +55,7 @@ export function usePortfolioData(options: UsePortfolioDataOptions = {}): UsePort
   const [portfolioName, setPortfolioName] = useState('Loading...')
   const [dataLoaded, setDataLoaded] = useState(false)
   const [factorExposures, setFactorExposures] = useState<FactorExposure[] | null>(null)
+  const [factorDataQuality, setFactorDataQuality] = useState<any>(null)
   const [equityBalance, setEquityBalance] = useState<number>(0)
 
   useEffect(() => {
@@ -101,6 +103,7 @@ export function usePortfolioData(options: UsePortfolioDataOptions = {}): UsePort
         setOptionsPositions(optionsPos)
         setPrivatePositions(privatePos)
         setFactorExposures(data.factorExposures || null)
+        setFactorDataQuality(data.factorDataQuality || null)
         setEquityBalance(data.equityBalance || 0)
 
         if (data.portfolioInfo?.name) {
@@ -158,6 +161,7 @@ export function usePortfolioData(options: UsePortfolioDataOptions = {}): UsePort
     portfolioName,
     dataLoaded,
     factorExposures,
+    factorDataQuality,
     portfolioId,
     equityBalance,
     handleRetry

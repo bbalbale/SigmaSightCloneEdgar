@@ -11,9 +11,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.dependencies import get_db, require_admin
 from app.database import AsyncSessionLocal
-from app.batch.batch_orchestrator_v2 import batch_orchestrator_v2 as batch_orchestrator
+from app.batch.batch_orchestrator_v3 import batch_orchestrator_v3 as batch_orchestrator
 from app.batch.batch_run_tracker import batch_run_tracker, CurrentBatchRun
-from app.batch.data_quality import pre_flight_validation
+from app.batch.market_data_collector import market_data_collector
 from app.core.logging import get_logger
 from app.core.datetime_utils import utc_now
 
@@ -29,7 +29,8 @@ async def _run_market_data_refresh_with_session():
     """
     async with AsyncSessionLocal() as session:
         try:
-            await batch_orchestrator._update_market_data(session)
+            # V3: Use market_data_collector directly
+            await market_data_collector.collect_all_market_data(session)
             logger.info("Background market data refresh completed successfully")
         except Exception as e:
             logger.error(f"Background market data refresh failed: {e}", exc_info=True)
@@ -142,12 +143,11 @@ async def trigger_market_data_update(
     """
     Manually trigger market data update for all symbols.
     """
-    from app.batch.market_data_sync import sync_market_data
-    
     logger.info(f"Admin {admin_user.email} triggered market data update")
-    
-    background_tasks.add_task(sync_market_data)
-    
+
+    # V3: Use wrapper function with own session
+    background_tasks.add_task(_run_market_data_refresh_with_session)
+
     return {
         "status": "started",
         "message": "Market data update started",
@@ -164,19 +164,21 @@ async def trigger_correlation_calculation(
     admin_user = Depends(require_admin)
 ):
     """
-    Manually trigger correlation calculations (normally runs weekly on Tuesday).
+    Manually trigger correlation calculations (normally runs as part of batch).
     """
-    logger.info(f"Admin {admin_user.email} triggered correlations for portfolio {portfolio_id or 'all'}")
+    logger.info(f"Admin {admin_user.email} triggered batch for portfolio {portfolio_id or 'all'}")
 
+    # V3: Correlations run as part of Phase 3 analytics automatically
     background_tasks.add_task(
         batch_orchestrator.run_daily_batch_sequence,
-        portfolio_id,
-        True  # run_correlations=True
+        None,  # calculation_date (None = today)
+        [portfolio_id] if portfolio_id else None,  # portfolio_ids list
+        db
     )
 
     return {
         "status": "started",
-        "message": f"Correlation calculation started for {'portfolio ' + portfolio_id if portfolio_id else 'all portfolios'}",
+        "message": f"Batch processing started for {'portfolio ' + portfolio_id if portfolio_id else 'all portfolios'}",
         "triggered_by": admin_user.email,
         "timestamp": utc_now()
     }
@@ -206,81 +208,5 @@ async def trigger_company_profile_sync(
     }
 
 
-@router.get("/data-quality")
-async def get_data_quality_status(
-    portfolio_id: Optional[str] = Query(None, description="Specific portfolio ID or all portfolios"),
-    db: AsyncSession = Depends(get_db),
-    admin_user = Depends(require_admin)
-):
-    """
-    Get data quality status and metrics for portfolios.
-    Provides pre-flight validation results without running batch processing.
-    """
-    logger.info(f"Admin {admin_user.email} requested data quality status for portfolio {portfolio_id or 'all'}")
-    
-    try:
-        # Run data quality validation
-        validation_results = await pre_flight_validation(db, portfolio_id)
-        
-        # Add admin metadata
-        validation_results['requested_by'] = admin_user.email
-        validation_results['request_timestamp'] = utc_now()
-        
-        logger.info(
-            f"Data quality check completed for admin {admin_user.email}: "
-            f"score {validation_results.get('quality_score', 0):.1%}"
-        )
-        
-        return validation_results
-        
-    except Exception as e:
-        logger.error(f"Data quality check failed for admin {admin_user.email}: {str(e)}")
-        raise HTTPException(
-            status_code=500,
-            detail=f"Data quality validation failed: {str(e)}"
-        )
-
-
-@router.post("/data-quality/refresh")
-async def refresh_market_data_for_quality(
-    background_tasks: BackgroundTasks,
-    portfolio_id: Optional[str] = Query(None, description="Specific portfolio ID or all portfolios"),
-    db: AsyncSession = Depends(get_db),
-    admin_user = Depends(require_admin)
-):
-    """
-    Refresh market data to improve data quality scores.
-    Runs market data sync in the background based on data quality recommendations.
-    """
-    logger.info(f"Admin {admin_user.email} requested market data refresh for data quality improvement")
-    
-    # First, check current data quality to identify what needs refreshing
-    validation_results = await pre_flight_validation(db, portfolio_id)
-    recommendations = validation_results.get('recommendations', [])
-    
-    if not recommendations or 'within acceptable thresholds' in recommendations[0]:
-        return {
-            "status": "no_action_needed",
-            "message": "Data quality is already within acceptable thresholds",
-            "current_quality_score": validation_results.get('quality_score', 0),
-            "requested_by": admin_user.email,
-            "timestamp": utc_now()
-        }
-    
-    # Run market data sync in background with its own session
-    # Note: Using wrapper function because BackgroundTasks closes the request's db session
-    background_tasks.add_task(_run_market_data_refresh_with_session)
-    
-    logger.info(
-        f"Market data refresh initiated by admin {admin_user.email} "
-        f"(current quality: {validation_results.get('quality_score', 0):.1%})"
-    )
-    
-    return {
-        "status": "refresh_started",
-        "message": "Market data refresh started to improve data quality",
-        "current_quality_score": validation_results.get('quality_score', 0),
-        "recommendations": recommendations[:3],  # Show top 3 recommendations
-        "requested_by": admin_user.email,
-        "timestamp": utc_now()
-    }
+# Note: data-quality endpoints removed - data_quality module was deleted
+# V3 batch orchestrator handles data quality internally via market_data_collector

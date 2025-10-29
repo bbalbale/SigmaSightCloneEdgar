@@ -28,18 +28,25 @@ logger = logging.getLogger(__name__)
 async def create_portfolio_snapshot(
     db: AsyncSession,
     portfolio_id: UUID,
-    calculation_date: date
+    calculation_date: date,
+    skip_pnl_calculation: bool = False
 ) -> Dict[str, Any]:
     """
     Generate a complete daily snapshot of portfolio state
-    
+
     Args:
         db: Database session
         portfolio_id: UUID of the portfolio
         calculation_date: Date for the snapshot (typically today)
-        
+        skip_pnl_calculation: If True, skip P&L calculation (for V3 batch processor)
+
     Returns:
         Dictionary with snapshot creation results
+
+    Note:
+        When skip_pnl_calculation=True, the caller is responsible for setting
+        equity_balance, daily_pnl, daily_return, and cumulative_pnl on the snapshot.
+        This is used by BatchOrchestratorV3 Phase 2 (PnLCalculator).
     """
     logger.info(f"Creating portfolio snapshot for {portfolio_id} on {calculation_date}")
     
@@ -80,13 +87,22 @@ async def create_portfolio_snapshot(
         
         # Step 4: Aggregate Greeks
         greeks = aggregate_portfolio_greeks(positions_list)
-        
-        # Step 5: Calculate P&L
-        pnl_data = await _calculate_pnl(db, portfolio_id, calculation_date, aggregations['gross_exposure'])
-        
+
+        # Step 5: Calculate P&L (skip if requested by V3 batch processor)
+        if skip_pnl_calculation:
+            # V3 batch processor calculates P&L separately with equity rollforward
+            pnl_data = {
+                'daily_pnl': Decimal('0'),
+                'daily_return': Decimal('0'),
+                'cumulative_pnl': Decimal('0')
+            }
+            logger.debug("Skipping P&L calculation (will be set by caller)")
+        else:
+            pnl_data = await _calculate_pnl(db, portfolio_id, calculation_date, aggregations['gross_exposure'])
+
         # Step 6: Count position types
         position_counts = _count_positions(active_positions)
-        
+
         # Step 7: Create or update snapshot
         snapshot = await _create_or_update_snapshot(
             db=db,
