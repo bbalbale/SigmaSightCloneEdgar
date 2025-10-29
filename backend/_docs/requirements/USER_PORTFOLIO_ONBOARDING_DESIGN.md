@@ -67,16 +67,16 @@ Enable self-service onboarding for test users to create accounts and portfolios 
 | **Position Model** | Single aggregated position per symbol | Simpler than tax lots, matches broker CSVs |
 | **Entry Date** | Required in standardized CSV | Necessary for calculations |
 | **UUID Strategy** | Hybrid: deterministic for testing → random | Test thoroughly, maintain demos |
-| **Invite Codes** | Single master code (config-based) ⭐ **SIMPLIFIED** | No database, looks unique to users |
+| **Invite Codes** | Single master code (config-based) | No database, looks unique to users |
 | **Batch Processing** | Synchronous (30-60s timeout) | Simpler for MVP |
 | **Superuser Access** | *Phase 2 only* | Not needed for core onboarding |
 | **Equity Balance** | Separate API field | Handle leverage correctly |
 | **CSV Validation** | All-or-nothing (strict) | Data quality |
 | **Demo Seeding** | Keep separate, share utilities | Don't break existing system |
-| **Rate Limiting** | None ⭐ **SIMPLIFIED** | Trust 50 beta users |
-| **Audit Logging** | Application logs only ⭐ **SIMPLIFIED** | Sufficient for small scale |
-| **Account Types** | None (identify by email) ⭐ **SIMPLIFIED** | Unnecessary for MVP |
-| **Error Codes** | ~35 essential codes ⭐ **SIMPLIFIED** | Balanced detail |
+| **Rate Limiting** | None | Trust 50 beta users |
+| **Audit Logging** | Application logs only | Sufficient for small scale |
+| **Account Types** | None (identify by email) | Unnecessary for MVP |
+| **Error Codes** | ~35 essential codes | Balanced detail |
 
 ---
 
