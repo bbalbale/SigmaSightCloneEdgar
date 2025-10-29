@@ -94,13 +94,15 @@ class CorrelationService:
     async def _cleanup_old_calculations(
         self,
         portfolio_id: UUID,
-        duration_days: int
+        duration_days: int,
+        calculation_date: date
     ) -> int:
         """
-        Clean up old correlation calculations for a specific portfolio and duration.
+        Clean up old correlation calculations for a specific portfolio, duration, and date.
 
-        Deletes ALL existing calculations for (portfolio_id, duration_days) to ensure
-        new calculation replaces old ones. Only the most recent calculation matters.
+        Deletes existing calculation for (portfolio_id, duration_days, calculation_date) to ensure
+        new calculation replaces old one for the same date. This prevents data loss when
+        running batch calculations for multiple dates.
 
         Deletes in proper order respecting foreign key constraints:
         1. correlation_cluster_positions
@@ -111,17 +113,20 @@ class CorrelationService:
         Args:
             portfolio_id: Portfolio to clean up
             duration_days: Duration period to clean up (e.g., 90 for 90-day correlations)
+            calculation_date: Specific calculation date to clean up
 
         Returns:
             Number of calculations deleted
         """
-        # Find ALL calculations for this portfolio and duration to delete
+        # Find calculations for this portfolio, duration, AND date to delete
+        # CRITICAL: Must filter by date to prevent deleting other dates' data
         stmt = (
             select(CorrelationCalculation.id)
             .where(
                 and_(
                     CorrelationCalculation.portfolio_id == portfolio_id,
-                    CorrelationCalculation.duration_days == duration_days
+                    CorrelationCalculation.duration_days == duration_days,
+                    CorrelationCalculation.calculation_date == calculation_date
                 )
             )
         )
@@ -204,9 +209,9 @@ class CorrelationService:
                     return existing
 
             # Clean up old calculations before creating new one
-            # Delete ALL existing calculations for this portfolio/duration
-            # This ensures exactly 1 calculation exists per (portfolio, duration) combination
-            await self._cleanup_old_calculations(portfolio_id, duration_days)
+            # Delete only calculations for this specific date to preserve other dates' data
+            # This ensures we can maintain historical calculations for multiple dates
+            await self._cleanup_old_calculations(portfolio_id, duration_days, calculation_date)
             
             # Get portfolio with positions
             portfolio = await self._get_portfolio_with_positions(portfolio_id)
