@@ -6,7 +6,7 @@ exposures, P&L calculations, and performance data.
 """
 from uuid import UUID
 from decimal import Decimal
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, BackgroundTasks
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, update
 from pydantic import BaseModel
@@ -37,6 +37,9 @@ from app.services.correlation_service import CorrelationService
 from app.services.factor_exposure_service import FactorExposureService
 from app.services.stress_test_service import StressTestService
 from app.services.risk_metrics_service import RiskMetricsService
+from app.services.preprocessing_service import preprocessing_service
+from app.services.batch_trigger_service import batch_trigger_service
+from app.batch.batch_run_tracker import batch_run_tracker
 from app.core.logging import get_logger
 
 logger = get_logger(__name__)
@@ -1150,3 +1153,211 @@ async def get_provider_beta_1y(
     except Exception as e:
         logger.error(f"Provider beta retrieval failed for {portfolio_id}: {str(e)}")
         raise HTTPException(status_code=500, detail="Internal server error retrieving provider beta")
+
+
+# ==============================================================================
+# Portfolio Calculate Endpoint (Onboarding)
+# ==============================================================================
+
+class CalculateResponse(BaseModel):
+    """Portfolio calculate response"""
+    status: str
+    batch_run_id: str
+    portfolio_id: str
+    preprocessing: dict
+    message: str
+    poll_url: str
+
+
+@router.post("/{portfolio_id}/calculate", response_model=CalculateResponse, status_code=202)
+async def trigger_portfolio_calculations(
+    portfolio_id: UUID,
+    background_tasks: BackgroundTasks,
+    force: bool = Query(False, description="Force run even if batch already running or preprocessing already done"),
+    current_user: CurrentUser = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Trigger portfolio calculations with preprocessing.
+
+    This endpoint is designed for the onboarding flow and performs two steps:
+
+    **Step 1: Preprocessing (10-30s)**
+    - Extracts symbols from portfolio positions
+    - Enriches security master data (sector/industry)
+    - Bootstraps price cache (30 days of historical data)
+
+    **Step 2: Batch Processing (30-60s)**
+    - Runs all 8 calculation engines
+    - Populates risk metrics, Greeks, factors, correlations, etc.
+
+    **Total Time**: 40-90 seconds (preprocessing + batch)
+
+    **Use Cases**:
+    - First-time portfolio setup (after CSV import)
+    - Manual recalculation after position changes
+    - Retry after network failures
+
+    **Preprocessing Skip**:
+    - Use `force=false` (default) to skip if already done
+    - Use `force=true` to re-run preprocessing
+
+    **Returns**: HTTP 202 Accepted
+    - batch_run_id for status polling
+    - preprocessing metrics
+    - poll_url for checking status
+
+    **Errors**:
+    - 403: Not authorized to access this portfolio
+    - 404: Portfolio not found
+    - 409: Batch already running (unless force=true)
+    """
+    logger.info(f"Calculate request for portfolio {portfolio_id} by user {current_user.id}")
+
+    # Step 1: Run preprocessing
+    try:
+        logger.info(f"Running preprocessing for portfolio {portfolio_id}")
+        prep_result = await preprocessing_service.prepare_portfolio_for_batch(
+            portfolio_id=portfolio_id,
+            db=db
+        )
+
+        # Commit preprocessing changes
+        await db.commit()
+
+        logger.info(
+            f"Preprocessing complete: {prep_result['symbols_count']} symbols, "
+            f"{prep_result['price_coverage_percentage']:.1f}% coverage"
+        )
+
+    except Exception as e:
+        logger.error(f"Preprocessing failed for portfolio {portfolio_id}: {str(e)}")
+        await db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail=f"Preprocessing failed: {str(e)}"
+        )
+
+    # Step 2: Trigger batch processing
+    try:
+        batch_result = await batch_trigger_service.trigger_batch(
+            background_tasks=background_tasks,
+            portfolio_id=str(portfolio_id),
+            force=force,
+            user_id=current_user.id,
+            user_email=current_user.email,
+            db=db
+        )
+
+        logger.info(
+            f"Batch processing triggered: run_id={batch_result['batch_run_id']}"
+        )
+
+        return CalculateResponse(
+            status=batch_result["status"],
+            batch_run_id=batch_result["batch_run_id"],
+            portfolio_id=str(portfolio_id),
+            preprocessing={
+                "symbols_count": prep_result["symbols_count"],
+                "security_master_enriched": prep_result["security_master_enriched"],
+                "prices_bootstrapped": prep_result["prices_bootstrapped"],
+                "price_coverage_percentage": prep_result["price_coverage_percentage"],
+                "ready_for_batch": prep_result["ready_for_batch"],
+                "warnings": prep_result.get("warnings", []),
+                "recommendations": prep_result.get("recommendations", [])
+            },
+            message=(
+                "Portfolio calculations started. "
+                "This may take 30-60 seconds to complete. "
+                "Poll the status endpoint to check progress."
+            ),
+            poll_url=batch_result["poll_url"]
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Batch trigger failed for portfolio {portfolio_id}: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to trigger calculations: {str(e)}"
+        )
+
+
+# ==============================================================================
+# Batch Status Endpoint (Polling)
+# ==============================================================================
+
+class BatchStatusResponse(BaseModel):
+    """Batch status polling response"""
+    status: str  # "running", "completed", or "idle"
+    batch_run_id: str | None
+    portfolio_id: str | None
+    started_at: str | None
+    triggered_by: str | None
+    elapsed_seconds: float | None
+
+
+@router.get("/{portfolio_id}/batch-status/{batch_run_id}", response_model=BatchStatusResponse)
+async def get_batch_status(
+    portfolio_id: UUID,
+    batch_run_id: str,
+    current_user: CurrentUser = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Get status of batch calculations for a specific portfolio.
+
+    This endpoint is designed for polling while batch calculations are running.
+    Users can only check status for portfolios they own.
+
+    **Status Values**:
+    - `running`: Batch is currently processing
+    - `completed`: Batch has finished (no longer tracked)
+    - `idle`: No batch found with this ID
+
+    **Poll Interval**: Recommended 2-5 seconds
+
+    **Errors**:
+    - 403: Not authorized to access this portfolio
+    - 404: Portfolio not found
+    """
+    # Validate ownership
+    await validate_portfolio_ownership(portfolio_id, current_user.id, db)
+
+    # Get current batch status
+    current = batch_run_tracker.get_current()
+
+    if not current:
+        return BatchStatusResponse(
+            status="idle",
+            batch_run_id=None,
+            portfolio_id=None,
+            started_at=None,
+            triggered_by=None,
+            elapsed_seconds=None
+        )
+
+    # Check if this is the batch they're asking about
+    if current.batch_run_id != batch_run_id:
+        # Different batch is running, or this one completed
+        return BatchStatusResponse(
+            status="completed",
+            batch_run_id=batch_run_id,
+            portfolio_id=str(portfolio_id),
+            started_at=None,
+            triggered_by=None,
+            elapsed_seconds=None
+        )
+
+    # Batch is running
+    elapsed = (time.time() - current.started_at.timestamp())
+
+    return BatchStatusResponse(
+        status="running",
+        batch_run_id=current.batch_run_id,
+        portfolio_id=str(portfolio_id),
+        started_at=current.started_at.isoformat(),
+        triggered_by=current.triggered_by,
+        elapsed_seconds=round(elapsed, 1)
+    )

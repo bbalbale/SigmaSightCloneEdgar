@@ -75,9 +75,11 @@ async def run_batch_processing(
     )
 
     # Execute in background with tracking
+    from datetime import date
     background_tasks.add_task(
         batch_orchestrator.run_daily_batch_sequence,
-        portfolio_id
+        date.today(),  # calculation_date
+        [portfolio_id] if portfolio_id else None  # portfolio_ids as list
     )
 
     return {
