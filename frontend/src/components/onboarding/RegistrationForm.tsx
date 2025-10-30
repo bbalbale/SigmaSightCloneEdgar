@@ -39,6 +39,19 @@ export function RegistrationForm() {
       errors.password = 'Password is required'
     } else if (formData.password.length < 8) {
       errors.password = 'Password must be at least 8 characters'
+    } else {
+      // Check for specific password requirements
+      const hasUpper = /[A-Z]/.test(formData.password)
+      const hasLower = /[a-z]/.test(formData.password)
+      const hasDigit = /[0-9]/.test(formData.password)
+
+      if (!hasUpper) {
+        errors.password = 'Password must contain at least one uppercase letter'
+      } else if (!hasLower) {
+        errors.password = 'Password must contain at least one lowercase letter'
+      } else if (!hasDigit) {
+        errors.password = 'Password must contain at least one number'
+      }
     }
 
     if (!formData.invite_code.trim()) {
@@ -60,11 +73,11 @@ export function RegistrationForm() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-gray-900 dark:to-gray-800">
+    <div className="min-h-screen flex items-center justify-center bg-white dark:from-gray-900 dark:to-gray-800">
       <div className="w-full max-w-md space-y-8 px-4 py-8">
-        <div className="text-center space-y-2">
-          <h1 className="text-3xl font-bold tracking-tight">Welcome to SigmaSight</h1>
-          <p className="text-muted-foreground">Create your Pre-Alpha test account</p>
+        <div className="space-y-2 px-6">
+          <h1 className="text-2xl font-bold tracking-tight">Welcome to SigmaSight 🚀</h1>
+          <p className="text-muted-foreground">🙏 for being a trusted tester. This is super early stage, and your feedback is 💎 to us!</p>
         </div>
 
         <Card className="shadow-lg">
@@ -137,7 +150,7 @@ export function RegistrationForm() {
                 <Input
                   id="password"
                   type="password"
-                  placeholder="At least 8 characters"
+                  placeholder="Create a secure password"
                   value={formData.password}
                   onChange={(e) => handleFieldChange('password', e.target.value)}
                   disabled={isSubmitting}
@@ -149,6 +162,9 @@ export function RegistrationForm() {
                     {fieldErrors.password}
                   </p>
                 )}
+                <p className="text-xs text-muted-foreground">
+                  Must be at least 8 characters with uppercase, lowercase, and a number
+                </p>
               </div>
 
               {/* Invite Code */}
@@ -159,7 +175,7 @@ export function RegistrationForm() {
                 <Input
                   id="invite_code"
                   type="text"
-                  placeholder="PRESCOTT-LINNAEAN-COWPERTHWAITE"
+                  placeholder="Enter your invite code"
                   value={formData.invite_code}
                   onChange={(e) => handleFieldChange('invite_code', e.target.value)}
                   disabled={isSubmitting}
@@ -196,7 +212,7 @@ export function RegistrationForm() {
           </form>
         </Card>
 
-        <p className="text-center text-sm text-muted-foreground">
+        <p className="text-sm text-muted-foreground px-6">
           Already have an account?{' '}
           <a href="/login" className="font-medium text-primary hover:underline">
             Sign in

@@ -187,12 +187,12 @@ export function LoginForm() {
               <Button
                 type="button"
                 variant="default"
-                className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700"
+                className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white"
                 onClick={() => {
                   router.push('/test-user-creation')
                 }}
               >
-                🚀 Get Started with Pre-Alpha
+                Sign up for Pre-Alpha (invite only)
               </Button>
             </div>
           </CardFooter>
