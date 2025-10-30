@@ -8,6 +8,7 @@ import { formatCurrency } from '@/lib/formatters'
 import { useTheme } from '@/contexts/ThemeContext'
 import { usePortfolioStore } from '@/stores/portfolioStore'
 import type { EnhancedPosition } from '@/services/positionResearchService'
+import targetPriceService from '@/services/targetPriceService'
 import type { TargetPriceUpdate } from '@/services/targetPriceUpdateService'
 
 interface ResearchPositionCardProps {
