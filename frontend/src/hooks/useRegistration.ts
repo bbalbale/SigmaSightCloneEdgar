@@ -33,10 +33,11 @@ export function useRegistration(): UseRegistrationReturn {
 
     try {
       // 1. Register user
-      await onboardingService.register(formData)
+      const registerResponse = await onboardingService.register(formData)
 
-      // 2. Auto-login with same credentials
-      const loginResponse = await onboardingService.login(formData.email, formData.password)
+      // 2. Auto-login with normalized email from registration response
+      // IMPORTANT: Use the email from the response, not formData.email, to avoid case sensitivity issues
+      const loginResponse = await onboardingService.login(registerResponse.email, formData.password)
 
       // 3. Store JWT token
       authManager.setToken(loginResponse.access_token)
