@@ -9,7 +9,8 @@ Analytics:
 4. Sector analysis
 5. Volatility analytics
 6. Correlations
-7. Target returns
+7. Stress testing (market risk scenarios)
+8. Target returns
 """
 import asyncio
 from datetime import date
@@ -141,6 +142,7 @@ class AnalyticsRunner:
             ("Sector Analysis", self._calculate_sector_analysis),
             ("Volatility Analytics", self._calculate_volatility_analytics),
             ("Correlations", self._calculate_correlations),
+            ("Stress Testing", self._calculate_stress_testing),
         ]
 
         # Run analytics sequentially (single session can't handle concurrent ops)
@@ -328,6 +330,64 @@ class AnalyticsRunner:
 
         except Exception as e:
             logger.warning(f"Correlations calculation failed: {e}")
+            return False
+
+    async def _calculate_stress_testing(
+        self,
+        db: AsyncSession,
+        portfolio_id: UUID,
+        calculation_date: date
+    ) -> bool:
+        """Run comprehensive stress test and save results"""
+        try:
+            from app.calculations.stress_testing import (
+                run_comprehensive_stress_test,
+                save_stress_test_results
+            )
+
+            logger.info(f"Starting stress test for portfolio {portfolio_id} on {calculation_date}")
+
+            # Run comprehensive stress test
+            stress_results = await run_comprehensive_stress_test(
+                db=db,
+                portfolio_id=portfolio_id,
+                calculation_date=calculation_date
+            )
+
+            # Check if results were returned
+            if not stress_results:
+                logger.warning(f"Stress testing returned no results for portfolio {portfolio_id}")
+                return False
+
+            # Check if stress test was skipped (happens for portfolios with no factor exposures)
+            stress_test_data = stress_results.get('stress_test_results', {})
+            if stress_test_data.get('skipped'):
+                reason = stress_test_data.get('reason', 'unknown')
+                logger.info(f"Stress testing skipped for portfolio {portfolio_id}: {reason}")
+                return True  # Not an error, just skipped
+
+            # Check if any scenarios were tested
+            scenarios_tested = stress_results.get('config_metadata', {}).get('scenarios_tested', 0)
+            if scenarios_tested == 0:
+                logger.warning(f"Stress testing ran but tested 0 scenarios for portfolio {portfolio_id}")
+                return False
+
+            logger.info(f"Stress test completed with {scenarios_tested} scenarios, saving results...")
+
+            # Save results to database
+            saved_count = await save_stress_test_results(
+                db=db,
+                portfolio_id=portfolio_id,
+                stress_test_results=stress_results
+            )
+
+            logger.info(f"Saved {saved_count} stress test results to database")
+            return saved_count > 0
+
+        except Exception as e:
+            import traceback
+            logger.error(f"Stress testing calculation failed: {e}")
+            logger.error(f"Traceback: {traceback.format_exc()}")
             return False
 
 

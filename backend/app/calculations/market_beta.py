@@ -396,9 +396,61 @@ async def calculate_portfolio_market_beta(
             'success': True
         }
 
+        # CRITICAL FIX: Save Market Beta as a factor exposure for stress testing
+        # Stress testing requires portfolio-level factor exposures, not just position betas
+        if persist:
+            try:
+                from app.models.market_data import FactorExposure, FactorDefinition
+                from decimal import Decimal
+
+                # Get Market Beta factor definition
+                factor_stmt = select(FactorDefinition).where(FactorDefinition.name == "Market Beta")
+                factor_result = await db.execute(factor_stmt)
+                market_beta_factor = factor_result.scalar_one_or_none()
+
+                if market_beta_factor:
+                    # Calculate dollar exposure (beta * portfolio equity)
+                    exposure_dollar = Decimal(str(portfolio_beta)) * Decimal(str(portfolio_equity))
+
+                    # Create or update factor exposure
+                    exposure_stmt = select(FactorExposure).where(
+                        and_(
+                            FactorExposure.portfolio_id == portfolio_id,
+                            FactorExposure.factor_id == market_beta_factor.id,
+                            FactorExposure.calculation_date == calculation_date
+                        )
+                    )
+                    exposure_result = await db.execute(exposure_stmt)
+                    existing_exposure = exposure_result.scalar_one_or_none()
+
+                    if existing_exposure:
+                        # Update existing record
+                        existing_exposure.exposure_value = Decimal(str(portfolio_beta))
+                        existing_exposure.exposure_dollar = exposure_dollar
+                        logger.debug(f"Updated Market Beta factor exposure: {portfolio_beta:.3f}")
+                    else:
+                        # Create new record
+                        from uuid import uuid4
+                        new_exposure = FactorExposure(
+                            id=uuid4(),
+                            portfolio_id=portfolio_id,
+                            factor_id=market_beta_factor.id,
+                            calculation_date=calculation_date,
+                            exposure_value=Decimal(str(portfolio_beta)),
+                            exposure_dollar=exposure_dollar
+                        )
+                        db.add(new_exposure)
+                        logger.debug(f"Created Market Beta factor exposure: {portfolio_beta:.3f}")
+                else:
+                    logger.warning("Market Beta factor definition not found - cannot save factor exposure")
+
+            except Exception as e:
+                logger.error(f"Error saving Market Beta factor exposure: {e}")
+                # Don't fail the entire calculation if factor exposure saving fails
+
         logger.info(
             f"Portfolio beta calculated: {portfolio_beta:.3f} "
-            f"({len(position_betas)} positions, persisted to position_market_betas)"
+            f"({len(position_betas)} positions, persisted to position_market_betas & factor_exposures)"
         )
 
         return result
