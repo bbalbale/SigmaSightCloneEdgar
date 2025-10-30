@@ -12,7 +12,7 @@ import pytz
 
 from app.config import settings
 from app.core.logging import get_logger
-from app.batch.batch_orchestrator_v2 import batch_orchestrator_v2 as batch_orchestrator
+from app.batch.batch_orchestrator_v3 import batch_orchestrator_v3 as batch_orchestrator
 
 logger = get_logger(__name__)
 
@@ -129,26 +129,22 @@ class BatchScheduler:
         self._log_scheduled_jobs()
     
     async def _run_daily_batch(self):
-        """Execute the daily batch processing sequence."""
+        """Execute the daily batch processing sequence with automatic backfill."""
         logger.info("Starting scheduled daily batch processing")
-        
+
         try:
-            # Run for all portfolios, auto-detect if Tuesday for correlations
-            results = await batch_orchestrator.run_daily_batch_sequence()
-            
-            # Log summary
-            successful = sum(1 for r in results if r['status'] == 'completed')
-            failed = sum(1 for r in results if r['status'] == 'failed')
-            
-            logger.info(f"Daily batch completed: {successful} successful, {failed} failed")
-            
-            # Alert if there were failures
-            if failed > 0:
+            # V3: Use run_daily_batch_with_backfill for automatic gap detection
+            result = await batch_orchestrator.run_daily_batch_with_backfill()
+
+            logger.info(f"Daily batch completed: processed {result.get('dates_processed', 0)} dates")
+
+            # Alert if there were errors
+            if not result.get('success') or result.get('errors'):
                 await self._send_batch_alert(
-                    f"Daily batch completed with {failed} failures",
-                    results
+                    f"Daily batch completed with {len(result.get('errors', []))} errors",
+                    result
                 )
-            
+
         except Exception as e:
             logger.error(f"Daily batch failed with exception: {str(e)}")
             await self._send_batch_alert(f"Daily batch failed: {str(e)}", None)
@@ -157,21 +153,13 @@ class BatchScheduler:
     async def _run_daily_correlations(self):
         """Execute daily correlation calculations."""
         logger.info("Starting scheduled daily correlation calculation")
-        
+
         try:
-            # Run batch with correlations explicitly enabled
-            results = await batch_orchestrator.run_daily_batch_sequence(
-                run_correlations=True
-            )
-            
-            # Filter for correlation results
-            correlation_results = [
-                r for r in results 
-                if 'correlation' in r.get('job_name', '')
-            ]
-            
-            logger.info(f"Daily correlations completed: {len(correlation_results)} portfolios")
-            
+            # V3: Correlations run automatically in Phase 3 analytics
+            result = await batch_orchestrator.run_daily_batch_sequence()
+
+            logger.info(f"Daily correlations completed: {result.get('success')}")
+
         except Exception as e:
             logger.error(f"Daily correlation calculation failed: {str(e)}")
             await self._send_batch_alert(f"Correlation calculation failed: {str(e)}", None)
@@ -286,27 +274,33 @@ class BatchScheduler:
     async def trigger_daily_batch(self, portfolio_id: str = None):
         """Manually trigger daily batch processing."""
         logger.info(f"Manual trigger: daily batch for portfolio {portfolio_id or 'all'}")
-        return await batch_orchestrator.run_daily_batch_sequence(portfolio_id)
-    
+        # V3: portfolio_ids is a list
+        return await batch_orchestrator.run_daily_batch_sequence(
+            portfolio_ids=[portfolio_id] if portfolio_id else None
+        )
+
     async def trigger_market_data_update(self):
         """Manually trigger market data update."""
-        from app.batch.market_data_sync import sync_market_data
+        from app.batch.market_data_collector import market_data_collector
+        from app.database import AsyncSessionLocal
         logger.info("Manual trigger: market data update")
-        return await sync_market_data()
-    
+        async with AsyncSessionLocal() as db:
+            return await market_data_collector.collect_all_market_data(db)
+
     async def trigger_portfolio_calculations(self, portfolio_id: str):
         """Manually trigger calculations for a specific portfolio."""
         logger.info(f"Manual trigger: calculations for portfolio {portfolio_id}")
+        # V3: portfolio_ids is a list
         return await batch_orchestrator.run_daily_batch_sequence(
-            portfolio_id=portfolio_id
+            portfolio_ids=[portfolio_id]
         )
-    
+
     async def trigger_correlations(self, portfolio_id: str = None):
         """Manually trigger correlation calculations."""
         logger.info(f"Manual trigger: correlations for portfolio {portfolio_id or 'all'}")
+        # V3: Correlations run automatically in Phase 3
         return await batch_orchestrator.run_daily_batch_sequence(
-            portfolio_id=portfolio_id,
-            run_correlations=True
+            portfolio_ids=[portfolio_id] if portfolio_id else None
         )
 
     async def trigger_company_profile_sync(self):

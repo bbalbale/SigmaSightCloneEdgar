@@ -248,6 +248,11 @@ async def calculate_factor_betas_ridge(
                 # Extract betas (coefficients)
                 betas = ridge_model.coef_
 
+                # Transform betas back to original scale
+                # Ridge was fit on standardized features, so betas are in standard deviation units
+                # We need to convert back to raw return units for interpretability
+                betas = betas / scaler.scale_
+
                 # Update diagnostics
                 ridge_diagnostics['positions_processed'] += 1
                 ridge_diagnostics['avg_r_squared'] += r_squared

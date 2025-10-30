@@ -26,6 +26,7 @@ export function DashboardContainer() {
     positions,
     shortPositions,
     factorExposures,
+    factorDataQuality,
     dataLoaded,
     handleRetry
   } = usePortfolioData()
@@ -92,7 +93,7 @@ export function DashboardContainer() {
 
       {/* Factor Exposures Section */}
       {factorExposures ? (
-        <FactorExposureCards factors={factorExposures} />
+        <FactorExposureCards factors={factorExposures} dataQuality={factorDataQuality} />
       ) : apiErrors?.factorExposures ? (
         <section className="px-4 pb-8">
           <div className="container mx-auto">
