@@ -850,6 +850,18 @@ frontend/
 - Positioned prominently below success message
 - Navigates to `/portfolio` on click
 
+**Usage Example**:
+```typescript
+// In the page component
+const { handleContinueToDashboard } = usePortfolioUpload()
+
+<UploadSuccess
+  portfolioName={result.portfolio_name}
+  positionsCount={result.positions_count}
+  onContinue={handleContinueToDashboard}  // Manual navigation
+/>
+```
+
 ### 5. ValidationErrors.tsx
 **Purpose**: Display CSV validation errors clearly
 
@@ -1090,11 +1102,7 @@ export function usePortfolioUpload() {
               correlations: true,
             })
             setUploadState('success')
-
-            // Navigate to dashboard after brief celebration
-            setTimeout(() => {
-              router.push('/portfolio')
-            }, 3000)
+            // DO NOT auto-navigate - wait for user to click "Continue to Dashboard" button
           }
         } catch (error) {
           clearInterval(pollInterval)
@@ -1112,6 +1120,10 @@ export function usePortfolioUpload() {
     }
   }
 
+  const handleContinueToDashboard = () => {
+    router.push('/portfolio')
+  }
+
   return {
     uploadState,
     batchStatus,
@@ -1119,7 +1131,8 @@ export function usePortfolioUpload() {
     checklist,
     result,
     error,
-    handleUpload
+    handleUpload,
+    handleContinueToDashboard  // Manual navigation handler
   }
 }
 ```
@@ -1138,19 +1151,20 @@ export function usePortfolioUpload() {
 **Minute 0:12** - Redirects to upload page
 **Minute 0:13-0:15** - User enters portfolio name, cash balance, selects CSV
 **Minute 0:16** - User clicks "Upload Portfolio"
-**Minute 0:16-0:46** - **Step 1: CSV Upload** (10-30 seconds)
+**Minute 0:16-0:46** - **Phase 2A: CSV Upload** (10-30 seconds)
   - CSV validation
   - Portfolio creation
   - Position import
-**Minute 0:46** - Step 1 complete! Checklist shows: ✅ Portfolio created, ✅ Positions imported
-**Minute 0:46** - **Step 2: Batch Processing** automatically starts (30-60 seconds)
+  - *(Note: Timeline "Phase 2A/2B" refers to the two parts of Step 2: Portfolio Upload)*
+**Minute 0:46** - Phase 2A complete! Checklist shows: ✅ Portfolio created, ✅ Positions imported
+**Minute 0:46** - **Phase 2B: Batch Processing** automatically starts (30-60 seconds)
   - Security enrichment
   - Price data collection
   - Risk analytics calculations
-  - Checklist items update in real-time
-**Minute 1:46** - All calculations complete! Success screen shows
-**Minute 1:49** - Auto-redirect to portfolio dashboard
-**Minute 1:50** - **User sees their portfolio for the first time! 🎉**
+  - Spinner rotates through checklist items every 3 seconds
+**Minute 1:46** - All calculations complete! Success screen shows with confetti 🎉
+**Minute 1:46+** - User clicks "Continue to Dashboard" button (user-initiated navigation)
+**Minute 1:47** - **User sees their portfolio for the first time! 🎊**
 
 Total time: ~1-2 minutes of active user time, 40-90 seconds of automated processing.
 
