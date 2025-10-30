@@ -383,7 +383,17 @@ This service extracts shared batch orchestration logic for reuse between user-fa
 - [ ] Implement `trigger_batch(portfolio_id: UUID, force: bool = False, user_id: Optional[UUID] = None) -> Dict[str, Any]`
   - Optionally validate portfolio ownership if user_id provided
   - Check if batch already running for this portfolio → 409 if true
-  - Call `batch_orchestrator_v2.run_daily_batch_sequence(portfolio_id)`
+  - Call `batch_orchestrator_v3.run_daily_batch_sequence()` with:
+    ```python
+    from datetime import date
+    from app.batch.batch_orchestrator_v3 import batch_orchestrator_v3
+
+    result = await batch_orchestrator_v3.run_daily_batch_sequence(
+        calculation_date=date.today(),
+        portfolio_ids=[str(portfolio_id)],
+        db=db  # Pass session for transaction management
+    )
+    ```
   - Generate batch_run_id (UUID)
   - Return batch_run_id, status, poll_url
   - Handle exceptions gracefully (network failures, calculation errors)
@@ -423,10 +433,19 @@ class BatchTriggerService:
         self,
         portfolio_id: UUID,
         force: bool = False,
-        user_id: Optional[UUID] = None  # For ownership check
+        user_id: Optional[UUID] = None,  # For ownership check
+        db: AsyncSession = None  # For transaction management
     ) -> Dict[str, Any]:
+        from datetime import date
+        from app.batch.batch_orchestrator_v3 import batch_orchestrator_v3
+
         # Shared orchestration logic
-        pass
+        result = await batch_orchestrator_v3.run_daily_batch_sequence(
+            calculation_date=date.today(),
+            portfolio_ids=[str(portfolio_id)],
+            db=db
+        )
+        return result
 
 # app/api/v1/analytics/portfolio.py
 @router.post("/{portfolio_id}/calculate")
@@ -436,14 +455,22 @@ async def trigger_user_calculations(...):
     await check_readiness(portfolio_id)
 
     # Use shared service
-    result = await batch_trigger_service.trigger_batch(portfolio_id, user_id=current_user.id)
+    result = await batch_trigger_service.trigger_batch(
+        portfolio_id,
+        user_id=current_user.id,
+        db=db
+    )
     return UserFriendlyResponse(result)
 
 # app/api/v1/endpoints/admin_batch.py (existing)
 @router.post("/run")
 async def trigger_admin_batch(...):
     # Admin-specific logic (no ownership check)
-    result = await batch_trigger_service.trigger_batch(portfolio_id, force=True)
+    result = await batch_trigger_service.trigger_batch(
+        portfolio_id,
+        force=True,
+        db=db
+    )
     return AdminDetailedResponse(result)
 ```
 
