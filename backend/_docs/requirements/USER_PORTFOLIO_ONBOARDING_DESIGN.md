@@ -82,13 +82,14 @@ Enable self-service onboarding for test users to create accounts and portfolios 
 
 ## 3. API Endpoint Specifications
 
-### **Phase 1: Core Onboarding - 3 Endpoints**
+### **Phase 1: Core Onboarding - 4 Endpoints**
 
 These are the MVP endpoints for user onboarding and portfolio creation:
 
 1. `POST /api/v1/onboarding/register` - User registration with single invite code
 2. `POST /api/v1/onboarding/create-portfolio` - Portfolio creation with CSV (no automatic batch trigger)
-3. `POST /api/v1/portfolio/{portfolio_id}/calculate` - User-triggered portfolio calculations (in analytics file)
+3. `GET /api/v1/onboarding/csv-template` - Download CSV template (essential for Phase 1 testing)
+4. `POST /api/v1/portfolio/{portfolio_id}/calculate` - User-triggered portfolio calculations (includes preprocessing)
 
 ### **Phase 2: Admin & Superuser - 3 Endpoints** *(Separate Implementation)*
 
@@ -165,7 +166,7 @@ curl -X POST http://localhost:8000/api/v1/onboarding/create-portfolio \
   -F "csv_file=@positions.csv"
 ```
 
-**Response (201 Created):**
+**Success Response (201 Created):**
 ```json
 {
   "portfolio_id": "a3209353-9ed5-4885-81e8-d4bbc995f96c",
@@ -179,11 +180,101 @@ curl -X POST http://localhost:8000/api/v1/onboarding/create-portfolio \
 ```
 
 **Error Responses:**
-- `400` - CSV validation failed (see section 4.2)
-- `409` - User already has a portfolio
-- `413` - File too large (>10MB)
-- `415` - Invalid file type (not .csv)
-- `422` - Missing required fields
+
+**400 Bad Request - CSV Validation Failed:**
+```json
+{
+  "error": {
+    "code": "ERR_CSV_007",
+    "message": "No valid positions found in CSV. Please fix errors and try again.",
+    "details": [
+      {
+        "row": 8,
+        "field": "entry_date",
+        "error": "Invalid date format. Expected YYYY-MM-DD, got '01/15/2024'"
+      }
+    ]
+  }
+}
+```
+
+**409 Conflict - User Already Has Portfolio:**
+```json
+{
+  "error": {
+    "code": "ERR_PORT_001",
+    "message": "You already have a portfolio. Each user is limited to one portfolio."
+  }
+}
+```
+
+**413 Payload Too Large - File Too Large:**
+```json
+{
+  "error": {
+    "code": "ERR_CSV_001",
+    "message": "CSV file is too large. Maximum size is 10MB."
+  }
+}
+```
+
+**415 Unsupported Media Type - Invalid File Type:**
+```json
+{
+  "error": {
+    "code": "ERR_CSV_002",
+    "message": "Please upload a .csv file."
+  }
+}
+```
+
+**422 Unprocessable Entity - Missing Required Fields:**
+```json
+{
+  "error": {
+    "code": "ERR_PORT_002",
+    "message": "Portfolio name is required."
+  }
+}
+```
+
+---
+
+### 3.2.1 Download CSV Template
+
+#### `GET /api/v1/onboarding/csv-template`
+
+**File Location:** `app/api/v1/onboarding.py`
+
+**Description:** Download CSV template for portfolio import. Returns a 12-column CSV file with instructions and example rows. Essential for Phase 1 testing and user onboarding.
+
+**Request:**
+```bash
+curl -X GET http://localhost:8000/api/v1/onboarding/csv-template
+```
+
+**Response (200 OK):**
+```
+Content-Type: text/csv
+Content-Disposition: attachment; filename=sigmasight_portfolio_template.csv
+Cache-Control: public, max-age=3600
+
+Symbol,Quantity,Entry Price Per Share,Entry Date,Investment Class,Investment Subtype,Underlying Symbol,Strike Price,Expiration Date,Option Type,Exit Date,Exit Price Per Share
+# SigmaSight Portfolio Import Template
+# Instructions: Fill in your positions below the header row
+# Required columns: Symbol, Quantity, Entry Price Per Share, Entry Date
+# For help: https://docs.sigmasight.io/csv-import
+AAPL,100,158.00,2024-01-15,PUBLIC,,,,,,,
+SPY250919C00460000,200,7.00,2024-01-10,OPTIONS,,SPY,460.00,2025-09-19,CALL,,
+SPAXX,8271.36,1.00,2024-01-01,PUBLIC,,,,,,,
+CASH_USD,1,25000.00,2024-01-01,PRIVATE,CASH,,,,,
+```
+
+**Implementation Notes:**
+- No authentication required (public template)
+- Template embedded in endpoint code (no static file serving)
+- Includes instruction comments and example rows
+- Proper cache headers (1 hour) for performance
 
 ---
 
@@ -193,7 +284,12 @@ curl -X POST http://localhost:8000/api/v1/onboarding/create-portfolio \
 
 **File Location:** `app/api/v1/analytics/portfolio.py`
 
-**Description:** Trigger batch calculations for user's portfolio. Users can only trigger calculations for portfolios they own.
+**Description:** Trigger batch calculations for user's portfolio. **Includes preprocessing step** (security master enrichment + price cache bootstrap) followed by normal batch orchestrator. Users can only trigger calculations for portfolios they own.
+
+**Processing Steps:**
+1. **Preprocessing (10-30s):** Enriches security master data (sector/industry) and bootstraps historical price cache for all portfolio symbols
+2. **Batch Calculations (30-60s):** Runs normal batch orchestrator (Greeks, factors, correlations, stress tests, etc.)
+3. **Total Time:** 40-90 seconds
 
 **Request:**
 ```bash
@@ -207,7 +303,12 @@ curl -X POST http://localhost:8000/api/v1/portfolio/a3209353-9ed5-4885-81e8-d4bb
   "status": "started",
   "batch_run_id": "f7b3c8a1-9d2e-4f56-8a7c-1b2d3e4f5a6b",
   "portfolio_id": "a3209353-9ed5-4885-81e8-d4bbc995f96c",
-  "message": "Portfolio calculations started. This will take 30-60 seconds.",
+  "preprocessing": {
+    "security_master_populated": 42,
+    "price_cache_populated": 38,
+    "coverage_percent": 90.5
+  },
+  "message": "Portfolio calculations started (including preprocessing). This will take 40-90 seconds.",
   "poll_url": "/api/v1/portfolio/a3209353-9ed5-4885-81e8-d4bbc995f96c/calculation-status"
 }
 ```
@@ -310,10 +411,9 @@ Authorization: Bearer <IMPERSONATION_TOKEN>
 
 #### `GET /api/v1/admin/users`
 
-**Description:** List all users (superuser only).
+**Description:** List all users (superuser only). Demo users can be identified by `@sigmasight.com` email pattern.
 
 **Query Parameters:**
-- `account_type` (optional): `DEMO`, `REAL`, `all` (default: `all`)
 - `limit` (optional): default 50, max 200
 - `offset` (optional): default 0
 
@@ -325,17 +425,24 @@ Authorization: Bearer <IMPERSONATION_TOKEN>
       "user_id": "550e8400-e29b-41d4-a716-446655440000",
       "email": "user@example.com",
       "full_name": "John Doe",
-      "account_type": "REAL",
       "has_portfolio": true,
-      "invited_by_code": "SIGMA-A3F9-2K8L",
       "created_at": "2025-10-28T10:30:00Z"
+    },
+    {
+      "user_id": "a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d",
+      "email": "demo_individual@sigmasight.com",
+      "full_name": "Demo Individual Investor",
+      "has_portfolio": true,
+      "created_at": "2025-10-01T08:00:00Z"
     }
   ],
-  "total": 1,
+  "total": 2,
   "limit": 50,
   "offset": 0
 }
 ```
+
+**Note:** Demo users are identified by `@sigmasight.com` email domain. No `account_type` field needed.
 
 ---
 
@@ -343,17 +450,22 @@ Authorization: Bearer <IMPERSONATION_TOKEN>
 
 ### 4.1 Registration Errors
 
+**Invite Code Errors (Simplified for Single Master Code):**
+
 | Code | Error | Condition | User Message |
 |------|-------|-----------|--------------|
-| `ERR_INVITE_001` | Invalid invite code format | Code doesn't match `SIGMA-XXXX-XXXX` pattern | "Invalid invite code format. Expected format: SIGMA-XXXX-XXXX" |
-| `ERR_INVITE_002` | Invite code not found | Code doesn't exist in database | "Invalid invite code. Please check and try again." |
-| `ERR_INVITE_003` | Invite code expired | `expires_at < now()` | "This invite code expired on {date}. Please request a new code." |
-| `ERR_INVITE_004` | Invite code already used | `used_by IS NOT NULL` | "This invite code has already been used." |
-| `ERR_INVITE_005` | Invite code inactive | `is_active = FALSE` | "This invite code is no longer active." |
+| `ERR_INVITE_001` | Invalid invite code | Code doesn't match master code (`PRESCOTT-LINNAEAN-COWPERTHWAITE`) | "Invalid invite code. Please check and try again." |
+
+**User Validation Errors:**
+
+| Code | Error | Condition | User Message |
+|------|-------|-----------|--------------|
 | `ERR_USER_001` | Email already exists | Duplicate email in database | "An account with this email already exists. Please login instead." |
 | `ERR_USER_002` | Invalid email format | Email fails regex validation | "Please provide a valid email address." |
 | `ERR_USER_003` | Password too weak | Password < 8 chars or missing requirements | "Password must be at least 8 characters with uppercase, lowercase, and number." |
 | `ERR_USER_004` | Full name required | `full_name` is empty | "Please provide your full name." |
+
+**Note:** With the single master invite code system (Phase 1), we simplified from 5 invite code errors down to just 1. No database lookups, expiration checks, or usage tracking needed.
 
 ### 4.2 CSV Validation Errors
 
@@ -373,19 +485,18 @@ Authorization: Bearer <IMPERSONATION_TOKEN>
 |------|-------|-----------|--------------|
 | `ERR_POS_001` | `symbol` | Empty or missing | "Row {row}: Symbol is required" |
 | `ERR_POS_002` | `symbol` | Invalid characters | "Row {row}: Symbol contains invalid characters" |
-| `ERR_POS_003` | `symbol` | Too long (>50 chars) | "Row {row}: Symbol too long (max 50 characters)" |
+| `ERR_POS_003` | `symbol` | Too long (>100 chars) | "Row {row}: Symbol too long (max 100 characters)" |
 | `ERR_POS_004` | `quantity` | Not a number | "Row {row}: Quantity must be a number, got '{value}'" |
 | `ERR_POS_005` | `quantity` | Zero | "Row {row}: Quantity cannot be zero" |
 | `ERR_POS_006` | `quantity` | Too many decimal places | "Row {row}: Quantity has too many decimal places (max 6)" |
 | `ERR_POS_007` | `entry_price` | Not a number | "Row {row}: Entry price must be a number, got '{value}'" |
 | `ERR_POS_008` | `entry_price` | Negative or zero | "Row {row}: Entry price must be positive" |
-| `ERR_POS_009` | `entry_price` | Unrealistic (>$1M/share) | "Row {row}: Entry price seems unrealistic. Please verify." |
 | `ERR_POS_010` | `entry_date` | Missing | "Row {row}: Entry date is required" |
 | `ERR_POS_011` | `entry_date` | Invalid format | "Row {row}: Invalid date format. Expected YYYY-MM-DD, got '{value}'" |
 | `ERR_POS_012` | `entry_date` | Future date | "Row {row}: Entry date cannot be in the future" |
 | `ERR_POS_013` | `entry_date` | Too old (>100 years) | "Row {row}: Entry date seems unrealistic ({date})" |
 | `ERR_POS_014` | `investment_class` | Invalid value | "Row {row}: Investment class must be PUBLIC, OPTIONS, or PRIVATE" |
-| `ERR_POS_015` | `investment_subtype` | Invalid for class | "Row {row}: Investment subtype '{value}' not valid for {investment_class}" |
+| `ERR_POS_015` | `investment_subtype` | Invalid for class | "Row {row}: Investment subtype '{value}' not valid for {investment_class}. Allowed subtypes: {allowed_subtypes}" |
 | `ERR_POS_016` | `exit_date` | Before entry_date | "Row {row}: Exit date cannot be before entry date" |
 | `ERR_POS_017` | `exit_price` | Provided without exit_date | "Row {row}: Exit price requires exit date" |
 | `ERR_POS_018` | Options fields | Missing required fields | "Row {row}: Options positions require: Underlying Symbol, Strike Price, Expiration Date, Option Type" |
@@ -409,6 +520,8 @@ Authorization: Bearer <IMPERSONATION_TOKEN>
 
 ### 4.5 Batch Processing Errors
 
+**Note:** These errors follow the graceful degradation pattern used throughout the batch processing system. Portfolio and positions are always created successfully; these errors indicate partial calculation results.
+
 | Code | Error | Condition | User Message |
 |------|-------|-----------|--------------|
 | `ERR_BATCH_001` | Market data fetch failed | External API errors | "Unable to fetch market data. Portfolio created but calculations incomplete." |
@@ -416,7 +529,11 @@ Authorization: Bearer <IMPERSONATION_TOKEN>
 | `ERR_BATCH_003` | Timeout | Batch took >60s | "Portfolio created but calculations are still running. Please refresh in a few minutes." |
 | `ERR_BATCH_004` | Database error during batch | DB write failures | "Portfolio created but unable to save calculation results. Please contact support." |
 
-### 4.6 Admin/Superuser Errors
+**Design Pattern:** The batch orchestrator (`app/batch/batch_orchestrator_v2.py`) uses exception handling with graceful degradation. These error codes provide user-friendly messages for the onboarding flow while maintaining consistency with the existing batch system's error handling approach.
+
+### 4.6 Admin/Superuser Errors **[PHASE 2]**
+
+**Note:** These errors are for Phase 2 admin endpoints only. Not needed for Phase 1 core onboarding.
 
 | Code | Error | Condition | User Message |
 |------|-------|-----------|--------------|
@@ -458,14 +575,25 @@ All errors follow consistent structure:
 
 ### 5.1 Service Classes
 
+**Phase 1 Services:**
 ```
 app/services/
 ├── onboarding_service.py        # Main orchestration
-├── invite_code_service.py       # Invite code management
+├── invite_code_service.py       # Invite code validation (config-based)
 ├── csv_parser_service.py        # CSV validation & parsing
 ├── position_import_service.py   # Position creation from CSV
-├── impersonation_service.py     # User impersonation
-└── batch_trigger_service.py     # Batch processing integration
+├── preprocessing_service.py     # Security master + price cache (used by calculate endpoint)
+├── security_master_service.py   # Security master enrichment (refactored from seed script)
+├── price_cache_service.py       # Price cache bootstrap (refactored from seed script)
+└── batch_trigger_service.py     # Batch processing orchestration
+```
+
+**Note**: Preprocessing services are used by the `/calculate` endpoint, NOT during portfolio creation. This keeps portfolio creation fast (<5s) and defers data enrichment to the user-triggered calculation step.
+
+**Phase 2 Services:**
+```
+app/services/
+└── impersonation_service.py     # User impersonation (Phase 2 only)
 ```
 
 ### 5.2 OnboardingService
@@ -490,13 +618,14 @@ class OnboardingService:
         Register new user with invite code validation.
 
         Steps:
-        1. Validate invite code (exists, not used, not expired)
+        1. Validate invite code matches config value (settings.BETA_INVITE_CODE)
         2. Create user with hashed password
-        3. Mark invite code as used
-        4. Return user object
+        3. Return user object
+
+        Note: Phase 1 uses single master code from config - no database tracking needed.
 
         Raises:
-            InviteCodeError: Invalid, expired, or used code
+            InviteCodeError: Invalid invite code
             UserExistsError: Email already registered
             ValidationError: Invalid input data
         """
@@ -528,45 +657,39 @@ class OnboardingService:
         """
 ```
 
-### 5.3 InviteCodeService
+### 5.3 InviteCodeService **[SIMPLIFIED FOR PHASE 1]**
 
 ```python
 class InviteCodeService:
-    async def validate_invite_code(self, code: str) -> InviteCode:
+    """
+    Simplified invite code validation for Phase 1.
+
+    Uses single master code from config.
+    No database operations required.
+    """
+
+    def __init__(self):
+        self.master_code = settings.BETA_INVITE_CODE
+
+    def validate_invite_code(self, code: str) -> bool:
         """
-        Validate invite code is usable.
+        Validate invite code matches master code.
 
-        Checks:
-        - Code exists
-        - Not expired (expires_at > now)
-        - Not used (used_by IS NULL)
-        - Active (is_active = TRUE)
+        Args:
+            code: The invite code to validate
 
-        Raises:
-            InviteCodeError: Any validation failure
+        Returns:
+            True if valid, False otherwise
+
+        Example:
+            service = InviteCodeService()
+            is_valid = service.validate_invite_code(settings.BETA_INVITE_CODE)
+            # returns True
         """
-
-    async def mark_as_used(
-        self,
-        code: str,
-        user_id: UUID
-    ) -> InviteCode:
-        """Mark invite code as used by user."""
-
-    async def generate_invite_code(
-        self,
-        expires_at: datetime,
-        created_by: UUID
-    ) -> InviteCode:
-        """
-        Generate new invite code (superuser only).
-
-        Format: SIGMA-{4 chars}-{4 chars}
-        Example: SIGMA-X7Y2-9M4P
-
-        Character set: A-Z, 0-9 (no confusing chars: O/0, I/1, etc.)
-        """
+        return code.strip().upper() == self.master_code.upper()
 ```
+
+**Note:** All 50 beta users receive the same invite code. Frontend displays the same code to all users - no "personalization" needed for MVP.
 
 ### 5.4 CSVParserService
 
@@ -613,8 +736,6 @@ class PositionData:
     entry_date: date
     investment_class: Optional[str] = None  # AUTO if not provided
     investment_subtype: Optional[str] = None
-    tags: List[str] = field(default_factory=list)
-    notes: Optional[str] = None
     # Options fields
     underlying_symbol: Optional[str] = None
     strike_price: Optional[Decimal] = None
@@ -643,8 +764,7 @@ class PositionImportService:
         1. Determine position_type (LONG/SHORT for stocks, LC/LP/SC/SP for options)
         2. Auto-classify investment_class if not provided
         3. Create Position record
-        4. Create tags (if any)
-        5. Apply sector auto-tagging
+        4. Apply sector auto-tagging
 
         Uses deterministic UUIDs (Phase 1) or random UUIDs (Phase 3).
 
@@ -653,10 +773,20 @@ class PositionImportService:
         """
 ```
 
-### 5.6 ImpersonationService
+### 5.6 ImpersonationService **[PHASE 2 ONLY]**
+
+**Note:** This service is part of Phase 2 admin tooling and should be implemented AFTER Phase 1 is working and tested.
 
 ```python
 class ImpersonationService:
+    """
+    User impersonation service for superuser testing (Phase 2).
+
+    Allows superusers to generate tokens to act as another user for testing
+    and support purposes. See ADMIN_AUTH_SUPPLEMENT.md for complete Phase 2
+    implementation details.
+    """
+
     async def create_impersonation_token(
         self,
         superuser_id: UUID,
@@ -687,66 +817,52 @@ class ImpersonationService:
         """
 ```
 
+**Implementation Priority:** Phase 2 only - not required for core user onboarding.
+
 ---
 
 ## 6. Database Schema Changes
 
-### 6.1 New Table: `invite_codes`
+### 6.1 Phase 1: No Database Changes Required ✅
 
-```sql
-CREATE TABLE invite_codes (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    code VARCHAR(50) UNIQUE NOT NULL,
-    created_by UUID REFERENCES users(id),
-    created_at TIMESTAMP DEFAULT NOW(),
-    expires_at TIMESTAMP NOT NULL,
-    used_by UUID REFERENCES users(id),
-    used_at TIMESTAMP,
-    is_active BOOLEAN DEFAULT TRUE,
-    note TEXT  -- Internal note about this code
-);
+**Phase 1 uses config-based invite code - no database changes needed!**
 
-CREATE INDEX idx_invite_codes_code ON invite_codes(code);
-CREATE INDEX idx_invite_codes_expires_at ON invite_codes(expires_at);
-CREATE INDEX idx_invite_codes_used_by ON invite_codes(used_by);
-```
-
-### 6.2 Modify `users` Table
-
-```sql
--- Add superuser flag
-ALTER TABLE users ADD COLUMN is_superuser BOOLEAN DEFAULT FALSE;
-
--- Track which invite code was used
-ALTER TABLE users ADD COLUMN invited_by_code VARCHAR(50);
-
--- Account type (DEMO or REAL)
-ALTER TABLE users ADD COLUMN account_type VARCHAR(20) DEFAULT 'REAL';
-
--- Add check constraint
-ALTER TABLE users ADD CONSTRAINT check_account_type
-    CHECK (account_type IN ('DEMO', 'REAL'));
-
--- Add indexes
-CREATE INDEX idx_users_is_superuser ON users(is_superuser);
-CREATE INDEX idx_users_account_type ON users(account_type);
-```
-
-### 6.3 Alembic Migration
-
-**File:** `alembic/versions/xxxx_add_onboarding_schema.py`
+The single master invite code (`PRESCOTT-LINNAEAN-COWPERTHWAITE`) is stored in `app/config.py`:
 
 ```python
-"""Add onboarding schema
+# app/config.py
+BETA_INVITE_CODE = "PRESCOTT-LINNAEAN-COWPERTHWAITE"
+```
+
+All Phase 1 functionality works with existing User and Portfolio models.
+
+### 6.2 Phase 2: Superuser Column **[PHASE 2 ONLY]**
+
+**Minimal database changes for Phase 2:**
+
+```sql
+-- Add superuser flag (Phase 2 only)
+ALTER TABLE users ADD COLUMN is_superuser BOOLEAN DEFAULT FALSE NOT NULL;
+CREATE INDEX idx_users_is_superuser ON users(is_superuser);
+```
+
+**Note:** No `account_type` column needed - demo users identified by `@sigmasight.com` email pattern.
+
+### 6.3 Phase 2: Alembic Migration **[PHASE 2 ONLY]**
+
+**File:** `alembic/versions/xxxx_add_superuser_column.py`
+
+```python
+"""Add superuser column
 
 Revision ID: xxxx
 Revises: previous_revision
 Create Date: 2025-10-28
 
+Phase 2 only - adds is_superuser column for admin authentication.
 """
 from alembic import op
 import sqlalchemy as sa
-from sqlalchemy.dialects import postgresql
 
 # revision identifiers
 revision = 'xxxx'
@@ -756,106 +872,22 @@ depends_on = None
 
 
 def upgrade():
-    # Create invite_codes table
-    op.create_table(
-        'invite_codes',
-        sa.Column('id', postgresql.UUID(as_uuid=True), primary_key=True),
-        sa.Column('code', sa.String(50), nullable=False, unique=True),
-        sa.Column('created_by', postgresql.UUID(as_uuid=True), sa.ForeignKey('users.id')),
-        sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.func.now()),
-        sa.Column('expires_at', sa.DateTime(timezone=True), nullable=False),
-        sa.Column('used_by', postgresql.UUID(as_uuid=True), sa.ForeignKey('users.id')),
-        sa.Column('used_at', sa.DateTime(timezone=True)),
-        sa.Column('is_active', sa.Boolean(), server_default='true'),
-        sa.Column('note', sa.Text())
-    )
+    # Add is_superuser column
+    op.add_column('users', sa.Column('is_superuser', sa.Boolean(), nullable=False, server_default='false'))
 
-    # Create indexes
-    op.create_index('idx_invite_codes_code', 'invite_codes', ['code'])
-    op.create_index('idx_invite_codes_expires_at', 'invite_codes', ['expires_at'])
-    op.create_index('idx_invite_codes_used_by', 'invite_codes', ['used_by'])
-
-    # Modify users table
-    op.add_column('users', sa.Column('is_superuser', sa.Boolean(), server_default='false'))
-    op.add_column('users', sa.Column('invited_by_code', sa.String(50)))
-    op.add_column('users', sa.Column('account_type', sa.String(20), server_default='REAL'))
-
-    # Add check constraint
-    op.create_check_constraint(
-        'check_account_type',
-        'users',
-        "account_type IN ('DEMO', 'REAL')"
-    )
-
-    # Create indexes
+    # Create index
     op.create_index('idx_users_is_superuser', 'users', ['is_superuser'])
-    op.create_index('idx_users_account_type', 'users', ['account_type'])
 
 
 def downgrade():
-    # Drop indexes
-    op.drop_index('idx_users_account_type')
+    # Drop index
     op.drop_index('idx_users_is_superuser')
 
-    # Drop check constraint
-    op.drop_constraint('check_account_type', 'users')
-
-    # Remove columns
-    op.drop_column('users', 'account_type')
-    op.drop_column('users', 'invited_by_code')
+    # Remove column
     op.drop_column('users', 'is_superuser')
-
-    # Drop invite_codes indexes
-    op.drop_index('idx_invite_codes_used_by')
-    op.drop_index('idx_invite_codes_expires_at')
-    op.drop_index('idx_invite_codes_code')
-
-    # Drop table
-    op.drop_table('invite_codes')
 ```
 
-### 6.4 Manual Script: Seed Invite Codes
-
-**File:** `scripts/database/seed_invite_codes.py`
-
-```python
-"""
-Manual script to generate invite codes.
-
-Usage:
-    uv run python scripts/database/seed_invite_codes.py --count 10 --expires 2026-12-31
-"""
-import asyncio
-import argparse
-from datetime import datetime
-from app.database import get_async_session
-from app.services.invite_code_service import InviteCodeService
-
-async def main(count: int, expires_at: datetime):
-    async with get_async_session() as db:
-        service = InviteCodeService(db)
-
-        print(f"Generating {count} invite codes (expires: {expires_at})...")
-
-        for i in range(count):
-            code = await service.generate_invite_code(
-                expires_at=expires_at,
-                created_by=None  # System-generated
-            )
-            print(f"{i+1}. {code.code}")
-
-        await db.commit()
-        print(f"\n✅ Generated {count} invite codes")
-
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--count", type=int, required=True)
-    parser.add_argument("--expires", type=str, required=True, help="YYYY-MM-DD")
-    args = parser.parse_args()
-
-    expires_at = datetime.strptime(args.expires, "%Y-%m-%d")
-    asyncio.run(main(args.count, expires_at))
-```
+**Run this migration only in Phase 2, not Phase 1!**
 
 ---
 
@@ -877,8 +909,6 @@ if __name__ == "__main__":
 | **Entry Date** | ✅ Yes | Date | YYYY-MM-DD | Date position was opened | `2024-01-15` |
 | **Investment Class** | No | Enum | PUBLIC/OPTIONS/PRIVATE | Auto-detected if blank | `PUBLIC` |
 | **Investment Subtype** | No | String | See 7.3 | For PRIVATE assets only | `PRIVATE_EQUITY` |
-| **Tags** | No | String | Comma-separated | User-defined tags | `"Tech,Core"` |
-| **Notes** | No | Text | Max 1000 chars | Free-text description | `"My largest position"` |
 | **Underlying Symbol** | Options only | String | Max 10 chars | For options: underlying ticker | `SPY` |
 | **Strike Price** | Options only | Decimal | Max 2 decimals | Option strike price | `460.00` |
 | **Expiration Date** | Options only | Date | YYYY-MM-DD | Option expiration date | `2025-09-19` |
@@ -897,21 +927,26 @@ if __name__ == "__main__":
 - `REAL_ESTATE` - Direct real estate
 - `CRYPTOCURRENCY` - Crypto holdings
 - `ART` - Art & collectibles
+- `MONEY_MARKET` - Money market funds
+- `TREASURY_BILLS` - Treasury bills
+- `CASH` - Cash holdings
 - `OTHER` - Other alternatives
 
 ### 7.4 Template Content
 
 ```csv
-Symbol,Quantity,Entry Price Per Share,Entry Date,Investment Class,Investment Subtype,Tags,Notes,Underlying Symbol,Strike Price,Expiration Date,Option Type,Exit Date,Exit Price Per Share
-AAPL,100,158.00,2024-01-15,PUBLIC,,"Tech,Core","My largest position",,,,,
-MSFT,50,350.00,2024-02-01,PUBLIC,,Tech,,,,,,
-VOO,20,631.00,2024-03-15,PUBLIC,,"Index,Core",,,,,,
-SPY250919C00460000,200,7.00,2024-01-10,OPTIONS,,Options,,SPY,460.00,2025-09-19,CALL,,
-QQQ250815C00420000,150,7.00,2024-01-10,OPTIONS,,Options,,QQQ,420.00,2025-08-15,CALL,,
-BX_PRIVATE_EQUITY,1,50000.00,2023-06-01,PRIVATE,PRIVATE_EQUITY,Alternatives,"Blackstone PE fund",,,,,
-HOME_EQUITY,1,500000.00,2020-01-01,PRIVATE,REAL_ESTATE,"Real Estate","Primary residence",,,,,
-CRYPTO_BTC_ETH,1,75000.00,2022-06-01,PRIVATE,CRYPTOCURRENCY,Crypto,"Mixed BTC/ETH holdings",,,,,
-NFLX,-100,490.00,2024-01-25,PUBLIC,,"Short Positions",,,,,,2024-10-15,450.00
+Symbol,Quantity,Entry Price Per Share,Entry Date,Investment Class,Investment Subtype,Underlying Symbol,Strike Price,Expiration Date,Option Type,Exit Date,Exit Price Per Share
+AAPL,100,158.00,2024-01-15,PUBLIC,,,,,,,
+MSFT,50,350.00,2024-02-01,PUBLIC,,,,,,,
+VOO,20,631.00,2024-03-15,PUBLIC,,,,,,,
+SPY250919C00460000,200,7.00,2024-01-10,OPTIONS,,SPY,460.00,2025-09-19,CALL,,
+QQQ250815C00420000,150,7.00,2024-01-10,OPTIONS,,QQQ,420.00,2025-08-15,CALL,,
+BX_PRIVATE_EQUITY,1,50000.00,2023-06-01,PRIVATE,PRIVATE_EQUITY,,,,,
+HOME_EQUITY,1,500000.00,2020-01-01,PRIVATE,REAL_ESTATE,,,,,
+CRYPTO_BTC_ETH,1,75000.00,2022-06-01,PRIVATE,CRYPTOCURRENCY,,,,,
+CASH_USD,1,25000.00,2024-01-01,PRIVATE,CASH,,,,,
+US_TREASURY_BILLS,1,50000.00,2024-01-01,PRIVATE,TREASURY_BILLS,,,,,
+NFLX,-100,490.00,2024-01-25,PUBLIC,,,,,,2024-10-15,450.00
 ```
 
 ### 7.5 Parsing Rules
@@ -920,10 +955,9 @@ NFLX,-100,490.00,2024-01-25,PUBLIC,,"Short Positions",,,,,,2024-10-15,450.00
 2. **Empty Rows**: Skipped silently
 3. **Whitespace**: Trimmed from all values
 4. **Quotes**: CSV standard (quotes around values with commas)
-5. **Tags**: Split on comma, trimmed, duplicates removed
-6. **Auto-Classification**: If `Investment Class` blank, use `determine_investment_class(symbol)`
-7. **Options Detection**: If symbol matches OCC format OR has underlying/strike/expiration, classify as OPTIONS
-8. **Negative Quantity**: Interpreted as SHORT position
+5. **Auto-Classification**: If `Investment Class` blank, use `determine_investment_class(symbol)`
+6. **Options Detection**: If symbol matches OCC format OR has underlying/strike/expiration, classify as OPTIONS
+7. **Negative Quantity**: Interpreted as SHORT position
 
 ### 7.6 User Instructions (Include in Template)
 
@@ -942,8 +976,92 @@ NFLX,-100,490.00,2024-01-25,PUBLIC,,"Short Positions",,,,,,2024-10-15,450.00
 #
 # For help, see: https://docs.sigmasight.io/csv-import
 #
-Symbol,Quantity,Entry Price Per Share,Entry Date,Investment Class,Investment Subtype,Tags,Notes,Underlying Symbol,Strike Price,Expiration Date,Option Type,Exit Date,Exit Price Per Share
+Symbol,Quantity,Entry Price Per Share,Entry Date,Investment Class,Investment Subtype,Underlying Symbol,Strike Price,Expiration Date,Option Type,Exit Date,Exit Price Per Share
 ```
+
+### 7.7 Special Position Types
+
+#### Cash Positions
+
+**Cash, money market funds, and treasury bills** use specific investment classes and subtypes based on whether they have a tradeable ticker symbol:
+
+**Approach 1: Money Market Funds with Ticker Symbols (PUBLIC)**
+```csv
+SPAXX,8271.36,1.00,2024-01-01,PUBLIC,,,,,,,
+VMFXX,10000.00,1.00,2024-01-01,PUBLIC,,,,,,,
+VUSXX,5000.00,1.00,2024-01-01,PUBLIC,,,,,,,
+```
+- Symbol: Actual fund ticker (SPAXX, VMFXX, VUSXX, etc.)
+- Quantity: Actual share count
+- Entry Price: $1.00 per share (standard NAV for money market funds)
+- Investment Class: `PUBLIC` (they have real ticker symbols and can be looked up in market data APIs)
+- Investment Subtype: Leave blank (treated as standard PUBLIC positions)
+
+**Why PUBLIC?**
+- Money market funds with tickers are actual securities with real-time pricing
+- Can query current NAV via market data APIs
+- Treated like any other PUBLIC position in the system
+- Standard $1.00 NAV means minimal price volatility
+
+**Approach 2: Non-Tickered Money Market Positions (PRIVATE)**
+```csv
+CASH_MM_FUND,1,25000.00,2024-01-01,PRIVATE,MONEY_MARKET,,,,,
+```
+- Symbol: Descriptive identifier (no real ticker)
+- Quantity: 1
+- Entry Price: Total investment amount
+- Investment Class: `PRIVATE`
+- Investment Subtype: `MONEY_MARKET`
+
+**Use when:**
+- Money market fund doesn't have a standard ticker symbol
+- Corporate/institutional money market accounts
+- Sweep accounts without ticker symbols
+
+**Approach 3: Treasury Bills (PRIVATE)**
+```csv
+US_TREASURY_BILLS,1,100000.00,2024-01-01,PRIVATE,TREASURY_BILLS,,,,,
+T_BILLS_3M,1,50000.00,2024-01-01,PRIVATE,TREASURY_BILLS,,,,,
+```
+- Symbol: Descriptive identifier
+- Quantity: 1
+- Entry Price: Total investment amount
+- Investment Class: `PRIVATE`
+- Investment Subtype: `TREASURY_BILLS`
+
+**Approach 4: Pure Cash Holdings (PRIVATE)**
+```csv
+CASH_USD,1,50000.00,2024-01-01,PRIVATE,CASH,,,,,
+CASH_CHECKING,1,25000.00,2024-01-01,PRIVATE,CASH,,,,,
+```
+- Symbol: Descriptive identifier
+- Quantity: 1
+- Entry Price: Total cash amount
+- Investment Class: `PRIVATE`
+- Investment Subtype: `CASH`
+
+**Decision Tree for Cash Equivalents:**
+
+```
+Does the position have a ticker symbol (SPAXX, VMFXX, etc.)?
+├─ YES → Use PUBLIC class, leave subtype blank
+│         (Treated like any other publicly traded security)
+│
+└─ NO → Use PRIVATE class with appropriate subtype:
+         ├─ Money market fund without ticker → MONEY_MARKET
+         ├─ Treasury bills → TREASURY_BILLS
+         └─ Pure cash → CASH
+```
+
+**Why This Architecture?**
+- **PUBLIC for tickered money markets**: Leverages existing market data infrastructure
+- **PRIVATE for non-tickered cash**: Prevents failed API lookups
+- **Clear separation**: Ticker = PUBLIC, No ticker = PRIVATE
+- **Simple rules**: Easy for users to understand and apply
+
+**Calculation Behavior:**
+- **PUBLIC money markets**: Standard market data lookups, no Greeks/factors (minimal volatility)
+- **PRIVATE cash equivalents**: Skip market data lookups entirely
 
 ---
 
@@ -978,7 +1096,9 @@ Step 3: Login
 └─ Redirect to /onboarding/create-portfolio
 ```
 
-### 8.2 Portfolio Creation Flow
+### 8.2 Portfolio Creation Flow **[UPDATED: Decoupled Architecture]**
+
+**Note:** Portfolio creation and calculations are now separate API calls for better UX and reliability.
 
 ```
 Step 1: Create Portfolio Form (/onboarding/create-portfolio)
@@ -1003,49 +1123,93 @@ Step 1: Create Portfolio Form (/onboarding/create-portfolio)
 │
 └─ Submit Button: "Create Portfolio"
 
-Step 2: Processing
+Step 2: Portfolio Creation (Fast - <5 seconds)
 ├─ On Submit: POST /api/v1/onboarding/create-portfolio
-├─ Show loading spinner: "Creating portfolio and running calculations..."
-├─ Progress indicator (if possible):
-│   └─ "Importing positions... (1/3)"
-│   └─ "Running calculations... (2/3)"
-│   └─ "Finalizing... (3/3)"
+├─ Show loading spinner: "Creating portfolio and importing positions..."
+├─ Quick response (no batch processing yet)
 │
-└─ Wait for response (30-60s timeout)
+└─ Response includes:
+    ├─ portfolio_id
+    ├─ positions_imported count
+    └─ Message: "Use /api/v1/portfolio/{portfolio_id}/calculate to run calculations"
 
-Step 3: Success
+Step 3: Portfolio Created - Trigger Calculations
 ├─ Show success message:
-│   ├─ "Portfolio created successfully!"
+│   ├─ "✅ Portfolio created successfully!"
 │   ├─ "{N} positions imported"
-│   └─ "Calculations complete"
+│   └─ "Ready to calculate risk metrics"
 │
-├─ Display any warnings:
-│   └─ "Note: Greeks unavailable for some positions"
+├─ Display "Calculate Risk Metrics" button
+│   └─ Action: POST /api/v1/portfolio/{portfolio_id}/calculate
+│
+└─ Alternative: Auto-trigger calculations (optional UX choice)
+    ├─ Frontend automatically calls calculate endpoint
+    └─ Show: "Running calculations... (30-60 seconds)"
+
+Step 4: Calculation Processing (30-60 seconds)
+├─ User clicks "Calculate Risk Metrics"
+├─ POST /api/v1/portfolio/{portfolio_id}/calculate
+├─ Show loading spinner: "Calculating portfolio analytics..."
+├─ Progress indicator (if possible):
+│   └─ "Fetching market data... (1/3)"
+│   └─ "Calculating Greeks... (2/3)"
+│   └─ "Analyzing risk factors... (3/3)"
+│
+└─ Poll calculation status or wait for completion
+
+Step 5: Calculations Complete
+├─ Show success message:
+│   ├─ "✅ Calculations complete!"
+│   ├─ "Your portfolio is ready to view"
+│   └─ Display any warnings:
+│       └─ "Note: Greeks unavailable for some positions"
 │
 └─ Redirect to /portfolio (main dashboard)
 
-Step 4: Error Handling
-├─ If CSV validation fails:
-│   ├─ Show error list
+Step 6: Error Handling
+├─ CSV Validation Errors (Step 2):
+│   ├─ Show detailed error list
 │   ├─ Highlight problematic rows
-│   └─ Allow re-upload
+│   └─ Allow re-upload without losing form data
 │
-├─ If timeout:
-│   ├─ "Portfolio created but calculations still running"
-│   └─ "Refresh page in a few minutes"
+├─ Portfolio Creation Errors (Step 2):
+│   ├─ "User already has portfolio" → Redirect to existing portfolio
+│   └─ Other errors → Show message, allow retry
 │
-└─ If other error:
-    ├─ Show user-friendly message
-    └─ Allow retry
+└─ Calculation Errors (Step 4):
+    ├─ Timeout (>60s):
+    │   ├─ "Calculations taking longer than expected"
+    │   ├─ "You can view positions now, calculations continue in background"
+    │   └─ Redirect to portfolio with partial data
+    │
+    ├─ Market Data Failures:
+    │   ├─ "Some market data unavailable"
+    │   ├─ "Portfolio created, calculations partially complete"
+    │   └─ Allow manual retry: "Retry Calculations" button
+    │
+    └─ Complete Failure:
+        ├─ "Calculations failed. Portfolio saved with positions."
+        ├─ "Please contact support or retry later"
+        └─ Redirect to portfolio (positions visible, no analytics)
 ```
 
-### 8.3 Superuser Impersonation Flow
+**Key UX Improvements from Decoupled Architecture:**
+
+1. **Faster Initial Feedback**: Portfolio creation completes in <5s (was 30-60s)
+2. **Better Error Isolation**: CSV errors don't block portfolio creation
+3. **Retry Flexibility**: Users can retry calculations without re-uploading CSV
+4. **Progressive Enhancement**: View positions immediately, calculations load async
+5. **Clearer Progress**: Two distinct phases with separate loading states
+
+### 8.3 Superuser Impersonation Flow **[PHASE 2 ONLY]**
+
+**Note:** This UX flow is part of Phase 2 admin tooling and should be implemented AFTER Phase 1 is working and tested.
 
 ```
 Superuser Dashboard (/admin)
 ├─ List all users
 ├─ For each user:
-│   ├─ Email, account type, created date, has_portfolio flag
+│   ├─ Email, created date, has_portfolio flag
 │   └─ Button: "Impersonate" (to view portfolio, use impersonation)
 │
 └─ On "Impersonate" click:
@@ -1065,62 +1229,102 @@ While Impersonating:
     └─ Return to /admin
 ```
 
+**Implementation Priority:** Phase 2 only - not required for core user onboarding (Phase 1).
+
 ### 8.4 UI Components Needed
 
-**New Pages:**
+**Phase 1 Pages:**
 1. `/register` - Registration form
 2. `/onboarding/create-portfolio` - Portfolio creation
-3. `/admin` - Superuser dashboard (list users)
-4. `/admin/invite-codes` - Manage invite codes
 
-**New Components:**
+**Phase 2 Pages (Admin Tooling):**
+3. `/admin` - Superuser dashboard (list users) **[PHASE 2]**
+4. `/admin/invite-codes` - Manage invite codes **[PHASE 2]** *(Future feature)*
+
+**Phase 1 Components:**
 1. `<InviteCodeInput>` - Formatted input for SIGMA-XXXX-XXXX
 2. `<CSVUploader>` - Drag-drop file upload with validation
 3. `<EquityBalanceInput>` - Currency input with help tooltip
-4. `<ImpersonationBanner>` - Persistent banner during impersonation
 5. `<CSVValidationResults>` - Display validation errors/warnings
+
+**Phase 2 Components (Admin Tooling):**
+4. `<ImpersonationBanner>` - Persistent banner during impersonation **[PHASE 2]**
 
 ---
 
 ## 9. Security Model
 
-### 9.1 Invite Code Security
+### 9.1 Invite Code Security **[SIMPLIFIED FOR PHASE 1]**
 
-**Design:**
-- Single-use codes only (prevent sharing/abuse)
-- Fixed expiration dates (prevent indefinite access)
-- Trackable (audit who used which code)
-- Manual generation only (no self-service)
+**Phase 1 Design (50-User MVP):**
+- Single master code: `PRESCOTT-LINNAEAN-COWPERTHWAITE`
+- Stored in config (`app/config.py`), not database
+- No expiration, no usage tracking
+- Validation: Simple string comparison
 
-**Code Format:**
-- Pattern: `SIGMA-XXXX-XXXX`
-- Character set: `ABCDEFGHJKLMNPQRSTUVWXYZ23456789` (30 chars)
-  - Excludes: O/0, I/1 (confusing)
-  - Uppercase only for consistency
-- Total combinations: 30^8 = 656 billion possible codes
+**Implementation:**
+```python
+# app/config.py
+import os
 
-**Validation Checks:**
-1. Code exists in database
-2. Not expired (`expires_at > now()`)
-3. Not used (`used_by IS NULL`)
-4. Active (`is_active = TRUE`)
+BETA_INVITE_CODE = os.getenv(
+    "BETA_INVITE_CODE",
+    "PRESCOTT-LINNAEAN-COWPERTHWAITE"  # Default for dev/testing
+)
+
+# Validation (simple)
+def validate_invite_code(code: str) -> bool:
+    return code.strip().upper() == settings.BETA_INVITE_CODE.upper()
+```
+
+**Security Model:**
+- **Shared Secret**: All 50 beta users receive same code via email
+- **Access Control**: Code acts as single key for beta access
+- **Trust Model**: White-glove support, direct contact with users
+- **Leak Mitigation**: Override via environment variable (no code change required)
+- **Production Override**: Set `BETA_INVITE_CODE` env var to avoid Git history exposure
+- **Emergency Rotation**: Change env var and redeploy (1-2 minutes)
+
+**Why This Works for 50 Users:**
+1. **Simple**: No database, no expiration logic, no tracking
+2. **Fast**: Config-based validation (no database lookups)
+3. **Secure Enough**: Small trusted cohort with white-glove support
+4. **Maintainable**: Single code to manage and distribute
+5. **Easily Upgradable**: Can add database-backed codes in Phase 3+ if needed
 
 **Rate Limiting:**
-- Max 5 failed invite code attempts per IP per hour
-- After 5 failures, require CAPTCHA
+- **Phase 1**: None (trust 50 beta users)
+- **Phase 3+**: Add rate limiting if abuse occurs
+  - Max 5 failed invite code attempts per IP per hour
+  - After 5 failures, require CAPTCHA
 
-### 9.2 Superuser Access Control
+**User Experience:**
+- Users receive code in welcome email: "Your exclusive beta code is: [master code]"
+- All users enter the same code for registration
+- Simple, clear, no confusion about multiple codes
+
+**Future Enhancement (Phase 3+):**
+If scaling beyond 50 users or need cohort tracking, can implement:
+- Database-backed invite code table
+- Single-use enforcement
+- Expiration dates
+- Usage tracking
+- Multiple codes for different cohorts
+
+### 9.2 Superuser Access Control **[PHASE 2 ONLY]**
+
+**Note:** All superuser functionality is part of Phase 2 admin tooling. See `ADMIN_AUTH_SUPPLEMENT.md` for complete implementation details.
 
 **Identification:**
 - Database flag: `users.is_superuser = TRUE`
-- Set manually via SQL or admin script
+- Set manually via SQL or admin script (bootstrap script)
 - Cannot be self-granted
 
 **Permissions:**
 - All regular user endpoints
 - All `/api/v1/admin/*` endpoints
 - Can impersonate any user
-- Can generate invite codes
+- Can generate invite codes (future feature)
 - Can view all users and portfolios
 
 **Impersonation Token:**
@@ -1134,9 +1338,10 @@ While Impersonating:
 ```
 
 **Audit Logging:**
-- Log all impersonation events
+- Log all impersonation events (application logs)
 - Log all admin endpoint access
 - Include: who, when, what, target user
+- Structured audit trail deferred to production (Phase 3+)
 
 ### 9.3 Data Isolation
 
@@ -1168,22 +1373,31 @@ While Impersonating:
 - Cannot be refreshed (must re-impersonate)
 - Includes `is_impersonation` flag
 
-### 9.5 Rate Limiting
+### 9.5 Rate Limiting **[PHASE 3+ ONLY]**
+
+**Note:** No rate limiting for Phase 1 MVP. Implement in Phase 3+ if abuse occurs.
+
+**Proposed Rate Limits (Phase 3+ if needed):**
 
 **Registration:**
-- Max 3 accounts per IP per day
-- Max 10 registration attempts per IP per hour
+- Max 50 accounts per IP per day (permissive for testing)
+- Max 100 registration attempts per IP per hour
 
 **CSV Upload:**
-- Max 5 uploads per user per hour
-- Max 10MB file size
+- Max 50 uploads per user per hour (permissive for testing/iterating)
+- Max 10MB file size (hard limit)
 
 **API Calls (General):**
-- 100 requests per minute per user
-- 500 requests per hour per user
+- 1000 requests per minute per user (very permissive)
+- 10000 requests per hour per user
 
 **Admin Endpoints:**
 - No rate limiting for superusers (trusted)
+
+**Rationale for High Limits:**
+- Allow extensive testing and iteration during onboarding
+- 50 beta users with white-glove support unlikely to abuse
+- Can tighten limits in production if needed
 
 ---
 
@@ -1283,48 +1497,178 @@ While Impersonating:
 
 **Goals:**
 - Security improvements
-- UUID migration
+- UUID migration from deterministic to random
 - Rate limiting
 - Monitoring
 
 **Tasks:**
-1. **UUID Migration:**
-   - Add `uuid_generation_strategy` config
-   - Implement hybrid approach:
-     ```python
-     if account_type == 'DEMO':
-         uuid = generate_deterministic_uuid(email)
-     else:
-         uuid = uuid4()  # Random for real users
-     ```
-   - Test thoroughly in staging
 
-2. **Rate Limiting:**
-   - Implement per-endpoint limits
-   - Add Redis for distributed rate limiting (optional)
-   - Add CAPTCHA for invite code validation
+#### 1. UUID Migration Strategy
 
-3. **Monitoring:**
-   - Add metrics for:
-     - Registration attempts
-     - CSV upload success/failure rates
-     - Batch processing duration
-     - Impersonation events
-   - Set up alerts for anomalies
+**Current State (Phase 1 & 2):**
+- All users: Deterministic UUIDs based on email hash
+- Rationale: Enables thorough testing and easy identification
 
-4. **Security Audit:**
-   - Review all endpoints for auth bypass
-   - Test user isolation
-   - Verify no SQL injection vectors
-   - Check file upload security
+**Target State (Phase 3):**
+- Demo users (`@sigmasight.com`): Keep deterministic UUIDs
+- Real users: Random UUIDs (uuid4)
 
-5. **Documentation:**
-   - API documentation (Swagger/ReDoc)
-   - User guide for CSV import
-   - Admin guide for invite codes
+**Implementation:**
+
+**Step 1: Add UUID Generation Strategy**
+
+```python
+# app/core/uuid_strategy.py
+from uuid import UUID, uuid4, uuid5, NAMESPACE_DNS
+from typing import Optional
+
+class UUIDStrategy:
+    """
+    UUID generation strategy supporting hybrid approach.
+
+    Phase 1/2: All deterministic (for testing)
+    Phase 3: Demo deterministic, real users random
+    """
+
+    @staticmethod
+    def generate_user_uuid(email: str, use_deterministic: Optional[bool] = None) -> UUID:
+        """
+        Generate UUID for user based on email and strategy.
+
+        Args:
+            email: User email address
+            use_deterministic: Override strategy (None = auto-detect)
+
+        Returns:
+            UUID object
+
+        Strategy:
+        - Demo users (@sigmasight.com): Always deterministic
+        - Real users: Deterministic (Phase 1/2), Random (Phase 3+)
+        - Override: Explicit use_deterministic parameter
+        """
+        # Check if demo user (always deterministic)
+        is_demo = email.endswith('@sigmasight.com')
+
+        # Determine strategy
+        if use_deterministic is not None:
+            should_use_deterministic = use_deterministic
+        elif is_demo:
+            should_use_deterministic = True
+        else:
+            # Check config (Phase 3: switch to False for production)
+            from app.config import settings
+            should_use_deterministic = getattr(settings, 'USE_DETERMINISTIC_UUIDS', True)
+
+        if should_use_deterministic:
+            # Deterministic: uuid5(NAMESPACE_DNS, email)
+            return uuid5(NAMESPACE_DNS, email.lower())
+        else:
+            # Random: uuid4()
+            return uuid4()
+```
+
+**Step 2: Configuration**
+
+```python
+# app/config.py
+class Settings(BaseSettings):
+    # ... existing settings ...
+
+    # UUID Strategy (Phase 3)
+    USE_DETERMINISTIC_UUIDS: bool = True  # Phase 1/2: True, Phase 3: False
+```
+
+**Step 3: Migration Path**
+
+```sql
+-- Phase 3 Migration Script
+-- Note: Existing users keep their UUIDs
+-- Only NEW users after Phase 3 get random UUIDs
+
+-- No data migration needed! Just config change:
+-- Change USE_DETERMINISTIC_UUIDS from True to False
+
+-- Demo users (@sigmasight.com) automatically remain deterministic
+-- Real users created after Phase 3 get random UUIDs
+```
+
+**Step 4: Backward Compatibility**
+
+```python
+# Existing demo seeding scripts work unchanged
+# Demo users always get deterministic UUIDs regardless of config
+
+async def seed_demo_portfolios(db: AsyncSession):
+    for email in DEMO_USERS:
+        # These always get deterministic UUIDs (email ends with @sigmasight.com)
+        user_id = UUIDStrategy.generate_user_uuid(email)
+        # ... rest of seeding logic
+```
+
+**Testing Strategy:**
+
+1. **Phase 1/2 (Deterministic):**
+   - Set `USE_DETERMINISTIC_UUIDS=True`
+   - Create test users → verify same UUID for same email
+   - Test all features with deterministic UUIDs
+
+2. **Phase 3 Testing (Staging):**
+   - Set `USE_DETERMINISTIC_UUIDS=False` in staging
+   - Create new real users → verify random UUIDs (uuid4)
+   - Create new demo users → verify deterministic UUIDs (uuid5)
+   - Verify existing users unaffected
+
+3. **Phase 3 Production:**
+   - Deploy with `USE_DETERMINISTIC_UUIDS=False`
+   - Monitor new user registrations
+   - Verify demo seeding still works
+
+**When to Migrate:**
+- After 50+ real users successfully onboarded (Phase 1/2 complete)
+- After thorough testing with deterministic UUIDs
+- When ready for production-grade security
+
+**Benefits of Hybrid Approach:**
+- ✅ Demo users remain testable (same UUID every time)
+- ✅ Real users get production-grade random UUIDs
+- ✅ No data migration needed (just config change)
+- ✅ Backward compatible with existing demo seeding
+- ✅ Can test both strategies in staging
+
+#### 2. Rate Limiting
+
+**After UUID migration is stable:**
+- Implement per-endpoint limits
+- Add Redis for distributed rate limiting (optional)
+- Add CAPTCHA for invite code validation
+
+#### 3. Monitoring
+
+**Add metrics for:**
+- Registration attempts
+- CSV upload success/failure rates
+- Batch processing duration
+- Impersonation events
+- Set up alerts for anomalies
+
+#### 4. Security Audit
+
+- Review all endpoints for auth bypass
+- Test user isolation
+- Verify no SQL injection vectors
+- Check file upload security
+
+#### 5. Documentation
+
+- API documentation (Swagger/ReDoc)
+- User guide for CSV import
+- Admin guide for superuser management
 
 **Success Criteria:**
-- ✅ All new users get random UUIDs
+- ✅ Demo users keep deterministic UUIDs (testable)
+- ✅ New real users get random UUIDs (secure)
+- ✅ Existing users unaffected by migration
 - ✅ Rate limits prevent abuse
 - ✅ Monitoring dashboards show key metrics
 - ✅ Security audit passes
@@ -1498,62 +1842,90 @@ async def seed_demo_portfolios(db):
 
 ## 12. Testing Strategy
 
-### 12.1 Unit Tests
+Testing is separated by implementation phase, with each phase building on the previous one.
+
+---
+
+### **Phase 1 Testing: Core Onboarding**
+
+Test the MVP functionality: registration, CSV import, portfolio creation.
+
+#### 12.1.1 Unit Tests (Phase 1)
 
 **Services:**
 - `test_invite_code_service.py`
-  - Validate invite code (all edge cases)
-  - Generate invite code (format, uniqueness)
-  - Mark as used
+  - Validate invite code matches config value
+  - Case-insensitive validation
+  - Whitespace handling
+  - Invalid code rejection
 
 - `test_csv_parser_service.py`
-  - Valid CSV parsing
-  - Invalid CSV detection (all error codes)
-  - Edge cases (empty rows, special characters)
+  - Valid CSV parsing (all 12 columns)
+  - Invalid CSV detection (all error codes from Section 4.2/4.3)
+  - Edge cases (empty rows, special characters, quotes)
+  - Investment class auto-detection
+  - Options symbol parsing (OCC format)
+  - Cash position subtypes (MONEY_MARKET, TREASURY_BILLS, CASH)
 
 - `test_position_import_service.py`
-  - Position creation
-  - Investment class auto-detection
-  - Tag handling
+  - Position creation from parsed data
+  - Investment class validation
+  - Position type determination (LONG/SHORT, options types)
+  - Deterministic UUID generation
+  - Sector auto-tagging
 
-**Models:**
-- `test_invite_code_model.py`
-  - Expiration logic
-  - Uniqueness constraints
+- `test_onboarding_service.py`
+  - User registration flow with config-based invite code
+  - Portfolio creation orchestration
+  - Error handling for duplicate users/portfolios
+  - Graceful degradation for batch processing errors
 
-### 12.2 Integration Tests
+#### 12.1.2 Integration Tests (Phase 1)
 
 **Registration Flow:**
 ```python
 async def test_registration_with_valid_invite_code():
-    # Create invite code
-    code = await create_invite_code(expires_at=future_date)
-
-    # Register user
+    """Test user registration with master invite code."""
     response = await client.post("/api/v1/onboarding/register", json={
         "email": "test@example.com",
         "password": "SecurePass123!",
         "full_name": "Test User",
-        "invite_code": code.code
+        "invite_code": "PRESCOTT-LINNAEAN-COWPERTHWAITE"  # Master code from config
     })
 
     assert response.status_code == 201
-    assert code.used_by is not None
+    assert response.json()["user_id"] is not None
+    assert response.json()["email"] == "test@example.com"
+
+
+async def test_registration_with_invalid_invite_code():
+    """Test registration fails with invalid code."""
+    response = await client.post("/api/v1/onboarding/register", json={
+        "email": "test@example.com",
+        "password": "SecurePass123!",
+        "full_name": "Test User",
+        "invite_code": "WRONG-CODE-HERE"
+    })
+
+    assert response.status_code == 401
+    assert response.json()["error"]["code"] == "ERR_INVITE_001"
 ```
 
 **Portfolio Creation:**
 ```python
 async def test_create_portfolio_with_csv():
-    # Login
-    token = await login_user()
+    """Test portfolio creation with CSV upload (no batch trigger)."""
+    # Register and login
+    token = await register_and_login()
 
     # Upload CSV
-    with open("test_positions.csv", "rb") as f:
+    with open("test_data/valid_positions.csv", "rb") as f:
         response = await client.post(
             "/api/v1/onboarding/create-portfolio",
             headers={"Authorization": f"Bearer {token}"},
             data={
                 "portfolio_name": "Test Portfolio",
+                "description": "Test portfolio for integration testing",
                 "equity_balance": "500000.00"
             },
             files={"csv_file": f}
@@ -1561,90 +1933,496 @@ async def test_create_portfolio_with_csv():
 
     assert response.status_code == 201
     assert response.json()["positions_imported"] > 0
+    assert "portfolio_id" in response.json()
+    # Verify message about using calculate endpoint
+    assert "calculate" in response.json()["message"]
+
+
+async def test_user_triggered_batch_calculations():
+    """Test user can trigger batch calculations for their portfolio."""
+    # Create portfolio first
+    portfolio_id = await create_test_portfolio()
+
+    # Trigger calculations
+    response = await client.post(
+        f"/api/v1/portfolio/{portfolio_id}/calculate",
+        headers={"Authorization": f"Bearer {token}"}
+    )
+
+    assert response.status_code == 202
+    assert response.json()["status"] == "started"
+    assert response.json()["batch_run_id"] is not None
 ```
 
-### 12.3 End-to-End Tests
+**CSV Validation:**
+```python
+async def test_csv_validation_errors():
+    """Test CSV validation catches all error types."""
+    token = await register_and_login()
+
+    # Test with invalid CSV (bad dates)
+    with open("test_data/invalid_dates.csv", "rb") as f:
+        response = await client.post(
+            "/api/v1/onboarding/create-portfolio",
+            headers={"Authorization": f"Bearer {token}"},
+            data={"portfolio_name": "Test", "equity_balance": "500000.00"},
+            files={"csv_file": f}
+        )
+
+    assert response.status_code == 400
+    assert response.json()["error"]["code"] == "ERR_CSV_007"
+    assert len(response.json()["error"]["details"]) > 0
+```
+
+#### 12.1.3 End-to-End Tests (Phase 1)
 
 **Full Onboarding Flow:**
-1. Generate invite code
-2. Register user
-3. Login
-4. Upload CSV
-5. Create portfolio
-6. Verify batch processing completed
-7. Verify positions in database
-8. Login to frontend and view portfolio
+```python
+async def test_complete_onboarding_flow():
+    """Test complete user journey from registration to portfolio view."""
+    # Step 1: Register user with master invite code
+    register_response = await client.post("/api/v1/onboarding/register", json={
+        "email": "e2e_test@example.com",
+        "password": "SecurePass123!",
+        "full_name": "E2E Test User",
+        "invite_code": "PRESCOTT-LINNAEAN-COWPERTHWAITE"
+    })
+    assert register_response.status_code == 201
+
+    # Step 2: Login
+    login_response = await client.post("/api/v1/auth/login", json={
+        "email": "e2e_test@example.com",
+        "password": "SecurePass123!"
+    })
+    assert login_response.status_code == 200
+    token = login_response.json()["access_token"]
+
+    # Step 3: Create portfolio with CSV
+    with open("test_data/valid_full.csv", "rb") as f:
+        portfolio_response = await client.post(
+            "/api/v1/onboarding/create-portfolio",
+            headers={"Authorization": f"Bearer {token}"},
+            data={
+                "portfolio_name": "E2E Test Portfolio",
+                "equity_balance": "500000.00"
+            },
+            files={"csv_file": f}
+        )
+    assert portfolio_response.status_code == 201
+    portfolio_id = portfolio_response.json()["portfolio_id"]
+
+    # Step 4: Trigger batch calculations
+    calc_response = await client.post(
+        f"/api/v1/portfolio/{portfolio_id}/calculate",
+        headers={"Authorization": f"Bearer {token}"}
+    )
+    assert calc_response.status_code == 202
+
+    # Step 5: Verify positions in database
+    async with get_async_session() as db:
+        positions = await db.execute(
+            select(Position).where(Position.portfolio_id == portfolio_id)
+        )
+        position_list = positions.scalars().all()
+        assert len(position_list) > 0
+
+    # Step 6: Verify portfolio accessible via API
+    portfolio_get = await client.get(
+        "/api/v1/data/portfolio/complete",
+        headers={"Authorization": f"Bearer {token}"}
+    )
+    assert portfolio_get.status_code == 200
+    assert portfolio_get.json()["portfolio"]["id"] == portfolio_id
+```
+
+**Cash Position Handling:**
+```python
+async def test_cash_position_classification():
+    """Test PUBLIC money markets vs PRIVATE cash handling."""
+    token = await register_and_login()
+
+    # CSV with both tickered and non-tickered cash
+    csv_content = """Symbol,Quantity,Entry Price Per Share,Entry Date,Investment Class,Investment Subtype,Underlying Symbol,Strike Price,Expiration Date,Option Type,Exit Date,Exit Price Per Share
+SPAXX,10000.00,1.00,2024-01-01,PUBLIC,,,,,,,
+VMFXX,5000.00,1.00,2024-01-01,PUBLIC,,,,,,,
+CASH_USD,1,50000.00,2024-01-01,PRIVATE,CASH,,,,,
+US_TREASURY_BILLS,1,100000.00,2024-01-01,PRIVATE,TREASURY_BILLS,,,,,
+"""
+
+    with open("test_data/cash_positions.csv", "w") as f:
+        f.write(csv_content)
+
+    with open("test_data/cash_positions.csv", "rb") as f:
+        response = await client.post(
+            "/api/v1/onboarding/create-portfolio",
+            headers={"Authorization": f"Bearer {token}"},
+            data={"portfolio_name": "Cash Test", "equity_balance": "165000.00"},
+            files={"csv_file": f}
+        )
+
+    assert response.status_code == 201
+    assert response.json()["positions_imported"] == 4
+
+    # Verify classification in database
+    portfolio_id = response.json()["portfolio_id"]
+    async with get_async_session() as db:
+        positions = await db.execute(
+            select(Position).where(Position.portfolio_id == portfolio_id)
+        )
+        position_list = positions.scalars().all()
+
+        # Tickered money markets should be PUBLIC
+        spaxx = next(p for p in position_list if p.symbol == "SPAXX")
+        assert spaxx.investment_class == "PUBLIC"
+
+        vmfxx = next(p for p in position_list if p.symbol == "VMFXX")
+        assert vmfxx.investment_class == "PUBLIC"
+
+        # Non-tickered cash should be PRIVATE
+        cash = next(p for p in position_list if p.symbol == "CASH_USD")
+        assert cash.investment_class == "PRIVATE"
+        assert cash.investment_subtype == "CASH"
+
+        t_bills = next(p for p in position_list if p.symbol == "US_TREASURY_BILLS")
+        assert t_bills.investment_class == "PRIVATE"
+        assert t_bills.investment_subtype == "TREASURY_BILLS"
+```
+
+---
+
+### **Phase 2 Testing: Admin & Superuser**
+
+Test admin tooling functionality after Phase 1 is working and tested.
+
+#### 12.2.1 Unit Tests (Phase 2)
+
+**Services:**
+- `test_impersonation_service.py`
+  - Token generation for impersonation
+  - Original user restoration
+  - Expiration handling
+  - Permission checks
+
+**Dependencies:**
+- `test_get_current_superuser.py`
+  - Verify superuser flag checked
+  - Regular users rejected
+  - Token validation
+
+#### 12.2.2 Integration Tests (Phase 2)
 
 **Impersonation Flow:**
-1. Create test user
-2. Superuser impersonates
-3. Verify can access user's portfolio
-4. Stop impersonation
-5. Verify back to original user
+```python
+async def test_superuser_impersonation():
+    """Test complete impersonation workflow."""
+    # Create superuser
+    superuser_token = await bootstrap_superuser("admin@sigmasight.io")
+
+    # Create regular user
+    user_id = await create_regular_user("user@example.com")
+
+    # Start impersonation
+    impersonate_response = await client.post(
+        "/api/v1/admin/impersonate",
+        headers={"Authorization": f"Bearer {superuser_token}"},
+        json={"target_user_id": user_id}
+    )
+    assert impersonate_response.status_code == 200
+    impersonation_token = impersonate_response.json()["impersonation_token"]
+
+    # Verify can access user's data
+    portfolio_response = await client.get(
+        "/api/v1/data/portfolio/complete",
+        headers={"Authorization": f"Bearer {impersonation_token}"}
+    )
+    assert portfolio_response.status_code == 200
+
+    # Stop impersonation
+    stop_response = await client.post(
+        "/api/v1/admin/stop-impersonation",
+        headers={"Authorization": f"Bearer {impersonation_token}"}
+    )
+    assert stop_response.status_code == 200
+    assert "original_token" in stop_response.json()
+
+
+async def test_regular_user_cannot_impersonate():
+    """Test that regular users cannot impersonate."""
+    regular_token = await login_regular_user()
+
+    response = await client.post(
+        "/api/v1/admin/impersonate",
+        headers={"Authorization": f"Bearer {regular_token}"},
+        json={"target_user_id": "some-uuid"}
+    )
+
+    assert response.status_code == 403
+    assert response.json()["error"]["code"] == "ERR_ADMIN_001"
+```
+
+**Admin User Listing:**
+```python
+async def test_list_all_users():
+    """Test superuser can list all users."""
+    superuser_token = await bootstrap_superuser()
+
+    response = await client.get(
+        "/api/v1/admin/users",
+        headers={"Authorization": f"Bearer {superuser_token}"}
+    )
+
+    assert response.status_code == 200
+    assert "users" in response.json()
+    assert len(response.json()["users"]) >= 3  # At least 3 demo users
+```
+
+---
+
+### **Phase 3 Testing: Production Hardening**
+
+Test production-ready features (UUID migration, rate limiting).
+
+#### 12.3.1 UUID Migration Tests
+
+```python
+async def test_hybrid_uuid_strategy():
+    """Test UUID generation strategy."""
+    from app.core.uuid_strategy import UUIDStrategy
+
+    # Demo user - always deterministic
+    demo_uuid_1 = UUIDStrategy.generate_user_uuid("demo@sigmasight.com")
+    demo_uuid_2 = UUIDStrategy.generate_user_uuid("demo@sigmasight.com")
+    assert demo_uuid_1 == demo_uuid_2  # Same UUID every time
+
+    # Real user - depends on config
+    # Phase 1/2: deterministic
+    real_uuid_1 = UUIDStrategy.generate_user_uuid("user@example.com", use_deterministic=True)
+    real_uuid_2 = UUIDStrategy.generate_user_uuid("user@example.com", use_deterministic=True)
+    assert real_uuid_1 == real_uuid_2
+
+    # Phase 3: random
+    real_uuid_3 = UUIDStrategy.generate_user_uuid("user@example.com", use_deterministic=False)
+    real_uuid_4 = UUIDStrategy.generate_user_uuid("user@example.com", use_deterministic=False)
+    assert real_uuid_3 != real_uuid_4  # Different UUIDs
+```
+
+---
 
 ### 12.4 CSV Test Files
 
-**Create test CSVs:**
-- `valid_basic.csv` - Minimal valid CSV (4 columns, 10 rows)
-- `valid_full.csv` - All 14 columns, mixed asset types (50 rows)
-- `invalid_dates.csv` - Bad date formats
-- `invalid_numbers.csv` - Non-numeric quantities/prices
-- `missing_required.csv` - Missing symbols/dates
-- `duplicate_positions.csv` - Same symbol+date twice
-- `options_positions.csv` - Options-specific fields
-- `private_positions.csv` - Private assets
-- `schwab_export.csv` - Real Schwab CSV format
-- `fidelity_export.csv` - Real Fidelity CSV format
-- `vanguard_export.csv` - Real Vanguard CSV format
+**Phase 1 Test Files** (12-column template):
+- `valid_basic.csv` - Minimal valid CSV (4 required columns, 10 rows)
+- `valid_full.csv` - All 12 columns, mixed asset types (50 rows)
+- `valid_cash_positions.csv` - PUBLIC money markets + PRIVATE cash
+- `valid_options.csv` - Options positions (OCC format + separate fields)
+- `valid_private.csv` - Private assets (PE, VC, real estate, crypto)
+- `invalid_dates.csv` - Bad date formats (01/15/2024 instead of 2024-01-15)
+- `invalid_numbers.csv` - Non-numeric quantities/prices ("N/A", "TBD")
+- `invalid_symbols.csv` - Symbols >100 chars, invalid characters
+- `missing_required.csv` - Missing symbols/dates/quantities
+- `duplicate_positions.csv` - Same symbol+entry_date twice
+- `empty_file.csv` - Empty file (0 rows)
+- `no_header.csv` - Missing header row
+
+**Broker Format Test Files** (for compatibility testing):
+- `schwab_export.csv` - Real Schwab positions export
+- `fidelity_export.csv` - Real Fidelity positions export
+- `vanguard_export.csv` - Real Vanguard positions export
+
+**Phase 2 Test Files** (edge cases):
+- `max_positions.csv` - 1000 positions (performance testing)
+- `unicode_symbols.csv` - Positions with unicode characters
+- `mixed_errors.csv` - Multiple error types in one file (ERR_POS_003, ERR_POS_011, ERR_POS_015)
 
 ---
 
 ## Appendix A: Sample CSV Files
 
-### A.1 Schwab Positions CSV
+This appendix provides 6 realistic CSV examples: 3 broker-exported formats with common errors, and 3 error-free SigmaSight template CSVs.
+
+---
+
+### **Broker Format Examples (With Intentional Errors)**
+
+These examples show actual broker export formats and highlight common mistakes users make when converting to our template.
+
+#### A.1 Schwab Positions Export (❌ Has Errors)
+
+**Example snippet from Schwab's "Positions" download:**
 
 ```csv
-Symbol,Description,Qty (Quantity),Price,Price Chng $,Price Chng %,Mkt Val (Market Value),Day Chng $,Day Chng %,Cost Basis,Gain $,Gain %,% of Acct,Security Type
-CMF,ISHARES CALIFORNIA MUNI BOND ETF,54,$57.6063,-$0.0137,-0.02%,$3110.74,-$0.74,-0.02%,$2984.33,$126.41,4.24%,1.92%,ETFs
-AAPL,APPLE INC,100,$225.00,$1.50,0.67%,$22500.00,$150.00,0.67%,$15800.00,$6700.00,42.41%,13.88%,Stocks
-Cash & Cash Investments,--,--,--,--,--,$16073.35,$0.00,0%,--,--,--,9.92%,Cash
+Symbol,Description,Qty,Price,Cost Basis,Gain $,Gain %,% of Acct,Security Type
+AAPL,APPLE INC,100,$225.00,$15800.00,$6700.00,42.41%,13.88%,Stocks
+CMF,ISHARES CA MUNI,54,$57.61,$2984.33,$126.41,4.24%,1.92%,ETFs
+Cash & Cash Investments,--,--,--,$16073.35,--,--,9.92%,Cash
 ```
 
-**Mapping to our template:**
-- Symbol → Symbol
-- Qty → Quantity
-- Cost Basis / Qty → Entry Price Per Share
-- Use upload date as Entry Date (missing in Schwab export)
+**Common Errors When Converting:**
+1. ❌ **Missing Entry Date**: Schwab exports don't include purchase dates - users must add manually
+2. ❌ **Cost Basis is Total, Not Per-Share**: Shows $15,800 total instead of $158/share
+3. ❌ **Cash Row Has Dashes**: "Cash & Cash Investments" row is unusable without manual editing
+4. ❌ **Column Names Don't Match**: Uses "Qty" instead of "Quantity", "Cost Basis" instead of "Entry Price Per Share"
 
-### A.2 Fidelity Positions CSV
+**What Users Must Do:**
+- Calculate per-share cost basis: Total Cost Basis ÷ Quantity (e.g., $15,800 ÷ 100 = $158.00)
+- Look up purchase dates from transaction history or broker statements
+- Convert cash row to proper format (symbol, quantity, price)
+- Match column names to SigmaSight template
+
+---
+
+#### A.2 Fidelity Positions Export (❌ Has Errors)
+
+**Example snippet from Fidelity's "Positions" CSV:**
 
 ```csv
 Account Number,Account Name,Symbol,Description,Quantity,Last Price,Current Value,Total Gain/Loss Dollar,Total Gain/Loss Percent,Cost Basis Total,Average Cost Basis,Type
 Z43122858,Trust,AAPL,APPLE INC,100,$225.00,$22500.00,+$6700.00,+42.41%,$15800.00,$158.00,Cash
-Z43122858,Trust,SPAXX**,HELD IN MONEY MARKET,,,,$31780.61,,,,,Cash
+Z43122858,Trust,MSFT,MICROSOFT CORP,50,$350.00,$17500.00,+$2500.00,+16.67%,$15000.00,$300.00,Cash
+Z43122858,Trust,SPAXX**,FIDELITY GOVT MMF,8271.36,$1.00,$8271.36,$0.00,0.00%,$8271.36,$1.00,Cash
 ```
 
-**Mapping to our template:**
-- Symbol → Symbol
-- Quantity → Quantity
-- Average Cost Basis → Entry Price Per Share
-- Use upload date as Entry Date
+**Common Errors When Converting:**
+1. ❌ **Missing Entry Date**: Users must add manually from transaction history
+2. ❌ **Extra Columns**: Account Number, Account Name, Description not needed
+3. ❌ **Money Market Symbol Has Asterisks**: SPAXX** needs cleaning to SPAXX
+4. ❌ **Column Name Mismatch**: "Average Cost Basis" vs "Entry Price Per Share"
 
-### A.3 Vanguard Positions CSV
+**What Users Must Do:**
+- Remove extra columns (Account Number, Account Name, Description)
+- Add Entry Date column with actual purchase dates
+- Clean up money market symbol (SPAXX** → SPAXX)
+- Remember: SPAXX with ticker should be PUBLIC class, not PRIVATE
+
+---
+
+#### A.3 Vanguard Positions Export (❌ Has Errors)
+
+**Example snippet from Vanguard's "Holdings" CSV:**
 
 ```csv
 Account Number,Investment Name,Symbol,Shares,Share Price,Total Value
-20796525,VANGUARD TARGET RETIREMENT 2030,VTHRX,7711.87,43.96,339013.81
-20796525,VANGUARD FEDERAL MONEY MARKET,VMFXX,8271.36,1,8271.36
+20796525,VANGUARD TARGET RETIREMENT 2030,VTHRX,7711.87,$43.96,$339013.81
+20796525,VANGUARD FEDERAL MONEY MARKET,VMFXX,8271.36,$1.00,$8271.36
+20796525,VANGUARD TOTAL STOCK MKT IDX,VTSAX,125.50,$125.00,$15687.50
 ```
 
-**Mapping to our template:**
-- Symbol → Symbol
-- Shares → Quantity
-- Share Price → Entry Price Per Share (current price, not cost basis!)
-- Use upload date as Entry Date
+**Common Errors When Converting:**
+1. ❌ **Share Price is CURRENT Price, Not Cost Basis**: $43.96 is today's price, not what user paid
+2. ❌ **Missing Entry Date**: Not included in Vanguard exports
+3. ❌ **Missing Cost Basis Entirely**: Vanguard doesn't export average cost basis in this format
+4. ❌ **Extra Columns**: Account Number, Investment Name not needed
 
-**⚠️ Limitation:** Vanguard positions CSV doesn't include cost basis, so users must calculate Entry Price themselves or use transaction history.
+**⚠️ Critical Limitation:** Vanguard positions exports do NOT include cost basis. Users must:
+- Use Vanguard's "Cost Basis" report instead, OR
+- Manually look up purchase prices from transaction history
+
+**What Users Must Do:**
+- Download Vanguard's separate "Cost Basis" report to get Entry Price Per Share
+- Add Entry Date from transaction history
+- Remove extra columns
+- Use oldest purchase date if multiple purchases
+
+---
+
+### **SigmaSight Template Examples (✅ Error-Free)**
+
+These examples show properly formatted CSVs ready for import.
+
+#### A.4 Mixed Portfolio (Stocks, ETFs, Cash) - ✅ Valid
+
+**Demonstrates:** PUBLIC stocks/ETFs, PUBLIC money markets with tickers, PRIVATE cash subtypes
+
+```csv
+Symbol,Quantity,Entry Price Per Share,Entry Date,Investment Class,Investment Subtype,Underlying Symbol,Strike Price,Expiration Date,Option Type,Exit Date,Exit Price Per Share
+AAPL,100,158.00,2024-01-15,PUBLIC,,,,,,,
+MSFT,50,350.00,2024-02-01,PUBLIC,,,,,,,
+VOO,20,631.00,2024-03-15,PUBLIC,,,,,,,
+SPAXX,10000.00,1.00,2024-01-01,PUBLIC,,,,,,,
+VMFXX,5000.00,1.00,2024-01-01,PUBLIC,,,,,,,
+CASH_USD,1,25000.00,2024-01-01,PRIVATE,CASH,,,,,
+US_TREASURY_BILLS,1,50000.00,2024-01-01,PRIVATE,TREASURY_BILLS,,,,,
+```
+
+**Requirements:**
+- 4 required columns: Symbol, Quantity, Entry Price Per Share, Entry Date
+- Date format: YYYY-MM-DD
+- Money markets WITH tickers (SPAXX, VMFXX) → PUBLIC class
+- Cash equivalents WITHOUT tickers → PRIVATE class with subtype
+- Investment Class optional (will auto-detect PUBLIC for stocks/ETFs)
+
+---
+
+#### A.5 Options Portfolio - ✅ Valid
+
+**Demonstrates:** Long/short options using OCC symbol format
+
+```csv
+Symbol,Quantity,Entry Price Per Share,Entry Date,Investment Class,Investment Subtype,Underlying Symbol,Strike Price,Expiration Date,Option Type,Exit Date,Exit Price Per Share
+SPY250919C00460000,200,7.00,2024-01-10,OPTIONS,,SPY,460.00,2025-09-19,CALL,,
+SPY250919P00400000,-150,6.50,2024-01-10,OPTIONS,,SPY,400.00,2025-09-19,PUT,,
+QQQ250815C00420000,150,7.00,2024-01-10,OPTIONS,,QQQ,420.00,2025-08-15,CALL,,
+AAPL250620C00180000,100,12.50,2024-01-15,OPTIONS,,AAPL,180.00,2025-06-20,CALL,,
+```
+
+**Requirements:**
+- Symbol can be OCC format (e.g., SPY250919C00460000) OR simple ticker with separate columns
+- OPTIONS class requires: Underlying Symbol, Strike Price, Expiration Date, Option Type
+- Negative quantity indicates short position (sold options)
+- Entry Price Per Share is premium paid/received per contract
+
+---
+
+#### A.6 Alternative Assets Portfolio - ✅ Valid
+
+**Demonstrates:** PRIVATE assets including all 3 cash subtypes
+
+```csv
+Symbol,Quantity,Entry Price Per Share,Entry Date,Investment Class,Investment Subtype,Underlying Symbol,Strike Price,Expiration Date,Option Type,Exit Date,Exit Price Per Share
+BX_PRIVATE_EQUITY,1,500000.00,2023-06-01,PRIVATE,PRIVATE_EQUITY,,,,,
+HOME_REAL_ESTATE,1,750000.00,2020-01-01,PRIVATE,REAL_ESTATE,,,,,
+CRYPTO_BTC_ETH,1,125000.00,2022-06-01,PRIVATE,CRYPTOCURRENCY,,,,,
+ART_COLLECTION,1,250000.00,2021-03-15,PRIVATE,ART,,,,,
+CASH_MM_FUND,1,50000.00,2024-01-01,PRIVATE,MONEY_MARKET,,,,,
+T_BILLS_6M,1,100000.00,2024-01-01,PRIVATE,TREASURY_BILLS,,,,,
+CASH_CHECKING,1,75000.00,2024-01-01,PRIVATE,CASH,,,,,
+```
+
+**Requirements:**
+- PRIVATE class requires Investment Subtype
+- Quantity typically 1 for non-divisible assets
+- Entry Price = total investment amount (not per-unit)
+- Symbol is descriptive identifier (no real ticker)
+- **3 Cash Subtypes**:
+  - `MONEY_MARKET` - Money market funds WITHOUT ticker symbols
+  - `TREASURY_BILLS` - Treasury bills and bonds
+  - `CASH` - Pure cash holdings (checking, savings)
+- Money markets WITH tickers (SPAXX, VMFXX, etc.) should use PUBLIC class instead
+
+---
+
+### **Key Conversion Rules**
+
+**From Broker CSV → SigmaSight Template:**
+
+1. **Entry Date** - Not included in most broker exports
+   - Solution: Look up from transaction history or broker statements
+   - Use earliest purchase date if multiple buys
+
+2. **Entry Price Per Share** - Often shown as "Total Cost Basis"
+   - Solution: Divide total cost basis by quantity
+   - Example: $15,800 total ÷ 100 shares = $158.00 per share
+
+3. **Cash Positions**
+   - Money markets WITH tickers (SPAXX, VMFXX, VUSXX) → PUBLIC class
+   - Money markets WITHOUT tickers → PRIVATE class, MONEY_MARKET subtype
+   - Treasury bills → PRIVATE class, TREASURY_BILLS subtype
+   - Pure cash → PRIVATE class, CASH subtype
+
+4. **Investment Class**
+   - Can leave blank for stocks/ETFs (auto-detects PUBLIC)
+   - Must specify for OPTIONS and PRIVATE
+   - Decision tree: Has ticker symbol? Use PUBLIC. No ticker? Use PRIVATE.
 
 ---
 

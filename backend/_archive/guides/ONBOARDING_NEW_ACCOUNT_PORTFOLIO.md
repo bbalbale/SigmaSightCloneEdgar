@@ -1,5 +1,28 @@
 # ONBOARDING_NEW_ACCOUNT_PORTFOLIO.md
 
+> **⚠️ DEPRECATED (2025-10-29)**: This guide has been superseded by `_docs/requirements/USER_PORTFOLIO_ONBOARDING_DESIGN.md`.
+>
+> **Use the new document for all onboarding implementation work.**
+>
+> This file remains in the archive for historical reference only. The new design document provides:
+> - ✅ Complete API specifications with 3 RESTful endpoints (not manual scripts)
+> - ✅ Structured invite code validation system (single master code: PRESCOTT-LINNAEAN-COWPERTHWAITE)
+> - ✅ Comprehensive CSV validation framework (~35 error codes for graceful error handling)
+> - ✅ 12-column standardized CSV template (vs. ad-hoc 9-column format here)
+> - ✅ Investment class architecture (PUBLIC, OPTIONS, PRIVATE with subtypes)
+> - ✅ Decoupled portfolio creation (<5s) from batch processing (30-60s async)
+> - ✅ Phase 1/2/3 implementation roadmap with security specifications
+> - ✅ Production-ready testing strategy and deployment guidelines
+>
+> **Migration Path**: Replace manual onboarding scripts with the 3 API endpoints specified in the new document:
+> 1. `POST /api/v1/onboarding/register` - User registration with invite code
+> 2. `POST /api/v1/onboarding/authenticate` - JWT authentication
+> 3. `POST /api/v1/onboarding/portfolio/create` - CSV portfolio import with validation
+>
+> **New Design Location**: `/Users/elliottng/CascadeProjects/SigmaSight-BE/backend/_docs/requirements/USER_PORTFOLIO_ONBOARDING_DESIGN.md`
+
+---
+
 Complete guide for onboarding new client accounts with portfolio data into the SigmaSight platform.
 
 > **Target Audience**: AI coding agents and human developers responsible for client onboarding
