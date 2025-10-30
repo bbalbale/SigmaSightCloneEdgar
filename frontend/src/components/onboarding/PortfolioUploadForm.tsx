@@ -10,9 +10,11 @@ import { onboardingService } from '@/services/onboardingService'
 interface PortfolioUploadFormProps {
   onUpload: (portfolioName: string, equityBalance: number, file: File) => void
   disabled?: boolean
+  error?: string | null
+  onRetry?: () => void
 }
 
-export function PortfolioUploadForm({ onUpload, disabled }: PortfolioUploadFormProps) {
+export function PortfolioUploadForm({ onUpload, disabled, error, onRetry }: PortfolioUploadFormProps) {
   const [portfolioName, setPortfolioName] = useState('')
   const [equityBalance, setEquityBalance] = useState('')
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
@@ -256,6 +258,24 @@ export function PortfolioUploadForm({ onUpload, disabled }: PortfolioUploadFormP
                   </Button>
                 </div>
               </div>
+
+              {/* Error Display */}
+              {error && (
+                <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+                  <p className="text-sm text-red-800 dark:text-red-200">{error}</p>
+                  {onRetry && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={onRetry}
+                      className="mt-3 w-full"
+                    >
+                      Try Again
+                    </Button>
+                  )}
+                </div>
+              )}
 
               {/* Submit Button */}
               <Button

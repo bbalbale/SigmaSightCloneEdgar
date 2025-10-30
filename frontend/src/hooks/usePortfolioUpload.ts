@@ -18,7 +18,9 @@ export interface ValidationError {
 export interface UploadResult {
   portfolio_id: string
   portfolio_name: string
-  positions_count: number
+  positions_imported: number
+  positions_failed: number
+  total_positions: number
 }
 
 export interface ChecklistState {
@@ -114,7 +116,7 @@ export function usePortfolioUpload(): UsePortfolioUploadReturn {
       const formData = new FormData()
       formData.append('portfolio_name', portfolioName)
       formData.append('equity_balance', equityBalance.toString())
-      formData.append('file', file)
+      formData.append('csv_file', file)  // Backend expects 'csv_file', not 'file'
 
       const uploadResponse = await onboardingService.createPortfolio(formData)
 
@@ -123,7 +125,9 @@ export function usePortfolioUpload(): UsePortfolioUploadReturn {
       setResult({
         portfolio_id: uploadResponse.portfolio_id,
         portfolio_name: uploadResponse.portfolio_name,
-        positions_count: uploadResponse.positions_count,
+        positions_imported: uploadResponse.positions_imported,
+        positions_failed: uploadResponse.positions_failed,
+        total_positions: uploadResponse.total_positions,
       })
 
       // Mark first two items complete
@@ -209,8 +213,36 @@ export function usePortfolioUpload(): UsePortfolioUploadReturn {
       setUploadState('error')
 
       // Check if it's a validation error
-      if (err?.data?.detail?.errors) {
-        setValidationErrors(err.data.detail.errors)
+      if (err?.data?.detail?.errors || err?.data?.error?.details?.errors) {
+        const rawErrors = err.data?.detail?.errors || err.data?.error?.details?.errors || []
+
+        // Flatten nested errors: each row may have multiple errors
+        const flattenedErrors: ValidationError[] = []
+        rawErrors.forEach((rowError: any) => {
+          if (rowError.errors && Array.isArray(rowError.errors)) {
+            // Backend format: { row, symbol, errors: [{code, message, field}] }
+            rowError.errors.forEach((err: any) => {
+              flattenedErrors.push({
+                row: rowError.row,
+                symbol: rowError.symbol,
+                error_code: err.code || err.error_code || 'UNKNOWN',
+                message: err.message,
+                field: err.field,
+              })
+            })
+          } else {
+            // Already flat format: { row, symbol, code, message, field }
+            flattenedErrors.push({
+              row: rowError.row,
+              symbol: rowError.symbol,
+              error_code: rowError.code || rowError.error_code || 'UNKNOWN',
+              message: rowError.message,
+              field: rowError.field,
+            })
+          }
+        })
+
+        setValidationErrors(flattenedErrors)
         setError('CSV validation failed. Please fix the errors below.')
       } else {
         setError(getErrorMessage(err))
@@ -223,6 +255,30 @@ export function usePortfolioUpload(): UsePortfolioUploadReturn {
   }
 
   const handleRetry = () => {
+    // Reset all state before retry
+    setUploadState('idle')
+    setError(null)
+    setValidationErrors(null)
+    setResult(null)
+    setCurrentSpinnerItem(null)
+    setChecklist({
+      portfolio_created: false,
+      positions_imported: false,
+      symbol_extraction: false,
+      security_enrichment: false,
+      price_bootstrap: false,
+      market_data_collection: false,
+      pnl_calculation: false,
+      position_values: false,
+      market_beta: false,
+      ir_beta: false,
+      factor_spread: false,
+      factor_ridge: false,
+      sector_analysis: false,
+      volatility: false,
+      correlations: false,
+    })
+
     if (currentFileRef.current) {
       handleUpload(
         currentPortfolioNameRef.current,
@@ -233,9 +289,29 @@ export function usePortfolioUpload(): UsePortfolioUploadReturn {
   }
 
   const handleChooseDifferentFile = () => {
+    // Reset all state when choosing different file
     setUploadState('idle')
     setError(null)
     setValidationErrors(null)
+    setResult(null)
+    setCurrentSpinnerItem(null)
+    setChecklist({
+      portfolio_created: false,
+      positions_imported: false,
+      symbol_extraction: false,
+      security_enrichment: false,
+      price_bootstrap: false,
+      market_data_collection: false,
+      pnl_calculation: false,
+      position_values: false,
+      market_beta: false,
+      ir_beta: false,
+      factor_spread: false,
+      factor_ridge: false,
+      sector_analysis: false,
+      volatility: false,
+      correlations: false,
+    })
     currentFileRef.current = null
   }
 

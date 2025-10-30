@@ -28,8 +28,16 @@ export interface LoginResponse {
 export interface CreatePortfolioResponse {
   portfolio_id: string;
   portfolio_name: string;
-  positions_count: number;
+  equity_balance: number;
+  positions_imported: number;
+  positions_failed: number;
+  total_positions: number;
   message: string;
+  next_step: {
+    action: string;
+    endpoint: string;
+    description: string;
+  };
 }
 
 export interface TriggerCalculationsResponse {
@@ -67,18 +75,9 @@ export const onboardingService = {
    * Login with email and password
    */
   login: async (email: string, password: string): Promise<LoginResponse> => {
-    const formData = new URLSearchParams();
-    formData.append('username', email); // FastAPI uses 'username' field
-    formData.append('password', password);
-
     const response = await apiClient.post<LoginResponse>(
       '/api/v1/auth/login',
-      formData.toString(),
-      {
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
-      }
+      { email, password }  // Backend expects JSON with email and password
     );
     return response.data;
   },

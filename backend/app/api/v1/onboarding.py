@@ -17,7 +17,7 @@ from fastapi.responses import PlainTextResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import BaseModel, EmailStr, Field
 
-from app.database import get_async_session
+from app.database import get_db
 from app.core.dependencies import get_current_user
 from app.models.users import User
 from app.services.onboarding_service import onboarding_service
@@ -69,7 +69,7 @@ class CreatePortfolioResponse(BaseModel):
 @router.post("/register", response_model=RegisterResponse, status_code=201)
 async def register_user(
     request: RegisterRequest,
-    db: AsyncSession = Depends(get_async_session)
+    db: AsyncSession = Depends(get_db)
 ):
     """
     Register a new user with invite code.
@@ -124,7 +124,7 @@ async def create_portfolio(
     description: Optional[str] = Form(None, description="Optional portfolio description"),
     csv_file: UploadFile = File(..., description="CSV file with positions"),
     current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_async_session)
+    db: AsyncSession = Depends(get_db)
 ):
     """
     Create portfolio with CSV import.

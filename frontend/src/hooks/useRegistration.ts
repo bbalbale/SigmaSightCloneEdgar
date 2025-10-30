@@ -44,8 +44,9 @@ export function useRegistration(): UseRegistrationReturn {
       // 4. Navigate to upload page
       router.push('/onboarding/upload')
     } catch (err: any) {
-      setIsSubmitting(false)
       setError(getErrorMessage(err))
+    } finally {
+      setIsSubmitting(false)
     }
   }
 

@@ -187,7 +187,6 @@ export class ApiClient {
       let requestConfig: RequestInit = {
         method,
         headers: {
-          'Content-Type': 'application/json',
           ...config?.headers,
         },
         signal: config?.signal || controller.signal,
@@ -195,7 +194,24 @@ export class ApiClient {
 
       // Add body for POST/PUT/PATCH requests
       if (data && (method === 'POST' || method === 'PUT' || method === 'PATCH')) {
-        requestConfig.body = JSON.stringify(data);
+        // Check if data is FormData - don't stringify it or set Content-Type
+        if (data instanceof FormData) {
+          requestConfig.body = data;
+          // Don't set Content-Type - browser will set it with boundary
+        } else {
+          // For JSON data, stringify and set Content-Type
+          requestConfig.headers = {
+            'Content-Type': 'application/json',
+            ...requestConfig.headers,
+          };
+          requestConfig.body = JSON.stringify(data);
+        }
+      } else {
+        // For GET/DELETE requests, set JSON content type
+        requestConfig.headers = {
+          'Content-Type': 'application/json',
+          ...requestConfig.headers,
+        };
       }
 
       // Apply request interceptors

@@ -1682,4 +1682,88 @@ Recommended test flow:
 **Total Time**: Single uninterrupted session (~2 hours)
 **Files Changed**: 11 files (9 new, 2 modified), 1,461 insertions(+), 8 deletions(-)
 
+---
+
+## 🐛 Bug Fixes - Pre-Testing
+
+**Date**: October 30, 2025 @ 8:45 AM
+**Status**: All 8 critical bugs fixed ✅
+
+Following a comprehensive code review by another AI agent, 8 blocking bugs were identified and fixed before the first manual test:
+
+### Backend Fixes (1)
+
+1. **✅ Database Session Bug** (`backend/app/api/v1/onboarding.py`)
+   - **Issue**: Used `get_async_session()` instead of `get_db()` in FastAPI dependency injection
+   - **Impact**: Registration and portfolio creation endpoints returned 500 errors
+   - **Fix**: Changed to proper `Depends(get_db)` pattern
+   - **Error**: `AttributeError: '_AsyncGeneratorContextManager' object has no attribute 'execute'`
+
+### Frontend Fixes (7)
+
+2. **✅ Auto-Login Authentication** (`frontend/src/services/onboardingService.ts`)
+   - **Issue**: Sent form-encoded data `username=...&password=...` but backend expects JSON `{email, password}`
+   - **Impact**: Auto-login after registration always failed with 422 error
+   - **Fix**: Removed URLSearchParams, now sends JSON payload directly
+
+3. **✅ CSV Upload FormData** (`frontend/src/services/apiClient.ts`, `frontend/src/hooks/usePortfolioUpload.ts`)
+   - **Issue A**: apiClient called `JSON.stringify()` on FormData, breaking file upload
+   - **Issue B**: Used field name `'file'` instead of required `'csv_file'`
+   - **Impact**: Portfolio creation never reached backend (empty payload `{}`)
+   - **Fix**: Detect FormData in apiClient, skip stringification, don't set Content-Type (browser handles boundary)
+
+4. **✅ Error State UI Brick** (`frontend/app/onboarding/upload/page.tsx`, `frontend/src/components/onboarding/PortfolioUploadForm.tsx`)
+   - **Issue**: When uploadState='error', form disabled with no error display or retry option
+   - **Impact**: User trapped with frozen UI after any non-validation error
+   - **Fix**: Added error message display and retry button to PortfolioUploadForm
+
+5. **✅ Response Type Mismatches** (5 files)
+   - **Issue**: Frontend expected `positions_count` but backend returns `positions_imported`, `positions_failed`, `total_positions`
+   - **Impact**: Success screen showed "undefined" for position counts
+   - **Fix**: Aligned all TypeScript interfaces with actual backend API schema
+
+6. **✅ CSV Validation Error Rendering** (`frontend/src/hooks/usePortfolioUpload.ts`)
+   - **Issue**: Backend sends nested format `{row, symbol, errors: [{code, message}]}` but component expects flat `{row, symbol, message, field}`
+   - **Impact**: Validation errors displayed "undefined" for every row
+   - **Fix**: Added flattening logic to unpack nested error arrays
+
+7. **✅ Retry State Management** (`frontend/src/hooks/usePortfolioUpload.ts`)
+   - **Issue**: `handleRetry()` and `handleChooseDifferentFile()` didn't reset checklist/spinner/result state
+   - **Impact**: Second attempt inherited green checkmarks from previous run, dishonest progress UI
+   - **Fix**: Reset all state variables in both retry handlers
+
+8. **✅ Registration Spinner** (`frontend/src/hooks/useRegistration.ts`)
+   - **Issue**: `setIsSubmitting(false)` only in catch block, not finally
+   - **Impact**: Spinner froze "Creating Account..." after successful registration
+   - **Fix**: Moved to finally block for consistent cleanup
+
+### Files Changed in Bug Fixes
+
+**Backend (1 file)**:
+- `backend/app/api/v1/onboarding.py` - Database session dependency
+
+**Frontend (8 files)**:
+- `frontend/src/services/onboardingService.ts` - Login payload, response types
+- `frontend/src/services/apiClient.ts` - FormData detection
+- `frontend/src/hooks/usePortfolioUpload.ts` - Field name, error flattening, retry state
+- `frontend/src/hooks/useRegistration.ts` - Loading state cleanup
+- `frontend/src/components/onboarding/PortfolioUploadForm.tsx` - Error display, retry button
+- `frontend/src/components/onboarding/UploadSuccess.tsx` - Response type props
+- `frontend/app/onboarding/upload/page.tsx` - Error/retry wiring
+- (Total: 9 files modified, ~150 lines changed)
+
+### Prevention Notes
+
+These bugs were caught by **static code review** before any manual testing. Key learnings:
+
+1. **Type mismatches**: Always align TypeScript interfaces with actual backend schemas
+2. **FormData handling**: Remember browsers set Content-Type automatically with boundary
+3. **State cleanup**: Always use `finally` blocks for loading states
+4. **Error paths**: Test UI remains functional in error states (not just happy path)
+5. **Dependency injection**: FastAPI uses `Depends()` not raw async generators
+
+**Testing Status**: ⚠️ All bugs fixed, ready for first manual end-to-end test
+
+---
+
 🎊 Ready for review and testing!

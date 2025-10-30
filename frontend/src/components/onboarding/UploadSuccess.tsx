@@ -8,7 +8,8 @@ import { ChecklistState } from '@/hooks/usePortfolioUpload'
 
 interface UploadSuccessProps {
   portfolioName: string
-  positionsCount: number
+  positionsImported: number
+  positionsFailed?: number
   checklist: ChecklistState
   onContinue: () => void
 }
@@ -31,7 +32,7 @@ const checklistLabels: Record<string, string> = {
   correlations: 'Correlations computed',
 }
 
-export function UploadSuccess({ portfolioName, positionsCount, checklist, onContinue }: UploadSuccessProps) {
+export function UploadSuccess({ portfolioName, positionsImported, positionsFailed = 0, checklist, onContinue }: UploadSuccessProps) {
   useEffect(() => {
     // Trigger confetti animation on mount
     // NOTE: Requires canvas-confetti or react-confetti package
@@ -104,7 +105,7 @@ export function UploadSuccess({ portfolioName, positionsCount, checklist, onCont
                   Positions Imported:
                 </span>
                 <span className="text-sm text-green-700 dark:text-green-300">
-                  {positionsCount}
+                  {positionsImported} {positionsFailed > 0 ? `(${positionsFailed} failed)` : ''}
                 </span>
               </div>
             </div>

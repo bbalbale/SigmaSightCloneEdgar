@@ -31,7 +31,8 @@ export default function OnboardingUploadPage() {
     return (
       <UploadSuccess
         portfolioName={result.portfolio_name}
-        positionsCount={result.positions_count}
+        positionsImported={result.positions_imported}
+        positionsFailed={result.positions_failed}
         checklist={checklist}
         onContinue={handleContinueToDashboard}
       />
@@ -49,11 +50,13 @@ export default function OnboardingUploadPage() {
     )
   }
 
-  // Show upload form (idle state)
+  // Show upload form (idle or error state)
   return (
     <PortfolioUploadForm
       onUpload={handleUpload}
-      disabled={uploadState !== 'idle'}
+      disabled={uploadState === 'uploading' || uploadState === 'processing'}
+      error={error}
+      onRetry={handleRetry}
     />
   )
 }
