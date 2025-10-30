@@ -123,36 +123,67 @@ class MarketDataCollector:
         symbols = await self._get_symbol_universe(db)
         logger.info(f"Symbol universe: {len(symbols)} symbols")
 
-        # Step 2: Determine date range - SMART INCREMENTAL/GAP FILL FETCHING
-        # Find the most recent date we have data for, then backfill from there
-        end_date = calculation_date
+        # Step 2: TWO-PHASE DATE RANGE DETERMINATION
+        # Phase A: Check if we have HISTORICAL lookback data (calculation_date - lookback_days)
+        # Phase B: Check if we have CURRENT day data (calculation_date)
 
-        # Get most recent date with market data
+        required_start = calculation_date - timedelta(days=lookback_days)
+        required_end = calculation_date
+
+        # Get earliest and most recent dates in database
+        earliest_date = await self._get_earliest_data_date(db, symbols)
         most_recent_date = await self._get_most_recent_data_date(db, symbols)
 
-        if most_recent_date:
-            days_gap = (calculation_date - most_recent_date).days
+        # CRITICAL: Cap most_recent_date to be before calculation_date
+        # (prevents issues with stale/future data from failed runs)
+        if most_recent_date and most_recent_date >= calculation_date:
+            logger.warning(f"Found future/current data in cache ({most_recent_date}), ignoring")
+            most_recent_date = calculation_date - timedelta(days=1)
 
-            if days_gap == 1:
-                # Yesterday's data exists - incremental daily run
-                start_date = calculation_date
-                fetch_mode = "incremental"
-                logger.info(f"Incremental run: fetching only {calculation_date} (1 day)")
-            elif days_gap <= 30:
-                # Small gap (2-30 days) - fill only the missing days
-                start_date = most_recent_date + timedelta(days=1)
-                fetch_mode = "gap_fill"
-                logger.info(f"Gap fill: fetching {start_date} to {end_date} ({days_gap} missing days)")
-            else:
-                # Large gap (>30 days) - full backfill for historical analysis
-                start_date = calculation_date - timedelta(days=lookback_days)
-                fetch_mode = "backfill"
-                logger.info(f"Large gap detected ({days_gap} days), full backfill: {start_date} to {end_date}")
+        # Determine what needs to be fetched
+        fetch_ranges = []
+
+        # PHASE A: Check historical lookback gap
+        if earliest_date is None or earliest_date > required_start:
+            # Missing historical data before earliest_date
+            historical_start = required_start
+            historical_end = earliest_date - timedelta(days=1) if earliest_date else required_start
+            fetch_ranges.append(("historical", historical_start, historical_end))
+            logger.info(f"Historical gap: Need data from {historical_start} to {historical_end}")
+
+        # PHASE B: Check current day gap
+        if most_recent_date is None or most_recent_date < calculation_date:
+            # Missing current data after most_recent_date
+            current_start = most_recent_date + timedelta(days=1) if most_recent_date else calculation_date
+            current_end = calculation_date
+            fetch_ranges.append(("current", current_start, current_end))
+            logger.info(f"Current gap: Need data from {current_start} to {current_end}")
+
+        # Determine overall fetch mode and date range
+        if not fetch_ranges:
+            # No gaps - all data exists
+            start_date = calculation_date
+            end_date = calculation_date
+            fetch_mode = "cached"
+            logger.info(f"All data cached: {required_start} to {required_end}")
+        elif len(fetch_ranges) == 2:
+            # Both historical and current gaps
+            start_date = fetch_ranges[0][1]  # historical_start
+            end_date = fetch_ranges[1][2]    # current_end
+            fetch_mode = "full_backfill"
+            logger.info(f"Full backfill: Historical + Current gaps = {start_date} to {end_date}")
+        elif fetch_ranges[0][0] == "historical":
+            # Only historical gap
+            start_date = fetch_ranges[0][1]
+            end_date = fetch_ranges[0][2]
+            fetch_mode = "historical_backfill"
+            logger.info(f"Historical backfill: {start_date} to {end_date}")
         else:
-            # No data at all - full backfill
-            start_date = calculation_date - timedelta(days=lookback_days)
-            fetch_mode = "backfill"
-            logger.info(f"Initial backfill: fetching {start_date} to {end_date} ({lookback_days} days)")
+            # Only current gap
+            start_date = fetch_ranges[0][1]
+            end_date = fetch_ranges[0][2]
+            fetch_mode = "incremental"
+            logger.info(f"Incremental: {start_date} to {end_date}")
 
         # Step 3: Check what data we already have in cache
         cached_symbols = await self._get_cached_symbols(db, symbols, start_date, end_date)
@@ -222,6 +253,56 @@ class MarketDataCollector:
         logger.info(f"  Filtered (real symbols): {len(real_symbols)}")
 
         return real_symbols
+
+    async def _get_earliest_data_date(
+        self,
+        db: AsyncSession,
+        symbols: Set[str]
+    ) -> Optional[date]:
+        """
+        Find the earliest date that has market data for >= 80% of symbols
+
+        Returns:
+            Earliest date with sufficient data coverage, or None if no data exists
+        """
+        from sqlalchemy import func, and_
+        from app.models.market_data import MarketDataCache
+
+        # Get the earliest date with data for at least 80% of symbols
+        # Strategy: Get the min date overall, then work forwards checking coverage
+        min_date_query = select(func.min(MarketDataCache.date)).where(
+            MarketDataCache.symbol.in_(list(symbols))
+        )
+        result = await db.execute(min_date_query)
+        min_date = result.scalar()
+
+        if not min_date:
+            logger.info("No market data found in cache")
+            return None
+
+        # Check forwards from min_date to find a date with good coverage
+        threshold = len(symbols) * 0.8
+        check_date = min_date
+
+        for _ in range(30):  # Check up to 30 days forward
+            count_query = select(func.count(MarketDataCache.symbol.distinct())).where(
+                and_(
+                    MarketDataCache.symbol.in_(list(symbols)),
+                    MarketDataCache.date == check_date,
+                    MarketDataCache.close > 0
+                )
+            )
+            count_result = await db.execute(count_query)
+            symbols_with_data = count_result.scalar()
+
+            if symbols_with_data >= threshold:
+                logger.info(f"Earliest data: {check_date} ({symbols_with_data}/{len(symbols)} symbols)")
+                return check_date
+
+            check_date = check_date + timedelta(days=1)
+
+        logger.warning(f"No early date found with >80% coverage (checked forward to {check_date})")
+        return None
 
     async def _get_most_recent_data_date(
         self,

@@ -38,10 +38,10 @@ async def clean_all_data():
     logger.info("=" * 80)
 
     async with AsyncSessionLocal() as db:
-        # Delete in correct order to handle foreign key constraints
-        # Children BEFORE parents
+        # Use TRUNCATE CASCADE to automatically handle all foreign key constraints
+        # This is much more robust than manual DELETE ordering
         tables_to_clean = [
-            # Portfolio analysis data (children first)
+            # Portfolio analysis data
             "portfolio_snapshots",
             "position_greeks",
             "position_factor_exposures",
@@ -51,25 +51,25 @@ async def clean_all_data():
             "position_volatility",
             "market_risk_scenarios",
             "stress_test_results",
-            "pairwise_correlations",  # Delete before correlation_calculations
-            "correlation_cluster_positions",  # Delete before correlation_clusters
-            "correlation_clusters",  # Delete before correlation_calculations
-            "correlation_calculations",  # Parent table (delete after children)
+            "pairwise_correlations",
+            "correlation_cluster_positions",
+            "correlation_clusters",
+            "correlation_calculations",
             "portfolio_target_prices",
             "ai_insights",
             # Agent data
-            "agent_messages",  # Delete first (foreign key to conversations)
+            "agent_messages",
             "agent_conversations",
             "agent_user_preferences",
             # Tag data
-            "position_tags",  # Delete before tags_v2
+            "position_tags",
             "tags_v2",
             # Position and portfolio data
-            "positions",  # Delete before portfolios
+            "positions",
             "portfolios",
-            # Market data (clean slate!)
-            "market_data_cache",
-            "company_profiles",
+            # Market data - PRESERVE market_data_cache but DELETE company_profiles to test refetch
+            # "market_data_cache",  # KEEP: Contains historical price data (Oct 2024 - Oct 2025)
+            "company_profiles",      # DELETE: Will be refetched on first batch run to verify fetching works
             # Batch tracking
             "batch_run_tracking",
         ]
@@ -77,16 +77,15 @@ async def clean_all_data():
         total_deleted = 0
         for table in tables_to_clean:
             try:
-                result = await db.execute(text(f"DELETE FROM {table}"))
-                deleted = result.rowcount
-                total_deleted += deleted
-                logger.info(f"  {table}: Deleted {deleted} records")
+                # TRUNCATE CASCADE automatically handles FK constraints
+                result = await db.execute(text(f"TRUNCATE TABLE {table} CASCADE"))
+                logger.info(f"  {table}: Truncated successfully")
+                # Can't get rowcount from TRUNCATE, but we know it worked
             except Exception as e:
                 logger.warning(f"  {table}: Error - {e}")
 
         await db.commit()
-        logger.info(f"\nTotal records deleted: {total_deleted}")
-        logger.info("Database cleaned successfully!\n")
+        logger.info(f"\nDatabase cleaned successfully!\n")
 
 
 # ============================================================================
@@ -118,6 +117,7 @@ async def reseed_portfolios_july_1():
         # Run seeding
         async with AsyncSessionLocal() as db:
             await seed_demo_portfolios(db)
+            await db.commit()  # CRITICAL: Must commit or positions will be rolled back!
             logger.info("\nPortfolios seeded successfully")
 
         logger.info("Portfolios reseeded successfully!\n")
@@ -154,7 +154,8 @@ async def run_v3_backfill(target_date: date):
     if result['success']:
         logger.info(f"\n[SUCCESS] Backfill complete!")
         logger.info(f"  Dates processed: {result['dates_processed']}")
-        logger.info(f"  Duration: {result['duration_seconds']}s")
+        if 'duration_seconds' in result:
+            logger.info(f"  Duration: {result['duration_seconds']}s")
     else:
         logger.error(f"\n[FAILED] Backfill had errors")
         logger.error(f"  Dates processed: {result['dates_processed']}")
