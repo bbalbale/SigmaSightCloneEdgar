@@ -16,7 +16,8 @@ import {
   ChevronRight,
   Sparkles,
   Briefcase,
-  TrendingUp
+  TrendingUp,
+  Command
 } from 'lucide-react'
 import {
   DropdownMenu,
@@ -32,6 +33,7 @@ import { usePortfolioName } from '@/stores/portfolioStore'
 import { cn } from '@/lib/utils'
 
 const navigationItems = [
+  { href: '/command-center', label: 'Command Center', icon: Command },
   { href: '/dashboard', label: 'Dashboard', icon: Home },
   { href: '/portfolio-holdings', label: 'Portfolio Holdings', icon: Briefcase },
   { href: '/risk-metrics', label: 'Risk Metrics', icon: TrendingUp },

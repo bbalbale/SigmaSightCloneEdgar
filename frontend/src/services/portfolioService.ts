@@ -218,7 +218,7 @@ function calculateExposuresFromOverview(overview: any) {
   const pnl = overview?.pnl || {}
   const totalPnl = pnl.unrealized_pnl || 0
 
-  return [
+  const metrics = [
     {
       title: 'Equity Balance',
       value: formatCurrency(equityBalance),
@@ -318,7 +318,7 @@ function formatCurrency(value: number): string {
 
 /**
  * Portfolio Snapshot Interface
- * Contains portfolio-level target price metrics calculated by backend
+ * Contains portfolio-level target price metrics and risk metrics calculated by backend
  */
 export interface PortfolioSnapshot {
   portfolio_id: string
@@ -329,6 +329,10 @@ export interface PortfolioSnapshot {
   target_price_positions_count: number
   target_price_total_positions: number
   target_price_last_updated: string | null
+  beta_calculated_90d: number | null
+  beta_provider_1y: number | null
+  daily_pnl: number | null
+  daily_return: number | null
 }
 
 /**

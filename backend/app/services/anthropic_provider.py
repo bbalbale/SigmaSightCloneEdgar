@@ -279,11 +279,23 @@ Provide your analysis in the following structure:
         if positions.get('available'):
             prompt_parts.append(f"\n\nPOSITIONS ({positions.get('count', 0)} total):")
             for pos in positions.get('items', [])[:20]:  # Limit to first 20
-                pos_line = f"- {pos.get('symbol')}: {pos.get('quantity')} @ ${pos.get('last_price', 0):.2f}"
-                if pos.get('entry_price'):
-                    pos_line += f" (entry: ${pos.get('entry_price'):.2f})"
-                if pos.get('unrealized_pnl'):
-                    pos_line += f" (P&L: ${pos.get('unrealized_pnl'):,.2f})"
+                # Handle None values for last_price (private positions, cash equivalents)
+                last_price = pos.get('last_price')
+                if last_price is not None:
+                    pos_line = f"- {pos.get('symbol')}: {pos.get('quantity')} @ ${last_price:.2f}"
+                else:
+                    pos_line = f"- {pos.get('symbol')}: {pos.get('quantity')} (no market price)"
+
+                # Add entry price if available
+                entry_price = pos.get('entry_price')
+                if entry_price is not None:
+                    pos_line += f" (entry: ${entry_price:.2f})"
+
+                # Add unrealized P&L if available
+                unrealized_pnl = pos.get('unrealized_pnl')
+                if unrealized_pnl is not None:
+                    pos_line += f" (P&L: ${unrealized_pnl:,.2f})"
+
                 prompt_parts.append(pos_line)
             if positions.get('count', 0) > 20:
                 prompt_parts.append(f"... and {positions.get('count') - 20} more positions")

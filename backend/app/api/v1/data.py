@@ -295,7 +295,7 @@ async def get_portfolio_snapshot(
     db: AsyncSession = Depends(get_async_session)
 ):
     """
-    Get latest portfolio snapshot with target price metrics.
+    Get latest portfolio snapshot with target price metrics, betas, and daily P&L.
 
     Returns portfolio-level aggregate target returns calculated by backend.
     These values are automatically updated whenever target prices are modified.
@@ -305,6 +305,10 @@ async def get_portfolio_snapshot(
         - target_price_return_next_year: Expected % return for next year
         - target_price_coverage_pct: % of positions with target prices
         - Position counts and last update timestamp
+        - beta_calculated_90d: Portfolio beta (90-day calculation)
+        - beta_provider_1y: Portfolio beta (1-year provider data)
+        - daily_pnl: Daily profit/loss
+        - daily_return: Daily return percentage
     """
     async with db as session:
         # Verify portfolio ownership
@@ -340,7 +344,11 @@ async def get_portfolio_snapshot(
                 "target_price_coverage_pct": 0.0,
                 "target_price_positions_count": 0,
                 "target_price_total_positions": 0,
-                "target_price_last_updated": None
+                "target_price_last_updated": None,
+                "beta_calculated_90d": None,
+                "beta_provider_1y": None,
+                "daily_pnl": None,
+                "daily_return": None
             }
 
         return {
@@ -351,7 +359,13 @@ async def get_portfolio_snapshot(
             "target_price_coverage_pct": float(snapshot.target_price_coverage_pct) if snapshot.target_price_coverage_pct else 0.0,
             "target_price_positions_count": snapshot.target_price_positions_count or 0,
             "target_price_total_positions": snapshot.target_price_total_positions or 0,
-            "target_price_last_updated": snapshot.target_price_last_updated.isoformat() if snapshot.target_price_last_updated else None
+            "target_price_last_updated": snapshot.target_price_last_updated.isoformat() if snapshot.target_price_last_updated else None,
+            # Portfolio betas for risk metrics
+            "beta_calculated_90d": float(snapshot.beta_calculated_90d) if snapshot.beta_calculated_90d is not None else None,
+            "beta_provider_1y": float(snapshot.beta_provider_1y) if snapshot.beta_provider_1y is not None else None,
+            # Daily P&L metrics
+            "daily_pnl": float(snapshot.daily_pnl) if snapshot.daily_pnl is not None else None,
+            "daily_return": float(snapshot.daily_return) if snapshot.daily_return is not None else None
         }
 
 
