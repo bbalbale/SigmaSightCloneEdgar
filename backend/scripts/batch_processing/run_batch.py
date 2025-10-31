@@ -58,16 +58,27 @@ class BatchRunner:
 
             batch_start = datetime.now()
 
-            results = await batch_orchestrator_v2.run_daily_batch_sequence(
-                portfolio_id=portfolio_id,
-                run_correlations=run_correlations
+            # Use run_daily_batch_with_backfill (recommended entry point)
+            # Converts single portfolio_id to list if provided
+            portfolio_ids_list = [portfolio_id] if portfolio_id else None
+
+            results = await batch_orchestrator_v2.run_daily_batch_with_backfill(
+                target_date=None,  # defaults to today
+                portfolio_ids=portfolio_ids_list
             )
 
             batch_duration = (datetime.now() - batch_start).total_seconds()
 
-            # Analyze results
+            # Handle both success dict and list of results
+            if isinstance(results, dict) and 'dates_processed' in results:
+                # Backfill summary response
+                print(f"\n✅ Batch processing completed in {batch_duration:.2f} seconds")
+                print(f"Dates processed: {results.get('dates_processed', 0)}")
+                return results
+
+            # Analyze results (legacy format)
             job_summary = {}
-            for result in results:
+            for result in results if isinstance(results, list) else []:
                 job_name = result.get('job_name', 'unknown')
                 status = result.get('status', 'unknown')
                 portfolio_name = result.get('portfolio_name', 'unknown')

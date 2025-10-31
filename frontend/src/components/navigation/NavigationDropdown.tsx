@@ -17,7 +17,8 @@ import {
   Sparkles,
   Briefcase,
   TrendingUp,
-  Command
+  Command,
+  Search
 } from 'lucide-react'
 import {
   DropdownMenu,
@@ -37,6 +38,7 @@ const navigationItems = [
   { href: '/dashboard', label: 'Dashboard', icon: Home },
   { href: '/portfolio-holdings', label: 'Portfolio Holdings', icon: Briefcase },
   { href: '/risk-metrics', label: 'Risk Metrics', icon: TrendingUp },
+  { href: '/research-and-analyze', label: 'Research & Analyze', icon: Search },
   { href: '/public-positions', label: 'Public Positions', icon: Building2 },
   { href: '/private-positions', label: 'Private Positions', icon: Shield },
   { href: '/organize', label: 'Organize', icon: PieChart },

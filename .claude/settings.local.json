@@ -98,7 +98,10 @@
       "mcp__playwright__browser_resize",
       "Bash(cp:*)",
       "Bash(tee:*)",
-      "Bash(git merge:*)"
+      "Bash(git merge:*)",
+      "Bash(docker-compose down:*)",
+      "Bash(pip install:*)",
+      "Bash(uv pip install:*)"
     ],
     "additionalDirectories": [
       "C:\\c\\Users\\BenBalbale\\CascadeProjects\\SigmaSight-BE"

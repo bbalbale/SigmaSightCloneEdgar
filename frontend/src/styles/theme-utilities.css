@@ -1,0 +1,381 @@
+/**
+ * Theme Utility Classes
+ *
+ * These classes use CSS variables set by the ThemeProvider.
+ * Use these instead of hardcoded Tailwind colors for theme support.
+ */
+
+/* ============================================
+   BACKGROUNDS
+   ============================================ */
+.bg-primary {
+  background-color: var(--bg-primary);
+}
+
+.bg-secondary {
+  background-color: var(--bg-secondary);
+}
+
+.bg-tertiary {
+  background-color: var(--bg-tertiary);
+}
+
+.bg-elevated {
+  background-color: var(--bg-elevated);
+}
+
+/* ============================================
+   BORDERS
+   ============================================ */
+.border-primary {
+  border-color: var(--border-primary);
+}
+
+.border-secondary {
+  border-color: var(--border-secondary);
+}
+
+.border-accent {
+  border-color: var(--border-accent);
+}
+
+/* Border styles */
+.themed-border {
+  border: 1px solid var(--border-primary);
+}
+
+.themed-border-b {
+  border-bottom: 1px solid var(--border-primary);
+}
+
+.themed-border-t {
+  border-top: 1px solid var(--border-primary);
+}
+
+/* ============================================
+   TEXT COLORS
+   ============================================ */
+.text-primary {
+  color: var(--text-primary);
+}
+
+.text-secondary {
+  color: var(--text-secondary);
+}
+
+.text-tertiary {
+  color: var(--text-tertiary);
+}
+
+.text-success {
+  color: var(--color-success);
+}
+
+.text-error {
+  color: var(--color-error);
+}
+
+.text-warning {
+  color: var(--color-warning);
+}
+
+.text-info {
+  color: var(--color-info);
+}
+
+.text-accent {
+  color: var(--color-accent);
+}
+
+/* ============================================
+   TYPOGRAPHY SIZES
+   ============================================ */
+.text-xs-themed {
+  font-size: var(--text-xs);
+}
+
+.text-sm-themed {
+  font-size: var(--text-sm);
+}
+
+.text-base-themed {
+  font-size: var(--text-base);
+}
+
+.text-lg-themed {
+  font-size: var(--text-lg);
+}
+
+.text-xl-themed {
+  font-size: var(--text-xl);
+}
+
+.text-2xl-themed {
+  font-size: var(--text-2xl);
+}
+
+.text-3xl-themed {
+  font-size: var(--text-3xl);
+}
+
+/* ============================================
+   FONT FAMILIES
+   ============================================ */
+.font-display {
+  font-family: var(--font-display);
+}
+
+.font-body {
+  font-family: var(--font-body);
+}
+
+.font-mono {
+  font-family: var(--font-mono);
+}
+
+/* ============================================
+   TRACKING (LETTER SPACING)
+   ============================================ */
+.tracking-tight-themed {
+  letter-spacing: var(--tracking-tight);
+}
+
+.tracking-normal-themed {
+  letter-spacing: var(--tracking-normal);
+}
+
+.tracking-wide-themed {
+  letter-spacing: var(--tracking-wide);
+}
+
+/* ============================================
+   CARDS & CONTAINERS
+   ============================================ */
+.themed-card {
+  background-color: var(--bg-secondary);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--border-radius);
+  padding: var(--card-padding);
+}
+
+.themed-card-shadow {
+  background-color: var(--bg-secondary);
+  border-radius: var(--border-radius);
+  padding: var(--card-padding);
+  box-shadow: var(--shadow-md);
+}
+
+.themed-card-elevated {
+  background-color: var(--bg-elevated);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--border-radius);
+  padding: var(--card-padding);
+  box-shadow: var(--shadow-sm);
+}
+
+/* ============================================
+   BUTTONS
+   ============================================ */
+.btn-accent {
+  background-color: var(--color-accent);
+  color: white;
+  border-radius: var(--border-radius);
+  padding: 0.5rem 1rem;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  transition: all 0.2s ease;
+}
+
+.btn-accent:hover {
+  background-color: var(--color-accent-hover);
+}
+
+.btn-secondary {
+  background-color: var(--bg-tertiary);
+  color: var(--text-primary);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--border-radius);
+  padding: 0.5rem 1rem;
+  font-size: var(--text-sm);
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+
+.btn-secondary:hover {
+  background-color: var(--bg-secondary);
+  border-color: var(--border-secondary);
+}
+
+/* ============================================
+   TABLES
+   ============================================ */
+.themed-table {
+  width: 100%;
+  font-size: var(--text-sm);
+  color: var(--text-primary);
+}
+
+.themed-table thead {
+  background-color: var(--bg-tertiary);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.themed-table th {
+  padding: 0.5rem 0.75rem;
+  text-align: left;
+  font-size: var(--text-xs);
+  font-weight: 500;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-wide);
+  border-bottom: 1px solid var(--border-primary);
+}
+
+.themed-table tbody tr {
+  border-bottom: 1px solid var(--border-primary);
+  transition: background-color 0.15s ease;
+}
+
+.themed-table tbody tr:hover {
+  background-color: var(--bg-tertiary);
+}
+
+.themed-table td {
+  padding: 0.75rem;
+  color: var(--text-secondary);
+}
+
+.themed-table td.primary {
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+/* ============================================
+   BADGES & PILLS
+   ============================================ */
+.badge-success {
+  background-color: rgba(52, 211, 153, 0.1);
+  color: var(--color-success);
+  padding: 0.25rem 0.5rem;
+  border-radius: 9999px;
+  font-size: var(--text-xs);
+  font-weight: 600;
+}
+
+.badge-error {
+  background-color: rgba(248, 113, 113, 0.1);
+  color: var(--color-error);
+  padding: 0.25rem 0.5rem;
+  border-radius: 9999px;
+  font-size: var(--text-xs);
+  font-weight: 600;
+}
+
+.badge-warning {
+  background-color: rgba(251, 191, 36, 0.1);
+  color: var(--color-warning);
+  padding: 0.25rem 0.5rem;
+  border-radius: 9999px;
+  font-size: var(--text-xs);
+  font-weight: 600;
+}
+
+.badge-info {
+  background-color: var(--color-accent-subtle);
+  color: var(--color-accent);
+  padding: 0.25rem 0.5rem;
+  border-radius: 9999px;
+  font-size: var(--text-xs);
+  font-weight: 600;
+}
+
+/* ============================================
+   METRIC CARDS (Common pattern)
+   ============================================ */
+.metric-card {
+  background-color: var(--bg-secondary);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--border-radius);
+  padding: var(--card-padding);
+  box-shadow: var(--shadow-sm);
+}
+
+.metric-label {
+  font-size: var(--text-xs);
+  font-weight: 500;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-wide);
+  margin-bottom: 0.5rem;
+}
+
+.metric-value {
+  font-size: var(--text-2xl);
+  font-weight: 700;
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  margin-bottom: 0.25rem;
+}
+
+.metric-context {
+  font-size: var(--text-sm);
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.metric-context.positive {
+  color: var(--color-success);
+}
+
+.metric-context.negative {
+  color: var(--color-error);
+}
+
+.metric-context.neutral {
+  color: var(--text-tertiary);
+}
+
+/* ============================================
+   HOVER EFFECTS
+   ============================================ */
+.hover-lift {
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.hover-lift:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+
+/* ============================================
+   DIVIDERS
+   ============================================ */
+.divider-horizontal {
+  height: 1px;
+  background-color: var(--border-primary);
+  margin: 1rem 0;
+}
+
+.divider-vertical {
+  width: 1px;
+  background-color: var(--border-primary);
+  height: 100%;
+}
+
+/* ============================================
+   UTILITY HELPERS
+   ============================================ */
+.z-dropdown {
+  z-index: 50;
+}
+
+.z-modal {
+  z-index: 100;
+}
+
+.z-theme-selector {
+  z-index: 40;
+}

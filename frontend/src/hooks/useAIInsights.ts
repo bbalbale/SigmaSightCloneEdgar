@@ -52,23 +52,47 @@ export function useAIInsights(): UseAIInsightsReturn {
 
   // Generate new insight
   const handleGenerateInsight = useCallback(async () => {
-    if (!portfolioId || generatingInsight) return
+    console.log('🔍 handleGenerateInsight called', { portfolioId, generatingInsight })
 
+    if (!portfolioId) {
+      console.error('❌ No portfolio ID')
+      return
+    }
+
+    if (generatingInsight) {
+      console.warn('⚠️ Already generating insight, skipping')
+      return
+    }
+
+    console.log('✅ Starting insight generation...')
     setGeneratingInsight(true)
     setError(null)
 
     try {
+      console.log('📡 Calling API...')
       const newInsight = await insightsApi.generateInsight({
         portfolio_id: portfolioId,
         insight_type: 'daily_summary'
       })
 
-      // Add to insights list at the beginning
-      setInsights(prev => [newInsight, ...prev])
+      console.log('✅ Insight generated:', newInsight.id)
+
+      // FIX: Only add if not already in list (prevent duplicates)
+      setInsights(prev => {
+        // Check if this insight already exists
+        const exists = prev.some(i => i.id === newInsight.id)
+        if (exists) {
+          console.warn('⚠️ Insight already in list, skipping duplicate')
+          return prev
+        }
+        console.log('📝 Adding new insight to list')
+        return [newInsight, ...prev]
+      })
     } catch (err: any) {
-      console.error('Failed to generate insight:', err)
+      console.error('❌ Failed to generate insight:', err)
       setError(err.message || 'Failed to generate insight')
     } finally {
+      console.log('🏁 Finished (setting generatingInsight = false)')
       setGeneratingInsight(false)
     }
   }, [portfolioId, generatingInsight])
