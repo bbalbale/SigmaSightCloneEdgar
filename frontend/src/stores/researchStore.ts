@@ -46,6 +46,18 @@ export interface FilterState {
   sortDirection: 'asc' | 'desc'
 }
 
+export interface CorrelationMatrixData {
+  position_symbols: string[]
+  correlation_matrix: number[][]
+  lookback_days: number
+  min_overlap: number
+  data_quality: {
+    total_pairs: number
+    valid_pairs: number
+    coverage_percent: number
+  }
+}
+
 export interface ResearchStore {
   // Tab State
   activeTab: TabType
@@ -76,6 +88,14 @@ export interface ResearchStore {
   addOptimisticTag: (positionId: string, tagId: string) => void
   removeOptimisticTag: (positionId: string, tagId: string) => void
   clearOptimisticTags: (positionId: string) => void
+
+  // Correlation Matrix Data (shared state)
+  correlationMatrix: CorrelationMatrixData | null
+  correlationMatrixLoading: boolean
+  correlationMatrixError: string | null
+  setCorrelationMatrix: (data: CorrelationMatrixData | null) => void
+  setCorrelationMatrixLoading: (loading: boolean) => void
+  setCorrelationMatrixError: (error: string | null) => void
 
   // Reset (for logout)
   reset: () => void
@@ -184,6 +204,20 @@ export const useResearchStore = create<ResearchStore>()(
           return { optimisticTags: rest }
         }),
 
+      // Correlation Matrix Data
+      correlationMatrix: null,
+      correlationMatrixLoading: false,
+      correlationMatrixError: null,
+
+      setCorrelationMatrix: (data) =>
+        set({ correlationMatrix: data, correlationMatrixError: null }),
+
+      setCorrelationMatrixLoading: (loading) =>
+        set({ correlationMatrixLoading: loading }),
+
+      setCorrelationMatrixError: (error) =>
+        set({ correlationMatrixError: error, correlationMatrixLoading: false }),
+
       // Reset
       reset: () => set({
         activeTab: 'public',
@@ -191,7 +225,10 @@ export const useResearchStore = create<ResearchStore>()(
         selectedPosition: null,
         filters: initialFilterState,
         stickyBarVisible: true,
-        optimisticTags: {}
+        optimisticTags: {},
+        correlationMatrix: null,
+        correlationMatrixLoading: false,
+        correlationMatrixError: null
       })
     }),
     {

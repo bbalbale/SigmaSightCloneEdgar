@@ -85,7 +85,7 @@ export const themes: Record<ThemePreset, Theme> = {
       bgPrimary: '#020617',
       bgSecondary: '#0f172a',
       bgTertiary: '#1e293b',
-      bgElevated: '#0f172a',
+      bgElevated: '#1e293b',
 
       borderPrimary: '#334155',
       borderSecondary: '#475569',
@@ -141,7 +141,7 @@ export const themes: Record<ThemePreset, Theme> = {
       bgPrimary: '#0A0E27',
       bgSecondary: '#161B33',
       bgTertiary: '#1F2544',
-      bgElevated: '#161B33',
+      bgElevated: '#252B4A',
 
       borderPrimary: '#2D3149',
       borderSecondary: '#3A3F5C',
@@ -197,7 +197,7 @@ export const themes: Record<ThemePreset, Theme> = {
       bgPrimary: '#161616',
       bgSecondary: '#262626',
       bgTertiary: '#393939',
-      bgElevated: '#262626',
+      bgElevated: '#393939',
 
       borderPrimary: '#393939',
       borderSecondary: '#525252',
@@ -253,7 +253,7 @@ export const themes: Record<ThemePreset, Theme> = {
       bgPrimary: '#1A1A2E',
       bgSecondary: '#16213E',
       bgTertiary: '#0F3460',
-      bgElevated: '#16213E',
+      bgElevated: '#243B5C',
 
       borderPrimary: '#2A3A5C',
       borderSecondary: '#3A4A6C',

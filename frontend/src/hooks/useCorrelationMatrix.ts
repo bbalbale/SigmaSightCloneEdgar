@@ -25,20 +25,30 @@ export function useCorrelationMatrix(
 
   const fetchCorrelationMatrix = async () => {
     if (!portfolioId) {
+      console.log('🔍 Correlation Matrix: No portfolio ID available')
       setError(new Error('No portfolio ID available'))
       setLoading(false)
       return
     }
 
     try {
+      console.log('🔍 Correlation Matrix: Fetching for portfolio', portfolioId)
       setLoading(true)
       setError(null)
 
       const response = await analyticsApi.getCorrelationMatrix(portfolioId, params)
+      console.log('🔍 Correlation Matrix: Response received', response)
+      console.log('🔍 Correlation Matrix: Data structure', {
+        hasData: !!response.data,
+        hasSymbols: !!response.data?.position_symbols,
+        hasMatrix: !!response.data?.correlation_matrix,
+        symbolsCount: response.data?.position_symbols?.length,
+        matrixRows: response.data?.correlation_matrix?.length
+      })
       setData(response.data)
     } catch (err) {
+      console.error('❌ Correlation Matrix: Error fetching', err)
       setError(err as Error)
-      console.error('Error fetching correlation matrix:', err)
     } finally {
       setLoading(false)
     }

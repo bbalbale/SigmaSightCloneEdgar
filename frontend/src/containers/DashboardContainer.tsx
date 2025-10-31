@@ -41,12 +41,10 @@ export function DashboardContainer() {
 
   if (loading && !dataLoaded) {
     return (
-      <div className={`min-h-screen transition-colors duration-300 ${
-        theme === 'dark' ? 'bg-slate-900' : 'bg-gray-50'
-      }`}>
+      <div className="min-h-screen transition-colors duration-300 bg-primary">
         <section className="px-4 py-12">
           <div className="container mx-auto text-center">
-            <p className={`text-lg ${theme === 'dark' ? 'text-slate-400' : 'text-gray-600'}`}>
+            <p className="text-lg text-secondary">
               Loading portfolio data...
             </p>
           </div>

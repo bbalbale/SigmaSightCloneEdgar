@@ -1,8 +1,7 @@
 'use client'
 
 import { useMemo } from 'react'
-import { useCorrelationMatrix } from './useCorrelationMatrix'
-import { usePortfolioStore } from '@/stores/portfolioStore'
+import { useResearchStore } from '@/stores/researchStore'
 import { useResearchPageData } from './useResearchPageData'
 
 export interface Correlation {
@@ -23,17 +22,29 @@ export interface PositionCorrelationsResult {
  * Hook for client-side correlation processing
  * Filters the correlation matrix to show top 5 correlations for a given position
  * Includes concentration risk warning logic
+ *
+ * NOTE: Reads from Zustand researchStore - correlation matrix is fetched once in container
  */
 export function usePositionCorrelations(positionSymbol: string): PositionCorrelationsResult {
-  const { portfolioId } = usePortfolioStore()
-  const { data: matrix, loading: matrixLoading, error: matrixError } = useCorrelationMatrix()
+  // Read from Zustand store (single source of truth)
+  const matrix = useResearchStore((state) => state.correlationMatrix)
+  const matrixLoading = useResearchStore((state) => state.correlationMatrixLoading)
+  const matrixError = useResearchStore((state) => state.correlationMatrixError)
 
   // Get all positions to map symbols to market values
   const { publicPositions, privatePositions, loading: positionsLoading } = useResearchPageData()
 
   const result = useMemo(() => {
+    console.log('🔍 Position Correlations: Processing for symbol', positionSymbol)
+    console.log('🔍 Position Correlations: Matrix data', {
+      hasMatrix: !!matrix,
+      positionsLoading,
+      matrixSymbols: matrix?.position_symbols?.length
+    })
+
     // Return loading state if data not yet available
     if (!matrix || positionsLoading) {
+      console.log('🔍 Position Correlations: Still loading data')
       return {
         correlations: [],
         hasConcentrationRisk: false,
@@ -45,6 +56,10 @@ export function usePositionCorrelations(positionSymbol: string): PositionCorrela
 
     // Check if matrix has the required data structure
     if (!matrix.position_symbols || !matrix.correlation_matrix) {
+      console.log('❌ Position Correlations: Matrix missing required fields', {
+        hasSymbols: !!matrix.position_symbols,
+        hasMatrix: !!matrix.correlation_matrix
+      })
       return {
         correlations: [],
         hasConcentrationRisk: false,
@@ -72,6 +87,10 @@ export function usePositionCorrelations(positionSymbol: string): PositionCorrela
     // Find index of selected position in matrix
     const symbolIndex = matrix.position_symbols.indexOf(positionSymbol)
     if (symbolIndex === -1) {
+      console.log('❌ Position Correlations: Symbol not found in matrix', {
+        symbol: positionSymbol,
+        availableSymbols: matrix.position_symbols
+      })
       return {
         correlations: [],
         hasConcentrationRisk: false,
@@ -113,6 +132,14 @@ export function usePositionCorrelations(positionSymbol: string): PositionCorrela
         riskMessage = `Moderate correlation with ${moderateCorrelations.length} positions may reduce portfolio diversification.`
       }
     }
+
+    console.log('✅ Position Correlations: Successfully calculated', {
+      symbol: positionSymbol,
+      correlationsCount: positionCorrelations.length,
+      hasConcentrationRisk,
+      highCorrelations: highCorrelations.length,
+      moderateCorrelations: moderateCorrelations.length
+    })
 
     return {
       correlations: positionCorrelations,

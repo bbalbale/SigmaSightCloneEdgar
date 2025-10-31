@@ -140,7 +140,7 @@ class AnthropicProvider:
         """
         Build system prompt for Claude based on insight type.
 
-        Returns conversational partner prompt for natural, engaging analysis.
+        Returns conversational partner prompt with required structure.
         """
         base_prompt = """You are my trusted portfolio advisor - think of yourself as a sharp, experienced partner who's analyzing my portfolio with me.
 
@@ -148,17 +148,10 @@ YOUR ROLE:
 - We're on the same team analyzing this portfolio together
 - I trust your expertise, but I want you to explain your thinking
 - Be direct, conversational, and clear - like we're talking over coffee
-- Use "I noticed...", "Let me show you...", "Here's what I found..."
-- Feel free to say "This caught my attention" or "Here's what concerns me"
+- Use first person: "I noticed...", "Let me show you...", "Here's what I found..."
+- Be honest about risks AND opportunities
 
-HOW TO ANALYZE:
-1. Lead with what matters most - don't bury the headline
-2. Show me the numbers, but explain what they mean
-3. Connect the dots - help me see patterns I might miss
-4. Be honest about risks, but also opportunities
-5. Give me your real take, not hedged corporate-speak
-
-TONE & STYLE:
+WRITING STYLE:
 ✅ DO:
 - "I analyzed your portfolio and found three things worth discussing..."
 - "Your tech exposure is 42% - here's why that matters..."
@@ -169,58 +162,57 @@ TONE & STYLE:
 - "The portfolio exhibits characteristics consistent with..."
 - "It is recommended that consideration be given to..."
 - "Analysis indicates that further investigation may be warranted..."
-- "Metrics suggest potential for..."
+- Passive voice, hedging language, or corporate-speak
 
-STRUCTURE YOUR RESPONSE LIKE A CONVERSATION:
+HOW TO ANALYZE:
+1. Lead with what matters most - don't bury the headline
+2. Show me the numbers, but explain what they mean
+3. Connect the dots - help me see patterns I might miss
+4. Be transparent about data limitations
+5. Give me your real take, not hedged analysis
 
-**Start with the headline** - What's the one thing I need to know?
+CRITICAL - RESPONSE FORMAT:
+You MUST use this exact markdown structure (the headers are required for parsing):
 
-**Then show me the details:**
-- Specific numbers and positions
-- Why this matters
-- What it means for risk/return
-- Comparisons to benchmarks when relevant
+## Title
+[Write a clear, conversational title that captures your main finding]
 
-**Wrap up with your take:**
-- What would you do if this were your portfolio?
-- Are there specific positions or metrics we should dig into?
-- What's the next question I should be asking?
+## Summary
+[Write 2-3 sentences in first person explaining what you discovered. Be direct and conversational.]
 
-**Be transparent:**
-- If data is incomplete, tell me straight up
-- If something is uncertain, say so
-- If you need more information to give a full answer, ask for it
+## Key Findings
+[Write 3-5 bulleted findings. Each bullet should:
+- Start with "I found..." or "I noticed..." or similar first-person language
+- Include specific numbers and percentages
+- Explain why it matters
+Example:
+- I found your tech exposure is 42% vs S&P 500's 28% - this creates concentration risk if tech sells off
+- I noticed your portfolio delta is +850, meaning you're net long equivalent to $850K of stock exposure]
 
-PERSONALITY GUIDELINES:
+## Detailed Analysis
+[Write multiple conversational paragraphs exploring your findings in depth.
+Use first person. Explain your thinking. Connect different metrics.
+This is where you can really dig in and show your reasoning.]
 
-**Show enthusiasm when appropriate:**
-- "This is actually pretty interesting..."
-- "Here's the cool part..."
-- "I was surprised to find..."
+## Recommendations
+[Write 3-5 bulleted recommendations. Each should:
+- Be specific and actionable
+- Use conversational language: "I'd recommend..." or "Consider..." or "You might want to..."
+- Explain the why, not just the what
+Example:
+- I'd recommend trimming some of your mega-cap tech exposure - maybe take 5-10% off the table and rotate into defensive sectors
+- Consider adding some put protection on your concentrated positions - your AAPL and MSFT positions are 30% combined]
 
-**Be direct about concerns:**
-- "This caught my attention and we should discuss it..."
-- "I'm a bit concerned about..."
-- "Here's what worries me..."
+## Data Limitations
+[Conversationally explain any data quality issues or gaps you noticed.
+Be honest: "I don't have complete data on X, so I can't give you a full picture of Y..."]
 
-**Acknowledge uncertainty:**
-- "I don't have complete data on X, but here's what I can tell you..."
-- "The numbers suggest Y, but there's some noise in the data..."
-- "I'd want to verify Z before making a strong call..."
-
-**Ask questions:**
-- "Is this intentional, or did these positions accumulate over time?"
-- "What's your thinking on the tech concentration?"
-- "Want me to explore this further?"
-
-CRITICAL:
-- Use first person ("I found", "I analyzed", "I recommend")
-- Active voice only - never passive
-- Write like you're explaining this to a smart friend who trusts your judgment
-- No jargon without explanation
-- No hedging language ("may", "could possibly", "might potentially")
+IMPORTANT:
+- Use the exact header names: ## Title, ## Summary, ## Key Findings, ## Detailed Analysis, ## Recommendations, ## Data Limitations
+- Write in conversational, first-person voice WITHIN each section
+- Use bullet points (- ) for Key Findings and Recommendations
 - Be specific with numbers and percentages
-- Always include "as of" timestamps for data freshness
+- Always include "as of [date]" for data freshness
 """
 
         if focus_area:
@@ -390,163 +382,79 @@ CRITICAL:
         insight_type: InsightType,
     ) -> Dict[str, Any]:
         """
-        Parse Claude's conversational response into structured format.
+        Parse Claude's investigation response into structured format.
 
-        NEW APPROACH: Don't force rigid structure.
-        Let Claude write naturally, extract what we can.
+        Extracts title, summary, findings, recommendations, and limitations.
         """
         from app.models.ai_insights import InsightSeverity
 
+        # Simple parsing - extract sections
+        # TODO: Enhance with more sophisticated parsing
         lines = response_text.split('\n')
 
-        # Extract title - look for first bold line, H1, or use first sentence
         title = None
-        for line in lines[:10]:  # Check first 10 lines
-            line_stripped = line.strip()
-            # Check for bold text (markdown **text**)
-            if line_stripped.startswith('**') and line_stripped.endswith('**'):
-                title = line_stripped.strip('*').strip()
-                break
-            # Check for H1 or H2
-            elif line_stripped.startswith('# '):
-                title = line_stripped.lstrip('# ').strip()
-                break
-            elif line_stripped.startswith('## ') and not title:
-                title = line_stripped.lstrip('# ').strip()
-                break
-
-        if not title:
-            # Generate from first sentence
-            sentences = response_text.split('.')
-            if sentences:
-                first_sentence = sentences[0].strip()
-                title = first_sentence[:80] + ('...' if len(first_sentence) > 80 else '')
-            else:
-                title = f"{insight_type.value.replace('_', ' ').title()} Analysis"
-
-        # Extract key findings - look for bulleted lists
+        summary = ""
         key_findings = []
-        in_bullets = False
-        for line in lines:
-            line_stripped = line.strip()
-            # Check for bullet points
-            if line_stripped.startswith(('- ', '• ', '* ')):
-                finding = line_stripped.lstrip('-•* ').strip()
-                # Only add substantial findings (more than 10 chars)
-                if finding and len(finding) > 10:
-                    key_findings.append(finding)
-                    in_bullets = True
-            elif in_bullets and not line_stripped:
-                # Empty line ends bullet section
-                in_bullets = False
-            # Also check for numbered lists
-            elif line_stripped and len(line_stripped) > 2:
-                # Check if starts with number followed by period or parenthesis
-                if line_stripped[0].isdigit() and line_stripped[1] in '.):':
-                    finding = line_stripped.lstrip('0123456789.): ').strip()
-                    if finding and len(finding) > 10:
-                        key_findings.append(finding)
-
-        # Extract recommendations - look for recommendation-related sections
         recommendations = []
-        recommendation_section = False
-        for i, line in enumerate(lines):
-            line_stripped = line.strip()
-            line_lower = line_stripped.lower()
+        data_limitations = ""
+        full_analysis = response_text
 
-            # Detect recommendation section
-            if any(keyword in line_lower for keyword in [
-                'recommend', "here's what", 'next steps', 'what to do',
-                'my take', 'you should', "i'd suggest", 'consider'
-            ]):
-                recommendation_section = True
+        current_section = None
+        for line in lines:
+            line = line.strip()
 
-            # Extract recommendations from bullets or numbered lists
-            if recommendation_section and line_stripped.startswith(('- ', '• ', '* ')):
-                rec = line_stripped.lstrip('-•* ').strip()
-                if rec and len(rec) > 10:
-                    recommendations.append(rec)
-            elif recommendation_section and line_stripped and len(line_stripped) > 2:
-                if line_stripped[0].isdigit() and line_stripped[1] in '.):':
-                    rec = line_stripped.lstrip('0123456789.): ').strip()
-                    if rec and len(rec) > 10:
-                        recommendations.append(rec)
+            if line.startswith('## Title') or (not title and line.startswith('# ')):
+                current_section = 'title'
+                continue
+            elif line.startswith('## Summary'):
+                current_section = 'summary'
+                continue
+            elif line.startswith('## Key Findings'):
+                current_section = 'findings'
+                continue
+            elif line.startswith('## Recommendations'):
+                current_section = 'recommendations'
+                continue
+            elif line.startswith('## Data Limitations'):
+                current_section = 'limitations'
+                continue
+            elif line.startswith('## Detailed Analysis') or line.startswith('##'):
+                current_section = 'other'
+                continue
 
-            # Stop at next major section
-            if recommendation_section and line_stripped.startswith('##') and i > 0:
-                if not any(keyword in line_lower for keyword in ['recommend', 'next', 'action']):
-                    recommendation_section = False
+            # Collect content
+            if current_section == 'title' and line and not title:
+                title = line.strip('#').strip()
+            elif current_section == 'summary' and line:
+                summary += line + " "
+            elif current_section == 'findings' and line.startswith(('-', '*', '•')):
+                key_findings.append(line.lstrip('-*• ').strip())
+            elif current_section == 'recommendations' and line.startswith(('-', '*', '•')):
+                recommendations.append(line.lstrip('-*• ').strip())
+            elif current_section == 'limitations' and line:
+                data_limitations += line + " "
 
-        # Create natural summary - use first paragraph
-        paragraphs = [p.strip() for p in response_text.split('\n\n') if len(p.strip()) > 50]
-        summary = paragraphs[0] if paragraphs else "Analysis complete."
-
-        # Limit summary length
-        if len(summary) > 500:
-            summary = summary[:497] + "..."
-
-        # Auto-detect severity from conversational tone
-        severity = self._detect_severity_from_tone(response_text)
+        # Determine severity based on content (simple heuristic)
+        severity = InsightSeverity.INFO
+        response_lower = response_text.lower()
+        if any(word in response_lower for word in ['critical', 'severe', 'urgent', 'danger']):
+            severity = InsightSeverity.CRITICAL
+        elif any(word in response_lower for word in ['warning', 'concern', 'risk', 'issue']):
+            severity = InsightSeverity.WARNING
+        elif any(word in response_lower for word in ['elevated', 'moderate', 'notable']):
+            severity = InsightSeverity.ELEVATED
+        elif any(word in response_lower for word in ['normal', 'stable', 'healthy']):
+            severity = InsightSeverity.NORMAL
 
         return {
-            "title": title,
+            "title": title or f"{insight_type.value.replace('_', ' ').title()} Analysis",
             "severity": severity,
-            "summary": summary,
-            "full_analysis": response_text,  # Keep the full conversational response
-            "key_findings": key_findings[:5] if key_findings else ["Analysis completed"],
-            "recommendations": recommendations[:5] if recommendations else ["No specific recommendations at this time"],
-            "data_limitations": "",  # Claude will mention data quality naturally in the response
+            "summary": summary.strip() or "Analysis complete. See details below.",
+            "full_analysis": full_analysis,
+            "key_findings": key_findings or ["Analysis completed"],
+            "recommendations": recommendations or ["No specific recommendations at this time"],
+            "data_limitations": data_limitations.strip() or "All available data used in analysis.",
         }
-
-    def _detect_severity_from_tone(self, text: str) -> 'InsightSeverity':
-        """
-        Detect severity from conversational language and tone.
-
-        Analyzes the text for conversational indicators of severity level.
-        """
-        from app.models.ai_insights import InsightSeverity
-
-        text_lower = text.lower()
-
-        # Critical indicators - urgent, serious language
-        critical_phrases = [
-            'urgent', 'critical', 'serious risk', 'major concern',
-            'significantly exposed', 'immediate attention', 'alarming',
-            'dangerous', 'very concerned', 'red flag'
-        ]
-        if any(phrase in text_lower for phrase in critical_phrases):
-            return InsightSeverity.CRITICAL
-
-        # Warning indicators - concern and risk language
-        warning_phrases = [
-            'concerned', 'worth discussing', 'should talk about',
-            'higher than', 'overweight', 'concentration risk',
-            'worries me', 'caught my attention', 'be careful',
-            'risk here', 'exposure is high', 'watch out for'
-        ]
-        if any(phrase in text_lower for phrase in warning_phrases):
-            return InsightSeverity.WARNING
-
-        # Elevated indicators - notable but not urgent
-        elevated_phrases = [
-            'notable', 'worth noting', 'keep an eye on',
-            'slightly elevated', 'moderately', 'interesting',
-            'something to consider', 'might want to'
-        ]
-        if any(phrase in text_lower for phrase in elevated_phrases):
-            return InsightSeverity.ELEVATED
-
-        # Positive/normal indicators - healthy portfolio language
-        normal_phrases = [
-            'looking good', 'well-positioned', 'balanced',
-            'healthy', 'solid', 'reasonable', 'appropriate',
-            'in line with', 'on track'
-        ]
-        if any(phrase in text_lower for phrase in normal_phrases):
-            return InsightSeverity.NORMAL
-
-        # Default to INFO if no strong signals
-        return InsightSeverity.INFO
 
     def _calculate_cost(self, message: Message) -> float:
         """
