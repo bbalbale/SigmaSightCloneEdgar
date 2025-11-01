@@ -1,15 +1,15 @@
 'use client'
 
-import React, { useMemo, useEffect } from 'react'
+import React, { useMemo, useEffect, useState } from 'react'
 import { useResearchStore } from '@/stores/researchStore'
 import { usePortfolioStore } from '@/stores/portfolioStore'
 import { usePublicPositions } from '@/hooks/usePublicPositions'
 import { usePrivatePositions } from '@/hooks/usePrivatePositions'
 import { analyticsApi } from '@/services/analyticsApi'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Button } from '@/components/ui/button'
 import { ResearchTableView } from '@/components/research-and-analyze/ResearchTableView'
 import { CompactTagBar } from '@/components/research-and-analyze/CompactTagBar'
-import { CompactReturnsCards } from '@/components/research-and-analyze/CompactReturnsCards'
 import { ViewAllTagsModal } from '@/components/research-and-analyze/ViewAllTagsModal'
 import { TagCreator } from '@/components/organize/TagCreator'
 import { useRestoreSectorTags } from '@/hooks/useRestoreSectorTags'
@@ -34,6 +34,9 @@ export function ResearchAndAnalyzeContainer() {
   // Modal and UI state
   const [showViewAllModal, setShowViewAllModal] = React.useState(false)
   const [showTagCreator, setShowTagCreator] = React.useState(false)
+
+  // Position type filter state (long/short)
+  const [positionType, setPositionType] = useState<'long' | 'short'>('long')
 
   // Data fetching - PHASE 1: Replace useResearchPageData with proven hooks
   const {
@@ -129,72 +132,9 @@ export function ResearchAndAnalyzeContainer() {
     [optionsPositions]
   )
 
-  // DEBUG: Log position counts and investment_class distribution
-  useEffect(() => {
-    const allFetched = [...longPositions, ...shortPositions, ...privatePositions]
-    const investmentClassDistribution = allFetched.reduce((acc, p) => {
-      acc[p.investment_class] = (acc[p.investment_class] || 0) + 1
-      return acc
-    }, {} as Record<string, number>)
-
-    console.log('📊 Position Analysis:', {
-      totalFetched: allFetched.length,
-      investmentClassDistribution,
-      fromUsePublicPositions: {
-        longs: longPositions.length,
-        shorts: shortPositions.length,
-        total: longPositions.length + shortPositions.length
-      },
-      fromUsePrivatePositions: privatePositions.length,
-      afterFiltering: {
-        publicPositions: publicPositions.length,
-        publicLongs: publicLongs.length,
-        publicShorts: publicShorts.length,
-        optionsPositions: optionsPositions.length,
-        optionLongs: optionLongs.length,
-        optionShorts: optionShorts.length,
-        privatePositions: privatePositions.length
-      },
-      optionsPositionTypes: optionsPositions.map(p => p.position_type),
-      sampleData: {
-        publicSample: publicPositions[0] && {
-          symbol: publicPositions[0].symbol,
-          investment_class: publicPositions[0].investment_class,
-          position_type: publicPositions[0].position_type
-        },
-        optionsSample: optionsPositions[0] && {
-          symbol: optionsPositions[0].symbol,
-          investment_class: optionsPositions[0].investment_class,
-          position_type: optionsPositions[0].position_type
-        },
-        privateSample: privatePositions[0] && {
-          symbol: privatePositions[0].symbol,
-          investment_class: privatePositions[0].investment_class,
-          position_type: privatePositions[0].position_type
-        }
-      }
-    })
-  }, [longPositions, shortPositions, publicPositions, publicLongs, publicShorts, optionsPositions, optionLongs, optionShorts, privatePositions])
-
   // PHASE 3: Calculate aggregate returns for all position groups
   const aggregates = useMemo(() => {
-    // Combine all positions for portfolio-level aggregate
-    const allPositions = [...publicPositions, ...optionsPositions, ...privatePositions]
-
     return {
-      // Portfolio-level (shown in cards at top)
-      portfolio: {
-        eoy: positionResearchService.calculateAggregateReturn(
-          allPositions,
-          'target_return_eoy',
-          'analyst_return_eoy' // Fallback to analyst if user target is null
-        ),
-        nextYear: positionResearchService.calculateAggregateReturn(
-          allPositions,
-          'target_return_next_year'
-        )
-      },
-
       // Section-level aggregates for Public tab
       publicLongs: {
         eoy: positionResearchService.calculateAggregateReturn(publicLongs, 'target_return_eoy', 'analyst_return_eoy'),
@@ -226,6 +166,25 @@ export function ResearchAndAnalyzeContainer() {
       }
     }
   }, [publicPositions, optionsPositions, privatePositions, publicLongs, publicShorts, optionLongs, optionShorts, privateAggregates])
+
+  // PHASE 4: Filter positions based on active tab and position type
+  const { filteredPositions, currentAggregate } = useMemo(() => {
+    let positions: EnhancedPosition[] = []
+    let aggregate = { eoy: 0, nextYear: 0 }
+
+    if (activeTab === 'public') {
+      positions = positionType === 'long' ? publicLongs : publicShorts
+      aggregate = positionType === 'long' ? aggregates.publicLongs : aggregates.publicShorts
+    } else if (activeTab === 'options') {
+      positions = positionType === 'long' ? optionLongs : optionShorts
+      aggregate = positionType === 'long' ? aggregates.optionLongs : aggregates.optionShorts
+    } else if (activeTab === 'private') {
+      positions = privatePositions
+      aggregate = aggregates.private
+    }
+
+    return { filteredPositions: positions, currentAggregate: aggregate }
+  }, [activeTab, positionType, publicLongs, publicShorts, optionLongs, optionShorts, privatePositions, aggregates])
 
   // Fetch correlation matrix once on mount and store in Zustand
   useEffect(() => {
@@ -424,150 +383,129 @@ export function ResearchAndAnalyzeContainer() {
         </div>
       </div>
 
-      {/* Compact Sticky Section: Tabs + Tags + Returns */}
-      <section className="sticky top-0 z-40 transition-colors duration-300 border-b" style={{
-        backgroundColor: 'var(--bg-primary)',
-        borderColor: 'var(--border-primary)'
-      }}>
-        <div className="container mx-auto">
-          {/* Tabs Row */}
-          <Tabs value={activeTab} onValueChange={(value: any) => setActiveTab(value)}>
-            <TabsList className="mt-4">
-              <TabsTrigger value="public">Public</TabsTrigger>
-              <TabsTrigger value="options">Options</TabsTrigger>
-              <TabsTrigger value="private">Private</TabsTrigger>
-            </TabsList>
-
-            {/* Tags + Returns Row */}
-            <div className="py-3 flex gap-4 items-center" style={{ minHeight: '70px' }}>
-              {/* Left: Tags Section (60%) */}
-              <div className="flex-1" style={{ minWidth: 0 }}>
-                <div
-                  className="rounded-lg px-4 py-3 transition-all duration-300"
-                  style={{
-                    backgroundColor: 'var(--bg-secondary)',
-                    border: '1px solid var(--border-primary)',
-                    height: '100%'
-                  }}
-                >
-                  <CompactTagBar
-                    tags={allTags}
-                    onViewAll={() => setShowViewAllModal(true)}
-                    onCreate={() => setShowTagCreator(true)}
-                  />
-                </div>
-              </div>
-
-              {/* Right: Returns Cards (40%) */}
-              <div style={{ width: '40%', minWidth: '300px' }}>
-                <CompactReturnsCards
-                  eoyReturn={aggregates.portfolio.eoy}
-                  nextYearReturn={aggregates.portfolio.nextYear}
-                />
-              </div>
-            </div>
-
-            {/* PHASE 4: Public Tab - PUBLIC investment_class only */}
-            <TabsContent value="public" className="mt-4">
-              {/* Long Public Positions */}
-              {publicLongs.length > 0 && (
-                <section className="pb-8">
-                  <ResearchTableView
-                    positions={publicLongs}
-                    title="Long Positions"
-                    aggregateReturnEOY={aggregates.publicLongs.eoy}
-                    aggregateReturnNextYear={aggregates.publicLongs.nextYear}
-                    onTargetPriceUpdate={updatePublicTarget}
-                    onTagDrop={handleTagDrop}
-                    onRemoveTag={handleRemoveTag}
-                  />
-                </section>
-              )}
-
-              {/* Short Public Positions */}
-              {publicShorts.length > 0 && (
-                <section className="pb-8">
-                  <ResearchTableView
-                    positions={publicShorts}
-                    title="Short Positions"
-                    aggregateReturnEOY={aggregates.publicShorts.eoy}
-                    aggregateReturnNextYear={aggregates.publicShorts.nextYear}
-                    onTargetPriceUpdate={updatePublicTarget}
-                    onTagDrop={handleTagDrop}
-                    onRemoveTag={handleRemoveTag}
-                  />
-                </section>
-              )}
-            </TabsContent>
-
-            {/* Options Tab - OPTIONS investment_class only */}
-            <TabsContent value="options" className="mt-4">
-              {console.log('🎯 OPTIONS TAB RENDER:', {
-                optionLongs: optionLongs.length,
-                optionShorts: optionShorts.length,
-                optionLongsData: optionLongs.map(p => ({ symbol: p.symbol, investment_class: p.investment_class, position_type: p.position_type })),
-                aggregates: {
-                  eoy: aggregates.optionLongs.eoy,
-                  nextYear: aggregates.optionLongs.nextYear
-                }
-              })}
-
-              {/* Long Options */}
-              {optionLongs.length > 0 ? (
-                <section className="pb-8">
-                  <ResearchTableView
-                    positions={optionLongs}
-                    title="Long Options"
-                    aggregateReturnEOY={aggregates.optionLongs.eoy}
-                    aggregateReturnNextYear={aggregates.optionLongs.nextYear}
-                    onTargetPriceUpdate={updatePublicTarget}
-                    onTagDrop={handleTagDrop}
-                    onRemoveTag={handleRemoveTag}
-                  />
-                </section>
-              ) : (
-                <div className="py-8 text-center text-secondary">
-                  No long options found
-                </div>
-              )}
-
-              {/* Short Options */}
-              {optionShorts.length > 0 ? (
-                <section className="pb-8">
-                  <ResearchTableView
-                    positions={optionShorts}
-                    title="Short Options"
-                    aggregateReturnEOY={aggregates.optionShorts.eoy}
-                    aggregateReturnNextYear={aggregates.optionShorts.nextYear}
-                    onTargetPriceUpdate={updatePublicTarget}
-                    onTagDrop={handleTagDrop}
-                    onRemoveTag={handleRemoveTag}
-                  />
-                </section>
-              ) : (
-                <div className="py-8 text-center text-secondary">
-                  No short options found
-                </div>
-              )}
-            </TabsContent>
-
-            {/* Private Tab */}
-            <TabsContent value="private" className="mt-4">
-              <section className="pb-8">
-                <ResearchTableView
-                  positions={privatePositions}
-                  title="Private Investments"
-                  aggregateReturnEOY={aggregates.private.eoy}
-                  aggregateReturnNextYear={aggregates.private.nextYear}
-                  onTargetPriceUpdate={updatePrivateTarget}
-                  onTagDrop={handleTagDrop}
-                  onRemoveTag={handleRemoveTag}
-                />
-              </section>
-            </TabsContent>
-          </Tabs>
+      {/* STICKY SECTION #1: Position Tags */}
+      <section
+        className="sticky z-50 transition-colors duration-300 border-b"
+        style={{
+          top: 0,
+          backgroundColor: 'var(--bg-primary)',
+          borderColor: 'var(--border-primary)'
+        }}
+      >
+        <div className="container mx-auto px-4 py-3">
+          <h2
+            className="mb-2 font-semibold"
+            style={{
+              fontSize: '16px',
+              color: 'var(--text-primary)'
+            }}
+          >
+            Position Tags
+          </h2>
+          <CompactTagBar
+            tags={allTags}
+            onViewAll={() => setShowViewAllModal(true)}
+            onCreate={() => setShowTagCreator(true)}
+          />
         </div>
       </section>
+
+      {/* STICKY SECTION #2: Position Controls & Returns */}
+      <section
+        className="sticky z-40 transition-colors duration-300 border-b"
+        style={{
+          top: '70px',
+          backgroundColor: 'var(--bg-primary)',
+          borderColor: 'var(--border-primary)'
+        }}
+      >
+        <div className="container mx-auto px-4 py-3">
+          <div className="flex items-center gap-6">
+            {/* Left: Positions Header + Controls */}
+            <div className="flex-1 flex items-center gap-4">
+              <h2
+                className="font-semibold flex-shrink-0"
+                style={{
+                  fontSize: '16px',
+                  color: 'var(--text-primary)'
+                }}
+              >
+                Positions
+              </h2>
+
+              {/* Investment Class Tabs */}
+              <Tabs value={activeTab} onValueChange={(value: any) => setActiveTab(value)} className="flex-shrink-0">
+                <TabsList>
+                  <TabsTrigger value="public">Public</TabsTrigger>
+                  <TabsTrigger value="options">Options</TabsTrigger>
+                  <TabsTrigger value="private">Private</TabsTrigger>
+                </TabsList>
+              </Tabs>
+
+              {/* Position Type Toggles (hidden for Private) */}
+              {activeTab !== 'private' && (
+                <div className="flex gap-1 flex-shrink-0">
+                  <Button
+                    size="sm"
+                    variant={positionType === 'long' ? 'default' : 'outline'}
+                    onClick={() => setPositionType('long')}
+                    className="h-8 px-3"
+                  >
+                    Long
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant={positionType === 'short' ? 'default' : 'outline'}
+                    onClick={() => setPositionType('short')}
+                    className="h-8 px-3"
+                  >
+                    Short
+                  </Button>
+                </div>
+              )}
+            </div>
+
+            {/* Right: Aggregate Returns */}
+            <div className="flex gap-6 flex-shrink-0">
+              <div className="text-right">
+                <div className="text-xs" style={{ color: 'var(--text-secondary)' }}>EOY</div>
+                <div
+                  className="text-lg font-bold tabular-nums"
+                  style={{
+                    color: currentAggregate.eoy >= 0 ? 'var(--color-success)' : 'var(--color-error)'
+                  }}
+                >
+                  {currentAggregate.eoy >= 0 ? '+' : ''}{currentAggregate.eoy.toFixed(1)}%
+                </div>
+              </div>
+              <div className="text-right">
+                <div className="text-xs" style={{ color: 'var(--text-secondary)' }}>Next Year</div>
+                <div
+                  className="text-lg font-bold tabular-nums"
+                  style={{
+                    color: currentAggregate.nextYear >= 0 ? 'var(--color-success)' : 'var(--color-error)'
+                  }}
+                >
+                  {currentAggregate.nextYear >= 0 ? '+' : ''}{currentAggregate.nextYear.toFixed(1)}%
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* SCROLLING CONTENT: Single Unified Table */}
+      <div className="container mx-auto px-4 py-6">
+        <ResearchTableView
+          positions={filteredPositions}
+          title=""
+          aggregateReturnEOY={currentAggregate.eoy}
+          aggregateReturnNextYear={currentAggregate.nextYear}
+          onTargetPriceUpdate={updatePublicTarget}
+          onTagDrop={handleTagDrop}
+          onRemoveTag={handleRemoveTag}
+        />
+      </div>
 
       {/* View All Tags Modal */}
       <ViewAllTagsModal
