@@ -18,10 +18,12 @@ const PRESET_COLORS = [
 
 interface TagCreatorProps {
   onCreate: (name: string, color: string) => Promise<void>
+  onCancel?: () => void
 }
 
-export function TagCreator({ onCreate }: TagCreatorProps) {
-  const [isCreating, setIsCreating] = useState(false)
+export function TagCreator({ onCreate, onCancel }: TagCreatorProps) {
+  // If onCancel is provided (modal mode), start in creating state
+  const [isCreating, setIsCreating] = useState(!!onCancel)
   const [name, setName] = useState('')
   const [selectedColor, setSelectedColor] = useState(PRESET_COLORS[0].color)
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -50,7 +52,11 @@ export function TagCreator({ onCreate }: TagCreatorProps) {
   const handleCancel = () => {
     setName('')
     setSelectedColor(PRESET_COLORS[0].color)
-    setIsCreating(false)
+    if (onCancel) {
+      onCancel()
+    } else {
+      setIsCreating(false)
+    }
   }
 
   if (!isCreating) {

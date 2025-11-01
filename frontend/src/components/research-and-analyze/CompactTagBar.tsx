@@ -53,16 +53,25 @@ export function CompactTagBar({ tags, onViewAll, onCreate }: CompactTagBarProps)
       ref={containerRef}
       className="flex items-center gap-2 h-full"
     >
-      {/* Tag Label */}
-      <span
-        className="font-semibold uppercase tracking-wider flex-shrink-0"
-        style={{
-          fontSize: '10px',
-          color: 'var(--text-tertiary)'
-        }}
-      >
-        TAGS
-      </span>
+      {/* Action Buttons - moved to left */}
+      <div className="flex gap-2 flex-shrink-0">
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={onViewAll}
+          className="text-xs h-8"
+        >
+          View All
+        </Button>
+        <Button
+          size="sm"
+          variant="default"
+          onClick={onCreate}
+          className="text-xs h-8"
+        >
+          + New
+        </Button>
+      </div>
 
       {/* Visible Tags */}
       <div className="flex gap-2 items-center flex-1 min-w-0">
@@ -97,26 +106,6 @@ export function CompactTagBar({ tags, onViewAll, onCreate }: CompactTagBarProps)
             No tags yet
           </span>
         )}
-      </div>
-
-      {/* Action Buttons */}
-      <div className="flex gap-2 flex-shrink-0">
-        <Button
-          size="sm"
-          variant="outline"
-          onClick={onViewAll}
-          className="text-xs h-8"
-        >
-          View All
-        </Button>
-        <Button
-          size="sm"
-          variant="default"
-          onClick={onCreate}
-          className="text-xs h-8"
-        >
-          + New
-        </Button>
       </div>
     </div>
   )
