@@ -1369,6 +1369,42 @@ async def test_backward_compatibility_single_portfolio(client, auth_headers):
 
 ---
 
-**Document Version:** 1.1
+---
+
+## Implementation Decisions Summary
+
+**Migration Strategy:**
+- Write comprehensive unit tests for migration
+- Apply confidently to dev database (UIRefactor branch)
+- Backup available if needed
+
+**Timeline:**
+- 3-4 weeks for complete backend implementation
+- Week 1: Database migration + aggregation service
+- Week 2: New CRUD endpoints + aggregate analytics
+- Week 3: Update existing endpoints + E2E testing
+- Week 4: Buffer, bug fixes, documentation
+
+**Feature Flags:**
+- None - backward compatible deployment
+- All changes deployed at once
+- Simpler code, less complexity
+
+**Monitoring:**
+- Basic structured logging to critical paths
+- PortfolioAggregationService
+- Portfolio CRUD endpoints
+- Error handling paths
+
+**Deployment:**
+- Backend first (this phase)
+- Validate backward compatibility with current frontend
+- Frontend updates in separate phase
+
+---
+
+**Document Version:** 1.2
 **Last Updated:** 2025-11-01
-**Changes:** Added single-portfolio handling section
+**Changes:**
+- v1.1: Added single-portfolio handling section
+- v1.2: Added implementation decisions summary

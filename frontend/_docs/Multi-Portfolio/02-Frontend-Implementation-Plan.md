@@ -1374,6 +1374,28 @@ describe('Progressive Disclosure', () => {
 
 ---
 
-**Document Version:** 1.1
+---
+
+## Implementation Sequencing
+
+**Note:** Frontend implementation begins AFTER backend is complete and validated.
+
+**Prerequisites:**
+- ✅ Backend migration complete
+- ✅ PortfolioAggregationService working
+- ✅ 4 new endpoints deployed (Create, Update, Delete, Aggregate)
+- ✅ All 59 existing endpoints backward compatible
+- ✅ Can create 2nd portfolio via API
+- ✅ Aggregate analytics validated
+
+**Timeline:**
+- Backend: 3-4 weeks (in progress)
+- Frontend: 3-4 weeks (starts after backend complete)
+
+---
+
+**Document Version:** 1.2
 **Last Updated:** 2025-11-01
-**Changes:** Added Phase 4.5 (Progressive Disclosure)
+**Changes:**
+- v1.1: Added Phase 4.5 (Progressive Disclosure)
+- v1.2: Added implementation sequencing notes

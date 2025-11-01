@@ -812,11 +812,20 @@ User with 5 accounts, 20 positions each = 100 total positions
 - ✅ Position merging? → No merging, show account column
 - ✅ Account limits? → 20 accounts per user
 
-### To Be Decided
-- ❓ Should we allow setting a "primary" account for single-account workflows?
-- ❓ Do we need account-level goals/targets?
-- ❓ Should we support account groups (e.g., "Retirement Accounts" group)?
-- ❓ How to handle closing an account with positions? (Soft delete? Archive?)
+### Resolved (Deferred to Future Phases)
+- ✅ **Primary account flag** → **Deferred to Phase 2** - Use first portfolio as default for now
+- ✅ **Account-level goals/targets** → **Deferred to Phase 2** - Position-level targets sufficient for MVP
+- ✅ **Account groups** (e.g., "Retirement Accounts" group) → **Deferred to Phase 3** - Nice to have, not critical
+- ✅ **Closing account with positions** → **Soft delete only** (is_active=False, preserve history)
+
+### Implementation Decisions (Pre-Kickoff - November 2025)
+- ✅ **Migration Testing:** Write comprehensive unit tests, apply migration confidently to dev database
+- ✅ **Timeline:** 3-4 weeks (balanced approach, thorough testing, production-ready)
+- ✅ **Feature Flags:** None - backward compatible all-at-once deploy (simpler code)
+- ✅ **Monitoring:** Basic structured logging to critical paths (aggregation, CRUD endpoints)
+- ✅ **Deployment Strategy:** Backend first → validate backward compatibility → Frontend second
+- ✅ **Testing Approach:** Local database testing, comprehensive unit/integration tests
+- ✅ **Environment:** Development branch (UIRefactor) - can iterate without production concerns
 
 ---
 
