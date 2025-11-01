@@ -7,10 +7,8 @@ import { usePublicPositions } from '@/hooks/usePublicPositions'
 import { usePrivatePositions } from '@/hooks/usePrivatePositions'
 import { analyticsApi } from '@/services/analyticsApi'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Sheet, SheetContent } from '@/components/ui/sheet'
-import { PositionSidePanel } from '@/components/research-and-analyze/PositionSidePanel'
 import { StickyTagBar } from '@/components/research-and-analyze/StickyTagBar'
-import { EnhancedPositionsSection } from '@/components/positions/EnhancedPositionsSection'
+import { ResearchTableView } from '@/components/research-and-analyze/ResearchTableView'
 import { useRestoreSectorTags } from '@/hooks/useRestoreSectorTags'
 import tagsApi from '@/services/tagsApi'
 import { positionResearchService, type EnhancedPosition } from '@/services/positionResearchService'
@@ -22,10 +20,6 @@ export function ResearchAndAnalyzeContainer() {
   // Zustand store state
   const activeTab = useResearchStore((state) => state.activeTab)
   const setActiveTab = useResearchStore((state) => state.setActiveTab)
-  const sidePanelOpen = useResearchStore((state) => state.sidePanelOpen)
-  const selectedPosition = useResearchStore((state) => state.selectedPosition)
-  const openSidePanel = useResearchStore((state) => state.openSidePanel)
-  const closeSidePanel = useResearchStore((state) => state.closeSidePanel)
 
   // Correlation matrix state and actions
   const setCorrelationMatrix = useResearchStore((state) => state.setCorrelationMatrix)
@@ -284,10 +278,6 @@ export function ResearchAndAnalyzeContainer() {
     }
   }
 
-  // PHASE 7: Type compatibility - cast EnhancedPosition to Position for side panel
-  const handlePositionClick = (position: EnhancedPosition) => {
-    openSidePanel(position as any)
-  }
 
   // Loading state
   const loading = publicLoading || privateLoading
@@ -435,13 +425,12 @@ export function ResearchAndAnalyzeContainer() {
               {/* Long Public Positions */}
               {publicLongs.length > 0 && (
                 <section className="px-4 pb-8">
-                  <EnhancedPositionsSection
+                  <ResearchTableView
                     positions={publicLongs}
                     title="Long Positions"
                     aggregateReturnEOY={aggregates.publicLongs.eoy}
                     aggregateReturnNextYear={aggregates.publicLongs.nextYear}
                     onTargetPriceUpdate={updatePublicTarget}
-                    onPositionClick={handlePositionClick}
                   />
                 </section>
               )}
@@ -449,13 +438,12 @@ export function ResearchAndAnalyzeContainer() {
               {/* Short Public Positions */}
               {publicShorts.length > 0 && (
                 <section className="px-4 pb-8">
-                  <EnhancedPositionsSection
+                  <ResearchTableView
                     positions={publicShorts}
                     title="Short Positions"
                     aggregateReturnEOY={aggregates.publicShorts.eoy}
                     aggregateReturnNextYear={aggregates.publicShorts.nextYear}
                     onTargetPriceUpdate={updatePublicTarget}
-                    onPositionClick={handlePositionClick}
                   />
                 </section>
               )}
@@ -476,13 +464,12 @@ export function ResearchAndAnalyzeContainer() {
               {/* Long Options */}
               {optionLongs.length > 0 ? (
                 <section className="px-4 pb-8">
-                  <EnhancedPositionsSection
+                  <ResearchTableView
                     positions={optionLongs}
                     title="Long Options"
                     aggregateReturnEOY={aggregates.optionLongs.eoy}
                     aggregateReturnNextYear={aggregates.optionLongs.nextYear}
                     onTargetPriceUpdate={updatePublicTarget}
-                    onPositionClick={handlePositionClick}
                   />
                 </section>
               ) : (
@@ -494,13 +481,12 @@ export function ResearchAndAnalyzeContainer() {
               {/* Short Options */}
               {optionShorts.length > 0 ? (
                 <section className="px-4 pb-8">
-                  <EnhancedPositionsSection
+                  <ResearchTableView
                     positions={optionShorts}
                     title="Short Options"
                     aggregateReturnEOY={aggregates.optionShorts.eoy}
                     aggregateReturnNextYear={aggregates.optionShorts.nextYear}
                     onTargetPriceUpdate={updatePublicTarget}
-                    onPositionClick={handlePositionClick}
                   />
                 </section>
               ) : (
@@ -513,29 +499,18 @@ export function ResearchAndAnalyzeContainer() {
             {/* Private Tab */}
             <TabsContent value="private" className="mt-4">
               <section className="px-4 pb-8">
-                <EnhancedPositionsSection
+                <ResearchTableView
                   positions={privatePositions}
                   title="Private Investments"
                   aggregateReturnEOY={aggregates.private.eoy}
                   aggregateReturnNextYear={aggregates.private.nextYear}
                   onTargetPriceUpdate={updatePrivateTarget}
-                  onPositionClick={handlePositionClick}
                 />
               </section>
             </TabsContent>
           </Tabs>
         </div>
       </section>
-
-      {/* Side Panel */}
-      <Sheet open={sidePanelOpen} onOpenChange={closeSidePanel}>
-        <SheetContent side="right" className="w-[500px] overflow-y-auto">
-          <PositionSidePanel
-            position={selectedPosition}
-            onClose={closeSidePanel}
-          />
-        </SheetContent>
-      </Sheet>
     </div>
   )
 }
