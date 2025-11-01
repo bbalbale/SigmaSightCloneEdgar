@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo, useCallback } from 'react'
+import { useState, useMemo, useCallback, memo } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Input } from '@/components/ui/input'
@@ -337,7 +337,7 @@ interface ResearchTableRowProps {
   onRemoveTag?: (positionId: string, tagId: string) => Promise<void>
 }
 
-function ResearchTableRow({ position, isExpanded, onToggle, onTargetPriceUpdate, onTagDrop, onRemoveTag }: ResearchTableRowProps) {
+const ResearchTableRow = memo(function ResearchTableRow({ position, isExpanded, onToggle, onTargetPriceUpdate, onTagDrop, onRemoveTag }: ResearchTableRowProps) {
   const [userTargetEOY, setUserTargetEOY] = useState(
     position.user_target_eoy?.toString() || position.target_mean_price?.toString() || ''
   )
@@ -609,7 +609,7 @@ function ResearchTableRow({ position, isExpanded, onToggle, onTargetPriceUpdate,
       )}
     </>
   )
-}
+})
 
 // Expanded row detail component
 interface ExpandedRowDetailProps {
@@ -619,7 +619,7 @@ interface ExpandedRowDetailProps {
   onRemoveTag?: (positionId: string, tagId: string) => Promise<void>
 }
 
-function ExpandedRowDetail({ position, riskMetrics, riskMetricsLoading, onRemoveTag }: ExpandedRowDetailProps) {
+const ExpandedRowDetail = memo(function ExpandedRowDetail({ position, riskMetrics, riskMetricsLoading, onRemoveTag }: ExpandedRowDetailProps) {
   const quantity = position.quantity || 0
   const avgCost = position.avg_cost || position.cost_basis || 0
   const marketValue = position.current_market_value || position.market_value || (quantity * position.current_price)
@@ -868,4 +868,4 @@ function ExpandedRowDetail({ position, riskMetrics, riskMetricsLoading, onRemove
       </div>
     </div>
   )
-}
+})
