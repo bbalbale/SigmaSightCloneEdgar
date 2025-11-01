@@ -61,7 +61,7 @@ export function DataQualityIndicator({ dataQuality, className = '' }: DataQualit
         <div className="relative">
           <div className={`w-2.5 h-2.5 rounded-full ${colorClass} cursor-help`} />
         </div>
-        <span className="text-xs text-gray-600">
+        <span className="text-xs text-secondary">
           {dateStr && `As of ${dateStr}`}
           {age_hours && age_hours > 24 && ` (${Math.floor(age_hours / 24)}d ago)`}
         </span>
@@ -78,7 +78,7 @@ export function DataQualityIndicator({ dataQuality, className = '' }: DataQualit
         <div className="relative">
           <div className="w-2.5 h-2.5 rounded-full bg-gray-400 cursor-help" />
         </div>
-        <span className="text-xs text-gray-600">
+        <span className="text-xs text-secondary">
           {positions_analyzed}/{positions_total} positions analyzed
         </span>
       </div>

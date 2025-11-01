@@ -86,7 +86,7 @@ export function TagCreator({ onCreate }: TagCreatorProps) {
 
       <div className="flex items-center gap-2">
         <div className={`text-sm transition-colors ${
-          theme === 'dark' ? 'text-slate-300' : 'text-gray-600'
+          theme === 'dark' ? 'text-primary' : 'text-secondary'
         }`}>Color:</div>
         <div className="flex gap-2 flex-wrap">
           {PRESET_COLORS.map((preset) => (
@@ -117,7 +117,7 @@ export function TagCreator({ onCreate }: TagCreatorProps) {
           disabled={isSubmitting || !name.trim()}
           className={`transition-colors ${
             theme === 'dark'
-              ? 'bg-slate-900 hover:bg-slate-800 text-white'
+              ? 'bg-primary hover:bg-slate-800 text-white'
               : 'bg-black hover:bg-gray-800 text-white'
           }`}
         >

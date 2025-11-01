@@ -40,7 +40,7 @@ export function PortfolioError({
             ⚠️ {error || (apiErrors.positions && 'Position data unavailable')}
           </span>
           {dataLoaded && (
-            <span className={`text-xs ${theme === 'dark' ? 'text-slate-400' : 'text-gray-500'}`}>
+            <span className={`text-xs ${theme === 'dark' ? 'text-secondary' : 'text-tertiary'}`}>
               (partial data available)
             </span>
           )}
@@ -73,12 +73,8 @@ export function PortfolioErrorState({
   const { theme } = useTheme()
 
   return (
-    <div className={`flex flex-col items-center justify-center min-h-[400px] px-4 transition-colors duration-300 ${
-      theme === 'dark' ? 'bg-slate-900' : 'bg-gray-50'
-    }`}>
-      <div className={`text-center max-w-md ${
-        theme === 'dark' ? 'text-slate-400' : 'text-gray-600'
-      }`}>
+    <div className="flex flex-col items-center justify-center min-h-[400px] px-4 transition-colors duration-300 bg-primary">
+      <div className="text-center max-w-md text-secondary">
         <div className="text-6xl mb-4">😵</div>
         <h2 className={`text-xl font-semibold mb-2 transition-colors duration-300 ${
           theme === 'dark' ? 'text-white' : 'text-gray-900'
@@ -90,7 +86,7 @@ export function PortfolioErrorState({
           className={`transition-colors duration-300 ${
             theme === 'dark'
               ? 'border-slate-600 text-white bg-slate-800 hover:bg-slate-700'
-              : 'border-gray-300 text-gray-900 bg-white hover:bg-gray-50'
+              : 'border-gray-300 text-gray-900 bg-white hover:bg-primary'
           }`}
         >
           Try Again

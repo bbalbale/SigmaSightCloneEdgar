@@ -58,7 +58,7 @@ export default function TagEditor({ strategyId, initialTagIds, onSave, onClose }
               </span>
             </label>
           ))}
-          {available.length === 0 && <div className="text-sm text-gray-500">No tags yet.</div>}
+          {available.length === 0 && <div className="text-sm text-tertiary">No tags yet.</div>}
         </div>
         <div className="flex gap-2 mb-4">
           <input value={newTagName} onChange={e => setNewTagName(e.target.value)} placeholder="New tag name" className="border rounded px-2 py-1 flex-1" />

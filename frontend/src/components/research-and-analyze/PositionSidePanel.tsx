@@ -5,6 +5,7 @@ import { Position } from '@/stores/researchStore'
 import { SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { CorrelationsSection } from './CorrelationsSection'
 import { useTheme } from '@/contexts/ThemeContext'
+import { usePositionRiskMetrics } from '@/hooks/usePositionRiskMetrics'
 
 export interface PositionSidePanelProps {
   position: Position | null
@@ -34,9 +35,15 @@ function formatDate(dateString?: string): string {
 export function PositionSidePanel({ position, onClose }: PositionSidePanelProps) {
   const { theme } = useTheme()
 
+  // Fetch position risk metrics from backend
+  const { metrics: riskMetrics, loading: riskMetricsLoading } = usePositionRiskMetrics(
+    position?.id || '',
+    position?.symbol || ''
+  )
+
   if (!position) {
     return (
-      <div className={`p-4 ${theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}`}>
+      <div className={`p-4 ${theme === 'dark' ? 'text-secondary' : 'text-slate-600'}`}>
         No position selected
       </div>
     )
@@ -61,9 +68,9 @@ export function PositionSidePanel({ position, onClose }: PositionSidePanelProps)
     ? (theme === 'dark' ? 'text-emerald-400' : 'text-emerald-600')
     : (theme === 'dark' ? 'text-red-400' : 'text-red-600')
 
-  const sectionHeaderClass = "text-[10px] font-semibold uppercase tracking-wider text-slate-500 mb-3"
-  const sectionContainerClass = `border-b py-4 px-4 ${theme === 'dark' ? 'border-slate-700' : 'border-slate-200'}`
-  const labelClass = `text-xs ${theme === 'dark' ? 'text-slate-500' : 'text-slate-600'}`
+  const sectionHeaderClass = "text-[10px] font-semibold uppercase tracking-wider text-tertiary mb-3"
+  const sectionContainerClass = `border-b py-4 px-4 ${theme === 'dark' ? 'border-primary' : 'border-slate-200'}`
+  const labelClass = `text-xs ${theme === 'dark' ? 'text-tertiary' : 'text-slate-600'}`
   const valueClass = `text-sm font-medium ${theme === 'dark' ? 'text-slate-200' : 'text-slate-900'}`
 
   return (
@@ -72,7 +79,7 @@ export function PositionSidePanel({ position, onClose }: PositionSidePanelProps)
         <SheetTitle className={theme === 'dark' ? 'text-white' : 'text-slate-900'}>
           {position.symbol}
         </SheetTitle>
-        <p className={`text-sm ${theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}`}>
+        <p className={`text-sm ${theme === 'dark' ? 'text-secondary' : 'text-slate-600'}`}>
           {(position as any).company_name || position.companyName || 'Position Details'}
         </p>
       </SheetHeader>
@@ -168,7 +175,7 @@ export function PositionSidePanel({ position, onClose }: PositionSidePanelProps)
             )
           } else {
             return (
-              <p className={`text-sm ${theme === 'dark' ? 'text-slate-500' : 'text-slate-600'}`}>
+              <p className={`text-sm ${theme === 'dark' ? 'text-tertiary' : 'text-slate-600'}`}>
                 No target price set
               </p>
             )
@@ -197,7 +204,7 @@ export function PositionSidePanel({ position, onClose }: PositionSidePanelProps)
             ))}
           </div>
         ) : (
-          <p className={`text-sm ${theme === 'dark' ? 'text-slate-500' : 'text-slate-600'} mb-3`}>
+          <p className={`text-sm ${theme === 'dark' ? 'text-tertiary' : 'text-slate-600'} mb-3`}>
             No tags applied
           </p>
         )}
@@ -205,7 +212,7 @@ export function PositionSidePanel({ position, onClose }: PositionSidePanelProps)
         {/* Placeholder for notes/thesis */}
         <div className="mt-4">
           <span className={labelClass}>Investment Thesis</span>
-          <p className={`text-sm mt-1 ${theme === 'dark' ? 'text-slate-400' : 'text-slate-700'}`}>
+          <p className={`text-sm mt-1 ${theme === 'dark' ? 'text-secondary' : 'text-slate-700'}`}>
             Add notes and analysis here...
           </p>
         </div>
@@ -215,57 +222,73 @@ export function PositionSidePanel({ position, onClose }: PositionSidePanelProps)
       <div className={sectionContainerClass}>
         <h3 className={sectionHeaderClass}>RISK METRICS</h3>
 
-        {(() => {
-          // EnhancedPosition may use volatility_30d instead of volatility
-          const beta = position.beta || (position as any).market_beta
-          const volatility = (position as any).volatility_30d || position.volatility
-          const factorExposures = position.factorExposures
-
-          const hasAnyMetrics = beta !== undefined || volatility !== undefined || factorExposures
-
-          if (hasAnyMetrics) {
-            return (
-              <div className="space-y-3">
-                {beta !== undefined && (
-                  <div className="flex justify-between items-center">
-                    <span className={labelClass}>Beta</span>
-                    <span className={valueClass}>{Number(beta).toFixed(2)}</span>
-                  </div>
-                )}
-
-                {volatility !== undefined && (
-                  <div className="flex justify-between items-center">
-                    <span className={labelClass}>Volatility (30d)</span>
-                    <span className={valueClass}>{formatPercentage(volatility)}</span>
-                  </div>
-                )}
-
-                {factorExposures && (
-                  <>
-                    <div className="flex justify-between items-center">
-                      <span className={labelClass}>Growth Factor</span>
-                      <span className={valueClass}>{factorExposures.growth.toFixed(2)}</span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className={labelClass}>Momentum Factor</span>
-                      <span className={valueClass}>{factorExposures.momentum.toFixed(2)}</span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className={labelClass}>Size Factor</span>
-                      <span className={valueClass}>{factorExposures.size.toFixed(2)}</span>
-                    </div>
-                  </>
-                )}
+        {riskMetricsLoading ? (
+          <p className={`text-sm ${theme === 'dark' ? 'text-tertiary' : 'text-slate-600'}`}>
+            Loading risk metrics...
+          </p>
+        ) : riskMetrics ? (
+          <div className="space-y-3">
+            {/* Beta from factor exposures or company profile */}
+            {riskMetrics.beta !== undefined && (
+              <div className="flex justify-between items-center">
+                <span className={labelClass}>Beta</span>
+                <span className={valueClass}>{riskMetrics.beta.toFixed(2)}</span>
               </div>
-            )
-          } else {
-            return (
-              <p className={`text-sm ${theme === 'dark' ? 'text-slate-500' : 'text-slate-600'}`}>
-                Risk metrics not available
-              </p>
-            )
-          }
-        })()}
+            )}
+
+            {/* Volatility (if available) */}
+            {riskMetrics.volatility_30d !== undefined && (
+              <div className="flex justify-between items-center">
+                <span className={labelClass}>Volatility (30d)</span>
+                <span className={valueClass}>{formatPercentage(riskMetrics.volatility_30d)}</span>
+              </div>
+            )}
+
+            {/* Sector */}
+            {(riskMetrics.sector || position.sector) && (
+              <div className="flex justify-between items-center">
+                <span className={labelClass}>Sector</span>
+                <span className={valueClass}>{riskMetrics.sector || position.sector}</span>
+              </div>
+            )}
+
+            {/* Factor Exposures */}
+            {riskMetrics.factor_exposures && (
+              <>
+                <div className="mt-3 mb-2">
+                  <span className={`text-[10px] font-semibold uppercase tracking-wider ${theme === 'dark' ? 'text-tertiary' : 'text-slate-500'}`}>
+                    FACTOR EXPOSURES
+                  </span>
+                </div>
+
+                {riskMetrics.factor_exposures.Growth !== undefined && (
+                  <div className="flex justify-between items-center">
+                    <span className={labelClass}>Growth</span>
+                    <span className={valueClass}>{riskMetrics.factor_exposures.Growth.toFixed(2)}</span>
+                  </div>
+                )}
+
+                {riskMetrics.factor_exposures.Momentum !== undefined && (
+                  <div className="flex justify-between items-center">
+                    <span className={labelClass}>Momentum</span>
+                    <span className={valueClass}>{riskMetrics.factor_exposures.Momentum.toFixed(2)}</span>
+                  </div>
+                )}
+
+                {riskMetrics.factor_exposures.Size !== undefined && (
+                  <div className="flex justify-between items-center">
+                    <span className={labelClass}>Size</span>
+                    <span className={valueClass}>{riskMetrics.factor_exposures.Size.toFixed(2)}</span>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        ) : (
+          <p className={`text-sm ${theme === 'dark' ? 'text-tertiary' : 'text-slate-600'}`}>
+            Risk metrics not available
+          </p>
+        )}
       </div>
     </div>
   )

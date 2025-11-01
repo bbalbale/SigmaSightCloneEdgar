@@ -32,10 +32,10 @@ export function AIChatContainer() {
       <div
         className={cn(
           'min-h-screen flex items-center justify-center px-4',
-          theme === 'dark' ? 'bg-slate-950' : 'bg-gray-50'
+          theme === 'dark' ? 'bg-slate-950' : 'bg-primary'
         )}
       >
-        <div className="text-sm text-gray-500">Loading AI chat experience…</div>
+        <div className="text-sm text-tertiary">Loading AI chat experience…</div>
       </div>
     )
   }
@@ -52,14 +52,14 @@ export function AIChatContainer() {
     <div
       className={cn(
         'min-h-screen py-10 px-4 transition-colors duration-300',
-        theme === 'dark' ? 'bg-slate-950' : 'bg-gray-50'
+        theme === 'dark' ? 'bg-slate-950' : 'bg-primary'
       )}
     >
       <div className="container mx-auto max-w-5xl flex flex-col gap-8">
         <header className="flex flex-col gap-3">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
             <div>
-              <p className={cn('text-sm', theme === 'dark' ? 'text-slate-400' : 'text-gray-600')}>
+              <p className={cn('text-sm', theme === 'dark' ? 'text-secondary' : 'text-secondary')}>
                 Signed in as {user.fullName}
               </p>
               <h1 className={cn('text-2xl font-semibold', theme === 'dark' ? 'text-white' : 'text-gray-900')}>
@@ -70,14 +70,14 @@ export function AIChatContainer() {
               className={cn(
                 'text-xs px-3 py-1 rounded-full border',
                 theme === 'dark'
-                  ? 'border-slate-700 text-slate-300 bg-slate-900/60'
-                  : 'border-gray-200 text-gray-600 bg-white'
+                  ? 'border-primary text-primary bg-primary/60'
+                  : 'border-primary text-secondary bg-white'
               )}
             >
               {portfolioLabel}
             </div>
           </div>
-          <p className={cn('text-sm max-w-3xl', theme === 'dark' ? 'text-slate-300' : 'text-gray-600')}>
+          <p className={cn('text-sm max-w-3xl', theme === 'dark' ? 'text-primary' : 'text-secondary')}>
             Ask SigmaSight for diagnostics, factor exposure breakdowns, or risk mitigation ideas. Responses
             reuse the same authenticated streaming pipeline as the dashboard chat bar.
           </p>

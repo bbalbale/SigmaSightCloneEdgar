@@ -86,8 +86,8 @@ export function EnhancedPositionsSection({
       {/* Section Header */}
       <div className={`rounded-lg border p-4 transition-all duration-300 ${
         theme === 'dark'
-          ? 'bg-slate-800/30 border-slate-700/50'
-          : 'bg-white border-gray-200'
+          ? 'bg-slate-800/30 border-primary/50'
+          : 'themed-card'
       }`}>
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
@@ -97,7 +97,7 @@ export function EnhancedPositionsSection({
               {title}
             </h3>
             <Badge variant="secondary" className={`transition-colors duration-300 ${
-              theme === 'dark' ? 'bg-slate-700 text-slate-300' : 'bg-gray-200 text-gray-700'
+              theme === 'dark' ? 'bg-slate-700 text-primary' : 'bg-gray-200 text-primary'
             }`}>
               {filteredPositions.length}
             </Badge>
@@ -107,7 +107,7 @@ export function EnhancedPositionsSection({
           <div className="flex gap-6">
             <div className="text-right">
               <div className={`text-xs font-medium mb-1 transition-colors duration-300 ${
-                theme === 'dark' ? 'text-slate-400' : 'text-gray-500'
+                theme === 'dark' ? 'text-secondary' : 'text-tertiary'
               }`}>
                 Expected Return EOY
               </div>
@@ -119,7 +119,7 @@ export function EnhancedPositionsSection({
             </div>
             <div className="text-right">
               <div className={`text-xs font-medium mb-1 transition-colors duration-300 ${
-                theme === 'dark' ? 'text-slate-400' : 'text-gray-500'
+                theme === 'dark' ? 'text-secondary' : 'text-tertiary'
               }`}>
                 Expected Return Next Year
               </div>
@@ -138,14 +138,12 @@ export function EnhancedPositionsSection({
           <Select value={filterBy} onValueChange={(v: any) => { setFilterBy(v); setFilterValue('all') }}>
             <SelectTrigger className={`w-[180px] transition-colors duration-300 ${
               theme === 'dark'
-                ? 'bg-slate-900/50 border-slate-600 hover:border-slate-500'
-                : 'bg-gray-50 border-gray-300 hover:border-gray-400'
+                ? 'bg-primary/50 border-slate-600 hover:border-slate-500'
+                : 'bg-primary border-gray-300 hover:border-gray-400'
             }`}>
               <SelectValue placeholder="Filter by..." />
             </SelectTrigger>
-            <SelectContent className={`${
-              theme === 'dark' ? 'bg-slate-800 border-slate-700' : 'bg-white border-gray-200'
-            }`}>
+            <SelectContent className="themed-card">
               <SelectItem value="all">All Positions</SelectItem>
               <SelectItem value="tag">Filter by Tag</SelectItem>
               <SelectItem value="sector">Filter by Sector</SelectItem>
@@ -158,14 +156,12 @@ export function EnhancedPositionsSection({
             <Select value={filterValue} onValueChange={setFilterValue}>
               <SelectTrigger className={`w-[200px] transition-colors duration-300 ${
                 theme === 'dark'
-                  ? 'bg-slate-900/50 border-slate-600 hover:border-slate-500'
-                  : 'bg-gray-50 border-gray-300 hover:border-gray-400'
+                  ? 'bg-primary/50 border-slate-600 hover:border-slate-500'
+                  : 'bg-primary border-gray-300 hover:border-gray-400'
               }`}>
                 <SelectValue placeholder={`Select ${filterBy}...`} />
               </SelectTrigger>
-              <SelectContent className={`${
-                theme === 'dark' ? 'bg-slate-800 border-slate-700' : 'bg-white border-gray-200'
-              }`}>
+              <SelectContent className="themed-card">
                 <SelectItem value="all">All {filterBy}s</SelectItem>
                 {filterOptions.map(option => (
                   <SelectItem key={option} value={option}>{option}</SelectItem>
@@ -178,14 +174,12 @@ export function EnhancedPositionsSection({
           <Select value={sortBy} onValueChange={(v: any) => setSortBy(v)}>
             <SelectTrigger className={`w-[180px] transition-colors duration-300 ${
               theme === 'dark'
-                ? 'bg-slate-900/50 border-slate-600 hover:border-slate-500'
-                : 'bg-gray-50 border-gray-300 hover:border-gray-400'
+                ? 'bg-primary/50 border-slate-600 hover:border-slate-500'
+                : 'bg-primary border-gray-300 hover:border-gray-400'
             }`}>
               <SelectValue placeholder="Sort by..." />
             </SelectTrigger>
-            <SelectContent className={`${
-              theme === 'dark' ? 'bg-slate-800 border-slate-700' : 'bg-white border-gray-200'
-            }`}>
+            <SelectContent className="themed-card">
               <SelectItem value="percent_of_equity">% of Portfolio</SelectItem>
               <SelectItem value="symbol">Symbol (A-Z)</SelectItem>
               <SelectItem value="target_return_eoy">Return EOY</SelectItem>
@@ -196,14 +190,12 @@ export function EnhancedPositionsSection({
           <Select value={sortOrder} onValueChange={(v: any) => setSortOrder(v)}>
             <SelectTrigger className={`w-[140px] transition-colors duration-300 ${
               theme === 'dark'
-                ? 'bg-slate-900/50 border-slate-600 hover:border-slate-500'
-                : 'bg-gray-50 border-gray-300 hover:border-gray-400'
+                ? 'bg-primary/50 border-slate-600 hover:border-slate-500'
+                : 'bg-primary border-gray-300 hover:border-gray-400'
             }`}>
               <SelectValue />
             </SelectTrigger>
-            <SelectContent className={`${
-              theme === 'dark' ? 'bg-slate-800 border-slate-700' : 'bg-white border-gray-200'
-            }`}>
+            <SelectContent className="themed-card">
               <SelectItem value="desc">High to Low</SelectItem>
               <SelectItem value="asc">Low to High</SelectItem>
             </SelectContent>

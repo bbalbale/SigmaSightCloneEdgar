@@ -74,7 +74,7 @@ export function SimplifiedPositionCard({
     <div
       className={`border rounded p-3 cursor-pointer transition-all duration-200 ${
         theme === 'dark'
-          ? 'bg-slate-900/50 border-slate-700/50 hover:bg-slate-800/50'
+          ? 'bg-primary/50 border-primary/50 hover:bg-slate-800/50'
           : 'bg-white border-slate-300 hover:bg-slate-50'
       } ${isDragOver ? 'ring-2 ring-blue-400 border-blue-400' : ''}`}
       onClick={onClick}
@@ -102,7 +102,7 @@ export function SimplifiedPositionCard({
       </div>
 
       {/* Details */}
-      <div className="text-xs text-slate-500">
+      <div className="text-xs text-tertiary">
         {quantity} {quantity === 1 ? 'share' : 'shares'} | {positionType}
         {sector && ` | ${sector}`}
       </div>
@@ -124,7 +124,7 @@ export function SimplifiedPositionCard({
             </span>
           ))}
           {position.tags.length > 3 && (
-            <span className="text-[10px] px-2 py-0.5 rounded text-slate-500">
+            <span className="text-[10px] px-2 py-0.5 rounded text-tertiary">
               +{position.tags.length - 3} more
             </span>
           )}

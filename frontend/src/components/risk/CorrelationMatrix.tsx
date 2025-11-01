@@ -18,7 +18,7 @@ export function CorrelationMatrix({ data, loading, error, onRetry }: Correlation
   const getCorrelationColor = (value: number): string => {
     if (value >= 0.7) return theme === 'dark' ? 'bg-green-900/50 text-green-200' : 'bg-green-100 text-green-800'
     if (value >= 0.3) return theme === 'dark' ? 'bg-green-800/30 text-green-300' : 'bg-green-50 text-green-700'
-    if (value > -0.3) return theme === 'dark' ? 'bg-slate-700/50 text-slate-300' : 'bg-gray-50 text-gray-700'
+    if (value > -0.3) return theme === 'dark' ? 'bg-slate-700/50 text-primary' : 'bg-primary text-primary'
     if (value > -0.7) return theme === 'dark' ? 'bg-red-800/30 text-red-300' : 'bg-red-50 text-red-700'
     return theme === 'dark' ? 'bg-red-900/50 text-red-200' : 'bg-red-100 text-red-800'
   }
@@ -26,20 +26,14 @@ export function CorrelationMatrix({ data, loading, error, onRetry }: Correlation
   // Loading state
   if (loading) {
     return (
-      <div className={`rounded-lg border p-8 transition-colors duration-300 ${
-        theme === 'dark'
-          ? 'bg-slate-800 border-slate-700'
-          : 'bg-white border-gray-200'
-      }`}>
+      <div className="rounded-lg border p-8 transition-colors duration-300 themed-card">
         <h2 className={`text-2xl font-bold mb-4 ${
           theme === 'dark' ? 'text-white' : 'text-gray-900'
         }`}>
           Correlation Matrix
         </h2>
         <div className="flex items-center justify-center py-12">
-          <div className={`text-center ${
-            theme === 'dark' ? 'text-slate-400' : 'text-gray-600'
-          }`}>
+          <div className="text-center text-secondary">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-current mx-auto mb-4"></div>
             <p>Loading correlation matrix...</p>
           </div>
@@ -51,11 +45,7 @@ export function CorrelationMatrix({ data, loading, error, onRetry }: Correlation
   // Error state
   if (error) {
     return (
-      <div className={`rounded-lg border p-8 transition-colors duration-300 ${
-        theme === 'dark'
-          ? 'bg-slate-800 border-slate-700'
-          : 'bg-white border-gray-200'
-      }`}>
+      <div className="rounded-lg border p-8 transition-colors duration-300 themed-card">
         <h2 className={`text-2xl font-bold mb-4 ${
           theme === 'dark' ? 'text-white' : 'text-gray-900'
         }`}>
@@ -87,11 +77,7 @@ export function CorrelationMatrix({ data, loading, error, onRetry }: Correlation
   // Data not available
   if (!data?.available || !data?.data) {
     return (
-      <div className={`rounded-lg border p-8 transition-colors duration-300 ${
-        theme === 'dark'
-          ? 'bg-slate-800 border-slate-700'
-          : 'bg-white border-gray-200'
-      }`}>
+      <div className="rounded-lg border p-8 transition-colors duration-300 themed-card">
         <h2 className={`text-2xl font-bold mb-4 ${
           theme === 'dark' ? 'text-white' : 'text-gray-900'
         }`}>
@@ -99,8 +85,8 @@ export function CorrelationMatrix({ data, loading, error, onRetry }: Correlation
         </h2>
         <div className={`rounded-lg border p-6 text-center ${
           theme === 'dark'
-            ? 'bg-slate-700/50 border-slate-600 text-slate-300'
-            : 'bg-gray-50 border-gray-200 text-gray-600'
+            ? 'bg-slate-700/50 border-slate-600 text-primary'
+            : 'bg-primary border-primary text-secondary'
         }`}>
           <p>Correlation matrix is not available</p>
           {data?.reason && (
@@ -115,11 +101,7 @@ export function CorrelationMatrix({ data, loading, error, onRetry }: Correlation
   const symbols = Object.keys(data.data.matrix)
 
   return (
-    <div className={`rounded-lg border p-8 transition-colors duration-300 ${
-      theme === 'dark'
-        ? 'bg-slate-800 border-slate-700'
-        : 'bg-white border-gray-200'
-    }`}>
+    <div className="rounded-lg border p-8 transition-colors duration-300 themed-card">
       <div className="mb-6">
         <h2 className={`text-2xl font-bold mb-2 ${
           theme === 'dark' ? 'text-white' : 'text-gray-900'
@@ -129,9 +111,7 @@ export function CorrelationMatrix({ data, loading, error, onRetry }: Correlation
 
         {/* Metadata */}
         {data.metadata && (
-          <div className={`flex flex-wrap gap-4 text-sm ${
-            theme === 'dark' ? 'text-slate-400' : 'text-gray-600'
-          }`}>
+          <div className="flex flex-wrap gap-4 text-sm text-secondary">
             <span>
               Positions: <strong className={theme === 'dark' ? 'text-slate-200' : 'text-gray-800'}>
                 {data.metadata.positions_included}
@@ -163,8 +143,8 @@ export function CorrelationMatrix({ data, loading, error, onRetry }: Correlation
             <tr>
               <th className={`sticky left-0 z-10 px-3 py-2 text-left text-xs font-semibold ${
                 theme === 'dark'
-                  ? 'bg-slate-800 text-slate-300 border-slate-600'
-                  : 'bg-white text-gray-700 border-gray-300'
+                  ? 'bg-slate-800 text-primary border-slate-600'
+                  : 'bg-white text-primary border-gray-300'
               } border-b border-r`}>
                 Symbol
               </th>
@@ -173,8 +153,8 @@ export function CorrelationMatrix({ data, loading, error, onRetry }: Correlation
                   key={symbol}
                   className={`px-3 py-2 text-center text-xs font-semibold whitespace-nowrap ${
                     theme === 'dark'
-                      ? 'bg-slate-800 text-slate-300 border-slate-600'
-                      : 'bg-white text-gray-700 border-gray-300'
+                      ? 'bg-slate-800 text-primary border-slate-600'
+                      : 'bg-white text-primary border-gray-300'
                   } border-b`}
                 >
                   {symbol}
@@ -187,8 +167,8 @@ export function CorrelationMatrix({ data, loading, error, onRetry }: Correlation
               <tr key={rowSymbol}>
                 <td className={`sticky left-0 z-10 px-3 py-2 text-xs font-medium whitespace-nowrap ${
                   theme === 'dark'
-                    ? 'bg-slate-800 text-slate-300 border-slate-600'
-                    : 'bg-white text-gray-700 border-gray-300'
+                    ? 'bg-slate-800 text-primary border-slate-600'
+                    : 'bg-white text-primary border-gray-300'
                 } border-r`}>
                   {rowSymbol}
                 </td>
@@ -217,7 +197,7 @@ export function CorrelationMatrix({ data, loading, error, onRetry }: Correlation
 
       {/* Legend */}
       <div className={`mt-6 p-4 rounded-lg ${
-        theme === 'dark' ? 'bg-slate-700/50' : 'bg-gray-50'
+        theme === 'dark' ? 'bg-slate-700/50' : 'bg-primary'
       }`}>
         <h3 className={`text-sm font-semibold mb-2 ${
           theme === 'dark' ? 'text-slate-200' : 'text-gray-800'
@@ -229,7 +209,7 @@ export function CorrelationMatrix({ data, loading, error, onRetry }: Correlation
             <div className={`w-4 h-4 rounded ${
               theme === 'dark' ? 'bg-red-900/50' : 'bg-red-100'
             }`}></div>
-            <span className={theme === 'dark' ? 'text-slate-400' : 'text-gray-600'}>
+            <span className={theme === 'dark' ? 'text-secondary' : 'text-secondary'}>
               Strong Negative (&lt; -0.7)
             </span>
           </div>
@@ -237,15 +217,15 @@ export function CorrelationMatrix({ data, loading, error, onRetry }: Correlation
             <div className={`w-4 h-4 rounded ${
               theme === 'dark' ? 'bg-red-800/30' : 'bg-red-50'
             }`}></div>
-            <span className={theme === 'dark' ? 'text-slate-400' : 'text-gray-600'}>
+            <span className={theme === 'dark' ? 'text-secondary' : 'text-secondary'}>
               Moderate Negative (-0.7 to -0.3)
             </span>
           </div>
           <div className="flex items-center gap-2">
             <div className={`w-4 h-4 rounded ${
-              theme === 'dark' ? 'bg-slate-700/50' : 'bg-gray-50'
+              theme === 'dark' ? 'bg-slate-700/50' : 'bg-primary'
             }`}></div>
-            <span className={theme === 'dark' ? 'text-slate-400' : 'text-gray-600'}>
+            <span className={theme === 'dark' ? 'text-secondary' : 'text-secondary'}>
               Weak (-0.3 to 0.3)
             </span>
           </div>
@@ -253,7 +233,7 @@ export function CorrelationMatrix({ data, loading, error, onRetry }: Correlation
             <div className={`w-4 h-4 rounded ${
               theme === 'dark' ? 'bg-green-800/30' : 'bg-green-50'
             }`}></div>
-            <span className={theme === 'dark' ? 'text-slate-400' : 'text-gray-600'}>
+            <span className={theme === 'dark' ? 'text-secondary' : 'text-secondary'}>
               Moderate Positive (0.3 to 0.7)
             </span>
           </div>
@@ -261,7 +241,7 @@ export function CorrelationMatrix({ data, loading, error, onRetry }: Correlation
             <div className={`w-4 h-4 rounded ${
               theme === 'dark' ? 'bg-green-900/50' : 'bg-green-100'
             }`}></div>
-            <span className={theme === 'dark' ? 'text-slate-400' : 'text-gray-600'}>
+            <span className={theme === 'dark' ? 'text-secondary' : 'text-secondary'}>
               Strong Positive (&gt; 0.7)
             </span>
           </div>
@@ -269,7 +249,7 @@ export function CorrelationMatrix({ data, loading, error, onRetry }: Correlation
             <div className={`w-4 h-4 rounded ${
               theme === 'dark' ? 'bg-blue-900/30' : 'bg-blue-50'
             }`}></div>
-            <span className={theme === 'dark' ? 'text-slate-400' : 'text-gray-600'}>
+            <span className={theme === 'dark' ? 'text-secondary' : 'text-secondary'}>
               Self Correlation (1.0)
             </span>
           </div>

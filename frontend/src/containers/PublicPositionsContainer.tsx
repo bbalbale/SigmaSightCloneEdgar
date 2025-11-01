@@ -116,14 +116,10 @@ export function PublicPositionsContainer() {
 
   if (loading && !longPositions.length && !shortPositions.length) {
     return (
-      <div className={`min-h-screen flex items-center justify-center transition-colors duration-300 ${
-        theme === 'dark' ? 'bg-slate-900' : 'bg-gray-50'
-      }`}>
+      <div className="min-h-screen flex items-center justify-center transition-colors duration-300 bg-primary">
         <div className="text-center">
           <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mb-4"></div>
-          <p className={`text-lg font-medium transition-colors duration-300 ${
-            theme === 'dark' ? 'text-slate-400' : 'text-gray-600'
-          }`}>
+          <p className="text-lg font-medium transition-colors duration-300 text-secondary">
             Loading positions...
           </p>
         </div>
@@ -133,9 +129,7 @@ export function PublicPositionsContainer() {
 
   if (error) {
     return (
-      <div className={`min-h-screen transition-colors duration-300 ${
-        theme === 'dark' ? 'bg-slate-900' : 'bg-gray-50'
-      }`}>
+      <div className="min-h-screen transition-colors duration-300 bg-primary">
         <section className="px-6 py-12">
           <div className="max-w-7xl mx-auto">
             <div className={`rounded-xl border p-8 transition-all duration-300 ${
@@ -168,9 +162,7 @@ export function PublicPositionsContainer() {
   ]
 
   return (
-    <div className={`min-h-screen transition-colors duration-300 ${
-      theme === 'dark' ? 'bg-slate-900' : 'bg-gray-50'
-    }`}>
+    <div className="min-h-screen transition-colors duration-300 bg-primary">
       {/* Header */}
       <section className="px-4 py-8">
         <div className="container mx-auto">
@@ -179,9 +171,7 @@ export function PublicPositionsContainer() {
           }`}>
             Public Positions
           </h1>
-          <p className={`transition-colors duration-300 ${
-            theme === 'dark' ? 'text-slate-400' : 'text-gray-600'
-          }`}>
+          <p className="transition-colors duration-300 text-secondary">
             Deep analysis with price targets, analyst estimates, and forward projections
           </p>
         </div>
@@ -203,8 +193,8 @@ export function PublicPositionsContainer() {
                         ? 'bg-blue-600 text-white'
                         : 'bg-blue-500 text-white'
                       : theme === 'dark'
-                      ? 'bg-slate-800 text-slate-300 hover:bg-slate-700'
-                      : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-200'
+                      ? 'bg-slate-800 text-primary hover:bg-slate-700'
+                      : 'bg-white text-primary hover:bg-primary border border-primary'
                   }`}
                 >
                   {filter.label} ({filter.count})
@@ -215,14 +205,8 @@ export function PublicPositionsContainer() {
             {/* Portfolio Aggregate Cards - Right Side (always visible) */}
             <div className="flex gap-3">
               {/* EOY Return Card */}
-              <div className={`rounded-lg border px-4 py-3 min-w-[180px] transition-all duration-300 ${
-                theme === 'dark'
-                  ? 'bg-slate-800 border-slate-700'
-                  : 'bg-white border-gray-200'
-              }`}>
-                <p className={`text-xs mb-1 transition-colors duration-300 ${
-                  theme === 'dark' ? 'text-slate-400' : 'text-gray-600'
-                }`}>
+              <div className="rounded-lg border px-4 py-3 min-w-[180px] transition-all duration-300 themed-card">
+                <p className="text-xs mb-1 transition-colors duration-300 text-secondary">
                   Portfolio Return EOY
                 </p>
                 <p className={`text-xl font-bold transition-colors duration-300 ${
@@ -235,14 +219,8 @@ export function PublicPositionsContainer() {
               </div>
 
               {/* Next Year Return Card */}
-              <div className={`rounded-lg border px-4 py-3 min-w-[180px] transition-all duration-300 ${
-                theme === 'dark'
-                  ? 'bg-slate-800 border-slate-700'
-                  : 'bg-white border-gray-200'
-              }`}>
-                <p className={`text-xs mb-1 transition-colors duration-300 ${
-                  theme === 'dark' ? 'text-slate-400' : 'text-gray-600'
-                }`}>
+              <div className="rounded-lg border px-4 py-3 min-w-[180px] transition-all duration-300 themed-card">
+                <p className="text-xs mb-1 transition-colors duration-300 text-secondary">
                   Portfolio Return Next Year
                 </p>
                 <p className={`text-xl font-bold transition-colors duration-300 ${

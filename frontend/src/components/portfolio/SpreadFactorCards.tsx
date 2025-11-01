@@ -35,7 +35,7 @@ const formatCurrency = (value: number) => {
 
 // Skeleton card for loading state
 const SkeletonCard = () => (
-  <div className="bg-white rounded-lg border border-gray-200 p-4 animate-pulse">
+  <div className="bg-white rounded-lg border border-primary p-4 animate-pulse">
     <div className="h-4 bg-gray-200 rounded w-32 mb-3"></div>
     <div className="h-6 bg-gray-200 rounded w-20 mb-2"></div>
     <div className="flex gap-2 mb-3">
@@ -58,9 +58,9 @@ const SpreadFactorCard = ({ factor }: { factor: SpreadFactor }) => {
   }
 
   return (
-    <div className={`rounded-lg border p-4 transition-all duration-200 hover:shadow-lg cursor-pointer bg-white hover:scale-[1.02]`}>
+    <div className="rounded-lg border p-4 transition-all duration-200 hover:shadow-lg cursor-pointer bg-white hover:scale-[1.02]">
       {/* Header with factor name */}
-      <div className="text-sm font-semibold text-gray-700 mb-2">
+      <div className="text-sm font-semibold text-primary mb-2">
         {getShortName(factor.name)}
       </div>
 
@@ -81,13 +81,13 @@ const SpreadFactorCard = ({ factor }: { factor: SpreadFactor }) => {
 
       {/* Dollar exposure if available */}
       {factor.exposure_dollar && (
-        <div className="text-xs text-gray-500 mb-2 font-mono">
+        <div className="text-xs text-tertiary mb-2 font-mono">
           {formatCurrency(factor.exposure_dollar)}
         </div>
       )}
 
       {/* Explanation text */}
-      <div className="text-xs text-gray-600 leading-relaxed line-clamp-3" title={factor.explanation}>
+      <div className="text-xs text-secondary leading-relaxed line-clamp-3" title={factor.explanation}>
         {factor.explanation}
       </div>
 
@@ -120,8 +120,8 @@ export const SpreadFactorCards: React.FC<SpreadFactorCardsProps> = ({
       <section className="px-4 pb-6">
         <div className="container mx-auto">
           <div className="flex items-center justify-between mb-3">
-            <h3 className="text-sm font-medium text-gray-600">Spread Factor Exposures</h3>
-            <span className="text-xs text-gray-500">180-day regression analysis</span>
+            <h3 className="text-sm font-medium text-secondary">Spread Factor Exposures</h3>
+            <span className="text-xs text-tertiary">180-day regression analysis</span>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             {SPREAD_FACTOR_ORDER.map((_, index) => (
@@ -139,8 +139,8 @@ export const SpreadFactorCards: React.FC<SpreadFactorCardsProps> = ({
       <section className="px-4 pb-6">
         <div className="container mx-auto">
           <div className="flex items-center justify-between mb-3">
-            <h3 className="text-sm font-medium text-gray-600">Spread Factor Exposures</h3>
-            <span className="text-xs text-gray-500">180-day regression analysis</span>
+            <h3 className="text-sm font-medium text-secondary">Spread Factor Exposures</h3>
+            <span className="text-xs text-tertiary">180-day regression analysis</span>
           </div>
           <div className="bg-red-50 border border-red-200 rounded-lg p-4">
             <p className="text-red-600 text-sm">
@@ -158,11 +158,11 @@ export const SpreadFactorCards: React.FC<SpreadFactorCardsProps> = ({
       <section className="px-4 pb-6">
         <div className="container mx-auto">
           <div className="flex items-center justify-between mb-3">
-            <h3 className="text-sm font-medium text-gray-600">Spread Factor Exposures</h3>
-            <span className="text-xs text-gray-500">180-day regression analysis</span>
+            <h3 className="text-sm font-medium text-secondary">Spread Factor Exposures</h3>
+            <span className="text-xs text-tertiary">180-day regression analysis</span>
           </div>
-          <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
-            <p className="text-gray-600 text-sm">
+          <div className="bg-primary border border-primary rounded-lg p-4">
+            <p className="text-secondary text-sm">
               Spread factor data not yet available. Run batch calculations to generate spread factors.
             </p>
           </div>
@@ -185,13 +185,13 @@ export const SpreadFactorCards: React.FC<SpreadFactorCardsProps> = ({
       <div className="container mx-auto">
         <div className="flex items-center justify-between mb-3">
           <div>
-            <h3 className="text-sm font-medium text-gray-600">Spread Factor Exposures</h3>
-            <p className="text-xs text-gray-500 mt-0.5">
+            <h3 className="text-sm font-medium text-secondary">Spread Factor Exposures</h3>
+            <p className="text-xs text-tertiary mt-0.5">
               Long-short factors (VUG-VTV, MTUM-SPY, IWM-SPY, QUAL-SPY) · 180-day window
             </p>
           </div>
           <div className="text-right">
-            <span className="text-xs text-gray-500">
+            <span className="text-xs text-tertiary">
               {sortedFactors.length} of {SPREAD_FACTOR_ORDER.length} factors
             </span>
             {calculationDate && (

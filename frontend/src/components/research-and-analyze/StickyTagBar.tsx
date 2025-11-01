@@ -47,14 +47,14 @@ export function StickyTagBar({
         isVisible ? 'translate-y-0' : '-translate-y-full'
       } ${
         theme === 'dark'
-          ? 'bg-slate-900 border-b border-slate-700'
+          ? 'bg-primary border-b border-primary'
           : 'bg-white border-b border-slate-200'
       }`}
     >
       <div className="container mx-auto px-4 py-3">
         <div className="flex items-center gap-2 flex-wrap">
           {/* Tag Label */}
-          <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 mr-2">
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-tertiary mr-2">
             TAGS
           </span>
 
@@ -76,7 +76,7 @@ export function StickyTagBar({
               </div>
             ))
           ) : (
-            <span className={`text-sm ${theme === 'dark' ? 'text-slate-500' : 'text-slate-600'}`}>
+            <span className={`text-sm ${theme === 'dark' ? 'text-tertiary' : 'text-slate-600'}`}>
               No tags yet
             </span>
           )}

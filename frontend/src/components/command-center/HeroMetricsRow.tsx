@@ -1,7 +1,6 @@
 'use client'
 
 import React from 'react'
-import { useTheme } from '@/contexts/ThemeContext'
 
 interface HeroMetricsRowProps {
   metrics: {
@@ -33,31 +32,24 @@ interface MetricCardProps {
   label: string
   value: string
   subValue: string
-  theme: 'dark' | 'light'
   valueColor?: 'positive' | 'negative' | 'neutral'
 }
 
-function MetricCard({ label, value, subValue, theme, valueColor = 'neutral' }: MetricCardProps) {
+function MetricCard({ label, value, subValue, valueColor = 'neutral' }: MetricCardProps) {
   const getValueColor = () => {
     if (valueColor === 'positive') {
-      return theme === 'dark' ? 'text-emerald-400' : 'text-emerald-600'
+      return 'text-emerald-400'
     }
     if (valueColor === 'negative') {
-      return theme === 'dark' ? 'text-red-400' : 'text-red-600'
+      return 'text-red-400'
     }
-    return theme === 'dark' ? 'text-orange-400' : 'text-slate-900'
+    return 'text-accent'
   }
 
   return (
-    <div className={`border-r p-3 transition-all duration-200 hover:bg-opacity-50 ${
-      theme === 'dark'
-        ? 'bg-slate-900/50 border-slate-700/50 hover:bg-slate-800/50'
-        : 'bg-white border-slate-300 hover:bg-slate-50'
-    }`}>
+    <div className="themed-border-r p-3 transition-all duration-200 bg-secondary hover:bg-tertiary">
       {/* Label */}
-      <div className={`text-[10px] font-semibold uppercase tracking-wider mb-1.5 ${
-        theme === 'dark' ? 'text-slate-500' : 'text-slate-500'
-      }`}>
+      <div className="text-[10px] font-semibold uppercase tracking-wider mb-1.5 text-tertiary">
         {label}
       </div>
 
@@ -67,45 +59,31 @@ function MetricCard({ label, value, subValue, theme, valueColor = 'neutral' }: M
       </div>
 
       {/* Secondary Context */}
-      <div className={`text-xs font-medium tabular-nums ${
-        theme === 'dark' ? 'text-slate-500' : 'text-slate-500'
-      }`}>
+      <div className="text-xs font-medium tabular-nums text-tertiary">
         {subValue}
       </div>
     </div>
   )
 }
 
-function LoadingCard({ theme }: { theme: 'dark' | 'light' }) {
+function LoadingCard() {
   return (
-    <div className={`rounded-lg border p-4 animate-pulse transition-colors duration-300 ${
-      theme === 'dark'
-        ? 'bg-slate-900 border-slate-700'
-        : 'bg-slate-50 border-slate-200'
-    }`}>
-      <div className={`h-3 rounded w-24 mb-2 ${
-        theme === 'dark' ? 'bg-slate-700' : 'bg-slate-300'
-      }`}></div>
-      <div className={`h-8 rounded w-32 mb-1 ${
-        theme === 'dark' ? 'bg-slate-700' : 'bg-slate-300'
-      }`}></div>
-      <div className={`h-4 rounded w-20 ${
-        theme === 'dark' ? 'bg-slate-700' : 'bg-slate-300'
-      }`}></div>
+    <div className="themed-card p-4 animate-pulse transition-colors duration-300">
+      <div className="h-3 rounded w-24 mb-2 bg-tertiary"></div>
+      <div className="h-8 rounded w-32 mb-1 bg-tertiary"></div>
+      <div className="h-4 rounded w-20 bg-tertiary"></div>
     </div>
   )
 }
 
 export function HeroMetricsRow({ metrics, loading }: HeroMetricsRowProps) {
-  const { theme } = useTheme()
-
   if (loading) {
     return (
       <section className="px-4 pb-6">
         <div className="container mx-auto">
           <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4">
             {[...Array(6)].map((_, i) => (
-              <LoadingCard key={i} theme={theme} />
+              <LoadingCard key={i} />
             ))}
           </div>
         </div>
@@ -123,18 +101,13 @@ export function HeroMetricsRow({ metrics, loading }: HeroMetricsRowProps) {
   return (
     <section className="px-4 pb-4">
       <div className="container mx-auto">
-        <div className={`border overflow-hidden ${
-          theme === 'dark'
-            ? 'bg-slate-900/30 border-slate-700/50'
-            : 'bg-white border-slate-300'
-        }`}>
+        <div className="themed-border overflow-hidden bg-secondary">
           <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6">
             {/* Equity Balance */}
             <MetricCard
               label="Equity Balance"
               value={formatCurrency(metrics.equityBalance)}
               subValue="Total Value"
-              theme={theme}
               valueColor="neutral"
             />
 
@@ -143,7 +116,6 @@ export function HeroMetricsRow({ metrics, loading }: HeroMetricsRowProps) {
               label="Target Return EOY"
               value={formatPercentage(metrics.targetReturnEOY)}
               subValue="Weighted Avg"
-              theme={theme}
               valueColor={metrics.targetReturnEOY >= 0 ? 'positive' : 'negative'}
             />
 
@@ -152,7 +124,6 @@ export function HeroMetricsRow({ metrics, loading }: HeroMetricsRowProps) {
               label="Gross Exposure"
               value={formatCurrency(metrics.grossExposure)}
               subValue={`${grossPct.toFixed(0)}% NAV`}
-              theme={theme}
               valueColor="neutral"
             />
 
@@ -161,7 +132,6 @@ export function HeroMetricsRow({ metrics, loading }: HeroMetricsRowProps) {
               label="Net Exposure"
               value={formatCurrency(metrics.netExposure)}
               subValue={`${netPct >= 0 ? '+' : ''}${netPct.toFixed(0)}% NAV`}
-              theme={theme}
               valueColor={metrics.netExposure >= 0 ? 'positive' : 'negative'}
             />
 
@@ -170,7 +140,6 @@ export function HeroMetricsRow({ metrics, loading }: HeroMetricsRowProps) {
               label="Long Exposure"
               value={formatCurrency(metrics.longExposure)}
               subValue={`${longPct.toFixed(0)}% NAV`}
-              theme={theme}
               valueColor="neutral"
             />
 
@@ -179,7 +148,6 @@ export function HeroMetricsRow({ metrics, loading }: HeroMetricsRowProps) {
               label="Short Exposure"
               value={metrics.shortExposure < 0 ? `(${formatCurrency(Math.abs(metrics.shortExposure))})` : formatCurrency(metrics.shortExposure)}
               subValue={`${shortPct.toFixed(0)}% NAV`}
-              theme={theme}
               valueColor="neutral"
             />
           </div>

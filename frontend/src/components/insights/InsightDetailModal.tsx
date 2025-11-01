@@ -40,7 +40,7 @@ const severityConfig = {
   warning: { label: 'WARNING', color: 'bg-orange-500 hover:bg-orange-600', textColor: 'text-white', icon: '⚠️' },
   elevated: { label: 'ELEVATED', color: 'bg-yellow-500 hover:bg-yellow-600', textColor: 'text-white', icon: '🟡' },
   normal: { label: 'NORMAL', color: 'bg-blue-500 hover:bg-blue-600', textColor: 'text-white', icon: '🔵' },
-  info: { label: 'INFO', color: 'bg-gray-500 hover:bg-gray-600', textColor: 'text-white', icon: 'ℹ️' },
+  info: { label: 'INFO', color: 'bg-primary0 hover:bg-gray-600', textColor: 'text-white', icon: 'ℹ️' },
 }
 
 /**
@@ -294,7 +294,7 @@ export function InsightDetailModal({
                   className={`h-7 w-7 ${
                     star <= rating
                       ? 'fill-yellow-400 text-yellow-400'
-                      : 'text-gray-300 dark:text-gray-600'
+                      : 'text-gray-300 dark:text-secondary'
                   }`}
                 />
               </button>

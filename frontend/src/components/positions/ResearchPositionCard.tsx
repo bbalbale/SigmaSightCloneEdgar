@@ -184,13 +184,13 @@ export function ResearchPositionCard({ position, onClick, onTargetPriceUpdate }:
       onClick={onClick}
       className={`group relative overflow-hidden rounded-lg border transition-all duration-300 ${
         theme === 'dark'
-          ? 'bg-slate-800/50 border-slate-700/50 hover:border-slate-600 hover:shadow-lg hover:shadow-slate-900/50'
-          : 'bg-white border-gray-200 hover:border-gray-300 hover:shadow-lg hover:shadow-gray-200/50'
+          ? 'bg-slate-800/50 border-primary/50 hover:border-slate-600 hover:shadow-lg hover:shadow-slate-900/50'
+          : 'themed-card hover:border-gray-300 hover:shadow-lg hover:shadow-gray-200/50'
       } ${onClick ? 'cursor-pointer' : ''}`}
     >
       {/* Header Section */}
       <div className={`border-b px-4 py-3 transition-colors duration-300 ${
-        theme === 'dark' ? 'border-slate-700/50' : 'border-gray-100'
+        theme === 'dark' ? 'border-primary/50' : 'border-gray-100'
       }`}>
         <div className="flex items-start justify-between">
           <div className="flex-1">
@@ -202,14 +202,14 @@ export function ResearchPositionCard({ position, onClick, onTargetPriceUpdate }:
                   {position.symbol}
                 </h3>
                 <div className={`text-xs transition-colors duration-300 ${
-                  theme === 'dark' ? 'text-slate-400' : 'text-gray-500'
+                  theme === 'dark' ? 'text-secondary' : 'text-tertiary'
                 }`}>
                   {position.company_name || position.symbol}
                 </div>
               </div>
               {position.percent_of_equity !== undefined && (
                 <span className={`text-xs font-medium transition-colors duration-300 ${
-                  theme === 'dark' ? 'text-slate-400' : 'text-gray-500'
+                  theme === 'dark' ? 'text-secondary' : 'text-tertiary'
                 }`}>
                   {position.percent_of_equity.toFixed(2)}% of equity
                 </span>
@@ -230,7 +230,7 @@ export function ResearchPositionCard({ position, onClick, onTargetPriceUpdate }:
           <div className="flex gap-4 ml-4">
             <div className="text-right">
               <div className={`text-xs font-medium mb-0.5 transition-colors duration-300 ${
-                theme === 'dark' ? 'text-slate-400' : 'text-gray-500'
+                theme === 'dark' ? 'text-secondary' : 'text-tertiary'
               }`}>
                 EOY Target
               </div>
@@ -244,7 +244,7 @@ export function ResearchPositionCard({ position, onClick, onTargetPriceUpdate }:
             </div>
             <div className="text-right">
               <div className={`text-xs font-medium mb-0.5 transition-colors duration-300 ${
-                theme === 'dark' ? 'text-slate-400' : 'text-gray-500'
+                theme === 'dark' ? 'text-secondary' : 'text-tertiary'
               }`}>
                 Next Year
               </div>
@@ -262,14 +262,14 @@ export function ResearchPositionCard({ position, onClick, onTargetPriceUpdate }:
 
       {/* Price & Targets Section */}
       <div className={`border-b px-4 py-3 transition-colors duration-300 ${
-        theme === 'dark' ? 'border-slate-700/50' : 'border-gray-100'
+        theme === 'dark' ? 'border-primary/50' : 'border-gray-100'
       }`}>
         <div className="grid grid-cols-4 gap-6">
           <div className={`p-2 rounded-md transition-colors duration-300 ${
-            theme === 'dark' ? 'bg-slate-900/30' : 'bg-white/50'
+            theme === 'dark' ? 'bg-primary/30' : 'bg-white/50'
           }`}>
             <div className={`text-xs font-medium mb-1.5 transition-colors duration-300 ${
-              theme === 'dark' ? 'text-slate-400' : 'text-gray-500'
+              theme === 'dark' ? 'text-secondary' : 'text-tertiary'
             }`}>
               Current Price
             </div>
@@ -281,10 +281,10 @@ export function ResearchPositionCard({ position, onClick, onTargetPriceUpdate }:
           </div>
 
           <div className={`p-2 rounded-md transition-colors duration-300 ${
-            theme === 'dark' ? 'bg-slate-900/30' : 'bg-white/50'
+            theme === 'dark' ? 'bg-primary/30' : 'bg-white/50'
           }`}>
             <div className={`text-xs font-medium mb-1.5 transition-colors duration-300 ${
-              theme === 'dark' ? 'text-slate-400' : 'text-gray-500'
+              theme === 'dark' ? 'text-secondary' : 'text-tertiary'
             }`}>
               Analyst Target
             </div>
@@ -297,7 +297,7 @@ export function ResearchPositionCard({ position, onClick, onTargetPriceUpdate }:
 
           <div>
             <label className={`text-xs font-medium mb-1.5 block transition-colors duration-300 ${
-              theme === 'dark' ? 'text-slate-400' : 'text-gray-500'
+              theme === 'dark' ? 'text-secondary' : 'text-tertiary'
             }`}>
               Your EOY Target
             </label>
@@ -312,7 +312,7 @@ export function ResearchPositionCard({ position, onClick, onTargetPriceUpdate }:
               disabled={isSaving}
               className={`h-8 text-sm font-semibold tabular-nums transition-colors duration-300 ${
                 theme === 'dark'
-                  ? 'bg-slate-900/50 border-slate-600 focus:border-blue-500 text-white placeholder:text-slate-500'
+                  ? 'bg-primary/50 border-slate-600 focus:border-blue-500 text-white placeholder:text-tertiary'
                   : 'bg-white border-gray-300 focus:border-blue-500 text-gray-900 placeholder:text-gray-400'
               }`}
             />
@@ -320,7 +320,7 @@ export function ResearchPositionCard({ position, onClick, onTargetPriceUpdate }:
 
           <div>
             <label className={`text-xs font-medium mb-1.5 block transition-colors duration-300 ${
-              theme === 'dark' ? 'text-slate-400' : 'text-gray-500'
+              theme === 'dark' ? 'text-secondary' : 'text-tertiary'
             }`}>
               Next Year Target
             </label>
@@ -335,7 +335,7 @@ export function ResearchPositionCard({ position, onClick, onTargetPriceUpdate }:
               disabled={isSaving}
               className={`h-8 text-sm font-semibold tabular-nums transition-colors duration-300 ${
                 theme === 'dark'
-                  ? 'bg-slate-900/50 border-slate-600 focus:border-blue-500 text-white placeholder:text-slate-500'
+                  ? 'bg-primary/50 border-slate-600 focus:border-blue-500 text-white placeholder:text-tertiary'
                   : 'bg-white border-gray-300 focus:border-blue-500 text-gray-900 placeholder:text-gray-400'
               }`}
             />
@@ -348,17 +348,15 @@ export function ResearchPositionCard({ position, onClick, onTargetPriceUpdate }:
         <div className="grid grid-cols-2 gap-6">
           {/* Current Year Metrics */}
           <div>
-            <h4 className={`text-xs font-semibold mb-3 uppercase tracking-wide transition-colors duration-300 ${
-              theme === 'dark' ? 'text-slate-400' : 'text-gray-600'
-            }`}>
+            <h4 className="text-xs font-semibold mb-3 uppercase tracking-wide transition-colors duration-300 text-secondary">
               Current Year
             </h4>
             <div className="grid grid-cols-2 gap-3">
               <div className={`p-3 rounded-lg transition-colors duration-300 ${
-                theme === 'dark' ? 'bg-slate-900/50' : 'bg-gray-50'
+                theme === 'dark' ? 'bg-primary/50' : 'bg-primary'
               }`}>
                 <div className={`text-xs font-medium mb-1 transition-colors duration-300 ${
-                  theme === 'dark' ? 'text-slate-400' : 'text-gray-500'
+                  theme === 'dark' ? 'text-secondary' : 'text-tertiary'
                 }`}>
                   P/E Ratio
                 </div>
@@ -370,10 +368,10 @@ export function ResearchPositionCard({ position, onClick, onTargetPriceUpdate }:
               </div>
 
               <div className={`p-3 rounded-lg transition-colors duration-300 ${
-                theme === 'dark' ? 'bg-slate-900/50' : 'bg-gray-50'
+                theme === 'dark' ? 'bg-primary/50' : 'bg-primary'
               }`}>
                 <div className={`text-xs font-medium mb-1 transition-colors duration-300 ${
-                  theme === 'dark' ? 'text-slate-400' : 'text-gray-500'
+                  theme === 'dark' ? 'text-secondary' : 'text-tertiary'
                 }`}>
                   P/S Ratio
                 </div>
@@ -385,10 +383,10 @@ export function ResearchPositionCard({ position, onClick, onTargetPriceUpdate }:
               </div>
 
               <div className={`p-3 rounded-lg transition-colors duration-300 ${
-                theme === 'dark' ? 'bg-slate-900/50' : 'bg-gray-50'
+                theme === 'dark' ? 'bg-primary/50' : 'bg-primary'
               }`}>
                 <div className={`text-xs font-medium mb-1 transition-colors duration-300 ${
-                  theme === 'dark' ? 'text-slate-400' : 'text-gray-500'
+                  theme === 'dark' ? 'text-secondary' : 'text-tertiary'
                 }`}>
                   EPS
                 </div>
@@ -400,10 +398,10 @@ export function ResearchPositionCard({ position, onClick, onTargetPriceUpdate }:
               </div>
 
               <div className={`p-3 rounded-lg transition-colors duration-300 ${
-                theme === 'dark' ? 'bg-slate-900/50' : 'bg-gray-50'
+                theme === 'dark' ? 'bg-primary/50' : 'bg-primary'
               }`}>
                 <div className={`text-xs font-medium mb-1 transition-colors duration-300 ${
-                  theme === 'dark' ? 'text-slate-400' : 'text-gray-500'
+                  theme === 'dark' ? 'text-secondary' : 'text-tertiary'
                 }`}>
                   Revenue
                 </div>
@@ -418,17 +416,15 @@ export function ResearchPositionCard({ position, onClick, onTargetPriceUpdate }:
 
           {/* Forward Year Metrics */}
           <div>
-            <h4 className={`text-xs font-semibold mb-3 uppercase tracking-wide transition-colors duration-300 ${
-              theme === 'dark' ? 'text-slate-400' : 'text-gray-600'
-            }`}>
+            <h4 className="text-xs font-semibold mb-3 uppercase tracking-wide transition-colors duration-300 text-secondary">
               Forward Year
             </h4>
             <div className="grid grid-cols-2 gap-3">
               <div className={`p-3 rounded-lg transition-colors duration-300 ${
-                theme === 'dark' ? 'bg-slate-900/50' : 'bg-gray-50'
+                theme === 'dark' ? 'bg-primary/50' : 'bg-primary'
               }`}>
                 <div className={`text-xs font-medium mb-1 transition-colors duration-300 ${
-                  theme === 'dark' ? 'text-slate-400' : 'text-gray-500'
+                  theme === 'dark' ? 'text-secondary' : 'text-tertiary'
                 }`}>
                   Fwd P/E
                 </div>
@@ -440,10 +436,10 @@ export function ResearchPositionCard({ position, onClick, onTargetPriceUpdate }:
               </div>
 
               <div className={`p-3 rounded-lg transition-colors duration-300 ${
-                theme === 'dark' ? 'bg-slate-900/50' : 'bg-gray-50'
+                theme === 'dark' ? 'bg-primary/50' : 'bg-primary'
               }`}>
                 <div className={`text-xs font-medium mb-1 transition-colors duration-300 ${
-                  theme === 'dark' ? 'text-slate-400' : 'text-gray-500'
+                  theme === 'dark' ? 'text-secondary' : 'text-tertiary'
                 }`}>
                   Fwd P/S
                 </div>
@@ -455,10 +451,10 @@ export function ResearchPositionCard({ position, onClick, onTargetPriceUpdate }:
               </div>
 
               <div className={`p-3 rounded-lg transition-colors duration-300 ${
-                theme === 'dark' ? 'bg-slate-900/50' : 'bg-gray-50'
+                theme === 'dark' ? 'bg-primary/50' : 'bg-primary'
               }`}>
                 <div className={`text-xs font-medium mb-1 transition-colors duration-300 ${
-                  theme === 'dark' ? 'text-slate-400' : 'text-gray-500'
+                  theme === 'dark' ? 'text-secondary' : 'text-tertiary'
                 }`}>
                   Fwd EPS
                 </div>
@@ -470,10 +466,10 @@ export function ResearchPositionCard({ position, onClick, onTargetPriceUpdate }:
               </div>
 
               <div className={`p-3 rounded-lg transition-colors duration-300 ${
-                theme === 'dark' ? 'bg-slate-900/50' : 'bg-gray-50'
+                theme === 'dark' ? 'bg-primary/50' : 'bg-primary'
               }`}>
                 <div className={`text-xs font-medium mb-1 transition-colors duration-300 ${
-                  theme === 'dark' ? 'text-slate-400' : 'text-gray-500'
+                  theme === 'dark' ? 'text-secondary' : 'text-tertiary'
                 }`}>
                   Fwd Revenue
                 </div>

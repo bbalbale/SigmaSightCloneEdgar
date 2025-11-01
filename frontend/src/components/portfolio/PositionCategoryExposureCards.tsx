@@ -48,9 +48,7 @@ const formatCount = (count: number) => {
 const SkeletonCard = () => {
   const { theme } = useTheme()
   return (
-    <Card className={`transition-colors duration-300 ${
-      theme === 'dark' ? 'bg-slate-800 border-slate-700' : 'bg-white border-gray-200'
-    }`}>
+    <Card className="transition-colors duration-300 themed-card">
       <CardContent className="p-4 animate-pulse">
         <div className="h-3 bg-gray-200 rounded w-20 mb-2"></div>
         <div className="h-6 bg-gray-200 rounded w-16 mb-1"></div>
@@ -80,14 +78,10 @@ const CategoryCard: React.FC<CategoryCardProps> = ({
   const { theme } = useTheme()
 
   return (
-    <Card className={`transition-colors duration-300 ${
-      theme === 'dark' ? 'bg-slate-800 border-slate-700' : 'bg-white border-gray-200'
-    }`}>
+    <Card className="transition-colors duration-300 themed-card">
       <CardContent className="p-4">
         <div className="flex items-center justify-between mb-2">
-          <div className={`text-xs transition-colors duration-300 ${
-            theme === 'dark' ? 'text-slate-400' : 'text-gray-600'
-          }`}>
+          <div className="text-xs transition-colors duration-300 text-secondary">
             {label}
           </div>
         </div>
@@ -96,14 +90,10 @@ const CategoryCard: React.FC<CategoryCardProps> = ({
         }`}>
           {formatCurrency(exposure)}
         </div>
-        <div className={`text-sm mb-1 transition-colors duration-300 ${
-          theme === 'dark' ? 'text-slate-300' : 'text-gray-700'
-        }`}>
+        <div className="text-sm mb-1 transition-colors duration-300 text-primary">
           {formatCount(count)}
         </div>
-        <div className={`text-xs transition-colors duration-300 ${
-          theme === 'dark' ? 'text-slate-500' : 'text-gray-500'
-        }`}>
+        <div className="text-xs transition-colors duration-300 text-tertiary">
           {percentOfEquity.toFixed(1)}% of Equity
         </div>
       </CardContent>

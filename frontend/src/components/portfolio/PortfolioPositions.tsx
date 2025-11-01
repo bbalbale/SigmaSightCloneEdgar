@@ -67,7 +67,7 @@ export function PortfolioPositions({
                   theme === 'dark' ? 'text-white' : 'text-gray-900'
                 }`}>Longs</h3>
                 <Badge variant="secondary" className={`transition-colors duration-300 ${
-                  theme === 'dark' ? 'bg-slate-700 text-slate-300' : 'bg-gray-200 text-gray-700'
+                  theme === 'dark' ? 'bg-slate-700 text-primary' : 'bg-gray-200 text-primary'
                 }`}>
                   {publicLongs.length}
                 </Badge>
@@ -82,7 +82,7 @@ export function PortfolioPositions({
                   theme === 'dark' ? 'text-white' : 'text-gray-900'
                 }`}>Shorts</h3>
                 <Badge variant="secondary" className={`transition-colors duration-300 ${
-                  theme === 'dark' ? 'bg-slate-700 text-slate-300' : 'bg-gray-200 text-gray-700'
+                  theme === 'dark' ? 'bg-slate-700 text-primary' : 'bg-gray-200 text-primary'
                 }`}>
                   {publicShorts.length}
                 </Badge>
@@ -97,7 +97,7 @@ export function PortfolioPositions({
                   theme === 'dark' ? 'text-white' : 'text-gray-900'
                 }`}>Private Investments</h3>
                 <Badge variant="secondary" className={`transition-colors duration-300 ${
-                  theme === 'dark' ? 'bg-slate-700 text-slate-300' : 'bg-gray-200 text-gray-700'
+                  theme === 'dark' ? 'bg-slate-700 text-primary' : 'bg-gray-200 text-primary'
                 }`}>
                   {privatePositions.length}
                 </Badge>
@@ -115,7 +115,7 @@ export function PortfolioPositions({
                   theme === 'dark' ? 'text-white' : 'text-gray-900'
                 }`}>Long Options</h3>
                 <Badge variant="secondary" className={`transition-colors duration-300 ${
-                  theme === 'dark' ? 'bg-slate-700 text-slate-300' : 'bg-gray-200 text-gray-700'
+                  theme === 'dark' ? 'bg-slate-700 text-primary' : 'bg-gray-200 text-primary'
                 }`}>
                   {optionLongs.length}
                 </Badge>
@@ -130,7 +130,7 @@ export function PortfolioPositions({
                   theme === 'dark' ? 'text-white' : 'text-gray-900'
                 }`}>Short Options</h3>
                 <Badge variant="secondary" className={`transition-colors duration-300 ${
-                  theme === 'dark' ? 'bg-slate-700 text-slate-300' : 'bg-gray-200 text-gray-700'
+                  theme === 'dark' ? 'bg-slate-700 text-primary' : 'bg-gray-200 text-primary'
                 }`}>
                   {optionShorts.length}
                 </Badge>

@@ -109,7 +109,7 @@ export function usePositionCorrelations(positionSymbol: string): PositionCorrela
       }))
       .filter(c => c.symbol !== positionSymbol) // Exclude self (correlation = 1.0)
       .sort((a, b) => Math.abs(b.correlation) - Math.abs(a.correlation)) // Sort by strength
-      .slice(0, 5) // Top 5
+      .slice(0, 3) // Top 3 only (as per spec)
 
     // Calculate concentration risk
     const highCorrelations = positionCorrelations.filter(
@@ -153,7 +153,7 @@ export function usePositionCorrelations(positionSymbol: string): PositionCorrela
   return {
     ...result,
     loading: matrixLoading || result.loading,
-    error: matrixError || result.error
+    error: matrixError || result.error || null
   }
 }
 

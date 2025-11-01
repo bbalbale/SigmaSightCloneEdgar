@@ -66,7 +66,7 @@ export function PortfolioSelectionDialog({ trigger }: PortfolioSelectionDialogPr
           {portfolioTypes.map((type) => (
             <Card 
               key={type.id}
-              className="cursor-pointer hover:bg-gray-50 transition-colors"
+              className="cursor-pointer hover:bg-primary transition-colors"
               onClick={() => handlePortfolioSelect(type.id)}
             >
               <CardContent className="p-4">
@@ -83,7 +83,7 @@ export function PortfolioSelectionDialog({ trigger }: PortfolioSelectionDialogPr
                     Select
                   </Button>
                 </div>
-                <p className="text-gray-600 text-sm mb-3">{type.description}</p>
+                <p className="text-secondary text-sm mb-3">{type.description}</p>
                 <div className="flex flex-wrap gap-2">
                   {type.features.map((feature, index) => (
                     <span 

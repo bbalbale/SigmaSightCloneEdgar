@@ -38,13 +38,13 @@ export function VolatilityMetrics({
   const getTrendIcon = () => {
     if (volTrend === 'increasing') return <TrendingUp className="h-5 w-5 text-red-500" />
     if (volTrend === 'decreasing') return <TrendingDown className="h-5 w-5 text-green-500" />
-    return <Minus className="h-5 w-5 text-gray-500" />
+    return <Minus className="h-5 w-5 text-tertiary" />
   }
 
   const getTrendColor = () => {
     if (volTrend === 'increasing') return 'text-red-500'
     if (volTrend === 'decreasing') return 'text-green-500'
-    return 'text-gray-500'
+    return 'text-tertiary'
   }
 
   const getVolatilityLevel = (vol: number): string => {
@@ -69,9 +69,7 @@ export function VolatilityMetrics({
   }
 
   return (
-    <Card className={`transition-colors duration-300 ${
-      theme === 'dark' ? 'bg-slate-800 border-slate-700' : 'bg-white border-gray-200'
-    }`}>
+    <Card className="transition-colors duration-300 themed-card">
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <span className={theme === 'dark' ? 'text-white' : 'text-gray-900'}>
@@ -80,7 +78,7 @@ export function VolatilityMetrics({
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger>
-                <Info className={`h-4 w-4 ${theme === 'dark' ? 'text-slate-400' : 'text-gray-500'}`} />
+                <Info className={`h-4 w-4 ${theme === 'dark' ? 'text-secondary' : 'text-tertiary'}`} />
               </TooltipTrigger>
               <TooltipContent>
                 <p>Historical and forecasted portfolio volatility.</p>
@@ -95,9 +93,7 @@ export function VolatilityMetrics({
           {/* Current Volatility */}
           <div>
             <div className="flex justify-between items-center mb-1">
-              <span className={`text-sm font-medium ${
-                theme === 'dark' ? 'text-slate-300' : 'text-gray-700'
-              }`}>
+              <span className="text-sm font-medium text-primary">
                 Current (21-day)
               </span>
               <span className={`text-2xl font-bold ${
@@ -106,22 +102,16 @@ export function VolatilityMetrics({
                 {(realizedVol21d * 100).toFixed(1)}%
               </span>
             </div>
-            <p className={`text-xs ${
-              theme === 'dark' ? 'text-slate-500' : 'text-gray-500'
-            }`}>
+            <p className="text-xs text-tertiary">
               {getVolatilityLevel(realizedVol21d)} volatility
             </p>
           </div>
 
           {/* Historical Windows */}
           {realizedVol63d !== null && (
-            <div className={`grid grid-cols-1 gap-4 py-2 border-t ${
-              theme === 'dark' ? 'border-slate-700' : 'border-gray-200'
-            }`}>
+            <div className="grid grid-cols-1 gap-4 py-2 border-t border-primary">
               <div>
-                <p className={`text-xs ${
-                  theme === 'dark' ? 'text-slate-400' : 'text-gray-600'
-                }`}>
+                <p className="text-xs text-secondary">
                   63-day (~3 months)
                 </p>
                 <p className={`text-sm font-medium ${
@@ -135,13 +125,9 @@ export function VolatilityMetrics({
 
           {/* Expected Volatility */}
           {expectedVol21d !== null && (
-            <div className={`border-t pt-4 ${
-              theme === 'dark' ? 'border-slate-700' : 'border-gray-200'
-            }`}>
+            <div className="border-t pt-4 border-primary">
               <div className="flex justify-between items-center mb-1">
-                <span className={`text-sm font-medium ${
-                  theme === 'dark' ? 'text-slate-300' : 'text-gray-700'
-                }`}>
+                <span className="text-sm font-medium text-primary">
                   Expected (21-day forecast)
                 </span>
                 <span className={`text-lg font-semibold ${
@@ -150,9 +136,7 @@ export function VolatilityMetrics({
                   {(expectedVol21d * 100).toFixed(1)}%
                 </span>
               </div>
-              <p className={`text-xs ${
-                theme === 'dark' ? 'text-slate-500' : 'text-gray-500'
-              }`}>
+              <p className="text-xs text-tertiary">
                 HAR model forecast
               </p>
             </div>
@@ -170,9 +154,7 @@ export function VolatilityMetrics({
                 </span>
               </div>
               {volPercentile !== null && (
-                <span className={`text-xs ${
-                  theme === 'dark' ? 'text-slate-400' : 'text-gray-600'
-                }`}>
+                <span className="text-xs text-secondary">
                   {getPercentileDescription(volPercentile)}
                 </span>
               )}
@@ -183,12 +165,10 @@ export function VolatilityMetrics({
           {volPercentile !== null && (
             <div>
               <div className="flex justify-between text-xs mb-1">
-                <span className={theme === 'dark' ? 'text-slate-400' : 'text-gray-600'}>
+                <span className={theme === 'dark' ? 'text-secondary' : 'text-secondary'}>
                   Volatility Percentile
                 </span>
-                <span className={`font-medium ${
-                  theme === 'dark' ? 'text-slate-300' : 'text-gray-700'
-                }`}>
+                <span className="font-medium text-primary">
                   {(volPercentile * 100).toFixed(0)}th
                 </span>
               </div>
@@ -200,9 +180,7 @@ export function VolatilityMetrics({
                   style={{ width: `${volPercentile * 100}%` }}
                 />
               </div>
-              <p className={`text-xs mt-1 ${
-                theme === 'dark' ? 'text-slate-500' : 'text-gray-500'
-              }`}>
+              <p className="text-xs mt-1 text-tertiary">
                 vs. 1-year historical distribution
               </p>
             </div>

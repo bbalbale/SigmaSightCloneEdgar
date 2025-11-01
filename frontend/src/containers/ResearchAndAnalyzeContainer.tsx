@@ -1,9 +1,11 @@
 'use client'
 
-import React, { useMemo } from 'react'
+import React, { useMemo, useEffect } from 'react'
 import { useTheme } from '@/contexts/ThemeContext'
 import { useResearchStore } from '@/stores/researchStore'
+import { usePortfolioStore } from '@/stores/portfolioStore'
 import { useResearchPageData } from '@/hooks/useResearchPageData'
+import { analyticsApi } from '@/services/analyticsApi'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Sheet, SheetContent } from '@/components/ui/sheet'
 import { SimplifiedPositionCard } from '@/components/research-and-analyze/SimplifiedPositionCard'
@@ -18,6 +20,9 @@ import tagsApi from '@/services/tagsApi'
 export function ResearchAndAnalyzeContainer() {
   const { theme } = useTheme()
 
+  // Portfolio ID
+  const { portfolioId } = usePortfolioStore()
+
   // Zustand store state
   const activeTab = useResearchStore((state) => state.activeTab)
   const setActiveTab = useResearchStore((state) => state.setActiveTab)
@@ -30,6 +35,11 @@ export function ResearchAndAnalyzeContainer() {
   const clearFilters = useResearchStore((state) => state.clearFilters)
   const addOptimisticTag = useResearchStore((state) => state.addOptimisticTag)
 
+  // Correlation matrix state and actions
+  const setCorrelationMatrix = useResearchStore((state) => state.setCorrelationMatrix)
+  const setCorrelationMatrixLoading = useResearchStore((state) => state.setCorrelationMatrixLoading)
+  const setCorrelationMatrixError = useResearchStore((state) => state.setCorrelationMatrixError)
+
   // Data fetching
   const {
     publicPositions,
@@ -41,6 +51,42 @@ export function ResearchAndAnalyzeContainer() {
   } = useResearchPageData()
 
   const { restoreSectorTags, loading: restoringTags } = useRestoreSectorTags()
+
+  // Fetch correlation matrix once on mount and store in Zustand
+  useEffect(() => {
+    const fetchCorrelationMatrix = async () => {
+      if (!portfolioId) {
+        console.log('🔍 Correlation Matrix: No portfolio ID available')
+        setCorrelationMatrixError('No portfolio ID available')
+        return
+      }
+
+      try {
+        console.log('🔍 Correlation Matrix: Fetching for portfolio', portfolioId)
+        setCorrelationMatrixLoading(true)
+        setCorrelationMatrixError(null)
+
+        const response = await analyticsApi.getCorrelationMatrix(portfolioId)
+        console.log('🔍 Correlation Matrix: Response received', response)
+        console.log('🔍 Correlation Matrix: Data structure', {
+          hasData: !!response.data,
+          hasSymbols: !!response.data?.position_symbols,
+          hasMatrix: !!response.data?.correlation_matrix,
+          symbolsCount: response.data?.position_symbols?.length,
+          matrixRows: response.data?.correlation_matrix?.length
+        })
+
+        setCorrelationMatrix(response.data)
+        setCorrelationMatrixLoading(false)
+      } catch (err) {
+        console.error('❌ Correlation Matrix: Error fetching', err)
+        setCorrelationMatrixError(err instanceof Error ? err.message : 'Failed to fetch correlation matrix')
+        setCorrelationMatrixLoading(false)
+      }
+    }
+
+    fetchCorrelationMatrix()
+  }, [portfolioId, setCorrelationMatrix, setCorrelationMatrixLoading, setCorrelationMatrixError])
 
   // Get active positions for current tab
   const activePositions = useMemo(() => {
@@ -145,11 +191,9 @@ export function ResearchAndAnalyzeContainer() {
 
   if (loading && !publicPositions.longs.length) {
     return (
-      <div className={`min-h-screen transition-colors duration-300 ${
-        theme === 'dark' ? 'bg-slate-900' : 'bg-gray-50'
-      }`}>
+      <div className="min-h-screen transition-colors duration-300 bg-primary">
         <div className="flex items-center justify-center py-20">
-          <p className="text-slate-400">Loading positions...</p>
+          <p className="text-secondary">Loading positions...</p>
         </div>
       </div>
     )
@@ -157,9 +201,7 @@ export function ResearchAndAnalyzeContainer() {
 
   if (error) {
     return (
-      <div className={`min-h-screen transition-colors duration-300 ${
-        theme === 'dark' ? 'bg-slate-900' : 'bg-gray-50'
-      }`}>
+      <div className="min-h-screen transition-colors duration-300 bg-primary">
         <div className="flex items-center justify-center py-20">
           <p className="text-red-400">Error: {error}</p>
         </div>
@@ -168,12 +210,10 @@ export function ResearchAndAnalyzeContainer() {
   }
 
   return (
-    <div className={`min-h-screen transition-colors duration-300 ${
-      theme === 'dark' ? 'bg-slate-900' : 'bg-gray-50'
-    }`}>
+    <div className="min-h-screen transition-colors duration-300 bg-primary">
       {/* Page Header */}
       <section className={`px-4 py-8 border-b transition-colors duration-300 ${
-        theme === 'dark' ? 'border-slate-700' : 'border-slate-200'
+        theme === 'dark' ? 'border-primary' : 'border-slate-200'
       }`}>
         <div className="container mx-auto">
           <div className="flex items-start justify-between">
@@ -183,9 +223,7 @@ export function ResearchAndAnalyzeContainer() {
               }`}>
                 Research & Analyze
               </h1>
-              <p className={`mt-2 text-lg ${
-                theme === 'dark' ? 'text-slate-400' : 'text-gray-600'
-              }`}>
+              <p className="mt-2 text-lg text-secondary">
                 Position research, target prices, and analysis
               </p>
             </div>

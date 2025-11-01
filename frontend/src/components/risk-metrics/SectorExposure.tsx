@@ -17,16 +17,14 @@ export function SectorExposure({ data, loading, error, onRetry }: SectorExposure
 
   if (loading) {
     return (
-      <Card className={`transition-colors duration-300 ${
-        theme === 'dark' ? 'bg-slate-800 border-slate-700' : 'bg-white border-gray-200'
-      }`}>
+      <Card className="transition-colors duration-300 themed-card">
         <CardHeader>
           <CardTitle className={theme === 'dark' ? 'text-white' : 'text-gray-900'}>
             Sector Exposure vs S&P 500
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className={`text-center py-8 ${theme === 'dark' ? 'text-slate-400' : 'text-gray-600'}`}>
+          <div className="text-center py-8 text-secondary">
             Loading sector exposure data...
           </div>
         </CardContent>
@@ -36,9 +34,7 @@ export function SectorExposure({ data, loading, error, onRetry }: SectorExposure
 
   if (error || !data?.available || !data?.data) {
     return (
-      <Card className={`transition-colors duration-300 ${
-        theme === 'dark' ? 'bg-slate-800 border-slate-700' : 'bg-white border-gray-200'
-      }`}>
+      <Card className="transition-colors duration-300 themed-card">
         <CardHeader>
           <CardTitle className={theme === 'dark' ? 'text-white' : 'text-gray-900'}>
             Sector Exposure vs S&P 500
@@ -46,7 +42,7 @@ export function SectorExposure({ data, loading, error, onRetry }: SectorExposure
         </CardHeader>
         <CardContent>
           <div className="text-center py-8">
-            <p className={`mb-4 ${theme === 'dark' ? 'text-slate-400' : 'text-gray-600'}`}>
+            <p className="mb-4 text-secondary">
               {error || data?.metadata?.error || 'Sector exposure data not available'}
             </p>
             {onRetry && (
@@ -90,16 +86,14 @@ export function SectorExposure({ data, loading, error, onRetry }: SectorExposure
 
   if (classifiedSectors.length === 0 && !hasETFs && !hasUnclassified) {
     return (
-      <Card className={`transition-colors duration-300 ${
-        theme === 'dark' ? 'bg-slate-800 border-slate-700' : 'bg-white border-gray-200'
-      }`}>
+      <Card className="transition-colors duration-300 themed-card">
         <CardHeader>
           <CardTitle className={theme === 'dark' ? 'text-white' : 'text-gray-900'}>
             Sector Exposure vs {benchmarkCode}
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className={`text-center py-8 ${theme === 'dark' ? 'text-slate-400' : 'text-gray-600'}`}>
+          <div className="text-center py-8 text-secondary">
             No sector data available
           </div>
         </CardContent>
@@ -111,14 +105,12 @@ export function SectorExposure({ data, loading, error, onRetry }: SectorExposure
   const maxOverweight = Math.max(...Object.values(over_underweight).map(v => Math.abs(v)))
 
   return (
-    <Card className={`transition-colors duration-300 ${
-      theme === 'dark' ? 'bg-slate-800 border-slate-700' : 'bg-white border-gray-200'
-    }`}>
+    <Card className="transition-colors duration-300 themed-card">
       <CardHeader>
         <CardTitle className={theme === 'dark' ? 'text-white' : 'text-gray-900'}>
           Sector Exposure vs {benchmarkCode}
         </CardTitle>
-        <p className={`text-sm mt-1 ${theme === 'dark' ? 'text-slate-400' : 'text-gray-600'}`}>
+        <p className="text-sm mt-1 text-secondary">
           Portfolio sector allocation compared to benchmark
         </p>
       </CardHeader>
@@ -144,13 +136,11 @@ export function SectorExposure({ data, loading, error, onRetry }: SectorExposure
             }}
           >
             <div className={`flex-1 text-right text-sm font-semibold ${
-              theme === 'dark' ? 'text-gray-400' : 'text-gray-600'
+              theme === 'dark' ? 'text-gray-400' : 'text-secondary'
             }`}>
               {benchmarkCode}
             </div>
-            <div className={`min-w-[180px] text-center text-sm font-semibold ${
-              theme === 'dark' ? 'text-slate-300' : 'text-gray-700'
-            }`}>
+            <div className="min-w-[180px] text-center text-sm font-semibold text-primary">
               Sector
             </div>
             <div className={`flex-1 text-left text-sm font-semibold ${
@@ -190,13 +180,13 @@ export function SectorExposure({ data, loading, error, onRetry }: SectorExposure
                   <div className="flex-1 flex justify-end items-center">
                     <div className="flex items-center gap-2 w-full justify-end">
                       <span className={`text-xs font-medium min-w-[40px] text-right transition-colors duration-300 ${
-                        theme === 'dark' ? 'text-gray-400' : 'text-gray-600'
+                        theme === 'dark' ? 'text-gray-400' : 'text-secondary'
                       }`}>
                         {benchmarkPct}%
                       </span>
                       <div className="flex-1 max-w-[300px] h-7 flex justify-end">
                         <div
-                          className="h-full bg-gray-400 dark:bg-gray-500 rounded-l transition-all duration-300"
+                          className="h-full bg-gray-400 dark:bg-primary0 rounded-l transition-all duration-300"
                           style={{ width: `${benchmarkBarWidth}%` }}
                         />
                       </div>
@@ -218,7 +208,7 @@ export function SectorExposure({ data, loading, error, onRetry }: SectorExposure
                         : Math.abs(overUnder) < 0.01
                         ? theme === 'dark'
                           ? 'bg-gray-800 text-gray-400'
-                          : 'bg-gray-100 text-gray-600'
+                          : 'bg-gray-100 text-secondary'
                         : theme === 'dark'
                         ? 'bg-rose-900/30 text-rose-400'
                         : 'bg-rose-100 text-rose-700'
@@ -273,7 +263,7 @@ export function SectorExposure({ data, loading, error, onRetry }: SectorExposure
                 <div className="flex-1 flex justify-end items-center">
                   <div className="flex items-center gap-2 w-full justify-end">
                     <span className={`text-xs font-medium min-w-[40px] text-right transition-colors duration-300 ${
-                      theme === 'dark' ? 'text-gray-400' : 'text-gray-600'
+                      theme === 'dark' ? 'text-gray-400' : 'text-secondary'
                     }`}>
                       {benchmarkPct}%
                     </span>
@@ -345,7 +335,7 @@ export function SectorExposure({ data, loading, error, onRetry }: SectorExposure
                 <div className="flex-1 flex justify-end items-center">
                   <div className="flex items-center gap-2 w-full justify-end">
                     <span className={`text-xs font-medium min-w-[40px] text-right transition-colors duration-300 ${
-                      theme === 'dark' ? 'text-gray-400' : 'text-gray-600'
+                      theme === 'dark' ? 'text-gray-400' : 'text-secondary'
                     }`}>
                       {benchmarkPct}%
                     </span>
@@ -399,27 +389,21 @@ export function SectorExposure({ data, loading, error, onRetry }: SectorExposure
           }}
         >
           <div className="flex items-center gap-2">
-            <div className="w-4 h-4 bg-gray-400 dark:bg-gray-500 rounded"></div>
-            <span className={`transition-colors duration-300 ${
-              theme === 'dark' ? 'text-slate-400' : 'text-gray-600'
-            }`}>
+            <div className="w-4 h-4 bg-gray-400 dark:bg-primary0 rounded"></div>
+            <span className="transition-colors duration-300 text-secondary">
               {benchmarkCode}
             </span>
           </div>
           <div className="flex items-center gap-2">
             <div className="w-4 h-4 bg-blue-500 dark:bg-blue-600 rounded"></div>
-            <span className={`transition-colors duration-300 ${
-              theme === 'dark' ? 'text-slate-400' : 'text-gray-600'
-            }`}>
+            <span className="transition-colors duration-300 text-secondary">
               Portfolio
             </span>
           </div>
           {hasETFs && (
             <div className="flex items-center gap-2">
               <div className="w-4 h-4 bg-purple-500 dark:bg-purple-600 rounded"></div>
-              <span className={`transition-colors duration-300 ${
-                theme === 'dark' ? 'text-slate-400' : 'text-gray-600'
-              }`}>
+              <span className="transition-colors duration-300 text-secondary">
                 ETFs / Index Funds
               </span>
             </div>
@@ -427,9 +411,7 @@ export function SectorExposure({ data, loading, error, onRetry }: SectorExposure
           {hasUnclassified && (
             <div className="flex items-center gap-2">
               <div className="w-4 h-4 bg-amber-500 dark:bg-amber-600 rounded"></div>
-              <span className={`transition-colors duration-300 ${
-                theme === 'dark' ? 'text-slate-400' : 'text-gray-600'
-              }`}>
+              <span className="transition-colors duration-300 text-secondary">
                 Unclassified
               </span>
             </div>

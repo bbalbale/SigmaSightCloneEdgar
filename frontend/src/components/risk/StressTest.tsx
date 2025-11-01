@@ -57,20 +57,14 @@ export function StressTest({ data, loading, error, onRetry }: StressTestProps) {
   // Loading state
   if (loading) {
     return (
-      <div className={`rounded-lg border p-8 transition-colors duration-300 ${
-        theme === 'dark'
-          ? 'bg-slate-800 border-slate-700'
-          : 'bg-white border-gray-200'
-      }`}>
+      <div className="rounded-lg border p-8 transition-colors duration-300 themed-card">
         <h2 className={`text-2xl font-bold mb-4 ${
           theme === 'dark' ? 'text-white' : 'text-gray-900'
         }`}>
           Stress Test Scenarios
         </h2>
         <div className="flex items-center justify-center py-12">
-          <div className={`text-center ${
-            theme === 'dark' ? 'text-slate-400' : 'text-gray-600'
-          }`}>
+          <div className="text-center text-secondary">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-current mx-auto mb-4"></div>
             <p>Loading stress test scenarios...</p>
           </div>
@@ -82,11 +76,7 @@ export function StressTest({ data, loading, error, onRetry }: StressTestProps) {
   // Error state
   if (error) {
     return (
-      <div className={`rounded-lg border p-8 transition-colors duration-300 ${
-        theme === 'dark'
-          ? 'bg-slate-800 border-slate-700'
-          : 'bg-white border-gray-200'
-      }`}>
+      <div className="rounded-lg border p-8 transition-colors duration-300 themed-card">
         <h2 className={`text-2xl font-bold mb-4 ${
           theme === 'dark' ? 'text-white' : 'text-gray-900'
         }`}>
@@ -118,11 +108,7 @@ export function StressTest({ data, loading, error, onRetry }: StressTestProps) {
   // Data not available
   if (!data?.available || !data?.data) {
     return (
-      <div className={`rounded-lg border p-8 transition-colors duration-300 ${
-        theme === 'dark'
-          ? 'bg-slate-800 border-slate-700'
-          : 'bg-white border-gray-200'
-      }`}>
+      <div className="rounded-lg border p-8 transition-colors duration-300 themed-card">
         <h2 className={`text-2xl font-bold mb-4 ${
           theme === 'dark' ? 'text-white' : 'text-gray-900'
         }`}>
@@ -130,8 +116,8 @@ export function StressTest({ data, loading, error, onRetry }: StressTestProps) {
         </h2>
         <div className={`rounded-lg border p-6 text-center ${
           theme === 'dark'
-            ? 'bg-slate-700/50 border-slate-600 text-slate-300'
-            : 'bg-gray-50 border-gray-200 text-gray-600'
+            ? 'bg-slate-700/50 border-slate-600 text-primary'
+            : 'bg-primary border-primary text-secondary'
         }`}>
           <p>Stress test data is not available</p>
           {data?.reason && (
@@ -145,11 +131,7 @@ export function StressTest({ data, loading, error, onRetry }: StressTestProps) {
   const { scenarios, portfolio_value, calculation_date } = data.data
 
   return (
-    <div className={`rounded-lg border p-8 transition-colors duration-300 ${
-      theme === 'dark'
-        ? 'bg-slate-800 border-slate-700'
-        : 'bg-white border-gray-200'
-    }`}>
+    <div className="rounded-lg border p-8 transition-colors duration-300 themed-card">
       {/* Header */}
       <div className="mb-6">
         <h2 className={`text-2xl font-bold mb-2 ${
@@ -157,9 +139,7 @@ export function StressTest({ data, loading, error, onRetry }: StressTestProps) {
         }`}>
           Stress Test Scenarios
         </h2>
-        <div className={`flex flex-wrap gap-4 text-sm ${
-          theme === 'dark' ? 'text-slate-400' : 'text-gray-600'
-        }`}>
+        <div className="flex flex-wrap gap-4 text-sm text-secondary">
           <span>
             Portfolio Value: <strong className={theme === 'dark' ? 'text-slate-200' : 'text-gray-800'}>
               {formatCurrency(portfolio_value)}
@@ -186,7 +166,7 @@ export function StressTest({ data, loading, error, onRetry }: StressTestProps) {
             className={`rounded-lg border p-4 transition-colors duration-300 ${
               theme === 'dark'
                 ? 'bg-slate-700/50 border-slate-600 hover:bg-slate-700'
-                : 'bg-gray-50 border-gray-200 hover:bg-gray-100'
+                : 'bg-primary border-primary hover:bg-gray-100'
             }`}
           >
             {/* Scenario Header */}
@@ -200,16 +180,12 @@ export function StressTest({ data, loading, error, onRetry }: StressTestProps) {
                 {getSeverityBadge(scenario.severity)}
               </div>
               {scenario.description && (
-                <p className={`text-xs ${
-                  theme === 'dark' ? 'text-slate-400' : 'text-gray-600'
-                }`}>
+                <p className="text-xs text-secondary">
                   {scenario.description}
                 </p>
               )}
               {scenario.category && (
-                <div className={`mt-2 text-xs ${
-                  theme === 'dark' ? 'text-slate-500' : 'text-gray-500'
-                }`}>
+                <div className="mt-2 text-xs text-tertiary">
                   Category: {scenario.category}
                 </div>
               )}
@@ -222,9 +198,7 @@ export function StressTest({ data, loading, error, onRetry }: StressTestProps) {
               }}
             >
               <div className="flex justify-between items-center">
-                <span className={`text-xs ${
-                  theme === 'dark' ? 'text-slate-400' : 'text-gray-600'
-                }`}>
+                <span className="text-xs text-secondary">
                   Dollar Impact
                 </span>
                 <span className={`text-sm font-semibold ${
@@ -234,9 +208,7 @@ export function StressTest({ data, loading, error, onRetry }: StressTestProps) {
                 </span>
               </div>
               <div className="flex justify-between items-center">
-                <span className={`text-xs ${
-                  theme === 'dark' ? 'text-slate-400' : 'text-gray-600'
-                }`}>
+                <span className="text-xs text-secondary">
                   % Impact
                 </span>
                 <span className={`text-sm font-semibold ${
@@ -246,9 +218,7 @@ export function StressTest({ data, loading, error, onRetry }: StressTestProps) {
                 </span>
               </div>
               <div className="flex justify-between items-center">
-                <span className={`text-xs ${
-                  theme === 'dark' ? 'text-slate-400' : 'text-gray-600'
-                }`}>
+                <span className="text-xs text-secondary">
                   New Value
                 </span>
                 <span className={`text-sm font-semibold ${
@@ -265,7 +235,7 @@ export function StressTest({ data, loading, error, onRetry }: StressTestProps) {
       {/* Summary Statistics */}
       {scenarios.length > 0 && (
         <div className={`mt-6 p-4 rounded-lg ${
-          theme === 'dark' ? 'bg-slate-700/50' : 'bg-gray-50'
+          theme === 'dark' ? 'bg-slate-700/50' : 'bg-primary'
         }`}>
           <h3 className={`text-sm font-semibold mb-3 ${
             theme === 'dark' ? 'text-slate-200' : 'text-gray-800'
@@ -274,7 +244,7 @@ export function StressTest({ data, loading, error, onRetry }: StressTestProps) {
           </h3>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-xs">
             <div>
-              <div className={theme === 'dark' ? 'text-slate-400' : 'text-gray-600'}>
+              <div className={theme === 'dark' ? 'text-secondary' : 'text-secondary'}>
                 Worst Case
               </div>
               <div className={`font-semibold mt-1 ${
@@ -284,7 +254,7 @@ export function StressTest({ data, loading, error, onRetry }: StressTestProps) {
               </div>
             </div>
             <div>
-              <div className={theme === 'dark' ? 'text-slate-400' : 'text-gray-600'}>
+              <div className={theme === 'dark' ? 'text-secondary' : 'text-secondary'}>
                 Best Case
               </div>
               <div className={`font-semibold mt-1 ${
@@ -294,7 +264,7 @@ export function StressTest({ data, loading, error, onRetry }: StressTestProps) {
               </div>
             </div>
             <div>
-              <div className={theme === 'dark' ? 'text-slate-400' : 'text-gray-600'}>
+              <div className={theme === 'dark' ? 'text-secondary' : 'text-secondary'}>
                 Average Impact
               </div>
               <div className={`font-semibold mt-1 ${
@@ -306,7 +276,7 @@ export function StressTest({ data, loading, error, onRetry }: StressTestProps) {
               </div>
             </div>
             <div>
-              <div className={theme === 'dark' ? 'text-slate-400' : 'text-gray-600'}>
+              <div className={theme === 'dark' ? 'text-secondary' : 'text-secondary'}>
                 Scenarios Tested
               </div>
               <div className={`font-semibold mt-1 ${

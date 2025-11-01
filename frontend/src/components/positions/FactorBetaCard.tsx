@@ -62,7 +62,7 @@ export function FactorBetaCard({
   // Get color class based on beta value
   const getBetaColor = (value: number | undefined) => {
     if (value === undefined || value === null) return 'text-gray-400'
-    if (Math.abs(value) < 0.1) return 'text-gray-500'
+    if (Math.abs(value) < 0.1) return 'text-tertiary'
     return value > 0 ? 'text-green-600' : 'text-red-600'
   }
 
@@ -71,7 +71,7 @@ export function FactorBetaCard({
     return (
       <Card className="w-full">
         <CardHeader className="pb-3">
-          <CardTitle className="text-sm font-medium text-gray-500">
+          <CardTitle className="text-sm font-medium text-tertiary">
             {symbol} - Loading factor data...
           </CardTitle>
         </CardHeader>
@@ -82,7 +82,7 @@ export function FactorBetaCard({
   // No data available
   if (!factorExposures && !companyBeta) {
     return (
-      <Card className="w-full border-gray-200">
+      <Card className="w-full border-primary">
         <CardHeader className="pb-3">
           <CardTitle className="text-sm font-medium text-gray-400">
             {symbol} - No factor data available
@@ -106,7 +106,7 @@ export function FactorBetaCard({
     <Card className="w-full border-blue-100 bg-blue-50/30">
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between">
-          <CardTitle className="text-sm font-semibold text-gray-700">
+          <CardTitle className="text-sm font-semibold text-primary">
             {symbol} Factor Exposures
           </CardTitle>
           {calculationDate && (
@@ -121,7 +121,7 @@ export function FactorBetaCard({
         {/* Calculated Factor Betas (7-factor model) */}
         {factorExposures && sortedFactors.length > 0 && (
           <div>
-            <h4 className="text-xs font-medium text-gray-600 mb-2">
+            <h4 className="text-xs font-medium text-secondary mb-2">
               Calculated Factor Betas
             </h4>
             <div className="grid grid-cols-2 gap-x-4 gap-y-1.5">
@@ -132,7 +132,7 @@ export function FactorBetaCard({
                     <Tooltip>
                       <TooltipTrigger asChild>
                         <div className="flex justify-between items-center text-xs cursor-help">
-                          <span className="text-gray-600 font-medium">
+                          <span className="text-secondary font-medium">
                             {factorName}:
                           </span>
                           <span className={`font-mono font-semibold ${getBetaColor(value)}`}>
@@ -158,7 +158,7 @@ export function FactorBetaCard({
               <Tooltip>
                 <TooltipTrigger asChild>
                   <div className="flex justify-between items-center cursor-help">
-                    <span className="text-xs text-gray-600 font-medium">
+                    <span className="text-xs text-secondary font-medium">
                       Market Beta (Profile):
                     </span>
                     <span className={`text-sm font-mono font-bold ${getBetaColor(companyBeta)}`}>

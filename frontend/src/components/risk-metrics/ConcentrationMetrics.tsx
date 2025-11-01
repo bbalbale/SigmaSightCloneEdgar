@@ -18,16 +18,14 @@ export function ConcentrationMetrics({ data, loading, error, onRetry }: Concentr
 
   if (loading) {
     return (
-      <Card className={`transition-colors duration-300 ${
-        theme === 'dark' ? 'bg-slate-800 border-slate-700' : 'bg-white border-gray-200'
-      }`}>
+      <Card className="transition-colors duration-300 themed-card">
         <CardHeader>
           <CardTitle className={theme === 'dark' ? 'text-white' : 'text-gray-900'}>
             Concentration Metrics
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className={`text-center py-8 ${theme === 'dark' ? 'text-slate-400' : 'text-gray-600'}`}>
+          <div className="text-center py-8 text-secondary">
             Loading concentration data...
           </div>
         </CardContent>
@@ -37,9 +35,7 @@ export function ConcentrationMetrics({ data, loading, error, onRetry }: Concentr
 
   if (error || !data?.available || !data?.data) {
     return (
-      <Card className={`transition-colors duration-300 ${
-        theme === 'dark' ? 'bg-slate-800 border-slate-700' : 'bg-white border-gray-200'
-      }`}>
+      <Card className="transition-colors duration-300 themed-card">
         <CardHeader>
           <CardTitle className={theme === 'dark' ? 'text-white' : 'text-gray-900'}>
             Concentration Metrics
@@ -47,7 +43,7 @@ export function ConcentrationMetrics({ data, loading, error, onRetry }: Concentr
         </CardHeader>
         <CardContent>
           <div className="text-center py-8">
-            <p className={`mb-4 ${theme === 'dark' ? 'text-slate-400' : 'text-gray-600'}`}>
+            <p className="mb-4 text-secondary">
               {error || 'Concentration data not available'}
             </p>
             {onRetry && (
@@ -77,24 +73,22 @@ export function ConcentrationMetrics({ data, loading, error, onRetry }: Concentr
   const hhiLevel = getHHILevel(hhi)
 
   return (
-    <Card className={`transition-colors duration-300 ${
-      theme === 'dark' ? 'bg-slate-800 border-slate-700' : 'bg-white border-gray-200'
-    }`}>
+    <Card className="transition-colors duration-300 themed-card">
       <CardHeader>
         <CardTitle className={`flex items-center gap-2 ${
           theme === 'dark' ? 'text-white' : 'text-gray-900'
         }`}>
           Concentration Metrics
           <div className="group relative">
-            <Info className={`h-4 w-4 ${theme === 'dark' ? 'text-slate-400' : 'text-gray-400'}`} />
+            <Info className={`h-4 w-4 ${theme === 'dark' ? 'text-secondary' : 'text-gray-400'}`} />
             <div className={`absolute left-0 top-6 w-64 p-2 rounded shadow-lg text-xs hidden group-hover:block z-10 ${
-              theme === 'dark' ? 'bg-slate-700 text-slate-200' : 'bg-white text-gray-700'
+              theme === 'dark' ? 'bg-slate-700 text-slate-200' : 'bg-white text-primary'
             }`}>
               Portfolio concentration measures how evenly assets are distributed. Lower concentration = better diversification.
             </div>
           </div>
         </CardTitle>
-        <p className={`text-sm mt-1 ${theme === 'dark' ? 'text-slate-400' : 'text-gray-600'}`}>
+        <p className="text-sm mt-1 text-secondary">
           Portfolio diversification and position concentration
         </p>
       </CardHeader>
@@ -103,15 +97,13 @@ export function ConcentrationMetrics({ data, loading, error, onRetry }: Concentr
           {/* HHI Score */}
           <div className="space-y-2">
             <div className="flex justify-between items-center">
-              <span className={`text-sm font-medium ${
-                theme === 'dark' ? 'text-slate-300' : 'text-gray-700'
-              }`}>
+              <span className="text-sm font-medium text-primary">
                 HHI Score
               </span>
               <div className="group relative">
-                <Info className={`h-3 w-3 ${theme === 'dark' ? 'text-slate-500' : 'text-gray-400'}`} />
+                <Info className={`h-3 w-3 ${theme === 'dark' ? 'text-tertiary' : 'text-gray-400'}`} />
                 <div className={`absolute right-0 top-6 w-56 p-2 rounded shadow-lg text-xs hidden group-hover:block z-10 ${
-                  theme === 'dark' ? 'bg-slate-700 text-slate-200' : 'bg-white text-gray-700'
+                  theme === 'dark' ? 'bg-slate-700 text-slate-200' : 'bg-white text-primary'
                 }`}>
                   Herfindahl-Hirschman Index: Sum of squared weights. Range: 0-10,000. Lower = more diversified.
                 </div>
@@ -120,9 +112,7 @@ export function ConcentrationMetrics({ data, loading, error, onRetry }: Concentr
             <div className={`text-3xl font-bold ${hhiLevel.color}`}>
               {hhi.toFixed(0)}
             </div>
-            <div className={`text-sm ${
-              theme === 'dark' ? 'text-slate-400' : 'text-gray-600'
-            }`}>
+            <div className="text-sm text-secondary">
               {hhiLevel.level}
             </div>
           </div>
@@ -130,15 +120,13 @@ export function ConcentrationMetrics({ data, loading, error, onRetry }: Concentr
           {/* Effective Number of Positions */}
           <div className="space-y-2">
             <div className="flex justify-between items-center">
-              <span className={`text-sm font-medium ${
-                theme === 'dark' ? 'text-slate-300' : 'text-gray-700'
-              }`}>
+              <span className="text-sm font-medium text-primary">
                 Effective Positions
               </span>
               <div className="group relative">
-                <Info className={`h-3 w-3 ${theme === 'dark' ? 'text-slate-500' : 'text-gray-400'}`} />
+                <Info className={`h-3 w-3 ${theme === 'dark' ? 'text-tertiary' : 'text-gray-400'}`} />
                 <div className={`absolute right-0 top-6 w-56 p-2 rounded shadow-lg text-xs hidden group-hover:block z-10 ${
-                  theme === 'dark' ? 'bg-slate-700 text-slate-200' : 'bg-white text-gray-700'
+                  theme === 'dark' ? 'bg-slate-700 text-slate-200' : 'bg-white text-primary'
                 }`}>
                   Number of equal-sized positions that would give the same HHI. Higher = more balanced.
                 </div>
@@ -149,9 +137,7 @@ export function ConcentrationMetrics({ data, loading, error, onRetry }: Concentr
             }`}>
               {effective_num_positions.toFixed(1)}
             </div>
-            <div className={`text-sm ${
-              theme === 'dark' ? 'text-slate-400' : 'text-gray-600'
-            }`}>
+            <div className="text-sm text-secondary">
               Balanced positions
             </div>
           </div>
@@ -159,9 +145,7 @@ export function ConcentrationMetrics({ data, loading, error, onRetry }: Concentr
           {/* Top 3 Concentration */}
           <div className="space-y-2">
             <div className="flex justify-between items-center">
-              <span className={`text-sm font-medium ${
-                theme === 'dark' ? 'text-slate-300' : 'text-gray-700'
-              }`}>
+              <span className="text-sm font-medium text-primary">
                 Top 3 Concentration
               </span>
             </div>
@@ -186,9 +170,7 @@ export function ConcentrationMetrics({ data, loading, error, onRetry }: Concentr
           {/* Top 10 Concentration */}
           <div className="space-y-2">
             <div className="flex justify-between items-center">
-              <span className={`text-sm font-medium ${
-                theme === 'dark' ? 'text-slate-300' : 'text-gray-700'
-              }`}>
+              <span className="text-sm font-medium text-primary">
                 Top 10 Concentration
               </span>
             </div>
@@ -212,9 +194,7 @@ export function ConcentrationMetrics({ data, loading, error, onRetry }: Concentr
         </div>
 
         {/* Guidance */}
-        <div className={`mt-6 pt-4 border-t text-xs ${
-          theme === 'dark' ? 'text-slate-400' : 'text-gray-600'
-        }`}
+        <div className="mt-6 pt-4 border-t text-xs text-secondary"
           style={{
             borderColor: theme === 'dark' ? 'rgb(51 65 85)' : 'rgb(229 231 235)'
           }}

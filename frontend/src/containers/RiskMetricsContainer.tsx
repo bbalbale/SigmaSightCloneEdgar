@@ -43,9 +43,7 @@ export function RiskMetricsContainer() {
   const concentration = useConcentration()
 
   return (
-    <div className={`min-h-screen transition-colors duration-300 ${
-      theme === 'dark' ? 'bg-slate-900' : 'bg-gray-50'
-    }`}>
+    <div className="min-h-screen transition-colors duration-300 bg-primary">
       {/* Page Header */}
       <section className="px-4 py-8 border-b transition-colors duration-300"
         style={{
@@ -58,9 +56,7 @@ export function RiskMetricsContainer() {
           }`}>
             Risk Metrics
           </h1>
-          <p className={`mt-2 text-lg ${
-            theme === 'dark' ? 'text-slate-400' : 'text-gray-600'
-          }`}>
+          <p className="mt-2 text-lg text-secondary">
             Portfolio risk analysis and diversification metrics
           </p>
         </div>

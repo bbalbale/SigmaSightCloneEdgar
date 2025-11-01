@@ -32,20 +32,14 @@ export function DiversificationScore({ data, loading, error, onRetry }: Diversif
   // Loading state
   if (loading) {
     return (
-      <div className={`rounded-lg border p-6 transition-colors duration-300 ${
-        theme === 'dark'
-          ? 'bg-slate-800 border-slate-700'
-          : 'bg-white border-gray-200'
-      }`}>
+      <div className="rounded-lg border p-6 transition-colors duration-300 themed-card">
         <h3 className={`text-xl font-bold mb-4 ${
           theme === 'dark' ? 'text-white' : 'text-gray-900'
         }`}>
           Diversification Score
         </h3>
         <div className="flex items-center justify-center py-8">
-          <div className={`text-center ${
-            theme === 'dark' ? 'text-slate-400' : 'text-gray-600'
-          }`}>
+          <div className="text-center text-secondary">
             <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-current mx-auto mb-3"></div>
             <p className="text-sm">Loading...</p>
           </div>
@@ -57,11 +51,7 @@ export function DiversificationScore({ data, loading, error, onRetry }: Diversif
   // Error state
   if (error) {
     return (
-      <div className={`rounded-lg border p-6 transition-colors duration-300 ${
-        theme === 'dark'
-          ? 'bg-slate-800 border-slate-700'
-          : 'bg-white border-gray-200'
-      }`}>
+      <div className="rounded-lg border p-6 transition-colors duration-300 themed-card">
         <h3 className={`text-xl font-bold mb-4 ${
           theme === 'dark' ? 'text-white' : 'text-gray-900'
         }`}>
@@ -93,11 +83,7 @@ export function DiversificationScore({ data, loading, error, onRetry }: Diversif
   // Data not available
   if (!data?.available || !data?.data) {
     return (
-      <div className={`rounded-lg border p-6 transition-colors duration-300 ${
-        theme === 'dark'
-          ? 'bg-slate-800 border-slate-700'
-          : 'bg-white border-gray-200'
-      }`}>
+      <div className="rounded-lg border p-6 transition-colors duration-300 themed-card">
         <h3 className={`text-xl font-bold mb-4 ${
           theme === 'dark' ? 'text-white' : 'text-gray-900'
         }`}>
@@ -105,8 +91,8 @@ export function DiversificationScore({ data, loading, error, onRetry }: Diversif
         </h3>
         <div className={`rounded-lg border p-4 text-center ${
           theme === 'dark'
-            ? 'bg-slate-700/50 border-slate-600 text-slate-300'
-            : 'bg-gray-50 border-gray-200 text-gray-600'
+            ? 'bg-slate-700/50 border-slate-600 text-primary'
+            : 'bg-primary border-primary text-secondary'
         }`}>
           <p className="text-sm">Diversification score is not available</p>
           {data?.reason && (
@@ -120,11 +106,7 @@ export function DiversificationScore({ data, loading, error, onRetry }: Diversif
   const { overall_score, category_scores, recommendations } = data.data
 
   return (
-    <div className={`rounded-lg border p-6 transition-colors duration-300 ${
-      theme === 'dark'
-        ? 'bg-slate-800 border-slate-700'
-        : 'bg-white border-gray-200'
-    }`}>
+    <div className="rounded-lg border p-6 transition-colors duration-300 themed-card">
       <h3 className={`text-xl font-bold mb-4 ${
         theme === 'dark' ? 'text-white' : 'text-gray-900'
       }`}>
@@ -136,15 +118,11 @@ export function DiversificationScore({ data, loading, error, onRetry }: Diversif
         <div className={`text-5xl font-bold mb-2 ${getScoreColor(overall_score)}`}>
           {overall_score.toFixed(0)}
         </div>
-        <div className={`text-lg font-medium ${
-          theme === 'dark' ? 'text-slate-300' : 'text-gray-700'
-        }`}>
+        <div className="text-lg font-medium text-primary">
           {getScoreLabel(overall_score)}
         </div>
         {data.metadata && (
-          <div className={`text-xs mt-2 ${
-            theme === 'dark' ? 'text-slate-500' : 'text-gray-500'
-          }`}>
+          <div className="text-xs mt-2 text-tertiary">
             {data.metadata.position_count} positions analyzed
           </div>
         )}
@@ -166,9 +144,7 @@ export function DiversificationScore({ data, loading, error, onRetry }: Diversif
       {/* Category Scores */}
       <div className="space-y-3 mb-4">
         <div className="flex items-center justify-between">
-          <span className={`text-sm ${
-            theme === 'dark' ? 'text-slate-400' : 'text-gray-600'
-          }`}>
+          <span className="text-sm text-secondary">
             Asset Class
           </span>
           <span className={`text-sm font-semibold ${
@@ -178,9 +154,7 @@ export function DiversificationScore({ data, loading, error, onRetry }: Diversif
           </span>
         </div>
         <div className="flex items-center justify-between">
-          <span className={`text-sm ${
-            theme === 'dark' ? 'text-slate-400' : 'text-gray-600'
-          }`}>
+          <span className="text-sm text-secondary">
             Sector
           </span>
           <span className={`text-sm font-semibold ${
@@ -190,9 +164,7 @@ export function DiversificationScore({ data, loading, error, onRetry }: Diversif
           </span>
         </div>
         <div className="flex items-center justify-between">
-          <span className={`text-sm ${
-            theme === 'dark' ? 'text-slate-400' : 'text-gray-600'
-          }`}>
+          <span className="text-sm text-secondary">
             Geography
           </span>
           <span className={`text-sm font-semibold ${
@@ -202,9 +174,7 @@ export function DiversificationScore({ data, loading, error, onRetry }: Diversif
           </span>
         </div>
         <div className="flex items-center justify-between">
-          <span className={`text-sm ${
-            theme === 'dark' ? 'text-slate-400' : 'text-gray-600'
-          }`}>
+          <span className="text-sm text-secondary">
             Position Size
           </span>
           <span className={`text-sm font-semibold ${
@@ -218,16 +188,14 @@ export function DiversificationScore({ data, loading, error, onRetry }: Diversif
       {/* Recommendations */}
       {recommendations && recommendations.length > 0 && (
         <div className={`mt-4 p-4 rounded-lg ${
-          theme === 'dark' ? 'bg-slate-700/50' : 'bg-gray-50'
+          theme === 'dark' ? 'bg-slate-700/50' : 'bg-primary'
         }`}>
           <h4 className={`text-sm font-semibold mb-2 ${
             theme === 'dark' ? 'text-slate-200' : 'text-gray-800'
           }`}>
             Recommendations
           </h4>
-          <ul className={`space-y-1 text-xs ${
-            theme === 'dark' ? 'text-slate-400' : 'text-gray-600'
-          }`}>
+          <ul className="space-y-1 text-xs text-secondary">
             {recommendations.map((rec, index) => (
               <li key={index} className="flex items-start">
                 <span className="mr-2">•</span>
@@ -240,9 +208,7 @@ export function DiversificationScore({ data, loading, error, onRetry }: Diversif
 
       {/* Metadata */}
       {data.metadata?.calculation_date && (
-        <div className={`mt-4 text-xs text-center ${
-          theme === 'dark' ? 'text-slate-500' : 'text-gray-500'
-        }`}>
+        <div className="mt-4 text-xs text-center text-tertiary">
           Updated: {new Date(data.metadata.calculation_date).toLocaleDateString()}
         </div>
       )}

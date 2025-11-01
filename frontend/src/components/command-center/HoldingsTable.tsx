@@ -155,7 +155,7 @@ export function HoldingsTable({ holdings, loading }: HoldingsTableProps) {
     <th
       className={`px-2 py-1.5 text-[10px] font-semibold uppercase tracking-wider cursor-pointer hover:bg-opacity-80 transition-colors ${
         align === 'right' ? 'text-right' : 'text-left'
-      } ${theme === 'dark' ? 'text-slate-500 hover:bg-slate-700/30' : 'text-slate-500 hover:bg-slate-200/50'}`}
+      } ${theme === 'dark' ? 'text-tertiary hover:bg-slate-700/30' : 'text-tertiary hover:bg-slate-200/50'}`}
       onClick={() => handleSort(column)}
     >
       <div className={`flex items-center gap-0.5 ${align === 'right' ? 'justify-end' : 'justify-start'}`}>
@@ -179,11 +179,11 @@ export function HoldingsTable({ holdings, loading }: HoldingsTableProps) {
         <div className="container mx-auto">
           <div className={`rounded-lg border overflow-hidden transition-colors duration-300 ${
             theme === 'dark'
-              ? 'bg-slate-900 border-slate-700'
+              ? 'bg-primary border-primary'
               : 'bg-white border-slate-200'
           }`}>
             <div className={`px-4 py-3 border-b ${
-              theme === 'dark' ? 'border-slate-700' : 'border-slate-200'
+              theme === 'dark' ? 'border-primary' : 'border-slate-200'
             }`}>
               <h2 className={`text-lg font-semibold ${
                 theme === 'dark' ? 'text-slate-50' : 'text-slate-900'
@@ -192,7 +192,7 @@ export function HoldingsTable({ holdings, loading }: HoldingsTableProps) {
               </h2>
             </div>
             <div className="p-8 text-center">
-              <p className={theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}>
+              <p className={theme === 'dark' ? 'text-secondary' : 'text-slate-600'}>
                 Loading holdings...
               </p>
             </div>
@@ -208,11 +208,11 @@ export function HoldingsTable({ holdings, loading }: HoldingsTableProps) {
         <div className="container mx-auto">
           <div className={`rounded-lg border overflow-hidden transition-colors duration-300 ${
             theme === 'dark'
-              ? 'bg-slate-900 border-slate-700'
+              ? 'bg-primary border-primary'
               : 'bg-white border-slate-200'
           }`}>
             <div className={`px-4 py-3 border-b ${
-              theme === 'dark' ? 'border-slate-700' : 'border-slate-200'
+              theme === 'dark' ? 'border-primary' : 'border-slate-200'
             }`}>
               <h2 className={`text-lg font-semibold ${
                 theme === 'dark' ? 'text-slate-50' : 'text-slate-900'
@@ -221,7 +221,7 @@ export function HoldingsTable({ holdings, loading }: HoldingsTableProps) {
               </h2>
             </div>
             <div className="p-8 text-center">
-              <p className={theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}>
+              <p className={theme === 'dark' ? 'text-secondary' : 'text-slate-600'}>
                 No positions found
               </p>
             </div>
@@ -249,25 +249,25 @@ export function HoldingsTable({ holdings, loading }: HoldingsTableProps) {
       <div
         key={categoryKey}
         className={`border overflow-hidden ${
-          theme === 'dark' ? 'bg-slate-900/30 border-slate-700/50' : 'bg-white border-slate-300'
+          theme === 'dark' ? 'bg-primary/30 border-primary/50' : 'bg-white border-slate-300'
         }`}
       >
         {/* Category Header */}
         <div
           className={`px-3 py-2 border-b flex items-center justify-between cursor-pointer transition-colors hover:bg-opacity-50 ${
-            theme === 'dark' ? 'border-slate-700/50 bg-slate-900/50 hover:bg-slate-800/50' : 'border-slate-300 bg-slate-50 hover:bg-slate-100'
+            theme === 'dark' ? 'border-primary/50 bg-primary/50 hover:bg-slate-800/50' : 'border-slate-300 bg-slate-50 hover:bg-slate-100'
           }`}
           onClick={() => toggleSection(categoryKey)}
         >
           <h3 className={`text-xs font-semibold uppercase tracking-wider ${
-            theme === 'dark' ? 'text-slate-400' : 'text-slate-600'
+            theme === 'dark' ? 'text-secondary' : 'text-slate-600'
           }`}>
             {title} <span className="font-mono">({categoryHoldings.length})</span>
           </h3>
           <svg
             className={`w-4 h-4 transition-transform ${
               isExpanded ? 'rotate-180' : ''
-            } ${theme === 'dark' ? 'text-slate-500' : 'text-slate-500'}`}
+            } text-tertiary`}
             fill="none"
             stroke="currentColor"
             viewBox="0 0 24 24"
@@ -281,7 +281,7 @@ export function HoldingsTable({ holdings, loading }: HoldingsTableProps) {
           <div className="overflow-x-auto">
             <table className="w-full text-xs">
               {/* Header Row */}
-              <thead className={`sticky top-0 ${theme === 'dark' ? 'bg-slate-900/90' : 'bg-slate-100'}`}>
+              <thead className={`sticky top-0 ${theme === 'dark' ? 'bg-primary/90' : 'bg-slate-100'}`}>
                 <tr>
                   <SortableHeader column="symbol">Position</SortableHeader>
                   <SortableHeader column="quantity" align="right">Quantity</SortableHeader>
@@ -328,21 +328,21 @@ export function HoldingsTable({ holdings, loading }: HoldingsTableProps) {
 
                     {/* Quantity */}
                     <td className={`px-2 py-2 text-right font-medium tabular-nums ${
-                      theme === 'dark' ? 'text-slate-300' : 'text-slate-700'
+                      theme === 'dark' ? 'text-primary' : 'text-slate-700'
                     }`}>
                       {holding.quantity.toLocaleString()}
                     </td>
 
                     {/* Today's Price */}
                     <td className={`px-2 py-2 text-right font-medium tabular-nums ${
-                      theme === 'dark' ? 'text-slate-300' : 'text-slate-700'
+                      theme === 'dark' ? 'text-primary' : 'text-slate-700'
                     }`}>
                       ${holding.todaysPrice.toFixed(2)}
                     </td>
 
                     {/* Target Price */}
                     <td className={`px-2 py-2 text-right font-medium tabular-nums ${
-                      theme === 'dark' ? 'text-slate-300' : 'text-slate-700'
+                      theme === 'dark' ? 'text-primary' : 'text-slate-700'
                     }`}>
                       {holding.targetPrice ? `$${holding.targetPrice.toFixed(2)}` : '—'}
                     </td>
@@ -366,7 +366,7 @@ export function HoldingsTable({ holdings, loading }: HoldingsTableProps) {
                           ></div>
                         </div>
                         <span className={`font-medium tabular-nums ${
-                          theme === 'dark' ? 'text-slate-300' : 'text-slate-700'
+                          theme === 'dark' ? 'text-primary' : 'text-slate-700'
                         }`}>
                           {holding.weight.toFixed(1)}%
                         </span>
@@ -374,13 +374,7 @@ export function HoldingsTable({ holdings, loading }: HoldingsTableProps) {
                     </td>
 
                     {/* P&L Today */}
-                    <td className={`px-2 py-2 text-right font-medium tabular-nums ${
-                      holding.pnlToday !== null
-                        ? holding.pnlToday >= 0
-                          ? theme === 'dark' ? 'text-emerald-400' : 'text-emerald-600'
-                          : theme === 'dark' ? 'text-red-400' : 'text-red-600'
-                        : theme === 'dark' ? 'text-slate-500' : 'text-slate-500'
-                    }`}>
+                    <td className="px-2 py-2 text-right font-medium tabular-nums text-tertiary">
                       {holding.pnlToday !== null ? formatCurrency(holding.pnlToday) : '—'}
                     </td>
 
@@ -404,14 +398,14 @@ export function HoldingsTable({ holdings, loading }: HoldingsTableProps) {
 
                     {/* Target Return */}
                     <td className={`px-2 py-2 text-right tabular-nums font-semibold ${
-                      theme === 'dark' ? 'text-slate-300' : 'text-slate-700'
+                      theme === 'dark' ? 'text-primary' : 'text-slate-700'
                     }`}>
                       {holding.targetReturn !== null ? formatPercentage(holding.targetReturn) : '—'}
                     </td>
 
                     {/* Beta */}
                     <td className={`px-2 py-2 text-right font-medium tabular-nums ${
-                      theme === 'dark' ? 'text-slate-300' : 'text-slate-700'
+                      theme === 'dark' ? 'text-primary' : 'text-slate-700'
                     }`}>
                       {holding.beta !== null ? holding.beta.toFixed(2) : '—'}
                     </td>
@@ -430,7 +424,7 @@ export function HoldingsTable({ holdings, loading }: HoldingsTableProps) {
       <div className="container mx-auto">
         {/* Main Header */}
         <h2 className={`text-sm font-semibold uppercase tracking-wider mb-2 ${
-          theme === 'dark' ? 'text-slate-400' : 'text-slate-600'
+          theme === 'dark' ? 'text-secondary' : 'text-slate-600'
         }`}>
           Holdings ({holdings.length})
         </h2>

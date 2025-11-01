@@ -51,9 +51,7 @@ export function FilterBar({
   return (
     <section className="px-4 pb-4">
       <div className="container mx-auto">
-        <div className={`flex items-center justify-between text-sm transition-colors duration-300 ${
-          theme === 'dark' ? 'text-slate-400' : 'text-gray-600'
-        }`}>
+        <div className="flex items-center justify-between text-sm transition-colors duration-300 text-secondary">
           <div className="flex items-center gap-2">
             <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
               <path d="M3 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM3 10a1 1 0 011-1h6a1 1 0 110 2H4a1 1 0 01-1-1zM3 16a1 1 0 011-1h4a1 1 0 110 2H4a1 1 0 01-1-1z"/>
@@ -76,8 +74,8 @@ export function FilterBar({
                       ? 'text-white border-blue-500 bg-blue-600 hover:bg-blue-700'
                       : 'text-white border-blue-500 bg-blue-500 hover:bg-blue-600'
                     : theme === 'dark'
-                      ? 'text-slate-400 border-slate-600 bg-slate-800 hover:bg-slate-700'
-                      : 'text-gray-600 border-gray-300 bg-white hover:bg-gray-50'
+                      ? 'text-secondary border-slate-600 bg-slate-800 hover:bg-slate-700'
+                      : 'text-secondary border-gray-300 bg-white hover:bg-primary'
                 }`}
               >
                 {selectedTag ? selectedTag.name : 'Tags'}
@@ -85,11 +83,7 @@ export function FilterBar({
               </Button>
 
               {showTagMenu && (
-                <div className={`absolute right-0 top-full mt-2 w-48 rounded-lg shadow-lg border z-50 ${
-                  theme === 'dark'
-                    ? 'bg-slate-800 border-slate-700'
-                    : 'bg-white border-gray-200'
-                }`}>
+                <div className="absolute right-0 top-full mt-2 w-48 rounded-lg shadow-lg border z-50 themed-card">
                   <div className="p-2 max-h-64 overflow-y-auto">
                     <button
                       onClick={() => {
@@ -102,15 +96,15 @@ export function FilterBar({
                             ? 'bg-slate-700 text-white'
                             : 'bg-gray-100 text-gray-900'
                           : theme === 'dark'
-                            ? 'text-slate-300 hover:bg-slate-700'
-                            : 'text-gray-700 hover:bg-gray-50'
+                            ? 'text-primary hover:bg-slate-700'
+                            : 'text-primary hover:bg-primary'
                       }`}
                     >
                       All (No Filter)
                     </button>
                     {tags.length === 0 ? (
                       <div className={`px-3 py-2 text-sm ${
-                        theme === 'dark' ? 'text-slate-400' : 'text-gray-500'
+                        theme === 'dark' ? 'text-secondary' : 'text-tertiary'
                       }`}>
                         No tags available
                       </div>
@@ -128,8 +122,8 @@ export function FilterBar({
                                 ? 'bg-slate-700 text-white'
                                 : 'bg-gray-100 text-gray-900'
                               : theme === 'dark'
-                                ? 'text-slate-300 hover:bg-slate-700'
-                                : 'text-gray-700 hover:bg-gray-50'
+                                ? 'text-primary hover:bg-slate-700'
+                                : 'text-primary hover:bg-primary'
                           }`}
                         >
                           <div className="flex items-center gap-2">
@@ -162,8 +156,8 @@ export function FilterBar({
                       ? 'text-white border-blue-500 bg-blue-600 hover:bg-blue-700'
                       : 'text-white border-blue-500 bg-blue-500 hover:bg-blue-600'
                     : theme === 'dark'
-                      ? 'text-slate-400 border-slate-600 bg-slate-800 hover:bg-slate-700'
-                      : 'text-gray-600 border-gray-300 bg-white hover:bg-gray-50'
+                      ? 'text-secondary border-slate-600 bg-slate-800 hover:bg-slate-700'
+                      : 'text-secondary border-gray-300 bg-white hover:bg-primary'
                 }`}
               >
                 {selectedFactorName || 'Exposure'}
@@ -171,11 +165,7 @@ export function FilterBar({
               </Button>
 
               {showFactorMenu && (
-                <div className={`absolute right-0 top-full mt-2 w-48 rounded-lg shadow-lg border z-50 ${
-                  theme === 'dark'
-                    ? 'bg-slate-800 border-slate-700'
-                    : 'bg-white border-gray-200'
-                }`}>
+                <div className="absolute right-0 top-full mt-2 w-48 rounded-lg shadow-lg border z-50 themed-card">
                   <div className="p-2 max-h-64 overflow-y-auto">
                     <button
                       onClick={() => {
@@ -188,15 +178,15 @@ export function FilterBar({
                             ? 'bg-slate-700 text-white'
                             : 'bg-gray-100 text-gray-900'
                           : theme === 'dark'
-                            ? 'text-slate-300 hover:bg-slate-700'
-                            : 'text-gray-700 hover:bg-gray-50'
+                            ? 'text-primary hover:bg-slate-700'
+                            : 'text-primary hover:bg-primary'
                       }`}
                     >
                       All (No Filter)
                     </button>
                     {factorExposures.length === 0 ? (
                       <div className={`px-3 py-2 text-sm ${
-                        theme === 'dark' ? 'text-slate-400' : 'text-gray-500'
+                        theme === 'dark' ? 'text-secondary' : 'text-tertiary'
                       }`}>
                         No exposures available
                       </div>
@@ -214,8 +204,8 @@ export function FilterBar({
                                 ? 'bg-slate-700 text-white'
                                 : 'bg-gray-100 text-gray-900'
                               : theme === 'dark'
-                                ? 'text-slate-300 hover:bg-slate-700'
-                                : 'text-gray-700 hover:bg-gray-50'
+                                ? 'text-primary hover:bg-slate-700'
+                                : 'text-primary hover:bg-primary'
                           }`}
                         >
                           {factor.name}

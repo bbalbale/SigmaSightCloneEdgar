@@ -246,9 +246,7 @@ export function OrganizeContainer() {
   const filteredPrivate = filterByTag(privatePositions)
 
   return (
-    <div className={`min-h-screen transition-colors duration-300 ${
-      theme === 'dark' ? 'bg-slate-900' : 'bg-gray-50'
-    }`}>
+    <div className="min-h-screen transition-colors duration-300 bg-primary">
       {/* Header */}
       <section className="px-4 py-8">
         <div className="container mx-auto">
@@ -259,9 +257,7 @@ export function OrganizeContainer() {
               }`}>
                 Organize & Tag Positions
               </h1>
-              <p className={`transition-colors duration-300 ${
-                theme === 'dark' ? 'text-slate-400' : 'text-gray-600'
-              }`}>
+              <p className="transition-colors duration-300 text-secondary">
                 Create tags and drag them onto positions to organize your portfolio
               </p>
             </div>
@@ -274,8 +270,8 @@ export function OrganizeContainer() {
                 flex items-center gap-2 px-4 py-2 rounded-md font-medium
                 transition-all duration-200
                 ${theme === 'dark'
-                  ? 'bg-blue-600 hover:bg-blue-700 text-white disabled:bg-slate-700 disabled:text-slate-500'
-                  : 'bg-blue-500 hover:bg-blue-600 text-white disabled:bg-gray-300 disabled:text-gray-500'
+                  ? 'bg-blue-600 hover:bg-blue-700 text-white disabled:bg-slate-700 disabled:text-tertiary'
+                  : 'bg-blue-500 hover:bg-blue-600 text-white disabled:bg-gray-300 disabled:text-tertiary'
                 }
                 disabled:cursor-not-allowed
               `}
@@ -303,9 +299,7 @@ export function OrganizeContainer() {
       </section>
 
       {/* Tag Management - STICKY */}
-      <section className={`sticky top-0 z-40 px-4 pb-6 pt-4 transition-colors duration-300 ${
-        theme === 'dark' ? 'bg-slate-900 border-b border-slate-700' : 'bg-gray-50 border-b border-gray-200'
-      } shadow-sm`}>
+      <section className="sticky top-0 z-40 px-4 pb-6 pt-4 transition-colors duration-300 bg-primary border-b border-primary shadow-sm">
         <div className="container mx-auto">
           <TagList
             tags={tags}
@@ -317,14 +311,10 @@ export function OrganizeContainer() {
 
       {/* Filter by Tag (Optional) - STICKY BELOW TAGS */}
       {tags.length > 0 && (
-        <section className={`sticky z-30 px-4 pb-4 pt-2 transition-colors duration-300 ${
-          theme === 'dark' ? 'bg-slate-900 border-b border-slate-700' : 'bg-gray-50 border-b border-gray-200'
-        } shadow-sm`} style={{ top: '180px' }}>
+        <section className="sticky z-30 px-4 pb-4 pt-2 transition-colors duration-300 bg-primary border-b border-primary shadow-sm" style={{ top: '180px' }}>
           <div className="container mx-auto">
             <div className="flex items-center gap-2 flex-wrap">
-              <span className={`text-sm font-medium transition-colors duration-300 ${
-                theme === 'dark' ? 'text-slate-300' : 'text-gray-700'
-              }`}>
+              <span className="text-sm font-medium transition-colors duration-300 text-primary">
                 Filter by tag:
               </span>
               <button
@@ -335,8 +325,8 @@ export function OrganizeContainer() {
                       ? 'bg-blue-600 text-white'
                       : 'bg-blue-500 text-white'
                     : theme === 'dark'
-                      ? 'bg-slate-700 text-slate-300 hover:bg-slate-600'
-                      : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                      ? 'bg-slate-700 text-primary hover:bg-slate-600'
+                      : 'bg-gray-200 text-primary hover:bg-gray-300'
                 }`}
               >
                 All
@@ -345,7 +335,7 @@ export function OrganizeContainer() {
                 <button
                   key={tag.id}
                   onClick={() => setSelectedTagFilter(tag.id)}
-                  className={`px-3 py-1 rounded-md text-sm transition-colors`}
+                  className="px-3 py-1 rounded-md text-sm transition-colors"
                   style={{
                     backgroundColor: selectedTagFilter === tag.id ? tag.color : undefined,
                     color: selectedTagFilter === tag.id ? '#fff' : undefined
@@ -363,9 +353,7 @@ export function OrganizeContainer() {
       {loading && !positions.length ? (
         <section className="px-4 py-8">
           <div className="container mx-auto text-center">
-            <p className={`text-lg transition-colors duration-300 ${
-              theme === 'dark' ? 'text-slate-400' : 'text-gray-600'
-            }`}>
+            <p className="text-lg transition-colors duration-300 text-secondary">
               Loading positions...
             </p>
           </div>
@@ -385,7 +373,7 @@ export function OrganizeContainer() {
                       Long Stocks
                     </h3>
                     <Badge variant="secondary" className={`transition-colors duration-300 ${
-                      theme === 'dark' ? 'bg-slate-700 text-slate-300' : 'bg-gray-200 text-gray-700'
+                      theme === 'dark' ? 'bg-slate-700 text-primary' : 'bg-gray-200 text-primary'
                     }`}>
                       {filteredPublicLongs.length}
                     </Badge>
@@ -447,7 +435,7 @@ export function OrganizeContainer() {
                       Short Stocks
                     </h3>
                     <Badge variant="secondary" className={`transition-colors duration-300 ${
-                      theme === 'dark' ? 'bg-slate-700 text-slate-300' : 'bg-gray-200 text-gray-700'
+                      theme === 'dark' ? 'bg-slate-700 text-primary' : 'bg-gray-200 text-primary'
                     }`}>
                       {filteredPublicShorts.length}
                     </Badge>
@@ -501,7 +489,7 @@ export function OrganizeContainer() {
                       Private Investments
                     </h3>
                     <Badge variant="secondary" className={`transition-colors duration-300 ${
-                      theme === 'dark' ? 'bg-slate-700 text-slate-300' : 'bg-gray-200 text-gray-700'
+                      theme === 'dark' ? 'bg-slate-700 text-primary' : 'bg-gray-200 text-primary'
                     }`}>
                       {filteredPrivate.length}
                     </Badge>
@@ -546,7 +534,7 @@ export function OrganizeContainer() {
                       Long Options
                     </h3>
                     <Badge variant="secondary" className={`transition-colors duration-300 ${
-                      theme === 'dark' ? 'bg-slate-700 text-slate-300' : 'bg-gray-200 text-gray-700'
+                      theme === 'dark' ? 'bg-slate-700 text-primary' : 'bg-gray-200 text-primary'
                     }`}>
                       {filteredOptionLongs.length}
                     </Badge>
@@ -584,7 +572,7 @@ export function OrganizeContainer() {
                       Short Options
                     </h3>
                     <Badge variant="secondary" className={`transition-colors duration-300 ${
-                      theme === 'dark' ? 'bg-slate-700 text-slate-300' : 'bg-gray-200 text-gray-700'
+                      theme === 'dark' ? 'bg-slate-700 text-primary' : 'bg-gray-200 text-primary'
                     }`}>
                       {filteredOptionShorts.length}
                     </Badge>

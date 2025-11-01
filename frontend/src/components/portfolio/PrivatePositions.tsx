@@ -48,9 +48,7 @@ export function PrivatePositions({ positions }: PrivatePositionsProps) {
       {Object.entries(groupedPositions).map(([subtype, subtypePositions]) => (
         <div key={subtype}>
           <div className="flex items-center gap-2 mb-3">
-            <h4 className={`text-sm font-medium ${
-              theme === 'dark' ? 'text-slate-300' : 'text-gray-700'
-            }`}>{subtype}</h4>
+            <h4 className="text-sm font-medium text-primary">{subtype}</h4>
             <Badge variant="outline" className="text-xs">
               {subtypePositions.length}
             </Badge>

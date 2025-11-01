@@ -66,7 +66,7 @@ export function MarketBetaComparison() {
   const formatDifference = (diff: number | null) => {
     if (diff === null) return '-';
     const formatted = Math.abs(diff).toFixed(4);
-    const color = diff > 0 ? 'text-green-600' : diff < 0 ? 'text-red-600' : 'text-gray-600';
+    const color = diff > 0 ? 'text-green-600' : diff < 0 ? 'text-red-600' : 'text-secondary';
     const sign = diff > 0 ? '+' : '';
     return <span className={color}>{sign}{diff.toFixed(4)}</span>;
   };
@@ -100,11 +100,11 @@ export function MarketBetaComparison() {
       <CardContent>
         <div className="relative overflow-x-auto">
           <table className="w-full text-sm text-left">
-            <caption className="p-5 text-sm text-gray-500 bg-white dark:bg-gray-800">
+            <caption className="p-5 text-sm text-tertiary bg-white dark:bg-gray-800">
               Beta values measure systematic risk relative to the market (SPY).
               Differences highlight discrepancies between provider data and our calculations.
             </caption>
-            <thead className="text-xs uppercase bg-gray-50 dark:bg-gray-700">
+            <thead className="text-xs uppercase bg-primary dark:bg-gray-700">
               <tr>
                 <th scope="col" className="px-6 py-3 w-[100px]">Symbol</th>
                 <th scope="col" className="px-6 py-3 text-right">Market Beta</th>

@@ -47,30 +47,24 @@ export function TagList({
   return (
     <div className="space-y-4">
       {/* Tag Creator - Thin Box */}
-      <Card className={`transition-colors ${
-        theme === 'dark' ? 'bg-slate-800 border-slate-700' : 'bg-white border-gray-200'
-      }`}>
+      <Card className="transition-colors themed-card">
         <CardContent className="pt-6">
           <TagCreator onCreate={onCreate} />
         </CardContent>
       </Card>
 
       {/* Tags List - Wider Box */}
-      <Card className={`transition-colors ${
-        theme === 'dark' ? 'bg-slate-800 border-slate-700' : 'bg-white border-gray-200'
-      }`}>
+      <Card className="transition-colors themed-card">
         <CardContent className="pt-6">
           {tags.length === 0 ? (
             <div className={`text-center py-8 transition-colors duration-300 ${
-              theme === 'dark' ? 'text-slate-400' : 'text-gray-500'
+              theme === 'dark' ? 'text-secondary' : 'text-tertiary'
             }`}>
               No tags yet. Create one to categorize your strategies.
             </div>
           ) : (
             <div className="space-y-2">
-              <h3 className={`text-sm font-medium transition-colors duration-300 ${
-                theme === 'dark' ? 'text-slate-300' : 'text-gray-700'
-              }`}>Your Tags</h3>
+              <h3 className="text-sm font-medium transition-colors duration-300 text-primary">Your Tags</h3>
               <div className="flex flex-wrap gap-2">
                 {tags.map((tag) => (
                   <div
@@ -78,7 +72,7 @@ export function TagList({
                     className={`flex items-center gap-2 rounded-lg p-2 pr-3 border transition-colors ${
                       theme === 'dark'
                         ? 'bg-slate-700 border-slate-600'
-                        : 'bg-gray-50 border-gray-200'
+                        : 'bg-primary border-primary'
                     }`}
                   >
                     <TagBadge tag={tag} draggable={true} />
@@ -87,7 +81,7 @@ export function TagList({
                       onClick={() => setTagToDelete(tag)}
                       className={`transition-colors ${
                         theme === 'dark'
-                          ? 'text-slate-400 hover:text-red-400'
+                          ? 'text-secondary hover:text-red-400'
                           : 'text-gray-400 hover:text-red-600'
                       }`}
                       title="Archive tag"
@@ -104,17 +98,17 @@ export function TagList({
 
       {/* Delete Confirmation Dialog */}
       <AlertDialog open={!!tagToDelete} onOpenChange={(open) => !open && setTagToDelete(null)}>
-        <AlertDialogContent className={theme === 'dark' ? 'bg-slate-800 border-slate-700' : 'bg-white border-gray-200'}>
+        <AlertDialogContent className={theme === 'dark' ? 'themed-card' : 'themed-card'}>
           <AlertDialogHeader>
             <AlertDialogTitle className={theme === 'dark' ? 'text-white' : 'text-gray-900'}>
               Archive Tag
             </AlertDialogTitle>
-            <AlertDialogDescription className={theme === 'dark' ? 'text-slate-400' : 'text-gray-600'}>
+            <AlertDialogDescription className={theme === 'dark' ? 'text-secondary' : 'text-secondary'}>
               Are you sure you want to archive "{tagToDelete?.name}"? This will remove it from all positions.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel className={theme === 'dark' ? 'bg-slate-700 text-slate-300 hover:bg-slate-600' : ''}>
+            <AlertDialogCancel className={theme === 'dark' ? 'bg-slate-700 text-primary hover:bg-slate-600' : ''}>
               Cancel
             </AlertDialogCancel>
             <AlertDialogAction

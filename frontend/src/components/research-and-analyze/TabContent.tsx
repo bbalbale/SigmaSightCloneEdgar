@@ -14,7 +14,7 @@ export interface TabContentProps {
 export function TabContent({ positions, onPositionClick, onTagDrop, theme }: TabContentProps) {
   if (positions.length === 0) {
     return (
-      <div className="py-8 text-center text-slate-400">
+      <div className="py-8 text-center text-secondary">
         No positions found matching your filters
       </div>
     )

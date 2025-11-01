@@ -36,15 +36,13 @@ function RiskCard({ label, children, theme }: RiskCardProps) {
     <div
       className={`border-r p-3 transition-all duration-200 hover:bg-opacity-50 ${
         theme === "dark"
-          ? "bg-slate-900/50 border-slate-700/50 hover:bg-slate-800/50"
+          ? "bg-primary/50 border-primary/50 hover:bg-slate-800/50"
           : "bg-white border-slate-300 hover:bg-slate-50"
       }`}
     >
       {/* Label */}
       <div
-        className={`text-[10px] font-semibold uppercase tracking-wider mb-1.5 ${
-          theme === "dark" ? "text-slate-500" : "text-slate-500"
-        }`}
+        className="text-[10px] font-semibold uppercase tracking-wider mb-1.5 text-tertiary"
       >
         {label}
       </div>
@@ -59,7 +57,7 @@ function LoadingCard({ theme }: { theme: "dark" | "light" }) {
     <div
       className={`rounded-lg border p-4 animate-pulse transition-colors duration-300 ${
         theme === "dark"
-          ? "bg-slate-900 border-slate-700"
+          ? "bg-primary border-primary"
           : "bg-slate-50 border-slate-200"
       }`}
     >
@@ -108,7 +106,7 @@ export function RiskMetricsRow({ metrics, loading }: RiskMetricsRowProps) {
 
   // Determine beta interpretation
   const getBetaInterpretation = (beta: number | null) => {
-    if (beta === null) return { text: "N/A", color: "text-slate-400" };
+    if (beta === null) return { text: "N/A", color: "text-secondary" };
     if (beta > 1.2)
       return {
         text: "High risk",
@@ -127,7 +125,7 @@ export function RiskMetricsRow({ metrics, loading }: RiskMetricsRowProps) {
 
   // Determine correlation interpretation
   const getCorrelationInterpretation = (corr: number | null) => {
-    if (corr === null) return { text: "N/A", color: "text-slate-400" };
+    if (corr === null) return { text: "N/A", color: "text-secondary" };
     if (corr > 0.8)
       return {
         text: "Highly correlated",
@@ -152,7 +150,7 @@ export function RiskMetricsRow({ metrics, loading }: RiskMetricsRowProps) {
       <div className="container mx-auto">
         <h2
           className={`text-sm font-semibold uppercase tracking-wider mb-2 ${
-            theme === "dark" ? "text-slate-400" : "text-slate-600"
+            theme === "dark" ? "text-secondary" : "text-slate-600"
           }`}
         >
           Risk Metrics
@@ -161,7 +159,7 @@ export function RiskMetricsRow({ metrics, loading }: RiskMetricsRowProps) {
         <div
           className={`border overflow-hidden ${
             theme === "dark"
-              ? "bg-slate-900/30 border-slate-700/50"
+              ? "bg-primary/30 border-primary/50"
               : "bg-white border-slate-300"
           }`}
         >
@@ -173,9 +171,7 @@ export function RiskMetricsRow({ metrics, loading }: RiskMetricsRowProps) {
                 <div className="space-y-0.5">
                   {metrics.portfolioBeta1y !== null && (
                     <div
-                      className={`text-xs font-medium ${
-                        theme === "dark" ? "text-slate-500" : "text-slate-500"
-                      }`}
+                      className="text-xs font-medium text-tertiary"
                     >
                       <span
                         className={`text-2xl font-bold tabular-nums ${
@@ -191,13 +187,11 @@ export function RiskMetricsRow({ metrics, loading }: RiskMetricsRowProps) {
                   )}
                   {metrics.portfolioBeta90d !== null && (
                     <div
-                      className={`text-xs font-medium ${
-                        theme === "dark" ? "text-slate-500" : "text-slate-500"
-                      }`}
+                      className="text-xs font-medium text-tertiary"
                     >
                       <span
                         className={`text-xl font-bold tabular-nums ${
-                          theme === "dark" ? "text-slate-300" : "text-slate-700"
+                          theme === "dark" ? "text-primary" : "text-slate-700"
                         }`}
                       >
                         {metrics.portfolioBeta90d.toFixed(2)}
@@ -221,9 +215,7 @@ export function RiskMetricsRow({ metrics, loading }: RiskMetricsRowProps) {
                     —
                   </div>
                   <div
-                    className={`text-xs font-medium ${
-                      theme === "dark" ? "text-slate-500" : "text-slate-500"
-                    }`}
+                    className="text-xs font-medium text-tertiary"
                   >
                     N/A
                   </div>
@@ -244,21 +236,13 @@ export function RiskMetricsRow({ metrics, loading }: RiskMetricsRowProps) {
                   </div>
                   <div
                     className={`text-xs font-medium tabular-nums mb-0.5 ${
-                      theme === "dark" ? "text-slate-300" : "text-slate-700"
+                      theme === "dark" ? "text-primary" : "text-slate-700"
                     }`}
                   >
                     {metrics.topSector.weight.toFixed(1)}% portfolio
                   </div>
                   <div
-                    className={`text-[10px] font-semibold tabular-nums ${
-                      Math.abs(metrics.topSector.vs_sp) > 10
-                        ? theme === "dark"
-                          ? "text-amber-400"
-                          : "text-amber-600"
-                        : theme === "dark"
-                          ? "text-slate-500"
-                          : "text-slate-500"
-                    }`}
+                    className="text-[10px] font-semibold tabular-nums text-tertiary"
                   >
                     {metrics.topSector.vs_sp >= 0 ? "+" : ""}
                     {metrics.topSector.vs_sp.toFixed(1)}% vs S&P
@@ -266,9 +250,7 @@ export function RiskMetricsRow({ metrics, loading }: RiskMetricsRowProps) {
                 </>
               ) : (
                 <div
-                  className={`text-xs font-medium ${
-                    theme === "dark" ? "text-slate-500" : "text-slate-500"
-                  }`}
+                  className="text-xs font-medium text-tertiary"
                 >
                   No data
                 </div>
@@ -288,7 +270,7 @@ export function RiskMetricsRow({ metrics, loading }: RiskMetricsRowProps) {
                   </div>
                   <div
                     className={`text-xs font-medium tabular-nums mb-0.5 ${
-                      theme === "dark" ? "text-slate-300" : "text-slate-700"
+                      theme === "dark" ? "text-primary" : "text-slate-700"
                     }`}
                   >
                     {metrics.largestPosition.weight.toFixed(1)}%
@@ -311,9 +293,7 @@ export function RiskMetricsRow({ metrics, loading }: RiskMetricsRowProps) {
                 </>
               ) : (
                 <div
-                  className={`text-xs font-medium ${
-                    theme === "dark" ? "text-slate-500" : "text-slate-500"
-                  }`}
+                  className="text-xs font-medium text-tertiary"
                 >
                   No positions
                 </div>
@@ -339,9 +319,7 @@ export function RiskMetricsRow({ metrics, loading }: RiskMetricsRowProps) {
             {/* Stress Test */}
             <RiskCard label="Stress Test" theme={theme}>
               <div
-                className={`text-xs font-medium mb-1 ${
-                  theme === "dark" ? "text-slate-500" : "text-slate-500"
-                }`}
+                className="text-xs font-medium mb-1 text-tertiary"
               >
                 ±1% Market:
               </div>
@@ -355,7 +333,7 @@ export function RiskMetricsRow({ metrics, loading }: RiskMetricsRowProps) {
                     {formatCurrency(metrics.stressTest.up)}
                   </span>
                   <span
-                    className={`text-xs ${theme === "dark" ? "text-slate-600" : "text-slate-400"}`}
+                    className={`text-xs ${theme === "dark" ? "text-slate-600" : "text-secondary"}`}
                   >
                     /
                   </span>
@@ -369,9 +347,7 @@ export function RiskMetricsRow({ metrics, loading }: RiskMetricsRowProps) {
                 </div>
               ) : (
                 <div
-                  className={`text-xs font-medium ${
-                    theme === "dark" ? "text-slate-500" : "text-slate-500"
-                  }`}
+                  className="text-xs font-medium text-tertiary"
                 >
                   No data
                 </div>

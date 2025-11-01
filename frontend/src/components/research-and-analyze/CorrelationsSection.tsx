@@ -10,30 +10,6 @@ export interface CorrelationsSectionProps {
   theme: 'dark' | 'light'
 }
 
-function formatCurrency(value: number): string {
-  if (Math.abs(value) >= 1000000) {
-    return `$${(value / 1000000).toFixed(2)}M`
-  }
-  if (Math.abs(value) >= 1000) {
-    return `$${(value / 1000).toFixed(1)}K`
-  }
-  return `$${value.toFixed(2)}`
-}
-
-function getCorrelationColor(correlation: number, theme: 'dark' | 'light'): string {
-  const abs = Math.abs(correlation)
-  if (abs > 0.85) {
-    return theme === 'dark' ? 'text-red-400' : 'text-red-600'
-  }
-  if (abs > 0.7) {
-    return theme === 'dark' ? 'text-orange-400' : 'text-orange-600'
-  }
-  if (abs > 0.5) {
-    return theme === 'dark' ? 'text-yellow-400' : 'text-yellow-600'
-  }
-  return theme === 'dark' ? 'text-slate-400' : 'text-slate-600'
-}
-
 export function CorrelationsSection({ position, theme }: CorrelationsSectionProps) {
   const {
     correlations,
@@ -45,7 +21,7 @@ export function CorrelationsSection({ position, theme }: CorrelationsSectionProp
 
   if (loading) {
     return (
-      <p className={`text-sm ${theme === 'dark' ? 'text-slate-500' : 'text-slate-600'}`}>
+      <p className={`text-sm ${theme === 'dark' ? 'text-tertiary' : 'text-slate-600'}`}>
         Loading correlations...
       </p>
     )
@@ -61,7 +37,7 @@ export function CorrelationsSection({ position, theme }: CorrelationsSectionProp
 
   if (correlations.length === 0) {
     return (
-      <p className={`text-sm ${theme === 'dark' ? 'text-slate-500' : 'text-slate-600'}`}>
+      <p className={`text-sm ${theme === 'dark' ? 'text-tertiary' : 'text-slate-600'}`}>
         No correlation data available
       </p>
     )
@@ -83,64 +59,28 @@ export function CorrelationsSection({ position, theme }: CorrelationsSectionProp
         </div>
       )}
 
-      {/* Correlation List */}
-      <div className="space-y-3">
-        <div className="flex items-center justify-between mb-2">
-          <span className={`text-[10px] font-semibold uppercase tracking-wider ${theme === 'dark' ? 'text-slate-500' : 'text-slate-600'}`}>
-            TOP 5 CORRELATIONS
-          </span>
-        </div>
-
-        {correlations.map((corr, index) => {
-          const correlationColor = getCorrelationColor(corr.correlation, theme)
+      {/* Correlation List - Simplified to match spec */}
+      <div className="space-y-2">
+        {correlations.map((corr) => {
           const strength = getCorrelationStrength(corr.correlation)
-          const isPositive = corr.correlation >= 0
+          const showStrength = Math.abs(corr.correlation) > 0.7 // Only show strength label for high correlations
 
           return (
             <div
               key={corr.symbol}
-              className={`flex items-center justify-between p-2 rounded ${
-                theme === 'dark' ? 'bg-slate-800/50' : 'bg-slate-50'
-              }`}
+              className="flex items-center justify-between"
             >
-              <div className="flex-1">
-                <div className="flex items-center gap-2">
-                  <span className={`text-xs font-medium ${theme === 'dark' ? 'text-slate-200' : 'text-slate-900'}`}>
-                    {index + 1}. {corr.symbol}
-                  </span>
-                  <span className={`text-[10px] px-1.5 py-0.5 rounded ${
-                    theme === 'dark' ? 'bg-slate-700 text-slate-300' : 'bg-slate-200 text-slate-700'
-                  }`}>
-                    {strength}
-                  </span>
-                </div>
-                <span className={`text-xs ${theme === 'dark' ? 'text-slate-500' : 'text-slate-600'}`}>
-                  {formatCurrency(corr.marketValue)}
-                </span>
-              </div>
-
-              <div className="text-right">
-                <div className={`text-sm font-bold tabular-nums ${correlationColor}`}>
-                  {isPositive ? '+' : ''}{(corr.correlation * 100).toFixed(1)}%
-                </div>
-                <div className={`text-[10px] ${theme === 'dark' ? 'text-slate-600' : 'text-slate-500'}`}>
-                  correlation
-                </div>
-              </div>
+              <span className={`text-sm ${theme === 'dark' ? 'text-primary' : 'text-slate-700'}`}>
+                {corr.symbol}:
+              </span>
+              <span className={`text-sm font-medium ${theme === 'dark' ? 'text-slate-200' : 'text-slate-900'}`}>
+                {corr.correlation.toFixed(2)} {showStrength && <span className={`text-xs ${theme === 'dark' ? 'text-tertiary' : 'text-slate-600'}`}>({strength})</span>}
+              </span>
             </div>
           )
         })}
       </div>
 
-      {/* Interpretation Guide */}
-      <div className={`text-xs p-2 rounded ${
-        theme === 'dark' ? 'bg-slate-800/30 text-slate-500' : 'bg-slate-50 text-slate-600'
-      }`}>
-        <p className="font-medium mb-1">Correlation Guide:</p>
-        <p>+100% = Perfect positive correlation (moves together)</p>
-        <p>0% = No correlation</p>
-        <p>-100% = Perfect negative correlation (moves opposite)</p>
-      </div>
     </div>
   )
 }

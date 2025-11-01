@@ -26,14 +26,12 @@ export function SigmaSightAIContainer() {
 
   if (error && !loading) {
     return (
-      <div className={`min-h-screen transition-colors duration-300 ${
-        theme === 'dark' ? 'bg-slate-900' : 'bg-gray-50'
-      }`}>
+      <div className="min-h-screen transition-colors duration-300 bg-primary">
         <section className="px-4 py-12">
           <div className="container mx-auto">
             <div className={`rounded-lg border p-8 text-center transition-colors duration-300 ${
               theme === 'dark'
-                ? 'bg-slate-900 border-slate-700'
+                ? 'bg-primary border-primary'
                 : 'bg-white border-slate-200'
             }`}>
               <h2 className={`text-xl font-semibold mb-2 ${
@@ -42,7 +40,7 @@ export function SigmaSightAIContainer() {
                 Error Loading Insights
               </h2>
               <p className={`text-sm ${
-                theme === 'dark' ? 'text-slate-400' : 'text-slate-600'
+                theme === 'dark' ? 'text-secondary' : 'text-slate-600'
               }`}>
                 {error}
               </p>
@@ -54,12 +52,10 @@ export function SigmaSightAIContainer() {
   }
 
   return (
-    <div className={`min-h-screen transition-colors duration-300 ${
-      theme === 'dark' ? 'bg-slate-900' : 'bg-gray-50'
-    }`}>
+    <div className="min-h-screen transition-colors duration-300 bg-primary">
       {/* Header */}
       <section className={`px-4 py-8 border-b transition-colors duration-300 ${
-        theme === 'dark' ? 'border-slate-700' : 'border-slate-200'
+        theme === 'dark' ? 'border-primary' : 'border-slate-200'
       }`}>
         <div className="container mx-auto">
           <div className="flex items-center gap-3 mb-2">
@@ -72,14 +68,10 @@ export function SigmaSightAIContainer() {
               AI Insights
             </h1>
           </div>
-          <p className={`text-lg transition-colors duration-300 ${
-            theme === 'dark' ? 'text-slate-400' : 'text-gray-600'
-          }`}>
+          <p className="text-lg transition-colors duration-300 text-secondary">
             AI-powered analysis of your portfolio
           </p>
-          <p className={`text-sm mt-1 transition-colors duration-300 ${
-            theme === 'dark' ? 'text-slate-500' : 'text-gray-500'
-          }`}>
+          <p className="text-sm mt-1 transition-colors duration-300 text-tertiary">
             Generation time: ~25 seconds • Limit: 10 per day
           </p>
         </div>

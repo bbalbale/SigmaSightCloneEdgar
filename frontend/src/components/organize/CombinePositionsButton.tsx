@@ -21,7 +21,7 @@ export function CombinePositionsButton({
   return (
     <div className="fixed bottom-6 left-1/2 transform -translate-x-1/2 z-50">
       <div className="bg-white border border-gray-300 rounded-lg shadow-lg px-4 py-3 flex items-center gap-3">
-        <span className="text-sm text-gray-600">
+        <span className="text-sm text-secondary">
           {selectedCount} positions selected
         </span>
 

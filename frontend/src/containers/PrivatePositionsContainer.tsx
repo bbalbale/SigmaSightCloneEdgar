@@ -11,14 +11,10 @@ export function PrivatePositionsContainer() {
 
   if (loading && !positions.length) {
     return (
-      <div className={`min-h-screen flex items-center justify-center transition-colors duration-300 ${
-        theme === 'dark' ? 'bg-slate-900' : 'bg-gray-50'
-      }`}>
+      <div className="min-h-screen flex items-center justify-center transition-colors duration-300 bg-primary">
         <div className="text-center">
           <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mb-4"></div>
-          <p className={`text-lg font-medium transition-colors duration-300 ${
-            theme === 'dark' ? 'text-slate-400' : 'text-gray-600'
-          }`}>
+          <p className="text-lg font-medium transition-colors duration-300 text-secondary">
             Loading positions...
           </p>
         </div>
@@ -28,9 +24,7 @@ export function PrivatePositionsContainer() {
 
   if (error) {
     return (
-      <div className={`min-h-screen transition-colors duration-300 ${
-        theme === 'dark' ? 'bg-slate-900' : 'bg-gray-50'
-      }`}>
+      <div className="min-h-screen transition-colors duration-300 bg-primary">
         <section className="px-6 py-12">
           <div className="max-w-7xl mx-auto">
             <div className={`rounded-xl border p-8 transition-all duration-300 ${
@@ -56,9 +50,7 @@ export function PrivatePositionsContainer() {
   }
 
   return (
-    <div className={`min-h-screen transition-colors duration-300 ${
-      theme === 'dark' ? 'bg-slate-900' : 'bg-gray-50'
-    }`}>
+    <div className="min-h-screen transition-colors duration-300 bg-primary">
       {/* Header */}
       <section className="px-4 py-8">
         <div className="container mx-auto">
@@ -67,9 +59,7 @@ export function PrivatePositionsContainer() {
           }`}>
             Private Positions
           </h1>
-          <p className={`transition-colors duration-300 ${
-            theme === 'dark' ? 'text-slate-400' : 'text-gray-600'
-          }`}>
+          <p className="transition-colors duration-300 text-secondary">
             Private equity, venture capital, and alternative investments
           </p>
         </div>

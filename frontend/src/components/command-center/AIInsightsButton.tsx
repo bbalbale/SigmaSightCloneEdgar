@@ -18,7 +18,7 @@ export function AIInsightsButton() {
       onClick={handleClick}
       className={`flex items-center gap-2 px-4 py-2 rounded transition-all duration-200 ${
         theme === "dark"
-          ? "bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-slate-100 border border-slate-700 hover:border-slate-600"
+          ? "bg-slate-800 hover:bg-slate-700 text-primary hover:text-slate-100 border border-primary hover:border-slate-600"
           : "bg-white hover:bg-slate-50 text-slate-700 hover:text-slate-900 border border-slate-300 hover:border-slate-400"
       }`}
     >

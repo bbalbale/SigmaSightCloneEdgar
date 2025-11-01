@@ -44,10 +44,10 @@ function getSeverityStyles(
       badge: theme === "dark" ? "bg-orange-900/40 text-orange-400" : "bg-orange-100 text-orange-700",
     },
     normal: {
-      bg: theme === "dark" ? "bg-slate-900/50" : "bg-white",
-      border: theme === "dark" ? "border-slate-700/50" : "border-slate-300",
-      text: theme === "dark" ? "text-slate-300" : "text-slate-700",
-      badge: theme === "dark" ? "bg-slate-800 text-slate-400" : "bg-slate-100 text-slate-700",
+      bg: theme === "dark" ? "bg-primary/50" : "bg-white",
+      border: theme === "dark" ? "border-primary/50" : "border-slate-300",
+      text: theme === "dark" ? "text-primary" : "text-slate-700",
+      badge: theme === "dark" ? "bg-slate-800 text-secondary" : "bg-slate-100 text-slate-700",
     },
     info: {
       bg: theme === "dark" ? "bg-blue-900/20" : "bg-blue-50",
@@ -79,9 +79,7 @@ function InsightCard({ insight, theme, onDismiss, onExpand, isExpanded }: Insigh
                 {insight.severity}
               </span>
               <span
-                className={`text-[10px] font-semibold uppercase tracking-wider ${
-                  theme === "dark" ? "text-slate-500" : "text-slate-500"
-                }`}
+                className="text-[10px] font-semibold uppercase tracking-wider text-tertiary"
               >
                 {insight.insight_type.replace(/_/g, " ")}
               </span>
@@ -98,8 +96,8 @@ function InsightCard({ insight, theme, onDismiss, onExpand, isExpanded }: Insigh
             onClick={() => onDismiss(insight.id)}
             className={`ml-2 text-xs font-medium px-2 py-1 rounded transition-colors ${
               theme === "dark"
-                ? "text-slate-500 hover:text-slate-300 hover:bg-slate-800"
-                : "text-slate-500 hover:text-slate-700 hover:bg-slate-100"
+                ? "text-tertiary hover:text-primary hover:bg-slate-800"
+                : "text-tertiary hover:text-slate-700 hover:bg-slate-100"
             }`}
           >
             Dismiss
@@ -109,7 +107,7 @@ function InsightCard({ insight, theme, onDismiss, onExpand, isExpanded }: Insigh
         {/* Summary */}
         <p
           className={`text-sm mb-3 ${
-            theme === "dark" ? "text-slate-300" : "text-slate-700"
+            theme === "dark" ? "text-primary" : "text-slate-700"
           }`}
         >
           {insight.summary}
@@ -119,9 +117,7 @@ function InsightCard({ insight, theme, onDismiss, onExpand, isExpanded }: Insigh
         {insight.key_findings.length > 0 && (
           <div className="mb-3">
             <div
-              className={`text-[10px] font-semibold uppercase tracking-wider mb-1.5 ${
-                theme === "dark" ? "text-slate-500" : "text-slate-500"
-              }`}
+              className="text-[10px] font-semibold uppercase tracking-wider mb-1.5 text-tertiary"
             >
               Key Findings
             </div>
@@ -130,7 +126,7 @@ function InsightCard({ insight, theme, onDismiss, onExpand, isExpanded }: Insigh
                 <li
                   key={idx}
                   className={`text-xs ${
-                    theme === "dark" ? "text-slate-400" : "text-slate-600"
+                    theme === "dark" ? "text-secondary" : "text-slate-600"
                   }`}
                 >
                   • {finding}
@@ -154,9 +150,7 @@ function InsightCard({ insight, theme, onDismiss, onExpand, isExpanded }: Insigh
         {isExpanded && insight.recommendations.length > 0 && (
           <div className="mb-3">
             <div
-              className={`text-[10px] font-semibold uppercase tracking-wider mb-1.5 ${
-                theme === "dark" ? "text-slate-500" : "text-slate-500"
-              }`}
+              className="text-[10px] font-semibold uppercase tracking-wider mb-1.5 text-tertiary"
             >
               Recommendations
             </div>
@@ -165,7 +159,7 @@ function InsightCard({ insight, theme, onDismiss, onExpand, isExpanded }: Insigh
                 <li
                   key={idx}
                   className={`text-xs ${
-                    theme === "dark" ? "text-slate-400" : "text-slate-600"
+                    theme === "dark" ? "text-secondary" : "text-slate-600"
                   }`}
                 >
                   • {rec}
@@ -179,7 +173,7 @@ function InsightCard({ insight, theme, onDismiss, onExpand, isExpanded }: Insigh
         <div className="flex items-center justify-between pt-2 border-t border-opacity-30">
           <div
             className={`text-[10px] ${
-              theme === "dark" ? "text-slate-600" : "text-slate-400"
+              theme === "dark" ? "text-slate-600" : "text-secondary"
             }`}
           >
             Generated {createdDate} • ${insight.performance.cost_usd.toFixed(3)} • {(insight.performance.generation_time_ms / 1000).toFixed(1)}s
@@ -198,7 +192,7 @@ function InsightCard({ insight, theme, onDismiss, onExpand, isExpanded }: Insigh
             <button
               onClick={onExpand}
               className={`text-xs font-medium ${
-                theme === "dark" ? "text-slate-500 hover:text-slate-300" : "text-slate-500 hover:text-slate-700"
+                theme === "dark" ? "text-tertiary hover:text-primary" : "text-tertiary hover:text-slate-700"
               }`}
             >
               Collapse
@@ -208,17 +202,15 @@ function InsightCard({ insight, theme, onDismiss, onExpand, isExpanded }: Insigh
 
         {/* Full Analysis (expanded only) */}
         {isExpanded && (
-          <div className={`mt-3 pt-3 border-t ${theme === "dark" ? "border-slate-700/50" : "border-slate-300"}`}>
+          <div className={`mt-3 pt-3 border-t ${theme === "dark" ? "border-primary/50" : "border-slate-300"}`}>
             <div
-              className={`text-[10px] font-semibold uppercase tracking-wider mb-2 ${
-                theme === "dark" ? "text-slate-500" : "text-slate-500"
-              }`}
+              className="text-[10px] font-semibold uppercase tracking-wider mb-2 text-tertiary"
             >
               Full Analysis
             </div>
             <div
               className={`text-sm whitespace-pre-wrap ${
-                theme === "dark" ? "text-slate-300" : "text-slate-700"
+                theme === "dark" ? "text-primary" : "text-slate-700"
               }`}
             >
               {insight.full_analysis}
@@ -235,7 +227,7 @@ function LoadingCard({ theme }: { theme: "dark" | "light" }) {
     <div
       className={`rounded-lg border p-4 animate-pulse transition-colors duration-300 ${
         theme === "dark"
-          ? "bg-slate-900 border-slate-700"
+          ? "bg-primary border-primary"
           : "bg-slate-50 border-slate-200"
       }`}
     >
@@ -294,7 +286,7 @@ export function AIInsightsRow({
         <div className="container mx-auto">
           <h2
             className={`text-sm font-semibold uppercase tracking-wider mb-2 ${
-              theme === "dark" ? "text-slate-400" : "text-slate-600"
+              theme === "dark" ? "text-secondary" : "text-slate-600"
             }`}
           >
             AI Insights
@@ -313,7 +305,7 @@ export function AIInsightsRow({
         <div className="flex items-center justify-between mb-2">
           <h2
             className={`text-sm font-semibold uppercase tracking-wider ${
-              theme === "dark" ? "text-slate-400" : "text-slate-600"
+              theme === "dark" ? "text-secondary" : "text-slate-600"
             }`}
           >
             AI Insights
@@ -325,7 +317,7 @@ export function AIInsightsRow({
               generatingInsight
                 ? theme === "dark"
                   ? "bg-slate-800 text-slate-600 cursor-not-allowed"
-                  : "bg-slate-200 text-slate-400 cursor-not-allowed"
+                  : "bg-slate-200 text-secondary cursor-not-allowed"
                 : theme === "dark"
                 ? "bg-orange-900/40 text-orange-400 hover:bg-orange-900/60"
                 : "bg-orange-100 text-orange-700 hover:bg-orange-200"
@@ -339,13 +331,13 @@ export function AIInsightsRow({
           <div
             className={`border p-8 text-center transition-colors duration-300 ${
               theme === "dark"
-                ? "bg-slate-900/30 border-slate-700/50"
+                ? "bg-primary/30 border-primary/50"
                 : "bg-white border-slate-300"
             }`}
           >
             <p
               className={`text-sm mb-3 ${
-                theme === "dark" ? "text-slate-400" : "text-slate-600"
+                theme === "dark" ? "text-secondary" : "text-slate-600"
               }`}
             >
               No AI insights yet. Generate your first daily summary to get started.
@@ -357,7 +349,7 @@ export function AIInsightsRow({
                 generatingInsight
                   ? theme === "dark"
                     ? "bg-slate-800 text-slate-600 cursor-not-allowed"
-                    : "bg-slate-200 text-slate-400 cursor-not-allowed"
+                    : "bg-slate-200 text-secondary cursor-not-allowed"
                   : theme === "dark"
                   ? "bg-orange-900/40 text-orange-400 hover:bg-orange-900/60"
                   : "bg-orange-100 text-orange-700 hover:bg-orange-200"

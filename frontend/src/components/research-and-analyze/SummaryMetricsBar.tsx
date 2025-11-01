@@ -15,7 +15,7 @@ export interface SummaryMetricsBarProps {
 
 export function SummaryMetricsBar({ metrics }: SummaryMetricsBarProps) {
   return (
-    <div className="py-2 text-sm text-slate-400">
+    <div className="py-2 text-sm text-secondary">
       <span className="font-semibold">{metrics.positionCount}</span> positions
       {' | '}
       <span className="font-semibold tabular-nums">
