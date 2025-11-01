@@ -4,6 +4,7 @@ import '@/styles/globals.css'
 import '@/styles/theme-utilities.css'
 import { Providers } from './providers'
 import { ConditionalNavigationHeader } from '@/components/navigation/ConditionalNavigationHeader'
+import { BottomNavigation } from '@/components/navigation/BottomNavigation'
 
 const inter = Inter({
   subsets: ['latin'],
@@ -29,9 +30,10 @@ export default function RootLayout({
         <Providers>
           <div className="flex min-h-screen flex-col">
             <ConditionalNavigationHeader />
-            <main className="flex-1">
+            <main className="flex-1 pb-16 md:pb-0">
               {children}
             </main>
+            <BottomNavigation className="md:hidden" />
           </div>
         </Providers>
       </body>
