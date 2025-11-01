@@ -181,11 +181,8 @@ export function ResearchAndAnalyzeContainer() {
     // Combine all positions for portfolio-level aggregate
     const allPositions = [...publicPositions, ...optionsPositions, ...privatePositions]
 
-    // Combine all public positions (longs + shorts) for Public tab aggregate
-    const allPublicPositions = [...publicLongs, ...publicShorts]
-
     return {
-      // Portfolio-level (all positions combined)
+      // Portfolio-level (shown in cards at top)
       portfolio: {
         eoy: positionResearchService.calculateAggregateReturn(
           allPositions,
@@ -196,12 +193,6 @@ export function ResearchAndAnalyzeContainer() {
           allPositions,
           'target_return_next_year'
         )
-      },
-
-      // Tab-level aggregates for top cards
-      allPublic: {
-        eoy: positionResearchService.calculateAggregateReturn(allPublicPositions, 'target_return_eoy', 'analyst_return_eoy'),
-        nextYear: positionResearchService.calculateAggregateReturn(allPublicPositions, 'target_return_next_year')
       },
 
       // Section-level aggregates for Public tab
@@ -470,16 +461,8 @@ export function ResearchAndAnalyzeContainer() {
               {/* Right: Returns Cards (40%) */}
               <div style={{ width: '40%', minWidth: '300px' }}>
                 <CompactReturnsCards
-                  eoyReturn={
-                    activeTab === 'public' ? aggregates.allPublic.eoy :
-                    activeTab === 'options' ? aggregates.allOptions.eoy :
-                    aggregates.private.eoy
-                  }
-                  nextYearReturn={
-                    activeTab === 'public' ? aggregates.allPublic.nextYear :
-                    activeTab === 'options' ? aggregates.allOptions.nextYear :
-                    aggregates.private.nextYear
-                  }
+                  eoyReturn={aggregates.portfolio.eoy}
+                  nextYearReturn={aggregates.portfolio.nextYear}
                 />
               </div>
             </div>
