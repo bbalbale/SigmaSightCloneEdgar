@@ -319,6 +319,10 @@ export function ResearchAndAnalyzeContainer() {
       await addTagsToPosition(positionId, [tagId], false) // false = don't replace existing
       console.log(`Tag ${tagId} added to position ${positionId}`)
 
+      // Invalidate cache so refetch gets fresh data with new tags
+      positionResearchService.invalidateAllCache(portfolioId!)
+      console.log('Cache invalidated after tag drop')
+
       // Refetch positions to show updated tags immediately
       await Promise.all([
         refetchPublicPositions(),
@@ -343,6 +347,10 @@ export function ResearchAndAnalyzeContainer() {
       await removeTagsFromPosition(positionId, [tagId])
       console.log(`Tag ${tagId} removed from position ${positionId}`)
 
+      // Invalidate cache so refetch gets fresh data with updated tags
+      positionResearchService.invalidateAllCache(portfolioId!)
+      console.log('Cache invalidated after tag removal')
+
       // Refetch positions to show updated tags immediately
       await Promise.all([
         refetchPublicPositions(),
@@ -357,6 +365,10 @@ export function ResearchAndAnalyzeContainer() {
   const handleRestoreSectorTags = async () => {
     try {
       await restoreSectorTags()
+
+      // Invalidate cache so refetch gets fresh data with restored tags
+      positionResearchService.invalidateAllCache(portfolioId!)
+      console.log('Cache invalidated after restoring sector tags')
 
       // Refetch positions to show restored tags immediately
       await Promise.all([
