@@ -180,7 +180,7 @@ export function HoldingsTableDesktop({ holdings, loading }: HoldingsTableProps) 
               borderBottom: '1px solid var(--border-primary)'
             }}>
               <h2 className="text-lg font-semibold transition-colors duration-300" style={{
-                color: 'var(--text-primary)'
+                color: 'var(--color-accent)'
               }}>
                 Holdings
               </h2>
@@ -205,7 +205,7 @@ export function HoldingsTableDesktop({ holdings, loading }: HoldingsTableProps) 
               borderBottom: '1px solid var(--border-primary)'
             }}>
               <h2 className="text-lg font-semibold transition-colors duration-300" style={{
-                color: 'var(--text-primary)'
+                color: 'var(--color-accent)'
               }}>
                 Holdings
               </h2>

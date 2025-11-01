@@ -236,7 +236,7 @@ export function HoldingsTableMobile({ holdings, loading }: HoldingsTableMobilePr
     return (
       <section className="px-4 pb-8">
         <div className="container mx-auto">
-          <h2 className="text-sm font-semibold uppercase tracking-wider mb-3" style={{ color: 'var(--text-secondary)' }}>
+          <h2 className="text-sm font-semibold uppercase tracking-wider mb-3" style={{ color: 'var(--color-accent)' }}>
             Holdings
           </h2>
           <div className="space-y-3">
@@ -257,7 +257,7 @@ export function HoldingsTableMobile({ holdings, loading }: HoldingsTableMobilePr
     return (
       <section className="px-4 pb-8">
         <div className="container mx-auto">
-          <h2 className="text-sm font-semibold uppercase tracking-wider mb-3" style={{ color: 'var(--text-secondary)' }}>
+          <h2 className="text-sm font-semibold uppercase tracking-wider mb-3" style={{ color: 'var(--color-accent)' }}>
             Holdings
           </h2>
           <div

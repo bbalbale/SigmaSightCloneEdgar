@@ -459,7 +459,7 @@ export function ResearchAndAnalyzeContainer() {
             <h2
               className="text-lg font-semibold mb-3 transition-colors duration-300"
               style={{
-                color: 'var(--text-primary)'
+                color: 'var(--color-accent)'
               }}
             >
               Position Tags
@@ -496,7 +496,7 @@ export function ResearchAndAnalyzeContainer() {
                 <h2
                   className="text-lg font-semibold flex-shrink-0 transition-colors duration-300"
                   style={{
-                    color: 'var(--text-primary)'
+                    color: 'var(--color-accent)'
                   }}
                 >
                   Positions
