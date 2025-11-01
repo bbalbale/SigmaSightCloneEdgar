@@ -4,7 +4,7 @@ Updated for v1.4.4 namespace organization
 """
 from fastapi import APIRouter
 
-from app.api.v1 import auth, data
+from app.api.v1 import auth, data, portfolios
 from app.api.v1.chat import router as chat_router
 from app.api.v1.analytics.router import router as analytics_router
 from app.api.v1.target_prices import router as target_prices_router
@@ -19,6 +19,9 @@ api_router = APIRouter(prefix="/v1")
 # Include all endpoint routers
 # Authentication (foundation)
 api_router.include_router(auth.router)
+
+# Portfolio Management APIs (/portfolios/) - multi-portfolio CRUD
+api_router.include_router(portfolios.router)
 
 # Chat API for Agent
 api_router.include_router(chat_router, prefix="/chat", tags=["chat"])

@@ -4,7 +4,7 @@ User and Portfolio models
 from datetime import datetime
 from decimal import Decimal
 from uuid import uuid4
-from sqlalchemy import String, DateTime, ForeignKey, UniqueConstraint, Index, Numeric
+from sqlalchemy import String, DateTime, ForeignKey, UniqueConstraint, Index, Numeric, Boolean
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from typing import Optional, List
@@ -24,19 +24,22 @@ class User(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow)
     
     # Relationships
-    portfolio: Mapped["Portfolio"] = relationship("Portfolio", back_populates="user", uselist=False)
+    portfolios: Mapped[List["Portfolio"]] = relationship("Portfolio", back_populates="user", uselist=True)
     # Enhanced tag model (v2) - replaced the old tags relationship
     tags_v2: Mapped[List["TagV2"]] = relationship("TagV2", back_populates="user", foreign_keys="TagV2.user_id")
     modeling_sessions: Mapped[List["ModelingSessionSnapshot"]] = relationship("ModelingSessionSnapshot", back_populates="user")
 
 
 class Portfolio(Base):
-    """Portfolio model - each user has exactly one portfolio"""
+    """Portfolio model - users can have multiple portfolios (accounts)"""
     __tablename__ = "portfolios"
     
     id: Mapped[UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid4)
-    user_id: Mapped[UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False, unique=True)
+    user_id: Mapped[UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
     name: Mapped[str] = mapped_column(String(255), nullable=False)
+    account_name: Mapped[str] = mapped_column(String(100), nullable=False)
+    account_type: Mapped[str] = mapped_column(String(20), nullable=False, default='taxable')
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, server_default='true')
     description: Mapped[Optional[str]] = mapped_column(String(1000), nullable=True)
     currency: Mapped[str] = mapped_column(String(3), default='USD')
     equity_balance: Mapped[Optional[Decimal]] = mapped_column(Numeric(16, 2), nullable=True)  # User-provided NAV
@@ -45,7 +48,7 @@ class Portfolio(Base):
     deleted_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)  # Soft delete
     
     # Relationships
-    user: Mapped["User"] = relationship("User", back_populates="portfolio")
+    user: Mapped["User"] = relationship("User", back_populates="portfolios")
     positions: Mapped[List["Position"]] = relationship("Position", back_populates="portfolio")
     snapshots: Mapped[List["PortfolioSnapshot"]] = relationship("PortfolioSnapshot", back_populates="portfolio")
     factor_exposures: Mapped[List["FactorExposure"]] = relationship("FactorExposure", back_populates="portfolio")
@@ -58,6 +61,6 @@ class Portfolio(Base):
     ai_insights: Mapped[List["AIInsight"]] = relationship("AIInsight", back_populates="portfolio")
 
     __table_args__ = (
-        UniqueConstraint('user_id', name='uq_portfolios_user_id'),
         Index('ix_portfolios_deleted_at', 'deleted_at'),
+        Index('ix_portfolios_user_id', 'user_id'),  # Non-unique index for performance
     )
