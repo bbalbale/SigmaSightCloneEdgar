@@ -4,7 +4,6 @@ import '@/styles/globals.css'
 import '@/styles/theme-utilities.css'
 import { Providers } from './providers'
 import { ConditionalNavigationHeader } from '@/components/navigation/ConditionalNavigationHeader'
-import { ThemeSelector } from '@/components/ThemeSelector'
 
 const inter = Inter({
   subsets: ['latin'],
@@ -34,7 +33,6 @@ export default function RootLayout({
               {children}
             </main>
           </div>
-          <ThemeSelector />
         </Providers>
       </body>
     </html>
