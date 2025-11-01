@@ -385,108 +385,122 @@ export function ResearchAndAnalyzeContainer() {
 
       {/* STICKY SECTION #1: Position Tags */}
       <section
-        className="sticky z-50 transition-colors duration-300 border-b"
+        className="sticky z-50 transition-colors duration-300"
         style={{
           top: 0,
-          backgroundColor: 'var(--bg-primary)',
-          borderColor: 'var(--border-primary)'
+          backgroundColor: 'var(--bg-primary)'
         }}
       >
-        <div className="container mx-auto px-4 py-3">
-          <h2
-            className="mb-2 font-semibold"
+        <div className="container mx-auto px-4 py-4">
+          <div
+            className="rounded-lg px-4 py-3 transition-all duration-300"
             style={{
-              fontSize: '16px',
-              color: 'var(--text-primary)'
+              backgroundColor: 'var(--bg-secondary)',
+              border: '1px solid var(--border-primary)'
             }}
           >
-            Position Tags
-          </h2>
-          <CompactTagBar
-            tags={allTags}
-            onViewAll={() => setShowViewAllModal(true)}
-            onCreate={() => setShowTagCreator(true)}
-          />
+            <h2
+              className="mb-3 font-semibold"
+              style={{
+                fontSize: '16px',
+                color: 'var(--text-primary)'
+              }}
+            >
+              Position Tags
+            </h2>
+            <CompactTagBar
+              tags={allTags}
+              onViewAll={() => setShowViewAllModal(true)}
+              onCreate={() => setShowTagCreator(true)}
+            />
+          </div>
         </div>
       </section>
 
       {/* STICKY SECTION #2: Position Controls & Returns */}
       <section
-        className="sticky z-40 transition-colors duration-300 border-b"
+        className="sticky z-40 transition-colors duration-300"
         style={{
-          top: '70px',
-          backgroundColor: 'var(--bg-primary)',
-          borderColor: 'var(--border-primary)'
+          top: '100px',
+          backgroundColor: 'var(--bg-primary)'
         }}
       >
-        <div className="container mx-auto px-4 py-3">
-          <div className="flex items-center gap-6">
-            {/* Left: Positions Header + Controls */}
-            <div className="flex-1 flex items-center gap-4">
-              <h2
-                className="font-semibold flex-shrink-0"
-                style={{
-                  fontSize: '16px',
-                  color: 'var(--text-primary)'
-                }}
-              >
-                Positions
-              </h2>
-
-              {/* Investment Class Tabs */}
-              <Tabs value={activeTab} onValueChange={(value: any) => setActiveTab(value)} className="flex-shrink-0">
-                <TabsList>
-                  <TabsTrigger value="public">Public</TabsTrigger>
-                  <TabsTrigger value="options">Options</TabsTrigger>
-                  <TabsTrigger value="private">Private</TabsTrigger>
-                </TabsList>
-              </Tabs>
-
-              {/* Position Type Toggles (hidden for Private) */}
-              {activeTab !== 'private' && (
-                <div className="flex gap-1 flex-shrink-0">
-                  <Button
-                    size="sm"
-                    variant={positionType === 'long' ? 'default' : 'outline'}
-                    onClick={() => setPositionType('long')}
-                    className="h-8 px-3"
-                  >
-                    Long
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant={positionType === 'short' ? 'default' : 'outline'}
-                    onClick={() => setPositionType('short')}
-                    className="h-8 px-3"
-                  >
-                    Short
-                  </Button>
-                </div>
-              )}
-            </div>
-
-            {/* Right: Aggregate Returns */}
-            <div className="flex gap-6 flex-shrink-0">
-              <div className="text-right">
-                <div className="text-xs" style={{ color: 'var(--text-secondary)' }}>EOY</div>
-                <div
-                  className="text-lg font-bold tabular-nums"
+        <div className="container mx-auto px-4 pb-4">
+          <div
+            className="rounded-lg px-4 py-3 transition-all duration-300"
+            style={{
+              backgroundColor: 'var(--bg-secondary)',
+              border: '1px solid var(--border-primary)'
+            }}
+          >
+            <div className="flex items-center gap-6">
+              {/* Left: Positions Header + Controls */}
+              <div className="flex-1 flex items-center gap-4">
+                <h2
+                  className="font-semibold flex-shrink-0"
                   style={{
-                    color: currentAggregate.eoy >= 0 ? 'var(--color-success)' : 'var(--color-error)'
+                    fontSize: '16px',
+                    color: 'var(--text-primary)'
                   }}
                 >
-                  {currentAggregate.eoy >= 0 ? '+' : ''}{currentAggregate.eoy.toFixed(1)}%
-                </div>
+                  Positions
+                </h2>
+
+                {/* Investment Class Tabs */}
+                <Tabs value={activeTab} onValueChange={(value: any) => setActiveTab(value)} className="flex-shrink-0">
+                  <TabsList>
+                    <TabsTrigger value="public">Public</TabsTrigger>
+                    <TabsTrigger value="options">Options</TabsTrigger>
+                    <TabsTrigger value="private">Private</TabsTrigger>
+                  </TabsList>
+                </Tabs>
+
+                {/* Position Type Toggles (hidden for Private) */}
+                {activeTab !== 'private' && (
+                  <div className="flex gap-1 flex-shrink-0">
+                    <Button
+                      size="sm"
+                      variant={positionType === 'long' ? 'default' : 'outline'}
+                      onClick={() => setPositionType('long')}
+                      className="h-8 px-3"
+                    >
+                      Long
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant={positionType === 'short' ? 'default' : 'outline'}
+                      onClick={() => setPositionType('short')}
+                      className="h-8 px-3"
+                    >
+                      Short
+                    </Button>
+                  </div>
+                )}
               </div>
-              <div className="text-right">
-                <div className="text-xs" style={{ color: 'var(--text-secondary)' }}>Next Year</div>
-                <div
-                  className="text-lg font-bold tabular-nums"
-                  style={{
-                    color: currentAggregate.nextYear >= 0 ? 'var(--color-success)' : 'var(--color-error)'
-                  }}
-                >
-                  {currentAggregate.nextYear >= 0 ? '+' : ''}{currentAggregate.nextYear.toFixed(1)}%
+
+              {/* Right: Aggregate Returns */}
+              <div className="flex gap-6 flex-shrink-0">
+                <div className="text-right">
+                  <div className="text-xs" style={{ color: 'var(--text-secondary)' }}>EOY</div>
+                  <div
+                    className="text-lg font-bold tabular-nums"
+                    style={{
+                      color: currentAggregate.eoy >= 0 ? 'var(--color-success)' : 'var(--color-error)'
+                    }}
+                  >
+                    {currentAggregate.eoy >= 0 ? '+' : ''}{currentAggregate.eoy.toFixed(1)}%
+                  </div>
+                </div>
+                <div className="text-right">
+                  <div className="text-xs" style={{ color: 'var(--text-secondary)' }}>Next Year</div>
+                  <div
+                    className="text-lg font-bold tabular-nums"
+                    style={{
+                      color: currentAggregate.nextYear >= 0 ? 'var(--color-success)' : 'var(--color-error)'
+                    }}
+                  >
+                    {currentAggregate.nextYear >= 0 ? '+' : ''}{currentAggregate.nextYear.toFixed(1)}%
+                  </div>
                 </div>
               </div>
             </div>
