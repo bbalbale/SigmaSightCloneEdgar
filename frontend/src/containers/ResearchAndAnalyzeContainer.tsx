@@ -512,6 +512,16 @@ export function ResearchAndAnalyzeContainer() {
                     <TabsTrigger value="private">Private</TabsTrigger>
                   </TabsList>
                 </Tabs>
+
+                {/* Position Type Toggles (hidden for Private) - styled as tabs */}
+                {activeTab !== 'private' && (
+                  <Tabs value={positionType} onValueChange={(value: any) => setPositionType(value)} className="flex-shrink-0">
+                    <TabsList>
+                      <TabsTrigger value="long">Long</TabsTrigger>
+                      <TabsTrigger value="short">Short</TabsTrigger>
+                    </TabsList>
+                  </Tabs>
+                )}
               </div>
 
               {/* Right: Aggregate Returns with Full Labels */}
@@ -559,35 +569,8 @@ export function ResearchAndAnalyzeContainer() {
               </div>
             </div>
 
-            {/* Row 2: Long/Short Toggles + Filter and Sort Controls */}
-            <div className="flex items-center justify-between gap-3">
-              {/* Left: Position Type Toggles (hidden for Private) */}
-              {activeTab !== 'private' ? (
-                <div className="flex gap-1 flex-shrink-0">
-                  <Button
-                    size="sm"
-                    variant={positionType === 'long' ? 'default' : 'outline'}
-                    onClick={() => setPositionType('long')}
-                    className="h-8 px-3"
-                  >
-                    Long
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant={positionType === 'short' ? 'default' : 'outline'}
-                    onClick={() => setPositionType('short')}
-                    className="h-8 px-3"
-                  >
-                    Short
-                  </Button>
-                </div>
-              ) : (
-                // Spacer when private tab is active
-                <div />
-              )}
-
-              {/* Right: Filter and Sort Controls */}
-              <div className="flex gap-3 flex-wrap justify-end">
+            {/* Row 2: Filter and Sort Controls */}
+            <div className="flex items-center justify-end gap-3">
               <Select value={filterBy} onValueChange={(v: any) => { setFilterBy(v); setFilterValue('all') }}>
                 <SelectTrigger className="w-[180px] transition-colors duration-300" style={{
                   backgroundColor: 'var(--bg-primary)',
@@ -649,8 +632,7 @@ export function ResearchAndAnalyzeContainer() {
             </div>
           </div>
         </div>
-      </div>
-    </section>
+      </section>
 
       {/* SCROLLING CONTENT: Single Unified Table */}
       <div className="container mx-auto px-4 py-6">
