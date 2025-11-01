@@ -50,6 +50,7 @@ class AnalyticalReasoningService:
         insight_type: InsightType = InsightType.DAILY_SUMMARY,
         focus_area: Optional[str] = None,
         user_question: Optional[str] = None,
+        auth_token: Optional[str] = None,
     ) -> AIInsight:
         """
         Conduct AI-powered investigation of portfolio metrics.
@@ -66,6 +67,7 @@ class AnalyticalReasoningService:
             insight_type: Type of insight to generate
             focus_area: Optional focus area (e.g., "volatility", "concentration")
             user_question: Optional user question for on-demand analysis
+            auth_token: Optional JWT token for authenticating tool API calls
 
         Returns:
             AIInsight: Generated insight with analysis and recommendations
@@ -98,6 +100,7 @@ class AnalyticalReasoningService:
             context=context,
             focus_area=focus_area,
             user_question=user_question,
+            auth_token=auth_token,
         )
 
         # 5. Store insight in database
@@ -215,23 +218,33 @@ class AnalyticalReasoningService:
         context: Dict[str, Any],
         focus_area: Optional[str],
         user_question: Optional[str],
+        auth_token: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Execute AI-powered investigation using Claude Sonnet 4.
 
         Delegates to AnthropicProvider for actual investigation.
 
+        Args:
+            portfolio_id: Portfolio UUID
+            insight_type: Type of insight to generate
+            context: Investigation context with portfolio data
+            focus_area: Optional focus area
+            user_question: Optional user question
+            auth_token: Optional JWT token for tool authentication
+
         Returns:
             Dict containing analysis results
         """
         logger.info(f"Executing AI investigation: type={insight_type.value}")
 
-        # Call Anthropic provider for investigation
+        # Call Anthropic provider for investigation with auth token for tool calls
         result = await anthropic_provider.investigate(
             context=context,
             insight_type=insight_type,
             focus_area=focus_area,
             user_question=user_question,
+            auth_token=auth_token,
         )
 
         return result

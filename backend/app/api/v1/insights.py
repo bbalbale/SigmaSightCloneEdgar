@@ -134,6 +134,7 @@ async def generate_insight(
     request: GenerateInsightRequest,
     current_user: CurrentUser = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
+    http_request: Request = None,
 ):
     """
     Generate a new AI insight for a portfolio.
@@ -164,6 +165,10 @@ async def generate_insight(
         AIInsightResponse with analysis, findings, recommendations, and performance metrics
     """
     try:
+        # Extract JWT token from Authorization header for tool authentication
+        auth_header = http_request.headers.get("Authorization", "") if http_request else ""
+        auth_token = auth_header.replace("Bearer ", "") if auth_header.startswith("Bearer ") else ""
+
         # Validate portfolio ownership
         portfolio_id = UUID(request.portfolio_id)
         await validate_portfolio_ownership(db, portfolio_id, current_user.id)
@@ -202,7 +207,8 @@ async def generate_insight(
             portfolio_id=portfolio_id,
             insight_type=insight_type_enum,
             focus_area=request.focus_area,
-            user_question=request.user_question
+            user_question=request.user_question,
+            auth_token=auth_token
         )
 
         if not insight:
