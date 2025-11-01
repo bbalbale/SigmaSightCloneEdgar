@@ -11,6 +11,7 @@ import React from 'react'
 import { useTheme } from '@/contexts/ThemeContext'
 import { useAIInsights } from '@/hooks/useAIInsights'
 import { AIInsightsRow } from '@/components/command-center/AIInsightsRow'
+import { ClaudeChatInterface } from '@/components/claude-insights/ClaudeChatInterface'
 import { Sparkles } from 'lucide-react'
 
 export function SigmaSightAIContainer() {
@@ -29,19 +30,20 @@ export function SigmaSightAIContainer() {
       <div className="min-h-screen transition-colors duration-300 bg-primary">
         <section className="px-4 py-12">
           <div className="container mx-auto">
-            <div className={`rounded-lg border p-8 text-center transition-colors duration-300 ${
-              theme === 'dark'
-                ? 'bg-primary border-primary'
-                : 'bg-white border-slate-200'
-            }`}>
-              <h2 className={`text-xl font-semibold mb-2 ${
-                theme === 'dark' ? 'text-slate-50' : 'text-slate-900'
-              }`}>
+            <div className="rounded-lg p-8 text-center transition-colors duration-300" style={{
+              backgroundColor: 'var(--bg-primary)',
+              border: '1px solid var(--border-primary)'
+            }}>
+              <h2 className="font-semibold mb-2 transition-colors duration-300" style={{
+                fontSize: 'var(--text-xl)',
+                color: 'var(--text-primary)'
+              }}>
                 Error Loading Insights
               </h2>
-              <p className={`text-sm ${
-                theme === 'dark' ? 'text-secondary' : 'text-slate-600'
-              }`}>
+              <p className="transition-colors duration-300" style={{
+                fontSize: 'var(--text-sm)',
+                color: 'var(--text-secondary)'
+              }}>
                 {error}
               </p>
             </div>
@@ -54,17 +56,20 @@ export function SigmaSightAIContainer() {
   return (
     <div className="min-h-screen transition-colors duration-300 bg-primary">
       {/* Header */}
-      <section className={`px-4 py-8 border-b transition-colors duration-300 ${
-        theme === 'dark' ? 'border-primary' : 'border-slate-200'
-      }`}>
+      <section className="px-4 py-8 transition-colors duration-300" style={{
+        borderBottom: '1px solid var(--border-primary)'
+      }}>
         <div className="container mx-auto">
           <div className="flex items-center gap-3 mb-2">
-            <Sparkles className={`h-8 w-8 transition-colors duration-300 ${
-              theme === 'dark' ? 'text-orange-400' : 'text-orange-600'
-            }`} />
-            <h1 className={`text-3xl font-bold transition-colors duration-300 ${
-              theme === 'dark' ? 'text-white' : 'text-gray-900'
-            }`}>
+            <Sparkles className="h-8 w-8 transition-colors duration-300" style={{
+              color: 'var(--color-accent)'
+            }} />
+            <h1 className="transition-colors duration-300" style={{
+              fontSize: 'var(--text-3xl)',
+              fontWeight: 'bold',
+              color: 'var(--text-primary)',
+              fontFamily: 'var(--font-display)'
+            }}>
               AI Insights
             </h1>
           </div>
@@ -77,15 +82,49 @@ export function SigmaSightAIContainer() {
         </div>
       </section>
 
-      {/* Insights Display */}
-      <section className="pt-8">
-        <AIInsightsRow
-          insights={insights}
-          loading={loading}
-          onGenerateInsight={handleGenerateInsight}
-          onDismissInsight={handleDismissInsight}
-          generatingInsight={generatingInsight}
-        />
+      {/* Split Layout: Insights Left, Chat Right */}
+      <section className="px-4 py-8">
+        <div className="container mx-auto">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            {/* Left Column: AI Insights */}
+            <div className="space-y-4">
+              <div className="mb-4">
+                <h2 className="text-xl font-semibold transition-colors duration-300" style={{
+                  color: 'var(--text-primary)',
+                  fontFamily: 'var(--font-display)'
+                }}>
+                  Generated Insights
+                </h2>
+                <p className="text-sm mt-1 transition-colors duration-300 text-secondary">
+                  Pre-generated portfolio analysis cards
+                </p>
+              </div>
+              <AIInsightsRow
+                insights={insights}
+                loading={loading}
+                onGenerateInsight={handleGenerateInsight}
+                onDismissInsight={handleDismissInsight}
+                generatingInsight={generatingInsight}
+              />
+            </div>
+
+            {/* Right Column: Claude Chat */}
+            <div className="space-y-4">
+              <div className="mb-4">
+                <h2 className="text-xl font-semibold transition-colors duration-300" style={{
+                  color: 'var(--text-primary)',
+                  fontFamily: 'var(--font-display)'
+                }}>
+                  Ask Claude
+                </h2>
+                <p className="text-sm mt-1 transition-colors duration-300 text-secondary">
+                  Chat with Claude about your portfolio using real-time analytics
+                </p>
+              </div>
+              <ClaudeChatInterface />
+            </div>
+          </div>
+        </div>
       </section>
     </div>
   )
