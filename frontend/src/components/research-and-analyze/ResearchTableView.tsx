@@ -472,7 +472,7 @@ const ResearchTableRow = memo(function ResearchTableRow({ position, isExpanded, 
               }}
               title={position.company_name || position.symbol}
             >
-              {truncateText(position.company_name || position.symbol, 20)}
+              {truncateText(position.company_name || position.symbol, 30)}
             </div>
           </div>
         </td>
