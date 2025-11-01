@@ -46,6 +46,28 @@ export interface FilterState {
   sortDirection: 'asc' | 'desc'
 }
 
+// Backend response structure (nested dict)
+export interface CorrelationMatrixBackendResponse {
+  available: boolean
+  data?: {
+    matrix: Record<string, Record<string, number>>  // Nested dict: {"AAPL": {"MSFT": 0.82}}
+    average_correlation?: number
+  }
+  metadata?: {
+    calculation_date?: string
+    duration_days?: number
+    symbols_included?: number
+    lookback_days?: number
+    min_overlap?: number
+  }
+  data_quality?: {
+    total_pairs?: number
+    valid_pairs?: number
+    coverage_percent?: number
+  }
+}
+
+// Frontend-friendly structure (flat arrays)
 export interface CorrelationMatrixData {
   position_symbols: string[]
   correlation_matrix: number[][]

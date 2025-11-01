@@ -108,7 +108,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   }
 
   const cycleTheme = () => {
-    const presets: ThemePreset[] = ['bloomberg-classic', 'midnight-premium', 'carbon-professional', 'moonlight-elegant']
+    const presets: ThemePreset[] = ['bloomberg-classic', 'modern-premium']
     const currentIndex = presets.indexOf(currentTheme)
     const nextIndex = (currentIndex + 1) % presets.length
     setCurrentTheme(presets[nextIndex])

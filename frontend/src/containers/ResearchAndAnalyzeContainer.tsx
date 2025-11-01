@@ -15,6 +15,7 @@ import { ResearchFilterBar } from '@/components/research-and-analyze/ResearchFil
 import { SummaryMetricsBar } from '@/components/research-and-analyze/SummaryMetricsBar'
 import { TabContent } from '@/components/research-and-analyze/TabContent'
 import { useRestoreSectorTags } from '@/hooks/useRestoreSectorTags'
+import { CorrelationDebugger } from '@/components/research-and-analyze/CorrelationDebugger'
 import tagsApi from '@/services/tagsApi'
 
 export function ResearchAndAnalyzeContainer() {
@@ -67,16 +68,42 @@ export function ResearchAndAnalyzeContainer() {
         setCorrelationMatrixError(null)
 
         const response = await analyticsApi.getCorrelationMatrix(portfolioId)
-        console.log('🔍 Correlation Matrix: Response received', response)
-        console.log('🔍 Correlation Matrix: Data structure', {
-          hasData: !!response.data,
-          hasSymbols: !!response.data?.position_symbols,
-          hasMatrix: !!response.data?.correlation_matrix,
-          symbolsCount: response.data?.position_symbols?.length,
-          matrixRows: response.data?.correlation_matrix?.length
-        })
+        console.log('🔍 Correlation Matrix: Raw backend response', response)
 
-        setCorrelationMatrix(response.data)
+        // Transform backend nested dict structure to frontend flat arrays
+        if (response.data?.available && response.data?.data?.matrix) {
+          const backendMatrix = response.data.data.matrix
+          const symbols = Object.keys(backendMatrix)
+
+          // Build 2D array from nested dict
+          const correlationMatrix = symbols.map(symbol1 =>
+            symbols.map(symbol2 => backendMatrix[symbol1]?.[symbol2] ?? 0)
+          )
+
+          const transformedData = {
+            position_symbols: symbols,
+            correlation_matrix: correlationMatrix,
+            lookback_days: response.data.metadata?.lookback_days || 90,
+            min_overlap: response.data.metadata?.min_overlap || 30,
+            data_quality: {
+              total_pairs: response.data.data_quality?.total_pairs || 0,
+              valid_pairs: response.data.data_quality?.valid_pairs || 0,
+              coverage_percent: response.data.data_quality?.coverage_percent || 0
+            }
+          }
+
+          console.log('✅ Correlation Matrix: Transformed', {
+            symbolsCount: transformedData.position_symbols.length,
+            matrixRows: transformedData.correlation_matrix.length,
+            symbols: transformedData.position_symbols
+          })
+
+          setCorrelationMatrix(transformedData)
+        } else {
+          console.warn('⚠️ Correlation Matrix: No data available from backend')
+          setCorrelationMatrix(null)
+        }
+
         setCorrelationMatrixLoading(false)
       } catch (err) {
         console.error('❌ Correlation Matrix: Error fetching', err)
@@ -300,6 +327,9 @@ export function ResearchAndAnalyzeContainer() {
           />
         </SheetContent>
       </Sheet>
+
+      {/* DEBUG: Correlation Matrix State - Remove after debugging */}
+      <CorrelationDebugger />
     </div>
   )
 }
