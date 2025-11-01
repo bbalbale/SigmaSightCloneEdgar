@@ -153,11 +153,152 @@ GET /api/v1/fundamentals/balance-sheet/{symbol}
 
 **Query Parameters:** Same as income statement
 
-**Key Metrics to Include:**
-- Assets: Cash, Accounts Receivable, Inventory, PP&E, Goodwill, Intangibles, Total Assets
-- Liabilities: Accounts Payable, Short-term Debt, Long-term Debt, Total Liabilities
-- Equity: Common Stock, Retained Earnings, Treasury Stock, Total Equity
-- Calculated: Working Capital, Net Debt, Book Value per Share
+**Response Schema:**
+```json
+{
+  "symbol": "AAPL",
+  "frequency": "q",
+  "currency": "USD",
+  "periods": [
+    {
+      "period_date": "2024-09-30",
+      "period_type": "3M",
+      "fiscal_year": 2024,
+      "fiscal_quarter": "Q4",
+      "metrics": {
+        "assets": {
+          "current_assets": {
+            "cash_and_equivalents": 29943000000,
+            "short_term_investments": 35228000000,
+            "cash_and_short_term_investments": 65171000000,
+            "accounts_receivable": 25995000000,
+            "inventory": 6511000000,
+            "other_current_assets": 14287000000,
+            "total_current_assets": 111964000000
+          },
+          "non_current_assets": {
+            "net_ppe": 44109000000,
+            "goodwill": null,
+            "intangible_assets": null,
+            "long_term_investments": 91060000000,
+            "other_non_current_assets": 76572000000,
+            "total_non_current_assets": 211741000000
+          },
+          "total_assets": 323705000000
+        },
+        "liabilities": {
+          "current_liabilities": {
+            "accounts_payable": 58229000000,
+            "short_term_debt": 9822000000,
+            "current_portion_long_term_debt": 10912000000,
+            "accrued_liabilities": 29906000000,
+            "deferred_revenue": 8249000000,
+            "other_current_liabilities": 19600000000,
+            "total_current_liabilities": 136718000000
+          },
+          "non_current_liabilities": {
+            "long_term_debt": 85750000000,
+            "deferred_tax_liabilities": null,
+            "other_non_current_liabilities": 30362000000,
+            "total_non_current_liabilities": 116112000000
+          },
+          "total_liabilities": 252830000000
+        },
+        "equity": {
+          "common_stock": 82113000000,
+          "retained_earnings": -17020000000,
+          "accumulated_other_comprehensive_income": -10218000000,
+          "treasury_stock": null,
+          "total_stockholders_equity": 70875000000,
+          "minority_interest": null
+        },
+        "calculated_metrics": {
+          "working_capital": -24754000000,
+          "net_debt": 41313000000,
+          "total_debt": 106484000000,
+          "book_value": 70875000000,
+          "book_value_per_share": 4.53,
+          "tangible_book_value": 70875000000,
+          "tangible_book_value_per_share": 4.53
+        },
+        "ratios": {
+          "current_ratio": 0.819,
+          "quick_ratio": 0.771,
+          "cash_ratio": 0.477,
+          "debt_to_equity": 1.502,
+          "debt_to_assets": 0.329,
+          "equity_to_assets": 0.219
+        }
+      }
+    },
+    // ... more periods
+  ],
+  "metadata": {
+    "data_source": "yahooquery",
+    "last_updated": "2024-11-01T12:00:00Z",
+    "periods_returned": 12,
+    "fields_available": 180
+  }
+}
+```
+
+**Field Mapping (YahooQuery → Application):**
+
+**Assets (30+ fields available):**
+- `CashAndCashEquivalents` → `cash_and_equivalents`
+- `CashCashEquivalentsAndShortTermInvestments` → `cash_and_short_term_investments`
+- `AccountsReceivable` → `accounts_receivable`
+- `Inventory` → `inventory`
+- `CurrentAssets` → `total_current_assets`
+- `NetPPE` → `net_ppe`
+- `PropertyPlantEquipment` → `gross_ppe`
+- `AccumulatedDepreciation` → `accumulated_depreciation`
+- `GoodwillAndOtherIntangibleAssets` → `goodwill`
+- `Goodwill` → `goodwill`
+- `IntangibleAssets` → `intangible_assets`
+- `LongTermEquityInvestment` → `long_term_investments`
+- `TotalAssets` → `total_assets`
+
+**Liabilities (25+ fields available):**
+- `AccountsPayable` → `accounts_payable`
+- `CurrentDebt` → `short_term_debt`
+- `CurrentDebtAndCapitalLeaseObligation` → `current_portion_long_term_debt`
+- `CurrentAccruedExpenses` → `accrued_liabilities`
+- `CurrentDeferredRevenue` → `deferred_revenue`
+- `CurrentLiabilities` → `total_current_liabilities`
+- `LongTermDebt` → `long_term_debt`
+- `LongTermDebtAndCapitalLeaseObligation` → `long_term_debt_total`
+- `DeferredTaxLiabilitiesNonCurrent` → `deferred_tax_liabilities`
+- `TotalNonCurrentLiabilitiesNetMinorityInterest` → `total_non_current_liabilities`
+- `TotalLiabilitiesNetMinorityInterest` → `total_liabilities`
+
+**Equity (15+ fields available):**
+- `CommonStock` → `common_stock`
+- `PreferredStock` → `preferred_stock`
+- `RetainedEarnings` → `retained_earnings`
+- `AccumulatedOtherComprehensiveIncome` → `accumulated_other_comprehensive_income`
+- `TreasuryStock` → `treasury_stock`
+- `StockholdersEquity` → `total_stockholders_equity`
+- `MinorityInterest` → `minority_interest`
+
+**Calculated Metrics:**
+- **Working Capital** = Current Assets - Current Liabilities
+- **Net Debt** = Total Debt - Cash and Cash Equivalents
+- **Total Debt** = Short-term Debt + Long-term Debt
+- **Book Value** = Total Stockholders' Equity
+- **Book Value per Share** = Book Value / Shares Outstanding
+- **Tangible Book Value** = Book Value - Goodwill - Intangible Assets
+- **Tangible Book Value per Share** = Tangible Book Value / Shares Outstanding
+
+**Liquidity Ratios:**
+- **Current Ratio** = Current Assets / Current Liabilities
+- **Quick Ratio** = (Current Assets - Inventory) / Current Liabilities
+- **Cash Ratio** = Cash and Equivalents / Current Liabilities
+
+**Leverage Ratios:**
+- **Debt-to-Equity** = Total Debt / Total Equity
+- **Debt-to-Assets** = Total Debt / Total Assets
+- **Equity-to-Assets** = Total Equity / Total Assets
 
 #### 3. Cash Flow Statement
 ```
@@ -891,7 +1032,104 @@ class IncomeStatementResponse(BaseModel):
     periods: List[IncomeStatementPeriod]
     metadata: Dict[str, any]
 
-# Similar schemas for BalanceSheet, CashFlow, etc.
+# Balance Sheet Schemas
+class CurrentAssets(BaseModel):
+    """Current assets breakdown"""
+    cash_and_equivalents: Optional[Decimal]
+    short_term_investments: Optional[Decimal]
+    cash_and_short_term_investments: Optional[Decimal]
+    accounts_receivable: Optional[Decimal]
+    inventory: Optional[Decimal]
+    other_current_assets: Optional[Decimal]
+    total_current_assets: Optional[Decimal]
+
+class NonCurrentAssets(BaseModel):
+    """Non-current assets breakdown"""
+    net_ppe: Optional[Decimal]
+    goodwill: Optional[Decimal]
+    intangible_assets: Optional[Decimal]
+    long_term_investments: Optional[Decimal]
+    other_non_current_assets: Optional[Decimal]
+    total_non_current_assets: Optional[Decimal]
+
+class Assets(BaseModel):
+    """All assets"""
+    current_assets: CurrentAssets
+    non_current_assets: NonCurrentAssets
+    total_assets: Optional[Decimal]
+
+class CurrentLiabilities(BaseModel):
+    """Current liabilities breakdown"""
+    accounts_payable: Optional[Decimal]
+    short_term_debt: Optional[Decimal]
+    current_portion_long_term_debt: Optional[Decimal]
+    accrued_liabilities: Optional[Decimal]
+    deferred_revenue: Optional[Decimal]
+    other_current_liabilities: Optional[Decimal]
+    total_current_liabilities: Optional[Decimal]
+
+class NonCurrentLiabilities(BaseModel):
+    """Non-current liabilities breakdown"""
+    long_term_debt: Optional[Decimal]
+    deferred_tax_liabilities: Optional[Decimal]
+    other_non_current_liabilities: Optional[Decimal]
+    total_non_current_liabilities: Optional[Decimal]
+
+class Liabilities(BaseModel):
+    """All liabilities"""
+    current_liabilities: CurrentLiabilities
+    non_current_liabilities: NonCurrentLiabilities
+    total_liabilities: Optional[Decimal]
+
+class Equity(BaseModel):
+    """Shareholders' equity"""
+    common_stock: Optional[Decimal]
+    retained_earnings: Optional[Decimal]
+    accumulated_other_comprehensive_income: Optional[Decimal]
+    treasury_stock: Optional[Decimal]
+    total_stockholders_equity: Optional[Decimal]
+    minority_interest: Optional[Decimal]
+
+class BalanceSheetCalculatedMetrics(BaseModel):
+    """Calculated balance sheet metrics"""
+    working_capital: Optional[Decimal]
+    net_debt: Optional[Decimal]
+    total_debt: Optional[Decimal]
+    book_value: Optional[Decimal]
+    book_value_per_share: Optional[Decimal]
+    tangible_book_value: Optional[Decimal]
+    tangible_book_value_per_share: Optional[Decimal]
+
+class BalanceSheetRatios(BaseModel):
+    """Balance sheet ratios"""
+    current_ratio: Optional[Decimal]
+    quick_ratio: Optional[Decimal]
+    cash_ratio: Optional[Decimal]
+    debt_to_equity: Optional[Decimal]
+    debt_to_assets: Optional[Decimal]
+    equity_to_assets: Optional[Decimal]
+
+class BalanceSheetMetrics(BaseModel):
+    """Balance sheet metrics for one period"""
+    assets: Assets
+    liabilities: Liabilities
+    equity: Equity
+    calculated_metrics: BalanceSheetCalculatedMetrics
+    ratios: BalanceSheetRatios
+
+class BalanceSheetPeriod(FinancialPeriod):
+    """Balance sheet for one period"""
+    metrics: BalanceSheetMetrics
+
+class BalanceSheetResponse(BaseModel):
+    """Full balance sheet response"""
+    symbol: str
+    frequency: str  # "q", "a", "ttm"
+    currency: str
+    periods: List[BalanceSheetPeriod]
+    metadata: Dict[str, any]
+
+# Cash Flow Schemas (similar structure)
 
 class EstimatePeriod(BaseModel):
     """Estimates for one period"""
