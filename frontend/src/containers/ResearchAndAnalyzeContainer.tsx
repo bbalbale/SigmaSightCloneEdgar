@@ -7,8 +7,11 @@ import { usePublicPositions } from '@/hooks/usePublicPositions'
 import { usePrivatePositions } from '@/hooks/usePrivatePositions'
 import { analyticsApi } from '@/services/analyticsApi'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { TagList } from '@/components/organize/TagList'
 import { ResearchTableView } from '@/components/research-and-analyze/ResearchTableView'
+import { CompactTagBar } from '@/components/research-and-analyze/CompactTagBar'
+import { CompactReturnsCards } from '@/components/research-and-analyze/CompactReturnsCards'
+import { ViewAllTagsModal } from '@/components/research-and-analyze/ViewAllTagsModal'
+import { TagCreator } from '@/components/organize/TagCreator'
 import { useRestoreSectorTags } from '@/hooks/useRestoreSectorTags'
 import { useTags } from '@/hooks/useTags'
 import { usePositionTags } from '@/hooks/usePositionTags'
@@ -27,6 +30,10 @@ export function ResearchAndAnalyzeContainer() {
   const setCorrelationMatrix = useResearchStore((state) => state.setCorrelationMatrix)
   const setCorrelationMatrixLoading = useResearchStore((state) => state.setCorrelationMatrixLoading)
   const setCorrelationMatrixError = useResearchStore((state) => state.setCorrelationMatrixError)
+
+  // Modal and UI state
+  const [showViewAllModal, setShowViewAllModal] = React.useState(false)
+  const [showTagCreator, setShowTagCreator] = React.useState(false)
 
   // Data fetching - PHASE 1: Replace useResearchPageData with proven hooks
   const {
@@ -417,111 +424,48 @@ export function ResearchAndAnalyzeContainer() {
         </div>
       </div>
 
-      {/* Sticky Tag Bar - Full Tag Management */}
+      {/* Compact Sticky Section: Tabs + Tags + Returns */}
       <section className="sticky top-0 z-40 transition-colors duration-300 border-b" style={{
         backgroundColor: 'var(--bg-primary)',
         borderColor: 'var(--border-primary)'
       }}>
-        <div className="container mx-auto py-4">
-          <div className="flex items-start justify-between gap-4">
-            <div className="flex-1">
-              <TagList
-                tags={allTags}
-                onCreate={handleCreateTag}
-                onDelete={handleDeleteTag}
-              />
-            </div>
-            {/* Restore Sector Tags Button */}
-            <button
-              onClick={handleRestoreSectorTags}
-              disabled={restoringTags || tagsLoading}
-              className="px-4 py-2 rounded-md font-medium transition-all duration-200 disabled:cursor-not-allowed flex-shrink-0"
-              style={{
-                backgroundColor: restoringTags || tagsLoading ? 'var(--bg-tertiary)' : 'var(--color-accent)',
-                color: restoringTags || tagsLoading ? 'var(--text-tertiary)' : '#ffffff'
-              }}
-              title="Automatically create and apply sector tags based on company profiles"
-            >
-              {restoringTags ? 'Restoring...' : 'Restore Sector Tags'}
-            </button>
-          </div>
-        </div>
-      </section>
-
-      {/* Tabs Section */}
-      <section className="pt-4">
         <div className="container mx-auto">
+          {/* Tabs Row */}
           <Tabs value={activeTab} onValueChange={(value: any) => setActiveTab(value)}>
-            <TabsList>
+            <TabsList className="mt-4">
               <TabsTrigger value="public">Public</TabsTrigger>
               <TabsTrigger value="options">Options</TabsTrigger>
               <TabsTrigger value="private">Private</TabsTrigger>
             </TabsList>
 
-            {/* PHASE 6: Portfolio Aggregate Cards (always visible) */}
-            <section className="pb-6 mt-4">
-              <div className="flex gap-3 justify-end">
-                {/* EOY Return Card */}
+            {/* Tags + Returns Row */}
+            <div className="py-3 flex gap-4 items-center" style={{ minHeight: '70px' }}>
+              {/* Left: Tags Section (60%) */}
+              <div className="flex-1" style={{ minWidth: 0 }}>
                 <div
-                  className="rounded-lg px-4 py-3 min-w-[180px] transition-all duration-300"
+                  className="rounded-lg px-4 py-3 transition-all duration-300"
                   style={{
                     backgroundColor: 'var(--bg-secondary)',
-                    border: '1px solid var(--border-primary)'
+                    border: '1px solid var(--border-primary)',
+                    height: '100%'
                   }}
                 >
-                  <p
-                    className="mb-1 transition-colors duration-300"
-                    style={{
-                      fontSize: 'var(--text-xs)',
-                      color: 'var(--text-secondary)',
-                      fontFamily: 'var(--font-body)'
-                    }}
-                  >
-                    Portfolio Return EOY
-                  </p>
-                  <p
-                    className="font-bold transition-colors duration-300"
-                    style={{
-                      fontSize: 'var(--text-xl)',
-                      color: aggregates.portfolio.eoy >= 0 ? 'var(--color-success)' : 'var(--color-error)',
-                      fontFamily: 'var(--font-mono)'
-                    }}
-                  >
-                    {aggregates.portfolio.eoy.toFixed(2)}%
-                  </p>
-                </div>
-
-                {/* Next Year Return Card */}
-                <div
-                  className="rounded-lg px-4 py-3 min-w-[180px] transition-all duration-300"
-                  style={{
-                    backgroundColor: 'var(--bg-secondary)',
-                    border: '1px solid var(--border-primary)'
-                  }}
-                >
-                  <p
-                    className="mb-1 transition-colors duration-300"
-                    style={{
-                      fontSize: 'var(--text-xs)',
-                      color: 'var(--text-secondary)',
-                      fontFamily: 'var(--font-body)'
-                    }}
-                  >
-                    Portfolio Return Next Year
-                  </p>
-                  <p
-                    className="font-bold transition-colors duration-300"
-                    style={{
-                      fontSize: 'var(--text-xl)',
-                      color: aggregates.portfolio.nextYear >= 0 ? 'var(--color-success)' : 'var(--color-error)',
-                      fontFamily: 'var(--font-mono)'
-                    }}
-                  >
-                    {aggregates.portfolio.nextYear.toFixed(2)}%
-                  </p>
+                  <CompactTagBar
+                    tags={allTags}
+                    onViewAll={() => setShowViewAllModal(true)}
+                    onCreate={() => setShowTagCreator(true)}
+                  />
                 </div>
               </div>
-            </section>
+
+              {/* Right: Returns Cards (40%) */}
+              <div style={{ width: '40%', minWidth: '300px' }}>
+                <CompactReturnsCards
+                  eoyReturn={aggregates.portfolio.eoy}
+                  nextYearReturn={aggregates.portfolio.nextYear}
+                />
+              </div>
+            </div>
 
             {/* PHASE 4: Public Tab - PUBLIC investment_class only */}
             <TabsContent value="public" className="mt-4">
@@ -624,6 +568,30 @@ export function ResearchAndAnalyzeContainer() {
           </Tabs>
         </div>
       </section>
+
+      {/* View All Tags Modal */}
+      <ViewAllTagsModal
+        open={showViewAllModal}
+        onOpenChange={setShowViewAllModal}
+        tags={allTags}
+        onCreate={handleCreateTag}
+        onDelete={handleDeleteTag}
+      />
+
+      {/* Tag Creator Modal */}
+      {showTagCreator && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-xl max-w-md w-full">
+            <TagCreator
+              onCreate={async (name: string, color: string) => {
+                await handleCreateTag(name, color)
+                setShowTagCreator(false)
+              }}
+              onCancel={() => setShowTagCreator(false)}
+            />
+          </div>
+        </div>
+      )}
     </div>
   )
 }
