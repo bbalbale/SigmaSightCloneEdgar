@@ -8,6 +8,7 @@ import { usePrivatePositions } from '@/hooks/usePrivatePositions'
 import { analyticsApi } from '@/services/analyticsApi'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Button } from '@/components/ui/button'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { ResearchTableView } from '@/components/research-and-analyze/ResearchTableView'
 import { CompactTagBar } from '@/components/research-and-analyze/CompactTagBar'
 import { ViewAllTagsModal } from '@/components/research-and-analyze/ViewAllTagsModal'
@@ -37,6 +38,12 @@ export function ResearchAndAnalyzeContainer() {
 
   // Position type filter state (long/short)
   const [positionType, setPositionType] = useState<'long' | 'short'>('long')
+
+  // Filter and sort state
+  const [filterBy, setFilterBy] = useState<'all' | 'tag' | 'sector' | 'industry'>('all')
+  const [filterValue, setFilterValue] = useState<string>('all')
+  const [sortBy, setSortBy] = useState<'percent_of_equity' | 'symbol' | 'target_return_eoy'>('percent_of_equity')
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc')
 
   // Data fetching - PHASE 1: Replace useResearchPageData with proven hooks
   const {
@@ -168,7 +175,7 @@ export function ResearchAndAnalyzeContainer() {
   }, [publicPositions, optionsPositions, privatePositions, publicLongs, publicShorts, optionLongs, optionShorts, privateAggregates])
 
   // PHASE 4: Filter positions based on active tab and position type
-  const { filteredPositions, currentAggregate } = useMemo(() => {
+  const { basePositions, currentAggregate } = useMemo(() => {
     let positions: EnhancedPosition[] = []
     let aggregate = { eoy: 0, nextYear: 0 }
 
@@ -183,8 +190,58 @@ export function ResearchAndAnalyzeContainer() {
       aggregate = aggregates.private
     }
 
-    return { filteredPositions: positions, currentAggregate: aggregate }
+    return { basePositions: positions, currentAggregate: aggregate }
   }, [activeTab, positionType, publicLongs, publicShorts, optionLongs, optionShorts, privatePositions, aggregates])
+
+  // Filter options based on current base positions
+  const filterOptions = useMemo(() => {
+    if (filterBy === 'tag') {
+      const tags = new Set<string>()
+      basePositions.forEach(p => p.tags?.forEach(t => tags.add(t.name)))
+      return Array.from(tags).sort()
+    }
+    if (filterBy === 'sector') {
+      return Array.from(new Set(basePositions.map(p => p.sector).filter((s): s is string => Boolean(s)))).sort()
+    }
+    if (filterBy === 'industry') {
+      return Array.from(new Set(basePositions.map(p => p.industry).filter((i): i is string => Boolean(i)))).sort()
+    }
+    return []
+  }, [basePositions, filterBy])
+
+  // Apply additional filtering and sorting
+  const filteredPositions = useMemo(() => {
+    // Filter
+    let filtered = basePositions
+    if (filterBy !== 'all' && filterValue !== 'all') {
+      filtered = basePositions.filter(p => {
+        if (filterBy === 'tag') {
+          return p.tags?.some(t => t.name === filterValue)
+        }
+        if (filterBy === 'sector') {
+          return p.sector === filterValue
+        }
+        if (filterBy === 'industry') {
+          return p.industry === filterValue
+        }
+        return true
+      })
+    }
+
+    // Sort
+    return [...filtered].sort((a, b) => {
+      const aValue = a[sortBy] as any
+      const bValue = b[sortBy] as any
+
+      if (typeof aValue === 'number' && typeof bValue === 'number') {
+        return sortOrder === 'asc' ? aValue - bValue : bValue - aValue
+      }
+
+      return sortOrder === 'asc'
+        ? String(aValue || '').localeCompare(String(bValue || ''))
+        : String(bValue || '').localeCompare(String(aValue || ''))
+    })
+  }, [basePositions, filterBy, filterValue, sortBy, sortOrder])
 
   // Fetch correlation matrix once on mount and store in Zustand
   useEffect(() => {
@@ -417,7 +474,7 @@ export function ResearchAndAnalyzeContainer() {
         </div>
       </section>
 
-      {/* STICKY SECTION #2: Position Controls & Returns */}
+      {/* STICKY SECTION #2: Position Controls, Filters & Returns */}
       <section
         className="sticky z-40 transition-colors duration-300"
         style={{
@@ -427,15 +484,16 @@ export function ResearchAndAnalyzeContainer() {
       >
         <div className="container mx-auto px-4 pb-4">
           <div
-            className="rounded-lg px-4 py-3 transition-all duration-300"
+            className="rounded-lg px-4 py-4 transition-all duration-300"
             style={{
               backgroundColor: 'var(--bg-secondary)',
               border: '1px solid var(--border-primary)'
             }}
           >
-            <div className="flex items-center gap-6">
+            {/* Row 1: Positions Header, Tabs, Toggles, and Returns */}
+            <div className="flex items-center justify-between mb-4">
               {/* Left: Positions Header + Controls */}
-              <div className="flex-1 flex items-center gap-4">
+              <div className="flex items-center gap-4">
                 <h2
                   className="font-semibold flex-shrink-0"
                   style={{
@@ -478,12 +536,21 @@ export function ResearchAndAnalyzeContainer() {
                 )}
               </div>
 
-              {/* Right: Aggregate Returns */}
+              {/* Right: Aggregate Returns with Full Labels */}
               <div className="flex gap-6 flex-shrink-0">
                 <div className="text-right">
-                  <div className="text-xs" style={{ color: 'var(--text-secondary)' }}>EOY</div>
                   <div
-                    className="text-lg font-bold tabular-nums"
+                    className="mb-1"
+                    style={{
+                      fontSize: '11px',
+                      fontWeight: 500,
+                      color: 'var(--text-secondary)'
+                    }}
+                  >
+                    Expected Return EOY
+                  </div>
+                  <div
+                    className="text-xl font-bold tabular-nums"
                     style={{
                       color: currentAggregate.eoy >= 0 ? 'var(--color-success)' : 'var(--color-error)'
                     }}
@@ -492,9 +559,18 @@ export function ResearchAndAnalyzeContainer() {
                   </div>
                 </div>
                 <div className="text-right">
-                  <div className="text-xs" style={{ color: 'var(--text-secondary)' }}>Next Year</div>
                   <div
-                    className="text-lg font-bold tabular-nums"
+                    className="mb-1"
+                    style={{
+                      fontSize: '11px',
+                      fontWeight: 500,
+                      color: 'var(--text-secondary)'
+                    }}
+                  >
+                    Expected Return Next Year
+                  </div>
+                  <div
+                    className="text-xl font-bold tabular-nums"
                     style={{
                       color: currentAggregate.nextYear >= 0 ? 'var(--color-success)' : 'var(--color-error)'
                     }}
@@ -503,6 +579,68 @@ export function ResearchAndAnalyzeContainer() {
                   </div>
                 </div>
               </div>
+            </div>
+
+            {/* Row 2: Filter and Sort Controls */}
+            <div className="flex gap-3 flex-wrap">
+              <Select value={filterBy} onValueChange={(v: any) => { setFilterBy(v); setFilterValue('all') }}>
+                <SelectTrigger className="w-[180px] transition-colors duration-300" style={{
+                  backgroundColor: 'var(--bg-primary)',
+                  borderColor: 'var(--border-primary)'
+                }}>
+                  <SelectValue placeholder="Filter by..." />
+                </SelectTrigger>
+                <SelectContent className="themed-card">
+                  <SelectItem value="all">All Positions</SelectItem>
+                  <SelectItem value="tag">Filter by Tag</SelectItem>
+                  <SelectItem value="sector">Filter by Sector</SelectItem>
+                  <SelectItem value="industry">Filter by Industry</SelectItem>
+                </SelectContent>
+              </Select>
+
+              {filterBy !== 'all' && filterOptions.length > 0 && (
+                <Select value={filterValue} onValueChange={setFilterValue}>
+                  <SelectTrigger className="w-[200px] transition-colors duration-300" style={{
+                    backgroundColor: 'var(--bg-primary)',
+                    borderColor: 'var(--border-primary)'
+                  }}>
+                    <SelectValue placeholder={`Select ${filterBy}...`} />
+                  </SelectTrigger>
+                  <SelectContent className="themed-card">
+                    <SelectItem value="all">All {filterBy}s</SelectItem>
+                    {filterOptions.map(option => (
+                      <SelectItem key={option} value={option}>{option}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+
+              <Select value={sortBy} onValueChange={(v: any) => setSortBy(v)}>
+                <SelectTrigger className="w-[180px] transition-colors duration-300" style={{
+                  backgroundColor: 'var(--bg-primary)',
+                  borderColor: 'var(--border-primary)'
+                }}>
+                  <SelectValue placeholder="Sort by..." />
+                </SelectTrigger>
+                <SelectContent className="themed-card">
+                  <SelectItem value="percent_of_equity">% of Portfolio</SelectItem>
+                  <SelectItem value="symbol">Symbol (A-Z)</SelectItem>
+                  <SelectItem value="target_return_eoy">Return EOY</SelectItem>
+                </SelectContent>
+              </Select>
+
+              <Select value={sortOrder} onValueChange={(v: any) => setSortOrder(v)}>
+                <SelectTrigger className="w-[140px] transition-colors duration-300" style={{
+                  backgroundColor: 'var(--bg-primary)',
+                  borderColor: 'var(--border-primary)'
+                }}>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="themed-card">
+                  <SelectItem value="desc">High to Low</SelectItem>
+                  <SelectItem value="asc">Low to High</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </div>
         </div>
