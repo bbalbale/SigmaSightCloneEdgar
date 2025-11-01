@@ -76,7 +76,7 @@ export function SelectablePositionCard({
   }
 
   // Dynamic styles based on drag state
-  const getDragOverlayStyle = () => {
+  const getDragOverlayStyle = (): React.CSSProperties | undefined => {
     if (dragType === 'position') {
       return {
         backgroundColor: 'rgba(34, 197, 94, 0.1)', // green overlay
@@ -94,7 +94,7 @@ export function SelectablePositionCard({
         borderRadius: '0.5rem'
       }
     }
-    return null
+    return undefined
   }
 
   return (

@@ -5,7 +5,7 @@ import { themes } from '@/lib/themes'
 import { useState, useEffect } from 'react'
 
 export function ThemeSelector() {
-  const { currentTheme, setTheme, themeConfig, cycleTheme } = useTheme()
+  const { theme, themeConfig, toggleTheme } = useTheme()
   const [isOpen, setIsOpen] = useState(false)
 
   // Keyboard shortcut: Press 'T' to cycle themes
@@ -19,16 +19,16 @@ export function ThemeSelector() {
         document.activeElement?.tagName !== 'INPUT' &&
         document.activeElement?.tagName !== 'TEXTAREA'
       ) {
-        cycleTheme()
+        toggleTheme()
       }
     }
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [cycleTheme])
+  }, [toggleTheme])
 
   // Get the other theme (for 2-theme toggle)
-  const otherTheme = currentTheme === 'bloomberg-classic' ? 'modern-premium' : 'bloomberg-classic'
+  const otherTheme = theme === 'dark' ? 'light' : 'dark'
   const otherThemeConfig = themes[otherTheme]
 
   return (
@@ -127,7 +127,7 @@ export function ThemeSelector() {
           <div className="p-3">
             <button
               onClick={() => {
-                setTheme(otherTheme)
+                toggleTheme()
                 setIsOpen(false)
               }}
               className="w-full text-left p-3 rounded transition-all"
@@ -224,7 +224,7 @@ export function ThemeSelector() {
       <button
         onClick={() => {
           // Single click toggles theme directly
-          cycleTheme()
+          toggleTheme()
         }}
         onContextMenu={(e) => {
           // Right-click opens the panel

@@ -282,7 +282,7 @@ const ResearchTableRow = memo(function ResearchTableRow({ position, isExpanded, 
           <div>
             <div className="font-semibold transition-colors duration-300" style={{
               fontSize: 'var(--text-sm)',
-              color: 'var(--text-primary)'
+              color: 'var(--color-accent)'
             }}>
               {position.symbol}
             </div>

@@ -460,7 +460,7 @@ export function ResearchAndAnalyzeContainer() {
               className="mb-3 font-semibold"
               style={{
                 fontSize: '16px',
-                color: 'var(--text-primary)'
+                color: 'var(--color-accent)'
               }}
             >
               Position Tags
@@ -498,7 +498,7 @@ export function ResearchAndAnalyzeContainer() {
                   className="font-semibold flex-shrink-0"
                   style={{
                     fontSize: '16px',
-                    color: 'var(--text-primary)'
+                    color: 'var(--color-accent)'
                   }}
                 >
                   Positions
@@ -635,7 +635,7 @@ export function ResearchAndAnalyzeContainer() {
       </section>
 
       {/* SCROLLING CONTENT: Single Unified Table */}
-      <div className="container mx-auto px-4 py-6">
+      <div className="container mx-auto px-4 py-2">
         <ResearchTableView
           positions={filteredPositions}
           title=""
