@@ -12,6 +12,7 @@ from app.api.v1.tags import router as tags_router
 from app.api.v1.position_tags import router as position_tags_router
 from app.api.v1.insights import router as insights_router
 from app.api.v1.endpoints import admin_batch
+from app.api.v1.endpoints.fundamentals import router as fundamentals_router
 
 # Create the main v1 router
 api_router = APIRouter(prefix="/v1")
@@ -31,6 +32,9 @@ api_router.include_router(data.router)
 
 # Analytics APIs (/analytics/) - calculated metrics
 api_router.include_router(analytics_router)
+
+# Fundamentals APIs (/fundamentals/) - financial statements and analyst data
+api_router.include_router(fundamentals_router)
 
 # Target Prices APIs (/target-prices/) - portfolio-specific price targets
 api_router.include_router(target_prices_router)
