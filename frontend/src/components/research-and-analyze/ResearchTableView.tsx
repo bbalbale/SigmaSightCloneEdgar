@@ -18,6 +18,8 @@ interface ResearchTableViewProps {
   aggregateReturnEOY: number
   aggregateReturnNextYear: number
   onTargetPriceUpdate?: (update: TargetPriceUpdate) => Promise<void>
+  onTagDrop?: (positionId: string, tagId: string) => Promise<void>
+  onRemoveTag?: (positionId: string, tagId: string) => Promise<void>
 }
 
 function formatPercentage(value: number | null | undefined): string {
@@ -30,7 +32,9 @@ export function ResearchTableView({
   title,
   aggregateReturnEOY,
   aggregateReturnNextYear,
-  onTargetPriceUpdate
+  onTargetPriceUpdate,
+  onTagDrop,
+  onRemoveTag
 }: ResearchTableViewProps) {
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set())
   const [filterBy, setFilterBy] = useState<'all' | 'tag' | 'sector' | 'industry'>('all')
@@ -303,6 +307,8 @@ export function ResearchTableView({
                   isExpanded={expandedRows.has(position.id)}
                   onToggle={() => toggleRow(position.id)}
                   onTargetPriceUpdate={onTargetPriceUpdate}
+                  onTagDrop={onTagDrop}
+                  onRemoveTag={onRemoveTag}
                 />
               ))}
             </tbody>
@@ -327,9 +333,11 @@ interface ResearchTableRowProps {
   isExpanded: boolean
   onToggle: () => void
   onTargetPriceUpdate?: (update: TargetPriceUpdate) => Promise<void>
+  onTagDrop?: (positionId: string, tagId: string) => Promise<void>
+  onRemoveTag?: (positionId: string, tagId: string) => Promise<void>
 }
 
-function ResearchTableRow({ position, isExpanded, onToggle, onTargetPriceUpdate }: ResearchTableRowProps) {
+function ResearchTableRow({ position, isExpanded, onToggle, onTargetPriceUpdate, onTagDrop, onRemoveTag }: ResearchTableRowProps) {
   const [userTargetEOY, setUserTargetEOY] = useState(
     position.user_target_eoy?.toString() || position.target_mean_price?.toString() || ''
   )
@@ -337,6 +345,7 @@ function ResearchTableRow({ position, isExpanded, onToggle, onTargetPriceUpdate 
     position.user_target_next_year?.toString() || ''
   )
   const [isSaving, setIsSaving] = useState(false)
+  const [isDragOver, setIsDragOver] = useState(false)
 
   // Fetch risk metrics for expanded view
   const { metrics: riskMetrics, loading: riskMetricsLoading } = usePositionRiskMetrics(
@@ -365,6 +374,30 @@ function ResearchTableRow({ position, isExpanded, onToggle, onTargetPriceUpdate 
     }
   }, [position, userTargetEOY, userTargetNextYear, onTargetPriceUpdate])
 
+  // Drag and drop handlers for tag application
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault()
+    e.dataTransfer.dropEffect = 'copy'
+    setIsDragOver(true)
+  }, [])
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault()
+    setIsDragOver(false)
+  }, [])
+
+  const handleDrop = useCallback(async (e: React.DragEvent) => {
+    e.preventDefault()
+    setIsDragOver(false)
+
+    const tagId = e.dataTransfer.getData('text/plain')
+    console.log('Tag dropped on position:', { positionId: position.id, tagId })
+
+    if (tagId && onTagDrop) {
+      await onTagDrop(position.id, tagId)
+    }
+  }, [position.id, onTagDrop])
+
   // Check if position is short
   const isShort = ['SHORT', 'SC', 'SP'].includes(position.position_type)
 
@@ -388,10 +421,19 @@ function ResearchTableRow({ position, isExpanded, onToggle, onTargetPriceUpdate 
   return (
     <>
       {/* Main Row */}
-      <tr className="border-b transition-all duration-200 hover:bg-opacity-50" style={{
-        borderColor: 'var(--border-primary)',
-        backgroundColor: isExpanded ? 'var(--bg-tertiary)' : 'transparent'
-      }}>
+      <tr
+        className="border-b transition-all duration-200 hover:bg-opacity-50"
+        style={{
+          borderColor: isDragOver ? 'var(--color-accent)' : 'var(--border-primary)',
+          backgroundColor: isDragOver
+            ? 'rgba(59, 130, 246, 0.1)'
+            : isExpanded ? 'var(--bg-tertiary)' : 'transparent',
+          borderWidth: isDragOver ? '2px' : '1px'
+        }}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
+      >
         {/* Expand/Collapse Button */}
         <td className="px-2">
           <button
@@ -509,9 +551,33 @@ function ResearchTableRow({ position, isExpanded, onToggle, onTargetPriceUpdate 
 
         {/* Tags */}
         <td className="px-4 py-3">
-          <div className="flex gap-1 flex-wrap">
+          <div className="flex gap-1 flex-wrap items-center">
             {position.tags?.slice(0, 2).map(tag => (
-              <TagBadge key={tag.id} tag={tag} draggable={false} size="sm" />
+              <div key={tag.id} className="inline-flex items-center gap-1">
+                <TagBadge tag={tag} draggable={false} size="sm" />
+                {onRemoveTag && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      onRemoveTag(position.id, tag.id)
+                    }}
+                    className="px-1 py-0 text-xs rounded transition-all duration-200 hover:scale-110"
+                    style={{
+                      backgroundColor: 'var(--color-error-bg, rgba(239, 68, 68, 0.1))',
+                      color: 'var(--color-error)',
+                      border: '1px solid var(--color-error)',
+                      fontSize: '10px',
+                      lineHeight: '12px',
+                      minWidth: '12px',
+                      height: '12px'
+                    }}
+                    title={`Remove ${tag.name} tag`}
+                    aria-label={`Remove ${tag.name} tag from ${position.symbol}`}
+                  >
+                    ×
+                  </button>
+                )}
+              </div>
             ))}
             {position.tags && position.tags.length > 2 && (
               <span className="text-xs px-2 py-0.5 rounded transition-colors duration-300" style={{
@@ -536,6 +602,7 @@ function ResearchTableRow({ position, isExpanded, onToggle, onTargetPriceUpdate 
               position={position}
               riskMetrics={riskMetrics}
               riskMetricsLoading={riskMetricsLoading}
+              onRemoveTag={onRemoveTag}
             />
           </td>
         </tr>
@@ -549,9 +616,10 @@ interface ExpandedRowDetailProps {
   position: EnhancedPosition
   riskMetrics: any
   riskMetricsLoading: boolean
+  onRemoveTag?: (positionId: string, tagId: string) => Promise<void>
 }
 
-function ExpandedRowDetail({ position, riskMetrics, riskMetricsLoading }: ExpandedRowDetailProps) {
+function ExpandedRowDetail({ position, riskMetrics, riskMetricsLoading, onRemoveTag }: ExpandedRowDetailProps) {
   const quantity = position.quantity || 0
   const avgCost = position.avg_cost || position.cost_basis || 0
   const marketValue = position.current_market_value || position.market_value || (quantity * position.current_price)
@@ -690,7 +758,31 @@ function ExpandedRowDetail({ position, riskMetrics, riskMetricsLoading }: Expand
           {position.tags && position.tags.length > 0 ? (
             <div className="flex gap-2 flex-wrap">
               {position.tags.map(tag => (
-                <TagBadge key={tag.id} tag={tag} draggable={false} />
+                <div key={tag.id} className="inline-flex items-center gap-1">
+                  <TagBadge tag={tag} draggable={false} />
+                  {onRemoveTag && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        onRemoveTag(position.id, tag.id)
+                      }}
+                      className="px-1 py-0 text-xs rounded transition-all duration-200 hover:scale-110"
+                      style={{
+                        backgroundColor: 'var(--color-error-bg, rgba(239, 68, 68, 0.1))',
+                        color: 'var(--color-error)',
+                        border: '1px solid var(--color-error)',
+                        fontSize: '10px',
+                        lineHeight: '14px',
+                        minWidth: '14px',
+                        height: '14px'
+                      }}
+                      title={`Remove ${tag.name} tag`}
+                      aria-label={`Remove ${tag.name} tag from ${position.symbol}`}
+                    >
+                      ×
+                    </button>
+                  )}
+                </div>
               ))}
             </div>
           ) : (

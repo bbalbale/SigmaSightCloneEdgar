@@ -386,12 +386,36 @@ export function ResearchAndAnalyzeContainer() {
         </div>
       </div>
 
-      {/* Sticky Tag Bar */}
-      <StickyTagBar
-        tags={tags}
-        onCreateTag={handleCreateTag}
-        onRestoreSectorTags={handleRestoreSectorTags}
-      />
+      {/* Sticky Tag Bar - Full Tag Management */}
+      <section className="sticky top-0 z-40 transition-colors duration-300 border-b" style={{
+        backgroundColor: 'var(--bg-primary)',
+        borderColor: 'var(--border-primary)'
+      }}>
+        <div className="container mx-auto py-4">
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex-1">
+              <TagList
+                tags={allTags}
+                onCreate={handleCreateTag}
+                onDelete={handleDeleteTag}
+              />
+            </div>
+            {/* Restore Sector Tags Button */}
+            <button
+              onClick={handleRestoreSectorTags}
+              disabled={restoringTags || tagsLoading}
+              className="px-4 py-2 rounded-md font-medium transition-all duration-200 disabled:cursor-not-allowed flex-shrink-0"
+              style={{
+                backgroundColor: restoringTags || tagsLoading ? 'var(--bg-tertiary)' : 'var(--color-accent)',
+                color: restoringTags || tagsLoading ? 'var(--text-tertiary)' : '#ffffff'
+              }}
+              title="Automatically create and apply sector tags based on company profiles"
+            >
+              {restoringTags ? 'Restoring...' : 'Restore Sector Tags'}
+            </button>
+          </div>
+        </div>
+      </section>
 
       {/* Tabs Section */}
       <section className="pt-4">
@@ -479,6 +503,8 @@ export function ResearchAndAnalyzeContainer() {
                     aggregateReturnEOY={aggregates.publicLongs.eoy}
                     aggregateReturnNextYear={aggregates.publicLongs.nextYear}
                     onTargetPriceUpdate={updatePublicTarget}
+                    onTagDrop={handleTagDrop}
+                    onRemoveTag={handleRemoveTag}
                   />
                 </section>
               )}
@@ -492,6 +518,8 @@ export function ResearchAndAnalyzeContainer() {
                     aggregateReturnEOY={aggregates.publicShorts.eoy}
                     aggregateReturnNextYear={aggregates.publicShorts.nextYear}
                     onTargetPriceUpdate={updatePublicTarget}
+                    onTagDrop={handleTagDrop}
+                    onRemoveTag={handleRemoveTag}
                   />
                 </section>
               )}
@@ -518,6 +546,8 @@ export function ResearchAndAnalyzeContainer() {
                     aggregateReturnEOY={aggregates.optionLongs.eoy}
                     aggregateReturnNextYear={aggregates.optionLongs.nextYear}
                     onTargetPriceUpdate={updatePublicTarget}
+                    onTagDrop={handleTagDrop}
+                    onRemoveTag={handleRemoveTag}
                   />
                 </section>
               ) : (
@@ -535,6 +565,8 @@ export function ResearchAndAnalyzeContainer() {
                     aggregateReturnEOY={aggregates.optionShorts.eoy}
                     aggregateReturnNextYear={aggregates.optionShorts.nextYear}
                     onTargetPriceUpdate={updatePublicTarget}
+                    onTagDrop={handleTagDrop}
+                    onRemoveTag={handleRemoveTag}
                   />
                 </section>
               ) : (
@@ -553,6 +585,8 @@ export function ResearchAndAnalyzeContainer() {
                   aggregateReturnEOY={aggregates.private.eoy}
                   aggregateReturnNextYear={aggregates.private.nextYear}
                   onTargetPriceUpdate={updatePrivateTarget}
+                  onTagDrop={handleTagDrop}
+                  onRemoveTag={handleRemoveTag}
                 />
               </section>
             </TabsContent>
