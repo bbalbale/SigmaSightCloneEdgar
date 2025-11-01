@@ -382,6 +382,458 @@ GET /api/v1/fundamentals/growth-metrics/{symbol}
 
 ---
 
+## Batch Orchestrator Integration ⭐ **CRITICAL**
+
+### Overview
+
+Fundamental financial data should be integrated into the **batch orchestrator v3** (`app/batch/batch_orchestrator_v3.py`) with **earnings-based timing** to avoid unnecessary API calls and database writes.
+
+**Key Insight**: Financial statements only update quarterly (after earnings releases). Pulling this data daily or weekly is wasteful.
+
+### Quarterly Update Strategy
+
+**Trigger**: **3 days after earnings date** (allows time for data to be published to Yahoo Finance)
+
+**Rationale**:
+- Financial statements are released during quarterly earnings calls
+- Yahoo Finance needs 1-3 days to process and publish the data
+- 3-day buffer ensures data availability while keeping it fresh
+- Applies to both financial statements AND company profile updates
+
+### Implementation Architecture
+
+#### 1. New Batch Phase: "Fundamentals Collection"
+
+**Add to batch_orchestrator_v3** as **Phase 4** (after existing Phase 3 - Risk Analytics):
+
+```python
+# app/batch/batch_orchestrator_v3.py
+
+class BatchOrchestratorV3:
+    # ... existing phases 1-3 ...
+
+    async def run_fundamentals_collection(self, portfolio_id: UUID = None):
+        """
+        Phase 4: Collect fundamental financial data
+
+        Runs quarterly, triggered 3 days after earnings date
+        Updates both financial statements AND company profiles
+
+        Args:
+            portfolio_id: If provided, only collect for positions in this portfolio
+        """
+        logger.info("=" * 50)
+        logger.info("PHASE 4: Fundamentals Collection")
+        logger.info("=" * 50)
+
+        try:
+            # Get symbols that need fundamentals update
+            symbols_to_update = await self._get_symbols_needing_fundamentals_update(portfolio_id)
+
+            if not symbols_to_update:
+                logger.info("No symbols require fundamentals update at this time")
+                return
+
+            logger.info(f"Updating fundamentals for {len(symbols_to_update)} symbols")
+
+            # Collect financial statements
+            await self._collect_financial_statements(symbols_to_update)
+
+            # Update company profiles (if also stale)
+            await self._update_company_profiles(symbols_to_update)
+
+            logger.info("Phase 4: Fundamentals collection complete")
+
+        except Exception as e:
+            logger.error(f"Phase 4 failed: {str(e)}")
+            raise
+```
+
+#### 2. Earnings Date Tracking
+
+**Create new table**: `financial_statement_updates`
+
+```python
+# app/models/fundamentals.py (NEW FILE)
+
+from sqlalchemy import Column, String, Date, DateTime, Boolean
+from sqlalchemy.dialects.postgresql import UUID
+from app.database import Base
+from datetime import datetime
+import uuid
+
+class FinancialStatementUpdate(Base):
+    __tablename__ = "financial_statement_updates"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    symbol = Column(String(10), nullable=False, index=True, unique=True)
+
+    # Earnings tracking
+    last_earnings_date = Column(Date, nullable=True)  # Most recent earnings date
+    next_earnings_date = Column(Date, nullable=True)  # Upcoming earnings (from YahooQuery calendar_events)
+
+    # Update tracking
+    last_financials_update = Column(DateTime, nullable=True)  # When we last pulled statements
+    last_profile_update = Column(DateTime, nullable=True)     # When we last pulled company profile
+
+    # Status flags
+    needs_update = Column(Boolean, default=False)  # True if earnings_date + 3 days has passed
+    update_scheduled_for = Column(Date, nullable=True)  # earnings_date + 3 days
+
+    # Metadata
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+```
+
+**Migration**:
+```bash
+# Create Alembic migration
+alembic revision --autogenerate -m "Add financial_statement_updates table"
+alembic upgrade head
+```
+
+#### 3. Update Logic
+
+**Service**: `app/services/fundamentals_update_service.py` (NEW FILE)
+
+```python
+from datetime import datetime, date, timedelta
+from typing import List
+from sqlalchemy import select
+from yahooquery import Ticker
+
+async def get_symbols_needing_fundamentals_update(
+    db: AsyncSession,
+    portfolio_id: UUID = None
+) -> List[str]:
+    """
+    Get symbols that need fundamentals update based on earnings date + 3 days
+
+    Logic:
+    1. Check if symbol has next_earnings_date
+    2. If next_earnings_date + 3 days <= today AND needs_update = False:
+       - Mark needs_update = True
+       - Add to update list
+    3. Also check symbols with no recent update (>90 days)
+
+    Args:
+        db: Database session
+        portfolio_id: Optional - only check symbols in this portfolio
+
+    Returns:
+        List of symbols needing update
+    """
+    today = date.today()
+
+    # Get all symbols from positions (optionally filtered by portfolio)
+    symbols_query = select(Position.symbol).distinct()
+    if portfolio_id:
+        symbols_query = symbols_query.where(Position.portfolio_id == portfolio_id)
+
+    symbols_result = await db.execute(symbols_query)
+    all_symbols = [row[0] for row in symbols_result.fetchall()]
+
+    symbols_to_update = []
+
+    for symbol in all_symbols:
+        # Get update record
+        update_record = await db.execute(
+            select(FinancialStatementUpdate).where(
+                FinancialStatementUpdate.symbol == symbol
+            )
+        )
+        update_record = update_record.scalar_one_or_none()
+
+        # If no record exists, create one and add to update list
+        if not update_record:
+            update_record = FinancialStatementUpdate(
+                symbol=symbol,
+                needs_update=True,
+                update_scheduled_for=today
+            )
+            db.add(update_record)
+            symbols_to_update.append(symbol)
+            continue
+
+        # Check if earnings + 3 days has passed
+        if update_record.next_earnings_date:
+            update_date = update_record.next_earnings_date + timedelta(days=3)
+            if update_date <= today and not update_record.needs_update:
+                update_record.needs_update = True
+                update_record.update_scheduled_for = update_date
+                symbols_to_update.append(symbol)
+                continue
+
+        # Check if last update was > 90 days ago (stale data failsafe)
+        if update_record.last_financials_update:
+            days_since_update = (today - update_record.last_financials_update.date()).days
+            if days_since_update > 90:
+                update_record.needs_update = True
+                symbols_to_update.append(symbol)
+
+    await db.commit()
+    return symbols_to_update
+
+
+async def update_next_earnings_dates(db: AsyncSession):
+    """
+    Batch update next earnings dates for all symbols
+
+    Runs daily as part of batch orchestrator
+    Uses YahooQuery calendar_events to get upcoming earnings
+    """
+    # Get all symbols with update records
+    result = await db.execute(select(FinancialStatementUpdate))
+    records = result.scalars().all()
+
+    for record in records:
+        try:
+            # Fetch next earnings date from YahooQuery
+            ticker = Ticker(record.symbol)
+            calendar = ticker.calendar_events
+
+            if isinstance(calendar, dict) and record.symbol in calendar:
+                earnings_data = calendar[record.symbol].get('earnings', {})
+                earnings_dates = earnings_data.get('earningsDate', [])
+
+                if earnings_dates and len(earnings_dates) > 0:
+                    # Take first date (next earnings)
+                    next_earnings = earnings_dates[0]
+
+                    # Convert to date object
+                    if isinstance(next_earnings, str):
+                        next_earnings = datetime.fromisoformat(next_earnings).date()
+                    elif hasattr(next_earnings, 'date'):
+                        next_earnings = next_earnings.date()
+
+                    record.next_earnings_date = next_earnings
+                    logger.info(f"{record.symbol}: Next earnings {next_earnings}")
+
+        except Exception as e:
+            logger.warning(f"Could not fetch earnings date for {record.symbol}: {str(e)}")
+            continue
+
+    await db.commit()
+```
+
+#### 4. Batch Orchestrator Integration Points
+
+**Daily Job** (existing batch run):
+1. Update next earnings dates for all symbols (lightweight YahooQuery calendar_events call)
+2. Check which symbols need fundamentals update (earnings_date + 3 days logic)
+3. If symbols need update, run Phase 4
+
+**Weekly Job** (new):
+1. Verify no symbols are >90 days stale
+2. Force update for stale symbols
+
+**Manual Trigger** (Admin endpoint):
+```python
+POST /api/v1/admin/fundamentals/update-symbol/{symbol}
+# Force immediate update for a specific symbol
+```
+
+### Company Profile Integration
+
+**Shared Timing Logic**: Company profiles should update on same schedule as financial statements
+
+**Rationale**:
+- Sector/industry rarely changes, but may during corporate actions
+- Market cap changes daily (but we get that from prices)
+- Earnings estimates are part of fundamentals, should update quarterly
+- Description, officers, etc. rarely change
+
+**Implementation**:
+```python
+# When updating financial statements, also update company profile
+async def collect_fundamentals_for_symbol(symbol: str):
+    # 1. Get financial statements (income, balance, cash flow)
+    statements = await fundamentals_client.get_all_statements(symbol)
+
+    # 2. Get analyst estimates and price targets
+    estimates = await fundamentals_client.get_analyst_estimates(symbol)
+    targets = await fundamentals_client.get_price_targets(symbol)
+
+    # 3. Update company profile (if stale or earnings-triggered)
+    profile = await company_profile_service.sync_profile(symbol)
+
+    # 4. Store all data
+    await store_financial_statements(symbol, statements)
+    await store_analyst_estimates(symbol, estimates)
+    await store_price_targets(symbol, targets)
+
+    # 5. Mark as updated
+    await mark_fundamentals_updated(symbol)
+```
+
+### Scheduling Strategy
+
+**Option A: Cron-Based** (Recommended)
+```python
+# APScheduler configuration
+scheduler.add_job(
+    update_next_earnings_dates,
+    trigger='cron',
+    hour=1,  # 1 AM daily
+    minute=0,
+    id='daily_earnings_dates_update'
+)
+
+scheduler.add_job(
+    check_and_run_fundamentals_updates,
+    trigger='cron',
+    hour=2,  # 2 AM daily (after earnings dates updated)
+    minute=0,
+    id='daily_fundamentals_check'
+)
+
+scheduler.add_job(
+    force_update_stale_symbols,
+    trigger='cron',
+    day_of_week='sun',  # Weekly on Sunday
+    hour=3,
+    minute=0,
+    id='weekly_stale_fundamentals_check'
+)
+```
+
+**Option B: Event-Driven** (Future Enhancement)
+- Listen for earnings announcements (external data source)
+- Trigger update immediately when earnings detected
+- More complex but more responsive
+
+### Database Storage Strategy
+
+**New Tables**:
+
+1. **`financial_statements`** - Raw statement data
+```python
+class FinancialStatement(Base):
+    __tablename__ = "financial_statements"
+
+    id = Column(UUID, primary_key=True)
+    symbol = Column(String(10), nullable=False, index=True)
+    statement_type = Column(String(20))  # 'income', 'balance', 'cashflow'
+    frequency = Column(String(1))  # 'q' or 'a'
+    period_date = Column(Date, nullable=False)
+    fiscal_year = Column(Integer)
+    fiscal_quarter = Column(String(2))  # 'Q1', 'Q2', etc.
+    data = Column(JSON)  # All fields as JSON
+    created_at = Column(DateTime, default=datetime.utcnow)
+```
+
+2. **`analyst_estimates`** - Forward-looking data
+```python
+class AnalystEstimate(Base):
+    __tablename__ = "analyst_estimates"
+
+    id = Column(UUID, primary_key=True)
+    symbol = Column(String(10), nullable=False, index=True)
+    estimate_type = Column(String(20))  # 'revenue', 'eps'
+    period_type = Column(String(10))  # '0q', '+1q', '0y', '+1y'
+    estimate_avg = Column(Numeric(precision=20, scale=2))
+    estimate_low = Column(Numeric(precision=20, scale=2))
+    estimate_high = Column(Numeric(precision=20, scale=2))
+    num_analysts = Column(Integer)
+    as_of_date = Column(Date, nullable=False)  # When estimate was fetched
+    created_at = Column(DateTime, default=datetime.utcnow)
+```
+
+3. **`price_targets`** - Analyst price targets
+```python
+class PriceTarget(Base):
+    __tablename__ = "price_targets"
+
+    id = Column(UUID, primary_key=True)
+    symbol = Column(String(10), nullable=False, index=True)
+    target_low = Column(Numeric(precision=10, scale=2))
+    target_mean = Column(Numeric(precision=10, scale=2))
+    target_high = Column(Numeric(precision=10, scale=2))
+    recommendation_mean = Column(Numeric(precision=3, scale=2))
+    num_analysts = Column(Integer)
+    as_of_date = Column(Date, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+```
+
+**Storage vs. API-Only Decision**:
+
+**Recommendation**: **STORE** fundamentals data (different from original plan)
+
+**Why?**
+- Financial statements don't change retroactively (historical accuracy)
+- Enables time-series analysis (track how estimates changed over time)
+- Reduces API dependency for historical queries
+- Allows offline access and faster queries
+- Only updates quarterly (manageable data volume)
+
+**Data Volume Estimate**:
+- 3 statements × 12 quarters × 100 symbols = 3,600 records
+- ~1KB per statement = ~3.6MB per symbol for 3 years
+- For 100 symbols: ~360MB (very manageable)
+
+### Benefits of Earnings-Based Timing
+
+1. **API Efficiency**:
+   - 4 updates/year instead of 365 updates/year = 98.9% reduction
+   - Respects Yahoo Finance rate limits
+   - Reduces unnecessary processing
+
+2. **Data Freshness**:
+   - Updates within 3 days of new data availability
+   - More relevant than arbitrary weekly/monthly schedules
+   - Aligns with actual reporting cycles
+
+3. **Database Efficiency**:
+   - Fewer writes
+   - Historical data remains stable
+   - Only new quarters added
+
+4. **User Experience**:
+   - Data is always current within 3 days of earnings
+   - No stale data issues
+   - Consistent update timing
+
+5. **Shared Infrastructure**:
+   - Company profiles update on same schedule
+   - Consistent data freshness across features
+   - Single batch job handles both
+
+### Implementation Checklist
+
+**Phase 1: Database Setup**
+- [ ] Create `financial_statement_updates` table (Alembic migration)
+- [ ] Create `financial_statements` table (Alembic migration)
+- [ ] Create `analyst_estimates` table (Alembic migration)
+- [ ] Create `price_targets` table (Alembic migration)
+
+**Phase 2: Service Layer**
+- [ ] Create `fundamentals_update_service.py`
+- [ ] Implement `get_symbols_needing_fundamentals_update()`
+- [ ] Implement `update_next_earnings_dates()`
+- [ ] Implement `collect_fundamentals_for_symbol()`
+- [ ] Implement `mark_fundamentals_updated()`
+
+**Phase 3: Batch Orchestrator Integration**
+- [ ] Add Phase 4 to `batch_orchestrator_v3.py`
+- [ ] Add daily earnings date update job
+- [ ] Add daily fundamentals check job
+- [ ] Add weekly stale data check job
+- [ ] Update admin endpoints to trigger manual updates
+
+**Phase 4: Company Profile Integration**
+- [ ] Modify `company_profile_service.py` to use same timing
+- [ ] Add `last_profile_update` tracking to `financial_statement_updates`
+- [ ] Update company profiles during fundamentals collection
+
+**Phase 5: Testing**
+- [ ] Test earnings date fetching
+- [ ] Test 3-day trigger logic
+- [ ] Test stale data failsafe (>90 days)
+- [ ] Test manual trigger endpoint
+- [ ] Verify no duplicate updates
+
+---
+
 ## Data Models (Pydantic Schemas)
 
 **Create**: `app/schemas/fundamentals.py`

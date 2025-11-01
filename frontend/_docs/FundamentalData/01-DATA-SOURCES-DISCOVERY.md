@@ -147,6 +147,64 @@ ticker.get_financial_data(['NetIncome', 'TotalRevenue'])  # Specific fields
 | CAPEX | `CapitalExpenditure` | ✅ Available |
 | Free Cash Flow | `FreeCashFlow` | ✅ Available |
 
+### Balance Sheet Fields ✅ COMPREHENSIVE COVERAGE
+
+**YahooQuery Balance Sheet Capabilities:**
+```python
+from yahooquery import Ticker
+
+ticker = Ticker('AAPL')
+balance_sheet_q = ticker.balance_sheet(frequency='q')  # Quarterly
+balance_sheet_a = ticker.balance_sheet(frequency='a')  # Annual
+```
+
+**Available Data:**
+- ✅ **180+ balance sheet fields** (most comprehensive)
+- ✅ Quarterly and Annual frequencies
+- ✅ TTM (Trailing Twelve Months)
+- ✅ 4 years historical data
+- ✅ **Free** - No API key required
+- ✅ Validated in test scripts (`backend/scripts/testing/test_yahooquery_financials.py`)
+
+**Assets (30+ fields):**
+- Cash and Cash Equivalents
+- Cash, Cash Equivalents, and Short-Term Investments
+- Accounts Receivable
+- Inventory
+- Current Assets, Total Assets
+- Net Property, Plant & Equipment (PP&E)
+- Goodwill, Intangible Assets
+- Long-Term Investments
+
+**Liabilities (25+ fields):**
+- Accounts Payable
+- Short-Term Debt (Current Debt)
+- Long-Term Debt
+- Current Liabilities, Total Liabilities
+- Deferred Revenue, Deferred Tax Liabilities
+
+**Equity (15+ fields):**
+- Common Stock, Preferred Stock
+- Retained Earnings
+- Treasury Stock
+- Total Stockholders' Equity
+
+**Calculated Metrics (Service Layer - Planned):**
+
+**Liquidity Ratios:**
+- Current Ratio = Current Assets / Current Liabilities
+- Quick Ratio = (Current Assets - Inventory) / Current Liabilities
+- Working Capital = Current Assets - Current Liabilities
+
+**Leverage Ratios:**
+- Debt-to-Equity = Total Debt / Total Equity
+- Debt-to-Assets = Total Debt / Total Assets
+- Net Debt = Total Debt - Cash
+
+**Valuation Ratios:**
+- Price-to-Book = Market Cap / Book Value
+- Book Value per Share = Total Equity / Shares Outstanding
+
 ---
 
 ## Forward-Looking Data Available
