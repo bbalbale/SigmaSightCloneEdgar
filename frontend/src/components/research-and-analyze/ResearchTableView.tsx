@@ -27,6 +27,11 @@ function formatPercentage(value: number | null | undefined): string {
   return `${value >= 0 ? '+' : ''}${value.toFixed(1)}%`
 }
 
+function truncateText(text: string, maxLength: number): string {
+  if (!text || text.length <= maxLength) return text
+  return text.slice(0, maxLength) + '...'
+}
+
 export function ResearchTableView({
   positions,
   title,
@@ -245,7 +250,8 @@ export function ResearchTableView({
                 <th className="w-8"></th>
                 <th className="text-left px-4 py-3 font-semibold transition-colors duration-300" style={{
                   fontSize: 'var(--text-xs)',
-                  color: 'var(--text-secondary)'
+                  color: 'var(--text-secondary)',
+                  maxWidth: '200px'
                 }}>
                   Position
                 </th>
@@ -294,8 +300,8 @@ export function ResearchTableView({
                 <th className="text-left px-4 py-3 font-semibold transition-colors duration-300" style={{
                   fontSize: 'var(--text-xs)',
                   color: 'var(--text-secondary)',
-                  width: '180px',
-                  maxWidth: '180px'
+                  width: '220px',
+                  maxWidth: '220px'
                 }}>
                   Tags
                 </th>
@@ -450,7 +456,7 @@ const ResearchTableRow = memo(function ResearchTableRow({ position, isExpanded, 
         </td>
 
         {/* Position */}
-        <td className="px-4 py-3">
+        <td className="px-4 py-3" style={{ maxWidth: '200px' }}>
           <div>
             <div className="font-semibold transition-colors duration-300" style={{
               fontSize: 'var(--text-sm)',
@@ -458,11 +464,15 @@ const ResearchTableRow = memo(function ResearchTableRow({ position, isExpanded, 
             }}>
               {position.symbol}
             </div>
-            <div className="transition-colors duration-300" style={{
-              fontSize: 'var(--text-xs)',
-              color: 'var(--text-secondary)'
-            }}>
-              {position.company_name || position.symbol}
+            <div
+              className="transition-colors duration-300"
+              style={{
+                fontSize: 'var(--text-xs)',
+                color: 'var(--text-secondary)'
+              }}
+              title={position.company_name || position.symbol}
+            >
+              {truncateText(position.company_name || position.symbol, 20)}
             </div>
           </div>
         </td>
@@ -552,7 +562,7 @@ const ResearchTableRow = memo(function ResearchTableRow({ position, isExpanded, 
         </td>
 
         {/* Tags */}
-        <td className="px-4 py-3" style={{ width: '180px', maxWidth: '180px' }}>
+        <td className="px-4 py-3" style={{ width: '220px', maxWidth: '220px' }}>
           <div className="flex gap-1 items-center overflow-hidden">
             {position.tags?.slice(0, 1).map(tag => (
               <div key={tag.id} className="inline-flex items-center gap-1 flex-shrink-0">
