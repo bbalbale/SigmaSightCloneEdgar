@@ -293,7 +293,9 @@ export function ResearchTableView({
                 </th>
                 <th className="text-left px-4 py-3 font-semibold transition-colors duration-300" style={{
                   fontSize: 'var(--text-xs)',
-                  color: 'var(--text-secondary)'
+                  color: 'var(--text-secondary)',
+                  width: '180px',
+                  maxWidth: '180px'
                 }}>
                   Tags
                 </th>
@@ -550,10 +552,10 @@ const ResearchTableRow = memo(function ResearchTableRow({ position, isExpanded, 
         </td>
 
         {/* Tags */}
-        <td className="px-4 py-3">
-          <div className="flex gap-1 flex-wrap items-center">
-            {position.tags?.slice(0, 2).map(tag => (
-              <div key={tag.id} className="inline-flex items-center gap-1">
+        <td className="px-4 py-3" style={{ width: '180px', maxWidth: '180px' }}>
+          <div className="flex gap-1 items-center overflow-hidden">
+            {position.tags?.slice(0, 1).map(tag => (
+              <div key={tag.id} className="inline-flex items-center gap-1 flex-shrink-0">
                 <TagBadge tag={tag} draggable={false} size="sm" />
                 {onRemoveTag && (
                   <button
@@ -579,12 +581,12 @@ const ResearchTableRow = memo(function ResearchTableRow({ position, isExpanded, 
                 )}
               </div>
             ))}
-            {position.tags && position.tags.length > 2 && (
-              <span className="text-xs px-2 py-0.5 rounded transition-colors duration-300" style={{
+            {position.tags && position.tags.length > 1 && (
+              <span className="text-xs px-2 py-0.5 rounded transition-colors duration-300 flex-shrink-0" style={{
                 backgroundColor: 'var(--bg-tertiary)',
                 color: 'var(--text-secondary)'
               }}>
-                +{position.tags.length - 2}
+                +{position.tags.length - 1}
               </span>
             )}
           </div>
