@@ -3,7 +3,7 @@
 import React from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Command, Search, TrendingUp } from 'lucide-react'
+import { Command, Search, TrendingUp, Sparkles } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { UserDropdown } from './UserDropdown'
 import { NavigationDropdown } from './NavigationDropdown'
@@ -14,6 +14,7 @@ const navigationItems = [
   { href: '/command-center', label: 'Command Center', icon: Command },
   { href: '/research-and-analyze', label: 'Research & Analyze', icon: Search },
   { href: '/risk-metrics', label: 'Risk Metrics', icon: TrendingUp },
+  { href: '/sigmasight-ai', label: 'SigmaSight AI', icon: Sparkles },
 ]
 
 export function TopNavigationBar() {
@@ -43,12 +44,12 @@ export function TopNavigationBar() {
                   variant={isActive ? 'default' : 'ghost'}
                   asChild
                   className={cn(
-                    'gap-2',
-                    isActive && 'bg-primary text-primary-foreground'
+                    'gap-2 relative',
+                    isActive && 'bg-primary text-primary-foreground font-semibold shadow-sm border-2 border-primary-foreground'
                   )}
                 >
                   <Link href={item.href}>
-                    <Icon className="h-4 w-4" />
+                    <Icon className={cn('h-4 w-4', isActive && 'text-primary-foreground')} />
                     <span className="hidden md:inline-block">{item.label}</span>
                   </Link>
                 </Button>

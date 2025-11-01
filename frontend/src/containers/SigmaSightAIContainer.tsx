@@ -55,32 +55,14 @@ export function SigmaSightAIContainer() {
 
   return (
     <div className="min-h-screen transition-colors duration-300 bg-primary">
-      {/* Header */}
-      <section className="px-4 py-8 transition-colors duration-300" style={{
-        borderBottom: '1px solid var(--border-primary)'
-      }}>
+      {/* Page Description */}
+      <div className="px-4 pt-4 pb-2">
         <div className="container mx-auto">
-          <div className="flex items-center gap-3 mb-2">
-            <Sparkles className="h-8 w-8 transition-colors duration-300" style={{
-              color: 'var(--color-accent)'
-            }} />
-            <h1 className="transition-colors duration-300" style={{
-              fontSize: 'var(--text-3xl)',
-              fontWeight: 'bold',
-              color: 'var(--text-primary)',
-              fontFamily: 'var(--font-display)'
-            }}>
-              AI Insights
-            </h1>
-          </div>
-          <p className="text-lg transition-colors duration-300 text-secondary">
+          <p className="text-sm text-muted-foreground">
             AI-powered analysis of your portfolio
           </p>
-          <p className="text-sm mt-1 transition-colors duration-300 text-tertiary">
-            Generation time: ~25 seconds • Limit: 10 per day
-          </p>
         </div>
-      </section>
+      </div>
 
       {/* Split Layout: Insights Left, Chat Right */}
       <section className="px-4 py-8">

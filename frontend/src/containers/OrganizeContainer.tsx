@@ -253,7 +253,7 @@ export function OrganizeContainer() {
           <div className="flex items-start justify-between mb-4">
             <div>
               <h1 className="mb-2 transition-colors duration-300" style={{
-                fontSize: 'var(--text-3xl)',
+                fontSize: 'var(--text-2xl)',
                 fontWeight: 'bold',
                 color: 'var(--text-primary)',
                 fontFamily: 'var(--font-display)'

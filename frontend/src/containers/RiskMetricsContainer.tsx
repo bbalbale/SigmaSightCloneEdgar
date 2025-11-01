@@ -44,29 +44,17 @@ export function RiskMetricsContainer() {
 
   return (
     <div className="min-h-screen transition-colors duration-300 bg-primary">
-      {/* Page Header */}
-      <section className="px-4 py-8 transition-colors duration-300"
-        style={{
-          borderBottom: '1px solid var(--border-primary)'
-        }}
-      >
+      {/* Page Description */}
+      <div className="px-4 pt-4 pb-2">
         <div className="container mx-auto">
-          <h1 className="transition-colors duration-300" style={{
-            fontSize: 'var(--text-3xl)',
-            fontWeight: 'bold',
-            color: 'var(--text-primary)',
-            fontFamily: 'var(--font-display)'
-          }}>
-            Risk Metrics
-          </h1>
-          <p className="mt-2 text-lg text-secondary">
+          <p className="text-sm text-muted-foreground">
             Portfolio risk analysis and diversification metrics
           </p>
         </div>
-      </section>
+      </div>
 
       {/* Volatility Analysis Section - Phase 2 */}
-      <section className="px-4 py-8">
+      <section className="px-4 py-4">
         <div className="container mx-auto">
           <VolatilityMetrics
             data={volatility.data}

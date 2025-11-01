@@ -7,9 +7,11 @@ import { usePublicPositions } from '@/hooks/usePublicPositions'
 import { usePrivatePositions } from '@/hooks/usePrivatePositions'
 import { analyticsApi } from '@/services/analyticsApi'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { StickyTagBar } from '@/components/research-and-analyze/StickyTagBar'
+import { TagList } from '@/components/organize/TagList'
 import { ResearchTableView } from '@/components/research-and-analyze/ResearchTableView'
 import { useRestoreSectorTags } from '@/hooks/useRestoreSectorTags'
+import { useTags } from '@/hooks/useTags'
+import { usePositionTags } from '@/hooks/usePositionTags'
 import tagsApi from '@/services/tagsApi'
 import { positionResearchService, type EnhancedPosition } from '@/services/positionResearchService'
 
@@ -46,7 +48,21 @@ export function ResearchAndAnalyzeContainer() {
 
   const { restoreSectorTags, loading: restoringTags } = useRestoreSectorTags()
 
-  // Get tags from public positions (they include tags)
+  // Tag management hooks
+  const {
+    tags: allTags,
+    createTag,
+    deleteTag,
+    loading: tagsLoading
+  } = useTags()
+
+  const {
+    addTagsToPosition,
+    removeTagsFromPosition,
+    loading: positionTagsLoading
+  } = usePositionTags()
+
+  // Get tags from public positions (they include tags) - kept for backwards compatibility
   const tags = useMemo(() => {
     const tagMap = new Map()
     const allPositions = [...longPositions, ...shortPositions, ...privatePositions]
@@ -264,9 +280,65 @@ export function ResearchAndAnalyzeContainer() {
     fetchCorrelationMatrix()
   }, [portfolioId, setCorrelationMatrix, setCorrelationMatrixLoading, setCorrelationMatrixError])
 
-  const handleCreateTag = () => {
-    // TODO: Implement tag creation modal
-    console.log('Create tag clicked')
+  // Tag creation handler
+  const handleCreateTag = async (name: string, color: string) => {
+    try {
+      await createTag(name, color)
+      console.log(`Tag "${name}" created`)
+      // Tags will be refetched automatically by useTags hook
+    } catch (error) {
+      console.error('Failed to create tag:', error)
+      throw error
+    }
+  }
+
+  // Tag deletion handler
+  const handleDeleteTag = async (tagId: string) => {
+    try {
+      await deleteTag(tagId)
+      console.log(`Tag ${tagId} deleted`)
+      // Note: We may want to refresh positions here to update UI
+    } catch (error) {
+      console.error('Failed to delete tag:', error)
+      throw error
+    }
+  }
+
+  // Tag drop handler - when user drags tag onto a position row
+  const handleTagDrop = async (positionId: string, tagId: string) => {
+    console.log('handleTagDrop called:', { positionId, tagId })
+
+    if (!positionId || !tagId) {
+      console.error('Missing positionId or tagId:', { positionId, tagId })
+      return
+    }
+
+    try {
+      await addTagsToPosition(positionId, [tagId], false) // false = don't replace existing
+      console.log(`Tag ${tagId} added to position ${positionId}`)
+      // TODO: May need to refresh positions to show updated tags
+      // This depends on whether positions automatically refetch
+    } catch (error) {
+      console.error('Failed to add tag to position:', error)
+    }
+  }
+
+  // Tag removal handler - when user removes tag from position
+  const handleRemoveTag = async (positionId: string, tagId: string) => {
+    console.log('handleRemoveTag called:', { positionId, tagId })
+
+    if (!positionId || !tagId) {
+      console.error('Missing positionId or tagId:', { positionId, tagId })
+      return
+    }
+
+    try {
+      await removeTagsFromPosition(positionId, [tagId])
+      console.log(`Tag ${tagId} removed from position ${positionId}`)
+      // TODO: May need to refresh positions to show updated tags
+    } catch (error) {
+      console.error('Failed to remove tag from position:', error)
+    }
   }
 
   const handleRestoreSectorTags = async () => {
@@ -305,38 +377,14 @@ export function ResearchAndAnalyzeContainer() {
 
   return (
     <div className="min-h-screen transition-colors duration-300" style={{ backgroundColor: 'var(--bg-primary)' }}>
-      {/* Page Header */}
-      <section
-        className="px-4 py-8 border-b transition-colors duration-300"
-        style={{ borderColor: 'var(--border-primary)' }}
-      >
+      {/* Page Description */}
+      <div className="px-4 pt-4 pb-2">
         <div className="container mx-auto">
-          <div className="flex items-start justify-between">
-            <div>
-              <h1
-                className="font-bold transition-colors duration-300"
-                style={{
-                  fontSize: 'var(--text-3xl)',
-                  color: 'var(--text-primary)',
-                  fontFamily: 'var(--font-display)'
-                }}
-              >
-                Research & Analyze
-              </h1>
-              <p
-                className="mt-2 transition-colors duration-300"
-                style={{
-                  fontSize: 'var(--text-lg)',
-                  color: 'var(--text-secondary)',
-                  fontFamily: 'var(--font-body)'
-                }}
-              >
-                Position research, target prices, and analysis
-              </p>
-            </div>
-          </div>
+          <p className="text-sm text-muted-foreground">
+            Position research, target prices, and analysis
+          </p>
         </div>
-      </section>
+      </div>
 
       {/* Sticky Tag Bar */}
       <StickyTagBar
@@ -346,7 +394,7 @@ export function ResearchAndAnalyzeContainer() {
       />
 
       {/* Tabs Section */}
-      <section className="px-4 pt-4">
+      <section className="pt-4">
         <div className="container mx-auto">
           <Tabs value={activeTab} onValueChange={(value: any) => setActiveTab(value)}>
             <TabsList>
@@ -356,7 +404,7 @@ export function ResearchAndAnalyzeContainer() {
             </TabsList>
 
             {/* PHASE 6: Portfolio Aggregate Cards (always visible) */}
-            <section className="px-4 pb-6 mt-4">
+            <section className="pb-6 mt-4">
               <div className="flex gap-3 justify-end">
                 {/* EOY Return Card */}
                 <div
@@ -424,7 +472,7 @@ export function ResearchAndAnalyzeContainer() {
             <TabsContent value="public" className="mt-4">
               {/* Long Public Positions */}
               {publicLongs.length > 0 && (
-                <section className="px-4 pb-8">
+                <section className="pb-8">
                   <ResearchTableView
                     positions={publicLongs}
                     title="Long Positions"
@@ -437,7 +485,7 @@ export function ResearchAndAnalyzeContainer() {
 
               {/* Short Public Positions */}
               {publicShorts.length > 0 && (
-                <section className="px-4 pb-8">
+                <section className="pb-8">
                   <ResearchTableView
                     positions={publicShorts}
                     title="Short Positions"
@@ -463,7 +511,7 @@ export function ResearchAndAnalyzeContainer() {
 
               {/* Long Options */}
               {optionLongs.length > 0 ? (
-                <section className="px-4 pb-8">
+                <section className="pb-8">
                   <ResearchTableView
                     positions={optionLongs}
                     title="Long Options"
@@ -473,14 +521,14 @@ export function ResearchAndAnalyzeContainer() {
                   />
                 </section>
               ) : (
-                <div className="px-4 py-8 text-center text-secondary">
+                <div className="py-8 text-center text-secondary">
                   No long options found
                 </div>
               )}
 
               {/* Short Options */}
               {optionShorts.length > 0 ? (
-                <section className="px-4 pb-8">
+                <section className="pb-8">
                   <ResearchTableView
                     positions={optionShorts}
                     title="Short Options"
@@ -490,7 +538,7 @@ export function ResearchAndAnalyzeContainer() {
                   />
                 </section>
               ) : (
-                <div className="px-4 py-8 text-center text-secondary">
+                <div className="py-8 text-center text-secondary">
                   No short options found
                 </div>
               )}
@@ -498,7 +546,7 @@ export function ResearchAndAnalyzeContainer() {
 
             {/* Private Tab */}
             <TabsContent value="private" className="mt-4">
-              <section className="px-4 pb-8">
+              <section className="pb-8">
                 <ResearchTableView
                   positions={privatePositions}
                   title="Private Investments"

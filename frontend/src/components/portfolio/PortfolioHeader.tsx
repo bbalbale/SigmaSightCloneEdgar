@@ -32,17 +32,17 @@ export function PortfolioHeader({
   }
 
   return (
-    <section className="py-6 px-4 transition-colors duration-300 bg-primary">
+    <section className="py-4 px-4 transition-colors duration-300 bg-primary">
       <div className="container mx-auto">
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center justify-between mb-4">
           <div>
             <h2 className={`font-semibold transition-colors duration-300 ${loading ? "animate-pulse" : ""}`} style={{
-              fontSize: 'var(--text-2xl)',
+              fontSize: 'var(--text-lg)',
               color: 'var(--text-primary)',
               fontFamily: 'var(--font-display)'
             }}>
               {loading && !dataLoaded ? (
-                <span className="inline-block bg-slate-700 rounded h-8 w-64"></span>
+                <span className="inline-block bg-slate-700 rounded h-6 w-64"></span>
               ) : (
                 portfolioName
               )}

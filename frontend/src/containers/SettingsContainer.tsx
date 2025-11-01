@@ -11,7 +11,7 @@ export function SettingsContainer() {
   return (
     <div className="container mx-auto p-6 space-y-6">
       <div>
-        <h1 className="text-3xl font-bold">Settings</h1>
+        <h1 className="text-2xl font-bold">Settings</h1>
         <p className="text-muted-foreground mt-2">Manage your account settings and preferences</p>
       </div>
 
