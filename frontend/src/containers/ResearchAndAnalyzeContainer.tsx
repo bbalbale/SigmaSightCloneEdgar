@@ -35,7 +35,8 @@ export function ResearchAndAnalyzeContainer() {
     loading: publicLoading,
     error: publicError,
     aggregateReturns: publicAggregates,
-    updatePositionTargetOptimistic: updatePublicTarget
+    updatePositionTargetOptimistic: updatePublicTarget,
+    refetch: refetchPublicPositions
   } = usePublicPositions()
 
   const {
@@ -43,7 +44,8 @@ export function ResearchAndAnalyzeContainer() {
     loading: privateLoading,
     error: privateError,
     aggregateReturns: privateAggregates,
-    updatePositionTargetOptimistic: updatePrivateTarget
+    updatePositionTargetOptimistic: updatePrivateTarget,
+    refetch: refetchPrivatePositions
   } = usePrivatePositions()
 
   const { restoreSectorTags, loading: restoringTags } = useRestoreSectorTags()
@@ -316,8 +318,13 @@ export function ResearchAndAnalyzeContainer() {
     try {
       await addTagsToPosition(positionId, [tagId], false) // false = don't replace existing
       console.log(`Tag ${tagId} added to position ${positionId}`)
-      // TODO: May need to refresh positions to show updated tags
-      // This depends on whether positions automatically refetch
+
+      // Refetch positions to show updated tags immediately
+      await Promise.all([
+        refetchPublicPositions(),
+        refetchPrivatePositions()
+      ])
+      console.log('Positions refetched after tag drop')
     } catch (error) {
       console.error('Failed to add tag to position:', error)
     }
@@ -335,7 +342,13 @@ export function ResearchAndAnalyzeContainer() {
     try {
       await removeTagsFromPosition(positionId, [tagId])
       console.log(`Tag ${tagId} removed from position ${positionId}`)
-      // TODO: May need to refresh positions to show updated tags
+
+      // Refetch positions to show updated tags immediately
+      await Promise.all([
+        refetchPublicPositions(),
+        refetchPrivatePositions()
+      ])
+      console.log('Positions refetched after tag removal')
     } catch (error) {
       console.error('Failed to remove tag from position:', error)
     }
@@ -344,7 +357,13 @@ export function ResearchAndAnalyzeContainer() {
   const handleRestoreSectorTags = async () => {
     try {
       await restoreSectorTags()
-      // Tags will be refetched automatically by usePublicPositions
+
+      // Refetch positions to show restored tags immediately
+      await Promise.all([
+        refetchPublicPositions(),
+        refetchPrivatePositions()
+      ])
+      console.log('Positions refetched after restoring sector tags')
     } catch (error) {
       console.error('Failed to restore sector tags:', error)
     }
