@@ -1,9 +1,11 @@
 """
-Batch Orchestrator V3 - Production-Ready 3-Phase Architecture with Automatic Backfill
+Batch Orchestrator V3 - Production-Ready 4-Phase Architecture with Automatic Backfill
 
 Architecture:
 - Phase 1: Market Data Collection (1-year lookback)
 - Phase 2: P&L Calculation & Snapshots (equity rollforward)
+- Phase 2.5: Position Market Value Updates (for analytics accuracy)
+- Phase 2.75: Sector Tag Restoration (auto-tag from company profiles)
 - Phase 3: Risk Analytics (betas, factors, volatility, correlations)
 
 Features:
@@ -11,6 +13,7 @@ Features:
 - Phase isolation (failures don't cascade)
 - Performance tracking
 - Data coverage reporting
+- Automatic sector tagging from company profiles
 """
 import asyncio
 from datetime import date, timedelta
@@ -242,12 +245,29 @@ class BatchOrchestratorV3:
             result['phase_2_5'] = phase25_result
 
             if not phase25_result.get('success'):
-                logger.warning("Phase 2.5 had errors, continuing to Phase 3")
-                # Continue to Phase 3 even if position updates fail
+                logger.warning("Phase 2.5 had errors, continuing to Phase 2.75")
+                # Continue to Phase 2.75 even if position updates fail
 
         except Exception as e:
             logger.error(f"Phase 2.5 error: {e}")
             result['errors'].append(f"Phase 2.5 error: {str(e)}")
+            # Continue to Phase 2.75
+
+        # Phase 2.75: Restore Sector Tags from Company Profiles
+        try:
+            logger.info("\n--- Phase 2.75: Restore Sector Tags ---")
+            phase275_result = await self._restore_all_sector_tags(
+                db=db
+            )
+            result['phase_2_75'] = phase275_result
+
+            if not phase275_result.get('success'):
+                logger.warning("Phase 2.75 had errors, continuing to Phase 3")
+                # Continue to Phase 3 even if sector tagging fails
+
+        except Exception as e:
+            logger.error(f"Phase 2.75 error: {e}")
+            result['errors'].append(f"Phase 2.75 error: {str(e)}")
             # Continue to Phase 3
 
         # Phase 3: Risk Analytics
@@ -360,6 +380,90 @@ class BatchOrchestratorV3:
                 'success': False,
                 'error': str(e),
                 'positions_updated': 0
+            }
+
+    async def _restore_all_sector_tags(
+        self,
+        db: AsyncSession
+    ) -> Dict[str, Any]:
+        """
+        Restore sector tags for all portfolios based on company profile data.
+
+        This updates sector tags to match current company profile sectors,
+        ensuring tags stay in sync with the latest sector classifications.
+
+        Args:
+            db: Database session
+
+        Returns:
+            Summary of sector tag restoration
+        """
+        from app.services.sector_tag_service import restore_sector_tags_for_portfolio
+
+        logger.info("Restoring sector tags for all portfolios")
+
+        try:
+            # Get all active portfolios
+            portfolios_query = select(Portfolio).where(
+                Portfolio.deleted_at.is_(None)
+            )
+            portfolios_result = await db.execute(portfolios_query)
+            portfolios = portfolios_result.scalars().all()
+
+            logger.info(f"Found {len(portfolios)} active portfolios to update sector tags")
+
+            total_positions_tagged = 0
+            total_positions_skipped = 0
+            total_tags_created = 0
+            portfolios_processed = 0
+
+            for portfolio in portfolios:
+                try:
+                    # Restore sector tags for this portfolio
+                    result = await restore_sector_tags_for_portfolio(
+                        db=db,
+                        portfolio_id=portfolio.id,
+                        user_id=portfolio.user_id
+                    )
+
+                    total_positions_tagged += result.get('positions_tagged', 0)
+                    total_positions_skipped += result.get('positions_skipped', 0)
+                    total_tags_created += result.get('tags_created', 0)
+                    portfolios_processed += 1
+
+                    logger.info(
+                        f"  {portfolio.name}: {result.get('positions_tagged', 0)} positions tagged, "
+                        f"{result.get('tags_created', 0)} tags created"
+                    )
+
+                except Exception as e:
+                    logger.error(f"  Error restoring sector tags for portfolio {portfolio.name}: {e}")
+                    # Continue to next portfolio
+
+            logger.info(
+                f"Sector tag restoration complete: "
+                f"{portfolios_processed} portfolios, "
+                f"{total_positions_tagged} positions tagged, "
+                f"{total_tags_created} tags created"
+            )
+
+            return {
+                'success': True,
+                'portfolios_processed': portfolios_processed,
+                'total_portfolios': len(portfolios),
+                'positions_tagged': total_positions_tagged,
+                'positions_skipped': total_positions_skipped,
+                'tags_created': total_tags_created
+            }
+
+        except Exception as e:
+            logger.error(f"Error restoring sector tags: {e}")
+            import traceback
+            logger.error(f"Traceback: {traceback.format_exc()}")
+            return {
+                'success': False,
+                'error': str(e),
+                'portfolios_processed': 0
             }
 
     async def _get_last_batch_run_date(self, db: AsyncSession) -> Optional[date]:

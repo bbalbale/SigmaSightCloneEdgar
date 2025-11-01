@@ -8,6 +8,7 @@ from uuid import uuid4
 import asyncio
 from fastapi import APIRouter, Depends, HTTPException, Query, BackgroundTasks
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 
 from app.core.dependencies import get_db, require_admin
 from app.database import AsyncSessionLocal
@@ -206,6 +207,118 @@ async def trigger_company_profile_sync(
         "timestamp": utc_now(),
         "info": "This will fetch company data from yfinance and yahooquery APIs"
     }
+
+
+@router.post("/restore-sector-tags")
+async def restore_sector_tags(
+    background_tasks: BackgroundTasks,
+    portfolio_id: Optional[str] = Query(None, description="Specific portfolio ID or all portfolios"),
+    admin_user = Depends(require_admin),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Manually restore sector tags for all positions based on company profile data.
+
+    This endpoint:
+    1. Removes existing sector tags (identified by "Sector:" in description)
+    2. Re-applies sector tags based on current company profile sectors
+    3. Creates new sector tags as needed with appropriate colors
+
+    Use this when:
+    - Company profile data has been updated
+    - Sector classifications have changed
+    - You want to ensure all positions have current sector tags
+    """
+    from app.services.sector_tag_service import restore_sector_tags_for_portfolio
+    from app.models.users import Portfolio
+    from uuid import UUID
+
+    logger.info(
+        f"Admin {admin_user.email} triggered sector tag restoration "
+        f"for portfolio {portfolio_id or 'all'}"
+    )
+
+    try:
+        if portfolio_id:
+            # Restore tags for specific portfolio
+            portfolio_uuid = UUID(portfolio_id)
+
+            # Get portfolio and verify access
+            portfolio_result = await db.execute(
+                select(Portfolio).where(Portfolio.id == portfolio_uuid)
+            )
+            portfolio = portfolio_result.scalar_one_or_none()
+
+            if not portfolio:
+                raise HTTPException(status_code=404, detail=f"Portfolio {portfolio_id} not found")
+
+            # Restore sector tags for this portfolio
+            result = await restore_sector_tags_for_portfolio(
+                db=db,
+                portfolio_id=portfolio.id,
+                user_id=portfolio.user_id
+            )
+
+            return {
+                "status": "completed",
+                "portfolio_id": portfolio_id,
+                "portfolio_name": portfolio.name,
+                "positions_tagged": result.get('positions_tagged', 0),
+                "positions_skipped": result.get('positions_skipped', 0),
+                "tags_created": result.get('tags_created', 0),
+                "tags_applied": result.get('tags_applied', []),
+                "triggered_by": admin_user.email,
+                "timestamp": utc_now()
+            }
+
+        else:
+            # Restore tags for all portfolios
+            portfolios_result = await db.execute(
+                select(Portfolio).where(Portfolio.deleted_at.is_(None))
+            )
+            portfolios = portfolios_result.scalars().all()
+
+            total_positions_tagged = 0
+            total_positions_skipped = 0
+            total_tags_created = 0
+            portfolios_processed = 0
+
+            for portfolio in portfolios:
+                try:
+                    result = await restore_sector_tags_for_portfolio(
+                        db=db,
+                        portfolio_id=portfolio.id,
+                        user_id=portfolio.user_id
+                    )
+
+                    total_positions_tagged += result.get('positions_tagged', 0)
+                    total_positions_skipped += result.get('positions_skipped', 0)
+                    total_tags_created += result.get('tags_created', 0)
+                    portfolios_processed += 1
+
+                except Exception as e:
+                    logger.error(f"Error restoring sector tags for portfolio {portfolio.name}: {e}")
+                    # Continue to next portfolio
+
+            return {
+                "status": "completed",
+                "portfolios_processed": portfolios_processed,
+                "total_portfolios": len(portfolios),
+                "positions_tagged": total_positions_tagged,
+                "positions_skipped": total_positions_skipped,
+                "tags_created": total_tags_created,
+                "triggered_by": admin_user.email,
+                "timestamp": utc_now()
+            }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error restoring sector tags: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error restoring sector tags: {str(e)}"
+        )
 
 
 # Note: data-quality endpoints removed - data_quality module was deleted
