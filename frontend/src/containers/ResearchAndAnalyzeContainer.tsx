@@ -457,10 +457,9 @@ export function ResearchAndAnalyzeContainer() {
             }}
           >
             <h2
-              className="mb-3 font-semibold"
+              className="text-lg font-semibold mb-3 transition-colors duration-300"
               style={{
-                fontSize: '16px',
-                color: 'var(--color-accent)'
+                color: 'var(--text-primary)'
               }}
             >
               Position Tags
@@ -495,10 +494,9 @@ export function ResearchAndAnalyzeContainer() {
               {/* Left: Positions Header + Tabs */}
               <div className="flex items-center gap-4">
                 <h2
-                  className="font-semibold flex-shrink-0"
+                  className="text-lg font-semibold flex-shrink-0 transition-colors duration-300"
                   style={{
-                    fontSize: '16px',
-                    color: 'var(--color-accent)'
+                    color: 'var(--text-primary)'
                   }}
                 >
                   Positions
