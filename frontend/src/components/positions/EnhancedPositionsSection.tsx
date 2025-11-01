@@ -6,7 +6,6 @@ import { Badge } from '@/components/ui/badge'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { PositionList } from '@/components/common/PositionList'
 import { ResearchPositionCard } from '@/components/positions/ResearchPositionCard'
-import { useTheme } from '@/contexts/ThemeContext'
 import type { EnhancedPosition } from '@/services/positionResearchService'
 import type { TargetPriceUpdate } from '@/services/targetPriceUpdateService'
 
@@ -16,6 +15,7 @@ interface EnhancedPositionsSectionProps {
   aggregateReturnEOY: number
   aggregateReturnNextYear: number
   onTargetPriceUpdate?: (update: TargetPriceUpdate) => Promise<void>
+  onPositionClick?: (position: EnhancedPosition) => void
 }
 
 export function EnhancedPositionsSection({
@@ -23,9 +23,9 @@ export function EnhancedPositionsSection({
   title,
   aggregateReturnEOY,
   aggregateReturnNextYear,
-  onTargetPriceUpdate
+  onTargetPriceUpdate,
+  onPositionClick
 }: EnhancedPositionsSectionProps) {
-  const { theme } = useTheme()
   const [filterBy, setFilterBy] = useState<'all' | 'tag' | 'sector' | 'industry'>('all')
   const [filterValue, setFilterValue] = useState<string>('all')
   const [sortBy, setSortBy] = useState<'percent_of_equity' | 'symbol' | 'target_return_eoy'>('percent_of_equity')
@@ -67,7 +67,7 @@ export function EnhancedPositionsSection({
 
   // Sort positions
   const sortedPositions = useMemo(() => {
-    return [...filteredPositions].sort((a, b) => {
+    const sorted = [...filteredPositions].sort((a, b) => {
       const aValue = a[sortBy] as any
       const bValue = b[sortBy] as any
 
@@ -79,26 +79,49 @@ export function EnhancedPositionsSection({
         ? String(aValue || '').localeCompare(String(bValue || ''))
         : String(bValue || '').localeCompare(String(aValue || ''))
     })
-  }, [filteredPositions, sortBy, sortOrder])
+
+    // DEBUG: Log filtering and sorting results
+    console.log(`🔍 EnhancedPositionsSection [${title}]:`, {
+      inputPositions: positions.length,
+      afterFiltering: filteredPositions.length,
+      afterSorting: sorted.length,
+      filterBy,
+      filterValue,
+      sortBy,
+      sortOrder,
+      samplePosition: positions[0] && {
+        symbol: positions[0].symbol,
+        percent_of_equity: positions[0].percent_of_equity,
+        target_return_eoy: positions[0].target_return_eoy,
+        investment_class: positions[0].investment_class
+      },
+      filteredOutCount: positions.length - filteredPositions.length
+    })
+
+    return sorted
+  }, [filteredPositions, sortBy, sortOrder, positions, title, filterBy, filterValue])
 
   return (
     <div className="space-y-4">
       {/* Section Header */}
-      <div className={`rounded-lg border p-4 transition-all duration-300 ${
-        theme === 'dark'
-          ? 'bg-slate-800/30 border-primary/50'
-          : 'themed-card'
-      }`}>
+      <div className="rounded-lg border p-4 transition-all duration-300" style={{
+        backgroundColor: 'var(--bg-secondary)',
+        borderColor: 'var(--border-primary)'
+      }}>
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
-            <h3 className={`text-lg font-semibold transition-colors duration-300 ${
-              theme === 'dark' ? 'text-white' : 'text-gray-900'
-            }`}>
+            <h3 className="transition-colors duration-300" style={{
+              fontSize: 'var(--text-lg)',
+              fontWeight: 600,
+              color: 'var(--text-primary)',
+              fontFamily: 'var(--font-display)'
+            }}>
               {title}
             </h3>
-            <Badge variant="secondary" className={`transition-colors duration-300 ${
-              theme === 'dark' ? 'bg-slate-700 text-primary' : 'bg-gray-200 text-primary'
-            }`}>
+            <Badge variant="secondary" className="transition-colors duration-300" style={{
+              backgroundColor: 'var(--bg-tertiary)',
+              color: 'var(--color-accent)'
+            }}>
               {filteredPositions.length}
             </Badge>
           </div>
@@ -106,26 +129,34 @@ export function EnhancedPositionsSection({
           {/* Aggregate Returns */}
           <div className="flex gap-6">
             <div className="text-right">
-              <div className={`text-xs font-medium mb-1 transition-colors duration-300 ${
-                theme === 'dark' ? 'text-secondary' : 'text-tertiary'
-              }`}>
+              <div className="mb-1 transition-colors duration-300" style={{
+                fontSize: 'var(--text-xs)',
+                fontWeight: 500,
+                color: 'var(--text-secondary)'
+              }}>
                 Expected Return EOY
               </div>
-              <div className={`text-xl font-bold tabular-nums ${
-                aggregateReturnEOY >= 0 ? 'text-emerald-500' : 'text-rose-500'
-              }`}>
+              <div className="tabular-nums" style={{
+                fontSize: 'var(--text-xl)',
+                fontWeight: 700,
+                color: aggregateReturnEOY >= 0 ? 'var(--color-success)' : 'var(--color-error)'
+              }}>
                 {aggregateReturnEOY >= 0 ? '+' : ''}{aggregateReturnEOY.toFixed(2)}%
               </div>
             </div>
             <div className="text-right">
-              <div className={`text-xs font-medium mb-1 transition-colors duration-300 ${
-                theme === 'dark' ? 'text-secondary' : 'text-tertiary'
-              }`}>
+              <div className="mb-1 transition-colors duration-300" style={{
+                fontSize: 'var(--text-xs)',
+                fontWeight: 500,
+                color: 'var(--text-secondary)'
+              }}>
                 Expected Return Next Year
               </div>
-              <div className={`text-xl font-bold tabular-nums ${
-                aggregateReturnNextYear >= 0 ? 'text-emerald-500' : 'text-rose-500'
-              }`}>
+              <div className="tabular-nums" style={{
+                fontSize: 'var(--text-xl)',
+                fontWeight: 700,
+                color: aggregateReturnNextYear >= 0 ? 'var(--color-success)' : 'var(--color-error)'
+              }}>
                 {aggregateReturnNextYear >= 0 ? '+' : ''}{aggregateReturnNextYear.toFixed(2)}%
               </div>
             </div>
@@ -136,11 +167,10 @@ export function EnhancedPositionsSection({
         <div className="flex gap-3 flex-wrap">
           {/* Filter By */}
           <Select value={filterBy} onValueChange={(v: any) => { setFilterBy(v); setFilterValue('all') }}>
-            <SelectTrigger className={`w-[180px] transition-colors duration-300 ${
-              theme === 'dark'
-                ? 'bg-primary/50 border-slate-600 hover:border-slate-500'
-                : 'bg-primary border-gray-300 hover:border-gray-400'
-            }`}>
+            <SelectTrigger className="w-[180px] transition-colors duration-300" style={{
+              backgroundColor: 'var(--bg-primary)',
+              borderColor: 'var(--border-primary)'
+            }}>
               <SelectValue placeholder="Filter by..." />
             </SelectTrigger>
             <SelectContent className="themed-card">
@@ -154,11 +184,10 @@ export function EnhancedPositionsSection({
           {/* Filter Value */}
           {filterBy !== 'all' && filterOptions.length > 0 && (
             <Select value={filterValue} onValueChange={setFilterValue}>
-              <SelectTrigger className={`w-[200px] transition-colors duration-300 ${
-                theme === 'dark'
-                  ? 'bg-primary/50 border-slate-600 hover:border-slate-500'
-                  : 'bg-primary border-gray-300 hover:border-gray-400'
-              }`}>
+              <SelectTrigger className="w-[200px] transition-colors duration-300" style={{
+                backgroundColor: 'var(--bg-primary)',
+                borderColor: 'var(--border-primary)'
+              }}>
                 <SelectValue placeholder={`Select ${filterBy}...`} />
               </SelectTrigger>
               <SelectContent className="themed-card">
@@ -172,11 +201,10 @@ export function EnhancedPositionsSection({
 
           {/* Sort By */}
           <Select value={sortBy} onValueChange={(v: any) => setSortBy(v)}>
-            <SelectTrigger className={`w-[180px] transition-colors duration-300 ${
-              theme === 'dark'
-                ? 'bg-primary/50 border-slate-600 hover:border-slate-500'
-                : 'bg-primary border-gray-300 hover:border-gray-400'
-            }`}>
+            <SelectTrigger className="w-[180px] transition-colors duration-300" style={{
+              backgroundColor: 'var(--bg-primary)',
+              borderColor: 'var(--border-primary)'
+            }}>
               <SelectValue placeholder="Sort by..." />
             </SelectTrigger>
             <SelectContent className="themed-card">
@@ -188,11 +216,10 @@ export function EnhancedPositionsSection({
 
           {/* Sort Order */}
           <Select value={sortOrder} onValueChange={(v: any) => setSortOrder(v)}>
-            <SelectTrigger className={`w-[140px] transition-colors duration-300 ${
-              theme === 'dark'
-                ? 'bg-primary/50 border-slate-600 hover:border-slate-500'
-                : 'bg-primary border-gray-300 hover:border-gray-400'
-            }`}>
+            <SelectTrigger className="w-[140px] transition-colors duration-300" style={{
+              backgroundColor: 'var(--bg-primary)',
+              borderColor: 'var(--border-primary)'
+            }}>
               <SelectValue />
             </SelectTrigger>
             <SelectContent className="themed-card">
@@ -211,6 +238,7 @@ export function EnhancedPositionsSection({
             key={position.id}
             position={position}
             onTargetPriceUpdate={onTargetPriceUpdate}
+            onClick={() => onPositionClick?.(position)}
           />
         )}
         emptyMessage={`No ${title.toLowerCase()} found`}

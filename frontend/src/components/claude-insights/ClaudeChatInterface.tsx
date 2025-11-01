@@ -72,7 +72,7 @@ export function ClaudeChatInterface() {
             color: 'var(--text-primary)',
             fontFamily: 'var(--font-display)'
           }}>
-            Chat with Claude
+            Chat with SigmaSight AI
           </h3>
         </div>
         <Button
@@ -95,7 +95,7 @@ export function ClaudeChatInterface() {
           <div className="text-center py-12">
             <Sparkles className="h-12 w-12 mx-auto mb-4" style={{ color: 'var(--color-accent)' }} />
             <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
-              Ask Claude about your portfolio risks, exposures, or recommendations
+              Ask SigmaSight AI about your portfolio risks, exposures, or recommendations
             </p>
           </div>
         )}
@@ -148,7 +148,7 @@ export function ClaudeChatInterface() {
               <div className="flex items-center gap-2 mt-2">
                 <Loader2 className="h-3 w-3 animate-spin" style={{ color: 'var(--color-accent)' }} />
                 <span className="text-xs" style={{ color: 'var(--text-tertiary)' }}>
-                  Claude is thinking...
+                  SigmaSight AI is thinking...
                 </span>
               </div>
             </div>
@@ -179,7 +179,7 @@ export function ClaudeChatInterface() {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Ask Claude about your portfolio..."
+            placeholder="Ask SigmaSight AI about your portfolio..."
             disabled={isStreaming || isSending}
             rows={2}
             className="flex-1 resize-none transition-colors duration-300"
@@ -202,7 +202,7 @@ export function ClaudeChatInterface() {
           </Button>
         </div>
         <p className="text-xs mt-2" style={{ color: 'var(--text-tertiary)' }}>
-          Claude can analyze your portfolio using real-time analytics tools
+          SigmaSight AI can analyze your portfolio using real-time analytics tools
         </p>
       </div>
     </div>

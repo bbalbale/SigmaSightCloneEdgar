@@ -252,9 +252,12 @@ export function OrganizeContainer() {
         <div className="container mx-auto">
           <div className="flex items-start justify-between mb-4">
             <div>
-              <h1 className={`text-3xl font-bold mb-2 transition-colors duration-300 ${
-                theme === 'dark' ? 'text-white' : 'text-gray-900'
-              }`}>
+              <h1 className="mb-2 transition-colors duration-300" style={{
+                fontSize: 'var(--text-3xl)',
+                fontWeight: 'bold',
+                color: 'var(--text-primary)',
+                fontFamily: 'var(--font-display)'
+              }}>
                 Organize & Tag Positions
               </h1>
               <p className="transition-colors duration-300 text-secondary">
@@ -266,15 +269,11 @@ export function OrganizeContainer() {
             <Button
               onClick={handleRestoreSectorTags}
               disabled={restoringTags || loading}
-              className={`
-                flex items-center gap-2 px-4 py-2 rounded-md font-medium
-                transition-all duration-200
-                ${theme === 'dark'
-                  ? 'bg-blue-600 hover:bg-blue-700 text-white disabled:bg-slate-700 disabled:text-tertiary'
-                  : 'bg-blue-500 hover:bg-blue-600 text-white disabled:bg-gray-300 disabled:text-tertiary'
-                }
-                disabled:cursor-not-allowed
-              `}
+              className="flex items-center gap-2 px-4 py-2 rounded-md font-medium transition-all duration-200 disabled:cursor-not-allowed"
+              style={{
+                backgroundColor: restoringTags || loading ? 'var(--bg-tertiary)' : 'var(--color-accent)',
+                color: restoringTags || loading ? 'var(--text-tertiary)' : '#ffffff'
+              }}
               title="Automatically create and apply sector tags to all positions based on company profiles"
             >
               {restoringTags ? (
@@ -319,15 +318,11 @@ export function OrganizeContainer() {
               </span>
               <button
                 onClick={() => setSelectedTagFilter(null)}
-                className={`px-3 py-1 rounded-md text-sm transition-colors ${
-                  selectedTagFilter === null
-                    ? theme === 'dark'
-                      ? 'bg-blue-600 text-white'
-                      : 'bg-blue-500 text-white'
-                    : theme === 'dark'
-                      ? 'bg-slate-700 text-primary hover:bg-slate-600'
-                      : 'bg-gray-200 text-primary hover:bg-gray-300'
-                }`}
+                className="px-3 py-1 rounded-md text-sm transition-colors"
+                style={{
+                  backgroundColor: selectedTagFilter === null ? 'var(--color-accent)' : 'var(--bg-secondary)',
+                  color: selectedTagFilter === null ? '#ffffff' : 'var(--text-primary)'
+                }}
               >
                 All
               </button>
@@ -367,14 +362,18 @@ export function OrganizeContainer() {
                 {/* Long Positions */}
                 <div>
                   <div className="flex items-center gap-2 mb-4">
-                    <h3 className={`text-lg font-semibold transition-colors duration-300 ${
-                      theme === 'dark' ? 'text-white' : 'text-gray-900'
-                    }`}>
+                    <h3 className="transition-colors duration-300" style={{
+                      fontSize: 'var(--text-lg)',
+                      fontWeight: '600',
+                      color: 'var(--text-primary)',
+                      fontFamily: 'var(--font-display)'
+                    }}>
                       Long Stocks
                     </h3>
-                    <Badge variant="secondary" className={`transition-colors duration-300 ${
-                      theme === 'dark' ? 'bg-slate-700 text-primary' : 'bg-gray-200 text-primary'
-                    }`}>
+                    <Badge variant="secondary" className="transition-colors duration-300" style={{
+                      backgroundColor: 'var(--bg-secondary)',
+                      color: 'var(--text-primary)'
+                    }}>
                       {filteredPublicLongs.length}
                     </Badge>
                   </div>
@@ -429,14 +428,18 @@ export function OrganizeContainer() {
                 {/* Short Positions */}
                 <div>
                   <div className="flex items-center gap-2 mb-4">
-                    <h3 className={`text-lg font-semibold transition-colors duration-300 ${
-                      theme === 'dark' ? 'text-white' : 'text-gray-900'
-                    }`}>
+                    <h3 className="transition-colors duration-300" style={{
+                      fontSize: 'var(--text-lg)',
+                      fontWeight: '600',
+                      color: 'var(--text-primary)',
+                      fontFamily: 'var(--font-display)'
+                    }}>
                       Short Stocks
                     </h3>
-                    <Badge variant="secondary" className={`transition-colors duration-300 ${
-                      theme === 'dark' ? 'bg-slate-700 text-primary' : 'bg-gray-200 text-primary'
-                    }`}>
+                    <Badge variant="secondary" className="transition-colors duration-300" style={{
+                      backgroundColor: 'var(--bg-secondary)',
+                      color: 'var(--text-primary)'
+                    }}>
                       {filteredPublicShorts.length}
                     </Badge>
                   </div>
@@ -483,14 +486,18 @@ export function OrganizeContainer() {
                 {/* Private Investments */}
                 <div>
                   <div className="flex items-center gap-2 mb-4">
-                    <h3 className={`text-lg font-semibold transition-colors duration-300 ${
-                      theme === 'dark' ? 'text-white' : 'text-gray-900'
-                    }`}>
+                    <h3 className="transition-colors duration-300" style={{
+                      fontSize: 'var(--text-lg)',
+                      fontWeight: '600',
+                      color: 'var(--text-primary)',
+                      fontFamily: 'var(--font-display)'
+                    }}>
                       Private Investments
                     </h3>
-                    <Badge variant="secondary" className={`transition-colors duration-300 ${
-                      theme === 'dark' ? 'bg-slate-700 text-primary' : 'bg-gray-200 text-primary'
-                    }`}>
+                    <Badge variant="secondary" className="transition-colors duration-300" style={{
+                      backgroundColor: 'var(--bg-secondary)',
+                      color: 'var(--text-primary)'
+                    }}>
                       {filteredPrivate.length}
                     </Badge>
                   </div>
@@ -528,14 +535,18 @@ export function OrganizeContainer() {
                 {/* Long Options */}
                 <div>
                   <div className="flex items-center gap-2 mb-4">
-                    <h3 className={`text-lg font-semibold transition-colors duration-300 ${
-                      theme === 'dark' ? 'text-white' : 'text-gray-900'
-                    }`}>
+                    <h3 className="transition-colors duration-300" style={{
+                      fontSize: 'var(--text-lg)',
+                      fontWeight: '600',
+                      color: 'var(--text-primary)',
+                      fontFamily: 'var(--font-display)'
+                    }}>
                       Long Options
                     </h3>
-                    <Badge variant="secondary" className={`transition-colors duration-300 ${
-                      theme === 'dark' ? 'bg-slate-700 text-primary' : 'bg-gray-200 text-primary'
-                    }`}>
+                    <Badge variant="secondary" className="transition-colors duration-300" style={{
+                      backgroundColor: 'var(--bg-secondary)',
+                      color: 'var(--text-primary)'
+                    }}>
                       {filteredOptionLongs.length}
                     </Badge>
                   </div>
@@ -566,14 +577,18 @@ export function OrganizeContainer() {
                 {/* Short Options */}
                 <div>
                   <div className="flex items-center gap-2 mb-4">
-                    <h3 className={`text-lg font-semibold transition-colors duration-300 ${
-                      theme === 'dark' ? 'text-white' : 'text-gray-900'
-                    }`}>
+                    <h3 className="transition-colors duration-300" style={{
+                      fontSize: 'var(--text-lg)',
+                      fontWeight: '600',
+                      color: 'var(--text-primary)',
+                      fontFamily: 'var(--font-display)'
+                    }}>
                       Short Options
                     </h3>
-                    <Badge variant="secondary" className={`transition-colors duration-300 ${
-                      theme === 'dark' ? 'bg-slate-700 text-primary' : 'bg-gray-200 text-primary'
-                    }`}>
+                    <Badge variant="secondary" className="transition-colors duration-300" style={{
+                      backgroundColor: 'var(--bg-secondary)',
+                      color: 'var(--text-primary)'
+                    }}>
                       {filteredOptionShorts.length}
                     </Badge>
                   </div>

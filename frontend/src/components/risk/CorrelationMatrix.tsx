@@ -1,7 +1,6 @@
 "use client"
 
 import React from 'react'
-import { useTheme } from '@/contexts/ThemeContext'
 import type { CorrelationMatrixResponse } from '@/types/analytics'
 
 interface CorrelationMatrixProps {
@@ -12,24 +11,20 @@ interface CorrelationMatrixProps {
 }
 
 export function CorrelationMatrix({ data, loading, error, onRetry }: CorrelationMatrixProps) {
-  const { theme } = useTheme()
-
-  // Get color based on correlation value
+  // Get color based on correlation value (using Tailwind classes for color coding)
   const getCorrelationColor = (value: number): string => {
-    if (value >= 0.7) return theme === 'dark' ? 'bg-green-900/50 text-green-200' : 'bg-green-100 text-green-800'
-    if (value >= 0.3) return theme === 'dark' ? 'bg-green-800/30 text-green-300' : 'bg-green-50 text-green-700'
-    if (value > -0.3) return theme === 'dark' ? 'bg-slate-700/50 text-primary' : 'bg-primary text-primary'
-    if (value > -0.7) return theme === 'dark' ? 'bg-red-800/30 text-red-300' : 'bg-red-50 text-red-700'
-    return theme === 'dark' ? 'bg-red-900/50 text-red-200' : 'bg-red-100 text-red-800'
+    if (value >= 0.7) return 'bg-green-900/50 text-green-200 dark:bg-green-900/50 dark:text-green-200'
+    if (value >= 0.3) return 'bg-green-800/30 text-green-300 dark:bg-green-800/30 dark:text-green-300'
+    if (value > -0.3) return 'bg-slate-700/50 dark:bg-slate-700/50'
+    if (value > -0.7) return 'bg-red-800/30 text-red-300 dark:bg-red-800/30 dark:text-red-300'
+    return 'bg-red-900/50 text-red-200 dark:bg-red-900/50 dark:text-red-200'
   }
 
   // Loading state
   if (loading) {
     return (
       <div className="rounded-lg border p-8 transition-colors duration-300 themed-card">
-        <h2 className={`text-2xl font-bold mb-4 ${
-          theme === 'dark' ? 'text-white' : 'text-gray-900'
-        }`}>
+        <h2 className="text-2xl font-bold mb-4 transition-colors duration-300" style={{ color: 'var(--text-primary)' }}>
           Correlation Matrix
         </h2>
         <div className="flex items-center justify-center py-12">
@@ -46,25 +41,15 @@ export function CorrelationMatrix({ data, loading, error, onRetry }: Correlation
   if (error) {
     return (
       <div className="rounded-lg border p-8 transition-colors duration-300 themed-card">
-        <h2 className={`text-2xl font-bold mb-4 ${
-          theme === 'dark' ? 'text-white' : 'text-gray-900'
-        }`}>
+        <h2 className="text-2xl font-bold mb-4 transition-colors duration-300" style={{ color: 'var(--text-primary)' }}>
           Correlation Matrix
         </h2>
-        <div className={`rounded-lg border p-6 text-center ${
-          theme === 'dark'
-            ? 'bg-red-900/20 border-red-800 text-red-300'
-            : 'bg-red-50 border-red-200 text-red-700'
-        }`}>
+        <div className="rounded-lg border p-6 text-center bg-red-900/20 border-red-800 text-red-300">
           <p className="mb-4">Error loading correlation matrix: {error.message}</p>
           {onRetry && (
             <button
               onClick={onRetry}
-              className={`px-4 py-2 rounded-md text-sm transition-colors ${
-                theme === 'dark'
-                  ? 'bg-blue-600 hover:bg-blue-700 text-white'
-                  : 'bg-blue-500 hover:bg-blue-600 text-white'
-              }`}
+              className="px-4 py-2 rounded-md text-sm transition-colors bg-blue-600 hover:bg-blue-700 text-white"
             >
               Retry
             </button>
@@ -78,16 +63,14 @@ export function CorrelationMatrix({ data, loading, error, onRetry }: Correlation
   if (!data?.available || !data?.data) {
     return (
       <div className="rounded-lg border p-8 transition-colors duration-300 themed-card">
-        <h2 className={`text-2xl font-bold mb-4 ${
-          theme === 'dark' ? 'text-white' : 'text-gray-900'
-        }`}>
+        <h2 className="text-2xl font-bold mb-4 transition-colors duration-300" style={{ color: 'var(--text-primary)' }}>
           Correlation Matrix
         </h2>
-        <div className={`rounded-lg border p-6 text-center ${
-          theme === 'dark'
-            ? 'bg-slate-700/50 border-slate-600 text-primary'
-            : 'bg-primary border-primary text-secondary'
-        }`}>
+        <div className="rounded-lg border p-6 text-center transition-colors duration-300" style={{
+          backgroundColor: 'var(--bg-secondary)',
+          borderColor: 'var(--border-primary)',
+          color: 'var(--text-primary)'
+        }}>
           <p>Correlation matrix is not available</p>
           {data?.reason && (
             <p className="mt-2 text-sm opacity-70">Reason: {data.reason}</p>
@@ -103,9 +86,7 @@ export function CorrelationMatrix({ data, loading, error, onRetry }: Correlation
   return (
     <div className="rounded-lg border p-8 transition-colors duration-300 themed-card">
       <div className="mb-6">
-        <h2 className={`text-2xl font-bold mb-2 ${
-          theme === 'dark' ? 'text-white' : 'text-gray-900'
-        }`}>
+        <h2 className="text-2xl font-bold mb-2 transition-colors duration-300" style={{ color: 'var(--text-primary)' }}>
           Correlation Matrix
         </h2>
 
@@ -113,22 +94,22 @@ export function CorrelationMatrix({ data, loading, error, onRetry }: Correlation
         {data.metadata && (
           <div className="flex flex-wrap gap-4 text-sm text-secondary">
             <span>
-              Positions: <strong className={theme === 'dark' ? 'text-slate-200' : 'text-gray-800'}>
+              Positions: <strong className="transition-colors duration-300" style={{ color: 'var(--text-primary)' }}>
                 {data.metadata.positions_included}
               </strong>
             </span>
             <span>
-              Lookback: <strong className={theme === 'dark' ? 'text-slate-200' : 'text-gray-800'}>
+              Lookback: <strong className="transition-colors duration-300" style={{ color: 'var(--text-primary)' }}>
                 {data.metadata.lookback_days} days
               </strong>
             </span>
             <span>
-              Average Correlation: <strong className={theme === 'dark' ? 'text-slate-200' : 'text-gray-800'}>
+              Average Correlation: <strong className="transition-colors duration-300" style={{ color: 'var(--text-primary)' }}>
                 {data.data.average_correlation.toFixed(3)}
               </strong>
             </span>
             <span>
-              Calculated: <strong className={theme === 'dark' ? 'text-slate-200' : 'text-gray-800'}>
+              Calculated: <strong className="transition-colors duration-300" style={{ color: 'var(--text-primary)' }}>
                 {new Date(data.metadata.calculation_date).toLocaleDateString()}
               </strong>
             </span>
@@ -141,21 +122,22 @@ export function CorrelationMatrix({ data, loading, error, onRetry }: Correlation
         <table className="min-w-full border-collapse">
           <thead>
             <tr>
-              <th className={`sticky left-0 z-10 px-3 py-2 text-left text-xs font-semibold ${
-                theme === 'dark'
-                  ? 'bg-slate-800 text-primary border-slate-600'
-                  : 'bg-white text-primary border-gray-300'
-              } border-b border-r`}>
+              <th className="sticky left-0 z-10 px-3 py-2 text-left text-xs font-semibold border-b border-r transition-colors duration-300" style={{
+                backgroundColor: 'var(--bg-secondary)',
+                color: 'var(--text-primary)',
+                borderColor: 'var(--border-primary)'
+              }}>
                 Symbol
               </th>
               {symbols.map((symbol) => (
                 <th
                   key={symbol}
-                  className={`px-3 py-2 text-center text-xs font-semibold whitespace-nowrap ${
-                    theme === 'dark'
-                      ? 'bg-slate-800 text-primary border-slate-600'
-                      : 'bg-white text-primary border-gray-300'
-                  } border-b`}
+                  className="px-3 py-2 text-center text-xs font-semibold whitespace-nowrap border-b transition-colors duration-300"
+                  style={{
+                    backgroundColor: 'var(--bg-secondary)',
+                    color: 'var(--text-primary)',
+                    borderColor: 'var(--border-primary)'
+                  }}
                 >
                   {symbol}
                 </th>
@@ -165,11 +147,11 @@ export function CorrelationMatrix({ data, loading, error, onRetry }: Correlation
           <tbody>
             {symbols.map((rowSymbol, rowIndex) => (
               <tr key={rowSymbol}>
-                <td className={`sticky left-0 z-10 px-3 py-2 text-xs font-medium whitespace-nowrap ${
-                  theme === 'dark'
-                    ? 'bg-slate-800 text-primary border-slate-600'
-                    : 'bg-white text-primary border-gray-300'
-                } border-r`}>
+                <td className="sticky left-0 z-10 px-3 py-2 text-xs font-medium whitespace-nowrap border-r transition-colors duration-300" style={{
+                  backgroundColor: 'var(--bg-secondary)',
+                  color: 'var(--text-primary)',
+                  borderColor: 'var(--border-primary)'
+                }}>
                   {rowSymbol}
                 </td>
                 {symbols.map((colSymbol) => {
@@ -181,7 +163,7 @@ export function CorrelationMatrix({ data, loading, error, onRetry }: Correlation
                       key={colSymbol}
                       className={`px-3 py-2 text-center text-xs font-mono transition-colors ${
                         isDiagonal
-                          ? theme === 'dark' ? 'bg-blue-900/30 text-blue-200' : 'bg-blue-50 text-blue-800'
+                          ? 'bg-blue-900/30 text-blue-200'
                           : getCorrelationColor(value)
                       }`}
                     >
@@ -196,60 +178,44 @@ export function CorrelationMatrix({ data, loading, error, onRetry }: Correlation
       </div>
 
       {/* Legend */}
-      <div className={`mt-6 p-4 rounded-lg ${
-        theme === 'dark' ? 'bg-slate-700/50' : 'bg-primary'
-      }`}>
-        <h3 className={`text-sm font-semibold mb-2 ${
-          theme === 'dark' ? 'text-slate-200' : 'text-gray-800'
-        }`}>
+      <div className="mt-6 p-4 rounded-lg transition-colors duration-300" style={{ backgroundColor: 'var(--bg-secondary)' }}>
+        <h3 className="text-sm font-semibold mb-2 transition-colors duration-300" style={{ color: 'var(--text-primary)' }}>
           Correlation Scale
         </h3>
         <div className="flex flex-wrap gap-4 text-xs">
           <div className="flex items-center gap-2">
-            <div className={`w-4 h-4 rounded ${
-              theme === 'dark' ? 'bg-red-900/50' : 'bg-red-100'
-            }`}></div>
-            <span className={theme === 'dark' ? 'text-secondary' : 'text-secondary'}>
+            <div className="w-4 h-4 rounded bg-red-900/50"></div>
+            <span className="text-secondary">
               Strong Negative (&lt; -0.7)
             </span>
           </div>
           <div className="flex items-center gap-2">
-            <div className={`w-4 h-4 rounded ${
-              theme === 'dark' ? 'bg-red-800/30' : 'bg-red-50'
-            }`}></div>
-            <span className={theme === 'dark' ? 'text-secondary' : 'text-secondary'}>
+            <div className="w-4 h-4 rounded bg-red-800/30"></div>
+            <span className="text-secondary">
               Moderate Negative (-0.7 to -0.3)
             </span>
           </div>
           <div className="flex items-center gap-2">
-            <div className={`w-4 h-4 rounded ${
-              theme === 'dark' ? 'bg-slate-700/50' : 'bg-primary'
-            }`}></div>
-            <span className={theme === 'dark' ? 'text-secondary' : 'text-secondary'}>
+            <div className="w-4 h-4 rounded bg-slate-700/50"></div>
+            <span className="text-secondary">
               Weak (-0.3 to 0.3)
             </span>
           </div>
           <div className="flex items-center gap-2">
-            <div className={`w-4 h-4 rounded ${
-              theme === 'dark' ? 'bg-green-800/30' : 'bg-green-50'
-            }`}></div>
-            <span className={theme === 'dark' ? 'text-secondary' : 'text-secondary'}>
+            <div className="w-4 h-4 rounded bg-green-800/30"></div>
+            <span className="text-secondary">
               Moderate Positive (0.3 to 0.7)
             </span>
           </div>
           <div className="flex items-center gap-2">
-            <div className={`w-4 h-4 rounded ${
-              theme === 'dark' ? 'bg-green-900/50' : 'bg-green-100'
-            }`}></div>
-            <span className={theme === 'dark' ? 'text-secondary' : 'text-secondary'}>
+            <div className="w-4 h-4 rounded bg-green-900/50"></div>
+            <span className="text-secondary">
               Strong Positive (&gt; 0.7)
             </span>
           </div>
           <div className="flex items-center gap-2">
-            <div className={`w-4 h-4 rounded ${
-              theme === 'dark' ? 'bg-blue-900/30' : 'bg-blue-50'
-            }`}></div>
-            <span className={theme === 'dark' ? 'text-secondary' : 'text-secondary'}>
+            <div className="w-4 h-4 rounded bg-blue-900/30"></div>
+            <span className="text-secondary">
               Self Correlation (1.0)
             </span>
           </div>

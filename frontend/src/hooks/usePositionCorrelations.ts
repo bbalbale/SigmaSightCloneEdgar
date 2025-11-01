@@ -2,7 +2,8 @@
 
 import { useMemo } from 'react'
 import { useResearchStore } from '@/stores/researchStore'
-import { useResearchPageData } from './useResearchPageData'
+import { usePublicPositions } from './usePublicPositions'
+import { usePrivatePositions } from './usePrivatePositions'
 
 export interface Correlation {
   symbol: string
@@ -32,7 +33,9 @@ export function usePositionCorrelations(positionSymbol: string): PositionCorrela
   const matrixError = useResearchStore((state) => state.correlationMatrixError)
 
   // Get all positions to map symbols to market values
-  const { publicPositions, privatePositions, loading: positionsLoading } = useResearchPageData()
+  const { longPositions, shortPositions, loading: publicLoading } = usePublicPositions()
+  const { positions: privatePositions, loading: privateLoading } = usePrivatePositions()
+  const positionsLoading = publicLoading || privateLoading
 
   const result = useMemo(() => {
     console.log('🔍 Position Correlations: Processing for symbol', positionSymbol)
@@ -71,9 +74,8 @@ export function usePositionCorrelations(positionSymbol: string): PositionCorrela
 
     // Build position lookup map for market values
     const allPositions = [
-      ...publicPositions.longs,
-      ...publicPositions.shorts,
-      ...publicPositions.options,
+      ...longPositions,
+      ...shortPositions,
       ...privatePositions
     ]
 
@@ -148,7 +150,7 @@ export function usePositionCorrelations(positionSymbol: string): PositionCorrela
       loading: false,
       error: null
     }
-  }, [matrix, positionsLoading, positionSymbol, publicPositions, privatePositions])
+  }, [matrix, positionsLoading, positionSymbol, longPositions, shortPositions, privatePositions])
 
   return {
     ...result,

@@ -7,10 +7,10 @@ import { AlertCircle } from 'lucide-react'
 
 export interface CorrelationsSectionProps {
   position: Position
-  theme: 'dark' | 'light'
+  theme?: 'dark' | 'light' // Make optional since we're not using it
 }
 
-export function CorrelationsSection({ position, theme }: CorrelationsSectionProps) {
+export function CorrelationsSection({ position }: CorrelationsSectionProps) {
   const {
     correlations,
     hasConcentrationRisk,
@@ -21,7 +21,10 @@ export function CorrelationsSection({ position, theme }: CorrelationsSectionProp
 
   if (loading) {
     return (
-      <p className={`text-sm ${theme === 'dark' ? 'text-tertiary' : 'text-slate-600'}`}>
+      <p className="transition-colors duration-300" style={{
+        fontSize: 'var(--text-sm)',
+        color: 'var(--text-tertiary)'
+      }}>
         Loading correlations...
       </p>
     )
@@ -29,7 +32,10 @@ export function CorrelationsSection({ position, theme }: CorrelationsSectionProp
 
   if (error) {
     return (
-      <p className={`text-sm ${theme === 'dark' ? 'text-red-400' : 'text-red-600'}`}>
+      <p className="transition-colors duration-300" style={{
+        fontSize: 'var(--text-sm)',
+        color: 'var(--color-error)'
+      }}>
         {error}
       </p>
     )
@@ -37,7 +43,10 @@ export function CorrelationsSection({ position, theme }: CorrelationsSectionProp
 
   if (correlations.length === 0) {
     return (
-      <p className={`text-sm ${theme === 'dark' ? 'text-tertiary' : 'text-slate-600'}`}>
+      <p className="transition-colors duration-300" style={{
+        fontSize: 'var(--text-sm)',
+        color: 'var(--text-tertiary)'
+      }}>
         No correlation data available
       </p>
     )
@@ -47,13 +56,17 @@ export function CorrelationsSection({ position, theme }: CorrelationsSectionProp
     <div className="space-y-4">
       {/* Risk Warning */}
       {hasConcentrationRisk && riskMessage && (
-        <div className={`flex items-start gap-2 p-3 rounded ${
-          theme === 'dark' ? 'bg-orange-500/10 border border-orange-500/20' : 'bg-orange-50 border border-orange-200'
-        }`}>
-          <AlertCircle className={`h-4 w-4 mt-0.5 flex-shrink-0 ${
-            theme === 'dark' ? 'text-orange-400' : 'text-orange-600'
-          }`} />
-          <p className={`text-xs ${theme === 'dark' ? 'text-orange-300' : 'text-orange-800'}`}>
+        <div className="flex items-start gap-2 p-3 rounded border transition-colors duration-300" style={{
+          backgroundColor: 'rgba(249, 115, 22, 0.1)',
+          borderColor: 'rgba(249, 115, 22, 0.2)'
+        }}>
+          <AlertCircle className="h-4 w-4 mt-0.5 flex-shrink-0" style={{
+            color: 'rgb(249, 115, 22)'
+          }} />
+          <p className="transition-colors duration-300" style={{
+            fontSize: 'var(--text-xs)',
+            color: 'rgb(249, 115, 22)'
+          }}>
             {riskMessage}
           </p>
         </div>
@@ -70,11 +83,20 @@ export function CorrelationsSection({ position, theme }: CorrelationsSectionProp
               key={corr.symbol}
               className="flex items-center justify-between"
             >
-              <span className={`text-sm ${theme === 'dark' ? 'text-primary' : 'text-slate-700'}`}>
+              <span className="transition-colors duration-300" style={{
+                fontSize: 'var(--text-sm)',
+                color: 'var(--text-secondary)'
+              }}>
                 {corr.symbol}:
               </span>
-              <span className={`text-sm font-medium ${theme === 'dark' ? 'text-slate-200' : 'text-slate-900'}`}>
-                {corr.correlation.toFixed(2)} {showStrength && <span className={`text-xs ${theme === 'dark' ? 'text-tertiary' : 'text-slate-600'}`}>({strength})</span>}
+              <span className="font-medium transition-colors duration-300" style={{
+                fontSize: 'var(--text-sm)',
+                color: 'var(--text-primary)'
+              }}>
+                {corr.correlation.toFixed(2)} {showStrength && <span className="transition-colors duration-300" style={{
+                  fontSize: 'var(--text-xs)',
+                  color: 'var(--text-tertiary)'
+                }}>({strength})</span>}
               </span>
             </div>
           )

@@ -2,22 +2,22 @@
 
 import React from 'react'
 import { useResearchStore } from '@/stores/researchStore'
-import { useTheme } from '@/contexts/ThemeContext'
 
 /**
  * Debug component to visualize correlation matrix state
  * Remove this after debugging is complete
  */
 export function CorrelationDebugger() {
-  const { theme } = useTheme()
   const correlationMatrix = useResearchStore((state) => state.correlationMatrix)
   const loading = useResearchStore((state) => state.correlationMatrixLoading)
   const error = useResearchStore((state) => state.correlationMatrixError)
 
   return (
-    <div className={`fixed bottom-4 right-4 p-4 rounded shadow-lg border max-w-md ${
-      theme === 'dark' ? 'bg-slate-800 border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-900'
-    }`}>
+    <div className="fixed bottom-4 right-4 p-4 rounded shadow-lg border max-w-md transition-colors duration-300" style={{
+      backgroundColor: 'var(--bg-secondary)',
+      borderColor: 'var(--border-primary)',
+      color: 'var(--text-primary)'
+    }}>
       <h4 className="font-bold mb-2 text-sm">🔍 Correlation Matrix Debug</h4>
 
       <div className="space-y-2 text-xs">

@@ -17,34 +17,23 @@ interface ThemedCardProps {
  * - Borders (Bloomberg) vs Shadows (Modern Premium)
  */
 export function ThemedCard({ children, className = '', style = {}, hover = false }: ThemedCardProps) {
-  const { themeConfig } = useTheme()
-
   const cardStyle: CSSProperties = {
     padding: 'var(--card-padding)',
     borderRadius: 'var(--border-radius)',
     backgroundColor: 'var(--bg-secondary)',
-    // Conditionally apply borders or shadows based on theme
-    ...(themeConfig.visual.borderStyle === 'borders' ? {
-      border: '1px solid var(--border-primary)',
-    } : {
-      boxShadow: 'var(--shadow-md)',
-    }),
+    border: '1px solid var(--border-primary)',
     transition: 'all 0.2s ease',
     ...style,
   }
 
   const hoverStyle = hover ? {
     onMouseEnter: (e: React.MouseEvent<HTMLDivElement>) => {
-      if (themeConfig.visual.borderStyle === 'shadows') {
-        e.currentTarget.style.boxShadow = 'var(--shadow-lg)'
-        e.currentTarget.style.transform = 'translateY(-2px)'
-      }
+      e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)'
+      e.currentTarget.style.borderColor = 'var(--border-accent)'
     },
     onMouseLeave: (e: React.MouseEvent<HTMLDivElement>) => {
-      if (themeConfig.visual.borderStyle === 'shadows') {
-        e.currentTarget.style.boxShadow = 'var(--shadow-md)'
-        e.currentTarget.style.transform = 'translateY(0)'
-      }
+      e.currentTarget.style.backgroundColor = 'var(--bg-secondary)'
+      e.currentTarget.style.borderColor = 'var(--border-primary)'
     },
   } : {}
 

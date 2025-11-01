@@ -3,7 +3,6 @@
 import { Position } from '@/hooks/usePositions'
 import { OrganizePositionCard } from '@/components/positions/OrganizePositionCard'
 import { SelectablePositionCard } from './SelectablePositionCard'
-import { useTheme } from '@/contexts/ThemeContext'
 
 interface ShortOptionsPositionsListProps {
   positions: Position[]
@@ -20,8 +19,6 @@ export function ShortOptionsPositionsList({
   onToggleSelection,
   onDropTag
 }: ShortOptionsPositionsListProps) {
-  const { theme } = useTheme()
-
   // Filter for short options positions (SC = Short Call, SP = Short Put)
   const optionsPositions = positions.filter(p =>
     p.investment_class === 'OPTIONS' &&
@@ -30,17 +27,22 @@ export function ShortOptionsPositionsList({
 
   return (
     <div>
-      <h3 className={`text-base font-semibold mb-3 transition-colors duration-300 ${
-        theme === 'dark' ? 'text-white' : 'text-gray-900'
-      }`}>
+      <h3 className="transition-colors duration-300" style={{
+        fontSize: 'var(--text-base)',
+        fontWeight: 600,
+        marginBottom: '0.75rem',
+        color: 'var(--text-primary)',
+        fontFamily: 'var(--font-display)'
+      }}>
         Short Options
       </h3>
       {optionsPositions.length === 0 ? (
-        <div className={`text-sm p-3 rounded-lg border transition-colors duration-300 ${
-          theme === 'dark'
-            ? 'text-empty-text-dark bg-empty-bg-dark border-empty-border-dark'
-            : 'text-empty-text bg-empty-bg border-empty-border'
-        }`}>
+        <div className="p-3 rounded-lg border transition-colors duration-300" style={{
+          fontSize: 'var(--text-sm)',
+          backgroundColor: 'var(--bg-tertiary)',
+          borderColor: 'var(--border-primary)',
+          color: 'var(--text-secondary)'
+        }}>
           No positions
         </div>
       ) : (

@@ -1,14 +1,11 @@
 /**
- * Theme System - Multiple Visual Presets
+ * Bloomberg Terminal Theme System
  *
- * Each theme includes:
- * - Color palette (backgrounds, accents, text)
- * - Typography scale (keeping smaller fonts for density)
- * - Shadows/borders style
- * - Spacing adjustments
+ * Single theme with light/dark mode support
+ * Colors match Bloomberg Terminal aesthetic
  */
 
-export type ThemePreset = 'bloomberg-classic' | 'modern-premium'
+export type ThemeMode = 'light' | 'dark'
 
 export interface Theme {
   name: string
@@ -32,19 +29,19 @@ export interface Theme {
     textSecondary: string
     textTertiary: string
 
-    // Semantic
-    success: string
-    error: string
-    warning: string
-    info: string
+    // Semantic (Bloomberg style)
+    success: string      // Green for gains
+    error: string        // Red for losses
+    warning: string      // Orange for warnings
+    info: string         // Blue for info
 
-    // Accents
+    // Bloomberg accent (orange)
     accent: string
     accentHover: string
     accentSubtle: string
   }
 
-  // Typography (keeping smaller for density)
+  // Typography (Bloomberg terminal density)
   typography: {
     fontDisplay: string
     fontBody: string
@@ -68,126 +65,122 @@ export interface Theme {
   // Visual style
   visual: {
     borderRadius: string
-    borderStyle: 'borders' | 'shadows' | 'hybrid'
-    shadowSm: string
-    shadowMd: string
-    shadowLg: string
     cardPadding: string
+    cardGap: string      // Gap between cards
   }
 }
 
-export const themes: Record<ThemePreset, Theme> = {
-  'bloomberg-classic': {
-    name: 'Bloomberg Classic',
-    description: 'High density, familiar blue, borders (power user style)',
+// Bloomberg theme - Dark mode
+const bloombergDark: Theme = {
+  name: 'Bloomberg Dark',
+  description: 'Bloomberg Terminal dark mode with orange accents',
 
-    colors: {
-      bgPrimary: '#020617',
-      bgSecondary: '#0f172a',
-      bgTertiary: '#1e293b',
-      bgElevated: '#1e293b',
+  colors: {
+    bgPrimary: '#000000',           // Pure black (Bloomberg style)
+    bgSecondary: '#0a0a0a',         // Slightly lighter black for cards
+    bgTertiary: '#1a1a1a',          // Card hover/elevated
+    bgElevated: '#1a1a1a',
 
-      borderPrimary: '#334155',
-      borderSecondary: '#475569',
-      borderAccent: '#2563eb',
+    borderPrimary: '#333333',       // Subtle borders
+    borderSecondary: '#404040',
+    borderAccent: '#ff8c00',        // Bloomberg orange
 
-      textPrimary: '#f8fafc',
-      textSecondary: '#94a3b8',
-      textTertiary: '#64748b',
+    textPrimary: '#ffffff',         // Pure white text
+    textSecondary: '#b0b0b0',       // Gray secondary text
+    textTertiary: '#808080',        // Darker gray tertiary
 
-      success: '#34d399',
-      error: '#f87171',
-      warning: '#fbbf24',
-      info: '#60a5fa',
+    success: '#00ff00',             // Bloomberg green (gains)
+    error: '#ff0000',               // Bloomberg red (losses)
+    warning: '#ff8c00',             // Bloomberg orange
+    info: '#00bfff',                // Bloomberg blue
 
-      accent: '#2563eb',
-      accentHover: '#1d4ed8',
-      accentSubtle: 'rgba(37, 99, 235, 0.1)',
-    },
-
-    typography: {
-      fontDisplay: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
-      fontBody: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
-      fontMono: "'JetBrains Mono', 'SF Mono', 'Consolas', monospace",
-
-      textXs: '0.6875rem',    // 11px
-      textSm: '0.8125rem',    // 13px
-      textBase: '0.875rem',   // 14px
-      textLg: '1rem',         // 16px
-      textXl: '1.125rem',     // 18px
-      text2xl: '1.375rem',    // 22px
-      text3xl: '1.75rem',     // 28px
-
-      trackingTight: '-0.02em',
-      trackingNormal: '0',
-      trackingWide: '0.05em',
-    },
-
-    visual: {
-      borderRadius: '0.5rem',
-      borderStyle: 'borders',
-      shadowSm: 'none',
-      shadowMd: 'none',
-      shadowLg: 'none',
-      cardPadding: '1rem',    // 16px - compact
-    },
+    accent: '#ff8c00',              // Bloomberg orange
+    accentHover: '#ffa500',         // Lighter orange on hover
+    accentSubtle: 'rgba(255, 140, 0, 0.1)',
   },
 
-  'modern-premium': {
-    name: 'Modern Premium',
-    description: 'Stripe-inspired, generous spacing, soft shadows (for focused analysis)',
+  typography: {
+    fontDisplay: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
+    fontBody: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
+    fontMono: "'JetBrains Mono', 'SF Mono', 'Consolas', monospace",
 
-    colors: {
-      bgPrimary: '#0A0E27',
-      bgSecondary: '#161B33',
-      bgTertiary: '#1F2544',
-      bgElevated: '#252B4A',
+    textXs: '0.6875rem',    // 11px
+    textSm: '0.8125rem',    // 13px
+    textBase: '0.875rem',   // 14px
+    textLg: '1rem',         // 16px
+    textXl: '1.125rem',     // 18px
+    text2xl: '1.375rem',    // 22px
+    text3xl: '1.75rem',     // 28px
 
-      borderPrimary: '#2D3149',
-      borderSecondary: '#3A3F5C',
-      borderAccent: '#635BFF',
+    trackingTight: '-0.02em',
+    trackingNormal: '0',
+    trackingWide: '0.05em',
+  },
 
-      textPrimary: '#F7F7F8',
-      textSecondary: '#A5A6B0',
-      textTertiary: '#7A7B88',
-
-      success: '#00D9B1',
-      error: '#FF5C5C',
-      warning: '#FFB800',
-      info: '#635BFF',
-
-      accent: '#635BFF',      // Stripe purple
-      accentHover: '#7C75FF',
-      accentSubtle: 'rgba(99, 91, 255, 0.1)',
-    },
-
-    typography: {
-      fontDisplay: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
-      fontBody: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
-      fontMono: "'JetBrains Mono', 'SF Mono', 'Consolas', monospace",
-
-      textXs: '0.6875rem',    // 11px - same density as Bloomberg
-      textSm: '0.8125rem',    // 13px
-      textBase: '0.875rem',   // 14px
-      textLg: '1rem',         // 16px
-      textXl: '1.125rem',     // 18px
-      text2xl: '1.375rem',    // 22px
-      text3xl: '1.75rem',     // 28px
-
-      trackingTight: '-0.02em',
-      trackingNormal: '0',
-      trackingWide: '0.05em',
-    },
-
-    visual: {
-      borderRadius: '0.75rem',  // 12px - rounder corners
-      borderStyle: 'shadows',   // soft shadows, no borders
-      shadowSm: '0 1px 3px rgba(0, 0, 0, 0.3), 0 1px 2px rgba(0, 0, 0, 0.4)',
-      shadowMd: '0 4px 6px rgba(0, 0, 0, 0.4), 0 2px 4px rgba(0, 0, 0, 0.5)',
-      shadowLg: '0 10px 15px rgba(0, 0, 0, 0.5), 0 4px 6px rgba(0, 0, 0, 0.6)',
-      cardPadding: '1.5rem',    // 24px - generous breathing room
-    },
+  visual: {
+    borderRadius: '0.375rem',  // 6px - subtle rounding
+    cardPadding: '1rem',       // 16px - compact
+    cardGap: '1rem',           // 16px gap between cards
   },
 }
 
-export const defaultTheme: ThemePreset = 'bloomberg-classic'
+// Bloomberg theme - Light mode
+const bloombergLight: Theme = {
+  name: 'Bloomberg Light',
+  description: 'Bloomberg Terminal light mode with orange accents',
+
+  colors: {
+    bgPrimary: '#ffffff',           // White background
+    bgSecondary: '#f5f5f5',         // Light gray for cards
+    bgTertiary: '#e8e8e8',          // Card hover
+    bgElevated: '#e8e8e8',
+
+    borderPrimary: '#d0d0d0',       // Light borders
+    borderSecondary: '#b0b0b0',
+    borderAccent: '#ff8c00',        // Bloomberg orange
+
+    textPrimary: '#000000',         // Black text
+    textSecondary: '#4a4a4a',       // Dark gray secondary
+    textTertiary: '#808080',        // Gray tertiary
+
+    success: '#008000',             // Dark green (gains)
+    error: '#cc0000',               // Dark red (losses)
+    warning: '#ff8c00',             // Bloomberg orange
+    info: '#0080ff',                // Blue
+
+    accent: '#ff8c00',              // Bloomberg orange
+    accentHover: '#ff7700',         // Darker orange on hover
+    accentSubtle: 'rgba(255, 140, 0, 0.1)',
+  },
+
+  typography: {
+    fontDisplay: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
+    fontBody: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
+    fontMono: "'JetBrains Mono', 'SF Mono', 'Consolas', monospace",
+
+    textXs: '0.6875rem',    // 11px
+    textSm: '0.8125rem',    // 13px
+    textBase: '0.875rem',   // 14px
+    textLg: '1rem',         // 16px
+    textXl: '1.125rem',     // 18px
+    text2xl: '1.375rem',    // 22px
+    text3xl: '1.75rem',     // 28px
+
+    trackingTight: '-0.02em',
+    trackingNormal: '0',
+    trackingWide: '0.05em',
+  },
+
+  visual: {
+    borderRadius: '0.375rem',  // 6px - subtle rounding
+    cardPadding: '1rem',       // 16px - compact
+    cardGap: '1rem',           // 16px gap between cards
+  },
+}
+
+export const themes: Record<ThemeMode, Theme> = {
+  dark: bloombergDark,
+  light: bloombergLight,
+}
+
+export const defaultTheme: ThemeMode = 'dark'

@@ -15,8 +15,8 @@ export function NavigationHeader() {
           </div>
         </div>
         <div className="flex items-center gap-4">
-          <NavigationDropdown />
           <ThemeToggle />
+          <NavigationDropdown />
         </div>
       </div>
     </header>

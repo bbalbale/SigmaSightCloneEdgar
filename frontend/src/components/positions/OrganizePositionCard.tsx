@@ -2,7 +2,6 @@ import React from 'react'
 import { BasePositionCard } from '@/components/common/BasePositionCard'
 import { formatCurrency } from '@/lib/formatters'
 import { TagBadge } from '@/components/organize/TagBadge'
-import { useTheme } from '@/contexts/ThemeContext'
 import { Position } from '@/hooks/usePositions'
 
 interface OrganizePositionCardProps {
@@ -19,7 +18,6 @@ const OPTION_TYPE_LABELS: Record<string, string> = {
 }
 
 export function OrganizePositionCard({ position, onClick, onRemoveTag }: OrganizePositionCardProps) {
-  const { theme } = useTheme()
 
   // Determine card content based on investment class
   const getCardContent = () => {
@@ -78,9 +76,9 @@ export function OrganizePositionCard({ position, onClick, onRemoveTag }: Organiz
                   }}
                   className="ml-0.5 px-1 py-0 text-xs rounded transition-all duration-200 hover:scale-110"
                   style={{
-                    backgroundColor: theme === 'dark' ? 'rgba(239, 68, 68, 0.2)' : 'rgba(239, 68, 68, 0.1)',
-                    color: theme === 'dark' ? '#ef4444' : '#dc2626',
-                    border: `1px solid ${theme === 'dark' ? '#ef4444' : '#dc2626'}`,
+                    backgroundColor: 'var(--color-error-bg, rgba(239, 68, 68, 0.1))',
+                    color: 'var(--color-error)',
+                    border: '1px solid var(--color-error)',
                     fontSize: '10px',
                     lineHeight: '14px',
                     minWidth: '14px',

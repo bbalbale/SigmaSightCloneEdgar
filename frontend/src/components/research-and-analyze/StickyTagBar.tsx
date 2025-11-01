@@ -3,7 +3,6 @@
 import React, { useState, useEffect } from 'react'
 import { Tag } from '@/stores/researchStore'
 import { Button } from '@/components/ui/button'
-import { useTheme } from '@/contexts/ThemeContext'
 
 export interface StickyTagBarProps {
   tags: Tag[]
@@ -16,7 +15,6 @@ export function StickyTagBar({
   onCreateTag,
   onRestoreSectorTags
 }: StickyTagBarProps) {
-  const { theme } = useTheme()
   const [isVisible, setIsVisible] = useState(true)
   const [lastScrollY, setLastScrollY] = useState(0)
 
@@ -43,18 +41,21 @@ export function StickyTagBar({
 
   return (
     <div
-      className={`sticky top-0 z-40 transition-transform duration-300 ${
+      className={`sticky top-0 z-40 transition-all duration-300 border-b ${
         isVisible ? 'translate-y-0' : '-translate-y-full'
-      } ${
-        theme === 'dark'
-          ? 'bg-primary border-b border-primary'
-          : 'bg-white border-b border-slate-200'
       }`}
+      style={{
+        backgroundColor: 'var(--bg-primary)',
+        borderColor: 'var(--border-primary)'
+      }}
     >
       <div className="container mx-auto px-4 py-3">
         <div className="flex items-center gap-2 flex-wrap">
           {/* Tag Label */}
-          <span className="text-[10px] font-semibold uppercase tracking-wider text-tertiary mr-2">
+          <span className="font-semibold uppercase tracking-wider mr-2 transition-colors duration-300" style={{
+            fontSize: '10px',
+            color: 'var(--text-tertiary)'
+          }}>
             TAGS
           </span>
 
@@ -65,18 +66,22 @@ export function StickyTagBar({
                 key={tag.id}
                 draggable
                 onDragStart={(e) => handleDragStart(e, tag.id)}
-                className="px-3 py-1.5 rounded text-xs font-medium cursor-move transition-all hover:scale-105"
+                className="px-3 py-1.5 rounded font-medium cursor-move transition-all hover:scale-105"
                 style={{
                   backgroundColor: `${tag.color}20`,
                   color: tag.color,
-                  border: `1px solid ${tag.color}40`
+                  border: `1px solid ${tag.color}40`,
+                  fontSize: 'var(--text-xs)'
                 }}
               >
                 {tag.name}
               </div>
             ))
           ) : (
-            <span className={`text-sm ${theme === 'dark' ? 'text-tertiary' : 'text-slate-600'}`}>
+            <span className="transition-colors duration-300" style={{
+              fontSize: 'var(--text-sm)',
+              color: 'var(--text-tertiary)'
+            }}>
               No tags yet
             </span>
           )}

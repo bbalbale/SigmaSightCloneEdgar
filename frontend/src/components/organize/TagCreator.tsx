@@ -4,7 +4,6 @@ import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Plus, Check, X } from 'lucide-react'
-import { useTheme } from '@/contexts/ThemeContext'
 
 const PRESET_COLORS = [
   { name: 'Core Holding', color: '#3B82F6' },    // blue
@@ -22,7 +21,6 @@ interface TagCreatorProps {
 }
 
 export function TagCreator({ onCreate }: TagCreatorProps) {
-  const { theme } = useTheme()
   const [isCreating, setIsCreating] = useState(false)
   const [name, setName] = useState('')
   const [selectedColor, setSelectedColor] = useState(PRESET_COLORS[0].color)
@@ -69,11 +67,10 @@ export function TagCreator({ onCreate }: TagCreatorProps) {
   }
 
   return (
-    <div className={`rounded-lg p-4 space-y-3 transition-colors ${
-      theme === 'dark'
-        ? 'bg-slate-700 border border-slate-600'
-        : 'bg-white border border-gray-300'
-    }`}>
+    <div className="rounded-lg p-4 space-y-3 transition-colors duration-300" style={{
+      backgroundColor: 'var(--bg-secondary)',
+      border: '1px solid var(--border-primary)'
+    }}>
       <Input
         placeholder="Create a new tag..."
         value={name}
@@ -81,28 +78,30 @@ export function TagCreator({ onCreate }: TagCreatorProps) {
         disabled={isSubmitting}
         maxLength={50}
         autoFocus
-        className={theme === 'dark' ? 'bg-slate-800 border-slate-600 text-white' : ''}
+        className="transition-colors duration-300"
+        style={{
+          backgroundColor: 'var(--bg-tertiary)',
+          borderColor: 'var(--border-primary)',
+          color: 'var(--text-primary)'
+        }}
       />
 
       <div className="flex items-center gap-2">
-        <div className={`text-sm transition-colors ${
-          theme === 'dark' ? 'text-primary' : 'text-secondary'
-        }`}>Color:</div>
+        <div className="text-sm transition-colors duration-300" style={{
+          color: 'var(--text-primary)'
+        }}>Color:</div>
         <div className="flex gap-2 flex-wrap">
           {PRESET_COLORS.map((preset) => (
             <button
               key={preset.color}
               onClick={() => setSelectedColor(preset.color)}
-              className={`
-                w-8 h-8 rounded transition-all
-                ${selectedColor === preset.color
-                  ? theme === 'dark'
-                    ? 'ring-2 ring-offset-2 ring-slate-500 ring-offset-slate-700'
-                    : 'ring-2 ring-offset-2 ring-gray-400'
-                  : ''
-                }
-              `}
-              style={{ backgroundColor: preset.color }}
+              className="w-8 h-8 rounded transition-all"
+              style={{
+                backgroundColor: preset.color,
+                ...(selectedColor === preset.color && {
+                  boxShadow: '0 0 0 2px var(--bg-secondary), 0 0 0 4px var(--border-primary)'
+                })
+              }}
               title={preset.name}
               disabled={isSubmitting}
             />
@@ -115,11 +114,11 @@ export function TagCreator({ onCreate }: TagCreatorProps) {
           onClick={handleCreate}
           size="sm"
           disabled={isSubmitting || !name.trim()}
-          className={`transition-colors ${
-            theme === 'dark'
-              ? 'bg-primary hover:bg-slate-800 text-white'
-              : 'bg-black hover:bg-gray-800 text-white'
-          }`}
+          className="transition-colors duration-300"
+          style={{
+            backgroundColor: 'var(--bg-primary)',
+            color: 'var(--text-primary)'
+          }}
         >
           <Check className="h-4 w-4 mr-1" />
           {isSubmitting ? 'Creating...' : 'Add'}
@@ -129,7 +128,7 @@ export function TagCreator({ onCreate }: TagCreatorProps) {
           size="sm"
           variant="ghost"
           disabled={isSubmitting}
-          className={theme === 'dark' ? 'hover:bg-slate-600' : ''}
+          className="transition-colors duration-300"
         >
           <X className="h-4 w-4 mr-1" />
           Cancel

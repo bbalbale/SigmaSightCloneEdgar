@@ -29,12 +29,9 @@ export function AIChatContainer() {
 
   if (loading) {
     return (
-      <div
-        className={cn(
-          'min-h-screen flex items-center justify-center px-4',
-          theme === 'dark' ? 'bg-slate-950' : 'bg-primary'
-        )}
-      >
+      <div className="min-h-screen flex items-center justify-center px-4 transition-colors duration-300" style={{
+        backgroundColor: 'var(--bg-primary)'
+      }}>
         <div className="text-sm text-tertiary">Loading AI chat experience…</div>
       </div>
     )
@@ -49,47 +46,42 @@ export function AIChatContainer() {
     (portfolioId ? `Portfolio ${portfolioId.slice(0, 8)}…` : 'Portfolio unavailable')
 
   return (
-    <div
-      className={cn(
-        'min-h-screen py-10 px-4 transition-colors duration-300',
-        theme === 'dark' ? 'bg-slate-950' : 'bg-primary'
-      )}
-    >
+    <div className="min-h-screen py-10 px-4 transition-colors duration-300" style={{
+      backgroundColor: 'var(--bg-primary)'
+    }}>
       <div className="container mx-auto max-w-5xl flex flex-col gap-8">
         <header className="flex flex-col gap-3">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
             <div>
-              <p className={cn('text-sm', theme === 'dark' ? 'text-secondary' : 'text-secondary')}>
+              <p className="text-sm text-secondary">
                 Signed in as {user.fullName}
               </p>
-              <h1 className={cn('text-2xl font-semibold', theme === 'dark' ? 'text-white' : 'text-gray-900')}>
+              <h1 className="font-semibold transition-colors duration-300" style={{
+                fontSize: 'var(--text-2xl)',
+                color: 'var(--text-primary)',
+                fontFamily: 'var(--font-display)'
+              }}>
                 AI Portfolio Assistant
               </h1>
             </div>
-            <div
-              className={cn(
-                'text-xs px-3 py-1 rounded-full border',
-                theme === 'dark'
-                  ? 'border-primary text-primary bg-primary/60'
-                  : 'border-primary text-secondary bg-white'
-              )}
-            >
+            <div className="text-xs px-3 py-1 rounded-full transition-colors duration-300" style={{
+              border: '1px solid var(--border-primary)',
+              color: 'var(--text-primary)',
+              backgroundColor: 'var(--bg-secondary)'
+            }}>
               {portfolioLabel}
             </div>
           </div>
-          <p className={cn('text-sm max-w-3xl', theme === 'dark' ? 'text-primary' : 'text-secondary')}>
+          <p className="text-sm max-w-3xl text-secondary">
             Ask SigmaSight for diagnostics, factor exposure breakdowns, or risk mitigation ideas. Responses
             reuse the same authenticated streaming pipeline as the dashboard chat bar.
           </p>
           {!portfolioId && (
-            <div
-              className={cn(
-                'text-xs px-3 py-2 rounded-lg border',
-                theme === 'dark'
-                  ? 'border-red-700 bg-red-900/40 text-red-200'
-                  : 'border-red-200 bg-red-50 text-red-700'
-              )}
-            >
+            <div className="text-xs px-3 py-2 rounded-lg transition-colors duration-300" style={{
+              border: '1px solid var(--color-error)',
+              backgroundColor: 'rgba(239, 68, 68, 0.1)',
+              color: 'var(--color-error)'
+            }}>
               Portfolio context is still loading. Conversations may be limited until your portfolio ID is resolved.
             </div>
           )}

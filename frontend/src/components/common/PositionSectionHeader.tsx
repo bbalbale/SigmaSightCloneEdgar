@@ -8,18 +8,19 @@ interface PositionSectionHeaderProps {
 }
 
 export function PositionSectionHeader({ title, count }: PositionSectionHeaderProps) {
-  const { theme } = useTheme()
-
   return (
     <div className="flex items-center gap-2 mb-4">
-      <h3 className={`text-lg font-semibold transition-colors duration-300 ${
-        theme === 'dark' ? 'text-card-text-dark' : 'text-card-text'
-      }`}>
+      <h3 className="font-semibold transition-colors duration-300" style={{
+        fontSize: 'var(--text-lg)',
+        color: 'var(--text-primary)',
+        fontFamily: 'var(--font-display)'
+      }}>
         {title}
       </h3>
-      <Badge variant="secondary" className={`transition-colors duration-300 ${
-        theme === 'dark' ? 'bg-badge-bg-dark text-badge-text-dark' : 'bg-badge-bg text-badge-text'
-      }`}>
+      <Badge variant="secondary" className="transition-colors duration-300" style={{
+        backgroundColor: 'var(--bg-secondary)',
+        color: 'var(--text-primary)'
+      }}>
         {count}
       </Badge>
     </div>

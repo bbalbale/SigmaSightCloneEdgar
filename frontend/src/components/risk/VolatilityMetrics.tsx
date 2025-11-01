@@ -1,7 +1,6 @@
 "use client"
 
 import React from 'react'
-import { useTheme } from '@/contexts/ThemeContext'
 import { TrendingUp, TrendingDown, Minus, Info } from 'lucide-react'
 import {
   Tooltip,
@@ -19,8 +18,6 @@ interface VolatilityMetricsProps {
 }
 
 export function VolatilityMetrics({ data, loading, error, onRetry }: VolatilityMetricsProps) {
-  const { theme } = useTheme()
-
   const getTrendIcon = (volTrend: string | null) => {
     if (volTrend === 'increasing') return <TrendingUp className="h-5 w-5 text-red-500" />
     if (volTrend === 'decreasing') return <TrendingDown className="h-5 w-5 text-green-500" />
@@ -58,9 +55,7 @@ export function VolatilityMetrics({ data, loading, error, onRetry }: VolatilityM
   if (loading) {
     return (
       <div className="rounded-lg border p-6 transition-colors duration-300 themed-card">
-        <h3 className={`text-xl font-bold mb-4 ${
-          theme === 'dark' ? 'text-white' : 'text-gray-900'
-        }`}>
+        <h3 className="text-xl font-bold mb-4 transition-colors duration-300" style={{ color: 'var(--text-primary)' }}>
           Volatility Analysis
         </h3>
         <div className="flex items-center justify-center py-8">
@@ -77,25 +72,15 @@ export function VolatilityMetrics({ data, loading, error, onRetry }: VolatilityM
   if (error) {
     return (
       <div className="rounded-lg border p-6 transition-colors duration-300 themed-card">
-        <h3 className={`text-xl font-bold mb-4 ${
-          theme === 'dark' ? 'text-white' : 'text-gray-900'
-        }`}>
+        <h3 className="text-xl font-bold mb-4 transition-colors duration-300" style={{ color: 'var(--text-primary)' }}>
           Volatility Analysis
         </h3>
-        <div className={`rounded-lg border p-4 text-center ${
-          theme === 'dark'
-            ? 'bg-red-900/20 border-red-800 text-red-300'
-            : 'bg-red-50 border-red-200 text-red-700'
-        }`}>
+        <div className="rounded-lg border p-4 text-center bg-red-900/20 border-red-800 text-red-300">
           <p className="mb-3 text-sm">Error: {error.message}</p>
           {onRetry && (
             <button
               onClick={onRetry}
-              className={`px-3 py-1.5 rounded-md text-sm transition-colors ${
-                theme === 'dark'
-                  ? 'bg-blue-600 hover:bg-blue-700 text-white'
-                  : 'bg-blue-500 hover:bg-blue-600 text-white'
-              }`}
+              className="px-3 py-1.5 rounded-md text-sm transition-colors bg-blue-600 hover:bg-blue-700 text-white"
             >
               Retry
             </button>
@@ -109,16 +94,14 @@ export function VolatilityMetrics({ data, loading, error, onRetry }: VolatilityM
   if (!data?.available || !data?.data) {
     return (
       <div className="rounded-lg border p-6 transition-colors duration-300 themed-card">
-        <h3 className={`text-xl font-bold mb-4 ${
-          theme === 'dark' ? 'text-white' : 'text-gray-900'
-        }`}>
+        <h3 className="text-xl font-bold mb-4 transition-colors duration-300" style={{ color: 'var(--text-primary)' }}>
           Volatility Analysis
         </h3>
-        <div className={`rounded-lg border p-4 text-center ${
-          theme === 'dark'
-            ? 'bg-slate-700/50 border-slate-600 text-primary'
-            : 'bg-primary border-primary text-secondary'
-        }`}>
+        <div className="rounded-lg border p-4 text-center transition-colors duration-300" style={{
+          backgroundColor: 'var(--bg-secondary)',
+          borderColor: 'var(--border-primary)',
+          color: 'var(--text-primary)'
+        }}>
           <p className="text-sm">Volatility metrics are not available</p>
           {data?.metadata?.error && (
             <p className="mt-2 text-xs opacity-70">Reason: {data.metadata.error}</p>
@@ -139,15 +122,13 @@ export function VolatilityMetrics({ data, loading, error, onRetry }: VolatilityM
   return (
     <div className="rounded-lg border p-6 transition-colors duration-300 themed-card">
       <div className="flex items-center gap-2 mb-6">
-        <h3 className={`text-xl font-bold ${
-          theme === 'dark' ? 'text-white' : 'text-gray-900'
-        }`}>
+        <h3 className="text-xl font-bold transition-colors duration-300" style={{ color: 'var(--text-primary)' }}>
           Volatility Analysis
         </h3>
         <TooltipProvider>
           <Tooltip>
             <TooltipTrigger>
-              <Info className={`h-4 w-4 ${theme === 'dark' ? 'text-secondary' : 'text-tertiary'}`} />
+              <Info className="h-4 w-4 text-secondary" />
             </TooltipTrigger>
             <TooltipContent>
               <p>Historical and forecasted portfolio volatility.</p>
@@ -164,9 +145,7 @@ export function VolatilityMetrics({ data, loading, error, onRetry }: VolatilityM
             <span className="text-sm font-medium text-primary">
               Current (21-day)
             </span>
-            <span className={`text-2xl font-bold ${
-              theme === 'dark' ? 'text-white' : 'text-gray-900'
-            }`}>
+            <span className="text-2xl font-bold transition-colors duration-300" style={{ color: 'var(--text-primary)' }}>
               {(realized_volatility_21d * 100).toFixed(1)}%
             </span>
           </div>
@@ -182,9 +161,7 @@ export function VolatilityMetrics({ data, loading, error, onRetry }: VolatilityM
               <p className="text-xs text-secondary">
                 63-day (~3 months)
               </p>
-              <p className={`text-sm font-medium ${
-                theme === 'dark' ? 'text-slate-200' : 'text-gray-800'
-              }`}>
+              <p className="text-sm font-medium transition-colors duration-300" style={{ color: 'var(--text-primary)' }}>
                 {(realized_volatility_63d * 100).toFixed(1)}%
               </p>
             </div>
@@ -198,9 +175,7 @@ export function VolatilityMetrics({ data, loading, error, onRetry }: VolatilityM
               <span className="text-sm font-medium text-primary">
                 Expected (21-day forecast)
               </span>
-              <span className={`text-lg font-semibold ${
-                theme === 'dark' ? 'text-blue-400' : 'text-blue-600'
-              }`}>
+              <span className="text-lg font-semibold text-blue-400">
                 {(expected_volatility_21d * 100).toFixed(1)}%
               </span>
             </div>
@@ -212,9 +187,7 @@ export function VolatilityMetrics({ data, loading, error, onRetry }: VolatilityM
 
         {/* Trend */}
         {volatility_trend && (
-          <div className={`flex items-center justify-between p-3 rounded-lg ${
-            theme === 'dark' ? 'bg-slate-700/50' : 'bg-gray-100'
-          }`}>
+          <div className="flex items-center justify-between p-3 rounded-lg transition-colors duration-300" style={{ backgroundColor: 'var(--bg-secondary)' }}>
             <div className="flex items-center gap-2">
               {getTrendIcon(volatility_trend)}
               <span className={`text-sm font-medium ${getTrendColor(volatility_trend)}`}>
@@ -233,16 +206,14 @@ export function VolatilityMetrics({ data, loading, error, onRetry }: VolatilityM
         {volatility_percentile !== null && (
           <div>
             <div className="flex justify-between text-xs mb-1">
-              <span className={theme === 'dark' ? 'text-secondary' : 'text-secondary'}>
+              <span className="text-secondary">
                 Volatility Percentile
               </span>
               <span className="font-medium text-primary">
                 {(volatility_percentile * 100).toFixed(0)}th
               </span>
             </div>
-            <div className={`h-2 rounded-full overflow-hidden ${
-              theme === 'dark' ? 'bg-slate-700' : 'bg-gray-200'
-            }`}>
+            <div className="h-2 rounded-full overflow-hidden transition-colors duration-300" style={{ backgroundColor: 'var(--bg-secondary)' }}>
               <div
                 className={`h-full transition-all ${getPercentileColor(volatility_percentile)}`}
                 style={{ width: `${volatility_percentile * 100}%` }}

@@ -4,13 +4,11 @@
 import { useState, useMemo } from 'react'
 import { usePublicPositions } from '@/hooks/usePublicPositions'
 import { EnhancedPositionsSection } from '@/components/positions/EnhancedPositionsSection'
-import { useTheme } from '@/contexts/ThemeContext'
 import { positionResearchService, type EnhancedPosition } from '@/services/positionResearchService'
 
 type FilterType = 'all' | 'longs' | 'shorts' | 'options'
 
 export function PublicPositionsContainer() {
-  const { theme } = useTheme()
   const { longPositions, shortPositions, loading, error, aggregateReturns, portfolioSnapshot, refetch, updatePositionTargetOptimistic } = usePublicPositions()
   const [activeFilter, setActiveFilter] = useState<FilterType>('all')
 
@@ -116,10 +114,23 @@ export function PublicPositionsContainer() {
 
   if (loading && !longPositions.length && !shortPositions.length) {
     return (
-      <div className="min-h-screen flex items-center justify-center transition-colors duration-300 bg-primary">
+      <div
+        className="min-h-screen flex items-center justify-center transition-colors duration-300"
+        style={{ backgroundColor: 'var(--bg-primary)' }}
+      >
         <div className="text-center">
-          <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mb-4"></div>
-          <p className="text-lg font-medium transition-colors duration-300 text-secondary">
+          <div
+            className="inline-block animate-spin rounded-full h-12 w-12 mb-4"
+            style={{ borderBottom: '2px solid var(--color-accent)' }}
+          ></div>
+          <p
+            className="font-medium transition-colors duration-300"
+            style={{
+              fontSize: 'var(--text-lg)',
+              color: 'var(--text-secondary)',
+              fontFamily: 'var(--font-body)'
+            }}
+          >
             Loading positions...
           </p>
         </div>
@@ -129,22 +140,38 @@ export function PublicPositionsContainer() {
 
   if (error) {
     return (
-      <div className="min-h-screen transition-colors duration-300 bg-primary">
+      <div
+        className="min-h-screen transition-colors duration-300"
+        style={{ backgroundColor: 'var(--bg-primary)' }}
+      >
         <section className="px-6 py-12">
           <div className="max-w-7xl mx-auto">
-            <div className={`rounded-xl border p-8 transition-all duration-300 ${
-              theme === 'dark'
-                ? 'bg-red-900/20 border-red-700/50'
-                : 'bg-red-50 border-red-200'
-            }`}>
-              <h2 className={`text-2xl font-bold mb-2 transition-colors duration-300 ${
-                theme === 'dark' ? 'text-red-400' : 'text-red-900'
-              }`}>
+            <div
+              className="transition-all duration-300"
+              style={{
+                backgroundColor: 'rgba(255, 0, 0, 0.1)',
+                border: '1px solid var(--color-error)',
+                borderRadius: 'var(--border-radius)',
+                padding: 'var(--card-padding)'
+              }}
+            >
+              <h2
+                className="font-bold mb-2 transition-colors duration-300"
+                style={{
+                  fontSize: 'var(--text-2xl)',
+                  color: 'var(--color-error)',
+                  fontFamily: 'var(--font-display)'
+                }}
+              >
                 Error Loading Positions
               </h2>
-              <p className={`transition-colors duration-300 ${
-                theme === 'dark' ? 'text-red-300' : 'text-red-700'
-              }`}>
+              <p
+                className="transition-colors duration-300"
+                style={{
+                  color: 'var(--color-error)',
+                  fontFamily: 'var(--font-body)'
+                }}
+              >
                 {error}
               </p>
             </div>
@@ -162,16 +189,30 @@ export function PublicPositionsContainer() {
   ]
 
   return (
-    <div className="min-h-screen transition-colors duration-300 bg-primary">
+    <div
+      className="min-h-screen transition-colors duration-300"
+      style={{ backgroundColor: 'var(--bg-primary)' }}
+    >
       {/* Header */}
       <section className="px-4 py-8">
         <div className="container mx-auto">
-          <h1 className={`text-2xl font-bold mb-2 transition-colors duration-300 ${
-            theme === 'dark' ? 'text-white' : 'text-gray-900'
-          }`}>
+          <h1
+            className="font-bold mb-2 transition-colors duration-300"
+            style={{
+              fontSize: 'var(--text-2xl)',
+              color: 'var(--text-primary)',
+              fontFamily: 'var(--font-display)'
+            }}
+          >
             Public Positions
           </h1>
-          <p className="transition-colors duration-300 text-secondary">
+          <p
+            className="transition-colors duration-300"
+            style={{
+              color: 'var(--text-secondary)',
+              fontFamily: 'var(--font-body)'
+            }}
+          >
             Deep analysis with price targets, analyst estimates, and forward projections
           </p>
         </div>
@@ -187,15 +228,24 @@ export function PublicPositionsContainer() {
                 <button
                   key={filter.value}
                   onClick={() => setActiveFilter(filter.value)}
-                  className={`px-4 py-2 rounded-lg font-medium transition-all duration-200 whitespace-nowrap ${
-                    activeFilter === filter.value
-                      ? theme === 'dark'
-                        ? 'bg-blue-600 text-white'
-                        : 'bg-blue-500 text-white'
-                      : theme === 'dark'
-                      ? 'bg-slate-800 text-primary hover:bg-slate-700'
-                      : 'bg-white text-primary hover:bg-primary border border-primary'
-                  }`}
+                  className="px-4 py-2 font-medium transition-all duration-200 whitespace-nowrap"
+                  style={{
+                    borderRadius: 'var(--border-radius)',
+                    backgroundColor: activeFilter === filter.value ? 'var(--color-accent)' : 'var(--bg-secondary)',
+                    color: activeFilter === filter.value ? '#ffffff' : 'var(--text-primary)',
+                    border: activeFilter === filter.value ? 'none' : '1px solid var(--border-primary)',
+                    fontFamily: 'var(--font-body)'
+                  }}
+                  onMouseEnter={(e) => {
+                    if (activeFilter !== filter.value) {
+                      e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)'
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (activeFilter !== filter.value) {
+                      e.currentTarget.style.backgroundColor = 'var(--bg-secondary)'
+                    }
+                  }}
                 >
                   {filter.label} ({filter.count})
                 </button>
@@ -205,29 +255,63 @@ export function PublicPositionsContainer() {
             {/* Portfolio Aggregate Cards - Right Side (always visible) */}
             <div className="flex gap-3">
               {/* EOY Return Card */}
-              <div className="rounded-lg border px-4 py-3 min-w-[180px] transition-all duration-300 themed-card">
-                <p className="text-xs mb-1 transition-colors duration-300 text-secondary">
+              <div
+                className="px-4 py-3 min-w-[180px] transition-all duration-300"
+                style={{
+                  borderRadius: 'var(--border-radius)',
+                  border: '1px solid var(--border-primary)',
+                  backgroundColor: 'var(--bg-secondary)'
+                }}
+              >
+                <p
+                  className="mb-1 transition-colors duration-300"
+                  style={{
+                    fontSize: 'var(--text-xs)',
+                    color: 'var(--text-secondary)',
+                    fontFamily: 'var(--font-body)'
+                  }}
+                >
                   Portfolio Return EOY
                 </p>
-                <p className={`text-xl font-bold transition-colors duration-300 ${
-                  aggregates.portfolio.eoy >= 0
-                    ? 'text-green-500'
-                    : 'text-red-500'
-                }`}>
+                <p
+                  className="font-bold transition-colors duration-300"
+                  style={{
+                    fontSize: 'var(--text-xl)',
+                    color: aggregates.portfolio.eoy >= 0 ? 'var(--color-success)' : 'var(--color-error)',
+                    fontFamily: 'var(--font-display)'
+                  }}
+                >
                   {aggregates.portfolio.eoy.toFixed(2)}%
                 </p>
               </div>
 
               {/* Next Year Return Card */}
-              <div className="rounded-lg border px-4 py-3 min-w-[180px] transition-all duration-300 themed-card">
-                <p className="text-xs mb-1 transition-colors duration-300 text-secondary">
+              <div
+                className="px-4 py-3 min-w-[180px] transition-all duration-300"
+                style={{
+                  borderRadius: 'var(--border-radius)',
+                  border: '1px solid var(--border-primary)',
+                  backgroundColor: 'var(--bg-secondary)'
+                }}
+              >
+                <p
+                  className="mb-1 transition-colors duration-300"
+                  style={{
+                    fontSize: 'var(--text-xs)',
+                    color: 'var(--text-secondary)',
+                    fontFamily: 'var(--font-body)'
+                  }}
+                >
                   Portfolio Return Next Year
                 </p>
-                <p className={`text-xl font-bold transition-colors duration-300 ${
-                  aggregates.portfolio.nextYear >= 0
-                    ? 'text-green-500'
-                    : 'text-red-500'
-                }`}>
+                <p
+                  className="font-bold transition-colors duration-300"
+                  style={{
+                    fontSize: 'var(--text-xl)',
+                    color: aggregates.portfolio.nextYear >= 0 ? 'var(--color-success)' : 'var(--color-error)',
+                    fontFamily: 'var(--font-display)'
+                  }}
+                >
                   {aggregates.portfolio.nextYear.toFixed(2)}%
                 </p>
               </div>

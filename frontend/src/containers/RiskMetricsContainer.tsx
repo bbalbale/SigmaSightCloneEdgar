@@ -45,15 +45,18 @@ export function RiskMetricsContainer() {
   return (
     <div className="min-h-screen transition-colors duration-300 bg-primary">
       {/* Page Header */}
-      <section className="px-4 py-8 border-b transition-colors duration-300"
+      <section className="px-4 py-8 transition-colors duration-300"
         style={{
-          borderColor: theme === 'dark' ? 'rgb(51 65 85)' : 'rgb(229 231 235)'
+          borderBottom: '1px solid var(--border-primary)'
         }}
       >
         <div className="container mx-auto">
-          <h1 className={`text-3xl font-bold ${
-            theme === 'dark' ? 'text-white' : 'text-gray-900'
-          }`}>
+          <h1 className="transition-colors duration-300" style={{
+            fontSize: 'var(--text-3xl)',
+            fontWeight: 'bold',
+            color: 'var(--text-primary)',
+            fontFamily: 'var(--font-display)'
+          }}>
             Risk Metrics
           </h1>
           <p className="mt-2 text-lg text-secondary">

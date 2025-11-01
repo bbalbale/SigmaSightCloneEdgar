@@ -6,7 +6,6 @@ import { TagBadge } from './TagBadge'
 import { TagCreator } from './TagCreator'
 import { Card, CardContent } from '@/components/ui/card'
 import { Trash } from 'lucide-react'
-import { useTheme } from '@/contexts/ThemeContext'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -29,7 +28,6 @@ export function TagList({
   onCreate,
   onDelete
 }: TagListProps) {
-  const { theme } = useTheme()
   const [tagToDelete, setTagToDelete] = useState<TagItem | null>(null)
 
   const confirmDelete = async () => {
@@ -57,9 +55,7 @@ export function TagList({
       <Card className="transition-colors themed-card">
         <CardContent className="pt-6">
           {tags.length === 0 ? (
-            <div className={`text-center py-8 transition-colors duration-300 ${
-              theme === 'dark' ? 'text-secondary' : 'text-tertiary'
-            }`}>
+            <div className="text-center py-8 transition-colors duration-300 text-secondary">
               No tags yet. Create one to categorize your strategies.
             </div>
           ) : (
@@ -69,21 +65,26 @@ export function TagList({
                 {tags.map((tag) => (
                   <div
                     key={tag.id}
-                    className={`flex items-center gap-2 rounded-lg p-2 pr-3 border transition-colors ${
-                      theme === 'dark'
-                        ? 'bg-slate-700 border-slate-600'
-                        : 'bg-primary border-primary'
-                    }`}
+                    className="flex items-center gap-2 rounded-lg p-2 pr-3 transition-colors duration-300"
+                    style={{
+                      backgroundColor: 'var(--bg-secondary)',
+                      border: '1px solid var(--border-primary)'
+                    }}
                   >
                     <TagBadge tag={tag} draggable={true} />
 
                     <button
                       onClick={() => setTagToDelete(tag)}
-                      className={`transition-colors ${
-                        theme === 'dark'
-                          ? 'text-secondary hover:text-red-400'
-                          : 'text-gray-400 hover:text-red-600'
-                      }`}
+                      className="transition-colors duration-300"
+                      style={{
+                        color: 'var(--text-secondary)'
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.color = 'var(--color-error)'
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.color = 'var(--text-secondary)'
+                      }}
                       title="Archive tag"
                     >
                       <Trash className="h-3 w-3" />
@@ -98,17 +99,20 @@ export function TagList({
 
       {/* Delete Confirmation Dialog */}
       <AlertDialog open={!!tagToDelete} onOpenChange={(open) => !open && setTagToDelete(null)}>
-        <AlertDialogContent className={theme === 'dark' ? 'themed-card' : 'themed-card'}>
+        <AlertDialogContent className="themed-card">
           <AlertDialogHeader>
-            <AlertDialogTitle className={theme === 'dark' ? 'text-white' : 'text-gray-900'}>
+            <AlertDialogTitle style={{ color: 'var(--text-primary)' }}>
               Archive Tag
             </AlertDialogTitle>
-            <AlertDialogDescription className={theme === 'dark' ? 'text-secondary' : 'text-secondary'}>
+            <AlertDialogDescription className="text-secondary">
               Are you sure you want to archive "{tagToDelete?.name}"? This will remove it from all positions.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel className={theme === 'dark' ? 'bg-slate-700 text-primary hover:bg-slate-600' : ''}>
+            <AlertDialogCancel className="transition-colors duration-300" style={{
+              backgroundColor: 'var(--bg-secondary)',
+              color: 'var(--text-primary)'
+            }}>
               Cancel
             </AlertDialogCancel>
             <AlertDialogAction

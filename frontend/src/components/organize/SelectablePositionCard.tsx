@@ -1,5 +1,4 @@
-import React from 'react'
-import { useTheme } from '@/contexts/ThemeContext'
+import React, { useState } from 'react'
 import { TagBadge } from './TagBadge'
 
 // Simple tag interface for display - matches Position tags from API
@@ -31,20 +30,19 @@ export function SelectablePositionCard({
   onDropTag,
   onDropPosition
 }: SelectablePositionCardProps) {
-  const { theme } = useTheme()
+  const [isDragging, setIsDragging] = useState(false)
+  const [dragType, setDragType] = useState<'tag' | 'position' | null>(null)
 
   // Drag start handler - make position draggable
   const handleDragStart = (e: React.DragEvent) => {
     e.dataTransfer.setData('positionId', positionId)
     e.dataTransfer.setData('symbol', symbol)
     e.dataTransfer.effectAllowed = 'move'
-
-    // Add visual feedback
-    e.currentTarget.classList.add('opacity-50')
+    setIsDragging(true)
   }
 
   const handleDragEnd = (e: React.DragEvent) => {
-    e.currentTarget.classList.remove('opacity-50')
+    setIsDragging(false)
   }
 
   // Drag & drop handlers for tag application AND position combination
@@ -53,27 +51,16 @@ export function SelectablePositionCard({
 
     // Check if we're dragging a position or a tag
     const draggedPositionId = e.dataTransfer.types.includes('positionid') ? 'position' : 'tag'
-
-    if (draggedPositionId === 'position') {
-      // Position drag - green highlight for combination
-      e.currentTarget.classList.add(
-        theme === 'dark' ? 'bg-green-900/20' : 'bg-green-50'
-      )
-    } else {
-      // Tag drag - blue highlight
-      e.currentTarget.classList.add(
-        theme === 'dark' ? 'bg-blue-900/20' : 'bg-blue-50'
-      )
-    }
+    setDragType(draggedPositionId)
   }
 
   const handleDragLeave = (e: React.DragEvent) => {
-    e.currentTarget.classList.remove('bg-blue-50', 'bg-blue-900/20', 'bg-green-50', 'bg-green-900/20')
+    setDragType(null)
   }
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault()
-    e.currentTarget.classList.remove('bg-blue-50', 'bg-blue-900/20', 'bg-green-50', 'bg-green-900/20')
+    setDragType(null)
 
     // Check what was dropped
     const tagId = e.dataTransfer.getData('tagId')
@@ -88,22 +75,47 @@ export function SelectablePositionCard({
     }
   }
 
+  // Dynamic styles based on drag state
+  const getDragOverlayStyle = () => {
+    if (dragType === 'position') {
+      return {
+        backgroundColor: 'rgba(34, 197, 94, 0.1)', // green overlay
+        pointerEvents: 'none' as const,
+        position: 'absolute' as const,
+        inset: 0,
+        borderRadius: '0.5rem'
+      }
+    } else if (dragType === 'tag') {
+      return {
+        backgroundColor: 'rgba(59, 130, 246, 0.1)', // blue overlay
+        pointerEvents: 'none' as const,
+        position: 'absolute' as const,
+        inset: 0,
+        borderRadius: '0.5rem'
+      }
+    }
+    return null
+  }
+
   return (
     <div
       draggable
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
-      className={`relative transition-all rounded-lg cursor-move ${
-        isSelected
-          ? theme === 'dark'
-            ? 'ring-2 ring-blue-500 ring-offset-2 ring-offset-slate-900'
-            : 'ring-2 ring-blue-500 ring-offset-2'
-          : ''
-      }`}
+      className="relative transition-all rounded-lg cursor-move"
+      style={{
+        opacity: isDragging ? 0.5 : 1,
+        ...(isSelected ? {
+          boxShadow: '0 0 0 2px rgb(59 130 246), 0 0 0 4px var(--bg-primary)'
+        } : {})
+      }}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
     >
+      {/* Drag overlay */}
+      {dragType && <div style={getDragOverlayStyle()} />}
+
       {/* Checkbox + Card Layout */}
       <div className="flex items-start gap-3">
         {/* Checkbox */}

@@ -115,10 +115,10 @@ export function SigmaSightAIContainer() {
                   color: 'var(--text-primary)',
                   fontFamily: 'var(--font-display)'
                 }}>
-                  Ask Claude
+                  Ask SigmaSight AI
                 </h2>
                 <p className="text-sm mt-1 transition-colors duration-300 text-secondary">
-                  Chat with Claude about your portfolio using real-time analytics
+                  Chat with SigmaSight AI about your portfolio using real-time analytics
                 </p>
               </div>
               <ClaudeChatInterface />

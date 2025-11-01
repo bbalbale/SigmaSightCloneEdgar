@@ -5,7 +5,6 @@ import React, { useState, useCallback, useRef, useEffect } from 'react'
 import { TagBadge } from '@/components/organize/TagBadge'
 import { Input } from '@/components/ui/input'
 import { formatCurrency } from '@/lib/formatters'
-import { useTheme } from '@/contexts/ThemeContext'
 import { usePortfolioStore } from '@/stores/portfolioStore'
 import type { EnhancedPosition } from '@/services/positionResearchService'
 import targetPriceService from '@/services/targetPriceService'
@@ -18,7 +17,6 @@ interface ResearchPositionCardProps {
 }
 
 export function ResearchPositionCard({ position, onClick, onTargetPriceUpdate }: ResearchPositionCardProps) {
-  const { theme } = useTheme()
   const { portfolioId } = usePortfolioStore()
   // Prepopulate EOY target with analyst target if no user target exists (treat 0 as no target)
   const [userTargetEOY, setUserTargetEOY] = useState(
@@ -182,35 +180,41 @@ export function ResearchPositionCard({ position, onClick, onTargetPriceUpdate }:
   return (
     <div
       onClick={onClick}
-      className={`group relative overflow-hidden rounded-lg border transition-all duration-300 ${
-        theme === 'dark'
-          ? 'bg-slate-800/50 border-primary/50 hover:border-slate-600 hover:shadow-lg hover:shadow-slate-900/50'
-          : 'themed-card hover:border-gray-300 hover:shadow-lg hover:shadow-gray-200/50'
-      } ${onClick ? 'cursor-pointer' : ''}`}
+      className="group relative overflow-hidden rounded-lg border transition-all duration-300 hover:shadow-lg"
+      style={{
+        backgroundColor: 'var(--bg-secondary)',
+        borderColor: 'var(--border-primary)',
+        cursor: onClick ? 'pointer' : 'default'
+      }}
     >
       {/* Header Section */}
-      <div className={`border-b px-4 py-3 transition-colors duration-300 ${
-        theme === 'dark' ? 'border-primary/50' : 'border-gray-100'
-      }`}>
+      <div className="border-b px-4 py-3 transition-colors duration-300" style={{
+        borderColor: 'var(--border-primary)'
+      }}>
         <div className="flex items-start justify-between">
           <div className="flex-1">
             <div className="flex items-baseline gap-2 mb-1">
               <div>
-                <h3 className={`text-lg font-bold tracking-tight transition-colors duration-300 ${
-                  theme === 'dark' ? 'text-white' : 'text-gray-900'
-                }`}>
+                <h3 className="tracking-tight transition-colors duration-300" style={{
+                  fontSize: 'var(--text-lg)',
+                  fontWeight: 700,
+                  color: 'var(--text-primary)',
+                  fontFamily: 'var(--font-display)'
+                }}>
                   {position.symbol}
                 </h3>
-                <div className={`text-xs transition-colors duration-300 ${
-                  theme === 'dark' ? 'text-secondary' : 'text-tertiary'
-                }`}>
+                <div className="transition-colors duration-300" style={{
+                  fontSize: 'var(--text-xs)',
+                  color: 'var(--text-secondary)'
+                }}>
                   {position.company_name || position.symbol}
                 </div>
               </div>
               {position.percent_of_equity !== undefined && (
-                <span className={`text-xs font-medium transition-colors duration-300 ${
-                  theme === 'dark' ? 'text-secondary' : 'text-tertiary'
-                }`}>
+                <span className="font-medium transition-colors duration-300" style={{
+                  fontSize: 'var(--text-xs)',
+                  color: 'var(--text-secondary)'
+                }}>
                   {position.percent_of_equity.toFixed(2)}% of equity
                 </span>
               )}
@@ -229,30 +233,34 @@ export function ResearchPositionCard({ position, onClick, onTargetPriceUpdate }:
           {/* Expected Returns - Prominent Display */}
           <div className="flex gap-4 ml-4">
             <div className="text-right">
-              <div className={`text-xs font-medium mb-0.5 transition-colors duration-300 ${
-                theme === 'dark' ? 'text-secondary' : 'text-tertiary'
-              }`}>
+              <div className="font-medium mb-0.5 transition-colors duration-300" style={{
+                fontSize: 'var(--text-xs)',
+                color: 'var(--text-secondary)'
+              }}>
                 EOY Target
               </div>
-              <div className={`text-lg font-bold tabular-nums ${
-                expectedReturnEOY !== null
-                  ? expectedReturnEOY >= 0 ? 'text-emerald-500' : 'text-rose-500'
-                  : theme === 'dark' ? 'text-slate-600' : 'text-gray-300'
-              }`}>
+              <div className="font-bold tabular-nums" style={{
+                fontSize: 'var(--text-lg)',
+                color: expectedReturnEOY !== null
+                  ? expectedReturnEOY >= 0 ? 'var(--color-success)' : 'var(--color-error)'
+                  : 'var(--text-tertiary)'
+              }}>
                 {expectedReturnEOY !== null ? `${expectedReturnEOY >= 0 ? '+' : ''}${expectedReturnEOY.toFixed(1)}%` : '—'}
               </div>
             </div>
             <div className="text-right">
-              <div className={`text-xs font-medium mb-0.5 transition-colors duration-300 ${
-                theme === 'dark' ? 'text-secondary' : 'text-tertiary'
-              }`}>
+              <div className="font-medium mb-0.5 transition-colors duration-300" style={{
+                fontSize: 'var(--text-xs)',
+                color: 'var(--text-secondary)'
+              }}>
                 Next Year
               </div>
-              <div className={`text-lg font-bold tabular-nums ${
-                expectedReturnNextYear !== null
-                  ? expectedReturnNextYear >= 0 ? 'text-emerald-500' : 'text-rose-500'
-                  : theme === 'dark' ? 'text-slate-600' : 'text-gray-300'
-              }`}>
+              <div className="font-bold tabular-nums" style={{
+                fontSize: 'var(--text-lg)',
+                color: expectedReturnNextYear !== null
+                  ? expectedReturnNextYear >= 0 ? 'var(--color-success)' : 'var(--color-error)'
+                  : 'var(--text-tertiary)'
+              }}>
                 {expectedReturnNextYear !== null ? `${expectedReturnNextYear >= 0 ? '+' : ''}${expectedReturnNextYear.toFixed(1)}%` : '—'}
               </div>
             </div>
@@ -261,44 +269,49 @@ export function ResearchPositionCard({ position, onClick, onTargetPriceUpdate }:
       </div>
 
       {/* Price & Targets Section */}
-      <div className={`border-b px-4 py-3 transition-colors duration-300 ${
-        theme === 'dark' ? 'border-primary/50' : 'border-gray-100'
-      }`}>
+      <div className="border-b px-4 py-3 transition-colors duration-300" style={{
+        borderColor: 'var(--border-primary)'
+      }}>
         <div className="grid grid-cols-4 gap-6">
-          <div className={`p-2 rounded-md transition-colors duration-300 ${
-            theme === 'dark' ? 'bg-primary/30' : 'bg-white/50'
-          }`}>
-            <div className={`text-xs font-medium mb-1.5 transition-colors duration-300 ${
-              theme === 'dark' ? 'text-secondary' : 'text-tertiary'
-            }`}>
+          <div className="p-2 rounded-md transition-colors duration-300" style={{
+            backgroundColor: 'var(--bg-tertiary)'
+          }}>
+            <div className="font-medium mb-1.5 transition-colors duration-300" style={{
+              fontSize: 'var(--text-xs)',
+              color: 'var(--text-secondary)'
+            }}>
               Current Price
             </div>
-            <div className={`text-base font-semibold tabular-nums transition-colors duration-300 ${
-              theme === 'dark' ? 'text-white' : 'text-gray-900'
-            }`}>
+            <div className="font-semibold tabular-nums transition-colors duration-300" style={{
+              fontSize: 'var(--text-base)',
+              color: 'var(--text-primary)'
+            }}>
               {formatCurrency(position.current_price)}
             </div>
           </div>
 
-          <div className={`p-2 rounded-md transition-colors duration-300 ${
-            theme === 'dark' ? 'bg-primary/30' : 'bg-white/50'
-          }`}>
-            <div className={`text-xs font-medium mb-1.5 transition-colors duration-300 ${
-              theme === 'dark' ? 'text-secondary' : 'text-tertiary'
-            }`}>
+          <div className="p-2 rounded-md transition-colors duration-300" style={{
+            backgroundColor: 'var(--bg-tertiary)'
+          }}>
+            <div className="font-medium mb-1.5 transition-colors duration-300" style={{
+              fontSize: 'var(--text-xs)',
+              color: 'var(--text-secondary)'
+            }}>
               Analyst Target
             </div>
-            <div className={`text-base font-semibold tabular-nums transition-colors duration-300 ${
-              theme === 'dark' ? 'text-white' : 'text-gray-900'
-            }`}>
+            <div className="font-semibold tabular-nums transition-colors duration-300" style={{
+              fontSize: 'var(--text-base)',
+              color: 'var(--text-primary)'
+            }}>
               {position.target_mean_price ? formatCurrency(position.target_mean_price) : '—'}
             </div>
           </div>
 
           <div>
-            <label className={`text-xs font-medium mb-1.5 block transition-colors duration-300 ${
-              theme === 'dark' ? 'text-secondary' : 'text-tertiary'
-            }`}>
+            <label className="font-medium mb-1.5 block transition-colors duration-300" style={{
+              fontSize: 'var(--text-xs)',
+              color: 'var(--text-secondary)'
+            }}>
               Your EOY Target
             </label>
             <Input
@@ -310,18 +323,21 @@ export function ResearchPositionCard({ position, onClick, onTargetPriceUpdate }:
               onKeyDown={handleKeyDown}
               placeholder="Enter"
               disabled={isSaving}
-              className={`h-8 text-sm font-semibold tabular-nums transition-colors duration-300 ${
-                theme === 'dark'
-                  ? 'bg-primary/50 border-slate-600 focus:border-blue-500 text-white placeholder:text-tertiary'
-                  : 'bg-white border-gray-300 focus:border-blue-500 text-gray-900 placeholder:text-gray-400'
-              }`}
+              className="h-8 font-semibold tabular-nums transition-colors duration-300"
+              style={{
+                fontSize: 'var(--text-sm)',
+                backgroundColor: 'var(--bg-tertiary)',
+                borderColor: 'var(--border-primary)',
+                color: 'var(--text-primary)'
+              }}
             />
           </div>
 
           <div>
-            <label className={`text-xs font-medium mb-1.5 block transition-colors duration-300 ${
-              theme === 'dark' ? 'text-secondary' : 'text-tertiary'
-            }`}>
+            <label className="font-medium mb-1.5 block transition-colors duration-300" style={{
+              fontSize: 'var(--text-xs)',
+              color: 'var(--text-secondary)'
+            }}>
               Next Year Target
             </label>
             <Input
@@ -333,11 +349,13 @@ export function ResearchPositionCard({ position, onClick, onTargetPriceUpdate }:
               onKeyDown={handleKeyDown}
               placeholder="Enter"
               disabled={isSaving}
-              className={`h-8 text-sm font-semibold tabular-nums transition-colors duration-300 ${
-                theme === 'dark'
-                  ? 'bg-primary/50 border-slate-600 focus:border-blue-500 text-white placeholder:text-tertiary'
-                  : 'bg-white border-gray-300 focus:border-blue-500 text-gray-900 placeholder:text-gray-400'
-              }`}
+              className="h-8 font-semibold tabular-nums transition-colors duration-300"
+              style={{
+                fontSize: 'var(--text-sm)',
+                backgroundColor: 'var(--bg-tertiary)',
+                borderColor: 'var(--border-primary)',
+                color: 'var(--text-primary)'
+              }}
             />
           </div>
         </div>
@@ -348,66 +366,77 @@ export function ResearchPositionCard({ position, onClick, onTargetPriceUpdate }:
         <div className="grid grid-cols-2 gap-6">
           {/* Current Year Metrics */}
           <div>
-            <h4 className="text-xs font-semibold mb-3 uppercase tracking-wide transition-colors duration-300 text-secondary">
+            <h4 className="font-semibold mb-3 uppercase tracking-wide transition-colors duration-300" style={{
+              fontSize: 'var(--text-xs)',
+              color: 'var(--text-secondary)'
+            }}>
               Current Year
             </h4>
             <div className="grid grid-cols-2 gap-3">
-              <div className={`p-3 rounded-lg transition-colors duration-300 ${
-                theme === 'dark' ? 'bg-primary/50' : 'bg-primary'
-              }`}>
-                <div className={`text-xs font-medium mb-1 transition-colors duration-300 ${
-                  theme === 'dark' ? 'text-secondary' : 'text-tertiary'
-                }`}>
+              <div className="p-3 rounded-lg transition-colors duration-300" style={{
+                backgroundColor: 'var(--bg-tertiary)'
+              }}>
+                <div className="font-medium mb-1 transition-colors duration-300" style={{
+                  fontSize: 'var(--text-xs)',
+                  color: 'var(--text-secondary)'
+                }}>
                   P/E Ratio
                 </div>
-                <div className={`text-sm font-semibold tabular-nums transition-colors duration-300 ${
-                  theme === 'dark' ? 'text-white' : 'text-gray-900'
-                }`}>
+                <div className="font-semibold tabular-nums transition-colors duration-300" style={{
+                  fontSize: 'var(--text-sm)',
+                  color: 'var(--text-primary)'
+                }}>
                   {peThisYear !== null ? peThisYear.toFixed(1) : '—'}
                 </div>
               </div>
 
-              <div className={`p-3 rounded-lg transition-colors duration-300 ${
-                theme === 'dark' ? 'bg-primary/50' : 'bg-primary'
-              }`}>
-                <div className={`text-xs font-medium mb-1 transition-colors duration-300 ${
-                  theme === 'dark' ? 'text-secondary' : 'text-tertiary'
-                }`}>
+              <div className="p-3 rounded-lg transition-colors duration-300" style={{
+                backgroundColor: 'var(--bg-tertiary)'
+              }}>
+                <div className="font-medium mb-1 transition-colors duration-300" style={{
+                  fontSize: 'var(--text-xs)',
+                  color: 'var(--text-secondary)'
+                }}>
                   P/S Ratio
                 </div>
-                <div className={`text-sm font-semibold tabular-nums transition-colors duration-300 ${
-                  theme === 'dark' ? 'text-white' : 'text-gray-900'
-                }`}>
+                <div className="font-semibold tabular-nums transition-colors duration-300" style={{
+                  fontSize: 'var(--text-sm)',
+                  color: 'var(--text-primary)'
+                }}>
                   {psThisYear !== null ? psThisYear.toFixed(2) : '—'}
                 </div>
               </div>
 
-              <div className={`p-3 rounded-lg transition-colors duration-300 ${
-                theme === 'dark' ? 'bg-primary/50' : 'bg-primary'
-              }`}>
-                <div className={`text-xs font-medium mb-1 transition-colors duration-300 ${
-                  theme === 'dark' ? 'text-secondary' : 'text-tertiary'
-                }`}>
+              <div className="p-3 rounded-lg transition-colors duration-300" style={{
+                backgroundColor: 'var(--bg-tertiary)'
+              }}>
+                <div className="font-medium mb-1 transition-colors duration-300" style={{
+                  fontSize: 'var(--text-xs)',
+                  color: 'var(--text-secondary)'
+                }}>
                   EPS
                 </div>
-                <div className={`text-sm font-semibold tabular-nums transition-colors duration-300 ${
-                  theme === 'dark' ? 'text-white' : 'text-gray-900'
-                }`}>
+                <div className="font-semibold tabular-nums transition-colors duration-300" style={{
+                  fontSize: 'var(--text-sm)',
+                  color: 'var(--text-primary)'
+                }}>
                   {position.current_year_earnings_avg ? formatCurrency(position.current_year_earnings_avg) : '—'}
                 </div>
               </div>
 
-              <div className={`p-3 rounded-lg transition-colors duration-300 ${
-                theme === 'dark' ? 'bg-primary/50' : 'bg-primary'
-              }`}>
-                <div className={`text-xs font-medium mb-1 transition-colors duration-300 ${
-                  theme === 'dark' ? 'text-secondary' : 'text-tertiary'
-                }`}>
+              <div className="p-3 rounded-lg transition-colors duration-300" style={{
+                backgroundColor: 'var(--bg-tertiary)'
+              }}>
+                <div className="font-medium mb-1 transition-colors duration-300" style={{
+                  fontSize: 'var(--text-xs)',
+                  color: 'var(--text-secondary)'
+                }}>
                   Revenue
                 </div>
-                <div className={`text-sm font-semibold tabular-nums transition-colors duration-300 ${
-                  theme === 'dark' ? 'text-white' : 'text-gray-900'
-                }`}>
+                <div className="font-semibold tabular-nums transition-colors duration-300" style={{
+                  fontSize: 'var(--text-sm)',
+                  color: 'var(--text-primary)'
+                }}>
                   {position.current_year_revenue_avg ? `$${(position.current_year_revenue_avg / 1e9).toFixed(1)}B` : '—'}
                 </div>
               </div>
@@ -416,66 +445,77 @@ export function ResearchPositionCard({ position, onClick, onTargetPriceUpdate }:
 
           {/* Forward Year Metrics */}
           <div>
-            <h4 className="text-xs font-semibold mb-3 uppercase tracking-wide transition-colors duration-300 text-secondary">
+            <h4 className="font-semibold mb-3 uppercase tracking-wide transition-colors duration-300" style={{
+              fontSize: 'var(--text-xs)',
+              color: 'var(--text-secondary)'
+            }}>
               Forward Year
             </h4>
             <div className="grid grid-cols-2 gap-3">
-              <div className={`p-3 rounded-lg transition-colors duration-300 ${
-                theme === 'dark' ? 'bg-primary/50' : 'bg-primary'
-              }`}>
-                <div className={`text-xs font-medium mb-1 transition-colors duration-300 ${
-                  theme === 'dark' ? 'text-secondary' : 'text-tertiary'
-                }`}>
+              <div className="p-3 rounded-lg transition-colors duration-300" style={{
+                backgroundColor: 'var(--bg-tertiary)'
+              }}>
+                <div className="font-medium mb-1 transition-colors duration-300" style={{
+                  fontSize: 'var(--text-xs)',
+                  color: 'var(--text-secondary)'
+                }}>
                   Fwd P/E
                 </div>
-                <div className={`text-sm font-semibold tabular-nums transition-colors duration-300 ${
-                  theme === 'dark' ? 'text-white' : 'text-gray-900'
-                }`}>
+                <div className="font-semibold tabular-nums transition-colors duration-300" style={{
+                  fontSize: 'var(--text-sm)',
+                  color: 'var(--text-primary)'
+                }}>
                   {peNextYear !== null ? peNextYear.toFixed(1) : '—'}
                 </div>
               </div>
 
-              <div className={`p-3 rounded-lg transition-colors duration-300 ${
-                theme === 'dark' ? 'bg-primary/50' : 'bg-primary'
-              }`}>
-                <div className={`text-xs font-medium mb-1 transition-colors duration-300 ${
-                  theme === 'dark' ? 'text-secondary' : 'text-tertiary'
-                }`}>
+              <div className="p-3 rounded-lg transition-colors duration-300" style={{
+                backgroundColor: 'var(--bg-tertiary)'
+              }}>
+                <div className="font-medium mb-1 transition-colors duration-300" style={{
+                  fontSize: 'var(--text-xs)',
+                  color: 'var(--text-secondary)'
+                }}>
                   Fwd P/S
                 </div>
-                <div className={`text-sm font-semibold tabular-nums transition-colors duration-300 ${
-                  theme === 'dark' ? 'text-white' : 'text-gray-900'
-                }`}>
+                <div className="font-semibold tabular-nums transition-colors duration-300" style={{
+                  fontSize: 'var(--text-sm)',
+                  color: 'var(--text-primary)'
+                }}>
                   {psNextYear !== null ? psNextYear.toFixed(2) : '—'}
                 </div>
               </div>
 
-              <div className={`p-3 rounded-lg transition-colors duration-300 ${
-                theme === 'dark' ? 'bg-primary/50' : 'bg-primary'
-              }`}>
-                <div className={`text-xs font-medium mb-1 transition-colors duration-300 ${
-                  theme === 'dark' ? 'text-secondary' : 'text-tertiary'
-                }`}>
+              <div className="p-3 rounded-lg transition-colors duration-300" style={{
+                backgroundColor: 'var(--bg-tertiary)'
+              }}>
+                <div className="font-medium mb-1 transition-colors duration-300" style={{
+                  fontSize: 'var(--text-xs)',
+                  color: 'var(--text-secondary)'
+                }}>
                   Fwd EPS
                 </div>
-                <div className={`text-sm font-semibold tabular-nums transition-colors duration-300 ${
-                  theme === 'dark' ? 'text-white' : 'text-gray-900'
-                }`}>
+                <div className="font-semibold tabular-nums transition-colors duration-300" style={{
+                  fontSize: 'var(--text-sm)',
+                  color: 'var(--text-primary)'
+                }}>
                   {position.next_year_earnings_avg ? formatCurrency(position.next_year_earnings_avg) : '—'}
                 </div>
               </div>
 
-              <div className={`p-3 rounded-lg transition-colors duration-300 ${
-                theme === 'dark' ? 'bg-primary/50' : 'bg-primary'
-              }`}>
-                <div className={`text-xs font-medium mb-1 transition-colors duration-300 ${
-                  theme === 'dark' ? 'text-secondary' : 'text-tertiary'
-                }`}>
+              <div className="p-3 rounded-lg transition-colors duration-300" style={{
+                backgroundColor: 'var(--bg-tertiary)'
+              }}>
+                <div className="font-medium mb-1 transition-colors duration-300" style={{
+                  fontSize: 'var(--text-xs)',
+                  color: 'var(--text-secondary)'
+                }}>
                   Fwd Revenue
                 </div>
-                <div className={`text-sm font-semibold tabular-nums transition-colors duration-300 ${
-                  theme === 'dark' ? 'text-white' : 'text-gray-900'
-                }`}>
+                <div className="font-semibold tabular-nums transition-colors duration-300" style={{
+                  fontSize: 'var(--text-sm)',
+                  color: 'var(--text-primary)'
+                }}>
                   {position.next_year_revenue_avg ? `$${(position.next_year_revenue_avg / 1e9).toFixed(1)}B` : '—'}
                 </div>
               </div>
@@ -485,9 +525,9 @@ export function ResearchPositionCard({ position, onClick, onTargetPriceUpdate }:
       </div>
 
       {/* Hover effect overlay */}
-      <div className={`absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none ${
-        theme === 'dark' ? 'bg-gradient-to-r from-blue-500/5 to-purple-500/5' : 'bg-gradient-to-r from-blue-500/3 to-purple-500/3'
-      }`} />
+      <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" style={{
+        background: 'linear-gradient(to right, rgba(59, 130, 246, 0.03), rgba(147, 51, 234, 0.03))'
+      }} />
     </div>
   )
 }

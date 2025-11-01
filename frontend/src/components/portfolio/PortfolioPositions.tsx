@@ -1,6 +1,5 @@
 import React from 'react'
 import { Badge } from '@/components/ui/badge'
-import { useTheme } from '@/contexts/ThemeContext'
 import { PublicPositions } from './PublicPositions'
 import { OptionsPositions } from './OptionsPositions'
 import { PrivatePositions } from './PrivatePositions'
@@ -37,8 +36,6 @@ export function PortfolioPositions({
   optionsPositions = [],
   privatePositions = []
 }: PortfolioPositionsProps) {
-  const { theme } = useTheme()
-
   // If new investment class arrays are provided, use them
   // Otherwise fall back to legacy long/short grouping
   const hasInvestmentClassData = publicPositions.length > 0 || optionsPositions.length > 0 || privatePositions.length > 0
@@ -63,12 +60,16 @@ export function PortfolioPositions({
             {/* Longs */}
             <div>
               <div className="flex items-center gap-2 mb-4">
-                <h3 className={`text-lg font-semibold transition-colors duration-300 ${
-                  theme === 'dark' ? 'text-white' : 'text-gray-900'
-                }`}>Longs</h3>
-                <Badge variant="secondary" className={`transition-colors duration-300 ${
-                  theme === 'dark' ? 'bg-slate-700 text-primary' : 'bg-gray-200 text-primary'
-                }`}>
+                <h3 className="transition-colors duration-300" style={{
+                  fontSize: 'var(--text-lg)',
+                  fontWeight: 600,
+                  color: 'var(--text-primary)',
+                  fontFamily: 'var(--font-display)'
+                }}>Longs</h3>
+                <Badge variant="secondary" className="transition-colors duration-300" style={{
+                  backgroundColor: 'var(--bg-secondary)',
+                  color: 'var(--color-accent)'
+                }}>
                   {publicLongs.length}
                 </Badge>
               </div>
@@ -78,12 +79,16 @@ export function PortfolioPositions({
             {/* Shorts */}
             <div>
               <div className="flex items-center gap-2 mb-4">
-                <h3 className={`text-lg font-semibold transition-colors duration-300 ${
-                  theme === 'dark' ? 'text-white' : 'text-gray-900'
-                }`}>Shorts</h3>
-                <Badge variant="secondary" className={`transition-colors duration-300 ${
-                  theme === 'dark' ? 'bg-slate-700 text-primary' : 'bg-gray-200 text-primary'
-                }`}>
+                <h3 className="transition-colors duration-300" style={{
+                  fontSize: 'var(--text-lg)',
+                  fontWeight: 600,
+                  color: 'var(--text-primary)',
+                  fontFamily: 'var(--font-display)'
+                }}>Shorts</h3>
+                <Badge variant="secondary" className="transition-colors duration-300" style={{
+                  backgroundColor: 'var(--bg-secondary)',
+                  color: 'var(--color-accent)'
+                }}>
                   {publicShorts.length}
                 </Badge>
               </div>
@@ -93,12 +98,16 @@ export function PortfolioPositions({
             {/* Private Investments */}
             <div>
               <div className="flex items-center gap-2 mb-4">
-                <h3 className={`text-lg font-semibold transition-colors duration-300 ${
-                  theme === 'dark' ? 'text-white' : 'text-gray-900'
-                }`}>Private Investments</h3>
-                <Badge variant="secondary" className={`transition-colors duration-300 ${
-                  theme === 'dark' ? 'bg-slate-700 text-primary' : 'bg-gray-200 text-primary'
-                }`}>
+                <h3 className="transition-colors duration-300" style={{
+                  fontSize: 'var(--text-lg)',
+                  fontWeight: 600,
+                  color: 'var(--text-primary)',
+                  fontFamily: 'var(--font-display)'
+                }}>Private Investments</h3>
+                <Badge variant="secondary" className="transition-colors duration-300" style={{
+                  backgroundColor: 'var(--bg-secondary)',
+                  color: 'var(--color-accent)'
+                }}>
                   {privatePositions.length}
                 </Badge>
               </div>
@@ -111,12 +120,16 @@ export function PortfolioPositions({
             {/* Option Longs (LC, LP) */}
             <div>
               <div className="flex items-center gap-2 mb-4">
-                <h3 className={`text-lg font-semibold transition-colors duration-300 ${
-                  theme === 'dark' ? 'text-white' : 'text-gray-900'
-                }`}>Long Options</h3>
-                <Badge variant="secondary" className={`transition-colors duration-300 ${
-                  theme === 'dark' ? 'bg-slate-700 text-primary' : 'bg-gray-200 text-primary'
-                }`}>
+                <h3 className="transition-colors duration-300" style={{
+                  fontSize: 'var(--text-lg)',
+                  fontWeight: 600,
+                  color: 'var(--text-primary)',
+                  fontFamily: 'var(--font-display)'
+                }}>Long Options</h3>
+                <Badge variant="secondary" className="transition-colors duration-300" style={{
+                  backgroundColor: 'var(--bg-secondary)',
+                  color: 'var(--color-accent)'
+                }}>
                   {optionLongs.length}
                 </Badge>
               </div>
@@ -126,12 +139,16 @@ export function PortfolioPositions({
             {/* Option Shorts (SC, SP) */}
             <div>
               <div className="flex items-center gap-2 mb-4">
-                <h3 className={`text-lg font-semibold transition-colors duration-300 ${
-                  theme === 'dark' ? 'text-white' : 'text-gray-900'
-                }`}>Short Options</h3>
-                <Badge variant="secondary" className={`transition-colors duration-300 ${
-                  theme === 'dark' ? 'bg-slate-700 text-primary' : 'bg-gray-200 text-primary'
-                }`}>
+                <h3 className="transition-colors duration-300" style={{
+                  fontSize: 'var(--text-lg)',
+                  fontWeight: 600,
+                  color: 'var(--text-primary)',
+                  fontFamily: 'var(--font-display)'
+                }}>Short Options</h3>
+                <Badge variant="secondary" className="transition-colors duration-300" style={{
+                  backgroundColor: 'var(--bg-secondary)',
+                  color: 'var(--color-accent)'
+                }}>
                   {optionShorts.length}
                 </Badge>
               </div>

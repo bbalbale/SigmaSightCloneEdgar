@@ -2,11 +2,9 @@
 
 import React from "react";
 import { useRouter } from "next/navigation";
-import { useTheme } from "@/contexts/ThemeContext";
 import { Sparkles } from "lucide-react";
 
 export function AIInsightsButton() {
-  const { theme } = useTheme();
   const router = useRouter();
 
   const handleClick = () => {
@@ -16,14 +14,29 @@ export function AIInsightsButton() {
   return (
     <button
       onClick={handleClick}
-      className={`flex items-center gap-2 px-4 py-2 rounded transition-all duration-200 ${
-        theme === "dark"
-          ? "bg-slate-800 hover:bg-slate-700 text-primary hover:text-slate-100 border border-primary hover:border-slate-600"
-          : "bg-white hover:bg-slate-50 text-slate-700 hover:text-slate-900 border border-slate-300 hover:border-slate-400"
-      }`}
+      className="flex items-center gap-2 transition-all duration-200"
+      style={{
+        padding: '0.5rem 1rem',
+        borderRadius: 'calc(var(--border-radius) * 0.5)',
+        border: '1px solid var(--border-primary)',
+        backgroundColor: 'var(--bg-secondary)',
+        color: 'var(--text-primary)',
+        fontFamily: 'var(--font-body)'
+      }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)'
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.backgroundColor = 'var(--bg-secondary)'
+      }}
     >
       <Sparkles className="h-4 w-4" />
-      <span className="text-sm font-medium">AI Insights</span>
+      <span
+        className="font-medium"
+        style={{ fontSize: 'var(--text-sm)' }}
+      >
+        AI Insights
+      </span>
     </button>
   );
 }

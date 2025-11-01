@@ -2,7 +2,6 @@
 
 import React, { useState, useRef, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
-import { useTheme } from '@/contexts/ThemeContext'
 import { TagBadge } from '@/components/organize/TagBadge'
 import type { TagItem } from '@/types/strategies'
 import type { FactorExposure } from '@/types/analytics'
@@ -24,7 +23,6 @@ export function FilterBar({
   onTagFilterChange,
   onFactorFilterChange
 }: FilterBarProps) {
-  const { theme } = useTheme()
   const [showTagMenu, setShowTagMenu] = useState(false)
   const [showFactorMenu, setShowFactorMenu] = useState(false)
   const tagMenuRef = useRef<HTMLDivElement>(null)
@@ -68,15 +66,18 @@ export function FilterBar({
                   setShowTagMenu(!showTagMenu)
                   setShowFactorMenu(false)
                 }}
-                className={`transition-colors duration-300 ${
-                  selectedTagId
-                    ? theme === 'dark'
-                      ? 'text-white border-blue-500 bg-blue-600 hover:bg-blue-700'
-                      : 'text-white border-blue-500 bg-blue-500 hover:bg-blue-600'
-                    : theme === 'dark'
-                      ? 'text-secondary border-slate-600 bg-slate-800 hover:bg-slate-700'
-                      : 'text-secondary border-gray-300 bg-white hover:bg-primary'
-                }`}
+                className="transition-colors duration-300"
+                style={{
+                  ...(selectedTagId ? {
+                    color: 'white',
+                    borderColor: '#3b82f6',
+                    backgroundColor: '#2563eb'
+                  } : {
+                    color: 'var(--text-secondary)',
+                    borderColor: 'var(--border-primary)',
+                    backgroundColor: 'var(--bg-primary)'
+                  })
+                }}
               >
                 {selectedTag ? selectedTag.name : 'Tags'}
                 {showTagMenu ? ' ▲' : ' ▼'}
@@ -90,22 +91,16 @@ export function FilterBar({
                         onTagFilterChange?.(null)
                         setShowTagMenu(false)
                       }}
-                      className={`w-full text-left px-3 py-2 rounded text-sm transition-colors ${
-                        !selectedTagId
-                          ? theme === 'dark'
-                            ? 'bg-slate-700 text-white'
-                            : 'bg-gray-100 text-gray-900'
-                          : theme === 'dark'
-                            ? 'text-primary hover:bg-slate-700'
-                            : 'text-primary hover:bg-primary'
-                      }`}
+                      className="w-full text-left px-3 py-2 rounded text-sm transition-colors"
+                      style={{
+                        backgroundColor: !selectedTagId ? 'var(--bg-secondary)' : 'transparent',
+                        color: 'var(--text-primary)'
+                      }}
                     >
                       All (No Filter)
                     </button>
                     {tags.length === 0 ? (
-                      <div className={`px-3 py-2 text-sm ${
-                        theme === 'dark' ? 'text-secondary' : 'text-tertiary'
-                      }`}>
+                      <div className="px-3 py-2 text-sm text-secondary">
                         No tags available
                       </div>
                     ) : (
@@ -116,15 +111,11 @@ export function FilterBar({
                             onTagFilterChange?.(tag.id)
                             setShowTagMenu(false)
                           }}
-                          className={`w-full text-left px-3 py-2 rounded text-sm transition-colors ${
-                            selectedTagId === tag.id
-                              ? theme === 'dark'
-                                ? 'bg-slate-700 text-white'
-                                : 'bg-gray-100 text-gray-900'
-                              : theme === 'dark'
-                                ? 'text-primary hover:bg-slate-700'
-                                : 'text-primary hover:bg-primary'
-                          }`}
+                          className="w-full text-left px-3 py-2 rounded text-sm transition-colors hover:opacity-80"
+                          style={{
+                            backgroundColor: selectedTagId === tag.id ? 'var(--bg-secondary)' : 'transparent',
+                            color: 'var(--text-primary)'
+                          }}
                         >
                           <div className="flex items-center gap-2">
                             <div
@@ -150,15 +141,18 @@ export function FilterBar({
                   setShowFactorMenu(!showFactorMenu)
                   setShowTagMenu(false)
                 }}
-                className={`transition-colors duration-300 ${
-                  selectedFactorName
-                    ? theme === 'dark'
-                      ? 'text-white border-blue-500 bg-blue-600 hover:bg-blue-700'
-                      : 'text-white border-blue-500 bg-blue-500 hover:bg-blue-600'
-                    : theme === 'dark'
-                      ? 'text-secondary border-slate-600 bg-slate-800 hover:bg-slate-700'
-                      : 'text-secondary border-gray-300 bg-white hover:bg-primary'
-                }`}
+                className="transition-colors duration-300"
+                style={{
+                  ...(selectedFactorName ? {
+                    color: 'white',
+                    borderColor: '#3b82f6',
+                    backgroundColor: '#2563eb'
+                  } : {
+                    color: 'var(--text-secondary)',
+                    borderColor: 'var(--border-primary)',
+                    backgroundColor: 'var(--bg-primary)'
+                  })
+                }}
               >
                 {selectedFactorName || 'Exposure'}
                 {showFactorMenu ? ' ▲' : ' ▼'}
@@ -172,22 +166,16 @@ export function FilterBar({
                         onFactorFilterChange?.(null)
                         setShowFactorMenu(false)
                       }}
-                      className={`w-full text-left px-3 py-2 rounded text-sm transition-colors ${
-                        !selectedFactorName
-                          ? theme === 'dark'
-                            ? 'bg-slate-700 text-white'
-                            : 'bg-gray-100 text-gray-900'
-                          : theme === 'dark'
-                            ? 'text-primary hover:bg-slate-700'
-                            : 'text-primary hover:bg-primary'
-                      }`}
+                      className="w-full text-left px-3 py-2 rounded text-sm transition-colors"
+                      style={{
+                        backgroundColor: !selectedFactorName ? 'var(--bg-secondary)' : 'transparent',
+                        color: 'var(--text-primary)'
+                      }}
                     >
                       All (No Filter)
                     </button>
                     {factorExposures.length === 0 ? (
-                      <div className={`px-3 py-2 text-sm ${
-                        theme === 'dark' ? 'text-secondary' : 'text-tertiary'
-                      }`}>
+                      <div className="px-3 py-2 text-sm text-secondary">
                         No exposures available
                       </div>
                     ) : (
@@ -198,15 +186,11 @@ export function FilterBar({
                             onFactorFilterChange?.(factor.name)
                             setShowFactorMenu(false)
                           }}
-                          className={`w-full text-left px-3 py-2 rounded text-sm transition-colors ${
-                            selectedFactorName === factor.name
-                              ? theme === 'dark'
-                                ? 'bg-slate-700 text-white'
-                                : 'bg-gray-100 text-gray-900'
-                              : theme === 'dark'
-                                ? 'text-primary hover:bg-slate-700'
-                                : 'text-primary hover:bg-primary'
-                          }`}
+                          className="w-full text-left px-3 py-2 rounded text-sm transition-colors hover:opacity-80"
+                          style={{
+                            backgroundColor: selectedFactorName === factor.name ? 'var(--bg-secondary)' : 'transparent',
+                            color: 'var(--text-primary)'
+                          }}
                         >
                           {factor.name}
                         </button>
@@ -226,11 +210,10 @@ export function FilterBar({
                   onTagFilterChange?.(null)
                   onFactorFilterChange?.(null)
                 }}
-                className={`transition-colors duration-300 ${
-                  theme === 'dark'
-                    ? 'text-red-400 border-red-600 bg-slate-800 hover:bg-red-900/20'
-                    : 'text-red-600 border-red-300 bg-white hover:bg-red-50'
-                }`}
+                className="transition-colors duration-300 text-red-400 border-red-600 hover:bg-red-900/20"
+                style={{
+                  borderColor: '#dc2626'
+                }}
               >
                 Clear
               </Button>

@@ -1,7 +1,6 @@
 "use client"
 
 import React from 'react'
-import { useTheme } from '@/contexts/ThemeContext'
 import type { DiversificationScoreResponse } from '@/types/analytics'
 
 interface DiversificationScoreProps {
@@ -12,14 +11,12 @@ interface DiversificationScoreProps {
 }
 
 export function DiversificationScore({ data, loading, error, onRetry }: DiversificationScoreProps) {
-  const { theme } = useTheme()
-
-  // Get color based on score (0-100)
+  // Get color based on score (0-100) - using Tailwind classes for color coding
   const getScoreColor = (score: number): string => {
-    if (score >= 80) return theme === 'dark' ? 'text-green-400' : 'text-green-600'
-    if (score >= 60) return theme === 'dark' ? 'text-yellow-400' : 'text-yellow-600'
-    if (score >= 40) return theme === 'dark' ? 'text-orange-400' : 'text-orange-600'
-    return theme === 'dark' ? 'text-red-400' : 'text-red-600'
+    if (score >= 80) return 'text-green-400'
+    if (score >= 60) return 'text-yellow-400'
+    if (score >= 40) return 'text-orange-400'
+    return 'text-red-400'
   }
 
   const getScoreLabel = (score: number): string => {
@@ -33,9 +30,7 @@ export function DiversificationScore({ data, loading, error, onRetry }: Diversif
   if (loading) {
     return (
       <div className="rounded-lg border p-6 transition-colors duration-300 themed-card">
-        <h3 className={`text-xl font-bold mb-4 ${
-          theme === 'dark' ? 'text-white' : 'text-gray-900'
-        }`}>
+        <h3 className="text-xl font-bold mb-4 transition-colors duration-300" style={{ color: 'var(--text-primary)' }}>
           Diversification Score
         </h3>
         <div className="flex items-center justify-center py-8">
@@ -52,25 +47,15 @@ export function DiversificationScore({ data, loading, error, onRetry }: Diversif
   if (error) {
     return (
       <div className="rounded-lg border p-6 transition-colors duration-300 themed-card">
-        <h3 className={`text-xl font-bold mb-4 ${
-          theme === 'dark' ? 'text-white' : 'text-gray-900'
-        }`}>
+        <h3 className="text-xl font-bold mb-4 transition-colors duration-300" style={{ color: 'var(--text-primary)' }}>
           Diversification Score
         </h3>
-        <div className={`rounded-lg border p-4 text-center ${
-          theme === 'dark'
-            ? 'bg-red-900/20 border-red-800 text-red-300'
-            : 'bg-red-50 border-red-200 text-red-700'
-        }`}>
+        <div className="rounded-lg border p-4 text-center bg-red-900/20 border-red-800 text-red-300">
           <p className="mb-3 text-sm">Error: {error.message}</p>
           {onRetry && (
             <button
               onClick={onRetry}
-              className={`px-3 py-1.5 rounded-md text-sm transition-colors ${
-                theme === 'dark'
-                  ? 'bg-blue-600 hover:bg-blue-700 text-white'
-                  : 'bg-blue-500 hover:bg-blue-600 text-white'
-              }`}
+              className="px-3 py-1.5 rounded-md text-sm transition-colors bg-blue-600 hover:bg-blue-700 text-white"
             >
               Retry
             </button>
@@ -84,16 +69,14 @@ export function DiversificationScore({ data, loading, error, onRetry }: Diversif
   if (!data?.available || !data?.data) {
     return (
       <div className="rounded-lg border p-6 transition-colors duration-300 themed-card">
-        <h3 className={`text-xl font-bold mb-4 ${
-          theme === 'dark' ? 'text-white' : 'text-gray-900'
-        }`}>
+        <h3 className="text-xl font-bold mb-4 transition-colors duration-300" style={{ color: 'var(--text-primary)' }}>
           Diversification Score
         </h3>
-        <div className={`rounded-lg border p-4 text-center ${
-          theme === 'dark'
-            ? 'bg-slate-700/50 border-slate-600 text-primary'
-            : 'bg-primary border-primary text-secondary'
-        }`}>
+        <div className="rounded-lg border p-4 text-center transition-colors duration-300" style={{
+          backgroundColor: 'var(--bg-secondary)',
+          borderColor: 'var(--border-primary)',
+          color: 'var(--text-primary)'
+        }}>
           <p className="text-sm">Diversification score is not available</p>
           {data?.reason && (
             <p className="mt-2 text-xs opacity-70">Reason: {data.reason}</p>
@@ -107,9 +90,7 @@ export function DiversificationScore({ data, loading, error, onRetry }: Diversif
 
   return (
     <div className="rounded-lg border p-6 transition-colors duration-300 themed-card">
-      <h3 className={`text-xl font-bold mb-4 ${
-        theme === 'dark' ? 'text-white' : 'text-gray-900'
-      }`}>
+      <h3 className="text-xl font-bold mb-4 transition-colors duration-300" style={{ color: 'var(--text-primary)' }}>
         Diversification Score
       </h3>
 
@@ -129,9 +110,7 @@ export function DiversificationScore({ data, loading, error, onRetry }: Diversif
       </div>
 
       {/* Progress Bar */}
-      <div className={`w-full h-2 rounded-full mb-6 ${
-        theme === 'dark' ? 'bg-slate-700' : 'bg-gray-200'
-      }`}>
+      <div className="w-full h-2 rounded-full mb-6 transition-colors duration-300" style={{ backgroundColor: 'var(--bg-secondary)' }}>
         <div
           className="h-full rounded-full transition-all duration-500"
           style={{
@@ -147,9 +126,7 @@ export function DiversificationScore({ data, loading, error, onRetry }: Diversif
           <span className="text-sm text-secondary">
             Asset Class
           </span>
-          <span className={`text-sm font-semibold ${
-            theme === 'dark' ? 'text-slate-200' : 'text-gray-800'
-          }`}>
+          <span className="text-sm font-semibold transition-colors duration-300" style={{ color: 'var(--text-primary)' }}>
             {category_scores.asset_class.toFixed(0)}
           </span>
         </div>
@@ -157,9 +134,7 @@ export function DiversificationScore({ data, loading, error, onRetry }: Diversif
           <span className="text-sm text-secondary">
             Sector
           </span>
-          <span className={`text-sm font-semibold ${
-            theme === 'dark' ? 'text-slate-200' : 'text-gray-800'
-          }`}>
+          <span className="text-sm font-semibold transition-colors duration-300" style={{ color: 'var(--text-primary)' }}>
             {category_scores.sector.toFixed(0)}
           </span>
         </div>
@@ -167,9 +142,7 @@ export function DiversificationScore({ data, loading, error, onRetry }: Diversif
           <span className="text-sm text-secondary">
             Geography
           </span>
-          <span className={`text-sm font-semibold ${
-            theme === 'dark' ? 'text-slate-200' : 'text-gray-800'
-          }`}>
+          <span className="text-sm font-semibold transition-colors duration-300" style={{ color: 'var(--text-primary)' }}>
             {category_scores.geography.toFixed(0)}
           </span>
         </div>
@@ -177,9 +150,7 @@ export function DiversificationScore({ data, loading, error, onRetry }: Diversif
           <span className="text-sm text-secondary">
             Position Size
           </span>
-          <span className={`text-sm font-semibold ${
-            theme === 'dark' ? 'text-slate-200' : 'text-gray-800'
-          }`}>
+          <span className="text-sm font-semibold transition-colors duration-300" style={{ color: 'var(--text-primary)' }}>
             {category_scores.position_size.toFixed(0)}
           </span>
         </div>
@@ -187,12 +158,8 @@ export function DiversificationScore({ data, loading, error, onRetry }: Diversif
 
       {/* Recommendations */}
       {recommendations && recommendations.length > 0 && (
-        <div className={`mt-4 p-4 rounded-lg ${
-          theme === 'dark' ? 'bg-slate-700/50' : 'bg-primary'
-        }`}>
-          <h4 className={`text-sm font-semibold mb-2 ${
-            theme === 'dark' ? 'text-slate-200' : 'text-gray-800'
-          }`}>
+        <div className="mt-4 p-4 rounded-lg transition-colors duration-300" style={{ backgroundColor: 'var(--bg-secondary)' }}>
+          <h4 className="text-sm font-semibold mb-2 transition-colors duration-300" style={{ color: 'var(--text-primary)' }}>
             Recommendations
           </h4>
           <ul className="space-y-1 text-xs text-secondary">
