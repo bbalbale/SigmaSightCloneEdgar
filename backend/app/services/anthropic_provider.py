@@ -6,11 +6,12 @@ Provides AI-powered analytical reasoning using Claude Sonnet 4.
 import time
 from typing import Dict, Any, Optional, List
 import anthropic
-from anthropic.types import Message, TextBlock
+from anthropic.types import Message, TextBlock, ToolUseBlock
 
 from app.config import settings
 from app.core.logging import get_logger
 from app.models.ai_insights import InsightType
+from app.agent.tools.tool_registry import ToolRegistry
 
 logger = get_logger(__name__)
 
@@ -26,8 +27,13 @@ class AnthropicProvider:
     - Error handling and retries
     """
 
-    def __init__(self):
-        """Initialize Anthropic client."""
+    def __init__(self, enable_tools: bool = True):
+        """
+        Initialize Anthropic client.
+
+        Args:
+            enable_tools: Whether to enable tool calling (default: True)
+        """
         if not settings.ANTHROPIC_API_KEY:
             raise ValueError("ANTHROPIC_API_KEY not configured in .env file")
 
@@ -36,8 +42,112 @@ class AnthropicProvider:
         self.max_tokens = settings.ANTHROPIC_MAX_TOKENS
         self.temperature = settings.ANTHROPIC_TEMPERATURE
         self.timeout = settings.ANTHROPIC_TIMEOUT_SECONDS
+        self.enable_tools = enable_tools
 
-        logger.info(f"AnthropicProvider initialized with model: {self.model}")
+        # Tool registry will be created per-request with auth_token in investigate()
+        # (auth_token is not available at init time)
+        self.tool_registry = None
+
+        logger.info(f"AnthropicProvider initialized with model: {self.model}, tools={'enabled' if enable_tools else 'disabled'}")
+
+    def _get_tool_schemas(self) -> List[Dict[str, Any]]:
+        """
+        Get tool schemas in Anthropic format for Claude tool calling.
+
+        Phase 1 Analytics Tools (October 31, 2025):
+        - Portfolio risk metrics overview
+        - Factor exposures
+        - Sector exposure vs S&P 500
+        - Correlation matrix
+        - Stress test scenarios
+        - Company profiles
+        """
+        return [
+            {
+                "name": "get_analytics_overview",
+                "description": "Get comprehensive portfolio risk analytics including beta, volatility, Sharpe ratio, max drawdown, and tracking error. Use this to understand overall portfolio risk profile.",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {
+                        "portfolio_id": {
+                            "type": "string",
+                            "description": "Portfolio UUID to analyze"
+                        }
+                    },
+                    "required": ["portfolio_id"]
+                }
+            },
+            {
+                "name": "get_factor_exposures",
+                "description": "Get portfolio factor exposures including Market Beta, Value, Growth, Momentum, Quality, Size, and Low Volatility factors. Use this to understand systematic risk exposures.",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {
+                        "portfolio_id": {
+                            "type": "string",
+                            "description": "Portfolio UUID to analyze"
+                        }
+                    },
+                    "required": ["portfolio_id"]
+                }
+            },
+            {
+                "name": "get_sector_exposure",
+                "description": "Get sector exposure breakdown with S&P 500 benchmark comparison. Shows over/underweight positions by sector. Use this to assess sector concentration risks.",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {
+                        "portfolio_id": {
+                            "type": "string",
+                            "description": "Portfolio UUID to analyze"
+                        }
+                    },
+                    "required": ["portfolio_id"]
+                }
+            },
+            {
+                "name": "get_correlation_matrix",
+                "description": "Get correlation matrix showing how positions move together. Helps identify diversification and hidden concentration risks. Use this to assess position correlations.",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {
+                        "portfolio_id": {
+                            "type": "string",
+                            "description": "Portfolio UUID to analyze"
+                        }
+                    },
+                    "required": ["portfolio_id"]
+                }
+            },
+            {
+                "name": "get_stress_test_results",
+                "description": "Get stress test scenario results showing portfolio impact under market stress conditions (market crash, volatility spike, sector rotation, etc.). Use this to assess downside risk.",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {
+                        "portfolio_id": {
+                            "type": "string",
+                            "description": "Portfolio UUID to analyze"
+                        }
+                    },
+                    "required": ["portfolio_id"]
+                }
+            },
+            {
+                "name": "get_company_profile",
+                "description": "Get detailed company profile with 53 fields including sector, industry, market cap, revenue, earnings, ratios, and more. Use this to understand individual position fundamentals.",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {
+                        "symbol": {
+                            "type": "string",
+                            "description": "Stock ticker symbol (e.g., 'AAPL', 'MSFT')"
+                        }
+                    },
+                    "required": ["symbol"]
+                }
+            }
+        ]
 
     async def investigate(
         self,
@@ -45,6 +155,7 @@ class AnthropicProvider:
         insight_type: InsightType,
         focus_area: Optional[str] = None,
         user_question: Optional[str] = None,
+        auth_token: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Execute AI-powered investigation using Claude Sonnet 4.
@@ -54,6 +165,7 @@ class AnthropicProvider:
             insight_type: Type of analysis to perform
             focus_area: Optional specific area to focus on
             user_question: Optional user question for on-demand analysis
+            auth_token: Optional JWT token for authenticating tool API calls
 
         Returns:
             Dict containing:
@@ -79,26 +191,132 @@ class AnthropicProvider:
             user_question=user_question,
         )
 
-        logger.info(f"Starting Claude investigation: type={insight_type.value}, focus={focus_area}")
+        logger.info(f"Starting Claude investigation: type={insight_type.value}, focus={focus_area}, tools={'enabled' if self.enable_tools else 'disabled'}")
+
+        # Create tool registry with auth_token for this request
+        if self.enable_tools:
+            self.tool_registry = ToolRegistry(auth_token=auth_token)
+            logger.info(f"Tool registry created with auth_token: {'present' if auth_token else 'missing'}")
 
         try:
-            # Call Claude API
-            message = self.client.messages.create(
-                model=self.model,
-                max_tokens=self.max_tokens,
-                temperature=self.temperature,
-                system=system_prompt,
-                messages=[
-                    {
-                        "role": "user",
-                        "content": investigation_prompt,
-                    }
-                ],
-                timeout=self.timeout,
-            )
+            # Build conversation messages (will grow with tool use)
+            messages = [
+                {
+                    "role": "user",
+                    "content": investigation_prompt,
+                }
+            ]
 
-            # Extract response
-            response_text = self._extract_response_text(message)
+            # Tool execution tracking
+            max_iterations = 5
+            tool_calls_count = 0
+            total_input_tokens = 0
+            total_output_tokens = 0
+
+            # Agentic loop: Keep calling Claude until we get a final text response
+            for iteration in range(max_iterations):
+                logger.info(f"Claude API call iteration {iteration + 1}/{max_iterations}")
+
+                # Prepare API call parameters
+                api_params = {
+                    "model": self.model,
+                    "max_tokens": self.max_tokens,
+                    "temperature": self.temperature,
+                    "system": system_prompt,
+                    "messages": messages,
+                    "timeout": self.timeout,
+                }
+
+                # Add tools if enabled
+                if self.enable_tools:
+                    api_params["tools"] = self._get_tool_schemas()
+
+                # Call Claude API
+                message = self.client.messages.create(**api_params)
+
+                # Track token usage
+                total_input_tokens += message.usage.input_tokens
+                total_output_tokens += message.usage.output_tokens
+
+                # Check if Claude wants to use tools
+                if message.stop_reason == "tool_use":
+                    logger.info("Claude requested tool use")
+
+                    # Extract tool use blocks from response
+                    tool_uses = [block for block in message.content if isinstance(block, ToolUseBlock)]
+
+                    if not tool_uses:
+                        logger.warning("stop_reason=tool_use but no tool_use blocks found")
+                        break
+
+                    # Add assistant's response to conversation
+                    messages.append({
+                        "role": "assistant",
+                        "content": message.content
+                    })
+
+                    # Execute each tool and collect results
+                    tool_results = []
+                    for tool_use in tool_uses:
+                        tool_calls_count += 1
+                        logger.info(f"Executing tool: {tool_use.name} with args: {tool_use.input}")
+
+                        try:
+                            # Execute tool via registry with authentication
+                            ctx = {
+                                "portfolio_id": context.get("portfolio_id")
+                            }
+                            if auth_token:
+                                ctx["auth_token"] = auth_token
+
+                            tool_result = await self.tool_registry.dispatch_tool_call(
+                                tool_name=tool_use.name,
+                                payload=tool_use.input,
+                                ctx=ctx
+                            )
+
+                            logger.info(f"Tool {tool_use.name} executed successfully")
+
+                            # Build tool result message
+                            tool_results.append({
+                                "type": "tool_result",
+                                "tool_use_id": tool_use.id,
+                                "content": str(tool_result)  # Anthropic expects string content
+                            })
+
+                        except Exception as e:
+                            logger.error(f"Error executing tool {tool_use.name}: {e}")
+                            tool_results.append({
+                                "type": "tool_result",
+                                "tool_use_id": tool_use.id,
+                                "content": f"Error executing tool: {str(e)}",
+                                "is_error": True
+                            })
+
+                    # Add tool results to conversation
+                    messages.append({
+                        "role": "user",
+                        "content": tool_results
+                    })
+
+                    # Continue the loop to get Claude's next response
+                    continue
+
+                elif message.stop_reason == "end_turn":
+                    # Claude finished thinking - extract final response
+                    logger.info(f"Claude completed investigation after {iteration + 1} iterations with {tool_calls_count} tool calls")
+                    response_text = self._extract_response_text(message)
+                    break
+
+                else:
+                    # Unexpected stop reason
+                    logger.warning(f"Unexpected stop_reason: {message.stop_reason}")
+                    response_text = self._extract_response_text(message)
+                    break
+            else:
+                # Max iterations reached
+                logger.warning(f"Max iterations ({max_iterations}) reached, extracting current response")
+                response_text = self._extract_response_text(message)
 
             # Parse structured response
             result = self._parse_investigation_response(
@@ -109,17 +327,18 @@ class AnthropicProvider:
             # Calculate performance metrics
             generation_time_ms = (time.time() - start_time) * 1000
             result["performance"] = {
-                "cost_usd": self._calculate_cost(message),
+                "cost_usd": self._calculate_cost_from_tokens(total_input_tokens, total_output_tokens),
                 "generation_time_ms": generation_time_ms,
-                "token_count_input": message.usage.input_tokens,
-                "token_count_output": message.usage.output_tokens,
-                "tool_calls_count": 0,  # No tools used yet
+                "token_count_input": total_input_tokens,
+                "token_count_output": total_output_tokens,
+                "tool_calls_count": tool_calls_count,
             }
 
             logger.info(
                 f"Investigation complete: {generation_time_ms:.0f}ms, "
                 f"${result['performance']['cost_usd']:.4f}, "
-                f"{message.usage.input_tokens + message.usage.output_tokens} tokens"
+                f"{total_input_tokens + total_output_tokens} tokens, "
+                f"{tool_calls_count} tool calls"
             )
 
             return result
@@ -458,14 +677,27 @@ IMPORTANT:
 
     def _calculate_cost(self, message: Message) -> float:
         """
-        Calculate API cost based on Claude Sonnet 4 pricing.
+        Calculate API cost from a single message based on Claude Sonnet 4 pricing.
 
         Pricing (as of 2024):
         - Input: $3.00 per million tokens
         - Output: $15.00 per million tokens
         """
-        input_cost = (message.usage.input_tokens / 1_000_000) * 3.00
-        output_cost = (message.usage.output_tokens / 1_000_000) * 15.00
+        return self._calculate_cost_from_tokens(
+            message.usage.input_tokens,
+            message.usage.output_tokens
+        )
+
+    def _calculate_cost_from_tokens(self, input_tokens: int, output_tokens: int) -> float:
+        """
+        Calculate API cost from token counts based on Claude Sonnet 4 pricing.
+
+        Pricing (as of 2024):
+        - Input: $3.00 per million tokens
+        - Output: $15.00 per million tokens
+        """
+        input_cost = (input_tokens / 1_000_000) * 3.00
+        output_cost = (output_tokens / 1_000_000) * 15.00
         return input_cost + output_cost
 
 

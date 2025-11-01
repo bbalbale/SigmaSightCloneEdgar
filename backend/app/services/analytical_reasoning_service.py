@@ -83,12 +83,12 @@ class AnalyticalReasoningService:
         # 1. Verify portfolio exists
         portfolio = await self._get_portfolio(db, portfolio_id)
 
-        # 2. Check cache for similar analysis
+        # 2. Check cache for similar analysis (DISABLED FOR DEVELOPMENT)
         cache_key = self._generate_cache_key(portfolio_id, insight_type, focus_area, user_question)
-        cached_insight = await self._check_cache(db, cache_key)
-        if cached_insight:
-            logger.info(f"Cache hit for investigation: {cache_key[:16]}...")
-            return cached_insight
+        # cached_insight = await self._check_cache(db, cache_key)
+        # if cached_insight:
+        #     logger.info(f"Cache hit for investigation: {cache_key[:16]}...")
+        #     return cached_insight
 
         # 3. Build investigation context
         context = await self._build_investigation_context(db, portfolio_id, focus_area)
