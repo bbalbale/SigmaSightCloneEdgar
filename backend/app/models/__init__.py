@@ -14,6 +14,7 @@ from app.models.target_prices import TargetPrice
 from app.models.tags_v2 import TagV2
 from app.models.position_tags import PositionTag
 from app.models.ai_insights import AIInsight
+from app.models.fundamentals import IncomeStatement, BalanceSheet, CashFlow
 
 # Export all models
 __all__ = [
@@ -62,4 +63,9 @@ __all__ = [
 
     # AI insights module
     "AIInsight",
+
+    # Fundamentals module
+    "IncomeStatement",
+    "BalanceSheet",
+    "CashFlow",
 ]

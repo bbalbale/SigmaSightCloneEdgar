@@ -119,6 +119,38 @@ class CompanyProfile(Base):
     next_year_earnings_high: Mapped[Optional[Decimal]] = mapped_column(Numeric(12, 4))
     next_year_end_date: Mapped[Optional[date]] = mapped_column(Date)
 
+    # Quarterly analyst estimates (0q, +1q periods) - with absolute target dates
+    # Added November 2, 2025 for fundamental data storage
+    current_quarter_target_period_date: Mapped[Optional[date]] = mapped_column(Date)  # Absolute quarter end
+    current_quarter_revenue_avg: Mapped[Optional[Decimal]] = mapped_column(Numeric(20, 2))
+    current_quarter_revenue_low: Mapped[Optional[Decimal]] = mapped_column(Numeric(20, 2))
+    current_quarter_revenue_high: Mapped[Optional[Decimal]] = mapped_column(Numeric(20, 2))
+    current_quarter_eps_avg: Mapped[Optional[Decimal]] = mapped_column(Numeric(12, 4))
+    current_quarter_eps_low: Mapped[Optional[Decimal]] = mapped_column(Numeric(12, 4))
+    current_quarter_eps_high: Mapped[Optional[Decimal]] = mapped_column(Numeric(12, 4))
+    current_quarter_analyst_count: Mapped[Optional[int]] = mapped_column(Integer)
+
+    next_quarter_target_period_date: Mapped[Optional[date]] = mapped_column(Date)  # Absolute quarter end
+    next_quarter_revenue_avg: Mapped[Optional[Decimal]] = mapped_column(Numeric(20, 2))
+    next_quarter_revenue_low: Mapped[Optional[Decimal]] = mapped_column(Numeric(20, 2))
+    next_quarter_revenue_high: Mapped[Optional[Decimal]] = mapped_column(Numeric(20, 2))
+    next_quarter_eps_avg: Mapped[Optional[Decimal]] = mapped_column(Numeric(12, 4))
+    next_quarter_eps_low: Mapped[Optional[Decimal]] = mapped_column(Numeric(12, 4))
+    next_quarter_eps_high: Mapped[Optional[Decimal]] = mapped_column(Numeric(12, 4))
+    next_quarter_analyst_count: Mapped[Optional[int]] = mapped_column(Integer)
+
+    # Fiscal calendar metadata (for deriving absolute dates)
+    fiscal_year_end: Mapped[Optional[str]] = mapped_column(String(5))  # "MM-DD" format, e.g., "12-31"
+    fiscal_quarter_offset: Mapped[Optional[int]] = mapped_column(Integer, default=0)
+
+    # Next earnings date
+    next_earnings_date: Mapped[Optional[date]] = mapped_column(Date)
+    next_earnings_expected_eps: Mapped[Optional[Decimal]] = mapped_column(Numeric(12, 4))
+    next_earnings_expected_revenue: Mapped[Optional[Decimal]] = mapped_column(Numeric(20, 2))
+
+    # Last fetch tracking for fundamental data
+    fundamentals_last_fetched: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+
     # Data tracking
     data_source: Mapped[str] = mapped_column(String(50), default='yahooquery')
     last_updated: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
