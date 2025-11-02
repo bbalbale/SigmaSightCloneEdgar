@@ -19,7 +19,7 @@ from unittest.mock import patch, MagicMock
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.batch.batch_orchestrator_v2 import batch_orchestrator_v2
+from app.batch.batch_orchestrator_v3 import batch_orchestrator_v3
 from app.database import AsyncSessionLocal
 from app.models.snapshots import BatchJob
 
@@ -43,7 +43,7 @@ async def test_calculation_accuracy_for_demo():
     
     # Run the batch sequence
     print(f"\n▶ Running batch sequence for portfolio {portfolio_id}...")
-    results = await batch_orchestrator_v2.run_daily_batch_sequence(portfolio_id)
+    results = await batch_orchestrator_v3.run_daily_batch_sequence(portfolio_id)
     
     # Check overall success
     failed_jobs = [r for r in results if r['status'] == 'failed']
@@ -107,7 +107,7 @@ async def test_demo_scenarios():
     
     # Scenario 1: Daily update at market close
     print("\n▶ Scenario 1: Daily batch at 4 PM market close")
-    results = await batch_orchestrator_v2.run_daily_batch_sequence(portfolio_id)
+    results = await batch_orchestrator_v3.run_daily_batch_sequence(portfolio_id)
     
     # Just verify we have results to show
     assert len(results) > 0, "No results to show in demo"
@@ -131,7 +131,7 @@ async def test_demo_scenarios():
         # Mock it being Tuesday
         mock_datetime.now.return_value.weekday.return_value = 1  # Tuesday
         
-        results_tuesday = await batch_orchestrator_v2.run_daily_batch_sequence(
+        results_tuesday = await batch_orchestrator_v3.run_daily_batch_sequence(
             portfolio_id, 
             run_correlations=True
         )
@@ -172,7 +172,7 @@ async def test_20_user_scale():
     # Process sequentially (batch processing, not real-time)
     for i, pid in enumerate(portfolio_ids[:6], 1):  # Just test 6 for speed
         print(f"   Processing portfolio {i}/6...")
-        await batch_orchestrator_v2.run_daily_batch_sequence(pid)
+        await batch_orchestrator_v3.run_daily_batch_sequence(pid)
     
     duration = time.time() - start
     
@@ -210,7 +210,7 @@ async def test_market_data_failure_handling():
         print("\n▶ Running batch with simulated Polygon failure...")
         
         # Run batch - should complete with warnings, not crash
-        results = await batch_orchestrator_v2.run_daily_batch_sequence(portfolio_id)
+        results = await batch_orchestrator_v3.run_daily_batch_sequence(portfolio_id)
         
         # Check that batch didn't completely fail
         market_data_job = next(
@@ -252,7 +252,7 @@ async def test_calculation_engine_failure():
         mock.side_effect = Exception("Greeks calculation failed - missing volatility data")
         
         print("\n▶ Running batch with simulated Greeks failure...")
-        results = await batch_orchestrator_v2.run_daily_batch_sequence(portfolio_id)
+        results = await batch_orchestrator_v3.run_daily_batch_sequence(portfolio_id)
         
         # Check Greeks failed
         greeks_job = next((r for r in results if 'greeks' in r['job_name']), None)
@@ -300,7 +300,7 @@ async def test_admin_manual_triggers():
     
     # Just verify the orchestrator can be called manually
     portfolio_id = "550e8400-e29b-41d4-a716-446655440001"
-    results = await batch_orchestrator_v2.run_daily_batch_sequence(portfolio_id)
+    results = await batch_orchestrator_v3.run_daily_batch_sequence(portfolio_id)
     assert len(results) > 0, "Manual trigger failed"
     
     print("✓ Manual batch trigger successful")
@@ -328,7 +328,7 @@ async def test_batch_job_tracking():
     
     # Run a batch
     print("\n▶ Running batch and checking job tracking...")
-    results = await batch_orchestrator_v2.run_daily_batch_sequence(portfolio_id)
+    results = await batch_orchestrator_v3.run_daily_batch_sequence(portfolio_id)
     
     # Check that jobs were recorded
     async with AsyncSessionLocal() as db:
