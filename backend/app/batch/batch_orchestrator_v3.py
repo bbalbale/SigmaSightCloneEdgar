@@ -171,15 +171,20 @@ class BatchOrchestratorV3:
         Returns:
             Summary of batch run
         """
-        if db is None:
-            async with AsyncSessionLocal() as session:
+        try:
+            if db is None:
+                async with AsyncSessionLocal() as session:
+                    return await self._run_sequence_with_session(
+                        session, calculation_date, portfolio_ids
+                    )
+            else:
                 return await self._run_sequence_with_session(
-                    session, calculation_date, portfolio_ids
+                    db, calculation_date, portfolio_ids
                 )
-        else:
-            return await self._run_sequence_with_session(
-                db, calculation_date, portfolio_ids
-            )
+        finally:
+            # Clear batch run tracker when batch completes (success or failure)
+            from app.batch.batch_run_tracker import batch_run_tracker
+            batch_run_tracker.complete()
 
     async def _run_sequence_with_session(
         self,

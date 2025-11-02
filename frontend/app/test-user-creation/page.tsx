@@ -1,7 +1,7 @@
 'use client'
 
-import { TestUserCreationContainer } from '@/containers/TestUserCreationContainer'
+import { RegistrationForm } from '@/components/onboarding/RegistrationForm'
 
 export default function TestUserCreationPage() {
-  return <TestUserCreationContainer />
+  return <RegistrationForm />
 }

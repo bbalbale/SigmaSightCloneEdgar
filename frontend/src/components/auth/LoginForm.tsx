@@ -178,7 +178,7 @@ export function LoginForm() {
               </div>
               <div className="relative flex justify-center text-xs uppercase">
                 <span className="bg-background px-2 text-muted-foreground">
-                  Test User Management
+                  New to SigmaSight?
                 </span>
               </div>
             </div>
@@ -186,15 +186,13 @@ export function LoginForm() {
             <div className="w-full mt-4">
               <Button
                 type="button"
-                variant="secondary"
-                className="w-full"
+                variant="default"
+                className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white"
                 onClick={() => {
-                  console.log('Create Test User button clicked!')
-                  console.log('Navigating to /test-user-creation')
                   router.push('/test-user-creation')
                 }}
               >
-                Create Test User
+                Sign up for Pre-Alpha (invite only)
               </Button>
             </div>
           </CardFooter>

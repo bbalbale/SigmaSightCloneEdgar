@@ -1,5 +1,28 @@
 # ONBOARDING_NEW_ACCOUNT_PORTFOLIO.md
 
+> **⚠️ DEPRECATED (2025-10-29)**: This guide has been superseded by `_docs/requirements/USER_PORTFOLIO_ONBOARDING_DESIGN.md`.
+>
+> **Use the new document for all onboarding implementation work.**
+>
+> This file remains in the archive for historical reference only. The new design document provides:
+> - ✅ Complete API specifications with 3 RESTful endpoints (not manual scripts)
+> - ✅ Structured invite code validation system (single master code: PRESCOTT-LINNAEAN-COWPERTHWAITE)
+> - ✅ Comprehensive CSV validation framework (~35 error codes for graceful error handling)
+> - ✅ 12-column standardized CSV template (vs. ad-hoc 9-column format here)
+> - ✅ Investment class architecture (PUBLIC, OPTIONS, PRIVATE with subtypes)
+> - ✅ Decoupled portfolio creation (<5s) from batch processing (30-60s async)
+> - ✅ Phase 1/2/3 implementation roadmap with security specifications
+> - ✅ Production-ready testing strategy and deployment guidelines
+>
+> **Migration Path**: Replace manual onboarding scripts with the 3 API endpoints specified in the new document:
+> 1. `POST /api/v1/onboarding/register` - User registration with invite code
+> 2. `POST /api/v1/onboarding/authenticate` - JWT authentication
+> 3. `POST /api/v1/onboarding/portfolio/create` - CSV portfolio import with validation
+>
+> **New Design Location**: `/Users/elliottng/CascadeProjects/SigmaSight-BE/backend/_docs/requirements/USER_PORTFOLIO_ONBOARDING_DESIGN.md`
+
+---
+
 Complete guide for onboarding new client accounts with portfolio data into the SigmaSight platform.
 
 > **Target Audience**: AI coding agents and human developers responsible for client onboarding
@@ -307,7 +330,7 @@ def parse_position_type(position_type_str: str) -> PositionType:
 ```bash
 # Note: Custom onboarding script needs to be created based on this guide
 # Use existing scripts as reference:
-uv run python scripts/seed_database.py  # For database setup
+uv run python scripts/database/seed_database.py  # For database setup
 uv run python scripts/check_database_content.py  # For verification
 ```
 
@@ -658,7 +681,7 @@ uv run python scripts/analyze_demo_calculation_engine_failures.py  # Diagnose is
 The onboarding process requires creating custom scripts that combine existing functionality:
 
 1. **`scripts/onboard_client.py`** - Main onboarding orchestration script
-   - Use patterns from `scripts/seed_database.py` for database operations
+   - Use patterns from `scripts/database/seed_database.py` for database operations
    - Reference `scripts/check_database_content.py` for verification
    - Integrate with `app.batch.batch_orchestrator_v2.BatchOrchestratorV2`
 

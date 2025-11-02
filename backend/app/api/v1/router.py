@@ -11,6 +11,7 @@ from app.api.v1.target_prices import router as target_prices_router
 from app.api.v1.tags import router as tags_router
 from app.api.v1.position_tags import router as position_tags_router
 from app.api.v1.insights import router as insights_router
+from app.api.v1.onboarding import router as onboarding_router
 from app.api.v1.endpoints import admin_batch
 from app.api.v1.endpoints.fundamentals import router as fundamentals_router
 
@@ -20,6 +21,9 @@ api_router = APIRouter(prefix="/v1")
 # Include all endpoint routers
 # Authentication (foundation)
 api_router.include_router(auth.router)
+
+# Onboarding APIs (/onboarding/) - user registration and portfolio creation
+api_router.include_router(onboarding_router)
 
 # Portfolio Management APIs (/portfolios/) - multi-portfolio CRUD
 api_router.include_router(portfolios.router)
