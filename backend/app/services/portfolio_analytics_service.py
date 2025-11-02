@@ -92,34 +92,42 @@ class PortfolioAnalyticsService:
         equity_balance: Optional[float] = None
     ) -> Dict[str, Any]:
         """Calculate all portfolio metrics from positions data with equity-based calculations"""
-        
+
         # Initialize metrics
         long_exposure = 0.0
         short_exposure = 0.0
         total_pnl = 0.0
         unrealized_pnl = 0.0
-        
+
         # Position counters
         total_positions = len(positions)
         long_count = 0
         short_count = 0
         option_count = 0
-        
+
+        # Check if positions have price data
+        has_price_data = any(pos.last_price is not None for pos in positions)
+
+        if not has_price_data and total_positions > 0:
+            # Graceful degradation: Fall back to latest snapshot
+            logger.info(f"No position price data available for portfolio {portfolio_id}, using latest snapshot")
+            return await self._get_metrics_from_snapshot(db, portfolio_id, total_positions, equity_balance)
+
         # Calculate metrics from positions
         for pos in positions:
             quantity = float(pos.quantity) if pos.quantity else 0.0
             entry_price = float(pos.entry_price) if pos.entry_price else 0.0
             last_price = float(pos.last_price or 0.0)
-            
+
             # Calculate position market value (keep sign)
             position_value = quantity * last_price
-            
+
             # Calculate P&L for this position
             if entry_price > 0 and last_price > 0:
                 position_cost = quantity * entry_price
                 position_pnl = position_value - position_cost
                 unrealized_pnl += position_pnl
-            
+
             # Simple exposure calculation based on quantity sign
             if quantity > 0:
                 long_exposure += position_value
@@ -137,7 +145,7 @@ class PortfolioAnalyticsService:
                     option_count += 1
                 else:
                     short_count += 1
-        
+
         # Calculate exposure aggregates (short_exposure is negative)
         gross_exposure = long_exposure + abs(short_exposure)
         net_exposure = long_exposure + short_exposure  # Add negative
@@ -238,3 +246,143 @@ class PortfolioAnalyticsService:
         except Exception as e:
             logger.warning(f"Error fetching target returns for portfolio {portfolio_id}: {e}")
             return None
+
+    async def _get_metrics_from_snapshot(
+        self,
+        db: AsyncSession,
+        portfolio_id: UUID,
+        total_positions: int,
+        equity_balance: Optional[float] = None
+    ) -> Dict[str, Any]:
+        """
+        Graceful degradation: Pull exposure metrics from latest PortfolioSnapshot
+        when position price data is not available.
+
+        Args:
+            db: Database session
+            portfolio_id: Portfolio UUID
+            total_positions: Number of positions in portfolio
+            equity_balance: Portfolio equity balance
+
+        Returns:
+            Dict with portfolio metrics from snapshot or zeros if no snapshot exists
+        """
+        try:
+            from app.models.snapshots import PortfolioSnapshot
+
+            # Get the latest snapshot
+            result = await db.execute(
+                select(PortfolioSnapshot)
+                .where(PortfolioSnapshot.portfolio_id == portfolio_id)
+                .order_by(PortfolioSnapshot.snapshot_date.desc())
+                .limit(1)
+            )
+            snapshot = result.scalar_one_or_none()
+
+            if not snapshot:
+                logger.warning(f"No snapshot data available for portfolio {portfolio_id}, returning zeros")
+                # Return zero values if no snapshot exists
+                return self._get_zero_metrics(total_positions, equity_balance)
+
+            # Extract values from snapshot
+            long_exposure = float(snapshot.long_value) if snapshot.long_value else 0.0
+            short_exposure = float(snapshot.short_value) if snapshot.short_value else 0.0
+            gross_exposure = float(snapshot.gross_exposure) if snapshot.gross_exposure else 0.0
+            net_exposure = float(snapshot.net_exposure) if snapshot.net_exposure else 0.0
+            cash_balance = float(snapshot.cash_value) if snapshot.cash_value else 0.0
+            portfolio_total = float(snapshot.total_value) if snapshot.total_value else 0.0
+
+            # Position counts from snapshot
+            long_count = snapshot.num_long_positions
+            short_count = snapshot.num_short_positions
+            # Note: Snapshot doesn't have option_count, estimate from total
+            option_count = max(0, total_positions - long_count - short_count)
+
+            # P&L from snapshot
+            daily_pnl = float(snapshot.daily_pnl) if snapshot.daily_pnl else 0.0
+            cumulative_pnl = float(snapshot.cumulative_pnl) if snapshot.cumulative_pnl else 0.0
+
+            # Calculate percentages
+            long_percentage = (long_exposure / portfolio_total * 100) if portfolio_total > 0 else 0.0
+            short_percentage = (abs(short_exposure) / portfolio_total * 100) if portfolio_total > 0 else 0.0
+            gross_percentage = (gross_exposure / portfolio_total * 100) if portfolio_total > 0 else 0.0
+            net_percentage = (net_exposure / portfolio_total * 100) if portfolio_total > 0 else 0.0
+
+            # Leverage calculation
+            if equity_balance and equity_balance > 0:
+                leverage = gross_exposure / equity_balance
+            else:
+                leverage = gross_exposure / portfolio_total if portfolio_total > 0 else 0.0
+
+            # Fetch target returns
+            target_returns = await self._get_target_returns(db, portfolio_id)
+
+            logger.info(f"Using snapshot data from {snapshot.snapshot_date} for portfolio {portfolio_id}")
+
+            return {
+                "equity_balance": round(equity_balance, 2) if equity_balance is not None else round(portfolio_total, 2),
+                "total_value": round(portfolio_total, 2),
+                "cash_balance": round(cash_balance, 2),
+                "leverage": round(leverage, 2),
+                "exposures": {
+                    "long_exposure": round(long_exposure, 2),
+                    "short_exposure": round(short_exposure, 2),
+                    "gross_exposure": round(gross_exposure, 2),
+                    "net_exposure": round(net_exposure, 2),
+                    "long_percentage": round(long_percentage, 1),
+                    "short_percentage": round(short_percentage, 1),
+                    "gross_percentage": round(gross_percentage, 1),
+                    "net_percentage": round(net_percentage, 1)
+                },
+                "pnl": {
+                    "total_pnl": round(cumulative_pnl, 2),
+                    "unrealized_pnl": round(cumulative_pnl, 2),  # Approximation
+                    "realized_pnl": 0.0  # Not in snapshot
+                },
+                "position_count": {
+                    "total_positions": total_positions,
+                    "long_count": long_count,
+                    "short_count": short_count,
+                    "option_count": option_count
+                },
+                "target_returns": target_returns
+            }
+
+        except Exception as e:
+            logger.error(f"Error fetching snapshot data for portfolio {portfolio_id}: {e}")
+            return self._get_zero_metrics(total_positions, equity_balance)
+
+    def _get_zero_metrics(
+        self,
+        total_positions: int,
+        equity_balance: Optional[float] = None
+    ) -> Dict[str, Any]:
+        """Return zero-initialized metrics when no data is available"""
+        return {
+            "equity_balance": round(equity_balance, 2) if equity_balance is not None else 0.0,
+            "total_value": 0.0,
+            "cash_balance": 0.0,
+            "leverage": 0.0,
+            "exposures": {
+                "long_exposure": 0.0,
+                "short_exposure": 0.0,
+                "gross_exposure": 0.0,
+                "net_exposure": 0.0,
+                "long_percentage": 0.0,
+                "short_percentage": 0.0,
+                "gross_percentage": 0.0,
+                "net_percentage": 0.0
+            },
+            "pnl": {
+                "total_pnl": 0.0,
+                "unrealized_pnl": 0.0,
+                "realized_pnl": 0.0
+            },
+            "position_count": {
+                "total_positions": total_positions,
+                "long_count": 0,
+                "short_count": 0,
+                "option_count": 0
+            },
+            "target_returns": None
+        }

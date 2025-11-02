@@ -101,7 +101,20 @@
       "Bash(git merge:*)",
       "Bash(docker-compose down:*)",
       "Bash(pip install:*)",
-      "Bash(uv pip install:*)"
+      "Bash(uv pip install:*)",
+      "Bash(timeout /t 5 /nobreak)",
+      "Bash(timeout:*)",
+      "Bash(.venvScriptspython.exe scriptsdebug_position_classification.py)",
+      "Bash(nul)",
+      "Bash(.venvScriptspython.exe scriptsverificationtest_sector_tagging.py)",
+      "Bash(railway_backup_20251101.sql)",
+      "Bash(.venvScriptsalembic.exe revision -m \"add_multi_portfolio_support\")",
+      "Bash(cat:*)",
+      "Bash(ping:*)",
+      "Bash(.venvScriptspython.exe scripts/test_fundamentals_endpoints.py)",
+      "Bash(/dev/null)",
+      "Bash(/tmp/users_uirefactor.py)",
+      "Bash(/tmp/users_onboarding.py)"
     ],
     "additionalDirectories": [
       "C:\\c\\Users\\BenBalbale\\CascadeProjects\\SigmaSight-BE"

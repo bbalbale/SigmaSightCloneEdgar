@@ -34,6 +34,7 @@ from app.schemas.fundamentals import (
     InvestingActivities,
     FinancingActivities,
     CashFlowCalculatedMetrics,
+    AllStatementsResponse,
     Metadata,
     FinancialPeriod,
 )
@@ -535,6 +536,228 @@ class FundamentalsService:
                 data_source="yahooquery",
                 last_updated=datetime.now(),
                 periods_returned=len(statement_periods)
+            )
+        )
+
+    async def get_cash_flow(
+        self,
+        symbol: str,
+        frequency: str = 'q',
+        periods: int = 12
+    ) -> CashFlowResponse:
+        """
+        Get cash flow statement data for a symbol
+
+        Args:
+            symbol: Stock symbol
+            frequency: 'q' (quarterly) or 'a' (annual)
+            periods: Number of periods to return (default: 12)
+
+        Returns:
+            CashFlowResponse
+        """
+        # Fetch raw data
+        raw_data = await self.client.get_cash_flow(symbol, frequency)
+
+        if not raw_data or symbol not in raw_data:
+            logger.warning(f"No cash flow data for {symbol}")
+            return CashFlowResponse(
+                symbol=symbol,
+                frequency=frequency,
+                currency="USD",
+                periods=[],
+                metadata=Metadata(
+                    data_source="yahooquery",
+                    last_updated=datetime.now(),
+                    periods_returned=0
+                )
+            )
+
+        df = raw_data[symbol]
+
+        if not isinstance(df, pd.DataFrame) or df.empty:
+            return CashFlowResponse(
+                symbol=symbol,
+                frequency=frequency,
+                currency="USD",
+                periods=[],
+                metadata=Metadata(
+                    data_source="yahooquery",
+                    last_updated=datetime.now(),
+                    periods_returned=0
+                )
+            )
+
+        # Filter to only quarterly periods (exclude TTM)
+        if frequency == 'q':
+            df = df[df['periodType'] == '3M']
+        elif frequency == 'a':
+            df = df[df['periodType'] == '12M']
+
+        # Sort by date descending (most recent first)
+        df = df.sort_values('asOfDate', ascending=False)
+
+        # Limit to requested number of periods
+        df = df.head(periods)
+
+        # Transform to periods
+        statement_periods = []
+
+        for idx, row in df.iterrows():
+            # Extract period info from asOfDate column
+            period_info = self._extract_period_info(row.get('asOfDate'))
+            if not period_info:
+                continue
+
+            # Extract operating activities
+            operating_cf = self._safe_decimal(row.get('OperatingCashFlow'))
+            depreciation = self._safe_decimal(row.get('DepreciationAndAmortization'))
+            change_in_wc = self._safe_decimal(row.get('ChangeInWorkingCapital'))
+            stock_comp = self._safe_decimal(row.get('StockBasedCompensation'))
+            deferred_tax = self._safe_decimal(row.get('DeferredIncomeTax'))
+            other_operating = self._safe_decimal(row.get('OtherNonCashItems'))
+
+            operating_activities = OperatingActivities(
+                operating_cash_flow=operating_cf,
+                depreciation_amortization=depreciation,
+                change_in_working_capital=change_in_wc,
+                stock_based_compensation=stock_comp,
+                deferred_income_tax=deferred_tax,
+                other_operating_activities=other_operating
+            )
+
+            # Extract investing activities
+            capex = self._safe_decimal(row.get('CapitalExpenditure'))
+            acquisitions = self._safe_decimal(row.get('NetBusinessPurchaseAndSale'))
+            purchases_inv = self._safe_decimal(row.get('PurchaseOfInvestment'))
+            sales_inv = self._safe_decimal(row.get('SaleOfInvestment'))
+            other_investing = self._safe_decimal(row.get('NetOtherInvestingChanges'))
+            net_investing = self._safe_decimal(row.get('InvestingCashFlow'))
+
+            investing_activities = InvestingActivities(
+                capital_expenditures=capex,
+                acquisitions=acquisitions,
+                purchases_of_investments=purchases_inv,
+                sales_of_investments=sales_inv,
+                other_investing_activities=other_investing,
+                net_investing_cash_flow=net_investing
+            )
+
+            # Extract financing activities
+            dividends = self._safe_decimal(row.get('CashDividendsPaid'))
+            repurchases = self._safe_decimal(row.get('RepurchaseOfCapitalStock'))
+            debt_issued = self._safe_decimal(row.get('IssuanceOfDebt'))
+            debt_repaid = self._safe_decimal(row.get('RepaymentOfDebt'))
+            stock_issued = self._safe_decimal(row.get('CommonStockIssuance'))
+            other_financing = self._safe_decimal(row.get('NetOtherFinancingCharges'))
+            net_financing = self._safe_decimal(row.get('FinancingCashFlow'))
+
+            financing_activities = FinancingActivities(
+                dividends_paid=dividends,
+                stock_repurchases=repurchases,
+                debt_issuance=debt_issued,
+                debt_repayment=debt_repaid,
+                common_stock_issuance=stock_issued,
+                other_financing_activities=other_financing,
+                net_financing_cash_flow=net_financing
+            )
+
+            # Calculate free cash flow
+            fcf = None
+            fcf_margin = None
+            fcf_per_share = None
+
+            if operating_cf and capex:
+                # FCF = Operating Cash Flow - CapEx (capex is typically negative)
+                fcf = operating_cf + capex  # capex is negative, so we add
+
+                # Get revenue for FCF margin calculation
+                # We don't have revenue in cash flow statement, so we'll leave margin as None
+                # The frontend or a separate endpoint can calculate this
+
+            calculated_metrics = CashFlowCalculatedMetrics(
+                free_cash_flow=fcf,
+                fcf_margin=fcf_margin,
+                fcf_per_share=fcf_per_share
+            )
+
+            # Extract cash changes
+            net_change = self._safe_decimal(row.get('ChangesInCash'))
+            beginning_cash = self._safe_decimal(row.get('BeginningCashPosition'))
+            ending_cash = self._safe_decimal(row.get('EndCashPosition'))
+
+            metrics = CashFlowMetrics(
+                operating_activities=operating_activities,
+                investing_activities=investing_activities,
+                financing_activities=financing_activities,
+                calculated_metrics=calculated_metrics,
+                net_change_in_cash=net_change,
+                beginning_cash=beginning_cash,
+                ending_cash=ending_cash
+            )
+
+            period = CashFlowPeriod(
+                period_date=period_info['period_date'],
+                period_type="3M" if frequency == 'q' else "12M",
+                fiscal_year=period_info['fiscal_year'],
+                fiscal_quarter=period_info['fiscal_quarter'] if frequency == 'q' else None,
+                metrics=metrics
+            )
+
+            statement_periods.append(period)
+
+            if len(statement_periods) >= periods:
+                break
+
+        return CashFlowResponse(
+            symbol=symbol,
+            frequency=frequency,
+            currency="USD",
+            periods=statement_periods,
+            metadata=Metadata(
+                data_source="yahooquery",
+                last_updated=datetime.now(),
+                periods_returned=len(statement_periods)
+            )
+        )
+
+    async def get_all_statements(
+        self,
+        symbol: str,
+        frequency: str = 'q',
+        periods: int = 12
+    ) -> AllStatementsResponse:
+        """
+        Get all three financial statements in one call
+
+        Args:
+            symbol: Stock symbol
+            frequency: 'q' (quarterly) or 'a' (annual)
+            periods: Number of periods to return (default: 12)
+
+        Returns:
+            AllStatementsResponse with all three financial statements
+        """
+        # Fetch all three statements
+        income_statement = await self.get_income_statement(symbol, frequency, periods)
+        balance_sheet = await self.get_balance_sheet(symbol, frequency, periods)
+        cash_flow = await self.get_cash_flow(symbol, frequency, periods)
+
+        return AllStatementsResponse(
+            symbol=symbol,
+            frequency=frequency,
+            currency="USD",
+            income_statement=income_statement,
+            balance_sheet=balance_sheet,
+            cash_flow=cash_flow,
+            metadata=Metadata(
+                data_source="yahooquery",
+                last_updated=datetime.now(),
+                periods_returned=min(
+                    income_statement.metadata.periods_returned,
+                    balance_sheet.metadata.periods_returned,
+                    cash_flow.metadata.periods_returned
+                )
             )
         )
 

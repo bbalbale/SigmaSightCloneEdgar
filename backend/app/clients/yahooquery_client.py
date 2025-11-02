@@ -374,7 +374,8 @@ class YahooQueryClient(MarketDataProvider):
                 return {}
 
             logger.info(f"YahooQuery: Retrieved cash flow for {symbol} (frequency={frequency})")
-            return cash_flow
+            # Wrap DataFrame in dict with symbol as key for consistency
+            return {symbol: cash_flow}
 
         except Exception as e:
             logger.error(f"YahooQuery sync cash flow fetch error for {symbol}: {str(e)}")

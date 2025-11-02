@@ -10,6 +10,7 @@ from app.clients.base import MarketDataProvider
 from app.clients.fmp_client import FMPClient
 from app.clients.tradefeeds_client import TradeFeedsClient
 from app.clients.yfinance_client import YFinanceClient
+from app.clients.yahooquery_client import YahooQueryClient
 
 logger = logging.getLogger(__name__)
 
@@ -44,6 +45,17 @@ class MarketDataFactory:
                 logger.info("YFinance client initialized successfully (primary provider for stocks)")
             except Exception as e:
                 logger.error(f"Failed to initialize YFinance client: {str(e)}")
+
+        # Initialize YahooQuery client (always available, no API key needed, fallback for mutual funds)
+        try:
+            self._clients['YahooQuery'] = YahooQueryClient(
+                api_key="none",  # YahooQuery doesn't need an API key
+                timeout=30,
+                max_retries=3
+            )
+            logger.info("YahooQuery client initialized successfully (fallback provider for mutual funds)")
+        except Exception as e:
+            logger.error(f"Failed to initialize YahooQuery client: {str(e)}")
 
         # Initialize FMP client if API key is available
         if settings.FMP_API_KEY:

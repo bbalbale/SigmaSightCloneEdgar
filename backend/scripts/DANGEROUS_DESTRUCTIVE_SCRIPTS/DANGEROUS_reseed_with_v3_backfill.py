@@ -277,6 +277,20 @@ async def main():
         print("\n[CANCELLED] No changes made.")
         return
 
+    # SECOND CONFIRMATION - SAFETY CHECK
+    print("\n" + "=" * 80)
+    print("⚠️  SECOND CONFIRMATION REQUIRED")
+    print("=" * 80)
+    print("This will PERMANENTLY DELETE all portfolio data!")
+    print("Type exactly: DELETE ALL MY DATA")
+    print("=" * 80)
+    confirm_text = input("Confirmation: ").strip()
+    if confirm_text != "DELETE ALL MY DATA":
+        print(f"\n❌ Cancelled. Confirmation text did not match.")
+        print(f"   Expected: 'DELETE ALL MY DATA'")
+        print(f"   Got: '{confirm_text}'")
+        return
+
     try:
         # Phase 1: Clean
         await clean_all_data()

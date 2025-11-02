@@ -95,6 +95,85 @@ async def test_balance_sheet():
     return True
 
 
+async def test_cash_flow():
+    """Test cash flow retrieval"""
+    print("\n" + "="*60)
+    print("Testing Cash Flow Endpoint")
+    print("="*60)
+
+    service = FundamentalsService()
+
+    # Test with AAPL (Apple)
+    print("\nFetching AAPL cash flow (quarterly)...")
+    result = await service.get_cash_flow("AAPL", frequency="q", periods=4)
+
+    print(f"\nSymbol: {result.symbol}")
+    print(f"Frequency: {result.frequency}")
+    print(f"Currency: {result.currency}")
+    print(f"Periods returned: {result.metadata.periods_returned}")
+
+    if result.periods:
+        latest = result.periods[0]
+        print(f"\nLatest Period: {latest.period_date}")
+        print(f"Fiscal Year: {latest.fiscal_year}")
+        print(f"Fiscal Quarter: {latest.fiscal_quarter}")
+
+        metrics = latest.metrics
+        operating = metrics.operating_activities
+        investing = metrics.investing_activities
+        financing = metrics.financing_activities
+        calculated = metrics.calculated_metrics
+
+        print(f"\nOperating Cash Flow: ${operating.operating_cash_flow:,.2f}" if operating.operating_cash_flow else "Operating Cash Flow: N/A")
+        print(f"CapEx: ${investing.capital_expenditures:,.2f}" if investing.capital_expenditures else "CapEx: N/A")
+        print(f"Free Cash Flow: ${calculated.free_cash_flow:,.2f}" if calculated.free_cash_flow else "Free Cash Flow: N/A")
+        print(f"Dividends Paid: ${financing.dividends_paid:,.2f}" if financing.dividends_paid else "Dividends: N/A")
+        print(f"Stock Repurchases: ${financing.stock_repurchases:,.2f}" if financing.stock_repurchases else "Repurchases: N/A")
+
+        print("\n[PASS] Cash flow test PASSED")
+    else:
+        print("\n[FAIL] No cash flow periods returned")
+        return False
+
+    await service.close()
+    return True
+
+
+async def test_all_statements():
+    """Test all statements combined retrieval"""
+    print("\n" + "="*60)
+    print("Testing All Statements Combined Endpoint")
+    print("="*60)
+
+    service = FundamentalsService()
+
+    # Test with AAPL (Apple)
+    print("\nFetching AAPL all statements (quarterly)...")
+    result = await service.get_all_statements("AAPL", frequency="q", periods=4)
+
+    print(f"\nSymbol: {result.symbol}")
+    print(f"Frequency: {result.frequency}")
+    print(f"Currency: {result.currency}")
+
+    # Check all three statements
+    has_income = len(result.income_statement.periods) > 0
+    has_balance = len(result.balance_sheet.periods) > 0
+    has_cash = len(result.cash_flow.periods) > 0
+
+    print(f"\nIncome Statement Periods: {len(result.income_statement.periods)}")
+    print(f"Balance Sheet Periods: {len(result.balance_sheet.periods)}")
+    print(f"Cash Flow Periods: {len(result.cash_flow.periods)}")
+
+    if has_income and has_balance and has_cash:
+        print("\n[PASS] All statements test PASSED - Got all three financial statements")
+    else:
+        print(f"\n[FAIL] Missing statements - Income: {has_income}, Balance: {has_balance}, Cash: {has_cash}")
+        return False
+
+    await service.close()
+    return True
+
+
 async def main():
     """Run all tests"""
     print("\n" + "="*60)
@@ -118,6 +197,22 @@ async def main():
     except Exception as e:
         print(f"\n[FAIL] Balance sheet test FAILED: {str(e)}")
         results.append(("Balance Sheet", False))
+
+    # Test cash flow
+    try:
+        result = await test_cash_flow()
+        results.append(("Cash Flow", result))
+    except Exception as e:
+        print(f"\n[FAIL] Cash flow test FAILED: {str(e)}")
+        results.append(("Cash Flow", False))
+
+    # Test all statements
+    try:
+        result = await test_all_statements()
+        results.append(("All Statements", result))
+    except Exception as e:
+        print(f"\n[FAIL] All statements test FAILED: {str(e)}")
+        results.append(("All Statements", False))
 
     # Summary
     print("\n" + "="*60)

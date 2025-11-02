@@ -2,6 +2,46 @@
 
 This directory contains all utility scripts for the SigmaSight backend, organized by functionality.
 
+---
+
+## ⚠️ CRITICAL SAFETY WARNING
+
+**This directory contains DESTRUCTIVE scripts that can delete ALL database data!**
+
+### 🔴 DANGEROUS DESTRUCTIVE SCRIPTS (Isolated)
+
+**ALL destructive scripts are now isolated in:**
+```
+scripts/DANGEROUS_DESTRUCTIVE_SCRIPTS/
+```
+
+These scripts will **PERMANENTLY DELETE** all portfolio, position, and market data:
+
+- `DANGEROUS_reseed_july_2025_complete.py` - 🔴🔴 Deletes all data, reseeds July 1, 2025, runs 60-100 min batch loop
+- `DANGEROUS_reseed_with_v3_backfill.py` - 🔴🔴 Truncates all data, reseeds July 1, 2025, runs 30-40 min V3 backfill
+- `DANGEROUS_railway_reset_database.py` - 🔴🔴🔴 Auto-confirms database reset (Railway only)
+
+**Additional Destructive Script:**
+- `database/reset_and_seed.py reset --confirm` - 🔴 **DROPS ALL TABLES** (requires `--confirm` flag + double confirmation)
+
+**⚠️ NEVER run these in production or when you want to preserve existing data!**
+
+**🛡️ All dangerous scripts now require DOUBLE CONFIRMATION:**
+1. First: Interactive "yes/no" prompt
+2. Second: Must type exactly "DELETE ALL MY DATA"
+
+### ✅ SAFE Script for Daily Operations
+For **daily batch calculations** (market data + analytics), use:
+
+```bash
+# THIS is the SAFE script for calculations
+python scripts/batch_processing/run_batch.py
+```
+
+**This script does NOT delete data** - it only updates calculations and market prices.
+
+---
+
 > **📚 For complete workflow guides, see:**
 > - Initial Setup: [`_guides/BACKEND_INITIAL_COMPLETE_WORKFLOW_GUIDE.md`](../_guides/BACKEND_INITIAL_COMPLETE_WORKFLOW_GUIDE.md)
 > - Daily Operations: [`_guides/BACKEND_DAILY_COMPLETE_WORKFLOW_GUIDE.md`](../_guides/BACKEND_DAILY_COMPLETE_WORKFLOW_GUIDE.md)
@@ -180,6 +220,12 @@ uv run python scripts/verification/check_equity_values.py
 
 ```
 scripts/
+├── DANGEROUS_DESTRUCTIVE_SCRIPTS/  # 🔴 ISOLATED DANGEROUS SCRIPTS
+│   ├── README.md                              ⭐ READ THIS FIRST!
+│   ├── DANGEROUS_reseed_july_2025_complete.py 🔴 Deletes all data (60-100 min)
+│   ├── DANGEROUS_reseed_with_v3_backfill.py   🔴 Truncates all data (30-40 min)
+│   └── DANGEROUS_railway_reset_database.py    🔴 Railway reset (auto-confirms)
+│
 ├── automation/          # Automated batch jobs and scheduling
 │   ├── railway_daily_batch.py  ⭐ Railway daily batch job
 │   └── trading_calendar.py     NYSE trading calendar utilities
@@ -211,10 +257,10 @@ scripts/
 │   ├── audit_railway_calculations_verbose.py  ⭐ Detailed calculation results audit
 │   ├── railway_run_migration.py               ⭐ Run migrations on Railway
 │   ├── verify_railway_migration.py            Verify migration status
-│   ├── railway_reset_database.py              Reset and reseed (DESTRUCTIVE)
 │   ├── railway_initial_seed.sh                Initial setup workflow
 │   ├── README.md                              ⭐ Complete Railway scripts guide
 │   └── RAILWAY_SEEDING_README.md              Seeding documentation
+│   Note: DANGEROUS_railway_reset_database.py moved to DANGEROUS_DESTRUCTIVE_SCRIPTS/
 │
 ├── api_batch_monitor.py  ⭐ API-based batch trigger + monitor (NO SSH needed)
 ├── test_railway_batch.py  Simple batch trigger via API
@@ -310,7 +356,7 @@ uv run python scripts/railway/railway_run_migration.py
 uv run python scripts/railway/verify_railway_migration.py
 
 # 3. Reset and reseed (DESTRUCTIVE - only if needed)
-uv run python scripts/railway/railway_reset_database.py
+uv run python scripts/DANGEROUS_DESTRUCTIVE_SCRIPTS/DANGEROUS_railway_reset_database.py
 
 # 4. Run daily batch job (--force for non-trading days)
 uv run python scripts/automation/railway_daily_batch.py --force

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 
 // Use environment variable or default to Railway sandbox
 const BACKEND_URL = process.env.BACKEND_URL || 'https://sigmasight-be-sandbox-frontendrailway.up.railway.app'
-const PROXY_TIMEOUT = 30000 // 30 seconds
+const PROXY_TIMEOUT = 180000 // 3 minutes (matches API client expectations for heavy endpoints)
 
 console.log('Proxy Backend URL:', BACKEND_URL)
 console.log('Docker Environment:', process.env.DOCKER_ENV)

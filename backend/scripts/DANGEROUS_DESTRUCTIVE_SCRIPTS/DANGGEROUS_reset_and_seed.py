@@ -199,8 +199,23 @@ def main():
             logger.error("❌ Reset operation requires --confirm flag for safety")
             logger.error("Usage: python scripts/reset_and_seed.py reset --confirm")
             sys.exit(1)
-            
+
         logger.warning("⚠️ DESTRUCTIVE RESET OPERATION CONFIRMED")
+
+        # SECOND CONFIRMATION - SAFETY CHECK
+        print("\n" + "="*80)
+        print("⚠️  SECOND CONFIRMATION REQUIRED")
+        print("="*80)
+        print("This will DROP ALL TABLES and PERMANENTLY DELETE all data!")
+        print("Type exactly: DELETE ALL MY DATA")
+        print("="*80)
+        confirm_text = input("Confirmation: ").strip()
+        if confirm_text != "DELETE ALL MY DATA":
+            logger.error(f"❌ Cancelled. Confirmation text did not match.")
+            logger.error(f"   Expected: 'DELETE ALL MY DATA'")
+            logger.error(f"   Got: '{confirm_text}'")
+            sys.exit(1)
+
         asyncio.run(reset_and_seed())
         
     elif args.action == "seed":

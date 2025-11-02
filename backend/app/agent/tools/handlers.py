@@ -543,6 +543,198 @@ class PortfolioTools:
                 "retryable": isinstance(e, (httpx.TimeoutException, httpx.HTTPStatusError))
             }
 
+    async def get_analytics_overview(
+        self,
+        portfolio_id: str,
+        **kwargs
+    ) -> Dict[str, Any]:
+        """
+        Get comprehensive portfolio risk analytics.
+
+        Returns beta, volatility, Sharpe ratio, max drawdown, tracking error.
+        Use when user asks about portfolio risk, performance metrics, or health.
+
+        Args:
+            portfolio_id: Portfolio UUID
+
+        Returns:
+            Risk metrics with meta object
+        """
+        try:
+            endpoint = f"/api/v1/analytics/portfolio/{portfolio_id}/overview"
+            response = await self._make_request(
+                method="GET",
+                endpoint=endpoint
+            )
+            return response
+
+        except Exception as e:
+            logger.error(f"Error in get_analytics_overview: {e}")
+            return {
+                "error": str(e),
+                "retryable": isinstance(e, (httpx.TimeoutException, httpx.HTTPStatusError))
+            }
+
+    async def get_factor_exposures(
+        self,
+        portfolio_id: str,
+        **kwargs
+    ) -> Dict[str, Any]:
+        """
+        Get portfolio factor exposures (Market Beta, Value, Growth, Momentum, Quality, Size, Low Vol).
+
+        Returns factor betas showing portfolio tilts vs benchmarks.
+        Use when user asks about factor exposures, style analysis, or what's driving returns.
+
+        Args:
+            portfolio_id: Portfolio UUID
+
+        Returns:
+            Factor exposure data with meta object
+        """
+        try:
+            endpoint = f"/api/v1/analytics/portfolio/{portfolio_id}/factor-exposures"
+            response = await self._make_request(
+                method="GET",
+                endpoint=endpoint
+            )
+            return response
+
+        except Exception as e:
+            logger.error(f"Error in get_factor_exposures: {e}")
+            return {
+                "error": str(e),
+                "retryable": isinstance(e, (httpx.TimeoutException, httpx.HTTPStatusError))
+            }
+
+    async def get_sector_exposure(
+        self,
+        portfolio_id: str,
+        **kwargs
+    ) -> Dict[str, Any]:
+        """
+        Get sector exposure breakdown with S&P 500 benchmark comparison.
+
+        Shows over/underweights by sector vs market.
+        Use when user asks about sector allocation, diversification, or comparison vs market.
+
+        Args:
+            portfolio_id: Portfolio UUID
+
+        Returns:
+            Sector exposure data with benchmark comparison
+        """
+        try:
+            endpoint = f"/api/v1/analytics/portfolio/{portfolio_id}/sector-exposure"
+            response = await self._make_request(
+                method="GET",
+                endpoint=endpoint
+            )
+            return response
+
+        except Exception as e:
+            logger.error(f"Error in get_sector_exposure: {e}")
+            return {
+                "error": str(e),
+                "retryable": isinstance(e, (httpx.TimeoutException, httpx.HTTPStatusError))
+            }
+
+    async def get_correlation_matrix(
+        self,
+        portfolio_id: str,
+        **kwargs
+    ) -> Dict[str, Any]:
+        """
+        Get correlation matrix showing how positions move together.
+
+        Returns pairwise correlations between positions.
+        Use when user asks about diversification, correlation risk, or if positions are related.
+
+        Args:
+            portfolio_id: Portfolio UUID
+
+        Returns:
+            Correlation matrix with meta object
+        """
+        try:
+            endpoint = f"/api/v1/analytics/portfolio/{portfolio_id}/correlation-matrix"
+            response = await self._make_request(
+                method="GET",
+                endpoint=endpoint
+            )
+            return response
+
+        except Exception as e:
+            logger.error(f"Error in get_correlation_matrix: {e}")
+            return {
+                "error": str(e),
+                "retryable": isinstance(e, (httpx.TimeoutException, httpx.HTTPStatusError))
+            }
+
+    async def get_stress_test_results(
+        self,
+        portfolio_id: str,
+        **kwargs
+    ) -> Dict[str, Any]:
+        """
+        Get stress test scenario results.
+
+        Shows portfolio impact under various market conditions (tech selloff, rate shock, recession, etc.).
+        Use when user asks "what if" questions or wants to see downside risk.
+
+        Args:
+            portfolio_id: Portfolio UUID
+
+        Returns:
+            Stress test scenarios with impact estimates
+        """
+        try:
+            endpoint = f"/api/v1/analytics/portfolio/{portfolio_id}/stress-test"
+            response = await self._make_request(
+                method="GET",
+                endpoint=endpoint
+            )
+            return response
+
+        except Exception as e:
+            logger.error(f"Error in get_stress_test_results: {e}")
+            return {
+                "error": str(e),
+                "retryable": isinstance(e, (httpx.TimeoutException, httpx.HTTPStatusError))
+            }
+
+    async def get_company_profile(
+        self,
+        symbol: str,
+        **kwargs
+    ) -> Dict[str, Any]:
+        """
+        Get detailed company profile.
+
+        Includes sector, industry, market cap, revenue, earnings, P/E ratio, description, and fundamentals.
+        Use when user asks about a specific company or wants to understand a position better.
+
+        Args:
+            symbol: Stock ticker symbol
+
+        Returns:
+            Company profile with 53 fields
+        """
+        try:
+            endpoint = f"/api/v1/data/company-profiles?symbols={symbol}"
+            response = await self._make_request(
+                method="GET",
+                endpoint=endpoint
+            )
+            return response
+
+        except Exception as e:
+            logger.error(f"Error in get_company_profile: {e}")
+            return {
+                "error": str(e),
+                "retryable": isinstance(e, (httpx.TimeoutException, httpx.HTTPStatusError))
+            }
+
 
 # Import asyncio for retry logic
 import asyncio
