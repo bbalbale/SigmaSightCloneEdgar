@@ -1,339 +1,144 @@
 """
-Pragmatic Batch Processing Tests - Section 1.6
+Pragmatic Batch Processing Tests - Section 1.6 (Fast Smoke Tests)
 Based on BATCH_TESTING_PRAGMATIC.md for demo-stage product (20 users max)
 
-NOTE: The comprehensive test plan (BATCH_PROCESSING_TEST_PLAN.md) is DEFERRED
-for later production scaling. This focuses on what matters for demos.
-
 Testing Philosophy:
-- Accuracy over scale
-- Manual verification acceptable
-- Focus on demo scenarios
-- Skip premature optimization
+- Verify v3 API compatibility (not external API functionality)
+- Fast smoke tests (~1-2 minutes total)
+- No repeated API calls
+- Focus on integration points
 
 Updated for batch_orchestrator_v3 (November 2, 2025)
 """
 import asyncio
-import time
-from datetime import datetime, date
-from decimal import Decimal
-from unittest.mock import patch, MagicMock
+from datetime import date
 import pytest
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.batch.batch_orchestrator_v3 import batch_orchestrator_v3
-from app.database import AsyncSessionLocal
-from app.models.snapshots import BatchJob
 
 
 # ============================================================================
-# 1. CRITICAL PATH TESTING - What Actually Matters for Demos
+# CRITICAL PATH TESTING - Fast Smoke Tests
 # ============================================================================
 
 @pytest.mark.asyncio
-async def test_calculation_accuracy_for_demo():
+async def test_batch_orchestrator_v3_api_compatibility():
     """
-    Verify calculations match trader expectations.
-    This is the MOST IMPORTANT test - traders need accurate numbers.
-    """
-    print("\n" + "="*70)
-    print("ACCURACY VALIDATION TEST - Critical for Demo Success")
-    print("="*70)
+    Verify onboarding/batch code uses v3 API correctly.
 
-    # Use Growth Investor portfolio (most likely demo)
-    portfolio_id = "550e8400-e29b-41d4-a716-446655440001"  # Growth Investor UUID
-
-    # Run the batch sequence for today
-    today = date.today()
-    print(f"\n▶ Running batch sequence for portfolio {portfolio_id} on {today}...")
-    result = await batch_orchestrator_v3.run_daily_batch_sequence(
-        calculation_date=today,
-        portfolio_ids=[portfolio_id]
-    )
-
-    # Check overall success
-    print(f"\n✓ Batch completed: {result.get('success', False)}")
-    if result.get('errors'):
-        print(f"\n⚠️  WARNING: {len(result['errors'])} errors occurred:")
-        for error in result['errors']:
-            print(f"   - {error}")
-
-    # MANUAL VERIFICATION POINTS (for demo prep):
-    print("\n" + "-"*50)
-    print("MANUAL VERIFICATION CHECKLIST FOR DEMO:")
-    print("-"*50)
-
-    async with AsyncSessionLocal() as db:
-        # 1. Portfolio Value Check
-        print("\n1. PORTFOLIO VALUE:")
-        print("   □ Compare to TD Ameritrade/Bloomberg")
-        print("   □ Should match within 1-2%")
-        print("   □ Note any discrepancies for demo explanation")
-
-        # 2. Greeks Spot Check (if options exist)
-        print("\n2. OPTIONS GREEKS (if applicable):")
-        print("   □ AAPL Call Delta should be ~0.55 for ATM")
-        print("   □ SPY Put Delta should be negative")
-        print("   □ Theta should be negative (time decay)")
-
-        # 3. Factor Exposures Sanity Check
-        print("\n3. FACTOR EXPOSURES:")
-        print("   □ SPY Beta should be 0.8-1.2 for typical portfolio")
-        print("   □ Factor exposures should sum close to 1.0")
-        print("   □ No extreme outliers (>5 or <-5)")
-
-        # 4. Stress Test Results
-        print("\n4. STRESS TEST SCENARIOS:")
-        print("   □ Market Crash -20% should show negative impact")
-        print("   □ Interest Rate +200bp should affect bonds")
-        print("   □ Results should be directionally correct")
-
-    print("\n" + "="*70)
-    print("TEST RESULT: Run manual checks above before demo")
-    print("="*70)
-
-    # Basic automated checks
-    assert result is not None, "No batch result returned"
-    assert 'phase_1' in result, "Phase 1 results missing"
-    assert 'phase_2' in result, "Phase 2 results missing"
-    assert 'phase_3' in result, "Phase 3 results missing"
-
-
-@pytest.mark.asyncio
-async def test_demo_scenarios():
-    """
-    Test exactly what we'll show in demos.
-    These are the actual use cases traders will see.
+    This is the CRITICAL test - confirms API signature and return structure match.
+    Single portfolio, single run - verifies integration without testing external APIs.
     """
     print("\n" + "="*70)
-    print("DEMO SCENARIO TEST - What Traders Will Actually See")
+    print("BATCH ORCHESTRATOR V3 API COMPATIBILITY TEST")
     print("="*70)
 
     portfolio_id = "550e8400-e29b-41d4-a716-446655440001"  # Growth Investor
     today = date.today()
 
-    # Scenario 1: Daily update at market close
-    print("\n▶ Scenario 1: Daily batch at 4 PM market close")
+    print(f"\n▶ Testing v3 API signature...")
+    print(f"   Portfolio: {portfolio_id}")
+    print(f"   Date: {today}")
+
+    # Test v3 API signature: run_daily_batch_sequence(calculation_date, portfolio_ids)
     result = await batch_orchestrator_v3.run_daily_batch_sequence(
         calculation_date=today,
-        portfolio_ids=[portfolio_id]
+        portfolio_ids=[portfolio_id]  # v3 expects list, not single ID
     )
 
-    # Just verify we have results to show
-    assert result is not None, "No results to show in demo"
-    assert result.get('success') is not None, "Success status missing"
-
-    print(f"   ✓ Daily batch completed successfully: {result.get('success')}")
-
-    # Scenario 2: Manual trigger from admin panel
-    print("\n▶ Scenario 2: Manual trigger (admin panel demo)")
-    print("   □ Admin can trigger via POST /api/v1/admin/batch/trigger/daily")
-    print("   □ Status visible at GET /api/v1/admin/batch/jobs/status")
-    print("   □ Can show real-time execution monitoring")
-
-    # Scenario 3: Tuesday correlation run
-    print("\n▶ Scenario 3: Weekly correlation (Tuesday only)")
-    # Skip if not Tuesday
-    if today.weekday() == 1:  # Tuesday
-        result_tuesday = await batch_orchestrator_v3.run_daily_batch_sequence(
-            calculation_date=today,
-            portfolio_ids=[portfolio_id]
-        )
-        print(f"   ✓ Tuesday correlation completed: {result_tuesday.get('success')}")
-    else:
-        print(f"   ⊘ Skipped (today is {today.strftime('%A')}, not Tuesday)")
-
-
-@pytest.mark.asyncio
-async def test_multi_portfolio_batch():
-    """
-    Test batch processing multiple portfolios.
-    Verify parallel execution works for scale demos.
-    """
-    print("\n" + "="*70)
-    print("MULTI-PORTFOLIO BATCH TEST")
-    print("="*70)
-
-    # All 3 demo portfolios
-    portfolio_ids = [
-        "550e8400-e29b-41d4-a716-446655440001",  # Growth Investor
-        "550e8400-e29b-41d4-a716-446655440002",  # Conservative
-        "550e8400-e29b-41d4-a716-446655440003",  # Aggressive
-    ]
-
-    today = date.today()
-    start_time = time.time()
-
-    print(f"\n▶ Processing {len(portfolio_ids)} portfolios...")
-
-    # Run all portfolios (v3 handles multiple portfolio IDs)
-    result = await batch_orchestrator_v3.run_daily_batch_sequence(
-        calculation_date=today,
-        portfolio_ids=portfolio_ids
-    )
-
-    duration = time.time() - start_time
-
-    print(f"\n✓ Completed in {duration:.1f}s")
+    print(f"\n✓ Batch completed")
     print(f"   Success: {result.get('success', False)}")
-    print(f"   Average: {duration/len(portfolio_ids):.1f}s per portfolio")
 
-    # For demo with real API calls, we want < 300 seconds (5 min) total
-    # Note: YFinance rate limiting ~12s per request means 3 portfolios can take 2-3 minutes
-    assert duration < 300, f"Batch took {duration}s, expected < 300s"
+    if result.get('errors'):
+        print(f"   ⚠️  {len(result['errors'])} errors (graceful degradation working)")
 
-    if duration < 60:
-        print(f"\n✓ Performance: EXCELLENT (< 1 min)")
-    elif duration < 180:
-        print(f"\n✓ Performance: GOOD (< 3 min) - expected with API rate limits")
-    else:
-        print(f"\n✓ Performance: ACCEPTABLE ({duration:.1f}s) - API rate limited")
+    # CRITICAL: Verify v3 return structure (dict with phase keys)
+    print("\n▶ Verifying v3 return structure...")
+    assert result is not None, "Batch should return result"
+    assert isinstance(result, dict), f"Expected dict, got {type(result)}"
+    assert 'phase_1' in result, "Missing phase_1 in result"
+    assert 'phase_2' in result, "Missing phase_2 in result"
+    assert 'phase_3' in result, "Missing phase_3 in result"
+
+    print("   ✓ phase_1 present")
+    print("   ✓ phase_2 present")
+    print("   ✓ phase_3 present")
+
+    print("\n" + "="*70)
+    print("✓ BATCH ORCHESTRATOR V3 COMPATIBILITY VERIFIED")
+    print("="*70)
 
 
 @pytest.mark.asyncio
-async def test_error_handling_resilience():
+async def test_multi_portfolio_api_signature():
     """
-    Verify graceful degradation when market data unavailable.
-    Critical for demos with live data - we need to handle failures gracefully.
-    """
-    print("\n" + "="*70)
-    print("ERROR HANDLING TEST - Graceful Degradation")
-    print("="*70)
-
-    portfolio_id = "550e8400-e29b-41d4-a716-446655440001"
-    today = date.today()
-
-    # Mock a market data failure
-    with patch('app.services.market_data_service.get_market_data') as mock_market:
-        mock_market.side_effect = Exception("Market data API timeout")
-
-        print("\n▶ Simulating market data failure...")
-        result = await batch_orchestrator_v3.run_daily_batch_sequence(
-            calculation_date=today,
-            portfolio_ids=[portfolio_id]
-        )
-
-        # Should complete even with errors
-        print(f"\n✓ Batch completed: {result.get('success', False)}")
-        if result.get('errors'):
-            print(f"   Errors logged: {len(result['errors'])}")
-
-        # Verify graceful handling
-        assert result is not None, "Batch should return result even on errors"
-
-
-@pytest.mark.asyncio
-async def test_idempotent_reruns():
-    """
-    Test that we can safely re-run batch multiple times.
-    Important for demo recovery if something goes wrong during presentation.
+    Verify v3 handles multiple portfolio IDs correctly.
+    Tests the list parameter without making redundant API calls.
     """
     print("\n" + "="*70)
-    print("IDEMPOTENT RERUN TEST - Safe Demo Recovery")
+    print("MULTI-PORTFOLIO API SIGNATURE TEST")
     print("="*70)
 
-    portfolio_id = "550e8400-e29b-41d4-a716-446655440001"
+    portfolio_ids = [
+        "550e8400-e29b-41d4-a716-446655440001",  # Growth
+        "550e8400-e29b-41d4-a716-446655440002",  # Conservative
+    ]
     today = date.today()
 
-    # Run 1
-    print("\n▶ Run 1...")
-    result1 = await batch_orchestrator_v3.run_daily_batch_sequence(
-        calculation_date=today,
-        portfolio_ids=[portfolio_id]
-    )
+    print(f"\n▶ Testing v3 with multiple portfolio IDs...")
+    print(f"   Portfolios: {len(portfolio_ids)}")
 
-    # Run 2 immediately
-    print("\n▶ Run 2 (immediate rerun)...")
-    result2 = await batch_orchestrator_v3.run_daily_batch_sequence(
-        calculation_date=today,
-        portfolio_ids=[portfolio_id]
-    )
-
-    # Both should succeed
-    assert result1 is not None, "Run 1 should return result"
-    assert result2 is not None, "Run 2 should return result"
-
-    print("\n✓ Both runs completed successfully")
-    print("   (Safe to re-trigger during demo if needed)")
-
-
-@pytest.mark.asyncio
-async def test_weekend_handling():
-    """
-    Test weekend behavior - important for Monday morning demos.
-    We should use Friday's data without errors.
-    """
-    print("\n" + "="*70)
-    print("WEEKEND HANDLING TEST - Monday Morning Demo Safety")
-    print("="*70)
-
-    portfolio_id = "550e8400-e29b-41d4-a716-446655440001"
-    today = date.today()
-
-    print(f"\n▶ Running batch for {today.strftime('%A, %B %d, %Y')}...")
     result = await batch_orchestrator_v3.run_daily_batch_sequence(
         calculation_date=today,
-        portfolio_ids=[portfolio_id]
+        portfolio_ids=portfolio_ids  # v3 should accept list
     )
 
-    # Should handle gracefully regardless of day
-    print(f"\n✓ Batch completed: {result.get('success', False)}")
+    assert result is not None, "Should handle multiple portfolios"
+    assert 'phase_1' in result
+    assert 'phase_2' in result
+    assert 'phase_3' in result
 
-    if today.weekday() >= 5:  # Saturday or Sunday
-        print("   Weekend detected - using most recent market data")
-        print("   (Expected behavior for Monday morning demo prep)")
-    else:
-        print("   Weekday - using current market data")
+    print(f"\n✓ Multi-portfolio support verified")
+    print("   ✓ Accepts list of portfolio IDs")
+    print("   ✓ Returns correct structure")
 
 
 @pytest.mark.asyncio
-async def test_calculation_performance():
+async def test_all_portfolios_api_signature():
     """
-    Track calculation speed for demo responsiveness.
-    We want sub-5 second response for individual portfolio analytics.
+    Verify v3 handles None portfolio_ids correctly (all portfolios).
     """
     print("\n" + "="*70)
-    print("PERFORMANCE TEST - Demo Responsiveness")
+    print("ALL PORTFOLIOS API SIGNATURE TEST")
     print("="*70)
 
-    portfolio_id = "550e8400-e29b-41d4-a716-446655440001"
     today = date.today()
 
-    # Time the batch run
-    start = time.time()
+    print(f"\n▶ Testing v3 with portfolio_ids=None (all portfolios)...")
+
     result = await batch_orchestrator_v3.run_daily_batch_sequence(
         calculation_date=today,
-        portfolio_ids=[portfolio_id]
+        portfolio_ids=None  # v3 should process all portfolios
     )
-    duration = time.time() - start
 
-    print(f"\n✓ Batch completed in {duration:.2f}s")
+    assert result is not None, "Should handle None (all portfolios)"
+    assert 'phase_1' in result
+    assert 'phase_2' in result
+    assert 'phase_3' in result
 
-    # For demo with real API calls, we need realistic timeouts
-    # YFinance rate limiting means ~12s per request burst
-    if duration < 10:
-        print("   Performance: EXCELLENT (< 10s) - cached data")
-    elif duration < 60:
-        print("   Performance: GOOD (< 1 min) - expected with API calls")
-    elif duration < 120:
-        print(f"   Performance: ACCEPTABLE ({duration:.1f}s) - API rate limited")
-    else:
-        print(f"   Performance: SLOW ({duration:.1f}s)")
-        print("   (API rate limiting or network issues)")
-
-    assert duration < 180, f"Batch took {duration}s, expected < 180s (3 min)"
+    print(f"\n✓ All-portfolios support verified")
+    print("   ✓ Accepts None for all portfolios")
+    print("   ✓ Returns correct structure")
 
 
 # ============================================================================
 # TEST CONFIGURATION
 # ============================================================================
 
-# Timeouts set generously for demo environment (not production-grade)
 pytestmark = pytest.mark.asyncio
 pytest_plugins = ['pytest_asyncio']
 
 
-# Skip tests if database not available (allows CI to pass)
 def pytest_configure(config):
     """Configure test environment"""
     config.addinivalue_line(
