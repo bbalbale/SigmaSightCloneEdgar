@@ -1,1495 +1,1489 @@
-# Backend Implementation Plan: Fundamental Financial Data
+# Backend Implementation Plan: Fundamental Data Storage
 
-**Date**: November 1, 2025
-**Status**: Planning
-**Dependencies**: YahooQuery library (already in `pyproject.toml`)
+**Date**: November 2, 2025
+**Last Updated**: November 2, 2025 (added fiscal calendar logic for period dates)
+**Status**: Planning - Awaiting Review & Approval
+**Prerequisites**: Phase 1 endpoints working (on-demand), YahooQueryClient methods implemented
 
----
-
-## Overview
-
-Implement comprehensive fundamental financial data endpoints using YahooQuery to provide:
-1. Historical financial statements (income statement, balance sheet, cash flow)
-2. Forward-looking analyst estimates and price targets
-3. Calculated financial ratios and growth metrics
+**Key Update**: Enhanced schema design to include absolute target_period_date fields and fiscal calendar logic for future-proof historical estimate tracking.
 
 ---
 
-## Architecture Decisions
+## Executive Summary
 
-### 1. Service Layer Design
+This plan implements **database storage** for fundamental financial data with smart fetching logic to minimize API calls while keeping data fresh.
 
-**Extend Existing YahooQuery Client** (`app/clients/yahooquery_client.py`)
+### Key Features
 
-Current implementation has:
-- ✅ `get_historical_prices()` - Historical price data
-- ✅ `get_stock_prices()` - Current quotes
-- ✅ `get_fund_holdings()` - Fund holdings
+1. **3 new tables** for financial statements (income, balance sheet, cash flow)
+   - Store both quarterly (12 periods) AND annual (4 periods) data
+   - UNIQUE constraints prevent duplicates
+   - Indexes for fast symbol + period lookups
 
-**New Methods to Add:**
-```python
-class YahooQueryClient(MarketDataProvider):
-    # ... existing methods ...
+2. **Smart fetching logic** - earnings-based updates
+   - Only fetch 3+ days after earnings date
+   - Checks if data already exists
+   - Reduces API calls by 80-90%
 
-    async def get_income_statement(symbol: str, frequency: str = 'q', years: int = 4)
-    async def get_balance_sheet(symbol: str, frequency: str = 'q', years: int = 4)
-    async def get_cash_flow(symbol: str, frequency: str = 'q', years: int = 4)
-    async def get_all_financials(symbol: str, frequency: str = 'q', years: int = 4)
+3. **Zero breaking changes** - Research & Analyze page compatibility
+   - Existing endpoints continue to work
+   - Company profile data enhanced (not replaced)
+   - Quarterly estimates added to existing table
 
-    async def get_analyst_estimates(symbol: str)
-    async def get_price_targets(symbol: str)
-    async def get_next_earnings(symbol: str)
+4. **Coordinated with company_profiles** - no duplication
+   - Financial statements → NEW dedicated tables
+   - Analyst data → ENHANCE existing company_profiles table (21 new columns)
+   - Single API call per data type per symbol
 
-    async def get_valuation_measures(symbol: str)
-```
+5. **Future-proof period date design** ⭐ NEW
+   - Store absolute target_period_date (not relative labels)
+   - Fiscal calendar logic for non-calendar-year companies
+   - Enables clean JOINs with income_statements
+   - Ready for future historical estimate tracking
 
-**Rationale:**
-- Keep financial data methods with market data client (cohesive domain)
-- Reuse existing async pattern (run synchronous YahooQuery in executor)
-- Maintain consistency with existing client interface
+### Storage Cost
 
----
+| Symbols | Quarterly + Annual | Total Storage |
+|---------|-------------------|---------------|
+| 1,000   | 46.1 KB per symbol | 46.4 MB       |
+| 5,000   | 46.1 KB per symbol | 231 MB        |
+| 10,000  | 46.1 KB per symbol | 464 MB        |
 
-### 2. New Service Layer
-
-**Create**: `app/services/fundamentals_service.py`
-
-**Purpose**: Business logic layer for fundamental data operations
-- Data transformation (YahooQuery → application format)
-- Calculated metrics (ratios, growth rates, margins)
-- Data validation and error handling
-- Caching strategy (optional, Phase 2)
-
-**Key Functions:**
-```python
-async def get_financial_statements(symbol: str, frequency: str, years: int)
-async def get_forward_estimates(symbol: str)
-async def calculate_financial_ratios(symbol: str, frequency: str)
-async def get_growth_metrics(symbol: str)
-```
+**Verdict**: Extremely cost-effective. Even 10,000 securities = only 464 MB.
 
 ---
 
-### 3. Endpoint Structure
+## Critical Requirements
 
-**New Router**: `app/api/v1/endpoints/fundamentals.py`
+### 1. Research & Analyze Page Compatibility ✅
 
-Group all fundamental data endpoints in one router for:
-- Easier maintenance
-- Consistent naming
-- Clear separation from existing data endpoints
+**Must Not Break**:
+- ✅ `GET /api/v1/data/company-profile/{symbol}` continues to work
+- ✅ `GET /api/v1/data/positions/details` continues to work
+- ✅ Frontend service `positionResearchService.ts` requires no changes
+- ✅ Quarterly estimates automatically available (additive, not breaking)
 
-**Include in**: `app/api/v1/router.py`
+**How We Achieve This**:
+- Enhance `company_profiles` table with new columns (don't modify existing)
+- Batch job updates data in background (users see updated data automatically)
+- No API contract changes
 
----
+### 2. Smart Fetching Based on Earnings Dates ⭐
 
-## Proposed Endpoints
-
-### Phase 1: Core Financial Statements (Priority: HIGH)
-
-#### 1. Income Statement
-```
-GET /api/v1/fundamentals/income-statement/{symbol}
-```
-
-**Query Parameters:**
-- `frequency` (optional): `q` (quarterly), `a` (annual), `ttm` (trailing twelve months)
-  - Default: `q`
-- `periods` (optional): Number of periods to return (max 16 for quarterly, 4 for annual)
-  - Default: 12 (3 years quarterly)
-
-**Response Schema:**
-```json
-{
-  "symbol": "AAPL",
-  "frequency": "q",
-  "currency": "USD",
-  "periods": [
-    {
-      "period_date": "2024-09-30",
-      "period_type": "3M",
-      "fiscal_year": 2024,
-      "fiscal_quarter": "Q4",
-      "metrics": {
-        "revenue": 94930000000,
-        "cost_of_revenue": 52300000000,
-        "gross_profit": 42630000000,
-        "gross_margin": 0.4487,
-        "research_and_development": 7800000000,
-        "selling_general_administrative": 6600000000,
-        "total_operating_expenses": 14400000000,
-        "operating_income": 28230000000,
-        "operating_margin": 0.2974,
-        "ebit": 28230000000,
-        "interest_expense": null,
-        "other_income_expense": 500000000,
-        "pretax_income": 28730000000,
-        "tax_provision": 4800000000,
-        "tax_rate": 0.1671,
-        "net_income": 23930000000,
-        "net_margin": 0.2520,
-        "ebitda": 30100000000,
-        "depreciation_amortization": 1870000000,
-        "basic_eps": 1.53,
-        "diluted_eps": 1.52,
-        "basic_shares": 15630000000,
-        "diluted_shares": 15750000000
-      }
-    },
-    // ... more periods
-  ],
-  "metadata": {
-    "data_source": "yahooquery",
-    "last_updated": "2024-11-01T12:00:00Z",
-    "periods_returned": 12
-  }
-}
-```
-
-#### 2. Balance Sheet
-```
-GET /api/v1/fundamentals/balance-sheet/{symbol}
-```
-
-**Query Parameters:** Same as income statement
-
-**Response Schema:**
-```json
-{
-  "symbol": "AAPL",
-  "frequency": "q",
-  "currency": "USD",
-  "periods": [
-    {
-      "period_date": "2024-09-30",
-      "period_type": "3M",
-      "fiscal_year": 2024,
-      "fiscal_quarter": "Q4",
-      "metrics": {
-        "assets": {
-          "current_assets": {
-            "cash_and_equivalents": 29943000000,
-            "short_term_investments": 35228000000,
-            "cash_and_short_term_investments": 65171000000,
-            "accounts_receivable": 25995000000,
-            "inventory": 6511000000,
-            "other_current_assets": 14287000000,
-            "total_current_assets": 111964000000
-          },
-          "non_current_assets": {
-            "net_ppe": 44109000000,
-            "goodwill": null,
-            "intangible_assets": null,
-            "long_term_investments": 91060000000,
-            "other_non_current_assets": 76572000000,
-            "total_non_current_assets": 211741000000
-          },
-          "total_assets": 323705000000
-        },
-        "liabilities": {
-          "current_liabilities": {
-            "accounts_payable": 58229000000,
-            "short_term_debt": 9822000000,
-            "current_portion_long_term_debt": 10912000000,
-            "accrued_liabilities": 29906000000,
-            "deferred_revenue": 8249000000,
-            "other_current_liabilities": 19600000000,
-            "total_current_liabilities": 136718000000
-          },
-          "non_current_liabilities": {
-            "long_term_debt": 85750000000,
-            "deferred_tax_liabilities": null,
-            "other_non_current_liabilities": 30362000000,
-            "total_non_current_liabilities": 116112000000
-          },
-          "total_liabilities": 252830000000
-        },
-        "equity": {
-          "common_stock": 82113000000,
-          "retained_earnings": -17020000000,
-          "accumulated_other_comprehensive_income": -10218000000,
-          "treasury_stock": null,
-          "total_stockholders_equity": 70875000000,
-          "minority_interest": null
-        },
-        "calculated_metrics": {
-          "working_capital": -24754000000,
-          "net_debt": 41313000000,
-          "total_debt": 106484000000,
-          "book_value": 70875000000,
-          "book_value_per_share": 4.53,
-          "tangible_book_value": 70875000000,
-          "tangible_book_value_per_share": 4.53
-        },
-        "ratios": {
-          "current_ratio": 0.819,
-          "quick_ratio": 0.771,
-          "cash_ratio": 0.477,
-          "debt_to_equity": 1.502,
-          "debt_to_assets": 0.329,
-          "equity_to_assets": 0.219
-        }
-      }
-    },
-    // ... more periods
-  ],
-  "metadata": {
-    "data_source": "yahooquery",
-    "last_updated": "2024-11-01T12:00:00Z",
-    "periods_returned": 12,
-    "fields_available": 180
-  }
-}
-```
-
-**Field Mapping (YahooQuery → Application):**
-
-**Assets (30+ fields available):**
-- `CashAndCashEquivalents` → `cash_and_equivalents`
-- `CashCashEquivalentsAndShortTermInvestments` → `cash_and_short_term_investments`
-- `AccountsReceivable` → `accounts_receivable`
-- `Inventory` → `inventory`
-- `CurrentAssets` → `total_current_assets`
-- `NetPPE` → `net_ppe`
-- `PropertyPlantEquipment` → `gross_ppe`
-- `AccumulatedDepreciation` → `accumulated_depreciation`
-- `GoodwillAndOtherIntangibleAssets` → `goodwill`
-- `Goodwill` → `goodwill`
-- `IntangibleAssets` → `intangible_assets`
-- `LongTermEquityInvestment` → `long_term_investments`
-- `TotalAssets` → `total_assets`
-
-**Liabilities (25+ fields available):**
-- `AccountsPayable` → `accounts_payable`
-- `CurrentDebt` → `short_term_debt`
-- `CurrentDebtAndCapitalLeaseObligation` → `current_portion_long_term_debt`
-- `CurrentAccruedExpenses` → `accrued_liabilities`
-- `CurrentDeferredRevenue` → `deferred_revenue`
-- `CurrentLiabilities` → `total_current_liabilities`
-- `LongTermDebt` → `long_term_debt`
-- `LongTermDebtAndCapitalLeaseObligation` → `long_term_debt_total`
-- `DeferredTaxLiabilitiesNonCurrent` → `deferred_tax_liabilities`
-- `TotalNonCurrentLiabilitiesNetMinorityInterest` → `total_non_current_liabilities`
-- `TotalLiabilitiesNetMinorityInterest` → `total_liabilities`
-
-**Equity (15+ fields available):**
-- `CommonStock` → `common_stock`
-- `PreferredStock` → `preferred_stock`
-- `RetainedEarnings` → `retained_earnings`
-- `AccumulatedOtherComprehensiveIncome` → `accumulated_other_comprehensive_income`
-- `TreasuryStock` → `treasury_stock`
-- `StockholdersEquity` → `total_stockholders_equity`
-- `MinorityInterest` → `minority_interest`
-
-**Calculated Metrics:**
-- **Working Capital** = Current Assets - Current Liabilities
-- **Net Debt** = Total Debt - Cash and Cash Equivalents
-- **Total Debt** = Short-term Debt + Long-term Debt
-- **Book Value** = Total Stockholders' Equity
-- **Book Value per Share** = Book Value / Shares Outstanding
-- **Tangible Book Value** = Book Value - Goodwill - Intangible Assets
-- **Tangible Book Value per Share** = Tangible Book Value / Shares Outstanding
-
-**Liquidity Ratios:**
-- **Current Ratio** = Current Assets / Current Liabilities
-- **Quick Ratio** = (Current Assets - Inventory) / Current Liabilities
-- **Cash Ratio** = Cash and Equivalents / Current Liabilities
-
-**Leverage Ratios:**
-- **Debt-to-Equity** = Total Debt / Total Equity
-- **Debt-to-Assets** = Total Debt / Total Assets
-- **Equity-to-Assets** = Total Equity / Total Assets
-
-#### 3. Cash Flow Statement
-```
-GET /api/v1/fundamentals/cash-flow/{symbol}
-```
-
-**Query Parameters:** Same as income statement
-
-**Key Metrics to Include:**
-- Operating Activities: Operating Cash Flow, Changes in Working Capital
-- Investing Activities: CAPEX, Acquisitions, Asset Sales
-- Financing Activities: Dividends Paid, Stock Buybacks, Debt Issuance/Repayment
-- Calculated: Free Cash Flow, FCF Margin, FCF per Share
-
-#### 4. All Financial Statements (Combined)
-```
-GET /api/v1/fundamentals/all-statements/{symbol}
-```
-
-**Purpose**: Get all three statements in one call (more efficient for frontend)
-
-**Query Parameters:** Same as above
-
-**Response**: Combined response with all three statement types
-
----
-
-### Phase 2: Forward-Looking Data (Priority: HIGH)
-
-#### 5. Analyst Estimates
-```
-GET /api/v1/fundamentals/analyst-estimates/{symbol}
-```
-
-**Response Schema:**
-```json
-{
-  "symbol": "AAPL",
-  "estimates": {
-    "current_quarter": {
-      "period": "Q1 2025",
-      "end_date": "2025-12-31",
-      "revenue": {
-        "average": 137964127710,
-        "low": 136679500000,
-        "high": 140666000000,
-        "num_analysts": 24,
-        "year_ago": 124300000000,
-        "growth": 0.1099
-      },
-      "eps": {
-        "average": 2.64,
-        "low": 2.40,
-        "high": 2.80,
-        "num_analysts": 27,
-        "year_ago": 2.40,
-        "growth": 0.0999
-      },
-      "eps_revisions": {
-        "up_last_7_days": 7,
-        "up_last_30_days": 8,
-        "down_last_30_days": 0,
-        "down_last_90_days": 0
-      },
-      "eps_trend": {
-        "current": 2.64,
-        "7_days_ago": 2.51,
-        "30_days_ago": 2.48,
-        "60_days_ago": 2.47,
-        "90_days_ago": 2.47
-      }
-    },
-    "next_quarter": { /* same structure */ },
-    "current_year": { /* same structure */ },
-    "next_year": { /* same structure */ }
-  },
-  "metadata": {
-    "data_source": "yahooquery",
-    "last_updated": "2024-11-01T12:00:00Z"
-  }
-}
-```
-
-#### 6. Price Targets
-```
-GET /api/v1/fundamentals/price-targets/{symbol}
-```
-
-**Response Schema:**
-```json
-{
-  "symbol": "AAPL",
-  "current_price": 225.50,
-  "targets": {
-    "low": 200.00,
-    "mean": 274.97,
-    "high": 345.00,
-    "median": 270.00
-  },
-  "upside": {
-    "to_mean": 0.2194,  // 21.94% upside to mean target
-    "to_high": 0.5300,  // 53.00% upside to high target
-  },
-  "recommendations": {
-    "mean": 2.0,  // 1=Strong Buy, 5=Sell
-    "distribution": {
-      "strong_buy": 15,
-      "buy": 18,
-      "hold": 7,
-      "sell": 1,
-      "strong_sell": 0
-    },
-    "num_analysts": 41
-  },
-  "metadata": {
-    "data_source": "yahooquery",
-    "last_updated": "2024-11-01T12:00:00Z"
-  }
-}
-```
-
-#### 7. Next Earnings
-```
-GET /api/v1/fundamentals/next-earnings/{symbol}
-```
-
-**Response Schema:**
-```json
-{
-  "symbol": "AAPL",
-  "next_earnings": {
-    "date": "2026-01-29T15:00:00Z",
-    "fiscal_quarter": "Q1 2026",
-    "estimates": {
-      "revenue": {
-        "average": 137964127710,
-        "low": 136679500000,
-        "high": 140666000000
-      },
-      "eps": {
-        "average": 2.63,
-        "low": 2.40,
-        "high": 2.71
-      }
-    }
-  },
-  "last_earnings": {
-    "date": "2024-10-31",
-    "revenue_actual": 94930000000,
-    "revenue_estimate": 94360000000,
-    "revenue_surprise": 0.0060,  // 0.6% beat
-    "eps_actual": 1.64,
-    "eps_estimate": 1.60,
-    "eps_surprise": 0.025  // 2.5% beat
-  },
-  "metadata": {
-    "data_source": "yahooquery",
-    "last_updated": "2024-11-01T12:00:00Z"
-  }
-}
-```
-
----
-
-### Phase 3: Calculated Metrics (Priority: MEDIUM)
-
-#### 8. Financial Ratios
-```
-GET /api/v1/fundamentals/financial-ratios/{symbol}
-```
-
-**Calculated Ratios:**
-
-**Profitability:**
-- Gross Margin = Gross Profit / Revenue
-- Operating Margin = Operating Income / Revenue
-- Net Margin = Net Income / Revenue
-- EBITDA Margin = EBITDA / Revenue
-- Return on Assets (ROA) = Net Income / Total Assets
-- Return on Equity (ROE) = Net Income / Shareholders' Equity
-
-**Efficiency:**
-- Asset Turnover = Revenue / Total Assets
-- Inventory Turnover = COGS / Average Inventory
-- Days Sales Outstanding (DSO) = (Accounts Receivable / Revenue) * 365
-
-**Leverage:**
-- Debt-to-Equity = Total Debt / Total Equity
-- Debt-to-Assets = Total Debt / Total Assets
-- Interest Coverage = EBIT / Interest Expense
-
-**Liquidity:**
-- Current Ratio = Current Assets / Current Liabilities
-- Quick Ratio = (Current Assets - Inventory) / Current Liabilities
-- Cash Ratio = Cash / Current Liabilities
-
-**Valuation:**
-- P/E Ratio (from market cap and earnings)
-- Price-to-Book = Market Cap / Book Value
-- EV/EBITDA = Enterprise Value / EBITDA
-
-**Cash Flow:**
-- FCF Margin = Free Cash Flow / Revenue
-- FCF Yield = Free Cash Flow / Market Cap
-- Operating Cash Flow Ratio = Operating Cash Flow / Current Liabilities
-
-#### 9. Growth Metrics
-```
-GET /api/v1/fundamentals/growth-metrics/{symbol}
-```
-
-**Calculated Growth Rates (QoQ, YoY, 3Y CAGR):**
-- Revenue Growth
-- Earnings Growth
-- EBITDA Growth
-- EPS Growth
-- Operating Cash Flow Growth
-- Free Cash Flow Growth
-- Book Value Growth
-
-**Response includes historical trend arrays for charting**
-
----
-
-## Batch Orchestrator Integration ⭐ **CRITICAL**
-
-### Overview
-
-Fundamental financial data should be integrated into the **batch orchestrator v3** (`app/batch/batch_orchestrator_v3.py`) with **earnings-based timing** to avoid unnecessary API calls and database writes.
-
-**Key Insight**: Financial statements only update quarterly (after earnings releases). Pulling this data daily or weekly is wasteful.
-
-### Quarterly Update Strategy
-
-**Trigger**: **3 days after earnings date** (allows time for data to be published to Yahoo Finance)
-
-**Rationale**:
-- Financial statements are released during quarterly earnings calls
-- Yahoo Finance needs 1-3 days to process and publish the data
-- 3-day buffer ensures data availability while keeping it fresh
-- Applies to both financial statements AND company profile updates
-
-### Implementation Architecture
-
-#### 1. New Batch Phase: "Fundamentals Collection"
-
-**Add to batch_orchestrator_v3** as **Phase 4** (after existing Phase 3 - Risk Analytics):
+**Logic** (implemented in `should_fetch_fundamentals()` method):
 
 ```python
-# app/batch/batch_orchestrator_v3.py
+def should_fetch_fundamentals(symbol):
+    profile = get_company_profile(symbol)
 
-class BatchOrchestratorV3:
-    # ... existing phases 1-3 ...
+    # Case 1: No profile exists
+    if not profile:
+        return True, "No company profile"
 
-    async def run_fundamentals_collection(self, portfolio_id: UUID = None):
-        """
-        Phase 4: Collect fundamental financial data
+    # Case 2: Never fetched fundamentals
+    if not profile.fundamentals_last_fetched:
+        return True, "Never fetched"
 
-        Runs quarterly, triggered 3 days after earnings date
-        Updates both financial statements AND company profiles
+    # Case 3: No next earnings date
+    if not profile.next_earnings_date:
+        return True, "No earnings date"
 
-        Args:
-            portfolio_id: If provided, only collect for positions in this portfolio
-        """
-        logger.info("=" * 50)
-        logger.info("PHASE 4: Fundamentals Collection")
-        logger.info("=" * 50)
+    # Case 4: Earnings + 3 days has passed
+    earnings_buffer_date = profile.next_earnings_date + timedelta(days=3)
+    if date.today() >= earnings_buffer_date:
+        return True, f"Earnings released on {profile.next_earnings_date}"
 
-        try:
-            # Get symbols that need fundamentals update
-            symbols_to_update = await self._get_symbols_needing_fundamentals_update(portfolio_id)
-
-            if not symbols_to_update:
-                logger.info("No symbols require fundamentals update at this time")
-                return
-
-            logger.info(f"Updating fundamentals for {len(symbols_to_update)} symbols")
-
-            # Collect financial statements
-            await self._collect_financial_statements(symbols_to_update)
-
-            # Update company profiles (if also stale)
-            await self._update_company_profiles(symbols_to_update)
-
-            logger.info("Phase 4: Fundamentals collection complete")
-
-        except Exception as e:
-            logger.error(f"Phase 4 failed: {str(e)}")
-            raise
+    # Case 5: Data is current
+    return False, f"Data current (next earnings: {profile.next_earnings_date})"
 ```
 
-#### 2. Earnings Date Tracking
+**Benefits**:
+- Reduces batch runtime from ~10 min (daily fetch) to ~1 min (smart fetch)
+- Only updates after quarterly earnings released
+- 3-day buffer ensures Yahoo Finance has published data
+- Respects rate limits
 
-**Create new table**: `financial_statement_updates`
+### 3. Coordination with company_profiles Table
 
-```python
-# app/models/fundamentals.py (NEW FILE)
+**What's Already in company_profiles** (no changes):
+- Annual analyst estimates (`current_year_*`, `next_year_*`) - lines 102-120
+- Price targets (`target_mean_price`, `target_high_price`, `target_low_price`) - lines 81-83
+- Recommendations (`recommendation_mean`, `recommendation_key`) - lines 85-86
+- Valuation metrics (`pe_ratio`, `forward_pe`, `beta`) - lines 72-78
 
-from sqlalchemy import Column, String, Date, DateTime, Boolean
-from sqlalchemy.dialects.postgresql import UUID
-from app.database import Base
-from datetime import datetime
-import uuid
+**What We're ADDING**:
 
-class FinancialStatementUpdate(Base):
-    __tablename__ = "financial_statement_updates"
+**To company_profiles** (17 new columns):
+- Quarterly analyst estimates (14 columns):
+  - `current_quarter_revenue_avg/low/high` (3)
+  - `current_quarter_eps_avg/low/high` (3)
+  - `current_quarter_analyst_count` (1)
+  - `next_quarter_revenue_avg/low/high` (3)
+  - `next_quarter_eps_avg/low/high` (3)
+  - `next_quarter_analyst_count` (1)
+- Next earnings date (3 columns):
+  - `next_earnings_date`
+  - `next_earnings_expected_eps`
+  - `next_earnings_expected_revenue`
+- Last fetch tracking (1 column):
+  - `fundamentals_last_fetched`
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    symbol = Column(String(10), nullable=False, index=True, unique=True)
+**NEW dedicated tables** (3 tables):
+- `income_statements` - 22 fields + metadata
+- `balance_sheets` - 29 fields + metadata
+- `cash_flows` - 19 fields + metadata
 
-    # Earnings tracking
-    last_earnings_date = Column(Date, nullable=True)  # Most recent earnings date
-    next_earnings_date = Column(Date, nullable=True)  # Upcoming earnings (from YahooQuery calendar_events)
+**API Call Coordination** (per symbol, per batch run):
 
-    # Update tracking
-    last_financials_update = Column(DateTime, nullable=True)  # When we last pulled statements
-    last_profile_update = Column(DateTime, nullable=True)     # When we last pulled company profile
+| YahooQuery Method | Stores In | Updates Existing? | Creates New? |
+|-------------------|-----------|-------------------|--------------|
+| `get_all_financials(frequency='q')` | `income_statements`, `balance_sheets`, `cash_flows` | No | Yes (UPSERT 12 quarterly) |
+| `get_all_financials(frequency='a')` | `income_statements`, `balance_sheets`, `cash_flows` | No | Yes (UPSERT 4 annual) |
+| `get_analyst_estimates()` | `company_profiles` | Yes (refresh annual + add quarterly) | No |
+| `get_price_targets()` | `company_profiles` | Yes (refresh existing) | No |
+| `get_next_earnings()` | `company_profiles` | No | Yes (add 3 new columns) |
 
-    # Status flags
-    needs_update = Column(Boolean, default=False)  # True if earnings_date + 3 days has passed
-    update_scheduled_for = Column(Date, nullable=True)  # earnings_date + 3 days
+**Total**: 5 API calls per symbol per fetch (only when needed based on earnings date)
 
-    # Metadata
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+---
+
+## Phase 1: Database Schema & Models
+
+### Step 1.1: Create Alembic Migration
+
+**File**: `backend/alembic/versions/YYYYMMDD_add_fundamental_tables.py`
+
+**What it does**:
+1. Creates 3 new tables (`income_statements`, `balance_sheets`, `cash_flows`)
+2. Adds 17 columns to existing `company_profiles` table
+3. Creates indexes for fast lookups
+4. Adds UNIQUE constraints to prevent duplicate periods
+
+**Key SQL for `income_statements` table**:
+```sql
+CREATE TABLE income_statements (
+    id UUID PRIMARY KEY,
+    symbol VARCHAR(10) NOT NULL,
+    period_date DATE NOT NULL,
+    fiscal_year INT,
+    fiscal_quarter INT,
+    frequency VARCHAR(1) NOT NULL CHECK (frequency IN ('q', 'a')),
+
+    -- Revenue & Costs (6 fields)
+    total_revenue NUMERIC(20, 2),
+    cost_of_revenue NUMERIC(20, 2),
+    gross_profit NUMERIC(20, 2),
+    gross_margin NUMERIC(8, 6),  -- calculated
+
+    -- Operating Expenses (2 fields)
+    research_and_development NUMERIC(20, 2),
+    selling_general_and_administrative NUMERIC(20, 2),
+
+    -- Operating Results (4 fields)
+    operating_income NUMERIC(20, 2),
+    operating_margin NUMERIC(8, 6),  -- calculated
+    ebit NUMERIC(20, 2),
+    ebitda NUMERIC(20, 2),
+
+    -- Net Income (6 fields)
+    net_income NUMERIC(20, 2),
+    net_margin NUMERIC(8, 6),  -- calculated
+    diluted_eps NUMERIC(12, 4),
+    basic_eps NUMERIC(12, 4),
+    basic_average_shares BIGINT,
+    diluted_average_shares BIGINT,
+
+    -- Tax & Interest (3 fields)
+    tax_provision NUMERIC(20, 2),
+    interest_expense NUMERIC(20, 2),
+    depreciation_and_amortization NUMERIC(20, 2),
+
+    -- Metadata
+    currency VARCHAR(3) DEFAULT 'USD',
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+
+    -- Constraints
+    UNIQUE(symbol, period_date, frequency)
+);
+
+-- Indexes
+CREATE INDEX idx_income_statements_symbol ON income_statements(symbol);
+CREATE INDEX idx_income_statements_period ON income_statements(period_date DESC);
+CREATE INDEX idx_income_statements_symbol_freq ON income_statements(symbol, frequency);
 ```
 
-**Migration**:
+**Similar structure for `balance_sheets` and `cash_flows`**.
+
+**Columns to ADD to `company_profiles`**:
+```sql
+-- Quarterly estimates (14 columns)
+-- ⭐ DESIGN DECISION: Include target_period_date for future historical tracking
+ALTER TABLE company_profiles ADD COLUMN current_quarter_target_period_date DATE;  -- Absolute quarter end date
+ALTER TABLE company_profiles ADD COLUMN current_quarter_revenue_avg NUMERIC(20, 2);
+ALTER TABLE company_profiles ADD COLUMN current_quarter_revenue_low NUMERIC(20, 2);
+ALTER TABLE company_profiles ADD COLUMN current_quarter_revenue_high NUMERIC(20, 2);
+ALTER TABLE company_profiles ADD COLUMN current_quarter_eps_avg NUMERIC(12, 4);
+ALTER TABLE company_profiles ADD COLUMN current_quarter_eps_low NUMERIC(12, 4);
+ALTER TABLE company_profiles ADD COLUMN current_quarter_eps_high NUMERIC(12, 4);
+ALTER TABLE company_profiles ADD COLUMN current_quarter_analyst_count INT;
+
+ALTER TABLE company_profiles ADD COLUMN next_quarter_target_period_date DATE;  -- Absolute quarter end date
+ALTER TABLE company_profiles ADD COLUMN next_quarter_revenue_avg NUMERIC(20, 2);
+ALTER TABLE company_profiles ADD COLUMN next_quarter_revenue_low NUMERIC(20, 2);
+ALTER TABLE company_profiles ADD COLUMN next_quarter_revenue_high NUMERIC(20, 2);
+ALTER TABLE company_profiles ADD COLUMN next_quarter_eps_avg NUMERIC(12, 4);
+ALTER TABLE company_profiles ADD COLUMN next_quarter_eps_low NUMERIC(12, 4);
+ALTER TABLE company_profiles ADD COLUMN next_quarter_eps_high NUMERIC(12, 4);
+ALTER TABLE company_profiles ADD COLUMN next_quarter_analyst_count INT;
+
+-- Fiscal calendar metadata (2 columns) - for deriving absolute dates
+ALTER TABLE company_profiles ADD COLUMN fiscal_year_end VARCHAR(5);  -- e.g., "12-31" or "09-30"
+ALTER TABLE company_profiles ADD COLUMN fiscal_quarter_offset INT DEFAULT 0;  -- Calendar vs fiscal quarter offset
+
+-- Next earnings (3 columns)
+ALTER TABLE company_profiles ADD COLUMN next_earnings_date DATE;
+ALTER TABLE company_profiles ADD COLUMN next_earnings_expected_eps NUMERIC(12, 4);
+ALTER TABLE company_profiles ADD COLUMN next_earnings_expected_revenue NUMERIC(20, 2);
+
+-- Last fetch tracking (1 column)
+ALTER TABLE company_profiles ADD COLUMN fundamentals_last_fetched TIMESTAMP WITH TIME ZONE;
+```
+
+**Total NEW columns**: 21 (was 17, added 4 for period date tracking)
+
+**Run Migration**:
 ```bash
-# Create Alembic migration
-alembic revision --autogenerate -m "Add financial_statement_updates table"
-alembic upgrade head
+cd backend
+uv run alembic revision --autogenerate -m "add_fundamental_tables_and_enhance_company_profiles"
+# Review generated migration file
+uv run alembic upgrade head
 ```
 
-#### 3. Update Logic
+### Step 1.1.5: Fiscal Calendar Logic (Critical for Period Dates) ⭐
 
-**Service**: `app/services/fundamentals_update_service.py` (NEW FILE)
+**Problem**: YahooQuery returns relative labels (`current_quarter`, `next_quarter`), but we need **absolute dates** to:
+1. Compare estimates to actuals (join with `income_statements.period_date`)
+2. Enable future historical tracking (track estimate evolution for same target quarter)
 
+**Solution**: Derive absolute quarter end dates from fiscal calendar metadata.
+
+#### How Fiscal Calendars Work
+
+Companies report earnings on **fiscal quarters**, which may not align with calendar quarters:
+
+**Calendar Year Companies** (fiscal year ends December 31):
+- Q1 ends: March 31
+- Q2 ends: June 30
+- Q3 ends: September 30
+- Q4 ends: December 31
+- Examples: Most companies (AAPL, MSFT, GOOGL)
+
+**Non-Calendar Year Companies** (fiscal year ends other than Dec 31):
+- Walmart (fiscal year ends January 31):
+  - Q1 ends: April 30
+  - Q2 ends: July 31
+  - Q3 ends: October 31
+  - Q4 ends: January 31
+- Oracle (fiscal year ends May 31):
+  - Q1 ends: August 31
+  - Q2 ends: November 30
+  - Q3 ends: February 28
+  - Q4 ends: May 31
+
+#### Deriving Absolute Dates Algorithm
+
+**Inputs**:
+- `next_earnings_date` - When next earnings will be reported
+- `fiscal_year_end` - Company's fiscal year end (e.g., "12-31", "01-31", "05-31")
+
+**Logic**:
 ```python
-from datetime import datetime, date, timedelta
-from typing import List
-from sqlalchemy import select
-from yahooquery import Ticker
-
-async def get_symbols_needing_fundamentals_update(
-    db: AsyncSession,
-    portfolio_id: UUID = None
-) -> List[str]:
+def calculate_fiscal_quarter_end(
+    next_earnings_date: date,
+    fiscal_year_end: str,  # "MM-DD" format
+    offset: int = 0  # 0=current quarter, 1=next quarter
+) -> date:
     """
-    Get symbols that need fundamentals update based on earnings date + 3 days
-
-    Logic:
-    1. Check if symbol has next_earnings_date
-    2. If next_earnings_date + 3 days <= today AND needs_update = False:
-       - Mark needs_update = True
-       - Add to update list
-    3. Also check symbols with no recent update (>90 days)
+    Calculate absolute fiscal quarter end date.
 
     Args:
-        db: Database session
-        portfolio_id: Optional - only check symbols in this portfolio
+        next_earnings_date: When earnings will be reported (usually 2-4 weeks after quarter ends)
+        fiscal_year_end: Company's fiscal year end in "MM-DD" format
+        offset: 0 for current quarter, 1 for next quarter, -1 for previous quarter
 
     Returns:
-        List of symbols needing update
+        Absolute fiscal quarter end date (e.g., 2024-03-31)
     """
-    today = date.today()
+    # Parse fiscal year end
+    fye_month, fye_day = map(int, fiscal_year_end.split('-'))
 
-    # Get all symbols from positions (optionally filtered by portfolio)
-    symbols_query = select(Position.symbol).distinct()
-    if portfolio_id:
-        symbols_query = symbols_query.where(Position.portfolio_id == portfolio_id)
+    # Determine which quarter we're reporting
+    # Assumption: earnings are reported 2-4 weeks after quarter ends
+    # So next_earnings_date - 3 weeks ≈ quarter end date
+    estimated_quarter_end = next_earnings_date - timedelta(weeks=3)
 
-    symbols_result = await db.execute(symbols_query)
-    all_symbols = [row[0] for row in symbols_result.fetchall()]
+    # Calculate fiscal quarter ends based on fiscal_year_end
+    # Fiscal quarters end 3, 6, 9, and 12 months before fiscal year end
+    year = estimated_quarter_end.year
 
-    symbols_to_update = []
+    # Generate all 4 fiscal quarter end dates for current fiscal year
+    fiscal_quarters = []
+    for months_before in [3, 6, 9, 12]:
+        qtr_month = (fye_month - months_before) % 12
+        if qtr_month == 0:
+            qtr_month = 12
+        qtr_year = year if qtr_month <= fye_month else year - 1
 
-    for symbol in all_symbols:
-        # Get update record
-        update_record = await db.execute(
-            select(FinancialStatementUpdate).where(
-                FinancialStatementUpdate.symbol == symbol
-            )
-        )
-        update_record = update_record.scalar_one_or_none()
+        # Handle different day counts per month
+        qtr_day = min(fye_day, calendar.monthrange(qtr_year, qtr_month)[1])
 
-        # If no record exists, create one and add to update list
-        if not update_record:
-            update_record = FinancialStatementUpdate(
-                symbol=symbol,
-                needs_update=True,
-                update_scheduled_for=today
-            )
-            db.add(update_record)
-            symbols_to_update.append(symbol)
-            continue
+        fiscal_quarters.append(date(qtr_year, qtr_month, qtr_day))
 
-        # Check if earnings + 3 days has passed
-        if update_record.next_earnings_date:
-            update_date = update_record.next_earnings_date + timedelta(days=3)
-            if update_date <= today and not update_record.needs_update:
-                update_record.needs_update = True
-                update_record.update_scheduled_for = update_date
-                symbols_to_update.append(symbol)
-                continue
+    # Find the closest quarter end to estimated_quarter_end
+    closest_quarter = min(fiscal_quarters, key=lambda d: abs((d - estimated_quarter_end).days))
 
-        # Check if last update was > 90 days ago (stale data failsafe)
-        if update_record.last_financials_update:
-            days_since_update = (today - update_record.last_financials_update.date()).days
-            if days_since_update > 90:
-                update_record.needs_update = True
-                symbols_to_update.append(symbol)
+    # Apply offset (0=current quarter, 1=next quarter)
+    if offset != 0:
+        # Move to next/previous quarter
+        target_index = fiscal_quarters.index(closest_quarter) + offset
+        if target_index < 0 or target_index >= 4:
+            # Need to adjust year
+            closest_quarter = add_fiscal_quarters(closest_quarter, offset, fiscal_year_end)
+        else:
+            closest_quarter = fiscal_quarters[target_index]
 
-    await db.commit()
-    return symbols_to_update
+    return closest_quarter
 
 
-async def update_next_earnings_dates(db: AsyncSession):
-    """
-    Batch update next earnings dates for all symbols
+def add_fiscal_quarters(base_date: date, num_quarters: int, fiscal_year_end: str) -> date:
+    """Add N fiscal quarters to a date."""
+    months_to_add = num_quarters * 3
+    new_month = base_date.month + months_to_add
+    new_year = base_date.year + (new_month - 1) // 12
+    new_month = ((new_month - 1) % 12) + 1
 
-    Runs daily as part of batch orchestrator
-    Uses YahooQuery calendar_events to get upcoming earnings
-    """
-    # Get all symbols with update records
-    result = await db.execute(select(FinancialStatementUpdate))
-    records = result.scalars().all()
+    # Handle day overflow (e.g., Jan 31 + 1 month = Feb 28/29, not March 3)
+    fye_month, fye_day = map(int, fiscal_year_end.split('-'))
+    new_day = min(base_date.day, calendar.monthrange(new_year, new_month)[1])
 
-    for record in records:
-        try:
-            # Fetch next earnings date from YahooQuery
-            ticker = Ticker(record.symbol)
-            calendar = ticker.calendar_events
-
-            if isinstance(calendar, dict) and record.symbol in calendar:
-                earnings_data = calendar[record.symbol].get('earnings', {})
-                earnings_dates = earnings_data.get('earningsDate', [])
-
-                if earnings_dates and len(earnings_dates) > 0:
-                    # Take first date (next earnings)
-                    next_earnings = earnings_dates[0]
-
-                    # Convert to date object
-                    if isinstance(next_earnings, str):
-                        next_earnings = datetime.fromisoformat(next_earnings).date()
-                    elif hasattr(next_earnings, 'date'):
-                        next_earnings = next_earnings.date()
-
-                    record.next_earnings_date = next_earnings
-                    logger.info(f"{record.symbol}: Next earnings {next_earnings}")
-
-        except Exception as e:
-            logger.warning(f"Could not fetch earnings date for {record.symbol}: {str(e)}")
-            continue
-
-    await db.commit()
+    return date(new_year, new_month, new_day)
 ```
 
-#### 4. Batch Orchestrator Integration Points
+#### Example Transformation
 
-**Daily Job** (existing batch run):
-1. Update next earnings dates for all symbols (lightweight YahooQuery calendar_events call)
-2. Check which symbols need fundamentals update (earnings_date + 3 days logic)
-3. If symbols need update, run Phase 4
-
-**Weekly Job** (new):
-1. Verify no symbols are >90 days stale
-2. Force update for stale symbols
-
-**Manual Trigger** (Admin endpoint):
+**Apple (AAPL) - Calendar year company**:
 ```python
-POST /api/v1/admin/fundamentals/update-symbol/{symbol}
-# Force immediate update for a specific symbol
+# Today: November 2, 2025
+# Next earnings: January 30, 2026 (reporting Q1 FY2026 results)
+# Fiscal year end: "12-31"
+
+current_quarter_end = calculate_fiscal_quarter_end(
+    next_earnings_date=date(2026, 1, 30),
+    fiscal_year_end="12-31",
+    offset=0  # Current quarter
+)
+# Returns: 2025-12-31 (Q4 2025 - the quarter being reported on Jan 30)
+
+next_quarter_end = calculate_fiscal_quarter_end(
+    next_earnings_date=date(2026, 1, 30),
+    fiscal_year_end="12-31",
+    offset=1  # Next quarter
+)
+# Returns: 2026-03-31 (Q1 2026 - the quarter after the one being reported)
 ```
 
-### Company Profile Integration
+**Walmart (WMT) - Fiscal year ends January 31**:
+```python
+# Today: November 2, 2025
+# Next earnings: November 19, 2025 (reporting Q3 FY2026 results)
+# Fiscal year end: "01-31"
 
-**Shared Timing Logic**: Company profiles should update on same schedule as financial statements
+current_quarter_end = calculate_fiscal_quarter_end(
+    next_earnings_date=date(2025, 11, 19),
+    fiscal_year_end="01-31",
+    offset=0
+)
+# Returns: 2025-10-31 (Q3 FY2026 - Walmart's fiscal Q3 ends Oct 31)
 
-**Rationale**:
-- Sector/industry rarely changes, but may during corporate actions
-- Market cap changes daily (but we get that from prices)
-- Earnings estimates are part of fundamentals, should update quarterly
-- Description, officers, etc. rarely change
+next_quarter_end = calculate_fiscal_quarter_end(
+    next_earnings_date=date(2025, 11, 19),
+    fiscal_year_end="01-31",
+    offset=1
+)
+# Returns: 2026-01-31 (Q4 FY2026 - Walmart's fiscal Q4 ends Jan 31)
+```
+
+#### Why This Matters
+
+**Current Implementation** (Phase 1):
+- Store `current_quarter_target_period_date` and `next_quarter_target_period_date` in company_profiles
+- Allows clean JOIN with `income_statements.period_date`
+- Enables future historical tracking
+
+**Future Implementation** (Phase 2 - Historical Tracking):
+```sql
+-- Create analyst_estimates_history table
+CREATE TABLE analyst_estimates_history (
+    id UUID PRIMARY KEY,
+    symbol VARCHAR(10) NOT NULL,
+    estimate_date DATE NOT NULL,  -- When estimate was made
+    target_period_date DATE NOT NULL,  -- Which quarter being predicted
+    frequency VARCHAR(1) CHECK (frequency IN ('q', 'a')),
+    revenue_avg NUMERIC(20, 2),
+    eps_avg NUMERIC(10, 2),
+    -- ... other fields
+    UNIQUE(symbol, estimate_date, target_period_date, frequency)
+);
+
+-- Compare estimates to actuals (clean JOIN on absolute dates)
+SELECT
+    aeh.estimate_date,
+    aeh.eps_avg as estimated_eps,
+    is.diluted_eps as actual_eps,
+    (is.diluted_eps - aeh.eps_avg) / aeh.eps_avg * 100 as surprise_pct
+FROM analyst_estimates_history aeh
+JOIN income_statements is
+    ON aeh.symbol = is.symbol
+    AND aeh.target_period_date = is.period_date  -- ⭐ Clean JOIN on absolute dates
+    AND aeh.frequency = is.frequency
+WHERE aeh.symbol = 'AAPL'
+  AND aeh.target_period_date = '2024-03-31';
+```
+
+### Step 1.2: Create SQLAlchemy Models
+
+**File**: `backend/app/models/fundamentals.py` (NEW FILE)
+
+Create 3 model classes:
+- `IncomeStatement` - 22 fields + metadata
+- `BalanceSheet` - 29 fields + metadata
+- `CashFlow` - 19 fields + metadata
+
+All models have:
+- UUID primary key
+- Symbol (indexed)
+- Period date (indexed descending)
+- Frequency ('q' or 'a')
+- UNIQUE constraint on (symbol, period_date, frequency)
+
+**File**: `backend/app/models/market_data.py` (UPDATE)
+
+Add 21 new fields to `CompanyProfile` model after line 120:
+```python
+# Quarterly analyst estimates (0q, +1q periods) - with absolute target dates
+current_quarter_target_period_date: Mapped[Optional[date]] = mapped_column(Date)  # Absolute quarter end
+current_quarter_revenue_avg: Mapped[Optional[Decimal]] = mapped_column(Numeric(20, 2))
+current_quarter_revenue_low: Mapped[Optional[Decimal]] = mapped_column(Numeric(20, 2))
+current_quarter_revenue_high: Mapped[Optional[Decimal]] = mapped_column(Numeric(20, 2))
+current_quarter_eps_avg: Mapped[Optional[Decimal]] = mapped_column(Numeric(12, 4))
+current_quarter_eps_low: Mapped[Optional[Decimal]] = mapped_column(Numeric(12, 4))
+current_quarter_eps_high: Mapped[Optional[Decimal]] = mapped_column(Numeric(12, 4))
+current_quarter_analyst_count: Mapped[Optional[int]] = mapped_column(Integer)
+
+next_quarter_target_period_date: Mapped[Optional[date]] = mapped_column(Date)  # Absolute quarter end
+next_quarter_revenue_avg: Mapped[Optional[Decimal]] = mapped_column(Numeric(20, 2))
+next_quarter_revenue_low: Mapped[Optional[Decimal]] = mapped_column(Numeric(20, 2))
+next_quarter_revenue_high: Mapped[Optional[Decimal]] = mapped_column(Numeric(20, 2))
+next_quarter_eps_avg: Mapped[Optional[Decimal]] = mapped_column(Numeric(12, 4))
+next_quarter_eps_low: Mapped[Optional[Decimal]] = mapped_column(Numeric(12, 4))
+next_quarter_eps_high: Mapped[Optional[Decimal]] = mapped_column(Numeric(12, 4))
+next_quarter_analyst_count: Mapped[Optional[int]] = mapped_column(Integer)
+
+# Fiscal calendar metadata (for deriving absolute dates)
+fiscal_year_end: Mapped[Optional[str]] = mapped_column(String(5))  # "MM-DD" format, e.g., "12-31"
+fiscal_quarter_offset: Mapped[Optional[int]] = mapped_column(Integer, default=0)
+
+# Next earnings date
+next_earnings_date: Mapped[Optional[date]] = mapped_column(Date)
+next_earnings_expected_eps: Mapped[Optional[Decimal]] = mapped_column(Numeric(12, 4))
+next_earnings_expected_revenue: Mapped[Optional[Decimal]] = mapped_column(Numeric(20, 2))
+
+# Last fetch tracking
+fundamentals_last_fetched: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+```
+
+---
+
+## Phase 2: Service Layer
+
+### Step 2.1: Enhance FundamentalsService
+
+**File**: `backend/app/services/fundamentals_service.py` (MODIFY EXISTING)
+
+**KEEP existing on-demand methods** (no changes):
+- `get_income_statement()` - fetch from YahooQuery (already working)
+- `get_balance_sheet()` - fetch from YahooQuery (already working)
+- `get_cash_flow()` - fetch from YahooQuery (already working)
+- `get_all_statements()` - fetch from YahooQuery (already working)
+
+**ADD fiscal calendar helper methods** (critical for period dates):
+
+#### Helper Method 1: `_calculate_fiscal_quarter_end(next_earnings_date, fiscal_year_end, offset)`
+
+**Purpose**: Derive absolute fiscal quarter end date from next earnings date and fiscal calendar
 
 **Implementation**:
 ```python
-# When updating financial statements, also update company profile
-async def collect_fundamentals_for_symbol(symbol: str):
-    # 1. Get financial statements (income, balance, cash flow)
-    statements = await fundamentals_client.get_all_statements(symbol)
+import calendar
+from datetime import date, timedelta
+from typing import Optional
 
-    # 2. Get analyst estimates and price targets
-    estimates = await fundamentals_client.get_analyst_estimates(symbol)
-    targets = await fundamentals_client.get_price_targets(symbol)
+def _calculate_fiscal_quarter_end(
+    self,
+    next_earnings_date: date,
+    fiscal_year_end: str,
+    offset: int = 0
+) -> date:
+    """
+    Calculate absolute fiscal quarter end date.
 
-    # 3. Update company profile (if stale or earnings-triggered)
-    profile = await company_profile_service.sync_profile(symbol)
+    Args:
+        next_earnings_date: When earnings will be reported (usually 2-4 weeks after quarter ends)
+        fiscal_year_end: Company's fiscal year end in "MM-DD" format (e.g., "12-31", "01-31")
+        offset: 0 for current quarter, 1 for next quarter, -1 for previous quarter
 
-    # 4. Store all data
-    await store_financial_statements(symbol, statements)
-    await store_analyst_estimates(symbol, estimates)
-    await store_price_targets(symbol, targets)
+    Returns:
+        Absolute fiscal quarter end date (e.g., 2024-03-31)
 
-    # 5. Mark as updated
-    await mark_fundamentals_updated(symbol)
+    Example:
+        # Apple reports Q4 2025 earnings on Jan 30, 2026
+        # Fiscal year end: "12-31"
+        _calculate_fiscal_quarter_end(date(2026, 1, 30), "12-31", offset=0)
+        # Returns: date(2025, 12, 31)  # Q4 2025 end
+    """
+    # Parse fiscal year end
+    fye_month, fye_day = map(int, fiscal_year_end.split('-'))
+
+    # Determine which quarter we're reporting
+    # Assumption: earnings are reported 2-4 weeks after quarter ends
+    # So next_earnings_date - 3 weeks ≈ quarter end date
+    estimated_quarter_end = next_earnings_date - timedelta(weeks=3)
+
+    # Calculate fiscal quarter ends based on fiscal_year_end
+    # Fiscal quarters end 3, 6, 9, and 12 months before fiscal year end
+    year = estimated_quarter_end.year
+
+    # Generate all 4 fiscal quarter end dates for current fiscal year
+    fiscal_quarters = []
+    for months_before in [3, 6, 9, 12]:
+        qtr_month = (fye_month - months_before) % 12
+        if qtr_month == 0:
+            qtr_month = 12
+        qtr_year = year if qtr_month <= fye_month else year - 1
+
+        # Handle different day counts per month
+        qtr_day = min(fye_day, calendar.monthrange(qtr_year, qtr_month)[1])
+
+        fiscal_quarters.append(date(qtr_year, qtr_month, qtr_day))
+
+    # Find the closest quarter end to estimated_quarter_end
+    closest_quarter = min(fiscal_quarters, key=lambda d: abs((d - estimated_quarter_end).days))
+
+    # Apply offset (0=current quarter, 1=next quarter)
+    if offset != 0:
+        # Move to next/previous quarter
+        target_index = fiscal_quarters.index(closest_quarter) + offset
+        if target_index < 0 or target_index >= 4:
+            # Need to adjust year
+            closest_quarter = self._add_fiscal_quarters(closest_quarter, offset, fiscal_year_end)
+        else:
+            closest_quarter = fiscal_quarters[target_index]
+
+    return closest_quarter
+
+
+def _add_fiscal_quarters(
+    self,
+    base_date: date,
+    num_quarters: int,
+    fiscal_year_end: str
+) -> date:
+    """
+    Add N fiscal quarters to a date.
+
+    Args:
+        base_date: Starting date
+        num_quarters: Number of quarters to add (can be negative)
+        fiscal_year_end: Company's fiscal year end in "MM-DD" format
+
+    Returns:
+        New date after adding quarters
+    """
+    months_to_add = num_quarters * 3
+    new_month = base_date.month + months_to_add
+    new_year = base_date.year + (new_month - 1) // 12
+    new_month = ((new_month - 1) % 12) + 1
+
+    # Handle day overflow (e.g., Jan 31 + 1 month = Feb 28/29, not March 3)
+    fye_month, fye_day = map(int, fiscal_year_end.split('-'))
+    new_day = min(base_date.day, calendar.monthrange(new_year, new_month)[1])
+
+    return date(new_year, new_month, new_day)
+
+
+def _get_or_infer_fiscal_year_end(
+    self,
+    symbol: str,
+    earnings_calendar: Optional[dict] = None
+) -> str:
+    """
+    Get fiscal year end from company profile or infer from earnings calendar.
+
+    Args:
+        symbol: Stock symbol
+        earnings_calendar: Optional earnings calendar data from YahooQuery
+
+    Returns:
+        Fiscal year end in "MM-DD" format (e.g., "12-31")
+        Defaults to "12-31" (calendar year) if unknown
+    """
+    # Try to get from existing company profile
+    # (fiscal_year_end field should be populated from YahooQuery company info)
+
+    # For now, default to calendar year
+    # TODO: Fetch from YahooQuery's company_info or earnings_calendar
+    return "12-31"
 ```
 
-### Scheduling Strategy
+**ADD new database storage methods**:
 
-**Option A: Cron-Based** (Recommended)
+#### Method 1: `should_fetch_fundamentals(db, symbol) -> bool`
+
+**Purpose**: Smart fetching decision based on earnings date
+
+**Implementation**:
 ```python
-# APScheduler configuration
-scheduler.add_job(
-    update_next_earnings_dates,
-    trigger='cron',
-    hour=1,  # 1 AM daily
-    minute=0,
-    id='daily_earnings_dates_update'
+async def should_fetch_fundamentals(
+    self, db: AsyncSession, symbol: str
+) -> bool:
+    """
+    Determine if we should fetch fundamental data for a symbol.
+
+    Returns:
+        bool: True if should fetch, False if skip
+    """
+    try:
+        # Get company profile
+        result = await db.execute(
+            select(CompanyProfile).where(CompanyProfile.symbol == symbol)
+        )
+        profile = result.scalar_one_or_none()
+
+        # Case 1: No profile exists → fetch
+        if not profile:
+            logger.info(f"No company profile for {symbol} → FETCH")
+            return True
+
+        # Case 2: Never fetched fundamentals → fetch
+        if not profile.fundamentals_last_fetched:
+            logger.info(f"Never fetched fundamentals for {symbol} → FETCH")
+            return True
+
+        # Case 3: No next earnings date → fetch
+        if not profile.next_earnings_date:
+            logger.info(f"No next earnings date for {symbol} → FETCH")
+            return True
+
+        # Case 4: Check if earnings + 3 days has passed
+        earnings_release_buffer = profile.next_earnings_date + timedelta(days=3)
+        current_date = date.today()
+
+        if current_date >= earnings_release_buffer:
+            logger.info(
+                f"Earnings released for {symbol} "
+                f"(next_earnings_date={profile.next_earnings_date}) → FETCH"
+            )
+            return True
+
+        # Data is current, skip
+        logger.info(
+            f"Fundamentals current for {symbol} "
+            f"(last_fetched={profile.fundamentals_last_fetched}, "
+            f"next_earnings={profile.next_earnings_date}) → SKIP"
+        )
+        return False
+
+    except Exception as e:
+        logger.error(f"Error checking if should fetch for {symbol}: {e}")
+        # On error, default to fetching (safer)
+        return True
+```
+
+#### Method 2: `store_income_statements(db, symbol, data, frequency) -> int`
+
+**Purpose**: Store income statement data using UPSERT
+
+**Key Features**:
+- UPSERT logic (insert or update on conflict)
+- Calculate margins if revenue exists
+- Handle NaN and None values
+- Return number of periods stored
+
+**UPSERT Pattern**:
+```python
+stmt = insert(IncomeStatement).values(**income_record)
+stmt = stmt.on_conflict_do_update(
+    constraint='uq_income_symbol_period_freq',
+    set_={
+        'total_revenue': stmt.excluded.total_revenue,
+        'gross_profit': stmt.excluded.gross_profit,
+        # ... all fields
+        'updated_at': datetime.now(),
+    }
 )
-
-scheduler.add_job(
-    check_and_run_fundamentals_updates,
-    trigger='cron',
-    hour=2,  # 2 AM daily (after earnings dates updated)
-    minute=0,
-    id='daily_fundamentals_check'
-)
-
-scheduler.add_job(
-    force_update_stale_symbols,
-    trigger='cron',
-    day_of_week='sun',  # Weekly on Sunday
-    hour=3,
-    minute=0,
-    id='weekly_stale_fundamentals_check'
-)
+await db.execute(stmt)
 ```
 
-**Option B: Event-Driven** (Future Enhancement)
-- Listen for earnings announcements (external data source)
-- Trigger update immediately when earnings detected
-- More complex but more responsive
+#### Method 3: `store_balance_sheets(db, symbol, data, frequency) -> int`
 
-### Database Storage Strategy
+Similar to `store_income_statements`, but for balance sheet data.
 
-**New Tables**:
+Calculates:
+- Working capital = Current Assets - Current Liabilities
+- Net debt = Total Debt - Cash
+- Current ratio = Current Assets / Current Liabilities
+- Debt-to-equity = Total Debt / Total Equity
 
-1. **`financial_statements`** - Raw statement data
+#### Method 4: `store_cash_flows(db, symbol, data, frequency) -> int`
+
+Similar to above, but for cash flow data.
+
+Calculates:
+- Free cash flow = Operating Cash Flow - CapEx
+- FCF margin = Free Cash Flow / Revenue
+
+#### Method 5: `update_company_profile_analyst_data(db, symbol, estimates, targets, calendar) -> bool`
+
+**Purpose**: Update company_profiles with analyst data INCLUDING absolute target period dates
+
+**Updates**:
+- Quarterly estimates (0q, +1q) - NEW data with absolute target_period_date
+- Annual estimates (0y, +1y) - REFRESH existing
+- Price targets - REFRESH existing
+- Next earnings date - NEW data
+- Fiscal calendar metadata - NEW data
+- `fundamentals_last_fetched` timestamp
+
+**Key Code**:
 ```python
-class FinancialStatement(Base):
-    __tablename__ = "financial_statements"
+async def update_company_profile_analyst_data(
+    self,
+    db: AsyncSession,
+    symbol: str,
+    analyst_estimates: Optional[dict],
+    price_targets: Optional[dict],
+    earnings_calendar: Optional[dict]
+) -> bool:
+    """
+    Update company_profiles with analyst data and absolute target period dates.
 
-    id = Column(UUID, primary_key=True)
-    symbol = Column(String(10), nullable=False, index=True)
-    statement_type = Column(String(20))  # 'income', 'balance', 'cashflow'
-    frequency = Column(String(1))  # 'q' or 'a'
-    period_date = Column(Date, nullable=False)
-    fiscal_year = Column(Integer)
-    fiscal_quarter = Column(String(2))  # 'Q1', 'Q2', etc.
-    data = Column(JSON)  # All fields as JSON
-    created_at = Column(DateTime, default=datetime.utcnow)
-```
+    Args:
+        db: Database session
+        symbol: Stock symbol
+        analyst_estimates: Analyst estimates from YahooQuery
+        price_targets: Price targets from YahooQuery
+        earnings_calendar: Earnings calendar from YahooQuery
 
-2. **`analyst_estimates`** - Forward-looking data
-```python
-class AnalystEstimate(Base):
-    __tablename__ = "analyst_estimates"
+    Returns:
+        True if updated successfully, False otherwise
+    """
+    try:
+        # Get company profile
+        result = await db.execute(
+            select(CompanyProfile).where(CompanyProfile.symbol == symbol)
+        )
+        profile = result.scalar_one_or_none()
 
-    id = Column(UUID, primary_key=True)
-    symbol = Column(String(10), nullable=False, index=True)
-    estimate_type = Column(String(20))  # 'revenue', 'eps'
-    period_type = Column(String(10))  # '0q', '+1q', '0y', '+1y'
-    estimate_avg = Column(Numeric(precision=20, scale=2))
-    estimate_low = Column(Numeric(precision=20, scale=2))
-    estimate_high = Column(Numeric(precision=20, scale=2))
-    num_analysts = Column(Integer)
-    as_of_date = Column(Date, nullable=False)  # When estimate was fetched
-    created_at = Column(DateTime, default=datetime.utcnow)
-```
+        if not profile:
+            logger.warning(f"No company profile for {symbol}, cannot update analyst data")
+            return False
 
-3. **`price_targets`** - Analyst price targets
-```python
-class PriceTarget(Base):
-    __tablename__ = "price_targets"
+        # Get next earnings date and fiscal year end
+        next_earnings_date = None
+        if earnings_calendar and symbol in earnings_calendar:
+            calendar_data = earnings_calendar[symbol]
+            next_earnings_date = calendar_data.get('earningsDate')
+            profile.next_earnings_date = next_earnings_date
+            profile.next_earnings_expected_eps = self._safe_decimal(calendar_data.get('epsEstimate'))
+            profile.next_earnings_expected_revenue = self._safe_decimal(calendar_data.get('revenueEstimate'))
 
-    id = Column(UUID, primary_key=True)
-    symbol = Column(String(10), nullable=False, index=True)
-    target_low = Column(Numeric(precision=10, scale=2))
-    target_mean = Column(Numeric(precision=10, scale=2))
-    target_high = Column(Numeric(precision=10, scale=2))
-    recommendation_mean = Column(Numeric(precision=3, scale=2))
-    num_analysts = Column(Integer)
-    as_of_date = Column(Date, nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow)
-```
+        # Get or infer fiscal year end
+        fiscal_year_end = self._get_or_infer_fiscal_year_end(symbol, earnings_calendar)
+        profile.fiscal_year_end = fiscal_year_end
 
-**Storage vs. API-Only Decision**:
+        # ⭐ CRITICAL: Calculate absolute target period dates
+        if next_earnings_date and fiscal_year_end:
+            # Current quarter = the quarter being reported on next_earnings_date
+            current_quarter_target = self._calculate_fiscal_quarter_end(
+                next_earnings_date, fiscal_year_end, offset=0
+            )
+            profile.current_quarter_target_period_date = current_quarter_target
 
-**Recommendation**: **STORE** fundamentals data (different from original plan)
+            # Next quarter = the quarter after the one being reported
+            next_quarter_target = self._calculate_fiscal_quarter_end(
+                next_earnings_date, fiscal_year_end, offset=1
+            )
+            profile.next_quarter_target_period_date = next_quarter_target
 
-**Why?**
-- Financial statements don't change retroactively (historical accuracy)
-- Enables time-series analysis (track how estimates changed over time)
-- Reduces API dependency for historical queries
-- Allows offline access and faster queries
-- Only updates quarterly (manageable data volume)
+            logger.info(
+                f"{symbol}: next_earnings={next_earnings_date}, "
+                f"current_quarter_target={current_quarter_target}, "
+                f"next_quarter_target={next_quarter_target}"
+            )
 
-**Data Volume Estimate**:
-- 3 statements × 12 quarters × 100 symbols = 3,600 records
-- ~1KB per statement = ~3.6MB per symbol for 3 years
-- For 100 symbols: ~360MB (very manageable)
+        # Parse quarterly estimates
+        if analyst_estimates and symbol in analyst_estimates:
+            estimates_df = analyst_estimates[symbol]
 
-### Benefits of Earnings-Based Timing
+            # Current quarter (0q)
+            current_q = estimates_df[estimates_df['period'] == '0q']
+            if not current_q.empty:
+                profile.current_quarter_revenue_avg = self._safe_decimal(current_q.iloc[0].get('revenueAvg'))
+                profile.current_quarter_revenue_low = self._safe_decimal(current_q.iloc[0].get('revenueLow'))
+                profile.current_quarter_revenue_high = self._safe_decimal(current_q.iloc[0].get('revenueHigh'))
+                profile.current_quarter_eps_avg = self._safe_decimal(current_q.iloc[0].get('epsAvg'))
+                profile.current_quarter_eps_low = self._safe_decimal(current_q.iloc[0].get('epsLow'))
+                profile.current_quarter_eps_high = self._safe_decimal(current_q.iloc[0].get('epsHigh'))
+                profile.current_quarter_analyst_count = self._safe_int(current_q.iloc[0].get('analystCount'))
 
-1. **API Efficiency**:
-   - 4 updates/year instead of 365 updates/year = 98.9% reduction
-   - Respects Yahoo Finance rate limits
-   - Reduces unnecessary processing
+            # Next quarter (+1q)
+            next_q = estimates_df[estimates_df['period'] == '+1q']
+            if not next_q.empty:
+                profile.next_quarter_revenue_avg = self._safe_decimal(next_q.iloc[0].get('revenueAvg'))
+                profile.next_quarter_revenue_low = self._safe_decimal(next_q.iloc[0].get('revenueLow'))
+                profile.next_quarter_revenue_high = self._safe_decimal(next_q.iloc[0].get('revenueHigh'))
+                profile.next_quarter_eps_avg = self._safe_decimal(next_q.iloc[0].get('epsAvg'))
+                profile.next_quarter_eps_low = self._safe_decimal(next_q.iloc[0].get('epsLow'))
+                profile.next_quarter_eps_high = self._safe_decimal(next_q.iloc[0].get('epsHigh'))
+                profile.next_quarter_analyst_count = self._safe_int(next_q.iloc[0].get('analystCount'))
 
-2. **Data Freshness**:
-   - Updates within 3 days of new data availability
-   - More relevant than arbitrary weekly/monthly schedules
-   - Aligns with actual reporting cycles
+            # Annual estimates (refresh existing fields)
+            current_y = estimates_df[estimates_df['period'] == '0y']
+            if not current_y.empty:
+                profile.current_year_revenue_avg = self._safe_decimal(current_y.iloc[0].get('revenueAvg'))
+                profile.current_year_eps_avg = self._safe_decimal(current_y.iloc[0].get('epsAvg'))
 
-3. **Database Efficiency**:
-   - Fewer writes
-   - Historical data remains stable
-   - Only new quarters added
+            next_y = estimates_df[estimates_df['period'] == '+1y']
+            if not next_y.empty:
+                profile.next_year_revenue_avg = self._safe_decimal(next_y.iloc[0].get('revenueAvg'))
+                profile.next_year_eps_avg = self._safe_decimal(next_y.iloc[0].get('epsAvg'))
 
-4. **User Experience**:
-   - Data is always current within 3 days of earnings
-   - No stale data issues
-   - Consistent update timing
+        # Update price targets (refresh existing fields)
+        if price_targets and symbol in price_targets:
+            targets_data = price_targets[symbol]
+            profile.target_mean_price = self._safe_decimal(targets_data.get('targetMeanPrice'))
+            profile.target_high_price = self._safe_decimal(targets_data.get('targetHighPrice'))
+            profile.target_low_price = self._safe_decimal(targets_data.get('targetLowPrice'))
 
-5. **Shared Infrastructure**:
-   - Company profiles update on same schedule
-   - Consistent data freshness across features
-   - Single batch job handles both
+        # Mark as updated
+        profile.fundamentals_last_fetched = datetime.utcnow()
 
-### Implementation Checklist
+        await db.commit()
+        logger.info(f"✅ Updated analyst data for {symbol}")
+        return True
 
-**Phase 1: Database Setup**
-- [ ] Create `financial_statement_updates` table (Alembic migration)
-- [ ] Create `financial_statements` table (Alembic migration)
-- [ ] Create `analyst_estimates` table (Alembic migration)
-- [ ] Create `price_targets` table (Alembic migration)
-
-**Phase 2: Service Layer**
-- [ ] Create `fundamentals_update_service.py`
-- [ ] Implement `get_symbols_needing_fundamentals_update()`
-- [ ] Implement `update_next_earnings_dates()`
-- [ ] Implement `collect_fundamentals_for_symbol()`
-- [ ] Implement `mark_fundamentals_updated()`
-
-**Phase 3: Batch Orchestrator Integration**
-- [ ] Add Phase 4 to `batch_orchestrator_v3.py`
-- [ ] Add daily earnings date update job
-- [ ] Add daily fundamentals check job
-- [ ] Add weekly stale data check job
-- [ ] Update admin endpoints to trigger manual updates
-
-**Phase 4: Company Profile Integration**
-- [ ] Modify `company_profile_service.py` to use same timing
-- [ ] Add `last_profile_update` tracking to `financial_statement_updates`
-- [ ] Update company profiles during fundamentals collection
-
-**Phase 5: Testing**
-- [ ] Test earnings date fetching
-- [ ] Test 3-day trigger logic
-- [ ] Test stale data failsafe (>90 days)
-- [ ] Test manual trigger endpoint
-- [ ] Verify no duplicate updates
-
----
-
-## Data Models (Pydantic Schemas)
-
-**Create**: `app/schemas/fundamentals.py`
-
-### Core Schemas
-
-```python
-from pydantic import BaseModel, Field
-from typing import Optional, List, Dict
-from datetime import datetime, date
-from decimal import Decimal
-
-class FinancialPeriod(BaseModel):
-    """Single period of financial data"""
-    period_date: date
-    period_type: str  # "3M", "12M", "TTM"
-    fiscal_year: int
-    fiscal_quarter: Optional[str] = None  # "Q1", "Q2", etc.
-
-class IncomeStatementMetrics(BaseModel):
-    """Income statement line items for one period"""
-    revenue: Optional[Decimal]
-    cost_of_revenue: Optional[Decimal]
-    gross_profit: Optional[Decimal]
-    gross_margin: Optional[Decimal]
-    research_and_development: Optional[Decimal]
-    selling_general_administrative: Optional[Decimal]
-    total_operating_expenses: Optional[Decimal]
-    operating_income: Optional[Decimal]
-    operating_margin: Optional[Decimal]
-    ebit: Optional[Decimal]
-    interest_expense: Optional[Decimal]
-    other_income_expense: Optional[Decimal]
-    pretax_income: Optional[Decimal]
-    tax_provision: Optional[Decimal]
-    tax_rate: Optional[Decimal]
-    net_income: Optional[Decimal]
-    net_margin: Optional[Decimal]
-    ebitda: Optional[Decimal]
-    depreciation_amortization: Optional[Decimal]
-    basic_eps: Optional[Decimal]
-    diluted_eps: Optional[Decimal]
-    basic_shares: Optional[int]
-    diluted_shares: Optional[int]
-
-class IncomeStatementPeriod(FinancialPeriod):
-    """Income statement for one period"""
-    metrics: IncomeStatementMetrics
-
-class IncomeStatementResponse(BaseModel):
-    """Full income statement response"""
-    symbol: str
-    frequency: str  # "q", "a", "ttm"
-    currency: str
-    periods: List[IncomeStatementPeriod]
-    metadata: Dict[str, any]
-
-# Balance Sheet Schemas
-class CurrentAssets(BaseModel):
-    """Current assets breakdown"""
-    cash_and_equivalents: Optional[Decimal]
-    short_term_investments: Optional[Decimal]
-    cash_and_short_term_investments: Optional[Decimal]
-    accounts_receivable: Optional[Decimal]
-    inventory: Optional[Decimal]
-    other_current_assets: Optional[Decimal]
-    total_current_assets: Optional[Decimal]
-
-class NonCurrentAssets(BaseModel):
-    """Non-current assets breakdown"""
-    net_ppe: Optional[Decimal]
-    goodwill: Optional[Decimal]
-    intangible_assets: Optional[Decimal]
-    long_term_investments: Optional[Decimal]
-    other_non_current_assets: Optional[Decimal]
-    total_non_current_assets: Optional[Decimal]
-
-class Assets(BaseModel):
-    """All assets"""
-    current_assets: CurrentAssets
-    non_current_assets: NonCurrentAssets
-    total_assets: Optional[Decimal]
-
-class CurrentLiabilities(BaseModel):
-    """Current liabilities breakdown"""
-    accounts_payable: Optional[Decimal]
-    short_term_debt: Optional[Decimal]
-    current_portion_long_term_debt: Optional[Decimal]
-    accrued_liabilities: Optional[Decimal]
-    deferred_revenue: Optional[Decimal]
-    other_current_liabilities: Optional[Decimal]
-    total_current_liabilities: Optional[Decimal]
-
-class NonCurrentLiabilities(BaseModel):
-    """Non-current liabilities breakdown"""
-    long_term_debt: Optional[Decimal]
-    deferred_tax_liabilities: Optional[Decimal]
-    other_non_current_liabilities: Optional[Decimal]
-    total_non_current_liabilities: Optional[Decimal]
-
-class Liabilities(BaseModel):
-    """All liabilities"""
-    current_liabilities: CurrentLiabilities
-    non_current_liabilities: NonCurrentLiabilities
-    total_liabilities: Optional[Decimal]
-
-class Equity(BaseModel):
-    """Shareholders' equity"""
-    common_stock: Optional[Decimal]
-    retained_earnings: Optional[Decimal]
-    accumulated_other_comprehensive_income: Optional[Decimal]
-    treasury_stock: Optional[Decimal]
-    total_stockholders_equity: Optional[Decimal]
-    minority_interest: Optional[Decimal]
-
-class BalanceSheetCalculatedMetrics(BaseModel):
-    """Calculated balance sheet metrics"""
-    working_capital: Optional[Decimal]
-    net_debt: Optional[Decimal]
-    total_debt: Optional[Decimal]
-    book_value: Optional[Decimal]
-    book_value_per_share: Optional[Decimal]
-    tangible_book_value: Optional[Decimal]
-    tangible_book_value_per_share: Optional[Decimal]
-
-class BalanceSheetRatios(BaseModel):
-    """Balance sheet ratios"""
-    current_ratio: Optional[Decimal]
-    quick_ratio: Optional[Decimal]
-    cash_ratio: Optional[Decimal]
-    debt_to_equity: Optional[Decimal]
-    debt_to_assets: Optional[Decimal]
-    equity_to_assets: Optional[Decimal]
-
-class BalanceSheetMetrics(BaseModel):
-    """Balance sheet metrics for one period"""
-    assets: Assets
-    liabilities: Liabilities
-    equity: Equity
-    calculated_metrics: BalanceSheetCalculatedMetrics
-    ratios: BalanceSheetRatios
-
-class BalanceSheetPeriod(FinancialPeriod):
-    """Balance sheet for one period"""
-    metrics: BalanceSheetMetrics
-
-class BalanceSheetResponse(BaseModel):
-    """Full balance sheet response"""
-    symbol: str
-    frequency: str  # "q", "a", "ttm"
-    currency: str
-    periods: List[BalanceSheetPeriod]
-    metadata: Dict[str, any]
-
-# Cash Flow Schemas (similar structure)
-
-class EstimatePeriod(BaseModel):
-    """Estimates for one period"""
-    period: str
-    end_date: date
-    revenue: RevenueEstimate
-    eps: EPSEstimate
-    eps_revisions: EPSRevisions
-    eps_trend: EPSTrend
-
-class AnalystEstimatesResponse(BaseModel):
-    """Analyst estimates response"""
-    symbol: str
-    estimates: Dict[str, EstimatePeriod]  # "current_quarter", "next_quarter", etc.
-    metadata: Dict[str, any]
-
-# ... more schemas
+    except Exception as e:
+        logger.error(f"Error updating analyst data for {symbol}: {e}")
+        await db.rollback()
+        return False
 ```
 
 ---
 
-## Implementation Phases
+## Phase 3: Batch Orchestrator Integration
 
-### Phase 1: Foundation (Week 1)
-**Priority: HIGH**
+### Step 3.1: Add Phase 1.5 to Batch Orchestrator v3
 
-1. **Extend YahooQueryClient** (`app/clients/yahooquery_client.py`)
-   - Add financial statement methods
-   - Add async wrappers for synchronous YahooQuery calls
-   - Implement error handling and logging
-   - Add rate limiting (already exists, verify adequate)
+**File**: `backend/app/batch/batch_orchestrator_v3.py`
 
-2. **Create Fundamentals Service** (`app/services/fundamentals_service.py`)
-   - Data transformation logic
-   - Field mapping (YahooQuery → application schema)
-   - Null handling and validation
-   - Error handling
-
-3. **Create Pydantic Schemas** (`app/schemas/fundamentals.py`)
-   - All request/response models
-   - Validation rules
-   - Default values
-
-4. **Create Endpoints Router** (`app/api/v1/endpoints/fundamentals.py`)
-   - Income statement endpoint
-   - Balance sheet endpoint
-   - Cash flow endpoint
-   - All statements endpoint (combined)
-
-5. **Testing**
-   - Unit tests for service layer
-   - Integration tests for endpoints
-   - Test with diverse companies (tech, financial, industrial)
-   - Validate field mapping accuracy
-
-**Deliverables:**
-- ✅ 4 new endpoints operational
-- ✅ Comprehensive test coverage
-- ✅ API documentation updated
-
----
-
-### Phase 2: Forward-Looking Data (Week 2)
-**Priority: HIGH**
-
-1. **Extend YahooQueryClient**
-   - Add analyst estimates methods
-   - Add price targets methods
-   - Add next earnings methods
-
-2. **Extend Fundamentals Service**
-   - Transform analyst estimate data
-   - Calculate upside/downside to price targets
-   - Format earnings history comparisons
-
-3. **Add Endpoints**
-   - Analyst estimates endpoint
-   - Price targets endpoint
-   - Next earnings endpoint
-
-4. **Testing**
-   - Validate estimate data accuracy
-   - Test with companies of varying analyst coverage
-   - Verify edge cases (no estimates, low coverage)
-
-**Deliverables:**
-- ✅ 3 new forward-looking endpoints
-- ✅ Analyst estimate integration
-- ✅ Price target calculations
-
----
-
-### Phase 3: Calculated Metrics (Week 3)
-**Priority: MEDIUM**
-
-1. **Create Calculations Module** (`app/calculations/financial_ratios.py`)
-   - Profitability ratios
-   - Efficiency ratios
-   - Leverage ratios
-   - Liquidity ratios
-   - Cash flow ratios
-   - Growth calculations
-
-2. **Extend Fundamentals Service**
-   - Calculate ratios from raw financial data
-   - Handle division by zero
-   - Calculate growth rates (QoQ, YoY, CAGR)
-   - Time-series analysis
-
-3. **Add Endpoints**
-   - Financial ratios endpoint
-   - Growth metrics endpoint
-
-4. **Testing**
-   - Validate calculation accuracy
-   - Test edge cases (negative values, zero denominators)
-   - Compare against known benchmarks
-
-**Deliverables:**
-- ✅ 2 calculated metrics endpoints
-- ✅ Comprehensive ratio calculations
-- ✅ Growth trend analysis
-
----
-
-### Phase 4: Optimization & Caching (Week 4)
-**Priority: LOW (Future Enhancement)
-
-1. **Caching Strategy**
-   - Cache financial statements (low change frequency)
-   - TTL: 24 hours for historical data
-   - TTL: 1 hour for analyst estimates
-   - TTL: 15 minutes for price targets
-
-2. **Performance Optimization**
-   - Batch requests where possible
-   - Parallel data fetching for all-statements endpoint
-   - Response compression
-
-3. **Error Handling Enhancement**
-   - Graceful degradation for missing data
-   - Retry logic for transient failures
-   - Fallback to FMP if YahooQuery fails (optional)
-
----
-
-## Error Handling Strategy
-
-### Expected Error Scenarios
-
-1. **Symbol Not Found**
-   - HTTP 404
-   - Message: "Symbol {symbol} not found"
-
-2. **No Financial Data Available**
-   - HTTP 200 (not an error, just no data)
-   - Empty periods array
-   - Metadata indicates data unavailability
-
-3. **Partial Data Available**
-   - HTTP 200
-   - Return available fields
-   - Null for unavailable fields
-   - Metadata indicates partial data
-
-4. **Rate Limit Exceeded**
-   - HTTP 429
-   - Retry-After header
-   - Message: "Rate limit exceeded, retry after {seconds}"
-
-5. **Upstream Service Error**
-   - HTTP 502
-   - Message: "Unable to fetch data from Yahoo Finance"
-   - Log detailed error for debugging
-
----
-
-## Security & Validation
-
-### Input Validation
-- Symbol format: 1-5 uppercase alphanumeric characters
-- Frequency: Only allow `q`, `a`, `ttm`
-- Periods: Maximum 16 (4 years quarterly)
-
-### Authentication
-- All endpoints require JWT authentication (use existing `get_current_user` dependency)
-
-### Rate Limiting
-- Leverage existing YahooQuery client rate limiting
-- Consider endpoint-level rate limiting if needed
-
----
-
-## Database Considerations
-
-### Storage Strategy: **API-Only (No Database Storage)**
-
-**Rationale:**
-- Financial statement data changes infrequently (quarterly/annual)
-- Yahoo Finance already stores and serves this data
-- Caching layer sufficient for performance
-- Reduces data synchronization complexity
-- No need for separate update jobs
-
-**Future Consideration:**
-If we need historical snapshots for auditing or offline access, consider:
-- Store in `company_profiles` table (extend existing structure)
-- Or create new `financial_statements` table
-- Only store when explicitly requested by user
-
----
-
-## API Documentation Updates
-
-### Update `API_REFERENCE_V1.4.6.md`
-
-Add new section:
-
-```markdown
-### Fundamentals (9 endpoints) ✅
-
-**Historical Financials:**
-- `GET /api/v1/fundamentals/income-statement/{symbol}` - Income statement data
-- `GET /api/v1/fundamentals/balance-sheet/{symbol}` - Balance sheet data
-- `GET /api/v1/fundamentals/cash-flow/{symbol}` - Cash flow statement data
-- `GET /api/v1/fundamentals/all-statements/{symbol}` - All statements combined
-
-**Forward-Looking:**
-- `GET /api/v1/fundamentals/analyst-estimates/{symbol}` - Analyst revenue/EPS estimates
-- `GET /api/v1/fundamentals/price-targets/{symbol}` - Analyst price targets
-- `GET /api/v1/fundamentals/next-earnings/{symbol}` - Next earnings date and estimates
-
-**Calculated:**
-- `GET /api/v1/fundamentals/financial-ratios/{symbol}` - Calculated financial ratios
-- `GET /api/v1/fundamentals/growth-metrics/{symbol}` - Growth trends and CAGR
-```
-
----
-
-## Testing Strategy
-
-### Unit Tests
-- Service layer transformation logic
-- Calculation accuracy (financial ratios, growth rates)
-- Error handling (null values, missing data)
-
-### Integration Tests
-- End-to-end API endpoint tests
-- Multiple company types (tech, financial, industrial, retail)
-- Edge cases (IPOs, no analyst coverage, high debt, no debt)
-
-### Test Symbols
-- **AAPL** (Apple) - Tech, low debt, high analyst coverage
-- **T** (AT&T) - Telecom, high debt, stable business
-- **TSLA** (Tesla) - High growth, volatile
-- **BAC** (Bank of America) - Financial, different accounting
-- **WMT** (Walmart) - Retail, mature business
-
----
-
-## Dependencies
-
-### Required (Already Available)
-- ✅ `yahooquery` - Already in `pyproject.toml`
-- ✅ `pandas` - Already in project
-- ✅ `pydantic` - Already in project
-
-### Optional (Future)
-- `redis` or `cachetools` - For caching layer (Phase 4)
-
----
-
-## Migration Path
-
-### No Breaking Changes
-All new endpoints, no modifications to existing APIs.
-
-### Gradual Rollout
-1. Phase 1: Internal testing only
-2. Phase 2: Beta testing with select frontend components
-3. Phase 3: Full production deployment
-4. Phase 4: Optimization based on usage patterns
-
----
-
-## Success Metrics
-
-### Performance
-- API response time < 500ms for single statement
-- API response time < 1500ms for all statements
-- Cache hit rate > 80% (Phase 4)
-
-### Reliability
-- 99%+ uptime
-- Graceful degradation when Yahoo Finance unavailable
-- Comprehensive error logging
-
-### Data Quality
-- 95%+ field coverage for large-cap stocks
-- Accurate calculations (validated against known benchmarks)
-- Fresh data (< 24 hours old for historical, < 1 hour for estimates)
-
----
-
-## Open Questions
-
-1. **Caching Strategy**: Implement immediately or defer to Phase 4?
-   - Recommendation: Defer - assess need based on usage patterns
-
-2. **Database Storage**: Store any historical snapshots?
-   - Recommendation: No - start with API-only, reassess if needed
-
-3. **Fallback Provider**: Implement FMP fallback for missing Yahoo Finance data?
-   - Recommendation: Not initially - YahooQuery coverage is comprehensive
-
-4. **Batch Endpoints**: Allow multiple symbols in one request?
-   - Recommendation: Not initially - add if frontend needs it
-
-5. **Calculated Fields**: Include in statement responses or separate endpoint?
-   - Recommendation: Separate endpoint for flexibility and clarity
-
----
-
-## Next Steps
-
-1. ✅ Review and approve this implementation plan
-2. 🔄 Review frontend implementation plan (see doc 03)
-3. 🔄 Begin Phase 1 implementation
-4. 🔄 Create detailed task breakdown in TODO system
-5. 🔄 Set up test environment with diverse test symbols
-
----
-
-## Appendix: Example YahooQuery Usage
+**Add new method** (insert after Phase 1 Market Data Collection):
 
 ```python
-from yahooquery import Ticker
-import asyncio
+async def phase_1_5_fundamental_data_collection(
+    self, portfolio_ids: Optional[List[UUID]] = None
+) -> Dict[str, Any]:
+    """
+    Phase 1.5: Fundamental Data Collection
 
-async def get_financials_example():
-    """Example of using YahooQuery for financial data"""
+    Fetches and stores fundamental financial data with smart fetching:
+    - Only fetches if no data exists OR earnings + 3 days has passed
+    - Stores quarterly (12 periods) + annual (4 periods) statements
+    - Updates company_profiles with analyst data
 
-    # Run synchronous YahooQuery in executor
-    loop = asyncio.get_event_loop()
+    Returns:
+        Dict with phase metrics
+    """
+    logger.info("=" * 60)
+    logger.info("PHASE 1.5: FUNDAMENTAL DATA COLLECTION")
+    logger.info("=" * 60)
 
-    def fetch_data():
-        ticker = Ticker('AAPL')
+    start_time = datetime.now()
+
+    try:
+        async with get_async_session() as db:
+            # Get all unique symbols from portfolios
+            symbols = await self._get_portfolio_symbols(db, portfolio_ids)
+            logger.info(f"Checking {len(symbols)} symbols for fundamental data updates")
+
+            # Filter to only symbols that need fetching
+            fundamentals_service = FundamentalsService()
+            symbols_to_fetch = []
+
+            for symbol in symbols:
+                should_fetch = await fundamentals_service.should_fetch_fundamentals(db, symbol)
+                if should_fetch:
+                    symbols_to_fetch.append(symbol)
+
+            logger.info(f"Need to fetch fundamentals for {len(symbols_to_fetch)}/{len(symbols)} symbols")
+
+            if not symbols_to_fetch:
+                logger.info("All fundamental data is current - skipping fetch")
+                return {
+                    'phase': 'Phase 1.5: Fundamental Data Collection',
+                    'status': 'skipped',
+                    'symbols_checked': len(symbols),
+                    'symbols_fetched': 0,
+                    'duration': (datetime.now() - start_time).total_seconds(),
+                }
+
+            # Fetch and store for symbols that need it
+            success_count = 0
+            error_count = 0
+
+            for symbol in symbols_to_fetch:
+                try:
+                    logger.info(f"Fetching fundamental data for {symbol}...")
+
+                    # Part 1: Fetch quarterly financial statements (12 quarters)
+                    quarterly_financials = await fundamentals_service.client.get_all_financials(
+                        symbol, frequency='q', years=3
+                    )
+
+                    # Part 2: Fetch annual financial statements (4 years)
+                    annual_financials = await fundamentals_service.client.get_all_financials(
+                        symbol, frequency='a', years=4
+                    )
+
+                    # Part 3: Store quarterly data
+                    await fundamentals_service.store_income_statements(
+                        db, symbol, quarterly_financials.get('income_statement', {}), frequency='q'
+                    )
+                    await fundamentals_service.store_balance_sheets(
+                        db, symbol, quarterly_financials.get('balance_sheet', {}), frequency='q'
+                    )
+                    await fundamentals_service.store_cash_flows(
+                        db, symbol, quarterly_financials.get('cash_flow', {}), frequency='q'
+                    )
+
+                    # Part 4: Store annual data
+                    await fundamentals_service.store_income_statements(
+                        db, symbol, annual_financials.get('income_statement', {}), frequency='a'
+                    )
+                    await fundamentals_service.store_balance_sheets(
+                        db, symbol, annual_financials.get('balance_sheet', {}), frequency='a'
+                    )
+                    await fundamentals_service.store_cash_flows(
+                        db, symbol, annual_financials.get('cash_flow', {}), frequency='a'
+                    )
+
+                    # Part 5: Fetch and update analyst data in company_profiles
+                    analyst_estimates = await fundamentals_service.client.get_analyst_estimates(symbol)
+                    price_targets = await fundamentals_service.client.get_price_targets(symbol)
+                    earnings_calendar = await fundamentals_service.client.get_next_earnings(symbol)
+
+                    await fundamentals_service.update_company_profile_analyst_data(
+                        db, symbol, analyst_estimates, price_targets, earnings_calendar
+                    )
+
+                    success_count += 1
+                    logger.info(f"✅ Successfully stored fundamental data for {symbol}")
+
+                except Exception as e:
+                    error_count += 1
+                    logger.error(f"❌ Error fetching fundamental data for {symbol}: {e}")
+                    # Continue with other symbols (graceful degradation)
+
+            await fundamentals_service.close()
+
+            duration = (datetime.now() - start_time).total_seconds()
+            logger.info(f"Phase 1.5 complete: {success_count} success, {error_count} errors, {duration:.2f}s")
+
+            return {
+                'phase': 'Phase 1.5: Fundamental Data Collection',
+                'status': 'completed',
+                'symbols_checked': len(symbols),
+                'symbols_fetched': len(symbols_to_fetch),
+                'symbols_success': success_count,
+                'symbols_error': error_count,
+                'duration': duration,
+            }
+
+    except Exception as e:
+        logger.error(f"Phase 1.5 failed: {str(e)}")
         return {
-            'income': ticker.income_statement(frequency='q'),
-            'balance': ticker.balance_sheet(frequency='q'),
-            'cashflow': ticker.cash_flow(frequency='q'),
-            'estimates': ticker.earnings_trend,
-            'targets': ticker.financial_data,
-            'earnings': ticker.calendar_events
+            'phase': 'Phase 1.5: Fundamental Data Collection',
+            'status': 'failed',
+            'error': str(e),
+            'duration': (datetime.now() - start_time).total_seconds(),
         }
-
-    data = await loop.run_in_executor(None, fetch_data)
-
-    # Transform and return
-    return transform_data(data)
 ```
 
-This pattern will be used throughout the implementation.
+### Step 3.2: Integrate Phase 1.5 into Batch Sequence
+
+**Update** `run_batch_sequence()` method to include Phase 1.5:
+
+```python
+async def run_batch_sequence(
+    self, portfolio_ids: Optional[List[UUID]] = None
+) -> Dict[str, Any]:
+    """
+    Run complete batch sequence.
+
+    Phases:
+    1. Market Data Collection
+    1.5. Fundamental Data Collection (NEW - smart fetching)
+    2. P&L Calculation & Snapshots
+    2.5. Position Market Value Updates
+    3. Risk Analytics
+    """
+    results = []
+
+    # Phase 1: Market Data Collection
+    phase1_result = await self.phase_1_market_data_collection(portfolio_ids)
+    results.append(phase1_result)
+
+    # Phase 1.5: Fundamental Data Collection (NEW)
+    phase1_5_result = await self.phase_1_5_fundamental_data_collection(portfolio_ids)
+    results.append(phase1_5_result)
+
+    # Phase 2: P&L Calculation & Snapshots
+    phase2_result = await self.phase_2_pnl_and_snapshots(portfolio_ids)
+    results.append(phase2_result)
+
+    # Phase 2.5: Position Market Value Updates
+    phase2_5_result = await self.phase_2_5_position_market_values(portfolio_ids)
+    results.append(phase2_5_result)
+
+    # Phase 3: Risk Analytics
+    phase3_result = await self.phase_3_risk_analytics(portfolio_ids)
+    results.append(phase3_result)
+
+    return {
+        'status': 'completed',
+        'phases': results
+    }
+```
+
+---
+
+## Phase 4: Research & Analyze Page Compatibility
+
+### Step 4.1: Verify No Breaking Changes
+
+**Existing Endpoints** (must continue working unchanged):
+
+1. **`GET /api/v1/data/company-profile/{symbol}`**
+   - **Current**: Returns company_profiles row
+   - **After**: Returns company_profiles row WITH quarterly estimates
+   - **Status**: ✅ Additive only, not breaking
+
+2. **`GET /api/v1/data/positions/details`**
+   - **Current**: Returns positions with company profile data
+   - **After**: Same, but company profiles now include quarterly estimates
+   - **Status**: ✅ No changes needed
+
+**Frontend Service** (`frontend/src/services/positionResearchService.ts`):
+- Lines 84-101, 220-248 extract analyst data from company_profiles
+- **Status**: ✅ No changes needed - quarterly data automatically available
+
+### Step 4.2: Optional Database-Backed Endpoints (Future)
+
+**File**: `backend/app/api/v1/endpoints/fundamentals.py`
+
+Can add database-backed versions alongside existing on-demand endpoints:
+
+```python
+@router.get("/income-statement-db/{symbol}")
+async def get_income_statement_from_db(
+    symbol: str,
+    frequency: str = Query("q"),
+    periods: int = Query(12),
+    current_user: CurrentUser = Depends(get_current_user),
+):
+    """Get income statement from database (faster than on-demand)"""
+    # Query database instead of YahooQuery
+    pass
+```
+
+**Note**: These are for **future** display of financial statements on Research & Analyze page. Not required for initial implementation.
+
+---
+
+## Phase 5: Testing & Validation
+
+### Step 5.1: Test Migration
+
+```bash
+cd backend
+
+# Run migration
+uv run alembic upgrade head
+
+# Verify models import
+uv run python -c "
+from app.models.fundamentals import IncomeStatement, BalanceSheet, CashFlow
+from app.models.market_data import CompanyProfile
+print('✅ Models import successfully')
+"
+
+# Check database schema
+docker exec -it sigmasight-postgres psql -U sigmasight -d sigmasight_db -c "\d income_statements"
+docker exec -it sigmasight-postgres psql -U sigmasight -d sigmasight_db -c "SELECT column_name FROM information_schema.columns WHERE table_name='company_profiles' AND column_name LIKE '%quarter%';"
+```
+
+### Step 5.2: Test Smart Fetching Logic
+
+```bash
+# Test with symbol that has no data
+uv run python -c "
+import asyncio
+from app.database import get_async_session
+from app.services.fundamentals_service import FundamentalsService
+
+async def test():
+    service = FundamentalsService()
+    async with get_async_session() as db:
+        result = await service.should_fetch_fundamentals(db, 'AAPL')
+        print(f'Should fetch AAPL: {result}')
+    await service.close()
+
+asyncio.run(test())
+"
+```
+
+### Step 5.3: Test Phase 1.5 Standalone
+
+```bash
+# Run Phase 1.5 only (for testing)
+uv run python -c "
+import asyncio
+from app.batch.batch_orchestrator_v3 import batch_orchestrator_v3
+
+async def test():
+    result = await batch_orchestrator_v3.phase_1_5_fundamental_data_collection()
+    print(f'Phase 1.5 result: {result}')
+
+asyncio.run(test())
+"
+
+# Verify data was stored
+uv run python -c "
+import asyncio
+from app.database import get_async_session
+from sqlalchemy import select, func
+from app.models.fundamentals import IncomeStatement
+
+async def check():
+    async with get_async_session() as db:
+        count = await db.execute(select(func.count(IncomeStatement.id)))
+        print(f'Income statements stored: {count.scalar()}')
+
+asyncio.run(check())
+"
+```
+
+### Step 5.4: Test Research & Analyze Page
+
+1. Start backend: `cd backend && uv run python run.py`
+2. Start frontend: `cd frontend && docker-compose up -d`
+3. Login: http://localhost:3005/login (demo_hnw@sigmasight.com / demo12345)
+4. Navigate to Research & Analyze page
+5. **Verify**:
+   - ✅ Page loads without errors
+   - ✅ Analyst data displays
+   - ✅ No breaking changes
+   - ✅ Check DevTools Network tab for API calls
+
+### Step 5.5: Test Full Batch Sequence
+
+```bash
+# Run complete batch with Phase 1.5
+uv run python -c "
+import asyncio
+from app.batch.batch_orchestrator_v3 import batch_orchestrator_v3
+
+async def test():
+    result = await batch_orchestrator_v3.run_batch_sequence()
+    print('Batch sequence complete')
+    for phase in result['phases']:
+        print(f\"  {phase['phase']}: {phase['status']}\")
+
+asyncio.run(test())
+"
+```
+
+---
+
+## Implementation Checklist
+
+### Database & Models
+- [ ] Create Alembic migration
+- [ ] Run migration on local database
+- [ ] Verify tables created (income_statements, balance_sheets, cash_flows)
+- [ ] Verify company_profiles columns added (17 new columns)
+- [ ] Create `fundamentals.py` models file (3 models)
+- [ ] Update `CompanyProfile` model in market_data.py (17 fields)
+- [ ] Test model imports
+- [ ] Verify UNIQUE constraints work (no duplicates possible)
+
+### Service Layer
+- [ ] Implement `should_fetch_fundamentals()` method
+- [ ] Implement `store_income_statements()` with UPSERT
+- [ ] Implement `store_balance_sheets()` with UPSERT
+- [ ] Implement `store_cash_flows()` with UPSERT
+- [ ] Implement `update_company_profile_analyst_data()`
+- [ ] Add helper methods (`_safe_decimal`, `_safe_int`)
+- [ ] Test with demo symbols (AAPL, MSFT, GOOGL)
+- [ ] Verify calculated metrics (margins, ratios)
+
+### Batch Orchestrator
+- [ ] Add `phase_1_5_fundamental_data_collection()` method
+- [ ] Implement smart fetching filter
+- [ ] Implement data storage for each symbol
+- [ ] Implement error handling and logging
+- [ ] Integrate Phase 1.5 into `run_batch_sequence()`
+- [ ] Test Phase 1.5 standalone
+- [ ] Test full batch sequence
+- [ ] Verify Phase 1.5 metrics returned
+
+### Research & Analyze Compatibility
+- [ ] Verify `/data/company-profile/{symbol}` unchanged
+- [ ] Verify `/data/positions/details` unchanged
+- [ ] Test Research & Analyze page (no errors)
+- [ ] Verify quarterly estimates appear after batch run
+- [ ] Check browser DevTools for API calls
+
+### Testing & Validation
+- [ ] Test migration up/down
+- [ ] Test smart fetching logic (all 5 cases)
+- [ ] Test UPSERT (no duplicates created)
+- [ ] Test earnings date + 3-day buffer logic
+- [ ] Test with 10-20 symbols
+- [ ] Verify batch runtime acceptable
+- [ ] Test error handling (missing data, API failures)
+
+### Documentation
+- [ ] Update API reference
+- [ ] Document smart fetching logic
+- [ ] Update batch orchestrator docs
+- [ ] Add troubleshooting guide
+
+---
+
+## Key Design Decisions
+
+### 1. Smart Fetching Based on Earnings Dates ⭐
+**Decision**: Only fetch 3+ days after earnings release
+**Rationale**:
+- Fundamental data only changes quarterly
+- Daily fetching wastes API calls (500 calls per 100 symbols)
+- 3-day buffer ensures Yahoo Finance has published data
+- Reduces batch runtime by 80-90%
+
+### 2. UPSERT Strategy
+**Decision**: Use PostgreSQL UPSERT with UNIQUE constraints
+**Rationale**:
+- Prevents duplicate periods automatically
+- Allows safe batch re-runs
+- Updates existing data on conflict
+- No manual duplicate checking needed
+
+### 3. No Breaking Changes
+**Decision**: Enhance company_profiles, don't modify existing API
+**Rationale**:
+- Research & Analyze page continues to work
+- Quarterly estimates are additive
+- Frontend automatically gets new data
+- Can add UI later (optional)
+
+### 4. Separate Tables for Financial Statements
+**Decision**: Create dedicated tables, not store in company_profiles
+**Rationale**:
+- Time-series data (16 periods per symbol)
+- Would bloat company_profiles excessively
+- Need efficient queries for period ranges
+- Clean separation of concerns
+
+### 5. Enhance company_profiles for Analyst Data (with Absolute Period Dates) ⭐
+**Decision**: Add quarterly estimates to existing table WITH absolute target_period_date fields
+**Rationale**:
+- Analyst data conceptually belongs with company data
+- No additional JOINs needed for current snapshot
+- Single source of truth for current estimates
+- Simpler frontend integration
+- **FUTURE-PROOF**: Absolute period dates enable clean JOINs with income_statements
+- **EXTENSIBILITY**: Easy migration to analyst_estimates_history table later
+
+**Key Design Element**:
+- Store `current_quarter_target_period_date` and `next_quarter_target_period_date`
+- Derive absolute dates from fiscal calendar (not relative labels)
+- Enables future historical tracking without schema changes
+- Clean JOIN path: `company_profiles.current_quarter_target_period_date = income_statements.period_date`
+
+### 6. Fiscal Calendar Logic for Period Dates
+**Decision**: Calculate absolute quarter end dates using fiscal calendar metadata
+**Rationale**:
+- YahooQuery returns relative labels ("current_quarter", "next_quarter")
+- Need absolute dates to compare estimates to actuals
+- Enable future historical tracking (track estimate evolution for same target period)
+- Support non-calendar-year companies (Walmart, Oracle, etc.)
+
+**Implementation**:
+- Store fiscal_year_end in company_profiles ("MM-DD" format)
+- Calculate absolute dates using next_earnings_date + fiscal calendar
+- Handle different fiscal year ends (Dec 31, Jan 31, May 31, etc.)
+
+**Example**:
+```python
+# Apple: fiscal_year_end = "12-31", next_earnings = 2026-01-30
+current_quarter_target = calculate_fiscal_quarter_end(date(2026, 1, 30), "12-31", offset=0)
+# Returns: 2025-12-31 (Q4 2025 - the quarter being reported)
+
+next_quarter_target = calculate_fiscal_quarter_end(date(2026, 1, 30), "12-31", offset=1)
+# Returns: 2026-03-31 (Q1 2026 - the next quarter)
+```
+
+**Future Benefit**:
+When adding analyst_estimates_history table, can JOIN cleanly:
+```sql
+SELECT aeh.eps_avg, is.diluted_eps
+FROM analyst_estimates_history aeh
+JOIN income_statements is
+    ON aeh.target_period_date = is.period_date  -- Clean JOIN on absolute dates
+WHERE aeh.symbol = 'AAPL' AND aeh.target_period_date = '2024-03-31';
+```
+
+---
+
+## Performance Expectations
+
+### Phase 1.5 Runtime
+
+**Scenario 1: First run (all symbols need data)**
+- 100 symbols × 5 API calls × 1s = ~8 minutes
+- Storage: ~1s per symbol
+- **Total**: ~10 minutes for 100 symbols
+
+**Scenario 2: Daily run (smart fetching)**
+- 100 symbols checked
+- ~10 symbols need fetching (earnings recently released)
+- 10 symbols × 5 API calls × 1s = ~1 minute
+- **Total**: ~1 minute for 100 symbols
+- **Benefit**: 90% reduction in daily runtime
+
+### Storage
+
+- 100 symbols: 4.6 MB
+- 500 symbols: 23 MB
+- 1,000 symbols: 46 MB
+- 10,000 symbols: 464 MB
+
+### Query Performance
+
+- Single symbol income statement (12 quarters): <5ms
+- All 3 statements for symbol: <15ms
+- **50x faster** than on-demand YahooQuery call (~500ms-2s)
+
+---
+
+## Rollback Strategy
+
+If issues arise:
+
+```bash
+# Rollback migration
+cd backend
+uv run alembic downgrade -1
+
+# Disable Phase 1.5 temporarily (comment out in batch_orchestrator_v3.py)
+# phase1_5_result = await self.phase_1_5_fundamental_data_collection(portfolio_ids)
+
+# Research & Analyze page will continue to work with existing data
+```
+
+---
+
+## Success Criteria
+
+### Phase 1 Complete When:
+- ✅ Migration runs successfully
+- ✅ Models import without errors
+- ✅ Database tables created with correct schema
+- ✅ UNIQUE constraints prevent duplicates
+
+### Phase 2 Complete When:
+- ✅ Smart fetching logic works correctly
+- ✅ UPSERT stores data without duplicates
+- ✅ Company profiles updated with quarterly estimates
+- ✅ Service methods tested with demo symbols
+
+### Phase 3 Complete When:
+- ✅ Phase 1.5 runs successfully
+- ✅ Fundamentals fetched for symbols needing data
+- ✅ Fundamentals skipped for current symbols
+- ✅ Full batch sequence completes
+
+### Phase 4 Complete When:
+- ✅ Research & Analyze page loads without errors
+- ✅ Analyst data displays correctly
+- ✅ No breaking changes observed
+- ✅ Quarterly estimates available after batch run
+
+---
+
+## Next Steps After Implementation
+
+1. **Monitor Phase 1.5 performance** - track runtime, success rate
+2. **Add financial statements UI** - display on Research & Analyze page (future)
+3. **Add portfolio-level fundamentals** - aggregate metrics across holdings
+4. **Add earnings calendar alerts** - notify users before earnings
+5. **Add fundamentals screening** - filter by P/E, EPS growth, etc.
+
+---
+
+## Questions for Review
+
+Before implementation, please confirm:
+
+1. **Storage Approach**: ✅ Store both quarterly AND annual data?
+2. **Smart Fetching**: ✅ Only fetch 3+ days after earnings?
+3. **company_profiles Enhancement**: ✅ Add 21 columns (not create new table)?
+4. **Period Date Design**: ✅ Store absolute target_period_date for future-proofing?
+5. **Fiscal Calendar Logic**: ✅ Implement fiscal calendar calculation for absolute dates?
+6. **Breaking Changes**: ✅ Research & Analyze compatibility is priority?
+7. **Batch Integration**: ✅ Phase 1.5 after Phase 1 Market Data?
+
+---
+
+**Status**: 🔍 **READY FOR REVIEW**
+**Estimated Implementation Time**: 2-3 days
+**Risk Level**: Low (no breaking changes, additive only)
+**Dependencies**: YahooQueryClient methods (already implemented), company_profiles table (exists)
+
+---
+
+## Appendix: File Locations
+
+**New Files to Create**:
+- `backend/alembic/versions/YYYYMMDD_add_fundamental_tables.py` - Migration
+- `backend/app/models/fundamentals.py` - 3 new models
+
+**Existing Files to Modify**:
+- `backend/app/models/market_data.py` - Add 17 fields to CompanyProfile
+- `backend/app/services/fundamentals_service.py` - Add storage methods
+- `backend/app/batch/batch_orchestrator_v3.py` - Add Phase 1.5
+
+**No Changes Required**:
+- `backend/app/api/v1/endpoints/fundamentals.py` - Keep existing endpoints
+- `frontend/src/services/positionResearchService.ts` - No changes needed
