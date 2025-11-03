@@ -2,7 +2,7 @@
 
 import React from 'react'
 import { FinancialYearData } from '@/hooks/useFundamentals'
-import { formatCurrency, formatEPS, formatPercent, formatGrowth, getGrowthColor } from '@/lib/financialFormatters'
+import { formatCurrency, formatEPS, formatPercent, formatGrowth } from '@/lib/financialFormatters'
 
 interface MetricSectionProps {
   title: string
@@ -105,7 +105,7 @@ export function MetricSection({
                 className="px-4 py-2 text-right tabular-nums transition-colors duration-300"
                 style={{
                   fontSize: 'var(--text-sm)',
-                  color: 'var(--text-secondary)'
+                  color: 'var(--text-primary)'
                 }}
               >
                 {formatPercent(margin)}
@@ -126,13 +126,23 @@ export function MetricSection({
         </td>
         {years.map((year) => {
           const growth = getGrowth(year)
-          const colorClass = getGrowthColor(growth)
+          // Use theme colors for growth
+          let growthColor = 'var(--text-secondary)'
+          if (growth !== null) {
+            if (growth > 0) {
+              growthColor = 'var(--color-success)'
+            } else if (growth < 0) {
+              growthColor = 'var(--color-error)'
+            }
+          }
+
           return (
             <td
               key={`${title}-${year.year}-growth`}
-              className={`px-4 py-2 text-right tabular-nums font-semibold ${colorClass}`}
+              className="px-4 py-2 text-right tabular-nums font-semibold transition-colors duration-300"
               style={{
-                fontSize: 'var(--text-sm)'
+                fontSize: 'var(--text-sm)',
+                color: growthColor
               }}
             >
               {formatGrowth(growth)}

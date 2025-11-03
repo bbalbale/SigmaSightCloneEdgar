@@ -38,9 +38,9 @@ export function FinancialSummaryTable({ data }: FinancialSummaryTableProps) {
 
   return (
     <div className="space-y-4">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-2">
-        <h3 className="text-lg font-semibold transition-colors duration-300" style={{ color: 'var(--text-primary)' }}>
+      {/* Header - Standard Section Heading */}
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="text-sm font-semibold uppercase tracking-wider transition-colors duration-300" style={{ color: 'var(--color-accent)' }}>
           Financial Summary
         </h3>
         <span className="text-xs transition-colors duration-300" style={{ color: 'var(--text-secondary)' }}>
