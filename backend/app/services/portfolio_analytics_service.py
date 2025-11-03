@@ -47,9 +47,30 @@ class PortfolioAnalyticsService:
             
             if not portfolio:
                 raise ValueError(f"Portfolio {portfolio_id} not found")
-            
-            # Get equity balance (use default if not set)
-            equity_balance = float(portfolio.equity_balance) if portfolio.equity_balance else None
+
+            # CRITICAL FIX (2025-11-03): Get equity balance from most recent snapshot
+            # PortfolioSnapshot.equity_balance is the rolled-forward value (changes with P&L)
+            # Portfolio.equity_balance is the static initial value (never changes)
+            from app.models.snapshots import PortfolioSnapshot
+
+            snapshot_query = select(PortfolioSnapshot).where(
+                PortfolioSnapshot.portfolio_id == portfolio_id
+            ).order_by(PortfolioSnapshot.snapshot_date.desc()).limit(1)
+
+            snapshot_result = await db.execute(snapshot_query)
+            latest_snapshot = snapshot_result.scalar_one_or_none()
+
+            if latest_snapshot and latest_snapshot.equity_balance is not None:
+                # Use rolled-forward equity from snapshot (correct)
+                equity_balance = float(latest_snapshot.equity_balance)
+                logger.info(f"Using rolled-forward equity ${equity_balance:,.2f} from snapshot {latest_snapshot.snapshot_date} for portfolio {portfolio_id}")
+            else:
+                # Fall back to initial equity from portfolio table
+                equity_balance = float(portfolio.equity_balance) if portfolio.equity_balance else None
+                if equity_balance is not None:
+                    logger.info(f"Using initial equity ${equity_balance:,.2f} from portfolio (no snapshot found) for portfolio {portfolio_id}")
+                else:
+                    logger.info(f"No equity balance available for portfolio {portfolio_id}")
             
             # Get all positions (NO JOIN - use Position.last_price)
             positions_query = select(
@@ -70,7 +91,7 @@ class PortfolioAnalyticsService:
             positions = positions_result.all()
             
             # Calculate portfolio metrics
-            overview_data = await self._calculate_portfolio_metrics(db, portfolio_id, positions, equity_balance)
+            overview_data = await self._calculate_portfolio_metrics(db, portfolio_id, positions, equity_balance, latest_snapshot)
             
             # Add metadata
             overview_data.update({
@@ -89,7 +110,8 @@ class PortfolioAnalyticsService:
         db: AsyncSession,
         portfolio_id: UUID,
         positions: list,
-        equity_balance: Optional[float] = None
+        equity_balance: Optional[float] = None,
+        snapshot: Optional[Any] = None
     ) -> Dict[str, Any]:
         """Calculate all portfolio metrics from positions data with equity-based calculations"""
 
@@ -149,7 +171,7 @@ class PortfolioAnalyticsService:
         # Calculate exposure aggregates (short_exposure is negative)
         gross_exposure = long_exposure + abs(short_exposure)
         net_exposure = long_exposure + short_exposure  # Add negative
-        
+
         # Calculate cash balance from equity (if equity provided)
         if equity_balance is not None:
             # Cash = Equity - Long MV + |Short MV|

@@ -159,26 +159,29 @@ class PnLCalculator:
             logger.error(f"  Portfolio {portfolio_id} not found")
             return False
 
-        # Get previous snapshot for equity rollforward
-        previous_date = trading_calendar.get_previous_trading_day(calculation_date)
+        # Get most recent snapshot for equity rollforward
+        # CRITICAL FIX: Instead of looking for exact previous trading day,
+        # find the MOST RECENT snapshot before calculation_date.
+        # This prevents equity reset when snapshots are missing.
         previous_snapshot = None
         previous_equity = portfolio.equity_balance or Decimal('0')  # Default to initial equity or 0
 
-        if previous_date:
-            prev_query = select(PortfolioSnapshot).where(
-                and_(
-                    PortfolioSnapshot.portfolio_id == portfolio_id,
-                    PortfolioSnapshot.snapshot_date == previous_date
-                )
+        # Look for most recent snapshot before calculation_date
+        prev_query = select(PortfolioSnapshot).where(
+            and_(
+                PortfolioSnapshot.portfolio_id == portfolio_id,
+                PortfolioSnapshot.snapshot_date < calculation_date
             )
-            prev_result = await db.execute(prev_query)
-            previous_snapshot = prev_result.scalar_one_or_none()
+        ).order_by(PortfolioSnapshot.snapshot_date.desc()).limit(1)
 
-            if previous_snapshot:
-                previous_equity = previous_snapshot.equity_balance or Decimal('0')
-                logger.debug(f"    Previous equity ({previous_date}): ${previous_equity:,.2f}")
-            else:
-                logger.debug(f"    No previous snapshot, using initial equity: ${previous_equity:,.2f}")
+        prev_result = await db.execute(prev_query)
+        previous_snapshot = prev_result.scalar_one_or_none()
+
+        if previous_snapshot:
+            previous_equity = previous_snapshot.equity_balance or previous_equity
+            logger.debug(f"    Previous equity ({previous_snapshot.snapshot_date}): ${previous_equity:,.2f}")
+        else:
+            logger.debug(f"    No previous snapshot found, using initial equity: ${previous_equity:,.2f}")
 
         # Calculate P&L
         daily_pnl = await self._calculate_daily_pnl(
