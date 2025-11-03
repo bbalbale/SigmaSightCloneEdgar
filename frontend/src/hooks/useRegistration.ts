@@ -33,18 +33,31 @@ export function useRegistration(): UseRegistrationReturn {
 
     try {
       // 1. Register user
+      console.log('Step 1: Registering user...')
       const registerResponse = await onboardingService.register(formData)
+      console.log('Step 1 SUCCESS: Registration response:', registerResponse)
 
       // 2. Auto-login with normalized email from registration response
       // IMPORTANT: Use the email from the response, not formData.email, to avoid case sensitivity issues
+      console.log('Step 2: Auto-login with email:', registerResponse.email)
       const loginResponse = await onboardingService.login(registerResponse.email, formData.password)
+      console.log('Step 2 SUCCESS: Login response:', loginResponse)
 
-      // 3. Store JWT token
-      authManager.setToken(loginResponse.access_token)
+      // 3. Store JWT session
+      console.log('Step 3: Storing session...')
+      authManager.setSession({
+        token: loginResponse.access_token,
+        email: registerResponse.email,
+        tokenType: loginResponse.token_type,
+        expiresIn: loginResponse.expires_in
+      })
+      console.log('Step 3 SUCCESS: Session stored')
 
       // 4. Navigate to upload page
+      console.log('Step 4: Navigating to /onboarding/upload')
       router.push('/onboarding/upload')
     } catch (err: any) {
+      console.error('Registration flow error:', err)
       setError(getErrorMessage(err))
     } finally {
       setIsSubmitting(false)

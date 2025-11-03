@@ -68,7 +68,7 @@ export const onboardingService = {
       '/api/v1/onboarding/register',
       data
     );
-    return response.data;
+    return response;  // apiClient.post already returns the data directly
   },
 
   /**
@@ -79,7 +79,7 @@ export const onboardingService = {
       '/api/v1/auth/login',
       { email, password }  // Backend expects JSON with email and password
     );
-    return response.data;
+    return response;  // apiClient.post already returns the data directly
   },
 
   /**
@@ -92,7 +92,7 @@ export const onboardingService = {
       formData
       // No headers! Browser sets Content-Type with boundary
     );
-    return response.data;
+    return response;  // apiClient.post already returns the data directly
   },
 
   /**
@@ -102,7 +102,7 @@ export const onboardingService = {
     const response = await apiClient.post<TriggerCalculationsResponse>(
       `/api/v1/portfolio/${portfolioId}/calculate`
     );
-    return response.data;
+    return response;  // apiClient.post already returns the data directly
   },
 
   /**
@@ -112,7 +112,7 @@ export const onboardingService = {
     const response = await apiClient.get<BatchStatusResponse>(
       `/api/v1/portfolio/${portfolioId}/batch-status/${batchRunId}`
     );
-    return response.data;
+    return response;  // apiClient.get already returns the data directly
   },
 
   /**
