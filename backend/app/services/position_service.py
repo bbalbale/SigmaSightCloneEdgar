@@ -459,16 +459,14 @@ class PositionService:
             # Soft delete
             position.soft_delete()
 
-            # Soft delete associated position tags
+            # Delete associated position tags (hard delete - position_tags table has no soft delete)
             await self.db.execute(
-                update(PositionTag)
-                .where(PositionTag.position_id == position_id)
-                .values(deleted_at=datetime.utcnow())
+                delete(PositionTag).where(PositionTag.position_id == position_id)
             )
 
             await self.db.commit()
 
-            logger.info(f"Soft deleted position {position_id} ({position.symbol})")
+            logger.info(f"Soft deleted position {position_id} ({position.symbol}) and removed associated tags")
 
             return {
                 "deleted": True,
@@ -532,16 +530,14 @@ class PositionService:
                 position.soft_delete()
                 symbols.append(position.symbol)
 
-            # Soft delete all associated position tags
+            # Delete all associated position tags (hard delete - position_tags table has no soft delete)
             await self.db.execute(
-                update(PositionTag)
-                .where(PositionTag.position_id.in_(position_ids))
-                .values(deleted_at=datetime.utcnow())
+                delete(PositionTag).where(PositionTag.position_id.in_(position_ids))
             )
 
             await self.db.commit()
 
-            logger.info(f"Bulk soft deleted {len(positions)} positions")
+            logger.info(f"Bulk soft deleted {len(positions)} positions and removed associated tags")
 
             return {
                 "deleted": True,
@@ -864,7 +860,9 @@ class PositionService:
                 raise ValueError(f"Position {position_id} not found")
 
             # Check age (< 5 minutes)
-            age = datetime.utcnow() - position.created_at
+            from datetime import timezone
+            now = datetime.now(timezone.utc)
+            age = now - position.created_at
             age_seconds = age.total_seconds()
 
             if age_seconds >= 300:  # 5 minutes
