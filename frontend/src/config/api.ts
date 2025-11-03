@@ -138,6 +138,14 @@ export const API_ENDPOINTS = {
     FEEDBACK: (insightId: string) => `/api/v1/insights/${insightId}/feedback`,
   },
 
+  // Fundamental data endpoints (income statements, balance sheets, cash flows, analyst estimates)
+  FUNDAMENTALS: {
+    INCOME_STATEMENT: (symbol: string) => `/api/v1/fundamentals/${symbol}/income-statement`,
+    BALANCE_SHEET: (symbol: string) => `/api/v1/fundamentals/${symbol}/balance-sheet`,
+    CASH_FLOW: (symbol: string) => `/api/v1/fundamentals/${symbol}/cash-flow`,
+    ANALYST_ESTIMATES: (symbol: string) => `/api/v1/fundamentals/${symbol}/analyst-estimates`,
+  },
+
   // Admin endpoints (for monitoring)
   ADMIN: {
     BATCH_STATUS: '/api/v1/admin/batch/status',

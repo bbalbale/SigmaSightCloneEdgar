@@ -159,12 +159,13 @@ FastAPI Backend (localhost:8000 or Railway)
 
 ALL API calls must go through the service layer. Never make direct `fetch()` calls.
 
-**Available Services** (11 total in `/src/services/`):
+**Available Services** (12 total in `/src/services/`):
 - `apiClient.ts` - Base HTTP client with retry logic
 - `authManager.ts` - JWT token management
 - `portfolioService.ts` - Portfolio data fetching
 - `portfolioResolver.ts` - Dynamic portfolio ID resolution
 - `analyticsApi.ts` - Analytics endpoints
+- `fundamentalsApi.ts` - Fundamental data (income statements, balance sheets, cash flows, analyst estimates) ✨ **NEW** (November 2, 2025)
 - `strategiesApi.ts` - Strategy management (DEPRECATED - use tagsApi)
 - `tagsApi.ts` - Tag management (October 2, 2025)
 - `chatService.ts` - Chat messaging
@@ -457,6 +458,7 @@ const response = await fetch('http://localhost:8000/api/v1/data/positions')
 - `portfolioResolver.ts` - Dynamic portfolio ID resolution
 - `portfolioService.ts` - Portfolio data fetching
 - `analyticsApi.ts` - Analytics endpoints
+- `fundamentalsApi.ts` - Fundamental data (income statements, balance sheets, cash flows, analyst estimates) ✨ **NEW** (November 2, 2025)
 - `strategiesApi.ts` - **DEPRECATED** (use tagsApi instead)
 - `tagsApi.ts` - Tag management API (October 2, 2025)
 - `chatService.ts` - Chat messaging
@@ -694,6 +696,7 @@ npm install
 import { apiClient } from '@/services/apiClient'
 import { authManager } from '@/services/authManager'
 import tagsApi from '@/services/tagsApi'  // Use this, NOT strategiesApi
+import fundamentalsApi from '@/services/fundamentalsApi'  // NEW: Fundamental data
 
 // State
 import { usePortfolioStore } from '@/stores/portfolioStore'

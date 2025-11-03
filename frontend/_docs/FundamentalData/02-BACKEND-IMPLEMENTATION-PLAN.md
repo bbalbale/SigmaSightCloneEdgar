@@ -1,8 +1,8 @@
 # Backend Implementation Plan: Fundamental Data Storage
 
 **Date**: November 2, 2025
-**Last Updated**: November 2, 2025 (Phase 1 complete - database schema implemented)
-**Status**: Phase 1 COMPLETE ✅ | Phase 2 In Progress
+**Last Updated**: November 2, 2025 (Phase 5 complete - all 4 API endpoints tested and working)
+**Status**: Phase 1 COMPLETE ✅ | Phase 2 COMPLETE ✅ | Phase 3 COMPLETE ✅ | Phase 4 COMPLETE ✅ | Phase 5 COMPLETE ✅
 **Prerequisites**: Phase 1 endpoints working (on-demand), YahooQueryClient methods implemented
 
 **Key Update**: Enhanced schema design to include absolute target_period_date fields and fiscal calendar logic for future-proof historical estimate tracking.
@@ -25,6 +25,264 @@
 3. `cash_flows` - 19 financial fields + metadata
 
 **CompanyProfile Enhanced**: 22 new columns including fiscal calendar metadata and absolute period dates
+
+### ✅ Phase 2: Service Layer (COMPLETE)
+- ✅ Fiscal calendar helper methods (3 methods: _calculate_fiscal_quarter_end, _add_fiscal_quarters, _get_or_infer_fiscal_year_end)
+- ✅ should_fetch_fundamentals() - Smart fetching logic based on earnings dates
+- ✅ store_income_statements() - UPSERT for income statement data (22 fields)
+- ✅ store_balance_sheets() - UPSERT for balance sheet data (29 fields)
+- ✅ store_cash_flows() - UPSERT for cash flow data (19 fields with FCF calculation)
+- ✅ update_company_profile_analyst_data() - Analyst estimates with fiscal calendar integration
+
+**File**: `app/services/fundamentals_service.py` (~1,576 lines)
+
+**Key Features**:
+- PostgreSQL UPSERT pattern with on_conflict_do_update
+- Fiscal calendar logic for non-calendar-year companies (Walmart, Oracle, etc.)
+- Absolute period date calculation for clean JOINs with income_statements
+- Smart fetching logic (3+ day buffer after earnings)
+- Graceful error handling with rollback
+- Calculated metrics (margins, ratios, free cash flow)
+
+### ✅ Phase 3: Batch Orchestrator Integration (COMPLETE)
+- ✅ Created fundamentals_collector.py module (~270 lines)
+- ✅ Added Phase 1.5 to batch_orchestrator_v3 (after market data, before P&L)
+- ✅ Smart symbol filtering (PUBLIC positions only)
+- ✅ Earnings-driven fetching (should_fetch_fundamentals logic)
+- ✅ YahooQuery Ticker integration (income_statement, balance_sheet, cash_flow)
+- ✅ Async-safe execution (thread pool executor)
+- ✅ Graceful error handling (continues batch even if fundamentals fail)
+
+**Files Modified**:
+- `app/batch/fundamentals_collector.py` (NEW)
+- `app/batch/batch_orchestrator_v3.py` (updated with Phase 1.5)
+
+**Batch Orchestrator Architecture Now**:
+- Phase 1: Market Data Collection (prices, 1-year lookback)
+- **Phase 1.5: Fundamental Data Collection** ⭐ NEW (earnings-driven)
+- Phase 2: P&L Calculation & Snapshots
+- Phase 2.5: Position Market Value Updates
+- Phase 2.75: Sector Tag Restoration
+- Phase 3: Risk Analytics
+
+**Key Features**:
+- Evaluates all PUBLIC symbols for fetching
+- Only fetches if earnings date + 3 days passed
+- Stores quarterly data (12 periods per symbol)
+- Updates company_profiles with analyst estimates
+- Phase isolation (failures don't block other phases)
+
+### ✅ Phase 4: Testing & Validation (COMPLETE)
+- ✅ Created test_fundamentals_msft.py script
+- ✅ Fixed BigInteger overflow (share counts > 2.1 billion)
+- ✅ Fixed cash flow storage bug (missing calculated metrics initialization)
+- ✅ Applied migration f2a8b1c4d5e6 (change_share_counts_to_bigint)
+- ✅ Verified all 3 statement types storing correctly
+
+**Test Results (MSFT)**:
+- Income statements: 8 periods stored (with 7.4B share counts)
+- Balance sheets: 6 periods stored
+- Cash flows: 6 periods stored (with FCF and FCF margin calculations)
+
+**Bugs Fixed**:
+1. **BigInteger Overflow**: Changed basic_average_shares and diluted_average_shares from INTEGER to BIGINT to handle large cap stocks (MSFT has 7.4B shares)
+2. **Cash Flow Storage**: Fixed KeyError by initializing free_cash_flow and fcf_margin to None in cashflow_record dictionary
+
+**Files Modified**:
+- `app/models/fundamentals.py` (BigInteger fix on line 70-71)
+- `app/services/fundamentals_service.py` (Cash flow initialization fix on line 1384-1385)
+- `alembic/versions/f2a8b1c4d5e6_change_share_counts_to_bigint.py` (NEW migration)
+
+**Sample Data Stored**:
+- Latest MSFT Income Statement (FY 2025-06-30): $281.7B revenue, 7.4B shares outstanding
+- Latest MSFT Cash Flow (FY 2025-06-30): $136.2B operating CF, $71.6B free CF, 25% FCF margin
+
+### ✅ Phase 5: REST API Endpoints (COMPLETE)
+- ✅ Created simplified Pydantic response schemas (direct DB mapping)
+- ✅ Created fundamentals.py endpoint file with 4 endpoints
+- ✅ Registered fundamentals router in main API router
+- ✅ Tested all 4 endpoints with MSFT (all returning 200 status codes)
+
+**Files Created**:
+1. `app/api/v1/fundamentals.py` (NEW - 270 lines)
+   - Income statement endpoint
+   - Balance sheet endpoint
+   - Cash flow endpoint
+   - Analyst estimates endpoint
+
+**Files Modified**:
+1. `app/api/v1/router.py` (lines 16, 41 - router registration)
+2. `app/schemas/fundamentals.py` (added simplified response schemas at line 412)
+
+**Endpoints Implemented** (4 total):
+
+#### 1. GET `/api/v1/fundamentals/{symbol}/income-statement`
+**Query Parameters**:
+- `periods` (default: 4, range: 1-20) - Number of periods to return
+- `frequency` (default: "q", options: "q" or "a") - Quarterly or annual
+
+**Response Schema**:
+```json
+{
+  "symbol": "MSFT",
+  "frequency": "q",
+  "currency": "USD",
+  "periods_returned": 1,
+  "periods": [{
+    "period_date": "2025-06-30",
+    "frequency": "q",
+    "fiscal_year": 2025,
+    "fiscal_quarter": 4,
+    "total_revenue": "281724000000.00",
+    "cost_of_revenue": "65863000000.00",
+    "gross_profit": "215861000000.00",
+    "gross_margin": "0.766200",
+    "research_and_development": "31900000000.00",
+    "selling_general_and_administrative": "25376000000.00",
+    "operating_income": "128542000000.00",
+    "operating_margin": "0.456200",
+    "ebit": "128542000000.00",
+    "ebitda": "156500000000.00",
+    "net_income": "101832000000.00",
+    "net_margin": "0.361500",
+    "diluted_eps": "13.6400",
+    "basic_eps": "13.7100",
+    "basic_average_shares": "7427000000",
+    "diluted_average_shares": "7464000000",
+    "tax_provision": "21941000000.00",
+    "interest_expense": "3002000000.00",
+    "depreciation_and_amortization": "27958000000.00"
+  }]
+}
+```
+
+#### 2. GET `/api/v1/fundamentals/{symbol}/balance-sheet`
+**Query Parameters**:
+- `periods` (default: 4, range: 1-20)
+- `frequency` (default: "q", options: "q" or "a")
+
+**Response Schema**:
+```json
+{
+  "symbol": "MSFT",
+  "frequency": "q",
+  "currency": "USD",
+  "periods_returned": 1,
+  "periods": [{
+    "period_date": "2025-06-30",
+    "frequency": "q",
+    "fiscal_year": 2025,
+    "fiscal_quarter": 4,
+    "total_assets": "619003000000.00",
+    "current_assets": "227063000000.00",
+    "cash_and_cash_equivalents": "30242000000.00",
+    "cash_and_short_term_investments": "101256000000.00",
+    "accounts_receivable": "64403000000.00",
+    "inventory": "2647000000.00",
+    "total_liabilities": "275524000000.00",
+    "current_liabilities": "137269000000.00",
+    "accounts_payable": "29803000000.00",
+    "short_term_debt": "4400000000.00",
+    "long_term_debt": "88181000000.00",
+    "total_debt": "92581000000.00",
+    "total_stockholders_equity": "343479000000.00",
+    "retained_earnings": "153119000000.00",
+    "common_stock": "104539000000.00",
+    "working_capital": "89794000000.00",
+    "net_debt": "-8675000000.00",
+    "current_ratio": "1.654000",
+    "debt_to_equity": "0.269600"
+  }]
+}
+```
+
+#### 3. GET `/api/v1/fundamentals/{symbol}/cash-flow`
+**Query Parameters**:
+- `periods` (default: 4, range: 1-20)
+- `frequency` (default: "q", options: "q" or "a")
+
+**Response Schema**:
+```json
+{
+  "symbol": "MSFT",
+  "frequency": "q",
+  "currency": "USD",
+  "periods_returned": 1,
+  "periods": [{
+    "period_date": "2025-06-30",
+    "frequency": "q",
+    "fiscal_year": 2025,
+    "fiscal_quarter": 4,
+    "operating_cash_flow": "136162000000.00",
+    "capital_expenditures": "-64551000000.00",
+    "free_cash_flow": "71611000000.00",
+    "fcf_margin": "0.254200",
+    "investing_cash_flow": "-80447000000.00",
+    "financing_cash_flow": "-60046000000.00",
+    "net_change_in_cash": "-4331000000.00",
+    "stock_based_compensation": "10600000000.00",
+    "dividends_paid": "-25800000000.00",
+    "stock_repurchased": "-38200000000.00",
+    "debt_issuance": "0.00",
+    "debt_repayment": "-3700000000.00"
+  }]
+}
+```
+
+#### 4. GET `/api/v1/fundamentals/{symbol}/analyst-estimates`
+**No Query Parameters** - Returns 4 periods: current quarter (0q), next quarter (+1q), current year (0y), next year (+1y)
+
+**Response Schema**:
+```json
+{
+  "symbol": "MSFT",
+  "estimates": {
+    "current_quarter_eps_avg": "3.8700",
+    "current_quarter_eps_low": "3.7000",
+    "current_quarter_eps_high": "4.0100",
+    "current_quarter_revenue_avg": "68700000000.00",
+    "current_quarter_revenue_low": "68000000000.00",
+    "current_quarter_revenue_high": "69200000000.00",
+    "current_quarter_analyst_count": 34,
+    "next_quarter_eps_avg": "3.9200",
+    "next_quarter_eps_low": "3.7500",
+    "next_quarter_eps_high": "4.0800",
+    "next_quarter_revenue_avg": "69800000000.00",
+    "next_quarter_revenue_low": "69100000000.00",
+    "next_quarter_revenue_high": "70300000000.00",
+    "next_quarter_analyst_count": 32,
+    "current_year_earnings_avg": "15.7500",
+    "current_year_earnings_low": "15.4000",
+    "current_year_earnings_high": "16.0500",
+    "current_year_revenue_avg": "277500000000.00",
+    "current_year_revenue_low": "275000000000.00",
+    "current_year_revenue_high": "279000000000.00",
+    "current_year_analyst_count": 38,
+    "next_year_earnings_avg": "18.5700",
+    "next_year_earnings_low": "18.1000",
+    "next_year_earnings_high": "19.0000",
+    "next_year_revenue_avg": "305400000000.00",
+    "next_year_revenue_low": "302000000000.00",
+    "next_year_revenue_high": "308000000000.00",
+    "next_year_analyst_count": 35
+  }
+}
+```
+
+**Test Results (MSFT)** - All endpoints returning 200 status codes:
+- ✅ Income Statement: Revenue $281.7B, Net Income $101.8B, Diluted EPS $13.64
+- ✅ Balance Sheet: Total Assets $619.0B, Total Equity $343.5B, Cash $30.2B
+- ✅ Cash Flow: Operating CF $136.2B, Free CF $71.6B, FCF Margin 25.4%
+- ✅ Analyst Estimates: Current quarter EPS $3.87, Next year earnings $18.57
+
+**Key Implementation Details**:
+1. **Pydantic Schemas**: Simplified response models with direct DB mapping using `from_attributes = True`
+2. **Query Pattern**: SQLAlchemy `select().where().order_by().limit()` for efficient data retrieval
+3. **Error Handling**: 404 HTTPException when no data found for symbol
+4. **Sorted Results**: All endpoints return periods sorted by date descending (most recent first)
+5. **Router Registration**: Properly registered in main API router with `/fundamentals` prefix
+
+**Testing Script**: `backend/scripts/test_fundamentals_endpoints.py`
 
 ---
 
