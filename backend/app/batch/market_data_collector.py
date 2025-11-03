@@ -20,6 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 from app.core.logging import get_logger
+from app.core.trading_calendar import is_trading_day, get_most_recent_trading_day
 from app.database import AsyncSessionLocal
 from app.models.market_data import MarketDataCache
 from app.models.positions import Position
@@ -184,6 +185,34 @@ class MarketDataCollector:
             end_date = fetch_ranges[0][2]
             fetch_mode = "incremental"
             logger.info(f"Incremental: {start_date} to {end_date}")
+
+        # TRADING CALENDAR CHECK: Adjust end_date to most recent trading day
+        if not is_trading_day(end_date):
+            original_end = end_date
+            end_date = get_most_recent_trading_day(end_date)
+            logger.info(f"Trading Calendar: {original_end} is not a trading day (weekend/holiday)")
+            logger.info(f"Trading Calendar: Using most recent trading day {end_date} instead")
+
+            # If start_date is now after adjusted end_date, skip fetching
+            if start_date > end_date:
+                logger.info(f"Trading Calendar: No trading days in range {start_date} to {original_end}, skipping fetch")
+
+                # Return early with cached data stats
+                return {
+                    'success': True,
+                    'calculation_date': calculation_date,
+                    'start_date': end_date,
+                    'end_date': end_date,
+                    'fetch_mode': 'skipped_non_trading_day',
+                    'symbols_requested': len(symbols),
+                    'symbols_fetched': 0,
+                    'symbols_with_data': len(symbols),  # Assume cached
+                    'data_coverage_pct': Decimal('100.00'),
+                    'provider_breakdown': {'skipped': len(symbols)},
+                    'missing_symbols': [],
+                    'profiles_fetched': 0,
+                    'profiles_failed': 0
+                }
 
         # Step 3: Check what data we already have in cache
         cached_symbols = await self._get_cached_symbols(db, symbols, start_date, end_date)
