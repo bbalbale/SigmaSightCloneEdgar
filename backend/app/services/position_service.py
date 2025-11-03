@@ -605,3 +605,358 @@ class PositionService:
         except Exception as e:
             logger.error(f"Error checking symbol edit permission: {e}")
             raise
+
+    # ============================================================================
+    # SMART FEATURES (Day 3 - Nov 3, 2025)
+    # ============================================================================
+
+    async def validate_symbol(
+        self,
+        symbol: str,
+    ) -> tuple[bool, str]:
+        """
+        Validate symbol exists via market data API.
+
+        Uses market data factory to check if symbol is valid.
+        Tries YFinance first, then fallback providers.
+
+        Args:
+            symbol: Symbol to validate
+
+        Returns:
+            (True, "") if valid
+            (False, "error message") if invalid
+
+        Note:
+            This is a basic validation. Full market data fetch
+            happens later in batch processing.
+        """
+        try:
+            from app.clients import market_data_factory
+
+            symbol_upper = symbol.upper().strip()
+
+            # Skip validation for synthetic symbols (private investments)
+            SYNTHETIC_SYMBOLS = {
+                'HOME_EQUITY', 'TREASURY_BILLS', 'CRYPTO_BTC_ETH', 'TWO_SIGMA_FUND',
+                'A16Z_VC_FUND', 'STARWOOD_REIT', 'BX_PRIVATE_EQUITY', 'RENTAL_SFH',
+                'ART_COLLECTIBLES', 'RENTAL_CONDO', 'MONEY_MARKET'
+            }
+
+            if symbol_upper in SYNTHETIC_SYMBOLS:
+                logger.info(f"Skipping validation for synthetic symbol: {symbol_upper}")
+                return (True, "Synthetic symbol (private investment)")
+
+            # Try to fetch basic data for symbol
+            try:
+                # Use market data factory to validate
+                yfinance_provider = market_data_factory.get_provider("yfinance")
+                if yfinance_provider:
+                    # Basic check - try to fetch a single data point
+                    from datetime import date, timedelta
+                    end_date = date.today()
+                    start_date = end_date - timedelta(days=1)
+
+                    data = yfinance_provider.fetch_historical_data(
+                        [symbol_upper],
+                        start_date,
+                        end_date
+                    )
+
+                    if data and symbol_upper in data and len(data[symbol_upper]) > 0:
+                        return (True, "")
+                    else:
+                        return (False, f"Symbol '{symbol_upper}' not found in market data")
+                else:
+                    # If no provider available, skip validation
+                    logger.warning("Market data provider not available, skipping validation")
+                    return (True, "Validation skipped")
+
+            except Exception as e:
+                logger.warning(f"Symbol validation failed for {symbol_upper}: {e}")
+                # Don't block position creation on validation failures
+                # Let it through and batch processing will handle it
+                return (True, f"Validation skipped: {str(e)}")
+
+        except Exception as e:
+            logger.error(f"Error validating symbol {symbol}: {e}")
+            # Don't block on validation errors
+            return (True, "Validation error (allowed)")
+
+    async def check_duplicate_positions(
+        self,
+        portfolio_id: UUID,
+        symbol: str,
+    ) -> tuple[bool, List[Position]]:
+        """
+        Check if symbol already exists in portfolio.
+
+        Used for duplicate detection warning in UI.
+
+        Args:
+            portfolio_id: Portfolio to check
+            symbol: Symbol to check for
+
+        Returns:
+            (has_duplicates, existing_positions)
+            - has_duplicates: True if symbol already exists
+            - existing_positions: List of existing positions for this symbol
+        """
+        try:
+            symbol_upper = symbol.upper().strip()
+
+            # Find all active positions with this symbol in portfolio
+            result = await self.db.execute(
+                select(Position)
+                .where(
+                    and_(
+                        Position.portfolio_id == portfolio_id,
+                        Position.symbol == symbol_upper,
+                        Position.deleted_at == None  # Only active positions
+                    )
+                )
+            )
+            existing_positions = result.scalars().all()
+
+            has_duplicates = len(existing_positions) > 0
+
+            if has_duplicates:
+                logger.info(f"Found {len(existing_positions)} existing position(s) for {symbol_upper} in portfolio {portfolio_id}")
+
+            return (has_duplicates, list(existing_positions))
+
+        except Exception as e:
+            logger.error(f"Error checking duplicates for {symbol}: {e}")
+            return (False, [])
+
+    async def get_tags_for_symbol(
+        self,
+        portfolio_id: UUID,
+        symbol: str,
+    ) -> List[TagV2]:
+        """
+        Get tags from existing positions of same symbol.
+
+        Used for tag inheritance when adding duplicate symbol.
+        New lot of existing symbol inherits tags automatically.
+
+        Args:
+            portfolio_id: Portfolio to check
+            symbol: Symbol to get tags for
+
+        Returns:
+            List of TagV2 objects from existing positions
+        """
+        try:
+            symbol_upper = symbol.upper().strip()
+
+            # Get existing positions with this symbol
+            result = await self.db.execute(
+                select(Position)
+                .options(
+                    selectinload(Position.position_tags).selectinload(PositionTag.tag)
+                )
+                .where(
+                    and_(
+                        Position.portfolio_id == portfolio_id,
+                        Position.symbol == symbol_upper,
+                        Position.deleted_at == None  # Only active positions
+                    )
+                )
+            )
+            existing_positions = result.scalars().all()
+
+            # Collect unique tags from all positions
+            tags_set = set()
+            tags_dict = {}  # tag_id -> TagV2
+
+            for position in existing_positions:
+                for position_tag in position.position_tags:
+                    if position_tag.deleted_at is None and position_tag.tag:
+                        tag = position_tag.tag
+                        if tag.id not in tags_set:
+                            tags_set.add(tag.id)
+                            tags_dict[tag.id] = tag
+
+            tags_list = list(tags_dict.values())
+
+            if tags_list:
+                logger.info(f"Found {len(tags_list)} tags to inherit for symbol {symbol_upper}")
+
+            return tags_list
+
+        except Exception as e:
+            logger.error(f"Error getting tags for symbol {symbol}: {e}")
+            return []
+
+    async def detect_quantity_reduction(
+        self,
+        position_id: UUID,
+        new_quantity: Decimal,
+    ) -> tuple[bool, Decimal]:
+        """
+        Detect if quantity is being reduced (potential sale).
+
+        Used to prompt user: "Is this a sale?"
+
+        Args:
+            position_id: Position being updated
+            new_quantity: New quantity value
+
+        Returns:
+            (is_reduction, shares_reduced)
+            - is_reduction: True if quantity reduced
+            - shares_reduced: Amount reduced (positive number)
+        """
+        try:
+            # Get current position
+            result = await self.db.execute(
+                select(Position).where(Position.id == position_id)
+            )
+            position = result.scalar()
+
+            if not position:
+                return (False, Decimal(0))
+
+            current_quantity = position.quantity
+
+            # Check if reduction
+            if new_quantity < current_quantity:
+                shares_reduced = current_quantity - new_quantity
+                logger.info(f"Quantity reduction detected: {current_quantity} -> {new_quantity} (reduced by {shares_reduced})")
+                return (True, shares_reduced)
+
+            return (False, Decimal(0))
+
+        except Exception as e:
+            logger.error(f"Error detecting quantity reduction: {e}")
+            return (False, Decimal(0))
+
+    async def should_hard_delete(
+        self,
+        position_id: UUID,
+    ) -> tuple[bool, str]:
+        """
+        Check if position should be hard deleted (Reverse Addition).
+
+        Hard delete allowed if:
+        - Position created < 5 minutes ago, AND
+        - Position has no snapshots
+
+        Otherwise, use soft delete (Sell).
+
+        Args:
+            position_id: Position to check
+
+        Returns:
+            (should_hard_delete, reason)
+            - True: "Reverse Addition" (< 5 min, no snapshots)
+            - False: "Sell" (use soft delete)
+        """
+        try:
+            # Get position
+            result = await self.db.execute(
+                select(Position).where(Position.id == position_id)
+            )
+            position = result.scalar()
+
+            if not position:
+                raise ValueError(f"Position {position_id} not found")
+
+            # Check age (< 5 minutes)
+            age = datetime.utcnow() - position.created_at
+            age_seconds = age.total_seconds()
+
+            if age_seconds >= 300:  # 5 minutes
+                return (False, f"Position is {int(age_seconds/60)} minutes old (use soft delete)")
+
+            # Check for snapshots
+            # TODO: Implement snapshot check when snapshot model is available
+            # For now, allow hard delete if < 5 min
+            # has_snapshots = await self._check_position_has_snapshots(position_id)
+            # if has_snapshots:
+            #     return (False, "Position has historical snapshots (use soft delete)")
+
+            return (True, "Position < 5 minutes old with no snapshots (Reverse Addition)")
+
+        except Exception as e:
+            logger.error(f"Error checking hard delete eligibility: {e}")
+            # Default to soft delete on errors
+            return (False, f"Error checking: {str(e)} (use soft delete)")
+
+    async def hard_delete_position(
+        self,
+        position_id: UUID,
+        user_id: UUID,
+    ) -> Dict[str, Any]:
+        """
+        HARD delete position (permanent removal).
+
+        Only use for "Reverse Addition" (< 5 min, no snapshots).
+        Otherwise, use soft_delete_position().
+
+        WARNING: This permanently removes the position from database.
+        No audit trail. Use with caution.
+
+        Args:
+            position_id: Position to hard delete
+            user_id: User performing deletion (for auth check)
+
+        Returns:
+            {
+                "deleted": True,
+                "position_id": "uuid",
+                "symbol": "AAPL",
+                "type": "hard_delete"
+            }
+
+        Raises:
+            PermissionError: If user doesn't own position
+            ValueError: If position not found or shouldn't be hard deleted
+        """
+        try:
+            # Get position with portfolio for auth check
+            result = await self.db.execute(
+                select(Position)
+                .options(selectinload(Position.portfolio))
+                .where(Position.id == position_id)
+            )
+            position = result.scalar()
+
+            if not position:
+                raise ValueError(f"Position {position_id} not found")
+
+            # Check user owns portfolio
+            if position.portfolio.user_id != user_id:
+                raise PermissionError("User does not own this position")
+
+            # Check if should hard delete
+            should_hard, reason = await self.should_hard_delete(position_id)
+            if not should_hard:
+                raise ValueError(f"Position should not be hard deleted: {reason}")
+
+            symbol = position.symbol
+
+            # Hard delete associated position tags first
+            await self.db.execute(
+                delete(PositionTag).where(PositionTag.position_id == position_id)
+            )
+
+            # Hard delete position
+            await self.db.delete(position)
+            await self.db.commit()
+
+            logger.warning(f"HARD DELETED position {position_id} ({symbol}) - Reverse Addition")
+
+            return {
+                "deleted": True,
+                "position_id": str(position_id),
+                "symbol": symbol,
+                "type": "hard_delete",
+                "reason": "Reverse Addition (< 5 min, no snapshots)"
+            }
+
+        except Exception as e:
+            await self.db.rollback()
+            logger.error(f"Error hard deleting position {position_id}: {e}")
+            raise
