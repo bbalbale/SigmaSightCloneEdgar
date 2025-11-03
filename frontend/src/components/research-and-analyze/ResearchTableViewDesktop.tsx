@@ -5,6 +5,7 @@ import { ChevronDown, ChevronRight } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { TagBadge } from '@/components/organize/TagBadge'
 import { CorrelationsSection } from './CorrelationsSection'
+import { FinancialsTab } from './FinancialsTab'
 import { usePositionRiskMetrics } from '@/hooks/usePositionRiskMetrics'
 import { formatCurrency } from '@/lib/formatters'
 import type { EnhancedPosition } from '@/services/positionResearchService'
@@ -445,7 +446,7 @@ const ResearchTableRow = memo(function ResearchTableRow({ position, isExpanded, 
   )
 })
 
-// Expanded row detail component
+// Expanded row detail component with tabs
 interface ExpandedRowDetailProps {
   position: EnhancedPosition
   riskMetrics: any
@@ -453,7 +454,11 @@ interface ExpandedRowDetailProps {
   onRemoveTag?: (positionId: string, tagId: string) => Promise<void>
 }
 
+type TabType = 'profile' | 'financials' | 'correlations'
+
 const ExpandedRowDetail = memo(function ExpandedRowDetail({ position, riskMetrics, riskMetricsLoading, onRemoveTag }: ExpandedRowDetailProps) {
+  const [activeTab, setActiveTab] = useState<TabType>('profile')
+
   const quantity = position.quantity || 0
   const avgCost = position.avg_cost || position.cost_basis || 0
   const marketValue = position.current_market_value || position.market_value || (quantity * position.current_price)
@@ -478,227 +483,273 @@ const ExpandedRowDetail = memo(function ExpandedRowDetail({ position, riskMetric
   const valueClass = "text-sm font-medium transition-colors duration-300"
   const sectionTitleClass = "text-xs font-semibold uppercase tracking-wide mb-3 transition-colors duration-300"
 
+  // Tab button styling
+  const getTabButtonStyle = (tab: TabType) => ({
+    padding: '0.5rem 1.5rem',
+    fontSize: 'var(--text-sm)',
+    fontWeight: activeTab === tab ? '600' : '500',
+    borderBottom: activeTab === tab ? '2px solid var(--color-accent)' : '2px solid transparent',
+    color: activeTab === tab ? 'var(--color-accent)' : 'var(--text-secondary)',
+    cursor: 'pointer',
+    transition: 'all 0.2s',
+    backgroundColor: 'transparent'
+  })
+
   return (
-    <div className="px-8 py-6 space-y-6">
-      {/* Top Row: Position Detail, Current Year, Forward Year */}
-      <div className="grid grid-cols-3 gap-8">
-        {/* Left Column: Position Detail */}
-        <div>
-          <h4 className={sectionTitleClass} style={{ color: 'var(--text-secondary)' }}>
-            Position Detail
-          </h4>
-          <div className="space-y-2">
-            <div className="flex justify-between">
-              <span className={labelClass} style={{ color: 'var(--text-secondary)' }}>Exposure</span>
-              <span className={valueClass} style={{ color: 'var(--text-primary)' }}>{formatCurrency(marketValue)}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className={labelClass} style={{ color: 'var(--text-secondary)' }}>Quantity</span>
-              <span className={valueClass} style={{ color: 'var(--text-primary)' }}>{quantity.toLocaleString()}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className={labelClass} style={{ color: 'var(--text-secondary)' }}>Avg Cost</span>
-              <span className={valueClass} style={{ color: 'var(--text-primary)' }}>{avgCost > 0 ? formatCurrency(avgCost) : '—'}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className={labelClass} style={{ color: 'var(--text-secondary)' }}>P&L</span>
-              <span className={valueClass} style={{ color: pnl >= 0 ? 'var(--color-success)' : 'var(--color-error)' }}>
-                {formatCurrency(pnl)}
-              </span>
-            </div>
-            <div className="flex justify-between">
-              <span className={labelClass} style={{ color: 'var(--text-secondary)' }}>P&L %</span>
-              <span className={valueClass} style={{ color: pnl >= 0 ? 'var(--color-success)' : 'var(--color-error)' }}>
-                {formatPercentage(pnlPercent)}
-              </span>
-            </div>
-          </div>
-        </div>
-
-        {/* Middle Column: Current Year Metrics */}
-        <div>
-          <h4 className={sectionTitleClass} style={{ color: 'var(--text-secondary)' }}>
-            Current Year
-          </h4>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="p-2 rounded transition-colors duration-300" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
-              <div className={labelClass} style={{ color: 'var(--text-secondary)' }}>P/E</div>
-              <div className={valueClass} style={{ color: 'var(--text-primary)' }}>{peThisYear?.toFixed(1) || '—'}</div>
-            </div>
-            <div className="p-2 rounded transition-colors duration-300" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
-              <div className={labelClass} style={{ color: 'var(--text-secondary)' }}>P/S</div>
-              <div className={valueClass} style={{ color: 'var(--text-primary)' }}>{psThisYear?.toFixed(2) || '—'}</div>
-            </div>
-            <div className="p-2 rounded transition-colors duration-300" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
-              <div className={labelClass} style={{ color: 'var(--text-secondary)' }}>EPS</div>
-              <div className={valueClass} style={{ color: 'var(--text-primary)' }}>
-                {position.current_year_earnings_avg ? formatCurrency(position.current_year_earnings_avg) : '—'}
-              </div>
-            </div>
-            <div className="p-2 rounded transition-colors duration-300" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
-              <div className={labelClass} style={{ color: 'var(--text-secondary)' }}>Revenue</div>
-              <div className={valueClass} style={{ color: 'var(--text-primary)' }}>
-                {position.current_year_revenue_avg ? `$${(position.current_year_revenue_avg / 1e9).toFixed(1)}B` : '—'}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Right Column: Forward Year Metrics */}
-        <div>
-          <h4 className={sectionTitleClass} style={{ color: 'var(--text-secondary)' }}>
-            Forward Year
-          </h4>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="p-2 rounded transition-colors duration-300" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
-              <div className={labelClass} style={{ color: 'var(--text-secondary)' }}>Fwd P/E</div>
-              <div className={valueClass} style={{ color: 'var(--text-primary)' }}>{peNextYear?.toFixed(1) || '—'}</div>
-            </div>
-            <div className="p-2 rounded transition-colors duration-300" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
-              <div className={labelClass} style={{ color: 'var(--text-secondary)' }}>Fwd P/S</div>
-              <div className={valueClass} style={{ color: 'var(--text-primary)' }}>{psNextYear?.toFixed(2) || '—'}</div>
-            </div>
-            <div className="p-2 rounded transition-colors duration-300" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
-              <div className={labelClass} style={{ color: 'var(--text-secondary)' }}>Fwd EPS</div>
-              <div className={valueClass} style={{ color: 'var(--text-primary)' }}>
-                {position.next_year_earnings_avg ? formatCurrency(position.next_year_earnings_avg) : '—'}
-              </div>
-            </div>
-            <div className="p-2 rounded transition-colors duration-300" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
-              <div className={labelClass} style={{ color: 'var(--text-secondary)' }}>Fwd Revenue</div>
-              <div className={valueClass} style={{ color: 'var(--text-primary)' }}>
-                {position.next_year_revenue_avg ? `$${(position.next_year_revenue_avg / 1e9).toFixed(1)}B` : '—'}
-              </div>
-            </div>
-          </div>
-        </div>
+    <div>
+      {/* Tab Navigation */}
+      <div className="flex border-b px-8 pt-4" style={{ borderColor: 'var(--border-primary)' }}>
+        <button
+          onClick={() => setActiveTab('profile')}
+          style={getTabButtonStyle('profile')}
+        >
+          Company Profile
+        </button>
+        <button
+          onClick={() => setActiveTab('financials')}
+          style={getTabButtonStyle('financials')}
+        >
+          Financials
+        </button>
+        <button
+          onClick={() => setActiveTab('correlations')}
+          style={getTabButtonStyle('correlations')}
+        >
+          Correlations
+        </button>
       </div>
 
-      {/* Bottom Row: Correlations, Tags, Risk Metrics */}
-      <div className="grid grid-cols-3 gap-8">
-        {/* Left Column: Correlations */}
-        <div>
-          <h4 className={sectionTitleClass} style={{ color: 'var(--text-secondary)' }}>
-            Correlations
-          </h4>
-          <CorrelationsSection position={position as any} theme="dark" />
-        </div>
-
-        {/* Middle Column: Tags */}
-        <div>
-          <h4 className={sectionTitleClass} style={{ color: 'var(--text-secondary)' }}>
-            Tags
-          </h4>
-          {position.tags && position.tags.length > 0 ? (
-            <div className="flex gap-2 flex-wrap">
-              {position.tags.map(tag => (
-                <div key={tag.id} className="inline-flex items-center gap-1">
-                  <TagBadge tag={tag} draggable={false} />
-                  {onRemoveTag && (
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        onRemoveTag(position.id, tag.id)
-                      }}
-                      className="px-1 py-0 text-xs rounded transition-all duration-200 hover:scale-110"
-                      style={{
-                        backgroundColor: 'var(--color-error-bg, rgba(239, 68, 68, 0.1))',
-                        color: 'var(--color-error)',
-                        border: '1px solid var(--color-error)',
-                        fontSize: '10px',
-                        lineHeight: '14px',
-                        minWidth: '14px',
-                        height: '14px'
-                      }}
-                      title={`Remove ${tag.name} tag`}
-                      aria-label={`Remove ${tag.name} tag from ${position.symbol}`}
-                    >
-                      ×
-                    </button>
-                  )}
-                </div>
-              ))}
-            </div>
-          ) : (
-            <p className="text-sm transition-colors duration-300" style={{ color: 'var(--text-tertiary)' }}>
-              No tags applied
-            </p>
-          )}
-        </div>
-
-        {/* Right Column: Risk Metrics */}
-        <div>
-          <h4 className={sectionTitleClass} style={{ color: 'var(--text-secondary)' }}>
-            Risk Metrics
-          </h4>
-          {riskMetricsLoading ? (
-            <p className="text-sm transition-colors duration-300" style={{ color: 'var(--text-tertiary)' }}>
-              Loading...
-            </p>
-          ) : riskMetrics ? (
-            <div className="space-y-2">
-              {/* Calculated Beta (from our factor model) */}
-              {riskMetrics.beta !== undefined && (
-                <div className="flex justify-between">
-                  <span className={labelClass} style={{ color: 'var(--text-secondary)' }}>Calculated Beta</span>
-                  <span className={valueClass} style={{ color: 'var(--text-primary)' }}>{riskMetrics.beta.toFixed(2)}</span>
-                </div>
-              )}
-              {/* 1-Year Beta (from company profile or other source) */}
-              {position.beta !== undefined && (
-                <div className="flex justify-between">
-                  <span className={labelClass} style={{ color: 'var(--text-secondary)' }}>1-Year Beta</span>
-                  <span className={valueClass} style={{ color: 'var(--text-primary)' }}>{position.beta.toFixed(2)}</span>
-                </div>
-              )}
-              {riskMetrics.volatility_30d !== undefined && (
-                <div className="flex justify-between">
-                  <span className={labelClass} style={{ color: 'var(--text-secondary)' }}>Volatility (30d)</span>
-                  <span className={valueClass} style={{ color: 'var(--text-primary)' }}>{formatPercentage(riskMetrics.volatility_30d)}</span>
-                </div>
-              )}
-              {(riskMetrics.sector || position.sector) && (
-                <div className="flex justify-between">
-                  <span className={labelClass} style={{ color: 'var(--text-secondary)' }}>Sector</span>
-                  <span className={valueClass} style={{ color: 'var(--text-primary)' }}>{riskMetrics.sector || position.sector}</span>
-                </div>
-              )}
-
-              {/* Factor Exposures */}
-              {riskMetrics.factor_exposures && (
-                <>
-                  <div className="mt-4 mb-2">
-                    <span className="text-xs font-semibold uppercase tracking-wide transition-colors duration-300" style={{ color: 'var(--text-secondary)' }}>
-                      Factor Exposures
+      {/* Tab Content */}
+      <div className="px-8 py-6">
+        {/* Company Profile Tab */}
+        {activeTab === 'profile' && (
+          <div className="space-y-6">
+            {/* Top Row: Position Detail, Current Year, Forward Year */}
+            <div className="grid grid-cols-3 gap-8">
+              {/* Left Column: Position Detail */}
+              <div>
+                <h4 className={sectionTitleClass} style={{ color: 'var(--text-secondary)' }}>
+                  Position Detail
+                </h4>
+                <div className="space-y-2">
+                  <div className="flex justify-between">
+                    <span className={labelClass} style={{ color: 'var(--text-secondary)' }}>Exposure</span>
+                    <span className={valueClass} style={{ color: 'var(--text-primary)' }}>{formatCurrency(marketValue)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className={labelClass} style={{ color: 'var(--text-secondary)' }}>Quantity</span>
+                    <span className={valueClass} style={{ color: 'var(--text-primary)' }}>{quantity.toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className={labelClass} style={{ color: 'var(--text-secondary)' }}>Avg Cost</span>
+                    <span className={valueClass} style={{ color: 'var(--text-primary)' }}>{avgCost > 0 ? formatCurrency(avgCost) : '—'}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className={labelClass} style={{ color: 'var(--text-secondary)' }}>P&L</span>
+                    <span className={valueClass} style={{ color: pnl >= 0 ? 'var(--color-success)' : 'var(--color-error)' }}>
+                      {formatCurrency(pnl)}
                     </span>
                   </div>
-                  {riskMetrics.factor_exposures.Growth !== undefined && (
-                    <div className="flex justify-between">
-                      <span className={labelClass} style={{ color: 'var(--text-secondary)' }}>Growth</span>
-                      <span className={valueClass} style={{ color: 'var(--text-primary)' }}>{riskMetrics.factor_exposures.Growth.toFixed(2)}</span>
+                  <div className="flex justify-between">
+                    <span className={labelClass} style={{ color: 'var(--text-secondary)' }}>P&L %</span>
+                    <span className={valueClass} style={{ color: pnl >= 0 ? 'var(--color-success)' : 'var(--color-error)' }}>
+                      {formatPercentage(pnlPercent)}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Middle Column: Current Year Metrics */}
+              <div>
+                <h4 className={sectionTitleClass} style={{ color: 'var(--text-secondary)' }}>
+                  Current Year
+                </h4>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="p-2 rounded transition-colors duration-300" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
+                    <div className={labelClass} style={{ color: 'var(--text-secondary)' }}>P/E</div>
+                    <div className={valueClass} style={{ color: 'var(--text-primary)' }}>{peThisYear?.toFixed(1) || '—'}</div>
+                  </div>
+                  <div className="p-2 rounded transition-colors duration-300" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
+                    <div className={labelClass} style={{ color: 'var(--text-secondary)' }}>P/S</div>
+                    <div className={valueClass} style={{ color: 'var(--text-primary)' }}>{psThisYear?.toFixed(2) || '—'}</div>
+                  </div>
+                  <div className="p-2 rounded transition-colors duration-300" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
+                    <div className={labelClass} style={{ color: 'var(--text-secondary)' }}>EPS</div>
+                    <div className={valueClass} style={{ color: 'var(--text-primary)' }}>
+                      {position.current_year_earnings_avg ? formatCurrency(position.current_year_earnings_avg) : '—'}
                     </div>
-                  )}
-                  {riskMetrics.factor_exposures.Momentum !== undefined && (
-                    <div className="flex justify-between">
-                      <span className={labelClass} style={{ color: 'var(--text-secondary)' }}>Momentum</span>
-                      <span className={valueClass} style={{ color: 'var(--text-primary)' }}>{riskMetrics.factor_exposures.Momentum.toFixed(2)}</span>
+                  </div>
+                  <div className="p-2 rounded transition-colors duration-300" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
+                    <div className={labelClass} style={{ color: 'var(--text-secondary)' }}>Revenue</div>
+                    <div className={valueClass} style={{ color: 'var(--text-primary)' }}>
+                      {position.current_year_revenue_avg ? `$${(position.current_year_revenue_avg / 1e9).toFixed(1)}B` : '—'}
                     </div>
-                  )}
-                  {riskMetrics.factor_exposures.Size !== undefined && (
-                    <div className="flex justify-between">
-                      <span className={labelClass} style={{ color: 'var(--text-secondary)' }}>Size</span>
-                      <span className={valueClass} style={{ color: 'var(--text-primary)' }}>{riskMetrics.factor_exposures.Size.toFixed(2)}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Right Column: Forward Year Metrics */}
+              <div>
+                <h4 className={sectionTitleClass} style={{ color: 'var(--text-secondary)' }}>
+                  Forward Year
+                </h4>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="p-2 rounded transition-colors duration-300" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
+                    <div className={labelClass} style={{ color: 'var(--text-secondary)' }}>Fwd P/E</div>
+                    <div className={valueClass} style={{ color: 'var(--text-primary)' }}>{peNextYear?.toFixed(1) || '—'}</div>
+                  </div>
+                  <div className="p-2 rounded transition-colors duration-300" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
+                    <div className={labelClass} style={{ color: 'var(--text-secondary)' }}>Fwd P/S</div>
+                    <div className={valueClass} style={{ color: 'var(--text-primary)' }}>{psNextYear?.toFixed(2) || '—'}</div>
+                  </div>
+                  <div className="p-2 rounded transition-colors duration-300" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
+                    <div className={labelClass} style={{ color: 'var(--text-secondary)' }}>Fwd EPS</div>
+                    <div className={valueClass} style={{ color: 'var(--text-primary)' }}>
+                      {position.next_year_earnings_avg ? formatCurrency(position.next_year_earnings_avg) : '—'}
                     </div>
-                  )}
-                </>
-              )}
+                  </div>
+                  <div className="p-2 rounded transition-colors duration-300" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
+                    <div className={labelClass} style={{ color: 'var(--text-secondary)' }}>Fwd Revenue</div>
+                    <div className={valueClass} style={{ color: 'var(--text-primary)' }}>
+                      {position.next_year_revenue_avg ? `$${(position.next_year_revenue_avg / 1e9).toFixed(1)}B` : '—'}
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
-          ) : (
-            <p className="text-sm transition-colors duration-300" style={{ color: 'var(--text-tertiary)' }}>
-              Not available
-            </p>
-          )}
-        </div>
+
+            {/* Bottom Row: Tags, Risk Metrics */}
+            <div className="grid grid-cols-2 gap-8">
+              {/* Left Column: Tags */}
+              <div>
+                <h4 className={sectionTitleClass} style={{ color: 'var(--text-secondary)' }}>
+                  Tags
+                </h4>
+                {position.tags && position.tags.length > 0 ? (
+                  <div className="flex gap-2 flex-wrap">
+                    {position.tags.map(tag => (
+                      <div key={tag.id} className="inline-flex items-center gap-1">
+                        <TagBadge tag={tag} draggable={false} />
+                        {onRemoveTag && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              onRemoveTag(position.id, tag.id)
+                            }}
+                            className="px-1 py-0 text-xs rounded transition-all duration-200 hover:scale-110"
+                            style={{
+                              backgroundColor: 'var(--color-error-bg, rgba(239, 68, 68, 0.1))',
+                              color: 'var(--color-error)',
+                              border: '1px solid var(--color-error)',
+                              fontSize: '10px',
+                              lineHeight: '14px',
+                              minWidth: '14px',
+                              height: '14px'
+                            }}
+                            title={`Remove ${tag.name} tag`}
+                            aria-label={`Remove ${tag.name} tag from ${position.symbol}`}
+                          >
+                            ×
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm transition-colors duration-300" style={{ color: 'var(--text-tertiary)' }}>
+                    No tags applied
+                  </p>
+                )}
+              </div>
+
+              {/* Right Column: Risk Metrics */}
+              <div>
+                <h4 className={sectionTitleClass} style={{ color: 'var(--text-secondary)' }}>
+                  Risk Metrics
+                </h4>
+                {riskMetricsLoading ? (
+                  <p className="text-sm transition-colors duration-300" style={{ color: 'var(--text-tertiary)' }}>
+                    Loading...
+                  </p>
+                ) : riskMetrics ? (
+                  <div className="space-y-2">
+                    {/* Calculated Beta (from our factor model) */}
+                    {riskMetrics.beta !== undefined && (
+                      <div className="flex justify-between">
+                        <span className={labelClass} style={{ color: 'var(--text-secondary)' }}>Calculated Beta</span>
+                        <span className={valueClass} style={{ color: 'var(--text-primary)' }}>{riskMetrics.beta.toFixed(2)}</span>
+                      </div>
+                    )}
+                    {/* 1-Year Beta (from company profile or other source) */}
+                    {position.beta !== undefined && (
+                      <div className="flex justify-between">
+                        <span className={labelClass} style={{ color: 'var(--text-secondary)' }}>1-Year Beta</span>
+                        <span className={valueClass} style={{ color: 'var(--text-primary)' }}>{position.beta.toFixed(2)}</span>
+                      </div>
+                    )}
+                    {riskMetrics.volatility_30d !== undefined && (
+                      <div className="flex justify-between">
+                        <span className={labelClass} style={{ color: 'var(--text-secondary)' }}>Volatility (30d)</span>
+                        <span className={valueClass} style={{ color: 'var(--text-primary)' }}>{formatPercentage(riskMetrics.volatility_30d)}</span>
+                      </div>
+                    )}
+                    {(riskMetrics.sector || position.sector) && (
+                      <div className="flex justify-between">
+                        <span className={labelClass} style={{ color: 'var(--text-secondary)' }}>Sector</span>
+                        <span className={valueClass} style={{ color: 'var(--text-primary)' }}>{riskMetrics.sector || position.sector}</span>
+                      </div>
+                    )}
+
+                    {/* Factor Exposures */}
+                    {riskMetrics.factor_exposures && (
+                      <>
+                        <div className="mt-4 mb-2">
+                          <span className="text-xs font-semibold uppercase tracking-wide transition-colors duration-300" style={{ color: 'var(--text-secondary)' }}>
+                            Factor Exposures
+                          </span>
+                        </div>
+                        {riskMetrics.factor_exposures.Growth !== undefined && (
+                          <div className="flex justify-between">
+                            <span className={labelClass} style={{ color: 'var(--text-secondary)' }}>Growth</span>
+                            <span className={valueClass} style={{ color: 'var(--text-primary)' }}>{riskMetrics.factor_exposures.Growth.toFixed(2)}</span>
+                          </div>
+                        )}
+                        {riskMetrics.factor_exposures.Momentum !== undefined && (
+                          <div className="flex justify-between">
+                            <span className={labelClass} style={{ color: 'var(--text-secondary)' }}>Momentum</span>
+                            <span className={valueClass} style={{ color: 'var(--text-primary)' }}>{riskMetrics.factor_exposures.Momentum.toFixed(2)}</span>
+                          </div>
+                        )}
+                        {riskMetrics.factor_exposures.Size !== undefined && (
+                          <div className="flex justify-between">
+                            <span className={labelClass} style={{ color: 'var(--text-secondary)' }}>Size</span>
+                            <span className={valueClass} style={{ color: 'var(--text-primary)' }}>{riskMetrics.factor_exposures.Size.toFixed(2)}</span>
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </div>
+                ) : (
+                  <p className="text-sm transition-colors duration-300" style={{ color: 'var(--text-tertiary)' }}>
+                    Not available
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Financials Tab */}
+        {activeTab === 'financials' && (
+          <FinancialsTab symbol={position.symbol} />
+        )}
+
+        {/* Correlations Tab */}
+        {activeTab === 'correlations' && (
+          <div>
+            <CorrelationsSection position={position as any} theme="dark" />
+          </div>
+        )}
       </div>
     </div>
   )
