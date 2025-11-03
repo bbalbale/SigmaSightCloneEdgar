@@ -358,13 +358,19 @@ async def calculate_concentration_metrics(
                 'error': 'No active positions'
             }
 
-        # Calculate position weights
-        position_values = {}
+        # Calculate symbol-level weights (aggregate multiple lots of same symbol)
+        # FIX (Nov 3, 2025): Aggregate by symbol to correctly handle multi-lot positions
+        symbol_values = {}
         total_value = Decimal('0')
 
         for position in positions:
             market_value = get_position_value(position, signed=False)
-            position_values[str(position.id)] = abs(market_value)
+            symbol = position.symbol
+
+            if symbol not in symbol_values:
+                symbol_values[symbol] = Decimal('0')
+
+            symbol_values[symbol] += abs(market_value)
             total_value += abs(market_value)
 
         if total_value == 0:
@@ -374,20 +380,20 @@ async def calculate_concentration_metrics(
                 'error': 'Total portfolio value is zero'
             }
 
-        # Calculate weights
-        position_weights = {
-            pos_id: float(value / total_value)
-            for pos_id, value in position_values.items()
+        # Calculate weights at symbol level (not position level)
+        symbol_weights = {
+            symbol: float(value / total_value)
+            for symbol, value in symbol_values.items()
         }
 
-        # Calculate HHI
-        hhi = calculate_hhi(position_weights)
+        # Calculate HHI using symbol-level weights
+        hhi = calculate_hhi(symbol_weights)
 
         # Calculate effective number of positions
         effective_num = calculate_effective_positions(hhi)
 
-        # Calculate top N concentrations
-        sorted_weights = sorted(position_weights.values(), reverse=True)
+        # Calculate top N concentrations using symbol-level weights
+        sorted_weights = sorted(symbol_weights.values(), reverse=True)
         top_3_concentration = sum(sorted_weights[:3]) if len(sorted_weights) >= 3 else sum(sorted_weights)
         top_10_concentration = sum(sorted_weights[:10]) if len(sorted_weights) >= 10 else sum(sorted_weights)
 
@@ -397,8 +403,9 @@ async def calculate_concentration_metrics(
             'effective_num_positions': effective_num,
             'top_3_concentration': top_3_concentration,
             'top_10_concentration': top_10_concentration,
-            'total_positions': len(positions),
-            'position_weights': position_weights,
+            'total_positions': len(positions),  # Total position count (including multi-lots)
+            'unique_symbols': len(symbol_values),  # Number of unique symbols
+            'position_weights': symbol_weights,  # Return symbol weights, not position weights
             'success': True
         }
 
