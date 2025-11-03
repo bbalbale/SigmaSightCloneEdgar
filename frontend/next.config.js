@@ -2,12 +2,23 @@
 const nextConfig = {
   // Docker optimization - creates standalone output
   output: 'standalone',
-  
-  experimental: {
-    serverComponentsExternalPackages: []
+
+  // Next.js 16+ uses serverExternalPackages instead of experimental.serverComponentsExternalPackages
+  serverExternalPackages: [],
+
+  // Next.js 16+ uses turbopack configuration
+  turbopack: {
+    root: __dirname,
   },
+
   images: {
-    domains: ['localhost'],
+    // Next.js 16+ uses remotePatterns instead of domains
+    remotePatterns: [
+      {
+        protocol: 'http',
+        hostname: 'localhost',
+      },
+    ],
     unoptimized: true
   },
   env: {
