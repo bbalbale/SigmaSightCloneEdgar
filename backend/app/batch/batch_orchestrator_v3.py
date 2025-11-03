@@ -1,8 +1,9 @@
 """
-Batch Orchestrator V3 - Production-Ready 4-Phase Architecture with Automatic Backfill
+Batch Orchestrator V3 - Production-Ready 5-Phase Architecture with Automatic Backfill
 
 Architecture:
 - Phase 1: Market Data Collection (1-year lookback)
+- Phase 1.5: Fundamental Data Collection (earnings-driven updates)
 - Phase 2: P&L Calculation & Snapshots (equity rollforward)
 - Phase 2.5: Position Market Value Updates (for analytics accuracy)
 - Phase 2.75: Sector Tag Restoration (auto-tag from company profiles)
@@ -14,6 +15,7 @@ Features:
 - Performance tracking
 - Data coverage reporting
 - Automatic sector tagging from company profiles
+- Smart fundamentals fetching (3+ days after earnings)
 """
 import asyncio
 from datetime import date, timedelta
@@ -31,6 +33,7 @@ from app.models.positions import Position
 from app.models.users import Portfolio
 from app.utils.trading_calendar import trading_calendar
 from app.batch.market_data_collector import market_data_collector
+from app.batch.fundamentals_collector import fundamentals_collector
 from app.batch.pnl_calculator import pnl_calculator
 from app.batch.analytics_runner import analytics_runner
 
@@ -192,12 +195,13 @@ class BatchOrchestratorV3:
         calculation_date: date,
         portfolio_ids: Optional[List[str]]
     ) -> Dict[str, Any]:
-        """Run 3-phase sequence with provided session"""
+        """Run 5-phase sequence with provided session"""
 
         result = {
             'success': False,
             'calculation_date': calculation_date,
             'phase_1': {},
+            'phase_1_5': {},
             'phase_2': {},
             'phase_3': {},
             'errors': []
@@ -221,6 +225,23 @@ class BatchOrchestratorV3:
             logger.error(f"Phase 1 error: {e}")
             result['errors'].append(f"Phase 1 error: {str(e)}")
             return result
+
+        # Phase 1.5: Fundamental Data Collection
+        try:
+            logger.info("\n--- Phase 1.5: Fundamental Data Collection ---")
+            phase15_result = await fundamentals_collector.collect_fundamentals_data(
+                db=db
+            )
+            result['phase_1_5'] = phase15_result
+
+            if not phase15_result.get('success'):
+                logger.warning("Phase 1.5 had errors, continuing to Phase 2")
+                # Continue even if fundamentals fail - not critical for P&L
+
+        except Exception as e:
+            logger.error(f"Phase 1.5 error: {e}")
+            result['errors'].append(f"Phase 1.5 error: {str(e)}")
+            # Continue to Phase 2 even if fundamentals fail
 
         # Phase 2: P&L & Snapshots
         try:

@@ -317,13 +317,424 @@ EPS Est: $2.64 (low: $2.40, high: $2.80)
 
 ---
 
+---
+
+## Storage Strategy Decision
+
+**Decision Date**: November 2, 2025
+**Decision**: Store all fundamental data (Phase 1 + Phase 2) in PostgreSQL database
+
+### Storage Architecture
+
+**Database Storage Approach:**
+- ✅ Phase 1 financial statements (income, balance sheet, cash flow) → PostgreSQL
+- ✅ Phase 2 analyst data (quarterly estimates, price targets) → PostgreSQL
+- ✅ Batch job updates (daily refresh outside market hours)
+- ✅ API endpoints serve from database (sub-50ms response vs 500ms-2s live fetch)
+
+### Storage Calculations
+
+**Phase 1: Financial Statements** (Time-Series Data)
+- **Quarterly**: 12 quarters per symbol
+  - Income Statement: ~5.8 KB (180 data points × 32 bytes)
+  - Balance Sheet: ~19.2 KB (600 data points × 32 bytes)
+  - Cash Flow: ~9.6 KB (300 data points × 32 bytes)
+  - **Subtotal**: 34.6 KB per symbol
+
+- **Annual**: 4 years per symbol
+  - Income Statement: ~1.9 KB (60 data points × 32 bytes)
+  - Balance Sheet: ~6.4 KB (200 data points × 32 bytes)
+  - Cash Flow: ~3.2 KB (100 data points × 32 bytes)
+  - **Subtotal**: 11.5 KB per symbol
+
+- **Total Phase 1**: 46.1 KB per symbol (quarterly + annual)
+
+**Phase 2: Analyst Data** (Snapshot Data - Current Only)
+- Quarterly Estimates: ~0.21 KB per symbol (2 quarters × 7 fields)
+- Price Targets: Already in company_profiles (no additional storage)
+- Earnings Calendar: ~0.05 KB per symbol (3 fields)
+- **Total Phase 2**: 0.26 KB per symbol (only NEW fields, excludes existing company_profiles data)
+
+**Scale Projections:**
+| Symbols | Phase 1 Storage | Phase 2 Storage | Total Storage |
+|---------|----------------|----------------|---------------|
+| 1,000   | 46.1 MB        | 0.26 MB        | 46.4 MB       |
+| 5,000   | 230 MB         | 1.3 MB          | 231 MB        |
+| 10,000  | 461 MB         | 2.6 MB          | 464 MB        |
+
+**Verdict**: Extremely cost-effective. Even at 10,000 securities with both quarterly and annual data, total storage is only 464 MB.
+
+### Database Tables Required
+
+**New Tables (Phase 1):**
+
+1. **`income_statements`**
+```sql
+CREATE TABLE income_statements (
+    id UUID PRIMARY KEY,
+    symbol VARCHAR(10) NOT NULL,
+    period_date DATE NOT NULL,
+    fiscal_year INT,
+    fiscal_quarter INT,
+    frequency VARCHAR(1) CHECK (frequency IN ('q', 'a')),
+
+    -- Revenue & Costs
+    total_revenue NUMERIC(20, 2),
+    cost_of_revenue NUMERIC(20, 2),
+    gross_profit NUMERIC(20, 2),
+    gross_margin NUMERIC(8, 6),
+
+    -- Operating Expenses
+    research_and_development NUMERIC(20, 2),
+    selling_general_and_administrative NUMERIC(20, 2),
+
+    -- Operating Results
+    operating_income NUMERIC(20, 2),
+    operating_margin NUMERIC(8, 6),
+    ebit NUMERIC(20, 2),
+    ebitda NUMERIC(20, 2),
+
+    -- Net Income
+    net_income NUMERIC(20, 2),
+    net_margin NUMERIC(8, 6),
+    diluted_eps NUMERIC(12, 4),
+    basic_eps NUMERIC(12, 4),
+
+    -- Share Counts
+    basic_average_shares BIGINT,
+    diluted_average_shares BIGINT,
+
+    -- Tax & Interest
+    tax_provision NUMERIC(20, 2),
+    interest_expense NUMERIC(20, 2),
+    depreciation_and_amortization NUMERIC(20, 2),
+
+    -- Metadata
+    currency VARCHAR(3) DEFAULT 'USD',
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW(),
+
+    UNIQUE(symbol, period_date, frequency)
+);
+
+CREATE INDEX idx_income_statements_symbol ON income_statements(symbol);
+CREATE INDEX idx_income_statements_period ON income_statements(period_date DESC);
+```
+
+2. **`balance_sheets`**
+```sql
+CREATE TABLE balance_sheets (
+    id UUID PRIMARY KEY,
+    symbol VARCHAR(10) NOT NULL,
+    period_date DATE NOT NULL,
+    fiscal_year INT,
+    fiscal_quarter INT,
+    frequency VARCHAR(1) CHECK (frequency IN ('q', 'a')),
+
+    -- Assets
+    cash_and_cash_equivalents NUMERIC(20, 2),
+    short_term_investments NUMERIC(20, 2),
+    accounts_receivable NUMERIC(20, 2),
+    inventory NUMERIC(20, 2),
+    current_assets NUMERIC(20, 2),
+    net_ppe NUMERIC(20, 2),
+    goodwill NUMERIC(20, 2),
+    intangible_assets NUMERIC(20, 2),
+    long_term_investments NUMERIC(20, 2),
+    total_assets NUMERIC(20, 2),
+
+    -- Liabilities
+    accounts_payable NUMERIC(20, 2),
+    short_term_debt NUMERIC(20, 2),
+    current_liabilities NUMERIC(20, 2),
+    long_term_debt NUMERIC(20, 2),
+    deferred_revenue NUMERIC(20, 2),
+    total_liabilities NUMERIC(20, 2),
+
+    -- Equity
+    common_stock NUMERIC(20, 2),
+    retained_earnings NUMERIC(20, 2),
+    treasury_stock NUMERIC(20, 2),
+    total_stockholders_equity NUMERIC(20, 2),
+
+    -- Calculated Metrics (Service Layer)
+    working_capital NUMERIC(20, 2),
+    net_debt NUMERIC(20, 2),
+    book_value_per_share NUMERIC(12, 4),
+
+    -- Calculated Ratios (Service Layer)
+    current_ratio NUMERIC(8, 4),
+    quick_ratio NUMERIC(8, 4),
+    debt_to_equity NUMERIC(8, 4),
+    debt_to_assets NUMERIC(8, 4),
+
+    -- Metadata
+    currency VARCHAR(3) DEFAULT 'USD',
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW(),
+
+    UNIQUE(symbol, period_date, frequency)
+);
+
+CREATE INDEX idx_balance_sheets_symbol ON balance_sheets(symbol);
+CREATE INDEX idx_balance_sheets_period ON balance_sheets(period_date DESC);
+```
+
+3. **`cash_flows`**
+```sql
+CREATE TABLE cash_flows (
+    id UUID PRIMARY KEY,
+    symbol VARCHAR(10) NOT NULL,
+    period_date DATE NOT NULL,
+    fiscal_year INT,
+    fiscal_quarter INT,
+    frequency VARCHAR(1) CHECK (frequency IN ('q', 'a')),
+
+    -- Operating Activities
+    operating_cash_flow NUMERIC(20, 2),
+    depreciation_and_amortization NUMERIC(20, 2),
+    deferred_income_tax NUMERIC(20, 2),
+    stock_based_compensation NUMERIC(20, 2),
+    change_in_working_capital NUMERIC(20, 2),
+
+    -- Investing Activities
+    capital_expenditures NUMERIC(20, 2),
+    acquisitions NUMERIC(20, 2),
+    purchase_of_investments NUMERIC(20, 2),
+    sale_of_investments NUMERIC(20, 2),
+    investing_cash_flow NUMERIC(20, 2),
+
+    -- Financing Activities
+    dividends_paid NUMERIC(20, 2),
+    stock_repurchases NUMERIC(20, 2),
+    debt_issuance NUMERIC(20, 2),
+    debt_repayment NUMERIC(20, 2),
+    financing_cash_flow NUMERIC(20, 2),
+
+    -- Calculated Metrics (Service Layer)
+    free_cash_flow NUMERIC(20, 2),
+    fcf_margin NUMERIC(8, 6),
+
+    -- Metadata
+    currency VARCHAR(3) DEFAULT 'USD',
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW(),
+
+    UNIQUE(symbol, period_date, frequency)
+);
+
+CREATE INDEX idx_cash_flows_symbol ON cash_flows(symbol);
+CREATE INDEX idx_cash_flows_period ON cash_flows(period_date DESC);
+```
+
+**Existing Table Enhancement (Phase 2):**
+
+4. **`company_profiles`** (Add Quarterly Analyst Estimates)
+```sql
+-- Add columns to existing company_profiles table
+ALTER TABLE company_profiles ADD COLUMN IF NOT EXISTS
+    -- Current Quarter (Q0)
+    current_quarter_revenue_avg NUMERIC(20, 2),
+    current_quarter_revenue_low NUMERIC(20, 2),
+    current_quarter_revenue_high NUMERIC(20, 2),
+    current_quarter_eps_avg NUMERIC(12, 4),
+    current_quarter_eps_low NUMERIC(12, 4),
+    current_quarter_eps_high NUMERIC(12, 4),
+    current_quarter_analyst_count INT,
+
+    -- Next Quarter (Q+1)
+    next_quarter_revenue_avg NUMERIC(20, 2),
+    next_quarter_revenue_low NUMERIC(20, 2),
+    next_quarter_revenue_high NUMERIC(20, 2),
+    next_quarter_eps_avg NUMERIC(12, 4),
+    next_quarter_eps_low NUMERIC(12, 4),
+    next_quarter_eps_high NUMERIC(12, 4),
+    next_quarter_analyst_count INT,
+
+    -- Next Earnings Date
+    next_earnings_date DATE,
+    next_earnings_expected_eps NUMERIC(12, 4),
+    next_earnings_expected_revenue NUMERIC(20, 2);
+```
+
+### Batch Job Integration
+
+**Coordination with Existing company_profiles Table:**
+
+The `company_profiles` table already stores:
+- ✅ Annual analyst estimates (current_year, next_year) - Lines 102-120 in market_data.py
+- ✅ Price targets (target_mean_price, target_high, target_low) - Lines 81-86
+- ✅ Valuation metrics (PE, forward PE, beta, etc.) - Lines 72-78
+- ✅ Profitability metrics (margins, ROE, ROA) - Lines 94-100
+
+**What We're Adding:**
+- ✅ Historical financial statements (NEW tables: income_statements, balance_sheets, cash_flows)
+- ✅ Quarterly analyst estimates (ADD to company_profiles: current_quarter, next_quarter)
+- ✅ Next earnings date (ADD to company_profiles: 3 new fields)
+
+**Batch Orchestrator v3 Enhancement:**
+
+Add new phase to `batch_orchestrator_v3.py`:
+
+**Phase 1.5: Fundamental Data Collection** (Insert after Phase 1 Market Data)
+```python
+async def fetch_fundamental_data(self, symbol: str):
+    """
+    Fetch and store fundamental data for a symbol
+
+    IMPORTANT: Coordinates with company_profiles to avoid double-pulling
+    - Fetches each data type from YahooQuery ONCE
+    - Stores financial statements in dedicated tables
+    - Updates analyst data in existing company_profiles table
+    """
+    try:
+        # ========================================
+        # Part 1: Financial Statements (NEW TABLES)
+        # ========================================
+
+        # Fetch quarterly financial statements (12 quarters)
+        quarterly_financials = await yahooquery_client.get_all_financials(
+            symbol, frequency='q', years=3
+        )
+
+        # Fetch annual financial statements (4 years)
+        annual_financials = await yahooquery_client.get_all_financials(
+            symbol, frequency='a', years=4
+        )
+
+        # Store quarterly data (12 quarters)
+        await self._store_income_statements(
+            symbol, quarterly_financials['income_statement'], frequency='q'
+        )
+        await self._store_balance_sheets(
+            symbol, quarterly_financials['balance_sheet'], frequency='q'
+        )
+        await self._store_cash_flows(
+            symbol, quarterly_financials['cash_flow'], frequency='q'
+        )
+
+        # Store annual data (4 years)
+        await self._store_income_statements(
+            symbol, annual_financials['income_statement'], frequency='a'
+        )
+        await self._store_balance_sheets(
+            symbol, annual_financials['balance_sheet'], frequency='a'
+        )
+        await self._store_cash_flows(
+            symbol, annual_financials['cash_flow'], frequency='a'
+        )
+
+        # ========================================
+        # Part 2: Analyst Data (UPDATE company_profiles)
+        # ========================================
+
+        # Fetch analyst data ONCE from YahooQuery
+        analyst_estimates = await yahooquery_client.get_analyst_estimates(symbol)
+        price_targets = await yahooquery_client.get_price_targets(symbol)
+        earnings_calendar = await yahooquery_client.get_next_earnings(symbol)
+
+        # Update company_profiles with ALL analyst data
+        # - Annual estimates already stored (current_year, next_year)
+        # - Add quarterly estimates (current_quarter, next_quarter)
+        # - Update price targets (already stored, just refresh)
+        # - Add next earnings date (new field)
+        await self._update_company_profile_analyst_data(
+            symbol=symbol,
+            analyst_estimates=analyst_estimates,  # Contains 0q, +1q, 0y, +1y
+            price_targets=price_targets,          # Already in company_profiles
+            earnings_calendar=earnings_calendar   # Next earnings date (NEW)
+        )
+
+        logger.info(f"✅ Stored fundamental data for {symbol} (quarterly + annual)")
+
+    except Exception as e:
+        logger.error(f"❌ Error fetching fundamental data for {symbol}: {e}")
+        # Graceful degradation - continue with other symbols
+```
+
+**Key Coordination Points:**
+
+1. **Single API Calls**: Each YahooQuery method called ONCE per symbol
+   - `get_all_financials(frequency='q')` → quarterly statements
+   - `get_all_financials(frequency='a')` → annual statements
+   - `get_analyst_estimates()` → quarterly + annual analyst data
+   - `get_price_targets()` → price targets (refresh existing data)
+   - `get_next_earnings()` → earnings calendar (new data)
+
+2. **No Data Duplication**:
+   - Financial statements → NEW dedicated tables (income_statements, balance_sheets, cash_flows)
+   - Analyst annual estimates → ALREADY in company_profiles (just refresh)
+   - Analyst quarterly estimates → ADD to company_profiles (new columns)
+   - Price targets → ALREADY in company_profiles (just refresh)
+   - Earnings date → ADD to company_profiles (new columns)
+
+3. **Update Schedule:**
+   - Daily batch run outside market hours (11 PM ET)
+   - Incremental updates (only changed data via UPSERT)
+   - Graceful degradation if Yahoo Finance unavailable
+   - Retry logic for failed symbols
+   - Use UNIQUE constraints to prevent duplicates
+
+### Benefits of Database Storage
+
+1. **Performance**: Sub-50ms database queries vs 500ms-2s API calls
+2. **Reliability**: No dependency on Yahoo Finance uptime during user sessions
+3. **Consistency**: All users see the same data snapshot
+4. **Analytics Ready**: Can run SQL queries across all fundamental data
+5. **Cost-Effective**: 175 MB for 5,000 securities is negligible
+6. **Caching Natural**: Database IS the cache, no complex invalidation
+7. **Batch Efficiency**: Single daily update vs thousands of on-demand calls
+
+### Integration with Existing Systems
+
+**Detailed Comparison: What's Already Stored vs What We're Adding**
+
+| Data Category | What's in company_profiles NOW | What We're ADDING | Table Destination | YahooQuery Method |
+|---------------|-------------------------------|-------------------|-------------------|-------------------|
+| **Financial Statements - Quarterly** | ❌ None | ✅ 12 quarters of income/balance/cash flow | `income_statements`, `balance_sheets`, `cash_flows` (new tables) | `get_all_financials(frequency='q')` |
+| **Financial Statements - Annual** | ❌ None | ✅ 4 years of income/balance/cash flow | `income_statements`, `balance_sheets`, `cash_flows` (new tables) | `get_all_financials(frequency='a')` |
+| **Analyst Price Targets** | ✅ `target_mean_price`, `target_high_price`, `target_low_price` (lines 81-83) | ➕ Just refresh existing data | `company_profiles` (existing) | `get_price_targets()` |
+| **Analyst Annual Estimates** | ✅ `current_year_revenue_avg/low/high`, `next_year_revenue_avg/low/high` (lines 103-119) | ➕ Just refresh existing data | `company_profiles` (existing) | `get_analyst_estimates()` - 0y, +1y periods |
+| **Analyst Quarterly Estimates** | ❌ None | ✅ `current_quarter_*`, `next_quarter_*` (14 new columns) | `company_profiles` (add columns) | `get_analyst_estimates()` - 0q, +1q periods |
+| **Next Earnings Date** | ❌ None | ✅ `next_earnings_date`, `next_earnings_expected_eps/revenue` (3 new columns) | `company_profiles` (add columns) | `get_next_earnings()` |
+| **Recommendation** | ✅ `recommendation_mean`, `recommendation_key` (lines 85-86) | ➕ Just refresh existing data | `company_profiles` (existing) | `get_price_targets()` |
+| **Valuation Metrics** | ✅ `pe_ratio`, `forward_pe`, `beta`, etc. (lines 73-78) | ➕ Just refresh existing data | `company_profiles` (existing) | Part of profile sync (not fundamentals) |
+
+**API Call Coordination (Per Symbol, Per Batch Run):**
+
+| YahooQuery Method | Called | Stores Data In | Updates Existing? | Creates New? |
+|-------------------|--------|----------------|-------------------|--------------|
+| `get_all_financials(frequency='q', years=3)` | ✅ 1× | `income_statements`, `balance_sheets`, `cash_flows` | No | Yes (UPSERT 12 quarterly periods) |
+| `get_all_financials(frequency='a', years=4)` | ✅ 1× | `income_statements`, `balance_sheets`, `cash_flows` | No | Yes (UPSERT 4 annual periods) |
+| `get_analyst_estimates()` | ✅ 1× | `company_profiles` | Yes (refresh annual + add quarterly) | No |
+| `get_price_targets()` | ✅ 1× | `company_profiles` | Yes (refresh existing fields) | No |
+| `get_next_earnings()` | ✅ 1× | `company_profiles` | No | Yes (add 3 new columns) |
+
+**Total API Calls per Symbol**: 5 (each method called once)
+
+**Data Flow:**
+1. Batch job iterates through all portfolio symbols
+2. For each symbol, fetch data from YahooQuery (5 API calls per symbol)
+3. Store financial statements in NEW dedicated tables (UPSERT with UNIQUE constraint)
+4. Update company_profiles with analyst data (UPDATE existing row + add new columns)
+5. No data duplication - each piece of data stored in exactly ONE location
+6. API endpoints serve from database (financial statements from dedicated tables, analyst data from company_profiles)
+7. Frontend displays via Research page (single API call gets all data)
+
+---
+
 ## Next Steps
 
 1. ✅ **Discovery Complete** - All requested fields confirmed available
-2. 🔄 **Backend Implementation** - Design endpoints and service layer
-3. 🔄 **Frontend Implementation** - Plan Research page integration
-4. 🔄 **Testing** - Validate with diverse company types (tech, financial, industrial)
-5. 🔄 **Documentation** - Update API reference
+2. ✅ **Storage Strategy Finalized** - Database storage approach approved
+3. 🔄 **Backend Implementation** - Create tables, endpoints, batch integration
+   - Create Alembic migrations for 3 new tables
+   - Add Phase 1.5 to batch_orchestrator_v3
+   - Implement service layer with calculated metrics
+   - Create API endpoints (same as Phase 1 but serve from DB)
+4. 🔄 **Frontend Implementation** - Plan Research page integration
+5. 🔄 **Testing** - Validate with diverse company types (tech, financial, industrial)
+6. 🔄 **Documentation** - Update API reference
 
 ---
 

@@ -11,6 +11,7 @@ from typing import Optional
 from uuid import uuid4
 
 from sqlalchemy import (
+    BigInteger,
     CheckConstraint,
     Date,
     DateTime,
@@ -66,8 +67,8 @@ class IncomeStatement(Base):
     net_margin: Mapped[Optional[Decimal]] = mapped_column(Numeric(8, 6))  # calculated
     diluted_eps: Mapped[Optional[Decimal]] = mapped_column(Numeric(12, 4))
     basic_eps: Mapped[Optional[Decimal]] = mapped_column(Numeric(12, 4))
-    basic_average_shares: Mapped[Optional[int]] = mapped_column(Integer)
-    diluted_average_shares: Mapped[Optional[int]] = mapped_column(Integer)
+    basic_average_shares: Mapped[Optional[int]] = mapped_column(BigInteger)  # Changed to BigInteger for large cap stocks
+    diluted_average_shares: Mapped[Optional[int]] = mapped_column(BigInteger)  # Changed to BigInteger for large cap stocks
 
     # Tax & Interest (3 fields)
     tax_provision: Mapped[Optional[Decimal]] = mapped_column(Numeric(20, 2))

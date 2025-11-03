@@ -114,7 +114,12 @@
       "Bash(.venvScriptspython.exe scripts/test_fundamentals_endpoints.py)",
       "Bash(/dev/null)",
       "Bash(/tmp/users_uirefactor.py)",
-      "Bash(/tmp/users_onboarding.py)"
+      "Bash(/tmp/users_onboarding.py)",
+      "Bash(.venv/Scripts/alembic.exe:*)",
+      "Bash(git tag:*)",
+      "Bash(git mv:*)",
+      "Bash(git ls-tree:*)",
+      "Bash(PYTHONIOENCODING=utf-8 .venv/Scripts/python.exe:*)"
     ],
     "additionalDirectories": [
       "C:\\c\\Users\\BenBalbale\\CascadeProjects\\SigmaSight-BE"
