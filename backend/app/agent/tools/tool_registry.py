@@ -79,6 +79,11 @@ class ToolRegistry:
             "get_correlation_matrix": self.tools.get_correlation_matrix,
             "get_stress_test_results": self.tools.get_stress_test_results,
             "get_company_profile": self.tools.get_company_profile,
+            # Phase 5 Enhanced Analytics Tools (December 3, 2025)
+            "get_concentration_metrics": self.tools.get_concentration_metrics,
+            "get_volatility_analysis": self.tools.get_volatility_analysis,
+            "get_target_prices": self.tools.get_target_prices,
+            "get_position_tags": self.tools.get_position_tags,
         }
         
     async def dispatch_tool_call(

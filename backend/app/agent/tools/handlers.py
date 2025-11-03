@@ -735,6 +735,138 @@ class PortfolioTools:
                 "retryable": isinstance(e, (httpx.TimeoutException, httpx.HTTPStatusError))
             }
 
+    # Phase 5: Enhanced Analytics Tools (Added December 3, 2025)
+
+    async def get_concentration_metrics(
+        self,
+        portfolio_id: str,
+        **kwargs
+    ) -> Dict[str, Any]:
+        """
+        Get concentration risk metrics.
+
+        Returns Herfindahl-Hirschman Index (HHI), top N concentration, and single-name risk.
+        Use when user asks about diversification, concentration risk, or if portfolio is too concentrated.
+
+        Args:
+            portfolio_id: Portfolio UUID
+
+        Returns:
+            Concentration metrics with HHI and top position analysis
+        """
+        try:
+            endpoint = f"/api/v1/analytics/portfolio/{portfolio_id}/concentration"
+            response = await self._make_request(
+                method="GET",
+                endpoint=endpoint
+            )
+            return response
+
+        except Exception as e:
+            logger.error(f"Error in get_concentration_metrics: {e}")
+            return {
+                "error": str(e),
+                "retryable": isinstance(e, (httpx.TimeoutException, httpx.HTTPStatusError))
+            }
+
+    async def get_volatility_analysis(
+        self,
+        portfolio_id: str,
+        **kwargs
+    ) -> Dict[str, Any]:
+        """
+        Get volatility analytics with HAR forecasting.
+
+        Returns realized volatility, forecasted volatility (HAR model), vol decomposition, and regime detection.
+        Use when user asks about volatility trends, vol forecasts, or what's driving portfolio volatility.
+
+        Args:
+            portfolio_id: Portfolio UUID
+
+        Returns:
+            Volatility analysis with realized vol, HAR forecast, and attribution
+        """
+        try:
+            endpoint = f"/api/v1/analytics/portfolio/{portfolio_id}/volatility"
+            response = await self._make_request(
+                method="GET",
+                endpoint=endpoint
+            )
+            return response
+
+        except Exception as e:
+            logger.error(f"Error in get_volatility_analysis: {e}")
+            return {
+                "error": str(e),
+                "retryable": isinstance(e, (httpx.TimeoutException, httpx.HTTPStatusError))
+            }
+
+    async def get_target_prices(
+        self,
+        portfolio_id: str,
+        **kwargs
+    ) -> Dict[str, Any]:
+        """
+        Get target prices for portfolio positions.
+
+        Returns all target prices with upside/downside calculations for each position.
+        Use when user asks about investment goals, which positions are near target, or price targets.
+
+        Args:
+            portfolio_id: Portfolio UUID
+
+        Returns:
+            Target prices per position with current vs target analysis
+        """
+        try:
+            endpoint = f"/api/v1/target-prices/{portfolio_id}"
+            response = await self._make_request(
+                method="GET",
+                endpoint=endpoint
+            )
+            return response
+
+        except Exception as e:
+            logger.error(f"Error in get_target_prices: {e}")
+            return {
+                "error": str(e),
+                "retryable": isinstance(e, (httpx.TimeoutException, httpx.HTTPStatusError))
+            }
+
+    async def get_position_tags(
+        self,
+        portfolio_id: str,
+        **kwargs
+    ) -> Dict[str, Any]:
+        """
+        Get tags for positions (e.g., 'core holdings', 'speculative', 'income', etc.).
+
+        Returns position tags and categorizations for filtering and organization.
+        Use when user asks to filter positions by strategy, category, or custom tags.
+
+        Args:
+            portfolio_id: Portfolio UUID (not used in API call but kept for consistency)
+
+        Returns:
+            All user tags with usage statistics
+        """
+        try:
+            endpoint = f"/api/v1/tags"
+            params = {"include_usage_stats": True}
+            response = await self._make_request(
+                method="GET",
+                endpoint=endpoint,
+                params=params
+            )
+            return response
+
+        except Exception as e:
+            logger.error(f"Error in get_position_tags: {e}")
+            return {
+                "error": str(e),
+                "retryable": isinstance(e, (httpx.TimeoutException, httpx.HTTPStatusError))
+            }
+
 
 # Import asyncio for retry logic
 import asyncio
