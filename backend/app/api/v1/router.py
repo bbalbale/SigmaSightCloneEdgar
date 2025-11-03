@@ -9,6 +9,7 @@ from app.api.v1.chat import router as chat_router
 from app.api.v1.analytics.router import router as analytics_router
 from app.api.v1.target_prices import router as target_prices_router
 from app.api.v1.tags import router as tags_router
+from app.api.v1.positions import router as positions_router
 from app.api.v1.position_tags import router as position_tags_router
 from app.api.v1.insights import router as insights_router
 from app.api.v1.onboarding import router as onboarding_router
@@ -45,6 +46,9 @@ api_router.include_router(target_prices_router)
 
 # Tag Management APIs (/tags/) - user-scoped organizational tags
 api_router.include_router(tags_router)
+
+# Position Management APIs (/positions/) - position CRUD operations
+api_router.include_router(positions_router)
 
 # Position Tagging APIs (/positions/{id}/tags/) - direct position tagging (new system)
 api_router.include_router(position_tags_router, prefix="/positions")
