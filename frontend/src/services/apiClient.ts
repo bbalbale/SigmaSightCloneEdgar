@@ -107,8 +107,8 @@ export class ApiClient {
     return this.request<T>('PATCH', endpoint, data, config);
   }
 
-  async delete<T = any>(endpoint: string, config?: ApiRequestConfig): Promise<T> {
-    return this.request<T>('DELETE', endpoint, undefined, config);
+  async delete<T = any>(endpoint: string, data?: any, config?: ApiRequestConfig): Promise<T> {
+    return this.request<T>('DELETE', endpoint, data, config);
   }
 
   // Core Request Method
@@ -192,8 +192,8 @@ export class ApiClient {
         signal: config?.signal || controller.signal,
       };
 
-      // Add body for POST/PUT/PATCH requests
-      if (data && (method === 'POST' || method === 'PUT' || method === 'PATCH')) {
+      // Add body for POST/PUT/PATCH/DELETE requests
+      if (data && (method === 'POST' || method === 'PUT' || method === 'PATCH' || method === 'DELETE')) {
         // Check if data is FormData - don't stringify it or set Content-Type
         if (data instanceof FormData) {
           requestConfig.body = data;
