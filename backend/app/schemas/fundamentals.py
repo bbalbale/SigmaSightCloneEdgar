@@ -407,3 +407,208 @@ class NextEarningsResponse(BaseModel):
     next_earnings: Optional[NextEarnings] = None
     last_earnings: Optional[LastEarnings] = None
     metadata: Metadata
+
+
+# ============================================================================
+# Simplified Response Schemas (Direct Database Mapping)
+# ============================================================================
+
+class SimpleIncomeStatementPeriod(BaseModel):
+    """Simplified income statement for one period - direct DB mapping"""
+    period_date: date
+    frequency: str  # 'q' or 'a'
+    fiscal_year: Optional[int] = None
+    fiscal_quarter: Optional[int] = None
+
+    # Revenue & Costs
+    total_revenue: Optional[Decimal] = None
+    cost_of_revenue: Optional[Decimal] = None
+    gross_profit: Optional[Decimal] = None
+    gross_margin: Optional[Decimal] = None
+
+    # Operating Expenses
+    research_and_development: Optional[Decimal] = None
+    selling_general_and_administrative: Optional[Decimal] = None
+
+    # Operating Results
+    operating_income: Optional[Decimal] = None
+    operating_margin: Optional[Decimal] = None
+    ebit: Optional[Decimal] = None
+    ebitda: Optional[Decimal] = None
+
+    # Net Income
+    net_income: Optional[Decimal] = None
+    net_margin: Optional[Decimal] = None
+
+    # Per Share
+    diluted_eps: Optional[Decimal] = None
+    basic_eps: Optional[Decimal] = None
+    basic_average_shares: Optional[int] = None
+    diluted_average_shares: Optional[int] = None
+
+    # Tax & Interest
+    tax_provision: Optional[Decimal] = None
+    interest_expense: Optional[Decimal] = None
+    depreciation_and_amortization: Optional[Decimal] = None
+
+    class Config:
+        from_attributes = True
+
+
+class SimpleBalanceSheetPeriod(BaseModel):
+    """Simplified balance sheet for one period - direct DB mapping"""
+    period_date: date
+    frequency: str  # 'q' or 'a'
+    fiscal_year: Optional[int] = None
+    fiscal_quarter: Optional[int] = None
+
+    # Assets
+    total_assets: Optional[Decimal] = None
+    current_assets: Optional[Decimal] = None
+    cash_and_cash_equivalents: Optional[Decimal] = None
+    short_term_investments: Optional[Decimal] = None
+    accounts_receivable: Optional[Decimal] = None
+    inventory: Optional[Decimal] = None
+    property_plant_equipment: Optional[Decimal] = None
+    intangible_assets: Optional[Decimal] = None
+
+    # Liabilities
+    total_liabilities: Optional[Decimal] = None
+    current_liabilities: Optional[Decimal] = None
+    accounts_payable: Optional[Decimal] = None
+    short_term_debt: Optional[Decimal] = None
+    long_term_debt: Optional[Decimal] = None
+    total_debt: Optional[Decimal] = None
+
+    # Equity
+    total_stockholders_equity: Optional[Decimal] = None
+    retained_earnings: Optional[Decimal] = None
+    common_stock: Optional[Decimal] = None
+
+    # Calculated Metrics
+    working_capital: Optional[Decimal] = None
+    net_debt: Optional[Decimal] = None
+    current_ratio: Optional[Decimal] = None
+    debt_to_equity: Optional[Decimal] = None
+    book_value_per_share: Optional[Decimal] = None
+
+    class Config:
+        from_attributes = True
+
+
+class SimpleCashFlowPeriod(BaseModel):
+    """Simplified cash flow for one period - direct DB mapping"""
+    period_date: date
+    frequency: str  # 'q' or 'a'
+    fiscal_year: Optional[int] = None
+    fiscal_quarter: Optional[int] = None
+
+    # Operating Activities
+    operating_cash_flow: Optional[Decimal] = None
+    depreciation_and_amortization: Optional[Decimal] = None
+    stock_based_compensation: Optional[Decimal] = None
+    change_in_working_capital: Optional[Decimal] = None
+
+    # Investing Activities
+    investing_cash_flow: Optional[Decimal] = None
+    capital_expenditures: Optional[Decimal] = None
+    acquisitions: Optional[Decimal] = None
+    purchases_of_investments: Optional[Decimal] = None
+
+    # Financing Activities
+    financing_cash_flow: Optional[Decimal] = None
+    dividends_paid: Optional[Decimal] = None
+    stock_repurchases: Optional[Decimal] = None
+    debt_issuance_repayment: Optional[Decimal] = None
+
+    # Summary
+    net_change_in_cash: Optional[Decimal] = None
+    beginning_cash_position: Optional[Decimal] = None
+
+    # Calculated Metrics
+    free_cash_flow: Optional[Decimal] = None
+    fcf_margin: Optional[Decimal] = None
+
+    class Config:
+        from_attributes = True
+
+
+class SimpleAnalystEstimates(BaseModel):
+    """Simplified analyst estimates - direct from company_profiles"""
+
+    # Current Quarter
+    current_quarter_end_date: Optional[date] = None
+    current_quarter_revenue_avg: Optional[Decimal] = None
+    current_quarter_revenue_low: Optional[Decimal] = None
+    current_quarter_revenue_high: Optional[Decimal] = None
+    current_quarter_eps_avg: Optional[Decimal] = None
+    current_quarter_eps_low: Optional[Decimal] = None
+    current_quarter_eps_high: Optional[Decimal] = None
+    current_quarter_analyst_count: Optional[int] = None
+
+    # Next Quarter
+    next_quarter_end_date: Optional[date] = None
+    next_quarter_revenue_avg: Optional[Decimal] = None
+    next_quarter_revenue_low: Optional[Decimal] = None
+    next_quarter_revenue_high: Optional[Decimal] = None
+    next_quarter_eps_avg: Optional[Decimal] = None
+    next_quarter_eps_low: Optional[Decimal] = None
+    next_quarter_eps_high: Optional[Decimal] = None
+    next_quarter_analyst_count: Optional[int] = None
+
+    # Current Year
+    current_year_end_date: Optional[date] = None
+    current_year_revenue_avg: Optional[Decimal] = None
+    current_year_revenue_low: Optional[Decimal] = None
+    current_year_revenue_high: Optional[Decimal] = None
+    current_year_revenue_growth: Optional[Decimal] = None
+    current_year_earnings_avg: Optional[Decimal] = None
+    current_year_earnings_low: Optional[Decimal] = None
+    current_year_earnings_high: Optional[Decimal] = None
+
+    # Next Year
+    next_year_end_date: Optional[date] = None
+    next_year_revenue_avg: Optional[Decimal] = None
+    next_year_revenue_low: Optional[Decimal] = None
+    next_year_revenue_high: Optional[Decimal] = None
+    next_year_revenue_growth: Optional[Decimal] = None
+    next_year_earnings_avg: Optional[Decimal] = None
+    next_year_earnings_low: Optional[Decimal] = None
+    next_year_earnings_high: Optional[Decimal] = None
+
+    class Config:
+        from_attributes = True
+
+
+# API Response Wrappers
+class SimpleIncomeStatementResponse(BaseModel):
+    """Income statement API response"""
+    symbol: str
+    frequency: str
+    currency: str = "USD"
+    periods: List[SimpleIncomeStatementPeriod]
+    periods_returned: int
+
+
+class SimpleBalanceSheetResponse(BaseModel):
+    """Balance sheet API response"""
+    symbol: str
+    frequency: str
+    currency: str = "USD"
+    periods: List[SimpleBalanceSheetPeriod]
+    periods_returned: int
+
+
+class SimpleCashFlowResponse(BaseModel):
+    """Cash flow API response"""
+    symbol: str
+    frequency: str
+    currency: str = "USD"
+    periods: List[SimpleCashFlowPeriod]
+    periods_returned: int
+
+
+class SimpleAnalystEstimatesResponse(BaseModel):
+    """Analyst estimates API response"""
+    symbol: str
+    estimates: SimpleAnalystEstimates

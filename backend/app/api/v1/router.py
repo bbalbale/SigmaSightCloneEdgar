@@ -13,7 +13,7 @@ from app.api.v1.position_tags import router as position_tags_router
 from app.api.v1.insights import router as insights_router
 from app.api.v1.onboarding import router as onboarding_router
 from app.api.v1.endpoints import admin_batch
-from app.api.v1.endpoints.fundamentals import router as fundamentals_router
+from app.api.v1.fundamentals import router as fundamentals_router
 
 # Create the main v1 router
 api_router = APIRouter(prefix="/v1")
