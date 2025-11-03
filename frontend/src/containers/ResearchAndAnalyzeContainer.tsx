@@ -243,6 +243,14 @@ export function ResearchAndAnalyzeContainer() {
     })
   }, [basePositions, filterBy, filterValue, sortBy, sortOrder])
 
+  // Calculate aggregate returns for FILTERED positions (weighted by % of equity)
+  const filteredAggregate = useMemo(() => {
+    return {
+      eoy: positionResearchService.calculateAggregateReturn(filteredPositions, 'target_return_eoy', 'analyst_return_eoy'),
+      nextYear: positionResearchService.calculateAggregateReturn(filteredPositions, 'target_return_next_year')
+    }
+  }, [filteredPositions])
+
   // Fetch correlation matrix once on mount and store in Zustand
   useEffect(() => {
     const fetchCorrelationMatrix = async () => {
@@ -538,10 +546,10 @@ export function ResearchAndAnalyzeContainer() {
                   <div
                     className="text-xl font-bold tabular-nums"
                     style={{
-                      color: currentAggregate.eoy >= 0 ? 'var(--color-success)' : 'var(--color-error)'
+                      color: filteredAggregate.eoy >= 0 ? 'var(--color-success)' : 'var(--color-error)'
                     }}
                   >
-                    {currentAggregate.eoy >= 0 ? '+' : ''}{currentAggregate.eoy.toFixed(1)}%
+                    {filteredAggregate.eoy >= 0 ? '+' : ''}{filteredAggregate.eoy.toFixed(1)}%
                   </div>
                 </div>
                 <div className="text-right">
@@ -558,75 +566,81 @@ export function ResearchAndAnalyzeContainer() {
                   <div
                     className="text-xl font-bold tabular-nums"
                     style={{
-                      color: currentAggregate.nextYear >= 0 ? 'var(--color-success)' : 'var(--color-error)'
+                      color: filteredAggregate.nextYear >= 0 ? 'var(--color-success)' : 'var(--color-error)'
                     }}
                   >
-                    {currentAggregate.nextYear >= 0 ? '+' : ''}{currentAggregate.nextYear.toFixed(1)}%
+                    {filteredAggregate.nextYear >= 0 ? '+' : ''}{filteredAggregate.nextYear.toFixed(1)}%
                   </div>
                 </div>
               </div>
             </div>
 
             {/* Row 2: Filter and Sort Controls */}
-            <div className="flex items-center justify-end gap-3">
-              <Select value={filterBy} onValueChange={(v: any) => { setFilterBy(v); setFilterValue('all') }}>
-                <SelectTrigger className="w-[180px] transition-colors duration-300" style={{
-                  backgroundColor: 'var(--bg-primary)',
-                  borderColor: 'var(--border-primary)'
-                }}>
-                  <SelectValue placeholder="Filter by..." />
-                </SelectTrigger>
-                <SelectContent className="themed-card">
-                  <SelectItem value="all">All Positions</SelectItem>
-                  <SelectItem value="tag">Filter by Tag</SelectItem>
-                  <SelectItem value="sector">Filter by Sector</SelectItem>
-                  <SelectItem value="industry">Filter by Industry</SelectItem>
-                </SelectContent>
-              </Select>
-
-              {filterBy !== 'all' && filterOptions.length > 0 && (
-                <Select value={filterValue} onValueChange={setFilterValue}>
-                  <SelectTrigger className="w-[200px] transition-colors duration-300" style={{
+            <div className="flex items-center justify-between gap-3">
+              {/* Left: Filter Controls */}
+              <div className="flex items-center gap-3">
+                <Select value={filterBy} onValueChange={(v: any) => { setFilterBy(v); setFilterValue('all') }}>
+                  <SelectTrigger className="w-[180px] transition-colors duration-300" style={{
                     backgroundColor: 'var(--bg-primary)',
                     borderColor: 'var(--border-primary)'
                   }}>
-                    <SelectValue placeholder={`Select ${filterBy}...`} />
+                    <SelectValue placeholder="Filter by..." />
                   </SelectTrigger>
                   <SelectContent className="themed-card">
-                    <SelectItem value="all">All {filterBy}s</SelectItem>
-                    {filterOptions.map(option => (
-                      <SelectItem key={option} value={option}>{option}</SelectItem>
-                    ))}
+                    <SelectItem value="all">All Positions</SelectItem>
+                    <SelectItem value="tag">Filter by Tag</SelectItem>
+                    <SelectItem value="sector">Filter by Sector</SelectItem>
+                    <SelectItem value="industry">Filter by Industry</SelectItem>
                   </SelectContent>
                 </Select>
-              )}
 
-              <Select value={sortBy} onValueChange={(v: any) => setSortBy(v)}>
-                <SelectTrigger className="w-[180px] transition-colors duration-300" style={{
-                  backgroundColor: 'var(--bg-primary)',
-                  borderColor: 'var(--border-primary)'
-                }}>
-                  <SelectValue placeholder="Sort by..." />
-                </SelectTrigger>
-                <SelectContent className="themed-card">
-                  <SelectItem value="percent_of_equity">% of Portfolio</SelectItem>
-                  <SelectItem value="symbol">Symbol (A-Z)</SelectItem>
-                  <SelectItem value="target_return_eoy">Return EOY</SelectItem>
-                </SelectContent>
-              </Select>
+                {filterBy !== 'all' && filterOptions.length > 0 && (
+                  <Select value={filterValue} onValueChange={setFilterValue}>
+                    <SelectTrigger className="w-[200px] transition-colors duration-300" style={{
+                      backgroundColor: 'var(--bg-primary)',
+                      borderColor: 'var(--border-primary)'
+                    }}>
+                      <SelectValue placeholder={`Select ${filterBy}...`} />
+                    </SelectTrigger>
+                    <SelectContent className="themed-card">
+                      <SelectItem value="all">All {filterBy}s</SelectItem>
+                      {filterOptions.map(option => (
+                        <SelectItem key={option} value={option}>{option}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              </div>
 
-              <Select value={sortOrder} onValueChange={(v: any) => setSortOrder(v)}>
-                <SelectTrigger className="w-[140px] transition-colors duration-300" style={{
-                  backgroundColor: 'var(--bg-primary)',
-                  borderColor: 'var(--border-primary)'
-                }}>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent className="themed-card">
-                  <SelectItem value="desc">High to Low</SelectItem>
-                  <SelectItem value="asc">Low to High</SelectItem>
-                </SelectContent>
-              </Select>
+              {/* Right: Sort Controls */}
+              <div className="flex items-center gap-3">
+                <Select value={sortBy} onValueChange={(v: any) => setSortBy(v)}>
+                  <SelectTrigger className="w-[180px] transition-colors duration-300" style={{
+                    backgroundColor: 'var(--bg-primary)',
+                    borderColor: 'var(--border-primary)'
+                  }}>
+                    <SelectValue placeholder="Sort by..." />
+                  </SelectTrigger>
+                  <SelectContent className="themed-card">
+                    <SelectItem value="percent_of_equity">% of Portfolio</SelectItem>
+                    <SelectItem value="symbol">Symbol (A-Z)</SelectItem>
+                    <SelectItem value="target_return_eoy">Return EOY</SelectItem>
+                  </SelectContent>
+                </Select>
+
+                <Select value={sortOrder} onValueChange={(v: any) => setSortOrder(v)}>
+                  <SelectTrigger className="w-[140px] transition-colors duration-300" style={{
+                    backgroundColor: 'var(--bg-primary)',
+                    borderColor: 'var(--border-primary)'
+                  }}>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="themed-card">
+                    <SelectItem value="desc">High to Low</SelectItem>
+                    <SelectItem value="asc">Low to High</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
           </div>
         </div>
@@ -637,8 +651,8 @@ export function ResearchAndAnalyzeContainer() {
         <ResearchTableView
           positions={filteredPositions}
           title=""
-          aggregateReturnEOY={currentAggregate.eoy}
-          aggregateReturnNextYear={currentAggregate.nextYear}
+          aggregateReturnEOY={filteredAggregate.eoy}
+          aggregateReturnNextYear={filteredAggregate.nextYear}
           onTargetPriceUpdate={updatePublicTarget}
           onTagDrop={handleTagDrop}
           onRemoveTag={handleRemoveTag}
