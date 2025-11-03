@@ -151,7 +151,7 @@ export function HoldingsTableDesktop({ holdings, loading }: HoldingsTableProps) 
 
   const SortableHeader = ({ column, children, align = 'left' }: { column: SortColumn; children: React.ReactNode; align?: 'left' | 'right' }) => (
     <th
-      className={`px-2 py-1.5 text-[10px] font-semibold uppercase tracking-wider cursor-pointer hover:bg-opacity-80 transition-colors text-tertiary ${
+      className={`px-2 py-1.5 text-[10px] font-semibold uppercase tracking-wider cursor-pointer hover:bg-opacity-80 transition-colors text-secondary ${
         align === 'right' ? 'text-right' : 'text-left'
       }`}
       onClick={() => handleSort(column)}
@@ -411,7 +411,10 @@ export function HoldingsTableDesktop({ holdings, loading }: HoldingsTableProps) 
     <section className="px-4 pb-4">
       <div className="container mx-auto">
         {/* Main Header */}
-        <h2 className="text-sm font-semibold uppercase tracking-wider mb-2 text-secondary">
+        <h2
+          className="text-lg font-semibold mb-3 transition-colors duration-300"
+          style={{ color: 'var(--color-accent)' }}
+        >
           Holdings ({holdings.length})
         </h2>
 

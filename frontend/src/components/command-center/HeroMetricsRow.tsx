@@ -49,7 +49,7 @@ function MetricCard({ label, value, subValue, valueColor = 'neutral' }: MetricCa
   return (
     <div className="themed-border-r p-3 transition-all duration-200 bg-secondary hover:bg-tertiary">
       {/* Label */}
-      <div className="text-[10px] font-semibold uppercase tracking-wider mb-1.5 text-tertiary">
+      <div className="text-[10px] font-semibold uppercase tracking-wider mb-1.5 text-secondary">
         {label}
       </div>
 
@@ -59,7 +59,7 @@ function MetricCard({ label, value, subValue, valueColor = 'neutral' }: MetricCa
       </div>
 
       {/* Secondary Context */}
-      <div className="text-xs font-medium tabular-nums text-tertiary">
+      <div className="text-xs font-medium tabular-nums text-secondary">
         {subValue}
       </div>
     </div>

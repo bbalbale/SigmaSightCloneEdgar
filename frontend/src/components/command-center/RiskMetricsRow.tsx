@@ -41,7 +41,7 @@ function RiskCard({ label, children }: RiskCardProps) {
     >
       {/* Label */}
       <div
-        className="text-[10px] font-semibold uppercase tracking-wider mb-1.5 text-tertiary"
+        className="text-[10px] font-semibold uppercase tracking-wider mb-1.5 text-secondary"
       >
         {label}
       </div>
@@ -134,7 +134,10 @@ export function RiskMetricsRow({ metrics, loading }: RiskMetricsRowProps) {
   return (
     <section className="px-4 pb-4">
       <div className="container mx-auto">
-        <h2 className="text-sm font-semibold uppercase tracking-wider mb-2 text-secondary">
+        <h2
+          className="text-lg font-semibold mb-3 transition-colors duration-300"
+          style={{ color: 'var(--color-accent)' }}
+        >
           Risk Metrics
         </h2>
 

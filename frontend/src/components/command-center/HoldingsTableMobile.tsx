@@ -282,7 +282,10 @@ export function HoldingsTableMobile({ holdings, loading }: HoldingsTableMobilePr
     <section className="px-4 pb-4">
       <div className="container mx-auto">
         {/* Main Header */}
-        <h2 className="text-sm font-semibold uppercase tracking-wider mb-3" style={{ color: 'var(--text-secondary)' }}>
+        <h2
+          className="text-lg font-semibold mb-3 transition-colors duration-300"
+          style={{ color: 'var(--color-accent)' }}
+        >
           Holdings ({holdings.length})
         </h2>
 
