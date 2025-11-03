@@ -145,13 +145,12 @@ class FundamentalsCollector:
         Fetch all fundamental data for a single symbol
 
         Fetches:
-        - Income statements (quarterly)
-        - Balance sheets (quarterly)
-        - Cash flows (quarterly)
+        - Income statements (quarterly + annual)
+        - Balance sheets (quarterly + annual)
+        - Cash flows (quarterly + annual)
         - Analyst estimates → company_profiles
 
-        Note: We only fetch quarterly data for now (12 periods)
-        Annual data can be added later if needed
+        Note: Fetches both quarterly (12 periods) and annual (5 periods) data
         """
         try:
             logger.info(f"Fetching fundamentals for {symbol}...")
@@ -173,8 +172,11 @@ class FundamentalsCollector:
 
             # Extract data components
             income_statements_q = ticker_data.get('income_statement_q')
+            income_statements_a = ticker_data.get('income_statement_a')
             balance_sheets_q = ticker_data.get('balance_sheet_q')
+            balance_sheets_a = ticker_data.get('balance_sheet_a')
             cash_flows_q = ticker_data.get('cash_flow_q')
+            cash_flows_a = ticker_data.get('cash_flow_a')
             earnings_estimates = ticker_data.get('earnings_estimates')
             earnings_calendar = ticker_data.get('earnings_calendar')
 
@@ -193,6 +195,18 @@ class FundamentalsCollector:
                 if periods > 0:
                     statements_stored = True
 
+            # Store income statements (annual)
+            if income_statements_a is not None and not income_statements_a.empty:
+                periods = await fundamentals_service.store_income_statements(
+                    db=db,
+                    symbol=symbol,
+                    data=income_statements_a,
+                    frequency='a'
+                )
+                logger.info(f"  Stored {periods} annual income statements")
+                if periods > 0:
+                    statements_stored = True
+
             # Store balance sheets (quarterly)
             if balance_sheets_q is not None and not balance_sheets_q.empty:
                 periods = await fundamentals_service.store_balance_sheets(
@@ -202,6 +216,18 @@ class FundamentalsCollector:
                     frequency='q'
                 )
                 logger.info(f"  Stored {periods} quarterly balance sheets")
+                if periods > 0:
+                    statements_stored = True
+
+            # Store balance sheets (annual)
+            if balance_sheets_a is not None and not balance_sheets_a.empty:
+                periods = await fundamentals_service.store_balance_sheets(
+                    db=db,
+                    symbol=symbol,
+                    data=balance_sheets_a,
+                    frequency='a'
+                )
+                logger.info(f"  Stored {periods} annual balance sheets")
                 if periods > 0:
                     statements_stored = True
 
@@ -215,6 +241,19 @@ class FundamentalsCollector:
                     revenue_data=income_statements_q  # For FCF margin calculation
                 )
                 logger.info(f"  Stored {periods} quarterly cash flows")
+                if periods > 0:
+                    statements_stored = True
+
+            # Store cash flows (annual)
+            if cash_flows_a is not None and not cash_flows_a.empty:
+                periods = await fundamentals_service.store_cash_flows(
+                    db=db,
+                    symbol=symbol,
+                    data=cash_flows_a,
+                    frequency='a',
+                    revenue_data=income_statements_a  # For FCF margin calculation
+                )
+                logger.info(f"  Stored {periods} annual cash flows")
                 if periods > 0:
                     statements_stored = True
 
@@ -246,8 +285,11 @@ class FundamentalsCollector:
 
         Returns dict with:
         - income_statement_q: Quarterly income statements
+        - income_statement_a: Annual income statements
         - balance_sheet_q: Quarterly balance sheets
+        - balance_sheet_a: Annual balance sheets
         - cash_flow_q: Quarterly cash flows
+        - cash_flow_a: Annual cash flows
         - earnings_estimates: Analyst earnings estimates
         - earnings_calendar: Next earnings date info
         """
@@ -256,11 +298,15 @@ class FundamentalsCollector:
 
             ticker = Ticker(symbol)
 
-            # Fetch all fundamental data
-            # These return DataFrames or dict with error messages
+            # Fetch quarterly fundamental data
             income_q = ticker.income_statement(frequency='q')
             balance_q = ticker.balance_sheet(frequency='q')
             cashflow_q = ticker.cash_flow(frequency='q')
+
+            # Fetch annual fundamental data
+            income_a = ticker.income_statement(frequency='a')
+            balance_a = ticker.balance_sheet(frequency='a')
+            cashflow_a = ticker.cash_flow(frequency='a')
 
             # These return dicts
             earnings_est = ticker.earnings_estimate if hasattr(ticker, 'earnings_estimate') else None
@@ -268,8 +314,11 @@ class FundamentalsCollector:
 
             return {
                 'income_statement_q': income_q if not isinstance(income_q, dict) else None,
+                'income_statement_a': income_a if not isinstance(income_a, dict) else None,
                 'balance_sheet_q': balance_q if not isinstance(balance_q, dict) else None,
+                'balance_sheet_a': balance_a if not isinstance(balance_a, dict) else None,
                 'cash_flow_q': cashflow_q if not isinstance(cashflow_q, dict) else None,
+                'cash_flow_a': cashflow_a if not isinstance(cashflow_a, dict) else None,
                 'earnings_estimates': earnings_est,
                 'earnings_calendar': earnings_cal
             }

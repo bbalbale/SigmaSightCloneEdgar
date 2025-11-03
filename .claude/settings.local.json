@@ -119,7 +119,12 @@
       "Bash(git tag:*)",
       "Bash(git mv:*)",
       "Bash(git ls-tree:*)",
-      "Bash(PYTHONIOENCODING=utf-8 .venv/Scripts/python.exe:*)"
+      "Bash(PYTHONIOENCODING=utf-8 .venv/Scripts/python.exe:*)",
+      "Bash(docker-compose logs:*)",
+      "Bash(if [ -f .env.local ])",
+      "Bash(then echo \"File exists\")",
+      "Bash(else echo \"File does NOT exist\")",
+      "Bash(fi)"
     ],
     "additionalDirectories": [
       "C:\\c\\Users\\BenBalbale\\CascadeProjects\\SigmaSight-BE"

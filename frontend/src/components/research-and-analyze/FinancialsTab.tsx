@@ -18,9 +18,9 @@ interface FinancialsTabProps {
  * - YoY growth rates for all metrics
  *
  * Data fetched from backend fundamental data endpoints:
- * - Income statements (revenue, margins, EPS)
- * - Cash flows (operating CF, FCF)
- * - Analyst estimates (forward revenue, EPS)
+ * - Income statements (revenue, margins, EPS) - annual frequency
+ * - Cash flows (operating CF, FCF) - annual frequency
+ * - Analyst estimates (forward revenue, EPS) - annual estimates
  */
 export function FinancialsTab({ symbol }: FinancialsTabProps) {
   const { data, loading, error, refetch } = useFundamentals(symbol, 'a', 4)
