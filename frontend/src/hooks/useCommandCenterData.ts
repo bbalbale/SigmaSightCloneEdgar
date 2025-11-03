@@ -47,7 +47,7 @@ interface UseCommandCenterDataReturn {
   error: string | null
 }
 
-export function useCommandCenterData(): UseCommandCenterDataReturn {
+export function useCommandCenterData(refreshTrigger?: number): UseCommandCenterDataReturn {
   const { portfolioId } = usePortfolioStore()
 
   const [loading, setLoading] = useState(true)
@@ -262,7 +262,7 @@ export function useCommandCenterData(): UseCommandCenterDataReturn {
     }
 
     fetchData()
-  }, [portfolioId])
+  }, [portfolioId, refreshTrigger])
 
   return {
     heroMetrics,

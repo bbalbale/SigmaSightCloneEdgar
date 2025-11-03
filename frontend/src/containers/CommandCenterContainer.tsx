@@ -1,14 +1,21 @@
 'use client'
 
-import React from 'react'
+import React, { useState } from 'react'
 import { useCommandCenterData } from '@/hooks/useCommandCenterData'
+import { usePortfolioStore } from '@/stores/portfolioStore'
 import { HeroMetricsRow } from '@/components/command-center/HeroMetricsRow'
 import { HoldingsTable } from '@/components/command-center/HoldingsTable'
 import { RiskMetricsRow } from '@/components/command-center/RiskMetricsRow'
 import { AIInsightsButton } from '@/components/command-center/AIInsightsButton'
+import { ManagePositionsSidePanel } from '@/components/portfolio/ManagePositionsSidePanel'
+import { Button } from '@/components/ui/button'
 
 export function CommandCenterContainer() {
-  const { heroMetrics, holdings, riskMetrics, loading, error } = useCommandCenterData()
+  const { portfolioId } = usePortfolioStore()
+  const [sidePanelOpen, setSidePanelOpen] = useState(false)
+  const [refreshTrigger, setRefreshTrigger] = useState(0)
+
+  const { heroMetrics, holdings, riskMetrics, loading, error } = useCommandCenterData(refreshTrigger)
 
   if (error && !loading) {
     return (
@@ -53,17 +60,46 @@ export function CommandCenterContainer() {
     )
   }
 
+  const handleRefresh = () => {
+    setRefreshTrigger(prev => prev + 1)
+  }
+
+  const handleSidePanelComplete = () => {
+    setSidePanelOpen(false)
+    handleRefresh()
+  }
+
   return (
     <div
       className="min-h-screen transition-colors duration-300"
       style={{ backgroundColor: 'var(--bg-primary)' }}
     >
-      {/* Page Description */}
+      {/* Page Description with Manage Positions Button */}
       <div className="px-4 pt-4 pb-2">
-        <div className="container mx-auto">
+        <div className="container mx-auto flex items-center justify-between">
           <p className="text-sm text-muted-foreground">
             Portfolio overview, holdings, and risk metrics
           </p>
+          <Button
+            onClick={() => setSidePanelOpen(true)}
+            size="sm"
+            className="flex items-center gap-2"
+          >
+            <svg
+              className="w-4 h-4"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M12 4v16m8-8H4"
+              />
+            </svg>
+            Manage Positions
+          </Button>
         </div>
       </div>
 
@@ -73,10 +109,20 @@ export function CommandCenterContainer() {
       </section>
 
       {/* Holdings Table - 11 columns */}
-      <HoldingsTable holdings={holdings} loading={loading} />
+      <HoldingsTable holdings={holdings} loading={loading} onRefresh={handleRefresh} />
 
       {/* Risk Metrics - 5 cards */}
       <RiskMetricsRow metrics={riskMetrics} loading={loading} />
+
+      {/* Manage Positions Side Panel */}
+      {portfolioId && (
+        <ManagePositionsSidePanel
+          portfolioId={portfolioId}
+          open={sidePanelOpen}
+          onOpenChange={setSidePanelOpen}
+          onComplete={handleSidePanelComplete}
+        />
+      )}
     </div>
   )
 }

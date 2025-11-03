@@ -24,6 +24,7 @@ interface HoldingRow {
 interface HoldingsTableProps {
   holdings: HoldingRow[]
   loading: boolean
+  onRefresh?: () => void
 }
 
 /**
@@ -35,12 +36,12 @@ interface HoldingsTableProps {
  * Desktop: Full sortable table with 11 columns
  * Mobile: Compact position cards with essential info
  */
-export function HoldingsTable({ holdings, loading }: HoldingsTableProps) {
+export function HoldingsTable({ holdings, loading, onRefresh }: HoldingsTableProps) {
   return (
     <>
       {/* Desktop: Table (hidden on mobile) */}
       <div className="hidden md:block">
-        <HoldingsTableDesktop holdings={holdings} loading={loading} />
+        <HoldingsTableDesktop holdings={holdings} loading={loading} onRefresh={onRefresh} />
       </div>
 
       {/* Mobile: Cards (hidden on desktop) */}
