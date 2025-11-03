@@ -153,8 +153,15 @@ function transformToTableData(
     const prevStmt = array[index + 1]; // Previous year for growth calculation
     const matchingCashFlow = cashFlowData.periods.find((cf: any) => cf.fiscal_year === stmt.fiscal_year);
 
+    // Extract year from period_date (e.g., "2024-09-30" -> 2024)
+    let year = stmt.fiscal_year || 0;
+    if (year === 0 && stmt.period_date) {
+      const date = new Date(stmt.period_date);
+      year = date.getFullYear();
+    }
+
     return {
-      year: stmt.fiscal_year || 0,
+      year,
       isEstimate: false,
 
       // Revenue
