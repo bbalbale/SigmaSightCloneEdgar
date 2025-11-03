@@ -111,9 +111,10 @@ async function handleProxyRequest(
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { path: string[] } }
+  { params }: { params: Promise<{ path: string[] }> }
 ) {
-  const path = params.path.join('/')
+  const { path: pathSegments } = await params
+  const path = pathSegments.join('/')
   const url = `${BACKEND_URL}/${path}${request.nextUrl.search}`
 
   // Get cookie header from request
@@ -149,9 +150,10 @@ export async function GET(
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { path: string[] } }
+  { params }: { params: Promise<{ path: string[] }> }
 ) {
-  const path = params.path.join('/')
+  const { path: pathSegments } = await params
+  const path = pathSegments.join('/')
   const url = `${BACKEND_URL}/${path}`
   
 
@@ -234,9 +236,10 @@ export async function POST(
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { path: string[] } }
+  { params }: { params: Promise<{ path: string[] }> }
 ) {
-  const path = params.path.join('/')
+  const { path: pathSegments } = await params
+  const path = pathSegments.join('/')
   const url = `${BACKEND_URL}/${path}`
   
 
@@ -286,9 +289,10 @@ export async function PUT(
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { path: string[] } }
+  { params }: { params: Promise<{ path: string[] }> }
 ) {
-  const path = params.path.join('/')
+  const { path: pathSegments } = await params
+  const path = pathSegments.join('/')
   const url = `${BACKEND_URL}/${path}`
 
 
@@ -338,9 +342,10 @@ export async function PATCH(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { path: string[] } }
+  { params }: { params: Promise<{ path: string[] }> }
 ) {
-  const path = params.path.join('/')
+  const { path: pathSegments } = await params
+  const path = pathSegments.join('/')
   const url = `${BACKEND_URL}/${path}`
 
 
