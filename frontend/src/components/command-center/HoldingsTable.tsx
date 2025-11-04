@@ -20,6 +20,8 @@ interface HoldingRow {
   beta: number | null
   positionType: string
   investmentClass: string
+  account_name?: string // For aggregate view - which account/portfolio this holding belongs to
+  portfolio_id?: string // For grouping in aggregate view
 }
 
 interface HoldingsTableProps {

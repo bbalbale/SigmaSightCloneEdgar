@@ -21,6 +21,8 @@ interface HoldingRow {
   beta: number | null
   positionType: string
   investmentClass: string
+  account_name?: string // For aggregate view
+  portfolio_id?: string // For grouping in aggregate view
 }
 
 interface AggregatedHolding {
@@ -211,6 +213,35 @@ export function HoldingsTableDesktop({ holdings, loading, onRefresh }: HoldingsT
     })
   }
 
+  // Check if we're in aggregate view (viewing all portfolios)
+  const isAggregateView = () => {
+    return holdings.length > 0 && holdings.some(h => h.portfolio_id !== undefined)
+  }
+
+  // Group holdings by portfolio for aggregate view
+  const groupByPortfolio = (holdings: AggregatedHolding[]) => {
+    const portfolioMap = new Map<string, { accountName: string; holdings: AggregatedHolding[] }>()
+
+    holdings.forEach(holding => {
+      // Extract portfolio_id from the first lot (all lots of same symbol have same portfolio_id)
+      const portfolioId = holding.lots[0]?.portfolio_id
+      const accountName = holding.lots[0]?.account_name || 'Unknown Account'
+
+      if (!portfolioId) return
+
+      if (!portfolioMap.has(portfolioId)) {
+        portfolioMap.set(portfolioId, { accountName, holdings: [] })
+      }
+      portfolioMap.get(portfolioId)!.holdings.push(holding)
+    })
+
+    return Array.from(portfolioMap.entries()).map(([portfolioId, data]) => ({
+      portfolioId,
+      accountName: data.accountName,
+      holdings: data.holdings
+    }))
+  }
+
   // Categorize aggregated holdings
   const categorizeHoldings = () => {
     const aggregated = aggregateHoldings(holdings)
@@ -353,6 +384,286 @@ export function HoldingsTableDesktop({ holdings, loading, onRefresh }: HoldingsT
 
   const categories = categorizeHoldings()
 
+  // Helper to render holdings table (reusable for both normal and portfolio-grouped views)
+  const renderHoldingsTable = (sortedHoldings: AggregatedHolding[], showShortBadge: boolean = false) => (
+    <div className="overflow-x-auto">
+      <table className="w-full text-xs">
+        {/* Header Row */}
+        <thead className="sticky top-0 transition-colors duration-300" style={{
+          backgroundColor: 'var(--bg-tertiary)'
+        }}>
+          <tr>
+            <th className="px-2 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-secondary text-left w-8"></th>
+            <SortableHeader column="symbol">Position</SortableHeader>
+            <SortableHeader column="quantity" align="right">Quantity</SortableHeader>
+            <SortableHeader column="todaysPrice" align="right">Today's Price</SortableHeader>
+            <SortableHeader column="targetPrice" align="right">Target Price</SortableHeader>
+            <SortableHeader column="marketValue" align="right">Market Value</SortableHeader>
+            <SortableHeader column="weight" align="right">Weight</SortableHeader>
+            <SortableHeader column="pnlTotal" align="right">P&L Total</SortableHeader>
+            <SortableHeader column="returnPct" align="right">Return %</SortableHeader>
+            <SortableHeader column="targetReturn" align="right">Target Return</SortableHeader>
+            <SortableHeader column="beta" align="right">Beta</SortableHeader>
+          </tr>
+        </thead>
+
+        {/* Body Rows */}
+        <tbody className="divide-y transition-colors duration-300" style={{
+          borderColor: 'var(--border-primary)'
+        }}>
+          {sortedHoldings.map((holding) => (
+            <React.Fragment key={holding.symbol}>
+              {/* Main aggregated row */}
+              <tr
+                className="transition-colors cursor-pointer hover:bg-opacity-50"
+                style={{
+                  backgroundColor: 'transparent'
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)'
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = 'transparent'
+                }}
+              >
+                {/* Expand/collapse caret */}
+                <td className="px-2 py-2">
+                  <button
+                    onClick={() => toggleRow(holding.symbol)}
+                    className="text-secondary hover:text-primary transition-colors"
+                  >
+                    <svg
+                      className={`w-3 h-3 transition-transform ${
+                        expandedRows.has(holding.symbol) ? 'rotate-90' : ''
+                      }`}
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                  </button>
+                </td>
+
+                {/* Position */}
+                <td className="px-2 py-2 font-semibold transition-colors duration-300" style={{
+                  color: 'var(--color-accent)'
+                }}>
+                  <div className="flex items-center gap-2">
+                    <span>{holding.symbol}</span>
+                    {holding.lots.length > 1 && (
+                      <span className="text-xs px-1.5 py-0.5 rounded transition-colors duration-300" style={{
+                        backgroundColor: 'rgba(59, 130, 246, 0.2)',
+                        color: 'var(--color-accent)'
+                      }}>
+                        {holding.lots.length} lots
+                      </span>
+                    )}
+                    {showShortBadge && (
+                      <span className="text-xs px-1.5 py-0.5 rounded transition-colors duration-300" style={{
+                        backgroundColor: 'rgba(239, 68, 68, 0.2)',
+                        color: 'var(--color-error)'
+                      }}>
+                        SHORT
+                      </span>
+                    )}
+                  </div>
+                </td>
+
+                {/* Quantity */}
+                <td className="px-2 py-2 text-right font-medium tabular-nums text-primary">
+                  {holding.totalQuantity.toLocaleString()}
+                </td>
+
+                {/* Today's Price */}
+                <td className="px-2 py-2 text-right font-medium tabular-nums text-primary">
+                  ${holding.avgPrice.toFixed(2)}
+                </td>
+
+                {/* Target Price */}
+                <td className="px-2 py-2 text-right font-medium tabular-nums text-primary">
+                  {holding.targetPrice ? `$${holding.targetPrice.toFixed(2)}` : '—'}
+                </td>
+
+                {/* Market Value */}
+                <td className="px-2 py-2 text-right tabular-nums font-semibold transition-colors duration-300" style={{
+                  color: 'var(--text-primary)'
+                }}>
+                  {formatCurrency(holding.totalMarketValue)}
+                </td>
+
+                {/* Weight - with visual bar */}
+                <td className="px-2 py-2 text-right">
+                  <div className="flex items-center justify-end gap-1.5">
+                    <div className="w-12 h-1 rounded-full overflow-hidden transition-colors duration-300" style={{
+                      backgroundColor: 'var(--bg-tertiary)'
+                    }}>
+                      <div
+                        className="h-full transition-colors duration-300"
+                        style={{
+                          width: `${Math.min(Math.abs(holding.totalWeight), 100)}%`,
+                          backgroundColor: 'var(--color-accent)'
+                        }}
+                      ></div>
+                    </div>
+                    <span className="font-medium tabular-nums text-primary">
+                      {holding.totalWeight.toFixed(1)}%
+                    </span>
+                  </div>
+                </td>
+
+                {/* P&L Total */}
+                <td className="px-2 py-2 text-right font-medium tabular-nums transition-colors duration-300" style={{
+                  color: holding.totalPnL >= 0 ? 'var(--color-success)' : 'var(--color-error)'
+                }}>
+                  {formatCurrency(holding.totalPnL)}
+                </td>
+
+                {/* Return % */}
+                <td className="px-2 py-2 text-right tabular-nums font-semibold transition-colors duration-300" style={{
+                  color: holding.avgReturnPct >= 0 ? 'var(--color-success)' : 'var(--color-error)'
+                }}>
+                  {formatPercentage(holding.avgReturnPct)}
+                </td>
+
+                {/* Target Return */}
+                <td className="px-2 py-2 text-right tabular-nums font-semibold text-primary">
+                  {holding.targetReturn !== null ? formatPercentage(holding.targetReturn) : '—'}
+                </td>
+
+                {/* Beta */}
+                <td className="px-2 py-2 text-right font-medium tabular-nums text-primary">
+                  {holding.beta !== null ? holding.beta.toFixed(2) : '—'}
+                </td>
+              </tr>
+
+              {/* Expanded row showing individual lots */}
+              {expandedRows.has(holding.symbol) && (
+                <tr>
+                  <td colSpan={11} className="px-4 py-3" style={{
+                    backgroundColor: 'var(--bg-tertiary)'
+                  }}>
+                    <div className="space-y-2">
+                      <h4 className="text-xs font-semibold text-secondary uppercase tracking-wider mb-2">
+                        Individual Lots ({holding.lots.length})
+                      </h4>
+                      {holding.lots.map((lot) => (
+                        <div
+                          key={lot.id}
+                          className="p-3 rounded transition-colors duration-300"
+                          style={{
+                            backgroundColor: 'var(--bg-secondary)',
+                            border: '1px solid var(--border-primary)'
+                          }}
+                        >
+                          {editingLot === lot.id ? (
+                            <div className="space-y-3">
+                              <div className="grid grid-cols-3 gap-3">
+                                <div>
+                                  <label className="text-xs text-secondary mb-1 block">Quantity</label>
+                                  <Input
+                                    type="number"
+                                    value={editForm.quantity}
+                                    onChange={(e) => setEditForm({ ...editForm, quantity: e.target.value })}
+                                    className="text-xs"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="text-xs text-secondary mb-1 block">Avg Cost</label>
+                                  <Input
+                                    type="number"
+                                    value={editForm.avg_cost}
+                                    onChange={(e) => setEditForm({ ...editForm, avg_cost: e.target.value })}
+                                    className="text-xs"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="text-xs text-secondary mb-1 block">Notes</label>
+                                  <Input
+                                    type="text"
+                                    value={editForm.notes}
+                                    onChange={(e) => setEditForm({ ...editForm, notes: e.target.value })}
+                                    className="text-xs"
+                                    placeholder="Optional"
+                                  />
+                                </div>
+                              </div>
+                              <div className="flex gap-2">
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={handleCancelEdit}
+                                >
+                                  Cancel
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  onClick={() => handleSaveEdit(lot.id)}
+                                >
+                                  Save Changes
+                                </Button>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-6 text-xs">
+                                <div>
+                                  <span className="text-secondary">Qty:</span>{' '}
+                                  <span className="font-medium text-primary">{lot.quantity.toLocaleString()}</span>
+                                </div>
+                                <div>
+                                  <span className="text-secondary">Avg Cost:</span>{' '}
+                                  <span className="font-medium text-primary">
+                                    ${lot.entryPrice.toFixed(2)}
+                                  </span>
+                                </div>
+                                <div>
+                                  <span className="text-secondary">Market Value:</span>{' '}
+                                  <span className="font-medium text-primary">{formatCurrency(lot.marketValue)}</span>
+                                </div>
+                                <div>
+                                  <span className="text-secondary">P&L:</span>{' '}
+                                  <span
+                                    className="font-medium"
+                                    style={{
+                                      color: lot.pnlTotal >= 0 ? 'var(--color-success)' : 'var(--color-error)'
+                                    }}
+                                  >
+                                    {formatCurrency(lot.pnlTotal)} ({formatPercentage(lot.returnPct)})
+                                  </span>
+                                </div>
+                              </div>
+                              <div className="flex gap-2">
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => handleEditLot(lot)}
+                                >
+                                  Edit
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="destructive"
+                                  onClick={() => handleSellLot(lot)}
+                                >
+                                  Sell
+                                </Button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </td>
+                </tr>
+              )}
+            </React.Fragment>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
+
   // Helper to render a category section
   const renderCategorySection = (
     title: string,
@@ -363,6 +674,74 @@ export function HoldingsTableDesktop({ holdings, loading, onRefresh }: HoldingsT
     if (categoryHoldings.length === 0) return null
 
     const isExpanded = expandedSections.has(categoryKey)
+    const inAggregateView = isAggregateView()
+
+    // If in aggregate view, group holdings by portfolio
+    if (inAggregateView) {
+      const portfolioGroups = groupByPortfolio(categoryHoldings)
+
+      return (
+        <div
+          key={categoryKey}
+          className="overflow-hidden transition-colors duration-300"
+          style={{
+            backgroundColor: 'var(--bg-secondary)',
+            borderRadius: 'var(--border-radius)',
+            border: '1px solid var(--border-primary)'
+          }}
+        >
+          {/* Category Header */}
+          <div
+            className="px-3 py-2 flex items-center justify-between cursor-pointer transition-colors hover:bg-opacity-80"
+            onClick={() => toggleSection(categoryKey)}
+            style={{
+              borderBottom: '1px solid var(--border-primary)',
+              backgroundColor: 'var(--bg-tertiary)'
+            }}
+          >
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-secondary">
+              {title} <span className="font-mono">({categoryHoldings.length})</span>
+            </h3>
+            <svg
+              className={`w-4 h-4 transition-transform ${
+                isExpanded ? 'rotate-180' : ''
+              } text-tertiary`}
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            </svg>
+          </div>
+
+          {/* Portfolio-grouped content */}
+          {isExpanded && (
+            <div className="divide-y" style={{ borderColor: 'var(--border-primary)' }}>
+              {portfolioGroups.map(group => (
+                <div key={group.portfolioId} className="px-3 py-2">
+                  {/* Portfolio Label */}
+                  <div className="mb-2 px-2 py-1.5 rounded transition-colors duration-300" style={{
+                    backgroundColor: 'var(--bg-tertiary)',
+                    borderLeft: '3px solid var(--color-accent)'
+                  }}>
+                    <h4 className="text-xs font-semibold transition-colors duration-300" style={{
+                      color: 'var(--color-accent)'
+                    }}>
+                      {group.accountName} <span className="text-secondary font-normal">({group.holdings.length} positions)</span>
+                    </h4>
+                  </div>
+
+                  {/* Holdings table for this portfolio */}
+                  {renderHoldingsTable(getSortedHoldings(group.holdings), showShortBadge)}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )
+    }
+
+    // Normal single-portfolio view
     const sortedCategoryHoldings = getSortedHoldings(categoryHoldings)
 
     return (
@@ -400,284 +779,7 @@ export function HoldingsTableDesktop({ holdings, loading, onRefresh }: HoldingsT
         </div>
 
         {/* Category Table */}
-        {isExpanded && (
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs">
-              {/* Header Row */}
-              <thead className="sticky top-0 transition-colors duration-300" style={{
-                backgroundColor: 'var(--bg-tertiary)'
-              }}>
-                <tr>
-                  <th className="px-2 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-secondary text-left w-8"></th>
-                  <SortableHeader column="symbol">Position</SortableHeader>
-                  <SortableHeader column="quantity" align="right">Quantity</SortableHeader>
-                  <SortableHeader column="todaysPrice" align="right">Today's Price</SortableHeader>
-                  <SortableHeader column="targetPrice" align="right">Target Price</SortableHeader>
-                  <SortableHeader column="marketValue" align="right">Market Value</SortableHeader>
-                  <SortableHeader column="weight" align="right">Weight</SortableHeader>
-                  <SortableHeader column="pnlTotal" align="right">P&L Total</SortableHeader>
-                  <SortableHeader column="returnPct" align="right">Return %</SortableHeader>
-                  <SortableHeader column="targetReturn" align="right">Target Return</SortableHeader>
-                  <SortableHeader column="beta" align="right">Beta</SortableHeader>
-                </tr>
-              </thead>
-
-              {/* Body Rows */}
-              <tbody className="divide-y transition-colors duration-300" style={{
-                borderColor: 'var(--border-primary)'
-              }}>
-                {sortedCategoryHoldings.map((holding) => (
-                  <React.Fragment key={holding.symbol}>
-                    {/* Main aggregated row */}
-                    <tr
-                      className="transition-colors cursor-pointer hover:bg-opacity-50"
-                      style={{
-                        backgroundColor: 'transparent'
-                      }}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)'
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.backgroundColor = 'transparent'
-                      }}
-                    >
-                      {/* Expand/collapse caret */}
-                      <td className="px-2 py-2">
-                        <button
-                          onClick={() => toggleRow(holding.symbol)}
-                          className="text-secondary hover:text-primary transition-colors"
-                        >
-                          <svg
-                            className={`w-3 h-3 transition-transform ${
-                              expandedRows.has(holding.symbol) ? 'rotate-90' : ''
-                            }`}
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
-                          >
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                          </svg>
-                        </button>
-                      </td>
-
-                      {/* Position */}
-                      <td className="px-2 py-2 font-semibold transition-colors duration-300" style={{
-                        color: 'var(--color-accent)'
-                      }}>
-                        <div className="flex items-center gap-2">
-                          <span>{holding.symbol}</span>
-                          {holding.lots.length > 1 && (
-                            <span className="text-xs px-1.5 py-0.5 rounded transition-colors duration-300" style={{
-                              backgroundColor: 'rgba(59, 130, 246, 0.2)',
-                              color: 'var(--color-accent)'
-                            }}>
-                              {holding.lots.length} lots
-                            </span>
-                          )}
-                          {showShortBadge && (
-                            <span className="text-xs px-1.5 py-0.5 rounded transition-colors duration-300" style={{
-                              backgroundColor: 'rgba(239, 68, 68, 0.2)',
-                              color: 'var(--color-error)'
-                            }}>
-                              SHORT
-                            </span>
-                          )}
-                        </div>
-                      </td>
-
-                      {/* Quantity */}
-                      <td className="px-2 py-2 text-right font-medium tabular-nums text-primary">
-                        {holding.totalQuantity.toLocaleString()}
-                      </td>
-
-                      {/* Today's Price */}
-                      <td className="px-2 py-2 text-right font-medium tabular-nums text-primary">
-                        ${holding.avgPrice.toFixed(2)}
-                      </td>
-
-                      {/* Target Price */}
-                      <td className="px-2 py-2 text-right font-medium tabular-nums text-primary">
-                        {holding.targetPrice ? `$${holding.targetPrice.toFixed(2)}` : '—'}
-                      </td>
-
-                      {/* Market Value */}
-                      <td className="px-2 py-2 text-right tabular-nums font-semibold transition-colors duration-300" style={{
-                        color: 'var(--text-primary)'
-                      }}>
-                        {formatCurrency(holding.totalMarketValue)}
-                      </td>
-
-                      {/* Weight - with visual bar */}
-                      <td className="px-2 py-2 text-right">
-                        <div className="flex items-center justify-end gap-1.5">
-                          <div className="w-12 h-1 rounded-full overflow-hidden transition-colors duration-300" style={{
-                            backgroundColor: 'var(--bg-tertiary)'
-                          }}>
-                            <div
-                              className="h-full transition-colors duration-300"
-                              style={{
-                                width: `${Math.min(Math.abs(holding.totalWeight), 100)}%`,
-                                backgroundColor: 'var(--color-accent)'
-                              }}
-                            ></div>
-                          </div>
-                          <span className="font-medium tabular-nums text-primary">
-                            {holding.totalWeight.toFixed(1)}%
-                          </span>
-                        </div>
-                      </td>
-
-                      {/* P&L Total */}
-                      <td className="px-2 py-2 text-right font-medium tabular-nums transition-colors duration-300" style={{
-                        color: holding.totalPnL >= 0 ? 'var(--color-success)' : 'var(--color-error)'
-                      }}>
-                        {formatCurrency(holding.totalPnL)}
-                      </td>
-
-                      {/* Return % */}
-                      <td className="px-2 py-2 text-right tabular-nums font-semibold transition-colors duration-300" style={{
-                        color: holding.avgReturnPct >= 0 ? 'var(--color-success)' : 'var(--color-error)'
-                      }}>
-                        {formatPercentage(holding.avgReturnPct)}
-                      </td>
-
-                      {/* Target Return */}
-                      <td className="px-2 py-2 text-right tabular-nums font-semibold text-primary">
-                        {holding.targetReturn !== null ? formatPercentage(holding.targetReturn) : '—'}
-                      </td>
-
-                      {/* Beta */}
-                      <td className="px-2 py-2 text-right font-medium tabular-nums text-primary">
-                        {holding.beta !== null ? holding.beta.toFixed(2) : '—'}
-                      </td>
-                    </tr>
-
-                    {/* Expanded row showing individual lots */}
-                    {expandedRows.has(holding.symbol) && (
-                      <tr>
-                        <td colSpan={11} className="px-4 py-3" style={{
-                          backgroundColor: 'var(--bg-tertiary)'
-                        }}>
-                          <div className="space-y-2">
-                            <h4 className="text-xs font-semibold text-secondary uppercase tracking-wider mb-2">
-                              Individual Lots ({holding.lots.length})
-                            </h4>
-                            {holding.lots.map((lot) => (
-                              <div
-                                key={lot.id}
-                                className="p-3 rounded transition-colors duration-300"
-                                style={{
-                                  backgroundColor: 'var(--bg-secondary)',
-                                  border: '1px solid var(--border-primary)'
-                                }}
-                              >
-                                {editingLot === lot.id ? (
-                                  <div className="space-y-3">
-                                    <div className="grid grid-cols-3 gap-3">
-                                      <div>
-                                        <label className="text-xs text-secondary mb-1 block">Quantity</label>
-                                        <Input
-                                          type="number"
-                                          value={editForm.quantity}
-                                          onChange={(e) => setEditForm({ ...editForm, quantity: e.target.value })}
-                                          className="text-xs"
-                                        />
-                                      </div>
-                                      <div>
-                                        <label className="text-xs text-secondary mb-1 block">Avg Cost</label>
-                                        <Input
-                                          type="number"
-                                          value={editForm.avg_cost}
-                                          onChange={(e) => setEditForm({ ...editForm, avg_cost: e.target.value })}
-                                          className="text-xs"
-                                        />
-                                      </div>
-                                      <div>
-                                        <label className="text-xs text-secondary mb-1 block">Notes</label>
-                                        <Input
-                                          type="text"
-                                          value={editForm.notes}
-                                          onChange={(e) => setEditForm({ ...editForm, notes: e.target.value })}
-                                          className="text-xs"
-                                          placeholder="Optional"
-                                        />
-                                      </div>
-                                    </div>
-                                    <div className="flex gap-2">
-                                      <Button
-                                        size="sm"
-                                        variant="outline"
-                                        onClick={handleCancelEdit}
-                                      >
-                                        Cancel
-                                      </Button>
-                                      <Button
-                                        size="sm"
-                                        onClick={() => handleSaveEdit(lot.id)}
-                                      >
-                                        Save Changes
-                                      </Button>
-                                    </div>
-                                  </div>
-                                ) : (
-                                  <div className="flex items-center justify-between">
-                                    <div className="flex items-center gap-6 text-xs">
-                                      <div>
-                                        <span className="text-secondary">Qty:</span>{' '}
-                                        <span className="font-medium text-primary">{lot.quantity.toLocaleString()}</span>
-                                      </div>
-                                      <div>
-                                        <span className="text-secondary">Avg Cost:</span>{' '}
-                                        <span className="font-medium text-primary">
-                                          ${lot.entryPrice.toFixed(2)}
-                                        </span>
-                                      </div>
-                                      <div>
-                                        <span className="text-secondary">Market Value:</span>{' '}
-                                        <span className="font-medium text-primary">{formatCurrency(lot.marketValue)}</span>
-                                      </div>
-                                      <div>
-                                        <span className="text-secondary">P&L:</span>{' '}
-                                        <span
-                                          className="font-medium"
-                                          style={{
-                                            color: lot.pnlTotal >= 0 ? 'var(--color-success)' : 'var(--color-error)'
-                                          }}
-                                        >
-                                          {formatCurrency(lot.pnlTotal)} ({formatPercentage(lot.returnPct)})
-                                        </span>
-                                      </div>
-                                    </div>
-                                    <div className="flex gap-2">
-                                      <Button
-                                        size="sm"
-                                        variant="outline"
-                                        onClick={() => handleEditLot(lot)}
-                                      >
-                                        Edit
-                                      </Button>
-                                      <Button
-                                        size="sm"
-                                        variant="destructive"
-                                        onClick={() => handleSellLot(lot)}
-                                      >
-                                        Sell
-                                      </Button>
-                                    </div>
-                                  </div>
-                                )}
-                              </div>
-                            ))}
-                          </div>
-                        </td>
-                      </tr>
-                    )}
-                  </React.Fragment>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+        {isExpanded && renderHoldingsTable(sortedCategoryHoldings, showShortBadge)}
       </div>
     )
   }

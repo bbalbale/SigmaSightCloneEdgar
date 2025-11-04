@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react'
-import { usePortfolioId } from '@/stores/portfolioStore'
+import { useSelectedPortfolioId } from '@/stores/portfolioStore'
 import { loadPortfolioData, fetchPortfolioSnapshot } from '@/services/portfolioService'
 import { analyticsApi } from '@/services/analyticsApi'
 import targetPriceService from '@/services/targetPriceService'
+import { portfolioService } from '@/services/portfolioApi'
 
 interface HeroMetrics {
   equityBalance: number
@@ -38,6 +39,8 @@ interface HoldingRow {
   beta: number | null
   positionType: string
   investmentClass: string
+  account_name?: string // For aggregate view - which account/portfolio this holding belongs to
+  portfolio_id?: string // For grouping in aggregate view
 }
 
 interface RiskMetrics {
@@ -59,7 +62,7 @@ interface UseCommandCenterDataReturn {
 }
 
 export function useCommandCenterData(refreshTrigger?: number): UseCommandCenterDataReturn {
-  const portfolioId = usePortfolioId()
+  const portfolioId = useSelectedPortfolioId()
 
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -94,15 +97,114 @@ export function useCommandCenterData(refreshTrigger?: number): UseCommandCenterD
 
   useEffect(() => {
     const fetchData = async () => {
-      if (!portfolioId) {
-        setLoading(false)
-        return
-      }
-
       setLoading(true)
       setError(null)
 
       try {
+        // AGGREGATE VIEW: Fetch data across all portfolios
+        if (!portfolioId) {
+          console.log('[useCommandCenterData] Fetching aggregate view data')
+
+          // Fetch all portfolios to get account names
+          const portfolios = await portfolioService.getPortfolios()
+          console.log('[useCommandCenterData] Fetched portfolios:', portfolios)
+
+          // Create portfolio ID to account name map
+          const portfolioMap = new Map<string, string>()
+          portfolios.forEach(p => {
+            portfolioMap.set(p.id, p.account_name)
+          })
+
+          // Fetch aggregate analytics
+          const aggregateAnalytics = await portfolioService.getAggregateAnalytics()
+          console.log('[useCommandCenterData] Aggregate analytics:', aggregateAnalytics)
+
+          // Fetch positions for each portfolio and combine them
+          const positionPromises = portfolios.map(p => portfolioService.getPositionDetails(p.id))
+          const positionArrays = await Promise.all(positionPromises)
+          const allPositions = positionArrays.flat()
+
+          // Set hero metrics from aggregate data
+          setHeroMetrics({
+            equityBalance: aggregateAnalytics.net_asset_value,
+            targetReturnEOY: 0, // TODO: Calculate from aggregate target prices
+            grossExposure: 0, // TODO: Calculate from positions
+            netExposure: 0, // TODO: Calculate from positions
+            longExposure: 0, // TODO: Calculate from positions
+            shortExposure: 0, // TODO: Calculate from positions
+          })
+
+          // Process holdings with account names
+          const totalValue = aggregateAnalytics.net_asset_value
+          const holdingsData: HoldingRow[] = allPositions.map((pos: any) => {
+            const weight = totalValue > 0 ? (Math.abs(pos.marketValue || 0) / totalValue) * 100 : 0
+            const returnPct = pos.marketValue !== 0 ? ((pos.pnl || 0) / Math.abs(pos.marketValue)) * 100 : 0
+
+            return {
+              id: pos.id,
+              symbol: pos.symbol,
+              quantity: pos.quantity,
+              entryPrice: pos.entry_price || 0,
+              todaysPrice: pos.price || 0,
+              targetPrice: null, // TODO: Fetch target prices
+              marketValue: pos.marketValue || 0,
+              weight,
+              pnlToday: null, // TODO: Calculate from snapshot
+              pnlTotal: pos.pnl || 0,
+              returnPct,
+              targetReturn: null, // TODO: Calculate from target prices
+              beta: null, // TODO: Fetch from position factor exposures
+              positionType: pos.type || 'LONG',
+              investmentClass: pos.investment_class || 'PUBLIC',
+              account_name: portfolioMap.get(pos.portfolio_id) || 'Unknown Account',
+              portfolio_id: pos.portfolio_id
+            }
+          })
+
+          // Sort holdings by portfolio_id and then by weight
+          holdingsData.sort((a, b) => {
+            if (a.portfolio_id !== b.portfolio_id) {
+              return (a.portfolio_id || '').localeCompare(b.portfolio_id || '')
+            }
+            return Math.abs(b.weight) - Math.abs(a.weight)
+          })
+
+          setHoldings(holdingsData)
+
+          // Set performance metrics
+          setPerformanceMetrics({
+            ytdPnl: aggregateAnalytics.total_realized_pnl || 0,
+            mtdPnl: 0, // TODO: Calculate MTD from snapshots
+            cashBalance: 0, // TODO: Calculate from portfolios
+            portfolioBeta90d: aggregateAnalytics.risk_metrics?.portfolio_beta || null,
+            portfolioBeta1y: null,
+            stressTest: null,
+          })
+
+          // Set risk metrics
+          setRiskMetrics({
+            portfolioBeta90d: aggregateAnalytics.risk_metrics?.portfolio_beta || null,
+            portfolioBeta1y: null,
+            topSector: aggregateAnalytics.sector_allocation?.[0] ? {
+              name: aggregateAnalytics.sector_allocation[0].sector,
+              weight: aggregateAnalytics.sector_allocation[0].pct_of_total,
+              vs_sp: 0 // TODO: Calculate vs S&P
+            } : null,
+            largestPosition: aggregateAnalytics.top_holdings?.[0] ? {
+              symbol: aggregateAnalytics.top_holdings[0].symbol,
+              weight: aggregateAnalytics.top_holdings[0].pct_of_total
+            } : null,
+            spCorrelation: null,
+            stressTest: null,
+          })
+
+          setLoading(false)
+          return
+        }
+
+        // INDIVIDUAL PORTFOLIO VIEW: Existing logic
+        console.log('[useCommandCenterData] Fetching individual portfolio data for:', portfolioId)
+
         // Fetch all data in parallel
         const [
           portfolioData,

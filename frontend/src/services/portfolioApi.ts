@@ -168,15 +168,17 @@ export class PortfolioService {
    */
   async getPositionDetails(portfolioId?: string): Promise<Position[]> {
     try {
-      const endpoint = portfolioId 
+      const endpoint = portfolioId
         ? API_ENDPOINTS.POSITIONS.BY_PORTFOLIO(portfolioId)
         : API_ENDPOINTS.POSITIONS.DETAILS;
 
-      const response = await apiClient.get<ApiListResponse<Position>>(
+      const response = await apiClient.get<{positions: Position[], summary: any}>(
         endpoint,
         REQUEST_CONFIGS.STANDARD
       );
-      return response.data || [];
+      // Backend returns {positions: [...], summary: {...}}
+      // apiClient returns data directly, not wrapped in a data field
+      return response.positions || [];
     } catch (error) {
       console.error('Failed to fetch position details:', error);
       throw new Error('Unable to load position data. Please try again.');
