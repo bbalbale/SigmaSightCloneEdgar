@@ -358,12 +358,22 @@ export async function fetchPortfolioSnapshot(portfolioId: string): Promise<Portf
     throw new Error('Authentication token unavailable')
   }
 
-  return await apiClient.get<PortfolioSnapshot>(
+  const response = await apiClient.get<PortfolioSnapshot>(
     `/api/v1/data/portfolio/${portfolioId}/snapshot`,
     {
       headers: { Authorization: `Bearer ${token}` }
     }
   )
+
+  // apiClient returns ApiResponse<T>; unwrap data if available
+  if (response && typeof (response as any).data !== 'undefined') {
+    const snapshot = (response as any).data as PortfolioSnapshot
+    console.log('[fetchPortfolioSnapshot] API response (data wrapper):', snapshot)
+    return snapshot
+  }
+
+  console.log('[fetchPortfolioSnapshot] API response (raw):', response)
+  return response as unknown as PortfolioSnapshot
 }
 
 /**

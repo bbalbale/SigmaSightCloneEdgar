@@ -127,6 +127,7 @@ export const API_ENDPOINTS = {
       `/api/v1/target-prices/${portfolioId}?symbol=${symbol}&position_type=${positionType}`,
     UPDATE: (targetPriceId: string) => `/api/v1/target-prices/target/${targetPriceId}`,
     BULK_UPDATE: (portfolioId: string) => `/api/v1/target-prices/${portfolioId}/bulk-update`,
+    SUMMARY: (portfolioId: string) => `/api/v1/target-prices/${portfolioId}/summary`,
   },
 
   // AI Insights endpoints (Claude-powered portfolio analysis)

@@ -28,6 +28,7 @@ from app.schemas.correlations import (
     PositionFilterConfig, CorrelationCalculationCreate,
     PairwiseCorrelationCreate
 )
+from app.calculations.market_data import get_position_valuation
 from app.services.market_data_service import MarketDataService
 
 logger = logging.getLogger(__name__)
@@ -230,7 +231,7 @@ class CorrelationService:
                     "This duplicates work already done by portfolio aggregation."
                 )
                 portfolio_value = sum(
-                    abs(p.quantity * (p.last_price if p.last_price is not None else p.entry_price or 0))
+                    get_position_valuation(p).abs_market_value
                     for p in portfolio.positions
                 )
 
@@ -396,17 +397,18 @@ class CorrelationService:
         filtered = []
 
         for position in positions:
-            # Calculate position metrics (with fallback to entry_price if last_price is None)
-            price = position.last_price if position.last_price is not None else position.entry_price
-            if price is None:
+            valuation = get_position_valuation(position)
+            if valuation.price is None:
                 logger.warning(
                     f"Position {position.symbol} has no price data (last_price and entry_price both None). "
                     f"Excluding from correlation analysis."
                 )
                 continue
 
-            position_value = abs(position.quantity * price)
-            position_weight = position_value / portfolio_value if portfolio_value > 0 else 0
+            position_value = valuation.abs_market_value
+            position_weight = (
+                position_value / portfolio_value if portfolio_value > 0 else Decimal("0")
+            )
             
             # Apply filters based on mode
             if filter_mode == "value_only":
@@ -702,7 +704,7 @@ class CorrelationService:
             # Find largest position by value (with fallback to entry_price)
             largest_position = max(
                 cluster_positions,
-                key=lambda p: abs(p.quantity * (p.last_price if p.last_price is not None else p.entry_price or 0))
+                key=lambda p: get_position_valuation(p).abs_market_value
             )
             nickname = f"{largest_position.symbol} lookalikes"
             logger.debug(f"  ✅ Using largest position nickname: {nickname}")
@@ -743,12 +745,11 @@ class CorrelationService:
         total_value = Decimal("0")
         
         for position in positions:
-            # Calculate position value with fallback to entry_price
-            price = position.last_price if position.last_price is not None else position.entry_price
-            if price is None:
+            valuation = get_position_valuation(position)
+            if valuation.price is None:
                 continue  # Skip positions with no price data
 
-            position_value = abs(position.quantity * price)
+            position_value = valuation.abs_market_value
             total_value += position_value
 
             if position.symbol in clustered_symbols:
@@ -1061,12 +1062,11 @@ class CorrelationService:
             for symbol in cluster_data["symbols"]:
                 if symbol in symbol_to_position:
                     position = symbol_to_position[symbol]
-                    # Calculate position value with fallback to entry_price
-                    price = position.last_price if position.last_price is not None else position.entry_price
-                    if price is None:
+                    valuation = get_position_valuation(position)
+                    if valuation.price is None:
                         continue  # Skip positions with no price data
 
-                    position_value = abs(position.quantity * price)
+                    position_value = valuation.abs_market_value
                     cluster_value += position_value
                     cluster_positions.append((position, position_value))
             
@@ -1217,11 +1217,8 @@ class CorrelationService:
                 sym = (pos.symbol or "").upper()
                 if sym not in symbol_set:
                     continue
-                price = pos.last_price if pos.last_price is not None else pos.entry_price
-                try:
-                    mv = abs(float(pos.quantity) * float(price)) if price is not None else 0.0
-                except Exception:
-                    mv = 0.0
+                valuation = get_position_valuation(pos)
+                mv = float(valuation.abs_market_value)
                 weights_raw[sym] = weights_raw.get(sym, 0.0) + mv
 
         # Normalize weights across symbols in symbol_set
@@ -1397,10 +1394,9 @@ class CorrelationService:
             # Calculate weights (gross market value with fallback to entry_price)
             symbol_weights = {}
             for pos in positions:
-                price = pos.last_price if pos.last_price else pos.entry_price
-                if price:
-                    weight = abs(float(pos.quantity * price))
-                    symbol_weights[pos.symbol] = weight
+                valuation = get_position_valuation(pos)
+                if valuation.abs_market_value > 0:
+                    symbol_weights[pos.symbol] = float(valuation.abs_market_value)
             
             # Get unique symbols from correlations
             symbols = set()

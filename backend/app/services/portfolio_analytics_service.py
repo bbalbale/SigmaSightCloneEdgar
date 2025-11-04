@@ -16,6 +16,7 @@ from app.models.positions import Position, PositionType
 from app.models.market_data import MarketDataCache, PositionGreeks, PositionFactorExposure
 from app.core.datetime_utils import utc_now, to_utc_iso8601
 from app.core.logging import get_logger
+from app.calculations.market_data import get_position_valuation, PositionValuation
 
 logger = get_logger(__name__)
 
@@ -116,10 +117,9 @@ class PortfolioAnalyticsService:
         """Calculate all portfolio metrics from positions data with equity-based calculations"""
 
         # Initialize metrics
-        long_exposure = 0.0
-        short_exposure = 0.0
-        total_pnl = 0.0
-        unrealized_pnl = 0.0
+        long_exposure = Decimal("0")
+        short_exposure = Decimal("0")
+        unrealized_pnl = Decimal("0")
 
         # Position counters
         total_positions = len(positions)
@@ -137,21 +137,12 @@ class PortfolioAnalyticsService:
 
         # Calculate metrics from positions
         for pos in positions:
-            quantity = float(pos.quantity) if pos.quantity else 0.0
-            entry_price = float(pos.entry_price) if pos.entry_price else 0.0
-            last_price = float(pos.last_price or 0.0)
-
-            # Calculate position market value (keep sign)
-            position_value = quantity * last_price
-
-            # Calculate P&L for this position
-            if entry_price > 0 and last_price > 0:
-                position_cost = quantity * entry_price
-                position_pnl = position_value - position_cost
-                unrealized_pnl += position_pnl
+            valuation: PositionValuation = get_position_valuation(pos)
+            position_value = valuation.market_value
+            unrealized_pnl += valuation.unrealized_pnl
 
             # Simple exposure calculation based on quantity sign
-            if quantity > 0:
+            if position_value >= 0:
                 long_exposure += position_value
                 # Count based on position type
                 if pos.position_type == PositionType.SHORT:
@@ -173,26 +164,33 @@ class PortfolioAnalyticsService:
         net_exposure = long_exposure + short_exposure  # Add negative
 
         # Calculate cash balance from equity (if equity provided)
+        equity_balance_decimal: Optional[Decimal] = None
         if equity_balance is not None:
+            equity_balance_decimal = Decimal(str(equity_balance))
+
+        if equity_balance_decimal is not None:
             # Cash = Equity - Long MV + |Short MV|
-            cash_balance = equity_balance - long_exposure + abs(short_exposure)
-            portfolio_total = equity_balance  # Portfolio total equals equity
-            leverage = gross_exposure / equity_balance if equity_balance > 0 else 0.0
+            cash_balance = equity_balance_decimal - long_exposure + abs(short_exposure)
+            portfolio_total = equity_balance_decimal  # Portfolio total equals equity
+            leverage = gross_exposure / equity_balance_decimal if equity_balance_decimal > 0 else Decimal("0")
         else:
             # Fallback to old calculation if no equity set
-            cash_balance = 0.0
+            cash_balance = Decimal("0")
             portfolio_total = net_exposure  # Just sum of positions
-            leverage = 0.0
-        
+            leverage = Decimal("0")
+
         # Calculate percentages (avoid division by zero)
-        long_percentage = (long_exposure / portfolio_total * 100) if portfolio_total > 0 else 0.0
-        short_percentage = (abs(short_exposure) / portfolio_total * 100) if portfolio_total > 0 else 0.0
-        gross_percentage = (gross_exposure / portfolio_total * 100) if portfolio_total > 0 else 0.0
-        net_percentage = (net_exposure / portfolio_total * 100) if portfolio_total > 0 else 0.0
-        
+        if portfolio_total > 0:
+            long_percentage = (long_exposure / portfolio_total * Decimal("100"))
+            short_percentage = (abs(short_exposure) / portfolio_total * Decimal("100"))
+            gross_percentage = (gross_exposure / portfolio_total * Decimal("100"))
+            net_percentage = (net_exposure / portfolio_total * Decimal("100"))
+        else:
+            long_percentage = short_percentage = gross_percentage = net_percentage = Decimal("0")
+
         # Total P&L includes both realized and unrealized (for now, only unrealized)
         total_pnl = unrealized_pnl  # TODO: Add realized P&L from database
-        realized_pnl = 0.0  # TODO: Calculate from historical data
+        realized_pnl = Decimal("0")  # TODO: Calculate from historical data
 
         # Fetch target return data from latest PortfolioSnapshot
         target_returns = await self._get_target_returns(db, portfolio_id)
@@ -200,26 +198,30 @@ class PortfolioAnalyticsService:
         # Calculate YTD and MTD P&L from snapshots
         period_pnl = await self._calculate_period_pnl(db, portfolio_id)
 
+        equity_balance_output = (
+            round(float(equity_balance_decimal), 2) if equity_balance_decimal is not None else None
+        )
+
         return {
-            "equity_balance": round(equity_balance, 2) if equity_balance is not None else None,
-            "net_asset_value": round(portfolio_total, 2),
-            "total_value": round(portfolio_total, 2),
-            "cash_balance": round(cash_balance, 2),
-            "leverage": round(leverage, 2),
+            "equity_balance": equity_balance_output,
+            "net_asset_value": round(float(portfolio_total), 2),
+            "total_value": round(float(portfolio_total), 2),
+            "cash_balance": round(float(cash_balance), 2),
+            "leverage": round(float(leverage), 2),
             "exposures": {
-                "long_exposure": round(long_exposure, 2),
-                "short_exposure": round(short_exposure, 2),
-                "gross_exposure": round(gross_exposure, 2),
-                "net_exposure": round(net_exposure, 2),
-                "long_percentage": round(long_percentage, 1),
-                "short_percentage": round(short_percentage, 1),
-                "gross_percentage": round(gross_percentage, 1),
-                "net_percentage": round(net_percentage, 1)
+                "long_exposure": round(float(long_exposure), 2),
+                "short_exposure": round(float(short_exposure), 2),
+                "gross_exposure": round(float(gross_exposure), 2),
+                "net_exposure": round(float(net_exposure), 2),
+                "long_percentage": round(float(long_percentage), 1),
+                "short_percentage": round(float(short_percentage), 1),
+                "gross_percentage": round(float(gross_percentage), 1),
+                "net_percentage": round(float(net_percentage), 1)
             },
             "pnl": {
-                "total_pnl": round(total_pnl, 2),
-                "unrealized_pnl": round(unrealized_pnl, 2),
-                "realized_pnl": round(realized_pnl, 2),
+                "total_pnl": round(float(total_pnl), 2),
+                "unrealized_pnl": round(float(unrealized_pnl), 2),
+                "realized_pnl": round(float(realized_pnl), 2),
                 "ytd_pnl": round(period_pnl["ytd_pnl"], 2),
                 "mtd_pnl": round(period_pnl["mtd_pnl"], 2)
             },

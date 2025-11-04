@@ -174,15 +174,17 @@ class BatchOrchestratorV3:
         Returns:
             Summary of batch run
         """
+        normalized_portfolio_ids = self._normalize_portfolio_ids(portfolio_ids)
+
         try:
             if db is None:
                 async with AsyncSessionLocal() as session:
                     return await self._run_sequence_with_session(
-                        session, calculation_date, portfolio_ids
+                        session, calculation_date, normalized_portfolio_ids
                     )
             else:
                 return await self._run_sequence_with_session(
-                    db, calculation_date, portfolio_ids
+                    db, calculation_date, normalized_portfolio_ids
                 )
         finally:
             # Clear batch run tracker when batch completes (success or failure)
@@ -193,7 +195,7 @@ class BatchOrchestratorV3:
         self,
         db: AsyncSession,
         calculation_date: date,
-        portfolio_ids: Optional[List[str]]
+        portfolio_ids: Optional[List[UUID]]
     ) -> Dict[str, Any]:
         """Run 5-phase sequence with provided session"""
 
@@ -213,7 +215,8 @@ class BatchOrchestratorV3:
             phase1_result = await market_data_collector.collect_daily_market_data(
                 calculation_date=calculation_date,
                 lookback_days=365,
-                db=db
+                db=db,
+                portfolio_ids=portfolio_ids
             )
             result['phase_1'] = phase1_result
 
@@ -230,7 +233,8 @@ class BatchOrchestratorV3:
         try:
             logger.info("\n--- Phase 1.5: Fundamental Data Collection ---")
             phase15_result = await fundamentals_collector.collect_fundamentals_data(
-                db=db
+                db=db,
+                portfolio_ids=portfolio_ids
             )
             result['phase_1_5'] = phase15_result
 
@@ -248,7 +252,8 @@ class BatchOrchestratorV3:
             logger.info("\n--- Phase 2: P&L Calculation & Snapshots ---")
             phase2_result = await pnl_calculator.calculate_all_portfolios_pnl(
                 calculation_date=calculation_date,
-                db=db
+                db=db,
+                portfolio_ids=portfolio_ids
             )
             result['phase_2'] = phase2_result
 
@@ -266,7 +271,8 @@ class BatchOrchestratorV3:
             logger.info("\n--- Phase 2.5: Update Position Market Values ---")
             phase25_result = await self._update_all_position_market_values(
                 calculation_date=calculation_date,
-                db=db
+                db=db,
+                portfolio_ids=portfolio_ids
             )
             result['phase_2_5'] = phase25_result
 
@@ -283,7 +289,8 @@ class BatchOrchestratorV3:
         try:
             logger.info("\n--- Phase 2.75: Restore Sector Tags ---")
             phase275_result = await self._restore_all_sector_tags(
-                db=db
+                db=db,
+                portfolio_ids=portfolio_ids
             )
             result['phase_2_75'] = phase275_result
 
@@ -301,7 +308,8 @@ class BatchOrchestratorV3:
             logger.info("\n--- Phase 3: Risk Analytics ---")
             phase3_result = await analytics_runner.run_all_portfolios_analytics(
                 calculation_date=calculation_date,
-                db=db
+                db=db,
+                portfolio_ids=portfolio_ids
             )
             result['phase_3'] = phase3_result
 
@@ -320,7 +328,8 @@ class BatchOrchestratorV3:
     async def _update_all_position_market_values(
         self,
         calculation_date: date,
-        db: AsyncSession
+        db: AsyncSession,
+        portfolio_ids: Optional[List[UUID]] = None
     ) -> Dict[str, Any]:
         """
         Update last_price and market_value for all active positions
@@ -348,27 +357,48 @@ class BatchOrchestratorV3:
                     Position.deleted_at.is_(None)
                 )
             )
+            if portfolio_ids is not None:
+                positions_query = positions_query.where(Position.portfolio_id.in_(portfolio_ids))
+
             positions_result = await db.execute(positions_query)
             positions = positions_result.scalars().all()
 
             logger.info(f"Found {len(positions)} active positions to update")
+
+            if not positions:
+                return {
+                    'success': True,
+                    'positions_updated': 0,
+                    'positions_skipped': 0,
+                    'total_positions': 0
+                }
+
+            # Bulk-load market data for all symbols to avoid N+1 queries
+            symbols = {position.symbol for position in positions if position.symbol}
+            price_map: Dict[str, Decimal] = {}
+
+            if symbols:
+                price_query = select(MarketDataCache.symbol, MarketDataCache.close).where(
+                    and_(
+                        MarketDataCache.symbol.in_(symbols),
+                        MarketDataCache.date == calculation_date
+                    )
+                )
+                price_result = await db.execute(price_query)
+                price_map = {
+                    row[0]: row[1]
+                    for row in price_result.fetchall()
+                    if row[1] is not None
+                }
 
             positions_updated = 0
             positions_skipped = 0
 
             for position in positions:
                 # Get current price from market_data_cache
-                price_query = select(MarketDataCache).where(
-                    and_(
-                        MarketDataCache.symbol == position.symbol,
-                        MarketDataCache.date == calculation_date
-                    )
-                )
-                price_result = await db.execute(price_query)
-                market_data = price_result.scalar_one_or_none()
+                current_price = price_map.get(position.symbol)
 
-                if market_data and market_data.close and market_data.close > 0:
-                    current_price = market_data.close
+                if current_price and current_price > 0:
 
                     # Calculate market value
                     # For stocks: quantity * price
@@ -415,7 +445,8 @@ class BatchOrchestratorV3:
 
     async def _restore_all_sector_tags(
         self,
-        db: AsyncSession
+        db: AsyncSession,
+        portfolio_ids: Optional[List[UUID]] = None
     ) -> Dict[str, Any]:
         """
         Restore sector tags for all portfolios based on company profile data.
@@ -438,6 +469,9 @@ class BatchOrchestratorV3:
             portfolios_query = select(Portfolio).where(
                 Portfolio.deleted_at.is_(None)
             )
+            if portfolio_ids is not None:
+                portfolios_query = portfolios_query.where(Portfolio.id.in_(portfolio_ids))
+
             portfolios_result = await db.execute(portfolios_query)
             portfolios = portfolios_result.scalars().all()
 
@@ -496,6 +530,32 @@ class BatchOrchestratorV3:
                 'error': str(e),
                 'portfolios_processed': 0
             }
+
+    def _normalize_portfolio_ids(
+        self,
+        portfolio_ids: Optional[List[str]]
+    ) -> Optional[List[UUID]]:
+        """
+        Convert incoming portfolio IDs (strings/UUIDs) into UUID objects.
+        Returns None when no filter is provided, or an empty list when the
+        caller explicitly provided IDs but none were valid.
+        """
+        if portfolio_ids is None:
+            return None
+
+        normalized: List[UUID] = []
+
+        for portfolio_id in portfolio_ids:
+            if isinstance(portfolio_id, UUID):
+                normalized.append(portfolio_id)
+                continue
+
+            try:
+                normalized.append(UUID(str(portfolio_id)))
+            except (TypeError, ValueError):
+                logger.warning(f"Invalid portfolio ID '{portfolio_id}', skipping")
+
+        return normalized
 
     async def _get_last_batch_run_date(self, db: AsyncSession) -> Optional[date]:
         """Get the date of the last successful batch run"""

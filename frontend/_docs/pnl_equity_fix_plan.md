@@ -1,99 +1,46 @@
 # SigmaSight Equity & P&L Remediation Plan
 
-## 1. Background
-- **Option contracts understated**: Phase 2 of the batch run (`app/batch/pnl_calculator.py`) computes position P&L as `price_change * quantity`, omitting the 100× option contract multiplier. Option-heavy portfolios therefore report only 1 % of their true daily P&L, and rolled equity is suppressed by the same factor.
-- **Rolled equity not propagated**: The batch updates `PortfolioSnapshot.equity_balance`, but `Portfolio.equity_balance` remains at the user’s initial NAV. Downstream analytics (factor weighting, sector exposure, target price dollar conversions, etc.) mostly read from the `Portfolio` table, so they continue using stale denominators even after P&L rolls forward.
-- **Snapshot `total_value` = gross exposure**: Snapshots store `gross_exposure` in the `total_value` column. When the snapshot refresh service re-computes P&L by comparing `current_value` to the previous snapshot’s `total_value`, heavily hedged portfolios can show spurious P&L swings because long/short netting is ignored.
-- **Alternative snapshot paths diverge**: Ad‑hoc snapshot creation (e.g., `snapshot_refresh_service`) bypasses Phase 2’s equity rollforward logic, so on-demand recalculations do not benefit from the same fixes applied in the batch.
+_Last reviewed: 2025-11-04_
 
-## 2. Goals
-1. Restore accurate daily and cumulative P&L for all asset classes (stocks, options, shorts, privates).
-2. Ensure the authoritative equity balance used across analytics reflects the rolled-forward NAV, with `Portfolio.equity_balance` established as the source of truth.
-3. Clarify and/or realign snapshot totals so consumers understand true net asset value vs. gross exposure, storing NAV explicitly.
-4. Unify snapshot generation paths to reuse the same validated calculation logic.
-5. Provide a backfill plan to repair existing snapshots and equity balances without data loss.
+## 1. Current Implementation Snapshot
+- **Position P&L fallback visibility** – `_calculate_position_pnl` now calls `get_previous_trading_day_price` with a configurable lookback (`backend/app/batch/pnl_calculator.py:360-377`). When the immediate prior close is missing, the calculator walks back up to ten calendar days and logs when a fallback price is used.
+- **Market data helper** – `get_previous_trading_day_price` returns both price and price date, enabling diagnostics and reuse (`backend/app/calculations/market_data.py:258-323`). `calculate_daily_pnl` applies the broader lookback and reports daily returns aligned with P&L sign for both long and short positions (`backend/app/calculations/market_data.py:301-359`).
+- **Shared valuation function** – `get_position_valuation` centralises multiplier, cost-basis, and unrealised P&L calculations (`backend/app/calculations/market_data.py:105-204`). `get_position_value` delegates to it whenever recalculation is required (`backend/app/calculations/market_data.py:206-229`).
+- **Service layer alignment** – `PortfolioAnalyticsService`, `PortfolioDataService`, and `CorrelationService` now rely on the shared valuation helper for all market value and exposure maths (see `backend/app/services/portfolio_analytics_service.py:118-226`, `backend/app/services/portfolio_data_service.py:90-162`, `backend/app/services/correlation_service.py:226-232`, `384-414`, `742-780`, `1058-1124`, `1217-1225`, `1397-1403`). 
+- **Regression coverage** – `backend/tests/unit/test_market_data_valuation.py` validates option multipliers, fallback behaviour, short-position daily returns, and analytics aggregation.
 
-### Non-Goals
-- Introducing realized P&L, corporate actions, or fee accounting (tracked separately).
-- Rewriting the entire batch orchestrator or changing trading-calendar behavior.
-- Frontend UI redesign (limited to adapting to corrected backend fields if needed).
+## 2. Verified Outcomes
+- Position and portfolio P&L no longer collapse to zero when the prior trading day price is absent, provided the price exists elsewhere within the ten-day lookback window.
+- Option contracts and short exposures flow correctly through analytics, top-position listings, and correlation weights thanks to the shared valuation helper.
+- Unit tests covering the new helper, fallback logic, short-position returns, and analytics aggregation pass under `pytest tests/unit/test_market_data_valuation.py`.
 
-## 3. Current Workflow Summary
+## 3. Remaining Gaps
+1. Frontend dashboards have not yet been regression-tested against the corrected APIs; verify charts, leverage cards, and top-position widgets.
+2. Historical equity/P&L backfill has not been scheduled. Existing snapshots still reflect the old calculations on days where data gaps suppressed P&L.
 
-| Phase | Responsibility | Key Gap |
-| --- | --- | --- |
-| 1 – Market Data Collector | Populate `market_data_cache` with latest closes | Correct |
-| 2 – P&L Calculator | Roll equity forward using mark-to-market P&L | Misses option multiplier |
-| 2.5 – Position MV Update | Write `last_price`, `market_value`, `unrealized_pnl` | Correct multiplier here |
-| Snapshot creation | Aggregate exposures, store `total_value`, `daily_pnl`, equity | Uses gross exposure for `total_value`; leaves `Portfolio.equity_balance` stale |
-| API services | Combine snapshot data with portfolio table fields | Many services still reading the stale `Portfolio.equity_balance` |
+## 4. Implementation Status & Next Actions
 
-## 4. Proposed Solution Strategy
-
-### 4.1 Correct per-position P&L
-- Reuse `app.calculations.market_data.calculate_position_market_value` or the canonical `get_position_value` helper inside `_calculate_position_pnl`.
-- Explicitly apply the 100× multiplier for option types when deriving `price_change`.
-- Add regression tests that load option positions and validate both unrealized and daily P&L.
-
-### 4.2 Propagate rolled equity (Option A)
-- After each successful Phase 2 calculation, persist the rolled-forward NAV back to `Portfolio.equity_balance` within the same transaction. This keeps the portfolio table authoritative and avoids downstream service churn.
-- Review transactional boundaries so concurrent writers cannot overwrite the persisted NAV unexpectedly.
-
-### 4.3 Align snapshot totals (store NAV explicitly)
-- Replace the overloaded `total_value` field with a clearly named `net_asset_value`, and continue keeping gross and net exposure metrics alongside it.
-- Update `_calculate_pnl` (non-batch path) to reference NAV/equity rather than gross exposure when computing returns.
-- Coordinate with frontend to adopt the new nomenclature while still presenting both NAV and gross/net exposure in the UI.
-
-### 4.4 Consolidate snapshot generation
-- Refactor `snapshot_refresh_service` (and other ad-hoc callers) to invoke `PnLCalculator.calculate_portfolio_pnl` rather than duplicating logic.
-- Provide an asynchronous task wrapper that safely executes the batch calculator for a single portfolio/date, reusing Phase 2 validations.
-
-### 4.5 Data repair & validation
-- Design a backfill script that:
-  1. Recomputes daily P&L for a configurable date range.
-  2. Updates `PortfolioSnapshot` equity and P&L fields.
-  3. Synchronizes `Portfolio.equity_balance` with the latest snapshot per portfolio.
-- Produce before/after metrics (max delta, portfolio-level totals) to confirm accuracy.
-- Provide a runnable utility (see `backend/scripts/analysis/backfill_net_asset_value.py`) with dry-run support, portfolio filters, and date-range controls so data teams can safely rerun Phase 2 for historical gaps.
-
-## 5. Implementation Plan
-
-| Step | Owner | Description | Dependencies |
+| Step | Owner | Description | Status |
 | --- | --- | --- | --- |
-| A | Backend | Patch `_calculate_position_pnl` to use canonical valuation and multiplier | None |
-| B | Backend | Add regression tests for stock/option/short P&L in `tests/batch` | Step A |
-| C | Backend | Update Phase 2 to persist rolled equity back to `Portfolio` (or create equity accessor service) | Step A |
-| D | Backend | Rename snapshot `total_value` → `net_asset_value`, adjust calculations, update consumers | Step C |
-| E | Backend | Refactor snapshot refresh flow to call Phase 2 logic; add rate limiting guardrails | Steps A–D |
-| F | Backend | Write migration/backfill script; dry-run in staging; capture metrics | Steps A–E |
-| G | Frontend | Audit usages of `equity_balance`/`total_value`; update to `net_asset_value` while still surfacing gross/net exposure | Steps C–D |
-| H | QA/Data | Execute validation suite (unit + integration + data reconciliation) | Steps A–F |
+| A | Backend | Harden prior-price lookup for Phase 2 and live market updates | ✅ Completed (`get_previous_trading_day_price`) |
+| B | Backend | Provide shared valuation helper with option multiplier support | ✅ Completed (`get_position_valuation`) |
+| C | Backend | Refactor analytics/data services to consume the helper | ✅ Completed (analytics/data/correlation services updated) |
+| D | Backend | Add regression tests covering options/short scenarios | ✅ Completed (`tests/unit/test_market_data_valuation.py`) |
+| E | Frontend | Smoke-test dashboards and analytics cards against updated fields | ⏳ Pending |
+| F | Data/QA | Backfill historic snapshots / reconcile NAV trajectories | ⏳ Pending |
 
-## 6. Testing & Verification
-- **Unit tests**: Expand `tests/batch/test_batch_reality_check.py` with option and hedged-portfolio fixtures; assert proper multiplier usage.
-- **Integration tests**: Simulate Phase 1–3 run on sample portfolios; compare expected vs. actual equity trajectories.
-- **Data reconciliation**: Generate portfolio-level P&L and equity deltas before/after the fix; ensure deviations match the previously missing 100× multiplier or correct netting.
-- **Frontend checks**: Regression test dashboards and analytics cards to confirm updated equity numbers do not break formatting, leverage calculations, or charts.
+## 5. Testing & Verification
+- **Unit** – New tests ensure valuation multipliers, fallback prices, short-position daily returns, and analytics aggregation behave correctly (`tests/unit/test_market_data_valuation.py`). 
+- **Integration** – Recommended next steps: hit `/api/v1/analytics/overview`, `/api/v1/data/portfolios`, `/api/v1/data/portfolio/{id}/complete`, and correlation endpoints with seeded option-heavy portfolios to confirm consistent outputs.
+- **Data reconciliation** – After running the batch with the new logic, compare recalculated snapshots to historical market moves to quantify corrections before executing any backfill.
+- **Frontend** – Validate dashboards (exposures, leverage, top positions, correlation summaries) once backend endpoints redeploy.
 
-## 7. Deployment & Backfill
-1. Ship backend fixes behind feature flag or maintenance window.
-2. Run backfill script in staging; verify snapshot counts, equity totals, and option P&L corrections.
-3. Repeat in production during low-traffic window; monitor logs for missed price data or batch failures.
-4. Notify stakeholders once reconciliation reports show parity with expected NAV history.
+## 6. Risks & Mitigations
+- **Residual data gaps** – Prices outside the ten-day lookback still yield zero P&L. Monitor batch logs and run market data backfills when gaps appear.
+- **Service drift** – When introducing new analytics endpoints, ensure they call `get_position_valuation`; run repository-wide audits (`rg "quantity *"`).
+- **Historical recalculation cost** – Backfilling multi-year histories can be expensive; execute during maintenance windows and in portfolio batches.
 
-## 8. Risks & Mitigations
-- **Historical data gaps**: Backfill relies on `market_data_cache`; ensure missing dates are fetched prior to recompute.
-- **Concurrent batch runs**: Updating `Portfolio.equity_balance` must be transactional to avoid race conditions with other writers.
-- **Frontend assumptions**: UI components may expect `total_value` to equal “portfolio value”; coordinate messaging and potential visual updates before deployment.
-- **Performance**: Recomputing multiple years of snapshots can be expensive; run in batches and monitor DB load.
-
-## 9. Open Questions & Current Decisions
-1. **Client data surfaces**: We will expose both NAV (`net_asset_value`) and gross/net exposure to clients; frontend updates are required but aligned with current UX goals.
-2. **API compatibility**: Renaming to `net_asset_value` constitutes a breaking change; ensure versioned responses or coordinated frontend updates before rollout.
-3. **Realized P&L**: A separate initiative will address realized-vs-unrealized splits; implement the fixes here first, then re-evaluate realized P&L requirements.
-4. **User communication**: Environment is still in development—no production customer messaging required yet, but document changes for future release notes.
-
----
-
-**Next Actions**  
-Start with Step A (option multiplier fix) and Step C (equity propagation), as they unlock downstream verification and limit further data drift. Once merged, execute the backfill plan and coordinate frontend adjustments.
+## 7. Immediate Next Steps
+1. Coordinate frontend QA to verify UI elements against corrected API responses (Step E).
+2. Plan and execute a controlled historical backfill leveraging the enhanced pricing logic (Step F).
+3. Prepare a reconciliation plan ahead of the backfill to quantify and communicate equity adjustments.

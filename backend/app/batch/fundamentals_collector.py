@@ -12,6 +12,7 @@ Provider: YahooQuery for all fundamental data
 import asyncio
 from datetime import date
 from typing import Dict, List, Set, Any, Optional
+from uuid import UUID
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -38,26 +39,29 @@ class FundamentalsCollector:
 
     async def collect_fundamentals_data(
         self,
-        db: Optional[AsyncSession] = None
+        db: Optional[AsyncSession] = None,
+        portfolio_ids: Optional[List[UUID]] = None
     ) -> Dict[str, Any]:
         """
         Main entry point - collect fundamental data for all portfolio symbols
 
         Args:
             db: Optional database session
+            portfolio_ids: Optional list of portfolios to scope symbol selection
 
         Returns:
             Summary of fundamentals collection
         """
         if db is None:
             async with AsyncSessionLocal() as session:
-                return await self._collect_with_session(session)
+                return await self._collect_with_session(session, portfolio_ids)
         else:
-            return await self._collect_with_session(db)
+            return await self._collect_with_session(db, portfolio_ids)
 
     async def _collect_with_session(
         self,
-        db: AsyncSession
+        db: AsyncSession,
+        portfolio_ids: Optional[List[UUID]] = None
     ) -> Dict[str, Any]:
         """Collect fundamentals with provided session"""
 
@@ -71,7 +75,7 @@ class FundamentalsCollector:
 
         try:
             # Step 1: Get all unique symbols from positions (PUBLIC only)
-            symbols = await self._get_portfolio_symbols(db)
+            symbols = await self._get_portfolio_symbols(db, portfolio_ids)
             result['symbols_evaluated'] = len(symbols)
 
             if not symbols:
@@ -119,7 +123,11 @@ class FundamentalsCollector:
             result['errors'].append(str(e))
             return result
 
-    async def _get_portfolio_symbols(self, db: AsyncSession) -> List[str]:
+    async def _get_portfolio_symbols(
+        self,
+        db: AsyncSession,
+        portfolio_ids: Optional[List[UUID]] = None
+    ) -> List[str]:
         """Get unique PUBLIC symbols from all positions"""
         try:
             # Only fetch for PUBLIC positions (stocks/ETFs)
@@ -127,6 +135,8 @@ class FundamentalsCollector:
             stmt = select(Position.symbol).distinct().where(
                 Position.investment_class == 'PUBLIC'
             )
+            if portfolio_ids is not None:
+                stmt = stmt.where(Position.portfolio_id.in_(portfolio_ids))
             result = await db.execute(stmt)
             symbols = [row[0] for row in result.fetchall() if row[0]]
 

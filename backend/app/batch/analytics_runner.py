@@ -36,7 +36,8 @@ class AnalyticsRunner:
     async def run_all_portfolios_analytics(
         self,
         calculation_date: date,
-        db: Optional[AsyncSession] = None
+        db: Optional[AsyncSession] = None,
+        portfolio_ids: Optional[List[UUID]] = None
     ) -> Dict[str, Any]:
         """
         Run analytics for all active portfolios
@@ -56,9 +57,9 @@ class AnalyticsRunner:
 
         if db is None:
             async with AsyncSessionLocal() as session:
-                result = await self._process_all_with_session(session, calculation_date)
+                result = await self._process_all_with_session(session, calculation_date, portfolio_ids)
         else:
-            result = await self._process_all_with_session(db, calculation_date)
+            result = await self._process_all_with_session(db, calculation_date, portfolio_ids)
 
         duration = int(asyncio.get_event_loop().time() - start_time)
         result['duration_seconds'] = duration
@@ -72,13 +73,16 @@ class AnalyticsRunner:
     async def _process_all_with_session(
         self,
         db: AsyncSession,
-        calculation_date: date
+        calculation_date: date,
+        portfolio_ids: Optional[List[UUID]] = None
     ) -> Dict[str, Any]:
         """Process all portfolios with provided session"""
         from sqlalchemy import select
 
         # Get all active portfolios
         query = select(Portfolio).where(Portfolio.deleted_at.is_(None))
+        if portfolio_ids is not None:
+            query = query.where(Portfolio.id.in_(portfolio_ids))
         result = await db.execute(query)
         portfolios = result.scalars().all()
 

@@ -23,6 +23,7 @@ from app.models.positions import Position, PositionType
 from app.models.position_realized_events import PositionRealizedEvent
 from app.models.snapshots import PortfolioSnapshot
 from app.models.market_data import MarketDataCache
+from app.calculations.market_data import get_previous_trading_day_price
 from app.calculations.snapshots import create_portfolio_snapshot
 from app.utils.trading_calendar import trading_calendar
 
@@ -43,7 +44,8 @@ class PnLCalculator:
     async def calculate_all_portfolios_pnl(
         self,
         calculation_date: date,
-        db: Optional[AsyncSession] = None
+        db: Optional[AsyncSession] = None,
+        portfolio_ids: Optional[List[UUID]] = None
     ) -> Dict[str, Any]:
         """
         Calculate P&L for all active portfolios
@@ -63,9 +65,9 @@ class PnLCalculator:
 
         if db is None:
             async with AsyncSessionLocal() as session:
-                result = await self._process_all_with_session(session, calculation_date)
+                result = await self._process_all_with_session(session, calculation_date, portfolio_ids)
         else:
-            result = await self._process_all_with_session(db, calculation_date)
+            result = await self._process_all_with_session(db, calculation_date, portfolio_ids)
 
         duration = int(asyncio.get_event_loop().time() - start_time)
         result['duration_seconds'] = duration
@@ -79,12 +81,15 @@ class PnLCalculator:
     async def _process_all_with_session(
         self,
         db: AsyncSession,
-        calculation_date: date
+        calculation_date: date,
+        portfolio_ids: Optional[List[UUID]] = None
     ) -> Dict[str, Any]:
         """Process all portfolios with provided session"""
 
         # Get all active portfolios
         query = select(Portfolio).where(Portfolio.deleted_at.is_(None))
+        if portfolio_ids is not None:
+            query = query.where(Portfolio.id.in_(portfolio_ids))
         result = await db.execute(query)
         portfolios = result.scalars().all()
 
@@ -352,19 +357,31 @@ class PnLCalculator:
             logger.warning(f"      {position.symbol}: No current price, skipping P&L")
             return Decimal('0')
 
-        # Get previous price
-        previous_date = trading_calendar.get_previous_trading_day(calculation_date)
-        previous_price = None
+        # Get previous price with configurable lookback
+        previous_price: Optional[Decimal] = None
+        price_date_used: Optional[date] = None
 
-        if previous_date:
-            previous_price = await self._get_cached_price(db, position.symbol, previous_date)
+        price_lookup = await get_previous_trading_day_price(
+            db=db,
+            symbol=position.symbol,
+            current_date=calculation_date,
+            max_lookback_days=10,
+        )
 
-        # CRITICAL FIX (2025-11-03): If no previous price, use current price (no change on Day 1)
-        # This ensures Day 1 P&L = $0, and equity starts at the correct initial value.
-        # DO NOT use entry_price here - that would give cumulative P&L, not daily P&L!
-        if not previous_price:
+        if price_lookup:
+            previous_price, price_date_used = price_lookup
+
+        if previous_price is None:
             previous_price = current_price
-            logger.debug(f"      {position.symbol}: No previous price, using current (P&L=0)")
+            logger.debug(
+                f"      {position.symbol}: No prior close within lookback, using current price (P&L=0)"
+            )
+        else:
+            expected_previous = trading_calendar.get_previous_trading_day(calculation_date)
+            if price_date_used and expected_previous and price_date_used != expected_previous:
+                logger.debug(
+                    f"      {position.symbol}: Using fallback prior close from {price_date_used}"
+                )
 
         # Calculate P&L (apply option contract multiplier when applicable)
         price_change = current_price - previous_price

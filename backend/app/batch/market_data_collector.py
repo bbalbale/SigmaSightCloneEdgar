@@ -71,7 +71,8 @@ class MarketDataCollector:
         self,
         calculation_date: date,
         lookback_days: int = 365,
-        db: Optional[AsyncSession] = None
+        db: Optional[AsyncSession] = None,
+        portfolio_ids: Optional[List[UUID]] = None
     ) -> Dict[str, Any]:
         """
         Main entry point - collect all market data for a calculation date
@@ -80,6 +81,7 @@ class MarketDataCollector:
             calculation_date: Date to collect data for
             lookback_days: Number of days of historical data (default: 365 for vol analysis)
             db: Optional database session (creates one if not provided)
+            portfolio_ids: Optional list of portfolios to scope symbol universe
 
         Returns:
             Data coverage report with metrics
@@ -94,11 +96,11 @@ class MarketDataCollector:
         if db is None:
             async with AsyncSessionLocal() as session:
                 result = await self._collect_with_session(
-                    session, calculation_date, lookback_days
+                    session, calculation_date, lookback_days, portfolio_ids
                 )
         else:
             result = await self._collect_with_session(
-                db, calculation_date, lookback_days
+                db, calculation_date, lookback_days, portfolio_ids
             )
 
         duration = int(asyncio.get_event_loop().time() - start_time)
@@ -116,12 +118,13 @@ class MarketDataCollector:
         self,
         db: AsyncSession,
         calculation_date: date,
-        lookback_days: int
+        lookback_days: int,
+        portfolio_ids: Optional[List[UUID]] = None
     ) -> Dict[str, Any]:
         """Internal collection with provided DB session"""
 
         # Step 1: Get symbol universe
-        symbols = await self._get_symbol_universe(db)
+        symbols = await self._get_symbol_universe(db, portfolio_ids)
         logger.info(f"Symbol universe: {len(symbols)} symbols")
 
         # Step 2: TWO-PHASE DATE RANGE DETERMINATION
@@ -258,7 +261,11 @@ class MarketDataCollector:
             'profiles_failed': profile_results['symbols_failed']
         }
 
-    async def _get_symbol_universe(self, db: AsyncSession) -> Set[str]:
+    async def _get_symbol_universe(
+        self,
+        db: AsyncSession,
+        portfolio_ids: Optional[List[UUID]] = None
+    ) -> Set[str]:
         """
         Get all unique symbols from active positions + factor ETFs
 
@@ -267,6 +274,9 @@ class MarketDataCollector:
         """
         # Get all position symbols
         query = select(Position.symbol).distinct()
+        if portfolio_ids is not None:
+            query = query.where(Position.portfolio_id.in_(portfolio_ids))
+
         result = await db.execute(query)
         position_symbols = {row[0] for row in result.fetchall()}
 

@@ -3,6 +3,21 @@ import { authManager } from './authManager'
 import { API_ENDPOINTS, REQUEST_CONFIGS } from '@/config/api'
 import type { TargetPrice } from '@/lib/types'
 
+export interface PortfolioTargetPriceSummary {
+  portfolio_id: string
+  portfolio_name: string
+  total_positions: number
+  positions_with_targets: number
+  coverage_percentage: number | null
+  weighted_expected_return_eoy: number | null
+  weighted_expected_return_next_year: number | null
+  weighted_downside_return: number | null
+  expected_sharpe_ratio: number | null
+  expected_sortino_ratio: number | null
+  target_prices?: TargetPrice[]
+  last_updated: string | null
+}
+
 /**
  * Target Price API Service - User-defined price targets
  *
@@ -111,6 +126,29 @@ export class TargetPriceApi {
       }
     )
     return resp as TargetPrice
+  }
+
+  /**
+   * Fetch portfolio-level target price summary (weighted returns, coverage, etc.)
+   * @param portfolioId - Portfolio UUID
+   */
+  async summary(portfolioId: string): Promise<PortfolioTargetPriceSummary> {
+    const resp = await apiClient.get(
+      API_ENDPOINTS.TARGET_PRICES.SUMMARY(portfolioId),
+      {
+        ...REQUEST_CONFIGS.STANDARD,
+        headers: this.getAuthHeaders(),
+      }
+    )
+
+    if (resp && typeof (resp as any).data !== 'undefined') {
+      const summary = (resp as any).data as PortfolioTargetPriceSummary
+      console.log('[targetPriceService.summary] API response (data wrapper):', summary)
+      return summary
+    }
+
+    console.log('[targetPriceService.summary] API response (raw):', resp)
+    return resp as PortfolioTargetPriceSummary
   }
 
   /**

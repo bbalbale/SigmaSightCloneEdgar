@@ -2,15 +2,17 @@
 Market Data Calculation Functions - Section 1.4.1
 Implements core position valuation and P&L calculations with database integration
 """
+from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from decimal import Decimal
 from typing import Dict, List, Optional, Any, Tuple
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, and_, func
-import pandas as pd
 
-from app.models.positions import Position, PositionType
+import pandas as pd
+from sqlalchemy import select, and_, func
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.models.market_data import MarketDataCache
+from app.models.positions import Position, PositionType
 from app.services.market_data_service import market_data_service
 from app.core.logging import get_logger
 
@@ -87,6 +89,68 @@ async def calculate_position_market_value(
     return result
 
 
+@dataclass(frozen=True)
+class PositionValuation:
+    """
+    Container for per-position valuation metrics used across services.
+    """
+    price: Optional[Decimal]
+    multiplier: Decimal
+    market_value: Decimal
+    abs_market_value: Decimal
+    cost_basis: Decimal
+    unrealized_pnl: Decimal
+
+
+def get_position_valuation(
+    position: Position,
+    *,
+    price: Optional[Decimal] = None
+) -> PositionValuation:
+    """
+    Calculate canonical valuation metrics for a position.
+
+    Args:
+        position: Position instance.
+        price: Optional override price to use instead of last_price / entry_price.
+
+    Returns:
+        PositionValuation dataclass with signed and absolute market value,
+        cost basis, unrealized P&L, and the price used.
+    """
+    quantity = position.quantity or Decimal("0")
+    multiplier = Decimal("100") if is_options_position(position) else Decimal("1")
+
+    resolved_price: Optional[Decimal]
+    if price is not None:
+        resolved_price = price
+    elif position.last_price is not None:
+        resolved_price = position.last_price
+    else:
+        resolved_price = position.entry_price
+
+    if resolved_price is None:
+        market_value = Decimal("0")
+    else:
+        market_value = quantity * resolved_price * multiplier
+
+    cost_basis = Decimal("0")
+    unrealized_pnl = Decimal("0")
+    if position.entry_price is not None:
+        cost_basis = quantity * position.entry_price * multiplier
+        if resolved_price is not None:
+            unrealized_pnl = market_value - cost_basis
+
+    return PositionValuation(
+        price=resolved_price,
+        multiplier=multiplier,
+        market_value=market_value,
+        abs_market_value=abs(market_value),
+        cost_basis=cost_basis,
+        unrealized_pnl=unrealized_pnl,
+    )
+
+
 def get_position_value(
     position: Position,
     signed: bool = True,
@@ -139,25 +203,10 @@ def get_position_value(
     # Use cached value if available and not forcing recalculation
     if not recalculate and position.market_value is not None:
         value = position.market_value
-    else:
-        # Recalculate using canonical logic
-        multiplier = Decimal('100') if is_options_position(position) else Decimal('1')
-        price = position.last_price if position.last_price is not None else position.entry_price
+        return value if signed else abs(value)
 
-        if price is None:
-            logger.warning(f"Position {position.id} ({position.symbol}) has no price data")
-            value = Decimal('0')
-        else:
-            # Signed value: quantity already carries the sign
-            # - LONG/LC/LP: positive quantity → positive value
-            # - SHORT/SC/SP: negative quantity → negative value
-            value = position.quantity * price * multiplier
-
-    # Return signed or absolute value
-    if signed:
-        return value
-    else:
-        return abs(value)
+    valuation = get_position_valuation(position)
+    return valuation.market_value if signed else valuation.abs_market_value
 
 
 async def get_returns(
@@ -259,8 +308,8 @@ async def get_previous_trading_day_price(
     db: AsyncSession, 
     symbol: str,
     current_date: Optional[date] = None,
-    lookback_days: int = 1
-) -> Optional[Decimal]:
+    max_lookback_days: int = 5
+) -> Optional[Tuple[Decimal, date]]:
     """
     Get the most recent price before current_date from market_data_cache
     
@@ -268,34 +317,43 @@ async def get_previous_trading_day_price(
         db: Database session
         symbol: Symbol to lookup
         current_date: Date to look before (defaults to today)
-        lookback_days: Number of days to look back (default 1 for previous trading day)
-        
+        max_lookback_days: Maximum number of calendar days to look back when the
+            immediate prior trading day price is missing. Defaults to 5.
+
     Returns:
-        Previous trading day closing price, or None if not found
+        Tuple of (price, price_date) if found within the lookback window, else None.
     """
     if not current_date:
         current_date = date.today()
-    
+
     # Calculate the earliest date to search for
-    earliest_date = current_date - timedelta(days=lookback_days)
-    
-    logger.debug(f"Looking up price for {symbol} between {earliest_date} and {current_date}")
-    
-    stmt = select(MarketDataCache.close).where(
+    max_lookback_days = max(1, max_lookback_days)
+    earliest_date = current_date - timedelta(days=max_lookback_days)
+
+    logger.debug(
+        f"Looking up price for {symbol} between {earliest_date} (inclusive) and {current_date} (exclusive)"
+    )
+
+    stmt = select(MarketDataCache).where(
         MarketDataCache.symbol == symbol.upper(),
         MarketDataCache.date < current_date,
         MarketDataCache.date >= earliest_date
     ).order_by(MarketDataCache.date.desc()).limit(1)
-    
+
     result = await db.execute(stmt)
     price_record = result.scalar_one_or_none()
-    
+
     if price_record:
-        logger.debug(f"Found price for {symbol}: ${price_record}")
-        return price_record
-    else:
-        logger.warning(f"No price found for {symbol} in {lookback_days} day lookback window")
-        return None
+        if price_record.date < current_date - timedelta(days=1):
+            logger.debug(
+                f"Using fallback prior close for {symbol}: {price_record.date} (target {current_date})"
+            )
+        return price_record.close, price_record.date
+
+    logger.warning(
+        f"No prior close found for {symbol} within {max_lookback_days} day lookback window (target {current_date})"
+    )
+    return None
 
 
 async def calculate_daily_pnl(
@@ -324,8 +382,19 @@ async def calculate_daily_pnl(
     logger.debug(f"Calculating daily P&L for {position.symbol} at current price ${current_price}")
     
     # Step 1: Try to get previous price from market_data_cache
-    previous_price = await get_previous_trading_day_price(db, position.symbol)
-    
+    price_lookup = await get_previous_trading_day_price(
+        db,
+        position.symbol,
+        current_date=date.today(),
+        max_lookback_days=10,
+    )
+
+    previous_price: Optional[Decimal] = None
+    previous_price_date: Optional[date] = None
+
+    if price_lookup is not None:
+        previous_price, previous_price_date = price_lookup
+
     # Step 2: Fallback to position.last_price if market data not available
     if previous_price is None:
         previous_price = position.last_price
@@ -355,8 +424,12 @@ async def calculate_daily_pnl(
     # Daily P&L calculation
     daily_pnl = current_value - previous_value
     
-    # Daily return (percentage change in price)
-    daily_return = (current_price - previous_price) / previous_price if previous_price > 0 else Decimal('0')
+    # Daily return aligned with P&L direction (use absolute previous value)
+    daily_return = (
+        daily_pnl / abs(previous_value)
+        if previous_value not in (None, Decimal('0')) and abs(previous_value) > 0
+        else Decimal('0')
+    )
     
     # Price change
     price_change = current_price - previous_price
@@ -367,7 +440,8 @@ async def calculate_daily_pnl(
         "price_change": price_change,
         "previous_price": previous_price,
         "previous_value": previous_value,
-        "current_value": current_value
+        "current_value": current_value,
+        "previous_price_date": previous_price_date,
     }
     
     logger.debug(f"Daily P&L calculation result for {position.symbol}: {result}")

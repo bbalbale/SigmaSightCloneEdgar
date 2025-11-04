@@ -4,6 +4,7 @@ import { loadPortfolioData, fetchPortfolioSnapshot } from '@/services/portfolioS
 import { analyticsApi } from '@/services/analyticsApi'
 import targetPriceService from '@/services/targetPriceService'
 import { portfolioService } from '@/services/portfolioApi'
+import { positionResearchService, type EnhancedPosition } from '@/services/positionResearchService'
 
 interface HeroMetrics {
   equityBalance: number
@@ -61,6 +62,46 @@ interface UseCommandCenterDataReturn {
   error: string | null
 }
 
+const normalizeNumber = (value: unknown): number | null => {
+  if (value === null || value === undefined) {
+    return null
+  }
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value
+  }
+  if (typeof value === 'string') {
+    const parsed = Number(value)
+    return Number.isFinite(parsed) ? parsed : null
+  }
+  return null
+}
+
+const calculateWeightedReturnByMarketValue = (
+  positions: EnhancedPosition[],
+  returnField: 'target_return_eoy' | 'target_return_next_year',
+  fallbackField?: 'analyst_return_eoy' | 'analyst_return_next_year'
+): number => {
+  let weightedSum = 0
+  let totalWeight = 0
+
+  positions.forEach(position => {
+    const marketValue = normalizeNumber(position.current_market_value ?? position.market_value) ?? 0
+    const weight = Math.abs(marketValue)
+    if (weight === 0) {
+      return
+    }
+
+    const primary = normalizeNumber(position[returnField])
+    const fallback = fallbackField ? normalizeNumber(position[fallbackField]) : null
+    const effectiveReturn = primary ?? fallback ?? 0
+
+    weightedSum += effectiveReturn * weight
+    totalWeight += weight
+  })
+
+  return totalWeight > 0 ? weightedSum / totalWeight : 0
+}
+
 export function useCommandCenterData(refreshTrigger?: number): UseCommandCenterDataReturn {
   const portfolioId = useSelectedPortfolioId()
 
@@ -105,33 +146,108 @@ export function useCommandCenterData(refreshTrigger?: number): UseCommandCenterD
         if (!portfolioId) {
           console.log('[useCommandCenterData] Fetching aggregate view data')
 
-          // Fetch all portfolios to get account names
+          // Fetch all portfolios to get account names and NAV weights
           const portfolios = await portfolioService.getPortfolios()
           console.log('[useCommandCenterData] Fetched portfolios:', portfolios)
 
-          // Create portfolio ID to account name map
-          const portfolioMap = new Map<string, string>()
+          const portfolioNameMap = new Map<string, string>()
+          const portfolioNavMap = new Map<string, number>()
           portfolios.forEach(p => {
-            portfolioMap.set(p.id, p.account_name || 'Portfolio')
+            portfolioNameMap.set(p.id, p.account_name || 'Portfolio')
+            const nav = typeof p.net_asset_value === 'number'
+              ? p.net_asset_value
+              : typeof p.total_value === 'number'
+                ? p.total_value
+                : 0
+            portfolioNavMap.set(p.id, nav)
           })
 
           // Fetch aggregate analytics
           const aggregateAnalytics = await portfolioService.getAggregateAnalytics()
           console.log('[useCommandCenterData] Aggregate analytics:', aggregateAnalytics)
 
+          // Fetch target price summaries for each portfolio so we can aggregate target returns
+          const summaryResults = await Promise.all(
+            portfolios.map(async (p) => {
+              try {
+                const summary = await targetPriceService.summary(p.id)
+                return { portfolioId: p.id, summary }
+              } catch (err) {
+                console.warn(
+                  `[useCommandCenterData] Failed to fetch target summary for portfolio ${p.id}:`,
+                  err
+                )
+                return { portfolioId: p.id, summary: null }
+              }
+            })
+          )
+
+          // NAV-weighted target return across all portfolios
+          let weightedTargetSum = 0
+          let totalNav = 0
+
+          summaryResults.forEach(({ portfolioId, summary }) => {
+            const nav = portfolioNavMap.get(portfolioId) ?? 0
+            if (!summary || nav <= 0) {
+              return
+            }
+
+            const targetReturnEOY = typeof summary.weighted_expected_return_eoy === 'number'
+              ? summary.weighted_expected_return_eoy
+              : 0
+
+            weightedTargetSum += nav * targetReturnEOY
+            totalNav += nav
+          })
+
+          const aggregateTargetReturnEOY = totalNav > 0 ? weightedTargetSum / totalNav : 0
+
           // Fetch positions for each portfolio and combine them
           const positionPromises = portfolios.map(p => portfolioService.getPositionDetails(p.id))
           const positionArrays = await Promise.all(positionPromises)
           const allPositions = positionArrays.flat()
 
+          // Calculate aggregate exposures from combined positions
+          let grossExposure = 0
+          let netExposure = 0
+          let longExposure = 0
+          let shortExposure = 0
+
+          allPositions.forEach((pos: any) => {
+            const marketValue = typeof pos.marketValue === 'number'
+              ? pos.marketValue
+              : typeof pos.market_value === 'number'
+                ? pos.market_value
+                : 0
+
+            if (!Number.isFinite(marketValue) || marketValue === 0) {
+              return
+            }
+
+            const positionType = (pos.type || pos.position_type || '').toString().toUpperCase()
+            const isShort = ['SHORT', 'SC', 'SP', 'SHORT_CALL', 'SHORT_PUT'].includes(positionType) || marketValue < 0
+
+            const absoluteValue = Math.abs(marketValue)
+            const signedValue = isShort ? -absoluteValue : absoluteValue
+
+            grossExposure += absoluteValue
+            netExposure += signedValue
+
+            if (isShort) {
+              shortExposure -= absoluteValue // keep short exposure negative
+            } else {
+              longExposure += absoluteValue
+            }
+          })
+
           // Set hero metrics from aggregate data
           setHeroMetrics({
             equityBalance: aggregateAnalytics.net_asset_value,
-            targetReturnEOY: 0, // TODO: Calculate from aggregate target prices
-            grossExposure: 0, // TODO: Calculate from positions
-            netExposure: 0, // TODO: Calculate from positions
-            longExposure: 0, // TODO: Calculate from positions
-            shortExposure: 0, // TODO: Calculate from positions
+            targetReturnEOY: aggregateTargetReturnEOY,
+            grossExposure,
+            netExposure,
+            longExposure,
+            shortExposure,
           })
 
           // Process holdings with account names
@@ -156,7 +272,7 @@ export function useCommandCenterData(refreshTrigger?: number): UseCommandCenterD
               beta: null, // TODO: Fetch from position factor exposures
               positionType: pos.type || 'LONG',
               investmentClass: pos.investment_class || 'PUBLIC',
-              account_name: portfolioMap.get(pos.portfolio_id) || 'Unknown Account',
+              account_name: portfolioNameMap.get(pos.portfolio_id) || 'Unknown Account',
               portfolio_id: pos.portfolio_id
             }
           })
@@ -210,6 +326,7 @@ export function useCommandCenterData(refreshTrigger?: number): UseCommandCenterD
           portfolioData,
           overviewRaw,
           snapshot,
+          targetSummary,
           targets,
           sectorData,
           correlationData,
@@ -219,6 +336,10 @@ export function useCommandCenterData(refreshTrigger?: number): UseCommandCenterD
           loadPortfolioData(undefined, { portfolioId, skipFactorExposures: true }),
           analyticsApi.getOverview(portfolioId),
           fetchPortfolioSnapshot(portfolioId),
+          targetPriceService.summary(portfolioId).catch((err) => {
+            console.warn('[useCommandCenterData] Failed to fetch target summary:', err)
+            return null
+          }),
           targetPriceService.list(portfolioId).catch(() => []),
           analyticsApi.getSectorExposure(portfolioId).catch(() => ({ data: { available: false } })),
           analyticsApi.getCorrelationMatrix(portfolioId).catch(() => ({ data: { available: false } })),
@@ -232,14 +353,8 @@ export function useCommandCenterData(refreshTrigger?: number): UseCommandCenterD
         const equityBalance = overviewResponse.equity_balance || 0
         const cashBalance = overviewResponse.cash_balance || 0
 
-        setHeroMetrics({
-          equityBalance,
-          targetReturnEOY: snapshot?.target_price_return_eoy || 0,
-          grossExposure: exposuresRaw.gross_exposure || 0,
-          netExposure: exposuresRaw.net_exposure || 0,
-          longExposure: exposuresRaw.long_exposure || 0,
-          shortExposure: exposuresRaw.short_exposure || 0,
-        })
+        console.log('[useCommandCenterData] Snapshot response:', snapshot)
+        console.log('[useCommandCenterData] Target summary response:', targetSummary)
 
         // Process holdings table
         const positions = portfolioData.positions || []
@@ -286,6 +401,53 @@ export function useCommandCenterData(refreshTrigger?: number): UseCommandCenterD
             positionType: pos.type || 'LONG',
             investmentClass: pos.investment_class || 'PUBLIC'
           }
+        })
+
+        const summaryTargetReturn = normalizeNumber(targetSummary?.weighted_expected_return_eoy)
+        const snapshotTargetReturn = normalizeNumber(snapshot?.target_price_return_eoy)
+        const computedTargetReturn = (() => {
+          let weightedSum = 0
+          let weightTotal = 0
+
+          holdingsData.forEach((holding) => {
+            const targetReturn = normalizeNumber(holding.targetReturn)
+            if (targetReturn === null) {
+              return
+            }
+            const weight = Math.abs(holding.weight)
+            if (weight <= 0) {
+              return
+            }
+            weightedSum += targetReturn * weight
+            weightTotal += weight
+          })
+
+          if (weightTotal > 0) {
+            return weightedSum / weightTotal
+          }
+          return null
+        })()
+
+        const heroTargetReturnEOY =
+          summaryTargetReturn ??
+          computedTargetReturn ??
+          snapshotTargetReturn ??
+          0
+
+        console.log('[useCommandCenterData] Target return (summary, computed, snapshot):', {
+          summaryTargetReturn,
+          computedTargetReturn,
+          snapshotTargetReturn,
+          heroTargetReturnEOY,
+        })
+
+        setHeroMetrics({
+          equityBalance,
+          targetReturnEOY: heroTargetReturnEOY,
+          grossExposure: exposuresRaw.gross_exposure || 0,
+          netExposure: exposuresRaw.net_exposure || 0,
+          longExposure: exposuresRaw.long_exposure || 0,
+          shortExposure: exposuresRaw.short_exposure || 0,
         })
 
         setHoldings(holdingsData)
@@ -397,7 +559,11 @@ export function useCommandCenterData(refreshTrigger?: number): UseCommandCenterD
       }
     }
 
-    fetchData()
+    fetchData().catch((err) => {
+      console.error('[useCommandCenterData] Unhandled error:', err)
+      setError(err instanceof Error ? err.message : 'Failed to load data')
+      setLoading(false)
+    })
   }, [portfolioId, refreshTrigger])
 
   return {
