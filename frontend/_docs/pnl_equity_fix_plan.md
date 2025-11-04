@@ -54,6 +54,7 @@
   2. Updates `PortfolioSnapshot` equity and P&L fields.
   3. Synchronizes `Portfolio.equity_balance` with the latest snapshot per portfolio.
 - Produce before/after metrics (max delta, portfolio-level totals) to confirm accuracy.
+- Provide a runnable utility (see `backend/scripts/analysis/backfill_net_asset_value.py`) with dry-run support, portfolio filters, and date-range controls so data teams can safely rerun Phase 2 for historical gaps.
 
 ## 5. Implementation Plan
 
