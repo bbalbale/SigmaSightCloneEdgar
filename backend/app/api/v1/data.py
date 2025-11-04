@@ -41,7 +41,7 @@ async def get_user_portfolios(
     Get list of portfolios for the authenticated user.
     
     Returns:
-        List of portfolios with basic information (id, name, total_value, created_at)
+        List of portfolios with basic information (id, name, net_asset_value, total_value, created_at)
         
     Note: Currently each user has exactly one portfolio, but this endpoint
     returns a list for future compatibility.
@@ -65,13 +65,15 @@ async def get_user_portfolios(
                     if position.last_price and position.quantity:
                         total_market_value += float(position.last_price) * float(position.quantity)
 
-            # Get equity balance (capital account)
-            equity_balance = float(portfolio.equity_balance) if portfolio.equity_balance else 0.0
+            # Get equity balance (capital account / NAV)
+            equity_balance = float(portfolio.equity_balance) if portfolio.equity_balance is not None else 0.0
+            net_asset_value = equity_balance if portfolio.equity_balance is not None else total_market_value
 
             portfolio_list.append({
                 "id": str(portfolio.id),
                 "name": portfolio.name,
-                "total_value": total_market_value + equity_balance,
+                "net_asset_value": net_asset_value,
+                "total_value": net_asset_value,
                 "equity_balance": equity_balance,
                 "total_market_value": total_market_value,
                 "created_at": to_utc_iso8601(portfolio.created_at) if portfolio.created_at else None,
@@ -209,7 +211,7 @@ async def get_portfolio_complete(
         # Build response with proper meta object
         # Use the portfolio's equity_balance which tracks the capital account
         # (starting balance + realized P&L)
-        equity_balance = float(portfolio.equity_balance) if portfolio.equity_balance else 0.0
+        equity_balance = float(portfolio.equity_balance) if portfolio.equity_balance is not None else 0.0
         
         # Create meta object
         meta = {
@@ -237,13 +239,15 @@ async def get_portfolio_complete(
             "schema_version": "1.0"
         }
         
+        net_asset_value = equity_balance if portfolio.equity_balance is not None else total_market_value
+
         response = {
             "meta": meta,
             "portfolio": {
                 "id": str(portfolio.id),
                 "name": portfolio.name,
-                "net_asset_value": total_market_value + equity_balance,
-                "total_value": total_market_value + equity_balance,
+                "net_asset_value": net_asset_value,
+                "total_value": net_asset_value,
                 "equity_balance": equity_balance,
                 "position_count": len(positions_data),
                 "as_of": to_utc_iso8601(as_of_timestamp)
