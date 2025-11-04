@@ -106,11 +106,16 @@ export class PortfolioService {
    */
   async getPortfolios(): Promise<PortfolioListItem[]> {
     try {
-      const response = await apiClient.get<ApiListResponse<PortfolioListItem>>(
+      const response = await apiClient.get<any>(
         API_ENDPOINTS.PORTFOLIOS.LIST,
         REQUEST_CONFIGS.STANDARD
       );
-      const portfolios = response.data || [];
+      console.log('[portfolioApi] Full response:', response);
+
+      // API returns array directly, not wrapped in { data: [...] }
+      const portfolios = Array.isArray(response) ? response : (response.data || []);
+      console.log('[portfolioApi] portfolios array:', portfolios);
+
       return portfolios.map((portfolio) => ({
         ...portfolio,
         net_asset_value: portfolio.net_asset_value ?? portfolio.total_value ?? 0,

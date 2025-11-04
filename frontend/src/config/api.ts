@@ -12,7 +12,7 @@ export const API_CONFIG = {
   TIMEOUT: {
     DEFAULT: 10000,   // 10 seconds
     LONG: 30000,      // 30 seconds for complex operations
-    VERY_LONG: 120000, // 120 seconds (2 minutes) for heavy analytics
+    VERY_LONG: 180000, // 180 seconds (3 minutes) for heavy analytics (matches proxy timeout)
     SHORT: 5000,      // 5 seconds for quick operations
   },
   

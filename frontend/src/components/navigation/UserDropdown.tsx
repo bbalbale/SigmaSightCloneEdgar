@@ -13,12 +13,12 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Button } from '@/components/ui/button'
 import { useAuth } from '../../../app/providers'
-import { usePortfolioName } from '@/stores/portfolioStore'
+import { useSelectedPortfolio } from '@/hooks/useMultiPortfolio'
 
 // Extracted content component for reuse in BottomNavigation
 export function UserDropdownContent() {
   const { user, logout } = useAuth()
-  const portfolioName = usePortfolioName()
+  const { selectedPortfolio, isAggregateView, portfolioCount } = useSelectedPortfolio()
 
   const handleLogout = async () => {
     await logout()
@@ -35,9 +35,11 @@ export function UserDropdownContent() {
               <p className="text-xs leading-none text-muted-foreground">
                 {user.email}
               </p>
-              {portfolioName && (
+              {(isAggregateView || selectedPortfolio) && (
                 <p className="text-xs leading-none text-muted-foreground mt-1">
-                  Portfolio: {portfolioName}
+                  {isAggregateView
+                    ? `All Accounts (${portfolioCount})`
+                    : selectedPortfolio?.account_name}
                 </p>
               )}
             </div>

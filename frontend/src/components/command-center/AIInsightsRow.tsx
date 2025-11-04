@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, CSSProperties } from "react";
+import { Sparkles } from "lucide-react";
 import type { AIInsight, InsightSeverity } from "@/services/insightsApi";
 
 interface AIInsightsRowProps {
@@ -21,37 +22,37 @@ interface InsightCardProps {
 function getSeverityStyles(severity: InsightSeverity) {
   const styles = {
     critical: {
-      bgColor: 'rgba(220, 38, 38, 0.1)',
-      borderColor: 'var(--color-error)',
-      textColor: 'var(--color-error)',
+      bgColor: 'var(--bg-primary)',
+      borderColor: 'var(--border-primary)',
+      textColor: 'var(--text-primary)',
       badgeClass: 'text-xs',
       badgeStyle: { backgroundColor: 'rgba(220, 38, 38, 0.2)', color: 'var(--color-error)' },
     },
     warning: {
-      bgColor: 'rgba(245, 158, 11, 0.1)',
-      borderColor: 'var(--color-warning)',
-      textColor: 'var(--color-warning)',
+      bgColor: 'var(--bg-primary)',
+      borderColor: 'var(--border-primary)',
+      textColor: 'var(--text-primary)',
       badgeClass: 'text-xs',
       badgeStyle: { backgroundColor: 'rgba(245, 158, 11, 0.2)', color: 'var(--color-warning)' },
     },
     elevated: {
-      bgColor: 'rgba(251, 146, 60, 0.1)',
-      borderColor: '#fb923c',
-      textColor: 'var(--color-accent)',
+      bgColor: 'var(--bg-primary)',
+      borderColor: 'var(--border-primary)',
+      textColor: 'var(--text-primary)',
       badgeClass: 'text-xs',
       badgeStyle: { backgroundColor: 'rgba(251, 146, 60, 0.2)', color: 'var(--color-accent)' },
     },
     normal: {
-      bgColor: 'var(--bg-secondary)',
+      bgColor: 'var(--bg-primary)',
       borderColor: 'var(--border-primary)',
       textColor: 'var(--text-primary)',
       badgeClass: 'text-xs',
       badgeStyle: { backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-secondary)' },
     },
     info: {
-      bgColor: 'rgba(59, 130, 246, 0.1)',
-      borderColor: 'var(--color-info)',
-      textColor: 'var(--color-info)',
+      bgColor: 'var(--bg-primary)',
+      borderColor: 'var(--border-primary)',
+      textColor: 'var(--text-primary)',
       badgeClass: 'text-xs',
       badgeStyle: { backgroundColor: 'rgba(59, 130, 246, 0.2)', color: 'var(--color-info)' },
     },
@@ -66,7 +67,7 @@ function InsightCard({ insight, onDismiss, onExpand, isExpanded }: InsightCardPr
 
   const cardStyle: CSSProperties = {
     borderRadius: 'var(--border-radius)',
-    padding: 'var(--card-padding)',
+    padding: 'calc(var(--card-padding) * 1.5)',
     transition: 'all 0.3s ease',
     backgroundColor: styles.bgColor,
     border: `1px solid ${styles.borderColor}`,
@@ -129,15 +130,20 @@ function InsightCard({ insight, onDismiss, onExpand, isExpanded }: InsightCardPr
         {insight.key_findings.length > 0 && (
           <div className="mb-3">
             <div
-              className="text-[10px] font-semibold uppercase tracking-wider mb-1.5 text-tertiary"
+              className="text-xs font-semibold uppercase tracking-wider mb-2 transition-colors duration-300"
+              style={{ color: 'var(--text-secondary)' }}
             >
               Key Findings
             </div>
-            <ul className="space-y-1">
+            <ul className="space-y-2">
               {insight.key_findings.slice(0, isExpanded ? undefined : 3).map((finding, idx) => (
                 <li
                   key={idx}
-                  className="text-xs text-secondary"
+                  className="text-sm transition-colors duration-300"
+                  style={{
+                    color: 'var(--text-primary)',
+                    lineHeight: '1.6'
+                  }}
                 >
                   • {finding}
                 </li>
@@ -161,15 +167,20 @@ function InsightCard({ insight, onDismiss, onExpand, isExpanded }: InsightCardPr
         {isExpanded && insight.recommendations.length > 0 && (
           <div className="mb-3">
             <div
-              className="text-[10px] font-semibold uppercase tracking-wider mb-1.5 text-tertiary"
+              className="text-xs font-semibold uppercase tracking-wider mb-2 transition-colors duration-300"
+              style={{ color: 'var(--text-secondary)' }}
             >
               Recommendations
             </div>
-            <ul className="space-y-1">
+            <ul className="space-y-2">
               {insight.recommendations.map((rec, idx) => (
                 <li
                   key={idx}
-                  className="text-xs text-secondary"
+                  className="text-sm transition-colors duration-300"
+                  style={{
+                    color: 'var(--text-primary)',
+                    lineHeight: '1.6'
+                  }}
                 >
                   • {rec}
                 </li>
@@ -273,96 +284,26 @@ export function AIInsightsRow({
 
   if (loading) {
     return (
-      <section className="px-4 pb-8">
-        <div className="container mx-auto">
-          <h2 className="text-sm font-semibold uppercase tracking-wider mb-2 text-secondary">
-            AI Insights
-          </h2>
-          <div className="grid grid-cols-1 gap-4">
-            <LoadingCard />
-          </div>
-        </div>
-      </section>
+      <div className="grid grid-cols-1 gap-4">
+        <LoadingCard />
+      </div>
     );
   }
 
   return (
-    <section className="px-4 pb-4">
-      <div className="container mx-auto">
-        <div className="flex items-center justify-between mb-2">
-          <h2 className="text-sm font-semibold uppercase tracking-wider text-secondary">
-            AI Insights
-          </h2>
-          <button
-            onClick={onGenerateInsight}
-            disabled={generatingInsight}
-            className="text-xs font-medium px-3 py-1.5 rounded transition-colors"
-            style={
-              generatingInsight
-                ? {
-                    backgroundColor: 'var(--bg-tertiary)',
-                    color: 'var(--text-tertiary)',
-                    cursor: 'not-allowed',
-                  }
-                : {
-                    backgroundColor: 'rgba(251, 146, 60, 0.2)',
-                    color: 'var(--color-accent)',
-                  }
-            }
-            onMouseEnter={(e) => {
-              if (!generatingInsight) {
-                e.currentTarget.style.backgroundColor = 'rgba(251, 146, 60, 0.3)';
-              }
-            }}
-            onMouseLeave={(e) => {
-              if (!generatingInsight) {
-                e.currentTarget.style.backgroundColor = 'rgba(251, 146, 60, 0.2)';
-              }
-            }}
-          >
-            {generatingInsight ? "Generating..." : "Generate Daily Summary"}
-          </button>
-        </div>
-
-        {activeInsights.length === 0 ? (
-          <div
-            className="text-center transition-colors duration-300 themed-card"
-            style={{
-              padding: 'calc(var(--card-padding) * 2)',
-            }}
-          >
-            <p className="text-sm mb-3 text-secondary">
-              No AI insights yet. Generate your first daily summary to get started.
+    <>
+      {activeInsights.length === 0 ? (
+          <div className="text-center py-16">
+            <Sparkles className="h-16 w-16 mx-auto mb-4" style={{ color: 'var(--color-accent)' }} />
+            <h3 className="text-lg font-semibold mb-2 transition-colors duration-300" style={{
+              color: 'var(--text-primary)',
+              fontFamily: 'var(--font-display)'
+            }}>
+              No Insights Yet
+            </h3>
+            <p className="text-sm transition-colors duration-300" style={{ color: 'var(--text-secondary)' }}>
+              Click Generate to create your first daily summary
             </p>
-            <button
-              onClick={onGenerateInsight}
-              disabled={generatingInsight}
-              className="text-sm font-medium px-4 py-2 rounded transition-colors"
-              style={
-                generatingInsight
-                  ? {
-                      backgroundColor: 'var(--bg-tertiary)',
-                      color: 'var(--text-tertiary)',
-                      cursor: 'not-allowed',
-                    }
-                  : {
-                      backgroundColor: 'rgba(251, 146, 60, 0.2)',
-                      color: 'var(--color-accent)',
-                    }
-              }
-              onMouseEnter={(e) => {
-                if (!generatingInsight) {
-                  e.currentTarget.style.backgroundColor = 'rgba(251, 146, 60, 0.3)';
-                }
-              }}
-              onMouseLeave={(e) => {
-                if (!generatingInsight) {
-                  e.currentTarget.style.backgroundColor = 'rgba(251, 146, 60, 0.2)';
-                }
-              }}
-            >
-              {generatingInsight ? "Generating Insight..." : "Generate Daily Summary"}
-            </button>
           </div>
         ) : (
           <div className="grid grid-cols-1 gap-4">
@@ -377,7 +318,6 @@ export function AIInsightsRow({
             ))}
           </div>
         )}
-      </div>
-    </section>
+    </>
   );
 }

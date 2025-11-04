@@ -1,6 +1,9 @@
+'use client'
+
 import React from 'react'
 import { PositionList } from '@/components/common/PositionList'
 import { StockPositionCard } from '@/components/positions/StockPositionCard'
+import { useSelectedPortfolio } from '@/hooks/useMultiPortfolio'
 
 interface Position {
   id?: string
@@ -14,6 +17,7 @@ interface Position {
   investment_class?: string
   investment_subtype?: string
   price?: number
+  account_name?: string  // NEW: Portfolio/account name for multi-portfolio
 }
 
 interface PublicPositionsProps {
@@ -21,6 +25,11 @@ interface PublicPositionsProps {
 }
 
 export function PublicPositions({ positions }: PublicPositionsProps) {
+  const { isAggregateView, portfolioCount } = useSelectedPortfolio()
+
+  // Show account badge only in aggregate view with multiple portfolios
+  const showAccountBadge = isAggregateView && portfolioCount > 1
+
   return (
     <PositionList
       items={positions}
@@ -32,6 +41,7 @@ export function PublicPositions({ positions }: PublicPositionsProps) {
             // Ensure negative display for shorts
             marketValue: position.type === 'SHORT' ? -Math.abs(position.marketValue) : position.marketValue
           }}
+          showAccountBadge={showAccountBadge}
         />
       )}
       emptyMessage="No positions"

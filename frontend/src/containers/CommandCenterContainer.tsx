@@ -8,6 +8,8 @@ import { PerformanceMetricsRow } from '@/components/command-center/PerformanceMe
 import { HoldingsTable } from '@/components/command-center/HoldingsTable'
 import { ManagePositionsSidePanel } from '@/components/portfolio/ManagePositionsSidePanel'
 import { Button } from '@/components/ui/button'
+import { AccountFilter } from '@/components/portfolio/AccountFilter'
+import { AccountSummaryCard } from '@/components/portfolio/AccountSummaryCard'
 
 export function CommandCenterContainer() {
   const { portfolioId } = usePortfolioStore()
@@ -73,12 +75,16 @@ export function CommandCenterContainer() {
       className="min-h-screen transition-colors duration-300"
       style={{ backgroundColor: 'var(--bg-primary)' }}
     >
-      {/* Page Description with Manage Positions Button */}
+      {/* Page Description with Manage Positions Button and Account Filter */}
       <div className="px-4 pt-4 pb-2">
-        <div className="container mx-auto flex items-center justify-between">
-          <p className="text-sm text-muted-foreground">
-            Portfolio overview, holdings, and risk metrics
-          </p>
+        <div className="container mx-auto flex items-center justify-between gap-4">
+          <div className="flex items-center gap-4 flex-1">
+            <p className="text-sm text-muted-foreground">
+              Portfolio overview, holdings, and risk metrics
+            </p>
+            {/* Account Filter - Multi-Portfolio Feature (November 3, 2025) */}
+            <AccountFilter className="ml-auto" showForSinglePortfolio={true} />
+          </div>
           <Button
             onClick={() => setSidePanelOpen(true)}
             size="sm"
@@ -101,6 +107,13 @@ export function CommandCenterContainer() {
           </Button>
         </div>
       </div>
+
+      {/* Account Summary Card - Multi-Portfolio Feature (November 3, 2025) */}
+      <section className="px-4 pt-4">
+        <div className="container mx-auto">
+          <AccountSummaryCard />
+        </div>
+      </section>
 
       {/* Hero Metrics Row 1 - Exposures (6 cards) */}
       <section className="pt-4">

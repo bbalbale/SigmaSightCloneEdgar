@@ -2,6 +2,7 @@ import React from 'react'
 import { BasePositionCard } from '@/components/common/BasePositionCard'
 import { formatNumber } from '@/lib/formatters'
 import { TagBadge } from '@/components/organize/TagBadge'
+import { Badge } from '@/components/ui/badge'
 
 // Tag interface
 interface Tag {
@@ -20,14 +21,16 @@ interface StockPosition {
   positive?: boolean
   type?: string
   tags?: Tag[]
+  account_name?: string  // NEW: Portfolio/account name for multi-portfolio
 }
 
 interface StockPositionCardProps {
   position: StockPosition
   onClick?: () => void
+  showAccountBadge?: boolean  // NEW: Show account badge (for aggregate view)
 }
 
-export function StockPositionCard({ position, onClick }: StockPositionCardProps) {
+export function StockPositionCard({ position, onClick, showAccountBadge = false }: StockPositionCardProps) {
   const companyName = position.company_name || position.symbol
   const sectorInfo = position.sector ? ` • ${position.sector}` : ''
 
@@ -51,13 +54,23 @@ export function StockPositionCard({ position, onClick }: StockPositionCardProps)
         }
         onClick={onClick}
       />
-      {position.tags && position.tags.length > 0 && (
+
+      {/* Account Badge (for aggregate view) and Tags */}
+      {(showAccountBadge && position.account_name) || (position.tags && position.tags.length > 0) ? (
         <div className="flex flex-wrap gap-1 px-1">
-          {position.tags.map(tag => (
+          {/* Account Badge - shown first when in aggregate view */}
+          {showAccountBadge && position.account_name && (
+            <Badge variant="outline" className="text-xs">
+              {position.account_name}
+            </Badge>
+          )}
+
+          {/* Tags */}
+          {position.tags && position.tags.map(tag => (
             <TagBadge key={tag.id} tag={tag} draggable={false} />
           ))}
         </div>
-      )}
+      ) : null}
     </div>
   )
 }

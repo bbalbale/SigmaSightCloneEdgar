@@ -4,6 +4,7 @@ import React from 'react'
 import { useAuth } from '../../app/providers'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { User } from 'lucide-react'
+import { PortfolioManagement } from '@/components/settings/PortfolioManagement'
 
 export function SettingsContainer() {
   const { user } = useAuth()
@@ -35,6 +36,9 @@ export function SettingsContainer() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Portfolio Management - Multi-Portfolio Feature (November 3, 2025) */}
+      <PortfolioManagement />
 
       {/* Placeholder for future settings */}
       <Card>

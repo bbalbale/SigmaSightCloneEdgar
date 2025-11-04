@@ -43,10 +43,16 @@ export function usePortfolios(): UsePortfoliosReturn {
 
       try {
         const data = await portfolioService.getPortfolios()
+        console.log('[usePortfolios] Fetched portfolios from API:', data)
         setPortfolios(data)
 
         // Update Zustand store with portfolio list
+        console.log('[usePortfolios] Calling setPortfoliosInStore with:', data)
         setPortfoliosInStore(data)
+
+        // Verify it was stored
+        const stored = usePortfolioStore.getState().portfolios
+        console.log('[usePortfolios] Verified stored portfolios:', stored)
 
         setError(null)
       } catch (err: any) {

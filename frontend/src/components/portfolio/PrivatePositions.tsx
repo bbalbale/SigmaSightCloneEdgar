@@ -1,7 +1,10 @@
+'use client'
+
 import React from 'react'
 import { Badge } from '@/components/ui/badge'
 import { useTheme } from '@/contexts/ThemeContext'
 import { PrivatePositionCard } from '@/components/positions/PrivatePositionCard'
+import { useSelectedPortfolio } from '@/hooks/useMultiPortfolio'
 
 interface PrivatePosition {
   id?: string
@@ -14,6 +17,7 @@ interface PrivatePosition {
   type?: string
   investment_subtype?: string
   price?: number
+  account_name?: string  // NEW: Portfolio/account name for multi-portfolio
 }
 
 interface PrivatePositionsProps {
@@ -21,6 +25,11 @@ interface PrivatePositionsProps {
 }
 
 export function PrivatePositions({ positions }: PrivatePositionsProps) {
+  const { isAggregateView, portfolioCount } = useSelectedPortfolio()
+
+  // Show account badge only in aggregate view with multiple portfolios
+  const showAccountBadge = isAggregateView && portfolioCount > 1
+
   // Group by investment subtype
   const groupedPositions = positions.reduce((acc, position) => {
     const subtype = position.investment_subtype || 'Alternative Investment'
@@ -57,6 +66,7 @@ export function PrivatePositions({ positions }: PrivatePositionsProps) {
               <PrivatePositionCard
                 key={position.id || `private-${subtype}-${index}`}
                 position={position}
+                showAccountBadge={showAccountBadge}
               />
             ))}
           </div>

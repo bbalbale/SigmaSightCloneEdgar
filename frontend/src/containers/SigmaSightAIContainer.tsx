@@ -66,43 +66,72 @@ export function SigmaSightAIContainer() {
 
       {/* Split Layout: Insights Left, Chat Right */}
       <section className="px-4 py-8">
-        <div className="container mx-auto">
+        <div className="container mx-auto max-w-7xl">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            {/* Left Column: AI Insights */}
-            <div className="space-y-4">
-              <div className="mb-4">
-                <h2 className="text-xl font-semibold transition-colors duration-300" style={{
-                  color: 'var(--text-primary)',
-                  fontFamily: 'var(--font-display)'
-                }}>
-                  Generated Insights
-                </h2>
-                <p className="text-sm mt-1 transition-colors duration-300 text-secondary">
-                  Pre-generated portfolio analysis cards
-                </p>
+            {/* Left Column: Daily Summary Analysis */}
+            <div className="rounded-lg border transition-colors duration-300" style={{
+              backgroundColor: 'var(--bg-primary)',
+              borderColor: 'var(--border-primary)'
+            }}>
+              {/* Header */}
+              <div className="p-4 border-b flex items-center justify-between transition-colors duration-300" style={{
+                borderColor: 'var(--border-primary)'
+              }}>
+                <div className="flex items-center gap-2">
+                  <Sparkles className="h-5 w-5" style={{ color: 'var(--color-accent)' }} />
+                  <h3 className="font-semibold" style={{
+                    color: 'var(--text-primary)',
+                    fontFamily: 'var(--font-display)'
+                  }}>
+                    Daily Summary Analysis
+                  </h3>
+                </div>
+                <button
+                  onClick={handleGenerateInsight}
+                  disabled={generatingInsight}
+                  className="text-sm font-semibold px-4 py-2 rounded transition-colors"
+                  style={
+                    generatingInsight
+                      ? {
+                          backgroundColor: 'var(--bg-tertiary)',
+                          color: 'var(--text-tertiary)',
+                          cursor: 'not-allowed',
+                        }
+                      : {
+                          backgroundColor: 'var(--color-accent)',
+                          color: '#000000',
+                        }
+                  }
+                  onMouseEnter={(e) => {
+                    if (!generatingInsight) {
+                      e.currentTarget.style.backgroundColor = 'var(--color-accent-hover)';
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!generatingInsight) {
+                      e.currentTarget.style.backgroundColor = 'var(--color-accent)';
+                    }
+                  }}
+                >
+                  {generatingInsight ? "Generating..." : "Generate"}
+                </button>
               </div>
-              <AIInsightsRow
-                insights={insights}
-                loading={loading}
-                onGenerateInsight={handleGenerateInsight}
-                onDismissInsight={handleDismissInsight}
-                generatingInsight={generatingInsight}
-              />
+              {/* Content */}
+              <div className="p-4 space-y-4 min-h-[700px] max-h-[900px] overflow-y-auto transition-colors duration-300" style={{
+                backgroundColor: 'var(--bg-secondary)'
+              }}>
+                <AIInsightsRow
+                  insights={insights}
+                  loading={loading}
+                  onGenerateInsight={handleGenerateInsight}
+                  onDismissInsight={handleDismissInsight}
+                  generatingInsight={generatingInsight}
+                />
+              </div>
             </div>
 
             {/* Right Column: Claude Chat */}
-            <div className="space-y-4">
-              <div className="mb-4">
-                <h2 className="text-xl font-semibold transition-colors duration-300" style={{
-                  color: 'var(--text-primary)',
-                  fontFamily: 'var(--font-display)'
-                }}>
-                  Ask SigmaSight AI
-                </h2>
-                <p className="text-sm mt-1 transition-colors duration-300 text-secondary">
-                  Chat with SigmaSight AI about your portfolio using real-time analytics
-                </p>
-              </div>
+            <div>
               <ClaudeChatInterface />
             </div>
           </div>

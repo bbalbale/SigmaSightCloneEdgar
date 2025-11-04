@@ -2,6 +2,7 @@ import React from 'react'
 import { BasePositionCard } from '@/components/common/BasePositionCard'
 import { formatCurrency } from '@/lib/formatters'
 import { TagBadge } from '@/components/organize/TagBadge'
+import { Badge } from '@/components/ui/badge'
 
 // Tag interface
 interface Tag {
@@ -17,11 +18,13 @@ interface OptionPosition {
   marketValue: number
   pnl: number
   tags?: Tag[]
+  account_name?: string  // NEW: Portfolio/account name for multi-portfolio
 }
 
 interface OptionPositionCardProps {
   position: OptionPosition
   onClick?: () => void
+  showAccountBadge?: boolean  // NEW: Show account badge (for aggregate view)
 }
 
 const OPTION_TYPE_LABELS: Record<string, string> = {
@@ -31,7 +34,7 @@ const OPTION_TYPE_LABELS: Record<string, string> = {
   'SP': 'Short Put'
 }
 
-export function OptionPositionCard({ position, onClick }: OptionPositionCardProps) {
+export function OptionPositionCard({ position, onClick, showAccountBadge = false }: OptionPositionCardProps) {
   const optionTypeLabel = OPTION_TYPE_LABELS[position.type || ''] || 'Option'
 
   return (
@@ -54,13 +57,23 @@ export function OptionPositionCard({ position, onClick }: OptionPositionCardProp
         }
         onClick={onClick}
       />
-      {position.tags && position.tags.length > 0 && (
+
+      {/* Account Badge (for aggregate view) and Tags */}
+      {(showAccountBadge && position.account_name) || (position.tags && position.tags.length > 0) ? (
         <div className="flex flex-wrap gap-1 px-1">
-          {position.tags.map(tag => (
+          {/* Account Badge - shown first when in aggregate view */}
+          {showAccountBadge && position.account_name && (
+            <Badge variant="outline" className="text-xs">
+              {position.account_name}
+            </Badge>
+          )}
+
+          {/* Tags */}
+          {position.tags && position.tags.map(tag => (
             <TagBadge key={tag.id} tag={tag} draggable={false} />
           ))}
         </div>
-      )}
+      ) : null}
     </div>
   )
 }

@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '../../../app/providers'
-import { AlertCircle, Loader2, User, Building2, TrendingUp } from 'lucide-react'
+import { AlertCircle, Loader2, User, Building2, TrendingUp, Briefcase } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
@@ -22,6 +22,12 @@ export function LoginForm() {
       email: 'demo_hnw@sigmasight.com',
       icon: TrendingUp,
       description: 'Multi-asset portfolio with advanced analytics'
+    },
+    {
+      name: 'Family Office (Multi-Portfolio)',
+      email: 'demo_familyoffice@sigmasight.com',
+      icon: Briefcase,
+      description: 'Multiple investment accounts with aggregate analytics'
     },
     {
       name: 'Individual Investor',

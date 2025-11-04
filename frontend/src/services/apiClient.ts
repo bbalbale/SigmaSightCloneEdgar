@@ -178,9 +178,31 @@ export class ApiClient {
   ): Promise<ApiResponse<T>> {
     // Create abort controller for timeout
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => {
-      controller.abort();
-    }, timeout);
+    const timeoutDuration = timeout ?? this.defaultTimeout;
+    let timeoutTriggered = false;
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
+
+    if (timeoutDuration && timeoutDuration > 0) {
+      timeoutId = setTimeout(() => {
+        timeoutTriggered = true;
+        controller.abort();
+      }, timeoutDuration);
+    }
+
+    let externalAbortCleanup: (() => void) | null = null;
+    if (config?.signal) {
+      if (config.signal.aborted) {
+        controller.abort(config.signal.reason);
+      } else {
+        const onExternalAbort = () => {
+          controller.abort(config.signal?.reason);
+        };
+        config.signal.addEventListener('abort', onExternalAbort, { once: true });
+        externalAbortCleanup = () => {
+          config.signal?.removeEventListener('abort', onExternalAbort);
+        };
+      }
+    }
 
     try {
       // Build request configuration
@@ -189,7 +211,7 @@ export class ApiClient {
         headers: {
           ...config?.headers,
         },
-        signal: config?.signal || controller.signal,
+        signal: controller.signal,
       };
 
       // Add body for POST/PUT/PATCH/DELETE requests
@@ -231,7 +253,6 @@ export class ApiClient {
 
       // Execute fetch request
       const response = await fetch(finalUrl, requestConfig);
-      clearTimeout(timeoutId);
 
       // Check if request was successful
       if (!response.ok) {
@@ -289,8 +310,6 @@ export class ApiClient {
       return finalResponse;
 
     } catch (error) {
-      clearTimeout(timeoutId);
-      
       if (error instanceof ApiError) {
         throw error;
       }
@@ -298,13 +317,23 @@ export class ApiClient {
       // Handle different error types
       if (error instanceof Error) {
         if (error.name === 'AbortError') {
-          throw new TimeoutError(timeout || this.defaultTimeout);
+          if (timeoutTriggered) {
+            throw new TimeoutError(timeoutDuration || this.defaultTimeout);
+          }
+          throw error;
         }
         
         throw new NetworkError(error.message, error);
       }
       
       throw new NetworkError('Unknown network error', error as Error);
+    } finally {
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+      if (externalAbortCleanup) {
+        externalAbortCleanup();
+      }
     }
   }
 
