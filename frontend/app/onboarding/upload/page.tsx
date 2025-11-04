@@ -39,8 +39,11 @@ export default function OnboardingUploadPage() {
     )
   }
 
+  const isProcessing =
+    uploadState === 'uploading' || uploadState === 'processing'
+
   // Show processing screen (uploading or batch processing)
-  if (uploadState === 'uploading' || uploadState === 'processing') {
+  if (isProcessing) {
     const processingState: 'uploading' | 'processing' = uploadState
     return (
       <UploadProcessing
@@ -50,8 +53,6 @@ export default function OnboardingUploadPage() {
       />
     )
   }
-
-  const isProcessing = uploadState === 'uploading' || uploadState === 'processing'
 
   // Show upload form (idle or error state)
   return (

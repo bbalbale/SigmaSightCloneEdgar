@@ -5,6 +5,7 @@ export interface PortfolioOverviewResponse {
   net_asset_value: number;
   total_value: number;
   cash_balance: number;
+  equity_balance?: number;
   exposures: {
     long_exposure: number;
     short_exposure: number;
@@ -19,6 +20,8 @@ export interface PortfolioOverviewResponse {
     total_pnl: number;
     unrealized_pnl: number;
     realized_pnl: number;
+    ytd_pnl?: number;
+    mtd_pnl?: number;
   };
   position_count: {
     total_positions: number;
@@ -34,12 +37,29 @@ export interface CorrelationMatrixResponse {
   data?: {
     matrix: Record<string, Record<string, number>>;
     average_correlation: number;
+    position_symbols?: string[];
+    correlation_matrix?: number[][];
+    data_quality?: {
+      total_pairs: number;
+      valid_pairs: number;
+      coverage_percent: number;
+    };
+    min_overlap?: number;
   };
   metadata?: {
     calculation_date: string; // ISO
     lookback_days: number;
     positions_included: number;
+    min_overlap?: number;
   };
+  position_symbols?: string[];
+  correlation_matrix?: number[][];
+  data_quality?: {
+    total_pairs: number;
+    valid_pairs: number;
+    coverage_percent: number;
+  };
+  min_overlap?: number;
   reason?: string;
 }
 
@@ -50,8 +70,13 @@ export interface PortfolioFactorExposuresResponse {
     factor: string;
     exposure: number;
   }>;
+  factors?: FactorExposure[];
   metadata?: {
     calculation_date: string; // ISO
+  };
+  data_quality?: {
+    missing_positions?: string[];
+    coverage_percent?: number;
   };
   reason?: string;
 }

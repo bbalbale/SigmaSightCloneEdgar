@@ -65,7 +65,7 @@ export function ResearchAndAnalyzeContainer() {
     refetch: refetchPrivatePositions
   } = usePrivatePositions()
 
-  const { restoreSectorTags, loading: restoringTags } = useRestoreSectorTags()
+  const { restoreTags, loading: restoringTags } = useRestoreSectorTags()
 
   // Tag management hooks
   const {
@@ -278,15 +278,18 @@ export function ResearchAndAnalyzeContainer() {
             symbols.map(symbol2 => backendMatrix[symbol1]?.[symbol2] ?? 0)
           )
 
+          const metadata = response.data.metadata
+          const dataQuality = response.data.data?.data_quality || response.data.data_quality
+
           const transformedData = {
             position_symbols: symbols,
             correlation_matrix: correlationMatrix,
-            lookback_days: response.data.metadata?.lookback_days || 90,
-            min_overlap: response.data.metadata?.min_overlap || 30,
+            lookback_days: metadata?.lookback_days ?? 90,
+            min_overlap: metadata?.min_overlap ?? response.data.min_overlap ?? 30,
             data_quality: {
-              total_pairs: response.data.data_quality?.total_pairs || 0,
-              valid_pairs: response.data.data_quality?.valid_pairs || 0,
-              coverage_percent: response.data.data_quality?.coverage_percent || 0
+              total_pairs: dataQuality?.total_pairs ?? 0,
+              valid_pairs: dataQuality?.valid_pairs ?? 0,
+              coverage_percent: dataQuality?.coverage_percent ?? 0
             }
           }
 
@@ -395,7 +398,12 @@ export function ResearchAndAnalyzeContainer() {
 
   const handleRestoreSectorTags = async () => {
     try {
-      await restoreSectorTags()
+    if (!portfolioId) {
+      console.warn('[ResearchAndAnalyze] No portfolio ID available for sector tag restoration')
+      return
+    }
+
+    await restoreTags(portfolioId)
 
       // Invalidate cache so refetch gets fresh data with restored tags
       positionResearchService.invalidateAllCache(portfolioId!)

@@ -15,7 +15,8 @@
       "Bash(curl:*)",
       "Bash(uv run python:*)",
       "mcp__playwright__browser_console_messages",
-      "mcp__playwright__browser_snapshot"
+      "mcp__playwright__browser_snapshot",
+      "Bash(docker ps:*)"
     ],
     "deny": [],
     "ask": [],

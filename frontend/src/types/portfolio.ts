@@ -189,6 +189,9 @@ export interface PortfolioListItem {
   position_count: number;
   net_asset_value?: number;
   total_value?: number;
+  account_name?: string;
+  account_type?: string;
+  equity_balance?: number;
 }
 
 // Market Quote Data (from /api/v1/data/prices/quotes)

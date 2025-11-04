@@ -4,10 +4,10 @@ import { useState } from 'react'
 import { ChevronDown, ChevronUp } from 'lucide-react'
 import { TagBadge } from '@/components/organize/TagBadge'
 import { Button } from '@/components/ui/button'
-import type { Tag } from '@/lib/types'
+import type { StickyTag } from './StickyTagBar'
 
 interface StickyTagBarMobileProps {
-  tags: Tag[]
+  tags: StickyTag[]
   onCreateTag?: () => void
   onRestoreSectorTags?: () => void
 }
@@ -102,14 +102,7 @@ export function StickyTagBarMobile({
               <div className="flex gap-2 min-w-min">
                 {tags.map(tag => (
                   <div key={tag.id} className="flex-shrink-0">
-                    <TagBadge
-                      tag={tag}
-                      draggable={true}
-                      onDragStart={(e) => {
-                        e.dataTransfer.setData('text/plain', tag.id)
-                        e.dataTransfer.effectAllowed = 'copy'
-                      }}
-                    />
+                    <TagBadge tag={tag} draggable size="sm" />
                   </div>
                 ))}
               </div>

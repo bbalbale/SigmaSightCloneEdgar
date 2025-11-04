@@ -1,11 +1,11 @@
 'use client'
 
 import React, { useState, useEffect } from 'react'
-import { Tag } from '@/stores/researchStore'
 import { Button } from '@/components/ui/button'
+import type { StickyTag } from './StickyTagBar'
 
 export interface StickyTagBarProps {
-  tags: Tag[]
+  tags: StickyTag[]
   onCreateTag: () => void
   onRestoreSectorTags: () => void
 }

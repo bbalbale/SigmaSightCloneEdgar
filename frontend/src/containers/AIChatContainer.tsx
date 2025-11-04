@@ -13,7 +13,11 @@ export function AIChatContainer() {
   const initialMessage = searchParams.get('message')
   const { user, loading } = useAuth()
   const portfolioId = usePortfolioStore((state) => state.portfolioId)
-  const portfolioName = usePortfolioStore((state) => state.portfolioName)
+  const currentPortfolio = usePortfolioStore((state) => {
+    const id = state.portfolioId
+    if (!id) return null
+    return state.portfolios.find((p) => p.id === id) ?? null
+  })
   const { theme } = useTheme()
 
   // Comprehensive logging for debugging message flow
@@ -42,7 +46,7 @@ export function AIChatContainer() {
   }
 
   const portfolioLabel =
-    portfolioName ??
+    currentPortfolio?.account_name ??
     (portfolioId ? `Portfolio ${portfolioId.slice(0, 8)}…` : 'Portfolio unavailable')
 
   return (

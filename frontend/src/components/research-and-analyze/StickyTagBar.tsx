@@ -3,10 +3,15 @@
 import React from 'react'
 import { StickyTagBarDesktop } from './StickyTagBarDesktop'
 import { StickyTagBarMobile } from './StickyTagBarMobile'
-import { Tag } from '@/stores/researchStore'
+
+export interface StickyTag {
+  id: string
+  name: string
+  color: string
+}
 
 export interface StickyTagBarProps {
-  tags: Tag[]
+  tags: StickyTag[]
   onCreateTag: () => void
   onRestoreSectorTags: () => void
 }

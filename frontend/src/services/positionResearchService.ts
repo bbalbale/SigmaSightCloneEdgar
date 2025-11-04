@@ -71,6 +71,10 @@ export interface EnhancedPosition {
   market_value: number
   cost_basis: number
   unrealized_pnl: number
+  avg_cost?: number
+  current_market_value?: number
+  unrealized_pnl_percent?: number
+  beta?: number
 
   // Tags
   tags: Array<{ id: string; name: string; color: string }>
@@ -217,6 +221,12 @@ export const positionResearchService = {
       const target_return_eoy = target?.expected_return_eoy ?? undefined
       const target_return_next_year = target?.expected_return_next_year ?? undefined
 
+      const avg_cost = pos.avg_cost ?? (pos.quantity !== 0 ? pos.cost_basis / pos.quantity : undefined)
+      const current_market_value = pos.current_market_value ?? pos.market_value
+      const unrealized_pnl_percent =
+        pos.unrealized_pnl_percent ?? (pos.cost_basis !== 0 ? (pos.unrealized_pnl / pos.cost_basis) * 100 : undefined)
+      const beta = (pos as any).beta ?? profile?.beta
+
       // Calculate analyst-based returns (fallback when user hasn't entered targets)
       // Only needed for display when no user target exists
       const analyst_return_eoy = profile?.target_mean_price && pos.current_price
@@ -245,7 +255,11 @@ export const positionResearchService = {
         target_return_eoy,
         target_return_next_year,
         analyst_return_eoy,
-        analyst_return_next_year: undefined // No analyst data for next year
+        analyst_return_next_year: undefined, // No analyst data for next year
+        avg_cost,
+        current_market_value,
+        unrealized_pnl_percent,
+        beta
       }
     })
 

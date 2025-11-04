@@ -3,7 +3,8 @@ Complete portfolio reseed script using Batch Orchestrator V3
 
 This script:
 1. Cleans all portfolio analysis, agent, and market data
-2. Reseeds 3 demo portfolios with July 1, 2025 entry dates
+2. Reseeds the full demo portfolio set (currently 5 portfolios across 3 demo users,
+   including the family office dual-sleeve account) with July 1, 2025 entry dates
 3. Uses V3 batch orchestrator with automatic backfill
    - Phase 1: Market Data Collection (1-year lookback)
    - Phase 2: P&L Calculation & Snapshots
@@ -14,17 +15,29 @@ This script:
 Estimated time: 30-40 minutes for 85 trading days (vs 5+ hours with V2)
 """
 import asyncio
+import copy
 import sys
 from datetime import date
 from typing import List
-from sqlalchemy import text
+from sqlalchemy import text, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import AsyncSessionLocal
 from app.core.logging import get_logger
 from app.batch.batch_orchestrator_v3 import batch_orchestrator_v3
+from app.utils.trading_calendar import trading_calendar
+from app.services.portfolio_aggregation_service import PortfolioAggregationService
+from app.models.users import User
 
 logger = get_logger(__name__)
+
+# Import the seed module once so we can reference the current demo portfolio spec
+import app.db.seed_demo_portfolios as seed_module
+
+DEMO_PORTFOLIO_SPEC = seed_module.DEMO_PORTFOLIOS
+EXPECTED_PORTFOLIO_COUNT = len(DEMO_PORTFOLIO_SPEC)
+EXPECTED_POSITION_COUNT = sum(len(portfolio.get("positions", [])) for portfolio in DEMO_PORTFOLIO_SPEC)
+FAMILY_OFFICE_EMAIL = "demo_familyoffice@sigmasight.com"
 
 
 # ============================================================================
@@ -93,7 +106,7 @@ async def clean_all_data():
 # ============================================================================
 
 async def reseed_portfolios_july_1():
-    """Reseed 3 demo portfolios with July 1, 2025 entry dates."""
+    """Reseed demo portfolios with July 1, 2025 entry dates."""
     logger.info("=" * 80)
     logger.info("PHASE 2: Reseeding Portfolios (July 1, 2025)")
     logger.info("=" * 80)
@@ -101,30 +114,28 @@ async def reseed_portfolios_july_1():
     # Import and run the seed function
     from app.db.seed_demo_portfolios import seed_demo_portfolios
 
-    # Override entry dates to July 1, 2025
-    import app.db.seed_demo_portfolios as seed_module
-
     # Save original DEMO_PORTFOLIOS
-    original_portfolios = seed_module.DEMO_PORTFOLIOS.copy()
+    original_portfolios = copy.deepcopy(DEMO_PORTFOLIO_SPEC)
 
     try:
         # Modify all position entry_dates to July 1, 2025
         july_1 = date(2025, 7, 1)
-        for portfolio_spec in seed_module.DEMO_PORTFOLIOS:
-            for position in portfolio_spec.get('positions', []):
+        for portfolio_spec in DEMO_PORTFOLIO_SPEC:
+            for position in portfolio_spec.get("positions", []):
                 position['entry_date'] = july_1
 
         # Run seeding
         async with AsyncSessionLocal() as db:
             await seed_demo_portfolios(db)
             await db.commit()  # CRITICAL: Must commit or positions will be rolled back!
-            logger.info("\nPortfolios seeded successfully")
+            logger.info(f"\nPortfolios seeded successfully ({EXPECTED_PORTFOLIO_COUNT} portfolios)")
 
         logger.info("Portfolios reseeded successfully!\n")
 
     finally:
         # Restore original DEMO_PORTFOLIOS
-        seed_module.DEMO_PORTFOLIOS = original_portfolios
+        seed_module.DEMO_PORTFOLIOS[:] = original_portfolios
+        DEMO_PORTFOLIO_SPEC[:] = original_portfolios
 
 
 # ============================================================================
@@ -166,6 +177,7 @@ async def run_v3_backfill(target_date: date):
 # ============================================================================
 # PHASE 4: VERIFICATION
 # ============================================================================
+
 
 async def verify_results():
     """Verify the reseed results."""
@@ -214,9 +226,9 @@ async def verify_results():
         min_date, max_date, unique_dates = snapshot_dates_query.fetchone()
 
         logger.info("\nVerification Results:")
-        logger.info(f"  Portfolios:      {portfolio_count} (expected: 3)")
-        logger.info(f"  Positions:       {position_count} (expected: 63)")
-        logger.info(f"  Snapshots:       {snapshot_count} (expected: ~255 for 85 days × 3 portfolios)")
+        logger.info(f"  Portfolios:      {portfolio_count} (expected: {EXPECTED_PORTFOLIO_COUNT})")
+        logger.info(f"  Positions:       {position_count} (expected: {EXPECTED_POSITION_COUNT})")
+        logger.info("  Snapshots:       {} (expected: ~{} for 85 trading days)".format(snapshot_count, EXPECTED_PORTFOLIO_COUNT * 85))
         logger.info(f"  Market Data:     {market_data_count} (expected: thousands)")
         logger.info(f"  Batch Tracking:  {tracking_count} (expected: ~85)")
 
@@ -230,20 +242,68 @@ async def verify_results():
         for name, equity in portfolios:
             logger.info(f"  {name}: ${float(equity):,.2f}")
 
+
         # Check if we have expected counts
         status = "SUCCESS"
-        if portfolio_count != 3:
-            logger.error(f"  ERROR: Expected 3 portfolios, found {portfolio_count}")
+        if portfolio_count != EXPECTED_PORTFOLIO_COUNT:
+            logger.error(f"  ERROR: Expected {EXPECTED_PORTFOLIO_COUNT} portfolios, found {portfolio_count}")
             status = "FAILED"
-        if position_count != 63:
-            logger.error(f"  ERROR: Expected 63 positions, found {position_count}")
+        if position_count != EXPECTED_POSITION_COUNT:
+            logger.error(f"  ERROR: Expected {EXPECTED_POSITION_COUNT} positions, found {position_count}")
             status = "FAILED"
         if min_date != date(2025, 7, 1):
             logger.error(f"  ERROR: Expected first snapshot on 2025-07-01, found {min_date}")
             status = "FAILED"
 
+        # Validate the multi-portfolio aggregation for the family office account
+        family_user_result = await db.execute(
+            select(User).where(User.email == FAMILY_OFFICE_EMAIL)
+        )
+        family_user = family_user_result.scalar_one_or_none()
+
+        if family_user:
+            aggregation_service = PortfolioAggregationService(db)
+            aggregate_metrics = await aggregation_service.aggregate_portfolio_metrics(family_user.id)
+            expected_family_portfolios = sum(
+                1 for portfolio in DEMO_PORTFOLIO_SPEC if portfolio.get("user_email") == FAMILY_OFFICE_EMAIL
+            )
+
+            logger.info("\nFamily Office Aggregate Metrics:")
+            logger.info(
+                f"  Portfolio Count: {aggregate_metrics.get('portfolio_count')} (expected: {expected_family_portfolios})"
+            )
+            logger.info(
+                f"  Net Asset Value: ${aggregate_metrics.get('net_asset_value', 0):,.2f}"
+            )
+
+            if aggregate_metrics.get('portfolio_count') != expected_family_portfolios:
+                logger.error(
+                    f"  ERROR: Family office aggregate expected {expected_family_portfolios} portfolios, found {aggregate_metrics.get('portfolio_count')}"
+                )
+                status = "FAILED"
+
+            family_portfolio_balances = await db.execute(
+                text("""
+                    SELECT SUM(equity_balance)
+                    FROM portfolios WHERE user_id = :user_id
+                """),
+                {"user_id": str(family_user.id)},
+            )
+            expected_family_nav = float(family_portfolio_balances.scalar() or 0.0)
+            aggregate_nav = float(aggregate_metrics.get('net_asset_value', 0) or 0.0)
+
+            if abs(expected_family_nav - aggregate_nav) > 0.01:
+                logger.error(
+                    f"  ERROR: Family office NAV mismatch. Portfolios sum=${expected_family_nav:,.2f}, aggregate=${aggregate_nav:,.2f}"
+                )
+                status = "FAILED"
+        else:
+            logger.error("  ERROR: Could not locate family office demo user for aggregation check")
+            status = "FAILED"
+
         logger.info(f"\nVerification Status: {status}\n")
         return status == "SUCCESS"
+
 
 
 # ============================================================================
@@ -257,9 +317,9 @@ async def main():
     print("=" * 80)
     print("\nThis will:")
     print("  1. Delete ALL portfolio, market data, and agent data")
-    print("  2. Reseed 3 portfolios with July 1, 2025 entry dates")
-    print("  3. Run V3 batch orchestrator for ~87 trading days (July 1 - Oct 29)")
-    print("  4. Verify results")
+    print("  2. Reseed demo portfolios with July 1, 2025 entry dates")
+    print("  3. Run V3 batch orchestrator from July 1, 2025 through the latest trading day")
+    print("  4. Verify results (including multi-portfolio aggregation)")
     print("\nV3 Batch Phases:")
     print("  - Phase 1: Market Data Collection (1-year lookback)")
     print("  - Phase 2: P&L Calculation & Snapshots")
@@ -299,7 +359,12 @@ async def main():
         await reseed_portfolios_july_1()
 
         # Phase 3: V3 Backfill
-        target_date = date(2025, 10, 29)  # Today's date
+        target_date = date.today()
+        if not trading_calendar.is_trading_day(target_date):
+            previous = trading_calendar.get_previous_trading_day(target_date)
+            if previous:
+                target_date = previous
+        logger.info(f"Backfilling through {target_date} (most recent trading day)")
         backfill_result = await run_v3_backfill(target_date)
 
         # Phase 4: Verify

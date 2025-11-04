@@ -459,11 +459,12 @@ type TabType = 'profile' | 'financials' | 'correlations'
 const ExpandedRowDetail = memo(function ExpandedRowDetail({ position, riskMetrics, riskMetricsLoading, onRemoveTag }: ExpandedRowDetailProps) {
   const [activeTab, setActiveTab] = useState<TabType>('profile')
 
-  const quantity = position.quantity || 0
-  const avgCost = position.avg_cost || position.cost_basis || 0
-  const marketValue = position.current_market_value || position.market_value || (quantity * position.current_price)
-  const pnl = position.unrealized_pnl || 0
-  const pnlPercent = position.unrealized_pnl_percent || 0
+  const quantity = position.quantity ?? 0
+  const costBasis = position.cost_basis ?? 0
+  const avgCost = position.avg_cost ?? (quantity !== 0 ? costBasis / quantity : costBasis)
+  const marketValue = position.current_market_value ?? position.market_value ?? quantity * position.current_price
+  const pnl = position.unrealized_pnl ?? marketValue - costBasis
+  const pnlPercent = position.unrealized_pnl_percent ?? (costBasis !== 0 ? (pnl / costBasis) * 100 : 0)
 
   // Calculate P/E and P/S ratios
   const peThisYear = position.current_year_earnings_avg && position.current_price
