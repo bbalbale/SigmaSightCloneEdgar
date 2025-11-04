@@ -4,9 +4,8 @@ import React, { useState } from 'react'
 import { useCommandCenterData } from '@/hooks/useCommandCenterData'
 import { usePortfolioStore } from '@/stores/portfolioStore'
 import { HeroMetricsRow } from '@/components/command-center/HeroMetricsRow'
+import { PerformanceMetricsRow } from '@/components/command-center/PerformanceMetricsRow'
 import { HoldingsTable } from '@/components/command-center/HoldingsTable'
-import { RiskMetricsRow } from '@/components/command-center/RiskMetricsRow'
-import { AIInsightsButton } from '@/components/command-center/AIInsightsButton'
 import { ManagePositionsSidePanel } from '@/components/portfolio/ManagePositionsSidePanel'
 import { Button } from '@/components/ui/button'
 
@@ -15,7 +14,7 @@ export function CommandCenterContainer() {
   const [sidePanelOpen, setSidePanelOpen] = useState(false)
   const [refreshTrigger, setRefreshTrigger] = useState(0)
 
-  const { heroMetrics, holdings, riskMetrics, loading, error } = useCommandCenterData(refreshTrigger)
+  const { heroMetrics, performanceMetrics, holdings, riskMetrics, loading, error } = useCommandCenterData(refreshTrigger)
 
   if (error && !loading) {
     return (
@@ -103,16 +102,18 @@ export function CommandCenterContainer() {
         </div>
       </div>
 
-      {/* Hero Metrics - 6 cards */}
+      {/* Hero Metrics Row 1 - Exposures (6 cards) */}
       <section className="pt-4">
         <HeroMetricsRow metrics={heroMetrics} loading={loading} />
       </section>
 
+      {/* Hero Metrics Row 2 - Performance & Risk (5 cards) */}
+      <section className="pt-0">
+        <PerformanceMetricsRow metrics={performanceMetrics} loading={loading} />
+      </section>
+
       {/* Holdings Table - 11 columns */}
       <HoldingsTable holdings={holdings} loading={loading} onRefresh={handleRefresh} />
-
-      {/* Risk Metrics - 5 cards */}
-      <RiskMetricsRow metrics={riskMetrics} loading={loading} />
 
       {/* Manage Positions Side Panel */}
       {portfolioId && (

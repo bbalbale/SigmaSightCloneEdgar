@@ -13,6 +13,15 @@ interface HeroMetrics {
   shortExposure: number
 }
 
+interface PerformanceMetrics {
+  ytdPnl: number
+  mtdPnl: number
+  cashBalance: number
+  portfolioBeta90d: number | null
+  portfolioBeta1y: number | null
+  stressTest: { up: number; down: number } | null
+}
+
 interface HoldingRow {
   id: string
   symbol: string
@@ -42,6 +51,7 @@ interface RiskMetrics {
 
 interface UseCommandCenterDataReturn {
   heroMetrics: HeroMetrics
+  performanceMetrics: PerformanceMetrics
   holdings: HoldingRow[]
   riskMetrics: RiskMetrics
   loading: boolean
@@ -61,6 +71,15 @@ export function useCommandCenterData(refreshTrigger?: number): UseCommandCenterD
     netExposure: 0,
     longExposure: 0,
     shortExposure: 0
+  })
+
+  const [performanceMetrics, setPerformanceMetrics] = useState<PerformanceMetrics>({
+    ytdPnl: 0,
+    mtdPnl: 0,
+    cashBalance: 0,
+    portfolioBeta90d: null,
+    portfolioBeta1y: null,
+    stressTest: null
   })
 
   const [holdings, setHoldings] = useState<HoldingRow[]>([])
@@ -109,6 +128,7 @@ export function useCommandCenterData(refreshTrigger?: number): UseCommandCenterD
         const overviewResponse = overviewRaw.data
         const exposuresRaw = overviewResponse.exposures || {}
         const equityBalance = overviewResponse.equity_balance || 0
+        const cashBalance = overviewResponse.cash_balance || 0
 
         setHeroMetrics({
           equityBalance,
@@ -255,6 +275,18 @@ export function useCommandCenterData(refreshTrigger?: number): UseCommandCenterD
           stressTest
         })
 
+        // Set performance metrics with real YTD/MTD P&L from backend
+        const pnlData = overviewResponse.pnl || {}
+
+        setPerformanceMetrics({
+          ytdPnl: pnlData.ytd_pnl || 0,
+          mtdPnl: pnlData.mtd_pnl || 0,
+          cashBalance,
+          portfolioBeta90d: beta90d,
+          portfolioBeta1y: beta1y,
+          stressTest
+        })
+
         setLoading(false)
       } catch (err: any) {
         console.error('Failed to load Command Center data:', err)
@@ -268,6 +300,7 @@ export function useCommandCenterData(refreshTrigger?: number): UseCommandCenterD
 
   return {
     heroMetrics,
+    performanceMetrics,
     holdings,
     riskMetrics,
     loading,

@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, case, and_, or_
 from uuid import UUID
 from typing import Dict, Any, Optional
-from datetime import datetime
+from datetime import datetime, date
 from decimal import Decimal
 
 from app.models.users import Portfolio
@@ -197,6 +197,9 @@ class PortfolioAnalyticsService:
         # Fetch target return data from latest PortfolioSnapshot
         target_returns = await self._get_target_returns(db, portfolio_id)
 
+        # Calculate YTD and MTD P&L from snapshots
+        period_pnl = await self._calculate_period_pnl(db, portfolio_id)
+
         return {
             "equity_balance": round(equity_balance, 2) if equity_balance is not None else None,
             "total_value": round(portfolio_total, 2),
@@ -215,7 +218,9 @@ class PortfolioAnalyticsService:
             "pnl": {
                 "total_pnl": round(total_pnl, 2),
                 "unrealized_pnl": round(unrealized_pnl, 2),
-                "realized_pnl": round(realized_pnl, 2)
+                "realized_pnl": round(realized_pnl, 2),
+                "ytd_pnl": round(period_pnl["ytd_pnl"], 2),
+                "mtd_pnl": round(period_pnl["mtd_pnl"], 2)
             },
             "position_count": {
                 "total_positions": total_positions,
@@ -268,6 +273,62 @@ class PortfolioAnalyticsService:
         except Exception as e:
             logger.warning(f"Error fetching target returns for portfolio {portfolio_id}: {e}")
             return None
+
+    async def _calculate_period_pnl(
+        self,
+        db: AsyncSession,
+        portfolio_id: UUID
+    ) -> Dict[str, float]:
+        """
+        Calculate YTD and MTD P&L from portfolio snapshots.
+
+        Args:
+            db: Database session
+            portfolio_id: Portfolio UUID
+
+        Returns:
+            Dict with ytd_pnl and mtd_pnl values
+        """
+        try:
+            from app.models.snapshots import PortfolioSnapshot
+
+            today = date.today()
+            year_start = date(today.year, 1, 1)
+            month_start = date(today.year, today.month, 1)
+
+            # Query YTD snapshots
+            ytd_result = await db.execute(
+                select(PortfolioSnapshot.daily_pnl)
+                .where(PortfolioSnapshot.portfolio_id == portfolio_id)
+                .where(PortfolioSnapshot.snapshot_date >= year_start)
+                .where(PortfolioSnapshot.daily_pnl.isnot(None))
+            )
+            ytd_pnl_values = ytd_result.scalars().all()
+            ytd_pnl = sum(float(val) for val in ytd_pnl_values if val is not None)
+
+            # Query MTD snapshots
+            mtd_result = await db.execute(
+                select(PortfolioSnapshot.daily_pnl)
+                .where(PortfolioSnapshot.portfolio_id == portfolio_id)
+                .where(PortfolioSnapshot.snapshot_date >= month_start)
+                .where(PortfolioSnapshot.daily_pnl.isnot(None))
+            )
+            mtd_pnl_values = mtd_result.scalars().all()
+            mtd_pnl = sum(float(val) for val in mtd_pnl_values if val is not None)
+
+            logger.info(f"Calculated period P&L for portfolio {portfolio_id}: YTD=${ytd_pnl:,.2f}, MTD=${mtd_pnl:,.2f}")
+
+            return {
+                "ytd_pnl": ytd_pnl,
+                "mtd_pnl": mtd_pnl
+            }
+
+        except Exception as e:
+            logger.warning(f"Error calculating period P&L for portfolio {portfolio_id}: {e}")
+            return {
+                "ytd_pnl": 0.0,
+                "mtd_pnl": 0.0
+            }
 
     async def _get_metrics_from_snapshot(
         self,
@@ -339,6 +400,9 @@ class PortfolioAnalyticsService:
             # Fetch target returns
             target_returns = await self._get_target_returns(db, portfolio_id)
 
+            # Calculate YTD and MTD P&L from snapshots
+            period_pnl = await self._calculate_period_pnl(db, portfolio_id)
+
             logger.info(f"Using snapshot data from {snapshot.snapshot_date} for portfolio {portfolio_id}")
 
             return {
@@ -359,7 +423,9 @@ class PortfolioAnalyticsService:
                 "pnl": {
                     "total_pnl": round(cumulative_pnl, 2),
                     "unrealized_pnl": round(cumulative_pnl, 2),  # Approximation
-                    "realized_pnl": 0.0  # Not in snapshot
+                    "realized_pnl": 0.0,  # Not in snapshot
+                    "ytd_pnl": round(period_pnl["ytd_pnl"], 2),
+                    "mtd_pnl": round(period_pnl["mtd_pnl"], 2)
                 },
                 "position_count": {
                     "total_positions": total_positions,
@@ -398,7 +464,9 @@ class PortfolioAnalyticsService:
             "pnl": {
                 "total_pnl": 0.0,
                 "unrealized_pnl": 0.0,
-                "realized_pnl": 0.0
+                "realized_pnl": 0.0,
+                "ytd_pnl": 0.0,
+                "mtd_pnl": 0.0
             },
             "position_count": {
                 "total_positions": total_positions,

@@ -84,6 +84,8 @@ class PortfolioPnL(BaseModel):
     total_pnl: float = Field(..., description="Total P&L (realized + unrealized)")
     unrealized_pnl: float = Field(..., description="Unrealized P&L from current positions")
     realized_pnl: float = Field(..., description="Realized P&L from closed positions")
+    ytd_pnl: float = Field(..., description="Year-to-date P&L from daily snapshots")
+    mtd_pnl: float = Field(..., description="Month-to-date P&L from daily snapshots")
 
 
 class PositionCount(BaseModel):
