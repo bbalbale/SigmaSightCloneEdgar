@@ -59,9 +59,16 @@ DEMO_USERS = [
     {
         "username": "demo_hedgefundstyle",
         "email": "demo_hedgefundstyle@sigmasight.com",
-        "full_name": "Demo Hedge Fund Style Investor", 
+        "full_name": "Demo Hedge Fund Style Investor",
         "password": "demo12345",
         "strategy": "Long/short equity with options overlay and volatility trading"
+    },
+    {
+        "username": "demo_familyoffice",
+        "email": "demo_familyoffice@sigmasight.com",
+        "full_name": "Demo Family Office Manager",
+        "password": "demo12345",
+        "strategy": "Family office with dedicated public growth and private alternatives mandates"
     }
 ]
 
@@ -69,6 +76,7 @@ DEMO_USERS = [
 DEMO_PORTFOLIOS = [
     {
         "user_email": "demo_individual@sigmasight.com",
+        "portfolio_id_seed": "demo_individual@sigmasight.com_portfolio",
         "portfolio_name": "Demo Individual Investor Portfolio",
         "description": "Individual investor with 401k, IRA, and taxable accounts. Core holdings with growth tilt, heavy mutual fund allocation.",
         "net_asset_value": 485000,
@@ -106,6 +114,7 @@ DEMO_PORTFOLIOS = [
     },
     {
         "user_email": "demo_hnw@sigmasight.com",
+        "portfolio_id_seed": "demo_hnw@sigmasight.com_portfolio",
         "portfolio_name": "Demo High Net Worth Investor Portfolio",
         "description": "High net worth individual with access to private investments. Diversified across public markets with alternative investments.",
         "net_asset_value": 2850000,
@@ -159,6 +168,7 @@ DEMO_PORTFOLIOS = [
     },
     {
         "user_email": "demo_hedgefundstyle@sigmasight.com",
+        "portfolio_id_seed": "demo_hedgefundstyle@sigmasight.com_portfolio",
         "portfolio_name": "Demo Hedge Fund Style Investor Portfolio",
         "description": "Sophisticated trader with derivatives access. Market-neutral with volatility trading and options overlay.",
         "net_asset_value": 3200000,
@@ -205,6 +215,47 @@ DEMO_PORTFOLIOS = [
             {"symbol": "MSFT250919P00380000", "quantity": Decimal("-80"), "entry_price": Decimal("5.00"), "entry_date": date(2024, 1, 20), "tags": ["Options Overlay"], "underlying": "MSFT", "strike": Decimal("380.00"), "expiry": date(2025, 9, 19), "option_type": "P"},
             {"symbol": "TSLA250815C00300000", "quantity": Decimal("-60"), "entry_price": Decimal("8.00"), "entry_date": date(2024, 1, 25), "tags": ["Options Overlay"], "underlying": "TSLA", "strike": Decimal("300.00"), "expiry": date(2025, 8, 15), "option_type": "C"},
             {"symbol": "META250919P00450000", "quantity": Decimal("-50"), "entry_price": Decimal("7.50"), "entry_date": date(2024, 1, 25), "tags": ["Options Overlay"], "underlying": "META", "strike": Decimal("450.00"), "expiry": date(2025, 9, 19), "option_type": "P"},
+        ]
+    },
+    {
+        "user_email": "demo_familyoffice@sigmasight.com",
+        "portfolio_id_seed": "demo_familyoffice@sigmasight.com_public_growth",
+        "portfolio_name": "Demo Family Office Public Growth",
+        "description": "Public markets growth sleeve for the family office combining thematic ETFs with quality compounders and defensive yield.",
+        "total_value": 1250000,
+        "equity_balance": Decimal("1250000.00"),
+        "positions": [
+            {"symbol": "XLK", "quantity": Decimal("600"), "entry_price": Decimal("180.00"), "entry_date": date(2024, 3, 15), "tags": ["Thematic Growth", "Tech Allocation"]},
+            {"symbol": "SMH", "quantity": Decimal("500"), "entry_price": Decimal("210.00"), "entry_date": date(2024, 3, 18), "tags": ["Thematic Growth", "Semiconductors"]},
+            {"symbol": "IGV", "quantity": Decimal("400"), "entry_price": Decimal("330.00"), "entry_date": date(2024, 3, 20), "tags": ["Thematic Growth", "Software"]},
+            {"symbol": "XLY", "quantity": Decimal("450"), "entry_price": Decimal("185.00"), "entry_date": date(2024, 3, 25), "tags": ["Consumer Discretionary", "Cyclical Tilt"]},
+            {"symbol": "COST", "quantity": Decimal("220"), "entry_price": Decimal("720.00"), "entry_date": date(2024, 4, 2), "tags": ["Quality Compounder", "Defensive Growth"]},
+            {"symbol": "AVGO", "quantity": Decimal("140"), "entry_price": Decimal("1350.00"), "entry_date": date(2024, 4, 5), "tags": ["Quality Compounder", "Semiconductors"]},
+            {"symbol": "ASML", "quantity": Decimal("160"), "entry_price": Decimal("960.00"), "entry_date": date(2024, 4, 8), "tags": ["Quality Compounder", "International"]},
+            {"symbol": "LULU", "quantity": Decimal("300"), "entry_price": Decimal("380.00"), "entry_date": date(2024, 4, 12), "tags": ["Consumer Discretionary", "Lifestyle Brand"]},
+            {"symbol": "NEE", "quantity": Decimal("500"), "entry_price": Decimal("70.00"), "entry_date": date(2024, 4, 15), "tags": ["Defensive Yield", "Clean Energy"]},
+            {"symbol": "SCHD", "quantity": Decimal("650"), "entry_price": Decimal("75.00"), "entry_date": date(2024, 4, 18), "tags": ["Defensive Yield", "Dividend Growth"]},
+            {"symbol": "JEPQ", "quantity": Decimal("700"), "entry_price": Decimal("54.00"), "entry_date": date(2024, 4, 22), "tags": ["Options Overlay", "Income"]},
+            {"symbol": "BIL", "quantity": Decimal("900"), "entry_price": Decimal("91.50"), "entry_date": date(2024, 4, 25), "tags": ["Liquidity Reserve", "Cash Management"]},
+        ]
+    },
+    {
+        "user_email": "demo_familyoffice@sigmasight.com",
+        "portfolio_id_seed": "demo_familyoffice@sigmasight.com_private_opportunities",
+        "portfolio_name": "Demo Family Office Private Opportunities",
+        "description": "Private market and real asset sleeve emphasizing income, diversification, and inflation protection.",
+        "total_value": 950000,
+        "equity_balance": Decimal("950000.00"),
+        "positions": [
+            {"symbol": "FO_PRIVATE_CREDIT_FUND", "quantity": Decimal("1"), "entry_price": Decimal("225000.00"), "entry_date": date(2023, 9, 1), "tags": ["Private Credit", "Income"]},
+            {"symbol": "FO_GROWTH_PE_FUND", "quantity": Decimal("1"), "entry_price": Decimal("210000.00"), "entry_date": date(2023, 9, 1), "tags": ["Private Equity", "Growth"]},
+            {"symbol": "FO_VC_SECONDARIES_FUND", "quantity": Decimal("1"), "entry_price": Decimal("145000.00"), "entry_date": date(2023, 10, 1), "tags": ["Venture Capital", "Secondaries"]},
+            {"symbol": "FO_REAL_ASSET_REIT", "quantity": Decimal("1"), "entry_price": Decimal("110000.00"), "entry_date": date(2023, 10, 15), "tags": ["Private REIT", "Real Assets"]},
+            {"symbol": "FO_INFRASTRUCTURE_FUND", "quantity": Decimal("1"), "entry_price": Decimal("90000.00"), "entry_date": date(2023, 11, 1), "tags": ["Infrastructure", "Inflation Protection"]},
+            {"symbol": "FO_HOME_RENTAL_PORTFOLIO", "quantity": Decimal("1"), "entry_price": Decimal("85000.00"), "entry_date": date(2023, 11, 20), "tags": ["Real Estate", "Rental Portfolio"]},
+            {"symbol": "FO_IMPACT_LENDING_FUND", "quantity": Decimal("1"), "entry_price": Decimal("55000.00"), "entry_date": date(2024, 1, 5), "tags": ["Impact Investing", "Sustainable"]},
+            {"symbol": "FO_ART_COLLECTIVE", "quantity": Decimal("1"), "entry_price": Decimal("30000.00"), "entry_date": date(2024, 2, 1), "tags": ["Alternative Assets", "Art"]},
+            {"symbol": "FO_CRYPTO_DIGITAL_TRUST", "quantity": Decimal("1"), "entry_price": Decimal("30000.00"), "entry_date": date(2024, 2, 15), "tags": ["Alternative Assets", "Digital Assets"]},
         ]
     }
 ]
@@ -406,15 +457,19 @@ async def create_demo_portfolio(db: AsyncSession, portfolio_data: Dict[str, Any]
     
     # Get user
     user = await get_user_by_email(db, portfolio_data["user_email"])
-    
-    # Check if user already has ANY portfolio (one portfolio per user constraint)
+
+    # Determine deterministic portfolio ID to support multiple portfolios per user
+    portfolio_seed = portfolio_data.get("portfolio_id_seed") or f"{user.email}_{portfolio_data['portfolio_name']}"
+    portfolio_id = generate_deterministic_uuid(portfolio_seed)
+
+    # Check if this specific portfolio already exists
     result = await db.execute(
-        select(Portfolio).where(Portfolio.user_id == user.id)
+        select(Portfolio).where(Portfolio.id == portfolio_id)
     )
     existing_portfolio = result.scalar_one_or_none()
-    
+
     if existing_portfolio:
-        logger.info(f"User {user.email} already has portfolio: {existing_portfolio.name}")
+        logger.info(f"Portfolio already exists for user {user.email}: {existing_portfolio.name}")
         
         # Update equity_balance if provided and different
         if "equity_balance" in portfolio_data and existing_portfolio.equity_balance != portfolio_data["equity_balance"]:
@@ -448,7 +503,7 @@ async def create_demo_portfolio(db: AsyncSession, portfolio_data: Dict[str, Any]
     
     # Create portfolio with deterministic ID for development consistency
     portfolio = Portfolio(
-        id=generate_deterministic_uuid(f"{user.email}_portfolio"),
+        id=portfolio_id,
         user_id=user.id,
         name=portfolio_data["portfolio_name"],
         description=portfolio_data["description"],

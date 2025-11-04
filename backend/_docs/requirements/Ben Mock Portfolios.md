@@ -229,3 +229,46 @@
 | **Diversification** | Good | Excellent | Concentrated |
 
 Each portfolio reflects different levels of sophistication, risk tolerance, and access to investment vehicles, providing realistic examples for testing portfolio analysis tools.
+
+---
+
+## Multi-Portfolio User: "Family Office Mandates"
+
+**User Goal:** Model a family office that separates its public markets growth sleeve from a private alternatives allocation.
+
+### Portfolio A: "Public Growth Sleeve"
+**Total Portfolio Value:** $1,250,000  
+**Focus:** Thematic technology exposure paired with quality compounders and defensive income positions.
+
+| Ticker | Shares | Entry Price | Allocation Focus | Notes |
+|--------|--------|-------------|------------------|-------|
+| XLK | 600 | $180.00 | Tech ETF | Core technology allocation |
+| SMH | 500 | $210.00 | Semiconductors | High-conviction chip exposure |
+| IGV | 400 | $330.00 | Software | Cloud/SaaS overweight |
+| XLY | 450 | $185.00 | Consumer Discretionary | Cyclical participation |
+| COST | 220 | $720.00 | Quality Compounder | Defensive growth anchor |
+| AVGO | 140 | $1,350.00 | Quality Compounder | Cash-flow powerhouse |
+| ASML | 160 | $960.00 | International Tech | European lithography leader |
+| LULU | 300 | $380.00 | Consumer Discretionary | Lifestyle growth story |
+| NEE | 500 | $70.00 | Defensive Yield | Clean energy utility exposure |
+| SCHD | 650 | $75.00 | Defensive Yield | Dividend growth ballast |
+| JEPQ | 700 | $54.00 | Income & Options Overlay | Enhanced income sleeve |
+| BIL | 900 | $91.50 | Liquidity | Treasury-bill cash management |
+
+### Portfolio B: "Private Opportunities Sleeve"
+**Total Portfolio Value:** $950,000  
+**Focus:** Income-oriented and diversifying private market commitments for inflation protection and non-correlated returns.
+
+| Instrument | Commitment | Category | Rationale |
+|------------|------------|----------|-----------|
+| FO_PRIVATE_CREDIT_FUND | $225,000 | Private Credit | Senior secured direct lending income |
+| FO_GROWTH_PE_FUND | $210,000 | Private Equity | Growth buyout exposure |
+| FO_VC_SECONDARIES_FUND | $145,000 | Venture Capital | Late-stage secondary diversification |
+| FO_REAL_ASSET_REIT | $110,000 | Private REIT | Core real assets allocation |
+| FO_INFRASTRUCTURE_FUND | $90,000 | Infrastructure | Inflation-linked cash flows |
+| FO_HOME_RENTAL_PORTFOLIO | $85,000 | Real Estate | Scaled single-family rental strategy |
+| FO_IMPACT_LENDING_FUND | $55,000 | Impact Investing | Community lending with sustainability mandate |
+| FO_ART_COLLECTIVE | $30,000 | Alternative Assets | Cultural and collectible diversification |
+| FO_CRYPTO_DIGITAL_TRUST | $30,000 | Digital Assets | Institutional crypto exposure |
+
+This multi-portfolio user demonstrates the new capability to model separate sleeves under a single investor profile while keeping position sets distinct across public and private mandates.
