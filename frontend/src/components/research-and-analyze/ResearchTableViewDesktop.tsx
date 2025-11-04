@@ -94,6 +94,12 @@ export function ResearchTableViewDesktop({
                   fontSize: 'var(--text-xs)',
                   color: 'var(--text-secondary)'
                 }}>
+                  Analyst Target
+                </th>
+                <th className="text-right px-4 py-3 font-semibold transition-colors duration-300" style={{
+                  fontSize: 'var(--text-xs)',
+                  color: 'var(--text-secondary)'
+                }}>
                   Your EOY Target
                 </th>
                 <th className="text-right px-4 py-3 font-semibold transition-colors duration-300" style={{
@@ -113,12 +119,6 @@ export function ResearchTableViewDesktop({
                   color: 'var(--text-secondary)'
                 }}>
                   Next Year Return %
-                </th>
-                <th className="text-right px-4 py-3 font-semibold transition-colors duration-300" style={{
-                  fontSize: 'var(--text-xs)',
-                  color: 'var(--text-secondary)'
-                }}>
-                  Analyst Target
                 </th>
                 <th className="text-left px-4 py-3 font-semibold transition-colors duration-300" style={{
                   fontSize: 'var(--text-xs)',
@@ -316,6 +316,14 @@ const ResearchTableRow = memo(function ResearchTableRow({ position, isExpanded, 
           {formatCurrency(position.current_price)}
         </td>
 
+        {/* Analyst Target */}
+        <td className="px-4 py-3 text-right tabular-nums transition-colors duration-300" style={{
+          fontSize: 'var(--text-sm)',
+          color: 'var(--text-secondary)'
+        }}>
+          {position.target_mean_price ? formatCurrency(position.target_mean_price) : '—'}
+        </td>
+
         {/* Your EOY Target (Editable) */}
         <td className="px-4 py-3">
           <Input
@@ -374,14 +382,6 @@ const ResearchTableRow = memo(function ResearchTableRow({ position, isExpanded, 
             : 'var(--text-tertiary)'
         }}>
           {formatPercentage(expectedReturnNextYear)}
-        </td>
-
-        {/* Analyst Target */}
-        <td className="px-4 py-3 text-right tabular-nums transition-colors duration-300" style={{
-          fontSize: 'var(--text-sm)',
-          color: 'var(--text-secondary)'
-        }}>
-          {position.target_mean_price ? formatCurrency(position.target_mean_price) : '—'}
         </td>
 
         {/* Tags */}
@@ -454,7 +454,7 @@ interface ExpandedRowDetailProps {
   onRemoveTag?: (positionId: string, tagId: string) => Promise<void>
 }
 
-type TabType = 'profile' | 'financials' | 'correlations'
+type TabType = 'profile' | 'financials'
 
 const ExpandedRowDetail = memo(function ExpandedRowDetail({ position, riskMetrics, riskMetricsLoading, onRemoveTag }: ExpandedRowDetailProps) {
   const [activeTab, setActiveTab] = useState<TabType>('profile')
@@ -484,6 +484,24 @@ const ExpandedRowDetail = memo(function ExpandedRowDetail({ position, riskMetric
   const valueClass = "text-sm font-medium transition-colors duration-300"
   const sectionTitleClass = "text-xs font-semibold uppercase tracking-wide mb-3 transition-colors duration-300"
 
+  const formatDecimal = (value: number | null | undefined, digits = 2) => {
+    if (value === null || value === undefined || Number.isNaN(value)) return '—'
+    return value.toFixed(digits)
+  }
+
+  const renderStatCard = (title: string, value: string) => (
+    <div className="p-3 rounded transition-colors duration-300" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
+      <div className={labelClass} style={{ color: 'var(--text-secondary)' }}>{title}</div>
+      <div className={valueClass} style={{ color: 'var(--text-primary)' }}>{value}</div>
+    </div>
+  )
+
+  const oneYearBetaValue = typeof position.beta === 'number' ? formatDecimal(position.beta) : '—'
+  const ninetyDayBetaValue = formatDecimal(riskMetrics?.beta)
+  const growthFactorValue = formatDecimal(riskMetrics?.factor_exposures?.Growth)
+  const momentumFactorValue = formatDecimal(riskMetrics?.factor_exposures?.Momentum)
+  const sizeFactorValue = formatDecimal(riskMetrics?.factor_exposures?.Size)
+
   // Tab button styling
   const getTabButtonStyle = (tab: TabType) => ({
     padding: '0.5rem 1.5rem',
@@ -511,12 +529,6 @@ const ExpandedRowDetail = memo(function ExpandedRowDetail({ position, riskMetric
           style={getTabButtonStyle('financials')}
         >
           Financials
-        </button>
-        <button
-          onClick={() => setActiveTab('correlations')}
-          style={getTabButtonStyle('correlations')}
-        >
-          Correlations
         </button>
       </div>
 
@@ -567,18 +579,14 @@ const ExpandedRowDetail = memo(function ExpandedRowDetail({ position, riskMetric
                 </h4>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="p-2 rounded transition-colors duration-300" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
-                    <div className={labelClass} style={{ color: 'var(--text-secondary)' }}>P/E</div>
-                    <div className={valueClass} style={{ color: 'var(--text-primary)' }}>{peThisYear?.toFixed(1) || '—'}</div>
-                  </div>
-                  <div className="p-2 rounded transition-colors duration-300" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
-                    <div className={labelClass} style={{ color: 'var(--text-secondary)' }}>P/S</div>
-                    <div className={valueClass} style={{ color: 'var(--text-primary)' }}>{psThisYear?.toFixed(2) || '—'}</div>
-                  </div>
-                  <div className="p-2 rounded transition-colors duration-300" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
                     <div className={labelClass} style={{ color: 'var(--text-secondary)' }}>EPS</div>
                     <div className={valueClass} style={{ color: 'var(--text-primary)' }}>
                       {position.current_year_earnings_avg ? formatCurrency(position.current_year_earnings_avg) : '—'}
                     </div>
+                  </div>
+                  <div className="p-2 rounded transition-colors duration-300" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
+                    <div className={labelClass} style={{ color: 'var(--text-secondary)' }}>P/E</div>
+                    <div className={valueClass} style={{ color: 'var(--text-primary)' }}>{peThisYear?.toFixed(1) || '—'}</div>
                   </div>
                   <div className="p-2 rounded transition-colors duration-300" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
                     <div className={labelClass} style={{ color: 'var(--text-secondary)' }}>Revenue</div>
@@ -586,41 +594,45 @@ const ExpandedRowDetail = memo(function ExpandedRowDetail({ position, riskMetric
                       {position.current_year_revenue_avg ? `$${(position.current_year_revenue_avg / 1e9).toFixed(1)}B` : '—'}
                     </div>
                   </div>
+                  <div className="p-2 rounded transition-colors duration-300" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
+                    <div className={labelClass} style={{ color: 'var(--text-secondary)' }}>P/S</div>
+                    <div className={valueClass} style={{ color: 'var(--text-primary)' }}>{psThisYear?.toFixed(2) || '—'}</div>
+                  </div>
                 </div>
               </div>
 
-              {/* Right Column: Forward Year Metrics */}
-              <div>
-                <h4 className={sectionTitleClass} style={{ color: 'var(--text-secondary)' }}>
-                  Forward Year
-                </h4>
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="p-2 rounded transition-colors duration-300" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
-                    <div className={labelClass} style={{ color: 'var(--text-secondary)' }}>Fwd P/E</div>
-                    <div className={valueClass} style={{ color: 'var(--text-primary)' }}>{peNextYear?.toFixed(1) || '—'}</div>
+            {/* Right Column: Forward Year Metrics */}
+            <div>
+              <h4 className={sectionTitleClass} style={{ color: 'var(--text-secondary)' }}>
+                Forward Year
+              </h4>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="p-2 rounded transition-colors duration-300" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
+                  <div className={labelClass} style={{ color: 'var(--text-secondary)' }}>Fwd EPS</div>
+                  <div className={valueClass} style={{ color: 'var(--text-primary)' }}>
+                    {position.next_year_earnings_avg ? formatCurrency(position.next_year_earnings_avg) : '—'}
                   </div>
-                  <div className="p-2 rounded transition-colors duration-300" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
-                    <div className={labelClass} style={{ color: 'var(--text-secondary)' }}>Fwd P/S</div>
-                    <div className={valueClass} style={{ color: 'var(--text-primary)' }}>{psNextYear?.toFixed(2) || '—'}</div>
+                </div>
+                <div className="p-2 rounded transition-colors duration-300" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
+                  <div className={labelClass} style={{ color: 'var(--text-secondary)' }}>Fwd P/E</div>
+                  <div className={valueClass} style={{ color: 'var(--text-primary)' }}>{peNextYear?.toFixed(1) || '—'}</div>
+                </div>
+                <div className="p-2 rounded transition-colors duration-300" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
+                  <div className={labelClass} style={{ color: 'var(--text-secondary)' }}>Fwd Revenue</div>
+                  <div className={valueClass} style={{ color: 'var(--text-primary)' }}>
+                    {position.next_year_revenue_avg ? `$${(position.next_year_revenue_avg / 1e9).toFixed(1)}B` : '—'}
                   </div>
-                  <div className="p-2 rounded transition-colors duration-300" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
-                    <div className={labelClass} style={{ color: 'var(--text-secondary)' }}>Fwd EPS</div>
-                    <div className={valueClass} style={{ color: 'var(--text-primary)' }}>
-                      {position.next_year_earnings_avg ? formatCurrency(position.next_year_earnings_avg) : '—'}
-                    </div>
-                  </div>
-                  <div className="p-2 rounded transition-colors duration-300" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
-                    <div className={labelClass} style={{ color: 'var(--text-secondary)' }}>Fwd Revenue</div>
-                    <div className={valueClass} style={{ color: 'var(--text-primary)' }}>
-                      {position.next_year_revenue_avg ? `$${(position.next_year_revenue_avg / 1e9).toFixed(1)}B` : '—'}
-                    </div>
-                  </div>
+                </div>
+                <div className="p-2 rounded transition-colors duration-300" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
+                  <div className={labelClass} style={{ color: 'var(--text-secondary)' }}>Fwd P/S</div>
+                  <div className={valueClass} style={{ color: 'var(--text-primary)' }}>{psNextYear?.toFixed(2) || '—'}</div>
                 </div>
               </div>
             </div>
+          </div>
 
-            {/* Bottom Row: Tags, Risk Metrics */}
-            <div className="grid grid-cols-2 gap-8">
+            {/* Bottom Row: Tags, Correlations, Risk Metrics */}
+            <div className="grid gap-8 md:grid-cols-2 lg:grid-cols-3">
               {/* Left Column: Tags */}
               <div>
                 <h4 className={sectionTitleClass} style={{ color: 'var(--text-secondary)' }}>
@@ -663,6 +675,22 @@ const ExpandedRowDetail = memo(function ExpandedRowDetail({ position, riskMetric
                 )}
               </div>
 
+              {/* Middle Column: Correlations */}
+              <div>
+                <h4 className={sectionTitleClass} style={{ color: 'var(--text-secondary)' }}>
+                  Correlations
+                </h4>
+                <div
+                  className="rounded-lg border overflow-hidden transition-colors duration-300"
+                  style={{
+                    borderColor: 'var(--border-primary)',
+                    backgroundColor: 'var(--bg-secondary)'
+                  }}
+                >
+                  <CorrelationsSection position={position as any} theme="dark" />
+                </div>
+              </div>
+
               {/* Right Column: Risk Metrics */}
               <div>
                 <h4 className={sectionTitleClass} style={{ color: 'var(--text-secondary)' }}>
@@ -672,68 +700,14 @@ const ExpandedRowDetail = memo(function ExpandedRowDetail({ position, riskMetric
                   <p className="text-sm transition-colors duration-300" style={{ color: 'var(--text-tertiary)' }}>
                     Loading...
                   </p>
-                ) : riskMetrics ? (
-                  <div className="space-y-2">
-                    {/* Calculated Beta (from our factor model) */}
-                    {typeof riskMetrics.beta === 'number' && (
-                      <div className="flex justify-between">
-                        <span className={labelClass} style={{ color: 'var(--text-secondary)' }}>Calculated Beta</span>
-                        <span className={valueClass} style={{ color: 'var(--text-primary)' }}>{riskMetrics.beta.toFixed(2)}</span>
-                      </div>
-                    )}
-                    {/* 1-Year Beta (from company profile or other source) */}
-                    {typeof position.beta === 'number' && (
-                      <div className="flex justify-between">
-                        <span className={labelClass} style={{ color: 'var(--text-secondary)' }}>1-Year Beta</span>
-                        <span className={valueClass} style={{ color: 'var(--text-primary)' }}>{position.beta.toFixed(2)}</span>
-                      </div>
-                    )}
-                    {riskMetrics.volatility_30d !== undefined && (
-                      <div className="flex justify-between">
-                        <span className={labelClass} style={{ color: 'var(--text-secondary)' }}>Volatility (30d)</span>
-                        <span className={valueClass} style={{ color: 'var(--text-primary)' }}>{formatPercentage(riskMetrics.volatility_30d)}</span>
-                      </div>
-                    )}
-                    {(riskMetrics.sector || position.sector) && (
-                      <div className="flex justify-between">
-                        <span className={labelClass} style={{ color: 'var(--text-secondary)' }}>Sector</span>
-                        <span className={valueClass} style={{ color: 'var(--text-primary)' }}>{riskMetrics.sector || position.sector}</span>
-                      </div>
-                    )}
-
-                    {/* Factor Exposures */}
-                    {riskMetrics.factor_exposures && (
-                      <>
-                        <div className="mt-4 mb-2">
-                          <span className="text-xs font-semibold uppercase tracking-wide transition-colors duration-300" style={{ color: 'var(--text-secondary)' }}>
-                            Factor Exposures
-                          </span>
-                        </div>
-                        {riskMetrics.factor_exposures.Growth !== undefined && (
-                          <div className="flex justify-between">
-                            <span className={labelClass} style={{ color: 'var(--text-secondary)' }}>Growth</span>
-                            <span className={valueClass} style={{ color: 'var(--text-primary)' }}>{riskMetrics.factor_exposures.Growth.toFixed(2)}</span>
-                          </div>
-                        )}
-                        {riskMetrics.factor_exposures.Momentum !== undefined && (
-                          <div className="flex justify-between">
-                            <span className={labelClass} style={{ color: 'var(--text-secondary)' }}>Momentum</span>
-                            <span className={valueClass} style={{ color: 'var(--text-primary)' }}>{riskMetrics.factor_exposures.Momentum.toFixed(2)}</span>
-                          </div>
-                        )}
-                        {riskMetrics.factor_exposures.Size !== undefined && (
-                          <div className="flex justify-between">
-                            <span className={labelClass} style={{ color: 'var(--text-secondary)' }}>Size</span>
-                            <span className={valueClass} style={{ color: 'var(--text-primary)' }}>{riskMetrics.factor_exposures.Size.toFixed(2)}</span>
-                          </div>
-                        )}
-                      </>
-                    )}
-                  </div>
                 ) : (
-                  <p className="text-sm transition-colors duration-300" style={{ color: 'var(--text-tertiary)' }}>
-                    Not available
-                  </p>
+                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+                    {renderStatCard('1 Year Beta', oneYearBetaValue)}
+                    {renderStatCard('90 Day Beta', ninetyDayBetaValue)}
+                    {renderStatCard('Growth Factor', growthFactorValue)}
+                    {renderStatCard('Momentum Factor', momentumFactorValue)}
+                    {renderStatCard('Size Factor', sizeFactorValue)}
+                  </div>
                 )}
               </div>
             </div>
@@ -745,12 +719,6 @@ const ExpandedRowDetail = memo(function ExpandedRowDetail({ position, riskMetric
           <FinancialsTab symbol={position.symbol} />
         )}
 
-        {/* Correlations Tab */}
-        {activeTab === 'correlations' && (
-          <div>
-            <CorrelationsSection position={position as any} theme="dark" />
-          </div>
-        )}
       </div>
     </div>
   )
