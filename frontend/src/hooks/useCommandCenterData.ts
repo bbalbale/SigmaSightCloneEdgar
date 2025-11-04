@@ -53,11 +53,21 @@ interface RiskMetrics {
   stressTest: { up: number; down: number } | null
 }
 
-interface UseCommandCenterDataReturn {
+interface AggregateSection {
   heroMetrics: HeroMetrics
   performanceMetrics: PerformanceMetrics
-  holdings: HoldingRow[]
   riskMetrics: RiskMetrics
+  holdings: HoldingRow[]
+}
+
+interface PortfolioSection extends AggregateSection {
+  portfolioId: string
+  accountName: string
+}
+
+interface UseCommandCenterDataReturn {
+  aggregate: AggregateSection | null
+  portfolios: PortfolioSection[]
   loading: boolean
   error: string | null
 }
@@ -106,451 +116,464 @@ const calculateWeightedReturnByMarketValue = (
 }
 
 export function useCommandCenterData(refreshTrigger?: number): UseCommandCenterDataReturn {
-  const portfolioId = useSelectedPortfolioId()
+  const selectedPortfolioId = useSelectedPortfolioId()
 
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [aggregateData, setAggregateData] = useState<AggregateSection | null>(null)
+  const [portfolioSections, setPortfolioSections] = useState<PortfolioSection[]>([])
 
-  const [heroMetrics, setHeroMetrics] = useState<HeroMetrics>({
-    equityBalance: 0,
-    targetReturnEOY: 0,
-    grossExposure: 0,
-    netExposure: 0,
-    longExposure: 0,
-    shortExposure: 0
-  })
 
-  const [performanceMetrics, setPerformanceMetrics] = useState<PerformanceMetrics>({
-    ytdPnl: 0,
-    mtdPnl: 0,
-    cashBalance: 0,
-    portfolioBeta90d: null,
-    portfolioBeta1y: null,
-    stressTest: null
-  })
 
-  const [holdings, setHoldings] = useState<HoldingRow[]>([])
-  const [riskMetrics, setRiskMetrics] = useState<RiskMetrics>({
-    portfolioBeta90d: null,
-    portfolioBeta1y: null,
-    topSector: null,
-    largestPosition: null,
-    spCorrelation: null,
-    stressTest: null
-  })
+  const buildPortfolioSection = async (portfolioId: string, accountName: string): Promise<PortfolioSection> => {
+    console.log('[useCommandCenterData] Fetching portfolio data for:', portfolioId)
+
+    const [
+      overviewRaw,
+      snapshot,
+      enhancedPositionsResult,
+      targetSummary,
+      sectorData,
+      correlationData,
+      positionBetas,
+      portfolioFactors
+    ] = await Promise.all([
+      analyticsApi.getOverview(portfolioId),
+      fetchPortfolioSnapshot(portfolioId),
+      positionResearchService.fetchEnhancedPositions({ portfolioId }),
+      targetPriceService.summary(portfolioId).catch((err) => {
+        console.warn('[useCommandCenterData] Failed to fetch target summary:', err)
+        return null
+      }),
+      analyticsApi.getSectorExposure(portfolioId).catch(() => ({ data: { available: false } })),
+      analyticsApi.getCorrelationMatrix(portfolioId).catch(() => ({ data: { available: false } })),
+      analyticsApi.getPositionFactorExposures(portfolioId).catch(() => ({ data: { available: false, positions: [] } })),
+      analyticsApi.getPortfolioFactorExposures(portfolioId).catch(() => ({ data: { available: false, factors: [] } }))
+    ])
+
+    const overviewResponse = overviewRaw.data
+    const exposuresRaw = overviewResponse.exposures || {}
+    const equityBalance = overviewResponse.equity_balance || 0
+    const cashBalance = overviewResponse.cash_balance || 0
+
+    const enhancedPositions = enhancedPositionsResult.positions || []
+    if (enhancedPositions.length > 0) {
+      console.log('[useCommandCenterData] Sample enhanced position:', enhancedPositions[0])
+    }
+
+    const betaMap = new Map<string, number>()
+    if (positionBetas.data.available && positionBetas.data.positions) {
+      positionBetas.data.positions.forEach((pos: any) => {
+        const marketBeta = pos.exposures?.['Market Beta']
+        if (marketBeta !== undefined && marketBeta !== null) {
+          betaMap.set(pos.symbol, marketBeta)
+        }
+      })
+    }
+
+    const pnlToday = normalizeNumber(snapshot?.daily_pnl)
+
+    const holdingsData: HoldingRow[] = enhancedPositions.map((pos: EnhancedPosition) => {
+      const marketValue = normalizeNumber(pos.current_market_value ?? pos.market_value) ?? 0
+      const percentOfEquity = normalizeNumber(pos.percent_of_equity)
+      const weight = percentOfEquity !== null
+        ? percentOfEquity
+        : equityBalance !== 0
+          ? (marketValue / equityBalance) * 100
+          : 0
+      const returnPct = normalizeNumber(pos.unrealized_pnl_percent) ?? 0
+      const targetPrice =
+        normalizeNumber(pos.user_target_eoy) ??
+        normalizeNumber(pos.target_mean_price) ??
+        null
+      const targetReturn =
+        normalizeNumber(pos.target_return_eoy) ??
+        normalizeNumber(pos.analyst_return_eoy) ??
+        null
+
+      return {
+        id: pos.id,
+        symbol: pos.symbol,
+        quantity: pos.quantity ?? 0,
+        entryPrice: normalizeNumber(pos.avg_cost ?? pos.entry_price) ?? 0,
+        todaysPrice: normalizeNumber(pos.current_price ?? (pos as any).price) ?? 0,
+        targetPrice,
+        marketValue,
+        weight,
+        pnlToday: pnlToday !== null ? (pnlToday * weight) / 100 : null,
+        pnlTotal: normalizeNumber(pos.unrealized_pnl ?? pos.pnl) ?? 0,
+        returnPct,
+        targetReturn,
+        beta: betaMap.get(pos.symbol) ?? normalizeNumber(pos.beta),
+        positionType: (pos.position_type as string) || 'LONG',
+        investmentClass: (pos.investment_class as string) || 'PUBLIC',
+        account_name: accountName,
+        portfolio_id: portfolioId
+      }
+    })
+
+    holdingsData.sort((a, b) => Math.abs(b.weight) - Math.abs(a.weight))
+
+    const summaryTargetReturn = normalizeNumber(targetSummary?.weighted_expected_return_eoy)
+    const computedTargetReturn = calculateWeightedReturnByMarketValue(
+      enhancedPositions,
+      'target_return_eoy',
+      'analyst_return_eoy'
+    )
+    const snapshotTargetReturn = normalizeNumber(snapshot?.target_price_return_eoy)
+
+    const heroTargetReturnEOY =
+      snapshotTargetReturn ??
+      summaryTargetReturn ??
+      computedTargetReturn ??
+      0
+
+    let beta90d: number | null = null
+    let beta1y: number | null = null
+
+    if (portfolioFactors.data?.available && portfolioFactors.data?.factors) {
+      const factors = portfolioFactors.data.factors
+      const beta90dFactor = factors.find((f: any) => f.name === 'Market Beta (Calculated 90d)')
+      const beta1yFactor = factors.find((f: any) => f.name === 'Market Beta (Provider 1y)')
+      beta90d = normalizeNumber(beta90dFactor?.beta)
+      beta1y = normalizeNumber(beta1yFactor?.beta)
+    }
+
+    let topSector: { name: string; weight: number; vs_sp: number } | null = null
+    if ('data' in sectorData) {
+      const sectorResponse = sectorData as { data: { available: boolean; data?: any } }
+      if (sectorResponse.data.available && sectorResponse.data.data) {
+        const sectors = sectorResponse.data.data.portfolio_weights || {}
+        const benchmarkWeights = sectorResponse.data.data.benchmark_weights || {}
+        const sectorEntries = Object.entries(sectors).map(([name, weight]) => ({
+          name,
+          weight: (weight as number) * 100,
+          vs_sp: ((weight as number) - (benchmarkWeights[name] as number || 0)) * 100
+        }))
+        if (sectorEntries.length > 0) {
+          topSector = sectorEntries.sort((a, b) => b.weight - a.weight)[0]
+        }
+      }
+    }
+
+    let largestPosition: { symbol: string; weight: number } | null = null
+    if (holdingsData.length > 0) {
+      const topHolding = [...holdingsData].sort((a, b) => Math.abs(b.weight) - Math.abs(a.weight))[0]
+      largestPosition = {
+        symbol: topHolding.symbol,
+        weight: topHolding.weight
+      }
+    }
+
+    let spCorrelation: number | null = null
+    if ('data' in correlationData) {
+      const corrResponse = correlationData as { data: { available: boolean; data?: any } }
+      if (corrResponse.data.available && corrResponse.data.data) {
+        const matrix = corrResponse.data.data.matrix
+        if (matrix['SPY']) {
+          const portfolioCorr = Object.entries(matrix['SPY']).find(([key]) =>
+            key.toLowerCase().includes('portfolio') || key === 'PORTFOLIO'
+          )
+          if (portfolioCorr) {
+            spCorrelation = portfolioCorr[1] as number
+          }
+        }
+      }
+    }
+
+    const netExp = exposuresRaw.net_exposure || 0
+    const stressTest =
+      beta1y !== null && netExp !== 0
+        ? {
+            up: netExp * beta1y * 0.01,
+            down: netExp * beta1y * -0.01
+          }
+        : null
+
+    const pnlData = overviewResponse.pnl || {}
+
+    return {
+      portfolioId,
+      accountName,
+      heroMetrics: {
+        equityBalance,
+        targetReturnEOY: heroTargetReturnEOY,
+        grossExposure: exposuresRaw.gross_exposure || 0,
+        netExposure: exposuresRaw.net_exposure || 0,
+        longExposure: exposuresRaw.long_exposure || 0,
+        shortExposure: exposuresRaw.short_exposure || 0
+      },
+      performanceMetrics: {
+        ytdPnl: pnlData.ytd_pnl || 0,
+        mtdPnl: pnlData.mtd_pnl || 0,
+        cashBalance,
+        portfolioBeta90d: beta90d,
+        portfolioBeta1y: beta1y,
+        stressTest
+      },
+      riskMetrics: {
+        portfolioBeta90d: beta90d,
+        portfolioBeta1y: beta1y,
+        topSector,
+        largestPosition,
+        spCorrelation,
+        stressTest
+      },
+      holdings: holdingsData
+    }
+  }
 
   useEffect(() => {
+    let isCancelled = false
+
     const fetchData = async () => {
       setLoading(true)
       setError(null)
 
       try {
-        // AGGREGATE VIEW: Fetch data across all portfolios
-        if (!portfolioId) {
+        if (!selectedPortfolioId) {
           const portfolios = await portfolioService.getPortfolios()
+
+          if (isCancelled) {
+            return
+          }
+
           if (portfolios.length === 0) {
-            setHeroMetrics({
-              equityBalance: 0,
-              targetReturnEOY: 0,
-              grossExposure: 0,
-              netExposure: 0,
-              longExposure: 0,
-              shortExposure: 0
-            })
-            setHoldings([])
-            setPerformanceMetrics({
-              ytdPnl: 0,
-              mtdPnl: 0,
-              cashBalance: 0,
-              portfolioBeta90d: null,
-              portfolioBeta1y: null,
-              stressTest: null
-            })
-            setRiskMetrics({
-              portfolioBeta90d: null,
-              portfolioBeta1y: null,
-              topSector: null,
-              largestPosition: null,
-              spCorrelation: null,
-              stressTest: null
-            })
+            setAggregateData(null)
+            setPortfolioSections([])
             setLoading(false)
             return
           }
 
-          const [aggregateAnalytics, enhancedResults] = await Promise.all([
+          const [aggregateAnalytics, sectionResults] = await Promise.all([
             portfolioService.getAggregateAnalytics().catch(err => {
               console.warn('[useCommandCenterData] Failed to fetch aggregate analytics:', err)
               return null
             }),
             Promise.all(
-              portfolios.map(async portfolio => {
+              portfolios.map(async (portfolio) => {
                 try {
-                  const enhanced = await positionResearchService.fetchEnhancedPositions({ portfolioId: portfolio.id })
-                  return { portfolio, enhanced }
+                  return await buildPortfolioSection(
+                    portfolio.id,
+                    portfolio.account_name || portfolio.name || 'Portfolio'
+                  )
                 } catch (err) {
-                  console.warn(`[useCommandCenterData] Failed to fetch enhanced positions for portfolio ${portfolio.id}:`, err)
-                  return { portfolio, enhanced: { positions: [], longPositions: [], shortPositions: [], portfolioEquity: 0 } }
+                  console.warn('[useCommandCenterData] Failed to load portfolio:', portfolio.id, err)
+                  return null
                 }
               })
             )
           ])
 
-          const combinedPositions = enhancedResults.flatMap(({ portfolio, enhanced }) =>
-            enhanced.positions.map(position => ({
-              portfolio,
-              position
+          if (isCancelled) {
+            return
+          }
+
+          const validSections = sectionResults.filter((section): section is PortfolioSection => section !== null)
+
+          setPortfolioSections(validSections)
+
+          if (portfolios.length > 1 && validSections.length > 0) {
+            const aggregateHoldingsRaw = validSections.flatMap((section) =>
+              section.holdings.map((holding) => ({
+                ...holding,
+                account_name: section.accountName,
+                portfolio_id: section.portfolioId
+              }))
+            )
+
+            const totalEquity = validSections.reduce(
+              (sum, section) => sum + section.heroMetrics.equityBalance,
+              0
+            )
+            const grossExposure = validSections.reduce(
+              (sum, section) => sum + section.heroMetrics.grossExposure,
+              0
+            )
+            const netExposure = validSections.reduce(
+              (sum, section) => sum + section.heroMetrics.netExposure,
+              0
+            )
+            const longExposure = validSections.reduce(
+              (sum, section) => sum + section.heroMetrics.longExposure,
+              0
+            )
+            const shortExposure = validSections.reduce(
+              (sum, section) => sum + section.heroMetrics.shortExposure,
+              0
+            )
+
+            const totalAbsMarketValue = aggregateHoldingsRaw.reduce(
+              (sum, holding) => sum + Math.abs(holding.marketValue),
+              0
+            )
+
+            const aggregateHoldings = aggregateHoldingsRaw.map((holding) => ({
+              ...holding,
+              weight: totalAbsMarketValue > 0
+                ? (Math.abs(holding.marketValue) / totalAbsMarketValue) * 100
+                : 0
             }))
-          )
 
-          const allEnhancedPositions = combinedPositions.map(item => item.position)
-          const totalNav = portfolios.reduce((sum, p) => {
-            const nav = typeof p.net_asset_value === 'number'
-              ? p.net_asset_value
-              : typeof p.total_value === 'number'
-                ? p.total_value
+            const weightedTargetReturn =
+              totalAbsMarketValue > 0
+                ? aggregateHoldingsRaw.reduce(
+                    (sum, holding) =>
+                      sum + (holding.targetReturn ?? 0) * Math.abs(holding.marketValue),
+                    0
+                  ) / totalAbsMarketValue
                 : 0
-            return sum + (nav > 0 ? nav : 0)
-          }, 0)
 
-          let grossExposure = 0
-          let netExposure = 0
-          let longExposure = 0
-          let shortExposure = 0
+            const betaAccumulator = validSections.reduce(
+              (acc, section) => {
+                const weight = Math.max(section.heroMetrics.equityBalance, 0)
+                if (weight > 0) {
+                  if (section.riskMetrics.portfolioBeta90d !== null) {
+                    acc.beta90dSum += section.riskMetrics.portfolioBeta90d * weight
+                  }
+                  if (section.riskMetrics.portfolioBeta1y !== null) {
+                    acc.beta1ySum += section.riskMetrics.portfolioBeta1y * weight
+                  }
+                  acc.totalWeight += weight
+                }
+                return acc
+              },
+              { beta90dSum: 0, beta1ySum: 0, totalWeight: 0 }
+            )
 
-          combinedPositions.forEach(({ position }) => {
-            const marketValue = normalizeNumber(position.current_market_value ?? position.market_value) ?? 0
-            const absValue = Math.abs(marketValue)
-            grossExposure += absValue
-            netExposure += marketValue
-            if (marketValue >= 0) {
-              longExposure += marketValue
-            } else {
-              shortExposure += marketValue
+            const weightedBeta90d =
+              betaAccumulator.totalWeight > 0
+                ? betaAccumulator.beta90dSum / betaAccumulator.totalWeight
+                : null
+
+            const weightedBeta1y =
+              betaAccumulator.totalWeight > 0
+                ? betaAccumulator.beta1ySum / betaAccumulator.totalWeight
+                : null
+
+            const aggregateBeta90d =
+              aggregateAnalytics?.risk_metrics?.portfolio_beta ?? weightedBeta90d ?? null
+
+            const aggregateHero: HeroMetrics = {
+              equityBalance: aggregateAnalytics?.net_asset_value ?? totalEquity,
+              targetReturnEOY: weightedTargetReturn,
+              grossExposure,
+              netExposure,
+              longExposure,
+              shortExposure
             }
-          })
 
-          const combinedHoldings: HoldingRow[] = combinedPositions.map(({ portfolio, position }) => {
-            const marketValue = normalizeNumber(position.current_market_value ?? position.market_value) ?? 0
-            const percentOfEquity = normalizeNumber(position.percent_of_equity)
-            const weightBase = totalNav > 0 ? totalNav : grossExposure
-            const weight = percentOfEquity !== null
-              ? percentOfEquity
-              : weightBase > 0
-                ? (marketValue / weightBase) * 100
-                : 0
-          const returnPct = normalizeNumber(position.unrealized_pnl_percent) ?? 0
-          const targetPrice =
-            normalizeNumber(position.user_target_eoy) ??
-            normalizeNumber(position.target_mean_price) ??
-            null
-          const targetReturn =
-            normalizeNumber(position.target_return_eoy) ??
-            normalizeNumber(position.analyst_return_eoy) ??
-            null
-
-            return {
-              id: position.id,
-              symbol: position.symbol,
-              quantity: position.quantity ?? 0,
-              entryPrice: normalizeNumber(position.avg_cost ?? position.entry_price) ?? 0,
-              todaysPrice: normalizeNumber(position.current_price ?? (position as any).price) ?? 0,
-              targetPrice,
-              marketValue,
-              weight,
-              pnlToday: null,
-              pnlTotal: normalizeNumber(position.unrealized_pnl ?? position.pnl) ?? 0,
-              returnPct,
-              targetReturn,
-              beta: normalizeNumber(position.beta),
-              positionType: (position.position_type as string) || 'LONG',
-              investmentClass: (position.investment_class as string) || 'PUBLIC',
-              account_name: portfolio.account_name || portfolio.name || 'Portfolio',
-              portfolio_id: portfolio.id
+            const aggregatePerformance: PerformanceMetrics = {
+              ytdPnl:
+                aggregateAnalytics?.total_realized_pnl ??
+                validSections.reduce((sum, section) => sum + section.performanceMetrics.ytdPnl, 0),
+              mtdPnl: validSections.reduce((sum, section) => sum + section.performanceMetrics.mtdPnl, 0),
+              cashBalance: validSections.reduce((sum, section) => sum + section.performanceMetrics.cashBalance, 0),
+              portfolioBeta90d: aggregateBeta90d,
+              portfolioBeta1y: weightedBeta1y,
+              stressTest:
+                weightedBeta1y !== null && netExposure !== 0
+                  ? {
+                      up: netExposure * weightedBeta1y * 0.01,
+                      down: netExposure * weightedBeta1y * -0.01
+                    }
+                  : null
             }
-          })
 
-          combinedHoldings.sort((a, b) => Math.abs(b.weight) - Math.abs(a.weight))
-          setHoldings(combinedHoldings)
+            const aggregateLargestHolding = aggregateHoldings
+              .slice()
+              .sort((a, b) => Math.abs(b.weight) - Math.abs(a.weight))[0] || null
 
-          const aggregateTargetReturnEOY = calculateWeightedReturnByMarketValue(
-            allEnhancedPositions,
-            'target_return_eoy',
-            'analyst_return_eoy'
-          ) ?? 0
+            const aggregateRisk: RiskMetrics = {
+              portfolioBeta90d: aggregateBeta90d,
+              portfolioBeta1y: weightedBeta1y,
+              topSector: aggregateAnalytics?.sector_allocation?.length
+                ? {
+                    name: aggregateAnalytics.sector_allocation[0].sector,
+                    weight: aggregateAnalytics.sector_allocation[0].pct_of_total,
+                    vs_sp: 0
+                  }
+                : null,
+              largestPosition: aggregateLargestHolding
+                ? {
+                    symbol: aggregateLargestHolding.symbol,
+                    weight: aggregateLargestHolding.weight
+                  }
+                : null,
+              spCorrelation: null,
+              stressTest:
+                weightedBeta1y !== null && netExposure !== 0
+                  ? {
+                      up: netExposure * weightedBeta1y * 0.01,
+                      down: netExposure * weightedBeta1y * -0.01
+                    }
+                  : null
+            }
 
-          setHeroMetrics({
-            equityBalance: aggregateAnalytics?.net_asset_value ?? totalNav,
-            targetReturnEOY: aggregateTargetReturnEOY,
-            grossExposure,
-            netExposure,
-            longExposure,
-            shortExposure
-          })
-
-          setPerformanceMetrics({
-            ytdPnl: aggregateAnalytics?.total_realized_pnl ?? 0,
-            mtdPnl: 0,
-            cashBalance: 0,
-            portfolioBeta90d: aggregateAnalytics?.risk_metrics?.portfolio_beta ?? null,
-            portfolioBeta1y: null,
-            stressTest: null
-          })
-
-          const largestHolding = combinedHoldings[0] ?? null
-          const topSector = aggregateAnalytics?.sector_allocation?.[0]
-
-          setRiskMetrics({
-            portfolioBeta90d: aggregateAnalytics?.risk_metrics?.portfolio_beta ?? null,
-            portfolioBeta1y: null,
-            topSector: topSector
-              ? { name: topSector.sector, weight: topSector.pct_of_total, vs_sp: 0 }
-              : null,
-            largestPosition: largestHolding
-              ? { symbol: largestHolding.symbol, weight: largestHolding.weight }
-              : null,
-            spCorrelation: null,
-            stressTest: null
-          })
+            setAggregateData({
+              heroMetrics: aggregateHero,
+              performanceMetrics: aggregatePerformance,
+              riskMetrics: aggregateRisk,
+              holdings: aggregateHoldings
+            })
+          } else {
+            setAggregateData(null)
+          }
 
           setLoading(false)
           return
         }
 
-        // INDIVIDUAL PORTFOLIO VIEW: Existing logic
-        console.log('[useCommandCenterData] Fetching individual portfolio data for:', portfolioId)
-
-        // Fetch all data in parallel
-        const [
-          overviewRaw,
-          snapshot,
-          enhancedPositionsResult,
-          targetSummary,
-          sectorData,
-          correlationData,
-          positionBetas,
-          portfolioFactors
-        ] = await Promise.all([
-          analyticsApi.getOverview(portfolioId),
-          fetchPortfolioSnapshot(portfolioId),
-          positionResearchService.fetchEnhancedPositions({ portfolioId }),
-          targetPriceService.summary(portfolioId).catch((err) => {
-            console.warn('[useCommandCenterData] Failed to fetch target summary:', err)
-            return null
-          }),
-          analyticsApi.getSectorExposure(portfolioId).catch(() => ({ data: { available: false } })),
-          analyticsApi.getCorrelationMatrix(portfolioId).catch(() => ({ data: { available: false } })),
-          analyticsApi.getPositionFactorExposures(portfolioId).catch(() => ({ data: { available: false, positions: [] } })),
-          analyticsApi.getPortfolioFactorExposures(portfolioId).catch(() => ({ data: { available: false, factors: [] } }))
-        ])
-
-        // Extract hero metrics from raw overview response
-        const overviewResponse = overviewRaw.data
-        const exposuresRaw = overviewResponse.exposures || {}
-        const equityBalance = overviewResponse.equity_balance || 0
-        const cashBalance = overviewResponse.cash_balance || 0
-
-        // Process holdings table
-        const enhancedPositions = enhancedPositionsResult.positions || []
-        console.log('[useCommandCenterData] Enhanced positions count:', enhancedPositions.length)
-        if (enhancedPositions.length > 0) {
-          console.log('[useCommandCenterData] Sample enhanced position:', enhancedPositions[0])
-        }
-
-        const betaMap = new Map<string, number>()
-        if (positionBetas.data.available && positionBetas.data.positions) {
-          positionBetas.data.positions.forEach(pos => {
-            const marketBeta = pos.exposures['Market Beta']
-            if (marketBeta !== undefined && marketBeta !== null) {
-              betaMap.set(pos.symbol, marketBeta)
-            }
-          })
-        }
-
-        const holdingsData: HoldingRow[] = enhancedPositions.map((pos: EnhancedPosition) => {
-          const marketValue = normalizeNumber(pos.current_market_value ?? pos.market_value) ?? 0
-          const percentOfEquity = normalizeNumber(pos.percent_of_equity)
-          const weight = percentOfEquity !== null
-            ? percentOfEquity
-            : equityBalance !== 0
-              ? (marketValue / equityBalance) * 100
-              : 0
-          const returnPct = normalizeNumber(pos.unrealized_pnl_percent) ?? 0
-          const targetPrice =
-            normalizeNumber(pos.user_target_eoy) ??
-            normalizeNumber(pos.target_mean_price) ??
-            null
-          const targetReturn =
-            normalizeNumber(pos.target_return_eoy) ??
-            normalizeNumber(pos.analyst_return_eoy) ??
-            null
-
-          const pnlToday = normalizeNumber(snapshot?.daily_pnl)
-
-          return {
-            id: pos.id,
-            symbol: pos.symbol,
-            quantity: pos.quantity ?? 0,
-            entryPrice: normalizeNumber(pos.avg_cost ?? pos.entry_price) ?? 0,
-            todaysPrice: normalizeNumber(pos.current_price ?? (pos as any).price) ?? 0,
-            targetPrice,
-            marketValue,
-            weight,
-            pnlToday: pnlToday !== null ? (pnlToday * weight) / 100 : null,
-            pnlTotal: normalizeNumber(pos.unrealized_pnl ?? pos.pnl) ?? 0,
-            returnPct,
-            targetReturn,
-            beta: betaMap.get(pos.symbol) ?? normalizeNumber(pos.beta),
-            positionType: (pos.position_type as string) || 'LONG',
-            investmentClass: (pos.investment_class as string) || 'PUBLIC'
+        let accountName = 'Portfolio'
+        try {
+          const portfolios = await portfolioService.getPortfolios()
+          const selected = portfolios.find((p) => p.id === selectedPortfolioId)
+          if (selected) {
+            accountName = selected.account_name || selected.name || 'Portfolio'
           }
-        })
-
-        holdingsData.sort((a, b) => Math.abs(b.weight) - Math.abs(a.weight))
-        setHoldings(holdingsData)
-
-        const summaryTargetReturn = normalizeNumber(targetSummary?.weighted_expected_return_eoy)
-        const computedTargetReturn = calculateWeightedReturnByMarketValue(
-          enhancedPositions,
-          'target_return_eoy',
-          'analyst_return_eoy'
-        )
-        const snapshotTargetReturn = normalizeNumber(snapshot?.target_price_return_eoy)
-
-        const heroTargetReturnEOY =
-          snapshotTargetReturn ??
-          summaryTargetReturn ??
-          computedTargetReturn ??
-          0
-
-        setHeroMetrics({
-          equityBalance,
-          targetReturnEOY: heroTargetReturnEOY,
-          grossExposure: exposuresRaw.gross_exposure || 0,
-          netExposure: exposuresRaw.net_exposure || 0,
-          longExposure: exposuresRaw.long_exposure || 0,
-          shortExposure: exposuresRaw.short_exposure || 0,
-        })
-
-        // Process risk metrics
-        // Extract portfolio betas from factor exposures
-        let beta90d = null
-        let beta1y = null
-
-        if (portfolioFactors.data?.available && portfolioFactors.data?.factors) {
-          const factors = portfolioFactors.data.factors
-          const beta90dFactor = factors.find((f: any) => f.name === 'Market Beta (Calculated 90d)')
-          const beta1yFactor = factors.find((f: any) => f.name === 'Market Beta (Provider 1y)')
-
-          beta90d = beta90dFactor?.beta || null
-          beta1y = beta1yFactor?.beta || null
-
-          console.log('📊 Portfolio Beta from factors - 90d:', beta90d, '1y:', beta1y)
-        } else {
-          console.log('⚠️ Portfolio factor exposures not available')
+        } catch (err) {
+          console.warn('[useCommandCenterData] Failed to fetch portfolios for selected view:', err)
         }
 
-        // Top Sector from sector exposure
-        let topSector = null
-        if ('data' in sectorData) {
-          const sectorResponse = sectorData as { data: { available: boolean; data?: any } }
-          if (sectorResponse.data.available && sectorResponse.data.data) {
-            const sectors = sectorResponse.data.data.portfolio_weights || {}
-            const benchmarkWeights = sectorResponse.data.data.benchmark_weights || {}
+        const section = await buildPortfolioSection(selectedPortfolioId, accountName)
 
-            const sectorEntries = Object.entries(sectors).map(([name, weight]) => ({
-              name,
-              weight: (weight as number) * 100,
-              vs_sp: ((weight as number) - (benchmarkWeights[name] as number || 0)) * 100
-            }))
-
-            if (sectorEntries.length > 0) {
-              const top = sectorEntries.sort((a, b) => b.weight - a.weight)[0]
-              topSector = top
-            }
-          }
+        if (isCancelled) {
+          return
         }
 
-        // Largest position from holdings
-        let largestPosition = null
-        if (holdingsData.length > 0) {
-          const sorted = [...holdingsData].sort((a, b) => Math.abs(b.weight) - Math.abs(a.weight))
-          largestPosition = {
-            symbol: sorted[0].symbol,
-            weight: sorted[0].weight
-          }
-        }
-
-        // S&P Correlation from correlation matrix
-        let spCorrelation = null
-        if ('data' in correlationData) {
-          const corrResponse = correlationData as { data: { available: boolean; data?: any } }
-          if (corrResponse.data.available && corrResponse.data.data) {
-            const matrix = corrResponse.data.data.matrix
-            // Look for SPY correlation (portfolio's correlation to SPY)
-            if (matrix['SPY']) {
-              // Find portfolio correlation in SPY row
-              const portfolioCorr = Object.entries(matrix['SPY']).find(([key]) =>
-                key.toLowerCase().includes('portfolio') || key === 'PORTFOLIO'
-              )
-              if (portfolioCorr) {
-                spCorrelation = portfolioCorr[1] as number
-              }
-            }
-          }
-        }
-
-        // Stress test (±1% market move) - calculate manually
-        let stressTest = null
-        const netExp = exposuresRaw.net_exposure || 0
-        if (beta1y !== null && netExp !== 0) {
-          stressTest = {
-            up: netExp * beta1y * 0.01,
-            down: netExp * beta1y * -0.01
-          }
-        }
-
-        setRiskMetrics({
-          portfolioBeta90d: beta90d,
-          portfolioBeta1y: beta1y,
-          topSector,
-          largestPosition,
-          spCorrelation,
-          stressTest
-        })
-
-        // Set performance metrics with real YTD/MTD P&L from backend
-        const pnlData = overviewResponse.pnl || {}
-
-        setPerformanceMetrics({
-          ytdPnl: pnlData.ytd_pnl || 0,
-          mtdPnl: pnlData.mtd_pnl || 0,
-          cashBalance,
-          portfolioBeta90d: beta90d,
-          portfolioBeta1y: beta1y,
-          stressTest
-        })
-
+        setPortfolioSections([section])
+        setAggregateData(null)
         setLoading(false)
       } catch (err: any) {
+        if (isCancelled) {
+          return
+        }
         console.error('Failed to load Command Center data:', err)
         setError(err.message || 'Failed to load data')
+        setAggregateData(null)
+        setPortfolioSections([])
         setLoading(false)
       }
     }
 
     fetchData().catch((err) => {
       console.error('[useCommandCenterData] Unhandled error:', err)
-      setError(err instanceof Error ? err.message : 'Failed to load data')
-      setLoading(false)
+      if (!isCancelled) {
+        setError(err instanceof Error ? err.message : 'Failed to load data')
+        setAggregateData(null)
+        setPortfolioSections([])
+        setLoading(false)
+      }
     })
-  }, [portfolioId, refreshTrigger])
+
+    return () => {
+      isCancelled = true
+    }
+  }, [selectedPortfolioId, refreshTrigger])
 
   return {
-    heroMetrics,
-    performanceMetrics,
-    holdings,
-    riskMetrics,
+    aggregate: aggregateData,
+    portfolios: portfolioSections,
     loading,
     error
   }

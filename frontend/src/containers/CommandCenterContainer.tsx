@@ -2,21 +2,78 @@
 
 import React, { useState } from 'react'
 import { useCommandCenterData } from '@/hooks/useCommandCenterData'
-import { usePortfolioStore } from '@/stores/portfolioStore'
+import { usePortfolioStore, usePortfolioCount, useIsAggregateView } from '@/stores/portfolioStore'
 import { HeroMetricsRow } from '@/components/command-center/HeroMetricsRow'
 import { PerformanceMetricsRow } from '@/components/command-center/PerformanceMetricsRow'
+import { RiskMetricsRow } from '@/components/command-center/RiskMetricsRow'
 import { HoldingsTable } from '@/components/command-center/HoldingsTable'
 import { ManagePositionsSidePanel } from '@/components/portfolio/ManagePositionsSidePanel'
 import { Button } from '@/components/ui/button'
 import { AccountFilter } from '@/components/portfolio/AccountFilter'
 import { AccountSummaryCard } from '@/components/portfolio/AccountSummaryCard'
 
+type PortfolioSectionShape = ReturnType<typeof useCommandCenterData>['portfolios'][number]
+
 export function CommandCenterContainer() {
-  const { portfolioId } = usePortfolioStore()
+  const portfolioId = usePortfolioStore(state => state.portfolioId)
+  const selectedPortfolioId = usePortfolioStore(state => state.selectedPortfolioId)
+  const portfolioCount = usePortfolioCount()
+  const isAggregateView = useIsAggregateView()
   const [sidePanelOpen, setSidePanelOpen] = useState(false)
   const [refreshTrigger, setRefreshTrigger] = useState(0)
 
-  const { heroMetrics, performanceMetrics, holdings, riskMetrics, loading, error } = useCommandCenterData(refreshTrigger)
+  const { aggregate, portfolios, loading, error } = useCommandCenterData(refreshTrigger)
+
+  const hasAggregateMetrics = Boolean(isAggregateView && portfolioCount > 1 && aggregate)
+  const filteredSections = !isAggregateView && selectedPortfolioId
+    ? portfolios.filter(section => section.portfolioId === selectedPortfolioId)
+    : portfolios
+  const sectionsToRender = filteredSections.length > 0 ? filteredSections : portfolios
+
+  const emptyHeroMetrics = {
+    equityBalance: 0,
+    targetReturnEOY: 0,
+    grossExposure: 0,
+    netExposure: 0,
+    longExposure: 0,
+    shortExposure: 0
+  }
+
+  const emptyPerformanceMetrics = {
+    ytdPnl: 0,
+    mtdPnl: 0,
+    cashBalance: 0,
+    portfolioBeta90d: null,
+    portfolioBeta1y: null,
+    stressTest: null
+  }
+
+  const emptyRiskMetrics = {
+    portfolioBeta90d: null,
+    portfolioBeta1y: null,
+    topSector: null,
+    largestPosition: null,
+    spCorrelation: null,
+    stressTest: null
+  }
+
+  const placeholderSection: PortfolioSectionShape | undefined = loading
+    ? {
+        portfolioId: selectedPortfolioId ?? 'loading',
+        accountName: 'Loading...',
+        heroMetrics: emptyHeroMetrics,
+        performanceMetrics: emptyPerformanceMetrics,
+        riskMetrics: emptyRiskMetrics,
+        holdings: []
+      }
+    : undefined
+
+  const sectionsForRendering =
+    sectionsToRender.length > 0
+      ? sectionsToRender
+      : placeholderSection
+        ? [placeholderSection]
+        : []
 
   if (error && !loading) {
     return (
@@ -115,18 +172,69 @@ export function CommandCenterContainer() {
         </div>
       </section>
 
-      {/* Hero Metrics Row 1 - Exposures (6 cards) */}
-      <section className="pt-4">
-        <HeroMetricsRow metrics={heroMetrics} loading={loading} />
-      </section>
+      {hasAggregateMetrics && aggregate && (
+        <>
+          <section className="px-4 pt-6">
+            <div className="container mx-auto">
+              <h2
+                className="text-lg font-semibold"
+                style={{ color: 'var(--color-accent)' }}
+              >
+                All Accounts Overview
+              </h2>
+              <p className="text-sm text-muted-foreground mt-1">
+                Combined exposure, performance, and risk across every portfolio.
+              </p>
+            </div>
+          </section>
+          <HeroMetricsRow metrics={aggregate.heroMetrics} loading={loading} />
+          <PerformanceMetricsRow metrics={aggregate.performanceMetrics} loading={loading} />
+          <RiskMetricsRow metrics={aggregate.riskMetrics} loading={loading} />
+          <HoldingsTable
+            holdings={aggregate.holdings}
+            loading={loading}
+            onRefresh={handleRefresh}
+          />
+        </>
+      )}
 
-      {/* Hero Metrics Row 2 - Performance & Risk (5 cards) */}
-      <section className="pt-0">
-        <PerformanceMetricsRow metrics={performanceMetrics} loading={loading} />
-      </section>
-
-      {/* Holdings Table - 11 columns */}
-      <HoldingsTable holdings={holdings} loading={loading} onRefresh={handleRefresh} />
+      {sectionsForRendering.map(section => {
+        const holdingsForSection = section.holdings.map(({ account_name, portfolio_id, ...rest }) => rest)
+        return (
+          <React.Fragment key={section.portfolioId}>
+            <section className="px-4 pt-8">
+              <div className="container mx-auto">
+                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
+                  <div>
+                    <h3
+                      className="text-lg font-semibold"
+                      style={{ color: 'var(--text-primary)' }}
+                    >
+                      {section.accountName}
+                    </h3>
+                    <p className="text-sm text-muted-foreground">
+                      Portfolio-specific exposure, performance, and risk.
+                    </p>
+                  </div>
+                  {isAggregateView && hasAggregateMetrics && (
+                    <span className="text-xs text-muted-foreground uppercase tracking-wide">
+                      Individual Account
+                    </span>
+                  )}
+                </div>
+              </div>
+            </section>
+            <HeroMetricsRow metrics={section.heroMetrics} loading={loading} />
+            <PerformanceMetricsRow metrics={section.performanceMetrics} loading={loading} />
+            <RiskMetricsRow metrics={section.riskMetrics} loading={loading} />
+            <HoldingsTable
+              holdings={holdingsForSection}
+              loading={loading}
+              onRefresh={handleRefresh}
+            />
+          </React.Fragment>
+        )
+      })}
 
       {/* Manage Positions Side Panel */}
       {portfolioId && (
