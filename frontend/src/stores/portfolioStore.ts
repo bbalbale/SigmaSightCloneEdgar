@@ -1,5 +1,5 @@
 /**
- * Portfolio Store - Multi-Portfolio Management (Version 3)
+ * Portfolio Store - Multi-Portfolio Management (Version 4)
  * Handles multiple portfolios with aggregate view support
  * Portfolio switching requires logout (no in-app switching)
  *
@@ -7,6 +7,7 @@
  * - v1: Initial implementation
  * - v2: Added portfolio name
  * - v3: Multi-portfolio support with aggregate view
+ * - v4: Restored legacy portfolioId alias for backward compatibility
  */
 
 import { create } from 'zustand'
@@ -27,6 +28,7 @@ interface PortfolioStore {
   // State
   portfolios: PortfolioListItem[]
   selectedPortfolioId: string | null  // null = aggregate view
+  portfolioId: string | null  // Legacy alias for single-portfolio consumers
 
   // Portfolio CRUD Actions
   setPortfolios: (portfolios: PortfolioListItem[]) => void
@@ -51,22 +53,31 @@ export const usePortfolioStore = create<PortfolioStore>()(
       // Initial state
       portfolios: [],
       selectedPortfolioId: null, // null = aggregate view by default
+      portfolioId: null,
 
       // Set all portfolios (called on login/data load)
       setPortfolios: (portfolios) => {
-        set({ portfolios })
+        const selectedId = get().selectedPortfolioId
+        const fallbackId = selectedId ?? (portfolios[0]?.id ?? null)
+        set({ portfolios, portfolioId: fallbackId })
       },
 
       // Set selected portfolio ID (null for aggregate view)
       setSelectedPortfolio: (id) => {
-        set({ selectedPortfolioId: id })
+        set((state) => ({
+          selectedPortfolioId: id,
+          portfolioId: id ?? (state.portfolios[0]?.id ?? null)
+        }))
       },
 
       // Add a portfolio to the list
       addPortfolio: (portfolio) => {
-        set((state) => ({
-          portfolios: [...state.portfolios, portfolio]
-        }))
+        set((state) => {
+          const portfolios = [...state.portfolios, portfolio]
+          const selectedId = state.selectedPortfolioId
+          const portfolioId = selectedId ?? (portfolios[0]?.id ?? null)
+          return { portfolios, portfolioId }
+        })
       },
 
       // Update a portfolio in the list
@@ -80,18 +91,24 @@ export const usePortfolioStore = create<PortfolioStore>()(
 
       // Remove a portfolio from the list
       removePortfolio: (id) => {
-        set((state) => ({
-          portfolios: state.portfolios.filter((p) => p.id !== id),
-          // If removing selected portfolio, switch to aggregate view
-          selectedPortfolioId: state.selectedPortfolioId === id ? null : state.selectedPortfolioId
-        }))
+        set((state) => {
+          const portfolios = state.portfolios.filter((p) => p.id !== id)
+          const selectedPortfolioId = state.selectedPortfolioId === id ? null : state.selectedPortfolioId
+          const portfolioId = selectedPortfolioId ?? (portfolios[0]?.id ?? null)
+          return {
+            portfolios,
+            selectedPortfolioId,
+            portfolioId
+          }
+        })
       },
 
       // Clear all portfolio data (called on logout)
       clearAll: () => {
         set({
           portfolios: [],
-          selectedPortfolioId: null
+          selectedPortfolioId: null,
+          portfolioId: null
         })
       },
 
@@ -129,29 +146,33 @@ export const usePortfolioStore = create<PortfolioStore>()(
     }),
     {
       name: 'portfolio-storage', // localStorage key
-      version: 3, // Updated from v2 to v3
-      // Migration from version 2 to version 3
+      version: 4, // v4 adds portfolioId alias for backward compatibility
       migrate: (persistedState: any, version: number) => {
-        if (version === 2) {
-          // Migrate from v2 (single portfolio) to v3 (multiple portfolios)
-          const oldPortfolioId = persistedState.portfolioId
-
-          if (oldPortfolioId) {
-            // Convert single portfolio ID to portfolios array
-            // Will be populated with real data on next login
-            return {
-              portfolios: [],
-              selectedPortfolioId: null // Start with aggregate view
-            }
+        if (version <= 2) {
+          // Legacy versions used a single portfolioId field only
+          return {
+            portfolios: [],
+            selectedPortfolioId: null,
+            portfolioId: null
           }
         }
 
-        return persistedState as PortfolioStore
+        const state = persistedState as Partial<PortfolioStore> & { portfolios?: PortfolioListItem[] }
+        const portfolios = state.portfolios ?? []
+        const selectedPortfolioId = state.selectedPortfolioId ?? null
+        const portfolioId = state.portfolioId ?? selectedPortfolioId ?? (portfolios[0]?.id ?? null)
+
+        return {
+          portfolios,
+          selectedPortfolioId,
+          portfolioId
+        }
       },
-      // Only persist portfolios and selectedPortfolioId
+      // Only persist portfolios, selection, and legacy alias
       partialize: (state) => ({
         portfolios: state.portfolios,
-        selectedPortfolioId: state.selectedPortfolioId
+        selectedPortfolioId: state.selectedPortfolioId,
+        portfolioId: state.portfolioId
       })
     }
   )
@@ -174,29 +195,11 @@ export const isAggregateView = () => usePortfolioStore.getState().isAggregateVie
 
 // Legacy exports for backward compatibility (will return first portfolio if exists)
 export const getPortfolioId = () => {
-  const state = usePortfolioStore.getState()
-  // For backward compatibility: return selected portfolio ID or first portfolio ID
-  if (state.selectedPortfolioId) {
-    return state.selectedPortfolioId
-  }
-  if (state.portfolios.length > 0) {
-    return state.portfolios[0].id
-  }
-  return null
+  return usePortfolioStore.getState().portfolioId
 }
 
 export const usePortfolioId = () => {
-  const selectedId = useSelectedPortfolioId()
-  const portfolios = usePortfolios()
-
-  // For backward compatibility: return selected portfolio ID or first portfolio ID
-  if (selectedId) {
-    return selectedId
-  }
-  if (portfolios.length > 0) {
-    return portfolios[0].id
-  }
-  return null
+  return usePortfolioStore((state) => state.portfolioId)
 }
 
 export const clearPortfolioState = () => usePortfolioStore.getState().clearAll()
