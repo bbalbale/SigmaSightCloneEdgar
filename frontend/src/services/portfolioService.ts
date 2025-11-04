@@ -18,6 +18,7 @@ interface PositionDetail {
   position_type: string
   investment_class?: string  // PUBLIC, OPTIONS, PRIVATE
   investment_subtype?: string
+  entry_price: number
   current_price: number
   market_value: number
   cost_basis: number
@@ -292,6 +293,7 @@ function transformPositionDetails(positions: PositionDetail[]) {
     sector: pos.sector,  // NEW: Sector classification
     industry: pos.industry,  // NEW: Industry classification
     quantity: pos.quantity,
+    entry_price: pos.entry_price,
     price: pos.current_price,
     marketValue: pos.market_value,
     pnl: pos.unrealized_pnl,

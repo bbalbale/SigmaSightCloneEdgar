@@ -8,6 +8,7 @@ interface HoldingRow {
   id: string
   symbol: string
   quantity: number
+  entryPrice: number
   todaysPrice: number
   targetPrice: number | null
   marketValue: number

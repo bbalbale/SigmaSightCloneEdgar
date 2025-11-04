@@ -17,6 +17,7 @@ interface HoldingRow {
   id: string
   symbol: string
   quantity: number
+  entryPrice: number
   todaysPrice: number
   targetPrice: number | null
   marketValue: number
@@ -150,6 +151,7 @@ export function useCommandCenterData(refreshTrigger?: number): UseCommandCenterD
             id: pos.id,
             symbol: pos.symbol,
             quantity: pos.quantity,
+            entryPrice: pos.entry_price || 0,
             todaysPrice: pos.price || 0,
             targetPrice: target?.target_price_eoy || null,
             marketValue: pos.marketValue || 0,

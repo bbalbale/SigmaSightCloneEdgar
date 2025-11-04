@@ -9,6 +9,7 @@ interface HoldingRow {
   id: string
   symbol: string
   quantity: number
+  entryPrice: number
   todaysPrice: number
   targetPrice: number | null
   marketValue: number
@@ -230,7 +231,7 @@ export function HoldingsTableDesktop({ holdings, loading, onRefresh }: HoldingsT
     setEditingLot(lot.id)
     setEditForm({
       quantity: lot.quantity.toString(),
-      avg_cost: (lot.marketValue / lot.quantity).toFixed(2),
+      avg_cost: lot.entryPrice.toFixed(2),
       notes: ''
     })
   }
@@ -628,7 +629,7 @@ export function HoldingsTableDesktop({ holdings, loading, onRefresh }: HoldingsT
                                       <div>
                                         <span className="text-secondary">Avg Cost:</span>{' '}
                                         <span className="font-medium text-primary">
-                                          ${(lot.marketValue / lot.quantity).toFixed(2)}
+                                          ${lot.entryPrice.toFixed(2)}
                                         </span>
                                       </div>
                                       <div>
