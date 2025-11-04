@@ -16,7 +16,9 @@
       "Bash(uv run python:*)",
       "mcp__playwright__browser_console_messages",
       "mcp__playwright__browser_snapshot",
-      "Bash(docker ps:*)"
+      "Bash(docker ps:*)",
+      "Bash(set:*)",
+      "Bash(.venv/Scripts/python.exe:*)"
     ],
     "deny": [],
     "ask": [],
