@@ -242,6 +242,7 @@ async def get_portfolio_complete(
             "portfolio": {
                 "id": str(portfolio.id),
                 "name": portfolio.name,
+                "net_asset_value": total_market_value + equity_balance,
                 "total_value": total_market_value + equity_balance,
                 "equity_balance": equity_balance,
                 "position_count": len(positions_data),

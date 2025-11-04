@@ -56,7 +56,10 @@ export async function testApiConnectivity(): Promise<{
       success: true,
       data: {
         name: portfolio.portfolio_info?.name || 'Unknown',
-        totalValue: portfolio.calculation_engines?.portfolio_snapshot?.data?.total_value || 'N/A',
+        totalValue:
+          portfolio.calculation_engines?.portfolio_snapshot?.data?.net_asset_value ??
+          portfolio.calculation_engines?.portfolio_snapshot?.data?.total_value ??
+          'N/A',
         positionCount: portfolio.portfolio_info?.position_count || 0,
         enginesAvailable: Object.keys(portfolio.calculation_engines || {}).length,
         validation: validation,

@@ -13,6 +13,7 @@ import { authManager } from './authManager'
 interface PortfolioInfo {
   id: string
   name: string
+  netAssetValue?: number
   totalValue?: number
   positionCount?: number
 }
@@ -76,7 +77,8 @@ class PortfolioResolver {
         const portfolioInfo: PortfolioInfo = {
           id: portfolio.id,
           name: portfolio.name,
-          totalValue: portfolio.total_value || 0,
+          netAssetValue: portfolio.net_asset_value ?? portfolio.total_value ?? 0,
+          totalValue: portfolio.total_value ?? portfolio.net_asset_value ?? 0,
           positionCount: portfolio.position_count || 0
         }
 
@@ -88,7 +90,8 @@ class PortfolioResolver {
         console.log('Portfolio discovered from backend:', {
           id: portfolio.id,
           name: portfolio.name,
-          totalValue: portfolio.total_value,
+          netAssetValue: portfolio.net_asset_value,
+          totalValue: portfolio.total_value ?? portfolio.net_asset_value,
           positionCount: portfolio.position_count
         })
         return portfolio.id
@@ -115,6 +118,7 @@ class PortfolioResolver {
         const portfolioInfo: PortfolioInfo = {
           id: mappedId,
           name: `Portfolio for ${email}`,
+          netAssetValue: 0,
           totalValue: 0,
           positionCount: 0
         }

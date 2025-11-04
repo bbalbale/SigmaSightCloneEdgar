@@ -71,7 +71,7 @@ DEMO_PORTFOLIOS = [
         "user_email": "demo_individual@sigmasight.com",
         "portfolio_name": "Demo Individual Investor Portfolio",
         "description": "Individual investor with 401k, IRA, and taxable accounts. Core holdings with growth tilt, heavy mutual fund allocation.",
-        "total_value": 485000,
+        "net_asset_value": 485000,
         "equity_balance": Decimal("485000.00"),  # Total portfolio value as equity
         "positions": [
             # Individual Stocks (32% allocation - $155,000)
@@ -108,7 +108,7 @@ DEMO_PORTFOLIOS = [
         "user_email": "demo_hnw@sigmasight.com",
         "portfolio_name": "Demo High Net Worth Investor Portfolio",
         "description": "High net worth individual with access to private investments. Diversified across public markets with alternative investments.",
-        "total_value": 2850000,
+        "net_asset_value": 2850000,
         "equity_balance": Decimal("2850000.00"),  # Total portfolio value as equity
         "positions": [
             # Core ETF Holdings
@@ -161,7 +161,7 @@ DEMO_PORTFOLIOS = [
         "user_email": "demo_hedgefundstyle@sigmasight.com",
         "portfolio_name": "Demo Hedge Fund Style Investor Portfolio",
         "description": "Sophisticated trader with derivatives access. Market-neutral with volatility trading and options overlay.",
-        "total_value": 3200000,
+        "net_asset_value": 3200000,
         "equity_balance": Decimal("3200000.00"),  # Total portfolio NAV as equity
         "positions": [
             # Long Positions - Growth/Momentum

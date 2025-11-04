@@ -14,6 +14,7 @@ from sqlalchemy.exc import IntegrityError
 from app.models.positions import Position, PositionType
 from app.models.snapshots import PortfolioSnapshot
 from app.models.market_data import PositionGreeks
+from app.models.users import Portfolio as PortfolioModel
 from app.calculations.portfolio import (
     calculate_portfolio_exposures,
     aggregate_portfolio_greeks
@@ -87,6 +88,11 @@ async def create_portfolio_snapshot(
         # Step 4: Aggregate Greeks
         greeks = aggregate_portfolio_greeks(positions_list)
 
+        equity_query = select(PortfolioModel.equity_balance).where(PortfolioModel.id == portfolio_id)
+        equity_result = await db.execute(equity_query)
+        today_equity = equity_result.scalar_one_or_none() or Decimal('0')
+
+
         # Step 5: Calculate P&L (skip if requested by V3 batch processor)
         if skip_pnl_calculation:
             # V3 batch processor calculates P&L separately with equity rollforward
@@ -97,7 +103,7 @@ async def create_portfolio_snapshot(
             }
             logger.debug("Skipping P&L calculation (will be set by caller)")
         else:
-            pnl_data = await _calculate_pnl(db, portfolio_id, calculation_date, aggregations['gross_exposure'])
+            pnl_data = await _calculate_pnl(db, portfolio_id, calculation_date, today_equity)
 
         # Step 6: Count position types
         position_counts = _count_positions(active_positions)
@@ -121,7 +127,7 @@ async def create_portfolio_snapshot(
             "snapshot": snapshot,
             "statistics": {
                 "positions_processed": len(active_positions),
-                "total_value": float(aggregations['gross_exposure']),
+                "net_asset_value": float(today_equity),
                 "daily_pnl": float(pnl_data['daily_pnl']),
                 "warnings": position_data.get('warnings', [])
             }
@@ -292,8 +298,8 @@ async def _calculate_pnl(
         }
     
     # Calculate daily P&L
-    daily_pnl = current_value - previous_snapshot.total_value
-    daily_return = (daily_pnl / previous_snapshot.total_value) if previous_snapshot.total_value != 0 else Decimal('0')
+    daily_pnl = current_value - previous_snapshot.net_asset_value
+    daily_return = (daily_pnl / previous_snapshot.net_asset_value) if previous_snapshot.net_asset_value != 0 else Decimal('0')
     
     # Calculate cumulative P&L (add today's P&L to previous cumulative)
     cumulative_pnl = (previous_snapshot.cumulative_pnl or Decimal('0')) + daily_pnl
@@ -522,7 +528,7 @@ async def _create_or_update_snapshot(
     snapshot_data = {
         "portfolio_id": portfolio_id,
         "snapshot_date": calculation_date,
-        "total_value": aggregations['gross_exposure'],
+        "net_asset_value": today_equity,
         "cash_value": Decimal('0'),  # Fully invested assumption
         "long_value": aggregations['long_exposure'],
         "short_value": aggregations['short_exposure'],
@@ -585,7 +591,7 @@ async def _create_zero_snapshot(
     snapshot = PortfolioSnapshot(
         portfolio_id=portfolio_id,
         snapshot_date=calculation_date,
-        total_value=zero_decimal,
+        net_asset_value=zero_decimal,
         cash_value=zero_decimal,
         long_value=zero_decimal,
         short_value=zero_decimal,

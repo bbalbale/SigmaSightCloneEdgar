@@ -20,7 +20,7 @@ class PortfolioSnapshot(Base):
     snapshot_date: Mapped[date] = mapped_column(Date, nullable=False)
     
     # Portfolio values
-    total_value: Mapped[Decimal] = mapped_column(Numeric(16, 2), nullable=False)
+    net_asset_value: Mapped[Decimal] = mapped_column("total_value", Numeric(16, 2), nullable=False)
     cash_value: Mapped[Decimal] = mapped_column(Numeric(16, 2), nullable=False, default=0)
     long_value: Mapped[Decimal] = mapped_column(Numeric(16, 2), nullable=False)
     short_value: Mapped[Decimal] = mapped_column(Numeric(16, 2), nullable=False)
@@ -102,6 +102,15 @@ class PortfolioSnapshot(Base):
         Index('ix_portfolio_snapshots_portfolio_id', 'portfolio_id'),
         Index('ix_portfolio_snapshots_snapshot_date', 'snapshot_date'),
     )
+
+    # Backwards compatibility while migrating off total_value naming
+    @property
+    def total_value(self) -> Decimal:
+        return self.net_asset_value
+
+    @total_value.setter
+    def total_value(self, value: Decimal) -> None:
+        self.net_asset_value = value
 
 
 class BatchJob(Base):

@@ -116,6 +116,7 @@ class PortfolioOverviewResponse(BaseModel):
     """
     portfolio_id: str = Field(..., description="Portfolio UUID")
     equity_balance: Optional[float] = Field(None, description="User-provided equity balance (NAV)")
+    net_asset_value: float = Field(..., description="Net asset value (rolled-forward equity)")
     total_value: float = Field(..., description="Total portfolio value including cash")
     cash_balance: float = Field(..., description="Available cash balance")
     leverage: float = Field(..., description="Leverage ratio (gross exposure / equity)")
@@ -133,6 +134,7 @@ class PortfolioOverviewResponse(BaseModel):
             "example": {
                 "portfolio_id": "c0510ab8-c6b5-433c-adbc-3f74e1dbdb5e",
                 "total_value": 1250000.00,
+                "net_asset_value": 1250000.00,
                 "cash_balance": 62500.00,
                 "exposures": {
                     "long_exposure": 1187500.00,

@@ -220,7 +220,8 @@ export function usePortfolioMutations(): UsePortfolioMutationsReturn {
           id: response.id,
           account_name: response.account_name,
           account_type: response.account_type,
-          total_value: response.equity_balance,
+          net_asset_value: response.net_asset_value ?? response.equity_balance ?? 0,
+          total_value: response.net_asset_value ?? response.equity_balance ?? 0,
           position_count: 0,
           is_active: response.is_active,
         })

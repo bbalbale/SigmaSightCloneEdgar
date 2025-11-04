@@ -17,6 +17,7 @@ export interface PortfolioListItem {
   id: string
   account_name: string
   account_type: string
+  net_asset_value: number
   total_value: number
   position_count: number
   is_active: boolean
@@ -96,7 +97,7 @@ export const usePortfolioStore = create<PortfolioStore>()(
 
       // Get total value across all portfolios
       getTotalValue: () => {
-        return get().portfolios.reduce((sum, p) => sum + p.total_value, 0)
+        return get().portfolios.reduce((sum, p) => sum + (p.net_asset_value ?? p.total_value ?? 0), 0)
       },
 
       // Get count of portfolios

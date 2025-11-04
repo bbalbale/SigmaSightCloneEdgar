@@ -61,7 +61,7 @@ async def get_aggregate_overview(
 
         logger.info(
             f"Aggregate overview for user {current_user.id}: "
-            f"{result['portfolio_count']} portfolios, ${result['total_value']:,.2f}"
+            f"{result['portfolio_count']} portfolios, ${result['net_asset_value']:,.2f}"
         )
 
         return result
@@ -117,12 +117,13 @@ async def get_portfolio_breakdown(
             })
 
         response = {
+            "net_asset_value": result['net_asset_value'],
             "total_value": result['total_value'],
             "portfolio_count": result['portfolio_count'],
             "portfolios": enhanced_portfolios,
             "summary": {
                 "total_weight": sum(p['weight'] for p in result['portfolios']),
-                "average_value": result['total_value'] / result['portfolio_count'] if result['portfolio_count'] > 0 else 0
+                "average_value": result['net_asset_value'] / result['portfolio_count'] if result['portfolio_count'] > 0 else 0
             }
         }
 
@@ -226,6 +227,7 @@ async def get_aggregate_beta(
 
         response = {
             "aggregate_beta": aggregate_beta,
+            "net_asset_value": portfolios_result['net_asset_value'],
             "total_value": portfolios_result['total_value'],
             "portfolio_count": portfolios_result['portfolio_count'],
             "portfolios": portfolio_contributions,
@@ -335,6 +337,7 @@ async def get_aggregate_volatility(
 
         response = {
             "aggregate_volatility": aggregate_volatility,
+            "net_asset_value": portfolios_result['net_asset_value'],
             "total_value": portfolios_result['total_value'],
             "portfolio_count": portfolios_result['portfolio_count'],
             "portfolios": portfolio_contributions,
@@ -411,6 +414,7 @@ async def get_aggregate_factor_exposures(
         # Build response
         response = {
             "aggregate_factors": aggregate_factors,
+            "net_asset_value": portfolios_result['net_asset_value'],
             "total_value": portfolios_result['total_value'],
             "portfolio_count": portfolios_result['portfolio_count'],
             "calculation_method": "weighted_average",

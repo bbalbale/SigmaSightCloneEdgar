@@ -99,6 +99,7 @@ async def create_portfolio(
             updated_at=new_portfolio.updated_at,
             deleted_at=new_portfolio.deleted_at,
             position_count=0,
+            net_asset_value=new_portfolio.equity_balance or Decimal('0'),
             total_value=new_portfolio.equity_balance or Decimal('0')
         )
 
@@ -145,7 +146,7 @@ async def list_portfolios(
 
         # Build response for each portfolio
         portfolio_responses = []
-        total_value_sum = Decimal('0')
+        net_asset_value_sum = Decimal('0')
         active_count = 0
 
         for portfolio in portfolios:
@@ -158,12 +159,12 @@ async def list_portfolios(
             )
             snapshot = snapshot_result.scalar_one_or_none()
 
-            total_value = snapshot.total_value if snapshot and snapshot.total_value else portfolio.equity_balance or Decimal('0')
+            net_asset_value = snapshot.net_asset_value if snapshot and snapshot.net_asset_value else portfolio.equity_balance or Decimal('0')
             position_count = len(portfolio.positions) if portfolio.positions else 0
 
             if portfolio.is_active:
                 active_count += 1
-                total_value_sum += total_value
+                net_asset_value_sum += net_asset_value
 
             portfolio_responses.append(
                 PortfolioResponse(
@@ -180,20 +181,22 @@ async def list_portfolios(
                     updated_at=portfolio.updated_at,
                     deleted_at=portfolio.deleted_at,
                     position_count=position_count,
-                    total_value=total_value
+                    net_asset_value=net_asset_value,
+                    total_value=net_asset_value
                 )
             )
 
         logger.info(
             f"Retrieved {len(portfolios)} portfolios for user {current_user.id} "
-            f"({active_count} active, total value: ${total_value_sum:,.2f})"
+            f"({active_count} active, total NAV: ${net_asset_value_sum:,.2f})"
         )
 
         return PortfolioListResponse(
             portfolios=portfolio_responses,
             total_count=len(portfolios),
             active_count=active_count,
-            total_value=total_value_sum
+            net_asset_value=net_asset_value_sum,
+            total_value=net_asset_value_sum
         )
 
     except Exception as e:
@@ -251,7 +254,7 @@ async def get_portfolio(
         )
         snapshot = snapshot_result.scalar_one_or_none()
 
-        total_value = snapshot.total_value if snapshot and snapshot.total_value else portfolio.equity_balance or Decimal('0')
+        net_asset_value = snapshot.net_asset_value if snapshot and snapshot.net_asset_value else portfolio.equity_balance or Decimal('0')
         position_count = len(portfolio.positions) if portfolio.positions else 0
 
         return PortfolioResponse(
@@ -268,7 +271,8 @@ async def get_portfolio(
             updated_at=portfolio.updated_at,
             deleted_at=portfolio.deleted_at,
             position_count=position_count,
-            total_value=total_value
+            net_asset_value=net_asset_value,
+            total_value=net_asset_value
         )
 
     except HTTPException:
@@ -354,7 +358,7 @@ async def update_portfolio(
         )
         position_count = position_count_result.scalar() or 0
 
-        total_value = snapshot.total_value if snapshot and snapshot.total_value else portfolio.equity_balance or Decimal('0')
+        net_asset_value = snapshot.net_asset_value if snapshot and snapshot.net_asset_value else portfolio.equity_balance or Decimal('0')
 
         return PortfolioResponse(
             id=portfolio.id,
@@ -370,7 +374,8 @@ async def update_portfolio(
             updated_at=portfolio.updated_at,
             deleted_at=portfolio.deleted_at,
             position_count=position_count,
-            total_value=total_value
+            net_asset_value=net_asset_value,
+            total_value=net_asset_value
         )
 
     except HTTPException:

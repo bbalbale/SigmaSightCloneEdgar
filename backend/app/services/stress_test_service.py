@@ -103,7 +103,7 @@ class StressTestService:
                 meta["scenarios_requested"] = scenarios
             return {"available": False, "data_quality": data_quality, "metadata": meta}
 
-        baseline = float(snapshot.total_value)
+        baseline = float(snapshot.net_asset_value)
         if baseline == 0:
             # Avoid division by zero; percentage impacts would be undefined
             data_quality = await self._compute_data_quality(

@@ -8,7 +8,7 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { useAggregateAnalytics, useSelectedPortfolio } from '@/hooks/useMultiPortfolio'
-import { formatCurrency, formatPercent } from '@/lib/formatters'
+import { formatCurrency, formatPercentage } from '@/lib/formatters'
 import { Loader2, TrendingUp, TrendingDown, Minus } from 'lucide-react'
 
 interface AccountSummaryCardProps {
@@ -50,7 +50,8 @@ export function AccountSummaryCard({ showFullAnalytics = false }: AccountSummary
     )
   }
 
-  const { total_unrealized_pnl, overall_return_pct } = analytics
+  const { total_unrealized_pnl, overall_return_pct, net_asset_value, total_value } = analytics
+  const displayedTotal = net_asset_value ?? total_value ?? 0
 
   // Determine P&L trend
   const getTrendIcon = (value: number) => {
@@ -78,8 +79,8 @@ export function AccountSummaryCard({ showFullAnalytics = false }: AccountSummary
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {/* Total Value */}
           <div>
-            <p className="text-xs text-muted-foreground mb-1">Total Value</p>
-            <p className="text-2xl font-bold">{formatCurrency(analytics.total_value)}</p>
+            <p className="text-xs text-muted-foreground mb-1">Net Asset Value</p>
+            <p className="text-2xl font-bold">{formatCurrency(displayedTotal)}</p>
           </div>
 
           {/* Total Positions */}
@@ -110,7 +111,7 @@ export function AccountSummaryCard({ showFullAnalytics = false }: AccountSummary
             <div className="flex items-center gap-2">
               {getTrendIcon(overall_return_pct)}
               <p className={`text-2xl font-bold ${getTrendColor(overall_return_pct)}`}>
-                {formatPercent(overall_return_pct)}
+                {formatPercentage(overall_return_pct)}
               </p>
             </div>
           </div>
@@ -135,7 +136,7 @@ export function AccountSummaryCard({ showFullAnalytics = false }: AccountSummary
               <p className="text-xs text-muted-foreground mb-1">Volatility</p>
               <p className="text-xl font-semibold">
                 {analytics.risk_metrics.volatility
-                  ? formatPercent(analytics.risk_metrics.volatility * 100)
+                  ? formatPercentage(analytics.risk_metrics.volatility * 100)
                   : 'N/A'}
               </p>
             </div>
@@ -143,7 +144,7 @@ export function AccountSummaryCard({ showFullAnalytics = false }: AccountSummary
               <p className="text-xs text-muted-foreground mb-1">Max Drawdown</p>
               <p className="text-xl font-semibold text-red-600">
                 {analytics.risk_metrics.max_drawdown
-                  ? formatPercent(analytics.risk_metrics.max_drawdown * 100)
+                  ? formatPercentage(analytics.risk_metrics.max_drawdown * 100)
                   : 'N/A'}
               </p>
             </div>
@@ -168,10 +169,10 @@ export function AccountSummaryCard({ showFullAnalytics = false }: AccountSummary
                   </div>
                   <div className="flex items-center gap-3">
                     <span className="text-muted-foreground">
-                      {formatCurrency(holding.total_value)}
+                      {formatCurrency(holding.net_asset_value ?? holding.total_value)}
                     </span>
                     <span className="text-xs text-muted-foreground w-12 text-right">
-                      {formatPercent(holding.pct_of_total)}
+                      {formatPercentage(holding.pct_of_total)}
                     </span>
                   </div>
                 </div>

@@ -95,8 +95,8 @@ class PortfolioAggregationService:
             )
             snapshot = snapshot_result.scalar_one_or_none()
 
-            if snapshot and snapshot.total_value:
-                values[portfolio_id] = snapshot.total_value
+            if snapshot and snapshot.net_asset_value:
+                values[portfolio_id] = snapshot.net_asset_value
             else:
                 # Fallback to equity_balance
                 portfolio_result = await self.db.execute(
@@ -106,7 +106,7 @@ class PortfolioAggregationService:
                 equity_balance = portfolio_result.scalar_one_or_none()
                 values[portfolio_id] = equity_balance or Decimal('0')
 
-        logger.info(f"Retrieved values for {len(values)} portfolios, total: ${sum(values.values()):,.2f}")
+        logger.info(f"Retrieved values for {len(values)} portfolios, total NAV: ${sum(values.values()):,.2f}")
         return values
 
     def calculate_weights(
@@ -157,7 +157,8 @@ class PortfolioAggregationService:
 
         Returns:
             Dict containing:
-                - total_value: Total market value across all portfolios
+                - net_asset_value: Total NAV across all portfolios
+                - total_value: Alias for net_asset_value (backward compatibility)
                 - portfolio_count: Number of portfolios
                 - portfolios: List of portfolio summaries with weights
                 - aggregate_metrics: Weighted average metrics
@@ -178,6 +179,7 @@ class PortfolioAggregationService:
         if not portfolios:
             logger.warning(f"No portfolios found for user {user_id}")
             return {
+                "net_asset_value": 0,
                 "total_value": 0,
                 "portfolio_count": 0,
                 "portfolios": [],
@@ -205,13 +207,14 @@ class PortfolioAggregationService:
         total_value = sum(portfolio_values.values())
 
         result = {
+            "net_asset_value": float(total_value),
             "total_value": float(total_value),
             "portfolio_count": len(portfolios),
             "portfolios": portfolio_summaries,
             "aggregate_metrics": {}  # Will be populated by specific metric methods
         }
 
-        logger.info(f"Aggregated {len(portfolios)} portfolios with total value ${total_value:,.2f}")
+        logger.info(f"Aggregated {len(portfolios)} portfolios with total NAV ${total_value:,.2f}")
         return result
 
     async def aggregate_beta(

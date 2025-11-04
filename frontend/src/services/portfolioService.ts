@@ -5,6 +5,7 @@
 import { portfolioResolver } from './portfolioResolver'
 import { authManager } from './authManager'
 import { analyticsApi } from './analyticsApi'
+import { API_CONFIG } from '@/config/api'
 import { apiClient } from './apiClient'
 import type { FactorExposure } from '../types/analytics'
 
@@ -95,7 +96,7 @@ async function fetchPortfolioDataFromApis(
       {
         headers: { Authorization: `Bearer ${token}` },
         signal: abortSignal,
-        timeout: 120000,  // 2 minutes timeout for positions endpoint
+        timeout: API_CONFIG.TIMEOUT.VERY_LONG,  // Align with proxy timeout for heavy endpoints
         retries: 1        // Retry once if it fails
       }
     )
@@ -208,7 +209,8 @@ async function fetchPortfolioDataFromApis(
  * Calculate exposure metrics from overview API response
  */
 function calculateExposuresFromOverview(overview: any) {
-  const totalValue = overview?.total_value || 0
+  const netAssetValue = overview?.net_asset_value ?? overview?.total_value ?? 0
+  const totalValue = overview?.total_value ?? netAssetValue
   const exposures = overview?.exposures || {}
   const longValue = exposures.long_exposure || 0
   const shortValue = Math.abs(exposures.short_exposure || 0)
@@ -223,21 +225,21 @@ function calculateExposuresFromOverview(overview: any) {
     {
       title: 'Equity Balance',
       value: formatCurrency(equityBalance),
-      subValue: totalValue > 0 ? `${((equityBalance / totalValue) * 100).toFixed(1)}%` : '0%',
-      description: `Total Value: ${formatCurrency(totalValue)}`,
+      subValue: netAssetValue > 0 ? `${((equityBalance / netAssetValue) * 100).toFixed(1)}%` : '0%',
+      description: `Net Asset Value: ${formatCurrency(netAssetValue)}`,
       positive: true
     },
     {
       title: 'Long Exposure',
       value: formatCurrency(longValue),
-      subValue: totalValue > 0 ? `${((longValue / totalValue) * 100).toFixed(1)}%` : '0%',
+      subValue: netAssetValue > 0 ? `${((longValue / netAssetValue) * 100).toFixed(1)}%` : '0%',
       description: 'Notional exposure',
       positive: true
     },
     {
       title: 'Short Exposure',
       value: shortValue > 0 ? `(${formatCurrency(shortValue)})` : '$0',
-      subValue: totalValue > 0 ? `${((shortValue / totalValue) * 100).toFixed(1)}%` : '0%',
+      subValue: netAssetValue > 0 ? `${((shortValue / netAssetValue) * 100).toFixed(1)}%` : '0%',
       description: 'Notional exposure',
       positive: false
     },

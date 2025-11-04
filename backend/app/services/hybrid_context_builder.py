@@ -78,7 +78,8 @@ class HybridContextBuilder:
             context["snapshot"] = {
                 "date": snapshot.snapshot_date.isoformat(),
                 "equity_balance": float(snapshot.equity_balance) if snapshot.equity_balance else None,  # Current equity (rolled forward)
-                "total_value": float(snapshot.total_value) if snapshot.total_value else None,
+                "net_asset_value": float(snapshot.net_asset_value) if snapshot.net_asset_value else None,
+                "total_value": float(snapshot.net_asset_value) if snapshot.net_asset_value else None,
                 "cash_value": float(snapshot.cash_value) if snapshot.cash_value else None,
                 "long_value": float(snapshot.long_value) if snapshot.long_value else None,
                 "short_value": float(snapshot.short_value) if snapshot.short_value else None,
@@ -456,7 +457,7 @@ class HybridContextBuilder:
 
         # Snapshot
         snapshot = context.get("snapshot")
-        if snapshot and snapshot.get("total_value"):
+        if snapshot and (snapshot.get("net_asset_value") or snapshot.get("total_value")):
             quality["snapshot"] = "complete"
         else:
             quality["snapshot"] = "incomplete"

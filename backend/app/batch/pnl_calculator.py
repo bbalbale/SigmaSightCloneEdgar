@@ -19,7 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.logging import get_logger
 from app.database import AsyncSessionLocal
 from app.models.users import Portfolio
-from app.models.positions import Position
+from app.models.positions import Position, PositionType
 from app.models.snapshots import PortfolioSnapshot
 from app.models.market_data import MarketDataCache
 from app.calculations.snapshots import create_portfolio_snapshot
@@ -195,6 +195,14 @@ class PnLCalculator:
         new_equity = previous_equity + daily_pnl
         logger.info(f"    Daily P&L: ${daily_pnl:,.2f} | New Equity: ${new_equity:,.2f}")
 
+        # Persist rolled equity so Portfolio.equity_balance remains the source of truth
+        try:
+            portfolio.equity_balance = new_equity
+            await db.flush()
+            logger.debug(f"    Updated portfolio equity balance to ${new_equity:,.2f}")
+        except Exception as e:
+            logger.warning(f"    Could not update portfolio equity balance: {e}")
+
         # Create snapshot with skip_pnl_calculation=True
         # We calculate P&L ourselves for proper equity rollforward
         snapshot_result = await create_portfolio_snapshot(
@@ -311,14 +319,21 @@ class PnLCalculator:
         if previous_date:
             previous_price = await self._get_cached_price(db, position.symbol, previous_date)
 
-        # If no previous price, use entry price
+        # CRITICAL FIX (2025-11-03): If no previous price, use current price (no change on Day 1)
+        # This ensures Day 1 P&L = $0, and equity starts at the correct initial value.
+        # DO NOT use entry_price here - that would give cumulative P&L, not daily P&L!
         if not previous_price:
-            previous_price = position.entry_price
-            logger.debug(f"      {position.symbol}: Using entry price ${previous_price}")
+            previous_price = current_price
+            logger.debug(f"      {position.symbol}: No previous price, using current (P&L=0)")
 
-        # Calculate P&L
+        # Calculate P&L (apply option contract multiplier when applicable)
         price_change = current_price - previous_price
-        position_pnl = price_change * position.quantity
+        if position.position_type in (PositionType.LC, PositionType.LP, PositionType.SC, PositionType.SP):
+            multiplier = Decimal('100')
+        else:
+            multiplier = Decimal('1')
+
+        position_pnl = price_change * position.quantity * multiplier
 
         return position_pnl
 

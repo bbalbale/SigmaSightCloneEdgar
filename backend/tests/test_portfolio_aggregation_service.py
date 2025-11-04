@@ -80,7 +80,7 @@ async def portfolio_snapshots(db_session, test_portfolios):
         id=uuid4(),
         portfolio_id=test_portfolios['a'].id,
         snapshot_date=datetime.now(timezone.utc).date(),
-        total_value=Decimal('520000'),  # Grown to $520k
+        net_asset_value=Decimal('520000'),  # Grown to $520k
         equity_balance=Decimal('500000')
     )
 
@@ -88,7 +88,7 @@ async def portfolio_snapshots(db_session, test_portfolios):
         id=uuid4(),
         portfolio_id=test_portfolios['b'].id,
         snapshot_date=datetime.now(timezone.utc).date(),
-        total_value=Decimal('310000'),  # Grown to $310k
+        net_asset_value=Decimal('310000'),  # Grown to $310k
         equity_balance=Decimal('300000')
     )
 
@@ -96,7 +96,7 @@ async def portfolio_snapshots(db_session, test_portfolios):
         id=uuid4(),
         portfolio_id=test_portfolios['c'].id,
         snapshot_date=datetime.now(timezone.utc).date(),
-        total_value=Decimal('190000'),  # Down to $190k
+        net_asset_value=Decimal('190000'),  # Down to $190k
         equity_balance=Decimal('200000')
     )
 
@@ -224,6 +224,7 @@ class TestPortfolioAggregationService:
         result = await service.aggregate_portfolio_metrics(test_user.id)
 
         # Check structure
+        assert 'net_asset_value' in result
         assert 'total_value' in result
         assert 'portfolio_count' in result
         assert 'portfolios' in result
@@ -231,7 +232,8 @@ class TestPortfolioAggregationService:
 
         # Check values
         assert result['portfolio_count'] == 3
-        assert result['total_value'] == 1020000  # 520k + 310k + 190k
+        assert result['net_asset_value'] == 1020000  # 520k + 310k + 190k
+        assert result['total_value'] == 1020000
 
         # Check portfolio summaries
         portfolios = result['portfolios']
@@ -267,7 +269,8 @@ class TestPortfolioAggregationService:
         )
 
         assert result['portfolio_count'] == 2
-        assert result['total_value'] == 830000  # 520k + 310k
+        assert result['net_asset_value'] == 830000  # 520k + 310k
+        assert result['total_value'] == 830000
 
     async def test_aggregate_portfolio_metrics_no_portfolios(
         self,
@@ -278,6 +281,7 @@ class TestPortfolioAggregationService:
 
         result = await service.aggregate_portfolio_metrics(uuid4())  # Non-existent user
 
+        assert result['net_asset_value'] == 0
         assert result['total_value'] == 0
         assert result['portfolio_count'] == 0
         assert result['portfolios'] == []
@@ -364,7 +368,7 @@ class TestPortfolioAggregationService:
             id=uuid4(),
             portfolio_id=single_portfolio.id,
             snapshot_date=datetime.now(timezone.utc).date(),
-            total_value=Decimal('1100000'),
+            net_asset_value=Decimal('1100000'),
             equity_balance=Decimal('1000000')
         )
         db_session.add(snapshot)
@@ -375,6 +379,7 @@ class TestPortfolioAggregationService:
 
         # Single portfolio should have 100% weight
         assert result['portfolio_count'] == 1
+        assert result['net_asset_value'] == 1100000
         assert result['portfolios'][0]['weight'] == 1.0
         assert result['portfolios'][0]['value'] == 1100000
 

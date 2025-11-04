@@ -29,6 +29,7 @@ export interface PortfolioMetadata {
 // Portfolio Snapshot Data
 export interface PortfolioSnapshotData {
   date: string;
+  net_asset_value?: string;
   total_value: string;
   daily_pnl: string;
   daily_return: string;
@@ -186,6 +187,7 @@ export interface PortfolioListItem {
   created_at: string;
   updated_at: string;
   position_count: number;
+  net_asset_value?: number;
   total_value?: number;
 }
 

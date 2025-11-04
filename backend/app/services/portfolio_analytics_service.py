@@ -202,6 +202,7 @@ class PortfolioAnalyticsService:
 
         return {
             "equity_balance": round(equity_balance, 2) if equity_balance is not None else None,
+            "net_asset_value": round(portfolio_total, 2),
             "total_value": round(portfolio_total, 2),
             "cash_balance": round(cash_balance, 2),
             "leverage": round(leverage, 2),
@@ -373,7 +374,7 @@ class PortfolioAnalyticsService:
             gross_exposure = float(snapshot.gross_exposure) if snapshot.gross_exposure else 0.0
             net_exposure = float(snapshot.net_exposure) if snapshot.net_exposure else 0.0
             cash_balance = float(snapshot.cash_value) if snapshot.cash_value else 0.0
-            portfolio_total = float(snapshot.total_value) if snapshot.total_value else 0.0
+            portfolio_total = float(snapshot.net_asset_value) if snapshot.net_asset_value else 0.0
 
             # Position counts from snapshot
             long_count = snapshot.num_long_positions
@@ -407,6 +408,7 @@ class PortfolioAnalyticsService:
 
             return {
                 "equity_balance": round(equity_balance, 2) if equity_balance is not None else round(portfolio_total, 2),
+                "net_asset_value": round(portfolio_total, 2),
                 "total_value": round(portfolio_total, 2),
                 "cash_balance": round(cash_balance, 2),
                 "leverage": round(leverage, 2),
@@ -448,6 +450,7 @@ class PortfolioAnalyticsService:
         """Return zero-initialized metrics when no data is available"""
         return {
             "equity_balance": round(equity_balance, 2) if equity_balance is not None else 0.0,
+            "net_asset_value": 0.0,
             "total_value": 0.0,
             "cash_balance": 0.0,
             "leverage": 0.0,

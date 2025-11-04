@@ -112,6 +112,7 @@ class PortfolioResponse(BaseModel):
 
     # Calculated fields
     position_count: Optional[int] = 0
+    net_asset_value: Optional[Decimal] = None
     total_value: Optional[Decimal] = None
 
     class Config:
@@ -131,6 +132,7 @@ class PortfolioResponse(BaseModel):
                 "updated_at": "2025-01-01T00:00:00Z",
                 "deleted_at": None,
                 "position_count": 15,
+                "net_asset_value": 125000.00,
                 "total_value": 125000.00
             }
         }
@@ -142,6 +144,7 @@ class PortfolioListResponse(BaseModel):
     portfolios: list[PortfolioResponse]
     total_count: int
     active_count: int
+    net_asset_value: Decimal
     total_value: Decimal
 
     class Config:
@@ -150,6 +153,7 @@ class PortfolioListResponse(BaseModel):
                 "portfolios": [],
                 "total_count": 3,
                 "active_count": 2,
+                "net_asset_value": 1000000.00,
                 "total_value": 1000000.00
             }
         }

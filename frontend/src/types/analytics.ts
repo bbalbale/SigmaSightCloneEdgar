@@ -2,6 +2,7 @@
 
 export interface PortfolioOverviewResponse {
   portfolio_id: string;
+  net_asset_value: number;
   total_value: number;
   cash_balance: number;
   exposures: {

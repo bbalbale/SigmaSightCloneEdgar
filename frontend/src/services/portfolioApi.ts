@@ -47,12 +47,14 @@ export interface PortfolioResponse {
   account_type: string;
   description?: string;
   equity_balance: number;
+  net_asset_value: number;
   is_active: boolean;
   created_at: string;
   updated_at?: string;
 }
 
 export interface AggregateAnalytics {
+  net_asset_value: number;
   total_value: number;
   total_positions: number;
   portfolio_count: number;
@@ -67,6 +69,7 @@ export interface AggregateAnalytics {
   };
   top_holdings: Array<{
     symbol: string;
+    net_asset_value?: number;
     total_value: number;
     pct_of_total: number;
   }>;
@@ -82,12 +85,14 @@ export interface PortfolioBreakdown {
     id: string;
     account_name: string;
     account_type: string;
+    net_asset_value?: number;
     total_value: number;
     position_count: number;
     pct_of_total: number;
     unrealized_pnl: number;
     realized_pnl: number;
   }>;
+  net_asset_value?: number;
   total_value: number;
 }
 
@@ -105,7 +110,12 @@ export class PortfolioService {
         API_ENDPOINTS.PORTFOLIOS.LIST,
         REQUEST_CONFIGS.STANDARD
       );
-      return response.data || [];
+      const portfolios = response.data || [];
+      return portfolios.map((portfolio) => ({
+        ...portfolio,
+        net_asset_value: portfolio.net_asset_value ?? portfolio.total_value ?? 0,
+        total_value: portfolio.total_value ?? portfolio.net_asset_value ?? 0,
+      }));
     } catch (error) {
       console.error('Failed to fetch portfolios:', error);
       throw new Error('Unable to load portfolio list. Please check your connection and try again.');
@@ -297,7 +307,17 @@ export class PortfolioService {
         '/portfolios/aggregate/analytics',
         REQUEST_CONFIGS.STANDARD
       );
-      return response.data;
+      const data = response.data;
+      return {
+        ...data,
+        net_asset_value: data.net_asset_value ?? data.total_value ?? 0,
+        total_value: data.total_value ?? data.net_asset_value ?? 0,
+        top_holdings: data.top_holdings?.map((holding) => ({
+          ...holding,
+          net_asset_value: holding.net_asset_value ?? holding.total_value ?? 0,
+          total_value: holding.total_value ?? holding.net_asset_value ?? 0,
+        })) || [],
+      };
     } catch (error) {
       console.error('Failed to fetch aggregate analytics:', error);
       throw new Error('Unable to load aggregate analytics. Please try again.');
@@ -314,7 +334,17 @@ export class PortfolioService {
         '/portfolios/aggregate/breakdown',
         REQUEST_CONFIGS.STANDARD
       );
-      return response.data;
+      const data = response.data;
+      return {
+        ...data,
+        net_asset_value: data.net_asset_value ?? data.total_value ?? 0,
+        total_value: data.total_value ?? data.net_asset_value ?? 0,
+        portfolios: data.portfolios.map((portfolio) => ({
+          ...portfolio,
+          net_asset_value: portfolio.net_asset_value ?? portfolio.total_value ?? 0,
+          total_value: portfolio.total_value ?? portfolio.net_asset_value ?? 0,
+        })),
+      };
     } catch (error) {
       console.error('Failed to fetch portfolio breakdown:', error);
       throw new Error('Unable to load portfolio breakdown. Please try again.');
