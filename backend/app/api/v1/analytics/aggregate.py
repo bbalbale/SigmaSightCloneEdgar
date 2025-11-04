@@ -14,7 +14,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.dependencies import get_current_user
-from app.database import get_async_session
+from app.database import get_db
 from app.models.users import User
 from app.services.portfolio_aggregation_service import PortfolioAggregationService
 from app.core.logging import get_logger
@@ -31,7 +31,7 @@ CurrentUser = User
 async def get_aggregate_overview(
     portfolio_ids: Optional[List[UUID]] = Query(None, description="Specific portfolio IDs to aggregate. If None, aggregates all active portfolios."),
     current_user: CurrentUser = Depends(get_current_user),
-    db: AsyncSession = Depends(get_async_session)
+    db: AsyncSession = Depends(get_db)
 ):
     """
     Get aggregate portfolio overview across multiple portfolios.
@@ -78,7 +78,7 @@ async def get_aggregate_overview(
 async def get_portfolio_breakdown(
     portfolio_ids: Optional[List[UUID]] = Query(None),
     current_user: CurrentUser = Depends(get_current_user),
-    db: AsyncSession = Depends(get_async_session)
+    db: AsyncSession = Depends(get_db)
 ):
     """
     Get detailed breakdown of portfolios with individual metrics.
@@ -141,7 +141,7 @@ async def get_portfolio_breakdown(
 async def get_aggregate_beta(
     portfolio_ids: Optional[List[UUID]] = Query(None),
     current_user: CurrentUser = Depends(get_current_user),
-    db: AsyncSession = Depends(get_async_session)
+    db: AsyncSession = Depends(get_db)
 ):
     """
     Get aggregate portfolio beta across multiple portfolios.
@@ -254,7 +254,7 @@ async def get_aggregate_beta(
 async def get_aggregate_volatility(
     portfolio_ids: Optional[List[UUID]] = Query(None),
     current_user: CurrentUser = Depends(get_current_user),
-    db: AsyncSession = Depends(get_async_session)
+    db: AsyncSession = Depends(get_db)
 ):
     """
     Get aggregate portfolio volatility across multiple portfolios.
@@ -365,7 +365,7 @@ async def get_aggregate_volatility(
 async def get_aggregate_factor_exposures(
     portfolio_ids: Optional[List[UUID]] = Query(None),
     current_user: CurrentUser = Depends(get_current_user),
-    db: AsyncSession = Depends(get_async_session)
+    db: AsyncSession = Depends(get_db)
 ):
     """
     Get aggregate factor exposures across multiple portfolios.

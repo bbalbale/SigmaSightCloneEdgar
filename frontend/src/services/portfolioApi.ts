@@ -312,16 +312,21 @@ export class PortfolioService {
    */
   async getAggregateAnalytics(): Promise<AggregateAnalytics> {
     try {
-      const response = await apiClient.get<ApiResponse<AggregateAnalytics>>(
-        '/portfolios/aggregate/analytics',
+      const response = await apiClient.get<any>(
+        '/api/v1/analytics/aggregate/overview',
         REQUEST_CONFIGS.STANDARD
       );
-      const data = response.data;
+      console.log('[portfolioApi] Aggregate analytics response:', response);
+
+      // API may return data directly or wrapped in { data: {...} }
+      const data = response.data || response;
+      console.log('[portfolioApi] Aggregate analytics data:', data);
+
       return {
         ...data,
         net_asset_value: data.net_asset_value ?? data.total_value ?? 0,
         total_value: data.total_value ?? data.net_asset_value ?? 0,
-        top_holdings: data.top_holdings?.map((holding) => ({
+        top_holdings: data.top_holdings?.map((holding: any) => ({
           ...holding,
           net_asset_value: holding.net_asset_value ?? holding.total_value ?? 0,
           total_value: holding.total_value ?? holding.net_asset_value ?? 0,
@@ -339,16 +344,21 @@ export class PortfolioService {
    */
   async getPortfolioBreakdown(): Promise<PortfolioBreakdown> {
     try {
-      const response = await apiClient.get<ApiResponse<PortfolioBreakdown>>(
-        '/portfolios/aggregate/breakdown',
+      const response = await apiClient.get<any>(
+        '/api/v1/analytics/aggregate/breakdown',
         REQUEST_CONFIGS.STANDARD
       );
-      const data = response.data;
+      console.log('[portfolioApi] Portfolio breakdown response:', response);
+
+      // API may return data directly or wrapped in { data: {...} }
+      const data = response.data || response;
+      console.log('[portfolioApi] Portfolio breakdown data:', data);
+
       return {
         ...data,
         net_asset_value: data.net_asset_value ?? data.total_value ?? 0,
         total_value: data.total_value ?? data.net_asset_value ?? 0,
-        portfolios: data.portfolios.map((portfolio) => ({
+        portfolios: data.portfolios.map((portfolio: any) => ({
           ...portfolio,
           net_asset_value: portfolio.net_asset_value ?? portfolio.total_value ?? 0,
           total_value: portfolio.total_value ?? portfolio.net_asset_value ?? 0,

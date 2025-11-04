@@ -5,7 +5,17 @@
       "Bash(git add:*)",
       "mcp__playwright__browser_wait_for",
       "mcp__playwright__browser_navigate",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "Bash(git fetch:*)",
+      "mcp__playwright__browser_click",
+      "mcp__playwright__browser_take_screenshot",
+      "Bash(git pull:*)",
+      "Bash(git push:*)",
+      "mcp__playwright__browser_close",
+      "Bash(curl:*)",
+      "Bash(uv run python:*)",
+      "mcp__playwright__browser_console_messages",
+      "mcp__playwright__browser_snapshot"
     ],
     "deny": [],
     "ask": [],
