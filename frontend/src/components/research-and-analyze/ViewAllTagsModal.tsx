@@ -21,17 +21,12 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
-
-export interface Tag {
-  id: string
-  name: string
-  color: string
-}
+import type { PositionTag } from '@/types/tags'
 
 interface ViewAllTagsModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  tags: Tag[]
+  tags: PositionTag[]
   onCreate: (name: string, color: string) => Promise<void>
   onDelete: (tagId: string) => Promise<void>
 }

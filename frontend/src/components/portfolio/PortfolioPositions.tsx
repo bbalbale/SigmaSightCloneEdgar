@@ -3,42 +3,23 @@ import { Badge } from '@/components/ui/badge'
 import { PublicPositions } from './PublicPositions'
 import { OptionsPositions } from './OptionsPositions'
 import { PrivatePositions } from './PrivatePositions'
-
-type BasePosition = {
-  id?: string
-  symbol: string
-  marketValue: number
-  pnl: number
-  quantity: number
-  positive?: boolean
-  type?: string
-  investment_class?: string
-  investment_subtype?: string
-  price?: number
-  account_name?: string
-}
-
-type PublicPosition = BasePosition & {
-  company_name?: string
-}
-
-type OptionPosition = BasePosition & {
-  strike_price?: number
-  expiration_date?: string
-  underlying_symbol?: string
-}
-
-type PrivatePosition = BasePosition & {
-  name?: string
-}
+import type {
+  PublicPositionView,
+  OptionPositionView,
+  PrivatePositionView,
+  PositionType
+} from '@/types/positions'
 
 interface PortfolioPositionsProps {
-  longPositions?: PublicPosition[]
-  shortPositions?: PublicPosition[]
-  publicPositions?: PublicPosition[]
-  optionsPositions?: OptionPosition[]
-  privatePositions?: PrivatePosition[]
+  longPositions?: PublicPositionView[]
+  shortPositions?: PublicPositionView[]
+  publicPositions?: PublicPositionView[]
+  optionsPositions?: OptionPositionView[]
+  privatePositions?: PrivatePositionView[]
 }
+
+const isLongOption = (type?: PositionType) => type === 'LC' || type === 'LP'
+const isShortOption = (type?: PositionType) => type === 'SC' || type === 'SP'
 
 export function PortfolioPositions({
   longPositions = [],
@@ -50,15 +31,15 @@ export function PortfolioPositions({
   const hasInvestmentClassData =
     publicPositions.length > 0 || optionsPositions.length > 0 || privatePositions.length > 0
 
-  const publicPositionsFinal: PublicPosition[] = hasInvestmentClassData
+  const publicPositionsFinal: PublicPositionView[] = hasInvestmentClassData
     ? publicPositions
     : [...longPositions, ...shortPositions]
 
   const publicLongs = publicPositionsFinal.filter((p) => p.type === 'LONG' || !p.type)
   const publicShorts = publicPositionsFinal.filter((p) => p.type === 'SHORT')
 
-  const optionLongs = optionsPositions.filter((p) => p.type === 'LC' || p.type === 'LP')
-  const optionShorts = optionsPositions.filter((p) => p.type === 'SC' || p.type === 'SP')
+  const optionLongs = optionsPositions.filter((p) => isLongOption(p.type))
+  const optionShorts = optionsPositions.filter((p) => isShortOption(p.type))
 
   return (
     <section className="flex-1 px-4 pb-6">

@@ -3,15 +3,10 @@
 import React, { useState, useRef, useEffect } from 'react'
 import { TagBadge } from '@/components/organize/TagBadge'
 import { Button } from '@/components/ui/button'
-
-export interface Tag {
-  id: string
-  name: string
-  color: string
-}
+import type { PositionTag } from '@/types/tags'
 
 interface CompactTagBarProps {
-  tags: Tag[]
+  tags: PositionTag[]
   onViewAll: () => void
   onCreate: () => void
 }

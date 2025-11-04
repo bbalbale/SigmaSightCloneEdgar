@@ -3,32 +3,22 @@ import { BasePositionCard } from '@/components/common/BasePositionCard'
 import { formatCurrency } from '@/lib/formatters'
 import { TagBadge } from '@/components/organize/TagBadge'
 import { Badge } from '@/components/ui/badge'
-
-// Tag interface
-interface Tag {
-  id: string
-  name: string
-  color: string
-}
-
-interface PrivatePosition {
-  id?: string
-  symbol: string
-  investment_subtype?: string
-  marketValue: number
-  pnl: number
-  tags?: Tag[]
-  account_name?: string  // NEW: Portfolio/account name for multi-portfolio
-}
+import type { PrivatePositionView } from '@/types/positions'
 
 interface PrivatePositionCardProps {
-  position: PrivatePosition
+  position: PrivatePositionView
   onClick?: () => void
-  showAccountBadge?: boolean  // NEW: Show account badge (for aggregate view)
+  showAccountBadge?: boolean
 }
 
-export function PrivatePositionCard({ position, onClick, showAccountBadge = false }: PrivatePositionCardProps) {
-  const subtype = position.investment_subtype || 'Alternative Investment'
+export function PrivatePositionCard({
+  position,
+  onClick,
+  showAccountBadge = false
+}: PrivatePositionCardProps) {
+  const subtype = position.investmentSubtype || (position as any).investment_subtype || 'Alternative Investment'
+  const accountName = position.accountName || (position as any).account_name
+  const tags = position.tags || (position as any).tags || []
 
   return (
     <div className="space-y-2">
@@ -38,7 +28,7 @@ export function PrivatePositionCard({ position, onClick, showAccountBadge = fals
         primaryValue={formatCurrency(Math.abs(position.marketValue))}
         secondaryValue={
           position.pnl === 0
-            ? '—'
+            ? '--'
             : `${position.pnl >= 0 ? '+' : ''}${formatCurrency(position.pnl)}`
         }
         secondaryValueColor={
@@ -51,18 +41,15 @@ export function PrivatePositionCard({ position, onClick, showAccountBadge = fals
         onClick={onClick}
       />
 
-      {/* Account Badge (for aggregate view) and Tags */}
-      {(showAccountBadge && position.account_name) || (position.tags && position.tags.length > 0) ? (
+      {(showAccountBadge && accountName) || tags.length > 0 ? (
         <div className="flex flex-wrap gap-1 px-1">
-          {/* Account Badge - shown first when in aggregate view */}
-          {showAccountBadge && position.account_name && (
+          {showAccountBadge && accountName && (
             <Badge variant="outline" className="text-xs">
-              {position.account_name}
+              {accountName}
             </Badge>
           )}
 
-          {/* Tags */}
-          {position.tags && position.tags.map(tag => (
+          {tags.map((tag: any) => (
             <TagBadge key={tag.id} tag={tag} draggable={false} />
           ))}
         </div>

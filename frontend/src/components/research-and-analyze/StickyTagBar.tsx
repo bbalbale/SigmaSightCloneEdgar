@@ -3,12 +3,9 @@
 import React from 'react'
 import { StickyTagBarDesktop } from './StickyTagBarDesktop'
 import { StickyTagBarMobile } from './StickyTagBarMobile'
+import type { PositionTag } from '@/types/tags'
 
-export interface StickyTag {
-  id: string
-  name: string
-  color: string
-}
+export type StickyTag = PositionTag
 
 export interface StickyTagBarProps {
   tags: StickyTag[]

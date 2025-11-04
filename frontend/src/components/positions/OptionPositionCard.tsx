@@ -3,39 +3,29 @@ import { BasePositionCard } from '@/components/common/BasePositionCard'
 import { formatCurrency } from '@/lib/formatters'
 import { TagBadge } from '@/components/organize/TagBadge'
 import { Badge } from '@/components/ui/badge'
-
-// Tag interface
-interface Tag {
-  id: string
-  name: string
-  color: string
-}
-
-interface OptionPosition {
-  id?: string
-  symbol: string
-  type?: string  // LC, LP, SC, SP
-  marketValue: number
-  pnl: number
-  tags?: Tag[]
-  account_name?: string  // NEW: Portfolio/account name for multi-portfolio
-}
+import type { OptionPositionView } from '@/types/positions'
 
 interface OptionPositionCardProps {
-  position: OptionPosition
+  position: OptionPositionView
   onClick?: () => void
-  showAccountBadge?: boolean  // NEW: Show account badge (for aggregate view)
+  showAccountBadge?: boolean
 }
 
 const OPTION_TYPE_LABELS: Record<string, string> = {
-  'LC': 'Long Call',
-  'LP': 'Long Put',
-  'SC': 'Short Call',
-  'SP': 'Short Put'
+  LC: 'Long Call',
+  LP: 'Long Put',
+  SC: 'Short Call',
+  SP: 'Short Put'
 }
 
-export function OptionPositionCard({ position, onClick, showAccountBadge = false }: OptionPositionCardProps) {
+export function OptionPositionCard({
+  position,
+  onClick,
+  showAccountBadge = false
+}: OptionPositionCardProps) {
   const optionTypeLabel = OPTION_TYPE_LABELS[position.type || ''] || 'Option'
+  const accountName = position.accountName || (position as any).account_name
+  const tags = position.tags || (position as any).tags || []
 
   return (
     <div className="space-y-2">
@@ -45,7 +35,7 @@ export function OptionPositionCard({ position, onClick, showAccountBadge = false
         primaryValue={formatCurrency(Math.abs(position.marketValue))}
         secondaryValue={
           position.pnl === 0
-            ? '—'
+            ? '--'
             : `${position.pnl >= 0 ? '+' : ''}${formatCurrency(position.pnl)}`
         }
         secondaryValueColor={
@@ -58,18 +48,15 @@ export function OptionPositionCard({ position, onClick, showAccountBadge = false
         onClick={onClick}
       />
 
-      {/* Account Badge (for aggregate view) and Tags */}
-      {(showAccountBadge && position.account_name) || (position.tags && position.tags.length > 0) ? (
+      {(showAccountBadge && accountName) || tags.length > 0 ? (
         <div className="flex flex-wrap gap-1 px-1">
-          {/* Account Badge - shown first when in aggregate view */}
-          {showAccountBadge && position.account_name && (
+          {showAccountBadge && accountName && (
             <Badge variant="outline" className="text-xs">
-              {position.account_name}
+              {accountName}
             </Badge>
           )}
 
-          {/* Tags */}
-          {position.tags && position.tags.map(tag => (
+          {tags.map((tag: any) => (
             <TagBadge key={tag.id} tag={tag} draggable={false} />
           ))}
         </div>
@@ -77,3 +64,4 @@ export function OptionPositionCard({ position, onClick, showAccountBadge = false
     </div>
   )
 }
+

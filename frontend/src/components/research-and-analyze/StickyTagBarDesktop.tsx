@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
+import { TagBadge } from '@/components/organize/TagBadge'
 import type { StickyTag } from './StickyTagBar'
 
 export interface StickyTagBarProps {
@@ -34,9 +35,10 @@ export function StickyTagBarDesktop({
     return () => window.removeEventListener('scroll', handleScroll)
   }, [lastScrollY])
 
-  const handleDragStart = (e: React.DragEvent, tagId: string) => {
-    e.dataTransfer.setData('tagId', tagId)
-    e.dataTransfer.effectAllowed = 'copy'
+  const handleDragStart = (event: React.DragEvent<HTMLSpanElement>, tag: StickyTag) => {
+    event.dataTransfer.setData('tagId', tag.id)
+    event.dataTransfer.setData('text/plain', tag.id)
+    event.dataTransfer.effectAllowed = 'copy'
   }
 
   return (
@@ -62,20 +64,14 @@ export function StickyTagBarDesktop({
           {/* Draggable Tags or Placeholder */}
           {tags.length > 0 ? (
             tags.map(tag => (
-              <div
+              <TagBadge
                 key={tag.id}
+                tag={tag}
                 draggable
-                onDragStart={(e) => handleDragStart(e, tag.id)}
-                className="px-3 py-1.5 rounded font-medium cursor-move transition-all hover:scale-105"
-                style={{
-                  backgroundColor: `${tag.color}20`,
-                  color: tag.color,
-                  border: `1px solid ${tag.color}40`,
-                  fontSize: 'var(--text-xs)'
-                }}
-              >
-                {tag.name}
-              </div>
+                size="sm"
+                className="font-medium transition-all hover:scale-105"
+                onDragStart={handleDragStart}
+              />
             ))
           ) : (
             <span className="transition-colors duration-300" style={{
