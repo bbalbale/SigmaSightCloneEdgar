@@ -675,14 +675,14 @@ const ExpandedRowDetail = memo(function ExpandedRowDetail({ position, riskMetric
                 ) : riskMetrics ? (
                   <div className="space-y-2">
                     {/* Calculated Beta (from our factor model) */}
-                    {riskMetrics.beta !== undefined && (
+                    {typeof riskMetrics.beta === 'number' && (
                       <div className="flex justify-between">
                         <span className={labelClass} style={{ color: 'var(--text-secondary)' }}>Calculated Beta</span>
                         <span className={valueClass} style={{ color: 'var(--text-primary)' }}>{riskMetrics.beta.toFixed(2)}</span>
                       </div>
                     )}
                     {/* 1-Year Beta (from company profile or other source) */}
-                    {position.beta !== undefined && (
+                    {typeof position.beta === 'number' && (
                       <div className="flex justify-between">
                         <span className={labelClass} style={{ color: 'var(--text-secondary)' }}>1-Year Beta</span>
                         <span className={valueClass} style={{ color: 'var(--text-primary)' }}>{position.beta.toFixed(2)}</span>

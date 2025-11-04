@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import fundamentalsApi from '@/services/fundamentalsApi';
+import { ApiError } from '@/services/apiClient';
 
 /**
  * Custom hook to fetch and manage fundamental financial data
@@ -99,8 +100,14 @@ export function useFundamentals(
 
         setData(transformedData);
       } catch (err) {
-        setError(err instanceof Error ? err : new Error('Failed to fetch fundamental data'));
-        setData(null);
+        if (err instanceof ApiError && err.status === 404) {
+          // Certain instruments (indexes, mutual funds) do not have fundamentals yet
+          setData(null);
+          setError(null);
+        } else {
+          setError(err instanceof Error ? err : new Error('Failed to fetch fundamental data'));
+          setData(null);
+        }
       } finally {
         setLoading(false);
       }
