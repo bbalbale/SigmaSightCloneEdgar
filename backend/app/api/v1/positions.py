@@ -240,6 +240,8 @@ async def update_position(
     - avg_cost (affects unrealized P&L)
     - position_type (affects exposure calculations)
     - notes (user annotations)
+    - exit_price / exit_date / close_quantity (calculate realized P&L)
+    - entry_price (corrections)
 
     **Editable Fields (conditional):**
     - symbol (ONLY if allow_symbol_edit=true AND created < 5 min AND no snapshots)
@@ -266,6 +268,10 @@ async def update_position(
             notes=request.notes,
             symbol=request.symbol,
             allow_symbol_edit=allow_symbol_edit,
+            exit_price=request.exit_price,
+            exit_date=request.exit_date,
+            entry_price=request.entry_price,
+            close_quantity=request.close_quantity,
         )
 
         return PositionResponse.model_validate(position)

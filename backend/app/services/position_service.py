@@ -31,7 +31,7 @@ validation, and smart features (duplicate detection, symbol validation, tag inhe
 **Documentation**: frontend/_docs/ClaudeUISuggestions/13-POSITION-MANAGEMENT-PLAN.md
 """
 import logging
-from datetime import datetime
+from datetime import datetime, date
 from typing import List, Optional, Dict, Any
 from uuid import UUID, uuid4
 from decimal import Decimal
@@ -45,6 +45,7 @@ from app.models.positions import Position, PositionType
 from app.models.users import Portfolio
 from app.models.position_tags import PositionTag
 from app.models.tags_v2 import TagV2
+from app.models.position_realized_events import PositionRealizedEvent
 from app.core.logging import get_logger
 
 logger = get_logger(__name__)
@@ -297,6 +298,10 @@ class PositionService:
         notes: Optional[str] = None,
         symbol: Optional[str] = None,
         allow_symbol_edit: bool = False,
+        exit_price: Optional[Decimal] = None,
+        exit_date: Optional[date] = None,
+        entry_price: Optional[Decimal] = None,
+        close_quantity: Optional[Decimal] = None,
     ) -> Position:
         """
         Update position fields.
@@ -369,22 +374,103 @@ class PositionService:
                 # For now, just allow if < 5 min
                 position.symbol = symbol.upper().strip()
 
-            # Update fields
-            if quantity is not None:
-                if quantity == 0:
-                    raise ValueError("Quantity cannot be zero")
-                position.quantity = quantity
+            original_quantity = position.quantity
 
             if avg_cost is not None:
                 if avg_cost <= 0:
                     raise ValueError("Average cost must be greater than zero")
                 position.entry_price = avg_cost  # entry_price maps to avg_cost
 
+            if entry_price is not None:
+                if entry_price <= 0:
+                    raise ValueError("Entry price must be greater than zero")
+                position.entry_price = entry_price
+
             if position_type is not None:
                 position.position_type = position_type
 
             if notes is not None:
                 position.notes = notes
+
+            if symbol is not None and symbol != position.symbol:
+                if not allow_symbol_edit:
+                    raise ValueError("Symbol editing not allowed (set allow_symbol_edit=True)")
+
+                if not position.can_edit_symbol():
+                    raise ValueError("Symbol can only be edited within 5 minutes of creation")
+
+                position.symbol = symbol.upper().strip()
+
+            # Handle exit / realized P&L logic
+            if exit_price is not None:
+                if exit_price <= 0:
+                    raise ValueError("Exit price must be greater than zero")
+
+                quantity_to_close = close_quantity
+                if quantity_to_close is None and quantity is not None:
+                    quantity_to_close = original_quantity - quantity
+
+                if quantity_to_close is None:
+                    raise ValueError("close_quantity is required when setting an exit price")
+
+                if quantity_to_close <= 0:
+                    raise ValueError("close_quantity must be greater than zero")
+
+                original_abs_quantity = abs(original_quantity)
+                if quantity_to_close > original_abs_quantity:
+                    raise ValueError("Cannot close more than the current position size")
+
+                is_short_position = original_quantity < 0
+
+                if quantity is None:
+                    if is_short_position:
+                        new_quantity = original_quantity + quantity_to_close
+                    else:
+                        new_quantity = original_quantity - quantity_to_close
+                else:
+                    new_quantity = quantity
+                    expected_quantity = (
+                        original_quantity + quantity_to_close if is_short_position
+                        else original_quantity - quantity_to_close
+                    )
+                    if new_quantity != expected_quantity:
+                        raise ValueError("Remaining quantity does not match closed amount")
+
+                if not is_short_position and new_quantity < 0:
+                    raise ValueError("Remaining quantity cannot be negative after close")
+                if is_short_position and new_quantity > 0:
+                    raise ValueError("Remaining quantity cannot be positive for a short position")
+
+                realized_increment = self._calculate_realized_pnl(
+                    position=position,
+                    exit_price=exit_price,
+                    quantity_closed=quantity_to_close,
+                )
+
+                position.realized_pnl = (position.realized_pnl or Decimal("0")) + realized_increment
+
+                trade_date = exit_date or date.today()
+
+                if new_quantity == 0:
+                    position.quantity = Decimal("0")
+                    position.exit_price = exit_price
+                    position.exit_date = trade_date
+                else:
+                    position.quantity = new_quantity
+                    position.exit_price = None
+                    position.exit_date = None
+
+                await self._record_realized_event(
+                    position=position,
+                    quantity_closed=quantity_to_close,
+                    realized_increment=realized_increment,
+                    trade_date=trade_date,
+                )
+            else:
+                if quantity is not None:
+                    if quantity == 0:
+                        raise ValueError("Quantity cannot be zero")
+                    position.quantity = quantity
 
             # Update timestamp
             position.updated_at = datetime.utcnow()
@@ -399,6 +485,56 @@ class PositionService:
             await self.db.rollback()
             logger.error(f"Error updating position {position_id}: {e}")
             raise
+
+    def _calculate_realized_pnl(
+        self,
+        position: Position,
+        exit_price: Decimal,
+        quantity_closed: Decimal,
+    ) -> Decimal:
+        """
+        Calculate realized P&L for a closed quantity of a position.
+
+        Args:
+            position: Position being adjusted.
+            exit_price: Price at which the shares/contracts were closed.
+            quantity_closed: Amount of the position closed (positive value).
+
+        Returns:
+            Decimal representing realized profit/loss for the closed quantity.
+        """
+        quantity_closed = quantity_closed.copy_abs()
+        multiplier = Decimal("100") if position.position_type in {
+            PositionType.LC,
+            PositionType.LP,
+            PositionType.SC,
+            PositionType.SP,
+        } else Decimal("1")
+
+        if position.position_type in {PositionType.LONG, PositionType.LC, PositionType.LP}:
+            price_diff = exit_price - position.entry_price
+        else:
+            price_diff = position.entry_price - exit_price
+
+        return price_diff * quantity_closed * multiplier
+
+    async def _record_realized_event(
+        self,
+        position: Position,
+        quantity_closed: Decimal,
+        realized_increment: Decimal,
+        trade_date: date,
+    ) -> None:
+        """Persist a realized P&L event for audit tracking and downstream aggregation."""
+        event = PositionRealizedEvent(
+            position_id=position.id,
+            portfolio_id=position.portfolio_id,
+            trade_date=trade_date,
+            quantity_closed=quantity_closed.copy_abs(),
+            realized_pnl=realized_increment,
+        )
+        self.db.add(event)
+        await self.db.flush()
 
     async def soft_delete_position(
         self,

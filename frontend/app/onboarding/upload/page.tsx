@@ -41,20 +41,23 @@ export default function OnboardingUploadPage() {
 
   // Show processing screen (uploading or batch processing)
   if (uploadState === 'uploading' || uploadState === 'processing') {
+    const processingState: 'uploading' | 'processing' = uploadState
     return (
       <UploadProcessing
-        uploadState={uploadState}
+        uploadState={processingState}
         currentSpinnerItem={currentSpinnerItem}
         checklist={checklist}
       />
     )
   }
 
+  const isProcessing = uploadState === 'uploading' || uploadState === 'processing'
+
   // Show upload form (idle or error state)
   return (
     <PortfolioUploadForm
       onUpload={handleUpload}
-      disabled={uploadState === 'uploading' || uploadState === 'processing'}
+      disabled={isProcessing}
       error={error}
       onRetry={handleRetry}
     />

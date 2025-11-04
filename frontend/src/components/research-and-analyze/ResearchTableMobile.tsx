@@ -349,11 +349,13 @@ const ExpandedDetail = memo(function ExpandedDetail({
   riskMetricsLoading,
   onRemoveTag
 }: ExpandedDetailProps) {
-  const quantity = position.quantity || 0
-  const avgCost = position.avg_cost || position.cost_basis || 0
-  const marketValue = position.current_market_value || position.market_value || (quantity * position.current_price)
-  const pnl = position.unrealized_pnl || 0
-  const pnlPercent = position.unrealized_pnl_percent || 0
+  const quantity = position.quantity ?? 0
+  const currentPrice = position.current_price ?? 0
+  const costBasis = position.cost_basis ?? 0
+  const avgCost = quantity !== 0 ? costBasis / quantity : costBasis
+  const marketValue = position.market_value ?? quantity * currentPrice
+  const pnl = position.unrealized_pnl ?? marketValue - costBasis
+  const pnlPercent = costBasis !== 0 ? (pnl / costBasis) * 100 : 0
 
   // Calculate P/E ratios
   const peThisYear = position.current_year_earnings_avg && position.current_price

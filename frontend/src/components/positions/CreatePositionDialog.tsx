@@ -34,6 +34,7 @@ interface FormErrors {
   position_type?: string
   investment_class?: string
   entry_date?: string
+  notes?: string
   general?: string
 }
 

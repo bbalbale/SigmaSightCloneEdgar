@@ -41,6 +41,8 @@ await positionManagementService.updatePosition(lotId, {
 })
 ```
 
+> **Partial close handling:** `close_quantity` identifies how many shares/contracts are being exited. The request may still include an updated `quantity` representing the remaining open size, but `close_quantity` is the authoritative figure for realized P&L calculations.
+
 **But the backend silently ignores `exit_price` and `exit_date`!**
 
 **Backend schema** (`UpdatePositionRequest`):
@@ -96,6 +98,11 @@ class UpdatePositionRequest(BaseModel):
     # NEW: Exit fields for closing positions
     exit_price: Optional[Decimal] = Field(None, gt=0, description="Exit price when closing position")
     exit_date: Optional[date] = Field(None, description="Exit date when closing position")
+    close_quantity: Optional[Decimal] = Field(
+        None,
+        gt=0,
+        description="Shares/contracts being closed (explicit for partial exits)"
+    )
 
     # NEW: Entry price correction (for averaging or fixing errors)
     entry_price: Optional[Decimal] = Field(None, gt=0, description="Entry price (for corrections)")
@@ -113,7 +120,64 @@ class UpdatePositionRequest(BaseModel):
     def validate_symbol(cls, value: Optional[str]) -> Optional[str]:
         """Ensure symbol is uppercase and trimmed if provided."""
         return value.upper().strip() if value else None
+
+    @field_validator("close_quantity")
+    @classmethod
+    def validate_close_quantity(cls, value: Optional[Decimal]) -> Optional[Decimal]:
+        """Ensure partial-close amounts are positive."""
+        if value is not None and value <= 0:
+            raise ValueError("close_quantity must be greater than zero")
+        return value
 ```
+
+> **Partial close handling:** `close_quantity` is required whenever the user is selling part (or all) of a position. If the client also sends a new `quantity`, it represents the post-trade remaining size; otherwise the service derives the remainder from `close_quantity`.
+
+### Step 1b: Realized P&L Event Table
+
+To maintain an immutable audit trail for partial and full closes, add a realized event table that records each trade’s `quantity_closed`, `realized_pnl`, and `trade_date`.
+
+**File**: `backend/app/models/position_realized_events.py`
+
+```python
+from datetime import datetime, date
+from decimal import Decimal
+from uuid import uuid4
+from sqlalchemy import Date, DateTime, ForeignKey, Index, Numeric
+from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from app.database import Base
+
+
+class PositionRealizedEvent(Base):
+    """Tracks each realized P&L event (supports partial closes)."""
+    __tablename__ = "position_realized_events"
+
+    id: Mapped[UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid4)
+    position_id: Mapped[UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("positions.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    portfolio_id: Mapped[UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("portfolios.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    trade_date: Mapped[date] = mapped_column(Date, nullable=False)
+    quantity_closed: Mapped[Decimal] = mapped_column(Numeric(16, 4), nullable=False)
+    realized_pnl: Mapped[Decimal] = mapped_column(Numeric(16, 2), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+
+    position = relationship("Position", backref="realized_events")
+
+    __table_args__ = (
+        Index("ix_position_realized_events_portfolio_date", "portfolio_id", "trade_date"),
+    )
+```
+
+Create an Alembic migration for this table and add a relationship helper on `Position` for convenience.
 
 ---
 
@@ -138,13 +202,16 @@ async def update_position(
     exit_price: Optional[Decimal] = None,
     exit_date: Optional[date] = None,
     entry_price: Optional[Decimal] = None,
+    close_quantity: Optional[Decimal] = None,
 ) -> Position:
     """
     Update position fields.
 
-    NEW: Calculates realized P&L when exit_price is set.
+    NEW: Calculates realized P&L when exit_price is set without corrupting remaining quantity.
     """
     # ... existing code for loading position and permission checks ...
+
+    original_quantity = position.quantity
 
     # NEW: Update entry price if provided (for corrections)
     if entry_price is not None:
@@ -161,18 +228,60 @@ async def update_position(
             # Default to today if not specified
             position.exit_date = date.today()
 
-        # Calculate realized P&L
-        realized_pnl = self._calculate_realized_pnl(
+        # Determine how much of the position is being closed
+        quantity_to_close = close_quantity
+        if quantity_to_close is None and quantity is not None:
+            quantity_to_close = original_quantity - quantity
+
+        if quantity_to_close is None:
+            raise ValueError("Must provide close_quantity or new quantity when applying exit price")
+
+        if quantity_to_close <= 0:
+            raise ValueError("close_quantity must be greater than zero")
+
+        if quantity_to_close > original_quantity:
+            raise ValueError("Cannot close more than the current position size")
+
+        # Calculate realized P&L on the closed portion
+        realized_increment = self._calculate_realized_pnl(
             position=position,
-            exit_price=exit_price
+            exit_price=exit_price,
+            quantity_closed=quantity_to_close
         )
 
-        position.realized_pnl = realized_pnl
+        cumulative_realized = (position.realized_pnl or Decimal("0")) + realized_increment
+        position.realized_pnl = cumulative_realized
 
-        logger.info(
-            f"Position {position.symbol} closed: "
-            f"Entry={position.entry_price}, Exit={exit_price}, "
-            f"Quantity={position.quantity}, Realized P&L={realized_pnl}"
+        # Reduce quantity by the closed amount (or trust provided remainder)
+        new_quantity = (
+            quantity
+            if quantity is not None
+            else original_quantity - quantity_to_close
+        )
+
+        if new_quantity <= 0:
+            # Fully closed
+            position.quantity = Decimal("0")
+            position.exit_price = exit_price
+            position.exit_date = position.exit_date or date.today()
+            logger.info(
+                f"Position {position.symbol} fully closed: closed {quantity_to_close} units for realized P&L {realized_increment}"
+            )
+        else:
+            # Partial close – keep the position active
+            position.quantity = new_quantity
+            position.exit_price = None
+            position.exit_date = None
+            logger.info(
+                f"Position {position.symbol} partially closed: closed {quantity_to_close}, remaining {new_quantity}, "
+                f"realized increment {realized_increment}, cumulative realized {cumulative_realized}"
+            )
+
+        await self._record_realized_event(
+            position=position,
+            quantity_closed=quantity_to_close,
+            realized_increment=realized_increment,
+            trade_date=exit_date or date.today(),
         )
 
     # ... rest of existing update logic ...
@@ -186,7 +295,8 @@ async def update_position(
 def _calculate_realized_pnl(
     self,
     position: Position,
-    exit_price: Decimal
+    exit_price: Decimal,
+    quantity_closed: Decimal
 ) -> Decimal:
     """
     Calculate realized P&L when closing a position.
@@ -202,6 +312,7 @@ def _calculate_realized_pnl(
     Args:
         position: Position being closed
         exit_price: Exit price per share/contract
+        quantity_closed: Portion of the position being closed
 
     Returns:
         Realized P&L as Decimal
@@ -227,10 +338,37 @@ def _calculate_realized_pnl(
         # Short positions: profit when entry > exit
         price_diff = position.entry_price - exit_price
 
-    realized_pnl = price_diff * position.quantity * multiplier
+    realized_pnl = price_diff * quantity_closed * multiplier
 
     return realized_pnl
 ```
+
+> Accumulate realized P&L on the position (`position.realized_pnl = previous + increment`) so successive partial exits roll up correctly until the lot is fully closed.
+
+Add a helper to persist realized events:
+
+```python
+from app.models.position_realized_events import PositionRealizedEvent
+
+async def _record_realized_event(
+    self,
+    position: Position,
+    quantity_closed: Decimal,
+    realized_increment: Decimal,
+    trade_date: date,
+) -> None:
+    """Persist a realized trade event for auditability and batch aggregation."""
+    event = PositionRealizedEvent(
+        position_id=position.id,
+        portfolio_id=position.portfolio_id,
+        trade_date=trade_date,
+        quantity_closed=quantity_closed,
+        realized_pnl=realized_increment,
+    )
+    self.db.add(event)
+```
+
+> Remember to update the imports at the top of `position_service.py` to include `date` from `datetime` and the new `PositionRealizedEvent` model.
 
 ---
 
@@ -260,6 +398,7 @@ async def update_position(
     - exit_price (NEW: triggers realized P&L calculation)
     - exit_date (NEW: marks position close date)
     - entry_price (NEW: for corrections)
+    - close_quantity (NEW: explicit amount being exited)
 
     **Conditional Edit:**
     - symbol (ONLY if allow_symbol_edit=true AND created < 5 min AND no snapshots)
@@ -269,9 +408,9 @@ async def update_position(
     - portfolio_id (cannot move positions between portfolios)
 
     **Realized P&L Calculation:**
-    When exit_price is set, the system automatically calculates realized P&L:
-    - LONG: (exit_price - entry_price) × quantity × multiplier
-    - SHORT: (entry_price - exit_price) × quantity × multiplier
+    When exit_price is set, the system automatically calculates realized P&L on the closed portion:
+    - LONG: (exit_price - entry_price) × close_quantity × multiplier
+    - SHORT: (entry_price - exit_price) × close_quantity × multiplier
 
     **Permission Check:**
     - User must own the portfolio
@@ -295,6 +434,7 @@ async def update_position(
             exit_price=request.exit_price,
             exit_date=request.exit_date,
             entry_price=request.entry_price,
+            close_quantity=request.close_quantity,
         )
 
         return PositionResponse.model_validate(position)
@@ -307,6 +447,28 @@ async def update_position(
         logger.error(f"Failed to update position {position_id}: {e}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to update position")
 ```
+
+### Step 3.5: Frontend Partial Close Payload
+
+Ensure the UI sends both the amount being closed and the resulting remaining quantity so the backend can reconcile partial exits accurately.
+
+**File**: `frontend/src/components/portfolio/ManagePositionsSidePanel.tsx`
+
+```typescript
+const originalLotQuantity =
+  validation?.existingLots?.find(lot => lot.id === lotId)?.quantity ?? 0
+const sellQuantity = parseFloat(sell.sell_quantity)
+const remainingQuantity = Math.max(originalLotQuantity - sellQuantity, 0)
+
+await positionManagementService.updatePosition(lotId, {
+  close_quantity: sellQuantity,
+  quantity: remainingQuantity,
+  exit_price: parseFloat(sell.sale_price),
+  exit_date: sell.sale_date,
+})
+```
+
+Also update `UpdatePositionRequest` in `frontend/src/services/positionManagementService.ts` to include the optional `close_quantity` field so TypeScript mirrors the backend.
 
 ---
 
@@ -466,12 +628,7 @@ async def _calculate_daily_realized_pnl(
     calculation_date: date
 ) -> Decimal:
     """
-    Calculate realized P&L from positions closed on calculation_date.
-
-    Query positions where:
-    - exit_date = calculation_date
-    - realized_pnl is not null
-    - deleted_at is null
+    Calculate realized P&L from realized event records created during closes.
 
     Args:
         db: Database session
@@ -481,20 +638,17 @@ async def _calculate_daily_realized_pnl(
     Returns:
         Sum of realized P&L for the day
     """
-    from app.models.positions import Position
+    from app.models.position_realized_events import PositionRealizedEvent
 
-    # Query positions closed on this date
-    query = select(func.sum(Position.realized_pnl)).where(
+    query = select(func.sum(PositionRealizedEvent.realized_pnl)).where(
         and_(
-            Position.portfolio_id == portfolio_id,
-            Position.exit_date == calculation_date,
-            Position.realized_pnl.isnot(None),
-            Position.deleted_at.is_(None)
+            PositionRealizedEvent.portfolio_id == portfolio_id,
+            PositionRealizedEvent.trade_date == calculation_date,
         )
     )
 
     result = await db.execute(query)
-    daily_realized_pnl = result.scalar() or Decimal('0')
+    daily_realized_pnl = result.scalar() or Decimal("0")
 
     if daily_realized_pnl != Decimal('0'):
         logger.info(f"    Found realized P&L: ${daily_realized_pnl:,.2f}")
@@ -599,6 +753,8 @@ def calculate_realized_pnl(position: Position) -> Decimal:
 if __name__ == "__main__":
     asyncio.run(backfill_realized_pnl())
 ```
+
+> When backfilling, also insert matching `PositionRealizedEvent` rows so historical realized activity appears in summaries and snapshots.
 
 ---
 
@@ -802,6 +958,7 @@ async def test_pnl_calculator_includes_realized_pnl(
 - [ ] Test short stock position close
 - [ ] Test long call option close (100x multiplier)
 - [ ] Test partial position close
+- [ ] Test partial close appends to `position.realized_pnl` and creates a `PositionRealizedEvent`
 - [ ] Test entry price correction
 
 **Integration Tests**:
@@ -809,10 +966,12 @@ async def test_pnl_calculator_includes_realized_pnl(
 - [ ] Test snapshot fields populated correctly
 - [ ] Test cumulative realized P&L rollup
 - [ ] Test equity rollforward with realized P&L
+- [ ] Test daily realized P&L pulls from `PositionRealizedEvent`
 
 **Manual Testing**:
 - [ ] Close position via ManagePositionsSidePanel
 - [ ] Verify realized_pnl appears in position record
+- [ ] Verify a `PositionRealizedEvent` row is created with correct trade date/amount
 - [ ] Run batch calculation manually
 - [ ] Verify snapshot includes realized P&L
 - [ ] Check equity balance updated correctly
@@ -838,14 +997,15 @@ async def test_pnl_calculator_includes_realized_pnl(
 ### Functional Requirements ✅
 - [ ] Closing a position via UI calculates realized P&L
 - [ ] `positions.realized_pnl` is populated for closed positions
+- [ ] `position_realized_events` table records every realized trade with quantity and date
 - [ ] Portfolio snapshots include `daily_realized_pnl` and `cumulative_realized_pnl`
 - [ ] Batch calculator aggregates realized P&L from closed positions
 - [ ] Equity rollforward includes realized P&L component
 - [ ] Both full and partial closes are handled correctly
 
 ### Data Integrity ✅
-- [ ] Realized P&L for LONG: `(exit_price - entry_price) × quantity × multiplier`
-- [ ] Realized P&L for SHORT: `(entry_price - exit_price) × quantity × multiplier`
+- [ ] Realized P&L for LONG: `(exit_price - entry_price) × close_quantity × multiplier`
+- [ ] Realized P&L for SHORT: `(entry_price - exit_price) × close_quantity × multiplier`
 - [ ] Options use 100x multiplier correctly
 - [ ] Cumulative realized P&L equals sum of daily realized P&L
 - [ ] No double-counting between realized and unrealized P&L

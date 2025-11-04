@@ -59,6 +59,7 @@ class Portfolio(Base):
     correlation_calculations: Mapped[List["CorrelationCalculation"]] = relationship("CorrelationCalculation", back_populates="portfolio")
     target_prices: Mapped[List["TargetPrice"]] = relationship("TargetPrice", back_populates="portfolio")
     ai_insights: Mapped[List["AIInsight"]] = relationship("AIInsight", back_populates="portfolio")
+    position_realized_events: Mapped[List["PositionRealizedEvent"]] = relationship("PositionRealizedEvent", back_populates="portfolio")
 
     __table_args__ = (
         Index('ix_portfolios_deleted_at', 'deleted_at'),

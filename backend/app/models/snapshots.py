@@ -33,6 +33,16 @@ class PortfolioSnapshot(Base):
     daily_pnl: Mapped[Optional[Decimal]] = mapped_column(Numeric(16, 2), nullable=True)
     daily_return: Mapped[Optional[Decimal]] = mapped_column(Numeric(8, 6), nullable=True)
     cumulative_pnl: Mapped[Optional[Decimal]] = mapped_column(Numeric(16, 2), nullable=True)
+    daily_realized_pnl: Mapped[Optional[Decimal]] = mapped_column(
+        Numeric(16, 2),
+        nullable=True,
+        comment="Realized P&L from positions closed on this date"
+    )
+    cumulative_realized_pnl: Mapped[Optional[Decimal]] = mapped_column(
+        Numeric(16, 2),
+        nullable=True,
+        comment="Running total of realized P&L"
+    )
     
     # Aggregated Greeks
     portfolio_delta: Mapped[Optional[Decimal]] = mapped_column(Numeric(12, 2), nullable=True)

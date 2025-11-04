@@ -87,6 +87,8 @@ export interface UpdatePositionRequest {
   entry_date?: string;
   exit_date?: string;
   exit_price?: number;
+  entry_price?: number;
+  close_quantity?: number;
 }
 
 /**

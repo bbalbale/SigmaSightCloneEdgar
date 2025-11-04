@@ -13,13 +13,14 @@ from decimal import Decimal
 from typing import Dict, List, Any, Optional
 from uuid import UUID
 
-from sqlalchemy import select, and_
+from sqlalchemy import select, and_, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.logging import get_logger
 from app.database import AsyncSessionLocal
 from app.models.users import Portfolio
 from app.models.positions import Position, PositionType
+from app.models.position_realized_events import PositionRealizedEvent
 from app.models.snapshots import PortfolioSnapshot
 from app.models.market_data import MarketDataCache
 from app.calculations.snapshots import create_portfolio_snapshot
@@ -183,17 +184,29 @@ class PnLCalculator:
         else:
             logger.debug(f"    No previous snapshot found, using initial equity: ${previous_equity:,.2f}")
 
-        # Calculate P&L
-        daily_pnl = await self._calculate_daily_pnl(
+        # Calculate unrealized and realized P&L components
+        daily_unrealized_pnl = await self._calculate_daily_pnl(
             db=db,
             portfolio_id=portfolio_id,
             calculation_date=calculation_date,
             previous_snapshot=previous_snapshot
         )
 
+        daily_realized_pnl = await self._calculate_daily_realized_pnl(
+            db=db,
+            portfolio_id=portfolio_id,
+            calculation_date=calculation_date,
+        )
+
+        total_daily_pnl = daily_unrealized_pnl + daily_realized_pnl
+
         # Calculate new equity
-        new_equity = previous_equity + daily_pnl
-        logger.info(f"    Daily P&L: ${daily_pnl:,.2f} | New Equity: ${new_equity:,.2f}")
+        new_equity = previous_equity + total_daily_pnl
+        logger.info(
+            f"    Daily Unrealized P&L: ${daily_unrealized_pnl:,.2f} | "
+            f"Daily Realized P&L: ${daily_realized_pnl:,.2f} | "
+            f"Total P&L: ${total_daily_pnl:,.2f} | New Equity: ${new_equity:,.2f}"
+        )
 
         # Persist rolled equity so Portfolio.equity_balance remains the source of truth
         try:
@@ -217,13 +230,18 @@ class PnLCalculator:
             snapshot = snapshot_result.get('snapshot')
             if snapshot:
                 snapshot.equity_balance = new_equity
-                snapshot.daily_pnl = daily_pnl
-                snapshot.daily_return = (daily_pnl / previous_equity) if previous_equity > 0 else Decimal('0')
+                snapshot.daily_pnl = total_daily_pnl
+                snapshot.daily_realized_pnl = daily_realized_pnl
+                snapshot.daily_return = (total_daily_pnl / previous_equity) if previous_equity > 0 else Decimal('0')
 
                 if previous_snapshot:
-                    snapshot.cumulative_pnl = (previous_snapshot.cumulative_pnl or Decimal('0')) + daily_pnl
+                    snapshot.cumulative_pnl = (previous_snapshot.cumulative_pnl or Decimal('0')) + total_daily_pnl
+                    snapshot.cumulative_realized_pnl = (
+                        (previous_snapshot.cumulative_realized_pnl or Decimal('0')) + daily_realized_pnl
+                    )
                 else:
-                    snapshot.cumulative_pnl = daily_pnl
+                    snapshot.cumulative_pnl = total_daily_pnl
+                    snapshot.cumulative_realized_pnl = daily_realized_pnl
 
                 await db.commit()
 
@@ -283,6 +301,28 @@ class PnLCalculator:
             logger.debug(f"      {position.symbol}: ${position_pnl:,.2f}")
 
         return total_pnl
+
+    async def _calculate_daily_realized_pnl(
+        self,
+        db: AsyncSession,
+        portfolio_id: UUID,
+        calculation_date: date,
+    ) -> Decimal:
+        """Aggregate realized P&L from trades recorded on the calculation date."""
+        query = select(func.sum(PositionRealizedEvent.realized_pnl)).where(
+            and_(
+                PositionRealizedEvent.portfolio_id == portfolio_id,
+                PositionRealizedEvent.trade_date == calculation_date,
+            )
+        )
+
+        result = await db.execute(query)
+        realized_total = result.scalar() or Decimal("0")
+
+        if realized_total != Decimal("0"):
+            logger.debug(f"    Realized P&L from events: ${realized_total:,.2f}")
+
+        return realized_total
 
     async def _calculate_position_pnl(
         self,

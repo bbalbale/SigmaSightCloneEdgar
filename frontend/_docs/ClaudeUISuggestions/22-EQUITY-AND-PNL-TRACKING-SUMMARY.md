@@ -50,12 +50,14 @@ These features are interdependent and must be implemented in sequence to ensure 
 **Dependencies**: None (can start immediately)
 
 **Deliverables**:
-1. ✅ Updated `UpdatePositionRequest` schema with exit fields
-2. ✅ Realized P&L calculation logic in `PositionService`
-3. ✅ `daily_realized_pnl` and `cumulative_realized_pnl` fields in `PortfolioSnapshot`
-4. ✅ Enhanced P&L calculator including realized gains/losses
-5. ✅ Database migration for new snapshot fields
-6. ✅ Tests for realized P&L calculations
+1. ✅ Updated `UpdatePositionRequest` schema with exit/entry fields **and** `close_quantity` for partial exits
+2. ✅ Realized P&L calculation logic in `PositionService` (uses `close_quantity`, accumulates increments)
+3. ✅ `position_realized_events` table + service helper to persist each realized trade
+4. ✅ `daily_realized_pnl` and `cumulative_realized_pnl` fields in `PortfolioSnapshot`
+5. ✅ Enhanced P&L calculator including realized gains/losses sourced from realized events
+6. ✅ Frontend updates so `ManagePositionsSidePanel` sends `close_quantity` + remaining quantity
+7. ✅ Database migration for new snapshot/event fields
+8. ✅ Tests for realized P&L calculations (full + partial closes)
 
 ---
 
@@ -487,11 +489,12 @@ Note: Without adjustment, return would be -0.5% which understates loss
    - Sell 400 shares @ $320
    - Verify: realized_pnl = $8,000 on closed portion
    - Verify: remaining 600 shares still show unrealized P&L
+   - Verify: `position_realized_events` captures quantity_closed = 400 with correct trade date
 
 5. **Batch Integration**
    - Close position on date X
    - Run batch calculator for date X
-   - Verify: snapshot.daily_realized_pnl includes the closed position
+   - Verify: snapshot.daily_realized_pnl sums `PositionRealizedEvent` rows for that date
    - Verify: snapshot.equity_balance increased by realized P&L
 
 ### Phase 1 Testing Scenarios

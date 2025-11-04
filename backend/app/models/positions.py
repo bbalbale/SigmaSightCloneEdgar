@@ -78,6 +78,11 @@ class Position(Base):
     interest_rate_betas: Mapped[List["PositionInterestRateBeta"]] = relationship("PositionInterestRateBeta", back_populates="position")
     volatility: Mapped[List["PositionVolatility"]] = relationship("PositionVolatility", back_populates="position")
     target_price: Mapped[Optional["TargetPrice"]] = relationship("TargetPrice", back_populates="position", uselist=False)
+    realized_events: Mapped[List["PositionRealizedEvent"]] = relationship(
+        "PositionRealizedEvent",
+        back_populates="position",
+        cascade="all, delete-orphan",
+    )
     
     __table_args__ = (
         Index('ix_positions_portfolio_id', 'portfolio_id'),

@@ -5,6 +5,7 @@
  */
 
 import { test, expect } from '@playwright/test';
+import type { Route, Request as PlaywrightRequest } from '@playwright/test';
 
 const BASE_URL = 'http://localhost:3005';
 const API_URL = 'http://localhost:8000';
@@ -116,13 +117,9 @@ test.describe('Chat Authentication Flow', () => {
     await page.goto(`${BASE_URL}/portfolio`);
     
     // Intercept fetch requests to check credentials
-    await page.route('**/api/v1/**', async (route, request) => {
-      const headers = request.headers();
-      
-      // Check if credentials are included (cookies will be sent automatically)
+    await page.route('**/api/v1/**', async (route: Route, request: PlaywrightRequest) => {
+      // Ensure the request is inspected (cookies will be sent automatically)
       expect(request.method()).toBeDefined();
-      
-      // Continue the request
       await route.continue();
     });
     
@@ -161,29 +158,25 @@ test.describe('Chat SSE Streaming', () => {
     
     await page.goto(`${BASE_URL}/portfolio`);
     
-    // Set up SSE listener
-    const events: string[] = [];
-    
-    await page.evaluate(() => {
-      const eventSource = new EventSource('/api/proxy/api/v1/chat/stream-test', {
+    const events = await page.evaluate(async () => {
+      const source = new EventSource('/api/proxy/api/v1/chat/stream-test', {
         withCredentials: true
       });
-      
-      return new Promise((resolve) => {
-        const events: string[] = [];
-        
-        eventSource.addEventListener('heartbeat', (e) => {
-          events.push('heartbeat');
+
+      return new Promise<string[]>((resolve) => {
+        const received: string[] = [];
+
+        source.addEventListener('heartbeat', () => {
+          received.push('heartbeat');
         });
-        
-        // Collect events for 20 seconds
+
         setTimeout(() => {
-          eventSource.close();
-          resolve(events);
+          source.close();
+          resolve(received);
         }, 20000);
       });
     });
-    
+
     // Should have received at least one heartbeat (15 second interval)
     expect(events.filter(e => e === 'heartbeat').length).toBeGreaterThan(0);
   });

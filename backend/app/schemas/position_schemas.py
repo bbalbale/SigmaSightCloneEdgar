@@ -57,12 +57,36 @@ class UpdatePositionRequest(BaseModel):
     position_type: Optional[PositionType] = Field(None, description="New position type")
     notes: Optional[str] = Field(None, description="New notes")
     symbol: Optional[str] = Field(None, min_length=1, max_length=20, description="New symbol (restricted)")
+    exit_price: Optional[Decimal] = Field(None, gt=0, description="Exit price when closing position")
+    exit_date: Optional[date] = Field(None, description="Exit date when closing position")
+    entry_price: Optional[Decimal] = Field(None, gt=0, description="Corrected entry price")
+    close_quantity: Optional[Decimal] = Field(
+        None,
+        gt=0,
+        description="Quantity being closed (required for partial/full exits)"
+    )
 
     @field_validator("symbol")
     @classmethod
     def validate_symbol(cls, value: Optional[str]) -> Optional[str]:
         """Ensure symbol is uppercase and trimmed if provided."""
         return value.upper().strip() if value else None
+
+    @field_validator("exit_date")
+    @classmethod
+    def validate_exit_date(cls, value: Optional[date]) -> Optional[date]:
+        """Ensure exit date is not in the future."""
+        if value and value > date.today():
+            raise ValueError("Exit date cannot be in the future")
+        return value
+
+    @field_validator("close_quantity")
+    @classmethod
+    def validate_close_quantity(cls, value: Optional[Decimal]) -> Optional[Decimal]:
+        """Ensure partial-close quantities are positive."""
+        if value is not None and value <= 0:
+            raise ValueError("close_quantity must be greater than zero")
+        return value
 
 
 class BulkDeletePositionsRequest(BaseModel):

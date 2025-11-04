@@ -13,6 +13,7 @@ from app.models.correlations import CorrelationCalculation, CorrelationCluster, 
 from app.models.target_prices import TargetPrice
 from app.models.tags_v2 import TagV2
 from app.models.position_tags import PositionTag
+from app.models.position_realized_events import PositionRealizedEvent
 from app.models.ai_insights import AIInsight
 from app.models.fundamentals import IncomeStatement, BalanceSheet, CashFlow
 
@@ -60,6 +61,7 @@ __all__ = [
 
     # Position tags module
     "PositionTag",
+    "PositionRealizedEvent",
 
     # AI insights module
     "AIInsight",

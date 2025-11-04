@@ -226,6 +226,20 @@ export function ManagePositionsSidePanel({
         if (!pos.sell_quantity || parseFloat(pos.sell_quantity) <= 0) {
           newErrors.set(`${index}-sell_quantity`, 'Quantity must be greater than 0')
         }
+        const lotId = pos.lot_id || validation?.existingLots?.[0]?.id
+        if (lotId && validation?.existingLots) {
+          const selectedLot = validation.existingLots.find(lot => lot.id === lotId)
+          if (selectedLot) {
+            const requested = Math.abs(parseFloat(pos.sell_quantity || '0'))
+            const available = Math.abs(selectedLot.quantity)
+            if (requested > available) {
+              newErrors.set(
+                `${index}-sell_quantity`,
+                `Cannot sell more than available quantity (${available})`
+              )
+            }
+          }
+        }
         if (!pos.sale_price || parseFloat(pos.sale_price) <= 0) {
           newErrors.set(`${index}-sale_price`, 'Sale price must be greater than 0')
         }
@@ -282,11 +296,30 @@ export function ManagePositionsSidePanel({
           throw new Error(`No position found to sell for ${sell.symbol}`)
         }
 
+        const selectedLot = validation?.existingLots?.find(lot => lot.id === lotId)
+        if (!selectedLot) {
+          throw new Error(`Unable to determine existing lot for ${sell.symbol}`)
+        }
+
+        const sellQuantity = Math.abs(parseFloat(sell.sell_quantity))
+        const isShortPosition = selectedLot.quantity < 0
+        let remainingQuantity = isShortPosition
+          ? selectedLot.quantity + sellQuantity
+          : selectedLot.quantity - sellQuantity
+
+        if (!isShortPosition && remainingQuantity < 0) {
+          remainingQuantity = 0
+        }
+        if (isShortPosition && remainingQuantity > 0) {
+          remainingQuantity = 0
+        }
+
         // Update position with exit data
         await positionManagementService.updatePosition(lotId, {
           exit_price: parseFloat(sell.sale_price),
           exit_date: sell.sale_date,
-          quantity: parseFloat(sell.sell_quantity) // Update quantity for partial sells
+          close_quantity: sellQuantity,
+          quantity: remainingQuantity
         })
 
         // If partial sell, create logic would be handled by backend

@@ -18,6 +18,7 @@ Before starting this implementation:
 - ✅ Realized P&L calculations must be working
 - ✅ Portfolio snapshots must include `daily_realized_pnl` and `cumulative_realized_pnl`
 - ✅ Equity rollforward formula must include realized P&L component
+- ✅ Partial closes must use `close_quantity` + `position_realized_events` to maintain accurate realized history
 
 **Related Documents**:
 - **[22-EQUITY-AND-PNL-TRACKING-SUMMARY.md](./22-EQUITY-AND-PNL-TRACKING-SUMMARY.md)** - Master summary plan
@@ -736,11 +737,10 @@ const equityChangesApi = {
     portfolioId: string,
     data: EquityChangeCreate
   ): Promise<EquityChange> {
-    const response = await apiClient.post(
+    return apiClient.post(
       `/api/v1/equity-changes/${portfolioId}`,
       data
     )
-    return response.data
   },
 
   /**
@@ -750,11 +750,10 @@ const equityChangesApi = {
     portfolioId: string,
     params?: EquityChangeListParams
   ): Promise<{ total: number; equity_changes: EquityChange[] }> {
-    const response = await apiClient.get(
+    return apiClient.get(
       `/api/v1/equity-changes/${portfolioId}`,
       { params }
     )
-    return response.data
   },
 
   /**
@@ -765,21 +764,19 @@ const equityChangesApi = {
     startDate?: string,
     endDate?: string
   ): Promise<EquityChangeSummary> {
-    const response = await apiClient.get(
+    return apiClient.get(
       `/api/v1/equity-changes/${portfolioId}/summary`,
       { params: { start_date: startDate, end_date: endDate } }
     )
-    return response.data
   },
 
   /**
    * Get single equity change details
    */
   async getEquityChange(changeId: string): Promise<EquityChange> {
-    const response = await apiClient.get(
+    return apiClient.get(
       `/api/v1/equity-changes/change/${changeId}`
     )
-    return response.data
   },
 
   /**
@@ -789,11 +786,10 @@ const equityChangesApi = {
     changeId: string,
     data: EquityChangeUpdate
   ): Promise<EquityChange> {
-    const response = await apiClient.put(
+    return apiClient.put(
       `/api/v1/equity-changes/change/${changeId}`,
       data
     )
-    return response.data
   },
 
   /**
@@ -806,6 +802,8 @@ const equityChangesApi = {
 
 export default equityChangesApi
 ```
+
+> `apiClient` already unwraps JSON responses, so return the promise directly instead of accessing a `.data` property.
 
 ---
 

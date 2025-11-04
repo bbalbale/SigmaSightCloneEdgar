@@ -1,8 +1,8 @@
 'use client'
 
+import React from 'react'
 import { Badge } from '@/components/ui/badge'
 
-// Simple tag interface for display - only requires what's actually used
 interface TagDisplay {
   id: string
   name: string
@@ -14,13 +14,15 @@ interface TagBadgeProps {
   draggable?: boolean
   onDelete?: (tagId: string) => void
   className?: string
+  size?: 'sm' | 'md'
 }
 
 export function TagBadge({
   tag,
   draggable = false,
   onDelete,
-  className = ''
+  className = '',
+  size = 'md'
 }: TagBadgeProps) {
   const handleDragStart = (e: React.DragEvent) => {
     if (draggable) {
@@ -40,6 +42,8 @@ export function TagBadge({
     }
   }
 
+  const sizeClasses = size === 'sm' ? 'text-xs px-2 py-1' : 'text-sm px-3 py-1'
+
   return (
     <Badge
       variant="secondary"
@@ -47,7 +51,7 @@ export function TagBadge({
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
       className={`
-        text-xs px-2 py-1
+        ${sizeClasses}
         ${draggable ? 'cursor-move' : ''}
         ${className}
       `}
