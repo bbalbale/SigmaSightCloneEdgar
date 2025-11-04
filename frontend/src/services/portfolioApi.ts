@@ -117,9 +117,13 @@ export class PortfolioService {
       console.log('[portfolioApi] portfolios array:', portfolios);
 
       return portfolios.map((portfolio) => ({
-        ...portfolio,
+        id: portfolio.id,
+        account_name: portfolio.account_name || portfolio.name || 'Unknown Account',
+        account_type: portfolio.account_type || 'taxable',
         net_asset_value: portfolio.net_asset_value ?? portfolio.total_value ?? 0,
         total_value: portfolio.total_value ?? portfolio.net_asset_value ?? 0,
+        position_count: portfolio.position_count ?? 0,
+        is_active: portfolio.is_active ?? true, // Default to true if not provided
       }));
     } catch (error) {
       console.error('Failed to fetch portfolios:', error);
