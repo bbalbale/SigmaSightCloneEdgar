@@ -80,17 +80,13 @@ def _determine_closed_quantity(position: Position) -> Decimal | None:
 
     If the stored quantity is zero we cannot deduce the original size, so we skip.
     """
-    if position.quantity is None:
-        return None
-
-    quantity = position.quantity
-
-    if quantity == 0:
+    if position.quantity is None or position.quantity == 0:
         # Historical bug may have zeroed quantity before we recorded realized P&L.
         # Without additional audit data we cannot recover the closed size.
         return None
 
-    return abs(quantity)
+    # Return the quantity with its original sign.
+    return position.quantity
 
 
 def _calculate_realized_pnl(position: Position, quantity_closed: Decimal) -> Decimal:
@@ -102,10 +98,9 @@ def _calculate_realized_pnl(position: Position, quantity_closed: Decimal) -> Dec
         PositionType.SP,
     } else Decimal("1")
 
-    if position.position_type in {PositionType.LONG, PositionType.LC, PositionType.LP}:
-        price_diff = position.exit_price - position.entry_price
-    else:
-        price_diff = position.entry_price - position.exit_price
+    # For all position types, the P&L is (exit_price - entry_price) * quantity.
+    # For short positions, quantity is negative, which correctly inverts the P&L.
+    price_diff = position.exit_price - position.entry_price
 
     return price_diff * quantity_closed * multiplier
 
