@@ -18,7 +18,8 @@
       "mcp__playwright__browser_snapshot",
       "Bash(docker ps:*)",
       "Bash(set:*)",
-      "Bash(.venv/Scripts/python.exe:*)"
+      "Bash(.venv/Scripts/python.exe:*)",
+      "Bash(docker exec:*)"
     ],
     "deny": [],
     "ask": [],
