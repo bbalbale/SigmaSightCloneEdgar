@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { usePortfolioStore } from '@/stores/portfolioStore'
+import { usePortfolioId } from '@/stores/portfolioStore'
 import { loadPortfolioData, fetchPortfolioSnapshot } from '@/services/portfolioService'
 import { analyticsApi } from '@/services/analyticsApi'
 import targetPriceService from '@/services/targetPriceService'
@@ -59,7 +59,7 @@ interface UseCommandCenterDataReturn {
 }
 
 export function useCommandCenterData(refreshTrigger?: number): UseCommandCenterDataReturn {
-  const { portfolioId } = usePortfolioStore()
+  const portfolioId = usePortfolioId()
 
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
