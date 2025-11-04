@@ -51,6 +51,7 @@ export function usePositionFactorData(portfolioId: string | null): PositionFacto
 
     let isMounted = true
     const abortController = new AbortController()
+    const activePortfolioId = portfolioId as string
 
     async function fetchData() {
       try {
@@ -58,9 +59,9 @@ export function usePositionFactorData(portfolioId: string | null): PositionFacto
 
         // Fetch both data sources in parallel
         const [factorExposuresResult, companyProfilesResult] = await Promise.allSettled([
-          analyticsApi.getPositionFactorExposures(portfolioId, { limit: 200 }),
+          analyticsApi.getPositionFactorExposures(activePortfolioId, { limit: 200 }),
           apiClient.get<CompanyProfilesResponse>(
-            `/api/v1/data/company-profiles?portfolio_id=${portfolioId}`,
+            `/api/v1/data/company-profiles?portfolio_id=${activePortfolioId}`,
             { signal: abortController.signal }
           )
         ])

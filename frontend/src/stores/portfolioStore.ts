@@ -22,6 +22,7 @@ export interface PortfolioListItem {
   total_value: number
   position_count: number
   is_active: boolean
+  description?: string | null
 }
 
 interface PortfolioStore {
@@ -215,9 +216,11 @@ export const setPortfolioState = (id: string, name?: string | null) => {
       id,
       account_name: name || 'Portfolio',
       account_type: 'taxable',
+      net_asset_value: 0,
       total_value: 0,
       position_count: 0,
-      is_active: true
+      is_active: true,
+      description: null
     })
   }
 

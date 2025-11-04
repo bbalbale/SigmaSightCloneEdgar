@@ -4,24 +4,10 @@ import React from 'react'
 import { PositionList } from '@/components/common/PositionList'
 import { OptionPositionCard } from '@/components/positions/OptionPositionCard'
 import { useSelectedPortfolio } from '@/hooks/useMultiPortfolio'
-
-interface OptionPosition {
-  id?: string
-  symbol: string
-  type?: string  // LC, LP, SC, SP
-  quantity: number
-  marketValue: number
-  pnl: number
-  positive?: boolean
-  price?: number
-  strike_price?: number
-  expiration_date?: string
-  underlying_symbol?: string
-  account_name?: string  // NEW: Portfolio/account name for multi-portfolio
-}
+import type { OptionPositionView } from '@/types/positions'
 
 interface OptionsPositionsProps {
-  positions: OptionPosition[]
+  positions: OptionPositionView[]
 }
 
 export function OptionsPositions({ positions }: OptionsPositionsProps) {

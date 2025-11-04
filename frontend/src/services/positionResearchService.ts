@@ -1,5 +1,6 @@
 // src/services/positionResearchService.ts
 import { apiClient } from '@/services/apiClient'
+import type { PositionTag } from '@/types/tags'
 
 // Cache configuration
 interface CacheEntry<T> {
@@ -60,30 +61,88 @@ const CACHE_TTL = {
   // Target prices NOT cached - always fetch fresh
 }
 
-export interface EnhancedPosition {
-  // Position basics
+type PositionType =
+  | 'LONG'
+  | 'SHORT'
+  | 'LC'
+  | 'LP'
+  | 'SC'
+  | 'SP'
+
+type InvestmentClass = 'PUBLIC' | 'OPTIONS' | 'PRIVATE'
+
+interface PositionsApiSummary {
+  total_market_value: number
+}
+
+interface PositionsApiPosition {
   id: string
   symbol: string
-  position_type: 'LONG' | 'SHORT' | 'LC' | 'LP' | 'SC' | 'SP'
-  investment_class?: 'PUBLIC' | 'OPTIONS' | 'PRIVATE'
+  position_type: PositionType
+  investment_class?: InvestmentClass
+  investment_subtype?: string
   quantity: number
   current_price: number
   market_value: number
+  current_market_value?: number
   cost_basis: number
   unrealized_pnl: number
-  avg_cost?: number
-  current_market_value?: number
   unrealized_pnl_percent?: number
+  avg_cost?: number
+  tags?: PositionTag[]
+  strike_price?: number
+  expiration_date?: string
+  underlying_symbol?: string
+  company_name?: string
+  account_name?: string
+  sector?: string
+  industry?: string
+  market_cap?: number
   beta?: number
+}
 
-  // Tags
-  tags: Array<{ id: string; name: string; color: string }>
+interface PositionsApiResponse {
+  positions: PositionsApiPosition[]
+  summary: PositionsApiSummary
+}
 
-  // Company profile data
+interface CompanyProfileEntry {
+  symbol: string
   company_name?: string
   sector?: string
   industry?: string
   market_cap?: number
+  beta?: number
+  target_mean_price?: number
+  current_year_earnings_avg?: number
+  next_year_earnings_avg?: number
+  current_year_revenue_avg?: number
+  next_year_revenue_avg?: number
+}
+
+interface CompanyProfilesResponse {
+  profiles: CompanyProfileEntry[]
+}
+
+interface TargetPriceRecord {
+  symbol: string
+  target_price_eoy?: number
+  target_price_next_year?: number
+  expected_return_eoy?: number
+  expected_return_next_year?: number
+}
+
+export interface EnhancedPosition extends PositionsApiPosition {
+  investment_class?: InvestmentClass
+  tags: PositionTag[]
+
+  // Company profile data (combined with base position)
+  company_name?: string
+  companyName?: string
+  sector?: string
+  industry?: string
+  market_cap?: number
+  accountName?: string
 
   // Analyst data
   target_mean_price?: number
@@ -106,7 +165,7 @@ export interface EnhancedPosition {
 
 interface FetchEnhancedPositionsParams {
   portfolioId: string
-  investmentClass?: 'PUBLIC' | 'PRIVATE' | 'OPTIONS'
+  investmentClass?: InvestmentClass
 }
 
 interface EnhancedPositionsResult {
@@ -131,131 +190,109 @@ export const positionResearchService = {
     const positionsCacheKey = `positions:${portfolioId}`
     const profilesCacheKey = `profiles:${portfolioId}`
 
-    // Try to get cached data
-    const cachedPositions = cacheManager.get<{
-      positions: any[]
-      summary: { total_market_value: number }
-    }>(positionsCacheKey)
+    // Try to get cached data first
+    const cachedPositions = cacheManager.get<PositionsApiResponse>(positionsCacheKey)
+    const cachedProfiles = cacheManager.get<CompanyProfilesResponse>(profilesCacheKey)
 
-    const cachedProfiles = cacheManager.get<{ profiles: any[] }>(profilesCacheKey)
-
-    // Fetch data (use cache when available)
-    const fetchPromises: Promise<any>[] = []
-
-    // Positions - use cache or fetch
-    if (cachedPositions) {
-      console.log('✅ Using cached positions data')
-      fetchPromises.push(Promise.resolve(cachedPositions))
-    } else {
-      console.log('🔄 Fetching fresh positions data')
-      fetchPromises.push(
-        apiClient.get<{
-          positions: any[]
-          summary: { total_market_value: number }
-        }>(`/api/v1/data/positions/details?portfolio_id=${portfolioId}`)
-          .then(data => {
+    const positionsPromise: Promise<PositionsApiResponse> = cachedPositions
+      ? Promise.resolve(cachedPositions)
+      : apiClient
+          .get<PositionsApiResponse>(`/api/v1/data/positions/details?portfolio_id=${portfolioId}`)
+          .then((data) => {
             cacheManager.set(positionsCacheKey, data, CACHE_TTL.POSITIONS)
             return data
           })
-      )
-    }
 
-    // Company profiles - use cache or fetch
-    if (cachedProfiles) {
-      console.log('✅ Using cached company profiles')
-      fetchPromises.push(Promise.resolve(cachedProfiles))
-    } else {
-      console.log('🔄 Fetching fresh company profiles')
-      fetchPromises.push(
-        apiClient.get<{ profiles: any[] }>(
-          `/api/v1/data/company-profiles?portfolio_id=${portfolioId}`
-        ).then(data => {
-          cacheManager.set(profilesCacheKey, data, CACHE_TTL.COMPANY_PROFILES)
-          return data
-        })
-      )
-    }
+    const profilesPromise: Promise<CompanyProfilesResponse> = cachedProfiles
+      ? Promise.resolve(cachedProfiles)
+      : apiClient
+          .get<CompanyProfilesResponse>(`/api/v1/data/company-profiles?portfolio_id=${portfolioId}`)
+          .then((data) => {
+            cacheManager.set(profilesCacheKey, data, CACHE_TTL.COMPANY_PROFILES)
+            return data
+          })
 
-    // Target prices - ALWAYS fetch fresh (no cache)
-    console.log('🔄 Fetching fresh target prices (not cached)')
-    fetchPromises.push(
-      apiClient.get<any[]>(`/api/v1/target-prices/${portfolioId}`)
-    )
+    const targetsPromise = apiClient.get<TargetPriceRecord[]>(`/api/v1/target-prices/${portfolioId}`)
 
-    const [positionsRes, profilesRes, targetsRes] = await Promise.all(fetchPromises)
+    const [positionsRes, profilesRes, targetsRes] = await Promise.all([
+      positionsPromise,
+      profilesPromise,
+      targetsPromise
+    ])
 
     // Filter by investment class if specified
-    let filteredPositions = positionsRes.positions
+    let filteredPositions: PositionsApiPosition[] = positionsRes.positions
     if (investmentClass) {
       filteredPositions = filteredPositions.filter(
-        p => p.investment_class === investmentClass
+        (position) => position.investment_class === investmentClass
       )
     }
 
     // Get portfolio equity for % calculations
-    const portfolioEquity = positionsRes.summary?.total_market_value || 0
+    const portfolioEquity = positionsRes.summary?.total_market_value ?? 0
 
     // Create lookup maps for O(1) access
-    const profilesMap = new Map(
-      profilesRes.profiles.map(p => [p.symbol, p])
+    const profilesMap = new Map<string, CompanyProfileEntry>(
+      (profilesRes?.profiles ?? []).map((profile) => [profile.symbol, profile])
     )
-    const targetsMap = new Map(
-      targetsRes.map(t => [t.symbol, t])
+    const targetsMap = new Map<string, TargetPriceRecord>(
+      targetsRes.map((record) => [record.symbol, record])
     )
 
     // Merge data and calculate derived fields
-    const enhanced: EnhancedPosition[] = filteredPositions.map(pos => {
+    const enhanced: EnhancedPosition[] = filteredPositions.map((pos) => {
       const profile = profilesMap.get(pos.symbol)
       const target = targetsMap.get(pos.symbol)
 
-      // Calculate % of portfolio equity
-      const percent_of_equity = portfolioEquity > 0
-        ? (pos.market_value / portfolioEquity) * 100
-        : 0
+      const percent_of_equity =
+        portfolioEquity > 0 ? (pos.market_value / portfolioEquity) * 100 : 0
 
-      // Check if position is short (for analyst calculation only)
-      const isShort = ['SHORT', 'SC', 'SP'].includes(pos.position_type)
+      const isShort =
+        pos.position_type === 'SHORT' ||
+        pos.position_type === 'SC' ||
+        pos.position_type === 'SP'
 
-      // Use backend-calculated returns from target prices API
-      // Backend already handles short position inversion and stores calculated values
       const target_return_eoy = target?.expected_return_eoy ?? undefined
       const target_return_next_year = target?.expected_return_next_year ?? undefined
 
-      const avg_cost = pos.avg_cost ?? (pos.quantity !== 0 ? pos.cost_basis / pos.quantity : undefined)
+      const avg_cost =
+        pos.avg_cost ?? (pos.quantity !== 0 ? pos.cost_basis / pos.quantity : undefined)
       const current_market_value = pos.current_market_value ?? pos.market_value
       const unrealized_pnl_percent =
-        pos.unrealized_pnl_percent ?? (pos.cost_basis !== 0 ? (pos.unrealized_pnl / pos.cost_basis) * 100 : undefined)
-      const beta = (pos as any).beta ?? profile?.beta
+        pos.unrealized_pnl_percent ??
+        (pos.cost_basis !== 0 ? (pos.unrealized_pnl / pos.cost_basis) * 100 : undefined)
+      const beta = pos.beta ?? profile?.beta
 
-      // Calculate analyst-based returns (fallback when user hasn't entered targets)
-      // Only needed for display when no user target exists
-      const analyst_return_eoy = profile?.target_mean_price && pos.current_price
-        ? isShort
-          ? ((pos.current_price - profile.target_mean_price) / pos.current_price) * 100
-          : ((profile.target_mean_price - pos.current_price) / pos.current_price) * 100
-        : undefined
+      const analyst_return_eoy =
+        profile?.target_mean_price && pos.current_price
+          ? isShort
+            ? ((pos.current_price - profile.target_mean_price) / pos.current_price) * 100
+            : ((profile.target_mean_price - pos.current_price) / pos.current_price) * 100
+          : undefined
+
+      const tags = pos.tags ?? []
 
       return {
         ...pos,
-        // Company profile fields
-        company_name: profile?.company_name,
-        sector: profile?.sector,
-        industry: profile?.industry,
-        market_cap: profile?.market_cap,
+        tags,
+        company_name: profile?.company_name ?? pos.company_name,
+        companyName: profile?.company_name ?? pos.company_name,
+        sector: profile?.sector ?? pos.sector,
+        industry: profile?.industry ?? pos.industry,
+        market_cap: profile?.market_cap ?? pos.market_cap,
         target_mean_price: profile?.target_mean_price,
         current_year_earnings_avg: profile?.current_year_earnings_avg,
         next_year_earnings_avg: profile?.next_year_earnings_avg,
         current_year_revenue_avg: profile?.current_year_revenue_avg,
         next_year_revenue_avg: profile?.next_year_revenue_avg,
-        // User target fields
+        accountName: pos.account_name ?? (pos as any).accountName,
         user_target_eoy: target?.target_price_eoy,
         user_target_next_year: target?.target_price_next_year,
-        // Calculated fields
         percent_of_equity,
         target_return_eoy,
         target_return_next_year,
         analyst_return_eoy,
-        analyst_return_next_year: undefined, // No analyst data for next year
+        analyst_return_next_year: undefined,
         avg_cost,
         current_market_value,
         unrealized_pnl_percent,
@@ -342,3 +379,12 @@ export const positionResearchService = {
     console.log('🗑️ Cleared entire cache')
   }
 }
+
+
+
+
+
+
+
+
+

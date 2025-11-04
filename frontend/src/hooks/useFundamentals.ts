@@ -147,11 +147,31 @@ function transformToTableData(
   cashFlowData: any,
   estimatesData: any
 ): FundamentalsData {
+  const incomePeriods: any[] = Array.isArray(incomeData?.periods) ? incomeData.periods : []
+  const cashFlowPeriods: any[] = Array.isArray(cashFlowData?.periods) ? cashFlowData.periods : []
+  const estimates = estimatesData?.estimates ?? {}
+
+  const fallback: FundamentalsData = {
+    symbol: incomeData?.symbol ?? '',
+    years: [],
+    fiscalYearEnd: null,
+    analystCount: parseNumeric(estimates?.current_year_analyst_count) ?? null,
+    lastUpdated: new Date().toISOString()
+  }
+
+  if (incomePeriods.length === 0) {
+    return fallback
+  }
 
   // 1. Create historical years (2021-2024)
-  const historical: FinancialYearData[] = incomeData.periods.map((stmt: any, index: number, array: any[]) => {
+  const historical: FinancialYearData[] = incomePeriods.map((stmt: any, index: number, array: any[]) => {
     const prevStmt = array[index + 1]; // Previous year for growth calculation
-    const matchingCashFlow = cashFlowData.periods.find((cf: any) => cf.fiscal_year === stmt.fiscal_year);
+    const matchingCashFlow = cashFlowPeriods.find((cf: any) => cf.fiscal_year === stmt.fiscal_year);
+    const grossMarginValue = parseNumeric(stmt.gross_margin)
+    const operatingMarginValue = parseNumeric(stmt.operating_margin)
+    const netMarginValue = parseNumeric(stmt.net_margin)
+    const dilutedEps = parseNumeric(stmt.diluted_eps)
+    const cashFlowMarginValue = matchingCashFlow ? parseNumeric(matchingCashFlow.fcf_margin) : null
 
     // Extract year from period_date (e.g., "2024-09-30" -> 2024)
     let year = stmt.fiscal_year || 0;
@@ -170,36 +190,44 @@ function transformToTableData(
 
       // Gross Profit
       grossProfit: parseNumeric(stmt.gross_profit),
-      grossMargin: stmt.gross_margin ? parseNumeric(stmt.gross_margin) * 100 : null,
+      grossMargin: grossMarginValue !== null ? grossMarginValue * 100 : null,
       grossProfitGrowth: prevStmt ? calculateGrowth(stmt.gross_profit, prevStmt.gross_profit) : null,
 
       // EBIT (Operating Income)
       ebit: parseNumeric(stmt.operating_income),
-      ebitMargin: stmt.operating_margin ? parseNumeric(stmt.operating_margin) * 100 : null,
+      ebitMargin: operatingMarginValue !== null ? operatingMarginValue * 100 : null,
       ebitGrowth: prevStmt ? calculateGrowth(stmt.operating_income, prevStmt.operating_income) : null,
 
       // Net Income
       netIncome: parseNumeric(stmt.net_income),
-      netMargin: stmt.net_margin ? parseNumeric(stmt.net_margin) * 100 : null,
+      netMargin: netMarginValue !== null ? netMarginValue * 100 : null,
       netIncomeGrowth: prevStmt ? calculateGrowth(stmt.net_income, prevStmt.net_income) : null,
 
       // EPS
-      eps: parseNumeric(stmt.diluted_eps),
-      epsGrowth: prevStmt ? calculateGrowth(stmt.diluted_eps, prevStmt.diluted_eps) : null,
+      eps: dilutedEps,
+      epsGrowth: prevStmt ? calculateGrowth(dilutedEps, prevStmt.diluted_eps) : null,
 
       // FCF
       fcf: matchingCashFlow ? parseNumeric(matchingCashFlow.free_cash_flow) : null,
-      fcfMargin: matchingCashFlow && matchingCashFlow.fcf_margin
-        ? parseNumeric(matchingCashFlow.fcf_margin) * 100
-        : null,
+      fcfMargin: cashFlowMarginValue !== null ? cashFlowMarginValue * 100 : null,
       fcfGrowth: null, // Could calculate if we track previous CF data
     };
   });
 
   // 2. Get latest year data for calculations
   const latestYear = historical[0];
-  const latestStmt = incomeData.periods[0];
+  const latestStmt = incomePeriods[0];
+
+  if (!latestYear || !latestStmt) {
+    return fallback
+  }
+
   const latestShares = parseNumeric(latestStmt.diluted_average_shares);
+  const currentYearRevenue = parseNumeric(estimates.current_year_revenue_avg)
+  const currentYearEarnings = parseNumeric(estimates.current_year_earnings_avg)
+  const nextYearRevenue = parseNumeric(estimates.next_year_revenue_avg)
+  const nextYearEarnings = parseNumeric(estimates.next_year_earnings_avg)
+  const currentYearAnalystCount = parseNumeric(estimates.current_year_analyst_count)
 
   // 3. Create current year estimate (2025E)
   const currentYearEstimate: FinancialYearData = {
@@ -207,11 +235,8 @@ function transformToTableData(
     isEstimate: true,
 
     // Revenue - from analyst estimates
-    revenue: parseNumeric(estimatesData.estimates.current_year_revenue_avg),
-    revenueGrowth: calculateGrowth(
-      estimatesData.estimates.current_year_revenue_avg,
-      latestYear.revenue
-    ),
+    revenue: currentYearRevenue,
+    revenueGrowth: calculateGrowth(currentYearRevenue, latestYear.revenue),
 
     // Gross Profit - N/A (not estimated)
     grossProfit: null,
@@ -224,26 +249,22 @@ function transformToTableData(
     ebitGrowth: null,
 
     // Net Income - CALCULATED from EPS × Shares
-    netIncome: latestShares
-      ? parseNumeric(estimatesData.estimates.current_year_earnings_avg)! * latestShares
-      : null,
-    netMargin: latestShares && parseNumeric(estimatesData.estimates.current_year_revenue_avg)
-      ? (parseNumeric(estimatesData.estimates.current_year_earnings_avg)! * latestShares) /
-        parseNumeric(estimatesData.estimates.current_year_revenue_avg)! * 100
-      : null,
-    netIncomeGrowth: latestShares
-      ? calculateGrowth(
-          parseNumeric(estimatesData.estimates.current_year_earnings_avg)! * latestShares,
-          latestYear.netIncome
-        )
-      : null,
+    netIncome:
+      latestShares !== null && currentYearEarnings !== null
+        ? currentYearEarnings * latestShares
+        : null,
+    netMargin:
+      latestShares !== null && currentYearEarnings !== null && currentYearRevenue !== null
+        ? (currentYearEarnings * latestShares) / currentYearRevenue * 100
+        : null,
+    netIncomeGrowth:
+      latestShares !== null && currentYearEarnings !== null
+        ? calculateGrowth(currentYearEarnings * latestShares, latestYear.netIncome)
+        : null,
 
     // EPS - from analyst estimates
-    eps: parseNumeric(estimatesData.estimates.current_year_earnings_avg),
-    epsGrowth: calculateGrowth(
-      estimatesData.estimates.current_year_earnings_avg,
-      latestYear.eps
-    ),
+    eps: currentYearEarnings,
+    epsGrowth: calculateGrowth(currentYearEarnings, latestYear.eps),
 
     // FCF - N/A (not estimated)
     fcf: null,
@@ -257,11 +278,8 @@ function transformToTableData(
     isEstimate: true,
 
     // Revenue
-    revenue: parseNumeric(estimatesData.estimates.next_year_revenue_avg),
-    revenueGrowth: calculateGrowth(
-      estimatesData.estimates.next_year_revenue_avg,
-      estimatesData.estimates.current_year_revenue_avg
-    ),
+    revenue: nextYearRevenue,
+    revenueGrowth: calculateGrowth(nextYearRevenue, currentYearRevenue),
 
     // Gross Profit - N/A
     grossProfit: null,
@@ -274,26 +292,22 @@ function transformToTableData(
     ebitGrowth: null,
 
     // Net Income - CALCULATED
-    netIncome: latestShares
-      ? parseNumeric(estimatesData.estimates.next_year_earnings_avg)! * latestShares
-      : null,
-    netMargin: latestShares && parseNumeric(estimatesData.estimates.next_year_revenue_avg)
-      ? (parseNumeric(estimatesData.estimates.next_year_earnings_avg)! * latestShares) /
-        parseNumeric(estimatesData.estimates.next_year_revenue_avg)! * 100
-      : null,
-    netIncomeGrowth: latestShares
-      ? calculateGrowth(
-          parseNumeric(estimatesData.estimates.next_year_earnings_avg)! * latestShares,
-          parseNumeric(estimatesData.estimates.current_year_earnings_avg)! * latestShares
-        )
-      : null,
+    netIncome:
+      latestShares !== null && nextYearEarnings !== null
+        ? nextYearEarnings * latestShares
+        : null,
+    netMargin:
+      latestShares !== null && nextYearEarnings !== null && nextYearRevenue !== null
+        ? (nextYearEarnings * latestShares) / nextYearRevenue * 100
+        : null,
+    netIncomeGrowth:
+      latestShares !== null && nextYearEarnings !== null && currentYearEarnings !== null
+        ? calculateGrowth(nextYearEarnings * latestShares, currentYearEarnings * latestShares)
+        : null,
 
     // EPS
-    eps: parseNumeric(estimatesData.estimates.next_year_earnings_avg),
-    epsGrowth: calculateGrowth(
-      estimatesData.estimates.next_year_earnings_avg,
-      estimatesData.estimates.current_year_earnings_avg
-    ),
+    eps: nextYearEarnings,
+    epsGrowth: calculateGrowth(nextYearEarnings, currentYearEarnings),
 
     // FCF - N/A
     fcf: null,
@@ -308,7 +322,7 @@ function transformToTableData(
 
   // 6. Determine fiscal year end (extract from period_date)
   let fiscalYearEnd: string | null = null;
-  if (latestStmt.period_date) {
+  if (latestStmt?.period_date) {
     const date = new Date(latestStmt.period_date);
     const month = String(date.getMonth() + 1).padStart(2, '0');
     const day = String(date.getDate()).padStart(2, '0');
@@ -316,10 +330,10 @@ function transformToTableData(
   }
 
   return {
-    symbol: incomeData.symbol,
+    symbol: incomeData?.symbol ?? '',
     years: allYears,
     fiscalYearEnd,
-    analystCount: parseNumeric(estimatesData.estimates.current_year_analyst_count),
+    analystCount: currentYearAnalystCount,
     lastUpdated: new Date().toISOString(),
   };
 }

@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { onboardingService } from '@/services/onboardingService'
-import { usePortfolioStore } from '@/stores/portfolioStore'
+import { setPortfolioState } from '@/stores/portfolioStore'
 
 export type UploadState = 'idle' | 'uploading' | 'processing' | 'success' | 'error'
 
@@ -60,8 +60,6 @@ interface UsePortfolioUploadReturn {
  */
 export function usePortfolioUpload(): UsePortfolioUploadReturn {
   const router = useRouter()
-  const { setPortfolioId } = usePortfolioStore()
-
   const [uploadState, setUploadState] = useState<UploadState>('idle')
   const [batchStatus, setBatchStatus] = useState<string>('idle')
   const [currentSpinnerItem, setCurrentSpinnerItem] = useState<string | null>(null)
@@ -121,7 +119,7 @@ export function usePortfolioUpload(): UsePortfolioUploadReturn {
       const uploadResponse = await onboardingService.createPortfolio(formData)
 
       // Store portfolio ID in Zustand
-      setPortfolioId(uploadResponse.portfolio_id)
+      setPortfolioState(uploadResponse.portfolio_id, uploadResponse.portfolio_name)
       setResult({
         portfolio_id: uploadResponse.portfolio_id,
         portfolio_name: uploadResponse.portfolio_name,

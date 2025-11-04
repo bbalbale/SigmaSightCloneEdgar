@@ -192,6 +192,7 @@ export interface PortfolioListItem {
   account_name?: string;
   account_type?: string;
   equity_balance?: number;
+  is_active?: boolean;
 }
 
 // Market Quote Data (from /api/v1/data/prices/quotes)

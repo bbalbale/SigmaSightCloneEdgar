@@ -38,28 +38,28 @@ Resolve the outstanding `npm run type-check` failures introduced over time so th
 ## Plan & Sequencing
 
 ### Phase 1: UI Type Corrections (High-confidence fixes)
-- [ ] Align onboarding upload state comparisons with `UploadState` union.
-- [ ] Refine `TagBadge` props (`size`, drag handlers) and update callers (`CompactTagBar`, `StickyTagBar*`, private position cards).
-- [ ] Introduce shared `Position`/`OptionPosition`/`PrivatePosition` view types for portfolio components and ensure services supply matching fields.
-- [ ] Extend `EnhancedPosition` DTO in `positionResearchService.ts` with missing analytics fields (`avg_cost`, `current_market_value`, `unrealized_pnl_percent`, `beta`). Adjust table components to use new fields safely.
+- [x] Align onboarding upload state comparisons with `UploadState` union.
+- [x] Refine `TagBadge` props (`size`, drag handlers) and update callers (`CompactTagBar`, `StickyTagBar*`, private position cards).
+- [x] Introduce shared `Position`/`OptionPosition`/`PrivatePosition` view types for portfolio components and ensure services supply matching fields.
+- [x] Extend `EnhancedPosition` DTO in `positionResearchService.ts` with missing analytics fields (`avg_cost`, `current_market_value`, `unrealized_pnl_percent`, `beta`). Adjust table components to use new fields safely.
 
 ### Phase 2: Data Contract Updates
-- [ ] Update Command Center response types (`PortfolioListItem`, `PortfolioOverviewResponse`, factor exposure responses) to match backend payloads and adjust helper logic.
-- [ ] Normalize correlation matrix types (structure for `position_symbols`, `correlation_matrix`, `data_quality`, `min_overlap`) and tighten container rendering.
-- [ ] Audit fundamentals hook for nullable responses and add guards or type refinements.
+- [x] Update Command Center response types (`PortfolioListItem`, `PortfolioOverviewResponse`, factor exposure responses) to match backend payloads and adjust helper logic.
+- [x] Normalize correlation matrix types (structure for `position_symbols`, `correlation_matrix`, `data_quality`, `min_overlap`) and tighten container rendering.
+- [x] Audit fundamentals hook for nullable responses and add guards or type refinements.
 
 ### Phase 3: Test & Store Cleanup
-- [ ] Update AI chat containers to the current store API (remove `portfolioName`, use canonical selectors).
-- [ ] Ensure Vitest and Playwright typings are correctly declared (`vitest/globals` only; rely on Playwrightâ€™s own config for E2E tests).
-- [ ] Harden Playwright tests (`chat-auth`, `chat-integration`) by adding explicit typing for route handlers and pruning unused diagnostics.
+- [x] Update AI chat containers to the current store API (remove portfolioName, use canonical selectors).
+- [x] Ensure Vitest and Playwright typings are correctly declared (itest/globals only; rely on Playwright’s own config for E2E tests).
+- [x] Harden Playwright tests (chat-auth, chat-integration) by adding explicit typing for route handlers and pruning unused diagnostics.
 
 ---
 
 ## Tracking Checklist
-- [ ] Phase 1 merged, `PortfolioPositions`/`Research*` components compile.
-- [ ] Phase 2 merged, Command Center & correlation hooks compile.
-- [ ] Phase 3 merged, Vitest/Playwright suites compile without extra type defs.
-- [ ] `npm run type-check` passes locally.
+- [x] Phase 1 merged, `PortfolioPositions`/`Research*` components compile.
+- [x] Phase 2 merged, Command Center & correlation hooks compile.
+- [x] Phase 3 merged, Vitest/Playwright suites compile without extra type defs.
+- [x] `npm run type-check` passes locally.
 - [ ] `npm run lint` executed (once lint config is clarified).
 
 ---
@@ -75,3 +75,5 @@ Resolve the outstanding `npm run type-check` failures introduced over time so th
 - Type-check log: `tsc-errors.log`
 - Current tasks executed on November 4, 2025 (see git history / `npm run type-check` output)
 - Keep this document update-to-date as errors are resolved or new ones surface.
+
+

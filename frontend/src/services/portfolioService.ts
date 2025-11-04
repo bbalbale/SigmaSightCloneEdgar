@@ -15,6 +15,7 @@ interface PositionDetail {
   company_name?: string
   sector?: string  // NEW: Company sector classification
   industry?: string  // NEW: Company industry classification
+  account_name?: string
   quantity: number
   position_type: string
   investment_class?: string  // PUBLIC, OPTIONS, PRIVATE
@@ -288,26 +289,34 @@ function calculateExposuresFromOverview(overview: any) {
  * Transform position details from API to UI format
  */
 function transformPositionDetails(positions: PositionDetail[]) {
-  return positions.map(pos => ({
-    id: pos.id,
-    symbol: pos.symbol,
-    company_name: pos.company_name,
-    sector: pos.sector,  // NEW: Sector classification
-    industry: pos.industry,  // NEW: Industry classification
-    quantity: pos.quantity,
-    entry_price: pos.entry_price,
-    price: pos.current_price,
-    marketValue: pos.market_value,
-    pnl: pos.unrealized_pnl,
-    positive: pos.unrealized_pnl >= 0,
-    type: pos.position_type,
-    investment_class: pos.investment_class || 'PUBLIC',
-    investment_subtype: pos.investment_subtype,
-    strike_price: pos.strike_price,
-    expiration_date: pos.expiration_date,
-    underlying_symbol: pos.underlying_symbol,
-    tags: (pos as any).tags || [] // Include tags from API response
-  }))
+  return positions.map(pos => {
+    const tags = (pos as any).tags || []
+
+    return {
+      id: pos.id,
+      symbol: pos.symbol,
+      company_name: pos.company_name,
+      companyName: pos.company_name,
+      sector: pos.sector,  // NEW: Sector classification
+      industry: pos.industry,  // NEW: Industry classification
+      quantity: pos.quantity,
+      entry_price: pos.entry_price,
+      price: pos.current_price,
+      marketValue: pos.market_value,
+      pnl: pos.unrealized_pnl,
+      positive: pos.unrealized_pnl >= 0,
+      type: pos.position_type,
+      investment_class: pos.investment_class || 'PUBLIC',
+      investment_subtype: pos.investment_subtype,
+      investmentSubtype: pos.investment_subtype,
+      strike_price: pos.strike_price,
+      expiration_date: pos.expiration_date,
+      underlying_symbol: pos.underlying_symbol,
+      account_name: pos.account_name,
+      accountName: pos.account_name,
+      tags
+    }
+  })
 }
 
 function formatCurrency(value: number): string {

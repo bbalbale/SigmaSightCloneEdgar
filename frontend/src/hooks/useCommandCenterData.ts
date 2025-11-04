@@ -112,7 +112,7 @@ export function useCommandCenterData(refreshTrigger?: number): UseCommandCenterD
           // Create portfolio ID to account name map
           const portfolioMap = new Map<string, string>()
           portfolios.forEach(p => {
-            portfolioMap.set(p.id, p.account_name)
+            portfolioMap.set(p.id, p.account_name || 'Portfolio')
           })
 
           // Fetch aggregate analytics

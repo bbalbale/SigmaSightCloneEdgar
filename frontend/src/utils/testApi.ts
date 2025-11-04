@@ -28,7 +28,7 @@ export async function testApiConnectivity(): Promise<{
       test: 'Portfolio List',
       success: true,
       data: `Found ${portfolios.length} portfolios`,
-      details: portfolios.map(p => `${p.name} (${p.id})`),
+      details: portfolios.map(p => `${p.account_name} (${p.id})`),
     });
     console.log(`✅ Portfolio list: ${portfolios.length} portfolios found`);
   } catch (error) {

@@ -4,10 +4,9 @@
  */
 
 import { useEffect, useState, useCallback } from 'react'
-import { usePortfolioStore } from '@/stores/portfolioStore'
+import { usePortfolioStore, type PortfolioListItem } from '@/stores/portfolioStore'
 import { portfolioService } from '@/services/portfolioApi'
 import type {
-  PortfolioListItem,
   AggregateAnalytics,
   PortfolioBreakdown,
   CreatePortfolioRequest,
@@ -230,6 +229,7 @@ export function usePortfolioMutations(): UsePortfolioMutationsReturn {
           total_value: response.net_asset_value ?? response.equity_balance ?? 0,
           position_count: 0,
           is_active: response.is_active,
+          description: response.description ?? null,
         })
 
         return response
@@ -258,6 +258,7 @@ export function usePortfolioMutations(): UsePortfolioMutationsReturn {
           account_name: response.account_name,
           account_type: response.account_type,
           is_active: response.is_active,
+          description: response.description ?? null,
         })
 
         return response

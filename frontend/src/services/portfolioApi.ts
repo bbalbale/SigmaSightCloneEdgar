@@ -12,7 +12,6 @@ import { apiClient } from './apiClient';
 import { API_ENDPOINTS, REQUEST_CONFIGS, DEMO_PORTFOLIOS } from '@/config/api';
 import type {
   PortfolioReport,
-  PortfolioListItem,
   Position,
   MarketQuote,
   HistoricalPriceResponse,
@@ -22,6 +21,7 @@ import type {
   ApiListResponse,
   LoadingState,
 } from '@/types/portfolio';
+import type { PortfolioListItem } from '@/stores/portfolioStore'
 
 /**
  * Request/Response types for multi-portfolio operations
@@ -48,6 +48,8 @@ export interface PortfolioResponse {
   description?: string;
   equity_balance: number;
   net_asset_value: number;
+  total_value?: number;
+  position_count?: number;
   is_active: boolean;
   created_at: string;
   updated_at?: string;
@@ -116,7 +118,7 @@ export class PortfolioService {
       const portfolios = Array.isArray(response) ? response : (response.data || []);
       console.log('[portfolioApi] portfolios array:', portfolios);
 
-      return portfolios.map((portfolio) => ({
+      return portfolios.map((portfolio: PortfolioResponse) => ({
         id: portfolio.id,
         account_name: portfolio.account_name || portfolio.name || 'Unknown Account',
         account_type: portfolio.account_type || 'taxable',
@@ -124,6 +126,7 @@ export class PortfolioService {
         total_value: portfolio.total_value ?? portfolio.net_asset_value ?? 0,
         position_count: portfolio.position_count ?? 0,
         is_active: portfolio.is_active ?? true, // Default to true if not provided
+        description: portfolio.description ?? null,
       }));
     } catch (error) {
       console.error('Failed to fetch portfolios:', error);

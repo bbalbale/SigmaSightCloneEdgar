@@ -2,26 +2,12 @@
 
 import React from 'react'
 import { Badge } from '@/components/ui/badge'
-import { useTheme } from '@/contexts/ThemeContext'
 import { PrivatePositionCard } from '@/components/positions/PrivatePositionCard'
 import { useSelectedPortfolio } from '@/hooks/useMultiPortfolio'
-
-interface PrivatePosition {
-  id?: string
-  symbol: string
-  name?: string
-  quantity: number
-  marketValue: number
-  pnl: number
-  positive?: boolean
-  type?: string
-  investment_subtype?: string
-  price?: number
-  account_name?: string  // NEW: Portfolio/account name for multi-portfolio
-}
+import type { PrivatePositionView } from '@/types/positions'
 
 interface PrivatePositionsProps {
-  positions: PrivatePosition[]
+  positions: PrivatePositionView[]
 }
 
 export function PrivatePositions({ positions }: PrivatePositionsProps) {
@@ -32,11 +18,14 @@ export function PrivatePositions({ positions }: PrivatePositionsProps) {
 
   // Group by investment subtype
   const groupedPositions = positions.reduce((acc, position) => {
-    const subtype = position.investment_subtype || 'Alternative Investment'
+    const subtype =
+      position.investmentSubtype ||
+      (position as any).investment_subtype ||
+      'Alternative Investment'
     if (!acc[subtype]) acc[subtype] = []
     acc[subtype].push(position)
     return acc
-  }, {} as Record<string, PrivatePosition[]>)
+  }, {} as Record<string, PrivatePositionView[]>)
 
   if (positions.length === 0) {
     return (
@@ -75,3 +64,4 @@ export function PrivatePositions({ positions }: PrivatePositionsProps) {
     </div>
   )
 }
+

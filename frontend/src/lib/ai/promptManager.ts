@@ -16,7 +16,7 @@ export class PromptManager {
     try {
       // Load prompt file dynamically
       // Note: These are TypeScript files (converted from markdown) from backend
-      const promptModule = await import(`./prompts/${mode}_v001.ts`);
+      const promptModule = await import(`./prompts/${mode}_v001`);
 
       // The prompt content is in the default export as a string
       const prompt = promptModule.default;
@@ -36,7 +36,7 @@ export class PromptManager {
   ): Promise<string> {
     try {
       // Load common instructions from TypeScript file
-      const commonModule = await import('./prompts/common_instructions.ts');
+      const commonModule = await import('./prompts/common_instructions');
       const commonInstructions = commonModule.default;
 
       // Load mode-specific prompt

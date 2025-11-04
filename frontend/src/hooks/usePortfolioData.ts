@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { loadPortfolioData } from '@/services/portfolioService'
-import { usePortfolioStore } from '@/stores/portfolioStore'
+import { usePortfolioStore, setPortfolioState, clearPortfolioState } from '@/stores/portfolioStore'
 import type { FactorExposure } from '@/types/analytics'
 
 interface ApiErrors {
@@ -39,8 +39,6 @@ export function usePortfolioData(options: UsePortfolioDataOptions = {}): UsePort
   const { skipFactorExposures = false } = options
   // Use separate selectors to avoid creating new object references
   const portfolioId = usePortfolioStore(state => state.portfolioId)
-  const setPortfolio = usePortfolioStore(state => state.setPortfolio)
-  const clearPortfolio = usePortfolioStore(state => state.clearPortfolio)
 
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -80,7 +78,7 @@ export function usePortfolioData(options: UsePortfolioDataOptions = {}): UsePort
 
         const resolvedId = data.portfolioId
         if (resolvedId) {
-          setPortfolio(resolvedId, data.portfolioInfo?.name)
+          setPortfolioState(resolvedId, data.portfolioInfo?.name)
         }
 
         if (data.errors) {
@@ -130,7 +128,7 @@ export function usePortfolioData(options: UsePortfolioDataOptions = {}): UsePort
         setOptionsPositions([])
         setPrivatePositions([])
         setPortfolioName('Portfolio Unavailable')
-        clearPortfolio()
+        clearPortfolioState()
       } finally {
         setLoading(false)
       }

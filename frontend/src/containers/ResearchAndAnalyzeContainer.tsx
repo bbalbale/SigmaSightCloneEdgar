@@ -16,6 +16,7 @@ import { TagCreator } from '@/components/organize/TagCreator'
 import { useRestoreSectorTags } from '@/hooks/useRestoreSectorTags'
 import { useTags } from '@/hooks/useTags'
 import { usePositionTags } from '@/hooks/usePositionTags'
+import type { PositionTag } from '@/types/tags'
 import tagsApi from '@/services/tagsApi'
 import { positionResearchService, type EnhancedPosition } from '@/services/positionResearchService'
 
@@ -74,6 +75,17 @@ export function ResearchAndAnalyzeContainer() {
     deleteTag,
     loading: tagsLoading
   } = useTags()
+
+  const normalizedTags: PositionTag[] = useMemo(
+    () =>
+      allTags.map((tag) => ({
+        id: tag.id,
+        name: tag.name,
+        color: tag.color,
+        description: tag.description ?? null
+      })),
+    [allTags]
+  )
 
   const {
     addTagsToPosition,
@@ -481,7 +493,7 @@ export function ResearchAndAnalyzeContainer() {
               Position Tags
             </h2>
             <CompactTagBar
-              tags={allTags}
+              tags={normalizedTags}
               onViewAll={() => setShowViewAllModal(true)}
               onCreate={() => setShowTagCreator(true)}
             />
@@ -671,7 +683,7 @@ export function ResearchAndAnalyzeContainer() {
       <ViewAllTagsModal
         open={showViewAllModal}
         onOpenChange={setShowViewAllModal}
-        tags={allTags}
+        tags={normalizedTags}
         onCreate={handleCreateTag}
         onDelete={handleDeleteTag}
       />
