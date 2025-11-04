@@ -21,6 +21,50 @@ from app.core.logging import get_logger
 logger = get_logger(__name__)
 
 
+# Sector name mapping: Company Profile sectors → S&P 500 GICS sectors
+# YFinance/FMP use different sector names than the S&P 500 GICS standard
+# This mapping standardizes all sectors to GICS names for consistent comparison
+SECTOR_MAPPING = {
+    # Direct matches (no change needed)
+    "Communication Services": "Communication Services",
+    "Energy": "Energy",
+    "Healthcare": "Healthcare",
+    "Industrials": "Industrials",
+    "Technology": "Technology",
+
+    # Name variations that need mapping
+    "Financial Services": "Financials",  # YFinance/FMP → GICS
+    "Consumer Cyclical": "Consumer Discretionary",  # YFinance/FMP → GICS
+    "Consumer Defensive": "Consumer Staples",  # YFinance/FMP → GICS
+    "Basic Materials": "Materials",  # Alternative name → GICS
+    "Real Estate": "Real Estate",  # Direct match
+    "Utilities": "Utilities",  # Direct match
+}
+
+
+def normalize_sector_name(sector: Optional[str]) -> Optional[str]:
+    """
+    Normalize sector name from company profile data to S&P 500 GICS standard.
+
+    Args:
+        sector: Raw sector name from company profile
+
+    Returns:
+        Normalized GICS sector name, or None if unmapped
+    """
+    if not sector or sector == "Unknown":
+        return None
+
+    # Apply mapping if exists, otherwise return original
+    normalized = SECTOR_MAPPING.get(sector, sector)
+
+    # Log if we encounter an unmapped sector
+    if normalized == sector and sector not in SECTOR_MAPPING.values():
+        logger.info(f"Unmapped sector encountered: '{sector}' - using as-is")
+
+    return normalized
+
+
 def calculate_hhi(weights: Dict[str, float]) -> float:
     """
     Calculate Herfindahl-Hirschman Index.
@@ -62,14 +106,14 @@ def calculate_effective_positions(hhi: float) -> float:
 
 async def get_sector_from_market_data(db: AsyncSession, symbol: str) -> Optional[str]:
     """
-    Get sector for a symbol from company_profiles table.
+    Get sector for a symbol from company_profiles table and normalize to GICS standard.
 
     Args:
         db: Database session
         symbol: Stock symbol
 
     Returns:
-        Sector name or None if not found
+        Normalized GICS sector name or None if not found
     """
     try:
         # Import CompanyProfile here to avoid circular imports
@@ -82,7 +126,13 @@ async def get_sector_from_market_data(db: AsyncSession, symbol: str) -> Optional
         result = await db.execute(stmt)
         sector = result.scalar_one_or_none()
 
-        return sector
+        # Normalize sector name to GICS standard (e.g., "Financial Services" → "Financials")
+        normalized_sector = normalize_sector_name(sector)
+
+        if sector and normalized_sector != sector:
+            logger.info(f"✅ NORMALIZED sector for {symbol}: '{sector}' → '{normalized_sector}'")
+
+        return normalized_sector
     except Exception as e:
         logger.warning(f"Could not fetch sector for {symbol}: {e}")
         return None
@@ -241,6 +291,8 @@ async def calculate_sector_exposure(
             # For non-ETF PUBLIC positions, get sector classification
             sector = await get_sector_from_market_data(db, position.symbol)
 
+            logger.info(f"🔍 Symbol {position.symbol} got sector: '{sector}'")
+
             if sector and sector != 'Unknown':
                 if sector not in sector_values:
                     sector_values[sector] = Decimal('0')
@@ -259,6 +311,8 @@ async def calculate_sector_exposure(
             sector: float(value / portfolio_equity)
             for sector, value in sector_values.items()
         }
+
+        logger.info(f"📊 Final portfolio_weights keys: {list(portfolio_weights.keys())}")
 
         # Add ETFs to portfolio weights if there are ETF positions
         if etf_value > 0:
@@ -465,3 +519,4 @@ async def calculate_portfolio_sector_concentration(
         combined_result['error'] = '; '.join(errors)
 
     return combined_result
+
