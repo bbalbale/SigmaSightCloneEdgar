@@ -380,6 +380,11 @@ class BatchOrchestratorV3:
                     position.last_price = current_price
                     position.market_value = market_value
 
+                    # CRITICAL FIX (2025-11-03): Recalculate unrealized_pnl to stay in sync with market_value
+                    # Bug was: unrealized_pnl not updated when market_value changed, causing $104K+ errors
+                    cost_basis = position.quantity * position.entry_price * multiplier
+                    position.unrealized_pnl = market_value - cost_basis
+
                     positions_updated += 1
                     logger.debug(f"  {position.symbol}: price=${float(current_price):.2f}, market_value=${float(market_value):,.2f}")
                 else:
