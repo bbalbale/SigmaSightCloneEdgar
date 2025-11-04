@@ -17,17 +17,21 @@ type PortfolioSectionShape = ReturnType<typeof useCommandCenterData>['portfolios
 export function CommandCenterContainer() {
   const portfolioId = usePortfolioStore(state => state.portfolioId)
   const selectedPortfolioId = usePortfolioStore(state => state.selectedPortfolioId)
+  const totalPortfolios = usePortfolioStore(state => state.portfolios.length)
   const [sidePanelOpen, setSidePanelOpen] = useState(false)
   const [refreshTrigger, setRefreshTrigger] = useState(0)
 
   const { aggregate, portfolios, loading, error } = useCommandCenterData(refreshTrigger)
 
   const isAggregateView = selectedPortfolioId === null
-  const hasAggregateMetrics = Boolean(isAggregateView && aggregate && portfolios.length > 1)
   const filteredSections = selectedPortfolioId
     ? portfolios.filter(section => section.portfolioId === selectedPortfolioId)
     : portfolios
   const sectionsToRender = filteredSections.length > 0 ? filteredSections : portfolios
+  const showAggregateSection = Boolean(
+    isAggregateView && aggregate && sectionsToRender.length > 1 && totalPortfolios > 1
+  )
+  const showPortfolioBadge = isAggregateView && sectionsToRender.length > 1
 
   const emptyHeroMetrics = {
     equityBalance: 0,
@@ -171,7 +175,7 @@ export function CommandCenterContainer() {
         </div>
       </section>
 
-      {hasAggregateMetrics && aggregate && (
+      {showAggregateSection && aggregate && (
         <>
           <section className="px-4 pt-6">
             <div className="container mx-auto">
@@ -215,7 +219,7 @@ export function CommandCenterContainer() {
                       Portfolio-specific exposure, performance, and risk.
                     </p>
                   </div>
-                  {isAggregateView && hasAggregateMetrics && (
+                  {showPortfolioBadge && (
                     <span className="text-xs text-muted-foreground uppercase tracking-wide">
                       Individual Account
                     </span>
