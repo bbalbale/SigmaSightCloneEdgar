@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react'
 import { useCommandCenterData } from '@/hooks/useCommandCenterData'
-import { usePortfolioStore, usePortfolioCount, useIsAggregateView } from '@/stores/portfolioStore'
+import { usePortfolioStore } from '@/stores/portfolioStore'
 import { HeroMetricsRow } from '@/components/command-center/HeroMetricsRow'
 import { PerformanceMetricsRow } from '@/components/command-center/PerformanceMetricsRow'
 import { RiskMetricsRow } from '@/components/command-center/RiskMetricsRow'
@@ -17,15 +17,14 @@ type PortfolioSectionShape = ReturnType<typeof useCommandCenterData>['portfolios
 export function CommandCenterContainer() {
   const portfolioId = usePortfolioStore(state => state.portfolioId)
   const selectedPortfolioId = usePortfolioStore(state => state.selectedPortfolioId)
-  const portfolioCount = usePortfolioCount()
-  const isAggregateView = useIsAggregateView()
   const [sidePanelOpen, setSidePanelOpen] = useState(false)
   const [refreshTrigger, setRefreshTrigger] = useState(0)
 
   const { aggregate, portfolios, loading, error } = useCommandCenterData(refreshTrigger)
 
-  const hasAggregateMetrics = Boolean(isAggregateView && portfolioCount > 1 && aggregate)
-  const filteredSections = !isAggregateView && selectedPortfolioId
+  const isAggregateView = selectedPortfolioId === null
+  const hasAggregateMetrics = Boolean(isAggregateView && aggregate && portfolios.length > 1)
+  const filteredSections = selectedPortfolioId
     ? portfolios.filter(section => section.portfolioId === selectedPortfolioId)
     : portfolios
   const sectionsToRender = filteredSections.length > 0 ? filteredSections : portfolios
