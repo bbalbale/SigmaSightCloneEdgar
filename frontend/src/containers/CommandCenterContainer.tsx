@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useMemo, useState } from 'react'
 import { useCommandCenterData } from '@/hooks/useCommandCenterData'
 import { usePortfolioStore } from '@/stores/portfolioStore'
 import { HeroMetricsRow } from '@/components/command-center/HeroMetricsRow'
@@ -28,10 +28,26 @@ export function CommandCenterContainer() {
     ? portfolios.filter(section => section.portfolioId === selectedPortfolioId)
     : portfolios
   const sectionsToRender = filteredSections.length > 0 ? filteredSections : portfolios
+
+  const aggregatePortfolioCount = useMemo(() => {
+    if (!aggregate) {
+      return 0
+    }
+    const ids = new Set<string>()
+    aggregate.holdings.forEach(holding => {
+      if (holding.portfolio_id) {
+        ids.add(holding.portfolio_id)
+      }
+    })
+    return ids.size
+  }, [aggregate])
+
+  const multiPortfolioActive = aggregatePortfolioCount > 1 || totalPortfolios > 1
   const showAggregateSection = Boolean(
-    isAggregateView && aggregate && sectionsToRender.length > 1 && totalPortfolios > 1
+    isAggregateView && aggregate && multiPortfolioActive
   )
-  const showPortfolioBadge = isAggregateView && sectionsToRender.length > 1
+  const showAccountSummary = showAggregateSection
+  const showPortfolioBadge = isAggregateView && multiPortfolioActive && sectionsToRender.length > 1
 
   const emptyHeroMetrics = {
     equityBalance: 0,
@@ -168,12 +184,14 @@ export function CommandCenterContainer() {
         </div>
       </div>
 
-      {/* Account Summary Card - Multi-Portfolio Feature (November 3, 2025) */}
-      <section className="px-4 pt-4">
-        <div className="container mx-auto">
-          <AccountSummaryCard />
-        </div>
-      </section>
+      {/* Account Summary Card - only show in aggregate multi-portfolio view */}
+      {showAccountSummary && (
+        <section className="px-4 pt-4">
+          <div className="container mx-auto">
+            <AccountSummaryCard />
+          </div>
+        </section>
+      )}
 
       {showAggregateSection && aggregate && (
         <>
