@@ -16,7 +16,7 @@ class BatchRunTracking(Base):
     """
     Tracks batch processing runs for automatic backfill and monitoring
 
-    Used by BatchOrchestratorV3 to:
+    Used by the BatchOrchestrator to:
     - Detect gaps in processing (automatic backfill)
     - Monitor performance metrics per phase
     - Debug failed runs

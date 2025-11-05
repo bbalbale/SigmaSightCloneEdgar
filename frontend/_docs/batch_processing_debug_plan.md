@@ -48,6 +48,7 @@ This document captures the issues observed in the backend batch-processing stack
 - Drop the dormant `batch_orchestrator_v1` and `batch_orchestrator_v2` modules (after confirming no runtime references) so there is one authoritative orchestrator. **Status:** File rename complete; all runtime imports now point to `batch_orchestrator.py` (2025-11-07).
 
 ### Workstream B - Data Integrity
+- Added `backend/scripts/analysis/diagnose_equity_cash.py` to compare equity, NAV, position marks, and derived cash for any date (2025-11-07).
 - Update `_update_all_position_market_values` to continue past missing prices but append them to an error payload persisted in the batch summary.
 - Add a retry or fallback for `MarketDataCache` fetches (second pass using an earlier trading day) to minimize dropped pricing.
 - Replace the hard-coded zero `cash_value` in `backend/app/calculations/snapshots.py:501` with a derived calculation. Cash should equal `portfolio.equity_balance - net_long_invested`, which for long-only portfolios is the residual equity not deployed in positions, defaults to zero when all equity is invested, and becomes positive for net-short exposures. Ensure realized and unrealized P&L, plus external contributions and withdrawals, flow through equity before deriving cash.
