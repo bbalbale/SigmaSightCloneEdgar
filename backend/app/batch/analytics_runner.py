@@ -166,29 +166,35 @@ class AnalyticsRunner:
             job_start = loop.time()
             success_flag = False
             message: Optional[str] = None
+            extra_payload: Dict[str, Any] = {}
 
             try:
-                success_flag = bool(await job_func(db, portfolio_id, calculation_date))
+                raw_result = await job_func(db, portfolio_id, calculation_date)
+                success_flag, message, extra_payload = self._normalize_job_result(raw_result)
                 if success_flag:
                     completed += 1
                     logger.debug(f"    OK {job_name}")
                 else:
-                    message = "Job returned falsy result"
-                    logger.warning(f"    WARN {job_name} (skipped or failed)")
+                    if not message:
+                        message = "Job returned falsy result"
+                    logger.warning(f"    WARN {job_name}: {message}")
             except Exception as e:
                 import traceback
+                success_flag = False
                 message = str(e)
                 logger.error(f"    FAIL {job_name} error: {e}")
                 logger.error(f"    Traceback: {traceback.format_exc()}")
             finally:
                 duration = loop.time() - job_start
-                job_record = {
+                job_record: Dict[str, Any] = {
                     'name': job_name,
                     'success': success_flag,
                     'duration_seconds': round(duration, 3),
                 }
                 if message:
                     job_record['message'] = message
+                if extra_payload:
+                    job_record['details'] = extra_payload
 
                 job_results.append(job_record)
                 record_metric(
@@ -215,6 +221,38 @@ class AnalyticsRunner:
             'completed_count': completed,
             'jobs': job_results,
         }
+
+    def _normalize_job_result(self, raw_result: Any) -> (bool, Optional[str], Dict[str, Any]):
+        """
+        Normalize mixed return types from analytics jobs into a common structure.
+
+        Supported formats:
+            - bool
+            - (success, message)
+            - (success, message, details_dict)
+            - dict with keys: success (bool) and optional message/details
+        """
+        message: Optional[str] = None
+        extra: Dict[str, Any] = {}
+
+        if isinstance(raw_result, dict):
+            success = bool(raw_result.get('success'))
+            message = raw_result.get('message') or raw_result.get('reason') or raw_result.get('error')
+            extra = {
+                key: value
+                for key, value in raw_result.items()
+                if key not in {'success', 'message'}
+            }
+        elif isinstance(raw_result, (tuple, list)):
+            success = bool(raw_result[0]) if raw_result else False
+            if len(raw_result) > 1:
+                message = raw_result[1]
+            if len(raw_result) > 2 and isinstance(raw_result[2], dict):
+                extra = raw_result[2]
+        else:
+            success = bool(raw_result)
+
+        return success, message, extra
 
     async def _calculate_market_beta(
         self,
@@ -335,7 +373,7 @@ class AnalyticsRunner:
         db: AsyncSession,
         portfolio_id: UUID,
         calculation_date: date
-    ) -> bool:
+    ) -> Dict[str, Any]:
         """Calculate volatility metrics (21d, 63d, 252d)"""
         try:
             from app.calculations.volatility_analytics import calculate_portfolio_volatility_batch
@@ -346,11 +384,24 @@ class AnalyticsRunner:
                 calculation_date=calculation_date
             )
 
-            return result is not None
+            success = bool(result.get('success'))
+            message = result.get('message')
+            if not success and not message:
+                failure_reasons = result.get('failure_reasons') or []
+                if failure_reasons:
+                    message = f"Failed for {len(failure_reasons)} positions (example reason: {failure_reasons[0].get('reason')})"
+            return {
+                'success': success,
+                'message': message,
+                'details': result,
+            }
 
         except Exception as e:
             logger.warning(f"Volatility analytics calculation failed: {e}")
-            return False
+            return {
+                'success': False,
+                'message': str(e),
+            }
 
     async def _calculate_correlations(
         self,
@@ -382,7 +433,7 @@ class AnalyticsRunner:
         db: AsyncSession,
         portfolio_id: UUID,
         calculation_date: date
-    ) -> bool:
+    ) -> Dict[str, Any]:
         """Run comprehensive stress test and save results"""
         try:
             from app.calculations.stress_testing import (
@@ -401,21 +452,36 @@ class AnalyticsRunner:
 
             # Check if results were returned
             if not stress_results:
-                logger.warning(f"Stress testing returned no results for portfolio {portfolio_id}")
-                return False
+                message = "Stress testing did not return any results."
+                logger.warning(message)
+                return {
+                    'success': False,
+                    'message': message,
+                }
 
             # Check if stress test was skipped (happens for portfolios with no factor exposures)
             stress_test_data = stress_results.get('stress_test_results', {})
             if stress_test_data.get('skipped'):
                 reason = stress_test_data.get('reason', 'unknown')
-                logger.info(f"Stress testing skipped for portfolio {portfolio_id}: {reason}")
-                return True  # Not an error, just skipped
+                info_message = f"Stress testing skipped: {reason}"
+                logger.info(f"{info_message} for portfolio {portfolio_id}")
+                return {
+                    'success': True,
+                    'message': info_message,
+                    'skipped': True,
+                    'details': stress_results,
+                }
 
             # Check if any scenarios were tested
             scenarios_tested = stress_results.get('config_metadata', {}).get('scenarios_tested', 0)
             if scenarios_tested == 0:
-                logger.warning(f"Stress testing ran but tested 0 scenarios for portfolio {portfolio_id}")
-                return False
+                message = "Stress testing ran but produced zero scenarios."
+                logger.warning(f"{message} for portfolio {portfolio_id}")
+                return {
+                    'success': False,
+                    'message': message,
+                    'details': stress_results,
+                }
 
             logger.info(f"Stress test completed with {scenarios_tested} scenarios, saving results...")
 
@@ -427,13 +493,23 @@ class AnalyticsRunner:
             )
 
             logger.info(f"Saved {saved_count} stress test results to database")
-            return saved_count > 0
+            return {
+                'success': saved_count > 0,
+                'message': None if saved_count > 0 else "Stress results failed to persist.",
+                'details': {
+                    'scenarios_tested': scenarios_tested,
+                    'saved_count': saved_count,
+                },
+            }
 
         except Exception as e:
             import traceback
             logger.error(f"Stress testing calculation failed: {e}")
             logger.error(f"Traceback: {traceback.format_exc()}")
-            return False
+            return {
+                'success': False,
+                'message': str(e),
+            }
 
 
 # Global instance

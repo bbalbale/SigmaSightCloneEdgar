@@ -44,7 +44,7 @@ async def calculate_position_volatility(
     position_id: UUID,
     calculation_date: date,
     min_observations: int = 63
-) -> Optional[Dict[str, Any]]:
+) -> Dict[str, Any]:
     """
     Calculate volatility metrics for a single position.
 
@@ -73,7 +73,11 @@ async def calculate_position_volatility(
         position = result.scalar_one_or_none()
         if not position:
             logger.warning(f"Position {position_id} not found")
-            return None
+            return {
+                'success': False,
+                'reason': 'position_not_found',
+                'position_id': str(position_id)
+            }
 
         # For options, use underlying symbol for volatility calculation
         # For equities/other assets, use the position symbol
@@ -99,7 +103,12 @@ async def calculate_position_volatility(
             logger.warning(
                 f"No price data available for {symbol_for_volatility} (position: {position.symbol})"
             )
-            return None
+            return {
+                'success': False,
+                'reason': 'no_price_data',
+                'symbol': symbol_for_volatility,
+                'position_symbol': position.symbol,
+            }
 
         # Extract returns series for this symbol
         returns = returns_df[symbol_for_volatility].dropna()
@@ -109,7 +118,14 @@ async def calculate_position_volatility(
                 f"Insufficient returns for {position.symbol}: "
                 f"{len(returns)} < {min_observations} required"
             )
-            return None
+            return {
+                'success': False,
+                'reason': 'insufficient_observations',
+                'observations': len(returns),
+                'required': min_observations,
+                'symbol': symbol_for_volatility,
+                'position_symbol': position.symbol,
+            }
 
         # Calculate realized volatility at different horizons
         vol_21d = _calculate_realized_vol(returns, window=21)
@@ -343,7 +359,24 @@ async def save_position_volatility(
 
         # Note: Do NOT commit here - let caller manage transaction boundaries
         # Committing expires session objects and causes greenlet errors
-        return True
+        return {
+            'success': True,
+            'data': {
+                'position_id': position_id,
+                'calculation_date': calculation_date,
+                'realized_vol_21d': vol_21d,
+                'realized_vol_63d': vol_63d,
+                'vol_daily': vol_daily,
+                'vol_weekly': vol_weekly,
+                'vol_monthly': vol_monthly,
+                'expected_vol_21d': expected_vol,
+                'vol_trend': trend,
+                'vol_trend_strength': vol_trend_strength,
+                'vol_percentile': vol_percentile,
+                'observations': len(returns),
+                'model_r_squared': r_squared,
+            }
+        }
 
     except Exception as e:
         logger.error(f"Error saving position volatility: {e}", exc_info=True)
@@ -398,14 +431,17 @@ async def calculate_portfolio_volatility_batch(
         positions_processed = 0
         positions_failed = 0
 
+        failure_reasons: List[Dict[str, Any]] = []
+
         for position in positions:
-            vol_data = await calculate_position_volatility(
+            vol_result = await calculate_position_volatility(
                 db=db,
                 position_id=position.id,
                 calculation_date=calculation_date
             )
 
-            if vol_data:
+            if vol_result.get('success'):
+                vol_data = vol_result['data']
                 # Save to database
                 saved = await save_position_volatility(db, vol_data)
                 if saved:
@@ -413,8 +449,20 @@ async def calculate_portfolio_volatility_batch(
                     positions_processed += 1
                 else:
                     positions_failed += 1
+                    failure_reasons.append({
+                        'position_id': str(position.id),
+                        'reason': 'save_failed'
+                    })
             else:
                 positions_failed += 1
+                failure_reasons.append({
+                    'position_id': str(position.id),
+                    'reason': vol_result.get('reason', 'unknown'),
+                    'details': {
+                        k: v for k, v in vol_result.items()
+                        if k not in {'success', 'reason'}
+                    }
+                })
 
         # Calculate portfolio-level volatility
         portfolio_vol = await calculate_portfolio_volatility(
@@ -423,12 +471,22 @@ async def calculate_portfolio_volatility_batch(
             calculation_date=calculation_date
         )
 
+        success = positions_processed > 0 and portfolio_vol is not None
+        error_message = None
+        if not success:
+            if positions_processed == 0:
+                error_message = "No position volatilities calculated (insufficient data?)."
+            elif portfolio_vol is None:
+                error_message = "Failed to compute portfolio-level volatility."
+
         return {
-            'success': True,
+            'success': success,
             'portfolio_volatility': portfolio_vol,
             'position_volatilities': position_results,
             'positions_processed': positions_processed,
-            'positions_failed': positions_failed
+            'positions_failed': positions_failed,
+            'failure_reasons': failure_reasons,
+            'message': error_message,
         }
 
     except Exception as e:

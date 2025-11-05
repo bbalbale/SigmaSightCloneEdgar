@@ -56,8 +56,8 @@ This document captures the issues observed in the backend batch-processing stack
 
 ### Workstream C - Analytics Reliability
 - Refactor the `analytics_runner` job loop to aggregate success metrics per analytic and fail fast if prerequisites (market values or factor exposures) are missing. **Status:** Job-level telemetry, structured results, and coverage guard now recorded in `analytics_runner`/`batch_orchestrator` (2025-11-07).
-- Enhance volatility analytics (`backend/app/calculations/volatility_analytics.py:354`) with an explicit "insufficient observations" return code rather than silently returning `None`.
-- Ensure stress testing (`backend/app/calculations/stress_testing.py`) validates scenario coverage before persisting results; log scenarios skipped due to missing exposures.
+- Enhance volatility analytics (`backend/app/calculations/volatility_analytics.py`) with explicit failure reasons instead of silent `None`. **Status:** Jobs now report insufficient data via structured messages (2025-11-07).
+- Ensure stress testing (`backend/app/calculations/stress_testing.py`) validates scenario coverage before persisting results; log scenarios skipped due to missing exposures. **Status:** Stress job returns skip/failure reasons consumed by telemetry (2025-11-07).
 - Audit each orchestrator dependency script for undocumented side effects or ordering constraints; adjust the orchestration sequence only after confirming the calculations remain consistent.
 - Instrument structured telemetry at each phase boundary (start + summarized result) to aid debugging. **Status:** Added `phase_start`/`phase_result` logging with key counters in `batch_orchestrator` (2025-11-07).
 
