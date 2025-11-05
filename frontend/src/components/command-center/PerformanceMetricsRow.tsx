@@ -69,15 +69,6 @@ interface BetaCardProps {
 }
 
 function BetaCard({ label, beta90d, beta1y }: BetaCardProps) {
-  const getBetaInterpretation = (beta: number | null) => {
-    if (beta === null) return { text: "N/A", color: "text-secondary" }
-    if (beta > 1.2) return { text: "High risk", color: "text-orange-400" }
-    if (beta >= 0.8) return { text: "Moderate risk", color: "text-blue-400" }
-    return { text: "Low risk", color: "text-emerald-400" }
-  }
-
-  const interp = getBetaInterpretation(beta1y)
-
   return (
     <div className="themed-border-r p-3 transition-all duration-200 bg-secondary hover:bg-tertiary">
       {/* Label */}
@@ -86,25 +77,24 @@ function BetaCard({ label, beta90d, beta1y }: BetaCardProps) {
       </div>
 
       {beta1y !== null || beta90d !== null ? (
-        <div className="space-y-0.5">
-          {beta1y !== null && (
-            <div className="text-xs font-medium text-secondary">
-              <span className="text-2xl font-bold tabular-nums text-accent">
-                {beta1y.toFixed(2)}
+        <div className="space-y-1">
+          <div className="flex items-baseline gap-3">
+            <div className="flex flex-col">
+              <span className="text-2xl font-bold tabular-nums text-accent leading-tight">
+                {beta1y !== null ? beta1y.toFixed(2) : '—'}
               </span>
-              <span className="ml-1">1y</span>
-            </div>
-          )}
-          {beta90d !== null && (
-            <div className="text-xs font-medium text-secondary">
-              <span className="text-xl font-bold tabular-nums text-primary">
-                {beta90d.toFixed(2)}
+              <span className="text-[11px] uppercase text-secondary tracking-wide">
+                1 Year
               </span>
-              <span className="ml-1">90d</span>
             </div>
-          )}
-          <div className={`text-[10px] font-semibold ${interp.color}`}>
-            {interp.text}
+            <div className="flex flex-col">
+              <span className="text-xl font-bold tabular-nums text-primary leading-tight">
+                {beta90d !== null ? beta90d.toFixed(2) : '—'}
+              </span>
+              <span className="text-[11px] uppercase text-secondary tracking-wide">
+                90 Days
+              </span>
+            </div>
           </div>
         </div>
       ) : (
