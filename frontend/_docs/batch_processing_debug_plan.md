@@ -44,7 +44,7 @@ This document captures the issues observed in the backend batch-processing stack
 ### Workstream A - CLI & Operator Experience
 - Replace mojibake banners with ASCII banners and add a `--phase` filter flag. **Status:** Completed in `run_batch.py` (2025-11-07).
 - Ensure the CLI script imports the canonical orchestrator (`app.batch.batch_orchestrator.batch_orchestrator`). **Status:** Completed (2025-11-07).
-- Emit JSON summaries to stdout for automation consumers. **Status:** Pending.
+- Emit JSON summaries to stdout for automation consumers. **Status:** `run_batch.py` now supports `--summary-json` (2025-11-07).
 - Drop the dormant `batch_orchestrator_v1` and `batch_orchestrator_v2` modules (after confirming no runtime references) so there is one authoritative orchestrator. **Status:** File rename complete; all runtime imports now point to `batch_orchestrator.py` (2025-11-07).
 
 ### Workstream B - Data Integrity

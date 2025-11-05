@@ -10,6 +10,7 @@ better console output for operators.
 
 import argparse
 import asyncio
+import json
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -146,6 +147,7 @@ class BatchRunner:
         self,
         portfolio_id: Optional[str] = None,
         run_correlations: bool = False,
+        emit_json: bool = False,
     ) -> Dict[str, Any]:
         """Run batch processing workflow and print final summary."""
         print(f"\n{BANNER}")
@@ -171,6 +173,14 @@ class BatchRunner:
 
         self.results["total_duration"] = total_duration
         self.results["completed_at"] = datetime.now().isoformat()
+
+        if emit_json:
+            try:
+                summary_json = json.dumps(self.results, default=str, indent=2)
+                print("\nJSON Summary:\n" + summary_json)
+            except TypeError as exc:  # pragma: no cover - defensive
+                logger.error("Failed to serialize batch results: %s", exc, exc_info=True)
+
         return self.results
 
 
@@ -189,6 +199,11 @@ def main() -> None:
         action="store_true",
         help="Include correlation calculations (normally Tuesday only)",
     )
+    parser.add_argument(
+        "--summary-json",
+        action="store_true",
+        help="Print a JSON summary of batch results for automation consumers.",
+    )
     args = parser.parse_args()
 
     runner = BatchRunner()
@@ -198,6 +213,7 @@ def main() -> None:
             runner.run(
                 portfolio_id=args.portfolio,
                 run_correlations=args.correlations,
+                emit_json=args.summary_json,
             )
         )
     except KeyboardInterrupt:
