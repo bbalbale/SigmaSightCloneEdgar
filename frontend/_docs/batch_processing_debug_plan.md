@@ -54,7 +54,7 @@ This document captures the issues observed in the backend batch-processing stack
 - Replace the hard-coded zero `cash_value` in `backend/app/calculations/snapshots.py:501` with a derived calculation. Cash should equal `portfolio.equity_balance - net_long_invested`, which for long-only portfolios is the residual equity not deployed in positions, defaults to zero when all equity is invested, and becomes positive for net-short exposures. Ensure realized and unrealized P&L, plus external contributions and withdrawals, flow through equity before deriving cash.
 
 ### Workstream C - Analytics Reliability
-- Refactor the `analytics_runner` job loop to aggregate success metrics per analytic and fail fast if prerequisites (market values or factor exposures) are missing.
+- Refactor the `analytics_runner` job loop to aggregate success metrics per analytic and fail fast if prerequisites (market values or factor exposures) are missing. **Status:** Job-level telemetry and structured results now recorded in `analytics_runner` (2025-11-07).
 - Enhance volatility analytics (`backend/app/calculations/volatility_analytics.py:354`) with an explicit "insufficient observations" return code rather than silently returning `None`.
 - Ensure stress testing (`backend/app/calculations/stress_testing.py`) validates scenario coverage before persisting results; log scenarios skipped due to missing exposures.
 - Audit each orchestrator dependency script for undocumented side effects or ordering constraints; adjust the orchestration sequence only after confirming the calculations remain consistent.

@@ -14,7 +14,7 @@ Analytics:
 """
 import asyncio
 from datetime import date
-from typing import Dict, List, Any, Optional
+from typing import Any, Dict, List, Optional
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -22,6 +22,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.logging import get_logger
 from app.database import AsyncSessionLocal
 from app.models.users import Portfolio
+from app.telemetry.metrics import record_metric
 
 logger = get_logger(__name__)
 
@@ -91,18 +92,26 @@ class AnalyticsRunner:
         portfolios_processed = 0
         analytics_completed = 0
         errors = []
+        portfolio_reports: List[Dict[str, Any]] = []
 
         for portfolio in portfolios:
             try:
-                completed = await self.run_portfolio_analytics(
+                report = await self.run_portfolio_analytics(
                     portfolio_id=portfolio.id,
                     calculation_date=calculation_date,
                     db=db
                 )
 
                 portfolios_processed += 1
-                analytics_completed += completed
-
+                analytics_completed += report["completed_count"]
+                portfolio_reports.append(
+                    {
+                        'portfolio_id': str(portfolio.id),
+                        'portfolio_name': portfolio.name,
+                        'completed_count': report["completed_count"],
+                        'jobs': report["jobs"],
+                    }
+                )
             except Exception as e:
                 import traceback
                 logger.error(f"Error processing portfolio {portfolio.name}: {e}")
@@ -113,7 +122,8 @@ class AnalyticsRunner:
             'success': len(errors) == 0,
             'portfolios_processed': portfolios_processed,
             'analytics_completed': analytics_completed,
-            'errors': errors
+            'errors': errors,
+            'portfolio_reports': portfolio_reports,
         }
 
     async def run_portfolio_analytics(
@@ -121,7 +131,7 @@ class AnalyticsRunner:
         portfolio_id: UUID,
         calculation_date: date,
         db: AsyncSession
-    ) -> int:
+    ) -> Dict[str, Any]:
         """
         Run all analytics for a single portfolio
 
@@ -131,11 +141,13 @@ class AnalyticsRunner:
             db: Database session
 
         Returns:
-            Number of analytics successfully completed
+            Dictionary containing job-level results and completion counts
         """
         logger.info(f"  Running analytics for portfolio {portfolio_id}")
 
         completed = 0
+        job_results: List[Dict[str, Any]] = []
+        loop = asyncio.get_running_loop()
 
         # Define analytics to run (sequential to avoid session conflicts)
         analytics_jobs = [
@@ -151,17 +163,43 @@ class AnalyticsRunner:
 
         # Run analytics sequentially (single session can't handle concurrent ops)
         for job_name, job_func in analytics_jobs:
+            job_start = loop.time()
+            success_flag = False
+            message: Optional[str] = None
+
             try:
-                success = await job_func(db, portfolio_id, calculation_date)
-                if success:
+                success_flag = bool(await job_func(db, portfolio_id, calculation_date))
+                if success_flag:
                     completed += 1
-                    logger.debug(f"    ✓ {job_name}")
+                    logger.debug(f"    OK {job_name}")
                 else:
-                    logger.warning(f"    ✗ {job_name} (skipped or failed)")
+                    message = "Job returned falsy result"
+                    logger.warning(f"    WARN {job_name} (skipped or failed)")
             except Exception as e:
                 import traceback
-                logger.error(f"    ✗ {job_name} error: {e}")
+                message = str(e)
+                logger.error(f"    FAIL {job_name} error: {e}")
                 logger.error(f"    Traceback: {traceback.format_exc()}")
+            finally:
+                duration = loop.time() - job_start
+                job_record = {
+                    'name': job_name,
+                    'success': success_flag,
+                    'duration_seconds': round(duration, 3),
+                }
+                if message:
+                    job_record['message'] = message
+
+                job_results.append(job_record)
+                record_metric(
+                    "analytics_job_result",
+                    {
+                        'portfolio_id': str(portfolio_id),
+                        'calculation_date': calculation_date.isoformat(),
+                        **job_record,
+                    },
+                    source="analytics_runner",
+                )
 
         # Commit all analytics results at once (prevents object expiration between calcs)
         try:
@@ -173,7 +211,10 @@ class AnalyticsRunner:
             raise
 
         logger.info(f"    Analytics complete: {completed}/{len(analytics_jobs)}")
-        return completed
+        return {
+            'completed_count': completed,
+            'jobs': job_results,
+        }
 
     async def _calculate_market_beta(
         self,
