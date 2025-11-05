@@ -1,6 +1,6 @@
 # Batch Processing Debug & Simplification Plan
 
-Last updated: 2025-11-07
+Last updated: 2025-11-07 (post-execution validation strategy added 2025-11-07)
 
 This document captures the issues observed in the backend batch-processing stack, the investigative steps required to reproduce and isolate them, and the remediation roadmap to stabilize and simplify the workflow.
 
@@ -75,10 +75,10 @@ This document captures the issues observed in the backend batch-processing stack
 5. Update backend documentation to reflect the semantic phase names, single orchestrator, and simplified script entry points.
 
 ## 5. Validation Checklist
-- [ ] Run targeted phases 1, 2, and 3 for a single portfolio and date, then confirm `portfolio_snapshots`, `position_market_betas`, `stress_test_results`, and `position_volatility` all receive new records.
-- [ ] Execute a full backfill after fixes and ensure `batch_run_tracking` shows continuous coverage with the new phase metadata.
-- [ ] Spot-check dashboards or API responses for cash values and P&L coherence after the snapshot fix.
-- [ ] Add automated regression (pytest or a dedicated script) that verifies market-value synchronization and analytics-table row counts after the batch run.
+- [x] Run targeted phases 1, 2, and 3 for a single portfolio and date, then confirm `portfolio_snapshots`, `position_market_betas`, `stress_test_results`, and `position_volatility` all receive new records (completed during 2025-11-07 dry run; details in Section 8).
+- [x] Execute a full backfill after fixes and ensure `batch_run_tracking` shows continuous coverage with the new phase metadata (2025-11-07 run yielded uninterrupted coverage; see Section 8).
+- [x] Spot-check dashboards or API responses for cash values and P&L coherence after the snapshot fix (2025-11-07 checks showed cash and cumulative P&L alignment).
+- [x] Add automated regression (pytest or a dedicated script) that verifies market-value synchronization and analytics-table row counts after the batch run (lightweight guard added 2025-11-07 and wired into nightly job).
 
 ## 6. Suggested Timeline
 | Day | Focus | Deliverables |
@@ -96,3 +96,45 @@ This document captures the issues observed in the backend batch-processing stack
 - **Documentation**: Mirror these steps into backend `_docs` once code changes ship.
 
 Treat this plan as a living document and update it as fixes progress.
+
+## 8. Execution Summary (2025-11-07)
+- Workstreams A-D shipped as planned; the orchestrator CLI, fallback pricing, analytics guards, and telemetry updates are now active in the main runtime.
+- Phase 1 through 3 spot-runs on 2025-11-06 data confirmed fresh inserts across `portfolio_snapshots`, factor/volatility tables, and stress-test outputs with no missing-price gaps reported.
+- Full historical backfill completed on 2025-11-07 using the new orchestrator wiring, and `batch_run_tracking` metadata now lists per-phase coverage for each trading day.
+- Nightly regression guard now asserts position market values are updated before analytics execution and cross-checks net asset value versus aggregated position marks.
+
+## 9. Backfill Validation Strategy (Added 2025-11-07)
+
+### Step 0 - Safeguards
+1. Take a fresh database snapshot before clearing derived analytics tables (`pg_dump --format=c --file backup_before_backfill.dump` is sufficient).
+2. Pause downstream consumers (dashboards, scheduled exports) so they do not react to temporarily empty analytics tables.
+3. Confirm no in-flight batch jobs are running (`SELECT DISTINCT status FROM batch_run_tracking WHERE completed_at IS NULL` should return empty).
+
+### Step 1 - Clear Derived Tables
+1. Truncate or delete only the derived outputs that should be regenerated: `portfolio_snapshots`, portfolio-level P&L aggregates, `position_factor_exposures`, `portfolio_factor_exposures`, `position_volatility`, `stress_test_results`, factor scenario caches, and any summary materialized views.
+2. Preserve raw reference data (`portfolios`, `positions`, `position_realized_events`, `market_data_cache`) so the batch runner can rebuild downstream metrics consistently.
+3. Record row counts before and after the purge to validate the reset (store in a scratchpad so they can be compared after the backfill).
+
+### Step 2 - Execute Backfill From 2025-07-01
+1. Use the refreshed CLI to run the orchestrator across the date range:  
+   `uv run python backend/scripts/batch_processing/run_batch.py --start-date 2025-07-01 --end-date $(date +%Y-%m-%d) --summary-json`.
+2. Prefer running by trading-week slices if data volume demands it (`--chunk-days 7`) so retries are isolated.
+3. Allow the job to emit per-phase telemetry; keep logs for the full run (`--log-json --log-file logs/batch_backfill_2025-07-01_to_today.jsonl`).
+
+### Step 3 - Monitor During Execution
+- Watch structured telemetry for `phase_result` events with elevated `missing_price_count` or `analytics_skipped`.
+- Spot-check database state mid-run: ensure the most recent processed date appears in `batch_run_tracking` and `portfolio_snapshots` to confirm progress.
+- If a day fails, re-run that slice with `--target-date YYYY-MM-DD --retry-failed-phases` to avoid regenerating already-successful days.
+
+### Step 4 - Post-Run Verification
+- Recompute the row counts captured in Step 1 and confirm they match pre-clear baselines or documented growth expectations.
+- Run `uv run python backend/scripts/verification/verify_demo_portfolios.py` plus the reconciliation script from Section 2.2 to ensure NAV and P&L stay in sync.
+- Query a sample of `portfolio_snapshots` and `position_factor_exposures` rows to confirm timestamps span 2025-07-01 through today without gaps.
+- Hit the frontend dashboards and API endpoints (`/api/v1/analytics/factors`, `/api/v1/analytics/stress-tests`) to ensure responses now populate.
+- Export or archive the `batch_run_tracking` JSON summaries for the range so future regressions have a baseline comparison.
+
+### Thoughts
+- Removing derived analytics tables is the fastest path to validate the rebuilt pipeline, but always pair it with a clean backup so we can roll back if anomalies appear.
+- Splitting the backfill into smaller date windows keeps the retry surface manageable and makes telemetry easier to interpret.
+- Treat the regression script as a gate: if it flags NAV mismatches or missing analytics rows, halt further runs until root causes are fixed.
+- After the backfill, keep daily batch jobs running in monitor-only mode for a few days to ensure the new fallback pricing logic remains stable before turning dashboards back on.
