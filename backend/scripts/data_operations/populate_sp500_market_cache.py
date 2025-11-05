@@ -74,8 +74,10 @@ async def populate_historical_prices(db, symbols, start_date, end_date):
         try:
             print(f"[{idx}/{len(symbols)}] Fetching {symbol}...", end=" ", flush=True)
 
+            fetch_symbol = symbol.replace('.', '-')
+
             # Download data from yfinance
-            ticker = yf.Ticker(symbol)
+            ticker = yf.Ticker(fetch_symbol)
             fetch_end = end_date + timedelta(days=1)
             today = date.today()
             if fetch_end > today + timedelta(days=1):
@@ -283,7 +285,7 @@ async def show_sample_data(db):
         )
 
 
-async def main(start_date: date, end_date: date):
+async def main(start_date: date, end_date: date, symbols_override=None):
     """Main execution function."""
     start_time = datetime.now()
 
@@ -294,8 +296,12 @@ async def main(start_date: date, end_date: date):
     logger.info(f"{'='*80}\n")
 
     try:
-        # Step 1: Fetch S&P 500 tickers
-        symbols = fetch_sp500_tickers()
+        # Step 1: Fetch S&P 500 tickers (or use provided list)
+        if symbols_override:
+            symbols = symbols_override
+            logger.info(f"Using provided symbol list ({len(symbols)} symbols).")
+        else:
+            symbols = fetch_sp500_tickers()
 
         if not symbols:
             logger.error("❌ No symbols fetched. Exiting.")
@@ -370,6 +376,11 @@ def parse_args():
         type=str,
         help="End date (YYYY-MM-DD) for historical price backfill.",
     )
+    parser.add_argument(
+        "--symbols",
+        type=str,
+        help="Comma-separated list of specific tickers to process (overrides automatic S&P 500 fetch).",
+    )
     return parser.parse_args()
 
 
@@ -393,4 +404,8 @@ if __name__ == "__main__":
     if end_date < start_date:
         raise ValueError("end_date must be on or after start_date")
 
-    asyncio.run(main(start_date, end_date))
+    symbols_override = None
+    if args.symbols:
+        symbols_override = [s.strip() for s in args.symbols.split(",") if s.strip()]
+
+    asyncio.run(main(start_date, end_date, symbols_override=symbols_override))

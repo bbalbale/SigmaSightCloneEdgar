@@ -97,7 +97,8 @@ class MarketDataService:
         if yfinance_provider and yfinance_provider.provider_name == "YFinance":
             for symbol in symbols:
                 try:
-                    historical_data = await yfinance_provider.get_historical_prices(symbol, days=days_back)
+                    fetch_symbol = symbol.replace('.', '-')
+                    historical_data = await yfinance_provider.get_historical_prices(fetch_symbol, days=days_back)
 
                     if historical_data:
                         price_records = []
