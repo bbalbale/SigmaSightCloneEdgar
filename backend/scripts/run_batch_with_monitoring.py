@@ -14,7 +14,7 @@ import asyncio
 import logging
 from datetime import date
 from app.database import AsyncSessionLocal
-from app.batch.batch_orchestrator_v3 import batch_orchestrator_v3
+from app.batch.batch_orchestrator import batch_orchestrator
 from app.core.logging import get_logger
 
 # Set up detailed logging
@@ -55,7 +55,7 @@ async def run_batch_with_monitoring():
         print("🚀 Starting batch orchestrator v3...")
         print()
 
-        result = await batch_orchestrator_v3.run_daily_batch_sequence(
+        result = await batch_orchestrator.run_daily_batch_sequence(
             calculation_date=calc_date
         )
 

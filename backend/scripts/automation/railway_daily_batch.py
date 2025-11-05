@@ -148,7 +148,7 @@ async def run_batch_calculations_step() -> List[Dict[str, Any]]:
     Notes:
         Continues processing other portfolios if one fails
     """
-    from app.batch.batch_orchestrator_v3 import batch_orchestrator_v3 as batch_orchestrator_v2
+    from app.batch.batch_orchestrator import batch_orchestrator
 
     logger.info("=" * 60)
     logger.info("STEP 2: Batch Calculations (with per-portfolio market data sync)")
@@ -181,7 +181,7 @@ async def run_batch_calculations_step() -> List[Dict[str, Any]]:
             start_time = datetime.datetime.now()
 
             # Run all 8 calculation engines
-            batch_result = await batch_orchestrator_v2.run_daily_batch_sequence(
+            batch_result = await batch_orchestrator.run_daily_batch_sequence(
                 portfolio_id=str(portfolio.id)
             )
 

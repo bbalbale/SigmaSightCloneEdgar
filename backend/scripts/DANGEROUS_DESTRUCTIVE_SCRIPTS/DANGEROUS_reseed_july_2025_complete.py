@@ -18,7 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import AsyncSessionLocal
 from app.core.logging import get_logger
-from app.batch.batch_orchestrator_v3 import batch_orchestrator_v3 as batch_orchestrator_v2
+from app.batch.batch_orchestrator import batch_orchestrator
 
 logger = get_logger(__name__)
 
@@ -158,7 +158,7 @@ async def run_historical_batch_loop(start_date: date, end_date: date):
 
             try:
                 # Run batch processor for this specific date
-                result = await batch_orchestrator_v2.run_daily_batch_sequence(
+                result = await batch_orchestrator.run_daily_batch_sequence(
                     calculation_date=current_date
                 )
                 logger.info(f"Batch processing completed for {current_date}")

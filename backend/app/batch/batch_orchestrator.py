@@ -1,5 +1,5 @@
 """
-Batch Orchestrator V3 - Production-Ready 5-Phase Architecture with Automatic Backfill
+Batch Orchestrator - Production-Ready 5-Phase Architecture with Automatic Backfill
 
 Architecture:
 - Phase 1: Market Data Collection (1-year lookback)
@@ -18,6 +18,7 @@ Features:
 - Smart fundamentals fetching (3+ days after earnings)
 """
 import asyncio
+import json
 from datetime import date, timedelta
 from decimal import Decimal
 from typing import Dict, List, Any, Optional
@@ -36,23 +37,25 @@ from app.batch.market_data_collector import market_data_collector
 from app.batch.fundamentals_collector import fundamentals_collector
 from app.batch.pnl_calculator import pnl_calculator
 from app.batch.analytics_runner import analytics_runner
+from app.calculations.market_data import get_previous_trading_day_price
+from app.telemetry.metrics import record_metric
 
 logger = get_logger(__name__)
 
 
-class BatchOrchestratorV3:
+class BatchOrchestrator:
     """
     Main orchestrator for 3-phase batch processing with automatic backfill
 
     Usage:
         # Run with automatic backfill
-        await batch_orchestrator_v3.run_daily_batch_with_backfill()
+        await batch_orchestrator.run_daily_batch_with_backfill()
 
         # Run for specific date
-        await batch_orchestrator_v3.run_daily_batch_sequence(date(2025, 7, 1))
+        await batch_orchestrator.run_daily_batch_sequence(date(2025, 7, 1))
 
         # Run for specific portfolios
-        await batch_orchestrator_v3.run_daily_batch_sequence(
+        await batch_orchestrator.run_daily_batch_sequence(
             calculation_date=date(2025, 7, 1),
             portfolio_ids=['uuid1', 'uuid2']
         )
@@ -211,7 +214,7 @@ class BatchOrchestratorV3:
 
         # Phase 1: Market Data Collection
         try:
-            logger.info("\n--- Phase 1: Market Data Collection ---")
+            self._log_phase_start("phase_1", calculation_date, portfolio_ids)
             phase1_result = await market_data_collector.collect_daily_market_data(
                 calculation_date=calculation_date,
                 lookback_days=365,
@@ -219,6 +222,7 @@ class BatchOrchestratorV3:
                 portfolio_ids=portfolio_ids
             )
             result['phase_1'] = phase1_result
+            self._log_phase_result("phase_1", phase1_result)
 
             if not phase1_result.get('success'):
                 result['errors'].append("Phase 1 failed")
@@ -231,12 +235,13 @@ class BatchOrchestratorV3:
 
         # Phase 1.5: Fundamental Data Collection
         try:
-            logger.info("\n--- Phase 1.5: Fundamental Data Collection ---")
+            self._log_phase_start("phase_1_5", calculation_date, portfolio_ids)
             phase15_result = await fundamentals_collector.collect_fundamentals_data(
                 db=db,
                 portfolio_ids=portfolio_ids
             )
             result['phase_1_5'] = phase15_result
+            self._log_phase_result("phase_1_5", phase15_result)
 
             if not phase15_result.get('success'):
                 logger.warning("Phase 1.5 had errors, continuing to Phase 2")
@@ -249,13 +254,14 @@ class BatchOrchestratorV3:
 
         # Phase 2: P&L & Snapshots
         try:
-            logger.info("\n--- Phase 2: P&L Calculation & Snapshots ---")
+            self._log_phase_start("phase_2", calculation_date, portfolio_ids)
             phase2_result = await pnl_calculator.calculate_all_portfolios_pnl(
                 calculation_date=calculation_date,
                 db=db,
                 portfolio_ids=portfolio_ids
             )
             result['phase_2'] = phase2_result
+            self._log_phase_result("phase_2", phase2_result)
 
             if not phase2_result.get('success'):
                 result['errors'].append("Phase 2 had errors")
@@ -268,13 +274,14 @@ class BatchOrchestratorV3:
 
         # Phase 2.5: Update Position Market Values (CRITICAL for Phase 3 analytics)
         try:
-            logger.info("\n--- Phase 2.5: Update Position Market Values ---")
+            self._log_phase_start("phase_2_5", calculation_date, portfolio_ids)
             phase25_result = await self._update_all_position_market_values(
                 calculation_date=calculation_date,
                 db=db,
                 portfolio_ids=portfolio_ids
             )
             result['phase_2_5'] = phase25_result
+            self._log_phase_result("phase_2_5", phase25_result)
 
             if not phase25_result.get('success'):
                 logger.warning("Phase 2.5 had errors, continuing to Phase 2.75")
@@ -287,12 +294,13 @@ class BatchOrchestratorV3:
 
         # Phase 2.75: Restore Sector Tags from Company Profiles
         try:
-            logger.info("\n--- Phase 2.75: Restore Sector Tags ---")
+            self._log_phase_start("phase_2_75", calculation_date, portfolio_ids)
             phase275_result = await self._restore_all_sector_tags(
                 db=db,
                 portfolio_ids=portfolio_ids
             )
             result['phase_2_75'] = phase275_result
+            self._log_phase_result("phase_2_75", phase275_result)
 
             if not phase275_result.get('success'):
                 logger.warning("Phase 2.75 had errors, continuing to Phase 3")
@@ -305,13 +313,14 @@ class BatchOrchestratorV3:
 
         # Phase 3: Risk Analytics
         try:
-            logger.info("\n--- Phase 3: Risk Analytics ---")
+            self._log_phase_start("phase_3", calculation_date, portfolio_ids)
             phase3_result = await analytics_runner.run_all_portfolios_analytics(
                 calculation_date=calculation_date,
                 db=db,
                 portfolio_ids=portfolio_ids
             )
             result['phase_3'] = phase3_result
+            self._log_phase_result("phase_3", phase3_result)
 
             if not phase3_result.get('success'):
                 result['errors'].append("Phase 3 had errors")
@@ -393,10 +402,35 @@ class BatchOrchestratorV3:
 
             positions_updated = 0
             positions_skipped = 0
+            fallback_prices_used = 0
+            missing_price_symbols: List[str] = []
 
             for position in positions:
                 # Get current price from market_data_cache
                 current_price = price_map.get(position.symbol)
+
+                price_date_used = calculation_date
+
+                if current_price is None or current_price <= 0:
+                    fallback_price = await get_previous_trading_day_price(
+                        db=db,
+                        symbol=position.symbol,
+                        current_date=calculation_date,
+                        max_lookback_days=5,
+                    )
+                    if fallback_price:
+                        current_price, price_date_used = fallback_price
+                        fallback_prices_used += 1
+                        logger.debug(
+                            "  %s: using fallback price from %s",
+                            position.symbol,
+                            price_date_used,
+                        )
+                    else:
+                        positions_skipped += 1
+                        missing_price_symbols.append(position.symbol)
+                        logger.debug(f"  {position.symbol}: No price data available")
+                        continue
 
                 if current_price and current_price > 0:
 
@@ -416,20 +450,30 @@ class BatchOrchestratorV3:
                     position.unrealized_pnl = market_value - cost_basis
 
                     positions_updated += 1
-                    logger.debug(f"  {position.symbol}: price=${float(current_price):.2f}, market_value=${float(market_value):,.2f}")
-                else:
-                    positions_skipped += 1
-                    logger.debug(f"  {position.symbol}: No price data available")
+                    logger.debug(
+                        "  %s: price=%s (as of %s), market_value=%s",
+                        position.symbol,
+                        current_price,
+                        price_date_used,
+                        market_value,
+                    )
 
             # Commit all position updates
             await db.commit()
 
-            logger.info(f"Position market values updated: {positions_updated} updated, {positions_skipped} skipped")
+            logger.info(
+                "Position market values updated: %s updated, %s skipped, %s fallback prices",
+                positions_updated,
+                positions_skipped,
+                fallback_prices_used,
+            )
 
             return {
                 'success': True,
                 'positions_updated': positions_updated,
                 'positions_skipped': positions_skipped,
+                'price_fallbacks_used': fallback_prices_used,
+                'missing_price_symbols': missing_price_symbols,
                 'total_positions': len(positions)
             }
 
@@ -580,6 +624,80 @@ class BatchOrchestratorV3:
 
         return earliest_date
 
+    def _phase_status(self, phase_result: Dict[str, Any]) -> str:
+        """Normalize phase success payload into a status label."""
+        if not phase_result:
+            return 'skipped'
+
+        success = phase_result.get('success')
+        if success is True:
+            return 'success'
+        if success is False:
+            return 'failed'
+
+        return 'unknown'
+
+    def _log_phase_start(
+        self,
+        phase_name: str,
+        calculation_date: date,
+        portfolio_ids: Optional[List[UUID]],
+    ) -> None:
+        """Structured log when a phase begins."""
+        payload = {
+            "phase": phase_name,
+            "calculation_date": str(calculation_date),
+            "portfolio_scope": len(portfolio_ids) if portfolio_ids else "all",
+        }
+        record_metric("phase_start", payload)
+        logger.info(
+            "phase_start name=%s date=%s portfolios=%s",
+            phase_name,
+            calculation_date,
+            len(portfolio_ids) if portfolio_ids else "all",
+        )
+
+    def _log_phase_result(self, phase_name: str, result: Dict[str, Any]) -> None:
+        """Structured log summarizing a phase result."""
+        if not result:
+            logger.info("phase_result name=%s status=skipped", phase_name)
+            return
+
+        status = self._phase_status(result)
+        duration = result.get('duration_seconds')
+        extra_fields: Dict[str, Any] = {}
+
+        if phase_name == "phase_2_5":
+            extra_fields["positions_updated"] = result.get('positions_updated')
+            extra_fields["positions_skipped"] = result.get('positions_skipped')
+            extra_fields["price_fallbacks"] = result.get('price_fallbacks_used')
+            extra_fields["missing_symbols"] = result.get('missing_price_symbols')
+        elif phase_name == "phase_3":
+            extra_fields["portfolio_count"] = result.get('portfolios_processed')
+            extra_fields["analytics_completed"] = result.get('analytics_completed')
+        elif phase_name == "phase_2":
+            extra_fields["portfolios_processed"] = result.get('portfolios_processed')
+            extra_fields["snapshots_created"] = result.get('snapshots_created')
+        elif phase_name == "phase_1":
+            extra_fields["symbols_requested"] = result.get('symbols_requested')
+            extra_fields["symbols_fetched"] = result.get('symbols_fetched')
+            extra_fields["coverage_pct"] = result.get('data_coverage_pct')
+
+        payload = {
+            "phase": phase_name,
+            "status": status,
+            "duration": duration,
+            **{k: v for k, v in extra_fields.items() if v is not None},
+        }
+        record_metric("phase_result", payload)
+        logger.info(
+            "phase_result name=%s status=%s duration=%s extra=%s",
+            phase_name,
+            status,
+            duration,
+            extra_fields,
+        )
+
     async def _mark_batch_run_complete(
         self,
         db: AsyncSession,
@@ -594,6 +712,21 @@ class BatchOrchestratorV3:
         phase2 = batch_result.get('phase_2', {})
         phase3 = batch_result.get('phase_3', {})
 
+        phase15 = batch_result.get('phase_1_5', {})
+        phase25 = batch_result.get('phase_2_5', {})
+        phase275 = batch_result.get('phase_2_75', {})
+
+        extra_phase_status = {
+            "phase_1_5": self._phase_status(phase15),
+            "phase_2_5": self._phase_status(phase25),
+            "phase_2_75": self._phase_status(phase275),
+        }
+
+        needs_metadata = batch_result.get('errors') or any(
+            value not in ('success', 'skipped')
+            for value in extra_phase_status.values()
+        )
+
         tracking = BatchRunTracking(
             id=uuid4(),
             run_date=run_date,
@@ -606,7 +739,10 @@ class BatchOrchestratorV3:
             portfolios_processed=phase2.get('portfolios_processed'),
             symbols_fetched=phase1.get('symbols_fetched'),
             data_coverage_pct=phase1.get('data_coverage_pct'),
-            error_message='; '.join(batch_result.get('errors', [])) if batch_result.get('errors') else None,
+            error_message=json.dumps({
+                'errors': batch_result.get('errors', []),
+                'phase_status': extra_phase_status
+            }) if needs_metadata else None,
             completed_at=datetime.now(timezone.utc)
         )
 
@@ -617,4 +753,4 @@ class BatchOrchestratorV3:
 
 
 # Global instance
-batch_orchestrator_v3 = BatchOrchestratorV3()
+batch_orchestrator = BatchOrchestrator()

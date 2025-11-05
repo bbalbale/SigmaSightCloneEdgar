@@ -24,7 +24,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import AsyncSessionLocal
 from app.core.logging import get_logger
-from app.batch.batch_orchestrator_v3 import batch_orchestrator_v3
+from app.batch.batch_orchestrator import batch_orchestrator
 from app.utils.trading_calendar import trading_calendar
 from app.services.portfolio_aggregation_service import PortfolioAggregationService
 from app.models.users import User
@@ -158,7 +158,7 @@ async def run_v3_backfill(target_date: date):
     logger.info(f"Target date: {target_date}")
     logger.info("")
 
-    result = await batch_orchestrator_v3.run_daily_batch_with_backfill(
+    result = await batch_orchestrator.run_daily_batch_with_backfill(
         target_date=target_date
     )
 

@@ -167,9 +167,9 @@ def mock_batch_orchestrator(monkeypatch):
         }
 
     try:
-        from app.batch.batch_orchestrator_v3 import batch_orchestrator_v3
+        from app.batch.batch_orchestrator import batch_orchestrator
         monkeypatch.setattr(
-            batch_orchestrator_v3,
+            batch_orchestrator,
             "run_daily_batch_sequence",
             mock_run_batch
         )

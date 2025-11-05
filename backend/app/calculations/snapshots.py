@@ -43,7 +43,7 @@ async def create_portfolio_snapshot(
     Note:
         When skip_pnl_calculation=True, the caller is responsible for setting
         equity_balance, daily_pnl, daily_return, and cumulative_pnl on the snapshot.
-        This is used by BatchOrchestratorV3 Phase 2 (PnLCalculator).
+        This is used by the BatchOrchestrator Phase 2 (PnLCalculator).
     """
     logger.info(f"Creating portfolio snapshot for {portfolio_id} on {calculation_date}")
     
@@ -122,6 +122,7 @@ async def create_portfolio_snapshot(
                 "positions_processed": len(active_positions),
                 "net_asset_value": float(today_equity),
                 "daily_pnl": float(pnl_data['daily_pnl']),
+                "cash_value": float(snapshot.cash_value or Decimal('0')),
                 "warnings": position_data.get('warnings', [])
             }
         }
@@ -351,6 +352,20 @@ async def _create_or_update_snapshot(
         market_beta_records = market_beta_result.scalars().all()
         logger.info(f"Using beta data from {latest_beta_date} for snapshot {calculation_date}")
 
+    # Calculate cash from equity minus deployed capital (long usage minus short proceeds)
+    long_exposure = aggregations.get('long_exposure', Decimal('0'))
+    short_exposure = aggregations.get('short_exposure', Decimal('0'))
+    short_proceeds = abs(short_exposure)
+    calculated_cash = today_equity - long_exposure + short_proceeds
+    cash_value = calculated_cash if calculated_cash > Decimal('0') else Decimal('0')
+    logger.debug(
+        "Derived cash for snapshot: equity=%s, long=%s, short_proceeds=%s, cash=%s",
+        today_equity,
+        long_exposure,
+        short_proceeds,
+        cash_value,
+    )
+
     # Calculate portfolio-level calculated beta (90-day OLS regression, equity-weighted average)
     beta_calculated_90d = None
     beta_calculated_90d_r_squared = None
@@ -498,7 +513,7 @@ async def _create_or_update_snapshot(
         "portfolio_id": portfolio_id,
         "snapshot_date": calculation_date,
         "net_asset_value": today_equity,
-        "cash_value": Decimal('0'),  # Fully invested assumption
+        "cash_value": cash_value,
         "long_value": aggregations['long_exposure'],
         "short_value": aggregations['short_exposure'],
         "gross_exposure": aggregations['gross_exposure'],

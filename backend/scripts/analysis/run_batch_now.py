@@ -2,7 +2,7 @@
 import asyncio
 from datetime import date
 from app.database import AsyncSessionLocal
-from app.batch.batch_orchestrator_v3 import batch_orchestrator_v3
+from app.batch.batch_orchestrator import batch_orchestrator
 from app.utils.trading_calendar import trading_calendar
 
 async def run_batch():
@@ -18,7 +18,7 @@ async def run_batch():
         print(f"Using calculation date: {calculation_date} (most recent with complete data)")
         print()
 
-        await batch_orchestrator_v3.run_daily_batch_sequence(db=db, calculation_date=calculation_date)
+        await batch_orchestrator.run_daily_batch_sequence(db=db, calculation_date=calculation_date)
 
     print()
     print("=" * 80)

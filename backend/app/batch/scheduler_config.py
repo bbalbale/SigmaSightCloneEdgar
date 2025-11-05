@@ -12,7 +12,7 @@ import pytz
 
 from app.config import settings
 from app.core.logging import get_logger
-from app.batch.batch_orchestrator_v3 import batch_orchestrator_v3 as batch_orchestrator
+from app.batch.batch_orchestrator import batch_orchestrator
 
 logger = get_logger(__name__)
 

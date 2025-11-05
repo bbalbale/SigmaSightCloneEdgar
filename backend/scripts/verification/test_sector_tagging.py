@@ -28,7 +28,7 @@ async def test_imports():
         return False
 
     try:
-        from app.batch.batch_orchestrator_v3 import batch_orchestrator_v3
+        from app.batch.batch_orchestrator import batch_orchestrator
         print("[PASS] Batch orchestrator v3 imports successfully")
     except ImportError as e:
         print(f"[FAIL] Batch orchestrator v3 import failed: {e}")

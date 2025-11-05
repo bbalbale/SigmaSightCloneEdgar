@@ -12,7 +12,7 @@ from sqlalchemy import select
 
 from app.core.dependencies import get_db, require_admin
 from app.database import AsyncSessionLocal
-from app.batch.batch_orchestrator_v3 import batch_orchestrator_v3 as batch_orchestrator
+from app.batch.batch_orchestrator import batch_orchestrator
 from app.batch.batch_run_tracker import batch_run_tracker, CurrentBatchRun
 from app.batch.market_data_collector import market_data_collector
 from app.core.logging import get_logger
@@ -324,4 +324,4 @@ async def restore_sector_tags(
 
 
 # Note: data-quality endpoints removed - data_quality module was deleted
-# V3 batch orchestrator handles data quality internally via market_data_collector
+# Batch orchestrator handles data quality internally via market_data_collector

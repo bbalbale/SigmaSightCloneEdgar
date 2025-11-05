@@ -22,7 +22,7 @@ from fastapi import HTTPException, BackgroundTasks
 
 from app.core.logging import get_logger
 from app.models.users import Portfolio
-from app.batch.batch_orchestrator_v3 import batch_orchestrator_v3 as batch_orchestrator
+from app.batch.batch_orchestrator import batch_orchestrator
 from app.batch.batch_run_tracker import batch_run_tracker, CurrentBatchRun
 from app.core.datetime_utils import utc_now
 

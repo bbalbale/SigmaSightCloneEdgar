@@ -8,13 +8,13 @@ Testing Philosophy:
 - No repeated API calls
 - Focus on integration points
 
-Updated for batch_orchestrator_v3 (November 2, 2025)
+Updated for batch orchestrator (November 2, 2025)
 """
 import asyncio
 from datetime import date
 import pytest
 
-from app.batch.batch_orchestrator_v3 import batch_orchestrator_v3
+from app.batch.batch_orchestrator import batch_orchestrator
 
 
 # ============================================================================
@@ -22,7 +22,7 @@ from app.batch.batch_orchestrator_v3 import batch_orchestrator_v3
 # ============================================================================
 
 @pytest.mark.asyncio
-async def test_batch_orchestrator_v3_api_compatibility():
+async def test_batch_orchestrator_api_compatibility():
     """
     Verify onboarding/batch code uses v3 API correctly.
 
@@ -41,7 +41,7 @@ async def test_batch_orchestrator_v3_api_compatibility():
     print(f"   Date: {today}")
 
     # Test v3 API signature: run_daily_batch_sequence(calculation_date, portfolio_ids)
-    result = await batch_orchestrator_v3.run_daily_batch_sequence(
+    result = await batch_orchestrator.run_daily_batch_sequence(
         calculation_date=today,
         portfolio_ids=[portfolio_id]  # v3 expects list, not single ID
     )
@@ -88,7 +88,7 @@ async def test_multi_portfolio_api_signature():
     print(f"\n▶ Testing v3 with multiple portfolio IDs...")
     print(f"   Portfolios: {len(portfolio_ids)}")
 
-    result = await batch_orchestrator_v3.run_daily_batch_sequence(
+    result = await batch_orchestrator.run_daily_batch_sequence(
         calculation_date=today,
         portfolio_ids=portfolio_ids  # v3 should accept list
     )
@@ -116,7 +116,7 @@ async def test_all_portfolios_api_signature():
 
     print(f"\n▶ Testing v3 with portfolio_ids=None (all portfolios)...")
 
-    result = await batch_orchestrator_v3.run_daily_batch_sequence(
+    result = await batch_orchestrator.run_daily_batch_sequence(
         calculation_date=today,
         portfolio_ids=None  # v3 should process all portfolios
     )
