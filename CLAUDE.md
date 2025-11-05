@@ -225,7 +225,7 @@ NEXT_PUBLIC_BACKEND_API_URL=http://localhost:8000/api/v1
 ### Common Gotchas
 1. **Async/Sync Mixing**: Always use async patterns - mixing causes greenlet errors
 2. **UUID Handling**: Convert string UUIDs to UUID objects when needed
-3. **Batch Orchestrator Version**: Use `batch_orchestrator_v3`, NOT v2 (updated Oct 2025)
+3. **Batch Orchestrator Version**: Use `batch_orchestrator`, NOT v2 (updated Oct 2025)
 4. **Market Data Priority**: YFinance-first, NOT FMP (changed Oct 2025)
 5. **Strategy Endpoints**: All strategy endpoints removed (October 2025) - use tagging instead
 6. **Demo Data**: Always test with existing demo portfolios first (password: demo12345)
@@ -344,7 +344,7 @@ from app.models.market_data import PositionGreeks, PositionFactorExposure
 from app.database import get_async_session, AsyncSessionLocal
 
 # Batch processing (USE V3, NOT V2)
-from app.batch.batch_orchestrator_v3 import batch_orchestrator_v3
+from app.batch.batch_orchestrator import batch_orchestrator
 
 # Core utilities
 from app.config import settings
@@ -382,7 +382,7 @@ import { Button } from '@/components/ui/button'
 1. **Before Starting**: Read `backend/CLAUDE.md` for comprehensive backend reference
 2. **Check API Status**: Review `backend/_docs/reference/API_REFERENCE_V1.4.6.md`
 3. **Test Imports**: Use diagnostic commands from backend documentation
-4. **Implement**: Follow async patterns, use batch_orchestrator_v3
+4. **Implement**: Follow async patterns, use batch_orchestrator
 5. **Handle Errors**: Implement graceful degradation for missing data
 6. **Migrations**: Always use Alembic for database changes
 
@@ -416,7 +416,7 @@ uv run python -c "from app.models.users import User; print('✅ Models import su
 uv run python scripts/verification/check_database_content.py
 
 # Test batch processing v3
-uv run python -c "from app.batch.batch_orchestrator_v3 import batch_orchestrator_v3; print('✅ Batch v3 ready')"
+uv run python -c "from app.batch.batch_orchestrator import batch_orchestrator; print('✅ Batch v3 ready')"
 
 # Verify demo portfolios
 uv run python scripts/verification/verify_demo_portfolios.py
@@ -527,7 +527,7 @@ railway run python audit_railway_calculations_verbose.py
 
 - Main application code split between `backend/` and `frontend/` subdirectories
 - Always work from appropriate subdirectory when running commands
-- Backend uses batch_orchestrator_v3 (NOT v2) as of October 2025
+- Backend uses batch_orchestrator (NOT v2) as of October 2025
 - Market data priority is YFinance-first (NOT FMP) as of October 2025
 - Strategy system removed October 2025 - use position tagging instead
 - Frontend is client-side only - all pages use `'use client'` directive

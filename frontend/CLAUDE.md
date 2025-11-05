@@ -760,7 +760,7 @@ import strategiesApi from '@/services/strategiesApi'  // DON'T USE
 
 **Breaking Changes**:
 - Strategy endpoints removed October 2025 - use position tagging via tagsApi
-- Backend now uses batch_orchestrator_v3 (not v2)
+- Backend now uses batch_orchestrator (not v2)
 - Market data priority is YFinance-first (not FMP)
 
 The frontend follows a pragmatic, maintainable architecture with clear separation of concerns. All implementation details are documented in `_docs/requirements/` - always start there before implementing new features. Use tagsApi for position tagging as strategiesApi is deprecated.

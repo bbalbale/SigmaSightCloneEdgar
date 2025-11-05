@@ -32,7 +32,7 @@ End-to-end orchestration for nightly portfolio analytics, including market data 
    # Re-run only for a specific portfolio UUID
    uv run python scripts/batch_processing/run_batch.py --portfolio e23ab931-a033-edfe-ed4f-9d02474780b4
    ```
-   `run_batch.py` calls `batch_orchestrator_v3.run_daily_batch_with_backfill`, so it automatically processes any historical gaps.
+   `run_batch.py` calls `batch_orchestrator.run_daily_batch_with_backfill`, so it automatically processes any historical gaps.
 
 ---
 

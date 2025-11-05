@@ -46,7 +46,7 @@
    - ✅ OK: Adding new endpoints that don't conflict
 
 3. **Batch Orchestrator Changes**
-   - ❌ Modifying batch_orchestrator_v3 phase sequence
+   - ❌ Modifying batch_orchestrator phase sequence
    - ❌ Changing calculation engine execution order
    - ❌ Altering graceful degradation logic
    - ❌ Modifying market data provider priority (YFinance-first)
@@ -134,7 +134,7 @@
 - Follow async patterns consistently (avoid sync/async mixing)
 - Use the diagnostic commands from Part II
 - **ALWAYS use Alembic migrations** for database changes
-- Use `batch_orchestrator_v3`, NOT v2
+- Use `batch_orchestrator`, NOT v2
 - Follow YFinance-first market data priority
 
 ### **❌ DON'T:**
@@ -179,10 +179,10 @@ except Exception as e:
 **Batch Orchestrator:**
 ```python
 # Use v3, NOT v2
-from app.batch.batch_orchestrator_v3 import batch_orchestrator_v3
+from app.batch.batch_orchestrator import batch_orchestrator
 
 # Run batch processing
-await batch_orchestrator_v3.run_batch_sequence()
+await batch_orchestrator.run_batch_sequence()
 ```
 
 ### **Task Management**
@@ -216,7 +216,7 @@ await batch_orchestrator_v3.run_batch_sequence()
 - Graceful handling of known issues
 - Updated documentation for future agents
 - Working code that follows established patterns
-- Uses batch_orchestrator_v3
+- Uses batch_orchestrator
 - Respects YFinance-first market data priority
 
 ---
@@ -241,7 +241,7 @@ backend/
 │   │   └── history.py    - Historical data models
 │   │
 │   ├── batch/            - Batch processing framework
-│   │   ├── batch_orchestrator_v3.py - Main orchestration (3 phases + Phase 2.5) ⭐ USE THIS
+│   │   ├── batch_orchestrator.py - Main orchestration (3 phases + Phase 2.5) ⭐ USE THIS
 │   │   ├── batch_orchestrator_v2.py - DEPRECATED, DO NOT USE
 │   │   └── scheduler_config.py   - APScheduler configuration
 │   │
@@ -349,7 +349,7 @@ from app.database import get_async_session, AsyncSessionLocal
 ### **Batch Processing**
 ```python
 # Main batch orchestrator (USE V3, NOT V2)
-from app.batch.batch_orchestrator_v3 import batch_orchestrator_v3
+from app.batch.batch_orchestrator import batch_orchestrator
 
 # Individual calculation engines
 from app.calculations.greeks import calculate_position_greeks
@@ -491,7 +491,7 @@ else:
 ## ⚙️ Batch Processing System v3
 
 ### **Architecture Overview**
-**batch_orchestrator_v3** implements 3-phase processing with automatic backfill:
+**batch_orchestrator** implements 3-phase processing with automatic backfill:
 
 **Phase 1: Market Data Collection**
 - 1-year historical price lookback
@@ -527,13 +527,13 @@ else:
 ### **Batch Execution**
 ```python
 # Main entry point (USE V3)
-from app.batch.batch_orchestrator_v3 import batch_orchestrator_v3
+from app.batch.batch_orchestrator import batch_orchestrator
 
 # Run all portfolios
-await batch_orchestrator_v3.run_batch_sequence()
+await batch_orchestrator.run_batch_sequence()
 
 # Individual portfolio
-await batch_orchestrator_v3.run_batch_sequence(portfolio_id="uuid-string")
+await batch_orchestrator.run_batch_sequence(portfolio_id="uuid-string")
 
 # Manual trigger via API
 POST /api/v1/admin/batch/trigger
@@ -654,7 +654,7 @@ OPENAI_API_KEY=your_openai_key
 uv run python -c "
 from app.models.users import Portfolio
 from app.models.market_data import PositionGreeks
-from app.batch.batch_orchestrator_v3 import batch_orchestrator_v3
+from app.batch.batch_orchestrator import batch_orchestrator
 from app.database import get_async_session
 print('✅ All critical imports working')
 "
@@ -686,9 +686,9 @@ asyncio.run(check())
 ```bash
 # Verify batch orchestrator v3 imports
 uv run python -c "
-from app.batch.batch_orchestrator_v3 import batch_orchestrator_v3
+from app.batch.batch_orchestrator import batch_orchestrator
 print('✅ Batch orchestrator v3 ready')
-print(f'Phases: {batch_orchestrator_v3.get_phase_count()}')
+print(f'Phases: {batch_orchestrator.get_phase_count()}')
 "
 ```
 
@@ -743,8 +743,8 @@ railway run python scripts/railway/audit_railway_calculations_verbose.py
 ### **Import Errors**
 ```python
 # Error: "cannot import batch_orchestrator_v2"
-# Solution: Use v3 instead
-from app.batch.batch_orchestrator_v3 import batch_orchestrator_v3  # ✅ CORRECT
+# Solution: Use the current batch orchestrator module instead
+from app.batch.batch_orchestrator import batch_orchestrator  # ✅ CORRECT
 # from app.batch.batch_orchestrator_v2 import batch_orchestrator_v2  # ❌ DEPRECATED
 
 # Error: "greenlet_spawn has not been called"
@@ -801,7 +801,7 @@ except Exception as e:
 - **Endpoints**: `/api/v1/tags` for tag management, `/api/v1/position-tags` for tagging
 
 ### **Batch Orchestrator Version**
-- **Current**: batch_orchestrator_v3 (3 phases + Phase 2.5)
+- **Current**: batch_orchestrator (3 phases + Phase 2.5)
 - **Deprecated**: batch_orchestrator_v2 (DO NOT USE)
 - **Phase 2.5**: Position market value updates (added October 29, 2025)
 
@@ -856,7 +856,7 @@ except Exception as e:
 ## 💡 Efficiency Tips for AI Agents
 
 1. **Read Part II first** - saves 30-45 minutes of exploration
-2. **Use batch_orchestrator_v3** - v2 is deprecated
+2. **Use batch_orchestrator** - v2 is deprecated
 3. **Follow YFinance-first** - market data provider priority
 4. **Check API_REFERENCE_V1.4.6.md** for current endpoint status
 5. **Use existing demo data** rather than creating new test data
@@ -868,4 +868,4 @@ except Exception as e:
 
 ---
 
-**Remember**: This is a mature, production-ready codebase with 59 endpoints, comprehensive batch processing, risk metrics, and full frontend integration. Your job is to build on the solid foundation, handle known issues gracefully, use batch_orchestrator_v3, follow YFinance-first market data priority, and document new patterns for future AI agents. Part II is your roadmap - use it!
+**Remember**: This is a mature, production-ready codebase with 59 endpoints, comprehensive batch processing, risk metrics, and full frontend integration. Your job is to build on the solid foundation, handle known issues gracefully, use batch_orchestrator, follow YFinance-first market data priority, and document new patterns for future AI agents. Part II is your roadmap - use it!
