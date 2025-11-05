@@ -282,18 +282,18 @@ scripts/
 │   ├── monitor_provider_usage.py     ⭐ Monitor API usage/limits
 │   └── simple_monitor.py
 │
-├── manual_tests/        # Browser automation & manual testing
+├── _archive/manual_tests/     # Legacy browser automation & manual testing
 │   ├── test_chat_flow.js         (Puppeteer)
 │   ├── monitoring_session.js     (Puppeteer)
 │   ├── package.json
 │   ├── package-lock.json
 │   └── node_modules/
 │
-├── testing/             # Automated test scripts
+├── _archive/testing_suite/    # Legacy automated test scripts
 ├── analysis/            # Analysis and debugging tools
 ├── migrations/          # Active one-time fixes and migrations
 ├── utilities/           # General utility scripts
-└── test_api_providers/  # API provider testing
+└── _archive/test_api_providers/  # API provider testing
 
 Note: 38 completed/deprecated scripts archived to ../_archive/scripts/ (see _archive/scripts/README.md)
 ```
@@ -418,10 +418,8 @@ cd backend
 
 ### Testing 🧪
 - `testing/test_auth.py`
-- `testing/test_calculations.py`
-- `testing/test_market_data.py`
-- `manual_tests/test_chat_flow.js` (Puppeteer)
-- `manual_tests/monitoring_session.js` (Puppeteer)
+- Legacy ad-hoc suites have moved to `_archive/testing_suite/` and `_archive/manual_tests/`
+- Current automated coverage lives under `../tests/` (pytest)
 
 ---
 
@@ -522,3 +520,4 @@ uv run alembic upgrade head
 ---
 
 **Remember**: The first batch run takes longer as it fetches historical data. Subsequent runs are much faster!
+
