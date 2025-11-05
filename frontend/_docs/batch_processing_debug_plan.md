@@ -61,6 +61,7 @@ This document captures the issues observed in the backend batch-processing stack
 - Instrument structured telemetry at each phase boundary (start + summarized result) to aid debugging. **Status:** Added `phase_start`/`phase_result` logging with key counters in `batch_orchestrator` (2025-11-07).
 
 ### Workstream D - Monitoring & Reporting
+- Updated core documentation (CLAUDE.md, backend/CLAUDE.md, frontend/CLAUDE.md, onboarding requirements) to reference the canonical batch orchestrator and telemetry sink (2025-11-07).
 - Extend `batch_run_tracking` records with JSON metadata that captures per-phase success, symbol coverage, missing-price counts, and analytics job outcomes.
 - Create a thin reporting endpoint or script to surface recent batch history, highlighting days where Phase 3 analytics completed fewer than expected jobs.
 - Telemetry events now funnel through `backend/app/telemetry/metrics.py::record_metric`, which wraps structured logging and provides a single swap-point for future sinks (2025-11-07).

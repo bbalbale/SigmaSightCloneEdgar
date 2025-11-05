@@ -525,6 +525,7 @@ railway run python audit_railway_calculations_verbose.py
 
 ## Notes
 
+- Telemetry events from batch orchestrator phases flow through `app.telemetry.metrics.record_metric` (added Nov 2025).
 - Main application code split between `backend/` and `frontend/` subdirectories
 - Always work from appropriate subdirectory when running commands
 - Backend uses batch_orchestrator (NOT v2) as of October 2025

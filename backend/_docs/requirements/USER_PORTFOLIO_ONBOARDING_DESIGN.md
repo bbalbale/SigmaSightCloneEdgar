@@ -320,7 +320,7 @@ curl -X POST http://localhost:8000/api/v1/portfolio/a3209353-9ed5-4885-81e8-d4bb
 
 **Architecture Notes:**
 - This endpoint provides user-facing access to batch processing
-- Uses `batch_orchestrator_v3.run_daily_batch_sequence()` with current date and specific portfolio ID
+- Uses `batch_orchestrator.run_daily_batch_sequence()` with current date and specific portfolio ID
 - Validates portfolio ownership before triggering calculations
 - Returns immediately with batch_run_id for status tracking
 - Separate from `POST /admin/batch/run` which is admin-only and can process all portfolios
@@ -328,9 +328,9 @@ curl -X POST http://localhost:8000/api/v1/portfolio/a3209353-9ed5-4885-81e8-d4bb
 **Implementation Example:**
 ```python
 from datetime import date
-from app.batch.batch_orchestrator_v3 import batch_orchestrator_v3
+from app.batch.batch_orchestrator import batch_orchestrator
 
-result = await batch_orchestrator_v3.run_daily_batch_sequence(
+result = await batch_orchestrator.run_daily_batch_sequence(
     calculation_date=date.today(),
     portfolio_ids=[str(portfolio_id)],
     db=db
@@ -541,7 +541,7 @@ Authorization: Bearer <IMPERSONATION_TOKEN>
 | `ERR_BATCH_003` | Timeout | Batch took >60s | "Portfolio created but calculations are still running. Please refresh in a few minutes." |
 | `ERR_BATCH_004` | Database error during batch | DB write failures | "Portfolio created but unable to save calculation results. Please contact support." |
 
-**Design Pattern:** The batch orchestrator (`app/batch/batch_orchestrator_v3.py`) uses exception handling with graceful degradation. These error codes provide user-friendly messages for the onboarding flow while maintaining consistency with the existing batch system's error handling approach.
+**Design Pattern:** The batch orchestrator (`app/batch/batch_orchestrator.py`) uses exception handling with graceful degradation. These error codes provide user-friendly messages for the onboarding flow while maintaining consistency with the existing batch system's error handling approach.
 
 ### 4.6 Admin/Superuser Errors **[PHASE 2]**
 
