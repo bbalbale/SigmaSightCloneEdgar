@@ -9,6 +9,7 @@ This script:
 Target: ~503 S&P 500 companies
 Estimated time: 20-25 minutes total
 """
+import argparse
 import asyncio
 from datetime import date, datetime, timedelta
 from decimal import Decimal
@@ -75,7 +76,11 @@ async def populate_historical_prices(db, symbols, start_date, end_date):
 
             # Download data from yfinance
             ticker = yf.Ticker(symbol)
-            hist = ticker.history(start=start_date, end=end_date)
+            fetch_end = end_date + timedelta(days=1)
+            today = date.today()
+            if fetch_end > today + timedelta(days=1):
+                fetch_end = today + timedelta(days=1)
+            hist = ticker.history(start=start_date, end=fetch_end)
 
             if hist.empty:
                 print(f"[SKIP] No data available")
@@ -278,7 +283,7 @@ async def show_sample_data(db):
         )
 
 
-async def main():
+async def main(start_date: date, end_date: date):
     """Main execution function."""
     start_time = datetime.now()
 
@@ -299,9 +304,6 @@ async def main():
         logger.info(f"\nFirst 10 symbols: {', '.join(symbols[:10])}")
         logger.info(f"Last 10 symbols: {', '.join(symbols[-10:])}\n")
 
-        # Calculate date range (Jan 1, 2025 to today)
-        start_date = date(2025, 1, 1)
-        end_date = date.today()
         trading_days = (end_date - start_date).days  # Approximate
 
         logger.info(f"Date range: {start_date} to {end_date} (~{trading_days} calendar days)")
@@ -353,5 +355,42 @@ async def main():
         raise
 
 
+def parse_args():
+    parser = argparse.ArgumentParser(
+        description="Populate market_data_cache with S&P 500 historical prices and profiles.",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+    parser.add_argument(
+        "--start-date",
+        type=str,
+        help="Start date (YYYY-MM-DD) for historical price backfill.",
+    )
+    parser.add_argument(
+        "--end-date",
+        type=str,
+        help="End date (YYYY-MM-DD) for historical price backfill.",
+    )
+    return parser.parse_args()
+
+
 if __name__ == "__main__":
-    asyncio.run(main())
+    args = parse_args()
+
+    default_start = date(2025, 1, 1)
+    default_end = date.today()
+
+    start_date = (
+        datetime.strptime(args.start_date, "%Y-%m-%d").date()
+        if args.start_date
+        else default_start
+    )
+    end_date = (
+        datetime.strptime(args.end_date, "%Y-%m-%d").date()
+        if args.end_date
+        else default_end
+    )
+
+    if end_date < start_date:
+        raise ValueError("end_date must be on or after start_date")
+
+    asyncio.run(main(start_date, end_date))
