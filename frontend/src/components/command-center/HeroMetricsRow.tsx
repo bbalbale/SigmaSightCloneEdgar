@@ -10,6 +10,13 @@ interface HeroMetricsRowProps {
     netExposure: number
     longExposure: number
     shortExposure: number
+    totalCapitalFlow: number
+    netCapitalFlow30d: number
+    lastCapitalChange: {
+      type: 'CONTRIBUTION' | 'WITHDRAWAL'
+      amount: number
+      changeDate: string
+    } | null
   }
   loading: boolean
 }
@@ -26,6 +33,28 @@ function formatCurrency(value: number): string {
 
 function formatPercentage(value: number): string {
   return `${value >= 0 ? '+' : ''}${value.toFixed(1)}%`
+}
+
+function formatSignedCurrency(value: number): string {
+  const formatter = new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    maximumFractionDigits: Math.abs(value) >= 1000 ? 0 : 2,
+  })
+  const formatted = formatter.format(Math.abs(value))
+  return value >= 0 ? `+${formatted}` : `-${formatted}`
+}
+
+function formatDate(value: string): string {
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) {
+    return value
+  }
+  return date.toLocaleDateString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  })
 }
 
 interface MetricCardProps {
@@ -97,18 +126,30 @@ export function HeroMetricsRow({ metrics, loading }: HeroMetricsRowProps) {
   const netPct = nav > 0 ? (metrics.netExposure / nav) * 100 : 0
   const longPct = nav > 0 ? (metrics.longExposure / nav) * 100 : 0
   const shortPct = nav > 0 ? (Math.abs(metrics.shortExposure) / nav) * 100 : 0
+  const lastChange = metrics.lastCapitalChange
+  const capitalFlowSubValue = lastChange
+    ? `${lastChange.type === 'CONTRIBUTION' ? 'Last add' : 'Last withdraw'} ${formatSignedCurrency(lastChange.type === 'CONTRIBUTION' ? lastChange.amount : -lastChange.amount)} on ${formatDate(lastChange.changeDate)}`
+    : 'No recent activity'
 
   return (
     <section className="px-4 pb-4">
       <div className="container mx-auto">
         <div className="themed-border overflow-hidden bg-secondary">
-          <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-7">
             {/* Equity Balance */}
             <MetricCard
               label="Equity Balance"
               value={formatCurrency(metrics.equityBalance)}
               subValue="Total Value"
               valueColor="neutral"
+            />
+
+            {/* Net Capital Flow */}
+            <MetricCard
+              label="Net Capital Flow (30d)"
+              value={formatSignedCurrency(metrics.netCapitalFlow30d)}
+              subValue={capitalFlowSubValue}
+              valueColor={metrics.netCapitalFlow30d >= 0 ? 'positive' : 'negative'}
             />
 
             {/* Target Return */}

@@ -292,17 +292,61 @@ export function HoldingsTableDesktop({ holdings, loading, onRefresh }: HoldingsT
   }
 
   const handleSellLot = async (lot: HoldingRow) => {
-    const salePrice = prompt(`Enter sale price for ${lot.symbol}:`, lot.todaysPrice.toString())
-    if (!salePrice) return
+    const defaultQuantity = Math.abs(lot.quantity).toString()
+    const quantityInput = prompt(`Enter quantity to sell for ${lot.symbol}:`, defaultQuantity)
+    if (!quantityInput) {
+      return
+    }
+
+    const sellQuantity = Math.abs(parseFloat(quantityInput))
+    if (!Number.isFinite(sellQuantity) || sellQuantity <= 0) {
+      alert('Quantity must be a positive number.')
+      return
+    }
+
+    const availableQuantity = Math.abs(lot.quantity)
+    if (sellQuantity > availableQuantity) {
+      alert(`Cannot sell more than available quantity (${availableQuantity}).`)
+      return
+    }
+
+    const salePriceInput = prompt(
+      `Enter sale price for ${lot.symbol}:`,
+      lot.todaysPrice.toString()
+    )
+    if (!salePriceInput) {
+      return
+    }
+
+    const salePrice = parseFloat(salePriceInput)
+    if (!Number.isFinite(salePrice) || salePrice <= 0) {
+      alert('Sale price must be a positive number.')
+      return
+    }
+
+    const isShortPosition = lot.quantity < 0
+    const remainingQuantity = isShortPosition
+      ? lot.quantity + sellQuantity
+      : lot.quantity - sellQuantity
+
+    if (!isShortPosition && remainingQuantity < 0) {
+      alert('Remaining quantity cannot be negative.')
+      return
+    }
+
+    if (isShortPosition && remainingQuantity > 0) {
+      alert('Remaining quantity cannot be positive for a short position.')
+      return
+    }
 
     try {
-      await positionManagementService.closePosition(
-        lot.id,
-        parseFloat(salePrice),
-        new Date().toISOString().split('T')[0]
-      )
+      await positionManagementService.updatePosition(lot.id, {
+        exit_price: salePrice,
+        exit_date: new Date().toISOString().split('T')[0],
+        close_quantity: sellQuantity,
+        quantity: remainingQuantity
+      })
 
-      // Trigger refresh via callback
       onRefresh?.()
     } catch (error) {
       console.error('Failed to sell position:', error)

@@ -28,6 +28,7 @@ class User(Base):
     # Enhanced tag model (v2) - replaced the old tags relationship
     tags_v2: Mapped[List["TagV2"]] = relationship("TagV2", back_populates="user", foreign_keys="TagV2.user_id")
     modeling_sessions: Mapped[List["ModelingSessionSnapshot"]] = relationship("ModelingSessionSnapshot", back_populates="user")
+    equity_changes: Mapped[List["EquityChange"]] = relationship("EquityChange", back_populates="created_by_user")
 
 
 class Portfolio(Base):
@@ -60,6 +61,7 @@ class Portfolio(Base):
     target_prices: Mapped[List["TargetPrice"]] = relationship("TargetPrice", back_populates="portfolio")
     ai_insights: Mapped[List["AIInsight"]] = relationship("AIInsight", back_populates="portfolio")
     position_realized_events: Mapped[List["PositionRealizedEvent"]] = relationship("PositionRealizedEvent", back_populates="portfolio")
+    equity_changes: Mapped[List["EquityChange"]] = relationship("EquityChange", back_populates="portfolio")
 
     __table_args__ = (
         Index('ix_portfolios_deleted_at', 'deleted_at'),

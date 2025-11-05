@@ -13,7 +13,7 @@ from decimal import Decimal
 from typing import Dict, List, Any, Optional
 from uuid import UUID
 
-from sqlalchemy import select, and_, func
+from sqlalchemy import select, and_, func, case
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.logging import get_logger
@@ -21,6 +21,7 @@ from app.database import AsyncSessionLocal
 from app.models.users import Portfolio
 from app.models.positions import Position, PositionType
 from app.models.position_realized_events import PositionRealizedEvent
+from app.models.equity_changes import EquityChange, EquityChangeType
 from app.models.snapshots import PortfolioSnapshot
 from app.models.market_data import MarketDataCache
 from app.calculations.market_data import get_previous_trading_day_price
@@ -203,13 +204,20 @@ class PnLCalculator:
             calculation_date=calculation_date,
         )
 
+        daily_capital_flow = await self._calculate_daily_capital_flow(
+            db=db,
+            portfolio_id=portfolio_id,
+            calculation_date=calculation_date,
+        )
+
         total_daily_pnl = daily_unrealized_pnl + daily_realized_pnl
 
         # Calculate new equity
-        new_equity = previous_equity + total_daily_pnl
+        new_equity = previous_equity + total_daily_pnl + daily_capital_flow
         logger.info(
             f"    Daily Unrealized P&L: ${daily_unrealized_pnl:,.2f} | "
             f"Daily Realized P&L: ${daily_realized_pnl:,.2f} | "
+            f"Capital Flow: ${daily_capital_flow:,.2f} | "
             f"Total P&L: ${total_daily_pnl:,.2f} | New Equity: ${new_equity:,.2f}"
         )
 
@@ -237,6 +245,7 @@ class PnLCalculator:
                 snapshot.equity_balance = new_equity
                 snapshot.daily_pnl = total_daily_pnl
                 snapshot.daily_realized_pnl = daily_realized_pnl
+                snapshot.daily_capital_flow = daily_capital_flow
                 snapshot.daily_return = (total_daily_pnl / previous_equity) if previous_equity > 0 else Decimal('0')
 
                 if previous_snapshot:
@@ -244,9 +253,13 @@ class PnLCalculator:
                     snapshot.cumulative_realized_pnl = (
                         (previous_snapshot.cumulative_realized_pnl or Decimal('0')) + daily_realized_pnl
                     )
+                    snapshot.cumulative_capital_flow = (
+                        (previous_snapshot.cumulative_capital_flow or Decimal('0')) + daily_capital_flow
+                    )
                 else:
                     snapshot.cumulative_pnl = total_daily_pnl
                     snapshot.cumulative_realized_pnl = daily_realized_pnl
+                    snapshot.cumulative_capital_flow = daily_capital_flow
 
                 await db.commit()
 
@@ -328,6 +341,48 @@ class PnLCalculator:
             logger.debug(f"    Realized P&L from events: ${realized_total:,.2f}")
 
         return realized_total
+
+    async def _calculate_daily_capital_flow(
+        self,
+        db: AsyncSession,
+        portfolio_id: UUID,
+        calculation_date: date,
+    ) -> Decimal:
+        """Aggregate net capital contributions/withdrawals for the calculation date."""
+        contributions_case = case(
+            (EquityChange.change_type == EquityChangeType.CONTRIBUTION, EquityChange.amount),
+            else_=Decimal("0"),
+        )
+        withdrawals_case = case(
+            (EquityChange.change_type == EquityChangeType.WITHDRAWAL, EquityChange.amount),
+            else_=Decimal("0"),
+        )
+
+        query = select(
+            func.coalesce(func.sum(contributions_case), Decimal("0")),
+            func.coalesce(func.sum(withdrawals_case), Decimal("0")),
+        ).where(
+            EquityChange.portfolio_id == portfolio_id,
+            EquityChange.change_date == calculation_date,
+            EquityChange.deleted_at.is_(None),
+        )
+
+        result = await db.execute(query)
+        contributions_raw, withdrawals_raw = result.first() or (Decimal("0"), Decimal("0"))
+
+        contributions_value = Decimal(contributions_raw or 0)
+        withdrawals_value = Decimal(withdrawals_raw or 0)
+        net_flow = contributions_value - withdrawals_value
+
+        if net_flow != Decimal("0"):
+            logger.debug(
+                "    Capital flow: contributions=$%s withdrawals=$%s net=$%s",
+                f"{contributions_value:,.2f}",
+                f"{withdrawals_value:,.2f}",
+                f"{net_flow:,.2f}",
+            )
+
+        return net_flow
 
     async def _calculate_position_pnl(
         self,

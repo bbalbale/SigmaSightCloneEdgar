@@ -17,6 +17,12 @@
 - OK: Backend plumbing for realized P&L is merged (schemas, service logic, batch rollforward).
 - Attention: inline sell flow in Command Center still omits `close_quantity`, preventing partial sell tracking.
 - Next: ship inline sell fix + QA pass before opening Phase 1 PRs.
+
+**Confirmed Business Rules (2025-11-04)**:
+- Backdating allowed: equity changes may be recorded before the earliest snapshot and must flow through the rollforward logic.
+- Edit window: equity changes become read-only after 7 calendar days; late adjustments require a new entry.
+- Export support: provide an endpoint/report so users can download equity change history.
+
 Before starting this implementation:
 - ✅ Phase 0 must be complete and tested
 - ✅ Realized P&L calculations must be working

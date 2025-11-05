@@ -39,6 +39,13 @@ export const API_ENDPOINTS = {
     ME: '/api/v1/auth/me',
   },
   
+  EQUITY_CHANGES: {
+    LIST: (portfolioId: string) => `/api/v1/portfolios/${portfolioId}/equity-changes`,
+    ITEM: (portfolioId: string, changeId: string) => `/api/v1/portfolios/${portfolioId}/equity-changes/${changeId}`,
+    SUMMARY: (portfolioId: string) => `/api/v1/portfolios/${portfolioId}/equity-changes/summary`,
+    EXPORT: (portfolioId: string) => `/api/v1/portfolios/${portfolioId}/equity-changes/export`,
+  },
+
   // Portfolio data endpoints (real data available)
   PORTFOLIOS: {
     LIST: '/api/v1/data/portfolios',

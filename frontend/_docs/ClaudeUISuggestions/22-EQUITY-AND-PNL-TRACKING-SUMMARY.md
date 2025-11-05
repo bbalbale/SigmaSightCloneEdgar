@@ -21,6 +21,7 @@ These features are interdependent and must be implemented in sequence to ensure 
 - OK: Realized P&L backend changes are merged (schemas, service logic, batch rollforward).
 - Attention: Command Center inline sell flow still needs `close_quantity` payload before full QA sign-off.
 - Next: Kick off equity change implementation per [25-EQUITY-AND-PNL-EXECUTION-PLAN.md](./25-EQUITY-AND-PNL-EXECUTION-PLAN.md) once Phase 0 UX gap is closed.
+- Decisions: Backdating equity flows is supported, edits lock after 7 days, and an export endpoint will be delivered; no extra downstream reporting work required.
 
 ---
 

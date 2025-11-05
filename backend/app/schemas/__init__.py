@@ -13,6 +13,15 @@ from .modeling import (
     ModelingSessionResponse,
     ModelingSessionListResponse
 )
+from .equity_change_schemas import (
+    EquityChangeCreateRequest,
+    EquityChangeUpdateRequest,
+    EquityChangeResponse,
+    EquityChangeListResponse,
+    EquityChangeSummaryResponse,
+    EquityChangeSummaryPeriod,
+    EquityChangeExportRequest,
+)
 from .history import (
     ExportHistoryCreate,
     ExportHistoryInDB,
@@ -56,7 +65,16 @@ __all__ = [
     "ModelingSessionInDB",
     "ModelingSessionResponse",
     "ModelingSessionListResponse",
-    
+
+    # Equity change schemas
+    "EquityChangeCreateRequest",
+    "EquityChangeUpdateRequest",
+    "EquityChangeResponse",
+    "EquityChangeListResponse",
+    "EquityChangeSummaryResponse",
+    "EquityChangeSummaryPeriod",
+    "EquityChangeExportRequest",
+
     # History schemas
     "ExportHistoryCreate",
     "ExportHistoryInDB",

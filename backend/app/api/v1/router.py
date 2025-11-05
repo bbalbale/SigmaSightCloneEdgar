@@ -15,6 +15,7 @@ from app.api.v1.insights import router as insights_router
 from app.api.v1.onboarding import router as onboarding_router
 from app.api.v1.endpoints import admin_batch
 from app.api.v1.fundamentals import router as fundamentals_router
+from app.api.v1.equity_changes import router as equity_changes_router
 
 # Create the main v1 router
 api_router = APIRouter(prefix="/v1")
@@ -28,6 +29,7 @@ api_router.include_router(onboarding_router)
 
 # Portfolio Management APIs (/portfolios/) - multi-portfolio CRUD
 api_router.include_router(portfolios.router)
+api_router.include_router(equity_changes_router)
 
 # Chat API for Agent
 api_router.include_router(chat_router, prefix="/chat", tags=["chat"])

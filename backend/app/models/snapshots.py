@@ -43,6 +43,16 @@ class PortfolioSnapshot(Base):
         nullable=True,
         comment="Running total of realized P&L"
     )
+    daily_capital_flow: Mapped[Optional[Decimal]] = mapped_column(
+        Numeric(16, 2),
+        nullable=True,
+        comment="Net capital contributions minus withdrawals recorded on this date"
+    )
+    cumulative_capital_flow: Mapped[Optional[Decimal]] = mapped_column(
+        Numeric(16, 2),
+        nullable=True,
+        comment="Running total of net capital flows"
+    )
     
     # Aggregated Greeks
     portfolio_delta: Mapped[Optional[Decimal]] = mapped_column(Numeric(12, 2), nullable=True)

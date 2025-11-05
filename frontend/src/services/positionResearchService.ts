@@ -89,6 +89,8 @@ interface PositionsApiPosition {
   unrealized_pnl: number
   unrealized_pnl_percent?: number
   avg_cost?: number
+  entry_price?: number
+  pnl?: number
   tags?: PositionTag[]
   strike_price?: number
   expiration_date?: string

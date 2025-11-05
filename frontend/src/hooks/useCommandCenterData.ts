@@ -5,7 +5,13 @@ import { analyticsApi } from '@/services/analyticsApi'
 import targetPriceService from '@/services/targetPriceService'
 import { portfolioService } from '@/services/portfolioApi'
 import { positionResearchService, type EnhancedPosition } from '@/services/positionResearchService'
+import equityChangeService, {
+  type EquityChange,
+  type EquityChangeSummary,
+} from '@/services/equityChangeService'
 import type { VolatilityMetricsResponse } from '@/types/analytics'
+
+type CapitalChangeType = 'CONTRIBUTION' | 'WITHDRAWAL'
 
 interface HeroMetrics {
   equityBalance: number
@@ -14,6 +20,13 @@ interface HeroMetrics {
   netExposure: number
   longExposure: number
   shortExposure: number
+  totalCapitalFlow: number
+  netCapitalFlow30d: number
+  lastCapitalChange: {
+    type: CapitalChangeType
+    amount: number
+    changeDate: string
+  } | null
 }
 
 interface PerformanceMetrics {
@@ -64,11 +77,15 @@ interface AggregateSection {
   performanceMetrics: PerformanceMetrics
   riskMetrics: RiskMetrics
   holdings: HoldingRow[]
+  equitySummary?: EquityChangeSummary
+  equityChanges?: EquityChange[]
 }
 
 interface PortfolioSection extends AggregateSection {
   portfolioId: string
   accountName: string
+  equitySummary: EquityChangeSummary
+  equityChanges: EquityChange[]
 }
 
 interface UseCommandCenterDataReturn {
@@ -143,7 +160,9 @@ export function useCommandCenterData(refreshTrigger?: number): UseCommandCenterD
       correlationData,
       positionBetas,
       portfolioFactors,
-      volatilityResponse
+      volatilityResponse,
+      equitySummaryResponse,
+      equityChangesResponse
     ] = await Promise.all([
       analyticsApi.getOverview(portfolioId),
       fetchPortfolioSnapshot(portfolioId),
@@ -156,7 +175,15 @@ export function useCommandCenterData(refreshTrigger?: number): UseCommandCenterD
       analyticsApi.getCorrelationMatrix(portfolioId).catch(() => ({ data: { available: false } })),
       analyticsApi.getPositionFactorExposures(portfolioId).catch(() => ({ data: { available: false, positions: [] } })),
       analyticsApi.getPortfolioFactorExposures(portfolioId).catch(() => ({ data: { available: false, factors: [] } })),
-      analyticsApi.getVolatility(portfolioId).catch(() => ({ data: { available: false, portfolio_id: portfolioId, calculation_date: null, data: null } }))
+      analyticsApi.getVolatility(portfolioId).catch(() => ({ data: { available: false, portfolio_id: portfolioId, calculation_date: null, data: null } })),
+      equityChangeService.getSummary(portfolioId).catch((err) => {
+        console.warn('[useCommandCenterData] Failed to fetch equity summary:', err)
+        return null
+      }),
+      equityChangeService.list(portfolioId, { page: 1, pageSize: 5 }).catch((err) => {
+        console.warn('[useCommandCenterData] Failed to fetch equity changes:', err)
+        return null
+      })
     ])
 
     const overviewResponse = overviewRaw.data
@@ -298,6 +325,20 @@ export function useCommandCenterData(refreshTrigger?: number): UseCommandCenterD
           }
         : null
 
+    const defaultSummary: EquityChangeSummary = {
+      portfolioId,
+      totalContributions: 0,
+      totalWithdrawals: 0,
+      netFlow: 0,
+      periods: {},
+    }
+
+    const equitySummary = equitySummaryResponse ?? defaultSummary
+    const equityChanges = equityChangesResponse?.items ?? []
+    const netCapitalFlow30d = equitySummary.periods?.['30d']?.netFlow ?? 0
+    const totalCapitalFlow = equitySummary.netFlow ?? 0
+    const latestCapitalChange = equitySummary.lastChange ?? null
+
     const pnlData = overviewResponse.pnl || {}
     const volatilityPayload = (volatilityResponse as { data?: VolatilityMetricsResponse } | null)?.data ?? null
     const volatilityData =
@@ -319,7 +360,16 @@ export function useCommandCenterData(refreshTrigger?: number): UseCommandCenterD
         grossExposure: exposuresRaw.gross_exposure || 0,
         netExposure: exposuresRaw.net_exposure || 0,
         longExposure: exposuresRaw.long_exposure || 0,
-        shortExposure: exposuresRaw.short_exposure || 0
+        shortExposure: exposuresRaw.short_exposure || 0,
+        totalCapitalFlow,
+        netCapitalFlow30d,
+        lastCapitalChange: latestCapitalChange
+          ? {
+              type: latestCapitalChange.changeType,
+              amount: latestCapitalChange.amount,
+              changeDate: latestCapitalChange.changeDate,
+            }
+          : null,
       },
       performanceMetrics: {
         ytdPnl: pnlData.ytd_pnl || 0,
@@ -338,7 +388,9 @@ export function useCommandCenterData(refreshTrigger?: number): UseCommandCenterD
         spCorrelation,
         stressTest
       },
-      holdings: holdingsData
+      holdings: holdingsData,
+      equitySummary,
+      equityChanges
     }
   }
 
@@ -421,6 +473,47 @@ export function useCommandCenterData(refreshTrigger?: number): UseCommandCenterD
               (sum, section) => sum + section.heroMetrics.shortExposure,
               0
             )
+
+            const totalCapitalFlow = validSections.reduce(
+              (sum, section) => sum + (section.heroMetrics.totalCapitalFlow ?? 0),
+              0
+            )
+            const netCapitalFlow30d = validSections.reduce(
+              (sum, section) => sum + (section.heroMetrics.netCapitalFlow30d ?? 0),
+              0
+            )
+
+            const aggregatePeriod = (key: string) =>
+              validSections.reduce(
+                (acc, section) => {
+                  const period = section.equitySummary?.periods?.[key]
+                  return {
+                    contributions: acc.contributions + (period?.contributions ?? 0),
+                    withdrawals: acc.withdrawals + (period?.withdrawals ?? 0),
+                    netFlow: acc.netFlow + (period?.netFlow ?? 0),
+                  }
+                },
+                { contributions: 0, withdrawals: 0, netFlow: 0 }
+              )
+
+            const period30d = aggregatePeriod('30d')
+            const period90d = aggregatePeriod('90d')
+
+            const combinedChanges: EquityChange[] = validSections.flatMap(
+              (section) => section.equityChanges ?? []
+            )
+            if (combinedChanges.length === 0) {
+              validSections.forEach((section) => {
+                if (section.equitySummary?.lastChange) {
+                  combinedChanges.push(section.equitySummary.lastChange)
+                }
+              })
+            }
+            combinedChanges.sort(
+              (a, b) =>
+                new Date(b.changeDate).getTime() - new Date(a.changeDate).getTime()
+            )
+            const aggregateLastChange = combinedChanges.length > 0 ? combinedChanges[0] : null
 
             const totalAbsMarketValue = aggregateHoldingsRaw.reduce(
               (sum, holding) => sum + Math.abs(holding.marketValue),
@@ -522,7 +615,16 @@ export function useCommandCenterData(refreshTrigger?: number): UseCommandCenterD
               grossExposure,
               netExposure,
               longExposure,
-              shortExposure
+              shortExposure,
+              totalCapitalFlow,
+              netCapitalFlow30d,
+              lastCapitalChange: aggregateLastChange
+                ? {
+                    type: aggregateLastChange.changeType,
+                    amount: aggregateLastChange.amount,
+                    changeDate: aggregateLastChange.changeDate,
+                  }
+                : null,
             }
 
             const aggregatePerformance: PerformanceMetrics = {
@@ -570,14 +672,36 @@ export function useCommandCenterData(refreshTrigger?: number): UseCommandCenterD
                       up: netExposure * weightedBeta1y * 0.01,
                       down: netExposure * weightedBeta1y * -0.01
                     }
-                  : null
+                : null
             }
+
+            const aggregateSummary: EquityChangeSummary = {
+              portfolioId: 'aggregate',
+              totalContributions: validSections.reduce(
+                (sum, section) => sum + (section.equitySummary?.totalContributions ?? 0),
+                0
+              ),
+              totalWithdrawals: validSections.reduce(
+                (sum, section) => sum + (section.equitySummary?.totalWithdrawals ?? 0),
+                0
+              ),
+              netFlow: totalCapitalFlow,
+              periods: {
+                '30d': period30d,
+                '90d': period90d,
+              },
+              lastChange: aggregateLastChange ?? undefined,
+            }
+
+            const aggregateRecentChanges = combinedChanges.slice(0, 10)
 
             setAggregateData({
               heroMetrics: aggregateHero,
               performanceMetrics: aggregatePerformance,
               riskMetrics: aggregateRisk,
-              holdings: aggregateHoldings
+              holdings: aggregateHoldings,
+              equitySummary: aggregateSummary,
+              equityChanges: aggregateRecentChanges,
             })
           } else {
             setAggregateData(null)

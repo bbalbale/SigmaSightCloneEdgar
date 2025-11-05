@@ -17,6 +17,7 @@ import { persist } from 'zustand/middleware'
 export interface PortfolioListItem {
   id: string
   account_name: string
+  name?: string
   account_type: string
   net_asset_value: number
   total_value: number

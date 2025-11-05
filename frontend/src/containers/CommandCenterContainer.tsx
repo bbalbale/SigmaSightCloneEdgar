@@ -7,6 +7,7 @@ import { HeroMetricsRow } from '@/components/command-center/HeroMetricsRow'
 import { PerformanceMetricsRow } from '@/components/command-center/PerformanceMetricsRow'
 import { HoldingsTable } from '@/components/command-center/HoldingsTable'
 import { ManagePositionsSidePanel } from '@/components/portfolio/ManagePositionsSidePanel'
+import { ManageEquitySidePanel } from '@/components/portfolio/ManageEquitySidePanel'
 import { Button } from '@/components/ui/button'
 import { AccountFilter } from '@/components/portfolio/AccountFilter'
 import { AccountSummaryCard } from '@/components/portfolio/AccountSummaryCard'
@@ -18,6 +19,7 @@ export function CommandCenterContainer() {
   const selectedPortfolioId = usePortfolioStore(state => state.selectedPortfolioId)
   const totalPortfolios = usePortfolioStore(state => state.portfolios.length)
   const [sidePanelOpen, setSidePanelOpen] = useState(false)
+  const [equityPanelOpen, setEquityPanelOpen] = useState(false)
   const [refreshTrigger, setRefreshTrigger] = useState(0)
 
   const { aggregate, portfolios, loading, error } = useCommandCenterData(refreshTrigger)
@@ -54,7 +56,10 @@ export function CommandCenterContainer() {
     grossExposure: 0,
     netExposure: 0,
     longExposure: 0,
-    shortExposure: 0
+    shortExposure: 0,
+    totalCapitalFlow: 0,
+    netCapitalFlow30d: 0,
+    lastCapitalChange: null,
   }
 
   const emptyPerformanceMetrics = {
@@ -87,7 +92,15 @@ export function CommandCenterContainer() {
         heroMetrics: emptyHeroMetrics,
         performanceMetrics: emptyPerformanceMetrics,
         riskMetrics: emptyRiskMetrics,
-        holdings: []
+        holdings: [],
+        equitySummary: {
+          portfolioId: selectedPortfolioId ?? 'loading',
+          totalContributions: 0,
+          totalWithdrawals: 0,
+          netFlow: 0,
+          periods: {},
+        },
+        equityChanges: [],
       }
     : undefined
 
@@ -150,6 +163,11 @@ export function CommandCenterContainer() {
     handleRefresh()
   }
 
+  const handleEquityPanelComplete = () => {
+    setEquityPanelOpen(false)
+    handleRefresh()
+  }
+
   return (
     <div
       className="min-h-screen transition-colors duration-300"
@@ -157,7 +175,7 @@ export function CommandCenterContainer() {
     >
       {/* Page Description with Manage Positions Button and Account Filter */}
       <div className="px-4 pt-4 pb-2">
-        <div className="container mx-auto flex items-center justify-between gap-4">
+        <div className="container mx-auto flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div className="flex items-center gap-4 flex-1">
             <p className="text-sm text-muted-foreground">
               Portfolio overview, holdings, and risk metrics
@@ -165,26 +183,36 @@ export function CommandCenterContainer() {
             {/* Account Filter - Multi-Portfolio Feature (November 3, 2025) */}
             <AccountFilter className="ml-auto" showForSinglePortfolio={true} />
           </div>
-          <Button
-            onClick={() => setSidePanelOpen(true)}
-            size="sm"
-            className="flex items-center gap-2"
-          >
-            <svg
-              className="w-4 h-4"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
+          <div className="flex items-center gap-2">
+            <Button
+              onClick={() => setEquityPanelOpen(true)}
+              size="sm"
+              variant="secondary"
+              disabled={isAggregateView || !portfolioId}
             >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M12 4v16m8-8H4"
-              />
-            </svg>
-            Manage Positions
-          </Button>
+              Manage Equity
+            </Button>
+            <Button
+              onClick={() => setSidePanelOpen(true)}
+              size="sm"
+              className="flex items-center gap-2"
+            >
+              <svg
+                className="w-4 h-4"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M12 4v16m8-8H4"
+                />
+              </svg>
+              Manage Positions
+            </Button>
+          </div>
         </div>
       </div>
 
@@ -266,6 +294,14 @@ export function CommandCenterContainer() {
           open={sidePanelOpen}
           onOpenChange={setSidePanelOpen}
           onComplete={handleSidePanelComplete}
+        />
+      )}
+      {portfolioId && (
+        <ManageEquitySidePanel
+          portfolioId={portfolioId}
+          open={equityPanelOpen}
+          onOpenChange={setEquityPanelOpen}
+          onComplete={handleEquityPanelComplete}
         />
       )}
     </div>
