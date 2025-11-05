@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+﻿import { useState, useEffect } from 'react'
 import { useSelectedPortfolioId } from '@/stores/portfolioStore'
 import { fetchPortfolioSnapshot } from '@/services/portfolioService'
 import { analyticsApi } from '@/services/analyticsApi'
@@ -156,7 +156,7 @@ export function useCommandCenterData(refreshTrigger?: number): UseCommandCenterD
       analyticsApi.getCorrelationMatrix(portfolioId).catch(() => ({ data: { available: false } })),
       analyticsApi.getPositionFactorExposures(portfolioId).catch(() => ({ data: { available: false, positions: [] } })),
       analyticsApi.getPortfolioFactorExposures(portfolioId).catch(() => ({ data: { available: false, factors: [] } })),
-      analyticsApi.getVolatility(portfolioId).catch(() => ({ data: { available: false, data: null } }))
+      analyticsApi.getVolatility(portfolioId).catch(() => ({ data: { available: false, portfolio_id: portfolioId, calculation_date: null, data: null } }))
     ])
 
     const overviewResponse = overviewRaw.data
@@ -641,3 +641,4 @@ export function useCommandCenterData(refreshTrigger?: number): UseCommandCenterD
     error
   }
 }
+

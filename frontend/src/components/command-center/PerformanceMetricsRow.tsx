@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import React from 'react'
 
@@ -10,9 +10,16 @@ interface PerformanceMetricsRowProps {
     portfolioBeta90d: number | null
     portfolioBeta1y: number | null
     stressTest: { up: number; down: number } | null
+    volatility: {
+      historical63d: number | null
+      current21d: number | null
+      forward21d: number | null
+    }
   }
   loading: boolean
 }
+
+
 
 function formatCurrency(value: number): string {
   if (Math.abs(value) >= 1000000) {
@@ -50,7 +57,7 @@ function MetricCard({ label, value, subValue, valueColor = 'neutral' }: MetricCa
       </div>
 
       {/* Primary Value */}
-      <div className={`text-2xl font-bold tabular-nums mb-0.5 ${getValueColor()}`}>
+      <div className={`text-xl font-semibold tabular-nums mb-0.5 ${getValueColor()}`}>
         {value}
       </div>
 
@@ -83,31 +90,31 @@ function VolatilityCard({ volatility }: VolatilityCardProps) {
       <div className="text-[10px] font-semibold uppercase tracking-wider mb-1.5 text-secondary">
         Volatility
       </div>
-      <div className="flex flex-wrap items-start gap-6 text-secondary text-xs">
-        <div className="flex flex-col">
-          <span className="text-lg font-semibold text-primary leading-tight">
+      <div className="flex flex-wrap items-center gap-4 text-xs text-secondary">
+        <span className="flex items-baseline gap-1">
+          <span className="text-xl font-semibold text-primary leading-tight">
             {formatVol(volatility.historical63d)}
           </span>
           <span className="text-[10px] uppercase tracking-wide">
             Historical
           </span>
-        </div>
-        <div className="flex flex-col">
-          <span className="text-lg font-semibold text-primary leading-tight">
+        </span>
+        <span className="flex items-baseline gap-1">
+          <span className="text-xl font-semibold text-primary leading-tight">
             {formatVol(volatility.current21d)}
           </span>
           <span className="text-[10px] uppercase tracking-wide">
             Current
           </span>
-        </div>
-        <div className="flex flex-col">
-          <span className="text-lg font-semibold text-primary leading-tight">
+        </span>
+        <span className="flex items-baseline gap-1">
+          <span className="text-xl font-semibold text-primary leading-tight">
             {formatVol(volatility.forward21d)}
           </span>
           <span className="text-[10px] uppercase tracking-wide">
-            Forward Est.
+            Forward
           </span>
-        </div>
+        </span>
       </div>
     </div>
   )
@@ -131,9 +138,9 @@ function BetaCard({ label, beta90d, beta1y }: BetaCardProps) {
 
       {beta1y !== null || beta90d !== null ? (
         <div className="space-y-2">
-          <div className="flex flex-wrap items-baseline gap-8">
+          <div className="flex flex-wrap items-baseline gap-6">
             <div className="flex flex-col">
-              <span className="text-2xl font-bold tabular-nums text-accent leading-tight">
+              <span className="text-xl font-semibold tabular-nums text-accent leading-tight">
                 {formatBeta(beta1y)}
               </span>
               <span className="text-[11px] uppercase text-secondary tracking-wide">
@@ -141,7 +148,7 @@ function BetaCard({ label, beta90d, beta1y }: BetaCardProps) {
               </span>
             </div>
             <div className="flex flex-col">
-              <span className="text-2xl font-bold tabular-nums text-accent leading-tight">
+              <span className="text-xl font-semibold tabular-nums text-accent leading-tight">
                 {formatBeta(beta90d)}
               </span>
               <span className="text-[11px] uppercase text-secondary tracking-wide">
@@ -152,7 +159,7 @@ function BetaCard({ label, beta90d, beta1y }: BetaCardProps) {
         </div>
       ) : (
         <>
-          <div className="text-2xl font-bold tabular-nums mb-0.5 text-accent">
+          <div className="text-xl font-semibold tabular-nums mb-0.5 text-accent">
             --
           </div>
           <div className="text-xs font-medium text-secondary">
@@ -166,30 +173,26 @@ function BetaCard({ label, beta90d, beta1y }: BetaCardProps) {
 
 interface StressTestCardProps {
   label: string
-  stressTest: { up: number; down: number } | null
+  stressTest: { up: number; down: number } | null\n    volatility: {\n      historical63d: number | null\n      current21d: number | null\n      forward21d: number | null\n    }
 }
 
 function StressTestCard({ label, stressTest }: StressTestCardProps) {
   return (
     <div className="themed-border-r p-3 transition-all duration-200 bg-secondary hover:bg-tertiary">
-      {/* Label */}
-      <div className="text-[10px] font-semibold uppercase tracking-wider mb-1.5 text-secondary">
-        {label}
-      </div>
-
-      <div className="text-xs font-medium mb-1 text-secondary">
-        ±1% Market:
+      <div className="flex items-center justify-between mb-1.5 text-[10px] uppercase tracking-wider text-secondary">
+        <span className="font-semibold">{label}</span>
+        <span className="font-semibold">{'A\u00B11% Market'}</span>
       </div>
 
       {stressTest ? (
-        <div className="flex items-baseline gap-1.5">
-          <span className="text-lg font-bold tabular-nums text-emerald-400">
+        <div className="flex items-baseline gap-3">
+          <span className="text-xl font-semibold tabular-nums text-emerald-400">
             {formatCurrency(stressTest.up)}
           </span>
           <span className="text-xs text-secondary">
             /
           </span>
-          <span className="text-lg font-bold tabular-nums text-red-400">
+          <span className="text-xl font-semibold tabular-nums text-red-400">
             {formatCurrency(stressTest.down)}
           </span>
         </div>
@@ -277,3 +280,6 @@ export function PerformanceMetricsRow({ metrics, loading }: PerformanceMetricsRo
     </section>
   )
 }
+
+
+
