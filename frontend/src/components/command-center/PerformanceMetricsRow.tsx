@@ -88,7 +88,7 @@ function BetaCard({ label, beta90d, beta1y }: BetaCardProps) {
               </span>
             </div>
             <div className="flex flex-col">
-              <span className="text-xl font-bold tabular-nums text-primary leading-tight">
+              <span className="text-2xl font-bold tabular-nums text-accent leading-tight">
                 {beta90d !== null ? beta90d.toFixed(2) : '—'}
               </span>
               <span className="text-[11px] uppercase text-secondary tracking-wide">
