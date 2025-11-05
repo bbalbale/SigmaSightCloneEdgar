@@ -124,4 +124,77 @@
 
 ---
 
+## Agent Implementation Backlog
+
+### Prerequisites
+- Verify `.env.local` exposes valid `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, and optional `PERPLEXITY_API_KEY` (behind feature flag).
+- Baseline checks before and after each work item: `uv run pytest` in `backend`, `npm run lint`, `npm run type-check`, and Playwright suite when UI changes.
+
+### Phase 0 (Foundations)
+1. **Model Registry**
+   - Files: create `backend/app/agent/config/model_catalog.json`; add loader helper in `backend/app/agent/__init__.py`.
+   - Criteria: registry lists models with fields `provider`, `model_id`, `context_tokens`, `supports_tools`, `cost_per_1k_tokens`, `latency_target_ms`.
+   - Tests: `backend/tests/agent/test_model_catalog.py` validates schema and default entries.
+2. **Provider Logging**
+   - Files: `backend/app/services/anthropic_provider.py`, `backend/app/services/openai_provider.py`, `backend/app/services/perplexity_provider.py` (stub), plus new `backend/app/agent/logging.py`.
+   - Criteria: every call records `correlation_id`, latency, token counts, errors into `AIProviderLog` SQLAlchemy model; add migration.
+   - Tests: integration test asserts log rows on mocked provider responses.
+3. **Perplexity Feature Flag**
+   - Files: `backend/app/config/settings.py`, `perplexity_provider.py`.
+   - Criteria: env var `ENABLE_PERPLEXITY=false` blocks outbound calls, raising `FeatureDisabledError`.
+
+### Phase 1 (Router)
+1. **Router Module**
+   - Files: new `backend/app/agent/model_router.py`; update insight execution path to consult router.
+   - Criteria: router outputs `ModelAssignment` with provider, reason, fallback chain; rules based on estimated tokens, tool count, latency, external context flag.
+   - Tests: `backend/tests/agent/test_model_router.py` covers representative scenarios.
+2. **Expose Metadata**
+   - Backend: include `provider_used`, `routing_reason`, and `conversation_run_id` in responses (`backend/app/api/routes/insights.py`).
+   - Frontend: display badge in chat header and insight cards (`frontend/src/components/claude-insights/ClaudeChatInterface.tsx`, `frontend/src/components/command-center/AIInsightsRow.tsx`).
+   - Tests: API unit test, Playwright assertion for badge render in light/dark modes.
+
+### Phase 2 (Tool Augmentation)
+1. **Provider-Agnostic Interface**
+   - Files: `backend/app/agent/tools/interface.py` (new), refactor `tool_registry.py` and handlers to implement interface.
+   - Criteria: planner specifies tool name + params; interface resolves and logs usage.
+2. **OpenAI Executor**
+   - Files: `backend/app/services/openai_executor.py`; router sends structured tasks here.
+   - Criteria: executor enforces Pydantic schema validation; returns machine-readable error on failure.
+3. **Perplexity Market Context Tool**
+   - Files: extend handlers with `get_market_context`; sanitize outputs, enforce feature flag.
+   - Criteria: returns array of `{source, url, summary}` with max 3 entries; citations stored in conversation state.
+4. **Conversation Run Tracking**
+   - Files: `backend/app/agent/conversation_manager.py`, frontend store to persist `conversation_run_id`.
+   - Criteria: all tool/model calls share same UUID; logs and responses include it for traceability.
+
+### Phase 3 (Frontend Enablement)
+1. **Provider Badges**
+   - Files: chat interface and insight components; add icons in `frontend/src/assets/provider`.
+   - Criteria: badge shows provider name, tooltip with routing reason; respects theme tokens.
+2. **Macro Prompt Bar**
+   - Files: new `frontend/src/components/claude-insights/MacroPromptBar.tsx`, integrate into container.
+   - Criteria: macros send structured payload `{intent, focus_area}` to service; persisted in store for analytics.
+3. **External Research Disclosure**
+   - Files: chat interface; add expandable citations list when market context tool used.
+   - Criteria: user sees disclaimer banner and citation links; QA in light/dark.
+
+### Governance Deliverables
+1. **Evaluation Runner**
+   - Files: `backend/scripts/evaluate_models.py`, dataset `frontend/_docs/testing/ai_regression_cases.json`.
+   - Criteria: script outputs markdown diff report in `backend/reports/ai_model_regression.md`.
+2. **Tone Checker**
+   - Files: `backend/app/agent/evaluators/tone_checker.py`; integrate into runner.
+   - Criteria: flags responses lacking partner phrasing or overusing critical language.
+3. **Observability Dashboard**
+   - Files: migration for `ai_provider_log` table; dashboard JSON in `ops/observability/ai_insights_dashboard.json`.
+   - Criteria: dashboard charts latency, cost per provider, fallback counts; doc link in ops runbook.
+
+### Validation Checklist
+- Backend: `uv run pytest backend/tests/agent`.
+- Frontend: `npm run lint`, `npm run type-check`, Playwright suite (`npm run test:e2e -- config=playwright.equity.config.ts`).
+- Run evaluation script and attach latest markdown report to PR description.
+- Update README/CLAUDE docs with router usage, feature flag instructions, and troubleshooting steps.
+
+---
+
 **Next Step**: Align with design/PM on the framing & component updates, then socialize the execution blueprint with backend/ML leads to sequence router, tooling, and governance workstreams before coding begins.
