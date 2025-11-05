@@ -211,6 +211,8 @@ class BatchOrchestrator:
             'phase_3': {},
             'errors': []
         }
+        insufficient_price_coverage = False
+        coverage_details: Dict[str, Any] = {}
 
         # Phase 1: Market Data Collection
         try:
@@ -283,6 +285,33 @@ class BatchOrchestrator:
             result['phase_2_5'] = phase25_result
             self._log_phase_result("phase_2_5", phase25_result)
 
+            if phase25_result:
+                total_positions = phase25_result.get('total_positions') or 0
+                positions_skipped = phase25_result.get('positions_skipped') or 0
+                if total_positions > 0:
+                    missing_ratio = positions_skipped / total_positions
+                    coverage_details = {
+                        'total_positions': total_positions,
+                        'positions_skipped': positions_skipped,
+                        'missing_ratio': round(missing_ratio, 4),
+                    }
+                    if missing_ratio > 0.05:
+                        insufficient_price_coverage = True
+                        message = (
+                            f"Phase 2.5 insufficient price coverage: "
+                            f"{positions_skipped}/{total_positions} positions missing ({missing_ratio:.1%})"
+                        )
+                        logger.error(message)
+                        result['errors'].append(message)
+                        record_metric(
+                            "phase_2_5_insufficient_coverage",
+                            {
+                                'calculation_date': calculation_date.isoformat(),
+                                'portfolio_scope': len(portfolio_ids) if portfolio_ids else "all",
+                                **coverage_details,
+                            },
+                        )
+
             if not phase25_result.get('success'):
                 logger.warning("Phase 2.5 had errors, continuing to Phase 2.75")
                 # Continue to Phase 2.75 even if position updates fail
@@ -312,22 +341,41 @@ class BatchOrchestrator:
             # Continue to Phase 3
 
         # Phase 3: Risk Analytics
-        try:
-            self._log_phase_start("phase_3", calculation_date, portfolio_ids)
-            phase3_result = await analytics_runner.run_all_portfolios_analytics(
-                calculation_date=calculation_date,
-                db=db,
-                portfolio_ids=portfolio_ids
-            )
+        if insufficient_price_coverage:
+            logger.error("Skipping Phase 3 due to insufficient price coverage in Phase 2.5")
+            phase3_result = {
+                'success': False,
+                'skipped': True,
+                'reason': 'insufficient_price_coverage',
+                **coverage_details,
+            }
             result['phase_3'] = phase3_result
             self._log_phase_result("phase_3", phase3_result)
+            record_metric(
+                "phase_3_skipped",
+                {
+                    'calculation_date': calculation_date.isoformat(),
+                    'portfolio_scope': len(portfolio_ids) if portfolio_ids else "all",
+                    **coverage_details,
+                },
+            )
+        else:
+            try:
+                self._log_phase_start("phase_3", calculation_date, portfolio_ids)
+                phase3_result = await analytics_runner.run_all_portfolios_analytics(
+                    calculation_date=calculation_date,
+                    db=db,
+                    portfolio_ids=portfolio_ids
+                )
+                result['phase_3'] = phase3_result
+                self._log_phase_result("phase_3", phase3_result)
 
-            if not phase3_result.get('success'):
-                result['errors'].append("Phase 3 had errors")
+                if not phase3_result.get('success'):
+                    result['errors'].append("Phase 3 had errors")
 
-        except Exception as e:
-            logger.error(f"Phase 3 error: {e}")
-            result['errors'].append(f"Phase 3 error: {str(e)}")
+            except Exception as e:
+                logger.error(f"Phase 3 error: {e}")
+                result['errors'].append(f"Phase 3 error: {str(e)}")
 
         # Determine overall success
         result['success'] = len(result['errors']) == 0
