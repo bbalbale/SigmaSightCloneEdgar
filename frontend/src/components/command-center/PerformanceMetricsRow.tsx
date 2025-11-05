@@ -173,7 +173,7 @@ function BetaCard({ label, beta90d, beta1y }: BetaCardProps) {
 
 interface StressTestCardProps {
   label: string
-  stressTest: { up: number; down: number } | null\n    volatility: {\n      historical63d: number | null\n      current21d: number | null\n      forward21d: number | null\n    }
+  stressTest: { up: number; down: number } | null
 }
 
 function StressTestCard({ label, stressTest }: StressTestCardProps) {
@@ -181,7 +181,7 @@ function StressTestCard({ label, stressTest }: StressTestCardProps) {
     <div className="themed-border-r p-3 transition-all duration-200 bg-secondary hover:bg-tertiary">
       <div className="flex items-center justify-between mb-1.5 text-[10px] uppercase tracking-wider text-secondary">
         <span className="font-semibold">{label}</span>
-        <span className="font-semibold">{'A\u00B11% Market'}</span>
+        <span className="font-semibold">A±1% Market</span>
       </div>
 
       {stressTest ? (
