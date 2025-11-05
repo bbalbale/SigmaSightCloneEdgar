@@ -11,7 +11,7 @@ from collections import defaultdict
 import numpy as np
 import pandas as pd
 from scipy import stats
-from sqlalchemy import select, and_, or_
+from sqlalchemy import select, and_, or_, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -127,7 +127,7 @@ class CorrelationService:
                 and_(
                     CorrelationCalculation.portfolio_id == portfolio_id,
                     CorrelationCalculation.duration_days == duration_days,
-                    CorrelationCalculation.calculation_date == calculation_date
+                    func.date(CorrelationCalculation.calculation_date) == calculation_date
                 )
             )
         )
@@ -795,14 +795,14 @@ class CorrelationService:
         self,
         portfolio_id: UUID,
         duration_days: int,
-        calculation_date: datetime
+        calculation_date: date
     ) -> Optional[CorrelationCalculation]:
         """Check for existing calculation"""
         query = select(CorrelationCalculation).where(
             and_(
                 CorrelationCalculation.portfolio_id == portfolio_id,
                 CorrelationCalculation.duration_days == duration_days,
-                CorrelationCalculation.calculation_date == calculation_date
+                func.date(CorrelationCalculation.calculation_date) == calculation_date
             )
         )
         

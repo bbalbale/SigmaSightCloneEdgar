@@ -14,6 +14,7 @@ from datetime import date
 from typing import Dict, List, Set, Any, Optional
 from uuid import UUID
 
+import pandas as pd
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -289,6 +290,23 @@ class FundamentalsCollector:
             logger.error(f"Error fetching fundamentals for {symbol}: {e}")
             raise
 
+    @staticmethod
+    def _normalize_dataframe(data: Any) -> Optional[pd.DataFrame]:
+        """
+        Convert various yahooquery return types into DataFrames or None.
+
+        yahooquery occasionally returns strings like "Data not available"
+        or nested dict/list structures. We only keep non-empty DataFrames.
+        """
+        if data is None:
+            return None
+
+        if isinstance(data, pd.DataFrame):
+            return data if not data.empty else None
+
+        # Unsupported types (str, dict, list, etc.) are treated as missing.
+        return None
+
     def _fetch_ticker_data_sync(self, symbol: str) -> Dict[str, Any]:
         """
         Synchronous fetch of ticker data (runs in thread pool)
@@ -323,14 +341,14 @@ class FundamentalsCollector:
             earnings_cal = ticker.earnings_calendar if hasattr(ticker, 'earnings_calendar') else None
 
             return {
-                'income_statement_q': income_q if not isinstance(income_q, dict) else None,
-                'income_statement_a': income_a if not isinstance(income_a, dict) else None,
-                'balance_sheet_q': balance_q if not isinstance(balance_q, dict) else None,
-                'balance_sheet_a': balance_a if not isinstance(balance_a, dict) else None,
-                'cash_flow_q': cashflow_q if not isinstance(cashflow_q, dict) else None,
-                'cash_flow_a': cashflow_a if not isinstance(cashflow_a, dict) else None,
-                'earnings_estimates': earnings_est,
-                'earnings_calendar': earnings_cal
+                'income_statement_q': self._normalize_dataframe(income_q),
+                'income_statement_a': self._normalize_dataframe(income_a),
+                'balance_sheet_q': self._normalize_dataframe(balance_q),
+                'balance_sheet_a': self._normalize_dataframe(balance_a),
+                'cash_flow_q': self._normalize_dataframe(cashflow_q),
+                'cash_flow_a': self._normalize_dataframe(cashflow_a),
+                'earnings_estimates': earnings_est if isinstance(earnings_est, dict) else None,
+                'earnings_calendar': earnings_cal if isinstance(earnings_cal, dict) else None
             }
 
         except Exception as e:

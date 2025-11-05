@@ -13,7 +13,7 @@ from decimal import Decimal
 
 from app.models.users import Portfolio
 from app.models.positions import Position, PositionType
-from app.models.market_data import MarketDataCache, PositionGreeks, PositionFactorExposure
+from app.models.market_data import MarketDataCache, PositionFactorExposure
 from app.core.datetime_utils import utc_now, to_utc_iso8601
 from app.core.logging import get_logger
 from app.calculations.market_data import get_position_valuation, PositionValuation

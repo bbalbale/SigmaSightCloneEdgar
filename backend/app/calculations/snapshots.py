@@ -11,15 +11,12 @@ from sqlalchemy import select, and_, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.exc import IntegrityError
 
-from app.models.positions import Position, PositionType
+from app.models.positions import Position
 from app.models.snapshots import PortfolioSnapshot
-from app.models.market_data import PositionGreeks
 from app.models.users import Portfolio as PortfolioModel
 from app.calculations.portfolio import (
-    calculate_portfolio_exposures,
-    aggregate_portfolio_greeks
+    calculate_portfolio_exposures
 )
-from app.calculations.market_data import calculate_position_market_value, is_options_position, get_position_value
 from app.utils.trading_calendar import trading_calendar
 
 logger = logging.getLogger(__name__)
@@ -84,16 +81,13 @@ async def create_portfolio_snapshot(
             f"warnings={len(position_data.get('warnings', []))}"
         )
         aggregations = calculate_portfolio_exposures(positions_list)
-        
-        # Step 4: Aggregate Greeks
-        greeks = aggregate_portfolio_greeks(positions_list)
 
         equity_query = select(PortfolioModel.equity_balance).where(PortfolioModel.id == portfolio_id)
         equity_result = await db.execute(equity_query)
         today_equity = equity_result.scalar_one_or_none() or Decimal('0')
 
 
-        # Step 5: Calculate P&L (skip if requested by V3 batch processor)
+        # Step 4: Calculate P&L (skip if requested by V3 batch processor)
         if skip_pnl_calculation:
             # V3 batch processor calculates P&L separately with equity rollforward
             pnl_data = {
@@ -105,16 +99,15 @@ async def create_portfolio_snapshot(
         else:
             pnl_data = await _calculate_pnl(db, portfolio_id, calculation_date, today_equity)
 
-        # Step 6: Count position types
+        # Step 5: Count position types
         position_counts = _count_positions(active_positions)
 
-        # Step 7: Create or update snapshot
+        # Step 6: Create or update snapshot
         snapshot = await _create_or_update_snapshot(
             db=db,
             portfolio_id=portfolio_id,
             calculation_date=calculation_date,
             aggregations=aggregations,
-            greeks=greeks,
             pnl_data=pnl_data,
             position_counts=position_counts
         )
@@ -218,28 +211,6 @@ async def _prepare_position_data(
             market_value = quantity * price * multiplier
             exposure = market_value
 
-            # Fetch Greeks if available
-            greeks_query = select(PositionGreeks).where(
-                and_(
-                    PositionGreeks.position_id == position.id,
-                    PositionGreeks.calculation_date == calculation_date
-                )
-            )
-            greeks_result = await db.execute(greeks_query)
-            greeks_record = greeks_result.scalar_one_or_none()
-
-            greeks = None
-            if greeks_record:
-                greeks = {
-                    "delta": greeks_record.delta,
-                    "gamma": greeks_record.gamma,
-                    "theta": greeks_record.theta,
-                    "vega": greeks_record.vega,
-                    "rho": greeks_record.rho
-                }
-            elif is_options_position(position):
-                warnings.append(f"Missing Greeks for options position {position.symbol}")
-
             # Build position dict with historical prices
             position_data.append({
                 "id": position.id,
@@ -247,8 +218,7 @@ async def _prepare_position_data(
                 "quantity": position.quantity,
                 "market_value": abs(Decimal(str(market_value))),  # Absolute value
                 "exposure": Decimal(str(exposure)),                # Signed exposure
-                "position_type": position.position_type,
-                "greeks": greeks
+                "position_type": position.position_type
             })
 
         except Exception as e:
@@ -333,7 +303,6 @@ async def _create_or_update_snapshot(
     portfolio_id: UUID,
     calculation_date: date,
     aggregations: Dict[str, Decimal],
-    greeks: Dict[str, Decimal],
     pnl_data: Dict[str, Decimal],
     position_counts: Dict[str, int]
 ) -> PortfolioSnapshot:
@@ -537,10 +506,10 @@ async def _create_or_update_snapshot(
         "daily_pnl": pnl_data['daily_pnl'],
         "daily_return": pnl_data['daily_return'],
         "cumulative_pnl": pnl_data['cumulative_pnl'],
-        "portfolio_delta": greeks['delta'],
-        "portfolio_gamma": greeks['gamma'],
-        "portfolio_theta": greeks['theta'],
-        "portfolio_vega": greeks['vega'],
+        "portfolio_delta": Decimal('0'),
+        "portfolio_gamma": Decimal('0'),
+        "portfolio_theta": Decimal('0'),
+        "portfolio_vega": Decimal('0'),
         "num_positions": position_counts['total'],
         "num_long_positions": position_counts['long'],
         "num_short_positions": position_counts['short'],

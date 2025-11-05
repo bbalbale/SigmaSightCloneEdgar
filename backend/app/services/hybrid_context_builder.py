@@ -19,7 +19,7 @@ from app.core.logging import get_logger
 from app.models.users import Portfolio
 from app.models.positions import Position
 from app.models.snapshots import PortfolioSnapshot
-from app.models.market_data import PositionGreeks, PositionFactorExposure
+from app.models.market_data import PositionFactorExposure
 from app.models.correlations import CorrelationCalculation
 
 logger = get_logger(__name__)
@@ -213,41 +213,10 @@ class HybridContextBuilder:
         db: AsyncSession,
         portfolio_id: UUID,
     ) -> Dict[str, Any]:
-        """Get risk metrics (Greeks, volatility, etc.)."""
-        # Get Greeks for options positions
-        result = await db.execute(
-            select(PositionGreeks)
-            .join(Position)
-            .where(Position.portfolio_id == portfolio_id)
-            .order_by(desc(PositionGreeks.calculation_date))
-        )
-        greeks = result.scalars().all()
-
-        if not greeks:
-            return {
-                "greeks": {"available": False},
-                "volatility": {"available": False},
-            }
-
-        # Aggregate Greeks
-        total_delta = sum(float(g.delta or 0) for g in greeks)
-        total_gamma = sum(float(g.gamma or 0) for g in greeks)
-        total_theta = sum(float(g.theta or 0) for g in greeks)
-        total_vega = sum(float(g.vega or 0) for g in greeks)
-
+        """Get risk metrics (currently limited to volatility placeholders)."""
         return {
-            "greeks": {
-                "available": True,
-                "count": len(greeks),
-                "total_delta": total_delta,
-                "total_gamma": total_gamma,
-                "total_theta": total_theta,
-                "total_vega": total_vega,
-                "last_calculation": greeks[0].calculation_date.isoformat() if greeks else None,
-            },
-            "volatility": {
-                "available": False,  # TODO: Add volatility metrics when available
-            },
+            "greeks": {"available": False},
+            "volatility": {"available": False},
         }
 
     async def _get_factor_exposure(
@@ -470,11 +439,8 @@ class HybridContextBuilder:
             quality["positions"] = "incomplete"
 
         # Greeks
-        greeks = context.get("risk_metrics", {}).get("greeks", {})
-        if greeks.get("available"):
-            quality["greeks"] = "complete"
-        else:
-            quality["greeks"] = "incomplete"
+        # Greeks intentionally disabled
+        quality["greeks"] = "not_applicable"
 
         # Factor exposure
         factor_exp = context.get("factor_exposure", {})

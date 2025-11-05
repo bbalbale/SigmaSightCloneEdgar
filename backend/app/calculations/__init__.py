@@ -9,14 +9,8 @@ from .market_data import (
     fetch_and_cache_prices
 )
 
-from .greeks import (
-    calculate_real_greeks,
-    calculate_position_greeks
-)
-
 from .portfolio import (
     calculate_portfolio_exposures,
-    aggregate_portfolio_greeks,
     calculate_delta_adjusted_exposure,
     aggregate_by_tags,
     aggregate_by_underlying,
@@ -33,13 +27,8 @@ __all__ = [
     "calculate_daily_pnl",
     "fetch_and_cache_prices",
     
-    # Greeks calculations
-    "calculate_real_greeks",
-    "calculate_position_greeks",
-    
     # Portfolio aggregations
     "calculate_portfolio_exposures",
-    "aggregate_portfolio_greeks",
     "calculate_delta_adjusted_exposure",
     "aggregate_by_tags",
     "aggregate_by_underlying",

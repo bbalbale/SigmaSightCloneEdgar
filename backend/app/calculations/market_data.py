@@ -29,12 +29,25 @@ def is_options_position(position: Position) -> bool:
     Returns:
         True if position is options (LC, LP, SC, SP), False if stock (LONG, SHORT)
     """
-    return position.position_type in [
-        PositionType.LC,  # Long Call
-        PositionType.LP,  # Long Put
-        PositionType.SC,  # Short Call
-        PositionType.SP   # Short Put
-    ]
+    investment_class = getattr(position, "investment_class", None)
+    if investment_class:
+        normalized_class = str(investment_class).upper()
+        if normalized_class == "PRIVATE":
+            return False
+        if normalized_class == "OPTIONS":
+            return position.position_type in {
+                PositionType.LC,
+                PositionType.LP,
+                PositionType.SC,
+                PositionType.SP,
+            }
+
+    return position.position_type in {
+        PositionType.LC,
+        PositionType.LP,
+        PositionType.SC,
+        PositionType.SP,
+    }
 
 
 async def calculate_position_market_value(

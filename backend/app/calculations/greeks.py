@@ -13,6 +13,7 @@ from sqlalchemy.dialects.postgresql import insert
 from app.models.positions import Position, PositionType
 from app.models.market_data import PositionGreeks
 from app.core.logging import get_logger
+from app.calculations.market_data import is_options_position
 
 logger = get_logger(__name__)
 
@@ -23,27 +24,6 @@ try:
 except ImportError:
     logger.warning("mibian not available, falling back to mock calculations")
     MIBIAN_AVAILABLE = False
-
-
-
-
-
-def is_options_position(position: Position) -> bool:
-    """
-    Determine if a position is an options position
-    
-    Args:
-        position: Position object
-        
-    Returns:
-        True if position is options (LC, LP, SC, SP), False if stock (LONG, SHORT)
-    """
-    return position.position_type in [
-        PositionType.LC,  # Long Call
-        PositionType.LP,  # Long Put
-        PositionType.SC,  # Short Call
-        PositionType.SP   # Short Put
-    ]
 
 
 def is_expired_option(position: Position) -> bool:

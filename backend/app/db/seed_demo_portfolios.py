@@ -7,7 +7,8 @@ from datetime import date, datetime
 from decimal import Decimal
 from uuid import uuid4, UUID
 import hashlib
-from typing import List, Dict, Any
+import re
+from typing import List, Dict, Any, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
@@ -19,6 +20,16 @@ from app.models.tags_v2 import TagV2
 from app.services.position_tag_service import PositionTagService
 
 logger = get_logger(__name__)
+
+OCC_OPTION_PATTERN = re.compile(r'^[A-Z]{1,6}\d{6}([CP])\d{8}$')
+
+
+def _extract_option_flag(symbol: str) -> Optional[str]:
+    """Return 'C' or 'P' if symbol matches OCC option format."""
+    match = OCC_OPTION_PATTERN.match(symbol.upper())
+    if match:
+        return match.group(1)
+    return None
 
 def generate_deterministic_uuid(seed_string: str) -> UUID:
     """Generate consistent UUID from seed string - DEVELOPMENT ONLY
@@ -312,16 +323,32 @@ async def get_or_create_tag(db: AsyncSession, user_id: str, tag_name: str) -> Ta
     
     return tag
 
-def determine_position_type(symbol: str, quantity: Decimal) -> PositionType:
-    """Determine position type from symbol and quantity"""
-    if len(symbol) > 10 and any(char in symbol for char in ['C', 'P']):  # Options symbol
-        is_call = 'C' in symbol[-9:]  # Check last 9 chars for option type
-        if quantity > 0:
-            return PositionType.LC if is_call else PositionType.LP
+def determine_position_type(
+    symbol: str,
+    quantity: Decimal,
+    option_type: Optional[str] = None,
+    investment_class: Optional[str] = None
+) -> PositionType:
+    """Determine position type using option metadata when available."""
+    normalized_quantity = quantity or Decimal("0")
+    normalized_class = investment_class or determine_investment_class(symbol)
+
+    if normalized_class == 'OPTIONS':
+        option_hint = option_type.upper() if option_type else None
+        if option_hint in ('CALL', 'PUT'):
+            option_flag = 'C' if option_hint == 'CALL' else 'P'
+        elif option_hint in ('C', 'P'):
+            option_flag = option_hint
         else:
+            option_flag = _extract_option_flag(symbol)
+
+        if option_flag:
+            is_call = option_flag == 'C'
+            if normalized_quantity >= 0:
+                return PositionType.LC if is_call else PositionType.LP
             return PositionType.SC if is_call else PositionType.SP
-    else:  # Stock symbol
-        return PositionType.LONG if quantity > 0 else PositionType.SHORT
+
+    return PositionType.LONG if normalized_quantity >= 0 else PositionType.SHORT
 
 def determine_investment_class(symbol: str) -> str:
     """Determine investment class from symbol
@@ -339,13 +366,12 @@ def determine_investment_class(symbol: str) -> str:
         'PRIVATE', 'FUND', '_VC_', '_PE_', 'REIT', 'SIGMA',  # Original
         'HOME_', 'RENTAL_', 'ART_', 'CRYPTO_', 'TREASURY', 'MONEY_MARKET'  # New (Phase 8.1)
     ]
-    if any(pattern in symbol.upper() for pattern in private_patterns):
+    symbol_upper = symbol.upper()
+    if any(pattern in symbol_upper for pattern in private_patterns):
         return 'PRIVATE'
 
-    # Check if it's an option (has expiry date and strike price pattern)
-    # Options format: SYMBOL + YYMMDD + C/P + STRIKE (e.g., SPY250919C00460000)
-    # The C or P should be near the end, not just anywhere in the symbol
-    if len(symbol) > 10 and any(char in symbol for char in ['C', 'P']):
+    # OCC option format: SYMBOL + YYMMDD + C/P + STRIKE (e.g., SPY250919C00460000)
+    if _extract_option_flag(symbol_upper):
         return 'OPTIONS'
 
     # Everything else is public equity (stocks, ETFs, mutual funds)
@@ -379,11 +405,16 @@ async def _add_positions_to_portfolio(db: AsyncSession, portfolio: Portfolio, po
         if symbol in existing_symbols:
             continue
 
-        # Determine position type
-        position_type = determine_position_type(symbol, pos_data["quantity"])
-
         # Determine investment class
         investment_class = determine_investment_class(symbol)
+
+        # Determine position type using investment class & option metadata
+        position_type = determine_position_type(
+            symbol,
+            pos_data["quantity"],
+            option_type=pos_data.get("option_type"),
+            investment_class=investment_class
+        )
 
         # Determine investment subtype for private investments
         investment_subtype = None
