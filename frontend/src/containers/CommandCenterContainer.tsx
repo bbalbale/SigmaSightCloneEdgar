@@ -5,7 +5,6 @@ import { useCommandCenterData } from '@/hooks/useCommandCenterData'
 import { usePortfolioStore } from '@/stores/portfolioStore'
 import { HeroMetricsRow } from '@/components/command-center/HeroMetricsRow'
 import { PerformanceMetricsRow } from '@/components/command-center/PerformanceMetricsRow'
-import { RiskMetricsRow } from '@/components/command-center/RiskMetricsRow'
 import { HoldingsTable } from '@/components/command-center/HoldingsTable'
 import { ManagePositionsSidePanel } from '@/components/portfolio/ManagePositionsSidePanel'
 import { Button } from '@/components/ui/button'
@@ -210,7 +209,6 @@ export function CommandCenterContainer() {
           </section>
           <HeroMetricsRow metrics={aggregate.heroMetrics} loading={loading} />
           <PerformanceMetricsRow metrics={aggregate.performanceMetrics} loading={loading} />
-          <RiskMetricsRow metrics={aggregate.riskMetrics} loading={loading} />
           <HoldingsTable
             holdings={aggregate.holdings}
             loading={loading}
@@ -247,7 +245,6 @@ export function CommandCenterContainer() {
             </section>
             <HeroMetricsRow metrics={section.heroMetrics} loading={loading} />
             <PerformanceMetricsRow metrics={section.performanceMetrics} loading={loading} />
-            <RiskMetricsRow metrics={section.riskMetrics} loading={loading} />
             <HoldingsTable
               holdings={holdingsForSection}
               loading={loading}
