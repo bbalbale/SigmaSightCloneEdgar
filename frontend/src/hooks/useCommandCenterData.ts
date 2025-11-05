@@ -5,6 +5,7 @@ import { analyticsApi } from '@/services/analyticsApi'
 import targetPriceService from '@/services/targetPriceService'
 import { portfolioService } from '@/services/portfolioApi'
 import { positionResearchService, type EnhancedPosition } from '@/services/positionResearchService'
+import type { VolatilityMetricsResponse } from '@/types/analytics'
 
 interface HeroMetrics {
   equityBalance: number
@@ -22,6 +23,11 @@ interface PerformanceMetrics {
   portfolioBeta90d: number | null
   portfolioBeta1y: number | null
   stressTest: { up: number; down: number } | null
+  volatility: {
+    current21d: number | null
+    historical63d: number | null
+    forward21d: number | null
+  }
 }
 
 interface HoldingRow {
@@ -136,7 +142,8 @@ export function useCommandCenterData(refreshTrigger?: number): UseCommandCenterD
       sectorData,
       correlationData,
       positionBetas,
-      portfolioFactors
+      portfolioFactors,
+      volatilityResponse
     ] = await Promise.all([
       analyticsApi.getOverview(portfolioId),
       fetchPortfolioSnapshot(portfolioId),
@@ -148,7 +155,8 @@ export function useCommandCenterData(refreshTrigger?: number): UseCommandCenterD
       analyticsApi.getSectorExposure(portfolioId).catch(() => ({ data: { available: false } })),
       analyticsApi.getCorrelationMatrix(portfolioId).catch(() => ({ data: { available: false } })),
       analyticsApi.getPositionFactorExposures(portfolioId).catch(() => ({ data: { available: false, positions: [] } })),
-      analyticsApi.getPortfolioFactorExposures(portfolioId).catch(() => ({ data: { available: false, factors: [] } }))
+      analyticsApi.getPortfolioFactorExposures(portfolioId).catch(() => ({ data: { available: false, factors: [] } })),
+      analyticsApi.getVolatility(portfolioId).catch(() => ({ data: { available: false, data: null } }))
     ])
 
     const overviewResponse = overviewRaw.data
@@ -291,6 +299,16 @@ export function useCommandCenterData(refreshTrigger?: number): UseCommandCenterD
         : null
 
     const pnlData = overviewResponse.pnl || {}
+    const volatilityPayload = (volatilityResponse as { data?: VolatilityMetricsResponse } | null)?.data ?? null
+    const volatilityData =
+      volatilityPayload && volatilityPayload.available && volatilityPayload.data
+        ? volatilityPayload.data
+        : null
+    const volatilityMetrics = {
+      current21d: normalizeNumber(volatilityData?.realized_volatility_21d),
+      historical63d: normalizeNumber(volatilityData?.realized_volatility_63d),
+      forward21d: normalizeNumber(volatilityData?.expected_volatility_21d)
+    }
 
     return {
       portfolioId,
@@ -309,7 +327,8 @@ export function useCommandCenterData(refreshTrigger?: number): UseCommandCenterD
         cashBalance,
         portfolioBeta90d: beta90d,
         portfolioBeta1y: beta1y,
-        stressTest
+        stressTest,
+        volatility: volatilityMetrics
       },
       riskMetrics: {
         portfolioBeta90d: beta90d,
@@ -454,6 +473,49 @@ export function useCommandCenterData(refreshTrigger?: number): UseCommandCenterD
             const aggregateBeta90d =
               aggregateAnalytics?.risk_metrics?.portfolio_beta ?? weightedBeta90d ?? null
 
+            const volatilityAccumulator = validSections.reduce(
+              (acc, section) => {
+                const weight = Math.max(section.heroMetrics.equityBalance, 0)
+                if (weight <= 0) {
+                  return acc
+                }
+                const vol = section.performanceMetrics.volatility
+                if (vol.current21d !== null) {
+                  acc.current.sum += vol.current21d * weight
+                  acc.current.weight += weight
+                }
+                if (vol.historical63d !== null) {
+                  acc.historical.sum += vol.historical63d * weight
+                  acc.historical.weight += weight
+                }
+                if (vol.forward21d !== null) {
+                  acc.forward.sum += vol.forward21d * weight
+                  acc.forward.weight += weight
+                }
+                return acc
+              },
+              {
+                current: { sum: 0, weight: 0 },
+                historical: { sum: 0, weight: 0 },
+                forward: { sum: 0, weight: 0 }
+              }
+            )
+
+            const aggregateVolatility = {
+              current21d:
+                volatilityAccumulator.current.weight > 0
+                  ? volatilityAccumulator.current.sum / volatilityAccumulator.current.weight
+                  : null,
+              historical63d:
+                volatilityAccumulator.historical.weight > 0
+                  ? volatilityAccumulator.historical.sum / volatilityAccumulator.historical.weight
+                  : null,
+              forward21d:
+                volatilityAccumulator.forward.weight > 0
+                  ? volatilityAccumulator.forward.sum / volatilityAccumulator.forward.weight
+                  : null
+            }
+
             const aggregateHero: HeroMetrics = {
               equityBalance: aggregateAnalytics?.net_asset_value ?? totalEquity,
               targetReturnEOY: weightedTargetReturn,
@@ -477,7 +539,8 @@ export function useCommandCenterData(refreshTrigger?: number): UseCommandCenterD
                       up: netExposure * weightedBeta1y * 0.01,
                       down: netExposure * weightedBeta1y * -0.01
                     }
-                  : null
+                  : null,
+              volatility: aggregateVolatility
             }
 
             const aggregateLargestHolding = aggregateHoldings

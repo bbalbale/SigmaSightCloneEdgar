@@ -63,7 +63,12 @@ export function CommandCenterContainer() {
     cashBalance: 0,
     portfolioBeta90d: null,
     portfolioBeta1y: null,
-    stressTest: null
+    stressTest: null,
+    volatility: {
+      current21d: null,
+      historical63d: null,
+      forward21d: null
+    }
   }
 
   const emptyRiskMetrics = {

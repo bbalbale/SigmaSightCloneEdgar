@@ -62,6 +62,57 @@ function MetricCard({ label, value, subValue, valueColor = 'neutral' }: MetricCa
   )
 }
 
+interface VolatilityCardProps {
+  volatility: {
+    historical63d: number | null
+    current21d: number | null
+    forward21d: number | null
+  }
+}
+
+function VolatilityCard({ volatility }: VolatilityCardProps) {
+  const formatVol = (value: number | null) => {
+    if (value === null) {
+      return '--'
+    }
+    return `${(value * 100).toFixed(1)}%`
+  }
+
+  return (
+    <div className="themed-border-r p-3 transition-all duration-200 bg-secondary hover:bg-tertiary">
+      <div className="text-[10px] font-semibold uppercase tracking-wider mb-1.5 text-secondary">
+        Volatility
+      </div>
+      <div className="flex flex-wrap items-start gap-6 text-secondary text-xs">
+        <div className="flex flex-col">
+          <span className="text-lg font-semibold text-primary leading-tight">
+            {formatVol(volatility.historical63d)}
+          </span>
+          <span className="text-[10px] uppercase tracking-wide">
+            Historical
+          </span>
+        </div>
+        <div className="flex flex-col">
+          <span className="text-lg font-semibold text-primary leading-tight">
+            {formatVol(volatility.current21d)}
+          </span>
+          <span className="text-[10px] uppercase tracking-wide">
+            Current
+          </span>
+        </div>
+        <div className="flex flex-col">
+          <span className="text-lg font-semibold text-primary leading-tight">
+            {formatVol(volatility.forward21d)}
+          </span>
+          <span className="text-[10px] uppercase tracking-wide">
+            Forward Est.
+          </span>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 interface BetaCardProps {
   label: string
   beta90d: number | null
@@ -166,8 +217,8 @@ export function PerformanceMetricsRow({ metrics, loading }: PerformanceMetricsRo
     return (
       <section className="px-4 pb-4">
         <div className="container mx-auto">
-          <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
-            {[...Array(5)].map((_, i) => (
+          <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4">
+            {[...Array(6)].map((_, i) => (
               <LoadingCard key={i} />
             ))}
           </div>
@@ -180,7 +231,7 @@ export function PerformanceMetricsRow({ metrics, loading }: PerformanceMetricsRo
     <section className="px-4 pb-4">
       <div className="container mx-auto">
         <div className="themed-border overflow-hidden bg-secondary">
-          <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5">
+          <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6">
             {/* YTD P&L */}
             <MetricCard
               label="YTD P&L"
@@ -204,6 +255,9 @@ export function PerformanceMetricsRow({ metrics, loading }: PerformanceMetricsRo
               subValue={metrics.cashBalance >= 0 ? 'Available' : 'Margin Used'}
               valueColor={metrics.cashBalance >= 0 ? 'neutral' : 'negative'}
             />
+
+            {/* Volatility */}
+            <VolatilityCard volatility={metrics.volatility} />
 
             {/* Portfolio Beta */}
             <BetaCard
