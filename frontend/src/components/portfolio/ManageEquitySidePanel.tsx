@@ -15,7 +15,7 @@ interface ManageEquitySidePanelProps {
   portfolioId: string
   open: boolean
   onOpenChange: (open: boolean) => void
-  onComplete?: () => void
+  onComplete?: (result?: { message?: string }) => void
 }
 
 interface EquityFormState {
@@ -25,10 +25,12 @@ interface EquityFormState {
   notes: string
 }
 
+const getTodayLocalDate = () => format(new Date(), 'yyyy-MM-dd')
+
 const createEmptyForm = (): EquityFormState => ({
   changeType: 'CONTRIBUTION',
   amount: '',
-  changeDate: new Date().toISOString().split('T')[0],
+  changeDate: getTodayLocalDate(),
   notes: '',
 })
 
@@ -107,6 +109,14 @@ export function ManageEquitySidePanel({ portfolioId, open, onOpenChange, onCompl
     }
   }, [open, portfolioId])
 
+  useEffect(() => {
+    if (!successMessage) {
+      return
+    }
+    const timer = setTimeout(() => setSuccessMessage(null), 5000)
+    return () => clearTimeout(timer)
+  }, [successMessage])
+
   const resetForm = () => {
     setForm(createEmptyForm())
   }
@@ -136,7 +146,8 @@ export function ManageEquitySidePanel({ portfolioId, open, onOpenChange, onCompl
         notes: form.notes?.trim() || undefined,
       })
 
-      setSuccessMessage(`${form.changeType === 'CONTRIBUTION' ? 'Contribution' : 'Withdrawal'} recorded successfully.`)
+      const successText = `${form.changeType === 'CONTRIBUTION' ? 'Contribution' : 'Withdrawal'} recorded successfully.`
+      setSuccessMessage(successText)
       resetForm()
 
       const [summaryResponse, listResponse] = await Promise.all([
@@ -146,7 +157,7 @@ export function ManageEquitySidePanel({ portfolioId, open, onOpenChange, onCompl
       setSummary(summaryResponse)
       setRecentChanges(listResponse.items)
 
-      onComplete?.()
+      onComplete?.({ message: successText })
     } catch (err: any) {
       console.error('Failed to record equity change:', err)
       setError(err?.message || 'Failed to record equity change.')
@@ -156,14 +167,22 @@ export function ManageEquitySidePanel({ portfolioId, open, onOpenChange, onCompl
   }
 
   const handleDelete = async (change: EquityChange) => {
-    if (!canDelete(change)) return
+    if (!canDelete(change)) {
+      setError('Delete window closed for this entry.')
+      return
+    }
+
+    setError(null)
+    setSuccessMessage(null)
     try {
       await equityChangeService.delete(portfolioId, change.id)
       const listResponse = await equityChangeService.list(portfolioId, { page: 1, pageSize: 10 })
       setRecentChanges(listResponse.items)
       const summaryResponse = await equityChangeService.getSummary(portfolioId)
       setSummary(summaryResponse)
-      onComplete?.()
+      const successText = 'Equity change deleted successfully.'
+      setSuccessMessage(successText)
+      onComplete?.({ message: successText })
     } catch (err) {
       console.error('Failed to delete equity change:', err)
       setError('Unable to delete this entry. It may be outside the deletion window.')
@@ -240,7 +259,7 @@ export function ManageEquitySidePanel({ portfolioId, open, onOpenChange, onCompl
                   id="equity-date"
                   type="date"
                   value={form.changeDate}
-                  max={new Date().toISOString().split('T')[0]}
+                  max={getTodayLocalDate()}
                   onChange={(event) => setForm((prev) => ({ ...prev, changeDate: event.target.value }))}
                   disabled={isSubmitting}
                   required
@@ -275,7 +294,7 @@ export function ManageEquitySidePanel({ portfolioId, open, onOpenChange, onCompl
               Summary
             </h3>
             {loadingData && !summary ? (
-              <p className="text-sm text-secondary">Loading summary…</p>
+              <p className="text-sm text-secondary">Loading summary...</p>
             ) : summary ? (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="themed-border p-3">
@@ -324,7 +343,7 @@ export function ManageEquitySidePanel({ portfolioId, open, onOpenChange, onCompl
             </div>
 
             {loadingData && recentChanges.length === 0 ? (
-              <p className="text-sm text-secondary">Loading activity…</p>
+              <p className="text-sm text-secondary">Loading activity...</p>
             ) : recentChanges.length === 0 ? (
               <p className="text-sm text-secondary">No recent equity changes.</p>
             ) : (

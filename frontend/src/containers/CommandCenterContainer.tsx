@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { useCommandCenterData } from '@/hooks/useCommandCenterData'
 import { usePortfolioStore } from '@/stores/portfolioStore'
 import { HeroMetricsRow } from '@/components/command-center/HeroMetricsRow'
@@ -11,6 +11,7 @@ import { ManageEquitySidePanel } from '@/components/portfolio/ManageEquitySidePa
 import { Button } from '@/components/ui/button'
 import { AccountFilter } from '@/components/portfolio/AccountFilter'
 import { AccountSummaryCard } from '@/components/portfolio/AccountSummaryCard'
+import { Alert, AlertDescription } from '@/components/ui/alert'
 
 type PortfolioSectionShape = ReturnType<typeof useCommandCenterData>['portfolios'][number]
 
@@ -21,8 +22,17 @@ export function CommandCenterContainer() {
   const [sidePanelOpen, setSidePanelOpen] = useState(false)
   const [equityPanelOpen, setEquityPanelOpen] = useState(false)
   const [refreshTrigger, setRefreshTrigger] = useState(0)
+  const [equityActionMessage, setEquityActionMessage] = useState<string | null>(null)
 
   const { aggregate, portfolios, loading, error } = useCommandCenterData(refreshTrigger)
+
+  useEffect(() => {
+    if (!equityActionMessage) {
+      return
+    }
+    const timer = setTimeout(() => setEquityActionMessage(null), 5000)
+    return () => clearTimeout(timer)
+  }, [equityActionMessage])
 
   const isAggregateView = selectedPortfolioId === null
   const filteredSections = selectedPortfolioId
@@ -163,7 +173,10 @@ export function CommandCenterContainer() {
     handleRefresh()
   }
 
-  const handleEquityPanelComplete = () => {
+  const handleEquityPanelComplete = (result?: { message?: string }) => {
+    if (result?.message) {
+      setEquityActionMessage(result.message)
+    }
     setEquityPanelOpen(false)
     handleRefresh()
   }
@@ -182,41 +195,51 @@ export function CommandCenterContainer() {
             </p>
             {/* Account Filter - Multi-Portfolio Feature (November 3, 2025) */}
             <AccountFilter className="ml-auto" showForSinglePortfolio={true} />
-          </div>
-          <div className="flex items-center gap-2">
-            <Button
-              onClick={() => setEquityPanelOpen(true)}
-              size="sm"
-              variant="secondary"
-              disabled={isAggregateView || !portfolioId}
-            >
-              Manage Equity
-            </Button>
-            <Button
-              onClick={() => setSidePanelOpen(true)}
-              size="sm"
-              className="flex items-center gap-2"
-            >
-              <svg
-                className="w-4 h-4"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M12 4v16m8-8H4"
-                />
-              </svg>
-              Manage Positions
-            </Button>
-          </div>
-        </div>
       </div>
+      <div className="flex items-center gap-2">
+        <Button
+          onClick={() => setEquityPanelOpen(true)}
+          size="sm"
+          variant="secondary"
+          disabled={isAggregateView || !portfolioId}
+        >
+          Manage Equity
+        </Button>
+        <Button
+          onClick={() => setSidePanelOpen(true)}
+          size="sm"
+          className="flex items-center gap-2"
+        >
+          <svg
+            className="w-4 h-4"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M12 4v16m8-8H4"
+            />
+          </svg>
+          Manage Positions
+        </Button>
+      </div>
+    </div>
+  </div>
 
-      {/* Account Summary Card - only show in aggregate multi-portfolio view */}
+  {equityActionMessage && (
+    <div className="px-4">
+      <div className="container mx-auto">
+        <Alert>
+          <AlertDescription>{equityActionMessage}</AlertDescription>
+        </Alert>
+      </div>
+    </div>
+  )}
+
+  {/* Account Summary Card - only show in aggregate multi-portfolio view */}
       {showAccountSummary && (
         <section className="px-4 pt-4">
           <div className="container mx-auto">

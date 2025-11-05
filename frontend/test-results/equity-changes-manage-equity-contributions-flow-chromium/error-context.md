@@ -1,0 +1,689 @@
+# Page snapshot
+
+```yaml
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - banner [ref=e3]:
+      - generic [ref=e4]:
+        - generic [ref=e5]:
+          - generic [ref=e6]: $
+          - heading "SigmaSight" [level=1] [ref=e7]
+          - button "Switch to light mode" [ref=e8] [cursor=pointer]:
+            - img [ref=e9]
+          - button [ref=e11] [cursor=pointer]:
+            - img
+        - generic [ref=e12]:
+          - navigation [ref=e13]:
+            - link "Command Center" [ref=e14] [cursor=pointer]:
+              - /url: /command-center
+              - img
+              - generic [ref=e15]: Command Center
+            - link "Research & Analyze" [ref=e16] [cursor=pointer]:
+              - /url: /research-and-analyze
+              - img
+              - generic [ref=e17]: Research & Analyze
+            - link "Risk Metrics" [ref=e18] [cursor=pointer]:
+              - /url: /risk-metrics
+              - img
+              - generic [ref=e19]: Risk Metrics
+            - link "SigmaSight AI" [ref=e20] [cursor=pointer]:
+              - /url: /sigmasight-ai
+              - img
+              - generic [ref=e21]: SigmaSight AI
+          - button "Demo High Net Worth Investor" [ref=e23] [cursor=pointer]:
+            - img
+            - generic [ref=e24]: Demo High Net Worth Investor
+            - img
+    - main [ref=e25]:
+      - generic [ref=e26]:
+        - generic [ref=e28]:
+          - generic [ref=e29]:
+            - paragraph [ref=e30]: Portfolio overview, holdings, and risk metrics
+            - generic [ref=e31]:
+              - img [ref=e32]
+              - combobox [ref=e36] [cursor=pointer]:
+                - generic:
+                  - generic:
+                    - generic: Demo High Net Worth Investor Portfolio
+                    - generic: Taxable • 51 positions
+                - img [ref=e37]
+          - generic [ref=e39]:
+            - button "Manage Equity" [ref=e40] [cursor=pointer]
+            - button "Manage Positions" [ref=e41] [cursor=pointer]:
+              - img
+              - text: Manage Positions
+        - generic [ref=e45]:
+          - heading "Demo High Net Worth Investor Portfolio" [level=3] [ref=e46]
+          - paragraph [ref=e47]: Portfolio-specific exposure, performance, and risk.
+        - generic [ref=e51]:
+          - generic [ref=e52]:
+            - generic [ref=e53]: Equity Balance
+            - generic [ref=e54]: $3.1M
+            - generic [ref=e55]: Total Value
+          - generic [ref=e56]:
+            - generic [ref=e57]: Net Capital Flow (30d)
+            - generic [ref=e58]: +$8,704
+            - generic [ref=e59]: Last add +$1,235 on Nov 3, 2025
+          - generic [ref=e60]:
+            - generic [ref=e61]: Target Return EOY
+            - generic [ref=e62]: +0.0%
+            - generic [ref=e63]: Weighted Avg
+          - generic [ref=e64]:
+            - generic [ref=e65]: Gross Exposure
+            - generic [ref=e66]: $3.7M
+            - generic [ref=e67]: 118% NAV
+          - generic [ref=e68]:
+            - generic [ref=e69]: Net Exposure
+            - generic [ref=e70]: $3.7M
+            - generic [ref=e71]: +118% NAV
+          - generic [ref=e72]:
+            - generic [ref=e73]: Long Exposure
+            - generic [ref=e74]: $3.7M
+            - generic [ref=e75]: 118% NAV
+          - generic [ref=e76]:
+            - generic [ref=e77]: Short Exposure
+            - generic [ref=e78]: $0
+            - generic [ref=e79]: 0% NAV
+        - generic [ref=e83]:
+          - generic [ref=e84]:
+            - generic [ref=e85]: YTD P&L
+            - generic [ref=e86]: $283.0K
+            - generic [ref=e87]: Year to Date
+          - generic [ref=e88]:
+            - generic [ref=e89]: MTD P&L
+            - generic [ref=e90]: $6.7K
+            - generic [ref=e91]: Month to Date
+          - generic [ref=e92]:
+            - generic [ref=e93]: Uninvested Cash/Margin
+            - generic [ref=e94]: $-557.9K
+            - generic [ref=e95]: Margin Used
+          - generic [ref=e96]:
+            - generic [ref=e97]: Volatility
+            - generic [ref=e98]:
+              - generic [ref=e99]:
+                - generic [ref=e100]: "--"
+                - generic [ref=e101]: Historical
+              - generic [ref=e102]:
+                - generic [ref=e103]: "--"
+                - generic [ref=e104]: Current
+              - generic [ref=e105]:
+                - generic [ref=e106]: "--"
+                - generic [ref=e107]: Forward
+          - generic [ref=e108]:
+            - generic [ref=e109]: Portfolio Beta
+            - generic [ref=e111]:
+              - generic [ref=e112]:
+                - generic [ref=e113]: "0.52"
+                - generic [ref=e114]: 1 Year
+              - generic [ref=e115]:
+                - generic [ref=e116]: "0.75"
+                - generic [ref=e117]: 90 Days
+          - generic [ref=e118]:
+            - generic [ref=e119]:
+              - generic [ref=e120]: Stress Test
+              - generic [ref=e121]: A±1% Market
+            - generic [ref=e122]:
+              - generic [ref=e123]: $19.0K
+              - generic [ref=e124]: /
+              - generic [ref=e125]: $-19.0K
+        - generic [ref=e128]:
+          - heading "Holdings (30 positions)" [level=2] [ref=e129]
+          - generic [ref=e130]:
+            - generic [ref=e131]:
+              - generic [ref=e132] [cursor=pointer]:
+                - heading "Long Positions (19)" [level=3] [ref=e133]:
+                  - text: Long Positions
+                  - generic [ref=e134]: (19)
+                - img [ref=e135]
+              - table [ref=e138]:
+                - rowgroup [ref=e139]:
+                  - row "Position Quantity Today's Price Target Price Market Value Weight P&L Total Return % Target Return Beta" [ref=e140]:
+                    - cell [ref=e141]
+                    - cell "Position" [ref=e142] [cursor=pointer]:
+                      - generic [ref=e144]: Position
+                    - cell "Quantity" [ref=e145] [cursor=pointer]:
+                      - generic [ref=e147]: Quantity
+                    - cell "Today's Price" [ref=e148] [cursor=pointer]:
+                      - generic [ref=e150]: Today's Price
+                    - cell "Target Price" [ref=e151] [cursor=pointer]:
+                      - generic [ref=e153]: Target Price
+                    - cell "Market Value" [ref=e154] [cursor=pointer]:
+                      - generic [ref=e156]: Market Value
+                    - cell "Weight" [ref=e157] [cursor=pointer]:
+                      - generic [ref=e158]:
+                        - generic [ref=e159]: Weight
+                        - img [ref=e160]
+                    - cell "P&L Total" [ref=e162] [cursor=pointer]:
+                      - generic [ref=e164]: P&L Total
+                    - cell "Return %" [ref=e165] [cursor=pointer]:
+                      - generic [ref=e167]: Return %
+                    - cell "Target Return" [ref=e168] [cursor=pointer]:
+                      - generic [ref=e170]: Target Return
+                    - cell "Beta" [ref=e171] [cursor=pointer]:
+                      - generic [ref=e173]: Beta
+                - rowgroup [ref=e174]:
+                  - row "MSFT 8 lots 900 $517.03 $621.07 $465.3K 11.6% $136.3K +44.6% +14.6% 1.06" [ref=e175] [cursor=pointer]:
+                    - cell [ref=e176]:
+                      - button [ref=e177]:
+                        - img [ref=e178]
+                    - cell "MSFT 8 lots" [ref=e180]:
+                      - generic [ref=e181]:
+                        - generic [ref=e182]: MSFT
+                        - generic [ref=e183]: 8 lots
+                    - cell "900" [ref=e184]
+                    - cell "$517.03" [ref=e185]
+                    - cell "$621.07" [ref=e186]
+                    - cell "$465.3K" [ref=e187]
+                    - cell "11.6%" [ref=e188]:
+                      - generic [ref=e192]: 11.6%
+                    - cell "$136.3K" [ref=e193]
+                    - cell "+44.6%" [ref=e194]
+                    - cell "+14.6%" [ref=e195]
+                    - cell "1.06" [ref=e196]
+                  - row "QQQ 450 $632.08 $700.00 $284.4K 7.1% $95.4K +50.5% +10.6% —" [ref=e197] [cursor=pointer]:
+                    - cell [ref=e198]:
+                      - button [ref=e199]:
+                        - img [ref=e200]
+                    - cell "QQQ" [ref=e202]:
+                      - generic [ref=e204]: QQQ
+                    - cell "450" [ref=e205]
+                    - cell "$632.08" [ref=e206]
+                    - cell "$700.00" [ref=e207]
+                    - cell "$284.4K" [ref=e208]
+                    - cell "7.1%" [ref=e209]:
+                      - generic [ref=e213]: 7.1%
+                    - cell "$95.4K" [ref=e214]
+                    - cell "+50.5%" [ref=e215]
+                    - cell "+10.6%" [ref=e216]
+                    - cell "—" [ref=e217]
+                  - row "SPY 400 $683.34 — $273.3K 6.8% $61.3K +28.9% — —" [ref=e218] [cursor=pointer]:
+                    - cell [ref=e219]:
+                      - button [ref=e220]:
+                        - img [ref=e221]
+                    - cell "SPY" [ref=e223]:
+                      - generic [ref=e225]: SPY
+                    - cell "400" [ref=e226]
+                    - cell "$683.34" [ref=e227]
+                    - cell "—" [ref=e228]
+                    - cell "$273.3K" [ref=e229]
+                    - cell "6.8%" [ref=e230]:
+                      - generic [ref=e234]: 6.8%
+                    - cell "$61.3K" [ref=e235]
+                    - cell "+28.9%" [ref=e236]
+                    - cell "—" [ref=e237]
+                    - cell "—" [ref=e238]
+                  - row "VTI 800 $335.80 — $268.6K 6.7% $84.6K +46.0% — —" [ref=e239] [cursor=pointer]:
+                    - cell [ref=e240]:
+                      - button [ref=e241]:
+                        - img [ref=e242]
+                    - cell "VTI" [ref=e244]:
+                      - generic [ref=e246]: VTI
+                    - cell "800" [ref=e247]
+                    - cell "$335.80" [ref=e248]
+                    - cell "—" [ref=e249]
+                    - cell "$268.6K" [ref=e250]
+                    - cell "6.7%" [ref=e251]:
+                      - generic [ref=e255]: 6.7%
+                    - cell "$84.6K" [ref=e256]
+                    - cell "+46.0%" [ref=e257]
+                    - cell "—" [ref=e258]
+                    - cell "—" [ref=e259]
+                  - row "TSLA 7 lots 525 $468.37 $392.05 $245.9K 6.2% $114.6K +87.3% -16.3% 1.87" [ref=e260] [cursor=pointer]:
+                    - cell [ref=e261]:
+                      - button [ref=e262]:
+                        - img [ref=e263]
+                    - cell "TSLA 7 lots" [ref=e265]:
+                      - generic [ref=e266]:
+                        - generic [ref=e267]: TSLA
+                        - generic [ref=e268]: 7 lots
+                    - cell "525" [ref=e269]
+                    - cell "$468.37" [ref=e270]
+                    - cell "$392.05" [ref=e271]
+                    - cell "$245.9K" [ref=e272]
+                    - cell "6.2%" [ref=e273]:
+                      - generic [ref=e277]: 6.2%
+                    - cell "$114.6K" [ref=e278]
+                    - cell "+87.3%" [ref=e279]
+                    - cell "-16.3%" [ref=e280]
+                    - cell "1.87" [ref=e281]
+                  - row "GOOGL 8 lots 850 $167.70 $263.15 $142.5K 3.6% $13.5K +17.9% -6.4% 1.08" [ref=e282] [cursor=pointer]:
+                    - cell [ref=e283]:
+                      - button [ref=e284]:
+                        - img [ref=e285]
+                    - cell "GOOGL 8 lots" [ref=e287]:
+                      - generic [ref=e288]:
+                        - generic [ref=e289]: GOOGL
+                        - generic [ref=e290]: 8 lots
+                    - cell "850" [ref=e291]
+                    - cell "$167.70" [ref=e292]
+                    - cell "$263.15" [ref=e293]
+                    - cell "$142.5K" [ref=e294]
+                    - cell "3.6%" [ref=e295]:
+                      - generic [ref=e299]: 3.6%
+                    - cell "$13.5K" [ref=e300]
+                    - cell "+17.9%" [ref=e301]
+                    - cell "-6.4%" [ref=e302]
+                    - cell "1.08" [ref=e303]
+                  - row "AMZN 480 $254.00 $267.92 $121.9K 3.1% $40.3K +49.4% +16.9% 1.37" [ref=e304] [cursor=pointer]:
+                    - cell [ref=e305]:
+                      - button [ref=e306]:
+                        - img [ref=e307]
+                    - cell "AMZN" [ref=e309]:
+                      - generic [ref=e311]: AMZN
+                    - cell "480" [ref=e312]
+                    - cell "$254.00" [ref=e313]
+                    - cell "$267.92" [ref=e314]
+                    - cell "$121.9K" [ref=e315]
+                    - cell "3.1%" [ref=e316]:
+                      - generic [ref=e320]: 3.1%
+                    - cell "$40.3K" [ref=e321]
+                    - cell "+49.4%" [ref=e322]
+                    - cell "+16.9%" [ref=e323]
+                    - cell "1.37" [ref=e324]
+                  - row "GLD 325 $368.78 — $119.9K 3.0% $48.6K +68.2% — —" [ref=e325] [cursor=pointer]:
+                    - cell [ref=e326]:
+                      - button [ref=e327]:
+                        - img [ref=e328]
+                    - cell "GLD" [ref=e330]:
+                      - generic [ref=e332]: GLD
+                    - cell "325" [ref=e333]
+                    - cell "$368.78" [ref=e334]
+                    - cell "—" [ref=e335]
+                    - cell "$119.9K" [ref=e336]
+                    - cell "3.0%" [ref=e337]:
+                      - generic [ref=e341]: 3.0%
+                    - cell "$48.6K" [ref=e342]
+                    - cell "+68.2%" [ref=e343]
+                    - cell "—" [ref=e344]
+                    - cell "—" [ref=e345]
+                  - row "JPM 350 $287.62 $326.46 $100.7K 2.5% $41.2K +69.2% +6.9% 1.08" [ref=e346] [cursor=pointer]:
+                    - cell [ref=e347]:
+                      - button [ref=e348]:
+                        - img [ref=e349]
+                    - cell "JPM" [ref=e351]:
+                      - generic [ref=e353]: JPM
+                    - cell "350" [ref=e354]
+                    - cell "$287.62" [ref=e355]
+                    - cell "$326.46" [ref=e356]
+                    - cell "$100.7K" [ref=e357]
+                    - cell "2.5%" [ref=e358]:
+                      - generic [ref=e362]: 2.5%
+                    - cell "$41.2K" [ref=e363]
+                    - cell "+69.2%" [ref=e364]
+                    - cell "+6.9%" [ref=e365]
+                    - cell "1.08" [ref=e366]
+                  - row "AAPL 400 $231.65 $256.01 $92.7K 2.3% $2.7K +3.0% -4.8% 1.11" [ref=e367] [cursor=pointer]:
+                    - cell [ref=e368]:
+                      - button [ref=e369]:
+                        - img [ref=e370]
+                    - cell "AAPL" [ref=e372]:
+                      - generic [ref=e374]: AAPL
+                    - cell "400" [ref=e375]
+                    - cell "$231.65" [ref=e376]
+                    - cell "$256.01" [ref=e377]
+                    - cell "$92.7K" [ref=e378]
+                    - cell "2.3%" [ref=e379]:
+                      - generic [ref=e383]: 2.3%
+                    - cell "$2.7K" [ref=e384]
+                    - cell "+3.0%" [ref=e385]
+                    - cell "-4.8%" [ref=e386]
+                    - cell "1.11" [ref=e387]
+                  - row "BRK-B 180 $475.68 $519.67 $85.6K 2.1% $6.4K +8.1% +7.9% 0.77" [ref=e388] [cursor=pointer]:
+                    - cell [ref=e389]:
+                      - button [ref=e390]:
+                        - img [ref=e391]
+                    - cell "BRK-B" [ref=e393]:
+                      - generic [ref=e395]: BRK-B
+                    - cell "180" [ref=e396]
+                    - cell "$475.68" [ref=e397]
+                    - cell "$519.67" [ref=e398]
+                    - cell "$85.6K" [ref=e399]
+                    - cell "2.1%" [ref=e400]:
+                      - generic [ref=e404]: 2.1%
+                    - cell "$6.4K" [ref=e405]
+                    - cell "+8.1%" [ref=e406]
+                    - cell "+7.9%" [ref=e407]
+                    - cell "0.77" [ref=e408]
+                  - row "DJP 1,900 $36.88 — $70.1K 1.8% $13.1K +22.9% — —" [ref=e409] [cursor=pointer]:
+                    - cell [ref=e410]:
+                      - button [ref=e411]:
+                        - img [ref=e412]
+                    - cell "DJP" [ref=e414]:
+                      - generic [ref=e416]: DJP
+                    - cell "1,900" [ref=e417]
+                    - cell "$36.88" [ref=e418]
+                    - cell "—" [ref=e419]
+                    - cell "$70.1K" [ref=e420]
+                    - cell "1.8%" [ref=e421]:
+                      - generic [ref=e425]: 1.8%
+                    - cell "$13.1K" [ref=e426]
+                    - cell "+22.9%" [ref=e427]
+                    - cell "—" [ref=e428]
+                    - cell "—" [ref=e429]
+                  - row "META 90 $638.51 $868.31 $57.5K 1.4% $9.8K +20.5% +33.9% 1.27" [ref=e430] [cursor=pointer]:
+                    - cell [ref=e431]:
+                      - button [ref=e432]:
+                        - img [ref=e433]
+                    - cell "META" [ref=e435]:
+                      - generic [ref=e437]: META
+                    - cell "90" [ref=e438]
+                    - cell "$638.51" [ref=e439]
+                    - cell "$868.31" [ref=e440]
+                    - cell "$57.5K" [ref=e441]
+                    - cell "1.4%" [ref=e442]:
+                      - generic [ref=e446]: 1.4%
+                    - cell "$9.8K" [ref=e447]
+                    - cell "+20.5%" [ref=e448]
+                    - cell "+33.9%" [ref=e449]
+                    - cell "1.27" [ref=e450]
+                  - row "V 170 $336.90 $394.78 $57.3K 1.4% $11.7K +25.7% +13.8% 0.82" [ref=e451] [cursor=pointer]:
+                    - cell [ref=e452]:
+                      - button [ref=e453]:
+                        - img [ref=e454]
+                    - cell "V" [ref=e456]:
+                      - generic [ref=e458]: V
+                    - cell "170" [ref=e459]
+                    - cell "$336.90" [ref=e460]
+                    - cell "$394.78" [ref=e461]
+                    - cell "$57.3K" [ref=e462]
+                    - cell "1.4%" [ref=e463]:
+                      - generic [ref=e467]: 1.4%
+                    - cell "$11.7K" [ref=e468]
+                    - cell "+25.7%" [ref=e469]
+                    - cell "+13.8%" [ref=e470]
+                    - cell "0.82" [ref=e471]
+                  - row "JNJ 310 $152.94 $199.56 $47.4K 1.2% $-2.2K -4.4% +6.8% 0.36" [ref=e472] [cursor=pointer]:
+                    - cell [ref=e473]:
+                      - button [ref=e474]:
+                        - img [ref=e475]
+                    - cell "JNJ" [ref=e477]:
+                      - generic [ref=e479]: JNJ
+                    - cell "310" [ref=e480]
+                    - cell "$152.94" [ref=e481]
+                    - cell "$199.56" [ref=e482]
+                    - cell "$47.4K" [ref=e483]
+                    - cell "1.2%" [ref=e484]:
+                      - generic [ref=e488]: 1.2%
+                    - cell "$-2.2K" [ref=e489]
+                    - cell "-4.4%" [ref=e490]
+                    - cell "+6.8%" [ref=e491]
+                    - cell "0.36" [ref=e492]
+                  - row "HD 125 $358.16 $438.85 $44.8K 1.1% $1.0K +2.3% +13.8% 1.05" [ref=e493] [cursor=pointer]:
+                    - cell [ref=e494]:
+                      - button [ref=e495]:
+                        - img [ref=e496]
+                    - cell "HD" [ref=e498]:
+                      - generic [ref=e500]: HD
+                    - cell "125" [ref=e501]
+                    - cell "$358.16" [ref=e502]
+                    - cell "$438.85" [ref=e503]
+                    - cell "$44.8K" [ref=e504]
+                    - cell "1.1%" [ref=e505]:
+                      - generic [ref=e509]: 1.1%
+                    - cell "$1.0K" [ref=e510]
+                    - cell "+2.3%" [ref=e511]
+                    - cell "+13.8%" [ref=e512]
+                    - cell "1.05" [ref=e513]
+                  - row "PG 250 $153.49 $168.95 $38.4K 1.0% $-2.9K -7.0% +11.6% 0.38" [ref=e514] [cursor=pointer]:
+                    - cell [ref=e515]:
+                      - button [ref=e516]:
+                        - img [ref=e517]
+                    - cell "PG" [ref=e519]:
+                      - generic [ref=e521]: PG
+                    - cell "250" [ref=e522]
+                    - cell "$153.49" [ref=e523]
+                    - cell "$168.95" [ref=e524]
+                    - cell "$38.4K" [ref=e525]
+                    - cell "1.0%" [ref=e526]:
+                      - generic [ref=e530]: 1.0%
+                    - cell "$-2.9K" [ref=e531]
+                    - cell "-7.0%" [ref=e532]
+                    - cell "+11.6%" [ref=e533]
+                    - cell "0.38" [ref=e534]
+                  - row "UNH 85 $333.79 $385.00 $28.4K 0.7% $-18.0K -38.8% +4.7% 0.43" [ref=e535] [cursor=pointer]:
+                    - cell [ref=e536]:
+                      - button [ref=e537]:
+                        - img [ref=e538]
+                    - cell "UNH" [ref=e540]:
+                      - generic [ref=e542]: UNH
+                    - cell "85" [ref=e543]
+                    - cell "$333.79" [ref=e544]
+                    - cell "$385.00" [ref=e545]
+                    - cell "$28.4K" [ref=e546]
+                    - cell "0.7%" [ref=e547]:
+                      - generic [ref=e551]: 0.7%
+                    - cell "$-18.0K" [ref=e552]
+                    - cell "-38.8%" [ref=e553]
+                    - cell "+4.7%" [ref=e554]
+                    - cell "0.43" [ref=e555]
+                  - row "NVDA 2 lots 95 $129.81 $223.62 $12.3K 0.3% $-49.2K -77.7% +11.2% 2.27" [ref=e556] [cursor=pointer]:
+                    - cell [ref=e557]:
+                      - button [ref=e558]:
+                        - img [ref=e559]
+                    - cell "NVDA 2 lots" [ref=e561]:
+                      - generic [ref=e562]:
+                        - generic [ref=e563]: NVDA
+                        - generic [ref=e564]: 2 lots
+                    - cell "95" [ref=e565]
+                    - cell "$129.81" [ref=e566]
+                    - cell "$223.62" [ref=e567]
+                    - cell "$12.3K" [ref=e568]
+                    - cell "0.3%" [ref=e569]:
+                      - generic [ref=e573]: 0.3%
+                    - cell "$-49.2K" [ref=e574]
+                    - cell "-77.7%" [ref=e575]
+                    - cell "+11.2%" [ref=e576]
+                    - cell "2.27" [ref=e577]
+            - generic [ref=e578]:
+              - generic [ref=e579] [cursor=pointer]:
+                - heading "Private Positions (11)" [level=3] [ref=e580]:
+                  - text: Private Positions
+                  - generic [ref=e581]: (11)
+                - img [ref=e582]
+              - table [ref=e585]:
+                - rowgroup [ref=e586]:
+                  - row "Position Quantity Today's Price Target Price Market Value Weight P&L Total Return % Target Return Beta" [ref=e587]:
+                    - cell [ref=e588]
+                    - cell "Position" [ref=e589] [cursor=pointer]:
+                      - generic [ref=e591]: Position
+                    - cell "Quantity" [ref=e592] [cursor=pointer]:
+                      - generic [ref=e594]: Quantity
+                    - cell "Today's Price" [ref=e595] [cursor=pointer]:
+                      - generic [ref=e597]: Today's Price
+                    - cell "Target Price" [ref=e598] [cursor=pointer]:
+                      - generic [ref=e600]: Target Price
+                    - cell "Market Value" [ref=e601] [cursor=pointer]:
+                      - generic [ref=e603]: Market Value
+                    - cell "Weight" [ref=e604] [cursor=pointer]:
+                      - generic [ref=e605]:
+                        - generic [ref=e606]: Weight
+                        - img [ref=e607]
+                    - cell "P&L Total" [ref=e609] [cursor=pointer]:
+                      - generic [ref=e611]: P&L Total
+                    - cell "Return %" [ref=e612] [cursor=pointer]:
+                      - generic [ref=e614]: Return %
+                    - cell "Target Return" [ref=e615] [cursor=pointer]:
+                      - generic [ref=e617]: Target Return
+                    - cell "Beta" [ref=e618] [cursor=pointer]:
+                      - generic [ref=e620]: Beta
+                - rowgroup [ref=e621]:
+                  - row "BX_PRIVATE_EQUITY 1 $285000.00 — $285.0K 7.1% $0.00 +0.0% — —" [ref=e622] [cursor=pointer]:
+                    - cell [ref=e623]:
+                      - button [ref=e624]:
+                        - img [ref=e625]
+                    - cell "BX_PRIVATE_EQUITY" [ref=e627]:
+                      - generic [ref=e629]: BX_PRIVATE_EQUITY
+                    - cell "1" [ref=e630]
+                    - cell "$285000.00" [ref=e631]
+                    - cell "—" [ref=e632]
+                    - cell "$285.0K" [ref=e633]
+                    - cell "7.1%" [ref=e634]:
+                      - generic [ref=e638]: 7.1%
+                    - cell "$0.00" [ref=e639]
+                    - cell "+0.0%" [ref=e640]
+                    - cell "—" [ref=e641]
+                    - cell "—" [ref=e642]
+                  - row "HOME_EQUITY 1 $285000.00 — $285.0K 7.1% $0.00 +0.0% — —" [ref=e643] [cursor=pointer]:
+                    - cell [ref=e644]:
+                      - button [ref=e645]:
+                        - img [ref=e646]
+                    - cell "HOME_EQUITY" [ref=e648]:
+                      - generic [ref=e650]: HOME_EQUITY
+                    - cell "1" [ref=e651]
+                    - cell "$285000.00" [ref=e652]
+                    - cell "—" [ref=e653]
+                    - cell "$285.0K" [ref=e654]
+                    - cell "7.1%" [ref=e655]:
+                      - generic [ref=e659]: 7.1%
+                    - cell "$0.00" [ref=e660]
+                    - cell "+0.0%" [ref=e661]
+                    - cell "—" [ref=e662]
+                    - cell "—" [ref=e663]
+                  - row "RENTAL_CONDO 1 $142500.00 — $142.5K 3.6% $0.00 +0.0% — —" [ref=e664] [cursor=pointer]:
+                    - cell [ref=e665]:
+                      - button [ref=e666]:
+                        - img [ref=e667]
+                    - cell "RENTAL_CONDO" [ref=e669]:
+                      - generic [ref=e671]: RENTAL_CONDO
+                    - cell "1" [ref=e672]
+                    - cell "$142500.00" [ref=e673]
+                    - cell "—" [ref=e674]
+                    - cell "$142.5K" [ref=e675]
+                    - cell "3.6%" [ref=e676]:
+                      - generic [ref=e680]: 3.6%
+                    - cell "$0.00" [ref=e681]
+                    - cell "+0.0%" [ref=e682]
+                    - cell "—" [ref=e683]
+                    - cell "—" [ref=e684]
+                  - row "A16Z_VC_FUND 1 $142500.00 — $142.5K 3.6% $0.00 +0.0% — —" [ref=e685] [cursor=pointer]:
+                    - cell [ref=e686]:
+                      - button [ref=e687]:
+                        - img [ref=e688]
+                    - cell "A16Z_VC_FUND" [ref=e690]:
+                      - generic [ref=e692]: A16Z_VC_FUND
+                    - cell "1" [ref=e693]
+                    - cell "$142500.00" [ref=e694]
+                    - cell "—" [ref=e695]
+                    - cell "$142.5K" [ref=e696]
+                    - cell "3.6%" [ref=e697]:
+                      - generic [ref=e701]: 3.6%
+                    - cell "$0.00" [ref=e702]
+                    - cell "+0.0%" [ref=e703]
+                    - cell "—" [ref=e704]
+                    - cell "—" [ref=e705]
+                  - row "STARWOOD_REIT 1 $142500.00 — $142.5K 3.6% $0.00 +0.0% — —" [ref=e706] [cursor=pointer]:
+                    - cell [ref=e707]:
+                      - button [ref=e708]:
+                        - img [ref=e709]
+                    - cell "STARWOOD_REIT" [ref=e711]:
+                      - generic [ref=e713]: STARWOOD_REIT
+                    - cell "1" [ref=e714]
+                    - cell "$142500.00" [ref=e715]
+                    - cell "—" [ref=e716]
+                    - cell "$142.5K" [ref=e717]
+                    - cell "3.6%" [ref=e718]:
+                      - generic [ref=e722]: 3.6%
+                    - cell "$0.00" [ref=e723]
+                    - cell "+0.0%" [ref=e724]
+                    - cell "—" [ref=e725]
+                    - cell "—" [ref=e726]
+                  - row "TWO_SIGMA_FUND 1 $142500.00 — $142.5K 3.6% $0.00 +0.0% — —" [ref=e727] [cursor=pointer]:
+                    - cell [ref=e728]:
+                      - button [ref=e729]:
+                        - img [ref=e730]
+                    - cell "TWO_SIGMA_FUND" [ref=e732]:
+                      - generic [ref=e734]: TWO_SIGMA_FUND
+                    - cell "1" [ref=e735]
+                    - cell "$142500.00" [ref=e736]
+                    - cell "—" [ref=e737]
+                    - cell "$142.5K" [ref=e738]
+                    - cell "3.6%" [ref=e739]:
+                      - generic [ref=e743]: 3.6%
+                    - cell "$0.00" [ref=e744]
+                    - cell "+0.0%" [ref=e745]
+                    - cell "—" [ref=e746]
+                    - cell "—" [ref=e747]
+                  - row "RENTAL_SFH 1 $142500.00 — $142.5K 3.6% $0.00 +0.0% — —" [ref=e748] [cursor=pointer]:
+                    - cell [ref=e749]:
+                      - button [ref=e750]:
+                        - img [ref=e751]
+                    - cell "RENTAL_SFH" [ref=e753]:
+                      - generic [ref=e755]: RENTAL_SFH
+                    - cell "1" [ref=e756]
+                    - cell "$142500.00" [ref=e757]
+                    - cell "—" [ref=e758]
+                    - cell "$142.5K" [ref=e759]
+                    - cell "3.6%" [ref=e760]:
+                      - generic [ref=e764]: 3.6%
+                    - cell "$0.00" [ref=e765]
+                    - cell "+0.0%" [ref=e766]
+                    - cell "—" [ref=e767]
+                    - cell "—" [ref=e768]
+                  - row "MONEY_MARKET 1 $57000.00 — $57.0K 1.4% $0.00 +0.0% — —" [ref=e769] [cursor=pointer]:
+                    - cell [ref=e770]:
+                      - button [ref=e771]:
+                        - img [ref=e772]
+                    - cell "MONEY_MARKET" [ref=e774]:
+                      - generic [ref=e776]: MONEY_MARKET
+                    - cell "1" [ref=e777]
+                    - cell "$57000.00" [ref=e778]
+                    - cell "—" [ref=e779]
+                    - cell "$57.0K" [ref=e780]
+                    - cell "1.4%" [ref=e781]:
+                      - generic [ref=e785]: 1.4%
+                    - cell "$0.00" [ref=e786]
+                    - cell "+0.0%" [ref=e787]
+                    - cell "—" [ref=e788]
+                    - cell "—" [ref=e789]
+                  - row "CRYPTO_BTC_ETH 1 $42750.00 — $42.8K 1.1% $0.00 +0.0% — —" [ref=e790] [cursor=pointer]:
+                    - cell [ref=e791]:
+                      - button [ref=e792]:
+                        - img [ref=e793]
+                    - cell "CRYPTO_BTC_ETH" [ref=e795]:
+                      - generic [ref=e797]: CRYPTO_BTC_ETH
+                    - cell "1" [ref=e798]
+                    - cell "$42750.00" [ref=e799]
+                    - cell "—" [ref=e800]
+                    - cell "$42.8K" [ref=e801]
+                    - cell "1.1%" [ref=e802]:
+                      - generic [ref=e806]: 1.1%
+                    - cell "$0.00" [ref=e807]
+                    - cell "+0.0%" [ref=e808]
+                    - cell "—" [ref=e809]
+                    - cell "—" [ref=e810]
+                  - row "ART_COLLECTIBLES 1 $28500.00 — $28.5K 0.7% $0.00 +0.0% — —" [ref=e811] [cursor=pointer]:
+                    - cell [ref=e812]:
+                      - button [ref=e813]:
+                        - img [ref=e814]
+                    - cell "ART_COLLECTIBLES" [ref=e816]:
+                      - generic [ref=e818]: ART_COLLECTIBLES
+                    - cell "1" [ref=e819]
+                    - cell "$28500.00" [ref=e820]
+                    - cell "—" [ref=e821]
+                    - cell "$28.5K" [ref=e822]
+                    - cell "0.7%" [ref=e823]:
+                      - generic [ref=e827]: 0.7%
+                    - cell "$0.00" [ref=e828]
+                    - cell "+0.0%" [ref=e829]
+                    - cell "—" [ref=e830]
+                    - cell "—" [ref=e831]
+                  - row "TREASURY_BILLS 1 $28500.00 — $28.5K 0.7% $0.00 +0.0% — —" [ref=e832] [cursor=pointer]:
+                    - cell [ref=e833]:
+                      - button [ref=e834]:
+                        - img [ref=e835]
+                    - cell "TREASURY_BILLS" [ref=e837]:
+                      - generic [ref=e839]: TREASURY_BILLS
+                    - cell "1" [ref=e840]
+                    - cell "$28500.00" [ref=e841]
+                    - cell "—" [ref=e842]
+                    - cell "$28.5K" [ref=e843]
+                    - cell "0.7%" [ref=e844]:
+                      - generic [ref=e848]: 0.7%
+                    - cell "$0.00" [ref=e849]
+                    - cell "+0.0%" [ref=e850]
+                    - cell "—" [ref=e851]
+                    - cell "—" [ref=e852]
+  - button "Open Next.js Dev Tools" [ref=e858] [cursor=pointer]:
+    - img [ref=e859]
+  - alert [ref=e862]
+```
