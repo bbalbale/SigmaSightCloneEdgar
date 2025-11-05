@@ -2,8 +2,8 @@
 
 **Feature**: Capital Contributions & Withdrawals Tracking
 **Created**: November 3, 2025
-**Updated**: November 3, 2025 (Added Phase 0 prerequisite)
-**Status**: Planning Phase - **Requires Phase 0 Completion**
+**Updated**: November 4, 2025 (Execution status refresh)
+**Status**: Execution Prep - Phase 0 backend complete, UX polish pending (see [25-EQUITY-AND-PNL-EXECUTION-PLAN.md](./25-EQUITY-AND-PNL-EXECUTION-PLAN.md))
 **Priority**: High
 **Estimated Effort**: 5-8 days
 
@@ -13,6 +13,10 @@
 
 **This feature depends on Phase 0: Realized P&L Tracking being fully implemented first.**
 
+**Status (2025-11-04)**:
+- OK: Backend plumbing for realized P&L is merged (schemas, service logic, batch rollforward).
+- Attention: inline sell flow in Command Center still omits `close_quantity`, preventing partial sell tracking.
+- Next: ship inline sell fix + QA pass before opening Phase 1 PRs.
 Before starting this implementation:
 - ✅ Phase 0 must be complete and tested
 - ✅ Realized P&L calculations must be working
@@ -66,6 +70,7 @@ Add functionality to track capital contributions and withdrawals separately from
 3. **P&L Logic**: Calculator doesn't account for external cash movements
 4. **UI Components**: No interface for users to record equity changes
 5. **Reporting**: Can't distinguish investment performance from capital flows
+6. **UX polish (Phase 0)**: Inline sell + side panel must post `close_quantity` before Phase 1 rollout
 
 ### Key Problem
 

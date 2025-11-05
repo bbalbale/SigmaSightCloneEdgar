@@ -1,7 +1,7 @@
 # Equity & P&L Tracking - Master Summary Plan
 
 **Created**: November 3, 2025
-**Status**: Planning Phase
+**Status**: Execution Prep - Phase 0 backend complete, equity flows pending (see [25-EQUITY-AND-PNL-EXECUTION-PLAN.md](./25-EQUITY-AND-PNL-EXECUTION-PLAN.md))
 **Priority**: Critical
 **Total Estimated Effort**: 8-12 days
 
@@ -17,6 +17,11 @@ This master plan addresses a critical gap in portfolio equity tracking and P&L c
 
 These features are interdependent and must be implemented in sequence to ensure accurate equity rollforward and return calculations.
 
+### Status Update - 2025-11-04
+- OK: Realized P&L backend changes are merged (schemas, service logic, batch rollforward).
+- Attention: Command Center inline sell flow still needs `close_quantity` payload before full QA sign-off.
+- Next: Kick off equity change implementation per [25-EQUITY-AND-PNL-EXECUTION-PLAN.md](./25-EQUITY-AND-PNL-EXECUTION-PLAN.md) once Phase 0 UX gap is closed.
+
 ---
 
 ## 🚨 Critical Issue Discovered
@@ -31,13 +36,15 @@ These features are interdependent and must be implemented in sequence to ensure 
 
 **Severity**: High - Affects all portfolios with position exits
 
+> Update (2025-11-04): Backend service and calculator changes are merged; remaining blocker is the inline sell payload fix noted above.
+
 ---
 
 ## Implementation Phases
 
 ### Phase 0: Realized P&L Tracking 🔴 **PREREQUISITE**
 
-**Status**: Must be completed first
+**Status**: Backend complete; pending UX validation (inline sell payload fix)
 **Effort**: 2-3 days
 **Document**: [23-REALIZED-PNL-TRACKING-PLAN.md](./23-REALIZED-PNL-TRACKING-PLAN.md)
 
@@ -55,7 +62,7 @@ These features are interdependent and must be implemented in sequence to ensure 
 3. ✅ `position_realized_events` table + service helper to persist each realized trade
 4. ✅ `daily_realized_pnl` and `cumulative_realized_pnl` fields in `PortfolioSnapshot`
 5. ✅ Enhanced P&L calculator including realized gains/losses sourced from realized events
-6. ✅ Frontend updates so `ManagePositionsSidePanel` sends `close_quantity` + remaining quantity
+6. ✅ Attention: Frontend updates so `ManagePositionsSidePanel` and Command Center inline sell send `close_quantity` + remaining quantity (in progress)
 7. ✅ Database migration for new snapshot/event fields
 8. ✅ Tests for realized P&L calculations (full + partial closes)
 

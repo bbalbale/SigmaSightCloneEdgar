@@ -2,7 +2,7 @@
 
 **Feature**: Track Realized Gains/Losses from Position Closes
 **Created**: November 3, 2025
-**Status**: Planning Phase - **PREREQUISITE for Equity Changes**
+**Status**: Backend merged; frontend validation in progress (prerequisite for Equity Changes)
 **Priority**: Critical
 **Estimated Effort**: 2-3 days
 
@@ -18,11 +18,16 @@ Fix critical gap in P&L tracking where realized gains/losses from closing positi
 - Foundation for tax reporting (realized vs. unrealized)
 - Prerequisite for equity changes tracking (Phase 1)
 
+### Status Update - 2025-11-04
+- OK: Backend schema/service/calculator changes are merged.
+- Attention: Inline sell workflow must send `close_quantity` before sign-off.
+- Next: Validate flows, then proceed with equity change execution plan ([25-EQUITY-AND-PNL-EXECUTION-PLAN.md](./25-EQUITY-AND-PNL-EXECUTION-PLAN.md)).
+
 **Current State**:
-- ✅ Database fields exist (`positions.realized_pnl`, `exit_price`, `exit_date`)
-- ❌ Backend ignores exit fields from frontend
-- ❌ No calculation logic for realized P&L
-- ❌ P&L calculator only tracks unrealized changes
+- OK: Database fields exist (`positions.realized_pnl`, `exit_price`, `exit_date`) and backend writes realized events (Nov 2025).
+- OK: `UpdatePositionRequest` + `PositionService.update_position` accept `exit_price`, `exit_date`, and `close_quantity`.
+- OK: `pnl_calculator` aggregates `PositionRealizedEvent` rows into `daily_realized_pnl` and `cumulative_realized_pnl`.
+- Attention: Command Center inline sell still uses the legacy convenience method (no `close_quantity`), so partial sells skip realized tracking until fixed.
 
 ---
 
@@ -30,40 +35,31 @@ Fix critical gap in P&L tracking where realized gains/losses from closing positi
 
 ### What's Broken
 
-When users close positions via `ManagePositionsSidePanel`:
+Two sell workflows exist today:
+
+1. ManagePositionsSidePanel (bulk sells) - Already posts `exit_price`, `exit_date`, and `close_quantity`. Backend logic records realized P&L correctly.
+2. Inline Sell (HoldingsTableDesktop) - Calls `positionManagementService.closePosition`, which only sends `exit_price` and `exit_date` (no `close_quantity`).
+
+Inline sell snippet (`HoldingsTableDesktop.tsx` lines 294-303):
 
 ```typescript
-// Frontend sends (line 286-289 in ManagePositionsSidePanel.tsx)
-await positionManagementService.updatePosition(lotId, {
-  exit_price: parseFloat(sell.sale_price),
-  exit_date: sell.sale_date,
-  quantity: parseFloat(sell.sell_quantity)
-})
+await positionManagementService.closePosition(
+  lot.id,
+  parseFloat(salePrice),
+  new Date().toISOString().split('T')[0]
+)
 ```
 
-> **Partial close handling:** `close_quantity` identifies how many shares/contracts are being exited. The request may still include an updated `quantity` representing the remaining open size, but `close_quantity` is the authoritative figure for realized P&L calculations.
+> **Partial close handling:** Backend requires `close_quantity` to know how many shares or contracts were exited. Without it, realized P&L cannot be computed for partial sells.
 
-**But the backend silently ignores `exit_price` and `exit_date`!**
-
-**Backend schema** (`UpdatePositionRequest`):
-```python
-class UpdatePositionRequest(BaseModel):
-    quantity: Optional[Decimal]
-    avg_cost: Optional[Decimal]
-    position_type: Optional[PositionType]
-    notes: Optional[str]
-    symbol: Optional[str]
-    # Missing: exit_price, exit_date, entry_price
-```
-
-**Result**: Position closes are recorded (quantity reduced) but no realized P&L is calculated or stored.
+**Result**: Inline sells reduce quantity but skip realized P&L logging, leaving snapshots inconsistent with actual trades.
 
 ### Impact
 
-1. **Incomplete Equity Tracking**: Equity rollforward missing realized P&L component
-2. **Incorrect Returns**: Returns don't reflect actual gains from closing positions
-3. **No Tax Basis**: Can't track cost basis or realized gains for tax reporting
-4. **Broken Partial Closes**: No way to track P&L on partial position exits
+1. Inline sells keep equity rollforward out of sync because realized P&L is never logged.
+2. Daily returns appear inflated/deflated on days with inline partial sells (P&L stays unrealized).
+3. Partial closes executed via inline flow lose audit history (`position_realized_events` row missing).
+4. Risk metrics depending on realized P&L (e.g., drawdown) inherit wrong baseline until batch backfill runs.
 
 ---
 
