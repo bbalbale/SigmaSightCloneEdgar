@@ -69,6 +69,8 @@ interface BetaCardProps {
 }
 
 function BetaCard({ label, beta90d, beta1y }: BetaCardProps) {
+  const formatBeta = (value: number | null) => (value !== null ? value.toFixed(2) : '--')
+
   return (
     <div className="themed-border-r p-3 transition-all duration-200 bg-secondary hover:bg-tertiary">
       {/* Label */}
@@ -77,11 +79,11 @@ function BetaCard({ label, beta90d, beta1y }: BetaCardProps) {
       </div>
 
       {beta1y !== null || beta90d !== null ? (
-        <div className="space-y-1">
-          <div className="flex items-baseline gap-3">
+        <div className="space-y-2">
+          <div className="flex flex-wrap items-baseline gap-8">
             <div className="flex flex-col">
               <span className="text-2xl font-bold tabular-nums text-accent leading-tight">
-                {beta1y !== null ? beta1y.toFixed(2) : '—'}
+                {formatBeta(beta1y)}
               </span>
               <span className="text-[11px] uppercase text-secondary tracking-wide">
                 1 Year
@@ -89,7 +91,7 @@ function BetaCard({ label, beta90d, beta1y }: BetaCardProps) {
             </div>
             <div className="flex flex-col">
               <span className="text-2xl font-bold tabular-nums text-accent leading-tight">
-                {beta90d !== null ? beta90d.toFixed(2) : '—'}
+                {formatBeta(beta90d)}
               </span>
               <span className="text-[11px] uppercase text-secondary tracking-wide">
                 90 Days
@@ -100,7 +102,7 @@ function BetaCard({ label, beta90d, beta1y }: BetaCardProps) {
       ) : (
         <>
           <div className="text-2xl font-bold tabular-nums mb-0.5 text-accent">
-            —
+            --
           </div>
           <div className="text-xs font-medium text-secondary">
             N/A
@@ -195,7 +197,7 @@ export function PerformanceMetricsRow({ metrics, loading }: PerformanceMetricsRo
               valueColor={metrics.mtdPnl >= 0 ? 'positive' : 'negative'}
             />
 
-            {/* Cash/Margin */}
+            {/* Uninvested Cash */}
             <MetricCard
               label="Uninvested Cash/Margin"
               value={formatCurrency(metrics.cashBalance)}
