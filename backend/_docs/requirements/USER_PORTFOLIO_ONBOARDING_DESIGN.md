@@ -1,13 +1,22 @@
 # User & Portfolio Onboarding - Backend Design Document
 
-**Version**: 1.1
-**Date**: 2025-11-05
-**Status**: Updated - Multi-Portfolio Support Added
+**Version**: 1.2
+**Date**: 2025-11-06
+**Status**: Updated - Audit Findings Fixed
 **Author**: AI Assistant (Claude)
 
 ---
 
 ## Changelog
+
+### Version 1.2 (2025-11-06)
+- **Bug Fixes**: Fixed audit findings from initial Version 1.1 release
+- **Endpoint Name**: Reverted `/import-portfolio` → `/create-portfolio` (matches actual code)
+- **Phase References**: Fixed all "Phase 2" → "Phase 3" references for admin/superuser tooling
+- **UUID Strategy**: Added task 2.7 to fix UUID collision issue (use account_name, not portfolio_name)
+- **Error Messages**: Added task 2.8 to update PortfolioExistsError message
+- **Testing**: Enhanced Phase 2 testing criteria to include UUID collision tests
+- **Effort Estimate**: Updated from 10-12 hours to 12-15 hours (1.5-2 days)
 
 ### Version 1.1 (2025-11-05)
 - **Phase Renumbering**: Inserted new Phase 2 for Multi-Portfolio Support
@@ -109,7 +118,7 @@ Enable self-service onboarding for test users to create accounts and portfolios 
 These are the MVP endpoints for user onboarding and portfolio creation:
 
 1. `POST /api/v1/onboarding/register` - User registration with single invite code
-2. `POST /api/v1/onboarding/import-portfolio` - Portfolio creation with CSV (no automatic batch trigger)
+2. `POST /api/v1/onboarding/create-portfolio` - Portfolio creation with CSV (no automatic batch trigger)
 3. `GET /api/v1/onboarding/csv-template` - Download CSV template
 4. `POST /api/v1/portfolio/{portfolio_id}/calculate` - User-triggered portfolio calculations
 
@@ -117,7 +126,7 @@ These are the MVP endpoints for user onboarding and portfolio creation:
 
 Updates to Phase 1 endpoints to support multiple portfolios per user:
 
-- Update `POST /api/v1/onboarding/import-portfolio` to require `account_name` and `account_type`
+- Update `POST /api/v1/onboarding/create-portfolio` to require `account_name` and `account_type`
 - Remove validation preventing multiple portfolios per user
 - Update response schema to include account metadata
 - Update CSV template documentation to include account type guidance
@@ -175,7 +184,7 @@ These admin tooling endpoints will be implemented after Phase 2:
 
 ### 3.2 Portfolio Creation with CSV Import
 
-#### `POST /api/v1/onboarding/import-portfolio`
+#### `POST /api/v1/onboarding/create-portfolio`
 
 **Description:** Create portfolio and import positions from CSV. Supports multiple portfolios per user (Phase 2). Does NOT automatically trigger batch processing (use separate calculate endpoint).
 
@@ -194,7 +203,7 @@ Fields:
 
 **Example:**
 ```bash
-curl -X POST http://localhost:8000/api/v1/onboarding/import-portfolio \
+curl -X POST http://localhost:8000/api/v1/onboarding/create-portfolio \
   -H "Authorization: Bearer <JWT_TOKEN>" \
   -F "portfolio_name=My Trading Portfolio" \
   -F "account_name=Schwab Taxable" \
@@ -587,7 +596,7 @@ Authorization: Bearer <IMPERSONATION_TOKEN>
 
 ### 4.6 Admin/Superuser Errors **[PHASE 2]**
 
-**Note:** These errors are for Phase 2 admin endpoints only. Not needed for Phase 1 core onboarding.
+**Note:** These errors are for Phase 3 admin endpoints only. Not needed for Phase 1 core onboarding or Phase 2 multi-portfolio support.
 
 | Code | Error | Condition | User Message |
 |------|-------|-----------|--------------|
@@ -644,10 +653,10 @@ app/services/
 
 **Note**: Preprocessing services are used by the `/calculate` endpoint, NOT during portfolio creation. This keeps portfolio creation fast (<5s) and defers data enrichment to the user-triggered calculation step.
 
-**Phase 2 Services:**
+**Phase 3 Services:**
 ```
 app/services/
-└── impersonation_service.py     # User impersonation (Phase 2 only)
+└── impersonation_service.py     # User impersonation (Phase 3 only)
 ```
 
 ### 5.2 OnboardingService
@@ -890,7 +899,7 @@ BETA_INVITE_CODE = "PRESCOTT-LINNAEAN-COWPERTHWAITE"
 
 All Phase 1 functionality works with existing User and Portfolio models.
 
-### 6.2 Phase 2: Superuser Column **[PHASE 2 ONLY]**
+### 6.2 Phase 3: Superuser Column **[PHASE 3 ONLY]**
 
 **Minimal database changes for Phase 2:**
 
@@ -913,7 +922,7 @@ Revision ID: xxxx
 Revises: previous_revision
 Create Date: 2025-10-28
 
-Phase 2 only - adds is_superuser column for admin authentication.
+Phase 3 only - adds is_superuser column for admin authentication.
 """
 from alembic import op
 import sqlalchemy as sa
@@ -1147,7 +1156,7 @@ Step 2: Registration Form
 Step 3: Login
 ├─ User enters email/password
 ├─ POST /api/v1/auth/login
-└─ Redirect to /onboarding/import-portfolio
+└─ Redirect to /onboarding/create-portfolio
 ```
 
 ### 8.2 Portfolio Creation Flow **[UPDATED: Decoupled Architecture]**
@@ -1155,7 +1164,7 @@ Step 3: Login
 **Note:** Portfolio creation and calculations are now separate API calls for better UX and reliability.
 
 ```
-Step 1: Create Portfolio Form (/onboarding/import-portfolio)
+Step 1: Create Portfolio Form (/onboarding/create-portfolio)
 ├─ Welcome message: "Let's set up your portfolio"
 │
 ├─ Fields:
@@ -1178,7 +1187,7 @@ Step 1: Create Portfolio Form (/onboarding/import-portfolio)
 └─ Submit Button: "Create Portfolio"
 
 Step 2: Portfolio Creation (Fast - <5 seconds)
-├─ On Submit: POST /api/v1/onboarding/import-portfolio
+├─ On Submit: POST /api/v1/onboarding/create-portfolio
 ├─ Show loading spinner: "Creating portfolio and importing positions..."
 ├─ Quick response (no batch processing yet)
 │
@@ -1257,7 +1266,7 @@ Step 6: Error Handling
 
 ### 8.3 Superuser Impersonation Flow **[PHASE 2 ONLY]**
 
-**Note:** This UX flow is part of Phase 2 admin tooling and should be implemented AFTER Phase 1 is working and tested.
+**Note:** This UX flow is part of Phase 3 admin tooling and should be implemented AFTER Phase 2 multi-portfolio support is complete.
 
 ```
 Superuser Dashboard (/admin)
@@ -1289,7 +1298,7 @@ While Impersonating:
 
 **Phase 1 Pages:**
 1. `/register` - Registration form
-2. `/onboarding/import-portfolio` - Portfolio creation
+2. `/onboarding/create-portfolio` - Portfolio creation
 
 **Phase 2 Pages (Admin Tooling):**
 3. `/admin` - Superuser dashboard (list users) **[PHASE 2]**
@@ -1367,7 +1376,7 @@ If scaling beyond 50 users or need cohort tracking, can implement:
 
 ### 9.2 Superuser Access Control **[PHASE 2 ONLY]**
 
-**Note:** All superuser functionality is part of Phase 2 admin tooling. See `ADMIN_AUTH_SUPPLEMENT.md` for complete implementation details.
+**Note:** All superuser functionality is part of Phase 3 admin tooling. See `ADMIN_AUTH_SUPPLEMENT.md` for complete implementation details.
 
 **Identification:**
 - Database flag: `users.is_superuser = TRUE`
@@ -1477,7 +1486,7 @@ If scaling beyond 50 users or need cohort tracking, can implement:
 
 **API Endpoints (3):**
 - `POST /api/v1/onboarding/register`
-- `POST /api/v1/onboarding/import-portfolio` (no automatic batch trigger)
+- `POST /api/v1/onboarding/create-portfolio` (no automatic batch trigger)
 - `POST /api/v1/portfolio/{portfolio_id}/calculate` (user-triggered calculations)
 
 **Additional Work:**
@@ -1525,7 +1534,7 @@ If scaling beyond 50 users or need cohort tracking, can implement:
 - Update CSV parser to validate account_type values
 
 **API Endpoint Updates:**
-1. Update `POST /api/v1/onboarding/import-portfolio`:
+1. Update `POST /api/v1/onboarding/create-portfolio`:
    - Add required `account_name` field
    - Add required `account_type` field (9 valid types)
    - Remove "one portfolio per user" validation
@@ -1539,6 +1548,17 @@ If scaling beyond 50 users or need cohort tracking, can implement:
 4. Document relationship between CSV import flow and CRUD flow
 5. Update error codes (ERR_PORT_001 no longer "already has portfolio")
 
+**Code Updates Required:**
+3. Update UUID Strategy (`app/core/uuid_strategy.py`):
+   - Change `generate_portfolio_uuid` to use `account_name` instead of `portfolio_name`
+   - Prevents UUID collisions when importing multiple portfolios with same display name
+   - Example: User can import "Retirement" (taxable) and "Retirement" (IRA) without collision
+
+4. Update Error Messages (`app/core/onboarding_errors.py`):
+   - Change `PortfolioExistsError` message from "Each user can only have one portfolio"
+   - New message: "You already have a portfolio with this account name. Please use a different account name."
+   - Update validation to check for duplicate account names, not portfolio count
+
 **Integration:**
 - CSV import creates portfolios compatible with `/api/v1/portfolios` CRUD endpoints
 - Multi-portfolio aggregate analytics work automatically with imported portfolios
@@ -1551,15 +1571,19 @@ If scaling beyond 50 users or need cohort tracking, can implement:
 - ✅ CSV template documents account type field
 - ✅ Documentation explains CSV import vs CRUD flows
 - ✅ Validation prevents duplicate account names for same user
+- ✅ UUID collision prevented (same portfolio_name + different account_name works)
+- ✅ Error messages accurate (no "one portfolio" references)
 - ✅ Multi-portfolio aggregate analytics work with imported portfolios
 
 **Testing Strategy:**
 - Import 2 portfolios for same user (taxable + IRA)
+- Import 2 portfolios with same portfolio_name but different account_name (UUID collision test)
 - Verify aggregate analytics endpoints work
-- Test error for duplicate account names
+- Test error for duplicate account names (verify correct ERR_PORT_001 message)
 - Verify account_type validation (reject invalid types)
+- Verify no "one portfolio" error messages remain
 
-**Effort:** ~10-12 hours (1-2 days)
+**Effort:** ~12-15 hours (1.5-2 days)
 
 **Status:** 🔄 IN PROGRESS
 
@@ -2035,7 +2059,7 @@ async def test_create_portfolio_with_csv():
     # Upload CSV
     with open("test_data/valid_positions.csv", "rb") as f:
         response = await client.post(
-            "/api/v1/onboarding/import-portfolio",
+            "/api/v1/onboarding/create-portfolio",
             headers={"Authorization": f"Bearer {token}"},
             data={
                 "portfolio_name": "Test Portfolio",
@@ -2077,7 +2101,7 @@ async def test_csv_validation_errors():
     # Test with invalid CSV (bad dates)
     with open("test_data/invalid_dates.csv", "rb") as f:
         response = await client.post(
-            "/api/v1/onboarding/import-portfolio",
+            "/api/v1/onboarding/create-portfolio",
             headers={"Authorization": f"Bearer {token}"},
             data={"portfolio_name": "Test", "equity_balance": "500000.00"},
             files={"csv_file": f}
@@ -2114,7 +2138,7 @@ async def test_complete_onboarding_flow():
     # Step 3: Create portfolio with CSV
     with open("test_data/valid_full.csv", "rb") as f:
         portfolio_response = await client.post(
-            "/api/v1/onboarding/import-portfolio",
+            "/api/v1/onboarding/create-portfolio",
             headers={"Authorization": f"Bearer {token}"},
             data={
                 "portfolio_name": "E2E Test Portfolio",
@@ -2168,7 +2192,7 @@ US_TREASURY_BILLS,1,100000.00,2024-01-01,PRIVATE,TREASURY_BILLS,,,,,
 
     with open("test_data/cash_positions.csv", "rb") as f:
         response = await client.post(
-            "/api/v1/onboarding/import-portfolio",
+            "/api/v1/onboarding/create-portfolio",
             headers={"Authorization": f"Bearer {token}"},
             data={"portfolio_name": "Cash Test", "equity_balance": "165000.00"},
             files={"csv_file": f}
@@ -2204,7 +2228,7 @@ US_TREASURY_BILLS,1,100000.00,2024-01-01,PRIVATE,TREASURY_BILLS,,,,,
 
 ---
 
-### **Phase 2 Testing: Admin & Superuser**
+### **Phase 3 Testing: Admin & Superuser**
 
 Test admin tooling functionality after Phase 1 is working and tested.
 

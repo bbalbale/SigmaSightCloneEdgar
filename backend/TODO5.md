@@ -1225,29 +1225,88 @@ async def startup_validation():
 
 ---
 
-### 2.7 Integration Testing
+### 2.7 Update UUID Strategy
+
+**File**: `app/core/uuid_strategy.py`
+
+**Issue**: Current deterministic UUID uses `user_id + portfolio_name`, causing collisions when importing multiple portfolios with same name (e.g., "Retirement")
+
+**Solution**: Use `user_id + account_name` instead of `portfolio_name`
+
+- [ ] Update `generate_portfolio_uuid()` method (line ~102)
+- [ ] Change deterministic seed from `f"{user_id}:{portfolio_name}"` to `f"{user_id}:{account_name}"`
+- [ ] Update method signature to accept `account_name` parameter
+- [ ] Update all callers to pass `account_name` instead of `portfolio_name`
+- [ ] Add unit tests for UUID collision prevention
+- [ ] Test: Same portfolio_name + different account_name → different UUIDs
+- [ ] Test: Different users + same account_name → different UUIDs
+
+**Completion Criteria**:
+- ✅ UUIDs generated using account_name (unique per user)
+- ✅ No collisions when importing multiple portfolios with same display name
+- ✅ Unit tests pass
+
+**Files to Update**:
+- `app/core/uuid_strategy.py` - UUID generation logic
+- `app/services/onboarding_service.py` - Pass account_name to UUID generator
+- `tests/unit/test_uuid_strategy.py` - Add collision tests
+
+---
+
+### 2.8 Update Error Messages
+
+**File**: `app/core/onboarding_errors.py`
+
+**Issue**: `PortfolioExistsError` (line ~127) still says "Each user can only have one portfolio"
+
+**Solution**: Repurpose ERR_PORT_001 for duplicate account names
+
+- [ ] Update `PortfolioExistsError` class
+- [ ] Change message from "Each user can only have one portfolio"
+- [ ] New message: "You already have a portfolio with this account name. Please use a different account name."
+- [ ] Update error details to include duplicate account_name
+- [ ] Remove portfolio count validation from onboarding service
+- [ ] Add duplicate account_name validation
+- [ ] Update API documentation for ERR_PORT_001
+- [ ] Test error appears correctly when importing duplicate account_name
+
+**Completion Criteria**:
+- ✅ Error message accurately describes duplicate account name issue
+- ✅ Users understand how to fix the error (change account_name)
+- ✅ No references to "one portfolio" limit remain
+
+**Files to Update**:
+- `app/core/onboarding_errors.py` - Error class and message
+- `app/services/onboarding_service.py` - Validation logic
+- `backend/_docs/requirements/USER_PORTFOLIO_ONBOARDING_DESIGN.md` - API error documentation
+
+---
+
+### 2.9 Integration Testing
 
 - [ ] Test: Import 1st portfolio (taxable account)
 - [ ] Test: Import 2nd portfolio (IRA account)
 - [ ] Test: Import 3rd portfolio (401k account)
+- [ ] Test: Same portfolio_name + different account_name → both succeed (UUID collision test)
 - [ ] Test: Verify all 3 portfolios appear in GET /api/v1/portfolios
 - [ ] Test: Aggregate analytics endpoints work with multiple portfolios
 - [ ] Test: GET /api/v1/analytics/aggregate/beta returns weighted average
-- [ ] Test: Duplicate account name rejected
+- [ ] Test: Duplicate account name rejected with correct error (ERR_PORT_001)
 - [ ] Test: Invalid account_type rejected
 - [ ] Test: All 9 account types accepted
 
 **Completion Criteria**:
 - ✅ Can import multiple portfolios successfully
+- ✅ UUID collision prevented for duplicate portfolio names
 - ✅ Aggregate analytics work correctly
-- ✅ Validation works as expected
+- ✅ Validation works as expected with correct error messages
 
 ---
 
-### 2.8 Phase 2 Completion Checklist
+### 2.10 Phase 2 Completion Checklist
 
 **Verification**:
-- [ ] All tasks 2.1-2.7 completed
+- [ ] All tasks 2.1-2.9 completed
 - [ ] Integration tests pass
 - [ ] Code reviewed
 - [ ] Documentation updated
@@ -1274,15 +1333,15 @@ async def startup_validation():
 - ✅ JWT tokens include is_superuser claim
 - ✅ Regular users get 403 on admin endpoints
 
-**Note**: Implement Phase 2 ONLY after Phase 1 is working and tested. Do not start Phase 2 until Phase 1 success criteria are met.
+**Note**: Implement Phase 3 ONLY after Phase 2 (Multi-Portfolio Support) is working and tested. Do not start Phase 3 until Phase 2 success criteria are met.
 
 **Design Reference**:
-- Section 10 "Implementation Phases" → Phase 2
+- Section 10 "Implementation Phases" → Phase 3
 - `ADMIN_AUTH_SUPPLEMENT.md` (referenced in design doc)
 
 ---
 
-### 2.1 Database Schema - Superuser Column
+### 3.1 Database Schema - Superuser Column
 
 **Create**: Alembic migration for `users.is_superuser` column
 
@@ -1294,11 +1353,11 @@ async def startup_validation():
   - Add `is_superuser: Mapped[bool] = mapped_column(Boolean, default=False)`
 - [ ] Test model with existing code (ensure no breaking changes)
 
-**Design Reference**: Section 6.2 "Phase 2: Superuser Column"
+**Design Reference**: Section 6.2 "Phase 3: Superuser Column"
 
 ---
 
-### 2.2 Bootstrap Script - First Superuser
+### 3.2 Bootstrap Script - First Superuser
 
 **Create**: `scripts/admin/create_first_superuser.py`
 
@@ -1318,11 +1377,11 @@ async def startup_validation():
 - [ ] Document in README
 - [ ] Test script thoroughly
 
-**Design Reference**: Section 10 "Phase 2" → Bootstrap Script
+**Design Reference**: Section 10 "Phase 3" → Bootstrap Script
 
 ---
 
-### 2.3 Authentication - JWT Token Modifications
+### 3.3 Authentication - JWT Token Modifications
 
 **Modify**: `app/core/auth.py`
 
@@ -1342,11 +1401,11 @@ async def startup_validation():
   - Token validation
   - Superuser dependency
 
-**Design Reference**: Section 10 "Phase 2" → JWT Token Modifications
+**Design Reference**: Section 10 "Phase 3" → JWT Token Modifications
 
 ---
 
-### 2.4 Service Layer - Impersonation Service
+### 3.4 Service Layer - Impersonation Service
 
 **Create**: `app/services/impersonation_service.py`
 
@@ -1380,7 +1439,7 @@ async def startup_validation():
 
 ---
 
-### 2.5 API Endpoints - Admin Impersonation
+### 3.5 API Endpoints - Admin Impersonation
 
 **Create**: `app/api/v1/admin/impersonation.py`
 
@@ -1414,7 +1473,7 @@ async def startup_validation():
 
 ---
 
-### 2.6 API Endpoints - Admin User Management
+### 3.6 API Endpoints - Admin User Management
 
 **Create**: `app/api/v1/admin/users.py`
 
@@ -1443,7 +1502,7 @@ async def startup_validation():
 
 ---
 
-### 2.7 Testing Strategy - Phase 2
+### 3.7 Testing Strategy - Phase 3
 
 **Create**: `tests/integration/test_admin_functionality.py`
 
@@ -1476,7 +1535,7 @@ async def startup_validation():
 
 ---
 
-### 2.8 Documentation Updates - Phase 2
+### 3.8 Documentation Updates - Phase 3
 
 - [ ] Document bootstrap script usage in README
 - [ ] Add admin API documentation
@@ -1495,7 +1554,7 @@ async def startup_validation():
 
 ---
 
-### 2.9 Phase 2 Completion Checklist
+### 3.9 Phase 3 Completion Checklist
 
 **Before moving to Phase 3**:
 
@@ -1519,7 +1578,7 @@ async def startup_validation():
 
 ---
 
-## Phase 3: Production Hardening (Optional - Future)
+## Phase 4: Production Hardening (Optional - Future)
 
 **Goal**: Prepare for scale beyond 50 users with security and performance improvements.
 
