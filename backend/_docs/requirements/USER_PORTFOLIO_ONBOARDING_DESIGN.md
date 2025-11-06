@@ -1,13 +1,20 @@
 # User & Portfolio Onboarding - Backend Design Document
 
-**Version**: 1.3
+**Version**: 1.4
 **Date**: 2025-11-06
-**Status**: Implementation-Ready - All Semantic Inconsistencies Fixed
+**Status**: Implementation-Ready - Phase Labeling Complete
 **Author**: AI Assistant (Claude)
 
 ---
 
 ## Changelog
+
+### Version 1.4 (2025-11-06)
+- **Final Cleanup**: Fixed remaining 3 phase labeling inconsistencies
+- **ImpersonationService**: Changed **[PHASE 2 ONLY]** → **[PHASE 3 ONLY]** (line 855)
+- **Database Migration**: Updated Section 6 phase callouts from "Phase 2" → "Phase 3" throughout (lines 920-969)
+- **Error Catalog**: Added ERR_PORT_009 (InvalidAccountTypeError) to match OnboardingService Raises clause
+- **Complete**: All phase references now consistent (Phase 2 = multi-portfolio, Phase 3 = admin)
 
 ### Version 1.3 (2025-11-06)
 - **Critical Fixes**: Fixed semantic documentation inconsistencies (implementation-ready)
@@ -590,6 +597,7 @@ Authorization: Bearer <IMPERSONATION_TOKEN>
 | `ERR_PORT_006` | Equity balance too large | > $1 billion | "Equity balance seems unrealistic. Please verify." |
 | `ERR_PORT_007` | Missing CSV file | No file uploaded | "Please upload a CSV file with your positions." |
 | `ERR_PORT_008` | CSV validation failed | Any CSV errors from 4.2/4.3 | "CSV validation failed. Please fix errors and try again." |
+| `ERR_PORT_009` | Invalid account type | `account_type` not in allowed list | "Invalid account type. Must be one of: taxable, ira, roth_ira, 401k, 403b, 529, hsa, trust, other." |
 
 ### 4.5 Batch Processing Errors
 
@@ -852,17 +860,17 @@ class PositionImportService:
         """
 ```
 
-### 5.6 ImpersonationService **[PHASE 2 ONLY]**
+### 5.6 ImpersonationService **[PHASE 3 ONLY]**
 
-**Note:** This service is part of Phase 2 admin tooling and should be implemented AFTER Phase 1 is working and tested.
+**Note:** This service is part of Phase 3 admin tooling and should be implemented AFTER Phase 2 multi-portfolio support is complete.
 
 ```python
 class ImpersonationService:
     """
-    User impersonation service for superuser testing (Phase 2).
+    User impersonation service for superuser testing (Phase 3).
 
     Allows superusers to generate tokens to act as another user for testing
-    and support purposes. See ADMIN_AUTH_SUPPLEMENT.md for complete Phase 2
+    and support purposes. See ADMIN_AUTH_SUPPLEMENT.md for complete Phase 3
     implementation details.
     """
 
@@ -917,17 +925,17 @@ All Phase 1 functionality works with existing User and Portfolio models.
 
 ### 6.2 Phase 3: Superuser Column **[PHASE 3 ONLY]**
 
-**Minimal database changes for Phase 2:**
+**Minimal database changes for Phase 3:**
 
 ```sql
--- Add superuser flag (Phase 2 only)
+-- Add superuser flag (Phase 3 only)
 ALTER TABLE users ADD COLUMN is_superuser BOOLEAN DEFAULT FALSE NOT NULL;
 CREATE INDEX idx_users_is_superuser ON users(is_superuser);
 ```
 
 **Note:** No `account_type` column needed - demo users identified by `@sigmasight.com` email pattern.
 
-### 6.3 Phase 2: Alembic Migration **[PHASE 2 ONLY]**
+### 6.3 Phase 3: Alembic Migration **[PHASE 3 ONLY]**
 
 **File:** `alembic/versions/xxxx_add_superuser_column.py`
 
@@ -966,7 +974,7 @@ def downgrade():
     op.drop_column('users', 'is_superuser')
 ```
 
-**Run this migration only in Phase 2, not Phase 1!**
+**Run this migration only in Phase 3, after Phase 2 multi-portfolio support is complete!**
 
 ---
 
