@@ -1079,7 +1079,190 @@ async def startup_validation():
 
 ---
 
-## Phase 2: Admin & Superuser Tooling (~1 week)
+## Phase 2: Multi-Portfolio Support (~2 days)
+
+**Goal**: Enable users to import multiple portfolios via CSV and integrate with multi-portfolio CRUD APIs.
+
+**Success Criteria**:
+- ✅ CSV import endpoint accepts account_name and account_type
+- ✅ Users can import 2nd, 3rd, etc. portfolios (no single-portfolio restriction)
+- ✅ Response includes account metadata (account_name, account_type)
+- ✅ CSV template documentation includes account type guidance
+- ✅ Documentation explains relationship between CSV import and CRUD flows
+- ✅ Validation prevents duplicate account names for same user
+- ✅ Multi-portfolio aggregate analytics work with imported portfolios
+
+**Note**: Multi-portfolio CRUD APIs already exist (implemented Nov 1, 2025). This phase integrates onboarding with those APIs.
+
+**Design Reference**:
+- Section 10 "Implementation Phases" → Phase 2
+- `backend/_docs/MULTI_PORTFOLIO_API_REFERENCE.md`
+
+**Status**: 🔄 NOT STARTED
+
+---
+
+### 2.1 Update CSV Import Endpoint Schema
+
+**File**: `app/api/v1/onboarding.py`
+
+- [ ] Add `account_name` field to endpoint (required)
+  - String, 1-100 characters
+  - User-friendly name like "Fidelity IRA", "Schwab Taxable"
+- [ ] Add `account_type` field to endpoint (required)
+  - Enum validation: taxable, ira, roth_ira, 401k, 403b, 529, hsa, trust, other
+  - Return 400 error for invalid account types
+- [ ] Update request schema/dataclass to include new fields
+- [ ] Update portfolio creation call to pass account_name and account_type
+- [ ] Test with valid account types
+- [ ] Test with invalid account type (expect 400 error)
+
+**Completion Criteria**:
+- ✅ Endpoint accepts and validates account_name
+- ✅ Endpoint accepts and validates account_type (9 valid types)
+- ✅ Error message clear for invalid account_type
+
+---
+
+### 2.2 Remove Single-Portfolio Restriction
+
+**File**: `app/api/v1/onboarding.py` or `app/services/onboarding_service.py`
+
+- [ ] Find and remove validation that checks if user already has a portfolio
+  ```python
+  # REMOVE this code:
+  # if await user_has_portfolio(user_id):
+  #     raise HTTPException(409, "ERR_PORT_001: User already has portfolio")
+  ```
+- [ ] Update error code ERR_PORT_001 to mean "duplicate account name" instead
+- [ ] Add validation to prevent duplicate account_name for same user
+- [ ] Test: Create 1st portfolio (should succeed)
+- [ ] Test: Create 2nd portfolio with different name (should succeed)
+- [ ] Test: Create portfolio with duplicate name (should fail with ERR_PORT_001)
+
+**Completion Criteria**:
+- ✅ Users can import multiple portfolios
+- ✅ Duplicate account name validation works
+- ✅ Error message updated
+
+---
+
+### 2.3 Update CSV Template Documentation
+
+**File**: `app/api/v1/onboarding.py` (csv-template endpoint)
+
+- [ ] Update CSV template header/comments to mention account_type field
+- [ ] Add guidance text explaining the 9 account types
+  - taxable: Standard brokerage account
+  - ira: Traditional IRA
+  - roth_ira: Roth IRA
+  - 401k: 401(k) retirement plan
+  - 403b: 403(b) retirement plan
+  - 529: 529 education savings plan
+  - hsa: Health Savings Account
+  - trust: Trust account
+  - other: Other account types
+- [ ] Test template download
+- [ ] Verify guidance is clear and helpful
+
+**Completion Criteria**:
+- ✅ Template includes account type guidance
+- ✅ All 9 types documented
+
+---
+
+### 2.4 Document Portfolio Selection Patterns
+
+**File**: `_docs/requirements/USER_PORTFOLIO_ONBOARDING_DESIGN.md` (Section 8: Frontend UX Flow)
+
+- [ ] Add documentation for "User with Multiple Portfolios" flow
+- [ ] Explain that frontend should:
+  - Fetch all portfolios via GET /api/v1/portfolios
+  - Show portfolio selector if user has multiple
+  - Support aggregate view (all portfolios) via /api/v1/analytics/aggregate/*
+- [ ] Document that backend doesn't dictate UI, just provides data
+- [ ] Add examples of how to use aggregate endpoints
+
+**Completion Criteria**:
+- ✅ Documentation explains multi-portfolio user flow
+- ✅ Clear guidance for frontend developers
+
+---
+
+### 2.5 Document CSV Import vs CRUD Flow Relationship
+
+**File**: `_docs/requirements/USER_PORTFOLIO_ONBOARDING_DESIGN.md` (New section or update Section 3)
+
+- [ ] Add section explaining two separate flows:
+  - **CSV Import Flow**: For bulk importing positions from broker exports
+  - **CRUD Flow**: For manual portfolio management
+- [ ] Document shared services between flows
+- [ ] Explain when to use each flow:
+  - CSV import: User has broker export file
+  - CRUD: User wants to create empty portfolio or add positions manually
+- [ ] Add examples showing both flows
+- [ ] Document that both flows create identical portfolio data structures
+
+**Completion Criteria**:
+- ✅ Clear explanation of two flows
+- ✅ Guidance on when to use each
+
+---
+
+### 2.6 Update Response Schema
+
+**File**: `app/api/v1/onboarding.py`
+
+- [ ] Update success response to include account_name
+- [ ] Update success response to include account_type
+- [ ] Update response schema/dataclass
+- [ ] Test response includes new fields
+- [ ] Verify response matches MULTI_PORTFOLIO_API_REFERENCE.md format
+
+**Completion Criteria**:
+- ✅ Response includes account_name and account_type
+- ✅ Schema documented
+
+---
+
+### 2.7 Integration Testing
+
+- [ ] Test: Import 1st portfolio (taxable account)
+- [ ] Test: Import 2nd portfolio (IRA account)
+- [ ] Test: Import 3rd portfolio (401k account)
+- [ ] Test: Verify all 3 portfolios appear in GET /api/v1/portfolios
+- [ ] Test: Aggregate analytics endpoints work with multiple portfolios
+- [ ] Test: GET /api/v1/analytics/aggregate/beta returns weighted average
+- [ ] Test: Duplicate account name rejected
+- [ ] Test: Invalid account_type rejected
+- [ ] Test: All 9 account types accepted
+
+**Completion Criteria**:
+- ✅ Can import multiple portfolios successfully
+- ✅ Aggregate analytics work correctly
+- ✅ Validation works as expected
+
+---
+
+### 2.8 Phase 2 Completion Checklist
+
+**Verification**:
+- [ ] All tasks 2.1-2.7 completed
+- [ ] Integration tests pass
+- [ ] Code reviewed
+- [ ] Documentation updated
+- [ ] No breaking changes to Phase 1 functionality
+- [ ] Phase 1 users unaffected (backward compatible)
+
+**Success Metrics**:
+- ✅ User can import taxable + IRA + 401k portfolios
+- ✅ Aggregate analytics show combined metrics
+- ✅ CSV template documents account types
+- ✅ Validation prevents duplicates
+
+---
+
+## Phase 3: Admin & Superuser Tooling (~1 week)
 
 **Goal**: Add admin capabilities for user management and impersonation.
 

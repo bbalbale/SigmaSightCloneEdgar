@@ -1,9 +1,25 @@
 # User & Portfolio Onboarding - Backend Design Document
 
-**Version**: 1.0
-**Date**: 2025-10-28
-**Status**: Draft - Pending Partner Approval
+**Version**: 1.1
+**Date**: 2025-11-05
+**Status**: Updated - Multi-Portfolio Support Added
 **Author**: AI Assistant (Claude)
+
+---
+
+## Changelog
+
+### Version 1.1 (2025-11-05)
+- **Phase Renumbering**: Inserted new Phase 2 for Multi-Portfolio Support
+- **Phase 2 Added**: Multi-Portfolio Support (6 tasks)
+- **Phase 3 Updated**: Admin & Superuser Tooling moved from Phase 2 to Phase 3
+- **Scope Updated**: Removed "Multi-account support (future feature)" - now Phase 2
+- **Design Decisions Updated**: Changed "Portfolio Limit" and "Account Types" decisions
+- **API Endpoints Updated**: CSV import endpoint now requires account_name and account_type
+- **Response Schemas Updated**: Added account metadata to responses
+
+### Version 1.0 (2025-10-28)
+- Initial version: Core onboarding design with Phase 1 and Phase 2 (Admin)
 
 ---
 
@@ -30,14 +46,21 @@ Enable self-service onboarding for test users to create accounts and portfolios 
 
 ### Scope
 
-**Phase 1: Core Onboarding (MVP)**
+**Phase 1: Core Onboarding (MVP)** ✅ COMPLETED
 - API endpoints for user registration and portfolio creation
 - CSV parsing for broker-exported position data
 - Invite code security system (config-based single code)
 - Full batch processing integration
 - Synchronous portfolio creation flow
 
-**Phase 2: Admin & Superuser Tooling** (Separate Implementation)
+**Phase 2: Multi-Portfolio Support** 🔄 IN PROGRESS
+- Update CSV import to support account_name and account_type
+- Remove single-portfolio restriction
+- Support importing multiple portfolios per user
+- Integration with multi-portfolio CRUD APIs
+- Documentation and testing
+
+**Phase 3: Admin & Superuser Tooling** (Future Implementation)
 - Superuser authentication and authorization
 - User impersonation for testing
 - Admin dashboard endpoints
@@ -45,7 +68,6 @@ Enable self-service onboarding for test users to create accounts and portfolios 
 **Out of Scope:**
 - Frontend implementation details (FE team responsibility)
 - Tax lot tracking (future feature)
-- Multi-account support (future feature)
 - Automated cleanup (manual only)
 
 ### Target Users
@@ -62,44 +84,56 @@ Enable self-service onboarding for test users to create accounts and portfolios 
 | Decision | Choice | Rationale |
 |----------|--------|-----------|
 | **User Creation** | Self-service with single invite code | Controlled access, simple for 50 users |
-| **Portfolio Limit** | 1 portfolio per user | Existing constraint, simplifies state |
-| **Portfolio Init** | CSV required | Ensure data quality, skip empty portfolios for MVP |
+| **Portfolio Limit** | Multiple portfolios per user | Support family office, multiple accounts (Phase 2) |
+| **Portfolio Init** | CSV required for import flow | Ensure data quality, bulk position import |
 | **Position Model** | Single aggregated position per symbol | Simpler than tax lots, matches broker CSVs |
 | **Entry Date** | Required in standardized CSV | Necessary for calculations |
 | **UUID Strategy** | Hybrid: deterministic for testing → random | Test thoroughly, maintain demos |
 | **Invite Codes** | Single master code (config-based) | No database, looks unique to users |
 | **Batch Processing** | Synchronous (30-60s timeout) | Simpler for MVP |
-| **Superuser Access** | *Phase 2 only* | Not needed for core onboarding |
+| **Superuser Access** | *Phase 3 only* | Not needed for core onboarding or multi-portfolio |
 | **Equity Balance** | Separate API field | Handle leverage correctly |
 | **CSV Validation** | All-or-nothing (strict) | Data quality |
 | **Demo Seeding** | Keep separate, share utilities | Don't break existing system |
 | **Rate Limiting** | None | Trust 50 beta users |
 | **Audit Logging** | Application logs only | Sufficient for small scale |
-| **Account Types** | None (identify by email) | Unnecessary for MVP |
+| **Account Types** | Required (9 types) | Enables multi-portfolio aggregation (Phase 2) |
 | **Error Codes** | ~35 essential codes | Balanced detail |
 
 ---
 
 ## 3. API Endpoint Specifications
 
-### **Phase 1: Core Onboarding - 4 Endpoints**
+### **Phase 1: Core Onboarding - 4 Endpoints** ✅ COMPLETED
 
 These are the MVP endpoints for user onboarding and portfolio creation:
 
 1. `POST /api/v1/onboarding/register` - User registration with single invite code
-2. `POST /api/v1/onboarding/create-portfolio` - Portfolio creation with CSV (no automatic batch trigger)
-3. `GET /api/v1/onboarding/csv-template` - Download CSV template (essential for Phase 1 testing)
-4. `POST /api/v1/portfolio/{portfolio_id}/calculate` - User-triggered portfolio calculations (includes preprocessing)
+2. `POST /api/v1/onboarding/import-portfolio` - Portfolio creation with CSV (no automatic batch trigger)
+3. `GET /api/v1/onboarding/csv-template` - Download CSV template
+4. `POST /api/v1/portfolio/{portfolio_id}/calculate` - User-triggered portfolio calculations
 
-### **Phase 2: Admin & Superuser - 3 Endpoints** *(Separate Implementation)*
+### **Phase 2: Multi-Portfolio Support - Updates to Existing Endpoints** 🔄 IN PROGRESS
 
-These admin tooling endpoints will be implemented after Phase 1 is working and tested:
+Updates to Phase 1 endpoints to support multiple portfolios per user:
 
-3. `POST /api/v1/admin/impersonate` - Start impersonation
-4. `POST /api/v1/admin/stop-impersonation` - End impersonation
-5. `GET /api/v1/admin/users` - List all users
+- Update `POST /api/v1/onboarding/import-portfolio` to require `account_name` and `account_type`
+- Remove validation preventing multiple portfolios per user
+- Update response schema to include account metadata
+- Update CSV template documentation to include account type guidance
+- Document integration with multi-portfolio CRUD APIs (`/api/v1/portfolios`)
 
-**Note:** Phase 2 also includes all work from `ADMIN_AUTH_SUPPLEMENT.md` (superuser authentication, JWT modifications, bootstrap script, etc.)
+**Note:** Multi-portfolio CRUD APIs already exist (implemented Nov 1, 2025). See `backend/_docs/MULTI_PORTFOLIO_API_REFERENCE.md` for complete documentation.
+
+### **Phase 3: Admin & Superuser - 3 Endpoints** *(Future Implementation)*
+
+These admin tooling endpoints will be implemented after Phase 2:
+
+1. `POST /api/v1/admin/impersonate` - Start impersonation
+2. `POST /api/v1/admin/stop-impersonation` - End impersonation
+3. `GET /api/v1/admin/users` - List all users
+
+**Note:** Phase 3 also includes all work from `ADMIN_AUTH_SUPPLEMENT.md` (superuser authentication, JWT modifications, bootstrap script, etc.)
 
 ---
 
@@ -141,9 +175,9 @@ These admin tooling endpoints will be implemented after Phase 1 is working and t
 
 ### 3.2 Portfolio Creation with CSV Import
 
-#### `POST /api/v1/onboarding/create-portfolio`
+#### `POST /api/v1/onboarding/import-portfolio`
 
-**Description:** Create portfolio and import positions from CSV. Does NOT automatically trigger batch processing (use separate calculate endpoint).
+**Description:** Create portfolio and import positions from CSV. Supports multiple portfolios per user (Phase 2). Does NOT automatically trigger batch processing (use separate calculate endpoint).
 
 **Request:**
 ```
@@ -151,6 +185,8 @@ Content-Type: multipart/form-data
 
 Fields:
 - portfolio_name: string (required)
+- account_name: string (required) ← Phase 2: NEW
+- account_type: string (required) ← Phase 2: NEW (taxable, ira, roth_ira, 401k, 403b, 529, hsa, trust, other)
 - description: string (optional)
 - equity_balance: decimal (required, e.g., 500000.00)
 - csv_file: file (required, .csv format)
@@ -158,9 +194,11 @@ Fields:
 
 **Example:**
 ```bash
-curl -X POST http://localhost:8000/api/v1/onboarding/create-portfolio \
+curl -X POST http://localhost:8000/api/v1/onboarding/import-portfolio \
   -H "Authorization: Bearer <JWT_TOKEN>" \
   -F "portfolio_name=My Trading Portfolio" \
+  -F "account_name=Schwab Taxable" \
+  -F "account_type=taxable" \
   -F "description=Main trading account at Schwab" \
   -F "equity_balance=500000.00" \
   -F "csv_file=@positions.csv"
@@ -171,6 +209,8 @@ curl -X POST http://localhost:8000/api/v1/onboarding/create-portfolio \
 {
   "portfolio_id": "a3209353-9ed5-4885-81e8-d4bbc995f96c",
   "name": "My Trading Portfolio",
+  "account_name": "Schwab Taxable",
+  "account_type": "taxable",
   "description": "Main trading account at Schwab",
   "equity_balance": "500000.00",
   "positions_imported": 45,
@@ -198,15 +238,17 @@ curl -X POST http://localhost:8000/api/v1/onboarding/create-portfolio \
 }
 ```
 
-**409 Conflict - User Already Has Portfolio:**
+**409 Conflict - Duplicate Portfolio Name:**
 ```json
 {
   "error": {
     "code": "ERR_PORT_001",
-    "message": "You already have a portfolio. Each user is limited to one portfolio."
+    "message": "You already have a portfolio with this account name. Please use a different name."
   }
 }
 ```
+
+**Note:** Phase 2 removed the "one portfolio per user" restriction. Users can now import multiple portfolios.
 
 **413 Payload Too Large - File Too Large:**
 ```json
@@ -1105,7 +1147,7 @@ Step 2: Registration Form
 Step 3: Login
 ├─ User enters email/password
 ├─ POST /api/v1/auth/login
-└─ Redirect to /onboarding/create-portfolio
+└─ Redirect to /onboarding/import-portfolio
 ```
 
 ### 8.2 Portfolio Creation Flow **[UPDATED: Decoupled Architecture]**
@@ -1113,7 +1155,7 @@ Step 3: Login
 **Note:** Portfolio creation and calculations are now separate API calls for better UX and reliability.
 
 ```
-Step 1: Create Portfolio Form (/onboarding/create-portfolio)
+Step 1: Create Portfolio Form (/onboarding/import-portfolio)
 ├─ Welcome message: "Let's set up your portfolio"
 │
 ├─ Fields:
@@ -1136,7 +1178,7 @@ Step 1: Create Portfolio Form (/onboarding/create-portfolio)
 └─ Submit Button: "Create Portfolio"
 
 Step 2: Portfolio Creation (Fast - <5 seconds)
-├─ On Submit: POST /api/v1/onboarding/create-portfolio
+├─ On Submit: POST /api/v1/onboarding/import-portfolio
 ├─ Show loading spinner: "Creating portfolio and importing positions..."
 ├─ Quick response (no batch processing yet)
 │
@@ -1247,7 +1289,7 @@ While Impersonating:
 
 **Phase 1 Pages:**
 1. `/register` - Registration form
-2. `/onboarding/create-portfolio` - Portfolio creation
+2. `/onboarding/import-portfolio` - Portfolio creation
 
 **Phase 2 Pages (Admin Tooling):**
 3. `/admin` - Superuser dashboard (list users) **[PHASE 2]**
@@ -1435,7 +1477,7 @@ If scaling beyond 50 users or need cohort tracking, can implement:
 
 **API Endpoints (3):**
 - `POST /api/v1/onboarding/register`
-- `POST /api/v1/onboarding/create-portfolio` (no automatic batch trigger)
+- `POST /api/v1/onboarding/import-portfolio` (no automatic batch trigger)
 - `POST /api/v1/portfolio/{portfolio_id}/calculate` (user-triggered calculations)
 
 **Additional Work:**
@@ -1461,9 +1503,69 @@ If scaling beyond 50 users or need cohort tracking, can implement:
 
 **UUID Strategy:** Deterministic (for testing)
 
+**Status:** ✅ COMPLETED (October 30, 2025)
+
 ---
 
-### **Phase 2: Admin & Superuser Tooling** (~1 week) *Implement after Phase 1 is working and tested*
+### **Phase 2: Multi-Portfolio Support** (~2 days) 🔄 IN PROGRESS
+
+**Goals:**
+- Enable users to import multiple portfolios via CSV
+- Update CSV import endpoint to support account metadata
+- Integrate with existing multi-portfolio CRUD APIs
+- Support family office use cases (multiple accounts per user)
+
+**Database:**
+- No schema changes (multi-portfolio migration already complete)
+- Use existing `account_name`, `account_type`, `is_active` columns added in migration `9b0768a49ad8`
+
+**Services:**
+- No new services needed
+- Update existing OnboardingService to support account metadata
+- Update CSV parser to validate account_type values
+
+**API Endpoint Updates:**
+1. Update `POST /api/v1/onboarding/import-portfolio`:
+   - Add required `account_name` field
+   - Add required `account_type` field (9 valid types)
+   - Remove "one portfolio per user" validation
+   - Update response schema to include account metadata
+
+2. Update `GET /api/v1/onboarding/csv-template`:
+   - Add account type guidance to template documentation
+
+**Documentation Tasks:**
+3. Document portfolio selection patterns (after login with multiple portfolios)
+4. Document relationship between CSV import flow and CRUD flow
+5. Update error codes (ERR_PORT_001 no longer "already has portfolio")
+
+**Integration:**
+- CSV import creates portfolios compatible with `/api/v1/portfolios` CRUD endpoints
+- Multi-portfolio aggregate analytics work automatically with imported portfolios
+- Both flows use same PortfolioService and PositionService
+
+**Success Criteria:**
+- ✅ User can import 1st portfolio with account_name and account_type
+- ✅ User can import 2nd+ portfolios (no single-portfolio restriction)
+- ✅ Response includes account_name and account_type fields
+- ✅ CSV template documents account type field
+- ✅ Documentation explains CSV import vs CRUD flows
+- ✅ Validation prevents duplicate account names for same user
+- ✅ Multi-portfolio aggregate analytics work with imported portfolios
+
+**Testing Strategy:**
+- Import 2 portfolios for same user (taxable + IRA)
+- Verify aggregate analytics endpoints work
+- Test error for duplicate account names
+- Verify account_type validation (reject invalid types)
+
+**Effort:** ~10-12 hours (1-2 days)
+
+**Status:** 🔄 IN PROGRESS
+
+---
+
+### **Phase 3: Admin & Superuser Tooling** (~1 week) *Implement after Phase 2 is working and tested*
 
 **Goals:**
 - Superuser authentication system
@@ -1505,7 +1607,7 @@ If scaling beyond 50 users or need cohort tracking, can implement:
 
 ---
 
-### Phase 3: Production Hardening (Optional - Future)
+### Phase 4: Production Hardening (Optional - Future)
 
 **Goals:**
 - Security improvements
@@ -1933,7 +2035,7 @@ async def test_create_portfolio_with_csv():
     # Upload CSV
     with open("test_data/valid_positions.csv", "rb") as f:
         response = await client.post(
-            "/api/v1/onboarding/create-portfolio",
+            "/api/v1/onboarding/import-portfolio",
             headers={"Authorization": f"Bearer {token}"},
             data={
                 "portfolio_name": "Test Portfolio",
@@ -1975,7 +2077,7 @@ async def test_csv_validation_errors():
     # Test with invalid CSV (bad dates)
     with open("test_data/invalid_dates.csv", "rb") as f:
         response = await client.post(
-            "/api/v1/onboarding/create-portfolio",
+            "/api/v1/onboarding/import-portfolio",
             headers={"Authorization": f"Bearer {token}"},
             data={"portfolio_name": "Test", "equity_balance": "500000.00"},
             files={"csv_file": f}
@@ -2012,7 +2114,7 @@ async def test_complete_onboarding_flow():
     # Step 3: Create portfolio with CSV
     with open("test_data/valid_full.csv", "rb") as f:
         portfolio_response = await client.post(
-            "/api/v1/onboarding/create-portfolio",
+            "/api/v1/onboarding/import-portfolio",
             headers={"Authorization": f"Bearer {token}"},
             data={
                 "portfolio_name": "E2E Test Portfolio",
@@ -2066,7 +2168,7 @@ US_TREASURY_BILLS,1,100000.00,2024-01-01,PRIVATE,TREASURY_BILLS,,,,,
 
     with open("test_data/cash_positions.csv", "rb") as f:
         response = await client.post(
-            "/api/v1/onboarding/create-portfolio",
+            "/api/v1/onboarding/import-portfolio",
             headers={"Authorization": f"Bearer {token}"},
             data={"portfolio_name": "Cash Test", "equity_balance": "165000.00"},
             files={"csv_file": f}
