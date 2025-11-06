@@ -17,6 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.dependencies import get_current_user
+from app.core.uuid_strategy import generate_portfolio_uuid
 from app.database import get_async_session
 from app.models.users import User, Portfolio
 from app.models.positions import Position
@@ -62,9 +63,15 @@ async def create_portfolio(
         400: Invalid portfolio data
     """
     try:
+        # Generate UUID using shared UUIDStrategy (respects DETERMINISTIC_UUIDS setting)
+        portfolio_uuid = generate_portfolio_uuid(
+            user_id=current_user.id,
+            account_name=portfolio_data.account_name
+        )
+
         # Create new portfolio
         new_portfolio = Portfolio(
-            id=uuid4(),
+            id=portfolio_uuid,
             user_id=current_user.id,
             name=portfolio_data.name,
             account_name=portfolio_data.account_name,
