@@ -41,7 +41,7 @@ This TODO guides implementation of the user & portfolio onboarding system for 50
 
 **Design Reference**: Section 10 "Implementation Phases" → Phase 1
 
-**Completion Notes (2025-10-30)**: Phase 1 core onboarding flow shipped end-to-end (config, services, APIs, preprocessing, and batch trigger). All success criteria verified against synthetic broker CSVs and internal beta smoke tests. Remaining work tracked under Phase 2 (admin tooling) and Phase 3 (documentation polish).
+**Completion Notes (2025-10-30)**: Phase 1 core onboarding flow shipped end-to-end (config, services, APIs, preprocessing, and batch trigger). All success criteria verified against synthetic broker CSVs and internal beta smoke tests. Remaining work tracked under Phase 2 (multi-portfolio support), Phase 3 (admin tooling), and Phase 4 (production hardening).
 
 ---
 
@@ -58,7 +58,7 @@ This TODO guides implementation of the user & portfolio onboarding system for 50
   - **Benefits**: Can rotate without code change, emergency override via env var
   - **Production**: Override via environment variable to avoid Git history exposure
   - **Development**: Default works out of box
-- [x] Add `DETERMINISTIC_UUIDS` config flag (default: True for Phase 1) *(Completed 2025-10-29 – toggles deterministic UUIDs for onboarding)*
+- [x] Add `DETERMINISTIC_UUIDS` config flag (default: True) *(Completed 2025-10-29 – toggles deterministic UUIDs for onboarding, used in Phase 1 and Phase 2)*
 - [x] Verify existing config for JWT token settings (30-day expiration) *(Completed 2025-10-29 – confirmed existing `ACCESS_TOKEN_EXPIRE_MINUTES` configuration)*
 - [x] Add to `.env.example`:
   ```
@@ -1744,13 +1744,19 @@ For each major feature:
 - **Target Completion**: TBD
 - **Actual Completion**: TBD
 
-### Phase 2: Admin & Superuser
+### Phase 2: Multi-Portfolio Support
+- **Status**: IN PROGRESS
+- **Started**: 2025-11-06
+- **Target Completion**: TBD
+- **Actual Completion**: TBD
+
+### Phase 3: Admin & Superuser
 - **Status**: NOT STARTED
 - **Started**: TBD
 - **Target Completion**: TBD
 - **Actual Completion**: TBD
 
-### Phase 3: Production Hardening
+### Phase 4: Production Hardening
 - **Status**: NOT STARTED
 - **Started**: TBD
 - **Target Completion**: TBD
@@ -1761,8 +1767,9 @@ For each major feature:
 ## Notes
 
 - This TODO follows the design document exactly - do not deviate without updating the design doc first
-- Phase 1 must be complete and tested before starting Phase 2
+- Phase 1 must be complete and tested before starting Phase 2 (✅ Phase 1 COMPLETED 2025-10-30)
 - Phase 2 must be complete and tested before starting Phase 3
+- Phase 3 must be complete and tested before starting Phase 4
 - All database changes must use Alembic migrations
 - All new code requires unit and integration tests
 - Cross-reference design doc sections for implementation details

@@ -1,13 +1,23 @@
 # User & Portfolio Onboarding - Backend Design Document
 
-**Version**: 1.2
+**Version**: 1.3
 **Date**: 2025-11-06
-**Status**: Updated - Audit Findings Fixed
+**Status**: Implementation-Ready - All Semantic Inconsistencies Fixed
 **Author**: AI Assistant (Claude)
 
 ---
 
 ## Changelog
+
+### Version 1.3 (2025-11-06)
+- **Critical Fixes**: Fixed semantic documentation inconsistencies (implementation-ready)
+- **OnboardingService Spec**: Updated method signature to accept account_name and account_type parameters
+- **Validation Logic**: Changed from "no existing portfolio" to "no duplicate account_name" validation
+- **Error Catalog**: Updated ERR_PORT_001 from "User already has portfolio" to "Duplicate account name"
+- **Portfolio Constraints**: Updated security model to reflect multi-portfolio support
+- **Error Handling**: Updated UX flows to use correct Phase 2 error messages
+- **Phase References**: Fixed 8 additional **[PHASE 2]** → **[PHASE 3]** admin/superuser references
+- **Progress Tracking**: Added Phase 2 status and updated phase sequence notes in TODO5.md
 
 ### Version 1.2 (2025-11-06)
 - **Bug Fixes**: Fixed audit findings from initial Version 1.1 release
@@ -394,13 +404,13 @@ result = await batch_orchestrator.run_daily_batch_sequence(
 |---------|---------------|----------------|
 | **Path** | `/api/v1/portfolio/{id}/calculate` | `/admin/batch/run` |
 | **Auth** | Portfolio ownership | Superuser required |
-| **Scope** | Single portfolio (owned by user) | Any portfolio or all portfolios |
+| **Scope** | Specific portfolio owned by user | Any portfolio or all portfolios |
 | **Force Override** | Not allowed | Can force with `force=true` |
 | **Use Case** | User-initiated refresh | System operations, troubleshooting |
 
 ---
 
-### 3.4 Admin: Impersonate User **[PHASE 2]**
+### 3.4 Admin: Impersonate User **[PHASE 3]**
 
 #### `POST /api/v1/admin/impersonate`
 
@@ -445,7 +455,7 @@ curl -X GET http://localhost:8000/api/v1/data/portfolio/complete \
 
 ---
 
-### 3.5 Admin: Stop Impersonation **[PHASE 2]**
+### 3.5 Admin: Stop Impersonation **[PHASE 3]**
 
 #### `POST /api/v1/admin/stop-impersonation`
 
@@ -470,7 +480,7 @@ Authorization: Bearer <IMPERSONATION_TOKEN>
 
 ---
 
-### 3.6 Admin: List All Users **[PHASE 2]**
+### 3.6 Admin: List All Users **[PHASE 3]**
 
 #### `GET /api/v1/admin/users`
 
@@ -572,7 +582,7 @@ Authorization: Bearer <IMPERSONATION_TOKEN>
 
 | Code | Error | Condition | User Message |
 |------|-------|-----------|--------------|
-| `ERR_PORT_001` | User already has portfolio | `portfolios.user_id` exists | "You already have a portfolio. Each user is limited to one portfolio." |
+| `ERR_PORT_001` | Duplicate account name | `portfolios.account_name` exists for user | "You already have a portfolio with this account name. Please use a different account name." |
 | `ERR_PORT_002` | Missing portfolio name | `portfolio_name` empty | "Portfolio name is required." |
 | `ERR_PORT_003` | Portfolio name too long | Length > 255 chars | "Portfolio name too long (max 255 characters)." |
 | `ERR_PORT_004` | Missing equity balance | `equity_balance` not provided | "Starting equity balance is required." |
@@ -594,7 +604,7 @@ Authorization: Bearer <IMPERSONATION_TOKEN>
 
 **Design Pattern:** The batch orchestrator (`app/batch/batch_orchestrator.py`) uses exception handling with graceful degradation. These error codes provide user-friendly messages for the onboarding flow while maintaining consistency with the existing batch system's error handling approach.
 
-### 4.6 Admin/Superuser Errors **[PHASE 2]**
+### 4.6 Admin/Superuser Errors **[PHASE 3]**
 
 **Note:** These errors are for Phase 3 admin endpoints only. Not needed for Phase 1 core onboarding or Phase 2 multi-portfolio support.
 
@@ -697,25 +707,31 @@ class OnboardingService:
         self,
         user_id: UUID,
         portfolio_name: str,
+        account_name: str,
+        account_type: str,
         equity_balance: Decimal,
         csv_file: UploadFile,
         description: Optional[str] = None
     ) -> Dict[str, Any]:
         """
         Create portfolio and import positions from CSV.
+        Supports multiple portfolios per user (Phase 2).
 
         Steps:
-        1. Validate user has no existing portfolio
-        2. Parse and validate CSV
-        3. Create portfolio record
-        4. Import positions
-        5. Return results
+        1. Validate account_type is valid (9 allowed types)
+        2. Validate no duplicate account_name for this user
+        3. Parse and validate CSV
+        4. Generate portfolio UUID using user_id + account_name
+        5. Create portfolio record with account metadata
+        6. Import positions
+        7. Return results
 
         Note: Does NOT trigger batch processing. User must call
         POST /api/v1/portfolio/{portfolio_id}/calculate separately.
 
         Raises:
-            PortfolioExistsError: User already has portfolio
+            PortfolioExistsError: User already has portfolio with this account_name
+            InvalidAccountTypeError: account_type not in allowed list
             CSVValidationError: Invalid CSV data
         """
 ```
@@ -1236,7 +1252,7 @@ Step 6: Error Handling
 │   └─ Allow re-upload without losing form data
 │
 ├─ Portfolio Creation Errors (Step 2):
-│   ├─ "User already has portfolio" → Redirect to existing portfolio
+│   ├─ "Duplicate account name" (ERR_PORT_001) → Show error, suggest different account name
 │   └─ Other errors → Show message, allow retry
 │
 └─ Calculation Errors (Step 4):
@@ -1300,9 +1316,9 @@ While Impersonating:
 1. `/register` - Registration form
 2. `/onboarding/create-portfolio` - Portfolio creation
 
-**Phase 2 Pages (Admin Tooling):**
-3. `/admin` - Superuser dashboard (list users) **[PHASE 2]**
-4. `/admin/invite-codes` - Manage invite codes **[PHASE 2]** *(Future feature)*
+**Phase 3 Pages (Admin Tooling):**
+3. `/admin` - Superuser dashboard (list users) **[PHASE 3]**
+4. `/admin/invite-codes` - Manage invite codes **[PHASE 3]** *(Future feature)*
 
 **Phase 1 Components:**
 1. `<InviteCodeInput>` - Formatted input for SIGMA-XXXX-XXXX
@@ -1310,8 +1326,8 @@ While Impersonating:
 3. `<EquityBalanceInput>` - Currency input with help tooltip
 5. `<CSVValidationResults>` - Display validation errors/warnings
 
-**Phase 2 Components (Admin Tooling):**
-4. `<ImpersonationBanner>` - Persistent banner during impersonation **[PHASE 2]**
+**Phase 3 Components (Admin Tooling):**
+4. `<ImpersonationBanner>` - Persistent banner during impersonation **[PHASE 3]**
 
 ---
 
@@ -1415,8 +1431,8 @@ If scaling beyond 50 users or need cohort tracking, can implement:
 - Exception: Superusers can access all
 
 **Portfolio Constraints:**
-- One portfolio per user (database constraint)
-- User cannot create multiple portfolios
+- Users can create multiple portfolios per account (Phase 2+)
+- Each portfolio must have unique account_name per user
 - User cannot access other users' portfolios
 
 ### 9.4 API Authentication
