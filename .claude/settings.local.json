@@ -20,7 +20,9 @@
       "Bash(set:*)",
       "Bash(.venv/Scripts/python.exe:*)",
       "Bash(docker exec:*)",
-      "Bash(docker-compose up:*)"
+      "Bash(docker-compose up:*)",
+      "Bash(git checkout:*)",
+      "Bash(git merge:*)"
     ],
     "deny": [],
     "ask": [],
