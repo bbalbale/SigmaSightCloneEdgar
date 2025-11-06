@@ -342,6 +342,7 @@ ERR_PORT_007 = "ERR_PORT_007"  # CSV file required
 ERR_PORT_008 = "ERR_PORT_008"  # CSV validation failed
 ERR_PORT_009 = "ERR_PORT_009"  # Invalid account type
 ERR_PORT_010 = "ERR_PORT_010"  # Account name too long
+ERR_PORT_011 = "ERR_PORT_011"  # Account name required
 
 
 # ==============================================================================

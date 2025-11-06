@@ -77,12 +77,15 @@ await onboarding_service.register_user(
     email, password, full_name, invite_code
 )
 
-# Step 2: Portfolio Creation (<5s)
+# Step 2: Portfolio Creation (<5s) - Phase 2: Multi-Portfolio Support
 await onboarding_service.create_portfolio_with_csv(
-    user_id, portfolio_name, equity_balance, csv_file
+    user_id, portfolio_name, account_name, account_type, equity_balance, csv_file
 )
+# New parameters (Phase 2):
+# - account_name: Unique identifier per user (e.g., "Fidelity IRA", "Schwab Taxable")
+# - account_type: Account type (taxable, ira, roth_ira, 401k, 403b, 529, hsa, trust, other)
 # Populates:
-# - Portfolio record
+# - Portfolio record (with account_name and account_type)
 # - Position records (from CSV)
 # - Tag associations (if present in CSV)
 

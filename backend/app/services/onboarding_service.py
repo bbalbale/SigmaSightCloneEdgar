@@ -51,7 +51,7 @@ from app.core.onboarding_errors import (
     CSVValidationError,
     create_csv_error,
     format_csv_validation_errors,
-    ERR_PORT_002, ERR_PORT_003, ERR_PORT_004, ERR_PORT_005, ERR_PORT_006, ERR_PORT_007, ERR_PORT_008, ERR_PORT_010,
+    ERR_PORT_002, ERR_PORT_003, ERR_PORT_004, ERR_PORT_005, ERR_PORT_006, ERR_PORT_007, ERR_PORT_008, ERR_PORT_010, ERR_PORT_011,
     get_error_message
 )
 
@@ -237,7 +237,7 @@ class OnboardingService:
         account_name_normalized = account_name.strip()
         if not account_name_normalized:
             raise CSVValidationError(
-                code=ERR_PORT_002,
+                code=ERR_PORT_011,
                 message="Account name is required."
             )
 
