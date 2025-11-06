@@ -16,6 +16,7 @@ _Last reviewed: 2025-11-06_
 - Position and portfolio P&L no longer collapse to zero when the prior trading day price is absent, provided the price exists elsewhere within the ten-day lookback window.
 - Option contracts and short exposures flow correctly through analytics, top-position listings, and correlation weights thanks to the shared valuation helper.
 - Unit tests covering the new helper, fallback logic, short-position returns, and analytics aggregation pass under `pytest tests/unit/test_market_data_valuation.py`.
+- Volatility analytics now populate for public-heavy portfolios as the backfill progresses, with skipped counts reported for synthetic holdings.
 
 ## 3. Remaining Gaps
 1. Frontend dashboards have not yet been regression-tested against the corrected APIs; verify charts, leverage cards, and top-position widgets.
@@ -59,5 +60,6 @@ _Last reviewed: 2025-11-06_
 ## 7. Immediate Next Steps
 1. Fix batch telemetry to handle Decimal payloads (Step E) and confirm Phase 1 logs cleanly.
 2. Coordinate frontend QA to verify UI elements against corrected API responses (Step G).
-3. Continue the historical backfill leveraging the enhanced pricing logic and confirm volatility outputs populate (Step H).
-4. Prepare a reconciliation plan ahead of the backfill to quantify and communicate equity adjustments.
+3. Continue the historical backfill leveraging the enhanced pricing logic, confirming volatility outputs populate through the full window (Step H).
+4. Monitor company-profile freshness after the new incremental fetch logic to ensure only genuinely stale symbols are refreshed.
+5. Prepare a reconciliation plan ahead of the backfill to quantify and communicate equity adjustments.
