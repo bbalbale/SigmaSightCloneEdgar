@@ -764,11 +764,13 @@ class MarketDataCollector:
             }
 
         logger.info(
-            "Fetching company profiles for %s symbols (%s missing, %s stale)...",
+            "Fetching company profiles for %s symbols (%s missing, %s stale, %s skipped)...",
             len(symbols_to_fetch),
             len(missing_symbols),
             len(stale_symbols),
+            len(skipped_symbols),
         )
+        logger.debug("Profile fetch symbol list: %s", symbols_to_fetch)
 
         # Fetch profiles using market_data_service
         results = await self.market_data_service.fetch_and_cache_company_profiles(
