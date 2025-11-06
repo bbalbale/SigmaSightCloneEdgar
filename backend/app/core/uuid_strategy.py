@@ -101,7 +101,7 @@ class UUIDStrategy:
     @staticmethod
     def generate_portfolio_uuid(
         user_id: UUID,
-        portfolio_name: str,
+        account_name: str,
         use_deterministic: Optional[bool] = None
     ) -> UUID:
         """
@@ -109,12 +109,16 @@ class UUIDStrategy:
 
         Strategy:
         1. Uses same deterministic/random logic as user UUIDs
-        2. Deterministic: uuid5(NAMESPACE_DNS, f"{user_id}:{portfolio_name}")
+        2. Deterministic: uuid5(NAMESPACE_DNS, f"{user_id}:{account_name}")
         3. Random: uuid4()
+
+        Note: Uses account_name (not portfolio_name) to prevent UUID collisions
+        when a user has multiple portfolios with the same display name
+        (e.g., "Retirement" for both taxable and IRA accounts).
 
         Args:
             user_id: User's UUID (required)
-            portfolio_name: Portfolio name (required)
+            account_name: Portfolio account name (required, unique per user)
             use_deterministic: Override config setting (optional)
                               If None, uses settings.DETERMINISTIC_UUIDS
 
@@ -127,8 +131,8 @@ class UUIDStrategy:
             >>> uuid2 = UUIDStrategy.generate_portfolio_uuid(user_id, "My Portfolio")
             >>> # uuid1 == uuid2 if DETERMINISTIC_UUIDS=True
         """
-        # Normalize portfolio name
-        portfolio_name_normalized = portfolio_name.strip()
+        # Normalize account name
+        account_name_normalized = account_name.strip()
 
         # Use config or override
         should_be_deterministic = (
@@ -138,8 +142,8 @@ class UUIDStrategy:
         )
 
         if should_be_deterministic:
-            # Create deterministic UUID from user_id + portfolio_name
-            namespace_string = f"{user_id}:{portfolio_name_normalized}"
+            # Create deterministic UUID from user_id + account_name
+            namespace_string = f"{user_id}:{account_name_normalized}"
             logger.debug(f"Generating deterministic portfolio UUID: {namespace_string}")
             return uuid5(NAMESPACE_DNS, namespace_string)
         else:

@@ -47,10 +47,11 @@ from app.core.onboarding_errors import (
     WeakPasswordError,
     InvalidFullNameError,
     PortfolioExistsError,
+    InvalidAccountTypeError,
     CSVValidationError,
     create_csv_error,
     format_csv_validation_errors,
-    ERR_PORT_002, ERR_PORT_003, ERR_PORT_004, ERR_PORT_005, ERR_PORT_006, ERR_PORT_007, ERR_PORT_008,
+    ERR_PORT_002, ERR_PORT_003, ERR_PORT_004, ERR_PORT_005, ERR_PORT_006, ERR_PORT_007, ERR_PORT_008, ERR_PORT_010,
     get_error_message
 )
 
@@ -63,6 +64,9 @@ EMAIL_REGEX = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
 MIN_PASSWORD_LENGTH = 8
 MAX_PORTFOLIO_NAME_LENGTH = 255
 MAX_EQUITY_BALANCE = Decimal("1000000000000")  # $1 trillion
+
+# Account types (Phase 2)
+ALLOWED_ACCOUNT_TYPES = {'taxable', 'ira', 'roth_ira', '401k', '403b', '529', 'hsa', 'trust', 'other'}
 
 
 class OnboardingService:
@@ -171,6 +175,8 @@ class OnboardingService:
     async def create_portfolio_with_csv(
         user_id: UUID,
         portfolio_name: str,
+        account_name: str,
+        account_type: str,
         equity_balance: Decimal,
         csv_file: UploadFile,
         description: Optional[str],
@@ -178,9 +184,11 @@ class OnboardingService:
     ) -> Dict[str, Any]:
         """
         Create portfolio with CSV import.
+        Supports multiple portfolios per user (Phase 2).
 
         Validates:
-        - User doesn't have portfolio (1 per user constraint)
+        - Account type (must be in allowed list)
+        - No duplicate account_name for this user
         - Portfolio name
         - Equity balance
         - CSV file structure and content
@@ -193,7 +201,9 @@ class OnboardingService:
 
         Args:
             user_id: User UUID
-            portfolio_name: Portfolio name
+            portfolio_name: Portfolio display name
+            account_name: Portfolio account name (unique per user)
+            account_type: Account type (taxable, ira, roth_ira, 401k, 403b, 529, hsa, trust, other)
             equity_balance: User's account equity balance
             csv_file: Uploaded CSV file
             description: Optional portfolio description
@@ -204,27 +214,56 @@ class OnboardingService:
             {
                 "portfolio_id": str,
                 "portfolio_name": str,
+                "account_name": str,
+                "account_type": str,
                 "positions_imported": int,
                 "positions_failed": int,
                 "csv_validation": {...}
             }
 
         Raises:
-            PortfolioExistsError: User already has a portfolio
+            InvalidAccountTypeError: account_type not in allowed list
+            PortfolioExistsError: User already has portfolio with this account_name
             CSVValidationError: CSV validation failed
             Various validation errors for portfolio fields
         """
-        # 1. Check if user already has a portfolio
+        # 1. Validate account_type
+        account_type_normalized = account_type.lower().strip()
+        if account_type_normalized not in ALLOWED_ACCOUNT_TYPES:
+            logger.warning(f"Invalid account type: {account_type}")
+            raise InvalidAccountTypeError(account_type)
+
+        # 2. Validate account_name and check for duplicates
+        account_name_normalized = account_name.strip()
+        if not account_name_normalized:
+            raise CSVValidationError(
+                code=ERR_PORT_002,
+                message="Account name is required."
+            )
+
+        # Validate account_name max length (database column is String(100))
+        MAX_ACCOUNT_NAME_LENGTH = 100
+        if len(account_name_normalized) > MAX_ACCOUNT_NAME_LENGTH:
+            raise CSVValidationError(
+                code=ERR_PORT_010,
+                message=f"Account name exceeds maximum length of {MAX_ACCOUNT_NAME_LENGTH} characters.",
+                details={"max_length": MAX_ACCOUNT_NAME_LENGTH, "actual_length": len(account_name_normalized)}
+            )
+
+        # Check if user already has a portfolio with this account_name
         result = await db.execute(
-            select(Portfolio).where(Portfolio.user_id == user_id)
+            select(Portfolio).where(
+                Portfolio.user_id == user_id,
+                Portfolio.account_name == account_name_normalized
+            )
         )
         existing_portfolio = result.scalar_one_or_none()
 
         if existing_portfolio:
-            logger.warning(f"User {user_id} already has portfolio {existing_portfolio.id}")
-            raise PortfolioExistsError(str(user_id))
+            logger.warning(f"User {user_id} already has portfolio with account_name '{account_name_normalized}'")
+            raise PortfolioExistsError(str(user_id), account_name_normalized)
 
-        # 2. Validate portfolio name
+        # 3. Validate portfolio name
         portfolio_name_normalized = portfolio_name.strip()
         if not portfolio_name_normalized:
             raise CSVValidationError(
@@ -278,14 +317,16 @@ class OnboardingService:
                 details=format_csv_validation_errors(csv_result.errors)
             )
 
-        # 6. Generate portfolio UUID
-        portfolio_uuid = generate_portfolio_uuid(user_id, portfolio_name_normalized)
+        # 6. Generate portfolio UUID (using account_name for uniqueness)
+        portfolio_uuid = generate_portfolio_uuid(user_id, account_name_normalized)
 
         # 7. Create Portfolio
         portfolio = Portfolio(
             id=portfolio_uuid,
             user_id=user_id,
             name=portfolio_name_normalized,
+            account_name=account_name_normalized,
+            account_type=account_type_normalized,
             description=description.strip() if description else None,
             currency="USD",
             equity_balance=equity_balance
@@ -296,9 +337,9 @@ class OnboardingService:
             await db.flush()  # Check for constraint violations
 
         except IntegrityError as e:
-            # Race condition: another request created portfolio
+            # Race condition: another request created portfolio with same account_name
             logger.error(f"Portfolio creation failed due to constraint: {str(e)}")
-            raise PortfolioExistsError(str(user_id))
+            raise PortfolioExistsError(str(user_id), account_name_normalized)
 
         logger.info(f"Portfolio created: {portfolio_name_normalized} (id={portfolio.id})")
 
@@ -319,6 +360,8 @@ class OnboardingService:
         return {
             "portfolio_id": str(portfolio.id),
             "portfolio_name": portfolio.name,
+            "account_name": portfolio.account_name,
+            "account_type": portfolio.account_type,
             "equity_balance": float(portfolio.equity_balance),
             "positions_imported": import_result.success_count,
             "positions_failed": import_result.failure_count,

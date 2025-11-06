@@ -66,4 +66,5 @@ class Portfolio(Base):
     __table_args__ = (
         Index('ix_portfolios_deleted_at', 'deleted_at'),
         Index('ix_portfolios_user_id', 'user_id'),  # Non-unique index for performance
+        UniqueConstraint('user_id', 'account_name', name='uq_portfolio_user_account_name'),  # Prevent duplicate account names per user
     )

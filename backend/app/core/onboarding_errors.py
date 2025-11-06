@@ -119,14 +119,26 @@ class CSVValidationError(OnboardingException):
 
 
 class PortfolioExistsError(OnboardingException):
-    """User already has a portfolio"""
+    """User already has a portfolio with this account name"""
 
-    def __init__(self, user_id: str, details: Any = None):
+    def __init__(self, user_id: str, account_name: str, details: Any = None):
         super().__init__(
             code="ERR_PORT_001",
-            message="You already have a portfolio. Each user can only have one portfolio.",
+            message="You already have a portfolio with this account name. Please use a different account name.",
             status_code=409,
-            details=details or {"user_id": user_id},
+            details=details or {"user_id": user_id, "account_name": account_name},
+        )
+
+
+class InvalidAccountTypeError(OnboardingException):
+    """Invalid account type provided"""
+
+    def __init__(self, account_type: str, details: Any = None):
+        super().__init__(
+            code="ERR_PORT_009",
+            message="Invalid account type. Must be one of: taxable, ira, roth_ira, 401k, 403b, 529, hsa, trust, other.",
+            status_code=400,
+            details=details or {"account_type": account_type},
         )
 
 
@@ -328,6 +340,8 @@ ERR_PORT_005 = "ERR_PORT_005"  # Equity balance not positive
 ERR_PORT_006 = "ERR_PORT_006"  # Equity balance unreasonable
 ERR_PORT_007 = "ERR_PORT_007"  # CSV file required
 ERR_PORT_008 = "ERR_PORT_008"  # CSV validation failed
+ERR_PORT_009 = "ERR_PORT_009"  # Invalid account type
+ERR_PORT_010 = "ERR_PORT_010"  # Account name too long
 
 
 # ==============================================================================

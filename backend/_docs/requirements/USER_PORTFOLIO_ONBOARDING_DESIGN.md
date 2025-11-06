@@ -526,6 +526,158 @@ Authorization: Bearer <IMPERSONATION_TOKEN>
 
 ---
 
+### 3.4 CSV Import vs CRUD Workflows **[PHASE 2]**
+
+**Context**: There are two distinct pathways for creating and managing portfolios in SigmaSight, each serving different user needs.
+
+#### Two Separate Workflows
+
+**1. CSV Import Flow (Onboarding)**
+- **Purpose**: Bulk import of positions from broker exports
+- **Entry Point**: `POST /api/v1/onboarding/create-portfolio`
+- **Use Case**: User has exported their positions from Schwab/Fidelity/Vanguard
+- **Workflow**:
+  ```
+  User → CSV Export from Broker → Upload CSV → Portfolio Created + Positions Imported
+  ```
+- **Advantages**:
+  - Fast bulk import (10-100+ positions at once)
+  - Preserves entry dates and prices from broker history
+  - Minimal manual data entry
+- **Limitations**:
+  - Requires CSV file in correct format
+  - Cannot create empty portfolio (must have positions)
+  - One-time import per portfolio creation
+
+**2. CRUD Flow (Manual Management)**
+- **Purpose**: Manual portfolio and position management
+- **Entry Points**:
+  - `POST /api/v1/portfolios` - Create empty portfolio
+  - `POST /api/v1/positions` - Add individual positions
+  - `PUT /api/v1/positions/{id}` - Update positions
+  - `DELETE /api/v1/positions/{id}` - Remove positions
+- **Use Case**: User wants to create empty portfolio or manage positions manually
+- **Workflow**:
+  ```
+  User → Create Portfolio → Add Positions One-by-One → Edit/Delete as Needed
+  ```
+- **Advantages**:
+  - Can create empty portfolio first
+  - Granular control over each position
+  - Easy updates and deletions
+  - No CSV file required
+- **Limitations**:
+  - Tedious for large portfolios (50+ positions)
+  - Manual entry prone to typos
+
+#### When to Use Each Flow
+
+| Scenario | Recommended Flow | Reason |
+|----------|------------------|--------|
+| User has broker CSV export | CSV Import | Fastest bulk import |
+| User wants to test with 2-3 positions | CRUD | Quick manual entry |
+| User has 50+ positions | CSV Import | Too tedious to enter manually |
+| User wants to add 1 new position | CRUD | No need for CSV |
+| User wants to update 1 position | CRUD | Direct update |
+| User has no existing positions | CRUD | Create empty portfolio first |
+
+#### Shared Services and Data Structures
+
+Both flows ultimately create the same database structures:
+
+**Shared Services:**
+- `PositionImportService` - Used by CSV import, reusable for CRUD
+- `PreprocessingService` - Enriches security master for both flows
+- `BatchOrchestrator` - Runs calculations for both flows
+
+**Shared Data Models:**
+- `Portfolio` model (id, user_id, name, account_name, account_type, equity_balance)
+- `Position` model (symbol, quantity, entry_price, entry_date, investment_class, etc.)
+- Both flows create identical portfolio/position records
+
+**Calculation Integration:**
+- CSV Import: User calls `POST /api/v1/portfolio/{id}/calculate` after CSV upload
+- CRUD: User calls same endpoint after adding positions manually
+- Both use the same batch orchestrator (no difference in processing)
+
+#### Example User Journeys
+
+**Journey 1: CSV Import + CRUD Updates**
+```
+1. User uploads CSV with 50 positions → CSV Import Flow
+2. Portfolio created with 50 positions
+3. User realizes 1 position has wrong quantity → CRUD Update
+4. User adds 2 new positions manually → CRUD Create
+5. Result: Portfolio with 52 positions (50 from CSV + 2 manual)
+```
+
+**Journey 2: Pure CRUD**
+```
+1. User creates empty portfolio → CRUD Create Portfolio
+2. User adds 5 positions manually → CRUD Create Position (×5)
+3. User deletes 1 position → CRUD Delete
+4. Result: Portfolio with 4 positions (all manual)
+```
+
+**Journey 3: Multiple CSV Imports (Phase 2)**
+```
+1. User imports Schwab Taxable account (CSV) → Portfolio 1
+2. User imports Fidelity IRA (CSV) → Portfolio 2
+3. User imports Vanguard 401k (CSV) → Portfolio 3
+4. Result: 3 separate portfolios, all managed independently
+```
+
+#### API Integration Patterns
+
+**Frontend Integration:**
+
+```typescript
+// CSV Import (bulk creation)
+async function importPortfolioFromCSV(file: File) {
+  const formData = new FormData();
+  formData.append('portfolio_name', 'My Portfolio');
+  formData.append('account_name', 'Schwab Taxable');
+  formData.append('account_type', 'taxable');
+  formData.append('equity_balance', '500000');
+  formData.append('csv_file', file);
+
+  const response = await fetch('/api/v1/onboarding/create-portfolio', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+    body: formData
+  });
+
+  // Then trigger calculations
+  await fetch(`/api/v1/portfolio/${portfolio_id}/calculate`, { method: 'POST' });
+}
+
+// CRUD Flow (manual management)
+async function createEmptyPortfolio() {
+  const response = await fetch('/api/v1/portfolios', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      name: 'My Portfolio',
+      account_name: 'Fidelity IRA',
+      account_type: 'ira',
+      equity_balance: 250000
+    })
+  });
+}
+
+async function addPosition(portfolioId: string, position: Position) {
+  await fetch('/api/v1/positions', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ portfolio_id: portfolioId, ...position })
+  });
+}
+```
+
+**Key Takeaway**: Both flows are valid and complementary. CSV Import is optimized for onboarding with bulk data, while CRUD is optimized for ongoing portfolio management. Users can mix and match as needed.
+
+---
+
 ## 4. Error Conditions Catalog
 
 ### 4.1 Registration Errors
@@ -1336,6 +1488,91 @@ While Impersonating:
 
 **Phase 3 Components (Admin Tooling):**
 4. `<ImpersonationBanner>` - Persistent banner during impersonation **[PHASE 3]**
+
+---
+
+### 8.5 Multi-Portfolio User Flow **[PHASE 2]**
+
+**Context**: Starting Phase 2, users can create multiple portfolios (e.g., taxable account, IRA, 401k).
+
+**Portfolio Management:**
+
+```
+User with Multiple Portfolios
+├─ GET /api/v1/portfolios → Returns all user's portfolios
+│   └─ Each portfolio includes: id, name, account_name, account_type, equity_balance
+│
+├─ Frontend displays portfolio selector:
+│   ├─ Dropdown or sidebar menu
+│   ├─ Shows: portfolio_name + account_type
+│   └─ Example: "My Trading Account (taxable)", "Retirement Fund (ira)"
+│
+├─ User selects a portfolio:
+│   ├─ Frontend stores selected portfolio_id
+│   └─ All portfolio-specific API calls use this portfolio_id
+│
+└─ User can switch between portfolios anytime
+```
+
+**Aggregate Analytics (All Portfolios):**
+
+```
+View All Portfolios Combined
+├─ Frontend option: "View All" or "Aggregate View"
+│
+└─ Uses aggregate endpoints:
+    ├─ GET /api/v1/analytics/aggregate/beta → Combined portfolio beta
+    ├─ GET /api/v1/analytics/aggregate/factor-exposure → Combined factor exposures
+    ├─ GET /api/v1/analytics/aggregate/correlation → Cross-portfolio correlations
+    └─ GET /api/v1/analytics/aggregate/diversification → Overall diversification
+```
+
+**Import Additional Portfolio:**
+
+```
+Add Second/Third Portfolio
+├─ User navigates to: /onboarding/create-portfolio
+│   └─ (Same form as first portfolio, but no "already has portfolio" restriction)
+│
+├─ Form includes new fields (Phase 2):
+│   ├─ Account Name (required, unique per user)
+│   │   └─ Examples: "Fidelity IRA", "Schwab Taxable", "401k Plan"
+│   │
+│   └─ Account Type (required, dropdown)
+│       └─ Options: taxable, ira, roth_ira, 401k, 403b, 529, hsa, trust, other
+│
+├─ Submit: POST /api/v1/onboarding/create-portfolio
+│   ├─ Includes: account_name, account_type, portfolio_name, equity_balance, csv_file
+│   └─ Validation: No duplicate account_name for this user
+│
+└─ On Success:
+    ├─ Portfolio added to user's portfolio list
+    └─ User can switch to new portfolio or stay in current view
+```
+
+**Key UX Considerations:**
+
+1. **Portfolio Selector Visibility**: Always show portfolio selector if user has >1 portfolio
+2. **Default Selection**: Most recently viewed/created portfolio
+3. **Aggregate View**: Optional "All Portfolios" view for combined analytics
+4. **Account Type Display**: Show account type badge/icon next to portfolio name
+5. **Create New Portfolio**: Easy access from sidebar/menu (not buried in settings)
+
+**Backend Responsibilities:**
+- Provide portfolio list via GET /api/v1/portfolios
+- Provide single-portfolio analytics via /api/v1/analytics/*
+- Provide aggregate analytics via /api/v1/analytics/aggregate/*
+- Enforce account_name uniqueness per user
+- Support unlimited portfolios per user
+
+**Frontend Responsibilities:**
+- Display portfolio selector UI
+- Manage selected portfolio state
+- Route API calls to correct portfolio_id
+- Decide when to show aggregate view vs single portfolio view
+- Handle portfolio switching UX
+
+**Note:** Backend does not dictate UI implementation - it simply provides data access patterns. Frontend teams can design the multi-portfolio UX as they see fit (tabs, dropdown, sidebar, etc.).
 
 ---
 

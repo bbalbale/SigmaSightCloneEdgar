@@ -54,6 +54,8 @@ class CreatePortfolioResponse(BaseModel):
     """Portfolio creation response"""
     portfolio_id: str
     portfolio_name: str
+    account_name: str
+    account_type: str
     equity_balance: float
     positions_imported: int
     positions_failed: int
@@ -119,7 +121,9 @@ async def register_user(
 
 @router.post("/create-portfolio", response_model=CreatePortfolioResponse, status_code=201)
 async def create_portfolio(
-    portfolio_name: str = Form(..., description="Portfolio name"),
+    portfolio_name: str = Form(..., description="Portfolio display name"),
+    account_name: str = Form(..., description="Portfolio account name (unique per user)"),
+    account_type: str = Form(..., description="Account type (taxable, ira, roth_ira, 401k, 403b, 529, hsa, trust, other)"),
     equity_balance: Decimal = Form(..., description="Total account equity balance"),
     description: Optional[str] = Form(None, description="Optional portfolio description"),
     csv_file: UploadFile = File(..., description="CSV file with positions"),
@@ -130,7 +134,8 @@ async def create_portfolio(
     Create portfolio with CSV import.
 
     Requires authentication. Creates portfolio with:
-    - Portfolio name and description
+    - Portfolio name (display name) and account name (unique identifier)
+    - Account type (taxable, ira, roth_ira, 401k, 403b, 529, hsa, trust, other)
     - Equity balance (total account value)
     - Positions imported from CSV file
 
@@ -141,20 +146,24 @@ async def create_portfolio(
     Use POST /api/v1/portfolio/{id}/calculate to run analytics.
 
     **Errors:**
+    - 400: Invalid account type (ERR_PORT_009)
     - 400: CSV validation failed (ERR_CSV_*, ERR_POS_*)
-    - 409: User already has portfolio (ERR_PORT_001)
+    - 409: User already has portfolio with this account_name (ERR_PORT_001)
     - 422: Invalid portfolio fields (ERR_PORT_002-007)
 
     **Constraints:**
-    - Each user can only have one portfolio
+    - Account name must be unique per user
+    - Multiple portfolios allowed per user (Phase 2)
     - Checked at application level AND database level (unique constraint)
     """
-    logger.info(f"Portfolio creation attempt for user {current_user.id}")
+    logger.info(f"Portfolio creation attempt for user {current_user.id} (account_name='{account_name}')")
 
     # Create portfolio with CSV import
     result = await onboarding_service.create_portfolio_with_csv(
         user_id=current_user.id,
         portfolio_name=portfolio_name,
+        account_name=account_name,
+        account_type=account_type,
         equity_balance=equity_balance,
         csv_file=csv_file,
         description=description,
@@ -210,6 +219,17 @@ async def download_csv_template():
 # 5. Negative quantity = short position
 # 6. Date format: YYYY-MM-DD
 # 7. Remove these comment lines (starting with #) before uploading
+#
+# Account Types (used when importing portfolio):
+# - taxable: Standard brokerage account
+# - ira: Traditional IRA
+# - roth_ira: Roth IRA
+# - 401k: 401(k) retirement plan
+# - 403b: 403(b) retirement plan
+# - 529: 529 education savings plan
+# - hsa: Health Savings Account
+# - trust: Trust account
+# - other: Other account types
 #
 Symbol,Quantity,Entry Price Per Share,Entry Date,Investment Class,Investment Subtype,Underlying Symbol,Strike Price,Expiration Date,Option Type,Exit Date,Exit Price Per Share
 # Example: Stock position

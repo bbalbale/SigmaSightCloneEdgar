@@ -215,11 +215,13 @@ AAPL,100,158.00,2024-01-15,PUBLIC,STOCK,,,,,,
 MSFT,75,380.00,2024-01-20,PUBLIC,STOCK,,,,,,
 """
 
-        # Create portfolio
+        # Create portfolio (Phase 2: includes account_name and account_type)
         response = client.post(
             "/api/v1/onboarding/create-portfolio",
             data={
                 "portfolio_name": "Test Portfolio",
+                "account_name": "Test Taxable Account",
+                "account_type": "taxable",
                 "equity_balance": "100000",
                 "description": "My test portfolio"
             },
@@ -233,6 +235,8 @@ MSFT,75,380.00,2024-01-20,PUBLIC,STOCK,,,,,,
         data = response.json()
         assert "portfolio_id" in data
         assert data["portfolio_name"] == "Test Portfolio"
+        assert data["account_name"] == "Test Taxable Account"
+        assert data["account_type"] == "taxable"
         assert data["positions_imported"] == 2
         assert data["positions_failed"] == 0
 
@@ -244,6 +248,8 @@ MSFT,75,380.00,2024-01-20,PUBLIC,STOCK,,,,,,
             "/api/v1/onboarding/create-portfolio",
             data={
                 "portfolio_name": "Test Portfolio",
+                "account_name": "Test Account",
+                "account_type": "taxable",
                 "equity_balance": "100000"
             },
             files={
@@ -253,8 +259,8 @@ MSFT,75,380.00,2024-01-20,PUBLIC,STOCK,,,,,,
 
         assert response.status_code == 401
 
-    def test_duplicate_portfolio_rejected(self, client):
-        """Test that user cannot create multiple portfolios"""
+    def test_duplicate_account_name_rejected(self, client):
+        """Test that duplicate account_name is rejected (Phase 2)"""
         token = self.register_and_login(client)
 
         csv_content = "Symbol,Quantity,Entry Price Per Share,Entry Date,Investment Class,Investment Subtype,Underlying Symbol,Strike Price,Expiration Date,Option Type,Exit Date,Exit Price Per Share\nAAPL,100,158.00,2024-01-15,PUBLIC,STOCK,,,,,,"
@@ -264,6 +270,8 @@ MSFT,75,380.00,2024-01-20,PUBLIC,STOCK,,,,,,
             "/api/v1/onboarding/create-portfolio",
             data={
                 "portfolio_name": "First Portfolio",
+                "account_name": "My Taxable Account",
+                "account_type": "taxable",
                 "equity_balance": "100000"
             },
             files={
@@ -272,11 +280,13 @@ MSFT,75,380.00,2024-01-20,PUBLIC,STOCK,,,,,,
             headers={"Authorization": f"Bearer {token}"}
         )
 
-        # Try to create second portfolio
+        # Try to create second portfolio with SAME account_name (should fail)
         response = client.post(
             "/api/v1/onboarding/create-portfolio",
             data={
                 "portfolio_name": "Second Portfolio",
+                "account_name": "My Taxable Account",  # Duplicate account_name
+                "account_type": "ira",
                 "equity_balance": "200000"
             },
             files={
@@ -288,6 +298,71 @@ MSFT,75,380.00,2024-01-20,PUBLIC,STOCK,,,,,,
         assert response.status_code == 409
         data = response.json()
         assert data["error"]["code"] == "ERR_PORT_001"
+        assert "account name" in data["error"]["message"].lower()
+
+    def test_multiple_portfolios_allowed(self, client, mock_market_data_services):
+        """Test that users can create multiple portfolios with different account_names (Phase 2)"""
+        token = self.register_and_login(client)
+
+        csv_content = "Symbol,Quantity,Entry Price Per Share,Entry Date,Investment Class,Investment Subtype,Underlying Symbol,Strike Price,Expiration Date,Option Type,Exit Date,Exit Price Per Share\nAAPL,100,158.00,2024-01-15,PUBLIC,STOCK,,,,,,"
+
+        # Create first portfolio (taxable)
+        response1 = client.post(
+            "/api/v1/onboarding/create-portfolio",
+            data={
+                "portfolio_name": "My Trading Account",
+                "account_name": "Schwab Taxable",
+                "account_type": "taxable",
+                "equity_balance": "100000"
+            },
+            files={
+                "csv_file": ("positions.csv", io.BytesIO(csv_content.encode()), "text/csv")
+            },
+            headers={"Authorization": f"Bearer {token}"}
+        )
+
+        # Create second portfolio (IRA) - should succeed
+        response2 = client.post(
+            "/api/v1/onboarding/create-portfolio",
+            data={
+                "portfolio_name": "Retirement Fund",
+                "account_name": "Fidelity IRA",
+                "account_type": "ira",
+                "equity_balance": "250000"
+            },
+            files={
+                "csv_file": ("positions.csv", io.BytesIO(csv_content.encode()), "text/csv")
+            },
+            headers={"Authorization": f"Bearer {token}"}
+        )
+
+        # Create third portfolio (401k) - should succeed
+        response3 = client.post(
+            "/api/v1/onboarding/create-portfolio",
+            data={
+                "portfolio_name": "Employer Plan",
+                "account_name": "Company 401k",
+                "account_type": "401k",
+                "equity_balance": "150000"
+            },
+            files={
+                "csv_file": ("positions.csv", io.BytesIO(csv_content.encode()), "text/csv")
+            },
+            headers={"Authorization": f"Bearer {token}"}
+        )
+
+        # All three should succeed
+        assert response1.status_code == 201
+        assert response2.status_code == 201
+        assert response3.status_code == 201
+
+        # Each should have unique portfolio_id
+        portfolio_ids = [
+            response1.json()["portfolio_id"],
+            response2.json()["portfolio_id"],
+            response3.json()["portfolio_id"]
+        ]
+        assert len(set(portfolio_ids)) == 3  # All unique
 
     def test_invalid_csv_rejected(self, client):
         """Test that invalid CSV returns validation errors"""
@@ -300,6 +375,8 @@ MSFT,75,380.00,2024-01-20,PUBLIC,STOCK,,,,,,
             "/api/v1/onboarding/create-portfolio",
             data={
                 "portfolio_name": "Test Portfolio",
+                "account_name": "Test Account",
+                "account_type": "taxable",
                 "equity_balance": "100000"
             },
             files={
@@ -339,7 +416,7 @@ class TestCalculateEndpoint:
         )
         token = login_response.json()["access_token"]
 
-        # Create portfolio
+        # Create portfolio (Phase 2: includes account_name and account_type)
         csv_content = """Symbol,Quantity,Entry Price Per Share,Entry Date,Investment Class,Investment Subtype,Underlying Symbol,Strike Price,Expiration Date,Option Type,Exit Date,Exit Price Per Share
 AAPL,100,158.00,2024-01-15,PUBLIC,STOCK,,,,,,
 MSFT,75,380.00,2024-01-20,PUBLIC,STOCK,,,,,,
@@ -348,6 +425,8 @@ MSFT,75,380.00,2024-01-20,PUBLIC,STOCK,,,,,,
             "/api/v1/onboarding/create-portfolio",
             data={
                 "portfolio_name": "Test Portfolio",
+                "account_name": "Test Account",
+                "account_type": "taxable",
                 "equity_balance": "100000"
             },
             files={
