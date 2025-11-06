@@ -34,11 +34,19 @@ class AnalyticsRunner:
     All calculations must use market_data_cache - NO API calls
     """
 
+    def __init__(self) -> None:
+        self._profile_cache: Dict[str, Dict[str, Optional[Any]]] = {}
+
+    def reset_caches(self) -> None:
+        """Clear per-run caches so repeated runs don't reuse stale data."""
+        self._profile_cache.clear()
+
     async def run_all_portfolios_analytics(
         self,
         calculation_date: date,
         db: Optional[AsyncSession] = None,
-        portfolio_ids: Optional[List[UUID]] = None
+        portfolio_ids: Optional[List[UUID]] = None,
+        run_sector_analysis: bool = True,
     ) -> Dict[str, Any]:
         """
         Run analytics for all active portfolios
@@ -58,9 +66,19 @@ class AnalyticsRunner:
 
         if db is None:
             async with AsyncSessionLocal() as session:
-                result = await self._process_all_with_session(session, calculation_date, portfolio_ids)
+                result = await self._process_all_with_session(
+                    session,
+                    calculation_date,
+                    portfolio_ids,
+                    run_sector_analysis,
+                )
         else:
-            result = await self._process_all_with_session(db, calculation_date, portfolio_ids)
+            result = await self._process_all_with_session(
+                db,
+                calculation_date,
+                portfolio_ids,
+                run_sector_analysis,
+            )
 
         duration = int(asyncio.get_event_loop().time() - start_time)
         result['duration_seconds'] = duration
@@ -75,7 +93,8 @@ class AnalyticsRunner:
         self,
         db: AsyncSession,
         calculation_date: date,
-        portfolio_ids: Optional[List[UUID]] = None
+        portfolio_ids: Optional[List[UUID]] = None,
+        run_sector_analysis: bool = True,
     ) -> Dict[str, Any]:
         """Process all portfolios with provided session"""
         from sqlalchemy import select
@@ -99,7 +118,8 @@ class AnalyticsRunner:
                 report = await self.run_portfolio_analytics(
                     portfolio_id=portfolio.id,
                     calculation_date=calculation_date,
-                    db=db
+                    db=db,
+                    run_sector_analysis=run_sector_analysis,
                 )
 
                 portfolios_processed += 1
@@ -130,7 +150,8 @@ class AnalyticsRunner:
         self,
         portfolio_id: UUID,
         calculation_date: date,
-        db: AsyncSession
+        db: AsyncSession,
+        run_sector_analysis: bool = True,
     ) -> Dict[str, Any]:
         """
         Run all analytics for a single portfolio
@@ -155,11 +176,25 @@ class AnalyticsRunner:
             ("IR Beta", self._calculate_ir_beta),
             ("Spread Factors", self._calculate_spread_factors),
             ("Ridge Factors", self._calculate_ridge_factors),
-            ("Sector Analysis", self._calculate_sector_analysis),
-            ("Volatility Analytics", self._calculate_volatility_analytics),
-            ("Correlations", self._calculate_correlations),
-            ("Stress Testing", self._calculate_stress_testing),
         ]
+
+        if run_sector_analysis:
+            analytics_jobs.append(("Sector Analysis", self._calculate_sector_analysis))
+
+        analytics_jobs.extend(
+            [
+                ("Volatility Analytics", self._calculate_volatility_analytics),
+                ("Correlations", self._calculate_correlations),
+                ("Stress Testing", self._calculate_stress_testing),
+            ]
+        )
+
+        if not run_sector_analysis:
+            logger.debug(
+                "Skipping sector analysis for portfolio %s on %s (not target date)",
+                portfolio_id,
+                calculation_date,
+            )
 
         # Run analytics sequentially (single session can't handle concurrent ops)
         for job_name, job_func in analytics_jobs:
@@ -359,7 +394,8 @@ class AnalyticsRunner:
             result = await calculate_portfolio_sector_concentration(
                 db=db,
                 portfolio_id=portfolio_id,
-                calculation_date=calculation_date
+                calculation_date=calculation_date,
+                profile_cache=self._profile_cache,
             )
 
             return result is not None

@@ -64,6 +64,41 @@ def normalize_sector_name(sector: Optional[str]) -> Optional[str]:
 
     return normalized
 
+async def _get_company_profile_metadata(
+    db: AsyncSession,
+    symbol: str,
+    profile_cache: Optional[Dict[str, Dict[str, Optional[Any]]]] = None,
+) -> Dict[str, Optional[Any]]:
+    """
+    Fetch normalized sector and ETF flag information with optional caching.
+    """
+    symbol_key = symbol.upper()
+
+    if profile_cache is not None and symbol_key in profile_cache:
+        return profile_cache[symbol_key]
+
+    from app.models.market_data import CompanyProfile
+
+    stmt = (
+        select(CompanyProfile.sector, CompanyProfile.is_etf)
+        .where(CompanyProfile.symbol == symbol_key)
+        .limit(1)
+    )
+    result = await db.execute(stmt)
+    row = result.first()
+
+    sector_raw = row[0] if row else None
+    normalized_sector = normalize_sector_name(sector_raw)
+    is_etf = bool(row[1]) if row and row[1] is not None else False
+
+    metadata = {"sector": normalized_sector, "is_etf": is_etf}
+
+    if profile_cache is not None:
+        profile_cache[symbol_key] = metadata
+
+    return metadata
+
+
 
 def calculate_hhi(weights: Dict[str, float]) -> float:
     """
@@ -104,35 +139,14 @@ def calculate_effective_positions(hhi: float) -> float:
     return 10000 / hhi
 
 
-async def get_sector_from_market_data(db: AsyncSession, symbol: str) -> Optional[str]:
-    """
-    Get sector for a symbol from company_profiles table and normalize to GICS standard.
-
-    Args:
-        db: Database session
-        symbol: Stock symbol
-
-    Returns:
-        Normalized GICS sector name or None if not found
-    """
+async def get_sector_from_market_data(
+    db: AsyncSession,
+    symbol: str,
+    profile_cache: Optional[Dict[str, Dict[str, Optional[Any]]]] = None,
+) -> Optional[str]:
     try:
-        # Import CompanyProfile here to avoid circular imports
-        from app.models.market_data import CompanyProfile
-
-        stmt = select(CompanyProfile.sector).where(
-            CompanyProfile.symbol == symbol.upper()
-        ).limit(1)
-
-        result = await db.execute(stmt)
-        sector = result.scalar_one_or_none()
-
-        # Normalize sector name to GICS standard (e.g., "Financial Services" → "Financials")
-        normalized_sector = normalize_sector_name(sector)
-
-        if sector and normalized_sector != sector:
-            logger.info(f"✅ NORMALIZED sector for {symbol}: '{sector}' → '{normalized_sector}'")
-
-        return normalized_sector
+        metadata = await _get_company_profile_metadata(db, symbol, profile_cache)
+        return metadata['sector']
     except Exception as e:
         logger.warning(f"Could not fetch sector for {symbol}: {e}")
         return None
@@ -188,7 +202,8 @@ async def get_benchmark_sector_weights(
 
 async def calculate_sector_exposure(
     db: AsyncSession,
-    portfolio_id: UUID
+    portfolio_id: UUID,
+    profile_cache: Optional[Dict[str, Dict[str, Optional[Any]]]] = None,
 ) -> Dict[str, Any]:
     """
     Calculate sector exposure for portfolio and compare to S&P 500.
@@ -275,13 +290,9 @@ async def calculate_sector_exposure(
                 unclassified_count += 1
                 continue
 
-            # For PUBLIC positions, check if it's an ETF first
-            from app.models.market_data import CompanyProfile
-            stmt = select(CompanyProfile).where(CompanyProfile.symbol == position.symbol.upper())
-            result = await db.execute(stmt)
-            profile = result.scalar_one_or_none()
+            metadata = await _get_company_profile_metadata(db, position.symbol, profile_cache)
 
-            if profile and profile.is_etf:
+            if metadata['is_etf']:
                 # ETF - categorize separately
                 etf_value += abs(market_value)
                 etf_count += 1
@@ -289,9 +300,9 @@ async def calculate_sector_exposure(
                 continue
 
             # For non-ETF PUBLIC positions, get sector classification
-            sector = await get_sector_from_market_data(db, position.symbol)
+            sector = metadata['sector']
 
-            logger.info(f"🔍 Symbol {position.symbol} got sector: '{sector}'")
+            logger.info(f"Symbol {position.symbol} got sector: '{sector}'")
 
             if sector and sector != 'Unknown':
                 if sector not in sector_values:
@@ -475,7 +486,8 @@ async def calculate_concentration_metrics(
 async def calculate_portfolio_sector_concentration(
     db: AsyncSession,
     portfolio_id: UUID,
-    calculation_date: Optional[date] = None
+    calculation_date: Optional[date] = None,
+    profile_cache: Optional[Dict[str, Dict[str, Optional[Any]]]] = None,
 ) -> Dict[str, Any]:
     """
     Calculate both sector exposure and concentration metrics for portfolio.
@@ -496,7 +508,7 @@ async def calculate_portfolio_sector_concentration(
     logger.info(f"Calculating sector & concentration analysis for portfolio {portfolio_id}")
 
     # Calculate sector exposure
-    sector_result = await calculate_sector_exposure(db, portfolio_id)
+    sector_result = await calculate_sector_exposure(db, portfolio_id, profile_cache)
 
     # Calculate concentration metrics
     concentration_result = await calculate_concentration_metrics(db, portfolio_id)

@@ -65,6 +65,9 @@ class BatchOrchestrator:
         )
     """
 
+    def __init__(self) -> None:
+        self._sector_analysis_target_date: Optional[date] = None
+
     async def run_daily_batch_with_backfill(
         self,
         start_date: Optional[date] = None,
@@ -133,6 +136,7 @@ class BatchOrchestrator:
         logger.info(f"=" * 80)
 
         start_time = asyncio.get_event_loop().time()
+        analytics_runner.reset_caches()
 
         # Step 1: Determine the date range to process
         async with AsyncSessionLocal() as db:
@@ -163,6 +167,7 @@ class BatchOrchestrator:
             start_date=last_run_date + timedelta(days=1),
             end_date=target_date
         )
+        self._sector_analysis_target_date = target_date
 
         if not missing_dates:
             logger.info(f"Batch processing up to date as of {target_date}")
@@ -188,7 +193,8 @@ class BatchOrchestrator:
                 result = await self.run_daily_batch_sequence(
                     calculation_date=calc_date,
                     portfolio_ids=portfolio_ids,
-                    db=db
+                    db=db,
+                    run_sector_analysis=(calc_date == target_date),
                 )
 
                 results.append(result)
@@ -204,6 +210,7 @@ class BatchOrchestrator:
         logger.info(f"  Dates processed: {len(missing_dates)}")
         logger.info(f"  Success: {sum(1 for r in results if r['success'])}/{len(results)}")
         logger.info(f"={'=' * 80}\n")
+        self._sector_analysis_target_date = None
 
         return {
             'success': all(r['success'] for r in results),
@@ -216,7 +223,8 @@ class BatchOrchestrator:
         self,
         calculation_date: date,
         portfolio_ids: Optional[List[str]] = None,
-        db: Optional[AsyncSession] = None
+        db: Optional[AsyncSession] = None,
+        run_sector_analysis: Optional[bool] = None,
     ) -> Dict[str, Any]:
         """
         Run 3-phase batch sequence for a single date
@@ -230,27 +238,43 @@ class BatchOrchestrator:
             Summary of batch run
         """
         normalized_portfolio_ids = self._normalize_portfolio_ids(portfolio_ids)
+        if run_sector_analysis is None:
+            if self._sector_analysis_target_date:
+                run_sector_analysis = calculation_date == self._sector_analysis_target_date
+            else:
+                run_sector_analysis = True
 
         try:
             if db is None:
+                analytics_runner.reset_caches()
+                self._sector_analysis_target_date = calculation_date
                 async with AsyncSessionLocal() as session:
                     return await self._run_sequence_with_session(
-                        session, calculation_date, normalized_portfolio_ids
+                        session,
+                        calculation_date,
+                        normalized_portfolio_ids,
+                        bool(run_sector_analysis),
                     )
             else:
                 return await self._run_sequence_with_session(
-                    db, calculation_date, normalized_portfolio_ids
+                    db,
+                    calculation_date,
+                    normalized_portfolio_ids,
+                    bool(run_sector_analysis),
                 )
         finally:
             # Clear batch run tracker when batch completes (success or failure)
             from app.batch.batch_run_tracker import batch_run_tracker
             batch_run_tracker.complete()
+            if db is None:
+                self._sector_analysis_target_date = None
 
     async def _run_sequence_with_session(
         self,
         db: AsyncSession,
         calculation_date: date,
-        portfolio_ids: Optional[List[UUID]]
+        portfolio_ids: Optional[List[UUID]],
+        run_sector_analysis: bool,
     ) -> Dict[str, Any]:
         """Run 5-phase sequence with provided session"""
 
@@ -421,7 +445,8 @@ class BatchOrchestrator:
                 phase3_result = await analytics_runner.run_all_portfolios_analytics(
                     calculation_date=calculation_date,
                     db=db,
-                    portfolio_ids=portfolio_ids
+                    portfolio_ids=portfolio_ids,
+                    run_sector_analysis=run_sector_analysis,
                 )
                 result['phase_3'] = phase3_result
                 self._log_phase_result("phase_3", phase3_result)

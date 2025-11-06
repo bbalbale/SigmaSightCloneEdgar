@@ -70,7 +70,8 @@ async def run_fast_backfill():
                 # Phase 3: Analytics (all portfolios)
                 await analytics_runner.run_all_portfolios_analytics(
                     calculation_date=trading_day,
-                    db=db
+                    db=db,
+                    run_sector_analysis=True,
                 )
 
                 await db.commit()
