@@ -12,6 +12,7 @@ from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 
 from app.core.logging import get_logger
+from app.utils.json_utils import CustomJSONEncoder
 
 
 logger = get_logger(__name__)
@@ -37,5 +38,7 @@ def record_metric(
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "payload": payload or {},
     }
-    logger.info("telemetry %s", json.dumps(envelope, separators=(",", ":")))
-
+    logger.info(
+        "telemetry %s",
+        json.dumps(envelope, cls=CustomJSONEncoder, separators=(",", ":")),
+    )

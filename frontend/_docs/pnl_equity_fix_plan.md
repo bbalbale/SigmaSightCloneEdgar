@@ -21,13 +21,26 @@ _Last reviewed: 2025-11-04_
 ## 4. Implementation Status & Next Actions
 
 | Step | Owner | Description | Status |
+
 | --- | --- | --- | --- |
+
 | A | Backend | Harden prior-price lookup for Phase 2 and live market updates | ✅ Completed (`get_previous_trading_day_price`) |
+
 | B | Backend | Provide shared valuation helper with option multiplier support | ✅ Completed (`get_position_valuation`) |
+
 | C | Backend | Refactor analytics/data services to consume the helper | ✅ Completed (analytics/data/correlation services updated) |
+
 | D | Backend | Add regression tests covering options/short scenarios | ✅ Completed (`tests/unit/test_market_data_valuation.py`) |
-| E | Frontend | Smoke-test dashboards and analytics cards against updated fields | ⏳ Pending |
-| F | Data/QA | Backfill historic snapshots / reconcile NAV trajectories | ⏳ Pending |
+
+| E | Backend | Eliminate Decimal serialization trap in batch telemetry logging | ⏳ Pending |
+
+| F | Backend | Update `clear_calculation_data.py` to target P&L/analytics tables only | ⏳ Pending |
+
+| G | Frontend | Smoke-test dashboards and analytics cards against updated fields | ⏳ Pending |
+
+| H | Data/QA | Backfill historic snapshots / reconcile NAV trajectories | ⏳ Pending |
+
+
 
 ## 5. Testing & Verification
 - **Unit** – New tests ensure valuation multipliers, fallback prices, short-position daily returns, and analytics aggregation behave correctly (`tests/unit/test_market_data_valuation.py`). 
@@ -41,6 +54,8 @@ _Last reviewed: 2025-11-04_
 - **Historical recalculation cost** – Backfilling multi-year histories can be expensive; execute during maintenance windows and in portfolio batches.
 
 ## 7. Immediate Next Steps
-1. Coordinate frontend QA to verify UI elements against corrected API responses (Step E).
-2. Plan and execute a controlled historical backfill leveraging the enhanced pricing logic (Step F).
-3. Prepare a reconciliation plan ahead of the backfill to quantify and communicate equity adjustments.
+1. Fix batch telemetry to handle Decimal payloads (Step E) and confirm Phase 1 logs cleanly.
+2. Modernize the calculation data clearing script so only computed analytics are purged (Step F).
+3. Coordinate frontend QA to verify UI elements against corrected API responses (Step G).
+4. Plan and execute the historical backfill leveraging the enhanced pricing logic (Step H).
+5. Prepare a reconciliation plan ahead of the backfill to quantify and communicate equity adjustments.

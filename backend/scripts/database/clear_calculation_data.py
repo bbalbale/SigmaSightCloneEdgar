@@ -1,0 +1,258 @@
+#!/usr/bin/env python
+"""
+Clear Calculation Data Script
+
+This script provides a safe and controlled way to clear calculation-related
+data from the database for a specified date range. It is designed to allow
+for re-running batch calculations without affecting the underlying market data.
+
+Key Features:
+- Targets specific calculation tables only.
+- Does NOT touch `market_data_cache` or `company_profiles`.
+- Requires a `--start-date` to define the deletion range.
+- Includes a `--dry-run` mode to preview changes before executing them.
+- Requires a `--confirm` flag for the actual deletion to prevent accidents.
+"""
+
+import argparse
+import asyncio
+import sys
+from datetime import date, datetime
+from pathlib import Path
+from typing import List, Tuple, Type
+
+# --- Pre-computation Setup ---
+# Add project root to path to allow for app module imports
+project_root = Path(__file__).resolve().parents[2]
+sys.path.append(str(project_root))
+
+# Load environment variables from .env file at the project root
+from dotenv import load_dotenv
+
+dotenv_path = project_root / ".env"
+if dotenv_path.exists():
+    load_dotenv(dotenv_path=dotenv_path)
+    print("Loaded environment variables from .env file.")
+else:
+    print("Warning: .env file not found. Assuming environment variables are set.")
+# --- End Setup ---
+
+from sqlalchemy import delete, select, func
+from sqlalchemy.orm import DeclarativeMeta
+
+from app.database import get_async_session
+from app.models.snapshots import PortfolioSnapshot
+from app.models.market_data import (
+    FactorCorrelation,
+    FactorExposure,
+    MarketRiskScenario,
+    PositionGreeks,
+    PositionFactorExposure,
+    PositionInterestRateBeta,
+    PositionMarketBeta,
+    PositionVolatility,
+    StressTestResult,
+)
+from app.models.correlations import (
+    CorrelationCalculation,
+    CorrelationCluster,
+    CorrelationClusterPosition,
+    PairwiseCorrelation,
+)
+
+# --- Configuration ---
+# (model, date attribute name, human label)
+TABLES_TO_CLEAR: List[Tuple[Type[DeclarativeMeta], str, str]] = [
+    (PortfolioSnapshot, "snapshot_date", "Portfolio snapshots"),
+    (PositionGreeks, "calculation_date", "Position greeks"),
+    (FactorExposure, "calculation_date", "Portfolio factor exposures"),
+    (PositionFactorExposure, "calculation_date", "Position factor exposures"),
+    (PositionInterestRateBeta, "calculation_date", "Interest-rate betas"),
+    (PositionMarketBeta, "calc_date", "Market betas"),
+    (PositionVolatility, "calculation_date", "Position volatility metrics"),
+    (MarketRiskScenario, "calculation_date", "Market risk scenarios"),
+    (StressTestResult, "calculation_date", "Stress test results"),
+    (FactorCorrelation, "calculation_date", "Factor correlations"),
+]
+
+
+async def _process_table(
+    db,
+    table: Type[DeclarativeMeta],
+    date_attr: str,
+    label: str,
+    start_date: date,
+    dry_run: bool,
+) -> int:
+    """Delete rows from a table filtered by the provided date column."""
+    table_name = table.__tablename__
+    print(f"Processing table: {table_name} ({label})...")
+
+    column = getattr(table, date_attr, None)
+    if column is None:
+        print(f"  - SKIPPED: Table does not expose '{date_attr}'.")
+        return 0
+
+    count_stmt = select(func.count()).where(column >= start_date)
+    record_count = (await db.execute(count_stmt)).scalar_one()
+
+    if record_count == 0:
+        print("  - No records to delete.")
+        return 0
+
+    print(f"  - Found {record_count} records to delete.")
+
+    if not dry_run:
+        delete_stmt = delete(table).where(column >= start_date)
+        await db.execute(delete_stmt)
+        print(f"  - DELETED {record_count} records.")
+
+    return record_count
+
+
+async def _clear_correlation_tables(db, start_date: date, dry_run: bool) -> int:
+    """Handle correlation calculations and their dependents (clusters, positions, pairwise rows)."""
+    print("Processing correlation analytics tables...")
+
+    calculation_ids = (
+        await db.execute(
+            select(CorrelationCalculation.id).where(CorrelationCalculation.calculation_date >= start_date)
+        )
+    ).scalars().all()
+
+    if not calculation_ids:
+        print("  - No correlation calculations to delete.")
+        return 0
+
+    calc_count = len(calculation_ids)
+
+    cluster_ids = (
+        await db.execute(
+            select(CorrelationCluster.id).where(CorrelationCluster.correlation_calculation_id.in_(calculation_ids))
+        )
+    ).scalars().all()
+    cluster_count = len(cluster_ids)
+
+    cluster_position_count = 0
+    if cluster_ids:
+        cluster_position_count = (
+            await db.execute(
+                select(func.count()).where(CorrelationClusterPosition.cluster_id.in_(cluster_ids))
+            )
+        ).scalar_one()
+
+    pairwise_count = (
+        await db.execute(
+            select(func.count()).where(PairwiseCorrelation.correlation_calculation_id.in_(calculation_ids))
+        )
+    ).scalar_one()
+
+    print(
+        "  - Pending deletions: "
+        f"{calc_count} calculations, {cluster_count} clusters, "
+        f"{cluster_position_count} cluster positions, {pairwise_count} pairwise rows."
+    )
+
+    if not dry_run:
+        if cluster_ids:
+            await db.execute(
+                delete(CorrelationClusterPosition).where(CorrelationClusterPosition.cluster_id.in_(cluster_ids))
+            )
+            print(f"  - DELETED {cluster_position_count} cluster positions.")
+
+        await db.execute(
+            delete(PairwiseCorrelation).where(PairwiseCorrelation.correlation_calculation_id.in_(calculation_ids))
+        )
+        print(f"  - DELETED {pairwise_count} pairwise correlation rows.")
+
+        if cluster_ids:
+            await db.execute(delete(CorrelationCluster).where(CorrelationCluster.id.in_(cluster_ids)))
+            print(f"  - DELETED {cluster_count} correlation clusters.")
+
+        await db.execute(delete(CorrelationCalculation).where(CorrelationCalculation.id.in_(calculation_ids)))
+        print(f"  - DELETED {calc_count} correlation calculations.")
+
+    return calc_count + cluster_count + cluster_position_count + pairwise_count
+
+
+async def clear_data(start_date: date, dry_run: bool, confirm: bool):
+    """
+    Connects to the database and clears data from the specified tables.
+    """
+    if not dry_run and not confirm:
+        print("ERROR: This is a destructive operation. You must provide the --confirm flag to proceed.")
+        print("To see what would be deleted, run with --dry-run.")
+        return
+
+    print("--- SigmaSight Calculation Data Clearing Script ---")
+    print(f"Start Date: {start_date}")
+    print(f"Dry Run Mode: {'Yes' if dry_run else 'No'}")
+    print("-" * 50)
+
+    total_deleted_count = 0
+
+    async with get_async_session() as db:
+        for table, date_attr, label in TABLES_TO_CLEAR:
+            total_deleted_count += await _process_table(
+                db=db,
+                table=table,
+                date_attr=date_attr,
+                label=label,
+                start_date=start_date,
+                dry_run=dry_run,
+            )
+
+        total_deleted_count += await _clear_correlation_tables(db, start_date, dry_run)
+
+        if not dry_run:
+            print("\nCommitting changes to the database...")
+            await db.commit()
+            print("Changes committed.")
+        else:
+            print("\nRolling back changes (dry run mode)...")
+            await db.rollback()
+            print("Dry run complete. No changes were made.")
+
+    print("-" * 50)
+    if dry_run:
+        print(f"Dry run summary: A total of {total_deleted_count} records would be deleted.")
+    else:
+        print(f"Deletion summary: A total of {total_deleted_count} records were deleted.")
+    print("--- Script Finished ---")
+
+
+def main():
+    """CLI entry point."""
+    parser = argparse.ArgumentParser(
+        description="Clear calculation data from the database.",
+        formatter_class=argparse.RawTextHelpFormatter,
+    )
+    parser.add_argument(
+        "--start-date",
+        type=str,
+        required=True,
+        help="The start date (YYYY-MM-DD) from which to clear data (inclusive).",
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Show what would be deleted without actually deleting anything.",
+    )
+    parser.add_argument(
+        "--confirm",
+        action="store_true",
+        help="Required flag to confirm the destructive delete operation.",
+    )
+    args = parser.parse_args()
+
+    try:
+        start_date_obj = date.fromisoformat(args.start_date)
+    except ValueError:
+        print("ERROR: Invalid date format. Please use YYYY-MM-DD.")
+        return
+
+    asyncio.run(clear_data(start_date_obj, args.dry_run, args.confirm))
+
+
+if __name__ == "__main__":
+    main()

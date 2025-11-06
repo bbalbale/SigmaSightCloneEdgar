@@ -15,6 +15,7 @@ import sys
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, Optional
+from datetime import date
 
 # Configure UTF-8 output handling for Windows terminals
 import io
@@ -27,7 +28,7 @@ sys.path.append(str(Path(__file__).resolve().parents[2]))
 
 from app.batch.batch_orchestrator import batch_orchestrator  # noqa: E402
 from app.core.logging import get_logger  # noqa: E402
-
+from app.utils.json_utils import to_json
 
 logger = get_logger(__name__)
 BANNER = "=" * 60
@@ -44,6 +45,8 @@ class BatchRunner:
         self,
         portfolio_id: Optional[str] = None,
         run_correlations: bool = False,
+        start_date: Optional[date] = None,
+        end_date: Optional[date] = None,
     ) -> Dict[str, Any]:
         """
         Run batch calculations for portfolio(s).
@@ -52,6 +55,8 @@ class BatchRunner:
             portfolio_id: Optional UUID string for a specific portfolio.
             run_correlations: Kept for CLI compatibility (currently handled
                 inside Phase 3).
+            start_date: Optional start date for backfill.
+            end_date: Optional end date for backfill.
         """
         print(f"\n{BANNER}")
         print("SigmaSight Batch Processing")
@@ -70,7 +75,8 @@ class BatchRunner:
             portfolio_ids_list = [portfolio_id] if portfolio_id else None
 
             results = await batch_orchestrator.run_daily_batch_with_backfill(
-                target_date=None,
+                start_date=start_date,
+                end_date=end_date,
                 portfolio_ids=portfolio_ids_list,
             )
 
@@ -148,6 +154,8 @@ class BatchRunner:
         portfolio_id: Optional[str] = None,
         run_correlations: bool = False,
         emit_json: bool = False,
+        start_date: Optional[date] = None,
+        end_date: Optional[date] = None,
     ) -> Dict[str, Any]:
         """Run batch processing workflow and print final summary."""
         print(f"\n{BANNER}")
@@ -158,6 +166,8 @@ class BatchRunner:
         self.results = await self.run_batch_processing(
             portfolio_id=portfolio_id,
             run_correlations=run_correlations,
+            start_date=start_date,
+            end_date=end_date,
         )
 
         total_duration = (datetime.now() - self.start_time).total_seconds()
@@ -175,11 +185,8 @@ class BatchRunner:
         self.results["completed_at"] = datetime.now().isoformat()
 
         if emit_json:
-            try:
-                summary_json = json.dumps(self.results, default=str, indent=2)
-                print("\nJSON Summary:\n" + summary_json)
-            except TypeError as exc:  # pragma: no cover - defensive
-                logger.error("Failed to serialize batch results: %s", exc, exc_info=True)
+            print("\nBatch Processing Summary (JSON):")
+            print(to_json(self.results))
 
         return self.results
 
@@ -200,34 +207,43 @@ def main() -> None:
         help="Include correlation calculations (normally Tuesday only)",
     )
     parser.add_argument(
+        "--start-date",
+        type=str,
+        help="Start date for backfill (YYYY-MM-DD)",
+    )
+    parser.add_argument(
+        "--end-date",
+        type=str,
+        help="End date for backfill (YYYY-MM-DD)",
+    )
+    parser.add_argument(
         "--summary-json",
         action="store_true",
-        help="Print a JSON summary of batch results for automation consumers.",
+        help="Emit a JSON summary of the batch run",
     )
     args = parser.parse_args()
 
-    runner = BatchRunner()
+    start_date = date.fromisoformat(args.start_date) if args.start_date else None
+    end_date = date.fromisoformat(args.end_date) if args.end_date else None
 
+    runner = BatchRunner()
     try:
-        results = asyncio.run(
+        asyncio.run(
             runner.run(
                 portfolio_id=args.portfolio,
                 run_correlations=args.correlations,
                 emit_json=args.summary_json,
+                start_date=start_date,
+                end_date=end_date,
             )
         )
     except KeyboardInterrupt:
-        print("\nInterrupted by user")
-        sys.exit(130)
-    except Exception as exc:  # pragma: no cover - CLI feedback path
-        print(f"ERROR Unexpected error: {exc}")
-        logger.error("Batch processing failed: %s", exc, exc_info=True)
-        sys.exit(1)
-
-    if "error" in results:
-        sys.exit(1)
-
-    sys.exit(0)
+        print("\nBatch processing interrupted by user.")
+    except Exception as e:
+        print(f"\nAn unexpected error occurred: {e}")
+        if runner.results:
+            print("\nPartial Batch Processing Summary (JSON):")
+            print(to_json(runner.results))
 
 
 if __name__ == "__main__":

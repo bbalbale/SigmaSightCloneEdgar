@@ -19,10 +19,13 @@ Features:
 """
 import asyncio
 import json
-from datetime import date, timedelta
+from datetime import date, timedelta, datetime, time, timezone
+from zoneinfo import ZoneInfo
+from dateutil import tz
 from decimal import Decimal
 from typing import Dict, List, Any, Optional
 from uuid import UUID, uuid4
+import os
 
 from sqlalchemy import select, and_, desc
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -63,21 +66,66 @@ class BatchOrchestrator:
 
     async def run_daily_batch_with_backfill(
         self,
-        target_date: Optional[date] = None,
+        start_date: Optional[date] = None,
+        end_date: Optional[date] = None,
         portfolio_ids: Optional[List[str]] = None
     ) -> Dict[str, Any]:
         """
-        Main entry point - automatically detects and fills missing dates
+        Main entry point - automatically detects and fills missing dates.
+
+        If start_date is provided, it is used as the beginning of the backfill period.
+        If not, the last successful run date is detected automatically.
 
         Args:
-            target_date: Date to process up to (defaults to today)
-            portfolio_ids: Specific portfolios to process (defaults to all)
+            start_date: Optional date to begin the backfill from.
+            end_date: Date to process up to (defaults to today).
+            portfolio_ids: Specific portfolios to process (defaults to all).
 
         Returns:
-            Summary of backfill operation
+            Summary of backfill operation.
         """
-        if target_date is None:
-            target_date = date.today()
+        target_date = end_date if end_date is not None else date.today()
+
+        # Step 2: Determine the effective target date based on NY time
+        if end_date is None:
+            force_time = os.environ.get("SIGMASIGHT_FORCE_NY_TIME")
+            if force_time:
+                try:
+                    ny_now = datetime.fromisoformat(force_time)
+                except ValueError:
+                    ny_now = datetime.now(timezone.utc).astimezone(tz.gettz("America/New_York"))
+            else:
+                try:
+                    ny_now = datetime.now(ZoneInfo("America/New_York"))
+                except Exception:
+                    eastern = tz.gettz("America/New_York")
+                    if eastern is not None:
+                        ny_now = datetime.now(timezone.utc).astimezone(eastern)
+                    else:
+                        ny_now = datetime.utcnow()
+
+            ny_time_str = ny_now.strftime("%Y-%m-%d %H:%M:%S")
+            logger.info("Current NY time: %s", ny_time_str)
+            print(f"[batch] Current NY time: {ny_time_str}")
+
+            effective_target_date = ny_now.date()
+            logger.info("Initial effective target date: %s", effective_target_date)
+
+            if not trading_calendar.is_trading_day(effective_target_date):
+                previous_trading_day = trading_calendar.get_previous_trading_day(effective_target_date)
+                if previous_trading_day:
+                    effective_target_date = previous_trading_day
+                    logger.info("Adjusted target date to previous trading day (non-trading day): %s", effective_target_date)
+            elif ny_now.time() < time(16, 30):
+                previous_trading_day = trading_calendar.get_previous_trading_day(ny_now.date())
+                if previous_trading_day:
+                    effective_target_date = previous_trading_day
+                    logger.info("Adjusted target date to previous trading day (market open): %s", effective_target_date)
+            
+            target_date = effective_target_date
+        else:
+            target_date = end_date
+            logger.info("Manual end_date provided: %s", target_date)
 
         logger.info(f"=" * 80)
         logger.info(f"Batch Orchestrator V3 - Backfill to {target_date}")
@@ -85,26 +133,29 @@ class BatchOrchestrator:
 
         start_time = asyncio.get_event_loop().time()
 
-        # Step 1: Get last successful batch run (use temporary session)
+        # Step 1: Determine the date range to process
         async with AsyncSessionLocal() as db:
-            last_run_date = await self._get_last_batch_run_date(db)
-
-            if last_run_date:
-                logger.info(f"Last successful run: {last_run_date}")
+            if start_date:
+                last_run_date = start_date - timedelta(days=1)
+                logger.info(f"Manual start_date provided: {start_date}. Starting backfill from {last_run_date}.")
             else:
-                # First run ever - get earliest position date
-                last_run_date = await self._get_earliest_position_date(db)
+                last_run_date = await self._get_last_batch_run_date(db)
                 if last_run_date:
-                    # Start from day before earliest position
-                    last_run_date = last_run_date - timedelta(days=1)
-                    logger.info(f"First run - starting from {last_run_date}")
+                    logger.info(f"Last successful run detected: {last_run_date}")
                 else:
-                    logger.warning("No positions found, nothing to process")
-                    return {
-                        'success': True,
-                        'message': 'No positions to process',
-                        'dates_processed': 0
-                    }
+                    # First run ever - get earliest position date
+                    last_run_date = await self._get_earliest_position_date(db)
+                    if last_run_date:
+                        # Start from day before earliest position
+                        last_run_date = last_run_date - timedelta(days=1)
+                        logger.info(f"First run - starting from {last_run_date}")
+                    else:
+                        logger.warning("No positions found, nothing to process")
+                        return {
+                            'success': True,
+                            'message': 'No positions to process',
+                            'dates_processed': 0
+                        }
 
         # Step 2: Calculate missing trading days
         missing_dates = trading_calendar.get_trading_days_between(

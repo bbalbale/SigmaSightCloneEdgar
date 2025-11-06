@@ -47,6 +47,8 @@ from app.models.position_tags import PositionTag
 from app.models.tags_v2 import TagV2
 from app.models.position_realized_events import PositionRealizedEvent
 from app.core.logging import get_logger
+from app.services.symbol_utils import normalize_symbol, should_skip_symbol
+from app.services.symbol_validator import validate_symbol as validator_validate_symbol
 
 logger = get_logger(__name__)
 
@@ -764,52 +766,20 @@ class PositionService:
             happens later in batch processing.
         """
         try:
-            from app.clients import market_data_factory
+            symbol_upper = normalize_symbol(symbol)
 
-            symbol_upper = symbol.upper().strip()
+            skip, reason = should_skip_symbol(symbol_upper)
+            if skip:
+                if "Synthetic" in reason:
+                    logger.info("Skipping validation for synthetic symbol: %s", symbol_upper)
+                    return True, reason
+                return False, reason
 
-            # Skip validation for synthetic symbols (private investments)
-            SYNTHETIC_SYMBOLS = {
-                'HOME_EQUITY', 'TREASURY_BILLS', 'CRYPTO_BTC_ETH', 'TWO_SIGMA_FUND',
-                'A16Z_VC_FUND', 'STARWOOD_REIT', 'BX_PRIVATE_EQUITY', 'RENTAL_SFH',
-                'ART_COLLECTIBLES', 'RENTAL_CONDO', 'MONEY_MARKET'
-            }
-
-            if symbol_upper in SYNTHETIC_SYMBOLS:
-                logger.info(f"Skipping validation for synthetic symbol: {symbol_upper}")
-                return (True, "Synthetic symbol (private investment)")
-
-            # Try to fetch basic data for symbol
-            try:
-                # Use market data factory to validate
-                yfinance_provider = market_data_factory.get_provider("yfinance")
-                if yfinance_provider:
-                    # Basic check - try to fetch a single data point
-                    from datetime import date, timedelta
-                    end_date = date.today()
-                    start_date = end_date - timedelta(days=1)
-
-                    data = yfinance_provider.fetch_historical_data(
-                        [symbol_upper],
-                        start_date,
-                        end_date
-                    )
-
-                    if data and symbol_upper in data and len(data[symbol_upper]) > 0:
-                        return (True, "")
-                    else:
-                        return (False, f"Symbol '{symbol_upper}' not found in market data")
-                else:
-                    # If no provider available, skip validation
-                    logger.warning("Market data provider not available, skipping validation")
-                    return (True, "Validation skipped")
-
-            except Exception as e:
-                logger.warning(f"Symbol validation failed for {symbol_upper}: {e}")
-                # Don't block position creation on validation failures
-                # Let it through and batch processing will handle it
-                return (True, f"Validation skipped: {str(e)}")
-
+            valid, message = await validator_validate_symbol(
+                symbol_upper,
+                treat_synthetic_as_valid=True,
+            )
+            return valid, message
         except Exception as e:
             logger.error(f"Error validating symbol {symbol}: {e}")
             # Don't block on validation errors

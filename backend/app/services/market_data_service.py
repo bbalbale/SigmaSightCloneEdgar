@@ -21,16 +21,13 @@ from app.core.logging import get_logger
 from app.services.rate_limiter import polygon_rate_limiter, ExponentialBackoff
 from app.clients import market_data_factory, DataType
 from app.services.yahooquery_profile_fetcher import fetch_company_profiles as fetch_profiles_yahooquery
+from app.services.symbol_utils import (
+    normalize_symbol,
+    should_skip_symbol,
+    to_provider_symbol,
+)
 
 logger = get_logger(__name__)
-
-# Synthetic/placeholder symbols that should be skipped in market data fetching
-SYNTHETIC_SYMBOLS = {
-    'HOME_EQUITY', 'TREASURY_BILLS', 'CRYPTO_BTC_ETH', 'TWO_SIGMA_FUND',
-    'A16Z_VC_FUND', 'STARWOOD_REIT', 'BX_PRIVATE_EQUITY', 'RENTAL_SFH',
-    'ART_COLLECTIBLES', 'RENTAL_CONDO', 'MONEY_MARKET'
-}
-
 
 class MarketDataService:
     """Service for fetching and managing market data from external APIs"""
@@ -43,10 +40,22 @@ class MarketDataService:
 
     def _filter_synthetic_symbols(self, symbols: List[str]) -> List[str]:
         """Filter out synthetic/placeholder symbols that don't have market data"""
-        filtered = [s for s in symbols if s not in SYNTHETIC_SYMBOLS]
-        skipped = [s for s in symbols if s in SYNTHETIC_SYMBOLS]
+        filtered: List[str] = []
+        skipped: List[str] = []
+
+        for symbol in symbols:
+            upper = normalize_symbol(symbol)
+            if not upper:
+                continue
+
+            skip, reason = should_skip_symbol(upper)
+            if skip:
+                skipped.append(f"{upper} ({reason})")
+            else:
+                filtered.append(upper)
+
         if skipped:
-            logger.info(f"Skipping {len(skipped)} synthetic symbols: {', '.join(skipped)}")
+            logger.info("Skipping %d synthetic/option symbols: %s", len(skipped), ", ".join(skipped))
         return filtered
     
     # New hybrid provider methods (Section 1.4.9)
@@ -97,8 +106,12 @@ class MarketDataService:
         if yfinance_provider and yfinance_provider.provider_name == "YFinance":
             for symbol in symbols:
                 try:
-                    fetch_symbol = symbol.replace('.', '-')
-                    historical_data = await yfinance_provider.get_historical_prices(fetch_symbol, days=days_back)
+                    fetch_symbol = to_provider_symbol(symbol)
+                    historical_data = await yfinance_provider.get_historical_prices(
+                        symbol=fetch_symbol, 
+                        calculation_date=end_date,
+                        days=days_back
+                    )
 
                     if historical_data:
                         price_records = []
@@ -1277,11 +1290,24 @@ class MarketDataService:
         # Filter out synthetic/private symbols BEFORE hitting external APIs
         # Defense-in-depth: Even if investment_class filter missed these, we catch them here
         original_count = len(symbols)
-        filtered_symbols = [s for s in symbols if s not in SYNTHETIC_SYMBOLS]
-        skipped_symbols = [s for s in symbols if s in SYNTHETIC_SYMBOLS]
+        filtered_symbols: List[str] = []
+        skipped_symbols: List[str] = []
+        for symbol in symbols:
+            upper = normalize_symbol(symbol)
+            if not upper:
+                continue
+            skip, reason = should_skip_symbol(upper)
+            if skip:
+                skipped_symbols.append(f"{upper} ({reason})")
+            else:
+                filtered_symbols.append(upper)
 
         if skipped_symbols:
-            logger.info(f"Skipping {len(skipped_symbols)} PRIVATE/symbolic symbols: {skipped_symbols}")
+            logger.info(
+                "Skipping %d PRIVATE/symbolic symbols: %s",
+                len(skipped_symbols),
+                skipped_symbols,
+            )
 
         results = {
             'symbols_attempted': original_count,

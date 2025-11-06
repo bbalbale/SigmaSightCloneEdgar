@@ -26,6 +26,8 @@ from app.models.market_data import MarketDataCache
 from app.models.positions import Position
 from app.services.yahooquery_service import yahooquery_service
 from app.services.market_data_service import MarketDataService
+from app.services.symbol_utils import normalize_symbol, should_skip_symbol
+from app.services.symbol_validator import validate_symbols
 
 logger = get_logger(__name__)
 
@@ -124,7 +126,7 @@ class MarketDataCollector:
         """Internal collection with provided DB session"""
 
         # Step 1: Get symbol universe
-        symbols = await self._get_symbol_universe(db, portfolio_ids)
+        symbols = await self._get_symbol_universe(db, calculation_date, portfolio_ids)
         logger.info(f"Symbol universe: {len(symbols)} symbols")
 
         # Step 2: TWO-PHASE DATE RANGE DETERMINATION
@@ -264,6 +266,7 @@ class MarketDataCollector:
     async def _get_symbol_universe(
         self,
         db: AsyncSession,
+        calculation_date: date,
         portfolio_ids: Optional[List[UUID]] = None
     ) -> Set[str]:
         """
@@ -273,24 +276,77 @@ class MarketDataCollector:
             Set of symbols that need market data
         """
         # Get all position symbols
-        query = select(Position.symbol).distinct()
+        query = (
+            select(Position.symbol)
+            .distinct()
+            .where(
+                Position.symbol.is_not(None),
+                Position.symbol != '',
+                Position.deleted_at.is_(None),
+                (Position.investment_class.notin_(['PRIVATE', 'OPTIONS'])) | (Position.investment_class.is_(None)),
+                (Position.exit_date.is_(None)) | (Position.exit_date >= calculation_date),
+                (Position.expiration_date.is_(None)) | (Position.expiration_date >= calculation_date),
+            )
+        )
         if portfolio_ids is not None:
             query = query.where(Position.portfolio_id.in_(portfolio_ids))
 
         result = await db.execute(query)
-        position_symbols = {row[0] for row in result.fetchall()}
+        position_symbols = {
+            normalize_symbol(symbol)
+            for symbol in result.scalars().all()
+        }
 
         # Add factor ETFs
-        all_symbols = position_symbols | set(FACTOR_ETFS)
+        factor_symbols = {normalize_symbol(symbol) for symbol in FACTOR_ETFS}
+        all_symbols = {symbol for symbol in (position_symbols | factor_symbols) if symbol}
 
-        # Filter out synthetic symbols (private equity, real estate, etc.)
-        from app.services.market_data_service import SYNTHETIC_SYMBOLS
-        real_symbols = {s for s in all_symbols if s not in SYNTHETIC_SYMBOLS}
+        filtered_symbols: Set[str] = set()
+        skipped_symbols: list[str] = []
+        for symbol in all_symbols:
+            skip, reason = should_skip_symbol(symbol)
+            if skip:
+                skipped_symbols.append(f"{symbol} ({reason})")
+                continue
+            filtered_symbols.add(symbol)
+
+        if not filtered_symbols:
+            logger.info("No tradable symbols found for market data collection")
+            return set()
 
         logger.info(f"  Position symbols: {len(position_symbols)}")
         logger.info(f"  Factor ETFs: {len(FACTOR_ETFS)}")
-        logger.info(f"  Filtered (real symbols): {len(real_symbols)}")
+        logger.info(f"  Filtered (real symbols): {len(filtered_symbols)}")
+        if skipped_symbols:
+            logger.info(
+                "  Skipped synthetic/option symbols: %d",
+                len(skipped_symbols),
+            )
 
+        existing_query = (
+            select(MarketDataCache.symbol)
+            .where(MarketDataCache.symbol.in_(list(filtered_symbols)))
+            .distinct()
+        )
+        existing_result = await db.execute(existing_query)
+        symbols_with_cached_data = {
+            normalize_symbol(symbol)
+            for symbol in existing_result.scalars().all()
+        }
+
+        symbols_to_validate = filtered_symbols - symbols_with_cached_data
+        additional_valid: Set[str] = set()
+        if symbols_to_validate:
+            valid_symbols, invalid_symbols = await validate_symbols(symbols_to_validate)
+            additional_valid = valid_symbols
+            if invalid_symbols:
+                logger.warning(
+                    "Skipping %d symbols failing validation: %s",
+                    len(invalid_symbols),
+                    list(invalid_symbols)[:10],
+                )
+
+        real_symbols = symbols_with_cached_data | additional_valid
         return real_symbols
 
     async def _get_earliest_data_date(
