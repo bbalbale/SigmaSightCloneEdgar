@@ -10,7 +10,7 @@ Fetch Modes:
 Provider Priority: YFinance → YahooQuery → Polygon → FMP
 """
 import asyncio
-from datetime import date, timedelta
+from datetime import date, timedelta, datetime, timezone
 from decimal import Decimal
 from typing import Dict, List, Set, Tuple, Any, Optional
 from uuid import UUID
@@ -699,34 +699,95 @@ class MarketDataCollector:
         from app.models.market_data import CompanyProfile
         from sqlalchemy import select
 
-        # Check which symbols already have profiles
-        existing_query = select(CompanyProfile.symbol).where(
-            CompanyProfile.symbol.in_(list(symbols))
-        )
-        result = await db.execute(existing_query)
-        existing_symbols = {row[0] for row in result.fetchall()}
+        eligible_symbols: Set[str] = set()
+        skipped_symbols: Set[str] = set()
+        for symbol in symbols:
+            skip_symbol, _ = should_skip_symbol(symbol)
+            if skip_symbol:
+                skipped_symbols.add(symbol)
+            else:
+                eligible_symbols.add(symbol)
 
-        missing_symbols = symbols - existing_symbols
+        if skipped_symbols:
+            logger.debug(
+                "Skipping %s symbols for company profiles: %s",
+                len(skipped_symbols),
+                list(skipped_symbols)[:10],
+            )
 
-        if not missing_symbols:
-            logger.info(f"All {len(symbols)} symbols already have company profiles")
+        if not eligible_symbols:
+            logger.info(
+                "No eligible symbols found for company profiles (all %s skipped).",
+                len(symbols),
+            )
             return {
                 'symbols_successful': 0,
                 'symbols_failed': 0,
-                'symbols_skipped': len(symbols)
+                'symbols_skipped': len(symbols),
+                'symbols_missing': 0,
+                'symbols_stale': 0,
+                'skipped_symbols': len(skipped_symbols),
             }
 
-        logger.info(f"Fetching company profiles for {len(missing_symbols)} symbols...")
+        # Check which symbols already have profiles
+        existing_query = select(CompanyProfile.symbol, CompanyProfile.last_updated).where(
+            CompanyProfile.symbol.in_(list(eligible_symbols))
+        )
+        result = await db.execute(existing_query)
+        rows = result.fetchall()
+
+        existing_symbols = set()
+        stale_symbols = set()
+        freshness_cutoff = datetime.now(timezone.utc) - timedelta(days=3)
+
+        for symbol, last_updated in rows:
+            existing_symbols.add(symbol)
+            if last_updated is None or last_updated < freshness_cutoff:
+                stale_symbols.add(symbol)
+
+        missing_symbols = eligible_symbols - existing_symbols
+
+        symbols_to_fetch = sorted(missing_symbols | stale_symbols)
+
+        if not symbols_to_fetch:
+            logger.info(
+                "All %s eligible symbols already have fresh company profiles (<=3 days old)",
+                len(eligible_symbols),
+            )
+            return {
+                'symbols_successful': 0,
+                'symbols_failed': 0,
+                'symbols_skipped': len(skipped_symbols),
+                'symbols_stale': 0,
+                'symbols_missing': 0,
+                'skipped_symbols': len(skipped_symbols),
+            }
+
+        logger.info(
+            "Fetching company profiles for %s symbols (%s missing, %s stale)...",
+            len(symbols_to_fetch),
+            len(missing_symbols),
+            len(stale_symbols),
+        )
 
         # Fetch profiles using market_data_service
         results = await self.market_data_service.fetch_and_cache_company_profiles(
-            db, list(missing_symbols)
+            db, symbols_to_fetch
         )
 
-        logger.info(f"  Profiles fetched: {results['symbols_successful']}/{len(missing_symbols)}")
+        logger.info(
+            "  Profiles fetched: %s/%s (missing=%s, stale=%s)",
+            results['symbols_successful'],
+            len(symbols_to_fetch),
+            len(missing_symbols),
+            len(stale_symbols),
+        )
         if results['symbols_failed'] > 0:
             logger.warning(f"  Failed to fetch {results['symbols_failed']} profiles")
 
+        results['symbols_missing'] = len(missing_symbols)
+        results['symbols_stale'] = len(stale_symbols)
+        results['skipped_symbols'] = len(skipped_symbols)
         return results
 
 

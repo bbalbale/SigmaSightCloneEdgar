@@ -30,6 +30,7 @@ from app.models.market_data import MarketDataCache, PositionVolatility
 from app.models.positions import Position
 from app.models.users import Portfolio
 from app.calculations.market_data import get_returns
+from app.services.symbol_utils import should_skip_symbol
 
 logger = get_logger(__name__)
 
@@ -82,6 +83,33 @@ async def calculate_position_volatility(
         # For options, use underlying symbol for volatility calculation
         # For equities/other assets, use the position symbol
         symbol_for_volatility = position.underlying_symbol if position.underlying_symbol else position.symbol
+
+        if not symbol_for_volatility:
+            logger.debug(
+                "Skipping volatility for position %s: no symbol/underlying available",
+                position.id,
+            )
+            return {
+                'success': False,
+                'reason': 'missing_symbol',
+                'position_symbol': position.symbol,
+            }
+
+        skip_symbol, skip_reason = should_skip_symbol(symbol_for_volatility)
+        if skip_symbol:
+            logger.debug(
+                "Skipping volatility for %s (position %s): %s",
+                symbol_for_volatility,
+                position.id,
+                skip_reason,
+            )
+            return {
+                'success': False,
+                'reason': 'symbol_skipped',
+                'symbol': symbol_for_volatility,
+                'position_symbol': position.symbol,
+                'skip_reason': skip_reason,
+            }
 
         logger.debug(f"Calculating volatility for position {position.symbol} using data from {symbol_for_volatility}")
 
@@ -152,19 +180,22 @@ async def calculate_position_volatility(
         percentile = _calculate_vol_percentile(returns, window=21)
 
         return {
-            'position_id': position_id,
-            'calculation_date': calculation_date,
-            'realized_vol_21d': vol_21d,
-            'realized_vol_63d': vol_63d,
-            'vol_daily': vol_daily,
-            'vol_weekly': vol_weekly,
-            'vol_monthly': vol_monthly,
-            'expected_vol_21d': expected_vol,
-            'vol_trend': trend,
-            'vol_trend_strength': trend_strength,
-            'vol_percentile': percentile,
-            'observations': len(returns),
-            'model_r_squared': r_squared
+            'success': True,
+            'data': {
+                'position_id': position_id,
+                'calculation_date': calculation_date,
+                'realized_vol_21d': vol_21d,
+                'realized_vol_63d': vol_63d,
+                'vol_daily': vol_daily,
+                'vol_weekly': vol_weekly,
+                'vol_monthly': vol_monthly,
+                'expected_vol_21d': expected_vol,
+                'vol_trend': trend,
+                'vol_trend_strength': trend_strength,
+                'vol_percentile': percentile,
+                'observations': len(returns),
+                'model_r_squared': r_squared,
+            },
         }
 
     except Exception as e:
@@ -176,7 +207,8 @@ async def calculate_portfolio_volatility(
     db: AsyncSession,
     portfolio_id: UUID,
     calculation_date: date,
-    min_observations: int = 63
+    min_observations: int = 63,
+    positions_override: Optional[List[Position]] = None,
 ) -> Optional[Dict[str, Any]]:
     """
     Calculate volatility metrics for entire portfolio.
@@ -199,17 +231,51 @@ async def calculate_portfolio_volatility(
     """
     try:
         # Get portfolio positions
-        result = await db.execute(
-            select(Position).where(
-                Position.portfolio_id == portfolio_id,
-                Position.exit_date.is_(None)  # Only active positions
+        if positions_override is not None:
+            positions = list(positions_override)
+        else:
+            result = await db.execute(
+                select(Position).where(
+                    Position.portfolio_id == portfolio_id,
+                    Position.exit_date.is_(None)  # Only active positions
+                )
             )
-        )
-        positions = result.scalars().all()
+            positions = list(result.scalars().all())
 
         if not positions:
             logger.warning(f"No active positions found for portfolio {portfolio_id}")
             return None
+
+        eligible_positions: List[Position] = []
+        skipped_positions = 0
+
+        for p in positions:
+            fetch_symbol = p.underlying_symbol if p.underlying_symbol else p.symbol
+            if not fetch_symbol:
+                skipped_positions += 1
+                continue
+            skip_symbol, _ = should_skip_symbol(fetch_symbol)
+            if skip_symbol:
+                skipped_positions += 1
+                continue
+            eligible_positions.append(p)
+
+        if not eligible_positions:
+            logger.warning(
+                "No market-data-eligible positions found for portfolio %s (skipped %s positions)",
+                portfolio_id,
+                skipped_positions,
+            )
+            return None
+
+        if skipped_positions:
+            logger.debug(
+                "Portfolio %s volatility: skipped %s positions lacking market data",
+                portfolio_id,
+                skipped_positions,
+            )
+
+        positions = eligible_positions
 
         # Get historical prices for all positions
         # For options, use underlying symbol; for equities use position symbol
@@ -221,11 +287,9 @@ async def calculate_portfolio_volatility(
 
         # Build list of symbols to fetch (using underlying for options)
         symbols_to_fetch = []
-        symbol_to_position = {}  # Maps fetch_symbol -> Position object
         for p in positions:
             fetch_symbol = p.underlying_symbol if p.underlying_symbol else p.symbol
             symbols_to_fetch.append(fetch_symbol)
-            symbol_to_position[fetch_symbol] = p
 
         symbols_to_fetch = list(set(symbols_to_fetch))  # Deduplicate
 
@@ -359,29 +423,11 @@ async def save_position_volatility(
 
         # Note: Do NOT commit here - let caller manage transaction boundaries
         # Committing expires session objects and causes greenlet errors
-        return {
-            'success': True,
-            'data': {
-                'position_id': position_id,
-                'calculation_date': calculation_date,
-                'realized_vol_21d': vol_21d,
-                'realized_vol_63d': vol_63d,
-                'vol_daily': vol_daily,
-                'vol_weekly': vol_weekly,
-                'vol_monthly': vol_monthly,
-                'expected_vol_21d': expected_vol,
-                'vol_trend': trend,
-                'vol_trend_strength': vol_trend_strength,
-                'vol_percentile': vol_percentile,
-                'observations': len(returns),
-                'model_r_squared': r_squared,
-            }
-        }
+        return True
 
     except Exception as e:
         logger.error(f"Error saving position volatility: {e}", exc_info=True)
-        # Note: Do NOT rollback here - let caller manage transaction
-        raise
+        return False
 
 
 async def calculate_portfolio_volatility_batch(
@@ -413,17 +459,54 @@ async def calculate_portfolio_volatility_batch(
                 Position.exit_date.is_(None)
             )
         )
-        positions = result.scalars().all()
-
-        # Convert to list immediately to avoid lazy loading issues
-        positions = list(positions)
+        positions = list(result.scalars().all())
 
         if not positions:
             return {
                 'success': False,
                 'error': 'No active positions found',
                 'positions_processed': 0,
-                'positions_failed': 0
+                'positions_failed': 0,
+                'positions_ignored': 0,
+            }
+
+        eligible_positions: List[Position] = []
+        ignored_positions: List[Position] = []
+
+        for position in positions:
+            symbol_for_vol = position.underlying_symbol if position.underlying_symbol else position.symbol
+            if not symbol_for_vol:
+                ignored_positions.append(position)
+                continue
+            skip_symbol, _ = should_skip_symbol(symbol_for_vol)
+            if skip_symbol:
+                ignored_positions.append(position)
+                continue
+            eligible_positions.append(position)
+
+        if not eligible_positions:
+            logger.info(
+                "Skipping volatility analytics for portfolio %s: %s positions ignored (no market data eligible)",
+                portfolio_id,
+                len(ignored_positions),
+            )
+            return {
+                'success': False,
+                'error': 'No market-data-eligible positions found',
+                'positions_processed': 0,
+                'positions_failed': 0,
+                'positions_ignored': len(ignored_positions),
+                'failure_reasons': [
+                    {
+                        'reason': 'symbol_skipped',
+                        'position_id': str(position.id),
+                        'details': {
+                            'symbol': position.symbol,
+                            'underlying_symbol': position.underlying_symbol,
+                        },
+                    }
+                    for position in ignored_positions
+                ],
             }
 
         # Calculate position-level volatilities
@@ -433,7 +516,7 @@ async def calculate_portfolio_volatility_batch(
 
         failure_reasons: List[Dict[str, Any]] = []
 
-        for position in positions:
+        for position in eligible_positions:
             vol_result = await calculate_position_volatility(
                 db=db,
                 position_id=position.id,
@@ -468,7 +551,8 @@ async def calculate_portfolio_volatility_batch(
         portfolio_vol = await calculate_portfolio_volatility(
             db=db,
             portfolio_id=portfolio_id,
-            calculation_date=calculation_date
+            calculation_date=calculation_date,
+            positions_override=eligible_positions,
         )
 
         success = positions_processed > 0 and portfolio_vol is not None
@@ -485,6 +569,7 @@ async def calculate_portfolio_volatility_batch(
             'position_volatilities': position_results,
             'positions_processed': positions_processed,
             'positions_failed': positions_failed,
+            'positions_ignored': len(ignored_positions),
             'failure_reasons': failure_reasons,
             'message': error_message,
         }
@@ -495,7 +580,8 @@ async def calculate_portfolio_volatility_batch(
             'success': False,
             'error': str(e),
             'positions_processed': 0,
-            'positions_failed': 0
+            'positions_failed': 0,
+            'positions_ignored': 0,
         }
 
 

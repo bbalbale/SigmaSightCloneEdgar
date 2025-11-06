@@ -1,11 +1,14 @@
 # SigmaSight Equity & P&L Remediation Plan
 
-_Last reviewed: 2025-11-04_
+_Last reviewed: 2025-11-06_
 
 ## 1. Current Implementation Snapshot
 - **Position P&L fallback visibility** – `_calculate_position_pnl` now calls `get_previous_trading_day_price` with a configurable lookback (`backend/app/batch/pnl_calculator.py:360-377`). When the immediate prior close is missing, the calculator walks back up to ten calendar days and logs when a fallback price is used.
 - **Market data helper** – `get_previous_trading_day_price` returns both price and price date, enabling diagnostics and reuse (`backend/app/calculations/market_data.py:258-323`). `calculate_daily_pnl` applies the broader lookback and reports daily returns aligned with P&L sign for both long and short positions (`backend/app/calculations/market_data.py:301-359`).
 - **Shared valuation function** – `get_position_valuation` centralises multiplier, cost-basis, and unrealised P&L calculations (`backend/app/calculations/market_data.py:105-204`). `get_position_value` delegates to it whenever recalculation is required (`backend/app/calculations/market_data.py:206-229`).
+- **Phase 2.5 coverage safeguards** – Synthetic/PRIVATE holdings are excluded from price coverage checks so Phase 3 can run on public assets while tracking ignored symbols (`backend/app/batch/batch_orchestrator.py:339-612`).
+- **Volatility pipeline hardening** – Volatility analytics now process only market-data eligible symbols and persist results without raising NameErrors, with skipped counts surfaced for transparency (`backend/app/calculations/volatility_analytics.py:60-599`).
+- **Incremental profile refresh** – Company profile hydration skips synthetic/option symbols and only re-fetches genuinely missing/stale equities (`backend/app/batch/market_data_collector.py:700-761`).
 - **Service layer alignment** – `PortfolioAnalyticsService`, `PortfolioDataService`, and `CorrelationService` now rely on the shared valuation helper for all market value and exposure maths (see `backend/app/services/portfolio_analytics_service.py:118-226`, `backend/app/services/portfolio_data_service.py:90-162`, `backend/app/services/correlation_service.py:226-232`, `384-414`, `742-780`, `1058-1124`, `1217-1225`, `1397-1403`). 
 - **Regression coverage** – `backend/tests/unit/test_market_data_valuation.py` validates option multipliers, fallback behaviour, short-position daily returns, and analytics aggregation.
 
@@ -16,7 +19,7 @@ _Last reviewed: 2025-11-04_
 
 ## 3. Remaining Gaps
 1. Frontend dashboards have not yet been regression-tested against the corrected APIs; verify charts, leverage cards, and top-position widgets.
-2. Historical equity/P&L backfill has not been scheduled. Existing snapshots still reflect the old calculations on days where data gaps suppressed P&L.
+2. Historical equity/P&L backfill is in progress; monitoring the refreshed batch to ensure analytics populate through the target window.
 
 ## 4. Implementation Status & Next Actions
 
@@ -34,11 +37,11 @@ _Last reviewed: 2025-11-04_
 
 | E | Backend | Eliminate Decimal serialization trap in batch telemetry logging | ⏳ Pending |
 
-| F | Backend | Update `clear_calculation_data.py` to target P&L/analytics tables only | ⏳ Pending |
+| F | Backend | Update `clear_calculation_data.py` to target P&L/analytics tables only | ✅ Completed (`scripts/database/clear_calculation_data.py`) |
 
 | G | Frontend | Smoke-test dashboards and analytics cards against updated fields | ⏳ Pending |
 
-| H | Data/QA | Backfill historic snapshots / reconcile NAV trajectories | ⏳ Pending |
+| H | Data/QA | Backfill historic snapshots / reconcile NAV trajectories | ⏳ In progress (batch re-run with patched logic) |
 
 
 
@@ -55,7 +58,6 @@ _Last reviewed: 2025-11-04_
 
 ## 7. Immediate Next Steps
 1. Fix batch telemetry to handle Decimal payloads (Step E) and confirm Phase 1 logs cleanly.
-2. Modernize the calculation data clearing script so only computed analytics are purged (Step F).
-3. Coordinate frontend QA to verify UI elements against corrected API responses (Step G).
-4. Plan and execute the historical backfill leveraging the enhanced pricing logic (Step H).
-5. Prepare a reconciliation plan ahead of the backfill to quantify and communicate equity adjustments.
+2. Coordinate frontend QA to verify UI elements against corrected API responses (Step G).
+3. Continue the historical backfill leveraging the enhanced pricing logic and confirm volatility outputs populate (Step H).
+4. Prepare a reconciliation plan ahead of the backfill to quantify and communicate equity adjustments.

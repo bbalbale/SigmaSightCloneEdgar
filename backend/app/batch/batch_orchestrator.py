@@ -41,6 +41,7 @@ from app.batch.fundamentals_collector import fundamentals_collector
 from app.batch.pnl_calculator import pnl_calculator
 from app.batch.analytics_runner import analytics_runner
 from app.calculations.market_data import get_previous_trading_day_price
+from app.services.symbol_utils import should_skip_symbol
 from app.telemetry.metrics import record_metric
 
 logger = get_logger(__name__)
@@ -339,13 +340,17 @@ class BatchOrchestrator:
             if phase25_result:
                 total_positions = phase25_result.get('total_positions') or 0
                 positions_skipped = phase25_result.get('positions_skipped') or 0
+                positions_ignored = phase25_result.get('positions_ignored', 0)
+                coverage_details = {
+                    'total_positions': total_positions,
+                    'positions_skipped': positions_skipped,
+                    'positions_ignored': positions_ignored,
+                }
+
                 if total_positions > 0:
                     missing_ratio = positions_skipped / total_positions
-                    coverage_details = {
-                        'total_positions': total_positions,
-                        'positions_skipped': positions_skipped,
-                        'missing_ratio': round(missing_ratio, 4),
-                    }
+                    coverage_details['missing_ratio'] = round(missing_ratio, 4)
+
                     if missing_ratio > 0.05:
                         insufficient_price_coverage = True
                         message = (
@@ -471,18 +476,49 @@ class BatchOrchestrator:
             positions_result = await db.execute(positions_query)
             positions = positions_result.scalars().all()
 
-            logger.info(f"Found {len(positions)} active positions to update")
+            total_positions_raw = len(positions)
+            logger.info(f"Found {total_positions_raw} active positions to update")
 
             if not positions:
                 return {
                     'success': True,
                     'positions_updated': 0,
                     'positions_skipped': 0,
+                    'positions_ignored': 0,
                     'total_positions': 0
                 }
 
+            eligible_positions: List[Position] = []
+            ignored_positions: List[Position] = []
+
+            for position in positions:
+                symbol = position.symbol or ""
+                skip = True
+                if symbol:
+                    skip, _ = should_skip_symbol(symbol.upper())
+                if skip:
+                    ignored_positions.append(position)
+                else:
+                    eligible_positions.append(position)
+
+            total_eligible = len(eligible_positions)
+
+            if not eligible_positions:
+                logger.info(
+                    "No market-data eligible positions found; skipping price update and analytics coverage check."
+                )
+                return {
+                    'success': True,
+                    'positions_updated': 0,
+                    'positions_skipped': 0,
+                    'positions_ignored': total_positions_raw,
+                    'price_fallbacks_used': 0,
+                    'missing_price_symbols': [],
+                    'total_positions': 0,
+                }
+
             # Bulk-load market data for all symbols to avoid N+1 queries
-            symbols = {position.symbol for position in positions if position.symbol}
+            symbols = {position.symbol for position in eligible_positions if position.symbol}
             price_map: Dict[str, Decimal] = {}
 
             if symbols:
@@ -504,7 +540,7 @@ class BatchOrchestrator:
             fallback_prices_used = 0
             missing_price_symbols: List[str] = []
 
-            for position in positions:
+            for position in eligible_positions:
                 # Get current price from market_data_cache
                 current_price = price_map.get(position.symbol)
 
@@ -561,19 +597,21 @@ class BatchOrchestrator:
             await db.commit()
 
             logger.info(
-                "Position market values updated: %s updated, %s skipped, %s fallback prices",
+                "Position market values updated: %s updated, %s skipped (eligible), %s fallback prices, %s ignored",
                 positions_updated,
                 positions_skipped,
                 fallback_prices_used,
+                len(ignored_positions),
             )
 
             return {
                 'success': True,
                 'positions_updated': positions_updated,
                 'positions_skipped': positions_skipped,
+                'positions_ignored': len(ignored_positions),
                 'price_fallbacks_used': fallback_prices_used,
                 'missing_price_symbols': missing_price_symbols,
-                'total_positions': len(positions)
+                'total_positions': total_eligible
             }
 
         except Exception as e:
@@ -769,6 +807,7 @@ class BatchOrchestrator:
         if phase_name == "phase_2_5":
             extra_fields["positions_updated"] = result.get('positions_updated')
             extra_fields["positions_skipped"] = result.get('positions_skipped')
+            extra_fields["positions_ignored"] = result.get('positions_ignored')
             extra_fields["price_fallbacks"] = result.get('price_fallbacks_used')
             extra_fields["missing_symbols"] = result.get('missing_price_symbols')
         elif phase_name == "phase_3":
