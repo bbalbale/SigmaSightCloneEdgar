@@ -501,6 +501,7 @@ class BatchOrchestrator:
                     db=db,
                     portfolio_ids=portfolio_ids,
                     run_sector_analysis=run_sector_analysis,
+                    price_cache=price_cache,  # Pass price cache for optimization
                 )
                 result['phase_6'] = phase6_result
                 self._log_phase_result("phase_6", phase6_result)
@@ -921,8 +922,9 @@ class BatchOrchestrator:
         run_date: date,
         batch_result: Dict[str, Any]
     ):
-        """Mark a batch run as complete in tracking table"""
+        """Mark a batch run as complete in tracking table (upsert if re-running same date)"""
         from datetime import datetime, timezone
+        from sqlalchemy import select
 
         # Extract metrics from results
         phase1 = batch_result.get('phase_1', {})
@@ -944,29 +946,54 @@ class BatchOrchestrator:
             for value in extra_phase_status.values()
         )
 
-        tracking = BatchRunTracking(
-            id=uuid4(),
-            run_date=run_date,
-            phase_1_status='success' if phase1.get('success') else 'failed',
-            phase_2_status='success' if phase2.get('success') else 'failed',
-            phase_3_status='success' if phase3.get('success') else 'failed',
-            phase_1_duration_seconds=phase1.get('duration_seconds'),
-            phase_2_duration_seconds=phase2.get('duration_seconds'),
-            phase_3_duration_seconds=phase3.get('duration_seconds'),
-            portfolios_processed=phase2.get('portfolios_processed'),
-            symbols_fetched=phase1.get('symbols_fetched'),
-            data_coverage_pct=phase1.get('data_coverage_pct'),
-            error_message=json.dumps({
+        # Check if tracking record already exists for this date (upsert logic)
+        existing_stmt = select(BatchRunTracking).where(BatchRunTracking.run_date == run_date)
+        existing_result = await db.execute(existing_stmt)
+        tracking = existing_result.scalar_one_or_none()
+
+        if tracking:
+            # Update existing record
+            logger.info(f"Updating existing batch run tracking for {run_date}")
+            tracking.phase_1_status = 'success' if phase1.get('success') else 'failed'
+            tracking.phase_2_status = 'success' if phase2.get('success') else 'failed'
+            tracking.phase_3_status = 'success' if phase3.get('success') else 'failed'
+            tracking.phase_1_duration_seconds = phase1.get('duration_seconds')
+            tracking.phase_2_duration_seconds = phase2.get('duration_seconds')
+            tracking.phase_3_duration_seconds = phase3.get('duration_seconds')
+            tracking.portfolios_processed = phase2.get('portfolios_processed')
+            tracking.symbols_fetched = phase1.get('symbols_fetched')
+            tracking.data_coverage_pct = phase1.get('data_coverage_pct')
+            tracking.error_message = json.dumps({
                 'errors': batch_result.get('errors', []),
                 'phase_status': extra_phase_status
-            }) if needs_metadata else None,
-            completed_at=datetime.now(timezone.utc)
-        )
+            }) if needs_metadata else None
+            tracking.completed_at = datetime.now(timezone.utc)
+        else:
+            # Create new record
+            tracking = BatchRunTracking(
+                id=uuid4(),
+                run_date=run_date,
+                phase_1_status='success' if phase1.get('success') else 'failed',
+                phase_2_status='success' if phase2.get('success') else 'failed',
+                phase_3_status='success' if phase3.get('success') else 'failed',
+                phase_1_duration_seconds=phase1.get('duration_seconds'),
+                phase_2_duration_seconds=phase2.get('duration_seconds'),
+                phase_3_duration_seconds=phase3.get('duration_seconds'),
+                portfolios_processed=phase2.get('portfolios_processed'),
+                symbols_fetched=phase1.get('symbols_fetched'),
+                data_coverage_pct=phase1.get('data_coverage_pct'),
+                error_message=json.dumps({
+                    'errors': batch_result.get('errors', []),
+                    'phase_status': extra_phase_status
+                }) if needs_metadata else None,
+                completed_at=datetime.now(timezone.utc)
+            )
+            db.add(tracking)
+            logger.debug(f"Created new batch run tracking for {run_date}")
 
-        db.add(tracking)
         await db.commit()
 
-        logger.debug(f"Batch run tracking record created for {run_date}")
+        logger.debug(f"Batch run tracking record saved for {run_date}")
 
 
 # Global instance

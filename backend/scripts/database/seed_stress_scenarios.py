@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+# -*- coding: utf-8 -*-
 """
 Seed stress test scenarios from JSON configuration to database.
 
@@ -9,9 +10,15 @@ and populates the stress_test_scenarios table.
 import asyncio
 import json
 import sys
+import io
 from datetime import datetime
 from pathlib import Path
 from uuid import uuid4
+
+# Fix Windows console encoding for emoji support
+if sys.platform == 'win32':
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
+    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
 
 # Add parent directory to path
 sys.path.append(str(Path(__file__).parent.parent))
@@ -77,11 +84,9 @@ async def seed_scenarios_from_config():
                 print(f"\n📁 Processing {category}:")
                 
                 for scenario_id, scenario_data in scenarios.items():
-                    if not scenario_data.get('active', True):
-                        print(f"   ⏭️  Skipping inactive: {scenario_data.get('name')}")
-                        continue
-                    
-                    # Create scenario object
+                    is_active = scenario_data.get('active', True)
+
+                    # Create scenario object (include both active and inactive scenarios)
                     scenario = StressTestScenario(
                         id=uuid4(),
                         scenario_id=scenario_id,  # Use the key as scenario_id
@@ -90,20 +95,22 @@ async def seed_scenarios_from_config():
                         category=scenario_data.get('category', category),  # Use 'category' not 'scenario_type'
                         severity=scenario_data.get('severity', 'moderate'),
                         shock_config=scenario_data.get('shocked_factors', {}),  # Use 'shock_config' not 'shocked_factors'
-                        active=True,
+                        active=is_active,  # Preserve active/inactive status
                         created_at=datetime.utcnow(),
                         updated_at=datetime.utcnow()
                     )
                     
                     db.add(scenario)
                     scenarios_created += 1
-                    
+
                     # Display shocked factors
                     shocked_str = ', '.join([
-                        f"{k}: {v:+.1%}" 
+                        f"{k}: {v:+.1%}"
                         for k, v in scenario_data.get('shocked_factors', {}).items()
                     ])
-                    print(f"   ✅ {scenario.name}")
+                    status_icon = "✅" if is_active else "⚪"
+                    status_text = "ACTIVE" if is_active else "inactive"
+                    print(f"   {status_icon} {scenario.name} ({status_text})")
                     print(f"      Shocks: {shocked_str}")
             
             # Commit all scenarios

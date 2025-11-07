@@ -773,7 +773,11 @@ def _forecast_har(
         model.fit(X_train, y_train)
 
         # Make forecast using current volatilities
-        X_current = np.array([[vol_daily, vol_weekly, vol_monthly]])
+        # Use DataFrame with same column names to avoid sklearn warning
+        X_current = pd.DataFrame(
+            [[vol_daily, vol_weekly, vol_monthly]],
+            columns=['rv_daily', 'rv_weekly', 'rv_monthly']
+        )
         forecast = model.predict(X_current)[0]
 
         # Calculate R-squared

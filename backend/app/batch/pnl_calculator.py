@@ -441,6 +441,11 @@ class PnLCalculator:
         Returns:
             Position P&L as Decimal
         """
+        # OPTIMIZATION: Skip price lookups for PRIVATE positions (they don't have market prices)
+        if position.investment_class and str(position.investment_class).upper() == 'PRIVATE':
+            logger.debug(f"      {position.symbol}: PRIVATE position, skipping P&L (no market price)")
+            return Decimal('0')
+
         # Get current price from cache (in-memory or database)
         current_price = await self._get_cached_price(db, position.symbol, calculation_date, price_cache)
 

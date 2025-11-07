@@ -848,17 +848,26 @@ async def save_stress_test_results(
     from decimal import Decimal
     
     logger.info(f"Saving stress test results for portfolio {portfolio_id}")
-    
+
     try:
         saved_count = 0
         calculation_date = stress_test_results['calculation_date']
-        
+
         # First, get all scenario IDs from database
         stmt = select(StressTestScenario)
         result = await db.execute(stmt)
         scenarios = result.scalars().all()
         scenario_map = {s.scenario_id: s.id for s in scenarios}
-        
+
+        if not scenario_map:
+            logger.warning(
+                "No stress test scenarios found in database. "
+                "Run 'uv run python scripts/database/seed_stress_scenarios.py' to populate scenarios."
+            )
+            return 0
+
+        logger.info(f"Found {len(scenario_map)} scenarios in database for result persistence")
+
         # Delete existing results for this portfolio and date to avoid duplicates
         from sqlalchemy import delete
         delete_stmt = delete(StressTestResult).where(
@@ -868,12 +877,12 @@ async def save_stress_test_results(
             )
         )
         await db.execute(delete_stmt)
-        
+
         # Process all test results
         stress_data = stress_test_results.get('stress_test_results', {})
         direct_impacts = stress_data.get('direct_impacts', {})
         correlated_impacts = stress_data.get('correlated_impacts', {})
-        
+
         for category in direct_impacts:
             for scenario_id in direct_impacts[category]:
                 # Get scenario UUID from database

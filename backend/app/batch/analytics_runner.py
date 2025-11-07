@@ -36,6 +36,7 @@ class AnalyticsRunner:
 
     def __init__(self) -> None:
         self._profile_cache: Dict[str, Dict[str, Optional[Any]]] = {}
+        self._price_cache: Optional[Any] = None  # PriceCache instance
 
     def reset_caches(self) -> None:
         """Clear per-run caches so repeated runs don't reuse stale data."""
@@ -47,6 +48,7 @@ class AnalyticsRunner:
         db: Optional[AsyncSession] = None,
         portfolio_ids: Optional[List[UUID]] = None,
         run_sector_analysis: bool = True,
+        price_cache: Optional[Any] = None,  # PriceCache instance for optimization
     ) -> Dict[str, Any]:
         """
         Run analytics for all active portfolios
@@ -54,6 +56,7 @@ class AnalyticsRunner:
         Args:
             calculation_date: Date to run analytics for
             db: Optional database session
+            price_cache: Optional PriceCache instance for fast price lookups
 
         Returns:
             Summary of analytics completed
@@ -61,6 +64,14 @@ class AnalyticsRunner:
         logger.info(f"=" * 80)
         logger.info(f"Phase 3: Risk Analytics for {calculation_date}")
         logger.info(f"=" * 80)
+
+        # Store price cache for use by calculation methods
+        self._price_cache = price_cache
+        if price_cache:
+            stats = price_cache.get_stats()
+            logger.info(f"OPTIMIZATION: Using price cache with {stats.get('total_prices', 0)} preloaded prices")
+        else:
+            logger.warning("Price cache not provided - will use slower database queries")
 
         start_time = asyncio.get_event_loop().time()
 
@@ -71,6 +82,7 @@ class AnalyticsRunner:
                     calculation_date,
                     portfolio_ids,
                     run_sector_analysis,
+                    price_cache,
                 )
         else:
             result = await self._process_all_with_session(
@@ -78,6 +90,7 @@ class AnalyticsRunner:
                 calculation_date,
                 portfolio_ids,
                 run_sector_analysis,
+                price_cache,
             )
 
         duration = int(asyncio.get_event_loop().time() - start_time)
@@ -95,6 +108,7 @@ class AnalyticsRunner:
         calculation_date: date,
         portfolio_ids: Optional[List[UUID]] = None,
         run_sector_analysis: bool = True,
+        price_cache: Optional[Any] = None,
     ) -> Dict[str, Any]:
         """Process all portfolios with provided session"""
         from sqlalchemy import select
@@ -449,7 +463,7 @@ class AnalyticsRunner:
         try:
             from app.services.correlation_service import CorrelationService
 
-            correlation_service = CorrelationService(db)
+            correlation_service = CorrelationService(db, price_cache=self._price_cache)
 
             result = await correlation_service.calculate_portfolio_correlations(
                 portfolio_id=portfolio_id,

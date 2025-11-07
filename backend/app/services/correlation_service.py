@@ -37,9 +37,10 @@ logger = logging.getLogger(__name__)
 class CorrelationService:
     """Service for calculating position-to-position correlations"""
 
-    def __init__(self, db: AsyncSession):
+    def __init__(self, db: AsyncSession, price_cache=None):
         self.db = db
         self.market_data_service = MarketDataService()
+        self.price_cache = price_cache  # PriceCache for optimized price lookups
 
     async def _get_portfolio_value_from_snapshot(
         self,
@@ -851,25 +852,55 @@ class CorrelationService:
         if not ordered_symbols:
             return pd.DataFrame()
 
-        # Step 1: Fetch all price data with a single query to avoid N round-trips
-        price_query = (
-            select(
-                MarketDataCache.symbol,
-                MarketDataCache.date,
-                MarketDataCache.close
-            )
-            .where(
-                and_(
-                    MarketDataCache.symbol.in_(ordered_symbols),
-                    MarketDataCache.date >= start_bound,
-                    MarketDataCache.date <= end_bound
-                )
-            )
-            .order_by(MarketDataCache.symbol, MarketDataCache.date)
-        )
+        # Step 1: Fetch all price data - use cache if available for HUGE speedup
+        rows = []
 
-        price_result = await self.db.execute(price_query)
-        rows = price_result.mappings().all()
+        if self.price_cache:
+            # OPTIMIZATION: Use preloaded price cache instead of database query
+            logger.info(f"CACHE: Loading {len(ordered_symbols)} symbols from cache for date range {start_bound} to {end_bound}")
+            cache_hits = 0
+            cache_misses = 0
+
+            # Generate all dates in range (approximation - includes weekends but cache will miss those)
+            current_date = start_bound
+            date_list = []
+            while current_date <= end_bound:
+                date_list.append(current_date)
+                current_date += timedelta(days=1)
+
+            # Try to get all prices from cache
+            for symbol in ordered_symbols:
+                for check_date in date_list:
+                    price = self.price_cache.get_price(symbol, check_date)
+                    if price is not None:
+                        rows.append({'symbol': symbol, 'date': check_date, 'close': price})
+                        cache_hits += 1
+                    else:
+                        cache_misses += 1
+
+            logger.info(f"CACHE STATS: {cache_hits} hits, {cache_misses} misses (hit rate: {cache_hits/(cache_hits+cache_misses)*100:.1f}%)")
+
+        if not rows:
+            # Fallback to database query if cache not available or empty
+            logger.info("Using database query for historical prices (no cache or cache empty)")
+            price_query = (
+                select(
+                    MarketDataCache.symbol,
+                    MarketDataCache.date,
+                    MarketDataCache.close
+                )
+                .where(
+                    and_(
+                        MarketDataCache.symbol.in_(ordered_symbols),
+                        MarketDataCache.date >= start_bound,
+                        MarketDataCache.date <= end_bound
+                    )
+                )
+                .order_by(MarketDataCache.symbol, MarketDataCache.date)
+            )
+
+            price_result = await self.db.execute(price_query)
+            rows = price_result.mappings().all()
 
         if not rows:
             logger.warning(
