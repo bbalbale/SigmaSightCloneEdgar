@@ -457,27 +457,44 @@ class PnLCalculator:
         previous_price: Optional[Decimal] = None
         price_date_used: Optional[date] = None
 
-        price_lookup = await get_previous_trading_day_price(
-            db=db,
-            symbol=position.symbol,
-            current_date=calculation_date,
-            max_lookback_days=10,
-        )
-
-        if price_lookup:
-            previous_price, price_date_used = price_lookup
-
-        if previous_price is None:
-            previous_price = current_price
-            logger.debug(
-                f"      {position.symbol}: No prior close within lookback, using current price (P&L=0)"
-            )
-        else:
-            expected_previous = trading_calendar.get_previous_trading_day(calculation_date)
-            if price_date_used and expected_previous and price_date_used != expected_previous:
+        # SPECIAL CASE: First calculation day (no previous snapshot)
+        # Use entry_price instead of current price to capture initial unrealized gain
+        if previous_snapshot is None:
+            # This is the first calculation day - use entry price as baseline
+            if position.entry_price is not None:
+                previous_price = position.entry_price
                 logger.debug(
-                    f"      {position.symbol}: Using fallback prior close from {price_date_used}"
+                    f"      {position.symbol}: First calculation day, using entry price ${previous_price} as baseline"
                 )
+            else:
+                # Fallback if entry_price is missing
+                previous_price = current_price
+                logger.warning(
+                    f"      {position.symbol}: First calculation day but no entry_price, using current price (P&L=0)"
+                )
+        else:
+            # Normal day-over-day P&L calculation
+            price_lookup = await get_previous_trading_day_price(
+                db=db,
+                symbol=position.symbol,
+                current_date=calculation_date,
+                max_lookback_days=10,
+            )
+
+            if price_lookup:
+                previous_price, price_date_used = price_lookup
+
+            if previous_price is None:
+                previous_price = current_price
+                logger.debug(
+                    f"      {position.symbol}: No prior close within lookback, using current price (P&L=0)"
+                )
+            else:
+                expected_previous = trading_calendar.get_previous_trading_day(calculation_date)
+                if price_date_used and expected_previous and price_date_used != expected_previous:
+                    logger.debug(
+                        f"      {position.symbol}: Using fallback prior close from {price_date_used}"
+                    )
 
         # Calculate P&L (apply option contract multiplier when applicable)
         price_change = current_price - previous_price
