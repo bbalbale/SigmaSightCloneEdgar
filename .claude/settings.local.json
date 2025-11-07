@@ -28,7 +28,9 @@
       "Bash(npm run dev:*)",
       "Bash(netstat:*)",
       "Bash(findstr:*)",
-      "Bash(taskkill:*)"
+      "Bash(taskkill:*)",
+      "Bash(.venv/Scripts/alembic.exe current)",
+      "Bash(dir .venvScripts*.exe)"
     ],
     "deny": [],
     "ask": [],
