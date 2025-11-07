@@ -52,6 +52,29 @@ FACTOR_ETFS = [
     'GLD',   # Gold
 ]
 
+# Symbols to skip when fetching company profiles
+# ETFs, indexes, mutual funds, and closed-end funds don't have meaningful company profiles
+SKIP_COMPANY_PROFILES = {
+    # Factor ETFs (from above)
+    'SPY', 'QQQ', 'IWM', 'VTI', 'TLT', 'IEF', 'SHY',
+    'HYG', 'LQD', 'VTV', 'VUG', 'MTUM', 'QUAL', 'USMV',
+    'DJP', 'VNQ', 'GLD',
+    # Major broad market ETFs
+    'VOO', 'VT', 'VEA', 'VWO', 'IEFA', 'IEMG', 'DIA',
+    # Bond ETFs
+    'BND', 'AGG', 'VCIT', 'VCSH', 'BSV', 'BIV', 'BLV',
+    # Sector ETFs
+    'XLF', 'XLE', 'XLK', 'XLV', 'XLI', 'XLP', 'XLY', 'XLU', 'XLRE', 'XLB', 'XLC',
+    # Dividend/Income ETFs
+    'VIG', 'SCHD', 'DGRO', 'VYM', 'DVY', 'SDY',
+    # International ETFs
+    'EFA', 'EEM', 'VEU', 'VXUS', 'ACWI', 'IXUS',
+    # Industry-specific ETFs
+    'SMH', 'XBI', 'IBB', 'SOXX', 'KRE', 'KBE', 'XRT',
+    # Leveraged/Inverse (should never have company profiles)
+    'TQQQ', 'SQQQ', 'SPXL', 'SPXS', 'TMF', 'TMV', 'UPRO', 'SPXU',
+}
+
 
 class MarketDataCollector:
     """
@@ -74,7 +97,8 @@ class MarketDataCollector:
         calculation_date: date,
         lookback_days: int = 365,
         db: Optional[AsyncSession] = None,
-        portfolio_ids: Optional[List[UUID]] = None
+        portfolio_ids: Optional[List[UUID]] = None,
+        skip_company_profiles: bool = False
     ) -> Dict[str, Any]:
         """
         Main entry point - collect all market data for a calculation date
@@ -84,6 +108,7 @@ class MarketDataCollector:
             lookback_days: Number of days of historical data (default: 365 for vol analysis)
             db: Optional database session (creates one if not provided)
             portfolio_ids: Optional list of portfolios to scope symbol universe
+            skip_company_profiles: If True, skip company profile fetch (for historical backfills)
 
         Returns:
             Data coverage report with metrics
@@ -98,11 +123,11 @@ class MarketDataCollector:
         if db is None:
             async with AsyncSessionLocal() as session:
                 result = await self._collect_with_session(
-                    session, calculation_date, lookback_days, portfolio_ids
+                    session, calculation_date, lookback_days, portfolio_ids, skip_company_profiles
                 )
         else:
             result = await self._collect_with_session(
-                db, calculation_date, lookback_days, portfolio_ids
+                db, calculation_date, lookback_days, portfolio_ids, skip_company_profiles
             )
 
         duration = int(asyncio.get_event_loop().time() - start_time)
@@ -121,7 +146,8 @@ class MarketDataCollector:
         db: AsyncSession,
         calculation_date: date,
         lookback_days: int,
-        portfolio_ids: Optional[List[UUID]] = None
+        portfolio_ids: Optional[List[UUID]] = None,
+        skip_company_profiles: bool = False
     ) -> Dict[str, Any]:
         """Internal collection with provided DB session"""
 
@@ -240,7 +266,12 @@ class MarketDataCollector:
             await self._store_in_cache(db, fetched_data)
 
         # Step 6: Fetch company profiles for all symbols (needed for sector analysis)
-        profile_results = await self._fetch_company_profiles(db, symbols)
+        # OPTIMIZATION: Skip for historical backfills (only needed on current/final date)
+        if not skip_company_profiles:
+            profile_results = await self._fetch_company_profiles(db, symbols)
+        else:
+            logger.debug(f"Skipping company profile fetch for historical date ({calculation_date})")
+            profile_results = {'symbols_successful': 0, 'symbols_failed': 0}
 
         # Step 7: Calculate coverage metrics
         total_symbols = len(symbols)
@@ -701,32 +732,44 @@ class MarketDataCollector:
 
         eligible_symbols: Set[str] = set()
         skipped_symbols: Set[str] = set()
+        etf_symbols: Set[str] = set()
+
         for symbol in symbols:
             skip_symbol, _ = should_skip_symbol(symbol)
             if skip_symbol:
                 skipped_symbols.add(symbol)
+            elif symbol in SKIP_COMPANY_PROFILES:
+                etf_symbols.add(symbol)
             else:
                 eligible_symbols.add(symbol)
 
         if skipped_symbols:
             logger.debug(
-                "Skipping %s symbols for company profiles: %s",
+                "Skipping %s synthetic/option symbols for company profiles: %s",
                 len(skipped_symbols),
                 list(skipped_symbols)[:10],
             )
 
+        if etf_symbols:
+            logger.debug(
+                "Skipping %s ETF/fund symbols for company profiles: %s",
+                len(etf_symbols),
+                list(sorted(etf_symbols))[:10],
+            )
+
         if not eligible_symbols:
             logger.info(
-                "No eligible symbols found for company profiles (all %s skipped).",
-                len(symbols),
+                "No eligible symbols found for company profiles (%s synthetic, %s ETF/funds).",
+                len(skipped_symbols),
+                len(etf_symbols),
             )
             return {
                 'symbols_successful': 0,
                 'symbols_failed': 0,
-                'symbols_skipped': len(symbols),
+                'symbols_skipped': len(skipped_symbols),
+                'symbols_etf_skipped': len(etf_symbols),
                 'symbols_missing': 0,
                 'symbols_stale': 0,
-                'skipped_symbols': len(skipped_symbols),
             }
 
         # Check which symbols already have profiles
@@ -751,24 +794,26 @@ class MarketDataCollector:
 
         if not symbols_to_fetch:
             logger.info(
-                "All %s eligible symbols already have fresh company profiles (<=3 days old)",
+                "All %s eligible symbols already have fresh company profiles (<=3 days old, %s ETF/funds skipped)",
                 len(eligible_symbols),
+                len(etf_symbols),
             )
             return {
                 'symbols_successful': 0,
                 'symbols_failed': 0,
                 'symbols_skipped': len(skipped_symbols),
+                'symbols_etf_skipped': len(etf_symbols),
                 'symbols_stale': 0,
                 'symbols_missing': 0,
-                'skipped_symbols': len(skipped_symbols),
             }
 
         logger.info(
-            "Fetching company profiles for %s symbols (%s missing, %s stale, %s skipped)...",
+            "Fetching company profiles for %s symbols (%s missing, %s stale, %s synthetic skipped, %s ETF/funds skipped)...",
             len(symbols_to_fetch),
             len(missing_symbols),
             len(stale_symbols),
             len(skipped_symbols),
+            len(etf_symbols),
         )
         logger.debug("Profile fetch symbol list: %s", symbols_to_fetch)
 
@@ -789,7 +834,8 @@ class MarketDataCollector:
 
         results['symbols_missing'] = len(missing_symbols)
         results['symbols_stale'] = len(stale_symbols)
-        results['skipped_symbols'] = len(skipped_symbols)
+        results['symbols_skipped'] = len(skipped_symbols)
+        results['symbols_etf_skipped'] = len(etf_symbols)
         return results
 
 

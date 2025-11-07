@@ -158,15 +158,13 @@ async def apply_sector_tag_to_position(
             "message": f"Position {position_id} not found"
         }
 
-    # Get company profile for the position's symbol
-    profile_stmt = select(CompanyProfile).where(
+    # Get company profile sector for the position's symbol
+    # OPTIMIZATION: Only SELECT sector field (not all 73 fields)
+    profile_stmt = select(CompanyProfile.sector).where(
         CompanyProfile.symbol == position.symbol
     )
     profile_result = await db.execute(profile_stmt)
-    company_profile = profile_result.scalar_one_or_none()
-
-    # Determine sector (or use "Uncategorized" if not available)
-    sector = company_profile.sector if company_profile and company_profile.sector else None
+    sector = profile_result.scalar_one_or_none()  # Returns sector value directly
 
     # Get or create the sector tag
     sector_tag = await get_or_create_sector_tag(db, user_id, sector)

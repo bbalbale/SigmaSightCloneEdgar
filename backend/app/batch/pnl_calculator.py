@@ -212,30 +212,46 @@ class PnLCalculator:
 
         total_daily_pnl = daily_unrealized_pnl + daily_realized_pnl
 
-        # Calculate new equity
+        # Calculate new equity with VERBOSE LOGGING for debugging
         new_equity = previous_equity + total_daily_pnl + daily_capital_flow
-        logger.info(
-            f"    Daily Unrealized P&L: ${daily_unrealized_pnl:,.2f} | "
-            f"Daily Realized P&L: ${daily_realized_pnl:,.2f} | "
-            f"Capital Flow: ${daily_capital_flow:,.2f} | "
-            f"Total P&L: ${total_daily_pnl:,.2f} | New Equity: ${new_equity:,.2f}"
-        )
+
+        # EQUITY DEBUG LOGGING (Step 1 - Critical Investigation)
+        logger.info(f"[EQUITY DEBUG] Portfolio {portfolio_id} ({calculation_date}):")
+        logger.info(f"  Components breakdown:")
+        logger.info(f"    prev_equity:           ${previous_equity:,.2f}")
+        logger.info(f"    daily_unrealized_pnl:  ${daily_unrealized_pnl:,.2f}")
+        logger.info(f"    daily_realized_pnl:    ${daily_realized_pnl:,.2f}")
+        logger.info(f"    daily_capital_flow:    ${daily_capital_flow:,.2f}")
+        logger.info(f"    total_daily_pnl:       ${total_daily_pnl:,.2f}")
+        logger.info(f"  Calculation: {previous_equity} + {daily_unrealized_pnl} + {daily_realized_pnl} + {daily_capital_flow}")
+        logger.info(f"  new_equity:              ${new_equity:,.2f}")
+        logger.info(f"  BEFORE UPDATE: portfolio.equity_balance = ${portfolio.equity_balance:,.2f}")
 
         # Persist rolled equity so Portfolio.equity_balance remains the source of truth
         try:
             portfolio.equity_balance = new_equity
+            logger.info(f"  AFTER ASSIGNMENT: portfolio.equity_balance = ${portfolio.equity_balance:,.2f}")
+
             await db.flush()
-            logger.debug(f"    Updated portfolio equity balance to ${new_equity:,.2f}")
+            logger.info(f"  AFTER FLUSH: portfolio.equity_balance = ${portfolio.equity_balance:,.2f}")
+            logger.info(f"  ✅ EQUITY UPDATE SUCCESSFUL")
         except Exception as e:
-            logger.warning(f"    Could not update portfolio equity balance: {e}")
+            logger.error(f"  ❌ EQUITY UPDATE FAILED: {type(e).__name__}: {e}")
+            logger.error(f"  Exception details:", exc_info=True)
+            # Re-raise to stop processing - silent failures are bad!
+            raise
 
         # Create snapshot with skip_pnl_calculation=True
         # We calculate P&L ourselves for proper equity rollforward
+        # OPTIMIZATION: Skip expensive analytics for historical dates (only needed for current date)
+        is_historical = calculation_date < date.today()
         snapshot_result = await create_portfolio_snapshot(
             db=db,
             portfolio_id=portfolio_id,
             calculation_date=calculation_date,
-            skip_pnl_calculation=True  # V3: We handle P&L calculation here
+            skip_pnl_calculation=True,  # V3: We handle P&L calculation here
+            skip_provider_beta=is_historical,  # Only calculate on current/final date
+            skip_sector_analysis=is_historical  # Only calculate on current/final date
         )
 
         if snapshot_result.get('success'):
@@ -261,7 +277,10 @@ class PnLCalculator:
                     snapshot.cumulative_realized_pnl = daily_realized_pnl
                     snapshot.cumulative_capital_flow = daily_capital_flow
 
+                logger.info(f"  [EQUITY DEBUG] About to commit transaction...")
+                logger.info(f"    Portfolio equity_balance before commit: ${portfolio.equity_balance:,.2f}")
                 await db.commit()
+                logger.info(f"  [EQUITY DEBUG] ✅ TRANSACTION COMMITTED")
 
             logger.info(f"    ✓ Snapshot created")
             return True

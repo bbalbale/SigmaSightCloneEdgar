@@ -26,7 +26,9 @@ async def create_portfolio_snapshot(
     db: AsyncSession,
     portfolio_id: UUID,
     calculation_date: date,
-    skip_pnl_calculation: bool = False
+    skip_pnl_calculation: bool = False,
+    skip_provider_beta: bool = False,
+    skip_sector_analysis: bool = False
 ) -> Dict[str, Any]:
     """
     Generate a complete daily snapshot of portfolio state
@@ -36,6 +38,8 @@ async def create_portfolio_snapshot(
         portfolio_id: UUID of the portfolio
         calculation_date: Date for the snapshot (typically today)
         skip_pnl_calculation: If True, skip P&L calculation (for V3 batch processor)
+        skip_provider_beta: If True, skip provider beta calculation (for historical backfills)
+        skip_sector_analysis: If True, skip sector analysis (for historical backfills)
 
     Returns:
         Dictionary with snapshot creation results
@@ -403,66 +407,74 @@ async def _create_or_update_snapshot(
         logger.info("No calculated beta data available for snapshot")
 
     # Calculate provider beta (1-year, from CompanyProfile)
+    # OPTIMIZATION: Skip for historical dates (only needed for current/final date)
     beta_provider_1y = None
 
-    try:
-        from app.calculations.market_beta import calculate_portfolio_provider_beta
+    if not skip_provider_beta:
+        try:
+            from app.calculations.market_beta import calculate_portfolio_provider_beta
 
-        provider_result = await calculate_portfolio_provider_beta(
-            db=db,
-            portfolio_id=portfolio_id,
-            calculation_date=calculation_date
-        )
-
-        if provider_result.get('success'):
-            beta_provider_1y = Decimal(str(provider_result['portfolio_beta']))
-            logger.info(
-                f"Provider beta (1y) for snapshot: {float(beta_provider_1y):.3f} "
-                f"({provider_result['positions_with_beta']}/{provider_result['positions_count']} positions)"
+            provider_result = await calculate_portfolio_provider_beta(
+                db=db,
+                portfolio_id=portfolio_id,
+                calculation_date=calculation_date
             )
-        else:
-            logger.warning(f"Provider beta calculation failed: {provider_result.get('error')}")
-    except Exception as e:
-        logger.warning(f"Could not calculate provider beta for snapshot: {e}")
+
+            if provider_result.get('success'):
+                beta_provider_1y = Decimal(str(provider_result['portfolio_beta']))
+                logger.info(
+                    f"Provider beta (1y) for snapshot: {float(beta_provider_1y):.3f} "
+                    f"({provider_result['positions_with_beta']}/{provider_result['positions_count']} positions)"
+                )
+            else:
+                logger.warning(f"Provider beta calculation failed: {provider_result.get('error')}")
+        except Exception as e:
+            logger.warning(f"Could not calculate provider beta for snapshot: {e}")
+    else:
+        logger.debug(f"Skipping provider beta calculation for historical snapshot ({calculation_date})")
 
     # Phase 1: Sector exposure and concentration metrics
+    # OPTIMIZATION: Skip for historical dates (only needed for current/final date)
     sector_exposure_json = None
     hhi = None
     effective_num_positions = None
     top_3_concentration = None
     top_10_concentration = None
 
-    try:
-        from app.calculations.sector_analysis import calculate_portfolio_sector_concentration
+    if not skip_sector_analysis:
+        try:
+            from app.calculations.sector_analysis import calculate_portfolio_sector_concentration
 
-        sector_result = await calculate_portfolio_sector_concentration(
-            db=db,
-            portfolio_id=portfolio_id,
-            calculation_date=calculation_date
-        )
+            sector_result = await calculate_portfolio_sector_concentration(
+                db=db,
+                portfolio_id=portfolio_id,
+                calculation_date=calculation_date
+            )
 
-        if sector_result.get('success'):
-            # Extract sector exposure data
-            if sector_result.get('sector_exposure'):
-                se = sector_result['sector_exposure']
-                sector_exposure_json = se.get('portfolio_weights', {})
-                logger.info(f"Sector exposure: {len(sector_exposure_json)} sectors captured")
+            if sector_result.get('success'):
+                # Extract sector exposure data
+                if sector_result.get('sector_exposure'):
+                    se = sector_result['sector_exposure']
+                    sector_exposure_json = se.get('portfolio_weights', {})
+                    logger.info(f"Sector exposure: {len(sector_exposure_json)} sectors captured")
 
-            # Extract concentration metrics
-            if sector_result.get('concentration'):
-                conc = sector_result['concentration']
-                hhi = Decimal(str(conc.get('hhi', 0)))
-                effective_num_positions = Decimal(str(conc.get('effective_num_positions', 0)))
-                top_3_concentration = Decimal(str(conc.get('top_3_concentration', 0)))
-                top_10_concentration = Decimal(str(conc.get('top_10_concentration', 0)))
-                logger.info(
-                    f"Concentration metrics: HHI={float(hhi):.2f}, "
-                    f"Effective positions={float(effective_num_positions):.2f}"
-                )
-        else:
-            logger.warning(f"Sector analysis failed for snapshot: {sector_result.get('error')}")
-    except Exception as e:
-        logger.warning(f"Could not calculate sector/concentration metrics for snapshot: {e}")
+                # Extract concentration metrics
+                if sector_result.get('concentration'):
+                    conc = sector_result['concentration']
+                    hhi = Decimal(str(conc.get('hhi', 0)))
+                    effective_num_positions = Decimal(str(conc.get('effective_num_positions', 0)))
+                    top_3_concentration = Decimal(str(conc.get('top_3_concentration', 0)))
+                    top_10_concentration = Decimal(str(conc.get('top_10_concentration', 0)))
+                    logger.info(
+                        f"Concentration metrics: HHI={float(hhi):.2f}, "
+                        f"Effective positions={float(effective_num_positions):.2f}"
+                    )
+            else:
+                logger.warning(f"Sector analysis failed for snapshot: {sector_result.get('error')}")
+        except Exception as e:
+            logger.warning(f"Could not calculate sector/concentration metrics for snapshot: {e}")
+    else:
+        logger.debug(f"Skipping sector analysis for historical snapshot ({calculation_date})")
 
     # Phase 2: Volatility analytics
     realized_volatility_21d = None

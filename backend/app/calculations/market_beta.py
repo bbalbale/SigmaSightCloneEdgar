@@ -501,7 +501,11 @@ async def calculate_portfolio_provider_beta(
             'error': str (if failed)
         }
     """
-    logger.info(f"Calculating provider beta for portfolio {portfolio_id}")
+    # [STEP 2 DEBUG] Query counter to detect infinite loops
+    company_profile_query_count = 0
+    MAX_QUERIES = 100  # Circuit breaker
+
+    logger.info(f"[PROVIDER BETA DEBUG] Starting calculation for portfolio {portfolio_id}")
 
     try:
         # Get portfolio
@@ -530,12 +534,14 @@ async def calculate_portfolio_provider_beta(
 
         portfolio_equity = float(portfolio.equity_balance)
 
-        # Get active stock positions (LONG/SHORT only, exclude options)
+        # Get active PUBLIC stock positions only (exclude OPTIONS and PRIVATE)
+        # OPTIMIZATION: Provider beta only makes sense for public equities
         positions_stmt = select(Position).where(
             and_(
                 Position.portfolio_id == portfolio_id,
                 Position.exit_date.is_(None),
-                Position.position_type.in_([PositionType.LONG, PositionType.SHORT])
+                Position.position_type.in_([PositionType.LONG, PositionType.SHORT]),
+                Position.investment_class == 'PUBLIC'  # Only public stocks/ETFs
             )
         )
         positions_result = await db.execute(positions_stmt)
@@ -545,7 +551,7 @@ async def calculate_portfolio_provider_beta(
             return {
                 'portfolio_id': portfolio_id,
                 'success': False,
-                'error': 'No active stock positions found'
+                'error': 'No active public stock positions found'
             }
 
         # Calculate provider beta for each position using signed exposures
@@ -553,14 +559,30 @@ async def calculate_portfolio_provider_beta(
         positions_with_beta = 0
         positions_without_beta = 0
 
-        for position in positions:
-            # Get company profile beta
-            profile_stmt = select(CompanyProfile).where(CompanyProfile.symbol == position.symbol)
-            profile_result = await db.execute(profile_stmt)
-            company_profile = profile_result.scalar_one_or_none()
+        logger.info(f"[PROVIDER BETA DEBUG] Processing {len(positions)} positions...")
 
-            if company_profile and company_profile.beta and position.market_value:
-                beta = float(company_profile.beta)
+        for position in positions:
+            # [STEP 2 DEBUG] Track company_profile queries with circuit breaker
+            company_profile_query_count += 1
+            logger.info(f"[QUERY #{company_profile_query_count}] Fetching beta for {position.symbol}")
+
+            if company_profile_query_count > MAX_QUERIES:
+                error_msg = f"CIRCUIT BREAKER: Exceeded {MAX_QUERIES} company_profile queries! Possible infinite loop."
+                logger.error(f"[PROVIDER BETA DEBUG] {error_msg}")
+                return {
+                    'portfolio_id': portfolio_id,
+                    'success': False,
+                    'error': error_msg
+                }
+
+            # Get company profile beta (N+1 QUERY - PERFORMANCE ISSUE)
+            # OPTIMIZATION: Only SELECT beta field (not all 53 fields!)
+            profile_stmt = select(CompanyProfile.beta).where(CompanyProfile.symbol == position.symbol)
+            profile_result = await db.execute(profile_stmt)
+            provider_beta = profile_result.scalar_one_or_none()
+
+            if provider_beta and position.market_value:
+                beta = float(provider_beta)
                 # Use signed exposure (positive for longs, negative for shorts)
                 # Use canonical position value function (signed=True for directional exposure)
                 signed_exposure = float(get_position_value(position, signed=True))
@@ -576,9 +598,7 @@ async def calculate_portfolio_provider_beta(
                 )
             else:
                 positions_without_beta += 1
-                if not company_profile:
-                    logger.warning(f"No company profile for {position.symbol}")
-                elif not company_profile.beta:
+                if not provider_beta:
                     logger.warning(f"No provider beta for {position.symbol}")
 
         if positions_with_beta == 0:
@@ -601,9 +621,15 @@ async def calculate_portfolio_provider_beta(
             'success': True
         }
 
+        # [STEP 2 DEBUG] Report query statistics
         logger.info(
-            f"Provider beta calculated: {portfolio_beta:.3f} "
+            f"[PROVIDER BETA DEBUG] ✅ COMPLETE: {portfolio_beta:.3f} "
             f"({positions_with_beta}/{len(positions)} positions with beta data)"
+        )
+        logger.info(f"[PROVIDER BETA DEBUG] Total company_profile queries: {company_profile_query_count}")
+        logger.warning(
+            f"[PERFORMANCE] N+1 QUERY PATTERN: {company_profile_query_count} individual queries! "
+            f"Should bulk-load company_profiles."
         )
 
         return result

@@ -1,13 +1,13 @@
 """
-Batch Orchestrator - Production-Ready 5-Phase Architecture with Automatic Backfill
+Batch Orchestrator - Production-Ready 6-Phase Architecture with Automatic Backfill
 
-Architecture:
+Architecture (Renumbered 2025-11-06 for clarity):
 - Phase 1: Market Data Collection (1-year lookback)
-- Phase 1.5: Fundamental Data Collection (earnings-driven updates)
-- Phase 2: P&L Calculation & Snapshots (equity rollforward)
-- Phase 2.5: Position Market Value Updates (for analytics accuracy)
-- Phase 2.75: Sector Tag Restoration (auto-tag from company profiles)
-- Phase 3: Risk Analytics (betas, factors, volatility, correlations)
+- Phase 2: Fundamental Data Collection (earnings-driven updates)
+- Phase 3: P&L Calculation & Snapshots (equity rollforward)
+- Phase 4: Position Market Value Updates (for analytics accuracy)
+- Phase 5: Sector Tag Restoration (auto-tag from company profiles)
+- Phase 6: Risk Analytics (betas, factors, volatility, correlations)
 
 Features:
 - Automatic backfill detection
@@ -282,13 +282,18 @@ class BatchOrchestrator:
             'success': False,
             'calculation_date': calculation_date,
             'phase_1': {},
-            'phase_1_5': {},
             'phase_2': {},
             'phase_3': {},
+            'phase_4': {},
+            'phase_5': {},
+            'phase_6': {},
             'errors': []
         }
         insufficient_price_coverage = False
         coverage_details: Dict[str, Any] = {}
+
+        # OPTIMIZATION: Skip company profiles for historical dates (only needed on current/final date)
+        is_historical = calculation_date < date.today()
 
         # Phase 1: Market Data Collection
         try:
@@ -297,7 +302,8 @@ class BatchOrchestrator:
                 calculation_date=calculation_date,
                 lookback_days=365,
                 db=db,
-                portfolio_ids=portfolio_ids
+                portfolio_ids=portfolio_ids,
+                skip_company_profiles=is_historical
             )
             result['phase_1'] = phase1_result
             self._log_phase_result("phase_1", phase1_result)
@@ -311,60 +317,65 @@ class BatchOrchestrator:
             result['errors'].append(f"Phase 1 error: {str(e)}")
             return result
 
-        # Phase 1.5: Fundamental Data Collection
+        # Phase 2: Fundamental Data Collection
+        # OPTIMIZATION: Only run on current/final date (fundamentals don't change historically)
+        if not is_historical:
+            try:
+                self._log_phase_start("phase_2", calculation_date, portfolio_ids)
+                phase2_fundamentals_result = await fundamentals_collector.collect_fundamentals_data(
+                    db=db,
+                    portfolio_ids=portfolio_ids
+                )
+                result['phase_2'] = phase2_fundamentals_result
+                self._log_phase_result("phase_2", phase2_fundamentals_result)
+
+                if not phase2_fundamentals_result.get('success'):
+                    logger.warning("Phase 2 (Fundamentals) had errors, continuing to Phase 3")
+                    # Continue even if fundamentals fail - not critical for P&L
+
+            except Exception as e:
+                logger.error(f"Phase 2 (Fundamentals) error: {e}")
+                result['errors'].append(f"Phase 2 (Fundamentals) error: {str(e)}")
+                # Continue to Phase 3 even if fundamentals fail
+        else:
+            logger.debug(f"Skipping Phase 2 (Fundamentals) for historical date ({calculation_date})")
+            result['phase_2'] = {'success': True, 'skipped': True, 'reason': 'historical_date'}
+
+        # Phase 3: P&L & Snapshots
         try:
-            self._log_phase_start("phase_1_5", calculation_date, portfolio_ids)
-            phase15_result = await fundamentals_collector.collect_fundamentals_data(
-                db=db,
-                portfolio_ids=portfolio_ids
-            )
-            result['phase_1_5'] = phase15_result
-            self._log_phase_result("phase_1_5", phase15_result)
-
-            if not phase15_result.get('success'):
-                logger.warning("Phase 1.5 had errors, continuing to Phase 2")
-                # Continue even if fundamentals fail - not critical for P&L
-
-        except Exception as e:
-            logger.error(f"Phase 1.5 error: {e}")
-            result['errors'].append(f"Phase 1.5 error: {str(e)}")
-            # Continue to Phase 2 even if fundamentals fail
-
-        # Phase 2: P&L & Snapshots
-        try:
-            self._log_phase_start("phase_2", calculation_date, portfolio_ids)
-            phase2_result = await pnl_calculator.calculate_all_portfolios_pnl(
+            self._log_phase_start("phase_3", calculation_date, portfolio_ids)
+            phase3_result = await pnl_calculator.calculate_all_portfolios_pnl(
                 calculation_date=calculation_date,
                 db=db,
                 portfolio_ids=portfolio_ids
             )
-            result['phase_2'] = phase2_result
-            self._log_phase_result("phase_2", phase2_result)
+            result['phase_3'] = phase3_result
+            self._log_phase_result("phase_3", phase3_result)
 
-            if not phase2_result.get('success'):
-                result['errors'].append("Phase 2 had errors")
-                # Continue to Phase 2.5 even if Phase 2 has issues
+            if not phase3_result.get('success'):
+                result['errors'].append("Phase 3 (P&L) had errors")
+                # Continue to Phase 4 even if Phase 3 has issues
 
         except Exception as e:
-            logger.error(f"Phase 2 error: {e}")
-            result['errors'].append(f"Phase 2 error: {str(e)}")
-            # Continue to Phase 2.5
+            logger.error(f"Phase 3 (P&L) error: {e}")
+            result['errors'].append(f"Phase 3 (P&L) error: {str(e)}")
+            # Continue to Phase 4
 
-        # Phase 2.5: Update Position Market Values (CRITICAL for Phase 3 analytics)
+        # Phase 4: Update Position Market Values (CRITICAL for Phase 6 analytics)
         try:
-            self._log_phase_start("phase_2_5", calculation_date, portfolio_ids)
-            phase25_result = await self._update_all_position_market_values(
+            self._log_phase_start("phase_4", calculation_date, portfolio_ids)
+            phase4_result = await self._update_all_position_market_values(
                 calculation_date=calculation_date,
                 db=db,
                 portfolio_ids=portfolio_ids
             )
-            result['phase_2_5'] = phase25_result
-            self._log_phase_result("phase_2_5", phase25_result)
+            result['phase_4'] = phase4_result
+            self._log_phase_result("phase_4", phase4_result)
 
-            if phase25_result:
-                total_positions = phase25_result.get('total_positions') or 0
-                positions_skipped = phase25_result.get('positions_skipped') or 0
-                positions_ignored = phase25_result.get('positions_ignored', 0)
+            if phase4_result:
+                total_positions = phase4_result.get('total_positions') or 0
+                positions_skipped = phase4_result.get('positions_skipped') or 0
+                positions_ignored = phase4_result.get('positions_ignored', 0)
                 coverage_details = {
                     'total_positions': total_positions,
                     'positions_skipped': positions_skipped,
@@ -378,13 +389,13 @@ class BatchOrchestrator:
                     if missing_ratio > 0.05:
                         insufficient_price_coverage = True
                         message = (
-                            f"Phase 2.5 insufficient price coverage: "
+                            f"Phase 4 insufficient price coverage: "
                             f"{positions_skipped}/{total_positions} positions missing ({missing_ratio:.1%})"
                         )
                         logger.error(message)
                         result['errors'].append(message)
                         record_metric(
-                            "phase_2_5_insufficient_coverage",
+                            "phase_4_insufficient_coverage",
                             {
                                 'calculation_date': calculation_date.isoformat(),
                                 'portfolio_scope': len(portfolio_ids) if portfolio_ids else "all",
@@ -392,47 +403,52 @@ class BatchOrchestrator:
                             },
                         )
 
-            if not phase25_result.get('success'):
-                logger.warning("Phase 2.5 had errors, continuing to Phase 2.75")
-                # Continue to Phase 2.75 even if position updates fail
+            if not phase4_result.get('success'):
+                logger.warning("Phase 4 (Position Updates) had errors, continuing to Phase 5")
+                # Continue to Phase 5 even if position updates fail
 
         except Exception as e:
-            logger.error(f"Phase 2.5 error: {e}")
-            result['errors'].append(f"Phase 2.5 error: {str(e)}")
-            # Continue to Phase 2.75
+            logger.error(f"Phase 4 (Position Updates) error: {e}")
+            result['errors'].append(f"Phase 4 (Position Updates) error: {str(e)}")
+            # Continue to Phase 5
 
-        # Phase 2.75: Restore Sector Tags from Company Profiles
-        try:
-            self._log_phase_start("phase_2_75", calculation_date, portfolio_ids)
-            phase275_result = await self._restore_all_sector_tags(
-                db=db,
-                portfolio_ids=portfolio_ids
-            )
-            result['phase_2_75'] = phase275_result
-            self._log_phase_result("phase_2_75", phase275_result)
+        # Phase 5: Restore Sector Tags from Company Profiles
+        # OPTIMIZATION: Only run on current/final date (tags don't change historically)
+        if not is_historical:
+            try:
+                self._log_phase_start("phase_5", calculation_date, portfolio_ids)
+                phase5_result = await self._restore_all_sector_tags(
+                    db=db,
+                    portfolio_ids=portfolio_ids
+                )
+                result['phase_5'] = phase5_result
+                self._log_phase_result("phase_5", phase5_result)
 
-            if not phase275_result.get('success'):
-                logger.warning("Phase 2.75 had errors, continuing to Phase 3")
-                # Continue to Phase 3 even if sector tagging fails
+                if not phase5_result.get('success'):
+                    logger.warning("Phase 5 (Sector Tags) had errors, continuing to Phase 6")
+                    # Continue to Phase 6 even if sector tagging fails
 
-        except Exception as e:
-            logger.error(f"Phase 2.75 error: {e}")
-            result['errors'].append(f"Phase 2.75 error: {str(e)}")
-            # Continue to Phase 3
+            except Exception as e:
+                logger.error(f"Phase 5 (Sector Tags) error: {e}")
+                result['errors'].append(f"Phase 5 (Sector Tags) error: {str(e)}")
+                # Continue to Phase 6
+        else:
+            logger.debug(f"Skipping Phase 5 (Sector Tags) for historical date ({calculation_date})")
+            result['phase_5'] = {'success': True, 'skipped': True, 'reason': 'historical_date'}
 
-        # Phase 3: Risk Analytics
+        # Phase 6: Risk Analytics
         if insufficient_price_coverage:
-            logger.error("Skipping Phase 3 due to insufficient price coverage in Phase 2.5")
-            phase3_result = {
+            logger.error("Skipping Phase 6 due to insufficient price coverage in Phase 4")
+            phase6_result = {
                 'success': False,
                 'skipped': True,
                 'reason': 'insufficient_price_coverage',
                 **coverage_details,
             }
-            result['phase_3'] = phase3_result
-            self._log_phase_result("phase_3", phase3_result)
+            result['phase_6'] = phase6_result
+            self._log_phase_result("phase_6", phase6_result)
             record_metric(
-                "phase_3_skipped",
+                "phase_6_skipped",
                 {
                     'calculation_date': calculation_date.isoformat(),
                     'portfolio_scope': len(portfolio_ids) if portfolio_ids else "all",
@@ -441,22 +457,22 @@ class BatchOrchestrator:
             )
         else:
             try:
-                self._log_phase_start("phase_3", calculation_date, portfolio_ids)
-                phase3_result = await analytics_runner.run_all_portfolios_analytics(
+                self._log_phase_start("phase_6", calculation_date, portfolio_ids)
+                phase6_result = await analytics_runner.run_all_portfolios_analytics(
                     calculation_date=calculation_date,
                     db=db,
                     portfolio_ids=portfolio_ids,
                     run_sector_analysis=run_sector_analysis,
                 )
-                result['phase_3'] = phase3_result
-                self._log_phase_result("phase_3", phase3_result)
+                result['phase_6'] = phase6_result
+                self._log_phase_result("phase_6", phase6_result)
 
-                if not phase3_result.get('success'):
-                    result['errors'].append("Phase 3 had errors")
+                if not phase6_result.get('success'):
+                    result['errors'].append("Phase 6 (Analytics) had errors")
 
             except Exception as e:
-                logger.error(f"Phase 3 error: {e}")
-                result['errors'].append(f"Phase 3 error: {str(e)}")
+                logger.error(f"Phase 6 (Analytics) error: {e}")
+                result['errors'].append(f"Phase 6 (Analytics) error: {str(e)}")
 
         # Determine overall success
         result['success'] = len(result['errors']) == 0
