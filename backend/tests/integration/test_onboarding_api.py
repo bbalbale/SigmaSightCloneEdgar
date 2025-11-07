@@ -389,6 +389,75 @@ MSFT,75,380.00,2024-01-20,PUBLIC,STOCK,,,,,,
         data = response.json()
         assert data["error"]["code"] == "ERR_PORT_008"
 
+    def test_uuid_collision_prevention(self, client, mock_market_data_services):
+        """
+        Test that same portfolio_name with different account_name produces different UUIDs.
+
+        This is a critical test for Phase 2 UUID strategy:
+        - UUIDs are generated using (user_id, account_name) not (user_id, portfolio_name)
+        - This allows users to have multiple portfolios with the same display name
+        - For example: "Retirement" for both IRA and 401k accounts
+        """
+        token = self.register_and_login(client)
+
+        csv_content = "Symbol,Quantity,Entry Price Per Share,Entry Date,Investment Class,Investment Subtype,Underlying Symbol,Strike Price,Expiration Date,Option Type,Exit Date,Exit Price Per Share\nAAPL,100,158.00,2024-01-15,PUBLIC,STOCK,,,,,,"
+
+        # Create first portfolio with name "Retirement" and account "IRA Account"
+        response1 = client.post(
+            "/api/v1/onboarding/create-portfolio",
+            data={
+                "portfolio_name": "Retirement",  # Same portfolio_name
+                "account_name": "IRA Account",    # Different account_name
+                "account_type": "ira",
+                "equity_balance": "100000"
+            },
+            files={
+                "csv_file": ("positions.csv", io.BytesIO(csv_content.encode()), "text/csv")
+            },
+            headers={"Authorization": f"Bearer {token}"}
+        )
+
+        # Create second portfolio with same name "Retirement" but different account "401k Account"
+        response2 = client.post(
+            "/api/v1/onboarding/create-portfolio",
+            data={
+                "portfolio_name": "Retirement",  # Same portfolio_name
+                "account_name": "401k Account",   # Different account_name
+                "account_type": "401k",
+                "equity_balance": "200000"
+            },
+            files={
+                "csv_file": ("positions.csv", io.BytesIO(csv_content.encode()), "text/csv")
+            },
+            headers={"Authorization": f"Bearer {token}"}
+        )
+
+        # Both should succeed
+        assert response1.status_code == 201
+        assert response2.status_code == 201
+
+        # Extract portfolio IDs
+        portfolio_id1 = response1.json()["portfolio_id"]
+        portfolio_id2 = response2.json()["portfolio_id"]
+
+        # CRITICAL: Portfolio IDs must be different despite same portfolio_name
+        assert portfolio_id1 != portfolio_id2, (
+            f"UUID collision detected! Same portfolio_name 'Retirement' with different "
+            f"account_names should produce different UUIDs. Got: {portfolio_id1} and {portfolio_id2}"
+        )
+
+        # Verify both portfolios have the correct metadata
+        data1 = response1.json()
+        data2 = response2.json()
+
+        assert data1["portfolio_name"] == "Retirement"
+        assert data1["account_name"] == "IRA Account"
+        assert data1["account_type"] == "ira"
+
+        assert data2["portfolio_name"] == "Retirement"
+        assert data2["account_name"] == "401k Account"
+        assert data2["account_type"] == "401k"
+
 
 class TestCalculateEndpoint:
     """Test POST /api/v1/portfolio/{portfolio_id}/calculate"""
