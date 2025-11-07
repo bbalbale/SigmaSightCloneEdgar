@@ -186,12 +186,14 @@ class BatchOrchestrator:
         if len(missing_dates) > 1:
             logger.info(f"🚀 OPTIMIZATION: Pre-loading multi-day price cache for {len(missing_dates)} dates")
             async with AsyncSessionLocal() as cache_db:
-                # Get all symbols from active positions
+                # Get all symbols from active PUBLIC/OPTIONS positions
+                # Skip PRIVATE positions - they don't have market prices
                 symbols_stmt = select(Position.symbol).where(
                     and_(
                         Position.deleted_at.is_(None),
                         Position.symbol.isnot(None),
-                        Position.symbol != ''
+                        Position.symbol != '',
+                        Position.investment_class.in_(['PUBLIC', 'OPTIONS'])  # Exclude PRIVATE
                     )
                 ).distinct()
                 symbols_result = await cache_db.execute(symbols_stmt)
