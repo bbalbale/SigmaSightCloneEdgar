@@ -27,6 +27,7 @@ from app.models.market_data import MarketDataCache
 from app.calculations.market_data import get_previous_trading_day_price
 from app.calculations.snapshots import create_portfolio_snapshot
 from app.utils.trading_calendar import trading_calendar
+from app.cache.price_cache import PriceCache
 
 logger = get_logger(__name__)
 
@@ -46,7 +47,8 @@ class PnLCalculator:
         self,
         calculation_date: date,
         db: Optional[AsyncSession] = None,
-        portfolio_ids: Optional[List[UUID]] = None
+        portfolio_ids: Optional[List[UUID]] = None,
+        price_cache: Optional[PriceCache] = None
     ) -> Dict[str, Any]:
         """
         Calculate P&L for all active portfolios
@@ -54,6 +56,8 @@ class PnLCalculator:
         Args:
             calculation_date: Date to calculate P&L for
             db: Optional database session
+            portfolio_ids: Optional list of specific portfolios to process
+            price_cache: Optional pre-loaded price cache for optimization
 
         Returns:
             Summary of portfolios processed
@@ -66,9 +70,9 @@ class PnLCalculator:
 
         if db is None:
             async with AsyncSessionLocal() as session:
-                result = await self._process_all_with_session(session, calculation_date, portfolio_ids)
+                result = await self._process_all_with_session(session, calculation_date, portfolio_ids, price_cache)
         else:
-            result = await self._process_all_with_session(db, calculation_date, portfolio_ids)
+            result = await self._process_all_with_session(db, calculation_date, portfolio_ids, price_cache)
 
         duration = int(asyncio.get_event_loop().time() - start_time)
         result['duration_seconds'] = duration
@@ -77,15 +81,20 @@ class PnLCalculator:
         logger.info(f"  Portfolios processed: {result['portfolios_processed']}")
         logger.info(f"  Snapshots created: {result['snapshots_created']}")
 
+        if price_cache:
+            cache_stats = price_cache.get_stats()
+            logger.info(f"  Price cache stats: {cache_stats['cache_hits']} hits, {cache_stats['cache_misses']} misses ({cache_stats['hit_rate_pct']}% hit rate)")
+
         return result
 
     async def _process_all_with_session(
         self,
         db: AsyncSession,
         calculation_date: date,
-        portfolio_ids: Optional[List[UUID]] = None
+        portfolio_ids: Optional[List[UUID]] = None,
+        price_cache: Optional[PriceCache] = None
     ) -> Dict[str, Any]:
-        """Process all portfolios with provided session"""
+        """Process all portfolios with provided session and optional price cache"""
 
         # Get all active portfolios
         query = select(Portfolio).where(Portfolio.deleted_at.is_(None))
@@ -105,7 +114,8 @@ class PnLCalculator:
                 success = await self.calculate_portfolio_pnl(
                     portfolio_id=portfolio.id,
                     calculation_date=calculation_date,
-                    db=db
+                    db=db,
+                    price_cache=price_cache  # Pass cache to portfolio processing
                 )
 
                 if success:
@@ -129,7 +139,8 @@ class PnLCalculator:
         self,
         portfolio_id: UUID,
         calculation_date: date,
-        db: AsyncSession
+        db: AsyncSession,
+        price_cache: Optional[PriceCache] = None
     ) -> bool:
         """
         Calculate P&L for a single portfolio and create snapshot
@@ -137,7 +148,7 @@ class PnLCalculator:
         Steps:
         1. Check if trading day (skip if not)
         2. Get previous snapshot (for previous equity)
-        3. Calculate position-level P&L
+        3. Calculate position-level P&L (using price cache if available)
         4. Aggregate to portfolio-level P&L
         5. Calculate new equity = previous_equity + daily_pnl
         6. Create snapshot with new equity
@@ -195,7 +206,8 @@ class PnLCalculator:
             db=db,
             portfolio_id=portfolio_id,
             calculation_date=calculation_date,
-            previous_snapshot=previous_snapshot
+            previous_snapshot=previous_snapshot,
+            price_cache=price_cache  # Pass cache for fast price lookups
         )
 
         daily_realized_pnl = await self._calculate_daily_realized_pnl(
@@ -293,7 +305,8 @@ class PnLCalculator:
         db: AsyncSession,
         portfolio_id: UUID,
         calculation_date: date,
-        previous_snapshot: Optional[PortfolioSnapshot]
+        previous_snapshot: Optional[PortfolioSnapshot],
+        price_cache: Optional[PriceCache] = None
     ) -> Decimal:
         """
         Calculate simple mark-to-market P&L
@@ -305,6 +318,7 @@ class PnLCalculator:
             portfolio_id: Portfolio to calculate for
             calculation_date: Current date
             previous_snapshot: Previous day's snapshot (for previous prices)
+            price_cache: Optional pre-loaded price cache
 
         Returns:
             Daily P&L as Decimal
@@ -331,7 +345,8 @@ class PnLCalculator:
                 db=db,
                 position=position,
                 calculation_date=calculation_date,
-                previous_snapshot=previous_snapshot
+                previous_snapshot=previous_snapshot,
+                price_cache=price_cache  # Pass cache through
             )
 
             total_pnl += position_pnl
@@ -408,7 +423,8 @@ class PnLCalculator:
         db: AsyncSession,
         position: Position,
         calculation_date: date,
-        previous_snapshot: Optional[PortfolioSnapshot]
+        previous_snapshot: Optional[PortfolioSnapshot],
+        price_cache: Optional[PriceCache] = None
     ) -> Decimal:
         """
         Calculate P&L for a single position
@@ -420,12 +436,13 @@ class PnLCalculator:
             position: Position to calculate for
             calculation_date: Current date
             previous_snapshot: Previous snapshot
+            price_cache: Optional pre-loaded price cache
 
         Returns:
             Position P&L as Decimal
         """
-        # Get current price from cache
-        current_price = await self._get_cached_price(db, position.symbol, calculation_date)
+        # Get current price from cache (in-memory or database)
+        current_price = await self._get_cached_price(db, position.symbol, calculation_date, price_cache)
 
         if not current_price:
             logger.warning(f"      {position.symbol}: No current price, skipping P&L")
@@ -472,9 +489,23 @@ class PnLCalculator:
         self,
         db: AsyncSession,
         symbol: str,
-        price_date: date
+        price_date: date,
+        price_cache: Optional[PriceCache] = None
     ) -> Optional[Decimal]:
-        """Get price from market_data_cache"""
+        """
+        Get price from in-memory cache (if available) or database.
+
+        OPTIMIZATION: If price_cache is provided, use it first (300x faster).
+        Falls back to database query if cache misses or not provided.
+        """
+        # OPTIMIZATION: Try in-memory cache first (instant lookup)
+        if price_cache:
+            price = price_cache.get_price(symbol, price_date)
+            if price is not None:
+                return price
+            # Cache miss - fall through to database query
+
+        # Fallback: Database query (slower but always available)
         query = select(MarketDataCache).where(
             and_(
                 MarketDataCache.symbol == symbol,

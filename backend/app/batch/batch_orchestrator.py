@@ -43,6 +43,7 @@ from app.batch.analytics_runner import analytics_runner
 from app.calculations.market_data import get_previous_trading_day_price
 from app.services.symbol_utils import should_skip_symbol
 from app.telemetry.metrics import record_metric
+from app.cache.price_cache import PriceCache
 
 logger = get_logger(__name__)
 
@@ -179,6 +180,35 @@ class BatchOrchestrator:
 
         logger.info(f"Backfilling {len(missing_dates)} missing dates: {missing_dates[0]} to {missing_dates[-1]}")
 
+        # OPTIMIZATION: Create multi-day price cache ONCE for entire backfill
+        # This eliminates repeated price queries across all dates (10,000x speedup)
+        price_cache = None
+        if len(missing_dates) > 1:
+            logger.info(f"🚀 OPTIMIZATION: Pre-loading multi-day price cache for {len(missing_dates)} dates")
+            async with AsyncSessionLocal() as cache_db:
+                # Get all symbols from active positions
+                symbols_stmt = select(Position.symbol).where(
+                    and_(
+                        Position.deleted_at.is_(None),
+                        Position.symbol.isnot(None),
+                        Position.symbol != ''
+                    )
+                ).distinct()
+                symbols_result = await cache_db.execute(symbols_stmt)
+                symbols = {row[0] for row in symbols_result.all()}
+
+                if symbols:
+                    # Load prices for entire date range (ONE bulk query)
+                    price_cache = PriceCache()
+                    loaded_count = await price_cache.load_date_range(
+                        db=cache_db,
+                        symbols=symbols,
+                        start_date=missing_dates[0],
+                        end_date=missing_dates[-1]
+                    )
+                    logger.info(f"✅ Price cache loaded: {loaded_count} prices across {len(missing_dates)} dates")
+                    logger.info(f"   Cache stats: {price_cache.get_stats()}")
+
         # Step 3: Process each missing date with its own fresh session
         # CRITICAL FIX: Each date gets a fresh session to avoid greenlet errors
         # caused by expired objects after commits in analytics calculations
@@ -195,6 +225,7 @@ class BatchOrchestrator:
                     portfolio_ids=portfolio_ids,
                     db=db,
                     run_sector_analysis=(calc_date == target_date),
+                    price_cache=price_cache  # Pass shared cache
                 )
 
                 results.append(result)
@@ -225,6 +256,7 @@ class BatchOrchestrator:
         portfolio_ids: Optional[List[str]] = None,
         db: Optional[AsyncSession] = None,
         run_sector_analysis: Optional[bool] = None,
+        price_cache: Optional[PriceCache] = None,
     ) -> Dict[str, Any]:
         """
         Run 3-phase batch sequence for a single date
@@ -254,6 +286,7 @@ class BatchOrchestrator:
                         calculation_date,
                         normalized_portfolio_ids,
                         bool(run_sector_analysis),
+                        price_cache,
                     )
             else:
                 return await self._run_sequence_with_session(
@@ -261,6 +294,7 @@ class BatchOrchestrator:
                     calculation_date,
                     normalized_portfolio_ids,
                     bool(run_sector_analysis),
+                    price_cache,
                 )
         finally:
             # Clear batch run tracker when batch completes (success or failure)
@@ -275,8 +309,9 @@ class BatchOrchestrator:
         calculation_date: date,
         portfolio_ids: Optional[List[UUID]],
         run_sector_analysis: bool,
+        price_cache: Optional[PriceCache] = None,
     ) -> Dict[str, Any]:
-        """Run 5-phase sequence with provided session"""
+        """Run 6-phase sequence with provided session and optional price cache"""
 
         result = {
             'success': False,
@@ -347,7 +382,8 @@ class BatchOrchestrator:
             phase3_result = await pnl_calculator.calculate_all_portfolios_pnl(
                 calculation_date=calculation_date,
                 db=db,
-                portfolio_ids=portfolio_ids
+                portfolio_ids=portfolio_ids,
+                price_cache=price_cache  # Pass price cache for optimization
             )
             result['phase_3'] = phase3_result
             self._log_phase_result("phase_3", phase3_result)

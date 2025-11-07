@@ -125,76 +125,81 @@ async def _execute_recalculation(db: AsyncSession, portfolio_id: UUID):
     3. Portfolio snapshot creation
 
     Args:
-        db: Database session
+        db: Database session (not used - we create independent session)
         portfolio_id: Portfolio to recalculate
     """
     from datetime import date
+    from app.database import get_async_session
 
     calculation_date = date.today()
 
-    try:
-        logger.info(f"Starting background recalculation for portfolio {portfolio_id}")
+    # CRITICAL FIX: Create NEW independent session for background operations
+    # This prevents "another operation is in progress" errors when batch
+    # processing or other API operations are running simultaneously
+    async with get_async_session() as independent_db:
+        try:
+            logger.info(f"Starting background recalculation for portfolio {portfolio_id} (independent session)")
 
-        # 1. Calculate ridge factors
-        logger.info(f"Calculating ridge factors for portfolio {portfolio_id}")
-        ridge_result = await calculate_factor_betas_ridge(
-            db=db,
-            portfolio_id=portfolio_id,
-            calculation_date=calculation_date,
-            regularization_alpha=1.0,
-            use_delta_adjusted=False,
-            context=None
-        )
-
-        if ridge_result.get('success'):
-            logger.info(
-                f"Ridge factors calculated for portfolio {portfolio_id}: "
-                f"{ridge_result.get('factors_calculated', 0)} factors"
-            )
-        else:
-            logger.warning(
-                f"Ridge factor calculation failed for portfolio {portfolio_id}: "
-                f"{ridge_result.get('error')}"
+            # 1. Calculate ridge factors
+            logger.info(f"Calculating ridge factors for portfolio {portfolio_id}")
+            ridge_result = await calculate_factor_betas_ridge(
+                db=independent_db,  # Use independent session
+                portfolio_id=portfolio_id,
+                calculation_date=calculation_date,
+                regularization_alpha=1.0,
+                use_delta_adjusted=False,
+                context=None
             )
 
-        # 2. Calculate 90-day market beta
-        logger.info(f"Calculating 90-day market beta for portfolio {portfolio_id}")
-        beta_90d_result = await calculate_portfolio_market_beta(
-            db=db,
-            portfolio_id=portfolio_id,
-            calculation_date=calculation_date,
-            window_days=90
-        )
+            if ridge_result.get('success'):
+                logger.info(
+                    f"Ridge factors calculated for portfolio {portfolio_id}: "
+                    f"{ridge_result.get('factors_calculated', 0)} factors"
+                )
+            else:
+                logger.warning(
+                    f"Ridge factor calculation failed for portfolio {portfolio_id}: "
+                    f"{ridge_result.get('error')}"
+                )
 
-        # 3. Calculate 1-year provider beta
-        logger.info(f"Calculating 1-year provider beta for portfolio {portfolio_id}")
-        beta_1y_result = await calculate_portfolio_provider_beta(
-            db=db,
-            portfolio_id=portfolio_id,
-            calculation_date=calculation_date
-        )
-
-        # 4. Create/update portfolio snapshot
-        logger.info(f"Creating portfolio snapshot for portfolio {portfolio_id}")
-        snapshot_result = await create_portfolio_snapshot(
-            db=db,
-            portfolio_id=portfolio_id,
-            calculation_date=calculation_date
-        )
-
-        if snapshot_result.get('success'):
-            logger.info(
-                f"Portfolio snapshot created for portfolio {portfolio_id}: "
-                f"Beta 90d={snapshot_result.get('beta_calculated_90d')}, "
-                f"Beta 1y={snapshot_result.get('beta_provider_1y')}"
-            )
-        else:
-            logger.warning(
-                f"Portfolio snapshot creation failed for portfolio {portfolio_id}: "
-                f"{snapshot_result.get('error')}"
+            # 2. Calculate 90-day market beta
+            logger.info(f"Calculating 90-day market beta for portfolio {portfolio_id}")
+            beta_90d_result = await calculate_portfolio_market_beta(
+                db=independent_db,  # Use independent session
+                portfolio_id=portfolio_id,
+                calculation_date=calculation_date,
+                window_days=90
             )
 
-        logger.info(f"Background recalculation completed for portfolio {portfolio_id}")
+            # 3. Calculate 1-year provider beta
+            logger.info(f"Calculating 1-year provider beta for portfolio {portfolio_id}")
+            beta_1y_result = await calculate_portfolio_provider_beta(
+                db=independent_db,  # Use independent session
+                portfolio_id=portfolio_id,
+                calculation_date=calculation_date
+            )
+
+            # 4. Create/update portfolio snapshot
+            logger.info(f"Creating portfolio snapshot for portfolio {portfolio_id}")
+            snapshot_result = await create_portfolio_snapshot(
+                db=independent_db,  # Use independent session
+                portfolio_id=portfolio_id,
+                calculation_date=calculation_date
+            )
+
+            if snapshot_result.get('success'):
+                logger.info(
+                    f"Portfolio snapshot created for portfolio {portfolio_id}: "
+                    f"Beta 90d={snapshot_result.get('beta_calculated_90d')}, "
+                    f"Beta 1y={snapshot_result.get('beta_provider_1y')}"
+                )
+            else:
+                logger.warning(
+                    f"Portfolio snapshot creation failed for portfolio {portfolio_id}: "
+                    f"{snapshot_result.get('error')}"
+                )
+
+            logger.info(f"Background recalculation completed for portfolio {portfolio_id}")
 
     except Exception as e:
         logger.error(
