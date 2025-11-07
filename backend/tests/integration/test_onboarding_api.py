@@ -458,6 +458,72 @@ MSFT,75,380.00,2024-01-20,PUBLIC,STOCK,,,,,,
         assert data2["account_name"] == "401k Account"
         assert data2["account_type"] == "401k"
 
+    def test_all_account_types_accepted(self, client, mock_market_data_services):
+        """
+        Test that all 9 account types are accepted and validated correctly.
+
+        Valid account types (Phase 2):
+        - taxable: Standard brokerage account
+        - ira: Traditional IRA
+        - roth_ira: Roth IRA
+        - 401k: 401(k) retirement plan
+        - 403b: 403(b) retirement plan
+        - 529: 529 education savings plan
+        - hsa: Health Savings Account
+        - trust: Trust account
+        - other: Other account types
+        """
+        token = self.register_and_login(client)
+
+        csv_content = "Symbol,Quantity,Entry Price Per Share,Entry Date,Investment Class,Investment Subtype,Underlying Symbol,Strike Price,Expiration Date,Option Type,Exit Date,Exit Price Per Share\nAAPL,100,158.00,2024-01-15,PUBLIC,STOCK,,,,,,"
+
+        # All 9 valid account types
+        account_types = [
+            ("taxable", "Schwab Brokerage"),
+            ("ira", "Vanguard IRA"),
+            ("roth_ira", "Fidelity Roth IRA"),
+            ("401k", "Company 401k"),
+            ("403b", "University 403b"),
+            ("529", "Education Savings"),
+            ("hsa", "Health Savings"),
+            ("trust", "Family Trust"),
+            ("other", "Crypto Exchange")
+        ]
+
+        portfolio_ids = []
+        for account_type, account_name in account_types:
+            response = client.post(
+                "/api/v1/onboarding/create-portfolio",
+                data={
+                    "portfolio_name": f"{account_type.upper()} Portfolio",
+                    "account_name": account_name,
+                    "account_type": account_type,
+                    "equity_balance": "100000"
+                },
+                files={
+                    "csv_file": ("positions.csv", io.BytesIO(csv_content.encode()), "text/csv")
+                },
+                headers={"Authorization": f"Bearer {token}"}
+            )
+
+            # Each account type should succeed
+            assert response.status_code == 201, (
+                f"Failed to create portfolio with account_type='{account_type}'. "
+                f"Status: {response.status_code}, Response: {response.json()}"
+            )
+
+            data = response.json()
+
+            # Verify response includes correct account_type
+            assert data["account_type"] == account_type
+            assert data["account_name"] == account_name
+            assert data["portfolio_name"] == f"{account_type.upper()} Portfolio"
+
+            portfolio_ids.append(data["portfolio_id"])
+
+        # Verify all 9 portfolios were created with unique IDs
+        assert len(set(portfolio_ids)) == 9, "All portfolios should have unique IDs"
+
 
 class TestCalculateEndpoint:
     """Test POST /api/v1/portfolio/{portfolio_id}/calculate"""
