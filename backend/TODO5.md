@@ -1100,6 +1100,10 @@ async def startup_validation():
 
 **Status**: ✅ **COMPLETED** (2025-11-06)
 
+**Additional Work Completed**:
+- ✅ **Phase 2.1**: Code review fixes (unique constraint, max-length validation)
+- ✅ **Phase 2.2**: UUID consistency fix (CRUD endpoint now uses UUIDStrategy)
+
 ---
 
 ### 2.1 Update CSV Import Endpoint Schema
@@ -1411,6 +1415,49 @@ UNIQUE (user_id, account_name);
 ```
 
 **Deployment**: Run `uv run alembic upgrade head` to apply migration before deploying code.
+
+---
+
+## Phase 2.2: UUID Consistency Fix (2025-11-06)
+
+**Status**: ✅ **COMPLETED**
+
+**Problem**: UUID generation inconsistency between onboarding CSV and CRUD API portfolio creation paths caused cross-machine testing failures and broken demo user experience.
+
+### Issue: Parallel Code Paths with Different UUID Strategies
+
+**Root Cause**: Two separate portfolio creation paths used different UUID generation approaches:
+1. **Onboarding CSV endpoint** (`app/api/v1/onboarding.py`): Used `generate_portfolio_uuid(user_id, account_name)` from UUIDStrategy
+2. **CRUD API endpoint** (`app/api/v1/portfolios.py`): Used inline `uuid4()` call
+
+**Impact**:
+- When `DETERMINISTIC_UUIDS=True`: CSV imports created deterministic UUIDs (uuid5), but CRUD API always created random UUIDs (uuid4)
+- Demo users got different portfolio IDs for the same account_name depending on which endpoint they used
+- Cross-machine testing with deterministic UUIDs failed due to inconsistency
+
+### Fix: Use Shared UUIDStrategy in Both Paths
+
+**Solution Implemented (Option 1 - Quick Fix)**:
+- Updated CRUD endpoint to use shared `generate_portfolio_uuid()` function
+- Both creation paths now respect `DETERMINISTIC_UUIDS` configuration setting
+- When `DETERMINISTIC_UUIDS=True`: Both use `uuid5(NAMESPACE_DNS, f"{user_id}:{account_name}")`
+- When `DETERMINISTIC_UUIDS=False`: Both use `uuid4()` (production default)
+
+**Files Changed**:
+1. `app/api/v1/portfolios.py` (commit 78a162c1):
+   - Added import: `from app.core.uuid_strategy import generate_portfolio_uuid`
+   - Replaced inline `uuid4()` with `generate_portfolio_uuid(user_id, account_name)` (lines 66-70)
+   - Removed unused `uuid4` import
+
+**Testing**:
+- ✅ Verified no remaining `uuid4()` calls in portfolios.py
+- ✅ Both endpoints now use identical UUID generation logic
+- ✅ Demo users get consistent portfolio IDs across environments
+- ⏳ Comprehensive UUID collision tests still needed (future work)
+
+**Result**: Both portfolio creation endpoints now share the same UUID generation strategy, ensuring consistency across all environments and usage patterns.
+
+**Commit**: `78a162c1 - fix(portfolios): use UUIDStrategy for consistent portfolio UUID generation`
 
 ---
 
@@ -1832,16 +1879,18 @@ For each major feature:
 ## Progress Tracking
 
 ### Phase 1: Core Onboarding
-- **Status**: NOT STARTED
-- **Started**: TBD
-- **Target Completion**: TBD
-- **Actual Completion**: TBD
+- **Status**: ✅ COMPLETED
+- **Started**: 2025-10-29
+- **Target Completion**: 2025-10-30
+- **Actual Completion**: 2025-10-30
+- **Notes**: End-to-end onboarding flow shipped with comprehensive validation, preprocessing pipeline, and integration with batch processing.
 
 ### Phase 2: Multi-Portfolio Support
-- **Status**: IN PROGRESS
+- **Status**: ✅ COMPLETED
 - **Started**: 2025-11-06
-- **Target Completion**: TBD
-- **Actual Completion**: TBD
+- **Target Completion**: 2025-11-06
+- **Actual Completion**: 2025-11-06 (including Phase 2.1 code review fixes and Phase 2.2 UUID consistency fix)
+- **Notes**: Multi-portfolio support fully integrated with validation, unique constraints, and UUID consistency across all creation paths.
 
 ### Phase 3: Admin & Superuser
 - **Status**: NOT STARTED
