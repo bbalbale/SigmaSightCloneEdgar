@@ -22,7 +22,13 @@
       "Bash(docker exec:*)",
       "Bash(docker-compose up:*)",
       "Bash(git checkout:*)",
-      "Bash(git merge:*)"
+      "Bash(git merge:*)",
+      "Bash(docker-compose restart:*)",
+      "Bash(docker-compose down:*)",
+      "Bash(npm run dev:*)",
+      "Bash(netstat:*)",
+      "Bash(findstr:*)",
+      "Bash(taskkill:*)"
     ],
     "deny": [],
     "ask": [],

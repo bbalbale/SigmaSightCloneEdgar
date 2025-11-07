@@ -1,4 +1,4 @@
-# SigmaSight Equity & P&L Remediation Plan
+phase # SigmaSight Equity & P&L Remediation Plan
 
 _Last reviewed: 2025-11-06_
 _Updated with comprehensive investigation: 2025-11-06_

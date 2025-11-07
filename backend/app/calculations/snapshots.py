@@ -113,7 +113,9 @@ async def create_portfolio_snapshot(
             calculation_date=calculation_date,
             aggregations=aggregations,
             pnl_data=pnl_data,
-            position_counts=position_counts
+            position_counts=position_counts,
+            skip_provider_beta=skip_provider_beta,
+            skip_sector_analysis=skip_sector_analysis
         )
         
         await db.commit()
@@ -309,7 +311,9 @@ async def _create_or_update_snapshot(
     calculation_date: date,
     aggregations: Dict[str, Decimal],
     pnl_data: Dict[str, Decimal],
-    position_counts: Dict[str, int]
+    position_counts: Dict[str, int],
+    skip_provider_beta: bool = False,
+    skip_sector_analysis: bool = False
 ) -> PortfolioSnapshot:
     """Create or update portfolio snapshot AND update portfolio equity_balance"""
 
