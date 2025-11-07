@@ -828,21 +828,20 @@ async def store_position_factor_exposures(
                         quality_flag=quality_flag
                     )
                     db.add(exposure_record)
-                    
+
                     results["records_stored"] += 1
-                
+
             except Exception as e:
                 error_msg = f"Error storing exposures for position {position_id_str}: {str(e)}"
                 logger.error(error_msg)
                 results["errors"].append(error_msg)
-        
-        # Commit all changes
-        await db.commit()
-        logger.info(f"Stored {results['records_stored']} factor exposure records")
-        
+
+        # Note: Do NOT commit here - let caller manage transaction boundaries
+        # Committing expires session objects and causes greenlet errors
+        logger.info(f"Staged {results['records_stored']} factor exposure records (will be committed by caller)")
+
     except Exception as e:
         logger.error(f"Error in store_position_factor_exposures: {str(e)}")
-        await db.rollback()
         results["errors"].append(f"Storage failed: {str(e)}")
         raise
     
@@ -1033,11 +1032,13 @@ async def aggregate_portfolio_factor_exposures(
                     exposure_dollar=Decimal(str(exposure_dollar)) if exposure_dollar else None
                 )
                 db.add(exposure_record)
-            
+
             records_stored += 1
-        
-        await db.commit()
-        
+
+        # Note: Do NOT commit here - let caller manage transaction boundaries
+        # Committing expires session objects and causes greenlet errors
+        logger.info(f"Staged {records_stored} portfolio factor exposures (will be committed by caller)")
+
         results = {
             "success": True,
             "portfolio_betas": portfolio_betas,

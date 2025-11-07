@@ -162,15 +162,60 @@ class MarketDataCollector:
         required_start = calculation_date - timedelta(days=lookback_days)
         required_end = calculation_date
 
-        # Get earliest and most recent dates in database
-        earliest_date = await self._get_earliest_data_date(db, symbols)
-        most_recent_date = await self._get_most_recent_data_date(db, symbols)
+        # OPTIMIZATION: Use fast aggregate query to check if we have complete coverage
+        # Instead of checking day-by-day, check if ALL symbols have data for the calculation_date
+        # and for the required historical lookback period
+        from sqlalchemy import func, and_
+        from app.models.market_data import MarketDataCache
 
-        # CRITICAL: Cap most_recent_date to be before calculation_date
-        # (prevents issues with stale/future data from failed runs)
-        if most_recent_date and most_recent_date >= calculation_date:
-            logger.warning(f"Found future/current data in cache ({most_recent_date}), ignoring")
-            most_recent_date = calculation_date - timedelta(days=1)
+        # Fast check: Do we have data for calculation_date for all symbols?
+        has_current_data_query = select(func.count(MarketDataCache.symbol.distinct())).where(
+            and_(
+                MarketDataCache.symbol.in_(list(symbols)),
+                MarketDataCache.date == calculation_date,
+                MarketDataCache.close > 0
+            )
+        )
+        current_result = await db.execute(has_current_data_query)
+        symbols_with_current_data = current_result.scalar()
+
+        # Fast check: What's the earliest date we have data for 80%+ of symbols?
+        # Use a single query with GROUP BY date and HAVING count
+        coverage_threshold = int(len(symbols) * 0.8)
+        earliest_good_date_query = select(MarketDataCache.date).where(
+            and_(
+                MarketDataCache.symbol.in_(list(symbols)),
+                MarketDataCache.date >= required_start,
+                MarketDataCache.date <= calculation_date,
+                MarketDataCache.close > 0
+            )
+        ).group_by(MarketDataCache.date).having(
+            func.count(MarketDataCache.symbol.distinct()) >= coverage_threshold
+        ).order_by(MarketDataCache.date.asc()).limit(1)
+
+        earliest_result = await db.execute(earliest_good_date_query)
+        earliest_date = earliest_result.scalar()
+
+        # Fast check: What's the most recent date we have data for 80%+ of symbols?
+        most_recent_good_date_query = select(MarketDataCache.date).where(
+            and_(
+                MarketDataCache.symbol.in_(list(symbols)),
+                MarketDataCache.date >= required_start,
+                MarketDataCache.date <= calculation_date,
+                MarketDataCache.close > 0
+            )
+        ).group_by(MarketDataCache.date).having(
+            func.count(MarketDataCache.symbol.distinct()) >= coverage_threshold
+        ).order_by(MarketDataCache.date.desc()).limit(1)
+
+        most_recent_result = await db.execute(most_recent_good_date_query)
+        most_recent_date = most_recent_result.scalar()
+
+        logger.info(f"Fast coverage check: {symbols_with_current_data}/{len(symbols)} symbols have data for {calculation_date}")
+        if earliest_date:
+            logger.info(f"Earliest good coverage: {earliest_date}")
+        if most_recent_date:
+            logger.info(f"Most recent good coverage: {most_recent_date}")
 
         # Determine what needs to be fetched
         fetch_ranges = []
@@ -244,6 +289,25 @@ class MarketDataCollector:
                     'profiles_fetched': 0,
                     'profiles_failed': 0
                 }
+
+        # OPTIMIZATION: If fetch_mode is "cached", skip fetching entirely
+        if fetch_mode == "cached":
+            logger.info("All required data is cached - skipping fetch")
+            return {
+                'success': True,
+                'calculation_date': calculation_date,
+                'start_date': required_start,
+                'end_date': required_end,
+                'fetch_mode': 'cached',
+                'symbols_requested': len(symbols),
+                'symbols_fetched': 0,
+                'symbols_with_data': len(symbols),
+                'data_coverage_pct': Decimal('100.00'),
+                'provider_breakdown': {'cached': len(symbols)},
+                'missing_symbols': [],
+                'profiles_fetched': 0,
+                'profiles_failed': 0
+            }
 
         # Step 3: Check what data we already have in cache
         cached_symbols = await self._get_cached_symbols(db, symbols, start_date, end_date)
