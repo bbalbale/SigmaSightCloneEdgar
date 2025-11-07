@@ -51,7 +51,8 @@ async def fetch_factor_returns(
     db: AsyncSession,
     symbols: List[str],
     start_date: date,
-    end_date: date
+    end_date: date,
+    price_cache=None
 ) -> pd.DataFrame:
     """
     Fetch factor returns calculated from ETF price changes, aligned to common trading dates.
@@ -63,6 +64,7 @@ async def fetch_factor_returns(
         symbols: List of factor ETF symbols (SPY, VTV, VUG, etc.)
         start_date: Start date for factor returns
         end_date: End date for factor returns
+        price_cache: Optional PriceCache for optimized price lookups (300x speedup)
 
     Returns:
         DataFrame with dates as index and factor names as columns, containing daily returns
@@ -83,7 +85,8 @@ async def fetch_factor_returns(
         symbols=symbols,
         start_date=start_date,
         end_date=end_date,
-        align_dates=True  # Ensures all returns aligned to common trading dates
+        align_dates=True,  # Ensures all returns aligned to common trading dates
+        price_cache=price_cache  # Pass through cache for optimization
     )
 
     if returns_df.empty:

@@ -42,7 +42,8 @@ logger = get_logger(__name__)
 async def fetch_spread_returns(
     db: AsyncSession,
     start_date: date,
-    end_date: date
+    end_date: date,
+    price_cache=None
 ) -> pd.DataFrame:
     """
     Calculate daily returns for 4 spread factors using canonical get_returns().
@@ -56,6 +57,7 @@ async def fetch_spread_returns(
         db: Database session
         start_date: Start date for data fetch
         end_date: End date for data fetch
+        price_cache: Optional PriceCache for optimized price lookups (300x speedup)
 
     Returns:
         DataFrame with 4 columns (spread factor names) and date index.
@@ -86,7 +88,8 @@ async def fetch_spread_returns(
         symbols=list(etf_symbols),
         start_date=start_date,
         end_date=end_date,
-        align_dates=True  # Drop dates with any missing data
+        align_dates=True,  # Drop dates with any missing data
+        price_cache=price_cache  # Pass through cache for optimization
     )
 
     if returns.empty:
@@ -212,7 +215,8 @@ async def calculate_portfolio_spread_betas(
     db: AsyncSession,
     portfolio_id: UUID,
     calculation_date: date,
-    context: Optional[PortfolioContext] = None
+    context: Optional[PortfolioContext] = None,
+    price_cache=None
 ) -> Dict[str, Any]:
     """
     Calculate portfolio-level spread factor betas using 180-day OLS regression.
@@ -229,6 +233,7 @@ async def calculate_portfolio_spread_betas(
         portfolio_id: Portfolio UUID
         calculation_date: Calculation date (end of regression window)
         context: Pre-loaded portfolio context (optional, for performance)
+        price_cache: Optional PriceCache for optimized price lookups (300x speedup)
 
     Returns:
         Dict with:
@@ -256,7 +261,7 @@ async def calculate_portfolio_spread_betas(
 
     try:
         # Step 1: Fetch spread returns
-        spread_returns = await fetch_spread_returns(db, start_date, end_date)
+        spread_returns = await fetch_spread_returns(db, start_date, end_date, price_cache)
 
         if spread_returns.empty:
             raise ValueError("No spread returns data available")

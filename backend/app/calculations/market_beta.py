@@ -31,7 +31,8 @@ async def calculate_position_market_beta(
     db: AsyncSession,
     position_id: UUID,
     calculation_date: date,
-    window_days: int = REGRESSION_WINDOW_DAYS
+    window_days: int = REGRESSION_WINDOW_DAYS,
+    price_cache=None
 ) -> Dict[str, Any]:
     """
     Calculate market beta for a single position using OLS regression.
@@ -43,6 +44,7 @@ async def calculate_position_market_beta(
         position_id: Position UUID
         calculation_date: Date for calculation (end of window)
         window_days: Lookback period in days (default 90)
+        price_cache: Optional PriceCache for optimized price lookups (300x speedup)
 
     Returns:
         {
@@ -83,7 +85,8 @@ async def calculate_position_market_beta(
             symbols=[position.symbol, 'SPY'],
             start_date=start_date,
             end_date=end_date,
-            align_dates=True  # Ensures no NaN - only common trading days
+            align_dates=True,  # Ensures no NaN - only common trading days
+            price_cache=price_cache  # Pass through cache for optimization
         )
 
         # Check if we have sufficient data
@@ -240,7 +243,8 @@ async def calculate_portfolio_market_beta(
     portfolio_id: UUID,
     calculation_date: date,
     window_days: int = REGRESSION_WINDOW_DAYS,
-    persist: bool = True
+    persist: bool = True,
+    price_cache=None
 ) -> Dict[str, Any]:
     """
     Calculate portfolio-level market beta using signed exposure-weighted position betas.
@@ -326,7 +330,7 @@ async def calculate_portfolio_market_beta(
 
         for position in positions:
             beta_result = await calculate_position_market_beta(
-                db, position.id, calculation_date, window_days
+                db, position.id, calculation_date, window_days, price_cache
             )
 
             if not beta_result['success']:

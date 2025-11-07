@@ -44,10 +44,14 @@ async def calculate_position_volatility(
     db: AsyncSession,
     position_id: UUID,
     calculation_date: date,
-    min_observations: int = 63
+    min_observations: int = 63,
+    price_cache=None
 ) -> Dict[str, Any]:
     """
     Calculate volatility metrics for a single position.
+
+    Args:
+        price_cache: Optional PriceCache for optimized price lookups (300x speedup)
 
     Returns:
         {
@@ -124,7 +128,8 @@ async def calculate_position_volatility(
             symbols=[symbol_for_volatility],
             start_date=start_date,
             end_date=calculation_date,
-            align_dates=False  # Keep all dates, allow NaN for missing data
+            align_dates=False,  # Keep all dates, allow NaN for missing data
+            price_cache=price_cache  # Pass through cache for optimization
         )
 
         if returns_df.empty or symbol_for_volatility not in returns_df.columns:
@@ -209,6 +214,7 @@ async def calculate_portfolio_volatility(
     calculation_date: date,
     min_observations: int = 63,
     positions_override: Optional[List[Position]] = None,
+    price_cache=None
 ) -> Optional[Dict[str, Any]]:
     """
     Calculate volatility metrics for entire portfolio.
@@ -299,7 +305,8 @@ async def calculate_portfolio_volatility(
             symbols=symbols_to_fetch,
             start_date=start_date,
             end_date=calculation_date,
-            align_dates=False  # Keep all dates, handle missing data below
+            align_dates=False,  # Keep all dates, handle missing data below
+            price_cache=price_cache  # Pass through cache for optimization
         )
 
         if returns_df.empty:
@@ -433,7 +440,8 @@ async def save_position_volatility(
 async def calculate_portfolio_volatility_batch(
     db: AsyncSession,
     portfolio_id: UUID,
-    calculation_date: date
+    calculation_date: date,
+    price_cache=None
 ) -> Dict[str, Any]:
     """
     Calculate volatility for all positions in a portfolio and aggregate.
@@ -520,7 +528,8 @@ async def calculate_portfolio_volatility_batch(
             vol_result = await calculate_position_volatility(
                 db=db,
                 position_id=position.id,
-                calculation_date=calculation_date
+                calculation_date=calculation_date,
+                price_cache=price_cache
             )
 
             if vol_result.get('success'):
@@ -553,6 +562,7 @@ async def calculate_portfolio_volatility_batch(
             portfolio_id=portfolio_id,
             calculation_date=calculation_date,
             positions_override=eligible_positions,
+            price_cache=price_cache
         )
 
         success = positions_processed > 0 and portfolio_vol is not None

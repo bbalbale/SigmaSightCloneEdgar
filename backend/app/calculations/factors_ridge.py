@@ -51,7 +51,8 @@ async def calculate_factor_betas_ridge(
     calculation_date: date,
     regularization_alpha: float = 1.0,
     use_delta_adjusted: bool = False,
-    context: Optional[PortfolioContext] = None
+    context: Optional[PortfolioContext] = None,
+    price_cache=None
 ) -> Dict[str, Any]:
     """
     Calculate portfolio factor betas using Ridge regression (L2 regularization)
@@ -118,7 +119,8 @@ async def calculate_factor_betas_ridge(
             db=db,
             symbols=factor_symbols,
             start_date=start_date,
-            end_date=end_date
+            end_date=end_date,
+            price_cache=price_cache
         )
 
         if factor_returns.empty:

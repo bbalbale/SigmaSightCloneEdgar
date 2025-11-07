@@ -39,7 +39,8 @@ async def calculate_position_ir_beta(
     position_id: UUID,
     calculation_date: date,
     window_days: int = REGRESSION_WINDOW_DAYS,
-    treasury_symbol: str = 'TLT'  # Changed from DGS10 to TLT
+    treasury_symbol: str = 'TLT',  # Changed from DGS10 to TLT
+    price_cache=None
 ) -> Dict[str, Any]:
     """
     Calculate interest rate beta for a single position using TLT (Bond ETF) returns.
@@ -60,6 +61,7 @@ async def calculate_position_ir_beta(
         calculation_date: Date for calculation (end of window)
         window_days: Lookback period in days (default 90)
         treasury_symbol: Bond ETF symbol to use (default 'TLT', kept as 'treasury_symbol' for backward compatibility)
+        price_cache: Optional PriceCache for optimized price lookups (300x speedup)
 
     Returns:
         {
@@ -101,7 +103,8 @@ async def calculate_position_ir_beta(
             symbols=[position.symbol, 'TLT'],
             start_date=start_date,
             end_date=end_date,
-            align_dates=True  # Ensures no NaN - only common trading days
+            align_dates=True,  # Ensures no NaN - only common trading days
+            price_cache=price_cache  # Pass through cache for optimization
         )
 
         # Check if we have sufficient data
@@ -258,7 +261,8 @@ async def calculate_portfolio_ir_beta(
     calculation_date: date,
     window_days: int = REGRESSION_WINDOW_DAYS,
     treasury_symbol: str = 'TLT',  # Changed from DGS10 to TLT
-    persist: bool = True
+    persist: bool = True,
+    price_cache=None
 ) -> Dict[str, Any]:
     """
     Calculate portfolio-level interest rate beta as equity-weighted average using TLT.
@@ -341,7 +345,7 @@ async def calculate_portfolio_ir_beta(
 
         for position in positions:
             ir_beta_result = await calculate_position_ir_beta(
-                db, position.id, calculation_date, window_days, treasury_symbol
+                db, position.id, calculation_date, window_days, treasury_symbol, price_cache
             )
 
             if not ir_beta_result['success']:

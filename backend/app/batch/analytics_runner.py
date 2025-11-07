@@ -317,7 +317,8 @@ class AnalyticsRunner:
                 db=db,
                 portfolio_id=portfolio_id,
                 calculation_date=calculation_date,
-                persist=True
+                persist=True,
+                price_cache=self._price_cache  # Pass through cache for optimization
             )
 
             return result is not None
@@ -342,7 +343,8 @@ class AnalyticsRunner:
                 calculation_date=calculation_date,
                 window_days=90,
                 treasury_symbol='TLT',
-                persist=True
+                persist=True,
+                price_cache=self._price_cache  # Pass through cache for optimization
             )
 
             return result is not None
@@ -364,7 +366,8 @@ class AnalyticsRunner:
             result = await calculate_factor_betas_ridge(
                 db=db,
                 portfolio_id=portfolio_id,
-                calculation_date=calculation_date
+                calculation_date=calculation_date,
+                price_cache=self._price_cache  # Pass through cache for optimization
             )
 
             return result is not None
@@ -386,7 +389,8 @@ class AnalyticsRunner:
             result = await calculate_portfolio_spread_betas(
                 db=db,
                 portfolio_id=portfolio_id,
-                calculation_date=calculation_date
+                calculation_date=calculation_date,
+                price_cache=self._price_cache  # Pass through cache for optimization
             )
 
             return result is not None
@@ -431,7 +435,8 @@ class AnalyticsRunner:
             result = await calculate_portfolio_volatility_batch(
                 db=db,
                 portfolio_id=portfolio_id,
-                calculation_date=calculation_date
+                calculation_date=calculation_date,
+                price_cache=self._price_cache  # Pass through cache for optimization
             )
 
             success = bool(result.get('success'))
