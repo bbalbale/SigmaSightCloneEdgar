@@ -473,7 +473,12 @@ class BatchOrchestrator:
             result['phase_5'] = {'success': True, 'skipped': True, 'reason': 'historical_date'}
 
         # Phase 6: Risk Analytics
-        if insufficient_price_coverage:
+        # OPTIMIZATION: Skip Phase 6 for historical dates (only run on current/final date)
+        # Analytics (betas, factors, volatility) are expensive and only needed on final date
+        if is_historical:
+            logger.debug(f"Skipping Phase 6 (Analytics) for historical date ({calculation_date})")
+            result['phase_6'] = {'success': True, 'skipped': True, 'reason': 'historical_date'}
+        elif insufficient_price_coverage:
             logger.error("Skipping Phase 6 due to insufficient price coverage in Phase 4")
             phase6_result = {
                 'success': False,
