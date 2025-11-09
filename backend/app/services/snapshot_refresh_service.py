@@ -201,11 +201,11 @@ async def _execute_recalculation(db: AsyncSession, portfolio_id: UUID):
 
             logger.info(f"Background recalculation completed for portfolio {portfolio_id}")
 
-    except Exception as e:
-        logger.error(
-            f"Error during background recalculation for portfolio {portfolio_id}: {e}",
-            exc_info=True
-        )
+        except Exception as e:
+            logger.error(
+                f"Error during background recalculation for portfolio {portfolio_id}: {e}",
+                exc_info=True
+            )
 
 
 async def check_and_trigger_refresh_if_needed(
