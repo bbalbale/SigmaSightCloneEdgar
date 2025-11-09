@@ -1,5 +1,7 @@
 # Three Mock Investment Portfolios
 
+> **Note on Entry Prices (Updated November 8, 2025)**: The entry prices in the seed data (`seed_demo_portfolios.py`) have been corrected to ensure the sum of position entry values exactly matches the intended portfolio allocations. The position VALUES and ALLOCATIONS listed in this document remain unchanged. The entry prices were adjusted to account for the difference between intended cost basis and July 1, 2025 market prices, ensuring accurate first-day P&L calculations.
+
 ## Portfolio 1: "Balanced Individual Investor"
 **Total Portfolio Value:** $485,000
 **Equity Balance (NAV):** $485,000
