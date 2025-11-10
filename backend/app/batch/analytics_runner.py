@@ -489,8 +489,9 @@ class AnalyticsRunner:
             logger.info(f"[SPREAD_FACTORS_DEBUG] Result is None: {result is None}")
             if result:
                 logger.info(f"[SPREAD_FACTORS_DEBUG] Result has position_betas: {len(result.get('position_betas', {}))}")
+                logger.info(f"[SPREAD_FACTORS_DEBUG] Result success: {result.get('success', False)}")
 
-            return result is not None
+            return result.get('success', False) if result else False
 
         except Exception as e:
             logger.error(f"[SPREAD_FACTORS_DEBUG] Exception: {e}")
@@ -516,7 +517,7 @@ class AnalyticsRunner:
                 profile_cache=self._profile_cache,
             )
 
-            return result is not None
+            return result.get('success', False) if result else False
 
         except Exception as e:
             logger.warning(f"Sector analysis calculation failed: {e}")
