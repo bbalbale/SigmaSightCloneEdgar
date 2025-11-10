@@ -1,6 +1,25 @@
 # Three Mock Investment Portfolios
 
-> **Note on Entry Prices (Updated November 8, 2025)**: The entry prices in the seed data (`seed_demo_portfolios.py`) have been corrected to ensure the sum of position entry values exactly matches the intended portfolio allocations. The position VALUES and ALLOCATIONS listed in this document remain unchanged. The entry prices were adjusted to account for the difference between intended cost basis and July 1, 2025 market prices, ensuring accurate first-day P&L calculations.
+> **Note on Entry Prices and Dates (Updated November 10, 2025)**: All positions have been adjusted to appear as if acquired on **June 30, 2025** at closing prices. This means:
+> - **Entry Date**: June 30, 2025 for ALL positions (stocks, funds, options, private investments)
+> - **Entry Prices**: June 30, 2025 market close prices for all PUBLIC stocks
+> - **Quantities and Prices**: Adjusted to achieve exact or near-exact equity balances with whole number shares
+> - **Result**: Tracking begins July 1, 2025 with zero unrealized P&L on the first day
+>
+> This adjustment ensures clean, predictable P&L calculations that are easier to debug. Portfolio equity balances have been fine-tuned to be at or just below target values.
+>
+> **Adjustment Scripts Used**:
+> - `backend/scripts/database/adjust_entry_prices_to_june30.py` - Set June 30, 2025 prices
+> - `backend/scripts/database/adjust_prices_for_exact_equity.py` - Adjust for exact equity with whole shares
+> - `backend/scripts/database/fix_hedge_fund_exposure.py` - Fix hedge fund to 100% long / 50% short
+> - `backend/scripts/database/monitor_equity_pnl.py` - Monitor daily equity changes
+>
+> **Final Equity Balances**:
+> - Demo Individual Investor: $484,999.75 (target: $485,000)
+> - Demo High Net Worth: $2,850,000.00 (target: $2,850,000) ✓ EXACT
+> - Demo Hedge Fund: $1,599,688.91 NAV / $3,199,588.59 long / $1,599,899.68 short (100%/50% of $3.2M equity)
+> - Demo Family Office Public: $1,249,992.95 (target: $1,250,000)
+> - Demo Family Office Private: $950,000.00 (target: $950,000) ✓ EXACT
 
 ## Portfolio 1: "Balanced Individual Investor"
 **Total Portfolio Value:** $485,000
@@ -121,17 +140,19 @@
 ---
 
 ## Portfolio 3: "Long/Short Equity Hedge Fund Style"
-**Total Portfolio Value:** $3,200,000
-**Equity Balance (NAV):** $3,200,000
+**Starting Equity:** ~$3,200,000
+**Equity Balance:** ~$3,200,000 (starting capital)
 **Investor Profile:** Sophisticated trader with derivatives access
-**Investment Strategy:** Market-neutral with volatility trading and options overlay
+**Investment Strategy:** Long/short equity with controlled leverage
 
 ### Portfolio Metrics
-- **Long Exposure:** $4,960,000 (155% of NAV)
-- **Short Exposure:** -$2,240,000 (-70% of NAV)
-- **Gross Exposure:** $7,200,000 (225% of NAV)
-- **Net Exposure:** $2,720,000 (85% of NAV)
-- **Options Premium at Risk:** $480,000 (15% of NAV)
+- **Long Exposure:** ~$3,200,000 (100% of equity)
+- **Short Exposure:** ~$1,600,000 (50% of equity)
+- **Gross Exposure:** ~$4,800,000 (150% of equity)
+- **NAV (Net Market Exposure):** ~$1,600,000 (50% of equity)
+- **Leverage Ratio:** 1.5x gross exposure
+
+> **Note**: Equity represents starting capital. NAV represents net market exposure (Long - Short).
 
 ### Long Positions (60% of portfolio)
 
