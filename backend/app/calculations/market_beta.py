@@ -407,10 +407,22 @@ async def calculate_portfolio_market_beta(
                 from app.models.market_data import FactorExposure, FactorDefinition
                 from decimal import Decimal
 
-                # Get Market Beta factor definition
-                factor_stmt = select(FactorDefinition).where(FactorDefinition.name == "Market Beta")
+                # Get Market Beta (90D) factor definition
+                factor_stmt = select(FactorDefinition).where(FactorDefinition.name == "Market Beta (90D)")
                 factor_result = await db.execute(factor_stmt)
                 market_beta_factor = factor_result.scalar_one_or_none()
+
+                # Fallback to old "Market Beta" name for compatibility
+                if not market_beta_factor:
+                    factor_stmt = select(FactorDefinition).where(FactorDefinition.name == "Market Beta")
+                    factor_result = await db.execute(factor_stmt)
+                    market_beta_factor = factor_result.scalar_one_or_none()
+
+                    # Update the name if found
+                    if market_beta_factor:
+                        market_beta_factor.name = "Market Beta (90D)"
+                        market_beta_factor.description = "90-day market beta calculated via OLS regression"
+                        market_beta_factor.display_order = 1  # Show after Provider Beta (1Y)
 
                 if market_beta_factor:
                     # Calculate dollar exposure (beta * portfolio equity)
@@ -480,11 +492,19 @@ async def calculate_portfolio_provider_beta(
     data providers like yahooquery/FMP). This provides an alternative beta estimate
     that doesn't require historical returns data or regression calculations.
 
-    Portfolio Provider Beta = Σ(signed_exposure_i × provider_beta_i) / portfolio_equity
+    FALLBACK LOGIC (Added 2025-11-09):
+    If a position's company profile beta is missing or zero, falls back to using the
+    latest calculated beta from position_market_betas table (OLS regression).
+
+    Portfolio Provider Beta = Σ(signed_exposure_i × beta_i) / portfolio_equity
 
     where signed_exposure_i is:
     - Positive for LONG positions
     - Negative for SHORT positions
+
+    and beta_i is:
+    - Company profile beta (from yfinance) if available
+    - Calculated beta (from OLS regression) if company profile beta is missing/zero
 
     This ensures short positions reduce overall portfolio market exposure.
 
@@ -585,6 +605,27 @@ async def calculate_portfolio_provider_beta(
             profile_result = await db.execute(profile_stmt)
             provider_beta = profile_result.scalar_one_or_none()
 
+            # FALLBACK: If company profile beta is missing or zero, try calculated beta
+            if not provider_beta or float(provider_beta) == 0.0:
+                logger.info(f"No provider beta for {position.symbol}, checking for calculated beta...")
+
+                # Query latest calculated beta from position_market_betas table
+                latest_beta_stmt = (
+                    select(PositionMarketBeta.beta)
+                    .where(PositionMarketBeta.position_id == position.id)
+                    .order_by(PositionMarketBeta.calc_date.desc())
+                    .limit(1)
+                )
+                latest_beta_result = await db.execute(latest_beta_stmt)
+                calculated_beta = latest_beta_result.scalar_one_or_none()
+
+                if calculated_beta is not None:
+                    provider_beta = calculated_beta
+                    logger.info(
+                        f"Using calculated beta ({float(calculated_beta):.4f}) "
+                        f"as fallback for {position.symbol}"
+                    )
+
             if provider_beta and position.market_value:
                 beta = float(provider_beta)
                 # Use signed exposure (positive for longs, negative for shorts)
@@ -603,7 +644,9 @@ async def calculate_portfolio_provider_beta(
             else:
                 positions_without_beta += 1
                 if not provider_beta:
-                    logger.warning(f"No provider beta for {position.symbol}")
+                    logger.warning(
+                        f"No provider beta or calculated beta available for {position.symbol}"
+                    )
 
         if positions_with_beta == 0:
             return {

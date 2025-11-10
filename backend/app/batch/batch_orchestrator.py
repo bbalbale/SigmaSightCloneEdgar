@@ -1,7 +1,8 @@
 """
-Batch Orchestrator - Production-Ready 6-Phase Architecture with Automatic Backfill
+Batch Orchestrator - Production-Ready 7-Phase Architecture with Automatic Backfill
 
-Architecture (Renumbered 2025-11-06 for clarity):
+Architecture (Updated 2025-11-09 to add Phase 0):
+- Phase 0: Company Profile Sync (beta values, sector, industry) - RUNS FIRST on final date only
 - Phase 1: Market Data Collection (1-year lookback)
 - Phase 2: Fundamental Data Collection (earnings-driven updates)
 - Phase 3: P&L Calculation & Snapshots (equity rollforward)
@@ -16,6 +17,7 @@ Features:
 - Data coverage reporting
 - Automatic sector tagging from company profiles
 - Smart fundamentals fetching (3+ days after earnings)
+- Company profiles synced BEFORE calculations on final date only for fresh beta values
 """
 import asyncio
 import json
@@ -323,11 +325,12 @@ class BatchOrchestrator:
         run_sector_analysis: bool,
         price_cache: Optional[PriceCache] = None,
     ) -> Dict[str, Any]:
-        """Run 6-phase sequence with provided session and optional price cache"""
+        """Run 7-phase sequence with provided session and optional price cache"""
 
         result = {
             'success': False,
             'calculation_date': calculation_date,
+            'phase_0': {},
             'phase_1': {},
             'phase_2': {},
             'phase_3': {},
@@ -339,8 +342,32 @@ class BatchOrchestrator:
         insufficient_price_coverage = False
         coverage_details: Dict[str, Any] = {}
 
-        # OPTIMIZATION: Skip company profiles for historical dates (only needed on current/final date)
+        # OPTIMIZATION: Company profiles and fundamentals only needed on current/final date
         is_historical = calculation_date < date.today()
+
+        # Phase 0: Company Profile Sync (BEFORE all calculations)
+        # Only run on final/current date to get fresh beta values, sector, industry
+        if not is_historical:
+            try:
+                self._log_phase_start("phase_0", calculation_date, portfolio_ids)
+                phase0_result = await self._sync_company_profiles(
+                    db=db,
+                    portfolio_ids=portfolio_ids
+                )
+                result['phase_0'] = phase0_result
+                self._log_phase_result("phase_0", phase0_result)
+
+                if not phase0_result.get('success'):
+                    logger.warning("Phase 0 (Company Profiles) had errors, continuing to Phase 1")
+                    # Continue even if profile sync fails - not critical for calculations
+
+            except Exception as e:
+                logger.error(f"Phase 0 (Company Profiles) error: {e}")
+                result['errors'].append(f"Phase 0 (Company Profiles) error: {str(e)}")
+                # Continue to Phase 1 even if company profiles fail
+        else:
+            logger.debug(f"Skipping Phase 0 (Company Profiles) for historical date ({calculation_date})")
+            result['phase_0'] = {'success': True, 'skipped': True, 'reason': 'historical_date'}
 
         # Phase 1: Market Data Collection
         try:
@@ -350,7 +377,7 @@ class BatchOrchestrator:
                 lookback_days=365,
                 db=db,
                 portfolio_ids=portfolio_ids,
-                skip_company_profiles=is_historical
+                skip_company_profiles=True  # Always skip - handled in Phase 0
             )
             result['phase_1'] = phase1_result
             self._log_phase_result("phase_1", phase1_result)
@@ -712,6 +739,81 @@ class BatchOrchestrator:
                 'success': False,
                 'error': str(e),
                 'positions_updated': 0
+            }
+
+    async def _sync_company_profiles(
+        self,
+        db: AsyncSession,
+        portfolio_ids: Optional[List[UUID]] = None
+    ) -> Dict[str, Any]:
+        """
+        Sync company profiles for all position symbols (Phase 0).
+
+        This fetches fresh company profile data including beta values, sector, and industry
+        from yfinance. Runs BEFORE all calculations to ensure analytics use current data.
+
+        Args:
+            db: Database session
+            portfolio_ids: Optional list of portfolio IDs to scope positions
+
+        Returns:
+            Summary of company profile sync
+        """
+        from app.services.market_data_service import MarketDataService
+
+        logger.info("Phase 0: Syncing company profiles for all positions")
+
+        try:
+            # Get all unique symbols from active positions
+            symbols_query = (
+                select(Position.symbol)
+                .distinct()
+                .where(Position.deleted_at.is_(None))
+            )
+            if portfolio_ids is not None:
+                symbols_query = symbols_query.where(Position.portfolio_id.in_(portfolio_ids))
+
+            symbols_result = await db.execute(symbols_query)
+            symbols = [row[0] for row in symbols_result.all()]
+
+            logger.info(f"Found {len(symbols)} unique symbols to sync")
+
+            if not symbols:
+                return {
+                    'success': True,
+                    'symbols_attempted': 0,
+                    'symbols_successful': 0,
+                    'symbols_failed': 0
+                }
+
+            # Use market data service to fetch and cache company profiles
+            market_data_service = MarketDataService()
+            result = await market_data_service.fetch_and_cache_company_profiles(
+                db=db,
+                symbols=symbols
+            )
+
+            logger.info(
+                f"Company profile sync complete: "
+                f"{result['symbols_successful']}/{result['symbols_attempted']} successful"
+            )
+
+            return {
+                'success': result['symbols_failed'] < result['symbols_attempted'],
+                'symbols_attempted': result['symbols_attempted'],
+                'symbols_successful': result['symbols_successful'],
+                'symbols_failed': result['symbols_failed'],
+                'failed_symbols': result.get('failed_symbols', [])[:10]  # First 10 only
+            }
+
+        except Exception as e:
+            logger.error(f"Error syncing company profiles: {e}")
+            return {
+                'success': False,
+                'error': str(e),
+                'symbols_attempted': 0,
+                'symbols_successful': 0,
+                'symbols_failed': 0
             }
 
     async def _restore_all_sector_tags(

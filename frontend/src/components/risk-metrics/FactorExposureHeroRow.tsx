@@ -5,7 +5,8 @@ import type { FactorExposure } from '@/types/analytics'
 import type { SpreadFactor } from '@/services/spreadFactorsApi'
 
 const FACTOR_DISPLAY_ORDER = [
-  'Market Beta',
+  'Provider Beta (1Y)',
+  'Market Beta (90D)',
   'Momentum',
   'Value',
   'Growth',
