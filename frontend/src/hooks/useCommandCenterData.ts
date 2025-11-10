@@ -268,8 +268,8 @@ export function useCommandCenterData(refreshTrigger?: number): UseCommandCenterD
 
     if (portfolioFactors.data?.available && portfolioFactors.data?.factors) {
       const factors = portfolioFactors.data.factors
-      const beta90dFactor = factors.find((f: any) => f.name === 'Market Beta (Calculated 90d)')
-      const beta1yFactor = factors.find((f: any) => f.name === 'Market Beta (Provider 1y)')
+      const beta90dFactor = factors.find((f: any) => f.name === 'Market Beta (90D)')
+      const beta1yFactor = factors.find((f: any) => f.name === 'Provider Beta (1Y)')
       beta90d = normalizeNumber(beta90dFactor?.beta)
       beta1y = normalizeNumber(beta1yFactor?.beta)
     }

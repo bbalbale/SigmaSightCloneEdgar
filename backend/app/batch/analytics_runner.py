@@ -424,9 +424,12 @@ class AnalyticsRunner:
         portfolio_id: UUID,
         calculation_date: date
     ) -> bool:
-        """Calculate interest rate beta using 90-day regression"""
+        """Calculate interest rate beta using 90-day regression and persist as FactorExposure"""
         try:
             from app.calculations.interest_rate_beta import calculate_portfolio_ir_beta
+            from app.models.market_data import FactorExposure, FactorDefinition
+            from sqlalchemy import select, and_
+            from decimal import Decimal
 
             result = await calculate_portfolio_ir_beta(
                 db=db,
@@ -438,7 +441,72 @@ class AnalyticsRunner:
                 price_cache=self._price_cache  # Pass through cache for optimization
             )
 
-            return result.get('success', False) if result else False
+            if result.get('success'):
+                # Save as "IR Beta" factor exposure
+                # Get or create factor definition
+                factor_stmt = select(FactorDefinition).where(FactorDefinition.name == "IR Beta")
+                factor_result = await db.execute(factor_stmt)
+                ir_beta_factor = factor_result.scalar_one_or_none()
+
+                if not ir_beta_factor:
+                    # Create the factor definition if it doesn't exist
+                    from uuid import uuid4
+                    ir_beta_factor = FactorDefinition(
+                        id=uuid4(),
+                        name="IR Beta",
+                        description="Interest rate beta - sensitivity to bond market (TLT) movements",
+                        factor_type="macro",
+                        is_active=True,
+                        display_order=2  # Show after Market Beta (90D)
+                    )
+                    db.add(ir_beta_factor)
+                    await db.flush()
+
+                portfolio_ir_beta = result.get('portfolio_ir_beta', 0.0)
+
+                # Calculate dollar exposure
+                from app.models.users import Portfolio as PortfolioModel
+                portfolio_stmt = select(PortfolioModel).where(PortfolioModel.id == portfolio_id)
+                portfolio_result = await db.execute(portfolio_stmt)
+                portfolio = portfolio_result.scalar_one_or_none()
+
+                if portfolio and portfolio.equity_balance:
+                    exposure_dollar = Decimal(str(portfolio_ir_beta)) * Decimal(str(portfolio.equity_balance))
+                else:
+                    exposure_dollar = Decimal('0')
+
+                # Create or update factor exposure
+                exposure_stmt = select(FactorExposure).where(
+                    and_(
+                        FactorExposure.portfolio_id == portfolio_id,
+                        FactorExposure.factor_id == ir_beta_factor.id,
+                        FactorExposure.calculation_date == calculation_date
+                    )
+                )
+                exposure_result = await db.execute(exposure_stmt)
+                existing_exposure = exposure_result.scalar_one_or_none()
+
+                if existing_exposure:
+                    existing_exposure.exposure_value = Decimal(str(portfolio_ir_beta))
+                    existing_exposure.exposure_dollar = exposure_dollar
+                    logger.debug(f"Updated IR Beta factor exposure: {portfolio_ir_beta:.3f}")
+                else:
+                    from uuid import uuid4
+                    new_exposure = FactorExposure(
+                        id=uuid4(),
+                        portfolio_id=portfolio_id,
+                        factor_id=ir_beta_factor.id,
+                        calculation_date=calculation_date,
+                        exposure_value=Decimal(str(portfolio_ir_beta)),
+                        exposure_dollar=exposure_dollar
+                    )
+                    db.add(new_exposure)
+                    logger.debug(f"Created IR Beta factor exposure: {portfolio_ir_beta:.3f}")
+
+                return True
+            else:
+                logger.warning(f"IR beta calculation returned error: {result.get('error')}")
+                return False
 
         except Exception as e:
             logger.warning(f"IR beta calculation failed: {e}")
@@ -670,3 +738,4 @@ class AnalyticsRunner:
 
 # Global instance
 analytics_runner = AnalyticsRunner()
+

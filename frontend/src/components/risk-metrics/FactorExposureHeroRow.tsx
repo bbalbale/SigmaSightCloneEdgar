@@ -7,6 +7,7 @@ import type { SpreadFactor } from '@/services/spreadFactorsApi'
 const FACTOR_DISPLAY_ORDER = [
   'Provider Beta (1Y)',
   'Market Beta (90D)',
+  'IR Beta',
   'Momentum',
   'Value',
   'Growth',

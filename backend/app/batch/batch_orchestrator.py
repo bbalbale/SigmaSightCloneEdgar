@@ -201,9 +201,9 @@ class BatchOrchestrator:
                 symbols_result = await cache_db.execute(symbols_stmt)
                 symbols = {row[0] for row in symbols_result.all()}
 
-                # Add factor ETF symbols for spread factor calculations
-                # These are required by app/calculations/factors_spread.py
-                factor_etf_symbols = {'VUG', 'VTV', 'MTUM', 'QUAL', 'IWM', 'SPY', 'USMV'}
+                # Add factor ETF symbols for spread factor calculations + IR Beta
+                # These are required by app/calculations/factors_spread.py and interest_rate_beta.py
+                factor_etf_symbols = {'VUG', 'VTV', 'MTUM', 'QUAL', 'IWM', 'SPY', 'USMV', 'TLT'}
                 symbols = symbols.union(factor_etf_symbols)
 
                 if symbols:

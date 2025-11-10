@@ -15,7 +15,7 @@ QUALITY_FLAG_FULL_HISTORY = "full_history"
 QUALITY_FLAG_LIMITED_HISTORY = "limited_history"
 QUALITY_FLAG_NO_PUBLIC_POSITIONS = "no_public_positions"  # Phase 8.1 Task 4: All PUBLIC positions filtered out
 
-# Factor ETF symbols (7-factor model for V1.4)
+# Factor ETF symbols (8-factor model for V1.4)
 FACTOR_ETFS = {
     "Market": "SPY",       # Market factor
     "Value": "VTV",        # Value factor
@@ -23,7 +23,8 @@ FACTOR_ETFS = {
     "Momentum": "MTUM",    # Momentum factor
     "Quality": "QUAL",     # Quality factor
     "Size": "IWM",         # Size factor (Russell 2000 small-cap index)
-    "Low Volatility": "USMV"  # Low Volatility factor
+    "Low Volatility": "USMV",  # Low Volatility factor
+    "Interest Rate": "TLT"     # Interest Rate sensitivity (20+ Year Treasury Bond ETF)
 }
 
 # Factor types

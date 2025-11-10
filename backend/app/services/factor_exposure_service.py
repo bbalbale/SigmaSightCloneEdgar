@@ -36,10 +36,10 @@ class FactorExposureService:
 
         Phase 8.1 Task 13: Returns data_quality metrics when available=False
         """
-        # Get active style factors
+        # Get active style and macro factors (includes IR Beta)
         target_factors_stmt = (
             select(FactorDefinition.id, FactorDefinition.name, FactorDefinition.calculation_method)
-            .where(and_(FactorDefinition.is_active.is_(True), FactorDefinition.factor_type == 'style'))
+            .where(and_(FactorDefinition.is_active.is_(True), FactorDefinition.factor_type.in_(['style', 'macro'])))
             .order_by(FactorDefinition.display_order.asc(), FactorDefinition.name.asc())
         )
         tf_res = await self.db.execute(target_factors_stmt)
@@ -52,7 +52,7 @@ class FactorExposureService:
             data_quality = await self._compute_data_quality(
                 portfolio_id=portfolio_id,
                 flag="NO_ACTIVE_FACTORS",
-                message="No active style factors defined in system configuration",
+                message="No active style or macro factors defined in system configuration",
                 positions_analyzed=0,
                 data_days=0
             )
@@ -62,7 +62,7 @@ class FactorExposureService:
                 "calculation_date": None,
                 "data_quality": data_quality,
                 "factors": [],
-                "metadata": {"reason": "no_calculation_available", "detail": "no_active_style_factors"},
+                "metadata": {"reason": "no_calculation_available", "detail": "no_active_style_or_macro_factors"},
             }
 
         # Find the latest date with ANY factor calculations (not requiring all)
@@ -128,7 +128,7 @@ class FactorExposureService:
             }
 
         factors = []
-        available_factor_names = []
+        available_factor_names = set()  # Use set for faster lookups
         for exposure, definition in rows:
             factors.append(
                 {
@@ -137,7 +137,7 @@ class FactorExposureService:
                     "exposure_dollar": float(exposure.exposure_dollar) if exposure.exposure_dollar is not None else None,
                 }
             )
-            available_factor_names.append(definition.name)
+            available_factor_names.add(definition.name)
 
         # Order by FactorDefinition display_order then name
         order_map = {row[0]: idx for idx, row in enumerate(target_rows)}
@@ -181,25 +181,29 @@ class FactorExposureService:
             logger.info(f"[SNAPSHOT DATA] equity: {snapshot.equity_balance}, calc_beta: {snapshot.beta_calculated_90d}, provider_beta: {snapshot.beta_provider_1y}")
             equity_balance = float(snapshot.equity_balance) if snapshot.equity_balance else 0.0
 
-            # Add Calculated Beta (90d OLS) if available
-            if snapshot.beta_calculated_90d is not None:
+            # Add Calculated Beta (90d OLS) if available and NOT already in factors
+            # Name must match frontend: 'Market Beta (90D)'
+            if snapshot.beta_calculated_90d is not None and "Market Beta (90D)" not in available_factor_names:
                 calculated_beta = float(snapshot.beta_calculated_90d)
-                logger.info(f"[BETA] Adding Calculated Beta: {calculated_beta}")
+                logger.info(f"[BETA] Adding Calculated Beta from snapshot: {calculated_beta}")
                 factors.append({
-                    "name": "Market Beta (Calculated 90d)",
+                    "name": "Market Beta (90D)",
                     "beta": calculated_beta,
                     "exposure_dollar": calculated_beta * equity_balance if equity_balance > 0 else None
                 })
+                available_factor_names.add("Market Beta (90D)")
 
-            # Add Provider Beta (1y from company profiles) if available
-            if snapshot.beta_provider_1y is not None:
+            # Add Provider Beta (1y from company profiles) if available and NOT already in factors
+            # Name must match frontend: 'Provider Beta (1Y)'
+            if snapshot.beta_provider_1y is not None and "Provider Beta (1Y)" not in available_factor_names:
                 provider_beta = float(snapshot.beta_provider_1y)
-                logger.info(f"[BETA] Adding Provider Beta: {provider_beta}")
+                logger.info(f"[BETA] Adding Provider Beta from snapshot: {provider_beta}")
                 factors.append({
-                    "name": "Market Beta (Provider 1y)",
+                    "name": "Provider Beta (1Y)",
                     "beta": provider_beta,
                     "exposure_dollar": provider_beta * equity_balance if equity_balance > 0 else None
                 })
+                available_factor_names.add("Provider Beta (1Y)")
 
         logger.info(f"[COMPLETE] Total factors after adding snapshot betas: {len(factors)}")
 
@@ -208,10 +212,10 @@ class FactorExposureService:
         calc_methods = {getattr(definition, "calculation_method", None) for _, definition in rows}
         calc_method = next((m for m in calc_methods if m), None) or "ETF-proxy regression"
         
-        # Check if we have Market Beta (minimum requirement)
-        has_market_beta = "Market Beta" in available_factor_names
-        # We now have 7 active factors (Short Interest is inactive)
-        expected_factors = 7  # All active factors except Short Interest
+        # Check if we have Market Beta (minimum requirement) - check for the correct name
+        has_market_beta = "Market Beta (90D)" in available_factor_names
+        # We now have 8 active factors: 7 style factors + IR Beta macro factor (Short Interest is inactive)
+        expected_factors = 8  # All active style and macro factors except Short Interest
         completeness = "partial" if len(factors) < expected_factors else "complete"
 
         return {
@@ -384,10 +388,10 @@ class FactorExposureService:
                 "positions": [],
             }
 
-        # Determine target style factors (same selection as portfolio-level)
+        # Determine target style and macro factors (same selection as portfolio-level)
         target_factors_stmt = (
             select(FactorDefinition.id, FactorDefinition.name, FactorDefinition.calculation_method)
-            .where(and_(FactorDefinition.is_active.is_(True), FactorDefinition.factor_type == 'style'))
+            .where(and_(FactorDefinition.is_active.is_(True), FactorDefinition.factor_type.in_(['style', 'macro'])))
             .order_by(FactorDefinition.display_order.asc(), FactorDefinition.name.asc())
         )
         tf_res2 = await self.db.execute(target_factors_stmt)
