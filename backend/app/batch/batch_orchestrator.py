@@ -184,7 +184,7 @@ class BatchOrchestrator:
         # This eliminates repeated price queries across all dates (10,000x speedup)
         price_cache = None
         if len(missing_dates) > 1:
-            logger.info(f"🚀 OPTIMIZATION: Pre-loading multi-day price cache for {len(missing_dates)} dates")
+            logger.info(f"[LAUNCH] OPTIMIZATION: Pre-loading multi-day price cache for {len(missing_dates)} dates")
             async with AsyncSessionLocal() as cache_db:
                 # Get all symbols from active PUBLIC/OPTIONS positions
                 # Skip PRIVATE positions - they don't have market prices
@@ -199,6 +199,11 @@ class BatchOrchestrator:
                 symbols_result = await cache_db.execute(symbols_stmt)
                 symbols = {row[0] for row in symbols_result.all()}
 
+                # Add factor ETF symbols for spread factor calculations
+                # These are required by app/calculations/factors_spread.py
+                factor_etf_symbols = {'VUG', 'VTV', 'MTUM', 'QUAL', 'IWM', 'SPY', 'USMV'}
+                symbols = symbols.union(factor_etf_symbols)
+
                 if symbols:
                     # Load prices for entire date range (ONE bulk query)
                     price_cache = PriceCache()
@@ -208,7 +213,7 @@ class BatchOrchestrator:
                         start_date=missing_dates[0],
                         end_date=missing_dates[-1]
                     )
-                    logger.info(f"✅ Price cache loaded: {loaded_count} prices across {len(missing_dates)} dates")
+                    logger.info(f"[OK] Price cache loaded: {loaded_count} prices across {len(missing_dates)} dates")
                     logger.info(f"   Cache stats: {price_cache.get_stats()}")
 
         # Step 3: Process each missing date with its own fresh session
@@ -235,6 +240,11 @@ class BatchOrchestrator:
                 # Mark as complete in tracking table
                 if result['success']:
                     await self._mark_batch_run_complete(db, calc_date, result)
+
+                # Final commit to ensure all Phase 6 analytics are persisted
+                # (analytics_runner commits internally, but we need final commit before context exits)
+                await db.commit()
+                logger.debug(f"Final commit completed for {calc_date}")
 
         duration = int(asyncio.get_event_loop().time() - start_time)
 

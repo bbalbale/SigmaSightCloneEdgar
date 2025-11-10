@@ -470,7 +470,7 @@ class OpenAIService:
                                 "type": "function",
                                 "function": {"name": str(function_name), "arguments": ""}  # Ensure string type
                             }
-                            logger.debug(f"🔧 Tool call item added - ID: {tool_call_id}, Function: {function_name}")
+                            logger.debug(f"[TOOL] Tool call item added - ID: {tool_call_id}, Function: {function_name}")
                         
                     elif event.type == "response.output_text.delta":
                         # Handle streaming text content -> emit token event
@@ -506,7 +506,7 @@ class OpenAIService:
                             function_name = getattr(event, 'function_name', 'unknown_function')
                             # Phase 5.9.5.4: Ensure function name is always a string (prevents frontend 400s)
                             function_name = str(function_name) if function_name else 'unknown_function'
-                            logger.debug(f"🔧 Tool call arguments started - ID: {tool_call_id}, Tool: {function_name}")
+                            logger.debug(f"[TOOL] Tool call arguments started - ID: {tool_call_id}, Tool: {function_name}")
                             
                             accumulated_tool_calls[tool_call_id] = {
                                 "id": tool_call_id,
@@ -568,7 +568,7 @@ class OpenAIService:
                             seq += 1
                             
                             # Execute tool
-                            logger.info(f"🔧 Executing tool call - ID: {tool_call_id}, Tool: {function_name}")
+                            logger.info(f"[TOOL] Executing tool call - ID: {tool_call_id}, Tool: {function_name}")
                             start_time = time.time()
                             
                             try:
@@ -588,7 +588,7 @@ class OpenAIService:
                                 result = await tool_registry.dispatch_tool_call(function_name, function_args, tool_context)
                                 duration_ms = int((time.time() - start_time) * 1000)
                                 
-                                logger.info(f"✅ Tool call completed - ID: {tool_call_id}, Tool: {function_name}, Duration: {duration_ms}ms")
+                                logger.info(f"[OK] Tool call completed - ID: {tool_call_id}, Tool: {function_name}, Duration: {duration_ms}ms")
                                 
                                 # Emit tool_result event
                                 tool_result_payload = {
@@ -611,7 +611,7 @@ class OpenAIService:
                                 
                             except Exception as e:
                                 duration_ms = int((time.time() - start_time) * 1000)
-                                logger.error(f"❌ Tool call failed - ID: {tool_call_id}, Tool: {function_name}, Error: {e}")
+                                logger.error(f"[ERROR] Tool call failed - ID: {tool_call_id}, Tool: {function_name}, Error: {e}")
                                 
                                 # Emit error result
                                 error_result = {
@@ -918,14 +918,14 @@ class OpenAIService:
         """Log a summary of all tool calls for a conversation"""
         mappings = self.get_tool_call_mappings(conversation_id)
         if mappings:
-            logger.info(f"📊 Tool Call Summary for conversation {conversation_id}:")
+            logger.info(f"[DATA] Tool Call Summary for conversation {conversation_id}:")
             for tool_id, mapping in mappings.items():
                 status = mapping.get("status", "unknown")
                 tool_name = mapping.get("tool_name", "unknown")
                 duration = mapping.get("duration_ms", "N/A")
                 logger.info(f"  - {tool_id[:8]}... | {tool_name} | Status: {status} | Duration: {duration}ms")
         else:
-            logger.info(f"📊 No tool calls recorded for conversation {conversation_id}")
+            logger.info(f"[DATA] No tool calls recorded for conversation {conversation_id}")
 
 
 # Singleton instance

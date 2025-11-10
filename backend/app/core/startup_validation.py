@@ -101,7 +101,7 @@ async def validate_system_prerequisites() -> Dict[str, Any]:
 
     # Check for bypass flag
     if os.getenv("SKIP_STARTUP_VALIDATION", "").lower() == "true":
-        logger.warning("⚠️ Startup validation SKIPPED (SKIP_STARTUP_VALIDATION=true)")
+        logger.warning("WARNING: Startup validation SKIPPED (SKIP_STARTUP_VALIDATION=true)")
         result["warnings"].append("Startup validation bypassed via environment variable")
         return result
 
@@ -112,7 +112,7 @@ async def validate_system_prerequisites() -> Dict[str, Any]:
     if strict_mode:
         logger.info("🔒 Production mode - validation enforced")
     else:
-        logger.info("🔧 Development mode - validation warnings only")
+        logger.info("[TOOL] Development mode - validation warnings only")
 
     # Check prerequisites
     async with AsyncSessionLocal() as db:
@@ -152,16 +152,16 @@ async def validate_system_prerequisites() -> Dict[str, Any]:
 
                 if strict_mode:
                     # Production: Block startup
-                    logger.error(f"❌ {error_msg}")
+                    logger.error(f"[ERROR] {error_msg}")
                     raise RuntimeError(error_msg)
                 else:
                     # Development: Warn only
-                    logger.warning(f"⚠️ {error_msg}")
+                    logger.warning(f"WARNING: {error_msg}")
 
             else:
                 # All prerequisites present
                 logger.info(
-                    f"✅ System prerequisites validated: "
+                    f"[OK] System prerequisites validated: "
                     f"{result['factor_count']} factors, "
                     f"{result['scenario_count']} scenarios"
                 )

@@ -100,7 +100,7 @@ async def get_portfolio_exposures(
         staleness = (calculation_date - latest_snapshot.snapshot_date).days
         if staleness <= max_staleness_days:
             logger.info(
-                f"✅ Cache HIT: Using snapshot from {latest_snapshot.snapshot_date} "
+                f"[OK] Cache HIT: Using snapshot from {latest_snapshot.snapshot_date} "
                 f"({staleness} days old) for portfolio {portfolio_id}"
             )
             logger.debug(
@@ -119,12 +119,12 @@ async def get_portfolio_exposures(
             }
         else:
             logger.warning(
-                f"❌ Cache MISS (stale): Latest snapshot is {staleness} days old "
+                f"[ERROR] Cache MISS (stale): Latest snapshot is {staleness} days old "
                 f"(max: {max_staleness_days}), calculating real-time for portfolio {portfolio_id}"
             )
     else:
         logger.info(
-            f"❌ Cache MISS (none): No snapshot found for portfolio {portfolio_id}, "
+            f"[ERROR] Cache MISS (none): No snapshot found for portfolio {portfolio_id}, "
             "calculating real-time"
         )
 

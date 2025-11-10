@@ -144,7 +144,7 @@ async def seed_security_master_data(db: AsyncSession, symbol: str, data: Dict[st
 async def enrich_from_api(db: AsyncSession, symbol: str) -> bool:
     """Try to enrich security data from API if not in our static data"""
     try:
-        logger.info(f"🔍 Fetching security data from API for {symbol}")
+        logger.info(f"[SEARCH] Fetching security data from API for {symbol}")
         
         # Use Section 1.4.9 market data service to get security information
         # This would typically call FMP or Polygon APIs for sector/industry data
@@ -164,7 +164,7 @@ async def enrich_from_api(db: AsyncSession, symbol: str) -> bool:
         )
         db.add(cache_entry)
         
-        logger.warning(f"⚠️ Added placeholder security data for {symbol} - needs API enrichment")
+        logger.warning(f"WARNING: Added placeholder security data for {symbol} - needs API enrichment")
         return True
         
     except Exception as e:
@@ -173,7 +173,7 @@ async def enrich_from_api(db: AsyncSession, symbol: str) -> bool:
 
 async def seed_security_master(db: AsyncSession) -> None:
     """Seed security master data for all demo portfolio symbols"""
-    logger.info("🔧 Seeding security master data...")
+    logger.info("[TOOL] Seeding security master data...")
     
     # Get all symbols from demo portfolios
     demo_symbols = get_all_demo_symbols()
@@ -194,10 +194,10 @@ async def seed_security_master(db: AsyncSession) -> None:
             if success:
                 enriched_count += 1
     
-    logger.info(f"✅ Security master data: {seeded_count} seeded, {enriched_count} API enriched")
+    logger.info(f"[OK] Security master data: {seeded_count} seeded, {enriched_count} API enriched")
     
     if enriched_count > 0:
-        logger.warning(f"⚠️ {enriched_count} symbols need API enrichment for production readiness")
+        logger.warning(f"WARNING: {enriched_count} symbols need API enrichment for production readiness")
 
 async def main():
     """Main function for testing"""
@@ -207,10 +207,10 @@ async def main():
         try:
             await seed_security_master(db)
             await db.commit()
-            logger.info("✅ Security master seeding completed")
+            logger.info("[OK] Security master seeding completed")
         except Exception as e:
             await db.rollback()
-            logger.error(f"❌ Security master seeding failed: {e}")
+            logger.error(f"[ERROR] Security master seeding failed: {e}")
             raise
 
 if __name__ == "__main__":

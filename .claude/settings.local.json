@@ -2,7 +2,23 @@
   "permissions": {
     "allow": [
       "Bash(timeout /t 5)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(git push:*)",
+      "Bash(uv run python:*)",
+      "mcp__playwright__browser_navigate",
+      "mcp__playwright__browser_click",
+      "mcp__playwright__browser_wait_for",
+      "mcp__playwright__browser_network_requests",
+      "Bash(find:*)",
+      "Bash(python:*)",
+      "Bash(curl:*)",
+      "Bash(timeout 3 tail:*)",
+      "Bash(cat:*)",
+      "Bash(timeout 5 bash:*)",
+      "mcp__playwright__browser_snapshot",
+      "Bash(git commit:*)",
+      "Bash(timeout 60 uv run:*)",
+      "mcp__playwright__browser_console_messages"
     ],
     "deny": [],
     "ask": [],

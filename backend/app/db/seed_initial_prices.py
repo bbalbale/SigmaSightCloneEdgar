@@ -67,12 +67,12 @@ async def update_position_market_values(db: AsyncSession) -> int:
                 updated_count += 1
                 logger.debug(f"Updated {position.symbol}: MV=${calc_result['market_value']}, P&L=${calc_result['unrealized_pnl']}")
             else:
-                logger.warning(f"⚠️ No price found for position {position.symbol}")
+                logger.warning(f"WARNING: No price found for position {position.symbol}")
 
         except Exception as e:
-            logger.error(f"❌ Failed to update market value for {position.symbol}: {e}")
+            logger.error(f"[ERROR] Failed to update market value for {position.symbol}: {e}")
 
-    logger.info(f"✅ Updated market values for {updated_count} positions")
+    logger.info(f"[OK] Updated market values for {updated_count} positions")
     return updated_count
 
 
@@ -101,7 +101,7 @@ async def seed_historical_prices(db: AsyncSession, days: int = 180) -> None:
     stock_symbols = await filter_stock_symbols(all_symbols)
 
     if not stock_symbols:
-        logger.warning("⚠️ No symbols found to seed")
+        logger.warning("WARNING: No symbols found to seed")
         return
 
     logger.info(f"Symbols to seed: {', '.join(sorted(stock_symbols)[:15])}{'...' if len(stock_symbols) > 15 else ''}")
@@ -120,8 +120,8 @@ async def seed_historical_prices(db: AsyncSession, days: int = 180) -> None:
         successful = sum(1 for count in records_per_symbol.values() if count > 0)
         total_records = sum(records_per_symbol.values())
 
-        logger.info(f"✅ Successfully seeded {successful}/{len(stock_symbols)} symbols")
-        logger.info(f"✅ Total records stored: {total_records}")
+        logger.info(f"[OK] Successfully seeded {successful}/{len(stock_symbols)} symbols")
+        logger.info(f"[OK] Total records stored: {total_records}")
 
         # Show sample of what was stored
         logger.info("")
@@ -131,7 +131,7 @@ async def seed_historical_prices(db: AsyncSession, days: int = 180) -> None:
             logger.info(f"  {symbol}: {count} days")
 
     except Exception as e:
-        logger.error(f"❌ Historical price seeding failed: {e}")
+        logger.error(f"[ERROR] Historical price seeding failed: {e}")
         raise
 
     # Flush to ensure prices are available for position calculations
@@ -145,8 +145,8 @@ async def seed_historical_prices(db: AsyncSession, days: int = 180) -> None:
     logger.info("=" * 80)
     logger.info("SEEDING COMPLETE")
     logger.info("=" * 80)
-    logger.info(f"✅ Stored {total_records} price records for {successful} symbols")
-    logger.info(f"✅ Updated market values for {updated_positions} positions")
+    logger.info(f"[OK] Stored {total_records} price records for {successful} symbols")
+    logger.info(f"[OK] Updated market values for {updated_positions} positions")
     logger.info("🎯 Database ready for correlation and factor analysis!")
     logger.info("")
 
@@ -168,10 +168,10 @@ async def main():
         try:
             await seed_historical_prices(db, days=180)
             await db.commit()
-            logger.info("✅ Historical price seeding completed successfully")
+            logger.info("[OK] Historical price seeding completed successfully")
         except Exception as e:
             await db.rollback()
-            logger.error(f"❌ Historical price seeding failed: {e}")
+            logger.error(f"[ERROR] Historical price seeding failed: {e}")
             raise
 
 

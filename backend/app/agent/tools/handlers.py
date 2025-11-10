@@ -125,8 +125,8 @@ class PortfolioTools:
             
             # Call API endpoint
             endpoint = f"/api/v1/data/portfolio/{portfolio_id}/complete"
-            # 🔍 TRACE-3 Tool URL (Phase 9.12.1 investigation)
-            logger.info(f"🔍 TRACE-3 Tool URL: portfolio_id={portfolio_id} | final_url={endpoint}")
+            # [SEARCH] TRACE-3 Tool URL (Phase 9.12.1 investigation)
+            logger.info(f"[SEARCH] TRACE-3 Tool URL: portfolio_id={portfolio_id} | final_url={endpoint}")
             response = await self._make_request(
                 method="GET",
                 endpoint=endpoint,

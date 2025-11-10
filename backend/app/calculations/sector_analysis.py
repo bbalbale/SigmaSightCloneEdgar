@@ -323,7 +323,7 @@ async def calculate_sector_exposure(
             for sector, value in sector_values.items()
         }
 
-        logger.info(f"📊 Final portfolio_weights keys: {list(portfolio_weights.keys())}")
+        logger.info(f"[DATA] Final portfolio_weights keys: {list(portfolio_weights.keys())}")
 
         # Add ETFs to portfolio weights if there are ETF positions
         if etf_value > 0:

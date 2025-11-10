@@ -92,7 +92,7 @@ async def startup_validation():
             for warning in result["warnings"]:
                 api_logger.warning(f"  - {warning}")
         else:
-            api_logger.info("✅ Startup validation passed")
+            api_logger.info("[OK] Startup validation passed")
 
     except Exception as e:
         # In production, this will prevent startup

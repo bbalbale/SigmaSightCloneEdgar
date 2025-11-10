@@ -42,7 +42,7 @@ async def fetch_and_store_historical_data(
     Raises:
         Exception: If YFinance provider is not available
     """
-    logger.info(f"📊 Fetching {days} days of historical data from YFinance...")
+    logger.info(f"[DATA] Fetching {days} days of historical data from YFinance...")
     logger.info(f"Processing {len(symbols)} symbols (batch size: {batch_size})")
 
     # Calculate date range
@@ -85,7 +85,7 @@ async def fetch_and_store_historical_data(
                 )
 
                 if not historical_data:
-                    logger.warning(f"  [{symbol}] ❌ No data returned")
+                    logger.warning(f"  [{symbol}] [ERROR] No data returned")
                     error_count += 1
                     records_per_symbol[symbol] = 0
                     continue
@@ -128,14 +128,14 @@ async def fetch_and_store_historical_data(
                     record_count = len(records_to_insert)
                     records_per_symbol[symbol] = record_count
                     total_records += record_count
-                    logger.info(f"  [{symbol}] ✅ {record_count} days stored")
+                    logger.info(f"  [{symbol}] [OK] {record_count} days stored")
                 else:
-                    logger.warning(f"  [{symbol}] ❌ No records to insert")
+                    logger.warning(f"  [{symbol}] [ERROR] No records to insert")
                     error_count += 1
                     records_per_symbol[symbol] = 0
 
             except Exception as e:
-                logger.error(f"  [{symbol}] ❌ Error: {str(e)[:100]}")
+                logger.error(f"  [{symbol}] [ERROR] Error: {str(e)[:100]}")
                 error_count += 1
                 records_per_symbol[symbol] = 0
                 await db.rollback()

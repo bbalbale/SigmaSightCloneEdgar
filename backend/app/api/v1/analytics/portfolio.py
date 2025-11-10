@@ -331,8 +331,8 @@ async def get_stress_test_results(
     "/{portfolio_id}/risk-metrics", 
     response_model=PortfolioRiskMetricsResponse,
     deprecated=True,
-    summary="⚠️ DEFERRED - Portfolio Risk Metrics (DO NOT USE)",
-    description="⚠️ WARNING: PARTIALLY IMPLEMENTED BUT NOT TESTED. DEFERRED INDEFINITELY (2025-09-07). DO NOT USE IN PRODUCTION. Frontend and AI agents should NOT use this endpoint. This endpoint may return incomplete or incorrect data."
+    summary="WARNING: DEFERRED - Portfolio Risk Metrics (DO NOT USE)",
+    description="WARNING: WARNING: PARTIALLY IMPLEMENTED BUT NOT TESTED. DEFERRED INDEFINITELY (2025-09-07). DO NOT USE IN PRODUCTION. Frontend and AI agents should NOT use this endpoint. This endpoint may return incomplete or incorrect data."
 )
 async def get_portfolio_risk_metrics(
     portfolio_id: UUID,
@@ -343,9 +343,9 @@ async def get_portfolio_risk_metrics(
     """
     Portfolio risk metrics (DB-first v1).
     
-    ⚠️ WARNING: PARTIALLY IMPLEMENTED BUT NOT TESTED. DEFERRED INDEFINITELY (2025-09-07).
-    ⚠️ DO NOT USE IN PRODUCTION. Frontend and AI agents should NOT use this endpoint.
-    ⚠️ This endpoint may return incomplete or incorrect data.
+    WARNING: WARNING: PARTIALLY IMPLEMENTED BUT NOT TESTED. DEFERRED INDEFINITELY (2025-09-07).
+    WARNING: DO NOT USE IN PRODUCTION. Frontend and AI agents should NOT use this endpoint.
+    WARNING: This endpoint may return incomplete or incorrect data.
     
     Original scope:
     - portfolio_beta from FactorExposure ("Market Beta")
@@ -354,7 +354,7 @@ async def get_portfolio_risk_metrics(
     
     Status: Implementation incomplete, testing not performed, deferred for future release.
     """
-    # ⚠️ IMPORTANT: This endpoint is DEFERRED INDEFINITELY - DO NOT USE
+    # WARNING: IMPORTANT: This endpoint is DEFERRED INDEFINITELY - DO NOT USE
     # Implementation is incomplete and untested. May return incorrect data.
     # Frontend developers and AI agents should avoid using this endpoint.
     

@@ -383,9 +383,11 @@ class AnalyticsRunner:
         calculation_date: date
     ) -> bool:
         """Calculate spread factor betas"""
+        logger.info(f"[SPREAD_FACTORS_DEBUG] CALLED for portfolio {portfolio_id} on {calculation_date}")
         try:
             from app.calculations.factors_spread import calculate_portfolio_spread_betas
 
+            logger.info(f"[SPREAD_FACTORS_DEBUG] About to call calculate_portfolio_spread_betas")
             result = await calculate_portfolio_spread_betas(
                 db=db,
                 portfolio_id=portfolio_id,
@@ -393,10 +395,17 @@ class AnalyticsRunner:
                 price_cache=self._price_cache  # Pass through cache for optimization
             )
 
+            logger.info(f"[SPREAD_FACTORS_DEBUG] Result is None: {result is None}")
+            if result:
+                logger.info(f"[SPREAD_FACTORS_DEBUG] Result has position_betas: {len(result.get('position_betas', {}))}")
+
             return result is not None
 
         except Exception as e:
+            logger.error(f"[SPREAD_FACTORS_DEBUG] Exception: {e}")
             logger.warning(f"Spread factors calculation failed: {e}")
+            import traceback
+            logger.error(f"[SPREAD_FACTORS_DEBUG] Traceback: {traceback.format_exc()}")
             return False
 
     async def _calculate_sector_analysis(

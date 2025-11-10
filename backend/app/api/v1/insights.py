@@ -251,7 +251,7 @@ async def generate_insight(
         # TEMP DEBUG: Show actual error since logging is broken
         import traceback
         error_detail = f"{type(e).__name__}: {str(e)}\n{traceback.format_exc()}"
-        print(f"❌ ERROR GENERATING INSIGHT:\n{error_detail}")
+        print(f"[ERROR] ERROR GENERATING INSIGHT:\n{error_detail}")
         logger.error(f"Error generating insight: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

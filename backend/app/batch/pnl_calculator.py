@@ -246,9 +246,9 @@ class PnLCalculator:
 
             await db.flush()
             logger.info(f"  AFTER FLUSH: portfolio.equity_balance = ${portfolio.equity_balance:,.2f}")
-            logger.info(f"  ✅ EQUITY UPDATE SUCCESSFUL")
+            logger.info(f"  [OK] EQUITY UPDATE SUCCESSFUL")
         except Exception as e:
-            logger.error(f"  ❌ EQUITY UPDATE FAILED: {type(e).__name__}: {e}")
+            logger.error(f"  [ERROR] EQUITY UPDATE FAILED: {type(e).__name__}: {e}")
             logger.error(f"  Exception details:", exc_info=True)
             # Re-raise to stop processing - silent failures are bad!
             raise
@@ -292,7 +292,7 @@ class PnLCalculator:
                 logger.info(f"  [EQUITY DEBUG] About to commit transaction...")
                 logger.info(f"    Portfolio equity_balance before commit: ${portfolio.equity_balance:,.2f}")
                 await db.commit()
-                logger.info(f"  [EQUITY DEBUG] ✅ TRANSACTION COMMITTED")
+                logger.info(f"  [EQUITY DEBUG] [OK] TRANSACTION COMMITTED")
 
             logger.info(f"    ✓ Snapshot created")
             return True

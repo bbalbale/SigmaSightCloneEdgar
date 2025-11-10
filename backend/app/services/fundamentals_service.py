@@ -1044,7 +1044,7 @@ class FundamentalsService:
                     'updated_at': datetime.utcnow(),
                 }
 
-                # ✅ DATA QUALITY: Skip incomplete records (filter before UPSERT)
+                # [OK] DATA QUALITY: Skip incomplete records (filter before UPSERT)
                 # Only store records with complete core data
                 if not income_record['total_revenue']:
                     logger.debug(f"Skipping incomplete income statement for {symbol} on {period_date} - missing revenue")
@@ -1098,7 +1098,7 @@ class FundamentalsService:
                 periods_stored += 1
 
             await db.commit()
-            logger.info(f"✅ Stored {periods_stored} income statement periods for {symbol} ({frequency})")
+            logger.info(f"[OK] Stored {periods_stored} income statement periods for {symbol} ({frequency})")
             return periods_stored
 
         except Exception as e:
@@ -1195,7 +1195,7 @@ class FundamentalsService:
                     'updated_at': datetime.utcnow(),
                 }
 
-                # ✅ DATA QUALITY: Skip incomplete records (filter before UPSERT)
+                # [OK] DATA QUALITY: Skip incomplete records (filter before UPSERT)
                 # Only store records with complete core data
                 if not balance_record['total_assets']:
                     logger.debug(f"Skipping incomplete balance sheet for {symbol} on {period_date} - missing total assets")
@@ -1402,7 +1402,7 @@ class FundamentalsService:
                     'updated_at': datetime.utcnow(),
                 }
 
-                # ✅ DATA QUALITY: Skip incomplete records (filter before UPSERT)
+                # [OK] DATA QUALITY: Skip incomplete records (filter before UPSERT)
                 # Only store records with complete core data
                 if not cashflow_record['operating_cash_flow']:
                     logger.debug(f"Skipping incomplete cash flow for {symbol} on {period_date} - missing operating cash flow")

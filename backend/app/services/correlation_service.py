@@ -182,7 +182,7 @@ class CorrelationService:
             deleted_count += 1
 
         await self.db.flush()
-        logger.info(f"✅ Cleaned up {deleted_count} old correlation calculations")
+        logger.info(f"[OK] Cleaned up {deleted_count} old correlation calculations")
 
         return deleted_count
 
@@ -550,7 +550,7 @@ class CorrelationService:
         """
         Identify clusters of highly correlated positions using graph connectivity
         """
-        logger.debug(f"🔍 Detecting correlation clusters (threshold: {threshold})")
+        logger.debug(f"[SEARCH] Detecting correlation clusters (threshold: {threshold})")
         symbols = list(correlation_matrix.columns)
         n = len(symbols)
         logger.debug(f"  Correlation matrix: {n} symbols")
@@ -598,7 +598,7 @@ class CorrelationService:
                     nickname = await self.generate_cluster_nickname(
                         cluster_symbols, positions
                     )
-                    logger.debug(f"    ✅ Nickname generated: {nickname}")
+                    logger.debug(f"    [OK] Nickname generated: {nickname}")
                     
                     clusters.append({
                         "symbols": cluster_symbols,
@@ -611,7 +611,7 @@ class CorrelationService:
         # Sort clusters by size (descending)
         clusters.sort(key=lambda x: len(x["symbols"]), reverse=True)
 
-        logger.debug(f"✅ Detected {len(clusters)} clusters total")
+        logger.debug(f"[OK] Detected {len(clusters)} clusters total")
         return clusters
     
     async def generate_cluster_nickname(
@@ -625,7 +625,7 @@ class CorrelationService:
         2. Common sector
         3. Largest position + "lookalikes"
         """
-        logger.debug(f"🔍 Generating nickname for cluster: {cluster_symbols[:3]}... ({len(cluster_symbols)} symbols)")
+        logger.debug(f"[SEARCH] Generating nickname for cluster: {cluster_symbols[:3]}... ({len(cluster_symbols)} symbols)")
 
         # Create symbol to position mapping
         symbol_to_position = {p.symbol: p for p in positions}
@@ -658,7 +658,7 @@ class CorrelationService:
                 if tag_counts:
                     most_common_tag = max(tag_counts, key=tag_counts.get)
                     if tag_counts[most_common_tag] >= len(cluster_positions) * 0.7:
-                        logger.debug(f"  ✅ Using tag nickname: {most_common_tag}")
+                        logger.debug(f"  [OK] Using tag nickname: {most_common_tag}")
                         return most_common_tag
 
             logger.debug(f"  No common tags found (threshold: 70%)")
@@ -694,7 +694,7 @@ class CorrelationService:
             logger.debug(f"  Most common sector: {most_common_sector} ({sector_counts[most_common_sector]}/{len(cluster_symbols)} = {sector_counts[most_common_sector]/len(cluster_symbols)*100:.1f}%)")
 
             if sector_counts[most_common_sector] >= len(cluster_symbols) * 0.7:  # 70% threshold
-                logger.debug(f"  ✅ Using sector nickname: {most_common_sector}")
+                logger.debug(f"  [OK] Using sector nickname: {most_common_sector}")
                 return most_common_sector
 
         logger.debug(f"  No common sector found (threshold: 70%)")
@@ -708,12 +708,12 @@ class CorrelationService:
                 key=lambda p: get_position_valuation(p).abs_market_value
             )
             nickname = f"{largest_position.symbol} lookalikes"
-            logger.debug(f"  ✅ Using largest position nickname: {nickname}")
+            logger.debug(f"  [OK] Using largest position nickname: {nickname}")
             return nickname
 
         # Fallback
         nickname = f"Cluster {cluster_symbols[0]}"
-        logger.debug(f"  ✅ Using fallback nickname: {nickname}")
+        logger.debug(f"  [OK] Using fallback nickname: {nickname}")
         return nickname
     
     def calculate_portfolio_metrics(

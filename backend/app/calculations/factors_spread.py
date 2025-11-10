@@ -83,6 +83,7 @@ async def fetch_spread_returns(
 
     # Use canonical get_returns() function instead of manual price fetching
     # This replaces ~30 lines of duplicate "fetch prices → pct_change" logic
+    logger.info(f"[TRACE] Calling get_returns for {list(etf_symbols)} from {start_date} to {end_date}")
     returns = await get_returns(
         db=db,
         symbols=list(etf_symbols),
@@ -91,6 +92,11 @@ async def fetch_spread_returns(
         align_dates=True,  # Drop dates with any missing data
         price_cache=price_cache  # Pass through cache for optimization
     )
+
+    logger.info(f"[TRACE] get_returns returned: empty={returns.empty}, shape={returns.shape if not returns.empty else 'N/A'}")
+    if not returns.empty:
+        logger.info(f"[TRACE] Columns in returns: {list(returns.columns)}")
+        logger.info(f"[TRACE] Date range in returns: {returns.index[0]} to {returns.index[-1]}")
 
     if returns.empty:
         raise ValueError("No price data available for spread factors")
@@ -440,14 +446,14 @@ async def calculate_portfolio_spread_betas(
         }
 
         logger.info(
-            f"✅ Spread factor calculation complete: "
+            f"[OK] Spread factor calculation complete: "
             f"{len(position_betas)} positions, {len(portfolio_betas)} portfolio factors"
         )
 
         return results
 
     except Exception as e:
-        logger.error(f"❌ Error calculating spread factor betas: {e}", exc_info=True)
+        logger.error(f"[ERROR] Error calculating spread factor betas: {e}", exc_info=True)
         raise
 
 
@@ -499,7 +505,7 @@ async def store_spread_factor_exposures(
             context=context
         )
         storage_results['position_storage'] = position_storage
-        logger.info(f"✅ Stored {position_storage['records_stored']} position spread betas")
+        logger.info(f"[OK] Stored {position_storage['records_stored']} position spread betas")
     else:
         logger.warning(f"[DEBUG] SKIPPING position-level storage - position_betas is empty or False!")
         logger.warning(f"[DEBUG] position_betas type: {type(position_betas)}, len: {len(position_betas) if position_betas else 'N/A'}")
@@ -533,6 +539,6 @@ async def store_spread_factor_exposures(
             context=context
         )
         storage_results['portfolio_storage'] = portfolio_storage
-        logger.info("✅ Portfolio spread betas stored successfully")
+        logger.info("[OK] Portfolio spread betas stored successfully")
 
     return storage_results

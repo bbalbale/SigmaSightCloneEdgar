@@ -627,7 +627,7 @@ async def calculate_portfolio_provider_beta(
 
         # [STEP 2 DEBUG] Report query statistics
         logger.info(
-            f"[PROVIDER BETA DEBUG] ✅ COMPLETE: {portfolio_beta:.3f} "
+            f"[PROVIDER BETA DEBUG] [OK] COMPLETE: {portfolio_beta:.3f} "
             f"({positions_with_beta}/{len(positions)} positions with beta data)"
         )
         logger.info(f"[PROVIDER BETA DEBUG] Total company_profile queries: {company_profile_query_count}")

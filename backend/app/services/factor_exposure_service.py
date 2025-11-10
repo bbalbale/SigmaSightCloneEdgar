@@ -19,9 +19,9 @@ from app.models import (
     Position,
 )
 
-import logging
+from app.core.logging import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class FactorExposureService:
@@ -162,10 +162,10 @@ class FactorExposureService:
         # See: snapshot_refresh_service.py for the expensive calculation logic
         # refresh_check = await check_and_trigger_refresh_if_needed(self.db, portfolio_id)
 
-        logger.info(f"🔍 Snapshot found: {snapshot is not None}")
+        logger.info(f"[SNAPSHOT] Snapshot found: {snapshot is not None}")
         if snapshot_metadata.get('is_stale'):
             logger.warning(
-                f"⚠️ Serving stale snapshot for portfolio {portfolio_id}: "
+                f"WARNING: Serving stale snapshot for portfolio {portfolio_id}: "
                 f"{snapshot_metadata.get('age_hours')} hours old"
             )
 
@@ -178,13 +178,13 @@ class FactorExposureService:
         }
 
         if snapshot:
-            logger.info(f"📊 Snapshot data - equity: {snapshot.equity_balance}, calc_beta: {snapshot.beta_calculated_90d}, provider_beta: {snapshot.beta_provider_1y}")
+            logger.info(f"[SNAPSHOT DATA] equity: {snapshot.equity_balance}, calc_beta: {snapshot.beta_calculated_90d}, provider_beta: {snapshot.beta_provider_1y}")
             equity_balance = float(snapshot.equity_balance) if snapshot.equity_balance else 0.0
 
             # Add Calculated Beta (90d OLS) if available
             if snapshot.beta_calculated_90d is not None:
                 calculated_beta = float(snapshot.beta_calculated_90d)
-                logger.info(f"➕ Adding Calculated Beta: {calculated_beta}")
+                logger.info(f"[BETA] Adding Calculated Beta: {calculated_beta}")
                 factors.append({
                     "name": "Market Beta (Calculated 90d)",
                     "beta": calculated_beta,
@@ -194,18 +194,18 @@ class FactorExposureService:
             # Add Provider Beta (1y from company profiles) if available
             if snapshot.beta_provider_1y is not None:
                 provider_beta = float(snapshot.beta_provider_1y)
-                logger.info(f"➕ Adding Provider Beta: {provider_beta}")
+                logger.info(f"[BETA] Adding Provider Beta: {provider_beta}")
                 factors.append({
                     "name": "Market Beta (Provider 1y)",
                     "beta": provider_beta,
                     "exposure_dollar": provider_beta * equity_balance if equity_balance > 0 else None
                 })
 
-        logger.info(f"✅ Total factors after adding snapshot betas: {len(factors)}")
+        logger.info(f"[COMPLETE] Total factors after adding snapshot betas: {len(factors)}")
 
         # Derive metadata with information about partial vs complete
         factor_model = f"{len(factors)}-factor" if factors else None
-        calc_methods = {getattr(defn, "calculation_method", None) for _, defn in rows}
+        calc_methods = {getattr(definition, "calculation_method", None) for _, definition in rows}
         calc_method = next((m for m in calc_methods if m), None) or "ETF-proxy regression"
         
         # Check if we have Market Beta (minimum requirement)
@@ -311,7 +311,7 @@ class FactorExposureService:
         # Log staleness warning
         if age_metrics['is_stale']:
             logger.warning(
-                f"⚠️ Serving stale position exposures for portfolio {portfolio_id}: "
+                f"WARNING: Serving stale position exposures for portfolio {portfolio_id}: "
                 f"{age_metrics['age_hours']} hours old (from {anchor_date})"
             )
 
