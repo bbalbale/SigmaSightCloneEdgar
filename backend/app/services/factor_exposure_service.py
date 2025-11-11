@@ -65,13 +65,18 @@ class FactorExposureService:
                 "metadata": {"reason": "no_calculation_available", "detail": "no_active_style_or_macro_factors"},
             }
 
-        # Find the latest date with ANY factor calculations (not requiring all)
+        # Find the latest date with ALL required factors (not just ANY)
+        # This ensures we return complete factor sets rather than incomplete snapshots
         latest_date_stmt = (
-            select(func.max(FactorExposure.calculation_date))
+            select(FactorExposure.calculation_date)
             .where(and_(
                 FactorExposure.portfolio_id == portfolio_id,
                 FactorExposure.factor_id.in_(target_factor_ids)
             ))
+            .group_by(FactorExposure.calculation_date)
+            .having(func.count(func.distinct(FactorExposure.factor_id)) == len(target_factor_ids))
+            .order_by(FactorExposure.calculation_date.desc())
+            .limit(1)
         )
         latest_date_res = await self.db.execute(latest_date_stmt)
         latest_date = latest_date_res.scalar_one_or_none()
