@@ -554,8 +554,11 @@ async def get_positions_details(
             
         if not portfolio:
             raise HTTPException(status_code=404, detail="Portfolio not found")
-        
-        stmt = select(Position).where(Position.portfolio_id == portfolio_id)
+
+        stmt = select(Position).where(
+            Position.portfolio_id == portfolio_id,
+            Position.deleted_at.is_(None)  # Exclude soft-deleted positions
+        )
     elif position_ids:
         # Parse position IDs
         ids = [UUID(pid.strip()) for pid in position_ids.split(",")]
