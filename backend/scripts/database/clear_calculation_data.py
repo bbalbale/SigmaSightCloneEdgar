@@ -37,11 +37,13 @@ else:
     print("Warning: .env file not found. Assuming environment variables are set.")
 # --- End Setup ---
 
-from sqlalchemy import delete, select, func
+from decimal import Decimal
+from sqlalchemy import delete, select, func, update
 from sqlalchemy.orm import DeclarativeMeta
 
 from app.database import get_async_session
 from app.models.snapshots import PortfolioSnapshot
+from app.models.users import Portfolio, User
 from app.models.market_data import (
     FactorCorrelation,
     FactorExposure,
@@ -74,6 +76,20 @@ TABLES_TO_CLEAR: List[Tuple[Type[DeclarativeMeta], str, str]] = [
     (StressTestResult, "calculation_date", "Stress test results"),
     (FactorCorrelation, "calculation_date", "Factor correlations"),
 ]
+
+# Demo portfolio seed equity balances
+# ⚠️ CRITICAL: These represent STARTING CAPITAL (equity balance), NOT position values
+# For long/short portfolios, gross exposure can exceed equity balance (leverage)
+# See backend/CLAUDE.md "Portfolio Equity & Exposure Definitions" section
+DEMO_EQUITY_SEED_VALUES = {
+    "demo_individual@sigmasight.com": Decimal("485000.00"),  # No leverage
+    "demo_hnw@sigmasight.com": Decimal("2850000.00"),  # No leverage
+    "demo_hedgefundstyle@sigmasight.com": Decimal("3200000.00"),  # 1.5x leverage (100% long + 50% short)
+    "demo_familyoffice@sigmasight.com": {
+        "Demo Family Office Public Growth": Decimal("1250000.00"),  # No leverage
+        "Demo Family Office Private Opportunities": Decimal("950000.00"),  # No leverage
+    }
+}
 
 
 async def _process_table(
@@ -108,6 +124,69 @@ async def _process_table(
         print(f"  - DELETED {record_count} records.")
 
     return record_count
+
+
+async def _reset_equity_balances(db, dry_run: bool) -> int:
+    """Reset portfolio equity_balance fields to their original seed values."""
+    print("Resetting portfolio equity balances to seed values...")
+
+    reset_count = 0
+
+    for user_email, equity_value in DEMO_EQUITY_SEED_VALUES.items():
+        # Get user
+        user_result = await db.execute(
+            select(User).where(User.email == user_email)
+        )
+        user = user_result.scalar_one_or_none()
+
+        if not user:
+            print(f"  - WARNING: User not found: {user_email}")
+            continue
+
+        # Handle single portfolio per user
+        if isinstance(equity_value, Decimal):
+            portfolio_result = await db.execute(
+                select(Portfolio).where(Portfolio.user_id == user.id)
+            )
+            portfolios = portfolio_result.scalars().all()
+
+            if not portfolios:
+                print(f"  - WARNING: No portfolios found for user: {user_email}")
+                continue
+
+            for portfolio in portfolios:
+                old_balance = portfolio.equity_balance
+                if not dry_run:
+                    portfolio.equity_balance = equity_value
+                    db.add(portfolio)
+
+                print(f"  - Reset '{portfolio.name}': {old_balance} -> {equity_value}")
+                reset_count += 1
+
+        # Handle multiple portfolios per user (family office case)
+        else:
+            for portfolio_name, portfolio_equity in equity_value.items():
+                portfolio_result = await db.execute(
+                    select(Portfolio).where(
+                        Portfolio.user_id == user.id,
+                        Portfolio.name == portfolio_name
+                    )
+                )
+                portfolio = portfolio_result.scalar_one_or_none()
+
+                if not portfolio:
+                    print(f"  - WARNING: Portfolio not found: {portfolio_name} for {user_email}")
+                    continue
+
+                old_balance = portfolio.equity_balance
+                if not dry_run:
+                    portfolio.equity_balance = portfolio_equity
+                    db.add(portfolio)
+
+                print(f"  - Reset '{portfolio_name}': {old_balance} -> {portfolio_equity}")
+                reset_count += 1
+
+    return reset_count
 
 
 async def _clear_correlation_tables(db, start_date: date, dry_run: bool) -> int:
@@ -203,6 +282,11 @@ async def clear_data(start_date: date, dry_run: bool, confirm: bool):
             )
 
         total_deleted_count += await _clear_correlation_tables(db, start_date, dry_run)
+
+        # Reset equity balances to seed values
+        print("\n" + "-" * 50)
+        reset_count = await _reset_equity_balances(db, dry_run)
+        print(f"Reset {reset_count} portfolio equity balances to seed values.")
 
         if not dry_run:
             print("\nCommitting changes to the database...")

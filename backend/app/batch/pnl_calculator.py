@@ -224,7 +224,7 @@ class PnLCalculator:
 
         total_daily_pnl = daily_unrealized_pnl + daily_realized_pnl
 
-        # Calculate new equity with VERBOSE LOGGING for debugging
+        # Calculate new equity (incremental)
         new_equity = previous_equity + total_daily_pnl + daily_capital_flow
 
         # EQUITY DEBUG LOGGING (Step 1 - Critical Investigation)
@@ -441,9 +441,10 @@ class PnLCalculator:
         Returns:
             Position P&L as Decimal
         """
-        # OPTIMIZATION: Skip price lookups for PRIVATE positions (they don't have market prices)
+        # PRIVATE positions don't have daily market prices, so P&L is always $0
+        # Their value is captured in equity via entry_price (or manually updated last_price)
         if position.investment_class and str(position.investment_class).upper() == 'PRIVATE':
-            logger.debug(f"      {position.symbol}: PRIVATE position, skipping P&L (no market price)")
+            logger.debug(f"      {position.symbol}: PRIVATE position, P&L = $0 (no daily price changes)")
             return Decimal('0')
 
         # Get current price from cache (in-memory or database)

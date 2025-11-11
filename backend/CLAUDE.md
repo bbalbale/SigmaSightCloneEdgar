@@ -789,6 +789,68 @@ except Exception as e:
 
 ## 📐 Design Decisions & Policies
 
+### **🚨 CRITICAL: Portfolio Equity & Exposure Definitions**
+**READ THIS EVERY TIME YOU WORK WITH PORTFOLIOS - DO NOT GUESS THESE DEFINITIONS**
+
+#### **Core Definitions (MEMORIZE THESE)**
+1. **Equity Balance**: The starting capital available to invest (base dollars)
+   - This is what you start with before making any investments
+   - For fully invested portfolios: Equity ≈ Gross Exposure (no leverage)
+   - For leveraged portfolios: Equity < Gross Exposure
+
+2. **Long Exposure**: Sum of absolute values of LONG position entry values
+   - `sum(abs(quantity * entry_price))` for positive quantities
+
+3. **Short Exposure**: Sum of absolute values of SHORT position entry values
+   - `sum(abs(quantity * entry_price))` for negative quantities
+
+4. **Gross Exposure**: Long Exposure + Short Exposure
+   - Total market exposure regardless of direction
+
+5. **Net Exposure**: Long Exposure - Short Exposure
+   - Net market position (can be positive or negative)
+
+#### **Demo Portfolio Specifications (June 30, 2025)**
+**⚠️ THESE ARE THE AUTHORITATIVE VALUES - DO NOT CHANGE WITHOUT EXPLICIT APPROVAL**
+
+**Individual Investor:**
+- Equity Balance: $485,000.00 (starting capital)
+- Long Exposure: $484,999.75 (position entry values)
+- Short Exposure: $0.00
+- Gross Exposure: $484,999.75
+- Net Exposure: $484,999.75
+- No leverage
+
+**High Net Worth:**
+- Equity Balance: $2,850,000.00 (starting capital)
+- Long Exposure: $2,849,233.26 (position entry values)
+- Short Exposure: $0.00
+- Gross Exposure: $2,849,233.26
+- Net Exposure: $2,849,233.26
+- No leverage
+
+**Hedge Fund Style (LONG/SHORT WITH LEVERAGE):**
+- **Equity Balance: $3,200,000.00** ← Starting capital
+- **Long Exposure: $3,199,588.59** (position entry values)
+- **Short Exposure: $1,599,899.68** (position entry values)
+- **Gross Exposure: $4,799,488.27** (150% of equity) ← This is CORRECT
+- **Net Exposure: $1,599,688.91** (50% of equity)
+- **Leverage Ratio**: 1.50x gross
+
+**Family Office Public Growth:**
+- Equity Balance: $1,250,000.00 (starting capital)
+- Long Exposure: $1,249,992.95 (position entry values)
+- Short Exposure: $0.00
+- Gross Exposure: $1,249,992.95
+- Net Exposure: $1,249,992.95
+- No leverage
+
+#### **Critical Rules**
+1. **NEVER confuse Net Exposure with Equity Balance**
+2. **For long/short portfolios, Gross Exposure > Equity Balance is NORMAL**
+3. **Starting equity = what you have to invest, NOT what positions are worth**
+4. **When clearing calculations, reset equity_balance to these exact values**
+
 ### **Precision & Rounding**
 - **Calculations**: Maintain full precision (4dp for Greeks)
 - **Database Storage**: Round to match column constraints

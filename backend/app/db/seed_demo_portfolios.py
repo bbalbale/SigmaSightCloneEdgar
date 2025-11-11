@@ -94,33 +94,33 @@ DEMO_PORTFOLIOS = [
         "equity_balance": Decimal("485000.00"),  # Total portfolio value as equity
         "positions": [
             # Individual Stocks (32% allocation - $155,000)
-            {"symbol": "AAPL", "quantity": Decimal("85"), "entry_price": Decimal("225.00"), "entry_date": date(2024, 1, 15), "tags": ["Core Holdings", "Tech Growth"]},
-            {"symbol": "MSFT", "quantity": Decimal("45"), "entry_price": Decimal("420.00"), "entry_date": date(2024, 1, 16), "tags": ["Core Holdings", "Tech Growth"]},
-            {"symbol": "AMZN", "quantity": Decimal("110"), "entry_price": Decimal("170.00"), "entry_date": date(2024, 1, 18), "tags": ["Core Holdings", "Tech Growth"]},
-            {"symbol": "GOOGL", "quantity": Decimal("115"), "entry_price": Decimal("160.00"), "entry_date": date(2024, 1, 20), "tags": ["Core Holdings", "Tech Growth"]},
-            {"symbol": "TSLA", "quantity": Decimal("70"), "entry_price": Decimal("255.00"), "entry_date": date(2024, 1, 22), "tags": ["Tech Growth"]},
-            {"symbol": "NVDA", "quantity": Decimal("25"), "entry_price": Decimal("700.00"), "entry_date": date(2024, 1, 25), "tags": ["Tech Growth"]},
-            {"symbol": "JNJ", "quantity": Decimal("105"), "entry_price": Decimal("160.00"), "entry_date": date(2024, 2, 1), "tags": ["Dividend Income"]},
-            {"symbol": "JPM", "quantity": Decimal("85"), "entry_price": Decimal("170.00"), "entry_date": date(2024, 2, 5), "tags": ["Dividend Income"]},
-            {"symbol": "V", "quantity": Decimal("50"), "entry_price": Decimal("268.00"), "entry_date": date(2024, 2, 8), "tags": ["Core Holdings"]},
+            {"symbol": "AAPL", "quantity": Decimal("85"), "entry_price": Decimal(204.94"), "entry_date": date(2025, 6, 30), "tags": ["Core Holdings", "Tech Growth"]},
+            {"symbol": "MSFT", "quantity": Decimal("45"), "entry_price": Decimal(496.59"), "entry_date": date(2025, 6, 30), "tags": ["Core Holdings", "Tech Growth"]},
+            {"symbol": "AMZN", "quantity": Decimal("110"), "entry_price": Decimal(219.39"), "entry_date": date(2025, 6, 30), "tags": ["Core Holdings", "Tech Growth"]},
+            {"symbol": "GOOGL", "quantity": Decimal("115"), "entry_price": Decimal(176.07"), "entry_date": date(2025, 6, 30), "tags": ["Core Holdings", "Tech Growth"]},
+            {"symbol": "TSLA", "quantity": Decimal("70"), "entry_price": Decimal(317.66"), "entry_date": date(2025, 6, 30), "tags": ["Tech Growth"]},
+            {"symbol": "NVDA", "quantity": Decimal("25"), "entry_price": Decimal(157.98"), "entry_date": date(2025, 6, 30), "tags": ["Tech Growth"]},
+            {"symbol": "JNJ", "quantity": Decimal("105"), "entry_price": Decimal(151.64"), "entry_date": date(2025, 6, 30), "tags": ["Dividend Income"]},
+            {"symbol": "JPM", "quantity": Decimal("85"), "entry_price": Decimal(287.12"), "entry_date": date(2025, 6, 30), "tags": ["Dividend Income"]},
+            {"symbol": "V", "quantity": Decimal("50"), "entry_price": Decimal(354.43"), "entry_date": date(2025, 6, 30), "tags": ["Core Holdings"]},
 
             # Mutual Funds - Using reasonable share prices for calculation
             # FXNAX: $87,300 at ~$20/share = 4365 shares
-            {"symbol": "FXNAX", "quantity": Decimal("4365"), "entry_price": Decimal("20.00"), "entry_date": date(2023, 12, 15), "tags": ["Core Holdings", "Large Cap Growth"]},
+            {"symbol": "FXNAX", "quantity": Decimal("4365"), "entry_price": Decimal(10.34"), "entry_date": date(2025, 6, 30), "tags": ["Core Holdings", "Large Cap Growth"]},
             # FCNTX: $72,750 at ~$15/share = 4850 shares
-            {"symbol": "FCNTX", "quantity": Decimal("4850"), "entry_price": Decimal("15.00"), "entry_date": date(2023, 12, 15), "tags": ["Core Holdings", "Large Cap Blend"]},
+            {"symbol": "FCNTX", "quantity": Decimal("4850"), "entry_price": Decimal(23.33"), "entry_date": date(2025, 6, 30), "tags": ["Core Holdings", "Large Cap Blend"]},
             # FMAGX: $58,200 at ~$15/share = 3880 shares
-            {"symbol": "FMAGX", "quantity": Decimal("3880"), "entry_price": Decimal("15.00"), "entry_date": date(2023, 12, 15), "tags": ["Core Holdings", "International"]},
+            {"symbol": "FMAGX", "quantity": Decimal("3880"), "entry_price": Decimal(15.67"), "entry_date": date(2025, 6, 30), "tags": ["Core Holdings", "International"]},
             # VTIAX: $29,100 at ~$30/share = 970 shares
-            {"symbol": "VTIAX", "quantity": Decimal("970"), "entry_price": Decimal("30.00"), "entry_date": date(2023, 12, 15), "tags": ["Core Holdings", "International"]},
+            {"symbol": "VTIAX", "quantity": Decimal("970"), "entry_price": Decimal(36.92"), "entry_date": date(2025, 6, 30), "tags": ["Core Holdings", "International"]},
 
             # ETFs
             # VTI: $38,795.50 at $250.29/share = 155 shares (adjusted +$45.50 to match requirements)
-            {"symbol": "VTI", "quantity": Decimal("250.29"), "entry_price": Decimal("250.29"), "entry_date": date(2023, 11, 20), "tags": ["Core Holdings", "Total Market"]},
+            {"symbol": "VTI", "quantity": Decimal("250.29"), "entry_price": Decimal(303.09"), "entry_date": date(2025, 6, 30), "tags": ["Core Holdings", "Total Market"]},
             # BND: $24,250 at ~$77/share = 315 shares
-            {"symbol": "BND", "quantity": Decimal("315"), "entry_price": Decimal("77.00"), "entry_date": date(2023, 11, 20), "tags": ["Core Holdings", "Bonds"]},
+            {"symbol": "BND", "quantity": Decimal("315"), "entry_price": Decimal(72.44"), "entry_date": date(2025, 6, 30), "tags": ["Core Holdings", "Bonds"]},
             # VNQ: $19,399.50 at $95.10/share = 204 shares (adjusted +$19.50 to match requirements)
-            {"symbol": "VNQ", "quantity": Decimal("95.10"), "entry_price": Decimal("95.10"), "entry_date": date(2023, 11, 20), "tags": ["Core Holdings", "REITs"]},
+            {"symbol": "VNQ", "quantity": Decimal("95.10"), "entry_price": Decimal(88.22"), "entry_date": date(2025, 6, 30), "tags": ["Core Holdings", "REITs"]},
         ]
     },
     {
@@ -132,49 +132,49 @@ DEMO_PORTFOLIOS = [
         "equity_balance": Decimal("2850000.00"),  # Total portfolio value as equity
         "positions": [
             # Core ETF Holdings
-            {"symbol": "SPY", "quantity": Decimal("398.55"), "entry_price": Decimal("398.55"), "entry_date": date(2024, 1, 5), "tags": ["Blue Chip", "Core Index"]},
-            {"symbol": "QQQ", "quantity": Decimal("315.83"), "entry_price": Decimal("315.83"), "entry_date": date(2024, 1, 5), "tags": ["Blue Chip", "Tech Index"]},
-            {"symbol": "VTI", "quantity": Decimal("172.96"), "entry_price": Decimal("172.96"), "entry_date": date(2024, 1, 5), "tags": ["Blue Chip", "Total Market"]},
+            {"symbol": "SPY", "quantity": Decimal("398.55"), "entry_price": Decimal(616.14"), "entry_date": date(2025, 6, 30), "tags": ["Blue Chip", "Core Index"]},
+            {"symbol": "QQQ", "quantity": Decimal("315.83"), "entry_price": Decimal(551.00"), "entry_date": date(2025, 6, 30), "tags": ["Blue Chip", "Tech Index"]},
+            {"symbol": "VTI", "quantity": Decimal("172.96"), "entry_price": Decimal(303.09"), "entry_date": date(2025, 6, 30), "tags": ["Blue Chip", "Total Market"]},
 
             # Large Cap Holdings
-            {"symbol": "AAPL", "quantity": Decimal("169.20"), "entry_price": Decimal("169.20"), "entry_date": date(2024, 1, 10), "tags": ["Blue Chip", "Individual Stock"]},
-            {"symbol": "MSFT", "quantity": Decimal("315.83"), "entry_price": Decimal("315.83"), "entry_date": date(2024, 1, 10), "tags": ["Blue Chip", "Individual Stock"]},
-            {"symbol": "AMZN", "quantity": Decimal("127.84"), "entry_price": Decimal("127.84"), "entry_date": date(2024, 1, 12), "tags": ["Blue Chip", "Individual Stock"]},
-            {"symbol": "GOOGL", "quantity": Decimal("120.32"), "entry_price": Decimal("120.32"), "entry_date": date(2024, 1, 12), "tags": ["Blue Chip", "Individual Stock"]},
-            {"symbol": "BRK-B", "quantity": Decimal("330.87"), "entry_price": Decimal("330.87"), "entry_date": date(2024, 1, 15), "tags": ["Blue Chip", "Individual Stock"]},
-            {"symbol": "JPM", "quantity": Decimal("127.84"), "entry_price": Decimal("127.84"), "entry_date": date(2024, 1, 15), "tags": ["Blue Chip", "Individual Stock"]},
-            {"symbol": "JNJ", "quantity": Decimal("120.32"), "entry_price": Decimal("120.32"), "entry_date": date(2024, 1, 18), "tags": ["Blue Chip", "Individual Stock"]},
-            {"symbol": "NVDA", "quantity": Decimal("526.39"), "entry_price": Decimal("526.39"), "entry_date": date(2024, 1, 20), "tags": ["Blue Chip", "Individual Stock"]},
-            {"symbol": "META", "quantity": Decimal("398.55"), "entry_price": Decimal("398.55"), "entry_date": date(2024, 1, 20), "tags": ["Blue Chip", "Individual Stock"]},
-            {"symbol": "UNH", "quantity": Decimal("409.83"), "entry_price": Decimal("409.83"), "entry_date": date(2024, 1, 22), "tags": ["Blue Chip", "Individual Stock"]},
-            {"symbol": "V", "quantity": Decimal("201.53"), "entry_price": Decimal("201.53"), "entry_date": date(2024, 1, 22), "tags": ["Blue Chip", "Individual Stock"]},
-            {"symbol": "HD", "quantity": Decimal("263.19"), "entry_price": Decimal("263.19"), "entry_date": date(2024, 1, 25), "tags": ["Blue Chip", "Individual Stock"]},
-            {"symbol": "PG", "quantity": Decimal("124.08"), "entry_price": Decimal("124.08"), "entry_date": date(2024, 1, 25), "tags": ["Blue Chip", "Individual Stock"]},
+            {"symbol": "AAPL", "quantity": Decimal("169.20"), "entry_price": Decimal(204.94"), "entry_date": date(2025, 6, 30), "tags": ["Blue Chip", "Individual Stock"]},
+            {"symbol": "MSFT", "quantity": Decimal("315.83"), "entry_price": Decimal(496.59"), "entry_date": date(2025, 6, 30), "tags": ["Blue Chip", "Individual Stock"]},
+            {"symbol": "AMZN", "quantity": Decimal("127.84"), "entry_price": Decimal(219.39"), "entry_date": date(2025, 6, 30), "tags": ["Blue Chip", "Individual Stock"]},
+            {"symbol": "GOOGL", "quantity": Decimal("120.32"), "entry_price": Decimal(176.07"), "entry_date": date(2025, 6, 30), "tags": ["Blue Chip", "Individual Stock"]},
+            {"symbol": "BRK-B", "quantity": Decimal("330.87"), "entry_price": Decimal(485.77"), "entry_date": date(2025, 6, 30), "tags": ["Blue Chip", "Individual Stock"]},
+            {"symbol": "JPM", "quantity": Decimal("127.84"), "entry_price": Decimal(287.12"), "entry_date": date(2025, 6, 30), "tags": ["Blue Chip", "Individual Stock"]},
+            {"symbol": "JNJ", "quantity": Decimal("120.32"), "entry_price": Decimal(151.64"), "entry_date": date(2025, 6, 30), "tags": ["Blue Chip", "Individual Stock"]},
+            {"symbol": "NVDA", "quantity": Decimal("526.39"), "entry_price": Decimal(157.98"), "entry_date": date(2025, 6, 30), "tags": ["Blue Chip", "Individual Stock"]},
+            {"symbol": "META", "quantity": Decimal("398.55"), "entry_price": Decimal(737.59"), "entry_date": date(2025, 6, 30), "tags": ["Blue Chip", "Individual Stock"]},
+            {"symbol": "UNH", "quantity": Decimal("409.83"), "entry_price": Decimal(310.01"), "entry_date": date(2025, 6, 30), "tags": ["Blue Chip", "Individual Stock"]},
+            {"symbol": "V", "quantity": Decimal("201.53"), "entry_price": Decimal(354.43"), "entry_date": date(2025, 6, 30), "tags": ["Blue Chip", "Individual Stock"]},
+            {"symbol": "HD", "quantity": Decimal("263.19"), "entry_price": Decimal(364.57"), "entry_date": date(2025, 6, 30), "tags": ["Blue Chip", "Individual Stock"]},
+            {"symbol": "PG", "quantity": Decimal("124.08"), "entry_price": Decimal(157.14"), "entry_date": date(2025, 6, 30), "tags": ["Blue Chip", "Individual Stock"]},
 
             # Alternative Assets
-            {"symbol": "GLD", "quantity": Decimal("164.86"), "entry_price": Decimal("164.86"), "entry_date": date(2024, 2, 1), "tags": ["Alternative Assets", "Risk Hedge", "Gold"]},
-            {"symbol": "DJP", "quantity": Decimal("22.56"), "entry_price": Decimal("22.56"), "entry_date": date(2024, 2, 1), "tags": ["Alternative Assets", "Risk Hedge", "Commodities"]},
+            {"symbol": "GLD", "quantity": Decimal("164.86"), "entry_price": Decimal(304.83"), "entry_date": date(2025, 6, 30), "tags": ["Alternative Assets", "Risk Hedge", "Gold"]},
+            {"symbol": "DJP", "quantity": Decimal("22.56"), "entry_price": Decimal(33.98"), "entry_date": date(2025, 6, 30), "tags": ["Alternative Assets", "Risk Hedge", "Commodities"]},
 
             # Private Investment Funds (25% allocation as per Ben Mock Portfolios.md)
-            {"symbol": "BX_PRIVATE_EQUITY", "quantity": Decimal("1"), "entry_price": Decimal("285000.00"), "entry_date": date(2023, 6, 1), "tags": ["Private Investments", "Private Equity"]},
-            {"symbol": "A16Z_VC_FUND", "quantity": Decimal("1"), "entry_price": Decimal("142500.00"), "entry_date": date(2023, 6, 1), "tags": ["Private Investments", "Venture Capital"]},
-            {"symbol": "STARWOOD_REIT", "quantity": Decimal("1"), "entry_price": Decimal("142500.00"), "entry_date": date(2023, 6, 1), "tags": ["Private Investments", "Private REIT"]},
-            {"symbol": "TWO_SIGMA_FUND", "quantity": Decimal("1"), "entry_price": Decimal("142500.00"), "entry_date": date(2023, 6, 1), "tags": ["Private Investments", "Hedge Fund"]},
+            {"symbol": "BX_PRIVATE_EQUITY", "quantity": Decimal("1"), "entry_price": Decimal("285000.00"), "entry_date": date(2025, 6, 30), "tags": ["Private Investments", "Private Equity"]},
+            {"symbol": "A16Z_VC_FUND", "quantity": Decimal("1"), "entry_price": Decimal("142500.00"), "entry_date": date(2025, 6, 30), "tags": ["Private Investments", "Venture Capital"]},
+            {"symbol": "STARWOOD_REIT", "quantity": Decimal("1"), "entry_price": Decimal("142500.00"), "entry_date": date(2025, 6, 30), "tags": ["Private Investments", "Private REIT"]},
+            {"symbol": "TWO_SIGMA_FUND", "quantity": Decimal("1"), "entry_price": Decimal("142500.00"), "entry_date": date(2025, 6, 30), "tags": ["Private Investments", "Hedge Fund"]},
 
             # Real Estate (20% allocation - $570K)
-            {"symbol": "HOME_EQUITY", "quantity": Decimal("1"), "entry_price": Decimal("285000.00"), "entry_date": date(2023, 1, 15), "tags": ["Real Estate", "Primary Residence"]},
-            {"symbol": "RENTAL_CONDO", "quantity": Decimal("1"), "entry_price": Decimal("142500.00"), "entry_date": date(2022, 6, 1), "tags": ["Real Estate", "Rental Property"]},
-            {"symbol": "RENTAL_SFH", "quantity": Decimal("1"), "entry_price": Decimal("142500.00"), "entry_date": date(2021, 9, 1), "tags": ["Real Estate", "Rental Property"]},
+            {"symbol": "HOME_EQUITY", "quantity": Decimal("1"), "entry_price": Decimal("285000.00"), "entry_date": date(2025, 6, 30), "tags": ["Real Estate", "Primary Residence"]},
+            {"symbol": "RENTAL_CONDO", "quantity": Decimal("1"), "entry_price": Decimal("142500.00"), "entry_date": date(2025, 6, 30), "tags": ["Real Estate", "Rental Property"]},
+            {"symbol": "RENTAL_SFH", "quantity": Decimal("1"), "entry_price": Decimal("142500.00"), "entry_date": date(2025, 6, 30), "tags": ["Real Estate", "Rental Property"]},
 
             # Cryptocurrency (1.5% allocation - $42.75K)
-            {"symbol": "CRYPTO_BTC_ETH", "quantity": Decimal("1"), "entry_price": Decimal("42750.00"), "entry_date": date(2023, 3, 1), "tags": ["Alternative Assets", "Cryptocurrency"]},
+            {"symbol": "CRYPTO_BTC_ETH", "quantity": Decimal("1"), "entry_price": Decimal("42750.00"), "entry_date": date(2025, 6, 30), "tags": ["Alternative Assets", "Cryptocurrency"]},
 
             # Art/Collectibles (1% allocation - $28.5K)
-            {"symbol": "ART_COLLECTIBLES", "quantity": Decimal("1"), "entry_price": Decimal("28500.00"), "entry_date": date(2022, 11, 1), "tags": ["Alternative Assets", "Art"]},
+            {"symbol": "ART_COLLECTIBLES", "quantity": Decimal("1"), "entry_price": Decimal("28500.00"), "entry_date": date(2025, 6, 30), "tags": ["Alternative Assets", "Art"]},
 
             # Cash & Fixed Income (3% allocation - $85.5K)
-            {"symbol": "MONEY_MARKET", "quantity": Decimal("1"), "entry_price": Decimal("57000.00"), "entry_date": date(2024, 1, 1), "tags": ["Cash", "Money Market"]},
-            {"symbol": "TREASURY_BILLS", "quantity": Decimal("1"), "entry_price": Decimal("28500.00"), "entry_date": date(2024, 1, 1), "tags": ["Cash", "Fixed Income"]},
+            {"symbol": "MONEY_MARKET", "quantity": Decimal("1"), "entry_price": Decimal("57000.00"), "entry_date": date(2025, 6, 30), "tags": ["Cash", "Money Market"]},
+            {"symbol": "TREASURY_BILLS", "quantity": Decimal("1"), "entry_price": Decimal("28500.00"), "entry_date": date(2025, 6, 30), "tags": ["Cash", "Fixed Income"]},
         ]
     },
     {
@@ -186,46 +186,46 @@ DEMO_PORTFOLIOS = [
         "equity_balance": Decimal("3200000.00"),  # Total portfolio NAV as equity
         "positions": [
             # Long Positions - Growth/Momentum
-            {"symbol": "NVDA", "quantity": Decimal("1061.22"), "entry_price": Decimal("1061.22"), "entry_date": date(2024, 1, 5), "tags": ["Long Momentum", "AI Play"]},
-            {"symbol": "MSFT", "quantity": Decimal("636.73"), "entry_price": Decimal("636.73"), "entry_date": date(2024, 1, 5), "tags": ["Long Momentum", "Cloud Dominance"]},
-            {"symbol": "AAPL", "quantity": Decimal("341.11"), "entry_price": Decimal("341.11"), "entry_date": date(2024, 1, 8), "tags": ["Long Momentum", "Ecosystem Moat"]},
-            {"symbol": "GOOGL", "quantity": Decimal("242.57"), "entry_price": Decimal("242.57"), "entry_date": date(2024, 1, 8), "tags": ["Long Momentum", "AI & Search"]},
-            {"symbol": "META", "quantity": Decimal("401.75"), "entry_price": Decimal("401.75"), "entry_date": date(2024, 1, 10), "tags": ["Long Momentum", "Metaverse"]},
-            {"symbol": "AMZN", "quantity": Decimal("257.73"), "entry_price": Decimal("257.73"), "entry_date": date(2024, 1, 10), "tags": ["Long Momentum", "AWS Growth"]},
-            {"symbol": "TSLA", "quantity": Decimal("386.59"), "entry_price": Decimal("386.59"), "entry_date": date(2024, 1, 12), "tags": ["Long Momentum", "EV Revolution"]},
-            {"symbol": "AMD", "quantity": Decimal("245.60"), "entry_price": Decimal("245.60"), "entry_date": date(2024, 1, 12), "tags": ["Long Momentum", "Data Center"]},
+            {"symbol": "NVDA", "quantity": Decimal("1061.22"), "entry_price": Decimal(157.98"), "entry_date": date(2025, 6, 30), "tags": ["Long Momentum", "AI Play"]},
+            {"symbol": "MSFT", "quantity": Decimal("636.73"), "entry_price": Decimal(496.59"), "entry_date": date(2025, 6, 30), "tags": ["Long Momentum", "Cloud Dominance"]},
+            {"symbol": "AAPL", "quantity": Decimal("341.11"), "entry_price": Decimal(204.94"), "entry_date": date(2025, 6, 30), "tags": ["Long Momentum", "Ecosystem Moat"]},
+            {"symbol": "GOOGL", "quantity": Decimal("242.57"), "entry_price": Decimal(176.07"), "entry_date": date(2025, 6, 30), "tags": ["Long Momentum", "AI & Search"]},
+            {"symbol": "META", "quantity": Decimal("401.75"), "entry_price": Decimal(737.59"), "entry_date": date(2025, 6, 30), "tags": ["Long Momentum", "Metaverse"]},
+            {"symbol": "AMZN", "quantity": Decimal("257.73"), "entry_price": Decimal(219.39"), "entry_date": date(2025, 6, 30), "tags": ["Long Momentum", "AWS Growth"]},
+            {"symbol": "TSLA", "quantity": Decimal("386.59"), "entry_price": Decimal(317.66"), "entry_date": date(2025, 6, 30), "tags": ["Long Momentum", "EV Revolution"]},
+            {"symbol": "AMD", "quantity": Decimal("245.60"), "entry_price": Decimal(141.90"), "entry_date": date(2025, 6, 30), "tags": ["Long Momentum", "Data Center"]},
 
             # Long Positions - Quality/Value
-            {"symbol": "BRK-B", "quantity": Decimal("667.05"), "entry_price": Decimal("667.05"), "entry_date": date(2024, 1, 15), "tags": ["Long Value", "Quality"]},
-            {"symbol": "JPM", "quantity": Decimal("257.73"), "entry_price": Decimal("257.73"), "entry_date": date(2024, 1, 15), "tags": ["Long Value", "Bank Quality"]},
-            {"symbol": "JNJ", "quantity": Decimal("242.57"), "entry_price": Decimal("242.57"), "entry_date": date(2024, 1, 18), "tags": ["Long Value", "Healthcare Defensive"]},
-            {"symbol": "UNH", "quantity": Decimal("826.24"), "entry_price": Decimal("826.24"), "entry_date": date(2024, 1, 18), "tags": ["Long Value", "Healthcare Quality"]},
-            {"symbol": "V", "quantity": Decimal("406.30"), "entry_price": Decimal("406.30"), "entry_date": date(2024, 1, 20), "tags": ["Long Value", "Payment Network"]},
+            {"symbol": "BRK-B", "quantity": Decimal("667.05"), "entry_price": Decimal(485.77"), "entry_date": date(2025, 6, 30), "tags": ["Long Value", "Quality"]},
+            {"symbol": "JPM", "quantity": Decimal("257.73"), "entry_price": Decimal(287.12"), "entry_date": date(2025, 6, 30), "tags": ["Long Value", "Bank Quality"]},
+            {"symbol": "JNJ", "quantity": Decimal("242.57"), "entry_price": Decimal(151.64"), "entry_date": date(2025, 6, 30), "tags": ["Long Value", "Healthcare Defensive"]},
+            {"symbol": "UNH", "quantity": Decimal("826.24"), "entry_price": Decimal(310.01"), "entry_date": date(2025, 6, 30), "tags": ["Long Value", "Healthcare Quality"]},
+            {"symbol": "V", "quantity": Decimal("406.30"), "entry_price": Decimal(354.43"), "entry_date": date(2025, 6, 30), "tags": ["Long Value", "Payment Network"]},
             
             # Short Positions - Overvalued Growth
-            {"symbol": "NFLX", "quantity": Decimal("773.50"), "entry_price": Decimal("773.50"), "entry_date": date(2024, 1, 25), "tags": ["Short Value Traps"]},
-            {"symbol": "SHOP", "quantity": Decimal("307.82"), "entry_price": Decimal("307.82"), "entry_date": date(2024, 1, 25), "tags": ["Short Value Traps"]},
-            {"symbol": "ZM", "quantity": Decimal("110.50"), "entry_price": Decimal("110.50"), "entry_date": date(2024, 1, 28), "tags": ["Short Value Traps"]},
-            {"symbol": "PTON", "quantity": Decimal("63.14"), "entry_price": Decimal("63.14"), "entry_date": date(2024, 1, 28), "tags": ["Short Value Traps"]},
-            {"symbol": "ROKU", "quantity": Decimal("94.71"), "entry_price": Decimal("94.71"), "entry_date": date(2024, 1, 30), "tags": ["Short Value Traps"]},
+            {"symbol": "NFLX", "quantity": Decimal("773.50"), "entry_price": Decimal(1339.13"), "entry_date": date(2025, 6, 30), "tags": ["Short Value Traps"]},
+            {"symbol": "SHOP", "quantity": Decimal("307.82"), "entry_price": Decimal(115.35"), "entry_date": date(2025, 6, 30), "tags": ["Short Value Traps"]},
+            {"symbol": "ZM", "quantity": Decimal("110.50"), "entry_price": Decimal(77.98"), "entry_date": date(2025, 6, 30), "tags": ["Short Value Traps"]},
+            {"symbol": "PTON", "quantity": Decimal("63.14"), "entry_price": Decimal(6.94"), "entry_date": date(2025, 6, 30), "tags": ["Short Value Traps"]},
+            {"symbol": "ROKU", "quantity": Decimal("94.71"), "entry_price": Decimal(87.89"), "entry_date": date(2025, 6, 30), "tags": ["Short Value Traps"]},
             
             # Short Positions - Cyclical/Value
-            {"symbol": "XOM", "quantity": Decimal("173.64"), "entry_price": Decimal("173.64"), "entry_date": date(2024, 2, 1), "tags": ["Short Value Traps"]},
-            {"symbol": "F", "quantity": Decimal("18.94"), "entry_price": Decimal("18.94"), "entry_date": date(2024, 2, 1), "tags": ["Short Value Traps"]},
-            {"symbol": "GE", "quantity": Decimal("221.00"), "entry_price": Decimal("221.00"), "entry_date": date(2024, 2, 5), "tags": ["Short Value Traps"]},
-            {"symbol": "C", "quantity": Decimal("86.82"), "entry_price": Decimal("86.82"), "entry_date": date(2024, 2, 5), "tags": ["Short Value Traps"]},
+            {"symbol": "XOM", "quantity": Decimal("173.64"), "entry_price": Decimal(106.81"), "entry_date": date(2025, 6, 30), "tags": ["Short Value Traps"]},
+            {"symbol": "F", "quantity": Decimal("18.94"), "entry_price": Decimal(10.58"), "entry_date": date(2025, 6, 30), "tags": ["Short Value Traps"]},
+            {"symbol": "GE", "quantity": Decimal("221.00"), "entry_price": Decimal(256.70"), "entry_date": date(2025, 6, 30), "tags": ["Short Value Traps"]},
+            {"symbol": "C", "quantity": Decimal("86.82"), "entry_price": Decimal(84.06"), "entry_date": date(2025, 6, 30), "tags": ["Short Value Traps"]},
             
             # Options Positions - Long Calls (Upside/Volatility)
-            {"symbol": "SPY250919C00460000", "quantity": Decimal("0.00"), "entry_price": Decimal("0.00"), "entry_date": date(2024, 1, 10), "tags": ["Options Overlay"], "underlying": "SPY", "strike": Decimal("0.00"), "expiry": date(2025, 9, 19), "option_type": "C"},
-            {"symbol": "QQQ250815C00420000", "quantity": Decimal("0.00"), "entry_price": Decimal("0.00"), "entry_date": date(2024, 1, 10), "tags": ["Options Overlay"], "underlying": "QQQ", "strike": Decimal("0.00"), "expiry": date(2025, 8, 15), "option_type": "C"},
-            {"symbol": "VIX250716C00025000", "quantity": Decimal("0.00"), "entry_price": Decimal("0.00"), "entry_date": date(2024, 1, 15), "tags": ["Options Overlay"], "underlying": "VIX", "strike": Decimal("0.00"), "expiry": date(2025, 7, 16), "option_type": "C"},
-            {"symbol": "NVDA251017C00800000", "quantity": Decimal("0.00"), "entry_price": Decimal("0.00"), "entry_date": date(2024, 1, 15), "tags": ["Options Overlay"], "underlying": "NVDA", "strike": Decimal("0.00"), "expiry": date(2025, 10, 17), "option_type": "C"},
+            {"symbol": "SPY250919C00460000", "quantity": Decimal("0.00"), "entry_price": Decimal("0.00"), "entry_date": date(2025, 6, 30), "tags": ["Options Overlay"], "underlying": "SPY", "strike": Decimal("0.00"), "expiry": date(2025, 9, 19), "option_type": "C"},
+            {"symbol": "QQQ250815C00420000", "quantity": Decimal("0.00"), "entry_price": Decimal("0.00"), "entry_date": date(2025, 6, 30), "tags": ["Options Overlay"], "underlying": "QQQ", "strike": Decimal("0.00"), "expiry": date(2025, 8, 15), "option_type": "C"},
+            {"symbol": "VIX250716C00025000", "quantity": Decimal("0.00"), "entry_price": Decimal("0.00"), "entry_date": date(2025, 6, 30), "tags": ["Options Overlay"], "underlying": "VIX", "strike": Decimal("0.00"), "expiry": date(2025, 7, 16), "option_type": "C"},
+            {"symbol": "NVDA251017C00800000", "quantity": Decimal("0.00"), "entry_price": Decimal("0.00"), "entry_date": date(2025, 6, 30), "tags": ["Options Overlay"], "underlying": "NVDA", "strike": Decimal("0.00"), "expiry": date(2025, 10, 17), "option_type": "C"},
             
             # Options Positions - Short Puts (Premium Collection)
-            {"symbol": "AAPL250815P00200000", "quantity": Decimal("0.00"), "entry_price": Decimal("0.00"), "entry_date": date(2024, 1, 20), "tags": ["Options Overlay"], "underlying": "AAPL", "strike": Decimal("0.00"), "expiry": date(2025, 8, 15), "option_type": "P"},
-            {"symbol": "MSFT250919P00380000", "quantity": Decimal("0.00"), "entry_price": Decimal("0.00"), "entry_date": date(2024, 1, 20), "tags": ["Options Overlay"], "underlying": "MSFT", "strike": Decimal("0.00"), "expiry": date(2025, 9, 19), "option_type": "P"},
-            {"symbol": "TSLA250815C00300000", "quantity": Decimal("0.00"), "entry_price": Decimal("0.00"), "entry_date": date(2024, 1, 25), "tags": ["Options Overlay"], "underlying": "TSLA", "strike": Decimal("0.00"), "expiry": date(2025, 8, 15), "option_type": "C"},
-            {"symbol": "META250919P00450000", "quantity": Decimal("0.00"), "entry_price": Decimal("0.00"), "entry_date": date(2024, 1, 25), "tags": ["Options Overlay"], "underlying": "META", "strike": Decimal("0.00"), "expiry": date(2025, 9, 19), "option_type": "P"},
+            {"symbol": "AAPL250815P00200000", "quantity": Decimal("0.00"), "entry_price": Decimal("0.00"), "entry_date": date(2025, 6, 30), "tags": ["Options Overlay"], "underlying": "AAPL", "strike": Decimal("0.00"), "expiry": date(2025, 8, 15), "option_type": "P"},
+            {"symbol": "MSFT250919P00380000", "quantity": Decimal("0.00"), "entry_price": Decimal("0.00"), "entry_date": date(2025, 6, 30), "tags": ["Options Overlay"], "underlying": "MSFT", "strike": Decimal("0.00"), "expiry": date(2025, 9, 19), "option_type": "P"},
+            {"symbol": "TSLA250815C00300000", "quantity": Decimal("0.00"), "entry_price": Decimal("0.00"), "entry_date": date(2025, 6, 30), "tags": ["Options Overlay"], "underlying": "TSLA", "strike": Decimal("0.00"), "expiry": date(2025, 8, 15), "option_type": "C"},
+            {"symbol": "META250919P00450000", "quantity": Decimal("0.00"), "entry_price": Decimal("0.00"), "entry_date": date(2025, 6, 30), "tags": ["Options Overlay"], "underlying": "META", "strike": Decimal("0.00"), "expiry": date(2025, 9, 19), "option_type": "P"},
         ]
     },
     {
@@ -236,18 +236,18 @@ DEMO_PORTFOLIOS = [
         "total_value": 1250000,
         "equity_balance": Decimal("1250000.00"),
         "positions": [
-            {"symbol": "XLK", "quantity": Decimal("600"), "entry_price": Decimal("180.00"), "entry_date": date(2024, 3, 15), "tags": ["Thematic Growth", "Tech Allocation"]},
-            {"symbol": "SMH", "quantity": Decimal("500"), "entry_price": Decimal("210.00"), "entry_date": date(2024, 3, 18), "tags": ["Thematic Growth", "Semiconductors"]},
-            {"symbol": "IGV", "quantity": Decimal("400"), "entry_price": Decimal("330.00"), "entry_date": date(2024, 3, 20), "tags": ["Thematic Growth", "Software"]},
-            {"symbol": "XLY", "quantity": Decimal("450"), "entry_price": Decimal("185.00"), "entry_date": date(2024, 3, 25), "tags": ["Consumer Discretionary", "Cyclical Tilt"]},
-            {"symbol": "COST", "quantity": Decimal("220"), "entry_price": Decimal("720.00"), "entry_date": date(2024, 4, 2), "tags": ["Quality Compounder", "Defensive Growth"]},
-            {"symbol": "AVGO", "quantity": Decimal("140"), "entry_price": Decimal("1350.00"), "entry_date": date(2024, 4, 5), "tags": ["Quality Compounder", "Semiconductors"]},
-            {"symbol": "ASML", "quantity": Decimal("160"), "entry_price": Decimal("960.00"), "entry_date": date(2024, 4, 8), "tags": ["Quality Compounder", "International"]},
-            {"symbol": "LULU", "quantity": Decimal("300"), "entry_price": Decimal("380.00"), "entry_date": date(2024, 4, 12), "tags": ["Consumer Discretionary", "Lifestyle Brand"]},
-            {"symbol": "NEE", "quantity": Decimal("500"), "entry_price": Decimal("70.00"), "entry_date": date(2024, 4, 15), "tags": ["Defensive Yield", "Clean Energy"]},
-            {"symbol": "SCHD", "quantity": Decimal("650"), "entry_price": Decimal("75.00"), "entry_date": date(2024, 4, 18), "tags": ["Defensive Yield", "Dividend Growth"]},
-            {"symbol": "JEPQ", "quantity": Decimal("700"), "entry_price": Decimal("54.00"), "entry_date": date(2024, 4, 22), "tags": ["Options Overlay", "Income"]},
-            {"symbol": "BIL", "quantity": Decimal("900"), "entry_price": Decimal("91.50"), "entry_date": date(2024, 4, 25), "tags": ["Liquidity Reserve", "Cash Management"]},
+            {"symbol": "XLK", "quantity": Decimal("600"), "entry_price": Decimal(252.90"), "entry_date": date(2025, 6, 30), "tags": ["Thematic Growth", "Tech Allocation"]},
+            {"symbol": "SMH", "quantity": Decimal("500"), "entry_price": Decimal(278.88"), "entry_date": date(2025, 6, 30), "tags": ["Thematic Growth", "Semiconductors"]},
+            {"symbol": "IGV", "quantity": Decimal("400"), "entry_price": Decimal(109.50"), "entry_date": date(2025, 6, 30), "tags": ["Thematic Growth", "Software"]},
+            {"symbol": "XLY", "quantity": Decimal("450"), "entry_price": Decimal(216.95"), "entry_date": date(2025, 6, 30), "tags": ["Consumer Discretionary", "Cyclical Tilt"]},
+            {"symbol": "COST", "quantity": Decimal("220"), "entry_price": Decimal(987.17"), "entry_date": date(2025, 6, 30), "tags": ["Quality Compounder", "Defensive Growth"]},
+            {"symbol": "AVGO", "quantity": Decimal("140"), "entry_price": Decimal(275.18"), "entry_date": date(2025, 6, 30), "tags": ["Quality Compounder", "Semiconductors"]},
+            {"symbol": "ASML", "quantity": Decimal("160"), "entry_price": Decimal(797.95"), "entry_date": date(2025, 6, 30), "tags": ["Quality Compounder", "International"]},
+            {"symbol": "LULU", "quantity": Decimal("300"), "entry_price": Decimal(237.58"), "entry_date": date(2025, 6, 30), "tags": ["Consumer Discretionary", "Lifestyle Brand"]},
+            {"symbol": "NEE", "quantity": Decimal("500"), "entry_price": Decimal(68.89"), "entry_date": date(2025, 6, 30), "tags": ["Defensive Yield", "Clean Energy"]},
+            {"symbol": "SCHD", "quantity": Decimal("650"), "entry_price": Decimal(26.25"), "entry_date": date(2025, 6, 30), "tags": ["Defensive Yield", "Dividend Growth"]},
+            {"symbol": "JEPQ", "quantity": Decimal("700"), "entry_price": Decimal(52.21"), "entry_date": date(2025, 6, 30), "tags": ["Options Overlay", "Income"]},
+            {"symbol": "BIL", "quantity": Decimal("900"), "entry_price": Decimal(90.18"), "entry_date": date(2025, 6, 30), "tags": ["Liquidity Reserve", "Cash Management"]},
         ]
     },
     {
@@ -258,15 +258,15 @@ DEMO_PORTFOLIOS = [
         "total_value": 950000,
         "equity_balance": Decimal("950000.00"),
         "positions": [
-            {"symbol": "FO_PRIVATE_CREDIT_FUND", "quantity": Decimal("1"), "entry_price": Decimal("225000.00"), "entry_date": date(2023, 9, 1), "tags": ["Private Credit", "Income"]},
-            {"symbol": "FO_GROWTH_PE_FUND", "quantity": Decimal("1"), "entry_price": Decimal("210000.00"), "entry_date": date(2023, 9, 1), "tags": ["Private Equity", "Growth"]},
-            {"symbol": "FO_VC_SECONDARIES_FUND", "quantity": Decimal("1"), "entry_price": Decimal("145000.00"), "entry_date": date(2023, 10, 1), "tags": ["Venture Capital", "Secondaries"]},
-            {"symbol": "FO_REAL_ASSET_REIT", "quantity": Decimal("1"), "entry_price": Decimal("110000.00"), "entry_date": date(2023, 10, 15), "tags": ["Private REIT", "Real Assets"]},
-            {"symbol": "FO_INFRASTRUCTURE_FUND", "quantity": Decimal("1"), "entry_price": Decimal("90000.00"), "entry_date": date(2023, 11, 1), "tags": ["Infrastructure", "Inflation Protection"]},
-            {"symbol": "FO_HOME_RENTAL_PORTFOLIO", "quantity": Decimal("1"), "entry_price": Decimal("85000.00"), "entry_date": date(2023, 11, 20), "tags": ["Real Estate", "Rental Portfolio"]},
-            {"symbol": "FO_IMPACT_LENDING_FUND", "quantity": Decimal("1"), "entry_price": Decimal("55000.00"), "entry_date": date(2024, 1, 5), "tags": ["Impact Investing", "Sustainable"]},
-            {"symbol": "FO_ART_COLLECTIVE", "quantity": Decimal("1"), "entry_price": Decimal("30000.00"), "entry_date": date(2024, 2, 1), "tags": ["Alternative Assets", "Art"]},
-            {"symbol": "FO_CRYPTO_DIGITAL_TRUST", "quantity": Decimal("1"), "entry_price": Decimal("30000.00"), "entry_date": date(2024, 2, 15), "tags": ["Alternative Assets", "Digital Assets"]},
+            {"symbol": "FO_PRIVATE_CREDIT_FUND", "quantity": Decimal("1"), "entry_price": Decimal("225000.00"), "entry_date": date(2025, 6, 30), "tags": ["Private Credit", "Income"]},
+            {"symbol": "FO_GROWTH_PE_FUND", "quantity": Decimal("1"), "entry_price": Decimal("210000.00"), "entry_date": date(2025, 6, 30), "tags": ["Private Equity", "Growth"]},
+            {"symbol": "FO_VC_SECONDARIES_FUND", "quantity": Decimal("1"), "entry_price": Decimal("145000.00"), "entry_date": date(2025, 6, 30), "tags": ["Venture Capital", "Secondaries"]},
+            {"symbol": "FO_REAL_ASSET_REIT", "quantity": Decimal("1"), "entry_price": Decimal("110000.00"), "entry_date": date(2025, 6, 30), "tags": ["Private REIT", "Real Assets"]},
+            {"symbol": "FO_INFRASTRUCTURE_FUND", "quantity": Decimal("1"), "entry_price": Decimal("90000.00"), "entry_date": date(2025, 6, 30), "tags": ["Infrastructure", "Inflation Protection"]},
+            {"symbol": "FO_HOME_RENTAL_PORTFOLIO", "quantity": Decimal("1"), "entry_price": Decimal("85000.00"), "entry_date": date(2025, 6, 30), "tags": ["Real Estate", "Rental Portfolio"]},
+            {"symbol": "FO_IMPACT_LENDING_FUND", "quantity": Decimal("1"), "entry_price": Decimal("55000.00"), "entry_date": date(2025, 6, 30), "tags": ["Impact Investing", "Sustainable"]},
+            {"symbol": "FO_ART_COLLECTIVE", "quantity": Decimal("1"), "entry_price": Decimal("30000.00"), "entry_date": date(2025, 6, 30), "tags": ["Alternative Assets", "Art"]},
+            {"symbol": "FO_CRYPTO_DIGITAL_TRUST", "quantity": Decimal("1"), "entry_price": Decimal("30000.00"), "entry_date": date(2025, 6, 30), "tags": ["Alternative Assets", "Digital Assets"]},
         ]
     }
 ]
