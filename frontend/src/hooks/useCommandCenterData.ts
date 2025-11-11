@@ -267,9 +267,10 @@ export function useCommandCenterData(refreshTrigger?: number): UseCommandCenterD
       computedTargetReturn
     })
 
+    // For target returns, treat 0 as "no data" and fall through to computed (includes analyst fallback)
     const heroTargetReturnEOY =
-      snapshotTargetReturn ??
-      summaryTargetReturn ??
+      (snapshotTargetReturn !== null && snapshotTargetReturn !== 0 ? snapshotTargetReturn : null) ??
+      (summaryTargetReturn !== null && summaryTargetReturn !== 0 ? summaryTargetReturn : null) ??
       computedTargetReturn ??
       0
 
