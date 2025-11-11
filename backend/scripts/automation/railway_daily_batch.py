@@ -5,10 +5,7 @@ Railway Daily Automation Script
 Runs after market close on trading days to sync data and calculate metrics.
 
 Usage:
-  uv run python scripts/automation/railway_daily_batch.py [--force]
-
-Options:
-  --force    Run even on non-trading days (for testing)
+  uv run python scripts/automation/railway_daily_batch.py
 
 Environment Variables Required:
   DATABASE_URL - PostgreSQL connection string
@@ -17,22 +14,27 @@ Environment Variables Required:
   OPENAI_API_KEY - OpenAI API key for chat features
 
 Workflow:
-  1. Check if today is a trading day (NYSE calendar)
-  2. Sync company profiles for all position symbols (Phase 9.1)
-  3. Run batch calculations for all portfolios (market data synced per-portfolio)
-  4. Log completion summary
+  The batch orchestrator handles everything:
+  - Trading day detection and adjustment
+  - Phase 0: Company profile sync (on final date only)
+  - Phase 1: Market data collection
+  - Phase 2: Fundamental data collection
+  - Phase 3: P&L calculation & snapshots
+  - Phase 4: Position market value updates
+  - Phase 5: Sector tag restoration
+  - Phase 6: Risk analytics
 
-Phase 9.1 Change: Added company profile sync step for comprehensive symbol metadata.
-Phase 10.1 Change: Removed upfront market data sync to eliminate 4x duplication.
-Market data is now synced once per portfolio by the batch orchestrator.
+Phase 11.1 Change: Simplified to use batch orchestrator directly.
+All trading day logic, company profile sync, and batch processing is now
+handled by the batch orchestrator's run_daily_batch_with_backfill() method.
+This eliminates code duplication and ensures Railway uses the same code path
+as local batch processing (scripts/batch_processing/run_batch.py).
 """
 
 import os
 import asyncio
 import sys
-import argparse
 import datetime
-from typing import Dict, List, Any
 
 # Fix Railway DATABASE_URL format BEFORE any imports
 if 'DATABASE_URL' in os.environ:
@@ -46,320 +48,56 @@ sys.path.insert(0, '/app')  # Railway container path
 sys.path.insert(0, '.')      # Local development path
 
 from app.core.logging import get_logger
-from app.database import AsyncSessionLocal
-from app.models.users import Portfolio
-from sqlalchemy import select
-from scripts.automation.trading_calendar import is_trading_day
+from app.batch.batch_orchestrator import batch_orchestrator
 
 logger = get_logger(__name__)
 
 
-async def check_trading_day(force: bool = False) -> bool:
-    """
-    Check if today is a trading day.
-
-    Args:
-        force: If True, bypass trading day check
-
-    Returns:
-        True if should proceed with batch job, False otherwise
-    """
-    today = datetime.date.today()
-
-    if force:
-        logger.info(f"⚠️ FORCE MODE: Running batch job on {today} (may be non-trading day)")
-        return True
-
-    if is_trading_day(today):
-        logger.info(f"✅ {today} is a trading day - proceeding with batch job")
-        return True
-    else:
-        logger.info(f"⏭️ {today} is NOT a trading day - skipping batch job")
-        logger.info(f"   (Use --force flag to run anyway)")
-        return False
-
-
-async def sync_company_profiles_step() -> Dict[str, Any]:
-    """
-    Sync company profiles for all active position symbols.
-
-    Phase 9.1: Added company profile sync to Railway cron workflow.
-    Non-blocking - failures don't stop batch job execution.
-
-    Returns:
-        Dictionary with sync statistics including status, total, successful, failed counts
-    """
-    from app.batch.market_data_sync import sync_company_profiles
-
-    logger.info("=" * 60)
-    logger.info("STEP 1: Company Profile Sync")
-    logger.info("=" * 60)
-
-    start_time = datetime.datetime.now()
-
-    try:
-        # Run company profile sync
-        result = await sync_company_profiles(force_refresh=False)
-
-        duration = (datetime.datetime.now() - start_time).total_seconds()
-
-        # Phase 9.1: Normalize result object (duration → duration_seconds)
-        normalized_result = {
-            'status': 'success',
-            'total': result.get('total', 0),
-            'successful': result.get('successful', 0),
-            'failed': result.get('failed', 0),
-            'duration_seconds': result.get('duration', duration)
-        }
-
-        logger.info(
-            f"✅ Company profiles synced: {normalized_result['successful']}/{normalized_result['total']} symbols "
-            f"({normalized_result['duration_seconds']:.1f}s)"
-        )
-
-        if normalized_result['failed'] > 0:
-            logger.warning(f"⚠️ {normalized_result['failed']} symbol(s) failed to sync")
-
-        return normalized_result
-
-    except Exception as e:
-        duration = (datetime.datetime.now() - start_time).total_seconds()
-        logger.error(f"❌ Company profile sync failed: {e}")
-        logger.exception(e)
-
-        # Phase 9.1: Keep failures non-blocking
-        return {
-            'status': 'failed',
-            'total': 0,
-            'successful': 0,
-            'failed': 0,
-            'duration_seconds': duration,
-            'error': str(e)
-        }
-
-
-async def run_batch_calculations_step() -> List[Dict[str, Any]]:
-    """
-    Run batch calculations for all active portfolios.
-
-    Returns:
-        List of results for each portfolio
-
-    Notes:
-        Continues processing other portfolios if one fails
-    """
-    from app.batch.batch_orchestrator import batch_orchestrator
-
-    logger.info("=" * 60)
-    logger.info("STEP 2: Batch Calculations (with per-portfolio market data sync)")
-    logger.info("=" * 60)
-
-    # Get all active portfolios
-    async with AsyncSessionLocal() as db:
-        result = await db.execute(
-            select(Portfolio).where(Portfolio.deleted_at.is_(None))
-        )
-        portfolios = list(result.scalars().all())
-
-    if not portfolios:
-        logger.warning("No active portfolios found")
-        return []
-
-    logger.info(f"Found {len(portfolios)} active portfolio(s) to process")
-
-    results = []
-    success_count = 0
-    fail_count = 0
-
-    # Phase 10.2: Define critical vs non-critical jobs
-    CRITICAL_JOBS = ['market_data_update', 'portfolio_aggregation']
-
-    for idx, portfolio in enumerate(portfolios, 1):
-        logger.info(f"\n--- Portfolio {idx}/{len(portfolios)}: {portfolio.name} ({portfolio.id}) ---")
-
-        try:
-            start_time = datetime.datetime.now()
-
-            # Run all 8 calculation engines
-            batch_result = await batch_orchestrator.run_daily_batch_sequence(
-                portfolio_id=str(portfolio.id)
-            )
-
-            duration = (datetime.datetime.now() - start_time).total_seconds()
-
-            # Phase 10.2: Inspect batch_result for failures
-            failed_jobs = [j for j in batch_result if j.get('status') == 'failed']
-            critical_failures = [j for j in failed_jobs if j.get('job_name') in CRITICAL_JOBS]
-            non_critical_failures = [j for j in failed_jobs if j.get('job_name') not in CRITICAL_JOBS]
-
-            if critical_failures:
-                # Critical job failures = portfolio failure
-                fail_count += 1
-                failed_job_names = [j['job_name'] for j in critical_failures]
-                logger.error(f"❌ Critical job failures for {portfolio.name}: {failed_job_names}")
-
-                results.append({
-                    "portfolio_id": str(portfolio.id),
-                    "portfolio_name": portfolio.name,
-                    "status": "failed",
-                    "duration_seconds": duration,
-                    "failed_jobs": failed_job_names,
-                    "critical_failures": len(critical_failures),
-                    "non_critical_failures": len(non_critical_failures),
-                    "result": batch_result
-                })
-            else:
-                # No critical failures = success (even if non-critical jobs failed)
-                success_count += 1
-
-                if non_critical_failures:
-                    failed_job_names = [j['job_name'] for j in non_critical_failures]
-                    logger.warning(f"⚠️ Non-critical job failures for {portfolio.name}: {failed_job_names}")
-                    logger.info(f"✅ Batch complete for {portfolio.name} ({duration:.1f}s) - with warnings")
-                else:
-                    logger.info(f"✅ Batch complete for {portfolio.name} ({duration:.1f}s)")
-
-                results.append({
-                    "portfolio_id": str(portfolio.id),
-                    "portfolio_name": portfolio.name,
-                    "status": "success",
-                    "duration_seconds": duration,
-                    "failed_jobs": [j['job_name'] for j in non_critical_failures] if non_critical_failures else [],
-                    "critical_failures": 0,
-                    "non_critical_failures": len(non_critical_failures),
-                    "result": batch_result
-                })
-
-        except Exception as e:
-            duration = (datetime.datetime.now() - start_time).total_seconds()
-
-            results.append({
-                "portfolio_id": str(portfolio.id),
-                "portfolio_name": portfolio.name,
-                "status": "error",
-                "duration_seconds": duration,
-                "error": str(e),
-                "failed_jobs": ["exception_raised"],
-                "critical_failures": 1,
-                "non_critical_failures": 0
-            })
-
-            fail_count += 1
-            logger.error(f"❌ Batch failed for {portfolio.name}: {e}")
-            logger.exception(e)
-            # Continue to next portfolio
-
-    logger.info(f"\n📊 Batch Summary: {success_count} succeeded, {fail_count} failed")
-    return results
-
-
-async def log_completion_summary(
-    start_time: datetime.datetime,
-    profile_result: Dict[str, Any],
-    batch_results: List[Dict[str, Any]]
-) -> None:
-    """
-    Log final completion summary.
-
-    Phase 9.1: Added profile_result parameter for company profile sync stats.
-    Phase 10.1: Removed market_data_result parameter (sync now per-portfolio).
-    Phase 10.2: Enhanced with job-level failure details.
-
-    Args:
-        start_time: Job start timestamp
-        profile_result: Company profile sync statistics
-        batch_results: List of portfolio batch results
-    """
-    end_time = datetime.datetime.now()
-    total_duration = (end_time - start_time).total_seconds()
-
-    success_count = sum(1 for r in batch_results if r["status"] == "success")
-    fail_count = sum(1 for r in batch_results if r["status"] in ["failed", "error"])
-
-    # Phase 10.2: Collect job-level failure details
-    total_critical_failures = sum(r.get("critical_failures", 0) for r in batch_results)
-    total_non_critical_failures = sum(r.get("non_critical_failures", 0) for r in batch_results)
-
-    logger.info("=" * 60)
-    logger.info("DAILY BATCH JOB COMPLETE")
-    logger.info("=" * 60)
-    logger.info(f"Start Time:    {start_time.strftime('%Y-%m-%d %H:%M:%S')}")
-    logger.info(f"End Time:      {end_time.strftime('%Y-%m-%d %H:%M:%S')}")
-    logger.info(f"Total Runtime: {total_duration:.1f}s ({total_duration/60:.1f} minutes)")
-    logger.info(f"")
-
-    # Phase 9.1: Log company profile sync results
-    profile_status = profile_result.get('status', 'unknown')
-    profile_successful = profile_result.get('successful', 0)
-    profile_total = profile_result.get('total', 0)
-    profile_duration = profile_result.get('duration_seconds', 0)
-    logger.info(
-        f"Company Profiles: {profile_status} ({profile_successful}/{profile_total} symbols, "
-        f"{profile_duration:.1f}s)"
-    )
-
-    logger.info(f"Portfolios:    {success_count} succeeded, {fail_count} failed")
-
-    # Phase 10.2: Log job-level failure details
-    if total_critical_failures > 0 or total_non_critical_failures > 0:
-        logger.info(f"Job Failures:  {total_critical_failures} critical, {total_non_critical_failures} non-critical")
-
-        # Log specific failed jobs per portfolio
-        for result in batch_results:
-            if result.get("failed_jobs"):
-                portfolio_name = result.get("portfolio_name", "Unknown")
-                failed_jobs = result.get("failed_jobs", [])
-                logger.info(f"  - {portfolio_name}: {', '.join(failed_jobs)}")
-
-    logger.info("=" * 60)
-
-    # Exit with error code if any portfolios failed
-    if fail_count > 0:
-        logger.warning(f"⚠️ Job completed with {fail_count} portfolio failure(s)")
-        sys.exit(1)
-    else:
-        logger.info("✅ All operations completed successfully")
-        sys.exit(0)
-
-
 async def main():
     """Main entry point for daily batch job."""
-    # Parse command line arguments
-    parser = argparse.ArgumentParser(
-        description='Railway Daily Batch Job - Market Data Sync & Calculations'
-    )
-    parser.add_argument(
-        '--force',
-        action='store_true',
-        help='Force execution even on non-trading days'
-    )
-    args = parser.parse_args()
-
     job_start = datetime.datetime.now()
 
     logger.info("╔══════════════════════════════════════════════════════════════╗")
     logger.info("║       SIGMASIGHT DAILY BATCH WORKFLOW - STARTING             ║")
     logger.info("╚══════════════════════════════════════════════════════════════╝")
     logger.info(f"Timestamp: {job_start.strftime('%Y-%m-%d %H:%M:%S %Z')}")
-    logger.info(f"Force Mode: {'ENABLED' if args.force else 'DISABLED'}")
 
     try:
-        # Step 0: Check trading day
-        should_run = await check_trading_day(force=args.force)
-        if not should_run:
-            logger.info("Exiting: Not a trading day")
+        # Run the batch orchestrator - it handles everything:
+        # - Trading day detection and adjustment (to previous trading day if needed)
+        # - Phase 0: Company profile sync (on final date only)
+        # - Phase 1: Market data collection (1-year lookback)
+        # - Phase 2: Fundamental data collection (earnings-driven)
+        # - Phase 3: P&L calculation & snapshots (equity rollforward)
+        # - Phase 4: Position market value updates (for analytics accuracy)
+        # - Phase 5: Sector tag restoration (auto-tag from company profiles)
+        # - Phase 6: Risk analytics (betas, factors, volatility, correlations)
+
+        logger.info("Starting batch orchestrator with automatic backfill...")
+        results = await batch_orchestrator.run_daily_batch_with_backfill()
+
+        # Calculate total duration
+        job_end = datetime.datetime.now()
+        total_duration = (job_end - job_start).total_seconds()
+
+        # Log completion summary
+        logger.info("=" * 60)
+        logger.info("DAILY BATCH JOB COMPLETE")
+        logger.info("=" * 60)
+        logger.info(f"Start Time:    {job_start.strftime('%Y-%m-%d %H:%M:%S')}")
+        logger.info(f"End Time:      {job_end.strftime('%Y-%m-%d %H:%M:%S')}")
+        logger.info(f"Total Runtime: {total_duration:.1f}s ({total_duration/60:.1f} minutes)")
+        logger.info(f"")
+        logger.info(f"Results: {results}")
+        logger.info("=" * 60)
+
+        # Check for success
+        if results.get('success'):
+            logger.info("✅ All operations completed successfully")
             sys.exit(0)
-
-        # Step 1: Sync company profiles
-        # Phase 9.1: Added company profile sync for comprehensive symbol metadata
-        profile_result = await sync_company_profiles_step()
-
-        # Step 2: Run batch calculations (includes per-portfolio market data sync)
-        # Phase 10.1: Removed upfront market data sync to eliminate 4x duplication
-        batch_results = await run_batch_calculations_step()
-
-        # Step 3: Log completion summary
-        await log_completion_summary(job_start, profile_result, batch_results)
+        else:
+            logger.warning(f"⚠️ Job completed with issues: {results.get('message', 'Unknown error')}")
+            sys.exit(1)
 
     except KeyboardInterrupt:
         logger.warning("⚠️ Job interrupted by user (Ctrl+C)")
