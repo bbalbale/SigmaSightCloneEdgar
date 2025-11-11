@@ -255,7 +255,100 @@ export function ResearchAndAnalyzeContainer() {
     })
   }, [basePositions, filterBy, filterValue, sortBy, sortOrder])
 
-  // Calculate aggregate returns for FILTERED positions (weighted by % of equity)
+  // CONSOLIDATE positions by ticker - group multiple lots of same security
+  const consolidatedPositions = useMemo(() => {
+    const consolidationMap = new Map<string, EnhancedPosition & { lots?: EnhancedPosition[] }>()
+
+    filteredPositions.forEach(position => {
+      const key = position.symbol
+
+      if (consolidationMap.has(key)) {
+        // Add to existing consolidated position
+        const consolidated = consolidationMap.get(key)!
+
+        // Initialize lots array if first duplicate
+        if (!consolidated.lots) {
+          consolidated.lots = [{ ...consolidated }]
+        }
+
+        // Add this position as a lot
+        consolidated.lots.push(position)
+
+        // Aggregate metrics - sum quantities and values, weight-average prices and returns
+        const totalQuantity = (consolidated.quantity || 0) + (position.quantity || 0)
+        const totalMarketValue = (consolidated.current_market_value || 0) + (position.current_market_value || 0)
+        const totalCostBasis = (consolidated.cost_basis || 0) + (position.cost_basis || 0)
+        const totalUnrealizedPnl = (consolidated.unrealized_pnl || 0) + (position.unrealized_pnl || 0)
+
+        // Weight-average entry price by quantity
+        const totalShares = (consolidated.lots?.reduce((sum, lot) => sum + (lot.quantity || 0), 0) || 0)
+        const weightedAvgCost = totalShares > 0
+          ? consolidated.lots!.reduce((sum, lot) => sum + ((lot.avg_cost || lot.entry_price || 0) * (lot.quantity || 0)), 0) / totalShares
+          : consolidated.avg_cost || consolidated.entry_price || 0
+
+        // Update consolidated values
+        consolidated.quantity = totalQuantity
+        consolidated.current_market_value = totalMarketValue
+        consolidated.cost_basis = totalCostBasis
+        consolidated.unrealized_pnl = totalUnrealizedPnl
+        consolidated.avg_cost = weightedAvgCost
+        consolidated.entry_price = weightedAvgCost
+
+        // Recalculate percent return
+        if (totalCostBasis && totalCostBasis !== 0) {
+          consolidated.unrealized_pnl_percent = (totalUnrealizedPnl / Math.abs(totalCostBasis)) * 100
+        }
+
+        // Recalculate target returns using weighted average
+        if (consolidated.current_market_value && consolidated.current_market_value !== 0) {
+          const weightedTargetReturnEOY = consolidated.lots!.reduce((sum, lot) => {
+            const lotValue = Math.abs(lot.current_market_value || 0)
+            const lotReturn = lot.target_return_eoy || lot.analyst_return_eoy || 0
+            return sum + (lotReturn * lotValue)
+          }, 0) / Math.abs(totalMarketValue)
+
+          consolidated.target_return_eoy = weightedTargetReturnEOY
+
+          const weightedTargetReturnNextYear = consolidated.lots!.reduce((sum, lot) => {
+            const lotValue = Math.abs(lot.current_market_value || 0)
+            const lotReturn = lot.target_return_next_year || 0
+            return sum + (lotReturn * lotValue)
+          }, 0) / Math.abs(totalMarketValue)
+
+          consolidated.target_return_next_year = weightedTargetReturnNextYear
+        }
+
+        // Merge tags from all lots (deduplicate by ID)
+        const allTags = consolidated.lots!.flatMap(lot => lot.tags || [])
+        const uniqueTags = Array.from(
+          new Map(allTags.map(tag => [tag.id, tag])).values()
+        )
+        consolidated.tags = uniqueTags
+
+      } else {
+        // First occurrence of this ticker - add as-is
+        consolidationMap.set(key, { ...position })
+      }
+    })
+
+    // Convert map back to array and sort by original sort criteria
+    const consolidated = Array.from(consolidationMap.values())
+
+    return consolidated.sort((a, b) => {
+      const aValue = a[sortBy] as any
+      const bValue = b[sortBy] as any
+
+      if (typeof aValue === 'number' && typeof bValue === 'number') {
+        return sortOrder === 'asc' ? aValue - bValue : bValue - aValue
+      }
+
+      return sortOrder === 'asc'
+        ? String(aValue || '').localeCompare(String(bValue || ''))
+        : String(bValue || '').localeCompare(String(aValue || ''))
+    })
+  }, [filteredPositions, sortBy, sortOrder])
+
+  // Calculate aggregate returns for CONSOLIDATED positions (weighted by % of equity)
   const filteredAggregate = useMemo(() => {
     return {
       eoy: positionResearchService.calculateAggregateReturn(filteredPositions, 'target_return_eoy', 'analyst_return_eoy'),
@@ -669,7 +762,7 @@ export function ResearchAndAnalyzeContainer() {
       {/* SCROLLING CONTENT: Single Unified Table */}
       <div className="container mx-auto px-4 py-2">
         <ResearchTableView
-          positions={filteredPositions}
+          positions={consolidatedPositions}
           title=""
           aggregateReturnEOY={filteredAggregate.eoy}
           aggregateReturnNextYear={filteredAggregate.nextYear}
