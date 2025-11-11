@@ -123,7 +123,8 @@ class Settings(BaseSettings):
         "http://localhost:3000",  # React dev server
         "http://localhost:3005",  # Next.js dev server
         "http://localhost:5173",  # Vite dev server
-        "https://sigmasight-frontend.vercel.app",  # Production frontend
+        "https://sigmasight-frontend.vercel.app",  # Production frontend (Vercel)
+        "https://sigmasight-frontend-production.up.railway.app",  # Production frontend (Railway)
     ]
     
     # Batch processing settings
