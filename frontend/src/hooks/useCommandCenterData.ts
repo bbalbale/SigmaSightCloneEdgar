@@ -257,6 +257,16 @@ export function useCommandCenterData(refreshTrigger?: number): UseCommandCenterD
     )
     const snapshotTargetReturn = normalizeNumber(snapshot?.target_price_return_eoy)
 
+    // Debug logging for target return calculation
+    console.log('[useCommandCenterData] Target Return Debug:', {
+      portfolioId,
+      snapshot: snapshot,
+      snapshotKeys: snapshot ? Object.keys(snapshot) : [],
+      snapshotTargetReturn,
+      summaryTargetReturn,
+      computedTargetReturn
+    })
+
     const heroTargetReturnEOY =
       snapshotTargetReturn ??
       summaryTargetReturn ??
