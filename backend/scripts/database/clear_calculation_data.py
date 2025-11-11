@@ -61,6 +61,7 @@ from app.models.correlations import (
     CorrelationClusterPosition,
     PairwiseCorrelation,
 )
+from app.models.positions import Position
 
 # --- Configuration ---
 # (model, date attribute name, human label)
@@ -189,6 +190,65 @@ async def _reset_equity_balances(db, dry_run: bool) -> int:
     return reset_count
 
 
+async def _remove_duplicate_positions(db, dry_run: bool) -> int:
+    """
+    Remove duplicate positions created after the seed date (June 30, 2025).
+
+    Keeps only positions with entry_date = 2025-06-30 and created before Nov 1, 2025.
+    This removes positions that were accidentally created by multiple seed runs or scripts.
+    """
+    print("Removing duplicate positions created after seed...")
+
+    SEED_DATE = date(2025, 6, 30)
+    CUTOFF_CREATED_AT = datetime(2025, 11, 1, 0, 0, 0)  # Keep positions created before Nov 1
+
+    # Find positions to delete: entry_date = June 30 BUT created_at >= Nov 1
+    # These are duplicates from later seed runs
+    duplicate_positions = (
+        await db.execute(
+            select(Position).where(
+                Position.entry_date == SEED_DATE,
+                Position.created_at >= CUTOFF_CREATED_AT,
+                Position.deleted_at.is_(None)
+            )
+        )
+    ).scalars().all()
+
+    if not duplicate_positions:
+        print("  - No duplicate positions found.")
+        return 0
+
+    # Group by portfolio and symbol for reporting
+    from collections import defaultdict
+    duplicates_by_portfolio = defaultdict(lambda: defaultdict(list))
+
+    for pos in duplicate_positions:
+        duplicates_by_portfolio[pos.portfolio_id][pos.symbol].append(pos)
+
+    total_count = len(duplicate_positions)
+    print(f"  - Found {total_count} duplicate positions to remove:")
+
+    # Print details of what will be deleted
+    for portfolio_id, symbols in duplicates_by_portfolio.items():
+        portfolio = (await db.execute(
+            select(Portfolio).where(Portfolio.id == portfolio_id)
+        )).scalar_one_or_none()
+
+        if portfolio:
+            print(f"    Portfolio: {portfolio.name}")
+            for symbol, positions in symbols.items():
+                quantities = [str(p.quantity) for p in positions]
+                print(f"      - {symbol}: {len(positions)} duplicates (quantities: {', '.join(quantities)})")
+
+    if not dry_run:
+        # Delete the duplicate positions
+        for pos in duplicate_positions:
+            await db.delete(pos)
+        print(f"  - DELETED {total_count} duplicate positions.")
+
+    return total_count
+
+
 async def _clear_correlation_tables(db, start_date: date, dry_run: bool) -> int:
     """Handle correlation calculations and their dependents (clusters, positions, pairwise rows)."""
     print("Processing correlation analytics tables...")
@@ -282,6 +342,11 @@ async def clear_data(start_date: date, dry_run: bool, confirm: bool):
             )
 
         total_deleted_count += await _clear_correlation_tables(db, start_date, dry_run)
+
+        # Remove duplicate positions created after seed
+        print("\n" + "-" * 50)
+        duplicate_count = await _remove_duplicate_positions(db, dry_run)
+        total_deleted_count += duplicate_count
 
         # Reset equity balances to seed values
         print("\n" + "-" * 50)
