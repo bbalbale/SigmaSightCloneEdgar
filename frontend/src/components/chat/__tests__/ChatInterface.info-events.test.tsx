@@ -1,6 +1,6 @@
 import React from 'react'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
-import { vi } from 'vitest'
+import { vi, describe, it, beforeEach } from 'vitest'
 
 import { ChatInterface } from '@/components/chat/ChatInterface'
 import { useChatStore } from '@/stores/chatStore'

@@ -19,8 +19,8 @@ import {
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 
 // Helper function to get auth token from cookies
-function getAuthToken(): string | null {
-  const cookieStore = cookies()
+async function getAuthToken(): Promise<string | null> {
+  const cookieStore = await cookies()
   // Check both possible cookie names for backward compatibility
   return cookieStore.get('access_token')?.value ||
          cookieStore.get('sigmasight_session')?.value ||
@@ -29,7 +29,7 @@ function getAuthToken(): string | null {
 
 // Cache the session verification to avoid multiple calls
 export const verifySession = cache(async (): Promise<Session | null> => {
-  const token = getAuthToken()
+  const token = await getAuthToken()
 
   if (!token) {
     return null

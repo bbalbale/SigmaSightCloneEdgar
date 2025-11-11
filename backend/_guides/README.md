@@ -149,7 +149,7 @@ uv run alembic upgrade head
 
 5. **Seed demo data (optional):**
 ```bash
-uv run python scripts/seed_database.py
+uv run python scripts/database/seed_database.py
 ```
 
 This creates the three demo accounts and portfolios:
@@ -160,7 +160,7 @@ This creates the three demo accounts and portfolios:
 **Option B: Use Existing PostgreSQL**
 1. Update DATABASE_URL in .env file with your PostgreSQL connection
 2. Set up database: `uv run python scripts/setup_dev_database_alembic.py`
-3. Optionally seed demo data: `uv run python scripts/seed_database.py`
+3. Optionally seed demo data: `uv run python scripts/database/seed_database.py`
 
 **Note:** The database is required for authentication, portfolio management, and all core features.
 
@@ -250,7 +250,7 @@ Run this checklist to ensure identical setup:
 - [ ] Environment file created (`.env` exists with correct DATABASE_URL)
 - [ ] PostgreSQL container running (`docker-compose ps` shows postgres as "Up")
 - [ ] Database migrations applied (`uv run alembic upgrade head` succeeded)
-- [ ] Demo data seeded (optional: `uv run python scripts/seed_database.py`)
+- [ ] Demo data seeded (optional: `uv run python scripts/database/seed_database.py`)
 - [ ] Server starts without errors (`uv run python run.py`)
 - [ ] API responds at http://localhost:8000
 - [ ] API documentation loads at http://localhost:8000/docs

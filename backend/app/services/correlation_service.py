@@ -3,7 +3,7 @@ Position-to-position correlation analysis service
 """
 
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 from decimal import Decimal
 from typing import List, Dict, Optional, Tuple, Set
 from uuid import UUID
@@ -11,21 +11,24 @@ from collections import defaultdict
 import numpy as np
 import pandas as pd
 from scipy import stats
-from sqlalchemy import select, and_, or_
+from sqlalchemy import select, and_, or_, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.models import (
     Portfolio, Position, MarketDataCache,
-    CorrelationCalculation, CorrelationCluster, 
+    CorrelationCalculation, CorrelationCluster,
     CorrelationClusterPosition, PairwiseCorrelation
 )
+from sqlalchemy import delete
+from app.models.snapshots import PortfolioSnapshot
 from app.models.tags_v2 import TagV2
 from app.models import PositionTag
 from app.schemas.correlations import (
     PositionFilterConfig, CorrelationCalculationCreate,
     PairwiseCorrelationCreate
 )
+from app.calculations.market_data import get_position_valuation
 from app.services.market_data_service import MarketDataService
 
 logger = logging.getLogger(__name__)
@@ -33,15 +36,160 @@ logger = logging.getLogger(__name__)
 
 class CorrelationService:
     """Service for calculating position-to-position correlations"""
-    
-    def __init__(self, db: AsyncSession):
+
+    def __init__(self, db: AsyncSession, price_cache=None):
         self.db = db
         self.market_data_service = MarketDataService()
-    
+        self.price_cache = price_cache  # PriceCache for optimized price lookups
+
+    async def _get_portfolio_value_from_snapshot(
+        self,
+        portfolio_id: UUID,
+        calculation_date: date,
+        max_staleness_days: int = 3
+    ) -> Optional[Decimal]:
+        """
+        Get portfolio gross exposure (total value) from snapshot.
+
+        Priority:
+        1. Use latest snapshot if recent (within max_staleness_days)
+        2. Return None if no suitable snapshot found
+
+        Returns:
+            Portfolio gross exposure (total value) as Decimal or None if unavailable
+        """
+        # Try to get latest snapshot
+        snapshot_stmt = (
+            select(PortfolioSnapshot)
+            .where(
+                and_(
+                    PortfolioSnapshot.portfolio_id == portfolio_id,
+                    PortfolioSnapshot.snapshot_date <= calculation_date
+                )
+            )
+            .order_by(PortfolioSnapshot.snapshot_date.desc())
+            .limit(1)
+        )
+
+        snapshot_result = await self.db.execute(snapshot_stmt)
+        latest_snapshot = snapshot_result.scalar_one_or_none()
+
+        # Check if snapshot is recent enough
+        if latest_snapshot:
+            staleness = (calculation_date - latest_snapshot.snapshot_date).days
+            if staleness <= max_staleness_days:
+                logger.info(
+                    f"Using snapshot gross_exposure from {latest_snapshot.snapshot_date} "
+                    f"({staleness} days old): ${float(latest_snapshot.gross_exposure):,.0f}"
+                )
+                return Decimal(str(latest_snapshot.gross_exposure))
+            else:
+                logger.warning(
+                    f"Latest snapshot is too stale ({staleness} days old), "
+                    f"falling back to real-time calculation"
+                )
+        else:
+            logger.warning("No snapshot found, falling back to real-time calculation")
+
+        return None
+
+    async def _cleanup_old_calculations(
+        self,
+        portfolio_id: UUID,
+        duration_days: int,
+        calculation_date: date
+    ) -> int:
+        """
+        Clean up old correlation calculations for a specific portfolio, duration, and date.
+
+        Deletes existing calculation for (portfolio_id, duration_days, calculation_date) to ensure
+        new calculation replaces old one for the same date. This prevents data loss when
+        running batch calculations for multiple dates.
+
+        Deletes in proper order respecting foreign key constraints:
+        1. correlation_cluster_positions
+        2. correlation_clusters
+        3. pairwise_correlations
+        4. correlation_calculations
+
+        Args:
+            portfolio_id: Portfolio to clean up
+            duration_days: Duration period to clean up (e.g., 90 for 90-day correlations)
+            calculation_date: Specific calculation date to clean up
+
+        Returns:
+            Number of calculations deleted
+        """
+        # Find calculations for this portfolio, duration, AND date to delete
+        # CRITICAL: Must filter by date to prevent deleting other dates' data
+        stmt = (
+            select(CorrelationCalculation.id)
+            .where(
+                and_(
+                    CorrelationCalculation.portfolio_id == portfolio_id,
+                    CorrelationCalculation.duration_days == duration_days,
+                    func.date(CorrelationCalculation.calculation_date) == calculation_date
+                )
+            )
+        )
+
+        result = await self.db.execute(stmt)
+        old_calculation_ids = [row[0] for row in result.all()]
+
+        if not old_calculation_ids:
+            return 0
+
+        logger.info(
+            f"Cleaning up {len(old_calculation_ids)} old correlation calculation(s) "
+            f"for portfolio {portfolio_id} with {duration_days}-day duration "
+            f"(will be replaced by new calculation)"
+        )
+
+        deleted_count = 0
+        for calc_id in old_calculation_ids:
+            # Get clusters for this calculation
+            cluster_stmt = select(CorrelationCluster).where(
+                CorrelationCluster.correlation_calculation_id == calc_id
+            )
+            cluster_result = await self.db.execute(cluster_stmt)
+            clusters = cluster_result.scalars().all()
+
+            # Delete cluster positions first (innermost foreign key)
+            for cluster in clusters:
+                delete_positions_stmt = delete(CorrelationClusterPosition).where(
+                    CorrelationClusterPosition.cluster_id == cluster.id
+                )
+                await self.db.execute(delete_positions_stmt)
+
+            # Delete clusters
+            delete_clusters_stmt = delete(CorrelationCluster).where(
+                CorrelationCluster.correlation_calculation_id == calc_id
+            )
+            await self.db.execute(delete_clusters_stmt)
+
+            # Delete pairwise correlations
+            delete_pairs_stmt = delete(PairwiseCorrelation).where(
+                PairwiseCorrelation.correlation_calculation_id == calc_id
+            )
+            await self.db.execute(delete_pairs_stmt)
+
+            # Delete calculation
+            delete_calc_stmt = delete(CorrelationCalculation).where(
+                CorrelationCalculation.id == calc_id
+            )
+            await self.db.execute(delete_calc_stmt)
+
+            deleted_count += 1
+
+        await self.db.flush()
+        logger.info(f"[OK] Cleaned up {deleted_count} old correlation calculations")
+
+        return deleted_count
+
     async def calculate_portfolio_correlations(
         self,
         portfolio_id: UUID,
-        calculation_date: datetime,
+        calculation_date: date,
         min_position_value: Optional[Decimal] = Decimal("10000"),
         min_portfolio_weight: Optional[Decimal] = Decimal("0.01"),
         filter_mode: str = "both",
@@ -61,16 +209,32 @@ class CorrelationService:
                 if existing:
                     logger.info(f"Using existing correlation calculation for portfolio {portfolio_id}")
                     return existing
+
+            # Clean up old calculations before creating new one
+            # Delete only calculations for this specific date to preserve other dates' data
+            # This ensures we can maintain historical calculations for multiple dates
+            await self._cleanup_old_calculations(portfolio_id, duration_days, calculation_date)
             
             # Get portfolio with positions
             portfolio = await self._get_portfolio_with_positions(portfolio_id)
             if not portfolio:
                 raise ValueError(f"Portfolio {portfolio_id} not found")
-            
-            # Calculate portfolio total value
-            portfolio_value = sum(
-                abs(p.quantity * p.last_price) for p in portfolio.positions
+
+            # Get portfolio total value from snapshot (preferred) or calculate
+            portfolio_value = await self._get_portfolio_value_from_snapshot(
+                portfolio_id, calculation_date
             )
+
+            if portfolio_value is None:
+                # Fallback: Calculate from positions if snapshot unavailable
+                logger.warning(
+                    "Calculating portfolio value from positions (snapshot unavailable). "
+                    "This duplicates work already done by portfolio aggregation."
+                )
+                portfolio_value = sum(
+                    get_position_valuation(p).abs_market_value
+                    for p in portfolio.positions
+                )
 
             # Filter PRIVATE investment class positions (Phase 8.1 Task 2)
             public_positions = [
@@ -112,7 +276,7 @@ class CorrelationService:
                     f"No return data available for correlation calculation (portfolio {portfolio_id}). "
                     f"All {private_count} PRIVATE positions were filtered. Skipping correlation calculation."
                 )
-                await self.db.rollback()
+                # Note: No rollback needed - no changes were made, let caller manage transaction
                 return None  # Option B: Skip persistence, return None
 
             # Validate data sufficiency (minimum 20 days)
@@ -125,25 +289,27 @@ class CorrelationService:
                     f"No positions have sufficient data for correlation calculation (portfolio {portfolio_id}). "
                     f"All positions have <20 days of data. Skipping correlation calculation."
                 )
-                await self.db.rollback()
+                # Note: No rollback needed - no changes were made, let caller manage transaction
                 return None  # Option B: Skip persistence, return None
             
-            # Calculate pairwise correlations
-            correlation_matrix = self.calculate_pairwise_correlations(returns_df)
-            
-            # Detect correlation clusters
-            clusters = await self.detect_correlation_clusters(
-                correlation_matrix, 
-                filtered_positions,
-                portfolio_value,
-                threshold=float(correlation_threshold)
-            )
-            
-            # Calculate portfolio-level metrics
+            # Calculate pairwise correlations with adaptive minimum overlap requirement
+            # Require at least 1/3 of lookback period, minimum 20 days for statistical reliability
+            min_overlap = max(20, duration_days // 3)
+            correlation_matrix = self.calculate_pairwise_correlations(returns_df, min_periods=min_overlap)
+
+            # Validate and fix PSD property (Positive Semi-Definite matrix required for correlation)
+            correlation_matrix, psd_corrected = self._validate_and_fix_psd(correlation_matrix)
+
+            # SKIP CLUSTER DETECTION - Not used by frontend, causes hang bug on 3rd consecutive day
+            # The cluster/nickname generation was querying market data in a way that hung after 2-3 days
+            # Pairwise correlations are sufficient for the correlation matrix display
+            clusters = []
+
+            # Calculate portfolio-level metrics (without clusters)
             metrics = self.calculate_portfolio_metrics(
-                correlation_matrix, 
+                correlation_matrix,
                 filtered_positions,
-                clusters
+                clusters  # Empty list
             )
             
             # Create calculation record
@@ -170,25 +336,46 @@ class CorrelationService:
             await self._store_correlation_matrix(
                 calculation.id, correlation_matrix, returns_df
             )
-            
-            # Store clusters
-            await self._store_clusters(
-                calculation.id, clusters, filtered_positions, portfolio_value
+
+            # SKIP STORING CLUSTERS - Not used by frontend/API
+            # Removed to eliminate hang bug in cluster nickname generation
+            # (was querying market data for sector info in a loop that hung on 3rd day)
+
+            # Log comprehensive data quality metrics before commit
+            total_pairs = len(correlation_matrix) * len(correlation_matrix)
+            valid_pairs = (~correlation_matrix.isna()).sum().sum()
+            filtered_pairs = correlation_matrix.isna().sum().sum()
+
+            logger.info(
+                f"Correlation calculation data quality for portfolio {portfolio_id}:\n"
+                f"  - Duration: {duration_days} days\n"
+                f"  - Positions included: {len(valid_positions)}\n"
+                f"  - Positions excluded: {excluded_count + (len(filtered_positions) - len(valid_positions))}\n"
+                f"  - Min overlap required: {min_overlap} days\n"
+                f"  - Total correlation pairs: {total_pairs}\n"
+                f"  - Valid pairs (sufficient data): {valid_pairs}\n"
+                f"  - Filtered pairs (insufficient overlap): {filtered_pairs}\n"
+                f"  - PSD validation: {'CORRECTED' if psd_corrected else 'PASSED'}\n"
+                f"  - Overall correlation: {metrics['overall_correlation']:.4f}\n"
+                f"  - Effective positions: {metrics['effective_positions']:.2f}\n"
+                f"  - Cluster detection: SKIPPED (not used by frontend, was causing hang bug)"
             )
-            
-            await self.db.commit()
-            
+
+            # Note: Do NOT commit here - let caller manage transaction boundaries
+            # Committing expires session objects and causes greenlet errors
+            logger.debug(f"Staged correlations for portfolio {portfolio_id} (will be committed by caller)")
+
             logger.info(
                 f"Completed correlation calculation for portfolio {portfolio_id}: "
                 f"overall_correlation={metrics['overall_correlation']:.4f}, "
-                f"clusters={len(clusters)}"
+                f"pairwise_correlations={total_pairs}"
             )
-            
+
             return calculation
-            
+
         except Exception as e:
             logger.error(f"Error calculating correlations for portfolio {portfolio_id}: {e}")
-            await self.db.rollback()
+            # Note: Do NOT rollback here - let caller manage transaction
             raise
     
     def filter_significant_positions(
@@ -209,11 +396,20 @@ class CorrelationService:
         - 'either': Positions must meet at least ONE threshold
         """
         filtered = []
-        
+
         for position in positions:
-            # Calculate position metrics
-            position_value = abs(position.quantity * position.last_price)
-            position_weight = position_value / portfolio_value if portfolio_value > 0 else 0
+            valuation = get_position_valuation(position)
+            if valuation.price is None:
+                logger.warning(
+                    f"Position {position.symbol} has no price data (last_price and entry_price both None). "
+                    f"Excluding from correlation analysis."
+                )
+                continue
+
+            position_value = valuation.abs_market_value
+            position_weight = (
+                position_value / portfolio_value if portfolio_value > 0 else Decimal("0")
+            )
             
             # Apply filters based on mode
             if filter_mode == "value_only":
@@ -238,19 +434,112 @@ class CorrelationService:
         
         return filtered
     
-    def calculate_pairwise_correlations(self, returns_df: pd.DataFrame) -> pd.DataFrame:
+    def calculate_pairwise_correlations(
+        self,
+        returns_df: pd.DataFrame,
+        min_periods: int = 30
+    ) -> pd.DataFrame:
         """
-        Calculate full pairwise correlation matrix using log returns
-        Returns full matrix including self-correlations and both directions
+        Calculate full pairwise correlation matrix using log returns with minimum overlap requirement.
+
+        Args:
+            returns_df: DataFrame with dates as index and symbols as columns
+            min_periods: Minimum number of overlapping observations required (default: 30)
+
+        Returns:
+            Correlation matrix with NaN for pairs with insufficient overlap.
+            Full matrix including self-correlations and both directions.
         """
-        # Calculate correlation matrix using pandas
-        correlation_matrix = returns_df.corr(method='pearson')
-        
+        # Calculate correlation matrix using pandas with minimum period requirement
+        correlation_matrix = returns_df.corr(method='pearson', min_periods=min_periods)
+
         # Ensure we have both directions and self-correlations
         # (pandas corr() already returns a symmetric matrix with diagonal = 1)
-        
+
+        # Log any pairs filtered out due to insufficient data
+        nan_count = correlation_matrix.isna().sum().sum()
+        total_pairs = len(correlation_matrix) * len(correlation_matrix)
+        if nan_count > 0:
+            logger.info(
+                f"Filtered {nan_count}/{total_pairs} correlation pairs due to insufficient overlap "
+                f"(min_periods={min_periods})"
+            )
+
         return correlation_matrix
-    
+
+    def _validate_and_fix_psd(
+        self,
+        correlation_matrix: pd.DataFrame
+    ) -> tuple[pd.DataFrame, bool]:
+        """
+        Validate that correlation matrix is Positive Semi-Definite (PSD).
+        If not PSD, log warning and apply nearest PSD correction.
+
+        A correlation matrix must be PSD (all eigenvalues >= 0) to be mathematically valid.
+        Non-PSD matrices can occur due to:
+        - Numerical precision issues
+        - Insufficient or inconsistent data
+        - Pairwise deletion with different date ranges per pair
+
+        Args:
+            correlation_matrix: Correlation matrix to validate
+
+        Returns:
+            Tuple of (corrected_matrix, was_corrected_flag)
+        """
+        # Handle empty or all-NaN matrices
+        if correlation_matrix.empty or correlation_matrix.isna().all().all():
+            logger.warning("Empty or all-NaN correlation matrix, skipping PSD validation")
+            return correlation_matrix, False
+
+        # Check for PSD property (all eigenvalues >= 0)
+        try:
+            eigenvalues = np.linalg.eigvalsh(correlation_matrix.values)
+            min_eigenvalue = np.min(eigenvalues)
+        except np.linalg.LinAlgError as e:
+            logger.error(f"Failed to compute eigenvalues for PSD validation: {e}")
+            return correlation_matrix, False
+
+        # Tolerance for numerical precision (-1e-10 allows for floating point errors)
+        if min_eigenvalue < -1e-10:
+            logger.warning(
+                f"Non-PSD correlation matrix detected. "
+                f"Min eigenvalue: {min_eigenvalue:.6f}. "
+                f"This indicates numerical issues or insufficient data. "
+                f"Applying nearest PSD correction..."
+            )
+
+            # Apply nearest PSD correction using eigenvalue clipping
+            # This is a simplified version of Higham's algorithm
+            eigenvalues_clipped = np.maximum(eigenvalues, 0)
+
+            # Reconstruct matrix from corrected eigenvalues
+            eigenvectors = np.linalg.eigh(correlation_matrix.values)[1]
+            corrected_matrix = eigenvectors @ np.diag(eigenvalues_clipped) @ eigenvectors.T
+
+            # Rescale to ensure diagonal = 1.0 (required for correlation matrix)
+            d = np.sqrt(np.diag(corrected_matrix))
+            # Avoid division by zero
+            d = np.where(d == 0, 1, d)
+            corrected_matrix = corrected_matrix / d[:, None] / d[None, :]
+
+            # Convert back to DataFrame with original index/columns
+            corrected_df = pd.DataFrame(
+                corrected_matrix,
+                index=correlation_matrix.index,
+                columns=correlation_matrix.columns
+            )
+
+            logger.info(
+                f"PSD correction applied. "
+                f"New min eigenvalue: {np.min(np.linalg.eigvalsh(corrected_df.values)):.6f}"
+            )
+
+            return corrected_df, True
+
+        # Matrix is already PSD
+        return correlation_matrix, False
+
     async def detect_correlation_clusters(
         self,
         correlation_matrix: pd.DataFrame,
@@ -261,34 +550,38 @@ class CorrelationService:
         """
         Identify clusters of highly correlated positions using graph connectivity
         """
+        logger.debug(f"[SEARCH] Detecting correlation clusters (threshold: {threshold})")
         symbols = list(correlation_matrix.columns)
         n = len(symbols)
-        
+        logger.debug(f"  Correlation matrix: {n} symbols")
+
         # Create adjacency matrix based on correlation threshold
         adj_matrix = (correlation_matrix.abs() >= threshold).values
-        
+
         # Find connected components using depth-first search
         visited = [False] * n
         clusters = []
-        
+
         def dfs(node: int, cluster: List[int]):
             visited[node] = True
             cluster.append(node)
-            
+
             for neighbor in range(n):
                 if not visited[neighbor] and adj_matrix[node][neighbor] and node != neighbor:
                     dfs(neighbor, cluster)
-        
+
         # Find all clusters
+        logger.debug(f"  Finding connected components via DFS...")
         for i in range(n):
             if not visited[i]:
                 cluster_indices = []
                 dfs(i, cluster_indices)
-                
+
                 # Only consider clusters with 2+ positions
                 if len(cluster_indices) >= 2:
                     cluster_symbols = [symbols[idx] for idx in cluster_indices]
-                    
+                    logger.debug(f"  Found cluster with {len(cluster_symbols)} symbols: {cluster_symbols[:3]}...")
+
                     # Calculate average correlation within cluster
                     cluster_corr_values = []
                     for j, idx1 in enumerate(cluster_indices):
@@ -296,13 +589,16 @@ class CorrelationService:
                             cluster_corr_values.append(
                                 correlation_matrix.iloc[idx1, idx2]
                             )
-                    
+
                     avg_correlation = np.mean(cluster_corr_values) if cluster_corr_values else 0
-                    
+                    logger.debug(f"    Avg correlation: {avg_correlation:.4f}")
+
                     # Generate cluster nickname
+                    logger.debug(f"    Generating nickname...")
                     nickname = await self.generate_cluster_nickname(
                         cluster_symbols, positions
                     )
+                    logger.debug(f"    [OK] Nickname generated: {nickname}")
                     
                     clusters.append({
                         "symbols": cluster_symbols,
@@ -310,14 +606,16 @@ class CorrelationService:
                         "avg_correlation": Decimal(str(avg_correlation)),
                         "nickname": nickname
                     })
-        
+                    logger.debug(f"    Cluster added to results")
+
         # Sort clusters by size (descending)
         clusters.sort(key=lambda x: len(x["symbols"]), reverse=True)
-        
+
+        logger.debug(f"[OK] Detected {len(clusters)} clusters total")
         return clusters
     
     async def generate_cluster_nickname(
-        self, 
+        self,
         cluster_symbols: List[str],
         positions: List[Position]
     ) -> str:
@@ -327,15 +625,20 @@ class CorrelationService:
         2. Common sector
         3. Largest position + "lookalikes"
         """
+        logger.debug(f"[SEARCH] Generating nickname for cluster: {cluster_symbols[:3]}... ({len(cluster_symbols)} symbols)")
+
         # Create symbol to position mapping
         symbol_to_position = {p.symbol: p for p in positions}
         cluster_positions = [
-            symbol_to_position[s] for s in cluster_symbols 
+            symbol_to_position[s] for s in cluster_symbols
             if s in symbol_to_position
         ]
-        
+
+        logger.debug(f"  Mapped {len(cluster_positions)} positions from {len(cluster_symbols)} symbols")
+
         # 1. Check for common tags (position-level tagging system)
         if cluster_positions:
+            logger.debug(f"  Step 1: Checking common tags for {len(cluster_positions)} positions")
             position_ids = [p.id for p in cluster_positions if p.id]
             if position_ids:
                 tag_query = (
@@ -346,6 +649,7 @@ class CorrelationService:
                 )
                 result = await self.db.execute(tag_query)
                 tags = result.scalars().all()
+                logger.debug(f"  Found {len(tags)} tags")
 
                 tag_counts = defaultdict(int)
                 for tag in tags:
@@ -354,43 +658,63 @@ class CorrelationService:
                 if tag_counts:
                     most_common_tag = max(tag_counts, key=tag_counts.get)
                     if tag_counts[most_common_tag] >= len(cluster_positions) * 0.7:
+                        logger.debug(f"  [OK] Using tag nickname: {most_common_tag}")
                         return most_common_tag
+
+            logger.debug(f"  No common tags found (threshold: 70%)")
         
         # 2. Check for common sector
+        logger.debug(f"  Step 2: Checking common sectors for {len(cluster_symbols)} symbols")
         sectors = []
-        for symbol in cluster_symbols:
+        for i, symbol in enumerate(cluster_symbols):
+            logger.debug(f"    Querying sector for symbol {i+1}/{len(cluster_symbols)}: {symbol}")
             # Query market data cache for sector info
             query = select(MarketDataCache).where(
                 MarketDataCache.symbol == symbol
             ).order_by(MarketDataCache.date.desc()).limit(1)
-            
+
             result = await self.db.execute(query)
             market_data = result.scalar_one_or_none()
-            
+
             if market_data and market_data.sector:
                 sectors.append(market_data.sector)
+                logger.debug(f"      Found sector: {market_data.sector}")
+            else:
+                logger.debug(f"      No sector data")
         
+        logger.debug(f"  Collected {len(sectors)} sector values from {len(cluster_symbols)} symbols")
+
         if sectors:
             # Find most common sector
             sector_counts = defaultdict(int)
             for sector in sectors:
                 sector_counts[sector] += 1
-            
+
             most_common_sector = max(sector_counts, key=sector_counts.get)
+            logger.debug(f"  Most common sector: {most_common_sector} ({sector_counts[most_common_sector]}/{len(cluster_symbols)} = {sector_counts[most_common_sector]/len(cluster_symbols)*100:.1f}%)")
+
             if sector_counts[most_common_sector] >= len(cluster_symbols) * 0.7:  # 70% threshold
+                logger.debug(f"  [OK] Using sector nickname: {most_common_sector}")
                 return most_common_sector
+
+        logger.debug(f"  No common sector found (threshold: 70%)")
         
         # 3. Use largest position + "lookalikes"
+        logger.debug(f"  Step 3: Using largest position fallback")
         if cluster_positions:
-            # Find largest position by value
+            # Find largest position by value (with fallback to entry_price)
             largest_position = max(
                 cluster_positions,
-                key=lambda p: abs(p.quantity * p.last_price)
+                key=lambda p: get_position_valuation(p).abs_market_value
             )
-            return f"{largest_position.symbol} lookalikes"
-        
+            nickname = f"{largest_position.symbol} lookalikes"
+            logger.debug(f"  [OK] Using largest position nickname: {nickname}")
+            return nickname
+
         # Fallback
-        return f"Cluster {cluster_symbols[0]}"
+        nickname = f"Cluster {cluster_symbols[0]}"
+        logger.debug(f"  [OK] Using fallback nickname: {nickname}")
+        return nickname
     
     def calculate_portfolio_metrics(
         self,
@@ -422,9 +746,13 @@ class CorrelationService:
         total_value = Decimal("0")
         
         for position in positions:
-            position_value = abs(position.quantity * position.last_price)
+            valuation = get_position_valuation(position)
+            if valuation.price is None:
+                continue  # Skip positions with no price data
+
+            position_value = valuation.abs_market_value
             total_value += position_value
-            
+
             if position.symbol in clustered_symbols:
                 clustered_value += position_value
         
@@ -468,14 +796,14 @@ class CorrelationService:
         self,
         portfolio_id: UUID,
         duration_days: int,
-        calculation_date: datetime
+        calculation_date: date
     ) -> Optional[CorrelationCalculation]:
         """Check for existing calculation"""
         query = select(CorrelationCalculation).where(
             and_(
                 CorrelationCalculation.portfolio_id == portfolio_id,
                 CorrelationCalculation.duration_days == duration_days,
-                CorrelationCalculation.calculation_date == calculation_date
+                func.date(CorrelationCalculation.calculation_date) == calculation_date
             )
         )
         
@@ -498,46 +826,177 @@ class CorrelationService:
         end_date: datetime
     ) -> pd.DataFrame:
         """
-        Get daily log returns for positions
+        Get daily log returns for positions, aligned to common trading dates
+
+        IMPORTANT: Returns are calculated AFTER date alignment to ensure all returns
+        are single-day returns over the same time periods. This prevents misaligned
+        correlation calculations (e.g., correlating 2-day returns with 1-day returns).
+
         Returns DataFrame with dates as index and symbols as columns
         """
-        returns_data = {}
-        
-        for position in positions:
-            # Get price data from market data cache
-            query = select(
-                MarketDataCache.date,
-                MarketDataCache.close
-            ).where(
-                and_(
-                    MarketDataCache.symbol == position.symbol,
-                    MarketDataCache.date >= start_date,
-                    MarketDataCache.date <= end_date
-                )
-            ).order_by(MarketDataCache.date)
-            
-            result = await self.db.execute(query)
-            price_data = result.all()
-            
-            if len(price_data) >= 2:  # Need at least 2 points for returns
-                # Convert to pandas Series
-                dates = [row.date for row in price_data]
-                prices = [float(row.close) for row in price_data]
-                
-                price_series = pd.Series(prices, index=pd.DatetimeIndex(dates))
-                
-                # Calculate log returns: ln(price_t / price_t-1)
-                log_returns = np.log(price_series / price_series.shift(1)).dropna()
-                
-                returns_data[position.symbol] = log_returns
-        
-        # Create DataFrame from returns data
-        if returns_data:
-            # Align all series to common dates
-            returns_df = pd.DataFrame(returns_data)
-            return returns_df
-        else:
+        price_data: Dict[str, pd.Series] = {}
+
+        # Normalize date bounds to plain dates to match MarketDataCache schema
+        start_bound = start_date.date() if isinstance(start_date, datetime) else start_date
+        end_bound = end_date.date() if isinstance(end_date, datetime) else end_date
+
+        # Build unique list of symbols (preserve case) for a single batched query
+        symbols = [p.symbol for p in positions if p.symbol]
+        seen: Set[str] = set()
+        ordered_symbols: List[str] = []
+        for symbol in symbols:
+            if symbol not in seen:
+                ordered_symbols.append(symbol)
+                seen.add(symbol)
+
+        if not ordered_symbols:
             return pd.DataFrame()
+
+        # Step 1: Fetch all price data - use cache if available for HUGE speedup
+        rows = []
+
+        if self.price_cache:
+            # OPTIMIZATION: Use preloaded price cache instead of database query
+            logger.info(f"CACHE: Loading {len(ordered_symbols)} symbols from cache for date range {start_bound} to {end_bound}")
+            cache_hits = 0
+            cache_misses = 0
+
+            # Generate all dates in range (approximation - includes weekends but cache will miss those)
+            current_date = start_bound
+            date_list = []
+            while current_date <= end_bound:
+                date_list.append(current_date)
+                current_date += timedelta(days=1)
+
+            # Try to get all prices from cache
+            for symbol in ordered_symbols:
+                for check_date in date_list:
+                    price = self.price_cache.get_price(symbol, check_date)
+                    if price is not None:
+                        rows.append({'symbol': symbol, 'date': check_date, 'close': price})
+                        cache_hits += 1
+                    else:
+                        cache_misses += 1
+
+            logger.info(f"CACHE STATS: {cache_hits} hits, {cache_misses} misses (hit rate: {cache_hits/(cache_hits+cache_misses)*100:.1f}%)")
+
+        if not rows:
+            # Fallback to database query if cache not available or empty
+            logger.info("Using database query for historical prices (no cache or cache empty)")
+            price_query = (
+                select(
+                    MarketDataCache.symbol,
+                    MarketDataCache.date,
+                    MarketDataCache.close
+                )
+                .where(
+                    and_(
+                        MarketDataCache.symbol.in_(ordered_symbols),
+                        MarketDataCache.date >= start_bound,
+                        MarketDataCache.date <= end_bound
+                    )
+                )
+                .order_by(MarketDataCache.symbol, MarketDataCache.date)
+            )
+
+            price_result = await self.db.execute(price_query)
+            rows = price_result.mappings().all()
+
+        if not rows:
+            logger.warning(
+                "No historical price data found for correlation calculation after batched query"
+            )
+            return pd.DataFrame()
+
+        symbol_to_rows: Dict[str, List[Tuple[date, float]]] = defaultdict(list)
+        for row in rows:
+            close_value = row["close"]
+            if close_value is None:
+                continue
+            symbol_to_rows[row["symbol"]].append((row["date"], float(close_value)))
+
+        logger.info(
+            "Loaded %s price records across %s symbols for correlation returns calculation",
+            len(rows),
+            len(symbol_to_rows),
+        )
+
+        for symbol, symbol_rows in symbol_to_rows.items():
+            if len(symbol_rows) < 2:
+                continue
+
+            symbol_rows.sort(key=lambda item: item[0])
+            dates = [record_date for record_date, _ in symbol_rows]
+            prices = [price for _, price in symbol_rows]
+
+            price_series = pd.Series(prices, index=pd.DatetimeIndex(dates))
+
+            duplicates_count = price_series.index.duplicated().sum()
+            if duplicates_count > 0:
+                logger.warning(
+                    f"Position {symbol}: {duplicates_count} duplicate dates found. Keeping last value for each date."
+                )
+                price_series = price_series[~price_series.index.duplicated(keep='last')]
+
+            invalid_prices = (price_series <= 0).sum()
+            if invalid_prices > 0:
+                logger.warning(
+                    f"Position {symbol}: {invalid_prices} non-positive prices found. Removing these data points before return calculation."
+                )
+                price_series = price_series[price_series > 0]
+
+            if len(price_series) >= 2:
+                price_data[symbol] = price_series
+            else:
+                logger.warning(
+                    f"Position {symbol}: Insufficient valid data after sanitization ({len(price_series)} points remaining, need 2+). Excluding from analysis."
+                )
+
+        if not price_data:
+            return pd.DataFrame()
+
+        # Step 2: Create price DataFrame with all positions
+        price_df = pd.DataFrame(price_data)
+
+        # Step 3: Drop dates where ANY position is missing (ensure alignment)
+        # This ensures all returns are calculated over the same dates
+        price_df_aligned = price_df.dropna()
+
+        if price_df_aligned.empty:
+            logger.warning("No overlapping dates found across all positions")
+            return pd.DataFrame()
+
+        logger.info(
+            f"Aligned {len(price_df_aligned)} common trading dates "
+            f"across {len(price_df_aligned.columns)} positions "
+            f"(original: {len(price_df)} dates before alignment)"
+        )
+
+        # Step 4: Calculate log returns on aligned price DataFrame
+        # Now .shift(1) operates on the same date sequence for all positions
+        with np.errstate(divide='ignore', invalid='ignore'):
+            returns_df = np.log(price_df_aligned / price_df_aligned.shift(1))
+
+        # Handle infinite values from zero/negative prices
+        inf_mask = np.isinf(returns_df)
+        if inf_mask.any().any():
+            inf_counts = inf_mask.sum()
+            for symbol in inf_counts[inf_counts > 0].index:
+                logger.warning(
+                    f"Position {symbol}: {inf_counts[symbol]} infinite log returns "
+                    f"(likely from zero/negative prices). Replacing with NaN."
+                )
+            returns_df = returns_df.replace([np.inf, -np.inf], np.nan)
+
+        # Drop NaN values (first row after shift, and any infinite values)
+        returns_df = returns_df.dropna()
+
+        logger.info(
+            f"Calculated {len(returns_df)} days of aligned returns "
+            f"for {len(returns_df.columns)} positions"
+        )
+
+        return returns_df
     
     def _validate_data_sufficiency(
         self, 
@@ -575,18 +1034,27 @@ class CorrelationService:
             for symbol2 in correlation_matrix.columns:
                 # Store all pairs including self-correlations
                 correlation_value = correlation_matrix.loc[symbol1, symbol2]
-                
-                # Count valid data points
-                data_points = returns_df[[symbol1, symbol2]].dropna().shape[0]
-                
+
+                # Get paired observations (both symbols must have data)
+                # CRITICAL: Use same observations for both data_points count and stats.pearsonr()
+                paired_data = returns_df[[symbol1, symbol2]].dropna()
+                data_points = len(paired_data)
+
                 # Calculate statistical significance (p-value)
                 if symbol1 != symbol2 and data_points >= 3:
-                    # Use scipy stats for p-value calculation
+                    # Use scipy stats for p-value calculation on SAME paired observations
                     _, p_value = stats.pearsonr(
-                        returns_df[symbol1].dropna(),
-                        returns_df[symbol2].dropna()
+                        paired_data[symbol1],  # ← Same observations as data_points
+                        paired_data[symbol2]   # ← Same observations as data_points
                     )
                     statistical_significance = Decimal(str(1 - p_value))
+
+                    # Log low-confidence correlations (p > 0.05 = less than 95% confidence)
+                    if p_value > 0.05:
+                        logger.debug(
+                            f"Low-confidence correlation: {symbol1}-{symbol2} "
+                            f"(r={correlation_value:.3f}, p={p_value:.3f}, n={data_points})"
+                        )
                 else:
                     statistical_significance = Decimal("1") if symbol1 == symbol2 else None
                 
@@ -610,9 +1078,10 @@ class CorrelationService:
         calculation_id: UUID,
         clusters: List[Dict],
         positions: List[Position],
-        portfolio_value: Decimal
+        portfolio_value: Decimal,
+        correlation_matrix: pd.DataFrame,
     ):
-        """Store correlation clusters and their positions"""
+        """Store correlation clusters and their positions with precise correlation stats"""
         # Create position lookup
         symbol_to_position = {p.symbol: p for p in positions}
         
@@ -624,7 +1093,11 @@ class CorrelationService:
             for symbol in cluster_data["symbols"]:
                 if symbol in symbol_to_position:
                     position = symbol_to_position[symbol]
-                    position_value = abs(position.quantity * position.last_price)
+                    valuation = get_position_valuation(position)
+                    if valuation.price is None:
+                        continue  # Skip positions with no price data
+
+                    position_value = valuation.abs_market_value
                     cluster_value += position_value
                     cluster_positions.append((position, position_value))
             
@@ -642,33 +1115,50 @@ class CorrelationService:
             await self.db.flush()
             
             # Add cluster positions
+            cluster_position_records: List[CorrelationClusterPosition] = []
             for position, position_value in cluster_positions:
                 # Calculate correlation to cluster (average correlation with other cluster members)
-                correlations_to_cluster = []
+                correlation_values: List[Decimal] = []
                 for other_symbol in cluster_data["symbols"]:
-                    if other_symbol != position.symbol:
-                        # This would need access to the correlation matrix
-                        # For now, use the average cluster correlation
-                        correlations_to_cluster.append(float(cluster_data["avg_correlation"]))
-                
-                avg_correlation_to_cluster = (
-                    Decimal(str(np.mean(correlations_to_cluster)))
-                    if correlations_to_cluster
-                    else cluster_data["avg_correlation"]
-                )
-                
-                cluster_position = CorrelationClusterPosition(
-                    cluster_id=cluster.id,
-                    position_id=position.id,
-                    symbol=position.symbol,
-                    value=position_value,
-                    portfolio_percentage=position_value / portfolio_value if portfolio_value > 0 else Decimal("0"),
-                    correlation_to_cluster=avg_correlation_to_cluster
-                )
-                
-            self.db.add(cluster_position)
-        
-            await self.db.flush()
+                    if other_symbol == position.symbol:
+                        continue
+
+                    if (
+                        position.symbol in correlation_matrix.index
+                        and other_symbol in correlation_matrix.columns
+                    ):
+                        correlation_values.append(
+                            Decimal(
+                                str(
+                                    correlation_matrix.loc[
+                                        position.symbol, other_symbol
+                                    ]
+                                )
+                            )
+                        )
+
+                if correlation_values:
+                    avg_correlation_to_cluster = sum(correlation_values) / Decimal(
+                        len(correlation_values)
+                    )
+                else:
+                    avg_correlation_to_cluster = cluster_data["avg_correlation"]
+
+                cluster_position_records.append(
+                    CorrelationClusterPosition(
+                        cluster_id=cluster.id,
+                        position_id=position.id,
+                        symbol=position.symbol,
+                        value=position_value,
+                        portfolio_percentage=position_value / portfolio_value if portfolio_value > 0 else Decimal("0"),
+                        correlation_to_cluster=avg_correlation_to_cluster,
+                    )
+                )      
+
+            if cluster_position_records:
+                self.db.add_all(cluster_position_records)
+
+            await self.db.flush()         
 
     async def get_weighted_correlation(
         self,
@@ -758,11 +1248,8 @@ class CorrelationService:
                 sym = (pos.symbol or "").upper()
                 if sym not in symbol_set:
                     continue
-                price = pos.last_price if pos.last_price is not None else pos.entry_price
-                try:
-                    mv = abs(float(pos.quantity) * float(price)) if price is not None else 0.0
-                except Exception:
-                    mv = 0.0
+                valuation = get_position_valuation(pos)
+                mv = float(valuation.abs_market_value)
                 weights_raw[sym] = weights_raw.get(sym, 0.0) + mv
 
         # Normalize weights across symbols in symbol_set
@@ -938,10 +1425,9 @@ class CorrelationService:
             # Calculate weights (gross market value with fallback to entry_price)
             symbol_weights = {}
             for pos in positions:
-                price = pos.last_price if pos.last_price else pos.entry_price
-                if price:
-                    weight = abs(float(pos.quantity * price))
-                    symbol_weights[pos.symbol] = weight
+                valuation = get_position_valuation(pos)
+                if valuation.abs_market_value > 0:
+                    symbol_weights[pos.symbol] = float(valuation.abs_market_value)
             
             # Get unique symbols from correlations
             symbols = set()

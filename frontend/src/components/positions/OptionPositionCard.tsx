@@ -1,48 +1,67 @@
 import React from 'react'
 import { BasePositionCard } from '@/components/common/BasePositionCard'
 import { formatCurrency } from '@/lib/formatters'
-
-interface OptionPosition {
-  id?: string
-  symbol: string
-  type?: string  // LC, LP, SC, SP
-  marketValue: number
-  pnl: number
-}
+import { TagBadge } from '@/components/organize/TagBadge'
+import { Badge } from '@/components/ui/badge'
+import type { OptionPositionView } from '@/types/positions'
 
 interface OptionPositionCardProps {
-  position: OptionPosition
+  position: OptionPositionView
   onClick?: () => void
+  showAccountBadge?: boolean
 }
 
 const OPTION_TYPE_LABELS: Record<string, string> = {
-  'LC': 'Long Call',
-  'LP': 'Long Put',
-  'SC': 'Short Call',
-  'SP': 'Short Put'
+  LC: 'Long Call',
+  LP: 'Long Put',
+  SC: 'Short Call',
+  SP: 'Short Put'
 }
 
-export function OptionPositionCard({ position, onClick }: OptionPositionCardProps) {
+export function OptionPositionCard({
+  position,
+  onClick,
+  showAccountBadge = false
+}: OptionPositionCardProps) {
   const optionTypeLabel = OPTION_TYPE_LABELS[position.type || ''] || 'Option'
+  const accountName = position.accountName || (position as any).account_name
+  const tags = position.tags || (position as any).tags || []
 
   return (
-    <BasePositionCard
-      primaryText={position.symbol}
-      secondaryText={optionTypeLabel}
-      primaryValue={formatCurrency(Math.abs(position.marketValue))}
-      secondaryValue={
-        position.pnl === 0
-          ? '—'
-          : `${position.pnl >= 0 ? '+' : ''}${formatCurrency(position.pnl)}`
-      }
-      secondaryValueColor={
-        position.pnl === 0
-          ? 'neutral'
-          : position.pnl >= 0
-            ? 'positive'
-            : 'negative'
-      }
-      onClick={onClick}
-    />
+    <div className="space-y-2">
+      <BasePositionCard
+        primaryText={position.symbol}
+        secondaryText={optionTypeLabel}
+        primaryValue={formatCurrency(Math.abs(position.marketValue))}
+        secondaryValue={
+          position.pnl === 0
+            ? '--'
+            : `${position.pnl >= 0 ? '+' : ''}${formatCurrency(position.pnl)}`
+        }
+        secondaryValueColor={
+          position.pnl === 0
+            ? 'neutral'
+            : position.pnl >= 0
+              ? 'positive'
+              : 'negative'
+        }
+        onClick={onClick}
+      />
+
+      {(showAccountBadge && accountName) || tags.length > 0 ? (
+        <div className="flex flex-wrap gap-1 px-1">
+          {showAccountBadge && accountName && (
+            <Badge variant="outline" className="text-xs">
+              {accountName}
+            </Badge>
+          )}
+
+          {tags.map((tag: any) => (
+            <TagBadge key={tag.id} tag={tag} draggable={false} />
+          ))}
+        </div>
+      ) : null}
+    </div>
   )
 }
+

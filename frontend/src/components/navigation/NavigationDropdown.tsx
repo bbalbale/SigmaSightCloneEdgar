@@ -9,83 +9,50 @@ import {
   Shield,
   PieChart,
   Bot,
-  Settings,
-  LogOut,
   Menu,
-  User,
-  ChevronRight
+  ChevronRight,
+  Sparkles,
+  Briefcase,
+  TrendingUp,
+  Command,
+  Search
 } from 'lucide-react'
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Button } from '@/components/ui/button'
-import { useAuth } from '../../../app/providers'
-import { usePortfolioName } from '@/stores/portfolioStore'
 import { cn } from '@/lib/utils'
 
 const navigationItems = [
-  { href: '/portfolio', label: 'Dashboard', icon: Home },
+  { href: '/command-center', label: 'Command Center', icon: Command },
+  { href: '/dashboard', label: 'Dashboard', icon: Home },
+  { href: '/portfolio-holdings', label: 'Portfolio Holdings', icon: Briefcase },
+  { href: '/risk-metrics', label: 'Risk Metrics', icon: TrendingUp },
+  { href: '/research-and-analyze', label: 'Research & Analyze', icon: Search },
   { href: '/public-positions', label: 'Public Positions', icon: Building2 },
   { href: '/private-positions', label: 'Private Positions', icon: Shield },
   { href: '/organize', label: 'Organize', icon: PieChart },
+  { href: '/sigmasight-ai', label: 'SigmaSight AI', icon: Sparkles },
   { href: '/ai-chat', label: 'AI Chat', icon: Bot },
-  { href: '/settings', label: 'Settings', icon: Settings },
 ]
 
 export function NavigationDropdown() {
   const pathname = usePathname()
-  const { user, logout } = useAuth()
-  const portfolioName = usePortfolioName()
-
-  const handleLogout = async () => {
-    await logout()
-  }
-
-  // Find current page
-  const currentPage = navigationItems.find(item => item.href === pathname)
 
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="outline" className="gap-2">
+        <Button variant="ghost" size="icon">
           <Menu className="h-4 w-4" />
-          <span className="hidden sm:inline-block">
-            {currentPage ? currentPage.label : 'Menu'}
-          </span>
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent className="w-56" align="end">
-        {/* User info section */}
-        {user && (
-          <>
-            <DropdownMenuLabel className="font-normal">
-              <div className="flex flex-col space-y-1">
-                <div className="flex items-center gap-2">
-                  <User className="h-4 w-4" />
-                  <p className="text-sm font-medium leading-none">{user.fullName}</p>
-                </div>
-                <p className="text-xs leading-none text-muted-foreground">
-                  {user.email}
-                </p>
-                {portfolioName && (
-                  <p className="text-xs leading-none text-muted-foreground mt-1">
-                    Portfolio: {portfolioName}
-                  </p>
-                )}
-              </div>
-            </DropdownMenuLabel>
-            <DropdownMenuSeparator />
-          </>
-        )}
-
-        {/* Navigation items */}
+      <DropdownMenuContent className="w-56" align="start">
         <DropdownMenuLabel className="text-xs text-muted-foreground">
-          Navigation
+          All Pages
         </DropdownMenuLabel>
         {navigationItems.map((item) => {
           const Icon = item.icon
@@ -111,16 +78,6 @@ export function NavigationDropdown() {
             </DropdownMenuItem>
           )
         })}
-
-        {/* Logout */}
-        <DropdownMenuSeparator />
-        <DropdownMenuItem
-          onClick={handleLogout}
-          className="text-red-600 dark:text-red-400 cursor-pointer"
-        >
-          <LogOut className="mr-2 h-4 w-4" />
-          <span>Logout</span>
-        </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   )

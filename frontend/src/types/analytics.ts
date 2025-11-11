@@ -2,8 +2,10 @@
 
 export interface PortfolioOverviewResponse {
   portfolio_id: string;
+  net_asset_value: number;
   total_value: number;
   cash_balance: number;
+  equity_balance?: number;
   exposures: {
     long_exposure: number;
     short_exposure: number;
@@ -18,6 +20,8 @@ export interface PortfolioOverviewResponse {
     total_pnl: number;
     unrealized_pnl: number;
     realized_pnl: number;
+    ytd_pnl?: number;
+    mtd_pnl?: number;
   };
   position_count: {
     total_positions: number;
@@ -33,12 +37,29 @@ export interface CorrelationMatrixResponse {
   data?: {
     matrix: Record<string, Record<string, number>>;
     average_correlation: number;
+    position_symbols?: string[];
+    correlation_matrix?: number[][];
+    data_quality?: {
+      total_pairs: number;
+      valid_pairs: number;
+      coverage_percent: number;
+    };
+    min_overlap?: number;
   };
   metadata?: {
     calculation_date: string; // ISO
     lookback_days: number;
     positions_included: number;
+    min_overlap?: number;
   };
+  position_symbols?: string[];
+  correlation_matrix?: number[][];
+  data_quality?: {
+    total_pairs: number;
+    valid_pairs: number;
+    coverage_percent: number;
+  };
+  min_overlap?: number;
   reason?: string;
 }
 
@@ -49,8 +70,13 @@ export interface PortfolioFactorExposuresResponse {
     factor: string;
     exposure: number;
   }>;
+  factors?: FactorExposure[];
   metadata?: {
     calculation_date: string; // ISO
+  };
+  data_quality?: {
+    missing_positions?: string[];
+    coverage_percent?: number;
   };
   reason?: string;
 }
@@ -71,12 +97,33 @@ export interface FactorExposuresMetadata {
   has_market_beta: number;
 }
 
+// Data staleness information for latest-available pattern
+export interface DataStalenessInfo {
+  snapshot_date?: string;
+  calculation_date?: string;
+  age_hours?: number;
+  is_stale: boolean;
+  is_current: boolean;
+  should_recalculate?: boolean;
+}
+
+// Data quality information for calculation issues
+export interface DataQualityInfo {
+  flag: string;
+  message: string;
+  positions_analyzed: number;
+  positions_total: number;
+  positions_skipped: number;
+  data_days: number;
+}
+
 export interface FactorExposuresResponse {
   available: boolean;
   portfolio_id: string;
   calculation_date: string;
   factors: FactorExposure[];
   metadata: FactorExposuresMetadata;
+  data_quality?: DataStalenessInfo | DataQualityInfo | null;
 }
 
 export interface FactorExposuresApiResponse {
@@ -86,18 +133,38 @@ export interface FactorExposuresApiResponse {
 export interface PositionFactorExposureItem {
   position_id: string;
   symbol: string;
-  exposures: Record<string, number>; // factor name → exposure value
+  exposures: Record<string, number>; // factor name → exposure value (beta)
 }
 
+// Updated to match backend API response structure
 export interface PositionFactorExposuresResponse {
   available: boolean;
-  data?: PositionFactorExposureItem[];
+  portfolio_id: string;
+  calculation_date: string | null;
+  total: number | null;
+  limit: number | null;
+  offset: number | null;
+  positions: PositionFactorExposureItem[] | null;
+  data_quality?: {
+    flag: string;
+    message: string;
+    positions_analyzed: number;
+    positions_total: number;
+    positions_skipped: number;
+    data_days: number;
+  } | null;
   metadata?: {
-    count: number;
-    limit: number;
-    offset: number;
+    reason?: string;
   };
-  reason?: string;
+}
+
+// Helper type for factor beta display
+export interface PositionFactorData {
+  factorExposures: Map<string, Record<string, number>>; // symbol → { factor_name → beta }
+  companyBetas: Map<string, number>; // symbol → company market beta
+  loading: boolean;
+  error: string | null;
+  calculationDate: string | null;
 }
 
 export interface StressTestScenarioImpact {
@@ -127,5 +194,88 @@ export interface StressTestResponse {
     scenarios_requested?: string[];
   };
   reason?: string;
+}
+
+export interface DiversificationScoreResponse {
+  available: boolean;
+  data?: {
+    overall_score: number; // 0-100
+    category_scores: {
+      asset_class: number;
+      sector: number;
+      geography: number;
+      position_size: number;
+    };
+    recommendations?: string[];
+  };
+  metadata?: {
+    calculation_date: string; // ISO
+    position_count: number;
+  };
+  reason?: string;
+}
+
+export interface VolatilityMetricsData {
+  realized_volatility_21d: number;
+  realized_volatility_63d: number;
+  expected_volatility_21d: number | null;
+  volatility_trend: string | null; // 'increasing', 'decreasing', 'stable'
+  volatility_percentile: number | null; // 0-1 scale
+}
+
+export interface VolatilityMetricsResponse {
+  available: boolean;
+  portfolio_id: string;
+  calculation_date: string | null;
+  data: VolatilityMetricsData | null;
+  metadata?: {
+    forecast_model?: string;
+    trading_day_windows?: string;
+    error?: string;
+  };
+}
+
+export interface SectorExposureData {
+  portfolio_weights: Record<string, number>; // sector name -> weight (0-1)
+  benchmark_weights: Record<string, number>; // sector name -> weight (0-1)
+  over_underweight: Record<string, number>; // sector name -> difference
+  largest_overweight: string | null;
+  largest_underweight: string | null;
+  total_portfolio_value: number;
+  positions_by_sector: Record<string, number>;
+  unclassified_value: number;
+  unclassified_count: number;
+}
+
+export interface SectorExposureResponse {
+  available: boolean;
+  portfolio_id: string;
+  calculation_date: string | null;
+  data: SectorExposureData | null;
+  metadata?: {
+    benchmark?: string;
+    error?: string;
+  };
+}
+
+export interface ConcentrationMetricsData {
+  hhi: number; // Herfindahl-Hirschman Index (0-10000)
+  effective_num_positions: number;
+  top_3_concentration: number; // 0-1 scale
+  top_10_concentration: number; // 0-1 scale
+  total_positions: number;
+  position_weights: Record<string, number> | null;
+}
+
+export interface ConcentrationMetricsResponse {
+  available: boolean;
+  portfolio_id: string;
+  calculation_date: string | null;
+  data: ConcentrationMetricsData | null;
+  metadata?: {
+    calculation_method?: string;
+    interpretation?: string;
+    error?: string;
+  };
 }
 

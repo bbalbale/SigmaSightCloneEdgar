@@ -23,6 +23,7 @@ export interface Portfolio {
   deleted_at?: string
 
   // Additional fields from API responses
+  net_asset_value?: number
   total_value?: number
   total_pnl?: number
   positions_count?: number
@@ -76,6 +77,7 @@ export interface PortfolioAnalytics {
   gross_exposure: number
   net_exposure: number
   cash_balance: number
+  net_asset_value: number
   total_value: number
   total_pnl?: number
   positions_count: number

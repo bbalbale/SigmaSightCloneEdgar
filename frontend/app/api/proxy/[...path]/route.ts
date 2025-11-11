@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 
-// Use environment variable or default to Railway production
-const BACKEND_URL = process.env.BACKEND_URL || 'https://sigmasight-be-production.up.railway.app'
-const PROXY_TIMEOUT = 30000 // 30 seconds
+// Use environment variable or default to Railway sandbox
+const BACKEND_URL = process.env.BACKEND_URL || 'https://sigmasight-be-sandbox-frontendrailway.up.railway.app'
+const PROXY_TIMEOUT = 180000 // 3 minutes (matches API client expectations for heavy endpoints)
 
 console.log('Proxy Backend URL:', BACKEND_URL)
 console.log('Docker Environment:', process.env.DOCKER_ENV)
@@ -13,7 +13,7 @@ console.log('Docker Environment:', process.env.DOCKER_ENV)
  * Includes error handling and timeout management
  */
 
-function mergeHeaders(...sources: Array<Record<string, string> | Headers | undefined | null>) {
+function mergeHeaders(...sources: Array<HeadersInit | undefined | null>) {
   const result: Record<string, string> = {}
   for (const source of sources) {
     if (!source) continue
@@ -21,7 +21,13 @@ function mergeHeaders(...sources: Array<Record<string, string> | Headers | undef
       source.forEach((value, key) => {
         result[key] = value
       })
+    } else if (Array.isArray(source)) {
+      // Handle [string, string][] format
+      source.forEach(([key, value]) => {
+        result[key] = value
+      })
     } else {
+      // Handle Record<string, string> format
       Object.assign(result, source)
     }
   }
@@ -105,9 +111,10 @@ async function handleProxyRequest(
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { path: string[] } }
+  { params }: { params: Promise<{ path: string[] }> }
 ) {
-  const path = params.path.join('/')
+  const { path: pathSegments } = await params
+  const path = pathSegments.join('/')
   const url = `${BACKEND_URL}/${path}${request.nextUrl.search}`
 
   // Get cookie header from request
@@ -143,9 +150,10 @@ export async function GET(
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { path: string[] } }
+  { params }: { params: Promise<{ path: string[] }> }
 ) {
-  const path = params.path.join('/')
+  const { path: pathSegments } = await params
+  const path = pathSegments.join('/')
   const url = `${BACKEND_URL}/${path}`
   
 
@@ -228,9 +236,10 @@ export async function POST(
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { path: string[] } }
+  { params }: { params: Promise<{ path: string[] }> }
 ) {
-  const path = params.path.join('/')
+  const { path: pathSegments } = await params
+  const path = pathSegments.join('/')
   const url = `${BACKEND_URL}/${path}`
   
 
@@ -278,15 +287,69 @@ export async function PUT(
   return proxyResponse
 }
 
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: Promise<{ path: string[] }> }
+) {
+  const { path: pathSegments } = await params
+  const path = pathSegments.join('/')
+  const url = `${BACKEND_URL}/${path}`
+
+
+  const body = await request.json()
+
+  const contentType = request.headers.get('content-type') || 'application/json'
+
+  const forwardHeaders: Record<string, string> = {}
+  request.headers.forEach((value, key) => {
+    const lower = key.toLowerCase()
+    if (lower === 'content-length' || lower === 'connection' || lower === 'host') {
+      return
+    }
+    forwardHeaders[key] = value
+  })
+
+  forwardHeaders['content-type'] = contentType
+
+  if (!forwardHeaders['accept']) {
+    forwardHeaders['accept'] = 'application/json'
+  }
+
+  const response = await handleProxyRequest(url, {
+    method: 'PATCH',
+    headers: forwardHeaders,
+    body: typeof body === 'string' ? body : JSON.stringify(body),
+    credentials: 'include',
+  })
+
+  const data = await response.text()
+
+  const proxyResponse = new NextResponse(data, {
+    status: response.status,
+    headers: {
+      'Content-Type': response.headers.get('Content-Type') || 'application/json',
+    },
+  })
+
+  // Forward Set-Cookie headers
+  const setCookieHeaders = response.headers.getSetCookie()
+  setCookieHeaders.forEach(cookie => {
+    proxyResponse.headers.append('Set-Cookie', cookie)
+  })
+
+  return proxyResponse
+}
+
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { path: string[] } }
+  { params }: { params: Promise<{ path: string[] }> }
 ) {
-  const path = params.path.join('/')
+  const { path: pathSegments } = await params
+  const path = pathSegments.join('/')
   const url = `${BACKEND_URL}/${path}`
-  
 
-  
+
+
   const forwardHeaders: Record<string, string> = {}
   request.headers.forEach((value, key) => {
     const lower = key.toLowerCase()
@@ -301,22 +364,22 @@ export async function DELETE(
     headers: forwardHeaders,
     credentials: 'include',
   })
-  
+
   const data = await response.text()
-  
+
   const proxyResponse = new NextResponse(data, {
     status: response.status,
     headers: {
       'Content-Type': response.headers.get('Content-Type') || 'application/json',
     },
   })
-  
+
   // Forward Set-Cookie headers
   const setCookieHeaders = response.headers.getSetCookie()
   setCookieHeaders.forEach(cookie => {
     proxyResponse.headers.append('Set-Cookie', cookie)
   })
-  
+
   return proxyResponse
 }
 
@@ -325,7 +388,7 @@ export async function OPTIONS() {
     status: 200,
     headers: {
       'Access-Control-Allow-Origin': 'http://localhost:3005',
-      'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+      'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS',
       'Access-Control-Allow-Headers': 'Content-Type, Authorization',
       'Access-Control-Allow-Credentials': 'true',
     },

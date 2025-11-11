@@ -685,7 +685,7 @@ uv sync
 uv run python scripts/setup_dev_database_alembic.py
 
 # Seed demo data
-uv run python scripts/seed_database.py
+uv run python scripts/database/seed_database.py
 
 # Run authentication tests
 uv run python scripts/test_auth.py
@@ -743,7 +743,7 @@ If the AI agent encounters issues it cannot resolve:
 
 ### Demo User Credentials
 The current implementation uses:
-- Password: `demo12345` (as implemented in scripts/seed_database.py)
+- Password: `demo12345` (as implemented in scripts/database/seed_database.py)
 - Note: Design docs originally specified `demo123`, but implementation uses `demo12345`
 
 ### User Model

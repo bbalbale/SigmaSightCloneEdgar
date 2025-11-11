@@ -13,6 +13,10 @@ from app.models.correlations import CorrelationCalculation, CorrelationCluster, 
 from app.models.target_prices import TargetPrice
 from app.models.tags_v2 import TagV2
 from app.models.position_tags import PositionTag
+from app.models.position_realized_events import PositionRealizedEvent
+from app.models.equity_changes import EquityChange, EquityChangeType
+from app.models.ai_insights import AIInsight
+from app.models.fundamentals import IncomeStatement, BalanceSheet, CashFlow
 
 # Export all models
 __all__ = [
@@ -58,4 +62,15 @@ __all__ = [
 
     # Position tags module
     "PositionTag",
+    "PositionRealizedEvent",
+    "EquityChange",
+    "EquityChangeType",
+
+    # AI insights module
+    "AIInsight",
+
+    # Fundamentals module
+    "IncomeStatement",
+    "BalanceSheet",
+    "CashFlow",
 ]

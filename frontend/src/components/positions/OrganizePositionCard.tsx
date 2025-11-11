@@ -2,28 +2,7 @@ import React from 'react'
 import { BasePositionCard } from '@/components/common/BasePositionCard'
 import { formatCurrency } from '@/lib/formatters'
 import { TagBadge } from '@/components/organize/TagBadge'
-import { useTheme } from '@/contexts/ThemeContext'
-
-// Tag interface
-interface Tag {
-  id: string
-  name: string
-  color: string
-}
-
-// Position interface from usePositions hook
-interface Position {
-  id: string
-  symbol: string
-  company_name?: string
-  market_value: number
-  investment_class: string
-  position_type: string
-  strike_price?: number
-  expiration_date?: string
-  investment_subtype?: string
-  tags?: Tag[]
-}
+import { Position } from '@/hooks/usePositions'
 
 interface OrganizePositionCardProps {
   position: Position
@@ -39,7 +18,6 @@ const OPTION_TYPE_LABELS: Record<string, string> = {
 }
 
 export function OrganizePositionCard({ position, onClick, onRemoveTag }: OrganizePositionCardProps) {
-  const { theme } = useTheme()
 
   // Determine card content based on investment class
   const getCardContent = () => {
@@ -68,9 +46,12 @@ export function OrganizePositionCard({ position, onClick, onRemoveTag }: Organiz
     }
 
     // PUBLIC (stocks/ETFs)
+    const companyInfo = position.company_name || position.symbol
+    const sectorInfo = (position as any).sector ? ` • ${(position as any).sector}` : ''
+
     return {
       primaryText: position.symbol,
-      secondaryText: position.company_name || position.symbol,
+      secondaryText: `${companyInfo}${sectorInfo}`,
       primaryValue: formatCurrency(position.market_value),
       secondaryValue: '', // NO P&L on organize page
       secondaryValueColor: 'neutral' as const
@@ -95,9 +76,9 @@ export function OrganizePositionCard({ position, onClick, onRemoveTag }: Organiz
                   }}
                   className="ml-0.5 px-1 py-0 text-xs rounded transition-all duration-200 hover:scale-110"
                   style={{
-                    backgroundColor: theme === 'dark' ? 'rgba(239, 68, 68, 0.2)' : 'rgba(239, 68, 68, 0.1)',
-                    color: theme === 'dark' ? '#ef4444' : '#dc2626',
-                    border: `1px solid ${theme === 'dark' ? '#ef4444' : '#dc2626'}`,
+                    backgroundColor: 'var(--color-error-bg, rgba(239, 68, 68, 0.1))',
+                    color: 'var(--color-error)',
+                    border: '1px solid var(--color-error)',
                     fontSize: '10px',
                     lineHeight: '14px',
                     minWidth: '14px',

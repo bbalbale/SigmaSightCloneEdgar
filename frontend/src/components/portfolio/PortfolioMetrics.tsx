@@ -1,6 +1,5 @@
 import React from 'react'
-import { Card, CardContent } from '@/components/ui/card'
-import { useTheme } from '@/contexts/ThemeContext'
+import { ThemedCard } from '@/components/ui/ThemedCard'
 
 interface Metric {
   title: string
@@ -17,8 +16,6 @@ interface PortfolioMetricsProps {
 }
 
 export function PortfolioMetrics({ metrics, loading, error }: PortfolioMetricsProps) {
-  const { theme } = useTheme()
-
   // Don't render if loading or error
   if (loading || error || !metrics || metrics.length === 0) {
     return null
@@ -27,34 +24,34 @@ export function PortfolioMetrics({ metrics, loading, error }: PortfolioMetricsPr
   return (
     <section className="px-4 pb-6">
       <div className="container mx-auto">
-        <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 mb-8" style={{ gap: 'var(--card-gap)' }}>
           {metrics.map((metric, index) => (
-            <Card key={index} className={`transition-colors duration-300 ${
-              theme === 'dark' ? 'bg-slate-800 border-slate-700' : 'bg-white border-gray-200'
-            }`}>
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between mb-2">
-                  <div className={`text-xs transition-colors duration-300 ${
-                    theme === 'dark' ? 'text-slate-400' : 'text-gray-600'
-                  }`}>{metric.title}</div>
+            <ThemedCard
+              key={index}
+              hover={true}
+              className="transition-colors duration-300"
+            >
+              <div className="flex items-center justify-between mb-2">
+                <div className="text-xs transition-colors duration-300" style={{ color: 'var(--text-secondary)' }}>
+                  {metric.title}
                 </div>
-                <div className={`text-xl font-bold mb-1 ${
-                  metric.positive ? 'text-emerald-400' : 'text-red-400'
-                }`}>
-                  {metric.value}
+              </div>
+              <div className="text-xl font-bold mb-1" style={{
+                color: metric.positive ? 'var(--color-success)' : 'var(--color-error)'
+              }}>
+                {metric.value}
+              </div>
+              {metric.subValue && (
+                <div className="text-sm mb-1 transition-colors duration-300" style={{ color: 'var(--text-primary)' }}>
+                  {metric.subValue}
                 </div>
-                {metric.subValue && (
-                  <div className={`text-sm mb-1 transition-colors duration-300 ${
-                    theme === 'dark' ? 'text-slate-300' : 'text-gray-700'
-                  }`}>{metric.subValue}</div>
-                )}
-                {metric.description && (
-                  <div className={`text-xs transition-colors duration-300 ${
-                    theme === 'dark' ? 'text-slate-500' : 'text-gray-500'
-                  }`}>{metric.description}</div>
-                )}
-              </CardContent>
-            </Card>
+              )}
+              {metric.description && (
+                <div className="text-xs transition-colors duration-300" style={{ color: 'var(--text-tertiary)' }}>
+                  {metric.description}
+                </div>
+              )}
+            </ThemedCard>
           ))}
         </div>
       </div>

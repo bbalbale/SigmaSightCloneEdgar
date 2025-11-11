@@ -1,12 +1,14 @@
 'use client'
 
 import React from 'react'
-import type { FactorExposure } from '@/types/analytics'
+import type { FactorExposure, DataStalenessInfo, DataQualityInfo } from '@/types/analytics'
+import { DataQualityIndicator } from '../DataQualityIndicator'
 
 interface FactorExposureCardsProps {
   factors: FactorExposure[] | null
   loading?: boolean
   error?: any
+  dataQuality?: DataStalenessInfo | DataQualityInfo | null
 }
 
 // Factor order as specified
@@ -38,42 +40,66 @@ const formatBeta = (value: number) => {
 // Helper function to get color based on beta value
 const getBetaColor = (beta: number) => {
   const absBeta = Math.abs(beta)
-  if (absBeta > 5) return 'text-emerald-700 bg-emerald-50 border-emerald-200'
-  if (absBeta > 3) return 'text-emerald-600 bg-emerald-50 border-emerald-200'
-  if (absBeta > 1) return 'text-green-600 bg-green-50 border-green-200'
-  return 'text-gray-600 bg-gray-50 border-gray-200'
+  // All cards use theme colors, intensity indicated by visual bar
+  return ''
 }
 
 // Skeleton card for loading state
 const SkeletonCard = () => (
-  <div className="bg-white rounded-lg border border-gray-200 p-2 animate-pulse">
-    <div className="h-3 bg-gray-200 rounded w-20 mb-1"></div>
-    <div className="h-5 bg-gray-200 rounded w-12 mb-1"></div>
-    <div className="h-3 bg-gray-200 rounded w-24"></div>
+  <div
+    className="animate-pulse"
+    style={{
+      backgroundColor: 'var(--bg-secondary)',
+      borderRadius: 'var(--border-radius)',
+      border: '1px solid var(--border-primary)',
+      padding: 'var(--card-padding)'
+    }}
+  >
+    <div className="h-3 rounded w-20 mb-1" style={{ backgroundColor: 'var(--bg-tertiary)' }}></div>
+    <div className="h-5 rounded w-12 mb-1" style={{ backgroundColor: 'var(--bg-tertiary)' }}></div>
+    <div className="h-3 rounded w-24" style={{ backgroundColor: 'var(--bg-tertiary)' }}></div>
   </div>
 )
 
 // Individual factor card
 const FactorCard = ({ factor }: { factor: FactorExposure }) => {
-  const colorClass = getBetaColor(factor.beta)
-
   return (
-    <div className={`rounded-lg border p-2 transition-all duration-200 hover:shadow-md cursor-pointer ${colorClass}`}>
-      <div className="text-xs font-medium text-gray-600 mb-0.5">
+    <div
+      className="transition-all duration-200 cursor-pointer"
+      style={{
+        borderRadius: 'var(--border-radius)',
+        border: '1px solid var(--border-primary)',
+        padding: 'var(--card-padding)',
+        backgroundColor: 'var(--bg-secondary)',
+      }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)'
+        e.currentTarget.style.borderColor = 'var(--border-accent)'
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.backgroundColor = 'var(--bg-secondary)'
+        e.currentTarget.style.borderColor = 'var(--border-primary)'
+      }}
+    >
+      <div className="text-xs font-medium mb-0.5" style={{ color: 'var(--text-secondary)' }}>
         {factor.name}
       </div>
-      <div className="text-base font-bold mb-0.5">
+      <div className="text-base font-bold mb-0.5" style={{ color: 'var(--text-primary)' }}>
         {formatBeta(factor.beta)}
       </div>
-      <div className="text-xs text-gray-500">
+      <div className="text-xs" style={{ color: 'var(--text-tertiary)' }}>
         {formatCurrency(factor.exposure_dollar)}
       </div>
       {/* Visual indicator bar */}
-      <div className="mt-1.5 h-1 bg-gray-200 rounded-full overflow-hidden">
+      <div
+        className="mt-1.5 h-1 rounded-full overflow-hidden"
+        style={{ backgroundColor: 'var(--bg-tertiary)' }}
+      >
         <div
-          className="h-full bg-current transition-all duration-300"
+          className="h-full transition-all duration-300"
           style={{
             width: `${Math.min(100, (Math.abs(factor.beta) / 7) * 100)}%`,
+            backgroundColor: 'var(--color-accent)',
             opacity: 0.6
           }}
         />
@@ -82,15 +108,16 @@ const FactorCard = ({ factor }: { factor: FactorExposure }) => {
   )
 }
 
-export const FactorExposureCards: React.FC<FactorExposureCardsProps> = ({ 
-  factors, 
-  loading = false, 
-  error 
+export const FactorExposureCards: React.FC<FactorExposureCardsProps> = ({
+  factors,
+  loading = false,
+  error,
+  dataQuality
 }) => {
   // Handle loading state
   if (loading) {
     return (
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7" style={{ gap: 'var(--card-gap)' }}>
         {FACTOR_ORDER.map((_, index) => (
           <SkeletonCard key={index} />
         ))}
@@ -101,8 +128,15 @@ export const FactorExposureCards: React.FC<FactorExposureCardsProps> = ({
   // Handle error state
   if (error) {
     return (
-      <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-        <p className="text-red-600 text-sm">
+      <div
+        className="p-4"
+        style={{
+          backgroundColor: 'var(--bg-secondary)',
+          border: '1px solid var(--color-error)',
+          borderRadius: 'var(--border-radius)'
+        }}
+      >
+        <p className="text-sm" style={{ color: 'var(--color-error)' }}>
           Unable to load factor exposures
         </p>
       </div>
@@ -112,8 +146,15 @@ export const FactorExposureCards: React.FC<FactorExposureCardsProps> = ({
   // Handle no data
   if (!factors || factors.length === 0) {
     return (
-      <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
-        <p className="text-gray-600 text-sm">
+      <div
+        className="p-4"
+        style={{
+          backgroundColor: 'var(--bg-secondary)',
+          border: '1px solid var(--border-primary)',
+          borderRadius: 'var(--border-radius)'
+        }}
+      >
+        <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
           Factor exposure data not available
         </p>
       </div>
@@ -133,11 +174,14 @@ export const FactorExposureCards: React.FC<FactorExposureCardsProps> = ({
     <section className="px-4 pb-6">
       <div className="container mx-auto">
         <div className="flex items-center justify-between mb-3">
-          <h3 className="text-sm font-medium text-gray-600">Factor Exposures</h3>
-          <span className="text-xs text-gray-500">Beta values and dollar exposures</span>
+          <div className="flex items-center" style={{ gap: 'var(--card-gap)' }}>
+            <h3 className="text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>Factor Exposures</h3>
+            <DataQualityIndicator dataQuality={dataQuality} />
+          </div>
+          <span className="text-xs" style={{ color: 'var(--text-tertiary)' }}>Beta values and dollar exposures</span>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7" style={{ gap: 'var(--card-gap)' }}>
           {sortedFactors.map((factor) => (
             <FactorCard key={factor.name} factor={factor} />
           ))}

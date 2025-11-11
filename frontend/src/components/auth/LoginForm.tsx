@@ -1,13 +1,15 @@
 "use client"
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { useAuth } from '../../../app/providers'
-import { AlertCircle, Loader2, User, Building2, TrendingUp } from 'lucide-react'
+import { AlertCircle, Loader2, User, Building2, TrendingUp, Briefcase } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 
 export function LoginForm() {
+  const router = useRouter()
   const { login } = useAuth()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -20,6 +22,12 @@ export function LoginForm() {
       email: 'demo_hnw@sigmasight.com',
       icon: TrendingUp,
       description: 'Multi-asset portfolio with advanced analytics'
+    },
+    {
+      name: 'Family Office (Multi-Portfolio)',
+      email: 'demo_familyoffice@sigmasight.com',
+      icon: Briefcase,
+      description: 'Multiple investment accounts with aggregate analytics'
     },
     {
       name: 'Individual Investor',
@@ -168,6 +176,30 @@ export function LoginForm() {
                   </Button>
                 )
               })}
+            </div>
+
+            <div className="relative w-full mt-4">
+              <div className="absolute inset-0 flex items-center">
+                <span className="w-full border-t" />
+              </div>
+              <div className="relative flex justify-center text-xs uppercase">
+                <span className="bg-background px-2 text-muted-foreground">
+                  New to SigmaSight?
+                </span>
+              </div>
+            </div>
+
+            <div className="w-full mt-4">
+              <Button
+                type="button"
+                variant="default"
+                className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white"
+                onClick={() => {
+                  router.push('/test-user-creation')
+                }}
+              >
+                Sign up for Pre-Alpha (invite only)
+              </Button>
             </div>
           </CardFooter>
         </Card>

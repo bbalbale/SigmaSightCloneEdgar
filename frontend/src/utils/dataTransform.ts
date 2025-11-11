@@ -28,10 +28,10 @@ export function transformToSummaryMetrics(
     const snapshot = calculation_engines.portfolio_snapshot.data;
     
     metrics.push({
-      title: 'Total Value',
-      value: formatCurrency(snapshot.total_value),
+      title: 'Net Asset Value',
+      value: formatCurrency(snapshot.net_asset_value ?? snapshot.total_value),
       subValue: `as of ${formatDate(snapshot.date)}`,
-      description: 'Current total portfolio market value',
+      description: 'Current net portfolio value',
       positive: true,
       loading: false,
     });

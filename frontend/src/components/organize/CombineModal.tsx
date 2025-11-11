@@ -81,7 +81,7 @@ export function CombineModal({
           <div className="space-y-4 py-4">
             {/* Name field */}
             <div className="space-y-2">
-              <label htmlFor="strategy-name" className="text-sm font-medium text-gray-700">
+              <label htmlFor="strategy-name" className="text-sm font-medium text-primary">
                 Name *
               </label>
               <Input
@@ -96,7 +96,7 @@ export function CombineModal({
 
             {/* Type field */}
             <div className="space-y-2">
-              <div className="text-sm font-medium text-gray-700">Type *</div>
+              <div className="text-sm font-medium text-primary">Type *</div>
               <div className="flex gap-4">
                 <label className="flex items-center gap-2 cursor-pointer">
                   <input
@@ -127,7 +127,7 @@ export function CombineModal({
 
             {/* Description field */}
             <div className="space-y-2">
-              <label htmlFor="strategy-description" className="text-sm font-medium text-gray-700">
+              <label htmlFor="strategy-description" className="text-sm font-medium text-primary">
                 Description (optional)
               </label>
               <textarea
@@ -139,7 +139,7 @@ export function CombineModal({
                 className="w-full min-h-[80px] px-3 py-2 border border-gray-300 rounded-md resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
                 maxLength={500}
               />
-              <p className="text-xs text-gray-500">
+              <p className="text-xs text-tertiary">
                 {description.length}/500 characters
               </p>
             </div>

@@ -29,15 +29,37 @@ export interface PortfolioMetadata {
 // Portfolio Snapshot Data
 export interface PortfolioSnapshotData {
   date: string;
+  net_asset_value?: string;
   total_value: string;
   daily_pnl: string;
   daily_return: string;
+  target_price_return_eoy?: number;
+  target_price_return_next_year?: number;
+  target_price_coverage_pct?: number;
+  target_price_positions_count?: number;
+  target_price_total_positions?: number;
+  target_price_last_updated?: string;
+  beta_calculated_90d?: number;
+  beta_provider_1y?: number;
 }
 
 export interface PortfolioSnapshot {
   available: boolean;
   data: PortfolioSnapshotData | null;
   description: string;
+  // Direct fields from /api/v1/data/portfolio/{id}/snapshot endpoint
+  portfolio_id?: string;
+  snapshot_date?: string;
+  target_price_return_eoy?: number;
+  target_price_return_next_year?: number;
+  target_price_coverage_pct?: number;
+  target_price_positions_count?: number;
+  target_price_total_positions?: number;
+  target_price_last_updated?: string;
+  beta_calculated_90d?: number;
+  beta_provider_1y?: number;
+  daily_pnl?: number;
+  daily_return?: number;
 }
 
 // Position Exposures Data
@@ -186,7 +208,12 @@ export interface PortfolioListItem {
   created_at: string;
   updated_at: string;
   position_count: number;
+  net_asset_value?: number;
   total_value?: number;
+  account_name?: string;
+  account_type?: string;
+  equity_balance?: number;
+  is_active?: boolean;
 }
 
 // Market Quote Data (from /api/v1/data/prices/quotes)

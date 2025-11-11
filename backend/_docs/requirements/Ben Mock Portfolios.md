@@ -1,5 +1,26 @@
 # Three Mock Investment Portfolios
 
+> **Note on Entry Prices and Dates (Updated November 10, 2025)**: All positions have been adjusted to appear as if acquired on **June 30, 2025** at closing prices. This means:
+> - **Entry Date**: June 30, 2025 for ALL positions (stocks, funds, options, private investments)
+> - **Entry Prices**: June 30, 2025 market close prices for all PUBLIC stocks
+> - **Quantities and Prices**: Adjusted to achieve exact or near-exact equity balances with whole number shares
+> - **Result**: Tracking begins July 1, 2025 with zero unrealized P&L on the first day
+>
+> This adjustment ensures clean, predictable P&L calculations that are easier to debug. Portfolio equity balances have been fine-tuned to be at or just below target values.
+>
+> **Adjustment Scripts Used**:
+> - `backend/scripts/database/adjust_entry_prices_to_june30.py` - Set June 30, 2025 prices
+> - `backend/scripts/database/adjust_prices_for_exact_equity.py` - Adjust for exact equity with whole shares
+> - `backend/scripts/database/fix_hedge_fund_exposure.py` - Fix hedge fund to 100% long / 50% short
+> - `backend/scripts/database/monitor_equity_pnl.py` - Monitor daily equity changes
+>
+> **Final Equity Balances**:
+> - Demo Individual Investor: $484,999.75 (target: $485,000)
+> - Demo High Net Worth: $2,850,000.00 (target: $2,850,000) ✓ EXACT
+> - Demo Hedge Fund: $1,599,688.91 NAV / $3,199,588.59 long / $1,599,899.68 short (100%/50% of $3.2M equity)
+> - Demo Family Office Public: $1,249,992.95 (target: $1,250,000)
+> - Demo Family Office Private: $950,000.00 (target: $950,000) ✓ EXACT
+
 ## Portfolio 1: "Balanced Individual Investor"
 **Total Portfolio Value:** $485,000
 **Equity Balance (NAV):** $485,000
@@ -119,17 +140,19 @@
 ---
 
 ## Portfolio 3: "Long/Short Equity Hedge Fund Style"
-**Total Portfolio Value:** $3,200,000
-**Equity Balance (NAV):** $3,200,000
+**Starting Equity:** ~$3,200,000
+**Equity Balance:** ~$3,200,000 (starting capital)
 **Investor Profile:** Sophisticated trader with derivatives access
-**Investment Strategy:** Market-neutral with volatility trading and options overlay
+**Investment Strategy:** Long/short equity with controlled leverage
 
 ### Portfolio Metrics
-- **Long Exposure:** $4,960,000 (155% of NAV)
-- **Short Exposure:** -$2,240,000 (-70% of NAV)
-- **Gross Exposure:** $7,200,000 (225% of NAV)
-- **Net Exposure:** $2,720,000 (85% of NAV)
-- **Options Premium at Risk:** $480,000 (15% of NAV)
+- **Long Exposure:** ~$3,200,000 (100% of equity)
+- **Short Exposure:** ~$1,600,000 (50% of equity)
+- **Gross Exposure:** ~$4,800,000 (150% of equity)
+- **NAV (Net Market Exposure):** ~$1,600,000 (50% of equity)
+- **Leverage Ratio:** 1.5x gross exposure
+
+> **Note**: Equity represents starting capital. NAV represents net market exposure (Long - Short).
 
 ### Long Positions (60% of portfolio)
 
@@ -229,3 +252,46 @@
 | **Diversification** | Good | Excellent | Concentrated |
 
 Each portfolio reflects different levels of sophistication, risk tolerance, and access to investment vehicles, providing realistic examples for testing portfolio analysis tools.
+
+---
+
+## Multi-Portfolio User: "Family Office Mandates"
+
+**User Goal:** Model a family office that separates its public markets growth sleeve from a private alternatives allocation.
+
+### Portfolio A: "Public Growth Sleeve"
+**Total Portfolio Value:** $1,250,000  
+**Focus:** Thematic technology exposure paired with quality compounders and defensive income positions.
+
+| Ticker | Shares | Entry Price | Allocation Focus | Notes |
+|--------|--------|-------------|------------------|-------|
+| XLK | 600 | $180.00 | Tech ETF | Core technology allocation |
+| SMH | 500 | $210.00 | Semiconductors | High-conviction chip exposure |
+| IGV | 400 | $330.00 | Software | Cloud/SaaS overweight |
+| XLY | 450 | $185.00 | Consumer Discretionary | Cyclical participation |
+| COST | 220 | $720.00 | Quality Compounder | Defensive growth anchor |
+| AVGO | 140 | $1,350.00 | Quality Compounder | Cash-flow powerhouse |
+| ASML | 160 | $960.00 | International Tech | European lithography leader |
+| LULU | 300 | $380.00 | Consumer Discretionary | Lifestyle growth story |
+| NEE | 500 | $70.00 | Defensive Yield | Clean energy utility exposure |
+| SCHD | 650 | $75.00 | Defensive Yield | Dividend growth ballast |
+| JEPQ | 700 | $54.00 | Income & Options Overlay | Enhanced income sleeve |
+| BIL | 900 | $91.50 | Liquidity | Treasury-bill cash management |
+
+### Portfolio B: "Private Opportunities Sleeve"
+**Total Portfolio Value:** $950,000  
+**Focus:** Income-oriented and diversifying private market commitments for inflation protection and non-correlated returns.
+
+| Instrument | Commitment | Category | Rationale |
+|------------|------------|----------|-----------|
+| FO_PRIVATE_CREDIT_FUND | $225,000 | Private Credit | Senior secured direct lending income |
+| FO_GROWTH_PE_FUND | $210,000 | Private Equity | Growth buyout exposure |
+| FO_VC_SECONDARIES_FUND | $145,000 | Venture Capital | Late-stage secondary diversification |
+| FO_REAL_ASSET_REIT | $110,000 | Private REIT | Core real assets allocation |
+| FO_INFRASTRUCTURE_FUND | $90,000 | Infrastructure | Inflation-linked cash flows |
+| FO_HOME_RENTAL_PORTFOLIO | $85,000 | Real Estate | Scaled single-family rental strategy |
+| FO_IMPACT_LENDING_FUND | $55,000 | Impact Investing | Community lending with sustainability mandate |
+| FO_ART_COLLECTIVE | $30,000 | Alternative Assets | Cultural and collectible diversification |
+| FO_CRYPTO_DIGITAL_TRUST | $30,000 | Digital Assets | Institutional crypto exposure |
+
+This multi-portfolio user demonstrates the new capability to model separate sleeves under a single investor profile while keeping position sets distinct across public and private mandates.

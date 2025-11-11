@@ -1,0 +1,48 @@
+# Demo Family Office
+"username": "demo_familyoffice",
+"email": "demo_familyoffice@sigmasight.com",
+"full_name": "Demo Family Office Manager",
+"password": "demo12345",
+"strategy": "Family office with dedicated public growth and private alternatives mandates",
+
+"portfolio_id_seed": "demo_individual@sigmasight.com_portfolio",
+
+"user_email": "demo_familyoffice@sigmasight.com",
+        "portfolio_id_seed": "demo_familyoffice@sigmasight.com_public_growth",
+        "portfolio_name": "Demo Family Office Public Growth",
+        "description": "Public markets growth sleeve for the family office combining thematic ETFs with quality compounders and defensive yield.",
+        "total_value": 1250000,
+        "equity_balance": Decimal("1250000.00"),
+        "positions": [
+            {"symbol": "XLK", "quantity": Decimal("600"), "entry_price": Decimal("180.00"), "entry_date": date(2024, 3, 15), "tags": ["Thematic Growth", "Tech Allocation"]},
+            {"symbol": "SMH", "quantity": Decimal("500"), "entry_price": Decimal("210.00"), "entry_date": date(2024, 3, 18), "tags": ["Thematic Growth", "Semiconductors"]},
+            {"symbol": "IGV", "quantity": Decimal("400"), "entry_price": Decimal("330.00"), "entry_date": date(2024, 3, 20), "tags": ["Thematic Growth", "Software"]},
+            {"symbol": "XLY", "quantity": Decimal("450"), "entry_price": Decimal("185.00"), "entry_date": date(2024, 3, 25), "tags": ["Consumer Discretionary", "Cyclical Tilt"]},
+            {"symbol": "COST", "quantity": Decimal("220"), "entry_price": Decimal("720.00"), "entry_date": date(2024, 4, 2), "tags": ["Quality Compounder", "Defensive Growth"]},
+            {"symbol": "AVGO", "quantity": Decimal("140"), "entry_price": Decimal("1350.00"), "entry_date": date(2024, 4, 5), "tags": ["Quality Compounder", "Semiconductors"]},
+            {"symbol": "ASML", "quantity": Decimal("160"), "entry_price": Decimal("960.00"), "entry_date": date(2024, 4, 8), "tags": ["Quality Compounder", "International"]},
+            {"symbol": "LULU", "quantity": Decimal("300"), "entry_price": Decimal("380.00"), "entry_date": date(2024, 4, 12), "tags": ["Consumer Discretionary", "Lifestyle Brand"]},
+            {"symbol": "NEE", "quantity": Decimal("500"), "entry_price": Decimal("70.00"), "entry_date": date(2024, 4, 15), "tags": ["Defensive Yield", "Clean Energy"]},
+            {"symbol": "SCHD", "quantity": Decimal("650"), "entry_price": Decimal("75.00"), "entry_date": date(2024, 4, 18), "tags": ["Defensive Yield", "Dividend Growth"]},
+            {"symbol": "JEPQ", "quantity": Decimal("700"), "entry_price": Decimal("54.00"), "entry_date": date(2024, 4, 22), "tags": ["Options Overlay", "Income"]},
+            {"symbol": "BIL", "quantity": Decimal("900"), "entry_price": Decimal("91.50"), "entry_date": date(2024, 4, 25), "tags": ["Liquidity Reserve", "Cash Management"]},
+        ]
+    },
+    {
+        "user_email": "demo_familyoffice@sigmasight.com",
+        "portfolio_id_seed": "demo_familyoffice@sigmasight.com_private_opportunities",
+        "portfolio_name": "Demo Family Office Private Opportunities",
+        "description": "Private market and real asset sleeve emphasizing income, diversification, and inflation protection.",
+        "total_value": 950000,
+        "equity_balance": Decimal("950000.00"),
+        "positions": [
+            {"symbol": "FO_PRIVATE_CREDIT_FUND", "quantity": Decimal("1"), "entry_price": Decimal("225000.00"), "entry_date": date(2023, 9, 1), "tags": ["Private Credit", "Income"]},
+            {"symbol": "FO_GROWTH_PE_FUND", "quantity": Decimal("1"), "entry_price": Decimal("210000.00"), "entry_date": date(2023, 9, 1), "tags": ["Private Equity", "Growth"]},
+            {"symbol": "FO_VC_SECONDARIES_FUND", "quantity": Decimal("1"), "entry_price": Decimal("145000.00"), "entry_date": date(2023, 10, 1), "tags": ["Venture Capital", "Secondaries"]},
+            {"symbol": "FO_REAL_ASSET_REIT", "quantity": Decimal("1"), "entry_price": Decimal("110000.00"), "entry_date": date(2023, 10, 15), "tags": ["Private REIT", "Real Assets"]},
+            {"symbol": "FO_INFRASTRUCTURE_FUND", "quantity": Decimal("1"), "entry_price": Decimal("90000.00"), "entry_date": date(2023, 11, 1), "tags": ["Infrastructure", "Inflation Protection"]},
+            {"symbol": "FO_HOME_RENTAL_PORTFOLIO", "quantity": Decimal("1"), "entry_price": Decimal("85000.00"), "entry_date": date(2023, 11, 20), "tags": ["Real Estate", "Rental Portfolio"]},
+            {"symbol": "FO_IMPACT_LENDING_FUND", "quantity": Decimal("1"), "entry_price": Decimal("55000.00"), "entry_date": date(2024, 1, 5), "tags": ["Impact Investing", "Sustainable"]},
+            {"symbol": "FO_ART_COLLECTIVE", "quantity": Decimal("1"), "entry_price": Decimal("30000.00"), "entry_date": date(2024, 2, 1), "tags": ["Alternative Assets", "Art"]},
+            {"symbol": "FO_CRYPTO_DIGITAL_TRUST", "quantity": Decimal("1"), "entry_price": Decimal("30000.00"), "entry_date": date(2024, 2, 15), "tags": ["Alternative Assets", "Digital Assets"]},
+        ]

@@ -15,6 +15,7 @@ from app.models.target_prices import TargetPrice
 from app.models.positions import Position, PositionType
 from app.models.users import Portfolio
 from app.models.market_data import MarketDataCache, PositionFactorExposure, FactorDefinition
+from app.models.snapshots import PortfolioSnapshot
 from app.services.market_data_service import MarketDataService
 from app.schemas.target_prices import (
     TargetPriceCreate,
@@ -262,6 +263,9 @@ class TargetPriceService:
         await db.commit()
         await db.refresh(target_price)
 
+        # Update portfolio target snapshot with new target
+        await self.update_portfolio_target_snapshot(db, portfolio_id)
+
         logger.info(f"Created target price for {target_price.symbol} in portfolio {portfolio_id}")
         return target_price
 
@@ -333,6 +337,9 @@ class TargetPriceService:
         await db.commit()
         await db.refresh(target_price)
 
+        # Update portfolio target snapshot with updated target
+        await self.update_portfolio_target_snapshot(db, target_price.portfolio_id)
+
         logger.info(f"Updated target price {target_price_id}")
         return target_price
 
@@ -344,6 +351,18 @@ class TargetPriceService:
         """
         Delete a target price.
         """
+        # Get portfolio_id before deleting so we can update snapshot
+        target_result = await db.execute(
+            select(TargetPrice).where(TargetPrice.id == target_price_id)
+        )
+        target_price = target_result.scalar_one_or_none()
+
+        if not target_price:
+            return False
+
+        portfolio_id = target_price.portfolio_id
+
+        # Delete the target price
         result = await db.execute(
             delete(TargetPrice).where(TargetPrice.id == target_price_id)
         )
@@ -352,6 +371,8 @@ class TargetPriceService:
         deleted = result.rowcount > 0
 
         if deleted:
+            # Update portfolio target snapshot after deletion
+            await self.update_portfolio_target_snapshot(db, portfolio_id)
             logger.info(f"Deleted target price {target_price_id}")
 
         return deleted
@@ -484,6 +505,10 @@ class TargetPriceService:
                 logger.warning(f"Skipping {tp_data.symbol}: {e}")
                 continue
 
+        # Update portfolio target snapshot after bulk creation
+        if created_prices:
+            await self.update_portfolio_target_snapshot(db, portfolio_id)
+
         logger.info(f"Created {len(created_prices)} target prices for portfolio {portfolio_id}")
         return created_prices
 
@@ -601,7 +626,15 @@ class TargetPriceService:
         )
         position = result.scalar_one_or_none()
 
-        if not position or not position.market_value:
+        if not position:
+            return
+
+        # Calculate position upside dollar values (quantity × price difference)
+        if position.quantity:
+            target_price.calculate_position_upside_values(position.quantity)
+
+        # Skip weight calculations if no market value
+        if not position.market_value:
             return
 
         # Get portfolio equity balance
@@ -610,7 +643,7 @@ class TargetPriceService:
         if equity_balance and equity_balance > 0:
             # Calculate position weight as fraction (0-1), will convert to percentage for API
             position_weight_fraction = abs(position.market_value) / equity_balance
-            
+
             # Store as percentage for API compatibility but note it's converted from fraction
             target_price.position_weight = position_weight_fraction * 100
 
@@ -681,10 +714,12 @@ class TargetPriceService:
                 total_weight += weight
 
         # Normalize by actual weight (in case not all positions have targets)
+        # Note: expected_return_eoy is already stored as percentage (e.g., 5.0 for 5%)
+        # so we don't multiply by 100 here
         if total_weight > 0:
-            weighted_eoy = weighted_eoy / total_weight * 100
-            weighted_next_year = weighted_next_year / total_weight * 100
-            weighted_downside = weighted_downside / total_weight * 100
+            weighted_eoy = weighted_eoy / total_weight
+            weighted_next_year = weighted_next_year / total_weight
+            weighted_downside = weighted_downside / total_weight
 
         # Calculate risk-adjusted metrics
         # Simple approximations for now
@@ -843,33 +878,33 @@ class TargetPriceService:
     ) -> Optional[Decimal]:
         """
         Calculate position's contribution to portfolio risk.
-        
+
         Formula: risk_contribution = position_weight × volatility × beta
-        
+
         Args:
             target_price: TargetPrice instance
             position_weight_fraction: Position weight as fraction (0-1)
-            
+
         Returns:
             Decimal: Risk contribution or None if insufficient data
         """
         if not target_price.position_id:
             return None
-            
+
         try:
             # Get beta from factor exposures
             beta = await self._get_position_beta(db, target_price.position_id)
-            
+
             # Get position to check if it's an options position
             result = await db.execute(
                 select(Position).where(Position.id == target_price.position_id)
             )
             position = result.scalar_one_or_none()
-            
+
             if not position:
                 logger.warning(f"Position {target_price.position_id} not found for risk calculation")
                 return None
-            
+
             # For options, use underlying symbol for volatility calculation
             volatility_symbol = target_price.symbol  # Default to contract symbol
             if position.position_type.value in ['LC', 'LP', 'SC', 'SP'] and position.underlying_symbol:
@@ -877,10 +912,10 @@ class TargetPriceService:
                 logger.debug(f"Using underlying symbol {volatility_symbol} for options volatility calculation")
             elif position.position_type.value in ['LC', 'LP', 'SC', 'SP'] and not position.underlying_symbol:
                 logger.warning(f"Options position {position.id} missing underlying_symbol, using contract symbol")
-            
+
             # Get volatility from historical data
             volatility = await self._get_position_volatility(db, volatility_symbol)
-            
+
             if volatility is not None:
                 # Calculate risk contribution using fractions
                 risk_contribution = position_weight_fraction * volatility * beta
@@ -888,7 +923,125 @@ class TargetPriceService:
             else:
                 logger.debug(f"No volatility available for {target_price.symbol}, risk contribution = None")
                 return None
-                
+
         except Exception as e:
             logger.warning(f"Error calculating risk contribution for {target_price.symbol}: {e}")
             return None
+
+    async def update_portfolio_target_snapshot(
+        self,
+        db: AsyncSession,
+        portfolio_id: UUID
+    ) -> None:
+        """
+        Update portfolio-level target price metrics in today's snapshot.
+
+        Aggregates position-level upside dollar values to portfolio-level returns.
+
+        Calculation:
+        1. Get all target prices with linked positions (to access upside values)
+        2. Sum position-level upside dollar values
+        3. Convert to % return: (total_upside / equity_balance) × 100
+        4. Update or create today's PortfolioSnapshot
+        """
+        # Get portfolio and equity_balance
+        portfolio_result = await db.execute(
+            select(Portfolio).where(Portfolio.id == portfolio_id)
+        )
+        portfolio = portfolio_result.scalar_one_or_none()
+
+        if not portfolio:
+            logger.error(f"Portfolio {portfolio_id} not found")
+            return
+
+        equity_balance = portfolio.equity_balance
+
+        if not equity_balance or equity_balance <= 0:
+            logger.warning(f"Portfolio {portfolio_id} has no equity_balance, skipping target snapshot update")
+            return
+
+        # Get all target prices for this portfolio
+        result = await db.execute(
+            select(TargetPrice)
+            .options(selectinload(TargetPrice.position))
+            .where(TargetPrice.portfolio_id == portfolio_id)
+        )
+        target_prices = result.scalars().all()
+
+        # Calculate aggregates
+        total_upside_eoy = Decimal(0)
+        total_upside_next_year = Decimal(0)
+        total_downside = Decimal(0)
+        positions_with_targets = 0
+
+        for tp in target_prices:
+            if tp.target_upside_eoy_value:
+                total_upside_eoy += tp.target_upside_eoy_value
+            if tp.target_upside_next_year_value:
+                total_upside_next_year += tp.target_upside_next_year_value
+            if tp.target_downside_value:
+                total_downside += tp.target_downside_value
+            if tp.position_id:
+                positions_with_targets += 1
+
+        # Calculate % returns
+        return_eoy_pct = (total_upside_eoy / equity_balance * 100) if total_upside_eoy != 0 else None
+        return_next_year_pct = (total_upside_next_year / equity_balance * 100) if total_upside_next_year != 0 else None
+        downside_return_pct = (total_downside / equity_balance * 100) if total_downside != 0 else None
+
+        # Get total active positions
+        total_positions_result = await db.execute(
+            select(func.count(Position.id))
+            .where(Position.portfolio_id == portfolio_id)
+            .where(Position.exit_date.is_(None))
+        )
+        total_positions = total_positions_result.scalar()
+
+        # Coverage %
+        coverage_pct = (Decimal(positions_with_targets) / Decimal(total_positions) * 100) if total_positions > 0 else Decimal(0)
+
+        # Find or create today's snapshot
+        from datetime import date as date_type
+        today = datetime.utcnow().date()
+        snapshot_result = await db.execute(
+            select(PortfolioSnapshot)
+            .where(PortfolioSnapshot.portfolio_id == portfolio_id)
+            .where(PortfolioSnapshot.snapshot_date == today)
+        )
+        snapshot = snapshot_result.scalar_one_or_none()
+
+        if not snapshot:
+            # Create minimal snapshot with just target data
+            snapshot = PortfolioSnapshot(
+                portfolio_id=portfolio_id,
+                snapshot_date=today,
+                total_value=Decimal(0),  # Will be updated by batch
+                cash_value=Decimal(0),
+                long_value=Decimal(0),
+                short_value=Decimal(0),
+                gross_exposure=Decimal(0),
+                net_exposure=Decimal(0),
+                num_positions=total_positions or 0,
+                num_long_positions=0,
+                num_short_positions=0
+            )
+            db.add(snapshot)
+
+        # Update target price fields
+        snapshot.target_price_return_eoy = return_eoy_pct
+        snapshot.target_price_return_next_year = return_next_year_pct
+        snapshot.target_price_downside_return = downside_return_pct
+        snapshot.target_price_upside_eoy_dollars = total_upside_eoy if total_upside_eoy != 0 else None
+        snapshot.target_price_upside_next_year_dollars = total_upside_next_year if total_upside_next_year != 0 else None
+        snapshot.target_price_downside_dollars = total_downside if total_downside != 0 else None
+        snapshot.target_price_coverage_pct = coverage_pct
+        snapshot.target_price_positions_count = positions_with_targets
+        snapshot.target_price_total_positions = total_positions
+        snapshot.target_price_last_updated = datetime.utcnow()
+
+        await db.commit()
+
+        logger.info(
+            f"Updated portfolio target snapshot for {portfolio_id}: "
+            f"EOY return={return_eoy_pct}%, coverage={coverage_pct}%"
+        )

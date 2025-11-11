@@ -177,7 +177,7 @@ class YFinanceClient(MarketDataProvider):
             logger.error(f"YFinance get_stock_prices failed: {str(e)}")
             raise
 
-    async def get_historical_prices(self, symbol: str, days: int = 90) -> List[Dict[str, Any]]:
+    async def get_historical_prices(self, symbol: str, calculation_date: date, days: int = 90) -> List[Dict[str, Any]]:
         """
         Get historical prices for a symbol
 
@@ -185,7 +185,9 @@ class YFinanceClient(MarketDataProvider):
         """
         try:
             # Calculate date range
-            end_date = date.today()
+            end_date = calculation_date
+            # yfinance end date is exclusive, so add one day to include the calculation_date
+            exclusive_end_date = end_date + timedelta(days=1)
             start_date = end_date - timedelta(days=days)
 
             # Use yfinance download function for historical data
@@ -195,7 +197,7 @@ class YFinanceClient(MarketDataProvider):
                 lambda: yf.download(
                     symbol,
                     start=start_date.strftime('%Y-%m-%d'),
-                    end=end_date.strftime('%Y-%m-%d'),
+                    end=exclusive_end_date.strftime('%Y-%m-%d'),
                     progress=False,
                     auto_adjust=True,  # Adjust for splits and dividends
                     threads=False  # Avoid threading issues

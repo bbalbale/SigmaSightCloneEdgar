@@ -20,7 +20,7 @@ class PortfolioSnapshot(Base):
     snapshot_date: Mapped[date] = mapped_column(Date, nullable=False)
     
     # Portfolio values
-    total_value: Mapped[Decimal] = mapped_column(Numeric(16, 2), nullable=False)
+    net_asset_value: Mapped[Decimal] = mapped_column("total_value", Numeric(16, 2), nullable=False)
     cash_value: Mapped[Decimal] = mapped_column(Numeric(16, 2), nullable=False, default=0)
     long_value: Mapped[Decimal] = mapped_column(Numeric(16, 2), nullable=False)
     short_value: Mapped[Decimal] = mapped_column(Numeric(16, 2), nullable=False)
@@ -33,6 +33,26 @@ class PortfolioSnapshot(Base):
     daily_pnl: Mapped[Optional[Decimal]] = mapped_column(Numeric(16, 2), nullable=True)
     daily_return: Mapped[Optional[Decimal]] = mapped_column(Numeric(8, 6), nullable=True)
     cumulative_pnl: Mapped[Optional[Decimal]] = mapped_column(Numeric(16, 2), nullable=True)
+    daily_realized_pnl: Mapped[Optional[Decimal]] = mapped_column(
+        Numeric(16, 2),
+        nullable=True,
+        comment="Realized P&L from positions closed on this date"
+    )
+    cumulative_realized_pnl: Mapped[Optional[Decimal]] = mapped_column(
+        Numeric(16, 2),
+        nullable=True,
+        comment="Running total of realized P&L"
+    )
+    daily_capital_flow: Mapped[Optional[Decimal]] = mapped_column(
+        Numeric(16, 2),
+        nullable=True,
+        comment="Net capital contributions minus withdrawals recorded on this date"
+    )
+    cumulative_capital_flow: Mapped[Optional[Decimal]] = mapped_column(
+        Numeric(16, 2),
+        nullable=True,
+        comment="Running total of net capital flows"
+    )
     
     # Aggregated Greeks
     portfolio_delta: Mapped[Optional[Decimal]] = mapped_column(Numeric(12, 2), nullable=True)
@@ -48,6 +68,50 @@ class PortfolioSnapshot(Base):
     # Equity balance (starting capital + realized P&L)
     equity_balance: Mapped[Optional[Decimal]] = mapped_column(Numeric(16, 2), nullable=True)
 
+    # Phase 2: Volatility analytics (Risk Metrics)
+    realized_volatility_21d: Mapped[Optional[Decimal]] = mapped_column(Numeric(10, 4), nullable=True)
+    realized_volatility_63d: Mapped[Optional[Decimal]] = mapped_column(Numeric(10, 4), nullable=True)
+    expected_volatility_21d: Mapped[Optional[Decimal]] = mapped_column(Numeric(10, 4), nullable=True)
+    volatility_trend: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+    volatility_percentile: Mapped[Optional[Decimal]] = mapped_column(Numeric(10, 4), nullable=True)
+
+    # Phase 0: Market beta (single-factor models)
+    # Calculated beta: OLS regression on 90-day window (Position returns ~ SPY returns)
+    beta_calculated_90d: Mapped[Optional[Decimal]] = mapped_column(Numeric(10, 4), nullable=True)
+    beta_calculated_90d_r_squared: Mapped[Optional[Decimal]] = mapped_column(Numeric(10, 4), nullable=True)
+    beta_calculated_90d_observations: Mapped[Optional[int]] = mapped_column(nullable=True)
+
+    # Provider beta: Equity-weighted average of company profile betas (typically 1-year from provider)
+    beta_provider_1y: Mapped[Optional[Decimal]] = mapped_column(Numeric(10, 4), nullable=True)
+
+    # Portfolio-level direct regression: Reserved for future implementation (portfolio returns ~ SPY returns)
+    beta_portfolio_regression: Mapped[Optional[Decimal]] = mapped_column(Numeric(10, 4), nullable=True)
+
+    # Phase 1: Sector exposure and concentration metrics
+    sector_exposure: Mapped[Optional[Dict[str, Any]]] = mapped_column(JSON, nullable=True)
+    hhi: Mapped[Optional[Decimal]] = mapped_column(Numeric(10, 4), nullable=True)  # Herfindahl-Hirschman Index
+    effective_num_positions: Mapped[Optional[Decimal]] = mapped_column(Numeric(10, 2), nullable=True)
+    top_3_concentration: Mapped[Optional[Decimal]] = mapped_column(Numeric(10, 4), nullable=True)
+    top_10_concentration: Mapped[Optional[Decimal]] = mapped_column(Numeric(10, 4), nullable=True)
+
+    # Portfolio target price metrics (aggregated from position-level target prices)
+    target_price_return_eoy: Mapped[Optional[Decimal]] = mapped_column(Numeric(8, 4), nullable=True)  # Expected % return to EOY targets
+    target_price_return_next_year: Mapped[Optional[Decimal]] = mapped_column(Numeric(8, 4), nullable=True)  # Expected % return for next year
+    target_price_downside_return: Mapped[Optional[Decimal]] = mapped_column(Numeric(8, 4), nullable=True)  # Downside scenario % return
+
+    # Portfolio target price dollar values (absolute upside in $)
+    target_price_upside_eoy_dollars: Mapped[Optional[Decimal]] = mapped_column(Numeric(16, 2), nullable=True)  # Total dollar upside EOY
+    target_price_upside_next_year_dollars: Mapped[Optional[Decimal]] = mapped_column(Numeric(16, 2), nullable=True)  # Total dollar upside next year
+    target_price_downside_dollars: Mapped[Optional[Decimal]] = mapped_column(Numeric(16, 2), nullable=True)  # Total dollar downside
+
+    # Target coverage metadata
+    target_price_coverage_pct: Mapped[Optional[Decimal]] = mapped_column(Numeric(8, 4), nullable=True)  # % of positions with targets
+    target_price_positions_count: Mapped[Optional[int]] = mapped_column(nullable=True)  # Number of positions with targets
+    target_price_total_positions: Mapped[Optional[int]] = mapped_column(nullable=True)  # Total active positions
+
+    # Tracking
+    target_price_last_updated: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)  # When targets were last modified
+
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
     
     # Relationships
@@ -58,6 +122,15 @@ class PortfolioSnapshot(Base):
         Index('ix_portfolio_snapshots_portfolio_id', 'portfolio_id'),
         Index('ix_portfolio_snapshots_snapshot_date', 'snapshot_date'),
     )
+
+    # Backwards compatibility while migrating off total_value naming
+    @property
+    def total_value(self) -> Decimal:
+        return self.net_asset_value
+
+    @total_value.setter
+    def total_value(self, value: Decimal) -> None:
+        self.net_asset_value = value
 
 
 class BatchJob(Base):

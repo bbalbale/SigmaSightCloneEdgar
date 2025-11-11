@@ -6,6 +6,7 @@ import { authManager } from '@/services/authManager'
 import { portfolioResolver } from '@/services/portfolioResolver'
 import { chatAuthService } from '@/services/chatAuthService'
 import { setPortfolioState, clearPortfolioState } from '@/stores/portfolioStore'
+import { ThemeProvider } from '@/contexts/ThemeContext'
 
 interface User {
   id: string
@@ -32,7 +33,7 @@ export function useAuth() {
   return context
 }
 
-const publicPaths = ['/', '/landing', '/login']
+const publicPaths = ['/', '/landing', '/login', '/test-user-creation']
 
 const isPublicRoute = (path: string | null) => {
   if (!path) {
@@ -115,7 +116,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
     const response = await chatAuthService.login(email, password)
     setUser(mapUser(response.user || null))
     await initializePortfolio()
-    router.push('/portfolio')
+    router.push('/command-center')
   }, [initializePortfolio, mapUser, router])
 
   const logout = useCallback(async () => {
@@ -135,17 +136,19 @@ export function Providers({ children }: { children: React.ReactNode }) {
   }, [checkAuth])
 
   return (
-    <AuthContext.Provider
-      value={{
-        user,
-        loading,
-        login,
-        logout,
-        refreshAuth
-      }}
-    >
-      {children}
-    </AuthContext.Provider>
+    <ThemeProvider>
+      <AuthContext.Provider
+        value={{
+          user,
+          loading,
+          login,
+          logout,
+          refreshAuth
+        }}
+      >
+        {children}
+      </AuthContext.Provider>
+    </ThemeProvider>
   )
 }
 

@@ -54,6 +54,8 @@ dependencies = [
     "websockets>=14.2",
     "yfinance>=0.2.66",
     "yahooquery>=2.4.1",
+    "scikit-learn>=1.7.2",
+    "anthropic>=0.71.0",
 ]
 
 [project.optional-dependencies]
@@ -85,6 +87,7 @@ dev-dependencies = [
     "flake8>=6.0.0",
     "mypy>=1.7.0",
     "pre-commit>=3.5.0",
+    "aiosqlite>=0.21.0",
 ]
 
 [tool.black]

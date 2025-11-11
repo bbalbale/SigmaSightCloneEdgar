@@ -60,6 +60,9 @@ class Position(Base):
     unrealized_pnl: Mapped[Optional[Decimal]] = mapped_column(Numeric(16, 2), nullable=True)
     realized_pnl: Mapped[Optional[Decimal]] = mapped_column(Numeric(16, 2), nullable=True)
 
+    # User notes (Position Management Phase 1 - Nov 3, 2025)
+    notes: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+
     # Timestamps
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -71,8 +74,15 @@ class Position(Base):
     position_tags: Mapped[List["PositionTag"]] = relationship("PositionTag", back_populates="position", cascade="all, delete-orphan")
     greeks: Mapped[Optional["PositionGreeks"]] = relationship("PositionGreeks", back_populates="position", uselist=False)
     factor_exposures: Mapped[List["PositionFactorExposure"]] = relationship("PositionFactorExposure", back_populates="position")
+    market_betas: Mapped[List["PositionMarketBeta"]] = relationship("PositionMarketBeta", back_populates="position")
     interest_rate_betas: Mapped[List["PositionInterestRateBeta"]] = relationship("PositionInterestRateBeta", back_populates="position")
+    volatility: Mapped[List["PositionVolatility"]] = relationship("PositionVolatility", back_populates="position")
     target_price: Mapped[Optional["TargetPrice"]] = relationship("TargetPrice", back_populates="position", uselist=False)
+    realized_events: Mapped[List["PositionRealizedEvent"]] = relationship(
+        "PositionRealizedEvent",
+        back_populates="position",
+        cascade="all, delete-orphan",
+    )
     
     __table_args__ = (
         Index('ix_positions_portfolio_id', 'portfolio_id'),
@@ -81,7 +91,31 @@ class Position(Base):
         Index('ix_positions_exit_date', 'exit_date'),
         Index('ix_positions_investment_class', 'investment_class'),
         Index('ix_positions_inv_class_subtype', 'investment_class', 'investment_subtype'),
+        Index('idx_position_portfolio_active', 'portfolio_id', 'deleted_at'),  # Performance index for active positions
     )
+
+    # Helper methods (Position Management Phase 1 - Nov 3, 2025)
+    def is_deleted(self) -> bool:
+        """Check if position is soft deleted"""
+        return self.deleted_at is not None
+
+    def can_edit_symbol(self) -> bool:
+        """
+        Check if symbol can be edited.
+
+        Symbol editing only allowed if:
+        - Position was created less than 5 minutes ago, AND
+        - Position has no snapshots (checked separately in service layer)
+
+        Returns:
+            bool: True if < 5 minutes old, False otherwise
+        """
+        age = datetime.utcnow() - self.created_at
+        return age.total_seconds() < 300  # 5 minutes = 300 seconds
+
+    def soft_delete(self):
+        """Soft delete this position by setting deleted_at timestamp"""
+        self.deleted_at = datetime.utcnow()
 
 
 class Tag(Base):

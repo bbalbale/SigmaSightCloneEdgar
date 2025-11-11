@@ -103,8 +103,12 @@ export class ApiClient {
     return this.request<T>('PUT', endpoint, data, config);
   }
 
-  async delete<T = any>(endpoint: string, config?: ApiRequestConfig): Promise<T> {
-    return this.request<T>('DELETE', endpoint, undefined, config);
+  async patch<T = any>(endpoint: string, data?: any, config?: ApiRequestConfig): Promise<T> {
+    return this.request<T>('PATCH', endpoint, data, config);
+  }
+
+  async delete<T = any>(endpoint: string, data?: any, config?: ApiRequestConfig): Promise<T> {
+    return this.request<T>('DELETE', endpoint, data, config);
   }
 
   // Core Request Method
@@ -174,24 +178,62 @@ export class ApiClient {
   ): Promise<ApiResponse<T>> {
     // Create abort controller for timeout
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => {
-      controller.abort();
-    }, timeout);
+    const timeoutDuration = timeout ?? this.defaultTimeout;
+    let timeoutTriggered = false;
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
+
+    if (timeoutDuration && timeoutDuration > 0) {
+      timeoutId = setTimeout(() => {
+        timeoutTriggered = true;
+        controller.abort();
+      }, timeoutDuration);
+    }
+
+    let externalAbortCleanup: (() => void) | null = null;
+    if (config?.signal) {
+      if (config.signal.aborted) {
+        controller.abort(config.signal.reason);
+      } else {
+        const onExternalAbort = () => {
+          controller.abort(config.signal?.reason);
+        };
+        config.signal.addEventListener('abort', onExternalAbort, { once: true });
+        externalAbortCleanup = () => {
+          config.signal?.removeEventListener('abort', onExternalAbort);
+        };
+      }
+    }
 
     try {
       // Build request configuration
       let requestConfig: RequestInit = {
         method,
         headers: {
-          'Content-Type': 'application/json',
           ...config?.headers,
         },
-        signal: config?.signal || controller.signal,
+        signal: controller.signal,
       };
 
-      // Add body for POST/PUT requests
-      if (data && (method === 'POST' || method === 'PUT')) {
-        requestConfig.body = JSON.stringify(data);
+      // Add body for POST/PUT/PATCH/DELETE requests
+      if (data && (method === 'POST' || method === 'PUT' || method === 'PATCH' || method === 'DELETE')) {
+        // Check if data is FormData - don't stringify it or set Content-Type
+        if (data instanceof FormData) {
+          requestConfig.body = data;
+          // Don't set Content-Type - browser will set it with boundary
+        } else {
+          // For JSON data, stringify and set Content-Type
+          requestConfig.headers = {
+            'Content-Type': 'application/json',
+            ...requestConfig.headers,
+          };
+          requestConfig.body = JSON.stringify(data);
+        }
+      } else {
+        // For GET/DELETE requests, set JSON content type
+        requestConfig.headers = {
+          'Content-Type': 'application/json',
+          ...requestConfig.headers,
+        };
       }
 
       // Apply request interceptors
@@ -211,7 +253,6 @@ export class ApiClient {
 
       // Execute fetch request
       const response = await fetch(finalUrl, requestConfig);
-      clearTimeout(timeoutId);
 
       // Check if request was successful
       if (!response.ok) {
@@ -269,8 +310,6 @@ export class ApiClient {
       return finalResponse;
 
     } catch (error) {
-      clearTimeout(timeoutId);
-      
       if (error instanceof ApiError) {
         throw error;
       }
@@ -278,13 +317,23 @@ export class ApiClient {
       // Handle different error types
       if (error instanceof Error) {
         if (error.name === 'AbortError') {
-          throw new TimeoutError(timeout || this.defaultTimeout);
+          if (timeoutTriggered) {
+            throw new TimeoutError(timeoutDuration || this.defaultTimeout);
+          }
+          throw error;
         }
         
         throw new NetworkError(error.message, error);
       }
       
       throw new NetworkError('Unknown network error', error as Error);
+    } finally {
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+      if (externalAbortCleanup) {
+        externalAbortCleanup();
+      }
     }
   }
 

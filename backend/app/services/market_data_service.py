@@ -21,16 +21,13 @@ from app.core.logging import get_logger
 from app.services.rate_limiter import polygon_rate_limiter, ExponentialBackoff
 from app.clients import market_data_factory, DataType
 from app.services.yahooquery_profile_fetcher import fetch_company_profiles as fetch_profiles_yahooquery
+from app.services.symbol_utils import (
+    normalize_symbol,
+    should_skip_symbol,
+    to_provider_symbol,
+)
 
 logger = get_logger(__name__)
-
-# Synthetic/placeholder symbols that should be skipped in market data fetching
-SYNTHETIC_SYMBOLS = {
-    'HOME_EQUITY', 'TREASURY_BILLS', 'CRYPTO_BTC_ETH', 'TWO_SIGMA_FUND',
-    'A16Z_VC_FUND', 'STARWOOD_REIT', 'BX_PRIVATE_EQUITY', 'RENTAL_SFH',
-    'ART_COLLECTIBLES', 'RENTAL_CONDO', 'MONEY_MARKET'
-}
-
 
 class MarketDataService:
     """Service for fetching and managing market data from external APIs"""
@@ -43,10 +40,22 @@ class MarketDataService:
 
     def _filter_synthetic_symbols(self, symbols: List[str]) -> List[str]:
         """Filter out synthetic/placeholder symbols that don't have market data"""
-        filtered = [s for s in symbols if s not in SYNTHETIC_SYMBOLS]
-        skipped = [s for s in symbols if s in SYNTHETIC_SYMBOLS]
+        filtered: List[str] = []
+        skipped: List[str] = []
+
+        for symbol in symbols:
+            upper = normalize_symbol(symbol)
+            if not upper:
+                continue
+
+            skip, reason = should_skip_symbol(upper)
+            if skip:
+                skipped.append(f"{upper} ({reason})")
+            else:
+                filtered.append(upper)
+
         if skipped:
-            logger.info(f"Skipping {len(skipped)} synthetic symbols: {', '.join(skipped)}")
+            logger.info("Skipping %d synthetic/option symbols: %s", len(skipped), ", ".join(skipped))
         return filtered
     
     # New hybrid provider methods (Section 1.4.9)
@@ -58,12 +67,13 @@ class MarketDataService:
         end_date: Optional[date] = None
     ) -> Dict[str, List[Dict[str, Any]]]:
         """
-        Fetch historical stock price data using hybrid provider approach
+        Fetch historical stock price data using unified fallback chain
 
-        Priority:
-        - Stocks: YFinance -> Polygon -> FMP (fallback)
-        - ETFs: YFinance -> FMP -> Polygon (fallback)
-        - Options: Polygon only
+        **Unified Fallback Chain (all symbols):**
+        1. YFinance (primary)
+        2. YahooQuery (secondary)
+        3. Polygon (tertiary)
+        4. FMP (last resort)
 
         Args:
             symbols: List of stock symbols
@@ -73,7 +83,7 @@ class MarketDataService:
         Returns:
             Dictionary with symbol as key and list of price data as value
         """
-        logger.info(f"Fetching historical data (hybrid) for {len(symbols)} symbols")
+        logger.info(f"Fetching historical data for {len(symbols)} symbols (unified fallback chain)")
 
         # Filter out synthetic symbols
         symbols = self._filter_synthetic_symbols(symbols)
@@ -85,175 +95,93 @@ class MarketDataService:
             start_date = date.today() - timedelta(days=90)
         if not end_date:
             end_date = date.today()
-        
+
         days_back = (end_date - start_date).days
-        
-        # Known ETF symbols (common ones plus factor ETFs)
-        KNOWN_ETFS = {
-            'SPY', 'QQQ', 'VTI', 'IWM', 'VOO', 'VTV', 'VNQ', 'DJP', 'SLY',
-            'VUG', 'MTUM', 'QUAL', 'SIZE', 'USMV', 'IVV', 'EFA', 'AGG', 
-            'BND', 'GLD', 'TLT', 'XLF', 'XLK', 'XLE', 'XLV', 'XLI', 'XLY',
-            'XLP', 'XLU', 'XLB', 'XLRE', 'VEA', 'VWO', 'VIG', 'VYM', 'SCHD'
-        }
-        
-        # Categorize symbols
-        # Options symbols typically have 15+ characters and contain expiration dates
-        options_symbols = [s for s in symbols if len(s) > 10 and any(c.isdigit() for c in s[6:])]
-        etf_symbols = [s for s in symbols if s not in options_symbols and s.upper() in KNOWN_ETFS]
-        stock_symbols = [s for s in symbols if s not in options_symbols and s not in etf_symbols]
-        
         results = {}
-        
-        logger.info(f"Symbol breakdown: {len(stock_symbols)} stocks, {len(etf_symbols)} ETFs, {len(options_symbols)} options")
-        
-        # Process regular stocks with YFinance first
-        if stock_symbols:
-            logger.info(f"Fetching {len(stock_symbols)} stocks with YFinance (primary)")
-            yfinance_provider = market_data_factory.get_provider_for_data_type(DataType.STOCKS)
 
-            if yfinance_provider and yfinance_provider.provider_name == "YFinance":
-                for symbol in stock_symbols:
-                    try:
-                        historical_data = await yfinance_provider.get_historical_prices(symbol, days=days_back)
+        # Step 1: Try YFinance for all symbols
+        logger.info(f"Step 1: Trying YFinance for {len(symbols)} symbols")
+        yfinance_provider = market_data_factory.get_provider_for_data_type(DataType.STOCKS)
 
-                        if historical_data:
-                            # Convert YFinance format to our standard format
-                            price_records = []
-                            for day_data in historical_data:
-                                price_records.append({
-                                    'symbol': symbol.upper(),
-                                    'date': day_data['date'],
-                                    'open': day_data['open'],
-                                    'high': day_data['high'],
-                                    'low': day_data['low'],
-                                    'close': day_data['close'],
-                                    'volume': day_data['volume'],
-                                    'data_source': 'yfinance'
-                                })
+        if yfinance_provider and yfinance_provider.provider_name == "YFinance":
+            for symbol in symbols:
+                try:
+                    fetch_symbol = to_provider_symbol(symbol)
+                    historical_data = await yfinance_provider.get_historical_prices(
+                        symbol=fetch_symbol, 
+                        calculation_date=end_date,
+                        days=days_back
+                    )
 
-                            results[symbol] = price_records
-                            logger.debug(f"YFinance: Retrieved {len(price_records)} records for stock {symbol}")
-                        else:
-                            results[symbol] = []
-
-                    except Exception as e:
-                        logger.warning(f"YFinance error for stock {symbol}: {str(e)}")
+                    if historical_data:
+                        price_records = []
+                        for day_data in historical_data:
+                            price_records.append({
+                                'symbol': symbol.upper(),
+                                'date': day_data['date'],
+                                'open': day_data['open'],
+                                'high': day_data['high'],
+                                'low': day_data['low'],
+                                'close': day_data['close'],
+                                'volume': day_data['volume'],
+                                'data_source': 'yfinance'
+                            })
+                        results[symbol] = price_records
+                        logger.debug(f"YFinance: ✓ {symbol} ({len(price_records)} records)")
+                    else:
                         results[symbol] = []
 
-                # Track which stocks failed with YFinance
-                failed_stocks = [s for s in stock_symbols if not results.get(s)]
-                if failed_stocks:
-                    logger.warning(f"YFinance failed for {len(failed_stocks)} stocks, will try Polygon fallback")
+                except Exception as e:
+                    logger.debug(f"YFinance: ✗ {symbol} - {str(e)}")
+                    results[symbol] = []
 
-                    # Try Polygon for failed stocks
-                    polygon_results = await self.fetch_stock_prices(failed_stocks, start_date, end_date)
-                    for symbol in failed_stocks:
-                        if polygon_results.get(symbol):
-                            results[symbol] = polygon_results.get(symbol, [])
-                        else:
-                            # Mark as failed from both YFinance and Polygon
-                            results[symbol] = []
-            else:
-                # Fall back to Polygon if YFinance not available
-                logger.info(f"YFinance not available, using Polygon for {len(stock_symbols)} stocks")
-                polygon_results = await self.fetch_stock_prices(stock_symbols, start_date, end_date)
+        # Track failures
+        failed_symbols = [s for s in symbols if not results.get(s)]
+        logger.info(f"YFinance: {len(symbols) - len(failed_symbols)}/{len(symbols)} succeeded, {len(failed_symbols)} failed")
 
-                for symbol in stock_symbols:
-                    results[symbol] = polygon_results.get(symbol, [])
+        # Step 2: Try YahooQuery for failed symbols
+        if failed_symbols:
+            logger.info(f"Step 2: Trying YahooQuery for {len(failed_symbols)} failed symbols")
+            yahooquery_provider = market_data_factory.get_client('YahooQuery')
 
-            # Track which stocks still failed
-            failed_stocks = [s for s in stock_symbols if not results.get(s)]
-            if failed_stocks:
-                logger.warning(f"Primary sources failed for {len(failed_stocks)} stocks, will try FMP fallback")
-        
-        # Process ETFs with YFinance first (same as stocks)
-        if etf_symbols:
-            logger.info(f"Fetching {len(etf_symbols)} ETFs with YFinance (primary)")
-            yfinance_provider = market_data_factory.get_provider_for_data_type(DataType.STOCKS)
-
-            if yfinance_provider and yfinance_provider.provider_name == "YFinance":
-                for symbol in etf_symbols:
+            if yahooquery_provider:
+                for symbol in failed_symbols[:]:  # Use slice to allow removal during iteration
                     try:
-                        historical_data = await yfinance_provider.get_historical_prices(symbol, days=days_back)
+                        historical_data = await yahooquery_provider.get_historical_prices(symbol, days=days_back)
 
                         if historical_data:
-                            # Convert YFinance format to our standard format
-                            price_records = []
-                            for day_data in historical_data:
-                                price_records.append({
-                                    'symbol': symbol.upper(),
-                                    'date': day_data['date'],
-                                    'open': day_data['open'],
-                                    'high': day_data['high'],
-                                    'low': day_data['low'],
-                                    'close': day_data['close'],
-                                    'volume': day_data['volume'],
-                                    'data_source': 'yfinance'
-                                })
-
-                            results[symbol] = price_records
-                            logger.debug(f"YFinance: Retrieved {len(price_records)} records for ETF {symbol}")
-                        else:
-                            results[symbol] = []
+                            results[symbol] = historical_data
+                            failed_symbols.remove(symbol)
+                            logger.debug(f"YahooQuery: ✓ {symbol} ({len(historical_data)} records)")
 
                     except Exception as e:
-                        logger.warning(f"YFinance error for ETF {symbol}: {str(e)}")
-                        results[symbol] = []
+                        logger.debug(f"YahooQuery: ✗ {symbol} - {str(e)}")
 
-                # Check success rate for ETFs
-                successful_etfs = [s for s in etf_symbols if results.get(s)]
-                etf_success_rate = len(successful_etfs) / len(etf_symbols) if etf_symbols else 0
-                logger.info(f"YFinance ETF success: {len(successful_etfs)}/{len(etf_symbols)} ({etf_success_rate:.1%})")
+                logger.info(f"YahooQuery: {len([s for s in symbols if results.get(s)])}/{len(symbols)} total succeeded, {len(failed_symbols)} still failed")
 
-                # Try FMP for failed ETFs
-                failed_etfs = [s for s in etf_symbols if not results.get(s)]
-                if failed_etfs:
-                    logger.warning(f"YFinance failed for {len(failed_etfs)} ETFs, trying FMP fallback")
-                    # Get FMP provider directly
-                    fmp_provider = market_data_factory.get_client('FMP')
-                    if fmp_provider:
-                        for symbol in failed_etfs:
-                            try:
-                                historical_data = await fmp_provider.get_historical_prices(symbol, days=days_back)
+        # Step 3: Try Polygon for remaining failed symbols
+        if failed_symbols:
+            logger.info(f"Step 3: Trying Polygon for {len(failed_symbols)} failed symbols")
+            polygon_results = await self.fetch_stock_prices(failed_symbols, start_date, end_date)
 
-                                if historical_data:
-                                    price_records = []
-                                    for day_data in historical_data:
-                                        date_value = day_data['date']
-                                        if isinstance(date_value, str):
-                                            date_obj = datetime.strptime(date_value, '%Y-%m-%d').date()
-                                        elif isinstance(date_value, date):
-                                            date_obj = date_value
-                                        else:
-                                            date_obj = datetime.fromisoformat(str(date_value)).date()
+            for symbol in failed_symbols[:]:
+                if polygon_results.get(symbol):
+                    results[symbol] = polygon_results[symbol]
+                    failed_symbols.remove(symbol)
+                    logger.debug(f"Polygon: ✓ {symbol} ({len(polygon_results[symbol])} records)")
 
-                                        price_records.append({
-                                            'symbol': symbol.upper(),
-                                            'date': date_obj,
-                                            'open': Decimal(str(day_data['open'])),
-                                            'high': Decimal(str(day_data['high'])),
-                                            'low': Decimal(str(day_data['low'])),
-                                            'close': Decimal(str(day_data['close'])),
-                                            'volume': day_data['volume'],
-                                            'data_source': 'fmp'
-                                        })
-                                    results[symbol] = price_records
-                                    logger.debug(f"FMP fallback: Retrieved {len(price_records)} records for ETF {symbol}")
-                            except Exception as e:
-                                logger.warning(f"FMP fallback error for ETF {symbol}: {str(e)}")
-        
-        # Fallback: Use FMP for failed stocks and Polygon for failed ETFs
-        failed_stocks = [s for s in stock_symbols if not results.get(s)] if 'failed_stocks' in locals() else []
-        failed_etfs = [s for s in etf_symbols if not results.get(s)]
-        
-        # Try FMP for failed stocks
-        if failed_stocks:
-            logger.info(f"Trying FMP fallback for {len(failed_stocks)} failed stocks")
-            provider = market_data_factory.get_provider_for_data_type(DataType.STOCKS)
-            if provider:
-                for symbol in failed_stocks:
+            logger.info(f"Polygon: {len([s for s in symbols if results.get(s)])}/{len(symbols)} total succeeded, {len(failed_symbols)} still failed")
+
+        # Step 4: Try FMP for remaining failed symbols (last resort)
+        if failed_symbols:
+            logger.info(f"Step 4: Trying FMP for {len(failed_symbols)} failed symbols (last resort)")
+            fmp_provider = market_data_factory.get_client('FMP')
+
+            if fmp_provider:
+                for symbol in failed_symbols:
                     try:
-                        historical_data = await provider.get_historical_prices(symbol, days=days_back)
+                        historical_data = await fmp_provider.get_historical_prices(symbol, days=days_back)
+
                         if historical_data:
                             price_records = []
                             for day_data in historical_data:
@@ -264,7 +192,7 @@ class MarketDataService:
                                     date_obj = date_value
                                 else:
                                     date_obj = datetime.fromisoformat(str(date_value)).date()
-                                
+
                                 price_records.append({
                                     'symbol': symbol.upper(),
                                     'date': date_obj,
@@ -276,21 +204,15 @@ class MarketDataService:
                                     'data_source': 'fmp'
                                 })
                             results[symbol] = price_records
-                            logger.debug(f"FMP fallback: Retrieved {len(price_records)} records for stock {symbol}")
+                            logger.debug(f"FMP: ✓ {symbol} ({len(price_records)} records)")
+
                     except Exception as e:
-                        logger.warning(f"FMP fallback failed for stock {symbol}: {str(e)}")
-        
-        # Process options and failed ETFs with Polygon
-        symbols_for_polygon = options_symbols + failed_etfs
-        
-        if symbols_for_polygon:
-            logger.info(f"Using Polygon for {len(options_symbols)} options and {len(failed_etfs)} failed ETFs")
-            polygon_results = await self.fetch_stock_prices(symbols_for_polygon, start_date, end_date)
-            
-            # Merge Polygon results
-            for symbol in symbols_for_polygon:
-                results[symbol] = polygon_results.get(symbol, [])
-        
+                        logger.debug(f"FMP: ✗ {symbol} - {str(e)}")
+
+        # Final summary
+        successful = len([s for s in symbols if results.get(s)])
+        logger.info(f"Final: {successful}/{len(symbols)} symbols retrieved data successfully")
+
         return results
 
     async def fetch_stock_prices_hybrid(self, symbols: List[str]) -> Dict[str, Dict[str, Any]]:
@@ -1368,11 +1290,24 @@ class MarketDataService:
         # Filter out synthetic/private symbols BEFORE hitting external APIs
         # Defense-in-depth: Even if investment_class filter missed these, we catch them here
         original_count = len(symbols)
-        filtered_symbols = [s for s in symbols if s not in SYNTHETIC_SYMBOLS]
-        skipped_symbols = [s for s in symbols if s in SYNTHETIC_SYMBOLS]
+        filtered_symbols: List[str] = []
+        skipped_symbols: List[str] = []
+        for symbol in symbols:
+            upper = normalize_symbol(symbol)
+            if not upper:
+                continue
+            skip, reason = should_skip_symbol(upper)
+            if skip:
+                skipped_symbols.append(f"{upper} ({reason})")
+            else:
+                filtered_symbols.append(upper)
 
         if skipped_symbols:
-            logger.info(f"Skipping {len(skipped_symbols)} PRIVATE/symbolic symbols: {skipped_symbols}")
+            logger.info(
+                "Skipping %d PRIVATE/symbolic symbols: %s",
+                len(skipped_symbols),
+                skipped_symbols,
+            )
 
         results = {
             'symbols_attempted': original_count,

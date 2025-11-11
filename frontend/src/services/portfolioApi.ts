@@ -1,13 +1,17 @@
 /**
  * Portfolio API Service Layer
  * Provides high-level methods for portfolio data operations
+ *
+ * Version 4 (Multi-Portfolio Support) - November 3, 2025
+ * - Added CRUD operations for portfolio management
+ * - Added aggregate analytics across multiple portfolios
+ * - Added portfolio breakdown by account
  */
 
 import { apiClient } from './apiClient';
 import { API_ENDPOINTS, REQUEST_CONFIGS, DEMO_PORTFOLIOS } from '@/config/api';
 import type {
   PortfolioReport,
-  PortfolioListItem,
   Position,
   MarketQuote,
   HistoricalPriceResponse,
@@ -17,6 +21,82 @@ import type {
   ApiListResponse,
   LoadingState,
 } from '@/types/portfolio';
+import type { PortfolioListItem } from '@/stores/portfolioStore'
+
+/**
+ * Request/Response types for multi-portfolio operations
+ */
+export interface CreatePortfolioRequest {
+  account_name: string;
+  account_type: 'taxable' | 'ira' | 'roth_ira' | '401k' | 'trust' | 'other';
+  description?: string;
+}
+
+export interface UpdatePortfolioRequest {
+  account_name?: string;
+  account_type?: 'taxable' | 'ira' | 'roth_ira' | '401k' | 'trust' | 'other';
+  description?: string;
+  is_active?: boolean;
+}
+
+export interface PortfolioResponse {
+  id: string;
+  user_id: string;
+  name: string;
+  account_name: string;
+  account_type: string;
+  description?: string;
+  equity_balance: number;
+  net_asset_value: number;
+  total_value?: number;
+  position_count?: number;
+  is_active: boolean;
+  created_at: string;
+  updated_at?: string;
+}
+
+export interface AggregateAnalytics {
+  net_asset_value: number;
+  total_value: number;
+  total_positions: number;
+  portfolio_count: number;
+  total_unrealized_pnl: number;
+  total_realized_pnl: number;
+  overall_return_pct: number;
+  risk_metrics: {
+    portfolio_beta: number;
+    sharpe_ratio: number;
+    max_drawdown: number;
+    volatility: number;
+  };
+  top_holdings: Array<{
+    symbol: string;
+    net_asset_value?: number;
+    total_value: number;
+    pct_of_total: number;
+  }>;
+  sector_allocation: Array<{
+    sector: string;
+    value: number;
+    pct_of_total: number;
+  }>;
+}
+
+export interface PortfolioBreakdown {
+  portfolios: Array<{
+    id: string;
+    account_name: string;
+    account_type: string;
+    net_asset_value?: number;
+    total_value: number;
+    position_count: number;
+    pct_of_total: number;
+    unrealized_pnl: number;
+    realized_pnl: number;
+  }>;
+  net_asset_value?: number;
+  total_value: number;
+}
 
 /**
  * Portfolio Service Class
@@ -28,11 +108,26 @@ export class PortfolioService {
    */
   async getPortfolios(): Promise<PortfolioListItem[]> {
     try {
-      const response = await apiClient.get<ApiListResponse<PortfolioListItem>>(
+      const response = await apiClient.get<any>(
         API_ENDPOINTS.PORTFOLIOS.LIST,
         REQUEST_CONFIGS.STANDARD
       );
-      return response.data || [];
+      console.log('[portfolioApi] Full response:', response);
+
+      // API returns array directly, not wrapped in { data: [...] }
+      const portfolios = Array.isArray(response) ? response : (response.data || []);
+      console.log('[portfolioApi] portfolios array:', portfolios);
+
+      return portfolios.map((portfolio: PortfolioResponse) => ({
+        id: portfolio.id,
+        account_name: portfolio.account_name || portfolio.name || 'Unknown Account',
+        account_type: portfolio.account_type || 'taxable',
+        net_asset_value: portfolio.net_asset_value ?? portfolio.total_value ?? 0,
+        total_value: portfolio.total_value ?? portfolio.net_asset_value ?? 0,
+        position_count: portfolio.position_count ?? 0,
+        is_active: portfolio.is_active ?? true, // Default to true if not provided
+        description: portfolio.description ?? null,
+      }));
     } catch (error) {
       console.error('Failed to fetch portfolios:', error);
       throw new Error('Unable to load portfolio list. Please check your connection and try again.');
@@ -76,15 +171,17 @@ export class PortfolioService {
    */
   async getPositionDetails(portfolioId?: string): Promise<Position[]> {
     try {
-      const endpoint = portfolioId 
+      const endpoint = portfolioId
         ? API_ENDPOINTS.POSITIONS.BY_PORTFOLIO(portfolioId)
         : API_ENDPOINTS.POSITIONS.DETAILS;
 
-      const response = await apiClient.get<ApiListResponse<Position>>(
+      const response = await apiClient.get<{positions: Position[], summary: any}>(
         endpoint,
         REQUEST_CONFIGS.STANDARD
       );
-      return response.data || [];
+      // Backend returns {positions: [...], summary: {...}}
+      // apiClient returns data directly, not wrapped in a data field
+      return response.positions || [];
     } catch (error) {
       console.error('Failed to fetch position details:', error);
       throw new Error('Unable to load position data. Please try again.');
@@ -159,6 +256,122 @@ export class PortfolioService {
     } catch (error) {
       console.error('Failed to fetch batch status:', error);
       return null;
+    }
+  }
+
+  /**
+   * Create a new portfolio
+   * Multi-Portfolio Feature - November 3, 2025
+   */
+  async createPortfolio(data: CreatePortfolioRequest): Promise<PortfolioResponse> {
+    try {
+      const response = await apiClient.post<ApiResponse<PortfolioResponse>>(
+        '/portfolios',
+        data,
+        REQUEST_CONFIGS.STANDARD
+      );
+      return response.data;
+    } catch (error) {
+      console.error('Failed to create portfolio:', error);
+      throw new Error('Unable to create portfolio. Please try again.');
+    }
+  }
+
+  /**
+   * Update an existing portfolio
+   * Multi-Portfolio Feature - November 3, 2025
+   */
+  async updatePortfolio(portfolioId: string, data: UpdatePortfolioRequest): Promise<PortfolioResponse> {
+    try {
+      const response = await apiClient.put<ApiResponse<PortfolioResponse>>(
+        `/portfolios/${portfolioId}`,
+        data,
+        REQUEST_CONFIGS.STANDARD
+      );
+      return response.data;
+    } catch (error) {
+      console.error(`Failed to update portfolio ${portfolioId}:`, error);
+      throw new Error('Unable to update portfolio. Please try again.');
+    }
+  }
+
+  /**
+   * Delete a portfolio
+   * Multi-Portfolio Feature - November 3, 2025
+   */
+  async deletePortfolio(portfolioId: string): Promise<void> {
+    try {
+      await apiClient.delete(
+        `/portfolios/${portfolioId}`,
+        REQUEST_CONFIGS.STANDARD
+      );
+    } catch (error) {
+      console.error(`Failed to delete portfolio ${portfolioId}:`, error);
+      throw new Error('Unable to delete portfolio. Please try again.');
+    }
+  }
+
+  /**
+   * Get aggregate analytics across all portfolios
+   * Multi-Portfolio Feature - November 3, 2025
+   */
+  async getAggregateAnalytics(): Promise<AggregateAnalytics> {
+    try {
+      const response = await apiClient.get<any>(
+        '/api/v1/analytics/aggregate/overview',
+        REQUEST_CONFIGS.STANDARD
+      );
+      console.log('[portfolioApi] Aggregate analytics response:', response);
+
+      // API may return data directly or wrapped in { data: {...} }
+      const data = response.data || response;
+      console.log('[portfolioApi] Aggregate analytics data:', data);
+
+      return {
+        ...data,
+        net_asset_value: data.net_asset_value ?? data.total_value ?? 0,
+        total_value: data.total_value ?? data.net_asset_value ?? 0,
+        top_holdings: data.top_holdings?.map((holding: any) => ({
+          ...holding,
+          net_asset_value: holding.net_asset_value ?? holding.total_value ?? 0,
+          total_value: holding.total_value ?? holding.net_asset_value ?? 0,
+        })) || [],
+      };
+    } catch (error) {
+      console.error('Failed to fetch aggregate analytics:', error);
+      throw new Error('Unable to load aggregate analytics. Please try again.');
+    }
+  }
+
+  /**
+   * Get portfolio breakdown showing each portfolio's contribution
+   * Multi-Portfolio Feature - November 3, 2025
+   */
+  async getPortfolioBreakdown(): Promise<PortfolioBreakdown> {
+    try {
+      const response = await apiClient.get<any>(
+        '/api/v1/analytics/aggregate/breakdown',
+        REQUEST_CONFIGS.STANDARD
+      );
+      console.log('[portfolioApi] Portfolio breakdown response:', response);
+
+      // API may return data directly or wrapped in { data: {...} }
+      const data = response.data || response;
+      console.log('[portfolioApi] Portfolio breakdown data:', data);
+
+      return {
+        ...data,
+        net_asset_value: data.net_asset_value ?? data.total_value ?? 0,
+        total_value: data.total_value ?? data.net_asset_value ?? 0,
+        portfolios: data.portfolios.map((portfolio: any) => ({
+          ...portfolio,
+          net_asset_value: portfolio.net_asset_value ?? portfolio.total_value ?? 0,
+          total_value: portfolio.total_value ?? portfolio.net_asset_value ?? 0,
+        })),
+      };
+    } catch (error) {
+      console.error('Failed to fetch portfolio breakdown:', error);
+      throw new Error('Unable to load portfolio breakdown. Please try again.');
     }
   }
 }

@@ -44,6 +44,7 @@ class PortfolioSummaryResponse(BaseSchema):
     meta: MetaInfo
     portfolio_id: UUID
     portfolio_name: str
+    net_asset_value: float
     total_value: float
     cash_balance: float
     positions_count: int

@@ -51,6 +51,11 @@ class TargetPriceResponse(TargetPriceBase):
     expected_return_next_year: Optional[Decimal] = Field(None, description="Expected return to next year target (%)")
     downside_return: Optional[Decimal] = Field(None, description="Downside scenario return (%)")
 
+    # Position-level dollar upside values
+    target_upside_eoy_value: Optional[Decimal] = Field(None, description="Dollar value of EOY upside")
+    target_upside_next_year_value: Optional[Decimal] = Field(None, description="Dollar value of next year upside")
+    target_downside_value: Optional[Decimal] = Field(None, description="Dollar value of downside")
+
     # Risk metrics
     position_weight: Optional[Decimal] = Field(None, description="Position weight in portfolio (%)")
     contribution_to_portfolio_return: Optional[Decimal] = Field(None, description="Contribution to portfolio return (%)")
@@ -92,6 +97,11 @@ class PortfolioTargetPriceSummary(BaseModel):
     weighted_expected_return_eoy: Optional[Decimal] = Field(None, description="Portfolio-weighted EOY return (%)")
     weighted_expected_return_next_year: Optional[Decimal] = Field(None, description="Portfolio-weighted next year return (%)")
     weighted_downside_return: Optional[Decimal] = Field(None, description="Portfolio-weighted downside return (%)")
+
+    # Portfolio-level dollar values
+    target_upside_eoy_dollars: Optional[Decimal] = Field(None, description="Total portfolio EOY upside ($)")
+    target_upside_next_year_dollars: Optional[Decimal] = Field(None, description="Total portfolio next year upside ($)")
+    target_downside_dollars: Optional[Decimal] = Field(None, description="Total portfolio downside ($)")
 
     # Risk metrics
     expected_sharpe_ratio: Optional[Decimal] = Field(None, description="Expected Sharpe ratio")

@@ -10,9 +10,10 @@ export const API_CONFIG = {
   
   // Request timeout settings (in milliseconds)
   TIMEOUT: {
-    DEFAULT: 10000,  // 10 seconds
-    LONG: 30000,     // 30 seconds for complex operations
-    SHORT: 5000,     // 5 seconds for quick operations
+    DEFAULT: 10000,   // 10 seconds
+    LONG: 30000,      // 30 seconds for complex operations
+    VERY_LONG: 180000, // 180 seconds (3 minutes) for heavy analytics (matches proxy timeout)
+    SHORT: 5000,      // 5 seconds for quick operations
   },
   
   // Retry configuration
@@ -38,6 +39,13 @@ export const API_ENDPOINTS = {
     ME: '/api/v1/auth/me',
   },
   
+  EQUITY_CHANGES: {
+    LIST: (portfolioId: string) => `/api/v1/portfolios/${portfolioId}/equity-changes`,
+    ITEM: (portfolioId: string, changeId: string) => `/api/v1/portfolios/${portfolioId}/equity-changes/${changeId}`,
+    SUMMARY: (portfolioId: string) => `/api/v1/portfolios/${portfolioId}/equity-changes/summary`,
+    EXPORT: (portfolioId: string) => `/api/v1/portfolios/${portfolioId}/equity-changes/export`,
+  },
+
   // Portfolio data endpoints (real data available)
   PORTFOLIOS: {
     LIST: '/api/v1/data/portfolios',
@@ -69,9 +77,13 @@ export const API_ENDPOINTS = {
   ANALYTICS: {
     OVERVIEW: (portfolioId: string) => `/api/v1/analytics/portfolio/${portfolioId}/overview`,
     CORRELATION_MATRIX: (portfolioId: string) => `/api/v1/analytics/portfolio/${portfolioId}/correlation-matrix`,
+    DIVERSIFICATION_SCORE: (portfolioId: string) => `/api/v1/analytics/portfolio/${portfolioId}/diversification-score`,
     FACTOR_EXPOSURES: (portfolioId: string) => `/api/v1/analytics/portfolio/${portfolioId}/factor-exposures`,
     POSITIONS_FACTOR_EXPOSURES: (portfolioId: string) => `/api/v1/analytics/portfolio/${portfolioId}/positions/factor-exposures`,
     STRESS_TEST: (portfolioId: string) => `/api/v1/analytics/portfolio/${portfolioId}/stress-test`,
+    SECTOR_EXPOSURE: (portfolioId: string) => `/api/v1/analytics/portfolio/${portfolioId}/sector-exposure`,
+    CONCENTRATION: (portfolioId: string) => `/api/v1/analytics/portfolio/${portfolioId}/concentration`,
+    VOLATILITY: (portfolioId: string) => `/api/v1/analytics/portfolio/${portfolioId}/volatility`,
   },
 
   // Strategy management endpoints
@@ -113,7 +125,35 @@ export const API_ENDPOINTS = {
     REMOVE: (positionId: string) => `/api/v1/positions/${positionId}/tags`,
     REPLACE: (positionId: string) => `/api/v1/positions/${positionId}/tags`,
   },
-  
+
+  // Target price endpoints (user-defined price targets)
+  TARGET_PRICES: {
+    LIST: (portfolioId: string) => `/api/v1/target-prices/${portfolioId}`,
+    CREATE: (portfolioId: string) => `/api/v1/target-prices/${portfolioId}`,
+    GET: (portfolioId: string, symbol: string, positionType: string) =>
+      `/api/v1/target-prices/${portfolioId}?symbol=${symbol}&position_type=${positionType}`,
+    UPDATE: (targetPriceId: string) => `/api/v1/target-prices/target/${targetPriceId}`,
+    BULK_UPDATE: (portfolioId: string) => `/api/v1/target-prices/${portfolioId}/bulk-update`,
+    SUMMARY: (portfolioId: string) => `/api/v1/target-prices/${portfolioId}/summary`,
+  },
+
+  // AI Insights endpoints (Claude-powered portfolio analysis)
+  INSIGHTS: {
+    GENERATE: '/api/v1/insights/generate',
+    LIST: (portfolioId: string) => `/api/v1/insights/portfolio/${portfolioId}`,
+    GET: (insightId: string) => `/api/v1/insights/${insightId}`,
+    UPDATE: (insightId: string) => `/api/v1/insights/${insightId}`,
+    FEEDBACK: (insightId: string) => `/api/v1/insights/${insightId}/feedback`,
+  },
+
+  // Fundamental data endpoints (income statements, balance sheets, cash flows, analyst estimates)
+  FUNDAMENTALS: {
+    INCOME_STATEMENT: (symbol: string) => `/api/v1/fundamentals/${symbol}/income-statement`,
+    BALANCE_SHEET: (symbol: string) => `/api/v1/fundamentals/${symbol}/balance-sheet`,
+    CASH_FLOW: (symbol: string) => `/api/v1/fundamentals/${symbol}/cash-flow`,
+    ANALYST_ESTIMATES: (symbol: string) => `/api/v1/fundamentals/${symbol}/analyst-estimates`,
+  },
+
   // Admin endpoints (for monitoring)
   ADMIN: {
     BATCH_STATUS: '/api/v1/admin/batch/status',
@@ -136,21 +176,28 @@ export const REQUEST_CONFIGS = {
     retries: API_CONFIG.RETRY.COUNT,
     cache: API_CONFIG.CACHE.ENABLED,
   },
-  
+
   // Real-time market data (short timeout, no cache)
   REALTIME: {
     timeout: API_CONFIG.TIMEOUT.SHORT,
     retries: 1,
     cache: false,
   },
-  
+
   // Long-running calculations
   CALCULATION: {
     timeout: API_CONFIG.TIMEOUT.LONG,
     retries: 3,
     cache: false,
   },
-  
+
+  // Heavy analytics calculations (factor exposures, correlations)
+  ANALYTICS_HEAVY: {
+    timeout: API_CONFIG.TIMEOUT.VERY_LONG,
+    retries: 1,  // Only retry once for slow operations
+    cache: false,
+  },
+
   // Authentication requests
   AUTH: {
     timeout: API_CONFIG.TIMEOUT.DEFAULT,

@@ -93,7 +93,26 @@ class Settings(BaseSettings):
     # Agent feature flags
     SSE_EMIT_MESSAGE_CREATED: bool = Field(default=True, env="SSE_EMIT_MESSAGE_CREATED")
     API_MESSAGES_ENABLED: bool = Field(default=False, env="API_MESSAGES_ENABLED")
+
+    # Anthropic settings for Analytical Reasoning Layer
+    ANTHROPIC_API_KEY: str = Field(default="", env="ANTHROPIC_API_KEY")
+    ANTHROPIC_MODEL: str = Field(default="claude-sonnet-4-20250514", env="ANTHROPIC_MODEL")  # Latest Claude Sonnet 4
+    ANTHROPIC_MAX_TOKENS: int = Field(default=8000, env="ANTHROPIC_MAX_TOKENS")
+    ANTHROPIC_TEMPERATURE: float = Field(default=0.7, env="ANTHROPIC_TEMPERATURE")
+    ANTHROPIC_TIMEOUT_SECONDS: int = Field(default=120, env="ANTHROPIC_TIMEOUT_SECONDS")
     
+    # Onboarding settings
+    BETA_INVITE_CODE: str = Field(
+        default="PRESCOTT-LINNAEAN-COWPERTHWAITE",
+        env="BETA_INVITE_CODE",
+        description="Beta invite code for user registration. Can be overridden via environment variable for production."
+    )
+    DETERMINISTIC_UUIDS: bool = Field(
+        default=True,
+        env="DETERMINISTIC_UUIDS",
+        description="Use deterministic UUIDs for testing/demo (True). Set False for production random UUIDs."
+    )
+
     # JWT settings
     SECRET_KEY: str = Field(..., env="SECRET_KEY")
     ALGORITHM: str = "HS256"

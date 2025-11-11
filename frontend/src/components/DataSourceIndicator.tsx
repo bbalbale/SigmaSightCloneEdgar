@@ -25,7 +25,7 @@ const statusConfig = {
     pulseAnimation: false,
   },
   mock: {
-    color: 'bg-gray-500',
+    color: 'bg-primary0',
     tooltip: 'Mock data for demonstration',
     pulseAnimation: false,
   },

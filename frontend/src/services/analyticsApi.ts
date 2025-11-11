@@ -3,9 +3,13 @@ import { API_ENDPOINTS, REQUEST_CONFIGS } from '@/config/api';
 import type {
   PortfolioOverviewResponse,
   CorrelationMatrixResponse,
+  DiversificationScoreResponse,
   PortfolioFactorExposuresResponse,
   PositionFactorExposuresResponse,
   StressTestResponse,
+  VolatilityMetricsResponse,
+  SectorExposureResponse,
+  ConcentrationMetricsResponse,
 } from '@/types/analytics';
 
 function getAuthHeader(): Record<string, string> {
@@ -19,7 +23,7 @@ export const analyticsApi = {
     const endpoint = API_ENDPOINTS.ANALYTICS.OVERVIEW(portfolioId);
     const url = apiClient.buildUrl(endpoint);
     const data = await apiClient.get<PortfolioOverviewResponse>(endpoint, {
-      ...REQUEST_CONFIGS.STANDARD,
+      ...REQUEST_CONFIGS.ANALYTICS_HEAVY,
       headers: { ...getAuthHeader() },
     });
     return { data, url };
@@ -44,6 +48,19 @@ export const analyticsApi = {
     return { data, url };
   },
 
+  async getDiversificationScore(
+    portfolioId: string
+  ): Promise<{ data: DiversificationScoreResponse; url: string }>
+  {
+    const endpoint = API_ENDPOINTS.ANALYTICS.DIVERSIFICATION_SCORE(portfolioId);
+    const url = apiClient.buildUrl(endpoint);
+    const data = await apiClient.get<DiversificationScoreResponse>(endpoint, {
+      ...REQUEST_CONFIGS.STANDARD,
+      headers: { ...getAuthHeader() },
+    });
+    return { data, url };
+  },
+
   async getPortfolioFactorExposures(
     portfolioId: string
   ): Promise<{ data: PortfolioFactorExposuresResponse; url: string }>
@@ -51,7 +68,7 @@ export const analyticsApi = {
     const endpoint = API_ENDPOINTS.ANALYTICS.FACTOR_EXPOSURES(portfolioId);
     const url = apiClient.buildUrl(endpoint);
     const data = await apiClient.get<PortfolioFactorExposuresResponse>(endpoint, {
-      ...REQUEST_CONFIGS.STANDARD,
+      ...REQUEST_CONFIGS.ANALYTICS_HEAVY,
       headers: { ...getAuthHeader() },
     });
     return { data, url };
@@ -89,6 +106,45 @@ export const analyticsApi = {
     const url = apiClient.buildUrl(fullEndpoint);
     const data = await apiClient.get<StressTestResponse>(fullEndpoint, {
       ...REQUEST_CONFIGS.CALCULATION,
+      headers: { ...getAuthHeader() },
+    });
+    return { data, url };
+  },
+
+  async getVolatility(
+    portfolioId: string
+  ): Promise<{ data: VolatilityMetricsResponse; url: string }>
+  {
+    const endpoint = API_ENDPOINTS.ANALYTICS.VOLATILITY(portfolioId);
+    const url = apiClient.buildUrl(endpoint);
+    const data = await apiClient.get<VolatilityMetricsResponse>(endpoint, {
+      ...REQUEST_CONFIGS.STANDARD,
+      headers: { ...getAuthHeader() },
+    });
+    return { data, url };
+  },
+
+  async getSectorExposure(
+    portfolioId: string
+  ): Promise<{ data: SectorExposureResponse; url: string }>
+  {
+    const endpoint = API_ENDPOINTS.ANALYTICS.SECTOR_EXPOSURE(portfolioId);
+    const url = apiClient.buildUrl(endpoint);
+    const data = await apiClient.get<SectorExposureResponse>(endpoint, {
+      ...REQUEST_CONFIGS.STANDARD,
+      headers: { ...getAuthHeader() },
+    });
+    return { data, url };
+  },
+
+  async getConcentration(
+    portfolioId: string
+  ): Promise<{ data: ConcentrationMetricsResponse; url: string }>
+  {
+    const endpoint = API_ENDPOINTS.ANALYTICS.CONCENTRATION(portfolioId);
+    const url = apiClient.buildUrl(endpoint);
+    const data = await apiClient.get<ConcentrationMetricsResponse>(endpoint, {
+      ...REQUEST_CONFIGS.STANDARD,
       headers: { ...getAuthHeader() },
     });
     return { data, url };

@@ -68,7 +68,7 @@ uv run python scripts/database/check_database_content.py
 ```bash
 # ⚠️ WARNING: This command DELETES ALL EXISTING DATA!
 # Only run if you have NO existing portfolios/data
-uv run python scripts/reset_and_seed.py reset --confirm
+uv run python scripts/database/reset_and_seed.py reset --confirm
 
 # Alternative: Safer approach - seed without reset
 uv run python scripts/database/seed_database.py

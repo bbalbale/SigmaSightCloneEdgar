@@ -1,70 +1,63 @@
 'use client'
 
 import { Position } from '@/hooks/usePositions'
-import { StrategyListItem } from '@/services/strategiesApi'
-import { SelectablePositionCard } from './SelectablePositionCard'
 import { OrganizePositionCard } from '@/components/positions/OrganizePositionCard'
-import { StrategyCard } from './StrategyCard'
-import { useTheme } from '@/contexts/ThemeContext'
+import { SelectablePositionCard } from './SelectablePositionCard'
 
 interface ShortPositionsListProps {
   positions: Position[]
-  strategies: StrategyListItem[]
   selectedIds: string[]
   isSelected: (id: string) => boolean
   onToggleSelection: (id: string) => void
   onDropTag?: (targetId: string, tagId: string) => void
-  onDropPosition?: (droppedPositionId: string, targetPositionId: string) => void
-  onEditStrategy?: (strategy: StrategyListItem) => void
-  onDeleteStrategy?: (strategyId: string) => void
 }
 
 export function ShortPositionsList({
   positions,
-  strategies,
   selectedIds,
   isSelected,
   onToggleSelection,
-  onDropTag,
-  onDropPosition,
-  onEditStrategy,
-  onDeleteStrategy
+  onDropTag
 }: ShortPositionsListProps) {
-  const { theme } = useTheme()
-
-  // Filter for short strategies (by direction field), excluding private positions
-  // Note: All positions should be in strategies (either standalone or combined)
-  const shortStrategies = strategies.filter(s =>
-    s.direction === 'SHORT' && s.primary_investment_class !== 'PRIVATE'
+  // Filter for short positions, excluding private
+  const shortPositions = positions.filter(p =>
+    p.position_type === 'SHORT' && p.investment_class !== 'PRIVATE'
   )
 
   return (
     <div>
-      <h3 className={`text-base font-semibold mb-3 transition-colors duration-300 ${
-        theme === 'dark' ? 'text-white' : 'text-gray-900'
-      }`}>
+      <h3 className="transition-colors duration-300" style={{
+        fontSize: 'var(--text-base)',
+        fontWeight: 600,
+        marginBottom: '0.75rem',
+        color: 'var(--text-primary)',
+        fontFamily: 'var(--font-display)'
+      }}>
         Short Stocks
       </h3>
-      {shortStrategies.length === 0 ? (
-        <div className={`text-sm p-3 rounded-lg border transition-colors duration-300 ${
-          theme === 'dark'
-            ? 'text-empty-text-dark bg-empty-bg-dark border-empty-border-dark'
-            : 'text-empty-text bg-empty-bg border-empty-border'
-        }`}>
+      {shortPositions.length === 0 ? (
+        <div className="p-3 rounded-lg border transition-colors duration-300" style={{
+          fontSize: 'var(--text-sm)',
+          backgroundColor: 'var(--bg-tertiary)',
+          borderColor: 'var(--border-primary)',
+          color: 'var(--text-secondary)'
+        }}>
           No positions
         </div>
       ) : (
         <div className="space-y-2">
-          {/* Render all strategies (both individual and combinations) */}
-          {shortStrategies.map(strategy => (
-            <StrategyCard
-              key={strategy.id}
-              strategy={strategy}
-              onEdit={onEditStrategy || (() => {})}
-              onDelete={onDeleteStrategy || (() => {})}
-              onDrop={onDropTag}
-              onDropStrategy={onDropPosition}
-            />
+          {shortPositions.map(position => (
+            <SelectablePositionCard
+              key={position.id}
+              positionId={position.id}
+              symbol={position.symbol}
+              isSelected={isSelected(position.id)}
+              onToggleSelection={() => onToggleSelection(position.id)}
+              tags={position.tags}
+              onDropTag={onDropTag ? (tagId) => onDropTag(position.id, tagId) : undefined}
+            >
+              <OrganizePositionCard position={position} />
+            </SelectablePositionCard>
           ))}
         </div>
       )}

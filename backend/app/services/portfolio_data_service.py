@@ -1,25 +1,28 @@
 """
 Service layer for Agent-optimized portfolio data operations
 """
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, desc, and_
-from uuid import UUID
-from typing import List, Dict, Any, Optional, Tuple
+from decimal import Decimal
 from datetime import datetime, timedelta
+from typing import List, Dict, Any, Optional, Tuple
+from uuid import UUID
 
-from app.models.users import Portfolio
-from app.models.positions import Position, PositionType
-from app.models.market_data import MarketDataCache
-from app.schemas.data import (
-    TopPositionsResponse, 
-    PortfolioSummaryResponse, 
-    PositionSummary, 
-    MetaInfo,
-    HistoricalPricesResponse,
-    PricePoint
-)
+from sqlalchemy import select, func, desc, and_
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.calculations.market_data import get_position_valuation
 from app.core.datetime_utils import utc_now, to_utc_iso8601
 from app.core.logging import get_logger
+from app.models.market_data import MarketDataCache
+from app.models.positions import Position, PositionType
+from app.models.users import Portfolio
+from app.schemas.data import (
+    TopPositionsResponse,
+    PortfolioSummaryResponse,
+    PositionSummary,
+    MetaInfo,
+    HistoricalPricesResponse,
+    PricePoint,
+)
 
 logger = get_logger(__name__)
 
@@ -90,7 +93,7 @@ class PortfolioDataService:
             
             # Calculate market values for each position
             position_data = []
-            total_portfolio_value = 0.0
+            total_portfolio_value = Decimal("0")
             
             for position in positions:
                 # Get latest price from MarketDataCache
@@ -107,44 +110,46 @@ class PortfolioDataService:
                 )
                 latest_price = price_result.scalar_one_or_none()
                 
-                # Calculate market value
-                if latest_price:
-                    market_value = abs(float(position.quantity)) * float(latest_price)
-                else:
-                    # Fallback to entry price
-                    market_value = abs(float(position.quantity)) * float(position.entry_price)
-                
-                total_portfolio_value += market_value
-                
+                price_override: Optional[Decimal] = None
+                if latest_price is not None:
+                    price_override = Decimal(str(latest_price))
+
+                valuation = get_position_valuation(position, price=price_override)
+                market_value_decimal = valuation.abs_market_value
+                total_portfolio_value += market_value_decimal
+
                 # Store position data for sorting
                 position_data.append({
                     'symbol': position.symbol,
                     'name': position.symbol,  # Use symbol as name since Position doesn't have name field
                     'quantity': float(position.quantity),
-                    'market_value': market_value,
+                    'market_value': float(market_value_decimal),
+                    'market_value_decimal': market_value_decimal,
                     'sector': None  # TODO: Add sector lookup when sector data available
                 })
             
             # Calculate weights and sort
+            total_value_positive = total_portfolio_value > 0
             for pos in position_data:
-                pos['weight'] = round(
-                    (pos['market_value'] / total_portfolio_value * 100) if total_portfolio_value else 0, 
-                    4  # Round to 4 decimal places as specified
-                )
+                if total_value_positive:
+                    weight_decimal = (pos['market_value_decimal'] / total_portfolio_value) * Decimal("100")
+                    pos['weight'] = round(float(weight_decimal), 4)
+                else:
+                    pos['weight'] = 0.0
             
             # Sort by requested field
             if sort_by == "weight":
                 position_data.sort(key=lambda x: x['weight'], reverse=True)
             else:  # default to market_value
-                position_data.sort(key=lambda x: x['market_value'], reverse=True)
+                position_data.sort(key=lambda x: x['market_value_decimal'], reverse=True)
             
             # Apply limit
             top_positions = position_data[:limit]
             
             # Calculate portfolio coverage
-            covered_value = sum(pos['market_value'] for pos in top_positions)
+            covered_value = sum(pos['market_value_decimal'] for pos in top_positions)
             coverage_percent = round(
-                (covered_value / total_portfolio_value * 100) if total_portfolio_value else 0,
+                float((covered_value / total_portfolio_value) * Decimal("100")) if total_value_positive else 0.0,
                 2
             )
             

@@ -105,8 +105,8 @@ class RiskMetricsService:
         else:
             warnings.append("no_returns")
 
-        # 4) Max drawdown from total_value
-        values: List[float] = [float(s.total_value) for s in snaps if s.total_value is not None]
+        # 4) Max drawdown from net asset value
+        values: List[float] = [float(s.net_asset_value) for s in snaps if s.net_asset_value is not None]
         max_dd: Optional[float] = None
         if values:
             peak = values[0]

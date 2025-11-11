@@ -1,20 +1,24 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, useRef } from 'react'
 import { useTheme } from '@/contexts/ThemeContext'
 import { usePortfolioData } from '@/hooks/usePortfolioData'
 import { useTags } from '@/hooks/useTags'
 import { usePositionTags } from '@/hooks/usePositionTags'
+import { useRestoreSectorTags } from '@/hooks/useRestoreSectorTags'
+import { usePortfolioStore } from '@/stores/portfolioStore'
 import { TagList } from '@/components/organize/TagList'
 import { PositionList } from '@/components/common/PositionList'
 import { OrganizePositionCard } from '@/components/positions/OrganizePositionCard'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 
 export function OrganizeContainer() {
   const { theme } = useTheme()
+  const { portfolioId } = usePortfolioStore()
 
-  // Auto-scroll state for drag-drop
-  const [autoScrollInterval, setAutoScrollInterval] = useState<NodeJS.Timeout | null>(null)
+  // Auto-scroll ref for drag-drop (using ref to avoid stale closures)
+  const autoScrollIntervalRef = useRef<NodeJS.Timeout | null>(null)
 
   // Fetch positions (includes tags array automatically from backend)
   const {
@@ -46,55 +50,89 @@ export function OrganizeContainer() {
     loading: positionTagsLoading
   } = usePositionTags()
 
+  // Sector tag restoration
+  const {
+    restoreTags,
+    loading: restoringTags
+  } = useRestoreSectorTags()
+
   // Filter state
   const [selectedTagFilter, setSelectedTagFilter] = useState<string | null>(null)
 
-  // Auto-scroll helper function
+  // Auto-scroll helper function - improved for better UX
   const handleAutoScroll = React.useCallback((e: React.DragEvent) => {
-    const SCROLL_THRESHOLD = 100 // pixels from edge to trigger scroll
-    const SCROLL_SPEED = 10 // pixels per interval
+    const SCROLL_THRESHOLD = 150 // pixels from edge to trigger scroll (increased for easier triggering)
+    const SCROLL_SPEED = 15 // pixels per interval (increased for faster scrolling)
 
     const { clientY } = e
     const viewportHeight = window.innerHeight
 
     // Clear any existing interval
-    if (autoScrollInterval) {
-      clearInterval(autoScrollInterval)
-      setAutoScrollInterval(null)
+    if (autoScrollIntervalRef.current) {
+      clearInterval(autoScrollIntervalRef.current)
+      autoScrollIntervalRef.current = null
     }
 
-    // Check if near top edge
-    if (clientY < SCROLL_THRESHOLD) {
+    // Calculate distance from edge for variable scroll speed
+    const distanceFromTop = clientY
+    const distanceFromBottom = viewportHeight - clientY
+
+    // Check if near top edge - scroll up
+    if (distanceFromTop < SCROLL_THRESHOLD && distanceFromTop > 0) {
+      // Variable speed based on proximity to edge
+      const speedMultiplier = 1 + (SCROLL_THRESHOLD - distanceFromTop) / SCROLL_THRESHOLD
       const interval = setInterval(() => {
-        window.scrollBy(0, -SCROLL_SPEED)
-      }, 20)
-      setAutoScrollInterval(interval)
+        window.scrollBy(0, -SCROLL_SPEED * speedMultiplier)
+      }, 16) // ~60fps
+      autoScrollIntervalRef.current = interval
     }
-    // Check if near bottom edge
-    else if (clientY > viewportHeight - SCROLL_THRESHOLD) {
+    // Check if near bottom edge - scroll down
+    else if (distanceFromBottom < SCROLL_THRESHOLD && distanceFromBottom > 0) {
+      // Variable speed based on proximity to edge
+      const speedMultiplier = 1 + (SCROLL_THRESHOLD - distanceFromBottom) / SCROLL_THRESHOLD
       const interval = setInterval(() => {
-        window.scrollBy(0, SCROLL_SPEED)
-      }, 20)
-      setAutoScrollInterval(interval)
+        window.scrollBy(0, SCROLL_SPEED * speedMultiplier)
+      }, 16) // ~60fps
+      autoScrollIntervalRef.current = interval
     }
-  }, [autoScrollInterval])
+  }, [])
 
   // Stop auto-scroll when drag ends or leaves
   const stopAutoScroll = React.useCallback(() => {
-    if (autoScrollInterval) {
-      clearInterval(autoScrollInterval)
-      setAutoScrollInterval(null)
+    if (autoScrollIntervalRef.current) {
+      clearInterval(autoScrollIntervalRef.current)
+      autoScrollIntervalRef.current = null
     }
-  }, [autoScrollInterval])
+  }, [])
 
   // Cleanup auto-scroll on unmount
   React.useEffect(() => {
     return () => {
-      if (autoScrollInterval) {
-        clearInterval(autoScrollInterval)
+      if (autoScrollIntervalRef.current) {
+        clearInterval(autoScrollIntervalRef.current)
+        autoScrollIntervalRef.current = null
       }
     }
-  }, [autoScrollInterval])
+  }, [])
+
+  // Add global dragend listener as fallback to catch all drag end events
+  React.useEffect(() => {
+    const handleGlobalDragEnd = () => {
+      console.log('[OrganizeContainer] Global drag end detected, stopping auto-scroll')
+      stopAutoScroll()
+    }
+
+    // Listen for custom event from TagBadge
+    window.addEventListener('tagDragEnd', handleGlobalDragEnd)
+    // Listen for native dragend event as fallback
+    document.addEventListener('dragend', handleGlobalDragEnd)
+
+    return () => {
+      window.removeEventListener('tagDragEnd', handleGlobalDragEnd)
+      document.removeEventListener('dragend', handleGlobalDragEnd)
+      stopAutoScroll()  // Always cleanup on unmount
+    }
+  }, [stopAutoScroll])
 
   // Handle tag drop on position
   const handleTagDrop = async (positionId: string, tagId: string) => {
@@ -158,6 +196,35 @@ export function OrganizeContainer() {
     }
   }
 
+  // Handle restore sector tags
+  const handleRestoreSectorTags = async () => {
+    if (!portfolioId) {
+      console.error('No portfolio ID available')
+      alert('Error: Portfolio ID not found. Please refresh the page.')
+      return
+    }
+
+    try {
+      const result = await restoreTags(portfolioId)
+      console.log('Sector tags restored:', result)
+
+      // Show success message
+      alert(
+        `✅ Sector tags restored!\n\n` +
+        `• ${result.positions_tagged} positions tagged\n` +
+        `• ${result.tags_created} new tags created\n` +
+        `• ${result.positions_skipped} positions skipped\n\n` +
+        `Sectors applied: ${result.tags_applied.map(t => t.tag_name).join(', ')}`
+      )
+
+      // Refresh positions to show updated tags
+      refreshPositions()
+    } catch (error: any) {
+      console.error('Failed to restore sector tags:', error)
+      alert(`❌ Failed to restore sector tags: ${error?.message || 'Unknown error'}`)
+    }
+  }
+
   // Split positions by type
   const publicLongs = publicPositions.filter(p => p.type === 'LONG' || !p.type)
   const publicShorts = publicPositions.filter(p => p.type === 'SHORT')
@@ -179,27 +246,59 @@ export function OrganizeContainer() {
   const filteredPrivate = filterByTag(privatePositions)
 
   return (
-    <div className={`min-h-screen transition-colors duration-300 ${
-      theme === 'dark' ? 'bg-slate-900' : 'bg-gray-50'
-    }`}>
+    <div className="min-h-screen transition-colors duration-300 bg-primary">
       {/* Header */}
       <section className="px-4 py-8">
         <div className="container mx-auto">
-          <h1 className={`text-3xl font-bold mb-2 transition-colors duration-300 ${
-            theme === 'dark' ? 'text-white' : 'text-gray-900'
-          }`}>
-            Organize & Tag Positions
-          </h1>
-          <p className={`transition-colors duration-300 ${
-            theme === 'dark' ? 'text-slate-400' : 'text-gray-600'
-          }`}>
-            Create tags and drag them onto positions to organize your portfolio
-          </p>
+          <div className="flex items-start justify-between mb-4">
+            <div>
+              <h1 className="mb-2 transition-colors duration-300" style={{
+                fontSize: 'var(--text-2xl)',
+                fontWeight: 'bold',
+                color: 'var(--text-primary)',
+                fontFamily: 'var(--font-display)'
+              }}>
+                Organize & Tag Positions
+              </h1>
+              <p className="transition-colors duration-300 text-secondary">
+                Create tags and drag them onto positions to organize your portfolio
+              </p>
+            </div>
+
+            {/* Restore Sector Tags Button */}
+            <Button
+              onClick={handleRestoreSectorTags}
+              disabled={restoringTags || loading}
+              className="flex items-center gap-2 px-4 py-2 rounded-md font-medium transition-all duration-200 disabled:cursor-not-allowed"
+              style={{
+                backgroundColor: restoringTags || loading ? 'var(--bg-tertiary)' : 'var(--color-accent)',
+                color: restoringTags || loading ? 'var(--text-tertiary)' : '#ffffff'
+              }}
+              title="Automatically create and apply sector tags to all positions based on company profiles"
+            >
+              {restoringTags ? (
+                <>
+                  <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  <span>Restoring...</span>
+                </>
+              ) : (
+                <>
+                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                  <span>Restore Sector Tags</span>
+                </>
+              )}
+            </Button>
+          </div>
         </div>
       </section>
 
-      {/* Tag Management */}
-      <section className="px-4 pb-6">
+      {/* Tag Management - STICKY */}
+      <section className="sticky top-0 z-40 px-4 pb-6 pt-4 transition-colors duration-300 bg-primary border-b border-primary shadow-sm">
         <div className="container mx-auto">
           <TagList
             tags={tags}
@@ -209,27 +308,21 @@ export function OrganizeContainer() {
         </div>
       </section>
 
-      {/* Filter by Tag (Optional) */}
+      {/* Filter by Tag (Optional) - STICKY BELOW TAGS */}
       {tags.length > 0 && (
-        <section className="px-4 pb-4">
+        <section className="sticky z-30 px-4 pb-4 pt-2 transition-colors duration-300 bg-primary border-b border-primary shadow-sm" style={{ top: '180px' }}>
           <div className="container mx-auto">
-            <div className="flex items-center gap-2">
-              <span className={`text-sm font-medium transition-colors duration-300 ${
-                theme === 'dark' ? 'text-slate-300' : 'text-gray-700'
-              }`}>
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-sm font-medium transition-colors duration-300 text-primary">
                 Filter by tag:
               </span>
               <button
                 onClick={() => setSelectedTagFilter(null)}
-                className={`px-3 py-1 rounded-md text-sm transition-colors ${
-                  selectedTagFilter === null
-                    ? theme === 'dark'
-                      ? 'bg-blue-600 text-white'
-                      : 'bg-blue-500 text-white'
-                    : theme === 'dark'
-                      ? 'bg-slate-700 text-slate-300 hover:bg-slate-600'
-                      : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                }`}
+                className="px-3 py-1 rounded-md text-sm transition-colors"
+                style={{
+                  backgroundColor: selectedTagFilter === null ? 'var(--color-accent)' : 'var(--bg-secondary)',
+                  color: selectedTagFilter === null ? '#ffffff' : 'var(--text-primary)'
+                }}
               >
                 All
               </button>
@@ -237,7 +330,7 @@ export function OrganizeContainer() {
                 <button
                   key={tag.id}
                   onClick={() => setSelectedTagFilter(tag.id)}
-                  className={`px-3 py-1 rounded-md text-sm transition-colors`}
+                  className="px-3 py-1 rounded-md text-sm transition-colors"
                   style={{
                     backgroundColor: selectedTagFilter === tag.id ? tag.color : undefined,
                     color: selectedTagFilter === tag.id ? '#fff' : undefined
@@ -255,9 +348,7 @@ export function OrganizeContainer() {
       {loading && !positions.length ? (
         <section className="px-4 py-8">
           <div className="container mx-auto text-center">
-            <p className={`text-lg transition-colors duration-300 ${
-              theme === 'dark' ? 'text-slate-400' : 'text-gray-600'
-            }`}>
+            <p className="text-lg transition-colors duration-300 text-secondary">
               Loading positions...
             </p>
           </div>
@@ -271,14 +362,18 @@ export function OrganizeContainer() {
                 {/* Long Positions */}
                 <div>
                   <div className="flex items-center gap-2 mb-4">
-                    <h3 className={`text-lg font-semibold transition-colors duration-300 ${
-                      theme === 'dark' ? 'text-white' : 'text-gray-900'
-                    }`}>
+                    <h3 className="transition-colors duration-300" style={{
+                      fontSize: 'var(--text-lg)',
+                      fontWeight: '600',
+                      color: 'var(--text-primary)',
+                      fontFamily: 'var(--font-display)'
+                    }}>
                       Long Stocks
                     </h3>
-                    <Badge variant="secondary" className={`transition-colors duration-300 ${
-                      theme === 'dark' ? 'bg-slate-700 text-slate-300' : 'bg-gray-200 text-gray-700'
-                    }`}>
+                    <Badge variant="secondary" className="transition-colors duration-300" style={{
+                      backgroundColor: 'var(--bg-secondary)',
+                      color: 'var(--text-primary)'
+                    }}>
                       {filteredPublicLongs.length}
                     </Badge>
                   </div>
@@ -333,14 +428,18 @@ export function OrganizeContainer() {
                 {/* Short Positions */}
                 <div>
                   <div className="flex items-center gap-2 mb-4">
-                    <h3 className={`text-lg font-semibold transition-colors duration-300 ${
-                      theme === 'dark' ? 'text-white' : 'text-gray-900'
-                    }`}>
+                    <h3 className="transition-colors duration-300" style={{
+                      fontSize: 'var(--text-lg)',
+                      fontWeight: '600',
+                      color: 'var(--text-primary)',
+                      fontFamily: 'var(--font-display)'
+                    }}>
                       Short Stocks
                     </h3>
-                    <Badge variant="secondary" className={`transition-colors duration-300 ${
-                      theme === 'dark' ? 'bg-slate-700 text-slate-300' : 'bg-gray-200 text-gray-700'
-                    }`}>
+                    <Badge variant="secondary" className="transition-colors duration-300" style={{
+                      backgroundColor: 'var(--bg-secondary)',
+                      color: 'var(--text-primary)'
+                    }}>
                       {filteredPublicShorts.length}
                     </Badge>
                   </div>
@@ -387,14 +486,18 @@ export function OrganizeContainer() {
                 {/* Private Investments */}
                 <div>
                   <div className="flex items-center gap-2 mb-4">
-                    <h3 className={`text-lg font-semibold transition-colors duration-300 ${
-                      theme === 'dark' ? 'text-white' : 'text-gray-900'
-                    }`}>
+                    <h3 className="transition-colors duration-300" style={{
+                      fontSize: 'var(--text-lg)',
+                      fontWeight: '600',
+                      color: 'var(--text-primary)',
+                      fontFamily: 'var(--font-display)'
+                    }}>
                       Private Investments
                     </h3>
-                    <Badge variant="secondary" className={`transition-colors duration-300 ${
-                      theme === 'dark' ? 'bg-slate-700 text-slate-300' : 'bg-gray-200 text-gray-700'
-                    }`}>
+                    <Badge variant="secondary" className="transition-colors duration-300" style={{
+                      backgroundColor: 'var(--bg-secondary)',
+                      color: 'var(--text-primary)'
+                    }}>
                       {filteredPrivate.length}
                     </Badge>
                   </div>
@@ -432,14 +535,18 @@ export function OrganizeContainer() {
                 {/* Long Options */}
                 <div>
                   <div className="flex items-center gap-2 mb-4">
-                    <h3 className={`text-lg font-semibold transition-colors duration-300 ${
-                      theme === 'dark' ? 'text-white' : 'text-gray-900'
-                    }`}>
+                    <h3 className="transition-colors duration-300" style={{
+                      fontSize: 'var(--text-lg)',
+                      fontWeight: '600',
+                      color: 'var(--text-primary)',
+                      fontFamily: 'var(--font-display)'
+                    }}>
                       Long Options
                     </h3>
-                    <Badge variant="secondary" className={`transition-colors duration-300 ${
-                      theme === 'dark' ? 'bg-slate-700 text-slate-300' : 'bg-gray-200 text-gray-700'
-                    }`}>
+                    <Badge variant="secondary" className="transition-colors duration-300" style={{
+                      backgroundColor: 'var(--bg-secondary)',
+                      color: 'var(--text-primary)'
+                    }}>
                       {filteredOptionLongs.length}
                     </Badge>
                   </div>
@@ -470,14 +577,18 @@ export function OrganizeContainer() {
                 {/* Short Options */}
                 <div>
                   <div className="flex items-center gap-2 mb-4">
-                    <h3 className={`text-lg font-semibold transition-colors duration-300 ${
-                      theme === 'dark' ? 'text-white' : 'text-gray-900'
-                    }`}>
+                    <h3 className="transition-colors duration-300" style={{
+                      fontSize: 'var(--text-lg)',
+                      fontWeight: '600',
+                      color: 'var(--text-primary)',
+                      fontFamily: 'var(--font-display)'
+                    }}>
                       Short Options
                     </h3>
-                    <Badge variant="secondary" className={`transition-colors duration-300 ${
-                      theme === 'dark' ? 'bg-slate-700 text-slate-300' : 'bg-gray-200 text-gray-700'
-                    }`}>
+                    <Badge variant="secondary" className="transition-colors duration-300" style={{
+                      backgroundColor: 'var(--bg-secondary)',
+                      color: 'var(--text-primary)'
+                    }}>
                       {filteredOptionShorts.length}
                     </Badge>
                   </div>

@@ -2,12 +2,23 @@
 const nextConfig = {
   // Docker optimization - creates standalone output
   output: 'standalone',
-  
-  experimental: {
-    serverComponentsExternalPackages: []
+
+  // Next.js 16+ uses serverExternalPackages instead of experimental.serverComponentsExternalPackages
+  serverExternalPackages: [],
+
+  // Next.js 16+ uses turbopack configuration
+  turbopack: {
+    root: __dirname,
   },
+
   images: {
-    domains: ['localhost'],
+    // Next.js 16+ uses remotePatterns instead of domains
+    remotePatterns: [
+      {
+        protocol: 'http',
+        hostname: 'localhost',
+      },
+    ],
     unoptimized: true
   },
   env: {
@@ -52,7 +63,7 @@ const nextConfig = {
         fs: false,
       }
     }
-    
+
     // Add polling for Windows Docker development
     if (dev && !isServer && process.env.DOCKER_ENV === 'development') {
       config.watchOptions = {
@@ -60,7 +71,13 @@ const nextConfig = {
         aggregateTimeout: 300,
       }
     }
-    
+
+    // Add support for importing .md files as raw strings
+    config.module.rules.push({
+      test: /\.md$/,
+      type: 'asset/source',
+    })
+
     return config
   },
 }

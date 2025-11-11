@@ -1,33 +1,39 @@
 # CLAUDE.md
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
-Updated September 30, 2025
+
+**Last Updated**: 2025-10-29
 
 ## Project Overview
 
-SigmaSight Frontend - A Next.js 14 multi-page portfolio analytics application with AI chat integration. The frontend is a client-side application that connects to a FastAPI backend through a Next.js proxy layer.
+**SigmaSight Frontend** - A Next.js 14 multi-page portfolio analytics application with AI chat integration, target price tracking, sector tagging, and advanced risk metrics. The frontend is a client-side application that connects to a FastAPI backend through a Next.js proxy layer.
 
 > 🤖 **CRITICAL**: The backend uses **OpenAI Responses API**, NOT Chat Completions API.
 
-**Current Status**: Phase 1 Complete (Core infrastructure) - Portfolio page working with real data, multi-page architecture implemented with navigation dropdown and global state management.
+> 🤖 **CRITICAL**: Never commit changes unless explicitly told to do so.
+
+**Current Status**: Multi-page application with 6 authenticated pages operational. Features include real-time portfolio analytics, AI Analytical Reasoning (Claude Sonnet 4), target price management, sector tagging with auto-tag service, and comprehensive risk metrics integration.
 
 ---
 
 ## Development Commands
 
 ### 🐳 Docker Commands (Preferred)
-```bash
-# Build and start frontend
-cd frontend && docker build -t sigmasight-frontend . && docker run -d -p 3005:3005 --name frontend sigmasight-frontend
+> **📖 Full Docker Guide**: See [DOCKER.md](./DOCKER.md) for comprehensive Docker documentation
 
-# Quick restart (if image exists)
-docker stop frontend && docker rm frontend && docker run -d -p 3005:3005 --name frontend sigmasight-frontend
+```bash
+# Using Docker Compose (Recommended - uses .env.local)
+cd frontend
+docker-compose up -d              # Build and start
+docker-compose logs -f            # View logs
+docker-compose down               # Stop and remove
+
+# Using Docker directly with env file
+docker build -t sigmasight-frontend .
+docker run -d -p 3005:3005 --env-file .env.local --name sigmasight-frontend sigmasight-frontend
 
 # Check health
 curl http://localhost:3005/api/health
-
-# View logs
-docker logs -f frontend
 ```
 
 ### Traditional NPM Commands
@@ -52,22 +58,30 @@ npm install
 
 ### Key Configuration
 - **Port**: 3005 (configured to avoid conflicts)
-- **Docker Image**: sigmasight-frontend (~210MB optimized)
-- **Backend API**: Proxies through `/api/proxy/` to `localhost:8000` (default)
-  - **Railway Backend**: See [RAILWAY_BACKEND_SETUP.md](./RAILWAY_BACKEND_SETUP.md) to connect to remote backend
+- **Docker Image**: sigmasight-frontend (~210MB optimized, Node 20 LTS)
+- **Backend API**: Configured via `.env.local` - switches between local/Railway
 - **Authentication**: JWT tokens stored in localStorage
 - **Health Check**: `/api/health` endpoint for container monitoring
-- **Node.js Requirement**: Node.js 18.0 or higher
+- **Node.js Requirement**: Node.js 20.0 or higher (updated 2025-10-09)
 
-### Docker Build with Environment Variables
+### Environment Configuration
+Backend URL is configured via `.env.local` (not hardcoded):
+
+**Local Backend:**
 ```bash
-# Build with custom environment variables
-docker build \
-  --build-arg NEXT_PUBLIC_BACKEND_API_URL=http://backend:8000/api/v1 \
-  -t sigmasight-frontend .
+BACKEND_URL=http://localhost:8000
+NEXT_PUBLIC_BACKEND_API_URL=http://localhost:8000/api/v1
+```
 
-# Or use different port to avoid conflicts
-docker run -p 3006:3005 sigmasight-frontend
+**Railway Backend:**
+```bash
+BACKEND_URL=https://sigmasight-be-sandbox-frontendrailway.up.railway.app
+NEXT_PUBLIC_BACKEND_API_URL=https://sigmasight-be-sandbox-frontendrailway.up.railway.app/api/v1
+```
+
+After changing `.env.local`, rebuild:
+```bash
+docker-compose down && docker-compose up -d --build
 ```
 
 ---
@@ -78,12 +92,12 @@ docker run -p 3006:3005 sigmasight-frontend
 
 ```
 Landing Pages (Marketing)     Application Pages (Authenticated)
-├── / (root redirect)         ├── /portfolio (dashboard)
-├── /landing                  ├── /public-positions
-└── /login                    ├── /private-positions
-                              ├── /organize (strategies & tags)
-                              ├── /ai-chat
-                              └── /settings
+├── / (root redirect)         ├── /portfolio (dashboard with metrics & positions)
+├── /landing                  ├── /public-positions (public equities & ETFs)
+└── /login                    ├── /private-positions (private & alternative)
+                              ├── /organize (position tagging & management)
+                              ├── /ai-chat (AI analytical reasoning)
+                              └── /settings (user preferences)
 ```
 
 ### Core Architecture Pattern (Hybrid Approach)
@@ -111,7 +125,7 @@ Service Layer (API calls)
     ↓
 Next.js Proxy (/api/proxy/*)
     ↓
-FastAPI Backend (localhost:8000)
+FastAPI Backend (localhost:8000 or Railway)
 ```
 
 ---
@@ -145,14 +159,15 @@ FastAPI Backend (localhost:8000)
 
 ALL API calls must go through the service layer. Never make direct `fetch()` calls.
 
-**Available Services** (11 total in `/src/services/`):
+**Available Services** (12 total in `/src/services/`):
 - `apiClient.ts` - Base HTTP client with retry logic
 - `authManager.ts` - JWT token management
 - `portfolioService.ts` - Portfolio data fetching
 - `portfolioResolver.ts` - Dynamic portfolio ID resolution
 - `analyticsApi.ts` - Analytics endpoints
-- `strategiesApi.ts` - Strategy management
-- `tagsApi.ts` - Tag management
+- `fundamentalsApi.ts` - Fundamental data (income statements, balance sheets, cash flows, analyst estimates) ✨ **NEW** (November 2, 2025)
+- `strategiesApi.ts` - Strategy management (DEPRECATED - use tagsApi)
+- `tagsApi.ts` - Tag management (October 2, 2025)
 - `chatService.ts` - Chat messaging
 - `chatAuthService.ts` - Chat authentication
 - `requestManager.ts` - Request retry and deduplication
@@ -180,6 +195,11 @@ frontend/
 │   ├── portfolio/              # ✅ Main dashboard (modular pattern)
 │   ├── login/                  # ✅ Authentication
 │   ├── landing/                # ✅ Marketing page
+│   ├── public-positions/       # ✅ Public equities page
+│   ├── private-positions/      # ✅ Private/alternative positions page
+│   ├── organize/               # ✅ Position tagging & management
+│   ├── ai-chat/                # ✅ AI analytical reasoning
+│   ├── settings/               # ✅ User preferences
 │   ├── providers.tsx           # ✅ Auth context & global providers
 │   ├── layout.tsx              # ✅ Root layout with navigation
 │   └── page.tsx                # ✅ Root redirect
@@ -196,8 +216,8 @@ frontend/
 │   │   ├── portfolioService.ts # Portfolio data
 │   │   ├── portfolioResolver.ts # Portfolio ID resolution
 │   │   ├── analyticsApi.ts    # Analytics
-│   │   ├── strategiesApi.ts   # Strategies
-│   │   ├── tagsApi.ts         # Tags
+│   │   ├── strategiesApi.ts   # Strategies (DEPRECATED)
+│   │   ├── tagsApi.ts         # Tags (October 2, 2025)
 │   │   ├── chatService.ts     # Chat messaging
 │   │   ├── chatAuthService.ts # Chat auth
 │   │   ├── requestManager.ts  # Request management
@@ -216,11 +236,25 @@ frontend/
 │   │   │   ├── PortfolioPositions.tsx  # 3-column layout
 │   │   │   ├── PublicPositions.tsx     # Public equities/ETFs
 │   │   │   ├── OptionsPositions.tsx    # Options contracts
-│   │   │   └── PrivatePositions.tsx    # Private/alternative
+│   │   │   ├── PrivatePositions.tsx    # Private/alternative
+│   │   │   ├── TargetPriceManager.tsx  # Target price management
+│   │   │   └── SectorTagging.tsx       # Sector tagging with auto-tag
+│   │   ├── positions/          # Position-specific components
+│   │   ├── tags/               # Tag management components
 │   │   └── ui/                 # ShadCN UI components
 │   │
+│   ├── containers/             # Page Containers (Container Pattern)
+│   │   ├── PublicPositionsContainer.tsx   # Public positions logic
+│   │   ├── PrivatePositionsContainer.tsx  # Private positions logic
+│   │   ├── OrganizeContainer.tsx          # Organization logic
+│   │   ├── AIChatContainer.tsx            # AI chat logic
+│   │   └── SettingsContainer.tsx          # Settings logic
+│   │
 │   ├── hooks/                  # Custom React Hooks
-│   │   └── usePortfolioData.ts # Portfolio data fetching
+│   │   ├── usePortfolioData.ts # Portfolio data fetching
+│   │   ├── usePositions.ts     # Position data fetching
+│   │   ├── useStrategies.ts    # Strategies (DEPRECATED)
+│   │   └── useTags.ts          # Tags (October 2, 2025)
 │   │
 │   ├── lib/                    # Utility Libraries
 │   │   ├── formatters.ts      # Number & currency formatting
@@ -234,6 +268,8 @@ frontend/
 ├── _docs/                      # 📚 Documentation (READ THESE!)
 │   ├── project-structure.md   # Directory structure & patterns
 │   ├── API_AND_DATABASE_SUMMARY.md # Backend API reference
+│   ├── SigmaSight_Page_PRDs.md # Comprehensive page requirements
+│   ├── SigmaSight_IA_POV.md   # Product vision
 │   └── requirements/           # Implementation guides
 │       ├── README.md           # Master index & quick reference
 │       ├── 01-MultiPage-Architecture-Overview.md
@@ -246,44 +282,10 @@ frontend/
 │       └── 08-Implementation-Checklist.md
 │
 ├── Dockerfile
+├── docker-compose.yml
 ├── next.config.js
 ├── tailwind.config.js
 └── tsconfig.json
-```
-
-### Planned Additions (Container Pattern)
-
-```
-app/
-├── public-positions/           # 🔄 New route
-│   └── page.tsx               # Thin wrapper (8 lines)
-├── private-positions/          # 🔄 New route
-│   └── page.tsx               # Thin wrapper (8 lines)
-├── organize/                   # 🔄 New route
-│   └── page.tsx               # Thin wrapper (8 lines)
-├── ai-chat/                    # 🔄 New route
-│   └── page.tsx               # Thin wrapper (8 lines)
-└── settings/                   # 🔄 New route
-    └── page.tsx               # Thin wrapper (8 lines)
-
-src/
-├── containers/                 # 🔄 New folder
-│   ├── PublicPositionsContainer.tsx   (150-250 lines)
-│   ├── PrivatePositionsContainer.tsx  (150-250 lines)
-│   ├── OrganizeContainer.tsx          (150-250 lines)
-│   ├── AIChatContainer.tsx            (150-250 lines)
-│   └── SettingsContainer.tsx          (150-250 lines)
-│
-├── hooks/                      # Expand with new hooks
-│   ├── usePositions.ts        # 🔄 Position data hook
-│   ├── useStrategies.ts       # 🔄 Strategies hook
-│   └── useTags.ts             # 🔄 Tags hook
-│
-└── components/                 # New feature components
-    ├── positions/             # 🔄 Position components
-    ├── strategies/            # 🔄 Strategy components
-    ├── tags/                  # 🔄 Tag components
-    └── settings/              # 🔄 Settings components
 ```
 
 ---
@@ -298,6 +300,7 @@ import { usePortfolioData } from '@/hooks/usePortfolioData'
 import { PortfolioMetrics } from '@/components/portfolio/PortfolioMetrics'
 import { FactorExposureCards } from '@/components/portfolio/FactorExposureCards'
 import { PortfolioPositions } from '@/components/portfolio/PortfolioPositions'
+import { TargetPriceManager } from '@/components/portfolio/TargetPriceManager'
 
 export default function PortfolioPage() {
   const { positions, metrics, factors, loading, error } = usePortfolioData()
@@ -305,6 +308,7 @@ export default function PortfolioPage() {
   return (
     <div>
       <PortfolioMetrics metrics={metrics} />
+      <TargetPriceManager portfolioId={portfolioId} />
       <FactorExposureCards factors={factors} />
       <PortfolioPositions positions={positions} />
     </div>
@@ -381,6 +385,7 @@ export default function PublicPositionsPage() {
 7. **Reuse Components** - Portfolio components are modular and reusable
 8. **Follow the Pattern** - Hook → Components → Container → Page
 9. **Check Documentation** - Read `_docs/requirements/` for implementation guides
+10. **Use tagsApi** - For position tagging (strategiesApi is deprecated)
 
 ### ❌ DON'T Do These Things
 
@@ -391,6 +396,7 @@ export default function PublicPositionsPage() {
 5. **No cookies() from next/headers** - Not available client-side
 6. **No Fat Page Files** - Move logic to containers and hooks
 7. **No URL Parameters** - Portfolio ID is in Zustand, not URL
+8. **No strategiesApi** - Use tagsApi instead (strategies deprecated October 2025)
 
 ---
 
@@ -402,7 +408,7 @@ By default, frontend connects to **local backend** (`http://localhost:8000`).
 
 **To connect to Railway backend**:
 - See **[RAILWAY_BACKEND_SETUP.md](./RAILWAY_BACKEND_SETUP.md)** for complete guide
-- Quick: Update `.env` → `NEXT_PUBLIC_BACKEND_API_URL=https://your-app.railway.app/api/v1`
+- Quick: Update `.env.local` → `NEXT_PUBLIC_BACKEND_API_URL=https://your-app.railway.app/api/v1`
 - Restart frontend → Hard refresh browser
 
 ### API Proxy Pattern
@@ -427,6 +433,15 @@ const response = await fetch('http://localhost:8000/api/v1/data/positions')
 - **OPTIONS**: Options contracts (LC/LP/SC/SP position types)
 - **PRIVATE**: Private/alternative investments
 
+### Backend API Status (October 2025)
+- **59 endpoints** implemented across 9 categories (production-ready)
+- **Strategy endpoints REMOVED** - Use position tagging instead
+- **Target price endpoints** - 10 endpoints for price tracking
+- **Position tagging** - 12 endpoints (7 tag management + 5 position tagging)
+- **Admin batch** - 6 endpoints for batch monitoring
+- **Analytics** - 9 endpoints (includes 3 NEW Risk Metrics endpoints - Oct 17, 2025)
+- **Company Profiles** - 1 endpoint (automatic sync via Railway cron)
+
 ---
 
 ## Key Files and Their Purpose
@@ -443,8 +458,9 @@ const response = await fetch('http://localhost:8000/api/v1/data/positions')
 - `portfolioResolver.ts` - Dynamic portfolio ID resolution
 - `portfolioService.ts` - Portfolio data fetching
 - `analyticsApi.ts` - Analytics endpoints
-- `strategiesApi.ts` - Strategy management API
-- `tagsApi.ts` - Tag management API
+- `fundamentalsApi.ts` - Fundamental data (income statements, balance sheets, cash flows, analyst estimates) ✨ **NEW** (November 2, 2025)
+- `strategiesApi.ts` - **DEPRECATED** (use tagsApi instead)
+- `tagsApi.ts` - Tag management API (October 2, 2025)
 - `chatService.ts` - Chat messaging
 - `positionApiService.ts` - Position operations
 
@@ -460,6 +476,8 @@ const response = await fetch('http://localhost:8000/api/v1/data/positions')
 - `PublicPositions.tsx` - Public equity positions
 - `OptionsPositions.tsx` - Options contracts display
 - `PrivatePositions.tsx` - Private/alternative positions
+- `TargetPriceManager.tsx` - Target price management (Phase 8)
+- `SectorTagging.tsx` - Sector tagging with auto-tag service
 
 ### Chat System
 - `ChatInterface.tsx` - Sheet-based chat overlay
@@ -476,6 +494,7 @@ const response = await fetch('http://localhost:8000/api/v1/data/positions')
 3. Read `_docs/requirements/07-Services-Reference.md` (Service methods & usage)
 4. Review `_docs/project-structure.md` (Current structure)
 5. Check `_docs/API_AND_DATABASE_SUMMARY.md` (Backend API reference)
+6. **Note**: strategiesApi is deprecated - use tagsApi for position organization
 
 ### During Implementation
 1. Follow implementation guides in `_docs/requirements/`
@@ -483,6 +502,7 @@ const response = await fetch('http://localhost:8000/api/v1/data/positions')
 3. Follow the pattern: Hook → Components → Container → Page
 4. Test incrementally after each component
 5. Verify authentication flow works
+6. Use tagsApi for position tagging, NOT strategiesApi
 
 ### Testing Approach
 1. **MANDATORY**: Login first at `/login` to establish authentication
@@ -490,6 +510,8 @@ const response = await fetch('http://localhost:8000/api/v1/data/positions')
 3. Verify portfolio ID is set in Zustand store
 4. Test API calls through browser DevTools Network tab
 5. Verify all pages accessible via navigation dropdown
+6. Test target price management features
+7. Test sector tagging with auto-tag service
 
 ---
 
@@ -526,6 +548,12 @@ const response = await fetch('http://localhost:8000/api/v1/data/positions')
 - Avoids SSR complexity
 - Better for SPA-like experience
 
+### Why Remove Strategy Endpoints?
+- Simplified to position-level tagging only (October 2025)
+- Better performance and maintainability
+- Cleaner data model (3-tier separation)
+- Use tagsApi and position_tags junction table
+
 ---
 
 ## Implementation Progress
@@ -538,17 +566,30 @@ const response = await fetch('http://localhost:8000/api/v1/data/positions')
 - ✅ Updated layout.tsx with providers and navigation
 - ✅ Portfolio page working with real data
 
-### 🔄 Phase 2: Data Hooks (PENDING)
-- [ ] Create `usePositions.ts` hook
-- [ ] Create `useStrategies.ts` hook
-- [ ] Create `useTags.ts` hook
+### ✅ Phase 2: Data Hooks (COMPLETE)
+- ✅ `usePortfolioData.ts` hook
+- ✅ `usePositions.ts` hook
+- ✅ `useTags.ts` hook (October 2, 2025)
 
-### 🔄 Phase 3-6: Pages & Containers (PENDING)
-- [ ] Public Positions page with container
-- [ ] Private Positions page with container
-- [ ] Organize page with container (strategies + tags)
-- [ ] AI Chat page with container
-- [ ] Settings page with container
+### ✅ Phase 3-8: Pages & Features (COMPLETE)
+- ✅ Public Positions page with container
+- ✅ Private Positions page with container
+- ✅ Organize page with container (tags + position management)
+- ✅ AI Chat page with container (Claude Sonnet 4)
+- ✅ Settings page with container
+- ✅ Target price management (Phase 8)
+- ✅ Sector tagging with auto-tag service
+- ✅ Risk metrics integration
+- ✅ Company profile features
+
+### 🎯 Current Status
+- Multi-page application fully operational (6 pages)
+- AI Analytical Reasoning with Claude Sonnet 4
+- Target price tracking with optimistic updates
+- Sector tagging with auto-tag service
+- Portfolio target return tracking
+- Advanced risk metrics and company profiles
+- 767+ commits since September 2025
 
 ---
 
@@ -560,12 +601,14 @@ const response = await fetch('http://localhost:8000/api/v1/data/positions')
 3. **`_docs/requirements/07-Services-Reference.md`** - Complete service reference
 4. **`_docs/project-structure.md`** - Directory structure and patterns
 5. **`_docs/API_AND_DATABASE_SUMMARY.md`** - Backend API endpoints
+6. **`_docs/SigmaSight_Page_PRDs.md`** - Comprehensive page requirements
+7. **`_docs/SigmaSight_IA_POV.md`** - Product vision and information architecture
 
-### Implementation Guides (When Needed)
+### Implementation Guides (Reference)
 - `02-PublicPositions-Implementation.md` - Public positions page
 - `03-PrivatePositions-Implementation.md` - Private positions page
-- `04-Organize-Implementation.md` - Strategies and tags page
-- `05-AIChat-Implementation.md` - AI chat page
+- `04-Organize-Implementation.md` - Position tagging & management
+- `05-AIChat-Implementation.md` - AI chat integration
 - `06-Settings-Implementation.md` - Settings page
 - `08-Implementation-Checklist.md` - Phase-by-phase checklist
 
@@ -598,6 +641,16 @@ const response = await fetch('http://localhost:8000/api/v1/data/positions')
 2. Check localStorage for `access_token`
 3. Verify token not expired
 4. Check authManager service
+
+### Issue: Strategy endpoints not working
+**Solution**: Strategy endpoints removed October 2025 - use tagsApi instead
+```typescript
+// ❌ OLD (deprecated)
+import strategiesApi from '@/services/strategiesApi'
+
+// ✅ NEW (current)
+import tagsApi from '@/services/tagsApi'
+```
 
 ### Issue: Docker build fails
 **Solution**:
@@ -642,7 +695,8 @@ npm install
 // Services
 import { apiClient } from '@/services/apiClient'
 import { authManager } from '@/services/authManager'
-import strategiesApi from '@/services/strategiesApi'
+import tagsApi from '@/services/tagsApi'  // Use this, NOT strategiesApi
+import fundamentalsApi from '@/services/fundamentalsApi'  // NEW: Fundamental data
 
 // State
 import { usePortfolioStore } from '@/stores/portfolioStore'
@@ -678,18 +732,35 @@ const data = await apiClient.get('/api/v1/data/positions/details')
 const response = await fetch('http://localhost:8000/api/v1/data/positions')
 ```
 
+### Using Position Tagging (October 2025)
+```typescript
+// ✅ CORRECT - Use tagsApi
+import tagsApi from '@/services/tagsApi'
+const tags = await tagsApi.getTags()
+await tagsApi.tagPosition(positionId, tagId)
+
+// ❌ WRONG - strategiesApi is deprecated
+import strategiesApi from '@/services/strategiesApi'  // DON'T USE
+```
+
 ---
 
 ## Summary
 
 **Architecture**: Hybrid approach (modular + container patterns)
 **State**: Zustand for portfolio ID, React Context for auth
-**Services**: 11 existing services, always use them
+**Services**: 11 existing services, always use them (tagsApi for tagging, NOT strategiesApi)
 **Pages**: 6 authenticated pages with dropdown navigation
-**Backend**: FastAPI via Next.js proxy
+**Backend**: FastAPI via Next.js proxy (59 endpoints across 9 categories)
 **Authentication**: JWT in localStorage, mandatory login flow
 **Documentation**: Comprehensive guides in `_docs/requirements/`
 **Pattern**: Hook → Components → Container → Page
-**Status**: Phase 1 complete, ready for new page implementation
+**Features**: Target prices, sector tagging, AI chat, risk metrics (sector exposure, concentration, volatility), company profiles
+**Status**: Multi-page application fully operational with advanced features (production-ready)
 
-The frontend follows a pragmatic, maintainable architecture with clear separation of concerns. All implementation details are documented in `_docs/requirements/` - always start there before implementing new features.
+**Breaking Changes**:
+- Strategy endpoints removed October 2025 - use position tagging via tagsApi
+- Backend now uses batch_orchestrator (not v2)
+- Market data priority is YFinance-first (not FMP)
+
+The frontend follows a pragmatic, maintainable architecture with clear separation of concerns. All implementation details are documented in `_docs/requirements/` - always start there before implementing new features. Use tagsApi for position tagging as strategiesApi is deprecated.

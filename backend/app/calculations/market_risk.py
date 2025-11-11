@@ -10,13 +10,15 @@ import pandas as pd
 import numpy as np
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_
-import statsmodels.api as sm
 from fredapi import Fred
 
 from app.models.positions import Position
 from app.models.market_data import MarketRiskScenario, PositionInterestRateBeta, FactorDefinition
 from app.models.users import Portfolio
-from app.calculations.factors import fetch_factor_returns, _aggregate_portfolio_betas
+
+from app.calculations.market_data import get_position_value, is_options_position
+from app.calculations.market_beta import calculate_portfolio_market_beta
+from app.calculations.regression_utils import run_single_factor_regression
 from app.constants.factors import (
     FACTOR_ETFS, REGRESSION_WINDOW_DAYS, MIN_REGRESSION_DAYS,
     BETA_CAP_LIMIT, OPTIONS_MULTIPLIER
@@ -52,76 +54,6 @@ TREASURY_SERIES = {
 }
 
 
-async def calculate_portfolio_market_beta(
-    db: AsyncSession,
-    portfolio_id: UUID,
-    calculation_date: date
-) -> Dict[str, Any]:
-    """
-    Calculate portfolio market beta using existing factor betas
-    
-    Args:
-        db: Database session
-        portfolio_id: Portfolio ID to analyze
-        calculation_date: Date for the calculation
-        
-    Returns:
-        Dictionary containing market beta and factor breakdown
-    """
-    logger.info(f"Calculating portfolio market beta for portfolio {portfolio_id}")
-    
-    try:
-        # Get active positions for the portfolio
-        stmt = select(Position).where(
-            and_(
-                Position.portfolio_id == portfolio_id,
-                Position.exit_date.is_(None)
-            )
-        )
-        result = await db.execute(stmt)
-        positions = result.scalars().all()
-        
-        if not positions:
-            raise ValueError(f"No active positions found for portfolio {portfolio_id}")
-        
-        # Get existing factor betas (reuse from Section 1.4.4)
-        from app.calculations.factors import calculate_factor_betas_hybrid
-        
-        factor_analysis = await calculate_factor_betas_hybrid(
-            db=db,
-            portfolio_id=portfolio_id,
-            calculation_date=calculation_date,
-            use_delta_adjusted=False
-        )
-        
-        portfolio_betas = factor_analysis['factor_betas']
-        
-        # Calculate market beta (SPY factor represents broad market exposure)
-        market_beta = portfolio_betas.get('Market', 0.0)  # 'Market' from SPY factor
-        
-        # Calculate portfolio value for exposure calculations
-        portfolio_value = Decimal('0')
-        for position in positions:
-            multiplier = OPTIONS_MULTIPLIER if _is_options_position(position) else 1
-            value = abs(position.quantity * (position.last_price or position.entry_price) * multiplier)
-            portfolio_value += value
-        
-        results = {
-            'portfolio_id': str(portfolio_id),
-            'calculation_date': calculation_date,
-            'market_beta': market_beta,
-            'portfolio_value': float(portfolio_value),
-            'factor_breakdown': portfolio_betas,
-            'data_quality': factor_analysis['data_quality'],
-            'positions_count': len(positions)
-        }
-        
-        logger.info(f"Portfolio market beta calculated: {market_beta:.4f}")
-        return results
-        
-    except Exception as e:
-        logger.error(f"Error calculating portfolio market beta: {str(e)}")
-        raise
 
 
 async def calculate_market_scenarios(
@@ -298,28 +230,29 @@ async def calculate_position_interest_rate_betas(
                 # Get position and treasury data
                 y = returns_aligned[position_id].values  # Position returns
                 x = treasury_aligned.values  # Treasury changes
-                
-                # Run OLS regression: Position Return = α + β × Treasury Change + ε
-                x_with_const = sm.add_constant(x)
-                model = sm.OLS(y, x_with_const).fit()
-                
-                # Extract interest rate beta (slope coefficient)
-                ir_beta = model.params[1] if len(model.params) > 1 else 0.0
-                r_squared = model.rsquared
-                
-                # Cap beta to prevent extreme outliers
-                ir_beta = max(-BETA_CAP_LIMIT, min(BETA_CAP_LIMIT, ir_beta))
-                
+
+                # Phase 8 Refactoring: Use canonical run_single_factor_regression()
+                # This replaces ~20 lines of duplicate OLS code and ensures consistent
+                # beta capping, significance testing, and error handling
+                regression_result = run_single_factor_regression(
+                    y=y,
+                    x=x,
+                    cap=BETA_CAP_LIMIT,  # Cap beta at ±5.0
+                    confidence=0.10,      # 90% confidence level (relaxed)
+                    return_diagnostics=True
+                )
+
                 position_ir_betas[position_id] = {
-                    'ir_beta': float(ir_beta),
-                    'r_squared': float(r_squared)
+                    'ir_beta': regression_result['beta'],
+                    'r_squared': regression_result['r_squared']
                 }
                 
                 # Prepare record for database storage
                 record = PositionInterestRateBeta(
+                    portfolio_id=portfolio_id,  # Fix: Added missing portfolio_id
                     position_id=UUID(position_id),
-                    ir_beta=Decimal(str(ir_beta)),
-                    r_squared=Decimal(str(r_squared)),
+                    ir_beta=Decimal(str(regression_result['beta'])),
+                    r_squared=Decimal(str(regression_result['r_squared'])),
                     calculation_date=calculation_date
                 )
                 records_to_store.append(record)
@@ -404,10 +337,10 @@ async def calculate_interest_rate_scenarios(
         for position in positions:
             position_id = str(position.id)
             if position_id in position_ir_betas:
-                multiplier = OPTIONS_MULTIPLIER if _is_options_position(position) else 1
-                value = abs(position.quantity * (position.last_price or position.entry_price) * multiplier)
+                # Use canonical position value function (signed=False for absolute value)
+                value = get_position_value(position, signed=False, recalculate=True)
                 total_value += value
-                
+
                 ir_beta = position_ir_betas[position_id]['ir_beta']
                 weighted_ir_beta += ir_beta * float(value)
         
@@ -466,13 +399,7 @@ async def calculate_interest_rate_scenarios(
 
 
 # Helper functions
-
-def _is_options_position(position: Position) -> bool:
-    """Check if position is an options position"""
-    from app.models.positions import PositionType
-    return position.position_type in [
-        PositionType.LC, PositionType.LP, PositionType.SC, PositionType.SP
-    ]
+# Note: _is_options_position removed - use market_data.is_options_position() instead
 
 
 async def _calculate_mock_interest_rate_betas(
@@ -522,6 +449,7 @@ async def _calculate_mock_interest_rate_betas(
         
         # Store in database
         record = PositionInterestRateBeta(
+            portfolio_id=portfolio_id,  # Fix: Added missing portfolio_id
             position_id=position.id,
             ir_beta=Decimal(str(ir_beta)),
             r_squared=Decimal(str(r_squared)),

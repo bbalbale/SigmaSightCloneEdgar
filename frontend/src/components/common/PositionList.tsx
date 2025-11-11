@@ -12,15 +12,14 @@ export function PositionList<T>({
   renderItem,
   emptyMessage = 'No positions'
 }: PositionListProps<T>) {
-  const { theme } = useTheme()
-
   if (items.length === 0) {
     return (
-      <div className={`text-sm p-3 rounded-lg border ${
-        theme === 'dark'
-          ? 'text-empty-text-dark bg-empty-bg-dark border-empty-border-dark'
-          : 'text-empty-text bg-empty-bg border-empty-border'
-      }`}>
+      <div className="p-3 rounded-lg transition-colors duration-300" style={{
+        fontSize: 'var(--text-sm)',
+        color: 'var(--text-secondary)',
+        backgroundColor: 'var(--bg-secondary)',
+        border: '1px solid var(--border-primary)'
+      }}>
         {emptyMessage}
       </div>
     )

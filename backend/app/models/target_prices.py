@@ -51,6 +51,11 @@ class TargetPrice(Base):
     expected_return_next_year: Mapped[Optional[Decimal]] = mapped_column(Numeric(8, 4), nullable=True)
     downside_return: Mapped[Optional[Decimal]] = mapped_column(Numeric(8, 4), nullable=True)
 
+    # Position-level dollar upside/downside values (calculated from quantity × price difference)
+    target_upside_eoy_value: Mapped[Optional[Decimal]] = mapped_column(Numeric(16, 2), nullable=True)
+    target_upside_next_year_value: Mapped[Optional[Decimal]] = mapped_column(Numeric(16, 2), nullable=True)
+    target_downside_value: Mapped[Optional[Decimal]] = mapped_column(Numeric(16, 2), nullable=True)
+
     # Risk Metrics
     position_weight: Mapped[Optional[Decimal]] = mapped_column(Numeric(8, 4), nullable=True)
     contribution_to_portfolio_return: Mapped[Optional[Decimal]] = mapped_column(Numeric(8, 4), nullable=True)
@@ -94,7 +99,7 @@ class TargetPrice(Base):
         """
         Calculate expected returns based on current price and target prices.
         This is a simple percentage calculation for now.
-        
+
         Args:
             resolved_current_price: Explicit price to use for calculations.
                                   If None, uses self.current_price
@@ -137,6 +142,55 @@ class TargetPrice(Base):
                     self.downside_return = (
                         (self.downside_target_price - current_price) / current_price
                     ) * 100
+
+    def calculate_position_upside_values(self, quantity: Decimal) -> None:
+        """
+        Calculate dollar upside/downside values for this position.
+
+        Args:
+            quantity: Position quantity (shares/contracts)
+
+        Logic:
+            - LONG: upside = quantity × (target - current)
+            - SHORT: upside = quantity × (current - target)
+
+        Example:
+            - LONG: 100 shares @ $50, target $60 → upside = 100 × ($60 - $50) = $1,000
+            - SHORT: 50 shares @ $100, target $80 → upside = 50 × ($100 - $80) = $1,000
+        """
+        if not quantity or quantity == 0:
+            return
+
+        current = self.current_price
+        if not current or current == 0:
+            return
+
+        is_short = self.position_type in ['SHORT', 'SC', 'SP']
+
+        # EOY upside
+        if self.target_price_eoy:
+            if is_short:
+                # Short profits when price goes down
+                self.target_upside_eoy_value = abs(quantity) * (current - self.target_price_eoy)
+            else:
+                # Long profits when price goes up
+                self.target_upside_eoy_value = abs(quantity) * (self.target_price_eoy - current)
+
+        # Next year upside
+        if self.target_price_next_year:
+            if is_short:
+                self.target_upside_next_year_value = abs(quantity) * (current - self.target_price_next_year)
+            else:
+                self.target_upside_next_year_value = abs(quantity) * (self.target_price_next_year - current)
+
+        # Downside value
+        if self.downside_target_price:
+            if is_short:
+                # For shorts, "downside" is price going UP (negative for them)
+                self.target_downside_value = abs(quantity) * (current - self.downside_target_price)
+            else:
+                # For longs, downside is price going DOWN (negative return)
+                self.target_downside_value = abs(quantity) * (self.downside_target_price - current)
 
     def __repr__(self):
         return (

@@ -72,6 +72,18 @@ class ToolRegistry:
             "get_current_quotes": self.tools.get_current_quotes,
             "get_portfolio_data_quality": self.tools.get_portfolio_data_quality,
             "get_factor_etf_prices": self.tools.get_factor_etf_prices,
+            # Phase 1 Analytics Tools (October 31, 2025)
+            "get_analytics_overview": self.tools.get_analytics_overview,
+            "get_factor_exposures": self.tools.get_factor_exposures,
+            "get_sector_exposure": self.tools.get_sector_exposure,
+            "get_correlation_matrix": self.tools.get_correlation_matrix,
+            "get_stress_test_results": self.tools.get_stress_test_results,
+            "get_company_profile": self.tools.get_company_profile,
+            # Phase 5 Enhanced Analytics Tools (December 3, 2025)
+            "get_concentration_metrics": self.tools.get_concentration_metrics,
+            "get_volatility_analysis": self.tools.get_volatility_analysis,
+            "get_target_prices": self.tools.get_target_prices,
+            "get_position_tags": self.tools.get_position_tags,
         }
         
     async def dispatch_tool_call(
@@ -301,6 +313,13 @@ class ToolRegistry:
             "get_current_quotes": authenticated_tools.get_current_quotes,
             "get_portfolio_data_quality": authenticated_tools.get_portfolio_data_quality,
             "get_factor_etf_prices": authenticated_tools.get_factor_etf_prices,
+            # Phase 1 Analytics Tools (October 31, 2025)
+            "get_analytics_overview": authenticated_tools.get_analytics_overview,
+            "get_factor_exposures": authenticated_tools.get_factor_exposures,
+            "get_sector_exposure": authenticated_tools.get_sector_exposure,
+            "get_correlation_matrix": authenticated_tools.get_correlation_matrix,
+            "get_stress_test_results": authenticated_tools.get_stress_test_results,
+            "get_company_profile": authenticated_tools.get_company_profile,
         }
         
         return authenticated_registry.get(tool_name, self.registry[tool_name])

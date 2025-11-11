@@ -19,45 +19,49 @@ export function BasePositionCard({
   secondaryValueColor,
   onClick
 }: BasePositionCardProps) {
-  const { theme } = useTheme()
-
-  // Map semantic color to design token class
-  const getSecondaryValueClass = () => {
-    if (secondaryValueColor === 'neutral') return 'text-card-neutral'
-    if (secondaryValueColor === 'positive') return 'text-card-positive'
-    return 'text-card-negative'
+  // Map semantic color to CSS variable
+  const getSecondaryValueColor = () => {
+    if (secondaryValueColor === 'neutral') return 'var(--text-primary)'
+    if (secondaryValueColor === 'positive') return 'var(--color-success)'
+    return 'var(--color-error)'
   }
 
   return (
     <Card
-      className={`transition-colors ${onClick ? 'cursor-pointer' : ''} ${
-        theme === 'dark'
-          ? 'bg-card-bg-dark border-card-border-dark hover:bg-card-bg-hover-dark'
-          : 'bg-card-bg border-card-border hover:bg-card-bg-hover'
-      }`}
+      className={`transition-all duration-200 ${onClick ? 'cursor-pointer' : ''}`}
+      style={{
+        backgroundColor: 'var(--bg-secondary)',
+        borderColor: 'var(--border-primary)'
+      }}
       onClick={onClick}
     >
       <CardContent className="p-4">
         <div className="flex justify-between items-start">
           <div>
-            <div className={`font-semibold text-sm transition-colors duration-300 ${
-              theme === 'dark' ? 'text-card-text-dark' : 'text-card-text'
-            }`}>
+            <div className="font-semibold transition-colors duration-300" style={{
+              fontSize: 'var(--text-sm)',
+              color: 'var(--text-primary)'
+            }}>
               {primaryText}
             </div>
-            <div className={`text-xs transition-colors duration-300 ${
-              theme === 'dark' ? 'text-card-text-muted-dark' : 'text-card-text-muted'
-            }`}>
+            <div className="transition-colors duration-300" style={{
+              fontSize: 'var(--text-xs)',
+              color: 'var(--text-secondary)'
+            }}>
               {secondaryText}
             </div>
           </div>
           <div className="text-right">
-            <div className={`text-sm font-medium transition-colors duration-300 ${
-              theme === 'dark' ? 'text-card-text-dark' : 'text-card-text'
-            }`}>
+            <div className="font-medium transition-colors duration-300" style={{
+              fontSize: 'var(--text-sm)',
+              color: 'var(--text-primary)'
+            }}>
               {primaryValue}
             </div>
-            <div className={`text-sm font-medium ${getSecondaryValueClass()}`}>
+            <div className="font-medium" style={{
+              fontSize: 'var(--text-sm)',
+              color: getSecondaryValueColor()
+            }}>
               {secondaryValue}
             </div>
           </div>

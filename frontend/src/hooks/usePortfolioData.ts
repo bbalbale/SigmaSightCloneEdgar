@@ -1,12 +1,16 @@
 import { useEffect, useState } from 'react'
 import { loadPortfolioData } from '@/services/portfolioService'
-import { usePortfolioStore } from '@/stores/portfolioStore'
+import { usePortfolioStore, setPortfolioState, clearPortfolioState } from '@/stores/portfolioStore'
 import type { FactorExposure } from '@/types/analytics'
 
 interface ApiErrors {
   overview?: any
   positions?: any
   factorExposures?: any
+}
+
+interface UsePortfolioDataOptions {
+  skipFactorExposures?: boolean
 }
 
 interface UsePortfolioDataReturn {
@@ -23,17 +27,18 @@ interface UsePortfolioDataReturn {
   portfolioName: string
   dataLoaded: boolean
   factorExposures: FactorExposure[] | null
+  factorDataQuality: any
   portfolioId: string | null
+  equityBalance: number
 
   // Actions
   handleRetry: () => void
 }
 
-export function usePortfolioData(): UsePortfolioDataReturn {
+export function usePortfolioData(options: UsePortfolioDataOptions = {}): UsePortfolioDataReturn {
+  const { skipFactorExposures = false } = options
   // Use separate selectors to avoid creating new object references
   const portfolioId = usePortfolioStore(state => state.portfolioId)
-  const setPortfolio = usePortfolioStore(state => state.setPortfolio)
-  const clearPortfolio = usePortfolioStore(state => state.clearPortfolio)
 
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -48,6 +53,8 @@ export function usePortfolioData(): UsePortfolioDataReturn {
   const [portfolioName, setPortfolioName] = useState('Loading...')
   const [dataLoaded, setDataLoaded] = useState(false)
   const [factorExposures, setFactorExposures] = useState<FactorExposure[] | null>(null)
+  const [factorDataQuality, setFactorDataQuality] = useState<any>(null)
+  const [equityBalance, setEquityBalance] = useState<number>(0)
 
   useEffect(() => {
     const abortController = new AbortController()
@@ -59,7 +66,8 @@ export function usePortfolioData(): UsePortfolioDataReturn {
       try {
         const data = await loadPortfolioData(abortController.signal, {
           portfolioId,
-          forceRefresh: retryCount > 0
+          forceRefresh: retryCount > 0,
+          skipFactorExposures
         })
 
         if (!data) {
@@ -70,7 +78,7 @@ export function usePortfolioData(): UsePortfolioDataReturn {
 
         const resolvedId = data.portfolioId
         if (resolvedId) {
-          setPortfolio(resolvedId, data.portfolioInfo?.name)
+          setPortfolioState(resolvedId, data.portfolioInfo?.name)
         }
 
         if (data.errors) {
@@ -93,6 +101,8 @@ export function usePortfolioData(): UsePortfolioDataReturn {
         setOptionsPositions(optionsPos)
         setPrivatePositions(privatePos)
         setFactorExposures(data.factorExposures || null)
+        setFactorDataQuality(data.factorDataQuality || null)
+        setEquityBalance(data.equityBalance || 0)
 
         if (data.portfolioInfo?.name) {
           setPortfolioName(data.portfolioInfo.name)
@@ -118,7 +128,7 @@ export function usePortfolioData(): UsePortfolioDataReturn {
         setOptionsPositions([])
         setPrivatePositions([])
         setPortfolioName('Portfolio Unavailable')
-        clearPortfolio()
+        clearPortfolioState()
       } finally {
         setLoading(false)
       }
@@ -130,7 +140,7 @@ export function usePortfolioData(): UsePortfolioDataReturn {
       abortController.abort()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [portfolioId, retryCount])
+  }, [portfolioId, retryCount, skipFactorExposures])
 
   const handleRetry = () => {
     setRetryCount(prev => prev + 1)
@@ -149,7 +159,9 @@ export function usePortfolioData(): UsePortfolioDataReturn {
     portfolioName,
     dataLoaded,
     factorExposures,
+    factorDataQuality,
     portfolioId,
+    equityBalance,
     handleRetry
   }
 }

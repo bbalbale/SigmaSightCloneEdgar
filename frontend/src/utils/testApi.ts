@@ -28,7 +28,7 @@ export async function testApiConnectivity(): Promise<{
       test: 'Portfolio List',
       success: true,
       data: `Found ${portfolios.length} portfolios`,
-      details: portfolios.map(p => `${p.name} (${p.id})`),
+      details: portfolios.map(p => `${p.account_name} (${p.id})`),
     });
     console.log(`✅ Portfolio list: ${portfolios.length} portfolios found`);
   } catch (error) {
@@ -56,7 +56,10 @@ export async function testApiConnectivity(): Promise<{
       success: true,
       data: {
         name: portfolio.portfolio_info?.name || 'Unknown',
-        totalValue: portfolio.calculation_engines?.portfolio_snapshot?.data?.total_value || 'N/A',
+        totalValue:
+          portfolio.calculation_engines?.portfolio_snapshot?.data?.net_asset_value ??
+          portfolio.calculation_engines?.portfolio_snapshot?.data?.total_value ??
+          'N/A',
         positionCount: portfolio.portfolio_info?.position_count || 0,
         enginesAvailable: Object.keys(portfolio.calculation_engines || {}).length,
         validation: validation,

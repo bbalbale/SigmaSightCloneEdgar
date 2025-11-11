@@ -2,15 +2,17 @@
 Market Data Calculation Functions - Section 1.4.1
 Implements core position valuation and P&L calculations with database integration
 """
+from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from decimal import Decimal
 from typing import Dict, List, Optional, Any, Tuple
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, and_, func
-import pandas as pd
 
-from app.models.positions import Position, PositionType
+import pandas as pd
+from sqlalchemy import select, and_, func
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.models.market_data import MarketDataCache
+from app.models.positions import Position, PositionType
 from app.services.market_data_service import market_data_service
 from app.core.logging import get_logger
 
@@ -27,12 +29,25 @@ def is_options_position(position: Position) -> bool:
     Returns:
         True if position is options (LC, LP, SC, SP), False if stock (LONG, SHORT)
     """
-    return position.position_type in [
-        PositionType.LC,  # Long Call
-        PositionType.LP,  # Long Put
-        PositionType.SC,  # Short Call
-        PositionType.SP   # Short Put
-    ]
+    investment_class = getattr(position, "investment_class", None)
+    if investment_class:
+        normalized_class = str(investment_class).upper()
+        if normalized_class == "PRIVATE":
+            return False
+        if normalized_class == "OPTIONS":
+            return position.position_type in {
+                PositionType.LC,
+                PositionType.LP,
+                PositionType.SC,
+                PositionType.SP,
+            }
+
+    return position.position_type in {
+        PositionType.LC,
+        PositionType.LP,
+        PositionType.SC,
+        PositionType.SP,
+    }
 
 
 async def calculate_position_market_value(
@@ -87,12 +102,231 @@ async def calculate_position_market_value(
     return result
 
 
+@dataclass(frozen=True)
+class PositionValuation:
+    """
+    Container for per-position valuation metrics used across services.
+    """
+    price: Optional[Decimal]
+    multiplier: Decimal
+    market_value: Decimal
+    abs_market_value: Decimal
+    cost_basis: Decimal
+    unrealized_pnl: Decimal
+
+
+def get_position_valuation(
+    position: Position,
+    *,
+    price: Optional[Decimal] = None
+) -> PositionValuation:
+    """
+    Calculate canonical valuation metrics for a position.
+
+    Args:
+        position: Position instance.
+        price: Optional override price to use instead of last_price / entry_price.
+
+    Returns:
+        PositionValuation dataclass with signed and absolute market value,
+        cost basis, unrealized P&L, and the price used.
+    """
+    quantity = position.quantity or Decimal("0")
+    multiplier = Decimal("100") if is_options_position(position) else Decimal("1")
+
+    resolved_price: Optional[Decimal]
+    if price is not None:
+        resolved_price = price
+    elif position.last_price is not None:
+        resolved_price = position.last_price
+    else:
+        resolved_price = position.entry_price
+
+    if resolved_price is None:
+        market_value = Decimal("0")
+    else:
+        market_value = quantity * resolved_price * multiplier
+
+    cost_basis = Decimal("0")
+    unrealized_pnl = Decimal("0")
+    if position.entry_price is not None:
+        cost_basis = quantity * position.entry_price * multiplier
+        if resolved_price is not None:
+            unrealized_pnl = market_value - cost_basis
+
+    return PositionValuation(
+        price=resolved_price,
+        multiplier=multiplier,
+        market_value=market_value,
+        abs_market_value=abs(market_value),
+        cost_basis=cost_basis,
+        unrealized_pnl=unrealized_pnl,
+    )
+
+
+def get_position_value(
+    position: Position,
+    signed: bool = True,
+    recalculate: bool = False
+) -> Decimal:
+    """
+    Canonical position market value retrieval - SINGLE SOURCE OF TRUTH
+
+    This is the AUTHORITATIVE function for position valuation used throughout
+    the codebase. All other modules should call this instead of implementing
+    their own valuation logic.
+
+    Replaces:
+    - factor_utils.get_position_market_value() (returns absolute)
+    - factor_utils.get_position_signed_exposure() (returns signed)
+    - Inline calculations in stress_testing, market_risk, etc.
+
+    Args:
+        position: Position object
+        signed: If True, negative for shorts; if False, absolute value
+        recalculate: Force recalculation vs using cached position.market_value
+
+    Returns:
+        Signed or absolute market value as Decimal
+
+    Examples:
+        >>> # Long stock position
+        >>> pos = Position(quantity=100, last_price=Decimal('50.00'),
+        ...                position_type=PositionType.LONG, market_value=Decimal('5000.00'))
+        >>> get_position_value(pos, signed=True)  # Decimal('5000.00')
+        >>> get_position_value(pos, signed=False)  # Decimal('5000.00')
+
+        >>> # Short stock position
+        >>> pos = Position(quantity=Decimal('-100'), last_price=Decimal('50.00'),
+        ...                position_type=PositionType.SHORT, market_value=Decimal('-5000.00'))
+        >>> get_position_value(pos, signed=True)  # Decimal('-5000.00')
+        >>> get_position_value(pos, signed=False)  # Decimal('5000.00') - absolute
+
+        >>> # Long call option (100x multiplier)
+        >>> pos = Position(quantity=Decimal('10'), last_price=Decimal('5.00'),
+        ...                position_type=PositionType.LC, market_value=Decimal('5000.00'))
+        >>> get_position_value(pos, signed=True)  # Decimal('5000.00') - 10 × 5 × 100
+
+    Note:
+        - Uses cached position.market_value if available and recalculate=False
+        - Automatically applies 100x multiplier for options (LC, LP, SC, SP)
+        - Quantity sign determines position direction (negative for shorts)
+        - This function is synchronous for performance (no async overhead)
+    """
+    # Use cached value if available and not forcing recalculation
+    if not recalculate and position.market_value is not None:
+        value = position.market_value
+        return value if signed else abs(value)
+
+    valuation = get_position_valuation(position)
+    return valuation.market_value if signed else valuation.abs_market_value
+
+
+async def get_returns(
+    db: AsyncSession,
+    symbols: List[str],
+    start_date: date,
+    end_date: date,
+    align_dates: bool = True,
+    price_cache=None
+) -> pd.DataFrame:
+    """
+    Fetch aligned returns DataFrame for multiple symbols - CANONICAL RETURN FETCHER
+
+    This is the AUTHORITATIVE function for return retrieval used by all regression
+    modules. Replaces duplicate implementations in market_beta, interest_rate_beta,
+    factors, etc.
+
+    Replaces:
+    - market_beta.fetch_returns_for_beta() (fetch + pct_change inline)
+    - interest_rate_beta.fetch_tlt_returns() (fetch + pct_change inline)
+    - factors.fetch_factor_returns() (fetch + pct_change inline)
+
+    Args:
+        db: Database session
+        symbols: List of symbols to fetch (e.g., ['SPY', 'AAPL', 'GOOGL'])
+        start_date: Start date for returns
+        end_date: End date for returns
+        align_dates: If True, drop dates where ANY symbol is missing (ensures aligned data)
+        price_cache: Optional PriceCache instance for optimized lookups (300x speedup)
+
+    Returns:
+        DataFrame with dates as index, symbols as columns, containing daily returns
+
+    Examples:
+        >>> # Fetch SPY and AAPL returns for regression
+        >>> df = await get_returns(db, ['SPY', 'AAPL'], start_date, end_date)
+        >>> spy_returns = df['SPY']  # Series of SPY daily returns
+        >>> aapl_returns = df['AAPL']  # Series of AAPL daily returns
+        >>>
+        >>> # For beta calculation (must be aligned)
+        >>> df = await get_returns(db, ['NVDA', 'SPY'], start_date, end_date, align_dates=True)
+        >>> # df has no NaN values - all dates have both NVDA and SPY
+        >>>
+        >>> # For exploratory analysis (allow missing data)
+        >>> df = await get_returns(db, ['AAPL', 'OBSCURE'], start_date, end_date, align_dates=False)
+        >>> # df may have NaN for OBSCURE on some dates
+
+    Performance:
+        - With cache: O(1) lookups, 300x speedup
+        - Without cache: Single database query per call
+        - Efficient pandas vectorized pct_change()
+        - Date alignment done in-memory (fast)
+
+    Note:
+        - Returns are calculated as: (price_today - price_yesterday) / price_yesterday
+        - align_dates=True is REQUIRED for regressions (no NaN allowed)
+        - align_dates=False useful for exploratory analysis
+    """
+    logger.info(f"Fetching returns for {len(symbols)} symbols from {start_date} to {end_date}")
+
+    # Fetch historical prices using existing canonical function (with optional cache)
+    price_df = await fetch_historical_prices(
+        db=db,
+        symbols=symbols,
+        start_date=start_date,
+        end_date=end_date,
+        price_cache=price_cache  # Pass through cache for optimization
+    )
+
+    if price_df.empty:
+        logger.warning("No price data available for return calculations")
+        return pd.DataFrame()
+
+    # Optionally align dates (drop rows with ANY missing values)
+    if align_dates:
+        rows_before = len(price_df)
+        price_df = price_df.dropna()
+        rows_after = len(price_df)
+
+        if rows_after < rows_before:
+            logger.info(
+                f"Date alignment: dropped {rows_before - rows_after} rows with missing data "
+                f"({rows_after} aligned dates remain)"
+            )
+
+        if price_df.empty:
+            logger.warning("No overlapping dates found across all symbols after alignment")
+            return pd.DataFrame()
+
+    # Calculate daily returns
+    # Using fill_method=None to avoid FutureWarning (Pandas 2.1+)
+    returns_df = price_df.pct_change(fill_method=None).dropna()
+
+    logger.info(
+        f"Calculated returns for {len(symbols)} symbols over {len(returns_df)} days "
+        f"(aligned={align_dates})"
+    )
+
+    return returns_df
+
+
 async def get_previous_trading_day_price(
     db: AsyncSession, 
     symbol: str,
     current_date: Optional[date] = None,
-    lookback_days: int = 1
-) -> Optional[Decimal]:
+    max_lookback_days: int = 5
+) -> Optional[Tuple[Decimal, date]]:
     """
     Get the most recent price before current_date from market_data_cache
     
@@ -100,34 +334,43 @@ async def get_previous_trading_day_price(
         db: Database session
         symbol: Symbol to lookup
         current_date: Date to look before (defaults to today)
-        lookback_days: Number of days to look back (default 1 for previous trading day)
-        
+        max_lookback_days: Maximum number of calendar days to look back when the
+            immediate prior trading day price is missing. Defaults to 5.
+
     Returns:
-        Previous trading day closing price, or None if not found
+        Tuple of (price, price_date) if found within the lookback window, else None.
     """
     if not current_date:
         current_date = date.today()
-    
+
     # Calculate the earliest date to search for
-    earliest_date = current_date - timedelta(days=lookback_days)
-    
-    logger.debug(f"Looking up price for {symbol} between {earliest_date} and {current_date}")
-    
-    stmt = select(MarketDataCache.close).where(
+    max_lookback_days = max(1, max_lookback_days)
+    earliest_date = current_date - timedelta(days=max_lookback_days)
+
+    logger.debug(
+        f"Looking up price for {symbol} between {earliest_date} (inclusive) and {current_date} (exclusive)"
+    )
+
+    stmt = select(MarketDataCache).where(
         MarketDataCache.symbol == symbol.upper(),
         MarketDataCache.date < current_date,
         MarketDataCache.date >= earliest_date
     ).order_by(MarketDataCache.date.desc()).limit(1)
-    
+
     result = await db.execute(stmt)
     price_record = result.scalar_one_or_none()
-    
+
     if price_record:
-        logger.debug(f"Found price for {symbol}: ${price_record}")
-        return price_record
-    else:
-        logger.warning(f"No price found for {symbol} in {lookback_days} day lookback window")
-        return None
+        if price_record.date < current_date - timedelta(days=1):
+            logger.debug(
+                f"Using fallback prior close for {symbol}: {price_record.date} (target {current_date})"
+            )
+        return price_record.close, price_record.date
+
+    logger.warning(
+        f"No prior close found for {symbol} within {max_lookback_days} day lookback window (target {current_date})"
+    )
+    return None
 
 
 async def calculate_daily_pnl(
@@ -156,8 +399,19 @@ async def calculate_daily_pnl(
     logger.debug(f"Calculating daily P&L for {position.symbol} at current price ${current_price}")
     
     # Step 1: Try to get previous price from market_data_cache
-    previous_price = await get_previous_trading_day_price(db, position.symbol)
-    
+    price_lookup = await get_previous_trading_day_price(
+        db,
+        position.symbol,
+        current_date=date.today(),
+        max_lookback_days=10,
+    )
+
+    previous_price: Optional[Decimal] = None
+    previous_price_date: Optional[date] = None
+
+    if price_lookup is not None:
+        previous_price, previous_price_date = price_lookup
+
     # Step 2: Fallback to position.last_price if market data not available
     if previous_price is None:
         previous_price = position.last_price
@@ -187,8 +441,12 @@ async def calculate_daily_pnl(
     # Daily P&L calculation
     daily_pnl = current_value - previous_value
     
-    # Daily return (percentage change in price)
-    daily_return = (current_price - previous_price) / previous_price if previous_price > 0 else Decimal('0')
+    # Daily return aligned with P&L direction (use absolute previous value)
+    daily_return = (
+        daily_pnl / abs(previous_value)
+        if previous_value not in (None, Decimal('0')) and abs(previous_value) > 0
+        else Decimal('0')
+    )
     
     # Price change
     price_change = current_price - previous_price
@@ -199,7 +457,8 @@ async def calculate_daily_pnl(
         "price_change": price_change,
         "previous_price": previous_price,
         "previous_value": previous_value,
-        "current_value": current_value
+        "current_value": current_value,
+        "previous_price_date": previous_price_date,
     }
     
     logger.debug(f"Daily P&L calculation result for {position.symbol}: {result}")
@@ -404,7 +663,8 @@ async def fetch_historical_prices(
     db: AsyncSession,
     symbols: List[str],
     start_date: date,
-    end_date: date
+    end_date: date,
+    price_cache=None
 ) -> pd.DataFrame:
     """
     Fetch historical prices for multiple symbols over a date range
@@ -415,6 +675,7 @@ async def fetch_historical_prices(
         symbols: List of symbols to fetch
         start_date: Start date for historical data
         end_date: End date for historical data
+        price_cache: Optional PriceCache instance for optimized lookups (300x speedup)
 
     Returns:
         DataFrame with dates as index and symbols as columns, containing closing prices
@@ -422,13 +683,78 @@ async def fetch_historical_prices(
     Note:
         This function is designed for factor calculations requiring long lookback periods
         It ensures data availability and handles missing data gracefully
+
+    Performance:
+        - With cache: 1 bulk query upfront, O(1) lookups (300x speedup)
+        - Without cache: 1 query per call (slower but still works)
     """
     logger.info(f"Fetching historical prices for {len(symbols)} symbols from {start_date} to {end_date}")
-    
+
     if not symbols:
         logger.warning("Empty symbols list provided")
         return pd.DataFrame()
-    
+
+    # OPTIMIZATION: Use price cache if provided (cache-first approach)
+    if price_cache:
+        logger.info(f"CACHE: Using price cache for {len(symbols)} symbols")
+
+        # Generate all dates in range (we'll check cache for each)
+        from datetime import timedelta
+        current_date = start_date
+        date_list = []
+        while current_date <= end_date:
+            date_list.append(current_date)
+            current_date += timedelta(days=1)
+
+        # Try to fetch all prices from cache
+        data = []
+        cache_hits = 0
+        cache_misses = 0
+
+        for symbol in symbols:
+            for check_date in date_list:
+                price = price_cache.get_price(symbol, check_date)
+                if price is not None:
+                    data.append({
+                        'symbol': symbol,
+                        'date': check_date,
+                        'close': float(price)  # Convert Decimal to float for pandas
+                    })
+                    cache_hits += 1
+                else:
+                    cache_misses += 1
+
+        # Log cache performance
+        total = cache_hits + cache_misses
+        hit_rate = (cache_hits / total * 100) if total > 0 else 0
+        logger.info(f"CACHE STATS: {cache_hits} hits, {cache_misses} misses (hit rate: {hit_rate:.1f}%)")
+
+        if not data:
+            logger.warning(f"No cached data found for symbols {symbols} between {start_date} and {end_date}")
+            return pd.DataFrame()
+
+        # Convert to DataFrame
+        df = pd.DataFrame(data)
+
+        # Pivot to have dates as index and symbols as columns
+        price_df = df.pivot(index='date', columns='symbol', values='close')
+
+        # Convert index to DatetimeIndex for compatibility
+        price_df.index = pd.to_datetime(price_df.index)
+
+        # Log data availability
+        logger.info(f"Retrieved {len(price_df)} days of data for {len(price_df.columns)} symbols from cache")
+
+        # Check for missing data
+        missing_data = price_df.isnull().sum()
+        if missing_data.any():
+            logger.warning(f"Missing data points: {missing_data[missing_data > 0].to_dict()}")
+
+        return price_df
+
+    # FALLBACK: Query database directly (slower but still works)
+    logger.debug("No cache provided, querying database directly")
+
     # Query historical prices from market_data_cache
     stmt = select(
         MarketDataCache.symbol,
@@ -441,14 +767,14 @@ async def fetch_historical_prices(
             MarketDataCache.date <= end_date
         )
     ).order_by(MarketDataCache.date, MarketDataCache.symbol)
-    
+
     result = await db.execute(stmt)
     records = result.all()
-    
+
     if not records:
         logger.warning(f"No historical data found for symbols {symbols} between {start_date} and {end_date}")
         return pd.DataFrame()
-    
+
     # Convert to DataFrame
     data = []
     for record in records:
@@ -457,23 +783,23 @@ async def fetch_historical_prices(
             'date': record.date,
             'close': float(record.close)  # Convert Decimal to float for pandas
         })
-    
+
     df = pd.DataFrame(data)
-    
+
     # Pivot to have dates as index and symbols as columns
     price_df = df.pivot(index='date', columns='symbol', values='close')
-    
+
     # Convert index to DatetimeIndex for compatibility with other time series data (e.g., FRED Treasury data)
     price_df.index = pd.to_datetime(price_df.index)
-    
+
     # Log data availability
     logger.info(f"Retrieved {len(price_df)} days of data for {len(price_df.columns)} symbols")
-    
+
     # Check for missing data
     missing_data = price_df.isnull().sum()
     if missing_data.any():
         logger.warning(f"Missing data points: {missing_data[missing_data > 0].to_dict()}")
-    
+
     return price_df
 
 

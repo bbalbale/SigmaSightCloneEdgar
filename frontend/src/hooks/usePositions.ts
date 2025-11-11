@@ -7,6 +7,7 @@ import { usePortfolioStore } from '@/stores/portfolioStore'
 export interface Position {
   id: string
   symbol: string
+  company_name?: string
   quantity: number
   position_type: string
   investment_class?: string  // PUBLIC, OPTION, PRIVATE
