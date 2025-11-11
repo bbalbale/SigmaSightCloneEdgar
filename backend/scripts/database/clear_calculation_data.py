@@ -190,6 +190,60 @@ async def _reset_equity_balances(db, dry_run: bool) -> int:
     return reset_count
 
 
+async def _remove_soft_deleted_positions(db, dry_run: bool) -> int:
+    """
+    Permanently delete soft-deleted positions (positions with deleted_at IS NOT NULL).
+
+    These positions are already marked as deleted but still exist in the database.
+    This function removes them completely to prevent them from appearing in queries
+    that don't filter by deleted_at.
+    """
+    print("Removing soft-deleted positions...")
+
+    # Find all soft-deleted positions
+    soft_deleted_positions = (
+        await db.execute(
+            select(Position).where(
+                Position.deleted_at.is_not(None)
+            )
+        )
+    ).scalars().all()
+
+    if not soft_deleted_positions:
+        print("  - No soft-deleted positions found.")
+        return 0
+
+    # Group by portfolio and symbol for reporting
+    from collections import defaultdict
+    soft_deleted_by_portfolio = defaultdict(lambda: defaultdict(list))
+
+    for pos in soft_deleted_positions:
+        soft_deleted_by_portfolio[pos.portfolio_id][pos.symbol].append(pos)
+
+    total_count = len(soft_deleted_positions)
+    print(f"  - Found {total_count} soft-deleted positions to permanently remove:")
+
+    # Print details of what will be deleted
+    for portfolio_id, symbols in soft_deleted_by_portfolio.items():
+        portfolio = (await db.execute(
+            select(Portfolio).where(Portfolio.id == portfolio_id)
+        )).scalar_one_or_none()
+
+        if portfolio:
+            print(f"    Portfolio: {portfolio.name}")
+            for symbol, positions in symbols.items():
+                deleted_dates = [str(p.deleted_at)[:10] for p in positions]
+                print(f"      - {symbol}: {len(positions)} soft-deleted (deleted on: {', '.join(set(deleted_dates))})")
+
+    if not dry_run:
+        # Permanently delete the soft-deleted positions
+        for pos in soft_deleted_positions:
+            await db.delete(pos)
+        print(f"  - PERMANENTLY DELETED {total_count} soft-deleted positions.")
+
+    return total_count
+
+
 async def _remove_duplicate_positions(db, dry_run: bool) -> int:
     """
     Remove duplicate positions created after the seed date (June 30, 2025).
@@ -342,6 +396,11 @@ async def clear_data(start_date: date, dry_run: bool, confirm: bool):
             )
 
         total_deleted_count += await _clear_correlation_tables(db, start_date, dry_run)
+
+        # Remove soft-deleted positions (permanently delete them)
+        print("\n" + "-" * 50)
+        soft_deleted_count = await _remove_soft_deleted_positions(db, dry_run)
+        total_deleted_count += soft_deleted_count
 
         # Remove duplicate positions created after seed
         print("\n" + "-" * 50)
