@@ -109,7 +109,7 @@ const normalizeNumber = (value: unknown): number | null => {
   return null
 }
 
-const calculateWeightedReturnByMarketValue = (
+const calculateWeightedReturnByPercentOfEquity = (
   positions: EnhancedPosition[],
   returnField: 'target_return_eoy' | 'target_return_next_year',
   fallbackField?: 'analyst_return_eoy' | 'analyst_return_next_year'
@@ -118,8 +118,7 @@ const calculateWeightedReturnByMarketValue = (
   let totalWeight = 0
 
   positions.forEach(position => {
-    const marketValue = normalizeNumber(position.current_market_value ?? position.market_value) ?? 0
-    const weight = Math.abs(marketValue)
+    const weight = position.percent_of_equity || 0
     if (weight === 0) {
       return
     }
@@ -250,7 +249,7 @@ export function useCommandCenterData(refreshTrigger?: number): UseCommandCenterD
     holdingsData.sort((a, b) => Math.abs(b.weight) - Math.abs(a.weight))
 
     const summaryTargetReturn = normalizeNumber(targetSummary?.weighted_expected_return_eoy)
-    const computedTargetReturn = calculateWeightedReturnByMarketValue(
+    const computedTargetReturn = calculateWeightedReturnByPercentOfEquity(
       enhancedPositions,
       'target_return_eoy',
       'analyst_return_eoy'

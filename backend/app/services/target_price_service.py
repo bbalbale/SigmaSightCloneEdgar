@@ -714,10 +714,12 @@ class TargetPriceService:
                 total_weight += weight
 
         # Normalize by actual weight (in case not all positions have targets)
+        # Note: expected_return_eoy is already stored as percentage (e.g., 5.0 for 5%)
+        # so we don't multiply by 100 here
         if total_weight > 0:
-            weighted_eoy = weighted_eoy / total_weight * 100
-            weighted_next_year = weighted_next_year / total_weight * 100
-            weighted_downside = weighted_downside / total_weight * 100
+            weighted_eoy = weighted_eoy / total_weight
+            weighted_next_year = weighted_next_year / total_weight
+            weighted_downside = weighted_downside / total_weight
 
         # Calculate risk-adjusted metrics
         # Simple approximations for now
