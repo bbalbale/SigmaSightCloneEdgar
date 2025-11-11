@@ -18,7 +18,9 @@
       "mcp__playwright__browser_snapshot",
       "Bash(git commit:*)",
       "Bash(timeout 60 uv run:*)",
-      "mcp__playwright__browser_console_messages"
+      "mcp__playwright__browser_console_messages",
+      "Bash(backend/scripts/database/corrected_seed_data.txt)",
+      "Bash(scripts/database/corrected_seed_data.txt)"
     ],
     "deny": [],
     "ask": [],
