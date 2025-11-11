@@ -1,0 +1,167 @@
+====================================================================================================
+CORRECTED SEED DATA - June 30, 2025 Actual Market Prices
+====================================================================================================
+
+Copy-paste these position arrays into backend/app/db/seed_demo_portfolios.py
+to replace the existing hardcoded entry_price values.
+
+
+====================================================================================================
+Portfolio: Demo Individual Investor Portfolio
+User: demo_individual@sigmasight.com
+Positions: 16
+====================================================================================================
+
+"positions": [
+    {"symbol": "AAPL", "quantity": Decimal("80.9000"), "entry_price": Decimal("204.9374"), "entry_date": date(2025, 06, 30), "tags": []},
+    {"symbol": "AMZN", "quantity": Decimal("102.8800"), "entry_price": Decimal("219.3900"), "entry_date": date(2025, 06, 30), "tags": []},
+    {"symbol": "BND", "quantity": Decimal("298.6600"), "entry_price": Decimal("72.4414"), "entry_date": date(2025, 06, 30), "tags": []},
+    {"symbol": "FCNTX", "quantity": Decimal("4597.7900"), "entry_price": Decimal("23.3300"), "entry_date": date(2025, 06, 30), "tags": []},
+    {"symbol": "FMAGX", "quantity": Decimal("3677.8300"), "entry_price": Decimal("15.6700"), "entry_date": date(2025, 06, 30), "tags": []},
+    {"symbol": "FXNAX", "quantity": Decimal("4137.3100"), "entry_price": Decimal("10.3446"), "entry_date": date(2025, 06, 30), "tags": []},
+    {"symbol": "GOOGL", "quantity": Decimal("108.8700"), "entry_price": Decimal("176.0725"), "entry_date": date(2025, 06, 30), "tags": []},
+    {"symbol": "JNJ", "quantity": Decimal("99.8800"), "entry_price": Decimal("151.6370"), "entry_date": date(2025, 06, 30), "tags": []},
+    {"symbol": "JPM", "quantity": Decimal("80.9000"), "entry_price": Decimal("287.1241"), "entry_date": date(2025, 06, 30), "tags": []},
+    {"symbol": "MSFT", "quantity": Decimal("42.9500"), "entry_price": Decimal("496.5937"), "entry_date": date(2025, 06, 30), "tags": []},
+    {"symbol": "NVDA", "quantity": Decimal("23.9700"), "entry_price": Decimal("157.9811"), "entry_date": date(2025, 06, 30), "tags": []},
+    {"symbol": "TSLA", "quantity": Decimal("65.9200"), "entry_price": Decimal("317.6600"), "entry_date": date(2025, 06, 30), "tags": []},
+    {"symbol": "V", "quantity": Decimal("46.9400"), "entry_price": Decimal("354.4264"), "entry_date": date(2025, 06, 30), "tags": []},
+    {"symbol": "VNQ", "quantity": Decimal("201.7700"), "entry_price": Decimal("88.2174"), "entry_date": date(2025, 06, 30), "tags": []},
+    {"symbol": "VTI", "quantity": Decimal("146.8300"), "entry_price": Decimal("303.0875"), "entry_date": date(2025, 06, 30), "tags": []},
+    {"symbol": "VTIAX", "quantity": Decimal("919.9500"), "entry_price": Decimal("36.9219"), "entry_date": date(2025, 06, 30), "tags": []},
+]
+
+
+====================================================================================================
+Portfolio: Demo High Net Worth Investor Portfolio
+User: demo_hnw@sigmasight.com
+Positions: 39
+====================================================================================================
+
+"positions": [
+    {"symbol": "A16Z_VC_FUND", "quantity": Decimal("1.0100"), "entry_price": Decimal("126529.9000"), "entry_date": date(2025, 06, 30), "tags": []},
+    {"symbol": "AAPL", "quantity": Decimal("307.6500"), "entry_price": Decimal("204.9374"), "entry_date": date(2025, 06, 30), "tags": []},
+    {"symbol": "AMZN", "quantity": Decimal("369.8000"), "entry_price": Decimal("219.3900"), "entry_date": date(2025, 06, 30), "tags": []},
+    {"symbol": "ART_COLLECTIBLES", "quantity": Decimal("1.0100"), "entry_price": Decimal("25305.9800"), "entry_date": date(2025, 06, 30), "tags": []},
+    {"symbol": "BRK-B", "quantity": Decimal("138.5400"), "entry_price": Decimal("485.7700"), "entry_date": date(2025, 06, 30), "tags": []},
+    {"symbol": "BX_PRIVATE_EQUITY", "quantity": Decimal("1.0100"), "entry_price": Decimal("253058.8600"), "entry_date": date(2025, 06, 30), "tags": []},
+    {"symbol": "CRYPTO_BTC_ETH", "quantity": Decimal("1.0100"), "entry_price": Decimal("37958.9700"), "entry_date": date(2025, 06, 30), "tags": []},
+    {"symbol": "DJP", "quantity": Decimal("1462.9100"), "entry_price": Decimal("33.9800"), "entry_date": date(2025, 06, 30), "tags": []},
+    {"symbol": "GLD", "quantity": Decimal("250.6000"), "entry_price": Decimal("304.8300"), "entry_date": date(2025, 06, 30), "tags": []},
+    {"symbol": "GOOGL", "quantity": Decimal("38.7100"), "entry_price": Decimal("176.0725"), "entry_date": date(2025, 06, 30), "tags": []},
+    {"symbol": "GOOGL", "quantity": Decimal("385.0800"), "entry_price": Decimal("176.0725"), "entry_date": date(2025, 06, 30), "tags": []},
+    {"symbol": "GOOGL", "quantity": Decimal("38.7100"), "entry_price": Decimal("176.0725"), "entry_date": date(2025, 06, 30), "tags": []},
+    {"symbol": "GOOGL", "quantity": Decimal("38.7100"), "entry_price": Decimal("176.0725"), "entry_date": date(2025, 06, 30), "tags": []},
+    {"symbol": "HD", "quantity": Decimal("96.7700"), "entry_price": Decimal("364.5717"), "entry_date": date(2025, 06, 30), "tags": []},
+    {"symbol": "HOME_EQUITY", "quantity": Decimal("1.0300"), "entry_price": Decimal("253059.8000"), "entry_date": date(2025, 06, 30), "tags": []},
+    {"symbol": "JNJ", "quantity": Decimal("238.3700"), "entry_price": Decimal("151.6370"), "entry_date": date(2025, 06, 30), "tags": []},
+    {"symbol": "JPM", "quantity": Decimal("269.9500"), "entry_price": Decimal("287.1241"), "entry_date": date(2025, 06, 30), "tags": []},
+    {"symbol": "META", "quantity": Decimal("69.2600"), "entry_price": Decimal("737.5922"), "entry_date": date(2025, 06, 30), "tags": []},
+    {"symbol": "MONEY_MARKET", "quantity": Decimal("1.0100"), "entry_price": Decimal("50611.9600"), "entry_date": date(2025, 06, 30), "tags": []},
+    {"symbol": "MSFT", "quantity": Decimal("77.4200"), "entry_price": Decimal("496.5937"), "entry_date": date(2025, 06, 30), "tags": []},
+    {"symbol": "MSFT", "quantity": Decimal("77.4200"), "entry_price": Decimal("496.5937"), "entry_date": date(2025, 06, 30), "tags": []},
+    {"symbol": "MSFT", "quantity": Decimal("77.4200"), "entry_price": Decimal("496.5937"), "entry_date": date(2025, 06, 30), "tags": []},
+    {"symbol": "MSFT", "quantity": Decimal("153.8200"), "entry_price": Decimal("496.5937"), "entry_date": date(2025, 06, 30), "tags": []},
+    {"symbol": "NVDA", "quantity": Decimal("19.3500"), "entry_price": Decimal("157.9811"), "entry_date": date(2025, 06, 30), "tags": []},
+    {"symbol": "NVDA", "quantity": Decimal("53.9800"), "entry_price": Decimal("157.9811"), "entry_date": date(2025, 06, 30), "tags": []},
+    {"symbol": "PG", "quantity": Decimal("192.5300"), "entry_price": Decimal("157.1390"), "entry_date": date(2025, 06, 30), "tags": []},
+    {"symbol": "QQQ", "quantity": Decimal("346.3600"), "entry_price": Decimal("551.0012"), "entry_date": date(2025, 06, 30), "tags": []},
+    {"symbol": "RENTAL_CONDO", "quantity": Decimal("1.0100"), "entry_price": Decimal("126529.9000"), "entry_date": date(2025, 06, 30), "tags": []},
+    {"symbol": "RENTAL_SFH", "quantity": Decimal("1.0100"), "entry_price": Decimal("126529.9000"), "entry_date": date(2025, 06, 30), "tags": []},
+    {"symbol": "SPY", "quantity": Decimal("307.6500"), "entry_price": Decimal("616.1418"), "entry_date": date(2025, 06, 30), "tags": []},
+    {"symbol": "STARWOOD_REIT", "quantity": Decimal("1.0100"), "entry_price": Decimal("126529.9000"), "entry_date": date(2025, 06, 30), "tags": []},
+    {"symbol": "TREASURY_BILLS", "quantity": Decimal("1.0100"), "entry_price": Decimal("25305.9800"), "entry_date": date(2025, 06, 30), "tags": []},
+    {"symbol": "TSLA", "quantity": Decimal("58.0600"), "entry_price": Decimal("317.6600"), "entry_date": date(2025, 06, 30), "tags": []},
+    {"symbol": "TSLA", "quantity": Decimal("58.0600"), "entry_price": Decimal("317.6600"), "entry_date": date(2025, 06, 30), "tags": []},
+    {"symbol": "TSLA", "quantity": Decimal("58.0600"), "entry_price": Decimal("317.6600"), "entry_date": date(2025, 06, 30), "tags": []},
+    {"symbol": "TWO_SIGMA_FUND", "quantity": Decimal("1.0100"), "entry_price": Decimal("126529.9000"), "entry_date": date(2025, 06, 30), "tags": []},
+    {"symbol": "UNH", "quantity": Decimal("65.1900"), "entry_price": Decimal("310.0142"), "entry_date": date(2025, 06, 30), "tags": []},
+    {"symbol": "V", "quantity": Decimal("131.4100"), "entry_price": Decimal("354.4264"), "entry_date": date(2025, 06, 30), "tags": []},
+    {"symbol": "VTI", "quantity": Decimal("616.3300"), "entry_price": Decimal("303.0875"), "entry_date": date(2025, 06, 30), "tags": []},
+]
+
+
+====================================================================================================
+Portfolio: Demo Hedge Fund Style Investor Portfolio
+User: demo_hedgefundstyle@sigmasight.com
+Positions: 30
+====================================================================================================
+
+"positions": [
+    {"symbol": "AAPL", "quantity": Decimal("1332.5100"), "entry_price": Decimal("204.9374"), "entry_date": date(2025, 06, 30), "tags": []},
+    {"symbol": "AAPL250815P00200000", "quantity": Decimal("-188.3900"), "entry_price": Decimal("0.0000"), "entry_date": date(2025, 06, 30), "tags": [], "underlying": "AAPL", "strike": Decimal("200.0000"), "expiry": date(2025, 08, 15), "option_type": "P"},
+    {"symbol": "AMD", "quantity": Decimal("1066.0100"), "entry_price": Decimal("141.9000"), "entry_date": date(2025, 06, 30), "tags": []},
+    {"symbol": "AMZN", "quantity": Decimal("1243.6700"), "entry_price": Decimal("219.3900"), "entry_date": date(2025, 06, 30), "tags": []},
+    {"symbol": "BRK-B", "quantity": Decimal("533.0000"), "entry_price": Decimal("485.7700"), "entry_date": date(2025, 06, 30), "tags": []},
+    {"symbol": "C", "quantity": Decimal("-1273.8600"), "entry_price": Decimal("84.0626"), "entry_date": date(2025, 06, 30), "tags": []},
+    {"symbol": "F", "quantity": Decimal("-8392.8800"), "entry_price": Decimal("10.5838"), "entry_date": date(2025, 06, 30), "tags": []},
+    {"symbol": "GE", "quantity": Decimal("-671.5800"), "entry_price": Decimal("256.7010"), "entry_date": date(2025, 06, 30), "tags": []},
+    {"symbol": "GOOGL", "quantity": Decimal("1599.0100"), "entry_price": Decimal("176.0725"), "entry_date": date(2025, 06, 30), "tags": []},
+    {"symbol": "JNJ", "quantity": Decimal("710.6700"), "entry_price": Decimal("151.6370"), "entry_date": date(2025, 06, 30), "tags": []},
+    {"symbol": "JPM", "quantity": Decimal("888.3400"), "entry_price": Decimal("287.1241"), "entry_date": date(2025, 06, 30), "tags": []},
+    {"symbol": "META", "quantity": Decimal("888.3400"), "entry_price": Decimal("737.5922"), "entry_date": date(2025, 06, 30), "tags": []},
+    {"symbol": "META250919P00450000", "quantity": Decimal("-94.6800"), "entry_price": Decimal("0.0000"), "entry_date": date(2025, 06, 30), "tags": [], "underlying": "META", "strike": Decimal("450.0000"), "expiry": date(2025, 09, 19), "option_type": "P"},
+    {"symbol": "MSFT", "quantity": Decimal("888.3400"), "entry_price": Decimal("496.5937"), "entry_date": date(2025, 06, 30), "tags": []},
+    {"symbol": "MSFT250919P00380000", "quantity": Decimal("-151.3000"), "entry_price": Decimal("0.0000"), "entry_date": date(2025, 06, 30), "tags": [], "underlying": "MSFT", "strike": Decimal("380.0000"), "expiry": date(2025, 09, 19), "option_type": "P"},
+    {"symbol": "NFLX", "quantity": Decimal("-503.6900"), "entry_price": Decimal("1339.1300"), "entry_date": date(2025, 06, 30), "tags": []},
+    {"symbol": "NVDA", "quantity": Decimal("710.6700"), "entry_price": Decimal("157.9811"), "entry_date": date(2025, 06, 30), "tags": []},
+    {"symbol": "NVDA251017C00800000", "quantity": Decimal("94.6900"), "entry_price": Decimal("0.0000"), "entry_date": date(2025, 06, 30), "tags": [], "underlying": "NVDA", "strike": Decimal("800.0000"), "expiry": date(2025, 10, 17), "option_type": "C"},
+    {"symbol": "PTON", "quantity": Decimal("-2517.4700"), "entry_price": Decimal("6.9400"), "entry_date": date(2025, 06, 30), "tags": []},
+    {"symbol": "QQQ250815C00420000", "quantity": Decimal("283.0900"), "entry_price": Decimal("0.0000"), "entry_date": date(2025, 06, 30), "tags": [], "underlying": "QQQ", "strike": Decimal("420.0000"), "expiry": date(2025, 08, 15), "option_type": "C"},
+    {"symbol": "ROKU", "quantity": Decimal("-1511.0700"), "entry_price": Decimal("87.8900"), "entry_date": date(2025, 06, 30), "tags": []},
+    {"symbol": "SHOP", "quantity": Decimal("-839.4800"), "entry_price": Decimal("115.3500"), "entry_date": date(2025, 06, 30), "tags": []},
+    {"symbol": "SPY250919C00460000", "quantity": Decimal("377.7800"), "entry_price": Decimal("0.0000"), "entry_date": date(2025, 06, 30), "tags": [], "underlying": "SPY", "strike": Decimal("460.0000"), "expiry": date(2025, 09, 19), "option_type": "C"},
+    {"symbol": "TSLA", "quantity": Decimal("710.6700"), "entry_price": Decimal("317.6600"), "entry_date": date(2025, 06, 30), "tags": []},
+    {"symbol": "TSLA250815C00300000", "quantity": Decimal("-113.2300"), "entry_price": Decimal("0.0000"), "entry_date": date(2025, 06, 30), "tags": [], "underlying": "TSLA", "strike": Decimal("300.0000"), "expiry": date(2025, 08, 15), "option_type": "C"},
+    {"symbol": "UNH", "quantity": Decimal("177.6600"), "entry_price": Decimal("310.0142"), "entry_date": date(2025, 06, 30), "tags": []},
+    {"symbol": "V", "quantity": Decimal("310.4300"), "entry_price": Decimal("354.4264"), "entry_date": date(2025, 06, 30), "tags": []},
+    {"symbol": "VIX250716C00025000", "quantity": Decimal("566.1900"), "entry_price": Decimal("0.0000"), "entry_date": date(2025, 06, 30), "tags": [], "underlying": "VIX", "strike": Decimal("25.0000"), "expiry": date(2025, 07, 16), "option_type": "C"},
+    {"symbol": "XOM", "quantity": Decimal("-1677.9900"), "entry_price": Decimal("106.8061"), "entry_date": date(2025, 06, 30), "tags": []},
+    {"symbol": "ZM", "quantity": Decimal("-1677.9900"), "entry_price": Decimal("77.9800"), "entry_date": date(2025, 06, 30), "tags": []},
+]
+
+
+====================================================================================================
+Portfolio: Demo Family Office Public Growth
+User: demo_familyoffice@sigmasight.com
+Positions: 12
+====================================================================================================
+
+"positions": [
+    {"symbol": "ASML", "quantity": Decimal("189.0000"), "entry_price": Decimal("797.9467"), "entry_date": date(2025, 06, 30), "tags": []},
+    {"symbol": "AVGO", "quantity": Decimal("166.0000"), "entry_price": Decimal("275.1785"), "entry_date": date(2025, 06, 30), "tags": []},
+    {"symbol": "BIL", "quantity": Decimal("1089.0000"), "entry_price": Decimal("90.1800"), "entry_date": date(2025, 06, 30), "tags": []},
+    {"symbol": "COST", "quantity": Decimal("260.0000"), "entry_price": Decimal("987.1738"), "entry_date": date(2025, 06, 30), "tags": []},
+    {"symbol": "IGV", "quantity": Decimal("473.0000"), "entry_price": Decimal("109.5000"), "entry_date": date(2025, 06, 30), "tags": []},
+    {"symbol": "JEPQ", "quantity": Decimal("827.0000"), "entry_price": Decimal("52.2119"), "entry_date": date(2025, 06, 30), "tags": []},
+    {"symbol": "LULU", "quantity": Decimal("355.0000"), "entry_price": Decimal("237.5800"), "entry_date": date(2025, 06, 30), "tags": []},
+    {"symbol": "NEE", "quantity": Decimal("592.0000"), "entry_price": Decimal("68.8873"), "entry_date": date(2025, 06, 30), "tags": []},
+    {"symbol": "SCHD", "quantity": Decimal("769.0000"), "entry_price": Decimal("26.2485"), "entry_date": date(2025, 06, 30), "tags": []},
+    {"symbol": "SMH", "quantity": Decimal("592.0000"), "entry_price": Decimal("278.8800"), "entry_date": date(2025, 06, 30), "tags": []},
+    {"symbol": "XLK", "quantity": Decimal("710.0000"), "entry_price": Decimal("252.9050"), "entry_date": date(2025, 06, 30), "tags": []},
+    {"symbol": "XLY", "quantity": Decimal("532.0000"), "entry_price": Decimal("216.9474"), "entry_date": date(2025, 06, 30), "tags": []},
+]
+
+
+====================================================================================================
+Portfolio: Demo Family Office Private Opportunities
+User: demo_familyoffice@sigmasight.com
+Positions: 9
+====================================================================================================
+
+"positions": [
+    {"symbol": "FO_ART_COLLECTIVE", "quantity": Decimal("1.0000"), "entry_price": Decimal("29081.6300"), "entry_date": date(2025, 06, 30), "tags": []},
+    {"symbol": "FO_CRYPTO_DIGITAL", "quantity": Decimal("1.0000"), "entry_price": Decimal("29081.6300"), "entry_date": date(2025, 06, 30), "tags": []},
+    {"symbol": "FO_GROWTH_PE", "quantity": Decimal("1.0000"), "entry_price": Decimal("203571.4300"), "entry_date": date(2025, 06, 30), "tags": []},
+    {"symbol": "FO_HOME_RENTAL", "quantity": Decimal("1.0000"), "entry_price": Decimal("82397.9600"), "entry_date": date(2025, 06, 30), "tags": []},
+    {"symbol": "FO_IMPACT_LENDING", "quantity": Decimal("1.0000"), "entry_price": Decimal("53316.3300"), "entry_date": date(2025, 06, 30), "tags": []},
+    {"symbol": "FO_INFRASTRUCTURE", "quantity": Decimal("1.0000"), "entry_price": Decimal("87244.9000"), "entry_date": date(2025, 06, 30), "tags": []},
+    {"symbol": "FO_PRIVATE_CREDIT", "quantity": Decimal("1.0000"), "entry_price": Decimal("218112.2500"), "entry_date": date(2025, 06, 30), "tags": []},
+    {"symbol": "FO_REAL_ASSET_REIT", "quantity": Decimal("1.0000"), "entry_price": Decimal("106632.6500"), "entry_date": date(2025, 06, 30), "tags": []},
+    {"symbol": "FO_VC_SECONDARIES", "quantity": Decimal("1.0000"), "entry_price": Decimal("140561.2200"), "entry_date": date(2025, 06, 30), "tags": []},
+]
+
+
+====================================================================================================
+END OF CORRECTED SEED DATA
+====================================================================================================
