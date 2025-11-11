@@ -4,31 +4,39 @@ Automated daily workflow for market data synchronization and portfolio calculati
 
 ## Overview
 
-This automation runs **every weekday at 11:30 PM UTC** (6:30pm EST / 7:30pm EDT) to:
-1. Check if today is a trading day (NYSE calendar)
-2. **Sync company profiles** for all position symbols (names, sectors, revenue estimates) - Phase 9.1
-3. Sync latest market data for all portfolio positions
-4. Run 8 calculation engines for all active portfolios
-5. Log completion summary
+This automation runs **every weekday at 11:30 PM UTC** (6:30pm EST / 7:30pm EDT) via the batch orchestrator, which handles:
 
-**Typical Duration**: 6-7 minutes total (includes company profile sync + market data + calculations)
-**Trading Days Only**: The job will automatically skip on weekends and holidays based on NYSE calendar
+1. **Trading day detection** (NYSE calendar) with automatic adjustment
+2. **Phase 0**: Company profile sync (beta values, sectors, industries) - on final date only
+3. **Phase 1**: Market data collection (1-year lookback, YFinance/FMP/Polygon)
+4. **Phase 2**: Fundamental data collection (earnings-driven smart fetch)
+5. **Phase 3**: P&L calculation & snapshots (equity rollforward, trading days only)
+6. **Phase 4**: Position market value updates (analytics accuracy)
+7. **Phase 5**: Sector tag restoration (auto-tagging from company profiles)
+8. **Phase 6**: Risk analytics (betas, factors, volatility, correlations, stress tests)
+
+**Typical Duration**: 6-7 minutes total
+**Trading Days Only**: Job automatically skips weekends/holidays and adjusts to previous trading day if run before 4:30 PM ET
+
+**Key Change (Phase 11.1)**: The Railway script now directly calls `batch_orchestrator.run_daily_batch_with_backfill()` - no duplicate logic. Same code path as local batch processing.
 
 ## Files
 
-- **`railway_daily_batch.py`** - Main orchestration script
-- **`trading_calendar.py`** - NYSE trading day detection utilities
+- **`railway_daily_batch.py`** - Thin wrapper that calls batch orchestrator (114 lines, down from 376)
+- **`trading_calendar.py`** - NYSE trading day detection utilities (used by batch orchestrator)
 - **`../../railway.json`** - Railway cron service configuration
 
 ## Local Testing
 
 ```bash
-# Test on non-trading day (will skip)
+# Run with automatic backfill detection
 uv run python scripts/automation/railway_daily_batch.py
 
-# Force execution for testing
-uv run python scripts/automation/railway_daily_batch.py --force
+# Same as running the local batch script
+uv run python scripts/batch_processing/run_batch.py
 ```
+
+Both scripts now use the exact same batch orchestrator code path.
 
 ## Railway Deployment
 
@@ -94,14 +102,19 @@ uv run python scripts/automation/railway_daily_batch.py --force
 3. Find latest deployment → Click **"View Logs"**
 4. Manually trigger using Railway CLI (ensure you're targeting the cron service):
    ```bash
-   railway run --service sigmasight-backend-cron uv run python scripts/automation/railway_daily_batch.py --force
+   railway run --service sigmasight-backend-cron uv run python scripts/automation/railway_daily_batch.py
    ```
    **Note**: The `--service` flag is critical - without it, Railway runs on the default web service.
 5. Monitor logs for:
-   - ✅ Trading day detection working
-   - ✅ **Company profile sync completing** (Phase 9.1)
-   - ✅ Market data sync completing
-   - ✅ Batch calculations running for all portfolios
+   - ✅ Batch orchestrator starting
+   - ✅ Trading day detection (automatic adjustment if needed)
+   - ✅ Phase 0: Company profile sync (on final date)
+   - ✅ Phase 1: Market data collection
+   - ✅ Phase 2: Fundamental data collection
+   - ✅ Phase 3: P&L calculation & snapshots
+   - ✅ Phase 4: Position market value updates
+   - ✅ Phase 5: Sector tag restoration
+   - ✅ Phase 6: Risk analytics
    - ✅ Completion summary showing success
 
 #### Step 4: Enable Cron Schedule (after successful manual test)
@@ -120,7 +133,7 @@ uv run python scripts/automation/railway_daily_batch.py --force
 
 1. Wait for next scheduled run (11:30 PM UTC on a weekday)
 2. Check **Deployments** → **View Logs**
-3. Verify all steps complete successfully
+3. Verify all 7 phases complete successfully
 4. If failures occur, check Railway logs for error details
 
 ### Monitoring
@@ -128,7 +141,7 @@ uv run python scripts/automation/railway_daily_batch.py --force
 **Railway Dashboard Logs** (Primary monitoring method):
 - Check logs daily after 11:30 PM UTC
 - Look for completion message: `✅ All operations completed successfully`
-- If errors, check specific portfolio failure messages
+- If errors, check specific phase failure messages
 
 **Manual Log Review**:
 ```bash
@@ -188,50 +201,50 @@ In Railway Dashboard:
 3. Change `postgresql://` to `postgresql+asyncpg://` at the beginning
 4. Save and redeploy
 
-#### API Rate Limits (429 Errors)
-- **Expected behavior** - script has fallback providers
-- Polygon API has rate limits, script falls back to FMP
-- Private positions (real estate, PE) will fail gracefully - this is normal
+#### Trading Day Adjustment
+**Symptom**: Logs show "Adjusted target date to previous trading day"
 
-#### Market Data Sync Failures
-- Check API keys are valid and not expired
-- Verify API keys are set in cron service's Variables tab
-- Review logs for specific symbols failing
+**Expected Behavior**: This is NORMAL. The batch orchestrator automatically:
+- Detects non-trading days (weekends, holidays) and uses previous trading day
+- Uses previous trading day if run before 4:30 PM ET (market hasn't closed yet)
+- Uses current day if run after 4:30 PM ET on a trading day
 
-#### Batch Calculation Failures
-- Check if specific portfolio is causing issue
-- Review logs for detailed error messages
-- Verify database schema is up to date (run migrations)
+**No action needed** - this is the orchestrator working correctly.
 
-#### Company Profile Sync Failures (Phase 9.1)
-**Symptom**: Logs show `❌ Company profile sync failed` or warnings about failed symbols
+#### Phase Failures
+The batch orchestrator isolates phases - failures in one phase don't stop later phases.
 
-**Common Causes**:
-- **Synthetic symbols** (RENTAL_CONDO, CRYPTO_BTC_ETH, etc.) - Expected failures, these are gracefully skipped
-- **Options symbols** (e.g., AAPL250815P00200000) - May not have company profile data, this is normal
-- **Rate limiting** - Yahoo Finance API may throttle requests during high traffic
+**Common Phase Issues**:
+- **Phase 0 (Company Profiles)**: Non-blocking. Partial failures OK (synthetic symbols, options expected to fail)
+- **Phase 1 (Market Data)**: Check API keys, provider status. Private positions intentionally skip.
+- **Phase 2 (Fundamentals)**: "Data not available" warnings are normal (3+ day post-earnings requirement)
+- **Phase 3 (P&L)**: Requires Phase 1 data. Check for market data gaps.
+- **Phase 4 (Position Values)**: Depends on Phase 1. Check market data availability.
+- **Phase 5 (Sector Tags)**: Depends on Phase 0. Check company profile sync.
+- **Phase 6 (Analytics)**: Requires Phases 3-5. Check for calculation data issues.
 
-**Expected Behavior**:
-- Job continues even if profile sync fails (non-blocking)
-- Partial failures are acceptable (e.g., 45/63 symbols synced successfully)
-- Exit code still 0 if batch calculations succeed
-
-**When to Investigate**:
-- If **ALL** symbols fail to sync (0/63 successful) - check API connectivity
-- If major stocks (AAPL, MSFT, etc.) fail consistently - check Yahoo Finance API status
-- If profile sync takes >60 seconds - may indicate network issues
-
-**Manual Recovery**:
+**Manual Phase Re-run**:
 ```bash
-# Manually trigger profile sync for testing
-railway run --service sigmasight-backend-cron uv run python -c "
-import asyncio
-from app.batch.market_data_sync import sync_company_profiles
-asyncio.run(sync_company_profiles(force_refresh=True))
-"
+# Re-run specific date
+railway run --service sigmasight-backend-cron uv run python scripts/batch_processing/run_batch.py --start-date 2025-07-01 --end-date 2025-07-01
 ```
 
-**Note**: Company profiles update daily but are not critical for calculations. Missing profiles only affect display metadata (company names, sectors, etc.).
+#### API Rate Limits (429 Errors)
+- **Expected behavior** - script has fallback providers
+- YFinance primary, FMP secondary fallback
+- Private positions (real estate, PE) will fail gracefully - this is normal
+
+### Batch Orchestrator Features
+
+The Railway cron uses the **exact same batch orchestrator** as local development:
+
+- ✅ **Automatic Backfill**: Detects missing trading days and fills gaps
+- ✅ **Trading Day Detection**: NYSE calendar with automatic adjustment
+- ✅ **Phase Isolation**: Failures don't cascade
+- ✅ **Smart Optimization**: Company profiles/fundamentals only on final date
+- ✅ **Graceful Degradation**: Missing data doesn't stop the batch
+
+See `scripts/batch_processing/README.md` for detailed phase documentation.
 
 ### Cron Schedule Details
 
@@ -257,8 +270,8 @@ asyncio.run(sync_company_profiles(force_refresh=True))
 ### Exit Codes
 
 The script uses standard Unix exit codes:
-- `0` - Success (all portfolios processed)
-- `1` - Failure (one or more portfolios failed or fatal error)
+- `0` - Success (all operations completed)
+- `1` - Failure (one or more issues occurred)
 - `130` - Interrupted (Ctrl+C)
 
 Railway will retry failed jobs based on `restartPolicyMaxRetries: 3` setting.
@@ -272,3 +285,20 @@ Potential improvements documented but not implemented:
 - Railway webhook → Zapier → Email forwarding
 
 For now, manual Railway dashboard log checking is sufficient.
+
+---
+
+## Phase 11.1 Changes (November 2025)
+
+**Simplified Railway Script**:
+- Removed duplicate trading day detection (orchestrator handles it)
+- Removed duplicate company profile sync (now Phase 0 in orchestrator)
+- Removed per-portfolio loop logic (orchestrator handles all portfolios)
+- Removed custom result tracking (orchestrator provides summary)
+- **Result**: 70% code reduction (376 → 114 lines)
+
+**Benefits**:
+- Single source of truth for batch processing
+- Railway automatically gets all orchestrator improvements
+- Easier to maintain (no duplicate code)
+- Consistent behavior between Railway and local development
