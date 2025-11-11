@@ -125,6 +125,7 @@ class Settings(BaseSettings):
         "http://localhost:5173",  # Vite dev server
         "https://sigmasight-frontend.vercel.app",  # Production frontend (Vercel)
         "https://sigmasight-frontend-production.up.railway.app",  # Production frontend (Railway)
+        "https://sigmasight-fe-production.up.railway.app",  # Production frontend (Railway - actual)
     ]
     
     # Batch processing settings
