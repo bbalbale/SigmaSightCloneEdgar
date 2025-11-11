@@ -217,6 +217,7 @@ async def get_diversification_score(
 @router.get("/{portfolio_id}/factor-exposures", response_model=PortfolioFactorExposuresResponse)
 async def get_portfolio_factor_exposures(
     portfolio_id: UUID,
+    use_latest_successful: bool = True,  # Default to graceful degradation
     current_user: CurrentUser = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -225,13 +226,19 @@ async def get_portfolio_factor_exposures(
 
     Returns factor betas (and optional dollar exposures) aggregated at the
     portfolio level. Uses the latest complete set of exposures.
+
+    Args:
+        portfolio_id: Portfolio UUID
+        use_latest_successful: If True (default), falls back to most recent complete
+                               snapshot when today's data is incomplete. This prevents
+                               blank UIs during batch execution.
     """
     try:
         start = time.time()
         await validate_portfolio_ownership(db, portfolio_id, current_user.id)
 
         svc = FactorExposureService(db)
-        result = await svc.get_portfolio_exposures(portfolio_id)
+        result = await svc.get_portfolio_exposures(portfolio_id, use_latest_successful=use_latest_successful)
 
         elapsed = time.time() - start
         if elapsed > 0.2:

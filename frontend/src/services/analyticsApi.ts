@@ -62,10 +62,14 @@ export const analyticsApi = {
   },
 
   async getPortfolioFactorExposures(
-    portfolioId: string
+    portfolioId: string,
+    useLatestSuccessful: boolean = true  // Graceful degradation by default
   ): Promise<{ data: PortfolioFactorExposuresResponse; url: string }>
   {
-    const endpoint = API_ENDPOINTS.ANALYTICS.FACTOR_EXPOSURES(portfolioId);
+    const baseEndpoint = API_ENDPOINTS.ANALYTICS.FACTOR_EXPOSURES(portfolioId);
+    const endpoint = useLatestSuccessful
+      ? `${baseEndpoint}?use_latest_successful=true`
+      : baseEndpoint;
     const url = apiClient.buildUrl(endpoint);
     const data = await apiClient.get<PortfolioFactorExposuresResponse>(endpoint, {
       ...REQUEST_CONFIGS.ANALYTICS_HEAVY,

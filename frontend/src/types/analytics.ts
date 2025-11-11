@@ -73,11 +73,18 @@ export interface PortfolioFactorExposuresResponse {
   factors?: FactorExposure[];
   metadata?: {
     calculation_date: string; // ISO
+    is_latest?: boolean;  // True if data is current (within 24hrs)
+    is_fallback?: boolean;  // True when serving historical data due to use_latest_successful
   };
   data_quality?: {
     missing_positions?: string[];
     coverage_percent?: number;
+    snapshot_date?: string;
+    age_hours?: number;
+    is_stale?: boolean;
+    is_current?: boolean;
   };
+  calculation_date?: string;  // ISO date of the data
   reason?: string;
 }
 

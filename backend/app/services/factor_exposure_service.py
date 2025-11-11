@@ -28,13 +28,50 @@ class FactorExposureService:
     def __init__(self, db: AsyncSession) -> None:
         self.db = db
 
-    async def get_portfolio_exposures(self, portfolio_id: UUID) -> Dict:
+    async def get_latest_complete_snapshot_date(
+        self,
+        portfolio_id: UUID,
+        target_factor_ids: List[UUID]
+    ) -> Optional[Tuple]:
+        """
+        Find the most recent calculation date where ALL target factors are present.
+
+        Returns tuple of (date, factor_count) or None if no complete snapshot exists.
+        """
+        latest_date_stmt = (
+            select(FactorExposure.calculation_date)
+            .where(and_(
+                FactorExposure.portfolio_id == portfolio_id,
+                FactorExposure.factor_id.in_(target_factor_ids)
+            ))
+            .group_by(FactorExposure.calculation_date)
+            .having(func.count(func.distinct(FactorExposure.factor_id)) == len(target_factor_ids))
+            .order_by(FactorExposure.calculation_date.desc())
+            .limit(1)
+        )
+        result = await self.db.execute(latest_date_stmt)
+        return result.scalar_one_or_none()
+
+    async def get_portfolio_exposures(
+        self,
+        portfolio_id: UUID,
+        use_latest_successful: bool = False
+    ) -> Dict:
         """
         Return the latest set of portfolio-level factor exposures.
         Accepts any available factors - doesn't require all active factors.
         Minimum requirement: at least one factor (preferably Market Beta).
 
         Phase 8.1 Task 13: Returns data_quality metrics when available=False
+
+        Args:
+            portfolio_id: Portfolio UUID
+            use_latest_successful: If True, falls back to most recent complete snapshot
+                                   when today's data is incomplete (graceful degradation)
+
+        Returns:
+            Dictionary with available flag, factors list, and metadata including
+            is_latest flag (False when serving historical complete snapshot)
         """
         # Get active style and macro factors (includes IR Beta)
         target_factors_stmt = (
@@ -67,37 +104,58 @@ class FactorExposureService:
 
         # Find the latest date with ALL required factors (not just ANY)
         # This ensures we return complete factor sets rather than incomplete snapshots
-        latest_date_stmt = (
-            select(FactorExposure.calculation_date)
-            .where(and_(
-                FactorExposure.portfolio_id == portfolio_id,
-                FactorExposure.factor_id.in_(target_factor_ids)
-            ))
-            .group_by(FactorExposure.calculation_date)
-            .having(func.count(func.distinct(FactorExposure.factor_id)) == len(target_factor_ids))
-            .order_by(FactorExposure.calculation_date.desc())
-            .limit(1)
-        )
-        latest_date_res = await self.db.execute(latest_date_stmt)
-        latest_date = latest_date_res.scalar_one_or_none()
+        latest_date = await self.get_latest_complete_snapshot_date(portfolio_id, target_factor_ids)
 
         if latest_date is None:
-            # Compute data_quality when no calculations exist
-            data_quality = await self._compute_data_quality(
-                portfolio_id=portfolio_id,
-                flag="NO_FACTOR_CALCULATIONS",
-                message="No factor calculations available for this portfolio",
-                positions_analyzed=0,
-                data_days=0
-            )
-            return {
-                "available": False,
-                "portfolio_id": str(portfolio_id),
-                "calculation_date": None,
-                "data_quality": data_quality,
-                "factors": [],
-                "metadata": {"reason": "no_calculation_available", "detail": "no_factor_calculations"},
-            }
+            if use_latest_successful:
+                # Try ANY date with at least one factor (flexible fallback)
+                logger.info(f"[FALLBACK] No complete snapshot found, trying any available factors")
+                any_date_stmt = (
+                    select(FactorExposure.calculation_date)
+                    .where(and_(
+                        FactorExposure.portfolio_id == portfolio_id,
+                        FactorExposure.factor_id.in_(target_factor_ids)
+                    ))
+                    .order_by(FactorExposure.calculation_date.desc())
+                    .limit(1)
+                )
+                any_date_res = await self.db.execute(any_date_stmt)
+                latest_date = any_date_res.scalar_one_or_none()
+
+                if latest_date is None:
+                    # Still no data - return unavailable
+                    data_quality = await self._compute_data_quality(
+                        portfolio_id=portfolio_id,
+                        flag="NO_FACTOR_CALCULATIONS",
+                        message="No factor calculations available for this portfolio",
+                        positions_analyzed=0,
+                        data_days=0
+                    )
+                    return {
+                        "available": False,
+                        "portfolio_id": str(portfolio_id),
+                        "calculation_date": None,
+                        "data_quality": data_quality,
+                        "factors": [],
+                        "metadata": {"reason": "no_calculation_available", "detail": "no_factor_calculations"},
+                    }
+            else:
+                # Strict mode - return unavailable immediately
+                data_quality = await self._compute_data_quality(
+                    portfolio_id=portfolio_id,
+                    flag="NO_FACTOR_CALCULATIONS",
+                    message="No factor calculations available for this portfolio",
+                    positions_analyzed=0,
+                    data_days=0
+                )
+                return {
+                    "available": False,
+                    "portfolio_id": str(portfolio_id),
+                    "calculation_date": None,
+                    "data_quality": data_quality,
+                    "factors": [],
+                    "metadata": {"reason": "no_calculation_available", "detail": "no_factor_calculations"},
+                }
 
         # Load ANY available factors for the latest date (flexible approach)
         stmt = (
@@ -216,12 +274,23 @@ class FactorExposureService:
         factor_model = f"{len(factors)}-factor" if factors else None
         calc_methods = {getattr(definition, "calculation_method", None) for _, definition in rows}
         calc_method = next((m for m in calc_methods if m), None) or "ETF-proxy regression"
-        
+
         # Check if we have Market Beta (minimum requirement) - check for the correct name
         has_market_beta = "Market Beta (90D)" in available_factor_names
         # We now have 8 active factors: 7 style factors + IR Beta macro factor (Short Interest is inactive)
         expected_factors = 8  # All active style and macro factors except Short Interest
         completeness = "partial" if len(factors) < expected_factors else "complete"
+
+        # Determine if this is the latest data (within 24 hours)
+        from datetime import datetime, timezone
+        from app.db.snapshot_helpers import calculate_data_age
+
+        age_metrics = calculate_data_age(latest_date)
+        is_latest = age_metrics.get('is_current', True)  # True if within threshold
+        is_fallback = use_latest_successful and not is_latest
+
+        if is_fallback:
+            logger.info(f"[FALLBACK] Serving historical complete snapshot from {latest_date} ({age_metrics['age_hours']} hours old)")
 
         return {
             "available": True,
@@ -236,6 +305,8 @@ class FactorExposureService:
                 "total_active_factors": expected_factors,
                 "factors_calculated": len(factors),
                 "has_market_beta": has_market_beta,
+                "is_latest": is_latest,  # Indicates if this is current or historical
+                "is_fallback": is_fallback,  # True when serving historical due to use_latest_successful
             },
         }
 
