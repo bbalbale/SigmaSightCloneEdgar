@@ -10,7 +10,8 @@ WORKDIR /app
 COPY package.json package-lock.json* ./
 
 # Install dependencies with better caching
-RUN npm ci --prefer-offline --no-audit && \
+# Using --legacy-peer-deps to handle React 18.x compatibility
+RUN npm ci --prefer-offline --no-audit --legacy-peer-deps && \
     npm cache clean --force
 
 # Stage 2: Builder
