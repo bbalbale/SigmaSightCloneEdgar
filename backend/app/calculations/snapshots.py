@@ -198,13 +198,25 @@ async def _prepare_position_data(
             # Get historical price for this symbol
             historical_price = historical_prices.get(position.symbol)
 
+            # For private positions (no market data), use entry_price or position.market_value
             if historical_price is None or historical_price == 0:
-                warnings.append(f"No historical price data for {position.symbol} on {calculation_date}")
-                continue
+                if position.investment_class == "PRIVATE":
+                    # Use position's market_value if available, otherwise use entry value
+                    if position.market_value and position.market_value > 0:
+                        price = float(position.market_value / position.quantity)
+                    else:
+                        price = float(position.entry_price)
+                    logger.debug(f"Using valuation for PRIVATE position {position.symbol}: ${price:,.2f}")
+                else:
+                    # For PUBLIC positions, missing price data is an error
+                    warnings.append(f"No historical price data for PUBLIC position {position.symbol} on {calculation_date}")
+                    continue
+            else:
+                # Use historical market price
+                price = float(historical_price)
 
-            # Calculate market value using historical price
+            # Calculate market value using price
             quantity = float(position.quantity)
-            price = float(historical_price)
 
             # Apply options multiplier (100 for options, 1 for stocks)
             OPTIONS_MULTIPLIER = 100
