@@ -14,15 +14,13 @@ from pathlib import Path
 project_root = Path(__file__).resolve().parents[2]
 sys.path.append(str(project_root))
 
-from sqlalchemy import select, delete, func
+from sqlalchemy import select, func
 from app.database import get_async_session
-from app.models.market_data import PositionGreeks, PositionFactorExposure
-from app.models.correlations import CorrelationCalculation
-from app.models.snapshots import PortfolioSnapshot
 from app.models.users import Portfolio
 from app.db.seed_demo_portfolios import create_demo_users, seed_demo_portfolios
 from app.batch.batch_orchestrator import batch_orchestrator
 from app.core.logging import get_logger
+from app.services.admin_fix_service import clear_calculations_comprehensive
 
 logger = get_logger(__name__)
 
@@ -40,36 +38,15 @@ async def fix_railway_data():
 
     async with get_async_session() as db:
         try:
-            # Count before deletion
-            greeks_count = await db.execute(select(func.count(PositionGreeks.id)))
-            greeks_before = greeks_count.scalar()
-
-            factor_count = await db.execute(select(func.count(PositionFactorExposure.id)))
-            factors_before = factor_count.scalar()
-
-            corr_count = await db.execute(select(func.count(CorrelationCalculation.id)))
-            corr_before = corr_count.scalar()
-
-            snapshot_count = await db.execute(select(func.count(PortfolioSnapshot.id)))
-            snapshots_before = snapshot_count.scalar()
-
-            total_calculations = greeks_before + factors_before + corr_before + snapshots_before
-
-            logger.info(f"\nFound {total_calculations} calculation records to clear:")
-            logger.info(f"  - Position Greeks: {greeks_before}")
-            logger.info(f"  - Position Factor Exposures: {factors_before}")
-            logger.info(f"  - Correlation Calculations: {corr_before}")
-            logger.info(f"  - Portfolio Snapshots: {snapshots_before}")
-
-            # Delete calculation data
-            logger.info("\nClearing calculation data...")
-            await db.execute(delete(PositionGreeks))
-            await db.execute(delete(PositionFactorExposure))
-            await db.execute(delete(CorrelationCalculation))
-            await db.execute(delete(PortfolioSnapshot))
-
+            clear_results = await clear_calculations_comprehensive(db)
             await db.commit()
-            logger.info(f"✓ Cleared {total_calculations} calculation records")
+
+            total_calculations = clear_results["grand_total_deleted"]
+            logger.info("\nCleared tables:")
+            for label, count in clear_results["tables"].items():
+                logger.info(f"  - {label}: {count}")
+
+            logger.info(f"\nCleared {total_calculations} calculation records")
 
         except Exception as e:
             await db.rollback()
@@ -92,7 +69,7 @@ async def fix_railway_data():
             await seed_demo_portfolios(db)
 
             await db.commit()
-            logger.info("✓ Portfolios seeded successfully")
+            logger.info("Portfolios seeded successfully")
 
         except Exception as e:
             await db.rollback()
@@ -104,6 +81,7 @@ async def fix_railway_data():
     logger.info("STEP 3/3: RUNNING BATCH PROCESSING")
     logger.info("=" * 80)
 
+    total_portfolios = 0
     try:
         async with get_async_session() as db:
             # Count portfolios
@@ -123,7 +101,7 @@ async def fix_railway_data():
         # Use the correct batch orchestrator method with automatic backfill
         result = await batch_orchestrator.run_daily_batch_with_backfill()
 
-        logger.info(f"✓ Batch processing completed: {result.get('message', 'Success')}")
+        logger.info(f"Batch processing completed: {result.get('message', 'Success')}")
 
     except Exception as e:
         logger.error(f"Error running batch processing: {e}")

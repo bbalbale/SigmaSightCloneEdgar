@@ -471,10 +471,27 @@ async def create_demo_portfolio(db: AsyncSession, portfolio_data: Dict[str, Any]
     if existing_portfolio:
         logger.info(f"Portfolio already exists for user {user.email}: {existing_portfolio.name}")
 
+        updated = False
+        target_account_name = portfolio_data.get("account_name") or portfolio_data["portfolio_name"]
+        target_account_type = portfolio_data.get("account_type", "taxable")
+
         # Update equity_balance if provided and different
         if "equity_balance" in portfolio_data and existing_portfolio.equity_balance != portfolio_data["equity_balance"]:
             logger.info(f"Updating equity_balance from {existing_portfolio.equity_balance} to {portfolio_data['equity_balance']}")
             existing_portfolio.equity_balance = portfolio_data["equity_balance"]
+            updated = True
+
+        if existing_portfolio.account_name != target_account_name:
+            logger.info(f"Updating account_name from {existing_portfolio.account_name} to {target_account_name}")
+            existing_portfolio.account_name = target_account_name
+            updated = True
+
+        if existing_portfolio.account_type != target_account_type:
+            logger.info(f"Updating account_type from {existing_portfolio.account_type} to {target_account_type}")
+            existing_portfolio.account_type = target_account_type
+            updated = True
+
+        if updated:
             db.add(existing_portfolio)
             await db.flush()
 
@@ -504,8 +521,8 @@ async def create_demo_portfolio(db: AsyncSession, portfolio_data: Dict[str, Any]
         id=portfolio_id,
         user_id=user.id,
         name=portfolio_data["portfolio_name"],
-        account_name=portfolio_data["portfolio_name"],  # Required: use portfolio name as account name
-        account_type='taxable',  # Default account type for demo portfolios
+        account_name=portfolio_data.get("account_name") or portfolio_data["portfolio_name"],
+        account_type=portfolio_data.get("account_type", "taxable"),
         description=portfolio_data["description"],
         equity_balance=portfolio_data.get("equity_balance")  # Set equity for risk calculations
     )
