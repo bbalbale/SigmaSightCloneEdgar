@@ -35,7 +35,12 @@ async def clear_calculations(
         results = await clear_calculations_comprehensive(db)
         await db.commit()
 
-        total_cleared = results["grand_total_deleted"]
+        total_cleared = (
+            results.get("grand_total_deleted")
+            or results.get("total_deleted")
+            or results.get("total_cleared")
+            or 0
+        )
         logger.info(f"✓ Cleared {total_cleared} calculation records")
 
         payload = {
@@ -147,7 +152,13 @@ async def fix_all(
         await db.commit()
 
         results["step1_clear"] = clear_results
-        logger.info(f"✓ Cleared {clear_results['grand_total_deleted']} calculation records (including cleanup)")
+        step1_cleared = (
+            clear_results.get("grand_total_deleted")
+            or clear_results.get("total_deleted")
+            or clear_results.get("total_cleared")
+            or 0
+        )
+        logger.info(f"✓ Cleared {step1_cleared} calculation records (including cleanup)")
 
         # Step 2: Seed portfolios
         logger.info("\nStep 2/3: Seeding portfolios...")
