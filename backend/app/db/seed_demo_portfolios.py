@@ -504,6 +504,8 @@ async def create_demo_portfolio(db: AsyncSession, portfolio_data: Dict[str, Any]
         id=portfolio_id,
         user_id=user.id,
         name=portfolio_data["portfolio_name"],
+        account_name=portfolio_data["portfolio_name"],  # Required: use portfolio name as account name
+        account_type='taxable',  # Default account type for demo portfolios
         description=portfolio_data["description"],
         equity_balance=portfolio_data.get("equity_balance")  # Set equity for risk calculations
     )

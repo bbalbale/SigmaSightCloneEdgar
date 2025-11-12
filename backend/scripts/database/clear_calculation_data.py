@@ -368,9 +368,62 @@ async def _clear_correlation_tables(db, start_date: date, dry_run: bool) -> int:
     return calc_count + cluster_count + cluster_position_count + pairwise_count
 
 
+async def clear_calculations_comprehensive(db, start_date: date, dry_run: bool = False) -> dict:
+    """
+    Comprehensive calculation clearing function that can be imported and used by API endpoints.
+
+    Args:
+        db: AsyncSession - database session
+        start_date: date - clear all calculations from this date onwards
+        dry_run: bool - if True, only report what would be deleted without committing
+
+    Returns:
+        dict with clearing statistics
+    """
+    total_deleted_count = 0
+    results = {}
+
+    # Clear main calculation tables
+    for table, date_attr, label in TABLES_TO_CLEAR:
+        count = await _process_table(
+            db=db,
+            table=table,
+            date_attr=date_attr,
+            label=label,
+            start_date=start_date,
+            dry_run=dry_run,
+        )
+        total_deleted_count += count
+        results[table.__tablename__] = count
+
+    # Clear correlation tables and dependents
+    corr_count = await _clear_correlation_tables(db, start_date, dry_run)
+    total_deleted_count += corr_count
+    results["correlation_tables"] = corr_count
+
+    # Remove soft-deleted positions
+    soft_deleted_count = await _remove_soft_deleted_positions(db, dry_run)
+    total_deleted_count += soft_deleted_count
+    results["soft_deleted_positions"] = soft_deleted_count
+
+    # Remove duplicate positions
+    duplicate_count = await _remove_duplicate_positions(db, dry_run)
+    total_deleted_count += duplicate_count
+    results["duplicate_positions"] = duplicate_count
+
+    # Reset equity balances
+    reset_count = await _reset_equity_balances(db, dry_run)
+    results["equity_resets"] = reset_count
+
+    results["total_deleted"] = total_deleted_count
+
+    return results
+
+
 async def clear_data(start_date: date, dry_run: bool, confirm: bool):
     """
     Connects to the database and clears data from the specified tables.
+    CLI entry point - calls clear_calculations_comprehensive.
     """
     if not dry_run and not confirm:
         print("ERROR: This is a destructive operation. You must provide the --confirm flag to proceed.")
@@ -382,35 +435,9 @@ async def clear_data(start_date: date, dry_run: bool, confirm: bool):
     print(f"Dry Run Mode: {'Yes' if dry_run else 'No'}")
     print("-" * 50)
 
-    total_deleted_count = 0
-
     async with get_async_session() as db:
-        for table, date_attr, label in TABLES_TO_CLEAR:
-            total_deleted_count += await _process_table(
-                db=db,
-                table=table,
-                date_attr=date_attr,
-                label=label,
-                start_date=start_date,
-                dry_run=dry_run,
-            )
-
-        total_deleted_count += await _clear_correlation_tables(db, start_date, dry_run)
-
-        # Remove soft-deleted positions (permanently delete them)
-        print("\n" + "-" * 50)
-        soft_deleted_count = await _remove_soft_deleted_positions(db, dry_run)
-        total_deleted_count += soft_deleted_count
-
-        # Remove duplicate positions created after seed
-        print("\n" + "-" * 50)
-        duplicate_count = await _remove_duplicate_positions(db, dry_run)
-        total_deleted_count += duplicate_count
-
-        # Reset equity balances to seed values
-        print("\n" + "-" * 50)
-        reset_count = await _reset_equity_balances(db, dry_run)
-        print(f"Reset {reset_count} portfolio equity balances to seed values.")
+        # Call the comprehensive clearing function
+        results = await clear_calculations_comprehensive(db, start_date, dry_run)
 
         if not dry_run:
             print("\nCommitting changes to the database...")
@@ -422,6 +449,7 @@ async def clear_data(start_date: date, dry_run: bool, confirm: bool):
             print("Dry run complete. No changes were made.")
 
     print("-" * 50)
+    total_deleted_count = results.get("total_deleted", 0)
     if dry_run:
         print(f"Dry run summary: A total of {total_deleted_count} records would be deleted.")
     else:

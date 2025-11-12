@@ -2,6 +2,7 @@
 Admin Fix Endpoint - Railway Production Data Fix
 Provides HTTP endpoint to trigger data fix operations on Railway
 """
+from datetime import date
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select, delete, func
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -16,6 +17,12 @@ from app.db.seed_demo_portfolios import create_demo_users, seed_demo_portfolios
 from app.batch.batch_orchestrator import batch_orchestrator
 from app.core.logging import get_logger
 
+# Import comprehensive clear function
+import sys
+from pathlib import Path
+sys.path.append(str(Path(__file__).resolve().parents[4] / "scripts"))
+from database.clear_calculation_data import clear_calculations_comprehensive
+
 logger = get_logger(__name__)
 
 router = APIRouter(prefix="/admin/fix", tags=["admin-fix"])
@@ -27,53 +34,44 @@ async def clear_calculations(
     current_user: User = Depends(get_current_user)
 ):
     """
-    Clear all calculation data (snapshots, Greeks, factors, correlations)
+    Comprehensive clear of ALL calculation data using the authoritative clear script.
+
+    Clears:
+    - Portfolio snapshots, Greeks, factor exposures (portfolio & position level)
+    - Market/IR betas, volatility metrics
+    - Market risk scenarios, stress test results
+    - Correlation calculations, clusters, pairwise correlations
+    - Soft-deleted and duplicate positions
+    - Resets equity balances to seed values
+
     Preserves market data cache
     """
-    try:
-        # Count before deletion
-        greeks_count = await db.execute(select(func.count(PositionGreeks.id)))
-        greeks_before = greeks_count.scalar()
+    async with db as session:
+        try:
+            logger.info("Starting comprehensive calculation clearing...")
 
-        factor_count = await db.execute(select(func.count(PositionFactorExposure.id)))
-        factors_before = factor_count.scalar()
+            # Use comprehensive clear function from authoritative script
+            # Clear all calculations from beginning of time (date.min)
+            results = await clear_calculations_comprehensive(
+                db=session,
+                start_date=date(2000, 1, 1),  # Clear everything
+                dry_run=False
+            )
 
-        corr_count = await db.execute(select(func.count(CorrelationCalculation.id)))
-        corr_before = corr_count.scalar()
+            await session.commit()
 
-        snapshot_count = await db.execute(select(func.count(PortfolioSnapshot.id)))
-        snapshots_before = snapshot_count.scalar()
+            logger.info(f"✓ Comprehensive clear completed: {results.get('total_deleted', 0)} records deleted")
 
-        total_before = greeks_before + factors_before + corr_before + snapshots_before
-
-        logger.info(f"Clearing {total_before} calculation records...")
-
-        # Delete calculation data
-        await db.execute(delete(PositionGreeks))
-        await db.execute(delete(PositionFactorExposure))
-        await db.execute(delete(CorrelationCalculation))
-        await db.execute(delete(PortfolioSnapshot))
-
-        await db.commit()
-
-        logger.info(f"✓ Cleared {total_before} calculation records")
-
-        return {
-            "success": True,
-            "message": f"Cleared {total_before} calculation records",
-            "details": {
-                "position_greeks": greeks_before,
-                "position_factor_exposures": factors_before,
-                "correlation_calculations": corr_before,
-                "portfolio_snapshots": snapshots_before,
-                "total_cleared": total_before
+            return {
+                "success": True,
+                "message": f"Comprehensive clear completed: {results.get('total_deleted', 0)} records deleted",
+                "details": results
             }
-        }
 
-    except Exception as e:
-        await db.rollback()
-        logger.error(f"Error clearing calculations: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to clear calculations: {str(e)}")
+        except Exception as e:
+            await session.rollback()
+            logger.error(f"Error clearing calculations: {e}")
+            raise HTTPException(status_code=500, detail=f"Failed to clear calculations: {str(e)}")
 
 
 @router.post("/seed-portfolios")
@@ -167,32 +165,24 @@ async def fix_all(
 
             results = {}
 
-            # Step 1: Clear calculations
-            logger.info("\nStep 1/3: Clearing calculations...")
-            greeks_count = await session.execute(select(func.count(PositionGreeks.id)))
-            greeks_before = greeks_count.scalar()
-            factor_count = await session.execute(select(func.count(PositionFactorExposure.id)))
-            factors_before = factor_count.scalar()
-            corr_count = await session.execute(select(func.count(CorrelationCalculation.id)))
-            corr_before = corr_count.scalar()
-            snapshot_count = await session.execute(select(func.count(PortfolioSnapshot.id)))
-            snapshots_before = snapshot_count.scalar()
+            # Step 1: Comprehensive clear calculations
+            logger.info("\nStep 1/3: Comprehensive calculation clearing...")
+            logger.info("  - Clearing snapshots, Greeks, factor exposures")
+            logger.info("  - Clearing betas, volatility, risk scenarios")
+            logger.info("  - Clearing correlations and dependents")
+            logger.info("  - Removing soft-deleted/duplicate positions")
+            logger.info("  - Resetting equity balances")
 
-            total_cleared = greeks_before + factors_before + corr_before + snapshots_before
+            clear_results = await clear_calculations_comprehensive(
+                db=session,
+                start_date=date(2000, 1, 1),  # Clear everything
+                dry_run=False
+            )
 
-            await session.execute(delete(PositionGreeks))
-            await session.execute(delete(PositionFactorExposure))
-            await session.execute(delete(CorrelationCalculation))
-            await session.execute(delete(PortfolioSnapshot))
             await session.commit()
 
-            results["step1_clear"] = {
-                "total_cleared": total_cleared,
-                "position_greeks": greeks_before,
-                "factor_exposures": factors_before,
-                "correlations": corr_before,
-                "snapshots": snapshots_before
-            }
+            results["step1_clear"] = clear_results
+            logger.info(f"✓ Comprehensive clear: {clear_results.get('total_deleted', 0)} records deleted")
 
             # Step 2: Seed portfolios
             logger.info("\nStep 2/3: Seeding portfolios...")
