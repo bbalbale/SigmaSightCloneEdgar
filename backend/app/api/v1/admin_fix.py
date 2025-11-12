@@ -159,70 +159,71 @@ async def fix_all(
     Complete fix: clear calculations, seed portfolios, run batch processing
     All-in-one endpoint for Railway production data fix
     """
-    try:
-        logger.info("=" * 80)
-        logger.info("STARTING COMPLETE RAILWAY DATA FIX")
-        logger.info("=" * 80)
+    async with db as session:
+        try:
+            logger.info("=" * 80)
+            logger.info("STARTING COMPLETE RAILWAY DATA FIX")
+            logger.info("=" * 80)
 
-        results = {}
+            results = {}
 
-        # Step 1: Clear calculations
-        logger.info("\nStep 1/3: Clearing calculations...")
-        greeks_count = await db.execute(select(func.count(PositionGreeks.id)))
-        greeks_before = greeks_count.scalar()
-        factor_count = await db.execute(select(func.count(PositionFactorExposure.id)))
-        factors_before = factor_count.scalar()
-        corr_count = await db.execute(select(func.count(CorrelationCalculation.id)))
-        corr_before = corr_count.scalar()
-        snapshot_count = await db.execute(select(func.count(PortfolioSnapshot.id)))
-        snapshots_before = snapshot_count.scalar()
+            # Step 1: Clear calculations
+            logger.info("\nStep 1/3: Clearing calculations...")
+            greeks_count = await session.execute(select(func.count(PositionGreeks.id)))
+            greeks_before = greeks_count.scalar()
+            factor_count = await session.execute(select(func.count(PositionFactorExposure.id)))
+            factors_before = factor_count.scalar()
+            corr_count = await session.execute(select(func.count(CorrelationCalculation.id)))
+            corr_before = corr_count.scalar()
+            snapshot_count = await session.execute(select(func.count(PortfolioSnapshot.id)))
+            snapshots_before = snapshot_count.scalar()
 
-        total_cleared = greeks_before + factors_before + corr_before + snapshots_before
+            total_cleared = greeks_before + factors_before + corr_before + snapshots_before
 
-        await db.execute(delete(PositionGreeks))
-        await db.execute(delete(PositionFactorExposure))
-        await db.execute(delete(CorrelationCalculation))
-        await db.execute(delete(PortfolioSnapshot))
-        await db.commit()
+            await session.execute(delete(PositionGreeks))
+            await session.execute(delete(PositionFactorExposure))
+            await session.execute(delete(CorrelationCalculation))
+            await session.execute(delete(PortfolioSnapshot))
+            await session.commit()
 
-        results["step1_clear"] = {
-            "total_cleared": total_cleared,
-            "position_greeks": greeks_before,
-            "factor_exposures": factors_before,
-            "correlations": corr_before,
-            "snapshots": snapshots_before
-        }
+            results["step1_clear"] = {
+                "total_cleared": total_cleared,
+                "position_greeks": greeks_before,
+                "factor_exposures": factors_before,
+                "correlations": corr_before,
+                "snapshots": snapshots_before
+            }
 
-        # Step 2: Seed portfolios
-        logger.info("\nStep 2/3: Seeding portfolios...")
-        await create_demo_users(db)
-        await seed_demo_portfolios(db)
-        await db.commit()
+            # Step 2: Seed portfolios
+            logger.info("\nStep 2/3: Seeding portfolios...")
+            await create_demo_users(session)
+            await seed_demo_portfolios(session)
+            await session.commit()
 
-        portfolio_count = await db.execute(select(func.count(Portfolio.id)))
-        total_portfolios = portfolio_count.scalar()
+            portfolio_count = await session.execute(select(func.count(Portfolio.id)))
+            total_portfolios = portfolio_count.scalar()
 
-        results["step2_seed"] = {
-            "total_portfolios": total_portfolios
-        }
+            results["step2_seed"] = {
+                "total_portfolios": total_portfolios
+            }
 
-        # Step 3: Run batch processing
-        logger.info("\nStep 3/3: Running batch processing...")
-        batch_result = await batch_orchestrator.run_daily_batch_with_backfill()
+            # Step 3: Run batch processing
+            logger.info("\nStep 3/3: Running batch processing...")
+            batch_result = await batch_orchestrator.run_daily_batch_with_backfill()
 
-        results["step3_batch"] = batch_result
+            results["step3_batch"] = batch_result
 
-        logger.info("=" * 80)
-        logger.info("COMPLETE RAILWAY DATA FIX FINISHED")
-        logger.info("=" * 80)
+            logger.info("=" * 80)
+            logger.info("COMPLETE RAILWAY DATA FIX FINISHED")
+            logger.info("=" * 80)
 
-        return {
-            "success": True,
-            "message": "Complete data fix finished successfully",
-            "details": results
-        }
+            return {
+                "success": True,
+                "message": "Complete data fix finished successfully",
+                "details": results
+            }
 
-    except Exception as e:
-        await db.rollback()
-        logger.error(f"Error during complete fix: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to complete fix: {str(e)}")
+        except Exception as e:
+            await session.rollback()
+            logger.error(f"Error during complete fix: {e}")
+            raise HTTPException(status_code=500, detail=f"Failed to complete fix: {str(e)}")
