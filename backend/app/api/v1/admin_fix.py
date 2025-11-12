@@ -3,10 +3,12 @@ Admin Fix Endpoint - Railway Production Data Fix
 Provides HTTP endpoint to trigger data fix operations on Railway
 """
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.encoders import jsonable_encoder
+from fastapi.responses import JSONResponse
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.database import get_async_session
+from app.database import get_db
 from app.core.dependencies import get_current_user
 from app.models.users import User, Portfolio
 from app.db.seed_demo_portfolios import create_demo_users, seed_demo_portfolios
@@ -21,7 +23,7 @@ router = APIRouter(prefix="/admin/fix", tags=["admin-fix"])
 
 @router.post("/clear-calculations")
 async def clear_calculations(
-    db: AsyncSession = Depends(get_async_session),
+    db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     """
@@ -36,11 +38,12 @@ async def clear_calculations(
         total_cleared = results["grand_total_deleted"]
         logger.info(f"✓ Cleared {total_cleared} calculation records")
 
-        return {
+        payload = {
             "success": True,
             "message": f"Cleared {total_cleared} calculation records (including cleanup)",
-            "details": results
+            "details": results,
         }
+        return JSONResponse(content=jsonable_encoder(payload))
 
     except Exception as e:
         await db.rollback()
@@ -50,7 +53,7 @@ async def clear_calculations(
 
 @router.post("/seed-portfolios")
 async def seed_portfolios(
-    db: AsyncSession = Depends(get_async_session),
+    db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     """
@@ -124,7 +127,7 @@ async def run_batch(
 
 @router.post("/fix-all")
 async def fix_all(
-    db: AsyncSession = Depends(get_async_session),
+    db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     """
@@ -169,11 +172,12 @@ async def fix_all(
         logger.info("COMPLETE RAILWAY DATA FIX FINISHED")
         logger.info("=" * 80)
 
-        return {
+        payload = {
             "success": True,
             "message": "Complete data fix finished successfully",
-            "details": results
+            "details": results,
         }
+        return JSONResponse(content=jsonable_encoder(payload))
 
     except Exception as e:
         await db.rollback()
