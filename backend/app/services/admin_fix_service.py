@@ -61,6 +61,8 @@ CORRELATION_TABLES: Tuple[Tuple[Type[DeclarativeMeta], str], ...] = (
 
 SEED_DATE = date(2025, 6, 30)
 DUPLICATE_CREATED_AT_CUTOFF = datetime(2025, 11, 1, 0, 0, 0)
+# Clear all derived analytics prior to this date. We keep market_data_cache untouched.
+CALCULATION_CLEAR_START_DATE = date(2000, 1, 1)
 
 DEMO_EQUITY_SEED_VALUES = {
     "demo_individual@sigmasight.com": Decimal("485000.00"),
@@ -187,19 +189,24 @@ async def clear_all_calculation_tables(
     """
     Clear every derived analytics table needed for a clean reseed.
 
+    Args:
+        db: AsyncSession
+        start_date: Optional override for clearing window. Defaults to CALCULATION_CLEAR_START_DATE (July 1, 2025).
+
     Returns:
         {
             "tables": {"portfolio_snapshots": 10, ...},
             "total_cleared": 1234
         }
     """
+    effective_start = start_date or CALCULATION_CLEAR_START_DATE
     summary: Dict[str, int] = OrderedDict()
     total_cleared = 0
 
     for model, column_name, label in TABLES_TO_CLEAR:
-        total_cleared += await _clear_table(db, model, column_name, label, summary, start_date)
+        total_cleared += await _clear_table(db, model, column_name, label, summary, effective_start)
 
-    total_cleared += await _clear_correlation_tables(db, summary, start_date)
+    total_cleared += await _clear_correlation_tables(db, summary, effective_start)
 
     return {
         "tables": summary,
@@ -299,7 +306,7 @@ async def clear_calculations_comprehensive(
     - Remove duplicate positions created after the seed
     - Reset demo portfolio equity balances
     """
-    start = start_date or date(2000, 1, 1)
+    start = start_date or CALCULATION_CLEAR_START_DATE
     analytics_results = await clear_all_calculation_tables(db, start)
 
     soft_deleted_count = await _remove_soft_deleted_positions(db)
