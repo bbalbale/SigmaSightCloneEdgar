@@ -102,9 +102,10 @@
    - **Read Part II before exploring the codebase**
 
 2. **[_docs/reference/API_REFERENCE_V1.4.6.md](_docs/reference/API_REFERENCE_V1.4.6.md)** - Complete API endpoint documentation (57 endpoints)
-3. **[_archive/todos/](_archive/todos/)** - Historical TODO files (Phases 1-3 complete, archived)
-4. **[README.md](README.md)** - Setup instructions and environment
-5. **[_docs/requirements/](docs/requirements/)** - Product requirements and specifications
+3. **[_docs/guides/RAILWAY_DATA_DOWNLOAD_GUIDE.md](_docs/guides/RAILWAY_DATA_DOWNLOAD_GUIDE.md)** - Railway production data download & import guide ⭐ **READ BEFORE IMPORTING DATA**
+4. **[_archive/todos/](_archive/todos/)** - Historical TODO files (Phases 1-3 complete, archived)
+5. **[README.md](README.md)** - Setup instructions and environment
+6. **[_docs/requirements/](docs/requirements/)** - Product requirements and specifications
 
 ### **Specialized References**
 - **Batch Processing**: See Part II Section on Batch Orchestrator v3
@@ -734,7 +735,9 @@ railway run python scripts/railway/audit_railway_calculations_verbose.py
 # - Saves: railway_calculations_audit_report.txt
 ```
 
-**Full Documentation**: See `scripts/railway/README.md`
+**Full Documentation**:
+- See `scripts/railway/README.md` for audit scripts
+- See `_docs/guides/RAILWAY_DATA_DOWNLOAD_GUIDE.md` for data import from Railway ⭐
 
 ---
 
