@@ -551,7 +551,18 @@ class BatchOrchestrator:
                 result['errors'].append(f"Phase 6 (Analytics) error: {str(e)}")
 
         # Determine overall success
-        result['success'] = len(result['errors']) == 0
+        # CRITICAL FIX (2025-11-14): Phase 6 (analytics) failures should NOT fail the batch!
+        # Phase 3 already committed snapshots and equity - those are the critical operations.
+        # Phase 6 is "best effort" analytics that can be re-run later.
+        # If we mark the batch as failed, _mark_batch_run_complete() won't be called,
+        # causing batch_run_tracking to get out of sync with actual snapshots.
+        critical_errors = [e for e in result['errors'] if not e.startswith('Phase 6')]
+        result['success'] = len(critical_errors) == 0
+
+        if not result['success']:
+            logger.error(f"Batch failed with critical errors: {critical_errors}")
+        elif result['errors']:
+            logger.warning(f"Batch succeeded with non-critical errors: {result['errors']}")
 
         return result
 
