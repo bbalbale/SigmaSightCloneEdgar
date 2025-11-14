@@ -1,0 +1,48 @@
+# SigmaSight Portfolio Import Template
+# ==========================================
+# Instructions:
+# 1. Fill in your positions below the header row
+# 2. Required columns: Symbol, Quantity, Entry Price Per Share, Entry Date
+# 3. For options: Fill in Symbol AND all options columns (Underlying Symbol, Strike Price, Expiration Date, Option Type)
+# 4. For closed positions: Fill in Exit Date and Exit Price Per Share
+# 5. Negative quantity = short position
+# 6. Date format: YYYY-MM-DD
+# 7. Comment lines (starting with #) are automatically ignored by the parser - no need to remove them
+#
+# Account Types (used when importing portfolio):
+# - taxable: Standard brokerage account
+# - ira: Traditional IRA
+# - roth_ira: Roth IRA
+# - 401k: 401(k) retirement plan
+# - 403b: 403(b) retirement plan
+# - 529: 529 education savings plan
+# - hsa: Health Savings Account
+# - trust: Trust account
+# - other: Other account types
+#
+Symbol,Quantity,Entry Price Per Share,Entry Date,Investment Class,Investment Subtype,Underlying Symbol,Strike Price,Expiration Date,Option Type,Exit Date,Exit Price Per Share
+# Example 1: Basic stock position (long)
+AAPL,100,158.00,2024-01-15,PUBLIC,STOCK,,,,,,
+# Example 2: ETF position
+SPY,50,445.20,2024-01-20,PUBLIC,ETF,,,,,,
+# Example 3: Short stock position (negative quantity)
+SHOP,-25,62.50,2024-02-10,PUBLIC,STOCK,,,,,,
+# Example 4: Long call option (Symbol required + all options columns required)
+SPY_C450_20240315,10,5.50,2024-02-01,OPTIONS,,SPY,450.00,2024-03-15,CALL,,
+# Example 5: Long put option (Symbol required + all options columns required)
+AAPL_P160_20240315,5,3.25,2024-02-05,OPTIONS,,AAPL,160.00,2024-03-15,PUT,,
+# Example 6: Short call option (Symbol required + all options columns required)
+SPY_C470_20240315,-10,2.75,2024-02-01,OPTIONS,,SPY,470.00,2024-03-15,CALL,,
+# Example 7: Cash/Money Market position
+SPAXX,10000,1.00,2024-01-01,PUBLIC,CASH,,,,,,
+# Example 8: Closed position (with exit date and price)
+TSLA,50,185.00,2023-12-01,PUBLIC,STOCK,,,,2024-01-15,215.00
+# Example 9: Minimal format - only required columns (leave optional columns blank)
+MSFT,75,380.00,2024-01-22,,,,,,,,
+NVDA,30,450.00,2024-01-25,,,,,,,,
+# Example 10: Bond position
+CORP_BOND_2025,100,98.50,2024-01-10,PUBLIC,BOND,,,,,,
+# Example 11: Mutual fund position
+VFIAX,250,425.30,2023-12-15,PUBLIC,MUTUAL_FUND,,,,,,
+# Example 12: Alternative investment (private equity)
+PRIVATE_FUND_A,1,50000.00,2023-06-01,PRIVATE,PRIVATE_EQUITY,,,,,,

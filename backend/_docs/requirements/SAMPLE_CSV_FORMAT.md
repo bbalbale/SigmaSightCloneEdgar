@@ -1,362 +1,394 @@
 # Portfolio CSV Upload Format
 
 ## 1. Overview
-This document defines the CSV format for uploading portfolio positions to SigmaSight. The format is designed to capture all essential position data while maintaining compatibility with common spreadsheet exports and the legacy Paragon Excel structure.
+This document defines the CSV format for uploading portfolio positions to SigmaSight. The format uses a **12-column structure** with 4 required columns and 8 optional columns for detailed position classification.
 
-## 2. Required Columns
+**Last Updated**: November 14, 2025
 
-### 2.1 Core Position Data
+## 2. CSV Format (12 Columns)
 
-#### 2.1.1 ticker - Security symbol (string)
-- Stocks: Standard ticker (e.g., "AAPL", "MSFT")
-- Options: OCC format (e.g., "AAPL240119C00150000")
+### 2.1 Column Structure
 
-#### 2.1.2 quantity - Number of shares or contracts (decimal)
-- Positive for long positions
-- Negative for short positions
+| # | Column Name | Required | Type | Description |
+|---|-------------|----------|------|-------------|
+| 1 | Symbol | ✅ | String | Stock/ETF/Option symbol |
+| 2 | Quantity | ✅ | Decimal | Number of shares/contracts (negative = short) |
+| 3 | Entry Price Per Share | ✅ | Decimal | Purchase price per share |
+| 4 | Entry Date | ✅ | Date | Entry date (YYYY-MM-DD) |
+| 5 | Investment Class | ❌ | String | PUBLIC, OPTIONS, or PRIVATE |
+| 6 | Investment Subtype | ❌ | String | STOCK, ETF, CALL, PUT, etc. |
+| 7 | Underlying Symbol | ❌ | String | For options only |
+| 8 | Strike Price | ❌ | Decimal | For options only |
+| 9 | Expiration Date | ❌ | Date | For options (YYYY-MM-DD) |
+| 10 | Option Type | ❌ | String | CALL or PUT |
+| 11 | Exit Date | ❌ | Date | For closed positions (YYYY-MM-DD) |
+| 12 | Exit Price Per Share | ❌ | Decimal | For closed positions |
+
+### 2.2 Header Row (Exact Column Names)
+
+```csv
+Symbol,Quantity,Entry Price Per Share,Entry Date,Investment Class,Investment Subtype,Underlying Symbol,Strike Price,Expiration Date,Option Type,Exit Date,Exit Price Per Share
+```
+
+**Important**: Column names are **case-sensitive** and must match exactly.
+
+## 3. Required Columns
+
+### 3.1 Symbol (Required)
+- Stock/ETF ticker symbol (e.g., "AAPL", "SPY")
+- For options: Use a descriptive symbol (e.g., "SPY_C450_20240315")
+- **Cannot be blank** - all positions must have a symbol
+- **Validation**:
+  - Max 100 characters
+  - Alphanumeric, dash, dot, underscore only
+  - Pattern: `^[A-Za-z0-9._-]+$`
+
+### 3.2 Quantity (Required)
+- Number of shares or contracts
+- **Positive** for long positions
+- **Negative** for short positions
 - For options: number of contracts (1 contract = 100 shares)
+- **Validation**:
+  - Cannot be zero
+  - Max 6 decimal places
+  - Must be valid decimal number
 
-#### 2.1.3 entry_price - Purchase/entry price per share (decimal)
-- Always positive, even for shorts
+### 3.3 Entry Price Per Share (Required)
+- Purchase/entry price per share
+- **Always positive**, even for short positions
 - For options: price per contract
+- **Validation**:
+  - Must be positive (> 0)
+  - Max 2 decimal places
+  - Must be valid decimal number
 
-#### 2.1.4 entry_date - Date position was entered (date)
-- Format: YYYY-MM-DD
+### 3.4 Entry Date (Required)
+- Date position was entered
+- **Format**: `YYYY-MM-DD` (ISO 8601)
 - Used for cost basis and P&L calculations
+- **Validation**:
+  - Cannot be in future
+  - Cannot be >100 years old
+  - Must be valid date in YYYY-MM-DD format
 
-#### 2.1.5 tags - Strategy/category tags (string)
-- Comma-separated list
-- Optional but recommended
-- No spaces after commas
+## 4. Optional Columns
 
-## 3. Optional Columns (Ignored but Accepted)
-These columns may be present from Excel exports but will be calculated by the system:
-- market_value
-- exposure
-- pnl
-- weight
-- any other columns
+### 4.1 Investment Class
+- Valid values: `PUBLIC`, `OPTIONS`, or `PRIVATE`
+- Leave blank for auto-detection
+- **Auto-detection logic**:
+  - Has options fields (Underlying/Strike/Expiration) → `OPTIONS`
+  - Default → `PUBLIC`
 
-## 4. CSV Format Rules
+### 4.2 Investment Subtype
+- Valid values depend on Investment Class:
+  - **PUBLIC**: `STOCK`, `ETF`, `MUTUAL_FUND`, `BOND`, `CASH`
+  - **OPTIONS**: `CALL`, `PUT`
+  - **PRIVATE**: `PRIVATE_EQUITY`, `VENTURE_CAPITAL`, `HEDGE_FUND`, `PRIVATE_REIT`, `REAL_ESTATE`, `CRYPTOCURRENCY`, `CRYPTO`, `ART`, `MONEY_MARKET`, `TREASURY_BILLS`, `CASH`, `COMMODITY`, `OTHER`
 
-### 4.1 General Requirements
-- First row must contain column headers
-- Column names are case-insensitive
-- UTF-8 encoding required
-- No blank rows within data
-- Blank cells in optional columns are acceptable
+### 4.3 Options-Specific Columns
 
-### 4.2 Data Validation
-- Ticker must be valid (system will verify)
-- Quantity cannot be zero
-- Entry price must be positive
-- Entry date cannot be in future
-- Entry date must be within last 5 years
+**Important**: All four options columns are **required** when Investment Class = `OPTIONS`.
 
-## 5. Position Type Determination
+**Underlying Symbol**:
+- **Required** if Investment Class = `OPTIONS`
+- Underlying stock/ETF symbol (e.g., "SPY")
 
-### 5.1 Stocks
-- LONG: quantity > 0
-- SHORT: quantity < 0
+**Strike Price**:
+- **Required** if Investment Class = `OPTIONS`
+- Strike price as decimal (e.g., 450.00)
 
-### 5.2 Options (OCC Symbol Format)
-Options use the standard OCC symbology: TICKERYYMMDDCSTRIKE
+**Expiration Date**:
+- **Required** if Investment Class = `OPTIONS`
+- Format: `YYYY-MM-DD`
 
-#### 5.2.1 Format Breakdown
-- TICKER: Underlying symbol (variable length)
-- YY: Year (2 digits)
-- MM: Month (2 digits)
-- DD: Day (2 digits)
-- C/P: Call or Put (1 character)
-- STRIKE: Strike price * 1000 (8 digits, including decimals)
+**Option Type**:
+- **Required** if Investment Class = `OPTIONS`
+- Valid values: `CALL` or `PUT`
 
-#### 5.2.2 Position Types
-- LC (Long Call): Call option with quantity > 0
-- SC (Short Call): Call option with quantity < 0
-- LP (Long Put): Put option with quantity > 0
-- SP (Short Put): Put option with quantity < 0
+### 4.4 Closed Position Columns
 
-## 6. Tag Guidelines
+**Exit Date**:
+- Optional, for closed positions
+- Format: `YYYY-MM-DD`
+- Must be after Entry Date
 
-### 6.1 Recommended Tag Categories
+**Exit Price Per Share**:
+- Optional, for closed positions
+- Exit price as decimal
 
-#### 6.1.1 Strategy Tags
-- momentum
-- value
-- growth
-- hedge
-- arbitrage
-- pairs_trade
-- income
+## 5. File Format Rules
 
-#### 6.1.2 Sector Tags
-- tech
-- finance
-- healthcare
-- energy
-- consumer
-- industrial
+### 5.1 General Requirements
+- **Encoding**: UTF-8
+- **File extension**: `.csv`
+- **Max file size**: 10 MB
+- **First row**: Must contain column headers (exact names)
+- **Comment lines**: Lines starting with `#` are automatically ignored by parser
+- **Empty rows**: Automatically skipped during processing
 
-#### 6.1.3 Risk Tags
-- high_beta
-- low_vol
-- defensive
-- cyclical
+### 5.2 Data Formatting
+- **Decimals**: Use period (`.`) as decimal separator
+- **Dates**: YYYY-MM-DD format only
+- **No currency symbols**: Remove `$`, `,` from numbers
+- **No thousand separators**: Use `1000.00` not `1,000.00`
+- **Blank cells**: Leave optional columns empty (do not use "N/A" or "-")
 
-#### 6.1.4 Custom Tags
-- Any alphanumeric string
-- Use underscores for spaces
-- Keep concise (max 20 characters)
+## 6. Position Type Determination
+
+### 6.1 Stocks and ETFs
+- **LONG**: `quantity > 0`
+- **SHORT**: `quantity < 0`
+
+### 6.2 Options
+
+**Options positions require**:
+- Symbol column filled (e.g., "SPY_C450_20240315")
+- Investment Class = `OPTIONS`
+- All four options columns: Underlying Symbol, Strike Price, Expiration Date, Option Type
+
+**Position Types** (determined by quantity and option type):
+- **Long Call**: Option Type = CALL, `quantity > 0`
+- **Short Call**: Option Type = CALL, `quantity < 0`
+- **Long Put**: Option Type = PUT, `quantity > 0`
+- **Short Put**: Option Type = PUT, `quantity < 0`
 
 ## 7. Example CSV Files
 
-### 7.1 Example 1: Mixed Portfolio
+### 7.1 Minimal Example (4 Required Columns Only)
+
 ```csv
-ticker,quantity,entry_price,entry_date,tags
-AAPL,1000,150.00,2024-01-15,"momentum,tech"
-MSFT,-500,380.00,2024-01-20,"hedge,tech"
-JPM,800,140.50,2024-02-01,"value,finance"
-TSLA,-200,195.00,2024-02-10,"hedge,high_beta"
-AAPL240119C00150000,10,5.50,2024-01-10,"income,options"
-SPY240119P00450000,5,8.25,2024-01-12,"hedge,options"
+Symbol,Quantity,Entry Price Per Share,Entry Date,Investment Class,Investment Subtype,Underlying Symbol,Strike Price,Expiration Date,Option Type,Exit Date,Exit Price Per Share
+AAPL,100,158.00,2024-01-15,,,,,,,,
+MSFT,50,380.00,2024-01-20,,,,,,,,
+SPY,25,445.20,2024-02-01,,,,,,,,
 ```
 
-### 7.2 Example 2: Long/Short Equity
+### 7.2 Mixed Portfolio (Stocks + Options)
+
 ```csv
-ticker,quantity,entry_price,entry_date,tags
-NVDA,300,450.00,2024-01-05,"growth,tech,ai"
-META,400,325.00,2024-01-08,"growth,tech"
-XOM,1000,105.00,2024-01-10,"value,energy"
-CVX,800,150.00,2024-01-10,"value,energy"
-GME,-1000,18.50,2024-01-15,"short,meme"
-AMC,-2000,5.25,2024-01-15,"short,meme"
-RIVN,-500,19.00,2024-01-20,"short,ev"
+Symbol,Quantity,Entry Price Per Share,Entry Date,Investment Class,Investment Subtype,Underlying Symbol,Strike Price,Expiration Date,Option Type,Exit Date,Exit Price Per Share
+AAPL,100,158.00,2024-01-15,PUBLIC,STOCK,,,,,,
+MSFT,50,380.00,2024-01-20,PUBLIC,STOCK,,,,,,
+SPY,25,445.20,2024-02-01,PUBLIC,ETF,,,,,,
+SPY_C450_20240315,10,5.50,2024-02-01,OPTIONS,,SPY,450.00,2024-03-15,CALL,,
+AAPL_P160_20240315,5,3.25,2024-02-05,OPTIONS,,AAPL,160.00,2024-03-15,PUT,,
 ```
 
-### 7.3 Example 3: Options Strategy
+### 7.3 Long/Short Equity Portfolio
+
 ```csv
-ticker,quantity,entry_price,entry_date,tags
-AAPL240119C00170000,20,3.50,2024-01-02,"bull_spread,long_leg"
-AAPL240119C00180000,-20,1.50,2024-01-02,"bull_spread,short_leg"
-MSFT240216P00350000,10,4.25,2024-01-05,"protection"
-SPY240315C00470000,-5,2.75,2024-01-10,"income,covered_call"
+Symbol,Quantity,Entry Price Per Share,Entry Date,Investment Class,Investment Subtype,Underlying Symbol,Strike Price,Expiration Date,Option Type,Exit Date,Exit Price Per Share
+AAPL,1000,150.00,2024-01-15,PUBLIC,STOCK,,,,,,
+MSFT,-500,380.00,2024-01-20,PUBLIC,STOCK,,,,,,
+JPM,800,140.50,2024-02-01,PUBLIC,STOCK,,,,,,
+TSLA,-200,195.00,2024-02-10,PUBLIC,STOCK,,,,,,
 ```
 
-## 8. Upload Process
+### 7.4 With Closed Positions
 
-### 8.1 File Size Limits
-- Maximum 10MB per upload
-- Maximum 10,000 positions per file
+```csv
+Symbol,Quantity,Entry Price Per Share,Entry Date,Investment Class,Investment Subtype,Underlying Symbol,Strike Price,Expiration Date,Option Type,Exit Date,Exit Price Per Share
+TSLA,50,185.00,2023-12-01,PUBLIC,STOCK,,,,2024-01-15,215.00
+NVDA,25,450.00,2024-01-05,PUBLIC,STOCK,,,,,,
+META,30,325.00,2024-01-08,PUBLIC,STOCK,,,,2024-02-01,355.00
+```
 
-### 8.2 Processing
-- Positions are validated row by row
-- Invalid rows are reported but don't stop processing
-- Duplicate positions (same ticker, same date) are rejected
+## 8. Download Template
 
-### 8.3 Response
-- Success: Number of positions created
-- Errors: List of invalid rows with reasons
-- Warnings: Data quality issues
+### 8.1 Via API
 
-## 9. Common Issues and Solutions
+```bash
+curl https://api.sigmasight.io/api/v1/onboarding/csv-template \
+  -o portfolio_template.csv
+```
 
-### 9.1 Date Format Errors
-- Solution: Ensure dates are in YYYY-MM-DD format, not MM/DD/YYYY
+### 8.2 Template Location
 
-### 9.2 Option Symbol Confusion
-- Solution: Use exactly 8 digits for strike (e.g., 00150000 for $150.00)
+See `backend/Sample_Template.csv` for a downloadable template with examples.
 
-### 9.3 Missing Tags
-- Solution: Tags are optional; leave blank if not using
+## 9. Common Errors and Solutions
 
-### 9.4 Negative Prices
-- Solution: Entry price is always positive, even for shorts
+### 9.1 CSV Validation Errors
 
-### 9.5 Excel Number Formatting
-- Solution: Remove currency symbols, thousand separators before export
+| Error Code | Error Message | Solution |
+|------------|---------------|----------|
+| ERR_CSV_001 | File too large (>10MB) | Split into multiple files |
+| ERR_CSV_002 | Invalid file type (must be .csv) | Save as CSV format |
+| ERR_CSV_003 | Empty file | Add position data |
+| ERR_CSV_004 | Missing required column | Check header matches exactly |
+| ERR_CSV_006 | Malformed CSV | Check for proper CSV formatting |
 
-## 10. Migration from Legacy Excel
+### 9.2 Position Validation Errors
 
-### 10.1 Column Mapping
-- symbol → ticker
-- qty or quantity → quantity
-- price → entry_price
-- trade date → entry_date
-- strategy → include in tags
+| Error Code | Error Message | Solution |
+|------------|---------------|----------|
+| ERR_POS_001 | Symbol is required | Add symbol to row |
+| ERR_POS_004 | Quantity is required | Add quantity to row |
+| ERR_POS_006 | Quantity cannot be zero | Use non-zero quantity |
+| ERR_POS_008 | Entry price is required | Add entry price to row |
+| ERR_POS_010 | Entry price must be positive | Use positive price (even for shorts) |
+| ERR_POS_012 | Entry date is required | Add entry date in YYYY-MM-DD format |
+| ERR_POS_013 | Invalid date format | Use YYYY-MM-DD format |
+| ERR_POS_014 | Entry date cannot be in future | Use past or current date |
+| ERR_POS_023 | Duplicate position | Same symbol+date appears twice |
 
-### 10.2 Data Cleanup
-- Remove thousand separators from numbers
-- Convert date format to YYYY-MM-DD
-- Combine multiple classification columns into tags
+### 9.3 Options Validation Errors
 
-### 10.3 Calculated Fields
-- Don't include mkt val, exposure, P&L
-- System will calculate these automaticallyNo spaces after commas
+| Error Code | Error Message | Solution |
+|------------|---------------|----------|
+| ERR_POS_019 | Underlying symbol required | Add underlying symbol for options |
+| ERR_POS_020 | Strike price required | Add strike price for options |
+| ERR_POS_021 | Expiration date required | Add expiration date for options |
+| ERR_POS_022 | Invalid option type | Use CALL or PUT |
 
+## 10. Common Issues
 
+### 10.1 Date Format Errors
+**Problem**: Excel changes dates to MM/DD/YYYY
+**Solution**: Format cells as Text before entering dates, or use YYYY-MM-DD
 
-Optional Columns (Ignored but Accepted)
-These columns may be present from Excel exports but will be calculated by the system:
+### 10.2 Number Formatting
+**Problem**: Excel adds thousand separators (1,000.00)
+**Solution**: Format cells as Number with no thousand separator
 
-market_value
-exposure
-pnl
-weight
-any other columns
+### 10.3 Negative Prices for Shorts
+**Problem**: Using negative entry price for short positions
+**Solution**: Entry price is always positive, use negative quantity instead
 
-CSV Format Rules
-General Requirements
+### 10.4 Missing Required Columns
+**Problem**: Column headers don't match exactly
+**Solution**: Copy header row from template exactly (case-sensitive)
 
-First row must contain column headers
-Column names are case-insensitive
-UTF-8 encoding required
-No blank rows within data
-Blank cells in optional columns are acceptable
+### 10.5 Blank Symbol Column
+**Problem**: Leaving Symbol column empty for options or other positions
+**Solution**: All positions require a symbol - use descriptive names like "SPY_C450_20240315"
 
-Data Validation
+## 11. Migration from Legacy Systems
 
-Ticker must be valid (system will verify)
-Quantity cannot be zero
-Entry price must be positive
-Entry date cannot be in future
-Entry date must be within last 5 years
+### 11.1 From Paragon Excel
 
-Position Type Determination
-The system automatically determines position type based on:
-Stocks
+**Column Mapping**:
+- `symbol` → `Symbol`
+- `qty` or `quantity` → `Quantity`
+- `price` → `Entry Price Per Share`
+- `trade date` → `Entry Date`
+- Leave optional columns blank
 
-LONG: quantity > 0
-SHORT: quantity < 0
+**Data Cleanup**:
+1. Remove thousand separators: `1,000.00` → `1000.00`
+2. Remove currency symbols: `$150.00` → `150.00`
+3. Convert dates: `01/15/2024` → `2024-01-15`
+4. Don't include calculated fields (market value, P&L, etc.)
 
-Options (OCC Symbol Format)
-Options use the standard OCC symbology: TICKERYYMMDDCSTRIKE
+### 11.2 From Broker Exports
 
-TICKER: Underlying symbol (variable length)
-YY: Year (2 digits)
-MM: Month (2 digits)
-DD: Day (2 digits)
-C/P: Call or Put (1 character)
-STRIKE: Strike price * 1000 (8 digits, including decimals)
+**Schwab**:
+- Map: Symbol → Symbol, Qty → Quantity
+- Add Entry Date from transaction history
+- Entry Price = Cost Basis ÷ Quantity
 
-Position types:
+**Fidelity**:
+- Similar to Schwab
+- Watch for date format differences
 
-LC (Long Call): Call option with quantity > 0
-SC (Short Call): Call option with quantity < 0
-LP (Long Put): Put option with quantity > 0
-SP (Short Put): Put option with quantity < 0
+**Interactive Brokers**:
+- Export positions report
+- Map columns accordingly
+- Handle options in OCC format
 
-Tag Guidelines
-Recommended Tag Categories
-Strategy Tags:
+## 12. Validation Process
 
-momentum
-value
-growth
-hedge
-arbitrage
-pairs_trade
-income
+### 12.1 File-Level Validation
+1. File size < 10 MB
+2. File extension is `.csv`
+3. UTF-8 encoding
+4. Valid CSV structure
 
-Sector Tags:
+### 12.2 Row-Level Validation
+1. All 4 required columns present
+2. Quantity is non-zero decimal
+3. Entry price is positive decimal
+4. Entry date is valid YYYY-MM-DD
+5. If Investment Class = OPTIONS, all options fields required
+6. Exit date > Entry date (if provided)
+7. No duplicate positions (same symbol + entry date)
 
-tech
-finance
-healthcare
-energy
-consumer
-industrial
+### 12.3 Processing
+- **All-or-nothing import**: If any row fails validation, the entire import is rejected
+- No partial imports - all positions must be valid
+- Error response includes all validation failures with row numbers
+- Duplicate detection prevents same position twice (same symbol + entry date)
 
-Risk Tags:
+## 13. Important Notes
 
-high_beta
-low_vol
-defensive
-cyclical
+- **Tags are NOT supported in CSV import** (use UI or API after import)
+- **All-or-nothing import**: Any validation error aborts the entire import
+- **Symbol required for all rows**: Cannot be blank, even for options
+- **Options require all 4 columns**: Underlying Symbol, Strike Price, Expiration Date, Option Type
+- **Investment Class auto-detection** works well for most cases
+- **Short positions**: Use negative quantity, positive price
+- **Closed positions**: Optional Exit Date/Exit Price columns
+- **Maximum precision**: 6 decimals for quantity, 2 for prices
+- **Comment lines (#) are automatically stripped** by the parser - no need to remove them manually
 
-Custom Tags:
+## 14. API Integration
 
-Any alphanumeric string
-Use underscores for spaces
-Keep concise (max 20 characters)
+### 14.1 Upload Endpoint
 
-Example CSV Files
-Example 1: Mixed Portfolio
-csvticker,quantity,entry_price,entry_date,tags
-AAPL,1000,150.00,2024-01-15,"momentum,tech"
-MSFT,-500,380.00,2024-01-20,"hedge,tech"
-JPM,800,140.50,2024-02-01,"value,finance"
-TSLA,-200,195.00,2024-02-10,"hedge,high_beta"
-AAPL240119C00150000,10,5.50,2024-01-10,"income,options"
-SPY240119P00450000,5,8.25,2024-01-12,"hedge,options"
-Example 2: Long/Short Equity
-csvticker,quantity,entry_price,entry_date,tags
-NVDA,300,450.00,2024-01-05,"growth,tech,ai"
-META,400,325.00,2024-01-08,"growth,tech"
-XOM,1000,105.00,2024-01-10,"value,energy"
-CVX,800,150.00,2024-01-10,"value,energy"
-GME,-1000,18.50,2024-01-15,"short,meme"
-AMC,-2000,5.25,2024-01-15,"short,meme"
-RIVN,-500,19.00,2024-01-20,"short,ev"
-Example 3: Options Strategy
-csvticker,quantity,entry_price,entry_date,tags
-AAPL240119C00170000,20,3.50,2024-01-02,"bull_spread,long_leg"
-AAPL240119C00180000,-20,1.50,2024-01-02,"bull_spread,short_leg"
-MSFT240216P00350000,10,4.25,2024-01-05,"protection"
-SPY240315C00470000,-5,2.75,2024-01-10,"income,covered_call"
-Upload Process
+```bash
+POST /api/v1/onboarding/create-portfolio
+```
 
-File Size Limits
+**Parameters**:
+- `portfolio_name`: Display name (required)
+- `account_name`: Unique account identifier (required)
+- `account_type`: Account type (required - taxable, ira, roth_ira, 401k, 403b, 529, hsa, trust, other)
+- `equity_balance`: Total account value (required)
+- `description`: Optional description
+- `csv_file`: CSV file upload (required)
 
-Maximum 10MB per upload
-Maximum 10,000 positions per file
+### 14.2 Response
 
+**Success**:
+```json
+{
+  "portfolio_id": "uuid",
+  "portfolio_name": "My Portfolio",
+  "account_name": "main",
+  "account_type": "taxable",
+  "equity_balance": 250000.0,
+  "positions_imported": 45,
+  "positions_failed": 0,
+  "total_positions": 45,
+  "message": "Portfolio created successfully",
+  "next_step": {
+    "action": "calculate",
+    "endpoint": "/api/v1/portfolio/{id}/calculate"
+  }
+}
+```
 
-Processing
+**Validation Errors**:
+```json
+{
+  "error": {
+    "code": "ERR_PORT_008",
+    "message": "CSV validation failed with 2 error(s)",
+    "details": {
+      "errors": [
+        {
+          "code": "ERR_POS_012",
+          "message": "Entry date is required",
+          "row": 5,
+          "field": "Entry Date"
+        }
+      ]
+    }
+  }
+}
+```
 
-Positions are validated row by row
-Invalid rows are reported but don't stop processing
-Duplicate positions (same ticker, same date) are rejected
+---
 
-
-Response
-
-Success: Number of positions created
-Errors: List of invalid rows with reasons
-Warnings: Data quality issues
-
-
-
-Common Issues and Solutions
-Issue: Date Format Errors
-Solution: Ensure dates are in YYYY-MM-DD format, not MM/DD/YYYY
-Issue: Option Symbol Confusion
-Solution: Use exactly 8 digits for strike (e.g., 00150000 for $150.00)
-Issue: Missing Tags
-Solution: Tags are optional; leave blank if not using
-Issue: Negative Prices
-Solution: Entry price is always positive, even for shorts
-Issue: Excel Number Formatting
-Solution: Remove currency symbols, thousand separators before export
-Migration from Legacy Excel
-If migrating from Paragon Excel files:
-
-Column Mapping:
-
-symbol → ticker
-qty or quantity → quantity
-price → entry_price
-trade date → entry_date
-strategy → include in tags
-
-
-Data Cleanup:
-
-Remove thousand separators from numbers
-Convert date format to YYYY-MM-DD
-Combine multiple classification columns into tags
-
-
-Calculated Fields:
-
-Don't include mkt val, exposure, P&L
-System will calculate these automatically
+**For complete API documentation, see**: `backend/_docs/reference/API_REFERENCE_V1.4.6.md`
