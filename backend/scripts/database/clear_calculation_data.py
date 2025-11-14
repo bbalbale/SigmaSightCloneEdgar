@@ -44,6 +44,7 @@ from sqlalchemy.orm import DeclarativeMeta
 from app.database import get_async_session
 from app.models.snapshots import PortfolioSnapshot
 from app.models.users import Portfolio, User
+from app.models.batch_tracking import BatchRunTracking
 from app.models.market_data import (
     FactorCorrelation,
     FactorExposure,
@@ -66,6 +67,7 @@ from app.models.positions import Position
 # --- Configuration ---
 # (model, date attribute name, human label)
 TABLES_TO_CLEAR: List[Tuple[Type[DeclarativeMeta], str, str]] = [
+    (BatchRunTracking, "run_date", "Batch run tracking"),
     (PortfolioSnapshot, "snapshot_date", "Portfolio snapshots"),
     (PositionGreeks, "calculation_date", "Position greeks"),
     (FactorExposure, "calculation_date", "Portfolio factor exposures"),
