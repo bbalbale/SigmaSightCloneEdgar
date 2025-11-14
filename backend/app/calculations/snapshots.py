@@ -117,9 +117,13 @@ async def create_portfolio_snapshot(
             skip_provider_beta=skip_provider_beta,
             skip_sector_analysis=skip_sector_analysis
         )
-        
-        await db.commit()
-        
+
+        # CRITICAL FIX (2025-11-14): Do NOT commit here!
+        # The caller (pnl_calculator) needs to commit BOTH the portfolio equity update
+        # AND the snapshot in a SINGLE transaction. Committing here causes the portfolio
+        # equity update to be lost when the snapshot re-queries the portfolio object.
+        # await db.commit()  # REMOVED - caller handles commit
+
         return {
             "success": True,
             "message": "Snapshot created successfully",
