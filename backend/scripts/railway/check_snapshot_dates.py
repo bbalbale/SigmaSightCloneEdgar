@@ -47,7 +47,10 @@ async def main():
             )
 
             for snap in snapshots.scalars().all():
-                print(f"  {snap.snapshot_date}: equity=${snap.equity_balance:,.2f}, daily_pnl=${snap.daily_pnl or 0:,.2f}, daily_flow=${snap.daily_capital_flow or 0:,.2f}")
+                equity = snap.equity_balance if snap.equity_balance is not None else 0
+                pnl = snap.daily_pnl if snap.daily_pnl is not None else 0
+                flow = snap.daily_capital_flow if snap.daily_capital_flow is not None else 0
+                print(f"  {snap.snapshot_date}: equity=${equity:,.2f}, daily_pnl=${pnl:,.2f}, daily_flow=${flow:,.2f}")
 
 if __name__ == "__main__":
     asyncio.run(main())
