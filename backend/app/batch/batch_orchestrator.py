@@ -931,17 +931,48 @@ class BatchOrchestrator:
         return normalized
 
     async def _get_last_batch_run_date(self, db: AsyncSession) -> Optional[date]:
-        """Get the date of the last successful batch run"""
-        query = select(BatchRunTracking).where(
+        """
+        Get the date of the last successful batch run.
+
+        CRITICAL FIX (2025-11-14): Use the latest SNAPSHOT date, not batch_run_tracking.
+
+        Why: batch_run_tracking records when a batch STARTED, but if run before market
+        close (e.g., manually at midnight), no snapshots are created (non-trading hours).
+        This causes backfill to skip dates that weren't actually processed.
+
+        Example bug scenario:
+        - Manual batch run at midnight Nov 13 → batch_run_tracking.run_date = Nov 13
+        - But market hasn't opened → NO snapshots created
+        - Next cron run thinks Nov 13 is done → skips to Nov 14
+        - Nov 14 snapshot uses Nov 10 equity → corruption!
+
+        Solution: Use the LATEST snapshot date across all portfolios as the true
+        "last processed date" since snapshots are only created on actual trading days.
+        """
+        query = select(PortfolioSnapshot.snapshot_date).order_by(
+            desc(PortfolioSnapshot.snapshot_date)
+        ).limit(1)
+
+        result = await db.execute(query)
+        last_snapshot_date = result.scalar_one_or_none()
+
+        if last_snapshot_date:
+            logger.info(f"Last snapshot date found: {last_snapshot_date}")
+            return last_snapshot_date
+
+        # Fallback to batch tracking if no snapshots exist (first run ever)
+        query_tracking = select(BatchRunTracking).where(
             BatchRunTracking.phase_1_status == 'success'
         ).order_by(desc(BatchRunTracking.run_date)).limit(1)
 
-        result = await db.execute(query)
-        last_run = result.scalar_one_or_none()
+        result_tracking = await db.execute(query_tracking)
+        last_run = result_tracking.scalar_one_or_none()
 
         if last_run:
+            logger.info(f"No snapshots found, using batch tracking: {last_run.run_date}")
             return last_run.run_date
 
+        logger.info("No snapshots or batch tracking found (first run ever)")
         return None
 
     async def _get_earliest_position_date(self, db: AsyncSession) -> Optional[date]:
