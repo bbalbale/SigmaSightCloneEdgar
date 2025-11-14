@@ -37,6 +37,7 @@ from app.database import AsyncSessionLocal
 from app.models.batch_tracking import BatchRunTracking
 from app.models.positions import Position
 from app.models.users import Portfolio
+from app.models.snapshots import PortfolioSnapshot
 from app.utils.trading_calendar import trading_calendar
 from app.batch.market_data_collector import market_data_collector
 from app.batch.fundamentals_collector import fundamentals_collector
