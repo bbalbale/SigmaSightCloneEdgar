@@ -124,6 +124,10 @@ async def check_equity_rollforward():
                 prev_snap = snapshots[i-1]
                 curr_snap = snapshots[i]
 
+                # Skip if any required values are None
+                if prev_snap.equity_balance is None or curr_snap.equity_balance is None:
+                    continue
+
                 expected_equity = prev_snap.equity_balance + (curr_snap.daily_pnl or Decimal('0')) + (curr_snap.daily_capital_flow or Decimal('0'))
                 actual_equity = curr_snap.equity_balance
                 diff = abs(actual_equity - expected_equity)
