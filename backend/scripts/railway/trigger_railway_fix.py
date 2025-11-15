@@ -60,7 +60,7 @@ def login(base_url: str, email: str, password: str) -> str:
         print("ERROR: Login response did not include an access_token")
         sys.exit(1)
 
-    print("✓ Authentication successful")
+    print("[OK] Authentication successful")
     return token
 
 
@@ -92,7 +92,7 @@ def trigger_fix(base_url: str, token: str, timeout: int, start_date: str = None,
         sys.exit(1)
 
     job_id = payload.get("job_id")
-    print(f"✓ Fix job started: {job_id}")
+    print(f"[OK] Fix job started: {job_id}")
     print(f"\n3. Polling for job status (this can take 10-20 minutes)...")
 
     # Poll for job status
@@ -125,19 +125,19 @@ def trigger_fix(base_url: str, token: str, timeout: int, start_date: str = None,
                 print(f"\r   Progress: {progress} (elapsed: {elapsed}s)", end="", flush=True)
 
             if status == "completed":
-                print(f"\n✓ Fix job completed successfully!")
+                print(f"\n[OK] Fix job completed successfully!")
                 return job_status.get("result", {})
 
             elif status == "failed":
                 error = job_status.get("error")
-                print(f"\n✗ Fix job failed: {error}")
+                print(f"\n[ERROR] Fix job failed: {error}")
                 sys.exit(1)
 
         except requests.exceptions.RequestException as e:
             print(f"\nWARNING: Status check request failed: {e}")
             continue
 
-    print(f"\n✗ Job did not complete within {max_wait_seconds}s timeout")
+    print(f"\n[ERROR] Job did not complete within {max_wait_seconds}s timeout")
     print(f"   Job ID: {job_id}")
     print(f"   Check status manually: {base_url}/admin/fix/jobs/{job_id}")
     sys.exit(1)
