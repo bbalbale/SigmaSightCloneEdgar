@@ -86,9 +86,19 @@ async def create_portfolio_snapshot(
         )
         aggregations = calculate_portfolio_exposures(positions_list)
 
-        equity_query = select(PortfolioModel.equity_balance).where(PortfolioModel.id == portfolio_id)
-        equity_result = await db.execute(equity_query)
-        today_equity = equity_result.scalar_one_or_none() or Decimal('0')
+        # CRITICAL FIX #4 (2025-11-15): DO NOT re-query equity_balance!
+        # The pnl_calculator has already updated portfolio.equity_balance and flushed it.
+        # Re-querying here causes a race condition where we might get stale data.
+        # Instead, get the portfolio object from the session (which has the updated equity).
+        portfolio_result = await db.execute(
+            select(PortfolioModel).where(PortfolioModel.id == portfolio_id)
+        )
+        portfolio = portfolio_result.scalar_one_or_none()
+        if not portfolio:
+            raise ValueError(f"Portfolio {portfolio_id} not found")
+
+        today_equity = portfolio.equity_balance or Decimal('0')
+        logger.debug(f"Using portfolio equity_balance from session: ${float(today_equity):,.2f}")
 
 
         # Step 4: Calculate P&L (skip if requested by V3 batch processor)
