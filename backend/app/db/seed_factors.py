@@ -33,12 +33,12 @@ FACTOR_DEFINITIONS = [
         "etf_proxy": "SPY",
         "display_order": 1
     },
-    # Interest Rate Beta
+    # Interest Rate Factor
     {
-        "name": "Interest Rate Beta",
-        "description": "90-day regression vs TLT (treasury bonds)",
+        "name": "Interest Rate",
+        "description": "Interest rate sensitivity via regression vs TLT (20+ year treasury bonds)",
         "factor_type": "macro",
-        "calculation_method": "rolling_regression",
+        "calculation_method": "ridge_regression",
         "etf_proxy": "TLT",
         "display_order": 2
     },
