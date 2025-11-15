@@ -2,6 +2,7 @@
 Admin Fix Endpoint - Railway Production Data Fix
 Provides HTTP endpoint to trigger data fix operations on Railway
 """
+from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
