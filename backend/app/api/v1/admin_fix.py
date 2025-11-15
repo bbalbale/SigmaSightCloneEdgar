@@ -86,9 +86,7 @@ async def _run_fix_all_background(
 
             # Mark job as complete
             result = {
-                "step1_clear": {
-                    "total_cleared": step1_cleared
-                },
+                "step1_clear": clear_results,  # Pass through full results dict
                 "step2_seed": {
                     "total_portfolios": total_portfolios
                 },

@@ -144,25 +144,26 @@ def trigger_fix(base_url: str, token: str, timeout: int, start_date: str = None,
 
 
 def print_summary(result: Dict[str, Any]) -> None:
-    details = result.get("details", {})
     print("\n" + "=" * 80)
     print("RAILWAY DATA FIX SUMMARY")
     print("=" * 80)
 
-    clear_details = details.get("step1_clear", {})
-    tables = clear_details.get("tables", {})
+    clear_details = result.get("step1_clear", {})
     print("\nStep 1 - Clearing analytics tables")
-    print(f"  Total cleared: {clear_details.get('total_cleared', 0)}")
-    if tables:
-        for name, count in tables.items():
+    print(f"  Total cleared: {clear_details.get('total_deleted', 0)}")
+
+    # Print per-table stats (all keys except special ones)
+    special_keys = {'total_deleted', 'soft_deleted_positions', 'duplicate_positions', 'equity_resets'}
+    table_stats = {k: v for k, v in clear_details.items() if k not in special_keys}
+    if table_stats:
+        for name, count in table_stats.items():
             print(f"    • {name}: {count}")
-    else:
-        print("    (warning: no per-table stats returned)")
+
     print(f"  Soft-deleted positions removed: {clear_details.get('soft_deleted_positions', 0)}")
     print(f"  Duplicate positions removed: {clear_details.get('duplicate_positions', 0)}")
     print(f"  Equity balances reset: {clear_details.get('equity_resets', 0)}")
 
-    seed_details = details.get("step2_seed", {})
+    seed_details = result.get("step2_seed", {})
     print("\nStep 2 - Seeding portfolios")
     total_portfolios = seed_details.get("total_portfolios")
     if total_portfolios is not None:
@@ -170,7 +171,7 @@ def print_summary(result: Dict[str, Any]) -> None:
     else:
         print("  (warning: seed step did not report portfolio count)")
 
-    batch_details = details.get("step3_batch", {})
+    batch_details = result.get("step3_batch", {})
     print("\nStep 3 - Batch processing")
     if batch_details:
         print(f"  Message: {batch_details.get('message', 'Success')}")
