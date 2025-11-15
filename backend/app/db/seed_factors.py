@@ -82,9 +82,49 @@ FACTOR_DEFINITIONS = [
         "calculation_method": "ridge_regression",
         "etf_proxy": "QUAL",
         "display_order": 7
+    },
+    {
+        "name": "Low Volatility",
+        "description": "Low volatility factor from ridge regression",
+        "factor_type": "style",
+        "calculation_method": "ridge_regression",
+        "etf_proxy": "USMV",
+        "display_order": 8
+    },
+    # 4 Spread Factors (long-short spreads)
+    {
+        "name": "Growth-Value Spread",
+        "description": "Long growth, short value spread (VUG - VTV)",
+        "factor_type": "style",
+        "calculation_method": "spread_regression",
+        "etf_proxy": "VUG",
+        "display_order": 9
+    },
+    {
+        "name": "Momentum Spread",
+        "description": "Long momentum, short market spread (MTUM - SPY)",
+        "factor_type": "style",
+        "calculation_method": "spread_regression",
+        "etf_proxy": "MTUM",
+        "display_order": 10
+    },
+    {
+        "name": "Size Spread",
+        "description": "Long small cap, short large cap spread (IWM - SPY)",
+        "factor_type": "style",
+        "calculation_method": "spread_regression",
+        "etf_proxy": "IWM",
+        "display_order": 11
+    },
+    {
+        "name": "Quality Spread",
+        "description": "Long quality, short market spread (QUAL - SPY)",
+        "factor_type": "style",
+        "calculation_method": "spread_regression",
+        "etf_proxy": "QUAL",
+        "display_order": 12
     }
     # NOTE: Short Interest removed - no longer calculated (2025-11-15)
-    # NOTE: Low Volatility not currently calculated
 ]
 
 
