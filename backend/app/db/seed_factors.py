@@ -1,7 +1,8 @@
 """
 Seed factor definitions into the database
 
-This script seeds the 8 confirmed factors as per the design decisions.
+CRITICAL (2025-11-15): These factor definitions must match what analytics_runner.py actually calculates.
+Only include factors that are actively being computed.
 """
 import asyncio
 from uuid import uuid4
@@ -12,90 +13,96 @@ from app.database import get_db
 from app.models.market_data import FactorDefinition
 
 
-# Factor definitions based on confirmed design
+# Factor definitions - ACTIVELY CALCULATED FACTORS ONLY
+# These match what analytics_runner.py actually calculates
 FACTOR_DEFINITIONS = [
+    # Market Beta Factors (2 approaches)
     {
         "name": "Market Beta",
-        "description": "Sensitivity to overall market movements (S&P 500)",
-        "factor_type": "style",
+        "description": "90-day OLS regression beta vs S&P 500 (portfolio-level)",
+        "factor_type": "market",
         "calculation_method": "rolling_regression",
         "etf_proxy": "SPY",
         "display_order": 0
     },
     {
-        "name": "Momentum",
-        "description": "12-month price momentum excluding most recent month",
-        "factor_type": "style",
-        "calculation_method": "price_momentum",
-        "etf_proxy": "MTUM",
+        "name": "Provider Beta (1Y)",
+        "description": "1-year market beta from 3rd party providers (position-level weighted)",
+        "factor_type": "market",
+        "calculation_method": "provider_data",
+        "etf_proxy": "SPY",
         "display_order": 1
     },
+    # Interest Rate Beta
     {
-        "name": "Value",
-        "description": "Exposure to value stocks (low P/B, P/E ratios)",
-        "factor_type": "style",
-        "calculation_method": "fundamental_ratios",
-        "etf_proxy": "VTV",
+        "name": "Interest Rate Beta",
+        "description": "90-day regression vs TLT (treasury bonds)",
+        "factor_type": "macro",
+        "calculation_method": "rolling_regression",
+        "etf_proxy": "TLT",
         "display_order": 2
     },
+    # 5-Factor Ridge Regression (removed Short Interest per user request)
     {
-        "name": "Growth",
-        "description": "Exposure to growth stocks (high earnings growth)",
+        "name": "Momentum",
+        "description": "12-month price momentum (ridge regression factor)",
         "factor_type": "style",
-        "calculation_method": "earnings_growth",
-        "etf_proxy": "VUG",
+        "calculation_method": "ridge_regression",
+        "etf_proxy": "MTUM",
         "display_order": 3
     },
     {
-        "name": "Quality",
-        "description": "Exposure to high-quality companies (high ROE, low debt)",
+        "name": "Value",
+        "description": "Value factor from ridge regression",
         "factor_type": "style",
-        "calculation_method": "quality_metrics",
-        "etf_proxy": "QUAL",
+        "calculation_method": "ridge_regression",
+        "etf_proxy": "VTV",
         "display_order": 4
     },
     {
-        "name": "Size",
-        "description": "Exposure to small-cap vs large-cap stocks",
+        "name": "Growth",
+        "description": "Growth factor from ridge regression",
         "factor_type": "style",
-        "calculation_method": "market_cap",
-        "etf_proxy": "IWM",
+        "calculation_method": "ridge_regression",
+        "etf_proxy": "VUG",
         "display_order": 5
     },
     {
-        "name": "Low Volatility",
-        "description": "Exposure to low volatility stocks",
+        "name": "Size",
+        "description": "Size factor from ridge regression",
         "factor_type": "style",
-        "calculation_method": "realized_volatility",
-        "etf_proxy": "USMV",
+        "calculation_method": "ridge_regression",
+        "etf_proxy": "IWM",
         "display_order": 6
     },
     {
-        "name": "Short Interest",
-        "description": "Exposure to heavily shorted stocks",
+        "name": "Quality",
+        "description": "Quality factor from ridge regression",
         "factor_type": "style",
-        "calculation_method": "short_interest_ratio",
-        "etf_proxy": None,  # No ETF proxy for short interest
+        "calculation_method": "ridge_regression",
+        "etf_proxy": "QUAL",
         "display_order": 7
     }
+    # NOTE: Short Interest removed - no longer calculated (2025-11-15)
+    # NOTE: Low Volatility not currently calculated
 ]
 
 
 async def seed_factors(db: AsyncSession) -> None:
     """Seed factor definitions into the database"""
     print("Seeding factor definitions...")
-    
+
     for factor_data in FACTOR_DEFINITIONS:
         # Check if factor already exists
         result = await db.execute(
             select(FactorDefinition).where(FactorDefinition.name == factor_data["name"])
         )
         existing_factor = result.scalar_one_or_none()
-        
+
         if existing_factor:
             print(f"Factor '{factor_data['name']}' already exists, skipping...")
             continue
-        
+
         # Create new factor
         factor = FactorDefinition(
             id=uuid4(),
@@ -104,7 +111,7 @@ async def seed_factors(db: AsyncSession) -> None:
         )
         db.add(factor)
         print(f"Created factor: {factor_data['name']}")
-    
+
     await db.commit()
     print("Factor seeding completed!")
 

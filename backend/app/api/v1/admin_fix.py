@@ -17,6 +17,7 @@ from app.core.dependencies import get_current_user
 from app.models.users import User, Portfolio
 from app.models.snapshots import PortfolioSnapshot
 from app.db.seed_demo_portfolios import create_demo_users, seed_demo_portfolios
+from app.db.seed_factors import seed_factors
 from app.batch.batch_orchestrator import batch_orchestrator
 from app.core.logging import get_logger
 from app.services.admin_fix_service import clear_calculations_comprehensive
@@ -53,10 +54,17 @@ async def _run_fix_all_background(
             )
             logger.info(f"[Job {job_id}] ✓ Cleared {step1_cleared} calculation records")
 
-            # Step 2: Seed portfolios
-            logger.info(f"[Job {job_id}] Step 2/3: Seeding portfolios...")
-            job_tracker.update_progress(job_id, "Seeding portfolios...")
+            # Step 2: Seed factors and portfolios
+            logger.info(f"[Job {job_id}] Step 2/3: Seeding factors and portfolios...")
+            job_tracker.update_progress(job_id, "Seeding factors and portfolios...")
 
+            # CRITICAL FIX #5 (2025-11-15): Seed factor definitions first!
+            # Without this, analytics calculations fail because "Market Beta" factor doesn't exist.
+            # This was causing "No exposure found for shocked factor: Market" warnings.
+            await seed_factors(db)
+            logger.info(f"[Job {job_id}] ✓ Seeded factor definitions")
+
+            # Then seed users and portfolios
             await create_demo_users(db)
             await seed_demo_portfolios(db)
             await db.commit()
