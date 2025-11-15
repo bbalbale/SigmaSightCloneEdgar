@@ -20,7 +20,9 @@
       "Bash(timeout 60 uv run:*)",
       "mcp__playwright__browser_console_messages",
       "Bash(backend/scripts/database/corrected_seed_data.txt)",
-      "Bash(scripts/database/corrected_seed_data.txt)"
+      "Bash(scripts/database/corrected_seed_data.txt)",
+      "Bash(git pull:*)",
+      "Bash(git stash:*)"
     ],
     "deny": [],
     "ask": [],

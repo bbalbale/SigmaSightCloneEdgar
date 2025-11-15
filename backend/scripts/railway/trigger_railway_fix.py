@@ -28,6 +28,18 @@ def parse_args() -> argparse.Namespace:
         default=1800,
         help="Timeout in seconds for the fix-all request (default: %(default)s)",
     )
+    parser.add_argument(
+        "--start-date",
+        type=str,
+        default=None,
+        help="Optional start date for batch backfill (YYYY-MM-DD), e.g., 2025-07-01",
+    )
+    parser.add_argument(
+        "--end-date",
+        type=str,
+        default=None,
+        help="Optional end date for batch processing (YYYY-MM-DD), defaults to today, e.g., 2025-11-12",
+    )
     return parser.parse_args()
 
 
@@ -52,10 +64,20 @@ def login(base_url: str, email: str, password: str) -> str:
     return token
 
 
-def trigger_fix(base_url: str, token: str, timeout: int) -> Dict[str, Any]:
+def trigger_fix(base_url: str, token: str, timeout: int, start_date: str = None, end_date: str = None) -> Dict[str, Any]:
     print("\n2. Triggering complete data fix (this can take 10-20 minutes)...")
+    if start_date or end_date:
+        print(f"   Start Date: {start_date or 'auto-detect'}")
+        print(f"   End Date: {end_date or 'today'}")
+
     headers = {"Authorization": f"Bearer {token}"}
-    resp = requests.post(f"{base_url}/admin/fix/fix-all", headers=headers, timeout=timeout)
+    params = {}
+    if start_date:
+        params["start_date"] = start_date
+    if end_date:
+        params["end_date"] = end_date
+
+    resp = requests.post(f"{base_url}/admin/fix/fix-all", headers=headers, params=params, timeout=timeout)
 
     if resp.status_code != 200:
         print(f"ERROR: Fix failed ({resp.status_code})")
@@ -118,10 +140,12 @@ def main():
     args = parse_args()
     print("=" * 80)
     print(f"RAILWAY PRODUCTION DATA FIX TRIGGER\nTarget: {args.base_url}")
+    if args.start_date or args.end_date:
+        print(f"Batch Date Range: {args.start_date or 'auto'} to {args.end_date or 'today'}")
     print("=" * 80)
 
     token = login(args.base_url, args.email, args.password)
-    result = trigger_fix(args.base_url, token, args.timeout)
+    result = trigger_fix(args.base_url, token, args.timeout, args.start_date, args.end_date)
     print_summary(result)
 
 

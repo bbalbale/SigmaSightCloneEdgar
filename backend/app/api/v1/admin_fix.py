@@ -133,16 +133,24 @@ async def run_batch(
 
 @router.post("/fix-all")
 async def fix_all(
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     """
     Complete fix: clear calculations, seed portfolios, run batch processing
     All-in-one endpoint for Railway production data fix
+
+    Args:
+        start_date: Optional start date for batch backfill (YYYY-MM-DD)
+        end_date: Optional end date for batch processing (YYYY-MM-DD), defaults to today
     """
     try:
         logger.info("=" * 80)
         logger.info("STARTING COMPLETE RAILWAY DATA FIX")
+        if start_date or end_date:
+            logger.info(f"Start Date: {start_date or 'auto-detect'}, End Date: {end_date or 'today'}")
         logger.info("=" * 80)
 
         results = {}
@@ -176,7 +184,28 @@ async def fix_all(
 
         # Step 3: Run batch processing
         logger.info("\nStep 3/3: Running batch processing...")
-        batch_result = await batch_orchestrator.run_daily_batch_with_backfill()
+
+        # Parse optional date parameters
+        from datetime import date as date_type
+        parsed_start_date = None
+        parsed_end_date = None
+
+        if start_date:
+            try:
+                parsed_start_date = date_type.fromisoformat(start_date)
+            except ValueError:
+                raise HTTPException(status_code=400, detail=f"Invalid start_date format: {start_date}. Use YYYY-MM-DD")
+
+        if end_date:
+            try:
+                parsed_end_date = date_type.fromisoformat(end_date)
+            except ValueError:
+                raise HTTPException(status_code=400, detail=f"Invalid end_date format: {end_date}. Use YYYY-MM-DD")
+
+        batch_result = await batch_orchestrator.run_daily_batch_with_backfill(
+            start_date=parsed_start_date,
+            end_date=parsed_end_date
+        )
 
         results["step3_batch"] = batch_result
 
