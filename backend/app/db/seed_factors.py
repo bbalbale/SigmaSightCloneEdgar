@@ -18,7 +18,7 @@ from app.models.market_data import FactorDefinition
 FACTOR_DEFINITIONS = [
     # Market Beta Factors (2 approaches)
     {
-        "name": "Market Beta",
+        "name": "Market Beta (90D)",
         "description": "90-day OLS regression beta vs S&P 500 (portfolio-level)",
         "factor_type": "market",
         "calculation_method": "rolling_regression",

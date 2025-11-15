@@ -281,7 +281,7 @@ async def calculate_direct_stress_impact(
         
         # Factor name mapping (scenario names -> database factor names)
         FACTOR_NAME_MAP = {
-            'Market': 'Market Beta',
+            'Market': 'Market Beta (90D)',
             'Interest_Rate': 'Interest Rate Beta',  # For future use
             # Add other mappings as needed
         }
