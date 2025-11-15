@@ -65,7 +65,7 @@ def login(base_url: str, email: str, password: str) -> str:
 
 
 def trigger_fix(base_url: str, token: str, timeout: int, start_date: str = None, end_date: str = None) -> Dict[str, Any]:
-    print("\n2. Triggering complete data fix (this can take 10-20 minutes)...")
+    print("\n2. Triggering complete data fix...")
     if start_date or end_date:
         print(f"   Start Date: {start_date or 'auto-detect'}")
         print(f"   End Date: {end_date or 'today'}")
@@ -77,10 +77,11 @@ def trigger_fix(base_url: str, token: str, timeout: int, start_date: str = None,
     if end_date:
         params["end_date"] = end_date
 
-    resp = requests.post(f"{base_url}/admin/fix/fix-all", headers=headers, params=params, timeout=timeout)
+    # Start the job
+    resp = requests.post(f"{base_url}/admin/fix/fix-all", headers=headers, params=params, timeout=30)
 
     if resp.status_code != 200:
-        print(f"ERROR: Fix failed ({resp.status_code})")
+        print(f"ERROR: Fix failed to start ({resp.status_code})")
         print(resp.text)
         sys.exit(1)
 
@@ -90,7 +91,56 @@ def trigger_fix(base_url: str, token: str, timeout: int, start_date: str = None,
         print(payload)
         sys.exit(1)
 
-    return payload
+    job_id = payload.get("job_id")
+    print(f"✓ Fix job started: {job_id}")
+    print(f"\n3. Polling for job status (this can take 10-20 minutes)...")
+
+    # Poll for job status
+    import time
+    max_wait_seconds = timeout
+    poll_interval = 5  # Check every 5 seconds
+    elapsed = 0
+
+    while elapsed < max_wait_seconds:
+        time.sleep(poll_interval)
+        elapsed += poll_interval
+
+        try:
+            status_resp = requests.get(
+                f"{base_url}/admin/fix/jobs/{job_id}",
+                headers=headers,
+                timeout=10
+            )
+
+            if status_resp.status_code != 200:
+                print(f"\nWARNING: Status check failed ({status_resp.status_code})")
+                continue
+
+            job_status = status_resp.json()
+            status = job_status.get("status")
+            progress = job_status.get("progress")
+
+            # Show progress
+            if progress:
+                print(f"\r   Progress: {progress} (elapsed: {elapsed}s)", end="", flush=True)
+
+            if status == "completed":
+                print(f"\n✓ Fix job completed successfully!")
+                return job_status.get("result", {})
+
+            elif status == "failed":
+                error = job_status.get("error")
+                print(f"\n✗ Fix job failed: {error}")
+                sys.exit(1)
+
+        except requests.exceptions.RequestException as e:
+            print(f"\nWARNING: Status check request failed: {e}")
+            continue
+
+    print(f"\n✗ Job did not complete within {max_wait_seconds}s timeout")
+    print(f"   Job ID: {job_id}")
+    print(f"   Check status manually: {base_url}/admin/fix/jobs/{job_id}")
+    sys.exit(1)
 
 
 def print_summary(result: Dict[str, Any]) -> None:
