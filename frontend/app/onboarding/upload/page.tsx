@@ -51,7 +51,7 @@ export default function OnboardingUploadPage() {
         uploadState={processingState}
         currentSpinnerItem={currentSpinnerItem}
         checklist={checklist}
-        error={uploadState === 'error' ? error : undefined}
+        error={uploadState === 'error' ? (error ?? undefined) : undefined}
         onTryAgain={uploadState === 'error' ? () => router.push('/onboarding/upload') : undefined}
       />
     )
