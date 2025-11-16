@@ -2216,15 +2216,56 @@ Weekend Upload Flow:
 
 The cache misses occur because Phase 3 never created snapshots, so all subsequent calls to portfolio exposure service fail to find cached data and fall back to real-time calculation (which also fails without snapshots).
 
-### Solution Design
+### Critical Issues Found with Original Solution
 
-**Option A: Use Most Recent Trading Day (RECOMMENDED)**
+After detailed review, the original solution has **3 critical flaws** that would prevent it from working:
 
-Modify the trigger endpoint to use the most recent trading day instead of today's date:
+#### Issue #1: Wrong Import Path ❌
+**Original plan referenced**: `from app.utils.trading_calendar import trading_calendar`
+**Problem**: `get_most_recent_trading_day()` is located in `app/core/trading_calendar.py` (line 102-123), NOT `app.utils.trading_calendar.py`
+**Evidence**:
+```python
+# File: backend/app/core/trading_calendar.py (lines 102-123)
+def get_most_recent_trading_day(
+    self,
+    from_date: Optional[date] = None,
+    max_lookback_days: int = 10
+) -> date:
+    """Get the most recent trading day on or before the given date."""
+```
 
+#### Issue #2: Historical Run Side Effects ❌
+**Problem**: Using Friday's date on Saturday triggers `is_historical=True` in batch orchestrator, which skips Phase 0 and Phase 2
+**Evidence from batch_orchestrator.py (lines 346-347)**:
+```python
+is_historical = calculation_date < date.today()
+if is_historical:
+    logger.info(f"Historical run detected for {calculation_date}")
+    phases_to_run = [1, 3, 4, 5, 6]  # Skip Phase 0 (equity tracking) and Phase 2 (snapshots)
+```
+**Impact**: On Saturday/Sunday, using Friday's date would skip critical phases needed for proper onboarding
+
+#### Issue #3: Incomplete Coverage ❌
+**Original plan only covered**: `app/api/v1/portfolios.py` (user-facing upload endpoint)
+**Missing entry points**:
+1. `app/api/v1/endpoints/admin_batch.py` (line 82) - Also passes `date.today()`
+2. `app/services/batch_trigger_service.py` (line 162) - Also passes `date.today()`
+
+**Result**: Admin batch triggers and service-layer calls would still have the weekend bug
+
+### Revised Solution Design
+
+**Option A: Use Most Recent Trading Day with Override Flag (RECOMMENDED)**
+
+This solution addresses all three critical issues by:
+1. Using correct import path (`app/core/trading_calendar`)
+2. Adding `force_onboarding=True` flag to prevent historical run skips
+3. Updating all three entry points
+
+**Step 1: Update portfolios.py (User-Facing Endpoint)**
 ```python
 # File: backend/app/api/v1/portfolios.py
-from app.utils.trading_calendar import trading_calendar
+from app.core.trading_calendar import trading_calendar  # ✅ Correct path
 
 @router.post("/{portfolio_id}/calculate", response_model=TriggerCalculationsResponse)
 async def trigger_portfolio_calculations(
@@ -2238,6 +2279,11 @@ async def trigger_portfolio_calculations(
     # Get most recent trading day for calculations
     calculation_date = trading_calendar.get_most_recent_trading_day()
 
+    logger.info(
+        f"Triggering calculations for portfolio {portfolio_id} "
+        f"using calculation_date={calculation_date} (today={date.today()})"
+    )
+
     # Create batch run
     batch_run_id = str(uuid4())
     run = CurrentBatchRun(
@@ -2247,87 +2293,188 @@ async def trigger_portfolio_calculations(
     )
     batch_run_tracker.start(run)
 
-    # Execute in background with trading day
+    # Execute in background with trading day and onboarding flag
     background_tasks.add_task(
         batch_orchestrator.run_daily_batch_sequence,
-        calculation_date,  # ← Use most recent trading day, not today
-        [str(portfolio_id)]
+        calculation_date,  # ✅ Use most recent trading day, not today
+        [str(portfolio_id)],
+        force_onboarding=True  # ✅ Prevent historical run logic
     )
 
     return TriggerCalculationsResponse(...)
 ```
 
+**Step 2: Update admin_batch.py (Admin Endpoint)**
+```python
+# File: backend/app/api/v1/endpoints/admin_batch.py (line 82)
+from app.core.trading_calendar import trading_calendar  # ✅ Add import
+
+# In trigger batch endpoint:
+calculation_date = trading_calendar.get_most_recent_trading_day()
+background_tasks.add_task(
+    batch_orchestrator.run_daily_batch_sequence,
+    calculation_date,  # Changed from date.today()
+    portfolio_ids_list,
+    force_onboarding=False  # Admin runs use normal historical logic
+)
+```
+
+**Step 3: Update batch_trigger_service.py (Service Layer)**
+```python
+# File: backend/app/services/batch_trigger_service.py (line 162)
+from app.core.trading_calendar import trading_calendar  # ✅ Add import
+
+# In trigger method:
+calculation_date = trading_calendar.get_most_recent_trading_day()
+await batch_orchestrator.run_daily_batch_sequence(
+    calculation_date,  # Changed from date.today()
+    portfolio_ids,
+    force_onboarding=force_onboarding  # Pass through from caller
+)
+```
+
+**Step 4: Update batch_orchestrator.py (Add Override Flag)**
+```python
+# File: backend/app/batch/batch_orchestrator.py
+async def run_daily_batch_sequence(
+    self,
+    calculation_date: date,
+    portfolio_ids: Optional[List[str]] = None,
+    force_onboarding: bool = False  # ✅ New parameter
+):
+    # Determine if historical run
+    is_historical = calculation_date < date.today() and not force_onboarding  # ✅ Override
+
+    if is_historical:
+        logger.info(f"Historical run detected for {calculation_date}")
+        phases_to_run = [1, 3, 4, 5, 6]  # Skip Phase 0 and 2
+    else:
+        phases_to_run = [0, 1, 2, 3, 4, 5, 6]  # All phases
+
+    if force_onboarding:
+        logger.info("Force onboarding mode - running all phases including Phase 0 and 2")
+```
+```
+
 **Why This Works**:
-- Weekends/holidays → Uses Friday's date
-- Trading days → Uses today's date
-- PNL calculator processes portfolio because date IS a trading day
-- Snapshots are created successfully
-- Portfolio analytics populate correctly
+- ✅ Uses correct import path (`app/core/trading_calendar`)
+- ✅ Weekends/holidays → Uses Friday's date but `force_onboarding=True` prevents phase skipping
+- ✅ Trading days → Uses today's date with normal phase execution
+- ✅ All three entry points updated (user, admin, service)
+- ✅ PNL calculator processes portfolio because date IS a trading day
+- ✅ Phase 0 and Phase 2 run even on weekends (onboarding mode)
+- ✅ Snapshots created successfully
+- ✅ Portfolio analytics populate correctly
 
-**Option B: Modify PNL Calculator to Allow Weekend Processing**
+### Updated Resolution Plan
 
-**NOT RECOMMENDED** because:
-- Snapshots are conceptually tied to trading days
-- Would require significant changes to snapshot date logic
-- Could break historical backfill assumptions
-- Adds complexity for edge case
+**Files to Update**: 4 total
 
-### Resolution Plan
-
-**File**: `backend/app/api/v1/portfolios.py`
-
-- [ ] Import trading_calendar: `from app.utils.trading_calendar import trading_calendar`
-- [ ] Add helper method:
+#### File 1: `backend/app/api/v1/portfolios.py`
+- [ ] Add import: `from app.core.trading_calendar import trading_calendar`
+- [ ] Update `trigger_portfolio_calculations` endpoint:
   ```python
-  def _get_calculation_date() -> date:
-      """Get the appropriate date for batch calculations.
-
-      Returns most recent trading day to ensure snapshots can be created.
-      Weekends/holidays will use the previous Friday.
-      """
-      today = date.today()
-      if trading_calendar.is_trading_day(today):
-          return today
-      return trading_calendar.get_most_recent_trading_day()
-  ```
-- [ ] Update `trigger_portfolio_calculations` endpoint (line 559):
-  ```python
-  calculation_date = _get_calculation_date()
+  calculation_date = trading_calendar.get_most_recent_trading_day()
+  logger.info(f"Using calculation_date={calculation_date} (today={date.today()})")
   background_tasks.add_task(
       batch_orchestrator.run_daily_batch_sequence,
-      calculation_date,  # Changed from date.today()
-      [str(portfolio_id)]
+      calculation_date,
+      [str(portfolio_id)],
+      force_onboarding=True  # NEW: Prevent historical run phase skips
   )
   ```
-- [ ] Add logging:
+
+#### File 2: `backend/app/api/v1/endpoints/admin_batch.py`
+- [ ] Add import: `from app.core.trading_calendar import trading_calendar`
+- [ ] Update batch trigger (around line 82):
   ```python
-  if calculation_date != date.today():
-      logger.info(
-          f"Using {calculation_date} for calculations (today {date.today()} "
-          f"is not a trading day)"
-      )
+  calculation_date = trading_calendar.get_most_recent_trading_day()
+  background_tasks.add_task(
+      batch_orchestrator.run_daily_batch_sequence,
+      calculation_date,
+      portfolio_ids_list,
+      force_onboarding=False  # Admin runs use normal historical logic
+  )
+  ```
+
+#### File 3: `backend/app/services/batch_trigger_service.py`
+- [ ] Add import: `from app.core.trading_calendar import trading_calendar`
+- [ ] Update trigger method (around line 162):
+  ```python
+  calculation_date = trading_calendar.get_most_recent_trading_day()
+  await batch_orchestrator.run_daily_batch_sequence(
+      calculation_date,
+      portfolio_ids,
+      force_onboarding=force_onboarding  # Pass through from caller
+  )
+  ```
+
+#### File 4: `backend/app/batch/batch_orchestrator.py`
+- [ ] Add `force_onboarding` parameter to `run_daily_batch_sequence`:
+  ```python
+  async def run_daily_batch_sequence(
+      self,
+      calculation_date: date,
+      portfolio_ids: Optional[List[str]] = None,
+      force_onboarding: bool = False  # NEW parameter
+  ):
+  ```
+- [ ] Update historical run logic:
+  ```python
+  is_historical = calculation_date < date.today() and not force_onboarding
+
+  if is_historical:
+      logger.info(f"Historical run detected for {calculation_date}")
+      phases_to_run = [1, 3, 4, 5, 6]  # Skip Phase 0 and 2
+  else:
+      phases_to_run = [0, 1, 2, 3, 4, 5, 6]  # All phases
+
+  if force_onboarding:
+      logger.info("Force onboarding mode - running all phases")
   ```
 
 **Testing Plan**:
 1. **Weekend Test** (Simulate Saturday):
-   - Upload portfolio
-   - Verify calculation_date = previous Friday
-   - Verify Phase 3 creates snapshots
-   - Verify portfolio analytics populate
+   - Upload portfolio via `/api/v1/portfolios/{id}/calculate`
+   - Verify calculation_date = previous Friday (check logs)
+   - Verify `force_onboarding=True` passed to orchestrator
+   - Verify Phase 0 and Phase 2 run (not skipped)
+   - Verify snapshots created successfully
+   - Verify portfolio analytics populate (exposures, betas, etc.)
 
 2. **Trading Day Test** (Simulate Monday):
    - Upload portfolio
    - Verify calculation_date = today
-   - Verify normal flow works
+   - Verify normal flow works with all phases
 
-3. **Holiday Test**:
-   - Mock trading calendar to return False for today
-   - Verify falls back to previous trading day
+3. **Admin Batch Test**:
+   - Trigger admin batch via `/api/v1/admin/batch/run`
+   - Verify uses `get_most_recent_trading_day()`
+   - Verify `force_onboarding=False` (normal historical logic)
+
+4. **Service Layer Test**:
+   - Call batch_trigger_service directly
+   - Verify trading day logic applied
+   - Verify `force_onboarding` parameter passed correctly
+
+### Summary of Improvements
+
+**Original Solution Problems**:
+- ❌ Wrong import path (would cause ImportError)
+- ❌ Would skip Phase 0 and Phase 2 on weekends (no snapshots)
+- ❌ Only fixed 1 of 3 entry points (incomplete)
+
+**Revised Solution Benefits**:
+- ✅ Correct import path from `app/core/trading_calendar`
+- ✅ New `force_onboarding` flag prevents phase skipping
+- ✅ All 3 entry points updated (complete coverage)
+- ✅ Onboarding works correctly on any day of the week
+- ✅ Admin/scheduled batches maintain historical run behavior
 
 ### Dependencies
 
-- **Required**: trading_calendar utility must have `get_most_recent_trading_day()` method
-- **Verification Needed**: Check if this method exists or needs to be added
+- ✅ **Verified**: `trading_calendar.get_most_recent_trading_day()` exists in `app/core/trading_calendar.py` (line 102-123)
+- ✅ **No new dependencies required**: All functionality already available
 
 ### Notes for Other Developer
 
