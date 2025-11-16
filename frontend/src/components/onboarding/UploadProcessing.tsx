@@ -1,13 +1,16 @@
 'use client'
 
-import { Loader2, Check, Hourglass } from 'lucide-react'
+import { Loader2, Check, Hourglass, XCircle } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
 import { ChecklistState } from '@/hooks/usePortfolioUpload'
 
 interface UploadProcessingProps {
   uploadState: 'uploading' | 'processing'
   currentSpinnerItem: string | null
   checklist: ChecklistState
+  error?: string
+  onTryAgain?: () => void
 }
 
 const checklistLabels: Record<string, string> = {
@@ -28,7 +31,13 @@ const checklistLabels: Record<string, string> = {
   correlations: 'Computing correlations',
 }
 
-export function UploadProcessing({ uploadState, currentSpinnerItem, checklist }: UploadProcessingProps) {
+export function UploadProcessing({
+  uploadState,
+  currentSpinnerItem,
+  checklist,
+  error,
+  onTryAgain
+}: UploadProcessingProps) {
   const getIcon = (key: string) => {
     // If item is completed, show checkmark
     if (checklist[key as keyof ChecklistState]) {
@@ -50,15 +59,25 @@ export function UploadProcessing({ uploadState, currentSpinnerItem, checklist }:
         <Card className="shadow-lg">
           <CardHeader>
             <div className="flex items-start gap-4">
-              <div className="rounded-full bg-blue-100 dark:bg-blue-900/20 p-3">
-                <Loader2 className="h-6 w-6 text-blue-600 animate-spin" />
+              <div className={`rounded-full p-3 ${error ? 'bg-red-100 dark:bg-red-900/20' : 'bg-blue-100 dark:bg-blue-900/20'}`}>
+                {error ? (
+                  <XCircle className="h-6 w-6 text-red-600" />
+                ) : (
+                  <Loader2 className="h-6 w-6 text-blue-600 animate-spin" />
+                )}
               </div>
               <div className="flex-1">
                 <CardTitle>
-                  {uploadState === 'uploading' ? 'Uploading Your Portfolio...' : 'Analyzing Your Portfolio...'}
+                  {error
+                    ? 'An Error Occurred'
+                    : uploadState === 'uploading'
+                    ? 'Uploading Your Portfolio...'
+                    : 'Analyzing Your Portfolio...'}
                 </CardTitle>
                 <CardDescription>
-                  {uploadState === 'uploading'
+                  {error
+                    ? 'Something went wrong during the upload process'
+                    : uploadState === 'uploading'
                     ? 'Validating your CSV file and importing positions'
                     : 'Running risk analytics and calculations'}
                 </CardDescription>
@@ -67,7 +86,34 @@ export function UploadProcessing({ uploadState, currentSpinnerItem, checklist }:
           </CardHeader>
 
           <CardContent>
-            {uploadState === 'uploading' ? (
+            {/* Show error if present */}
+            {error && (
+              <div className="mb-4 p-4 bg-red-50 dark:bg-red-950 rounded-lg border border-red-200 dark:border-red-800">
+                <div className="flex items-start gap-3">
+                  <XCircle className="h-5 w-5 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-red-900 dark:text-red-100 mb-1">
+                      An error occurred
+                    </p>
+                    <p className="text-sm text-red-700 dark:text-red-300">
+                      {error}
+                    </p>
+                  </div>
+                </div>
+                {onTryAgain && (
+                  <Button
+                    onClick={onTryAgain}
+                    variant="outline"
+                    className="mt-3 w-full"
+                  >
+                    Try Again
+                  </Button>
+                )}
+              </div>
+            )}
+
+            {/* Show normal processing UI when no error */}
+            {!error && uploadState === 'uploading' && (
               // Simple loading state for upload phase
               <div className="space-y-4">
                 <div className="flex items-center gap-3 p-3 bg-blue-50 dark:bg-blue-950 rounded-lg">
@@ -78,8 +124,10 @@ export function UploadProcessing({ uploadState, currentSpinnerItem, checklist }:
                   This usually takes 10-30 seconds
                 </p>
               </div>
-            ) : (
-              // Detailed checklist for processing phase
+            )}
+
+            {/* Detailed checklist for processing phase (when no error) */}
+            {!error && uploadState === 'processing' && (
               <div className="space-y-2">
                 {Object.entries(checklistLabels).map(([key, label]) => (
                   <div

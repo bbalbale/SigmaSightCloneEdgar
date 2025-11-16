@@ -1,5 +1,6 @@
 'use client'
 
+import { useRouter } from 'next/navigation'
 import { usePortfolioUpload } from '@/hooks/usePortfolioUpload'
 import { PortfolioUploadForm } from '@/components/onboarding/PortfolioUploadForm'
 import { UploadProcessing } from '@/components/onboarding/UploadProcessing'
@@ -7,6 +8,7 @@ import { UploadSuccess } from '@/components/onboarding/UploadSuccess'
 import { ValidationErrors } from '@/components/onboarding/ValidationErrors'
 
 export default function OnboardingUploadPage() {
+  const router = useRouter()
   const {
     uploadState,
     batchStatus,
@@ -39,27 +41,28 @@ export default function OnboardingUploadPage() {
     )
   }
 
-  const isProcessing =
-    uploadState === 'uploading' || uploadState === 'processing'
+  // Show processing screen for uploading, processing, OR error
+  if (uploadState === 'uploading' || uploadState === 'processing' || uploadState === 'error') {
+    const processingState: 'uploading' | 'processing' =
+      uploadState === 'error' ? 'processing' : uploadState
 
-  // Show processing screen (uploading or batch processing)
-  if (isProcessing) {
-    const processingState: 'uploading' | 'processing' = uploadState
     return (
       <UploadProcessing
         uploadState={processingState}
         currentSpinnerItem={currentSpinnerItem}
         checklist={checklist}
+        error={uploadState === 'error' ? error : undefined}
+        onTryAgain={uploadState === 'error' ? () => router.push('/onboarding/upload') : undefined}
       />
     )
   }
 
-  // Show upload form (idle or error state)
+  // Show upload form only for idle state
   return (
     <PortfolioUploadForm
       onUpload={handleUpload}
-      disabled={isProcessing}
-      error={error}
+      disabled={false}
+      error={null}
       onRetry={handleRetry}
     />
   )
