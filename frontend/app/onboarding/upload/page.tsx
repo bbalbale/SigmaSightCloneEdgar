@@ -1,6 +1,5 @@
 'use client'
 
-import { useRouter } from 'next/navigation'
 import { usePortfolioUpload } from '@/hooks/usePortfolioUpload'
 import { PortfolioUploadForm } from '@/components/onboarding/PortfolioUploadForm'
 import { UploadProcessing } from '@/components/onboarding/UploadProcessing'
@@ -8,7 +7,6 @@ import { UploadSuccess } from '@/components/onboarding/UploadSuccess'
 import { ValidationErrors } from '@/components/onboarding/ValidationErrors'
 
 export default function OnboardingUploadPage() {
-  const router = useRouter()
   const {
     uploadState,
     batchStatus,
@@ -52,7 +50,7 @@ export default function OnboardingUploadPage() {
         currentSpinnerItem={currentSpinnerItem}
         checklist={checklist}
         error={uploadState === 'error' ? (error ?? undefined) : undefined}
-        onTryAgain={uploadState === 'error' ? () => router.push('/onboarding/upload') : undefined}
+        onTryAgain={uploadState === 'error' ? handleChooseDifferentFile : undefined}
       />
     )
   }

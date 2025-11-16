@@ -59,25 +59,17 @@ export function UploadProcessing({
         <Card className="shadow-lg">
           <CardHeader>
             <div className="flex items-start gap-4">
-              <div className={`rounded-full p-3 ${error ? 'bg-red-100 dark:bg-red-900/20' : 'bg-blue-100 dark:bg-blue-900/20'}`}>
-                {error ? (
-                  <XCircle className="h-6 w-6 text-red-600" />
-                ) : (
-                  <Loader2 className="h-6 w-6 text-blue-600 animate-spin" />
-                )}
+              <div className="rounded-full p-3 bg-blue-100 dark:bg-blue-900/20">
+                <Loader2 className="h-6 w-6 text-blue-600 animate-spin" />
               </div>
               <div className="flex-1">
                 <CardTitle>
-                  {error
-                    ? 'An Error Occurred'
-                    : uploadState === 'uploading'
+                  {uploadState === 'uploading'
                     ? 'Uploading Your Portfolio...'
                     : 'Analyzing Your Portfolio...'}
                 </CardTitle>
                 <CardDescription>
-                  {error
-                    ? 'Something went wrong during the upload process'
-                    : uploadState === 'uploading'
+                  {uploadState === 'uploading'
                     ? 'Validating your CSV file and importing positions'
                     : 'Running risk analytics and calculations'}
                 </CardDescription>
@@ -86,35 +78,8 @@ export function UploadProcessing({
           </CardHeader>
 
           <CardContent>
-            {/* Show error if present */}
-            {error && (
-              <div className="mb-4 p-4 bg-red-50 dark:bg-red-950 rounded-lg border border-red-200 dark:border-red-800">
-                <div className="flex items-start gap-3">
-                  <XCircle className="h-5 w-5 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
-                  <div className="flex-1">
-                    <p className="text-sm font-medium text-red-900 dark:text-red-100 mb-1">
-                      An error occurred
-                    </p>
-                    <p className="text-sm text-red-700 dark:text-red-300">
-                      {error}
-                    </p>
-                  </div>
-                </div>
-                {onTryAgain && (
-                  <Button
-                    onClick={onTryAgain}
-                    variant="outline"
-                    className="mt-3 w-full"
-                  >
-                    Try Again
-                  </Button>
-                )}
-              </div>
-            )}
-
-            {/* Show normal processing UI when no error */}
-            {!error && uploadState === 'uploading' && (
-              // Simple loading state for upload phase
+            {/* Show upload phase UI */}
+            {uploadState === 'uploading' && (
               <div className="space-y-4">
                 <div className="flex items-center gap-3 p-3 bg-blue-50 dark:bg-blue-950 rounded-lg">
                   <Loader2 className="h-5 w-5 text-blue-600 animate-spin" />
@@ -126,8 +91,8 @@ export function UploadProcessing({
               </div>
             )}
 
-            {/* Detailed checklist for processing phase (when no error) */}
-            {!error && uploadState === 'processing' && (
+            {/* Detailed checklist for processing phase - ALWAYS show when processing */}
+            {uploadState === 'processing' && (
               <div className="space-y-2">
                 {Object.entries(checklistLabels).map(([key, label]) => (
                   <div
@@ -158,6 +123,32 @@ export function UploadProcessing({
                 <p className="text-xs text-muted-foreground text-center pt-4">
                   This usually takes 30-60 seconds. Hang tight!
                 </p>
+              </div>
+            )}
+
+            {/* Show error BELOW the checklist if present */}
+            {error && (
+              <div className="mt-4 p-4 bg-red-50 dark:bg-red-950 rounded-lg border border-red-200 dark:border-red-800">
+                <div className="flex items-start gap-3">
+                  <XCircle className="h-5 w-5 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-red-900 dark:text-red-100 mb-1">
+                      An error occurred
+                    </p>
+                    <p className="text-sm text-red-700 dark:text-red-300">
+                      {error}
+                    </p>
+                  </div>
+                </div>
+                {onTryAgain && (
+                  <Button
+                    onClick={onTryAgain}
+                    variant="outline"
+                    className="mt-3 w-full"
+                  >
+                    Try Again
+                  </Button>
+                )}
               </div>
             )}
           </CardContent>
