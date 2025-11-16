@@ -2474,7 +2474,7 @@ async def _run_sequence_with_session(
 
 ### Updated Resolution Plan
 
-**Files to Update**: 4 total
+**Files to Update**: 6 total (including 1 pre-existing scheduler bug fix)
 
 #### File 1: `backend/app/api/v1/portfolios.py`
 - [ ] Add import: `from app.core.trading_calendar import get_most_recent_trading_day`
@@ -2510,17 +2510,8 @@ async def _run_sequence_with_session(
   )
   ```
 
-#### File 3: `backend/app/services/batch_trigger_service.py`
-- [ ] Add import: `from app.core.trading_calendar import get_most_recent_trading_day`
-- [ ] Update trigger method (around line 162):
-  ```python
-  calculation_date = get_most_recent_trading_day()  # Standalone function call
-  await batch_orchestrator.run_daily_batch_sequence(
-      calculation_date,
-      portfolio_ids,
-      force_onboarding=force_onboarding  # Pass through from caller
-  )
-  ```
+#### File 3: `backend/app/services/batch_trigger_service.py` ⚠️ **SEE FILE 5 BELOW**
+**NOTE**: This service requires comprehensive updates (signature + call site). See **File 5** below for complete implementation details.
 
 #### File 4: `backend/app/batch/batch_orchestrator.py`
 - [ ] Update `run_daily_batch_sequence` signature (APPEND at end to avoid breaking existing callers):
@@ -2555,6 +2546,89 @@ async def _run_sequence_with_session(
 - [ ] NO changes needed to existing Phase 0 and Phase 2 guards (lines 351, 397) - they already use `if not is_historical`
 
 **Note**: The real code uses inline `if not is_historical` guards, NOT a `phases_to_run` list. Changing the `is_historical` calculation is sufficient.
+
+#### File 5: `backend/app/services/batch_trigger_service.py` ⚠️ **CRITICAL**
+- [ ] Add import: `from app.core.trading_calendar import get_most_recent_trading_day`
+- [ ] Update `trigger_batch` signature (line 88-95):
+  ```python
+  @staticmethod
+  async def trigger_batch(
+      background_tasks: BackgroundTasks,
+      portfolio_id: Optional[str] = None,
+      force: bool = False,
+      user_id: Optional[UUID] = None,
+      user_email: Optional[str] = None,
+      db: Optional[AsyncSession] = None,
+      force_onboarding: bool = False  # ✅ NEW parameter
+  ) -> Dict[str, Any]:
+  ```
+- [ ] Update orchestrator call (lines 160-164):
+  ```python
+  # Change from:
+  batch_orchestrator.run_daily_batch_sequence,
+  date.today(),  # calculation_date
+  [portfolio_id] if portfolio_id else None  # portfolio_ids
+
+  # To:
+  batch_orchestrator.run_daily_batch_sequence,
+  get_most_recent_trading_day(),  # ✅ Use trading day instead of today
+  [portfolio_id] if portfolio_id else None,  # portfolio_ids
+  None,  # db
+  None,  # run_sector_analysis
+  None,  # price_cache
+  force_onboarding=force_onboarding  # ✅ Pass through
+  ```
+
+**Why Critical**: This service is called by both user-facing and admin endpoints. Without this update, the weekend fix won't work through the service layer.
+
+#### File 6: `backend/app/batch/scheduler_config.py` 🐛 **FIX PRE-EXISTING BUG**
+- [ ] Fix broken scheduler call (line 159):
+  ```python
+  # BEFORE (BROKEN - crashes on schedule):
+  result = await batch_orchestrator.run_daily_batch_sequence()
+
+  # AFTER (FIXED):
+  result = await batch_orchestrator.run_daily_batch_sequence(
+      date.today()  # calculation_date - required parameter
+  )
+  ```
+
+**Why Critical**: This is a **pre-existing bug** that will crash when the scheduler runs. The `run_daily_batch_sequence()` method requires `calculation_date` as first positional parameter, but the scheduler call provides none. This bug will be exposed immediately when deploying the `force_onboarding` signature change.
+
+**Note**: This scheduler job runs daily correlations and already operates on trading days (scheduled for weekdays only), so it does NOT need `force_onboarding=True`.
+
+---
+
+### Design Decision: Admin Batch Endpoint `force_onboarding` Behavior
+
+**Current Implementation**: File 2 shows `force_onboarding=False` for admin batch endpoint.
+
+**Context**:
+- Admin endpoint (`/api/v1/admin/batch/run`) is currently used for **production-wide batch reruns**
+- On weekends, these reruns should use prior trading day but skip Phase 0/2 (data already gathered)
+- Default `force_onboarding=False` is correct for this use case
+
+**Alternative Scenario**:
+If admins also use this endpoint to **babysit individual onboarding portfolios during weekends**, they would need Phase 0 & 2, requiring `force_onboarding=True`.
+
+**Recommendation**:
+- Keep `force_onboarding=False` as shown in File 2 (production rerun use case)
+- If admin weekend onboarding support is needed, add optional query parameter to admin endpoint
+- Decision deferred to product requirements
+
+---
+
+### Verified Non-Issues
+
+Based on code review, the following are **NOT concerns** for Phase 2.7:
+
+1. **Duplicate Snapshots** ✅ - `create_portfolio_snapshot()` (snapshots.py:520-567) uses upsert logic with existing row query before insert, so unique constraint is never hit
+
+2. **Phase 2.5 Skip** ✅ - Phase 4 (market value updates) runs regardless of `is_historical`; only Phases 0, 2, and 5 have guards (orchestrator.py:346-514)
+
+3. **Entry Date Weekend Mismatch** ✅ - `_fetch_active_positions()` (snapshots.py:148-165) filters `entry_date <= calculation_date`, so future dates are ignored; broker exports use actual trade dates (trading days)
+
+4. **Testing Instructions** ✅ - Testing plan below covers weekend/trading-day/admin scenarios with verification checkpoints
 
 **Testing Plan**:
 1. **Weekend Test** (Simulate Saturday):
