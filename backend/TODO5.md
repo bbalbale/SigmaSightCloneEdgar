@@ -1103,6 +1103,10 @@ async def startup_validation():
 **Additional Work Completed**:
 - ✅ **Phase 2.1**: Code review fixes (unique constraint, max-length validation)
 - ✅ **Phase 2.2**: UUID consistency fix (CRUD endpoint now uses UUIDStrategy)
+- ✅ **Phase 2.3**: Frontend integration bug fixes (account_name/account_type form fields)
+- 📋 **Phase 2.4**: Post-login UX flow (NOT STARTED - low priority)
+- 🔴 **Phase 2.5**: Missing batch calculation endpoint (CRITICAL BUG - blocks onboarding)
+- ⚠️ **Phase 2.6**: Upload error handling UX (HIGH PRIORITY - prevents user confusion)
 
 ---
 
@@ -1458,6 +1462,943 @@ UNIQUE (user_id, account_name);
 **Result**: Both portfolio creation endpoints now share the same UUID generation strategy, ensuring consistency across all environments and usage patterns.
 
 **Commit**: `78a162c1 - fix(portfolios): use UUIDStrategy for consistent portfolio UUID generation`
+
+---
+
+## Phase 2.3: Frontend Integration Bug Fixes (2025-11-16)
+
+**Status**: IN PROGRESS
+
+**Issue Discovered**: 422 Error on Frontend CSV Import
+
+### Problem Description
+
+During user testing on 2025-11-16, discovered that the **frontend onboarding form** has not been updated to include the new required fields added in Phase 2 (2025-11-06).
+
+**Error Manifestation**:
+- User attempts to import CSV via frontend onboarding page
+- Backend returns HTTP 422 (Unprocessable Entity)
+- Form submission fails silently or with validation error
+
+**Root Cause**:
+The backend `/api/v1/onboarding/create-portfolio` endpoint now requires two additional fields (added Phase 2):
+1. `account_name` (string) - Unique account identifier per user
+2. `account_type` (enum) - Account type: taxable, ira, roth_ira, 401k, 403b, 529, hsa, trust, other
+
+The frontend form was never updated to collect these fields, causing form data to fail backend validation.
+
+**Backend Requirements** (from `app/api/v1/onboarding.py:122-131`):
+```python
+@router.post("/create-portfolio", response_model=CreatePortfolioResponse, status_code=201)
+async def create_portfolio(
+    portfolio_name: str = Form(...),
+    account_name: str = Form(...),      # ← NEW (Phase 2)
+    account_type: str = Form(...),      # ← NEW (Phase 2)
+    equity_balance: Decimal = Form(...),
+    description: Optional[str] = Form(None),
+    csv_file: UploadFile = File(...),
+    ...
+)
+```
+
+### Resolution Plan
+
+#### Step 1: Locate Frontend Onboarding Form
+- [ ] Find the onboarding form component in frontend codebase
+- [ ] Identify file path: Likely in `frontend/app/onboarding/` or `frontend/src/containers/`
+- [ ] Review current form implementation
+
+#### Step 2: Update Form Schema
+- [ ] Add `account_name` field to form schema
+  - Type: Text input
+  - Validation: Required, 1-100 characters, unique per user
+  - Label: "Account Name"
+  - Placeholder: "e.g., Schwab Living Trust, Fidelity IRA"
+  - Help text: "A unique name for this account"
+
+- [ ] Add `account_type` field to form schema
+  - Type: Select dropdown
+  - Validation: Required, must be one of 9 valid types
+  - Label: "Account Type"
+  - Options:
+    - taxable - "Taxable Brokerage Account"
+    - ira - "Traditional IRA"
+    - roth_ira - "Roth IRA"
+    - 401k - "401(k) Retirement Plan"
+    - 403b - "403(b) Retirement Plan"
+    - 529 - "529 Education Savings Plan"
+    - hsa - "Health Savings Account"
+    - trust - "Trust Account"
+    - other - "Other Account Type"
+
+#### Step 3: Update Form Submission
+- [ ] Ensure form data includes `account_name` and `account_type` in FormData
+- [ ] Verify field names match backend expectations exactly
+- [ ] Test form submission with valid data
+
+#### Step 4: Update Form Validation
+- [ ] Add client-side validation for `account_name` (length, required)
+- [ ] Add client-side validation for `account_type` (required, valid enum)
+- [ ] Display validation errors to user
+
+#### Step 5: Update UI/UX
+- [ ] Add field descriptions/tooltips
+- [ ] Update form layout to accommodate new fields
+- [ ] Ensure mobile responsiveness
+- [ ] Update CSV template download link visibility
+
+#### Step 6: Testing
+- [ ] Test form with all 9 account types
+- [ ] Test validation (empty fields, invalid values)
+- [ ] Test successful portfolio creation
+- [ ] Verify positions imported correctly
+- [ ] Test with actual Schwab CSV export
+
+### Files to Update
+
+**Frontend Files** (to be determined):
+- TBD: Onboarding form component
+- TBD: Form validation schema
+- TBD: API service layer (if needed)
+
+### Completion Criteria
+
+- [x] Frontend form includes `account_name` and `account_type` fields
+- [x] Form validation works client-side
+- [x] Form submission succeeds with valid data
+- [x] All 9 account types selectable and functional
+- [ ] User can successfully import CSV via frontend
+- [ ] Error messages are clear and actionable
+
+---
+
+## Phase 2.4: Post-Login UX Flow (2025-11-16)
+
+**Status**: NOT STARTED
+
+**Issue Discovered**: No Clear Path to Upload Portfolio After Login
+
+### Problem Description
+
+During user testing on 2025-11-16, discovered that after a user successfully logs in with an existing account that has no portfolio, it's **not obvious how to upload a portfolio**.
+
+**Error Manifestation**:
+- User logs in successfully with credentials
+- User is redirected somewhere (TBD - need to identify where)
+- No clear button/link/call-to-action to upload portfolio
+- User is stuck/confused about next steps
+
+**Expected Flow**:
+After login, users without a portfolio should either:
+1. **Auto-redirect** to `/onboarding/upload` page, OR
+2. **See a prominent CTA** (e.g., "Upload Your Portfolio" button) on the landing page
+
+**Root Cause** (TBD):
+- Need to investigate:
+  - Where does login redirect users to?
+  - Is there conditional logic for users with no portfolio?
+  - What does the landing page show for authenticated users?
+  - Is there a navigation item for portfolio upload?
+
+### Resolution Plan
+
+#### Step 1: Investigate Current Behavior
+- [ ] Check login redirect logic in `frontend/src/services/authManager.ts` or login page
+- [ ] Identify where users land after successful login
+- [ ] Check if there's conditional UI for users without portfolios
+- [ ] Review navigation/header components for portfolio upload links
+
+#### Step 2: Design Solution
+
+**✅ CHOSEN APPROACH: Option B** - Add prominent CTA on post-login landing page
+
+Rationale:
+- Gives user choice and doesn't feel forced
+- Less invasive than auto-redirect
+- Can still add nav item later if needed
+- One extra click is acceptable for better UX
+
+Implementation:
+- [ ] Add conditional banner/hero on landing page for authenticated users without portfolio
+- [ ] CTA button: "Upload Your First Portfolio" → `/onboarding/upload`
+- [ ] Include helpful messaging: "Get started by uploading your positions"
+- [ ] Consider empty state illustration/icon
+
+#### Step 3: Implement Solution
+- [ ] Update login redirect logic if needed
+- [ ] Add conditional UI for users without portfolio
+- [ ] Add navigation item for portfolio upload (if needed)
+- [ ] Add empty state messaging
+- [ ] Test flow end-to-end
+
+#### Step 4: Testing
+- [ ] Test login → redirect for new users (no portfolio)
+- [ ] Test login → redirect for existing users (with portfolio)
+- [ ] Test that CTA is visible and functional
+- [ ] Verify mobile responsiveness
+- [ ] User acceptance testing
+
+### Files to Update
+
+**Frontend Files** (to be determined):
+- TBD: Login page redirect logic
+- TBD: Post-login landing page
+- TBD: Navigation component (if adding nav item)
+- TBD: Auth context/routing logic
+
+### Completion Criteria
+
+- [ ] User logs in successfully
+- [ ] If user has no portfolio: Clear path to upload (either auto-redirect or obvious CTA)
+- [ ] If user has portfolio: Taken to dashboard/portfolio view
+- [ ] Flow is intuitive (no user confusion)
+- [ ] Mobile responsive
+
+---
+
+## Phase 2.5: Missing Batch Calculation Endpoint (2025-11-16)
+
+**Status**: 🔴 **CRITICAL BUG** - NOT STARTED
+
+**Issue Discovered**: Portfolio Import Completes but Batch Calculation Fails
+
+### Problem Description
+
+During user testing on 2025-11-16, discovered that after successful CSV upload and portfolio creation, the batch calculation step fails with a generic error message.
+
+**Error Manifestation**:
+- User successfully uploads CSV file ✅
+- Portfolio and positions are created in database (100% success rate - all 25 positions imported) ✅
+- Frontend tries to trigger batch calculations via `POST /api/v1/portfolio/{id}/calculate` ❌
+- Backend returns 404 Not Found (endpoint doesn't exist)
+- User sees error: *"We couldn't prepare your portfolio for analysis. This usually means a network issue fetching market data."*
+
+**Test Case**:
+- Portfolio ID: `754e6704-6cad-5fbd-9881-e9c1ae917b5b`
+- Portfolio Name: "Schwab Robo Living Trust"
+- Positions: 25 ETFs imported successfully
+- Backend logs confirm import success at 10:36:33 ✅
+- **NO batch calculation logs** - endpoint was never reached ❌
+
+**Root Cause**:
+The endpoint `POST /api/v1/portfolio/{id}/calculate` **does not exist** in the backend.
+
+### Current Implementation Status
+
+**What Exists:**
+1. ✅ Onboarding documentation mentions the endpoint:
+   - `app/api/v1/onboarding.py` line 146: *"Use POST /api/v1/portfolio/{id}/calculate to run analytics."*
+
+2. ✅ Frontend service calls the endpoint:
+   ```typescript
+   // frontend/src/services/onboardingService.ts:103-107
+   triggerCalculations: async (portfolioId: string): Promise<TriggerCalculationsResponse> => {
+     const response = await apiClient.post<TriggerCalculationsResponse>(
+       `/api/v1/portfolio/${portfolioId}/calculate`  // ❌ This endpoint doesn't exist!
+     );
+     return response;
+   }
+   ```
+
+3. ✅ Admin batch endpoint exists BUT requires admin access:
+   - `app/api/v1/endpoints/admin_batch.py` - `POST /api/v1/admin/batch/run`
+   - Requires `admin_user = Depends(require_admin)` ❌
+   - Not accessible to regular onboarding users
+
+**What's Missing:**
+- ❌ User-facing endpoint: `POST /api/v1/portfolio/{portfolio_id}/calculate`
+- ❌ Should allow authenticated users to trigger calculations for their own portfolios
+- ❌ Should integrate with existing `batch_orchestrator` system
+- ❌ Should return batch_run_id for status polling
+
+### Resolution Plan
+
+#### Step 1: Create Portfolio Calculate Endpoint
+**File**: `app/api/v1/portfolios.py` (add new endpoint to existing router)
+
+- [ ] Add `POST /{portfolio_id}/calculate` endpoint
+- [ ] Authentication: Use `get_current_user` dependency
+- [ ] Authorization: Verify portfolio belongs to authenticated user
+- [ ] Trigger: Call `batch_orchestrator.run_daily_batch_sequence()`
+- [ ] Response: Return batch_run_id and status polling URL
+- [ ] Use BackgroundTasks to avoid blocking response
+- [ ] Pattern should match `admin_batch.py` lines 43-93 but without admin requirement
+
+**Implementation Pattern**:
+```python
+@router.post("/{portfolio_id}/calculate", response_model=TriggerCalculationsResponse)
+async def trigger_portfolio_calculations(
+    portfolio_id: UUID,
+    background_tasks: BackgroundTasks,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Trigger batch calculations for user's portfolio.
+
+    Non-admin users can only trigger calculations for their own portfolios.
+    Returns batch_run_id for status polling.
+
+    **Polling**: Use GET /api/v1/portfolio/{id}/batch-status/{batch_run_id}
+    """
+    # 1. Verify portfolio exists and belongs to user
+    # 2. Create batch run tracking entry
+    # 3. Trigger batch_orchestrator in background
+    # 4. Return batch_run_id for polling
+    pass
+```
+
+#### Step 2: Create Batch Status Endpoint
+**File**: `app/api/v1/portfolios.py`
+
+- [ ] Add `GET /{portfolio_id}/batch-status/{batch_run_id}` endpoint
+- [ ] Authentication: Use `get_current_user` dependency
+- [ ] Authorization: Verify portfolio belongs to authenticated user
+- [ ] Return: Current batch status from `batch_run_tracker`
+- [ ] Pattern should match `admin_batch.py` lines 96-137 but without admin requirement
+
+**Implementation Pattern**:
+```python
+@router.get("/{portfolio_id}/batch-status/{batch_run_id}", response_model=BatchStatusResponse)
+async def get_portfolio_batch_status(
+    portfolio_id: UUID,
+    batch_run_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Get status of batch processing run.
+
+    Designed for polling every 3 seconds during onboarding flow.
+    Returns "idle" if batch not found or completed.
+    """
+    # 1. Verify portfolio belongs to user
+    # 2. Get batch status from batch_run_tracker
+    # 3. Return status with progress metrics
+    pass
+```
+
+#### Step 3: Update Response Schemas
+**File**: `app/schemas/portfolios.py` (or create if doesn't exist)
+
+- [ ] Create `TriggerCalculationsResponse` schema
+- [ ] Create `BatchStatusResponse` schema
+- [ ] Match frontend TypeScript interfaces from `onboardingService.ts`
+
+**Required Schemas**:
+```python
+class TriggerCalculationsResponse(BaseModel):
+    portfolio_id: str
+    batch_run_id: str
+    status: str  # "started"
+    message: str
+
+class BatchStatusResponse(BaseModel):
+    status: Literal['idle', 'running', 'completed', 'failed']
+    batch_run_id: str
+    portfolio_id: str
+    started_at: str  # ISO timestamp
+    triggered_by: str
+    elapsed_seconds: int
+```
+
+#### Step 4: Testing
+- [ ] Test portfolio owner can trigger calculations
+- [ ] Test non-owner cannot trigger calculations (403)
+- [ ] Test batch status polling works
+- [ ] Test complete onboarding flow (register → login → upload → calculate → poll → success)
+- [ ] Verify batch_orchestrator runs successfully
+- [ ] Verify positions get analytics calculated
+- [ ] Test with the existing portfolio from user testing: `754e6704-6cad-5fbd-9881-e9c1ae917b5b`
+
+### Files to Create/Update
+
+**Backend Files**:
+- `app/api/v1/portfolios.py` - Add 2 new endpoints (calculate, batch-status)
+- `app/schemas/portfolios.py` - Add response schemas
+- `app/api/v1/router.py` - Already includes portfolios router ✅
+
+**Frontend Files** (NO CHANGES NEEDED):
+- ✅ `frontend/src/services/onboardingService.ts` - Already calls correct endpoint
+- ✅ `frontend/src/hooks/usePortfolioUpload.ts` - Already polls for status
+
+### Completion Criteria
+
+- [ ] `POST /api/v1/portfolio/{id}/calculate` endpoint exists
+- [ ] Authenticated users can trigger calculations for their own portfolios
+- [ ] Non-owners receive 403 Forbidden error
+- [ ] Batch calculations execute successfully via batch_orchestrator
+- [ ] `GET /api/v1/portfolio/{id}/batch-status/{batch_run_id}` returns real-time status
+- [ ] Frontend polling works correctly
+- [ ] User completes full onboarding flow without errors
+- [ ] Analytics are calculated and visible in portfolio dashboard
+
+### Priority
+
+🔴 **CRITICAL** - Blocks all new user onboarding. Should be implemented immediately before Phase 2.4 (UX improvements).
+
+**Estimated Effort**: 2-3 hours (straightforward endpoint creation using existing patterns)
+
+---
+
+## Phase 2.6: Upload Error Handling UX (2025-11-16)
+
+**Status**: 📋 **NOT STARTED**
+
+**Issue Discovered**: Processing Errors Return User to Upload Form
+
+### Problem Description
+
+During user testing on 2025-11-16, discovered that when batch calculations fail (Phase 2B), the user is incorrectly returned to the upload form even though the portfolio and positions were successfully created (Phase 2A).
+
+**Current Behavior (INCORRECT)**:
+1. User uploads CSV ✅
+2. Portfolio and positions created successfully ✅
+3. Batch calculations fail (missing endpoint) ❌
+4. `uploadState` → `'error'`
+5. UI **goes back to upload form** with error message ❌
+6. User is confused - "Did my portfolio upload or not?"
+
+**Expected Behavior**:
+User should stay on processing screen and see:
+- ✅ Portfolio created successfully
+- ✅ 25 positions imported
+- ❌ Analytics failed (with clear error message and explanation)
+- **Two options:**
+  1. Retry Analytics
+  2. Continue to Dashboard (calculate later)
+
+### Root Cause
+
+**File**: `frontend/app/onboarding/upload/page.tsx` (lines 57-65)
+
+The page logic treats ALL errors the same - both upload errors AND processing errors show the upload form:
+
+```typescript
+// Line 57-65: Shows upload form for BOTH idle AND error states
+return (
+  <PortfolioUploadForm
+    error={error}  // ← ALL errors shown here (upload + processing)
+    onRetry={handleRetry}
+  />
+)
+```
+
+**Issue**: No distinction between:
+- **Upload Errors** (Phase 2A) - CSV validation, form errors, duplicate portfolio
+- **Processing Errors** (Phase 2B) - Batch calculations, market data, network timeouts
+
+### Solution Design: Two Error Types
+
+| Error Type | Phase | Example Errors | UI to Show | Actions Available |
+|------------|-------|---------------|------------|-------------------|
+| **Upload Errors** | Phase 2A | • CSV validation failed<br>• Invalid file format<br>• Duplicate portfolio name<br>• Form validation errors | ❌ **Upload Form** with error message | • Fix CSV and retry<br>• Choose different file<br>• Correct form inputs |
+| **Processing Errors** | Phase 2B | • Batch calculation failed<br>• Network timeout<br>• Market data unavailable<br>• Missing endpoint | ⚠️ **Processing Screen** with partial success | • Retry calculations<br>• Continue to dashboard anyway |
+
+### Resolution Plan
+
+#### Step 1: Add Error Phase Tracking
+**File**: `frontend/src/hooks/usePortfolioUpload.ts`
+
+- [ ] Add new state: `const [errorPhase, setErrorPhase] = useState<'upload' | 'processing' | null>(null)`
+- [ ] Update `handleUpload` error handling:
+  ```typescript
+  try {
+    // Phase 2A: CSV Upload
+    const uploadResponse = await onboardingService.createPortfolio(formData)
+    // Store result for use in processing error screen
+    setResult({
+      portfolio_id: uploadResponse.portfolio_id,
+      portfolio_name: uploadResponse.portfolio_name,
+      positions_imported: uploadResponse.positions_imported,
+      positions_failed: uploadResponse.positions_failed,
+      total_positions: uploadResponse.total_positions,
+    })
+
+    // Phase 2B: Batch Processing
+    try {
+      const calcResponse = await onboardingService.triggerCalculations(uploadResponse.portfolio_id)
+      // ... existing polling logic
+    } catch (batchError) {
+      setErrorPhase('processing')  // ← Processing error
+      setUploadState('error')
+      setError(getErrorMessage(batchError))
+      // Keep result - portfolio was created successfully!
+    }
+  } catch (uploadError) {
+    setErrorPhase('upload')  // ← Upload error
+    setUploadState('error')
+    setError(getErrorMessage(uploadError))
+    setResult(null)  // Clear result - nothing was created
+  }
+  ```
+
+- [ ] Add to return type: `errorPhase`
+- [ ] Export `errorPhase` from hook
+
+#### Step 2: Create Processing Error Component
+**File**: `frontend/src/components/onboarding/UploadProcessingError.tsx` (NEW)
+
+- [ ] Create new component showing partial success state
+- [ ] Display completed checklist items (portfolio_created, positions_imported)
+- [ ] Show clear error message for failed batch calculations
+- [ ] Provide two action buttons:
+  1. "Retry Analytics" - calls new `handleRetryCalculations` function
+  2. "Continue to Dashboard" - navigates to dashboard (calculations can be triggered later)
+
+**Component Structure**:
+```typescript
+interface UploadProcessingErrorProps {
+  portfolioName: string
+  positionsImported: number
+  positionsFailed: number
+  checklist: ChecklistState
+  error: string
+  onRetryCalculations: () => void
+  onContinueToDashboard: () => void
+}
+
+export function UploadProcessingError({
+  portfolioName,
+  positionsImported,
+  positionsFailed,
+  checklist,
+  error,
+  onRetryCalculations,
+  onContinueToDashboard
+}: UploadProcessingErrorProps) {
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-amber-50 to-orange-50 dark:from-gray-900 dark:to-gray-800 p-4">
+      <Card className="shadow-lg border-amber-200 dark:border-amber-900">
+        <CardHeader>
+          <div className="flex items-start gap-4">
+            {/* Half-success icon */}
+            <div className="rounded-full bg-amber-100 dark:bg-amber-900/20 p-3">
+              <AlertTriangle className="h-6 w-6 text-amber-600" />
+            </div>
+            <div>
+              <CardTitle>Portfolio Created, Analytics Pending</CardTitle>
+              <CardDescription>
+                Your portfolio was created successfully, but we encountered an error calculating analytics
+              </CardDescription>
+            </div>
+          </div>
+        </CardHeader>
+
+        <CardContent className="space-y-6">
+          {/* Success Summary */}
+          <div className="bg-green-50 dark:bg-green-950 rounded-lg p-4 space-y-2">
+            <p className="text-sm font-medium text-green-900 dark:text-green-100 flex items-center gap-2">
+              <Check className="h-4 w-4" />
+              Portfolio Created Successfully
+            </p>
+            <div className="ml-6 space-y-1 text-sm text-green-700">
+              <p>• Name: {portfolioName}</p>
+              <p>• Positions: {positionsImported} imported {positionsFailed > 0 && `(${positionsFailed} failed)`}</p>
+            </div>
+          </div>
+
+          {/* Completed Items */}
+          <div className="space-y-2">
+            <p className="text-sm font-medium">Completed:</p>
+            <div className="grid grid-cols-2 gap-2">
+              {Object.entries(checklist).map(([key, completed]) =>
+                completed && (
+                  <div key={key} className="flex items-center gap-2 text-sm text-green-700">
+                    <Check className="h-3 w-3" />
+                    <span>{checklistLabels[key]}</span>
+                  </div>
+                )
+              )}
+            </div>
+          </div>
+
+          {/* Error Message */}
+          <div className="bg-red-50 dark:bg-red-950 rounded-lg p-4">
+            <p className="text-sm font-medium text-red-900 dark:text-red-100 flex items-center gap-2">
+              <XCircle className="h-4 w-4" />
+              Analytics Calculation Failed
+            </p>
+            <p className="text-sm text-red-700 dark:text-red-300 mt-2">
+              {error}
+            </p>
+          </div>
+
+          {/* What Now? */}
+          <div className="border-t pt-4">
+            <p className="text-sm font-medium mb-2">What would you like to do?</p>
+            <ul className="text-sm text-muted-foreground space-y-1 ml-4">
+              <li>• <strong>Retry Analytics:</strong> Try running calculations again</li>
+              <li>• <strong>Continue to Dashboard:</strong> View your positions now, calculate analytics later</li>
+            </ul>
+          </div>
+        </CardContent>
+
+        <CardFooter className="flex gap-3">
+          <Button onClick={onRetryCalculations} className="flex-1">
+            Retry Analytics
+          </Button>
+          <Button variant="outline" onClick={onContinueToDashboard} className="flex-1">
+            Continue to Dashboard
+          </Button>
+        </CardFooter>
+      </Card>
+    </div>
+  )
+}
+```
+
+#### Step 3: Add Retry Calculations Handler
+**File**: `frontend/src/hooks/usePortfolioUpload.ts`
+
+- [ ] Add new function `handleRetryCalculations`:
+  ```typescript
+  const handleRetryCalculations = async () => {
+    if (!result?.portfolio_id) {
+      console.error('No portfolio ID available for retry')
+      return
+    }
+
+    // Reset error state but preserve checklist and result
+    setUploadState('processing')
+    setError(null)
+    setErrorPhase(null)
+    // DON'T reset checklist or result - keep progress!
+
+    try {
+      const calcResponse = await onboardingService.triggerCalculations(result.portfolio_id)
+      setBatchStatus(calcResponse.status)
+
+      // Resume polling from where we left off
+      pollIntervalRef.current = setInterval(async () => {
+        // ... existing polling logic
+      }, 3000)
+    } catch (err) {
+      setErrorPhase('processing')
+      setUploadState('error')
+      setError(getErrorMessage(err))
+    }
+  }
+  ```
+
+- [ ] Add to return type: `handleRetryCalculations`
+- [ ] Export from hook
+
+#### Step 4: Update Upload Page Routing Logic
+**File**: `frontend/app/onboarding/upload/page.tsx`
+
+- [ ] Import new component: `UploadProcessingError`
+- [ ] Update conditional rendering logic:
+  ```typescript
+  export default function OnboardingUploadPage() {
+    const {
+      uploadState,
+      errorPhase,  // ← NEW
+      batchStatus,
+      currentSpinnerItem,
+      checklist,
+      result,
+      error,
+      validationErrors,
+      handleUpload,
+      handleContinueToDashboard,
+      handleRetry,
+      handleRetryCalculations,  // ← NEW
+      handleChooseDifferentFile,
+    } = usePortfolioUpload()
+
+    // Show validation errors (upload phase)
+    if (validationErrors && validationErrors.length > 0) {
+      return <ValidationErrors errors={validationErrors} onTryAgain={handleChooseDifferentFile} />
+    }
+
+    // NEW: Show processing error screen (partial success)
+    if (uploadState === 'error' && errorPhase === 'processing' && result) {
+      return (
+        <UploadProcessingError
+          portfolioName={result.portfolio_name}
+          positionsImported={result.positions_imported}
+          positionsFailed={result.positions_failed}
+          checklist={checklist}
+          error={error || 'Unknown error occurred'}
+          onRetryCalculations={handleRetryCalculations}
+          onContinueToDashboard={handleContinueToDashboard}
+        />
+      )
+    }
+
+    // Show success screen
+    if (uploadState === 'success' && result) {
+      return (
+        <UploadSuccess
+          portfolioName={result.portfolio_name}
+          positionsImported={result.positions_imported}
+          positionsFailed={result.positions_failed}
+          checklist={checklist}
+          onContinue={handleContinueToDashboard}
+        />
+      )
+    }
+
+    // Show processing screen (uploading or batch processing)
+    if (uploadState === 'uploading' || uploadState === 'processing') {
+      return (
+        <UploadProcessing
+          uploadState={uploadState}
+          currentSpinnerItem={currentSpinnerItem}
+          checklist={checklist}
+        />
+      )
+    }
+
+    // Show upload form for:
+    // 1. Initial load (idle state)
+    // 2. Upload phase errors (errorPhase === 'upload')
+    return (
+      <PortfolioUploadForm
+        onUpload={handleUpload}
+        disabled={uploadState === 'uploading' || uploadState === 'processing'}
+        error={errorPhase === 'upload' ? error : null}  // ← Only show upload errors
+        onRetry={handleRetry}
+      />
+    )
+  }
+  ```
+
+#### Step 5: On-Demand Analytics Triggering (Dashboard)
+
+**Problem**: Users who skip analytics need a way to trigger them later from the dashboard.
+
+**Solution Options**:
+
+##### Option A: Data Quality Banner (RECOMMENDED)
+**File**: `frontend/app/portfolio/page.tsx`
+
+- [ ] Add analytics status check on page load
+- [ ] Display banner at top of dashboard when analytics are missing/incomplete:
+  ```typescript
+  {analyticsStatus === 'missing' && (
+    <Alert variant="warning" className="mb-4">
+      <AlertTriangle className="h-4 w-4" />
+      <AlertTitle>Analytics Pending</AlertTitle>
+      <AlertDescription>
+        Your portfolio analytics haven't been calculated yet.
+        <Button
+          variant="link"
+          onClick={handleTriggerAnalytics}
+          className="ml-2"
+        >
+          Calculate Now
+        </Button>
+      </AlertDescription>
+    </Alert>
+  )}
+  ```
+
+##### Option B: Empty State Cards
+**File**: Portfolio metric components
+
+- [ ] When data is missing, show empty state card with "Calculate Analytics" button
+- [ ] Example in `PortfolioMetrics.tsx`:
+  ```typescript
+  {!metrics && (
+    <Card>
+      <CardHeader>
+        <CardTitle>Portfolio Metrics</CardTitle>
+        <CardDescription>Analytics not yet calculated</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <Button onClick={handleCalculateAnalytics}>
+          Calculate Analytics
+        </Button>
+      </CardContent>
+    </Card>
+  )}
+  ```
+
+##### Option C: Settings/Portfolio Management Page
+**File**: `frontend/app/settings/page.tsx`
+
+- [ ] Add "Portfolio Management" section
+- [ ] Show batch status for each portfolio
+- [ ] Provide manual trigger button:
+  ```typescript
+  <div className="flex items-center justify-between">
+    <div>
+      <p className="font-medium">{portfolio.name}</p>
+      <p className="text-sm text-muted-foreground">
+        Analytics: {analyticsStatus}
+      </p>
+    </div>
+    <Button
+      variant="outline"
+      onClick={() => triggerAnalytics(portfolio.id)}
+      disabled={isCalculating}
+    >
+      {isCalculating ? 'Calculating...' : 'Recalculate Analytics'}
+    </Button>
+  </div>
+  ```
+
+##### Option D: Automatic Retry on Page Load
+**File**: `frontend/app/portfolio/page.tsx`
+
+- [ ] Check analytics status on mount
+- [ ] If missing and user hasn't explicitly skipped, auto-trigger in background
+- [ ] Show progress indicator (small, non-intrusive)
+- [ ] User can cancel auto-calculation
+
+**RECOMMENDED COMBINATION**: Option A (banner) + Option B (empty states)
+- Banner provides global visibility
+- Empty states provide contextual triggers
+- Both use same underlying trigger mechanism
+
+**Implementation for Dashboard Trigger**:
+
+**File**: `frontend/src/services/portfolioService.ts` (or create `analyticsService.ts`)
+
+```typescript
+export const analyticsService = {
+  /**
+   * Check if portfolio has analytics calculated
+   */
+  checkAnalyticsStatus: async (portfolioId: string): Promise<AnalyticsStatus> => {
+    // Check for presence of key analytics data
+    const response = await apiClient.get(`/api/v1/data/portfolio/${portfolioId}/data-quality`)
+    return {
+      status: response.analytics_complete ? 'complete' : 'missing',
+      missing_calculations: response.missing_calculations || [],
+      last_calculated: response.last_calculated
+    }
+  },
+
+  /**
+   * Trigger analytics calculation for portfolio
+   */
+  triggerAnalytics: async (portfolioId: string): Promise<TriggerCalculationsResponse> => {
+    const response = await apiClient.post<TriggerCalculationsResponse>(
+      `/api/v1/portfolio/${portfolioId}/calculate`
+    )
+    return response
+  },
+
+  /**
+   * Poll batch status
+   */
+  getBatchStatus: async (portfolioId: string, batchRunId: string): Promise<BatchStatusResponse> => {
+    const response = await apiClient.get<BatchStatusResponse>(
+      `/api/v1/portfolio/${portfolioId}/batch-status/${batchRunId}`
+    )
+    return response
+  }
+}
+```
+
+**Custom Hook**: `frontend/src/hooks/useAnalyticsTrigger.ts`
+
+```typescript
+export function useAnalyticsTrigger(portfolioId: string) {
+  const [isCalculating, setIsCalculating] = useState(false)
+  const [progress, setProgress] = useState(0)
+  const [error, setError] = useState<string | null>(null)
+
+  const triggerAnalytics = async () => {
+    setIsCalculating(true)
+    setError(null)
+
+    try {
+      const response = await analyticsService.triggerAnalytics(portfolioId)
+
+      // Poll for status
+      const pollInterval = setInterval(async () => {
+        const status = await analyticsService.getBatchStatus(
+          portfolioId,
+          response.batch_run_id
+        )
+
+        setProgress(status.progress_percent || 0)
+
+        if (status.status === 'completed') {
+          clearInterval(pollInterval)
+          setIsCalculating(false)
+          setProgress(100)
+          // Refresh portfolio data
+          window.location.reload() // Or use React Query invalidation
+        } else if (status.status === 'failed') {
+          clearInterval(pollInterval)
+          setIsCalculating(false)
+          setError('Analytics calculation failed. Please try again.')
+        }
+      }, 3000)
+
+    } catch (err) {
+      setIsCalculating(false)
+      setError(getErrorMessage(err))
+    }
+  }
+
+  return { triggerAnalytics, isCalculating, progress, error }
+}
+```
+
+### Files to Create/Update
+
+**Frontend Files**:
+- `src/hooks/usePortfolioUpload.ts` - Add errorPhase tracking, handleRetryCalculations
+- `src/components/onboarding/UploadProcessingError.tsx` - NEW component
+- `app/onboarding/upload/page.tsx` - Update routing logic
+- `src/services/analyticsService.ts` - NEW service for analytics triggering (optional)
+- `src/hooks/useAnalyticsTrigger.ts` - NEW hook for dashboard triggers (optional)
+- `app/portfolio/page.tsx` - Add analytics status banner (optional)
+
+**Backend Files** (depends on Phase 2.5):
+- Phase 2.5 must be completed first (create calculate endpoints)
+
+### Completion Criteria
+
+**Phase 2B Error Handling**:
+- [ ] Upload errors (Phase 2A) show upload form with error
+- [ ] Processing errors (Phase 2B) show processing error screen with partial success
+- [ ] Processing error screen shows completed checklist items
+- [ ] Processing error screen provides "Retry Analytics" button
+- [ ] Processing error screen provides "Continue to Dashboard" button
+- [ ] Retry preserves checklist progress (doesn't reset to zero)
+- [ ] User can navigate to dashboard without analytics
+- [ ] Error messages are clear and actionable
+
+**Dashboard Analytics Triggering**:
+- [ ] Analytics status is checked on portfolio page load
+- [ ] Banner displays when analytics are missing
+- [ ] "Calculate Now" button triggers batch calculations
+- [ ] Progress indicator shows during calculation
+- [ ] Portfolio data refreshes when calculation completes
+- [ ] Error handling for failed calculations from dashboard
+- [ ] Users can dismiss banner and calculate later
+
+### Testing Checklist
+
+- [ ] Test upload CSV error → sees upload form with error
+- [ ] Test successful upload + batch calculation failure → sees processing error screen
+- [ ] Test "Retry Analytics" from processing error screen → resumes calculation
+- [ ] Test "Continue to Dashboard" → navigates to portfolio page
+- [ ] Test dashboard with missing analytics → sees banner
+- [ ] Test "Calculate Now" from dashboard → triggers batch calculations
+- [ ] Test batch status polling from dashboard
+- [ ] Test calculation completion → data refreshes
+- [ ] Test calculation failure from dashboard → clear error message
+
+### Priority
+
+⚠️ **HIGH** - Improves user experience significantly, prevents confusion during onboarding failures
+
+**Dependencies**:
+- Requires Phase 2.5 (calculate endpoints) to be completed first
+- Dashboard triggering is optional enhancement
+
+**Estimated Effort**:
+- Core error handling: 4-6 hours
+- Dashboard triggering: 2-3 hours (optional)
+- **Total**: 6-9 hours
 
 ---
 
@@ -1891,6 +2832,20 @@ For each major feature:
 - **Target Completion**: 2025-11-06
 - **Actual Completion**: 2025-11-06 (including Phase 2.1 code review fixes and Phase 2.2 UUID consistency fix)
 - **Notes**: Multi-portfolio support fully integrated with validation, unique constraints, and UUID consistency across all creation paths.
+
+### Phase 2.3: Frontend Integration Bug Fixes
+- **Status**: ✅ COMPLETED
+- **Started**: 2025-11-16
+- **Target Completion**: 2025-11-16
+- **Actual Completion**: 2025-11-16
+- **Notes**: Fixed frontend onboarding form to include account_name and account_type fields required by Phase 2 backend changes. Discovered during user testing with Schwab CSV import.
+
+### Phase 2.4: Post-Login UX Flow
+- **Status**: 📋 NOT STARTED
+- **Started**: TBD
+- **Target Completion**: TBD
+- **Actual Completion**: TBD
+- **Notes**: Need to fix post-login flow for users without portfolios - no clear path to upload portfolio after successful login. Discovered during user testing 2025-11-16.
 
 ### Phase 3: Admin & Superuser
 - **Status**: NOT STARTED

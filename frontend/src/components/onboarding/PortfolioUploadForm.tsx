@@ -8,7 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { onboardingService } from '@/services/onboardingService'
 
 interface PortfolioUploadFormProps {
-  onUpload: (portfolioName: string, equityBalance: number, file: File) => void
+  onUpload: (portfolioName: string, accountName: string, accountType: string, equityBalance: number, file: File) => void
   disabled?: boolean
   error?: string | null
   onRetry?: () => void
@@ -16,6 +16,8 @@ interface PortfolioUploadFormProps {
 
 export function PortfolioUploadForm({ onUpload, disabled, error, onRetry }: PortfolioUploadFormProps) {
   const [portfolioName, setPortfolioName] = useState('')
+  const [accountName, setAccountName] = useState('')
+  const [accountType, setAccountType] = useState('')
   const [equityBalance, setEquityBalance] = useState('')
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [errors, setErrors] = useState<Record<string, string>>({})
@@ -70,6 +72,16 @@ export function PortfolioUploadForm({ onUpload, disabled, error, onRetry }: Port
       newErrors.portfolioName = 'Portfolio name is required'
     }
 
+    if (!accountName.trim()) {
+      newErrors.accountName = 'Account name is required'
+    } else if (accountName.length > 100) {
+      newErrors.accountName = 'Account name must be 100 characters or less'
+    }
+
+    if (!accountType) {
+      newErrors.accountType = 'Account type is required'
+    }
+
     if (!equityBalance.trim()) {
       newErrors.equityBalance = 'Equity balance is required'
     } else {
@@ -100,7 +112,7 @@ export function PortfolioUploadForm({ onUpload, disabled, error, onRetry }: Port
     const cleanBalance = equityBalance.replace(/[$,]/g, '')
     const numBalance = parseFloat(cleanBalance)
 
-    onUpload(portfolioName, numBalance, selectedFile)
+    onUpload(portfolioName, accountName, accountType, numBalance, selectedFile)
   }
 
   const handleDownloadTemplate = () => {
@@ -148,6 +160,68 @@ export function PortfolioUploadForm({ onUpload, disabled, error, onRetry }: Port
                 />
                 {errors.portfolioName && (
                   <p className="text-sm text-red-600">{errors.portfolioName}</p>
+                )}
+              </div>
+
+              {/* Account Name */}
+              <div className="space-y-2">
+                <label htmlFor="account_name" className="text-sm font-medium">
+                  Account Name
+                </label>
+                <Input
+                  id="account_name"
+                  type="text"
+                  placeholder="e.g., Schwab Living Trust, Fidelity IRA"
+                  value={accountName}
+                  onChange={(e) => {
+                    setAccountName(e.target.value)
+                    if (errors.accountName) {
+                      setErrors({ ...errors, accountName: '' })
+                    }
+                  }}
+                  disabled={disabled}
+                  className={errors.accountName ? 'border-red-500' : ''}
+                />
+                {errors.accountName && (
+                  <p className="text-sm text-red-600">{errors.accountName}</p>
+                )}
+                <p className="text-xs text-muted-foreground">
+                  A unique name for this specific account
+                </p>
+              </div>
+
+              {/* Account Type */}
+              <div className="space-y-2">
+                <label htmlFor="account_type" className="text-sm font-medium">
+                  Account Type
+                </label>
+                <select
+                  id="account_type"
+                  value={accountType}
+                  onChange={(e) => {
+                    setAccountType(e.target.value)
+                    if (errors.accountType) {
+                      setErrors({ ...errors, accountType: '' })
+                    }
+                  }}
+                  disabled={disabled}
+                  className={`flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 ${
+                    errors.accountType ? 'border-red-500' : ''
+                  }`}
+                >
+                  <option value="">Select account type...</option>
+                  <option value="taxable">Taxable Brokerage Account</option>
+                  <option value="ira">Traditional IRA</option>
+                  <option value="roth_ira">Roth IRA</option>
+                  <option value="401k">401(k) Retirement Plan</option>
+                  <option value="403b">403(b) Retirement Plan</option>
+                  <option value="529">529 Education Savings Plan</option>
+                  <option value="hsa">Health Savings Account</option>
+                  <option value="trust">Trust Account</option>
+                  <option value="other">Other Account Type</option>
+                </select>
+                {errors.accountType && (
+                  <p className="text-sm text-red-600">{errors.accountType}</p>
                 )}
               </div>
 

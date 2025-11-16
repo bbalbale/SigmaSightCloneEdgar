@@ -28,6 +28,8 @@ export interface LoginResponse {
 export interface CreatePortfolioResponse {
   portfolio_id: string;
   portfolio_name: string;
+  account_name: string;
+  account_type: string;
   equity_balance: number;
   positions_imported: number;
   positions_failed: number;

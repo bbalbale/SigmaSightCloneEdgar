@@ -49,7 +49,7 @@ interface UsePortfolioUploadReturn {
   result: UploadResult | null
   error: string | null
   validationErrors: ValidationError[] | null
-  handleUpload: (portfolioName: string, equityBalance: number, file: File) => Promise<void>
+  handleUpload: (portfolioName: string, accountName: string, accountType: string, equityBalance: number, file: File) => Promise<void>
   handleContinueToDashboard: () => void
   handleRetry: () => void
   handleChooseDifferentFile: () => void
@@ -88,6 +88,8 @@ export function usePortfolioUpload(): UsePortfolioUploadReturn {
   const pollIntervalRef = useRef<NodeJS.Timeout | null>(null)
   const currentFileRef = useRef<File | null>(null)
   const currentPortfolioNameRef = useRef<string>('')
+  const currentAccountNameRef = useRef<string>('')
+  const currentAccountTypeRef = useRef<string>('')
   const currentEquityBalanceRef = useRef<number>(0)
 
   // Cleanup on unmount
@@ -99,10 +101,12 @@ export function usePortfolioUpload(): UsePortfolioUploadReturn {
     }
   }, [])
 
-  const handleUpload = async (portfolioName: string, equityBalance: number, file: File) => {
+  const handleUpload = async (portfolioName: string, accountName: string, accountType: string, equityBalance: number, file: File) => {
     // Store for retry
     currentFileRef.current = file
     currentPortfolioNameRef.current = portfolioName
+    currentAccountNameRef.current = accountName
+    currentAccountTypeRef.current = accountType
     currentEquityBalanceRef.current = equityBalance
 
     setUploadState('uploading')
@@ -113,6 +117,8 @@ export function usePortfolioUpload(): UsePortfolioUploadReturn {
       // PHASE 2A: CSV Upload (10-30 seconds)
       const formData = new FormData()
       formData.append('portfolio_name', portfolioName)
+      formData.append('account_name', accountName)
+      formData.append('account_type', accountType)
       formData.append('equity_balance', equityBalance.toString())
       formData.append('csv_file', file)  // Backend expects 'csv_file', not 'file'
 
@@ -280,6 +286,8 @@ export function usePortfolioUpload(): UsePortfolioUploadReturn {
     if (currentFileRef.current) {
       handleUpload(
         currentPortfolioNameRef.current,
+        currentAccountNameRef.current,
+        currentAccountTypeRef.current,
         currentEquityBalanceRef.current,
         currentFileRef.current
       )
