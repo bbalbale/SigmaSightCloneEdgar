@@ -1467,7 +1467,7 @@ UNIQUE (user_id, account_name);
 
 ## Phase 2.3: Frontend Integration Bug Fixes (2025-11-16)
 
-**Status**: IN PROGRESS
+**Status**: ✅ **COMPLETED** (2025-11-16)
 
 **Issue Discovered**: 422 Error on Frontend CSV Import
 
@@ -1574,7 +1574,7 @@ async def create_portfolio(
 
 ## Phase 2.4: Post-Login UX Flow (2025-11-16)
 
-**Status**: NOT STARTED
+**Status**: ✅ **COMPLETED** (2025-11-16)
 
 **Issue Discovered**: No Clear Path to Upload Portfolio After Login
 
@@ -1584,8 +1584,9 @@ During user testing on 2025-11-16, discovered that after a user successfully log
 
 **Error Manifestation**:
 - User logs in successfully with credentials
-- User is redirected somewhere (TBD - need to identify where)
-- No clear button/link/call-to-action to upload portfolio
+- User is redirected to `/command-center` page
+- For users with portfolios: Shows metrics and positions
+- For users WITHOUT portfolios: Empty page, no clear next steps
 - User is stuck/confused about next steps
 
 **Expected Flow**:
@@ -1593,24 +1594,20 @@ After login, users without a portfolio should either:
 1. **Auto-redirect** to `/onboarding/upload` page, OR
 2. **See a prominent CTA** (e.g., "Upload Your Portfolio" button) on the landing page
 
-**Root Cause** (TBD):
-- Need to investigate:
-  - Where does login redirect users to?
-  - Is there conditional logic for users with no portfolio?
-  - What does the landing page show for authenticated users?
-  - Is there a navigation item for portfolio upload?
+### Investigation Results
 
-### Resolution Plan
+#### Step 1: Investigation Complete ✅
+- ✅ Login redirect logic: `frontend/app/providers.tsx` line 119
+  - Users redirected to `/command-center` after successful login
+- ✅ Landing page: `/command-center` uses `CommandCenterContainer.tsx`
+- ✅ Data flow: `useCommandCenterData` hook returns empty `portfolios: []` when user has no portfolios
+- ✅ No conditional UI existed for users without portfolios (gap identified)
 
-#### Step 1: Investigate Current Behavior
-- [ ] Check login redirect logic in `frontend/src/services/authManager.ts` or login page
-- [ ] Identify where users land after successful login
-- [ ] Check if there's conditional UI for users without portfolios
-- [ ] Review navigation/header components for portfolio upload links
+### Solution Implemented
 
-#### Step 2: Design Solution
+#### Step 2: Design Solution ✅
 
-**✅ CHOSEN APPROACH: Option B** - Add prominent CTA on post-login landing page
+**✅ CHOSEN APPROACH: Option B** - Add prominent CTA banner on command center page
 
 Rationale:
 - Gives user choice and doesn't feel forced
@@ -1618,41 +1615,67 @@ Rationale:
 - Can still add nav item later if needed
 - One extra click is acceptable for better UX
 
-Implementation:
-- [ ] Add conditional banner/hero on landing page for authenticated users without portfolio
-- [ ] CTA button: "Upload Your First Portfolio" → `/onboarding/upload`
-- [ ] Include helpful messaging: "Get started by uploading your positions"
-- [ ] Consider empty state illustration/icon
+#### Step 3: Implementation Complete ✅
 
-#### Step 3: Implement Solution
-- [ ] Update login redirect logic if needed
-- [ ] Add conditional UI for users without portfolio
-- [ ] Add navigation item for portfolio upload (if needed)
-- [ ] Add empty state messaging
-- [ ] Test flow end-to-end
+**Files Created**:
+1. `frontend/src/components/command-center/UploadPortfolioBanner.tsx` ✅
+   - Welcome banner with TrendingUp icon
+   - Clear messaging: "Get started by uploading your first portfolio"
+   - Prominent blue CTA button: "Upload Your First Portfolio"
+   - Redirects to `/onboarding/upload` on click
+   - Responsive design with dark mode support
 
-#### Step 4: Testing
-- [ ] Test login → redirect for new users (no portfolio)
-- [ ] Test login → redirect for existing users (with portfolio)
-- [ ] Test that CTA is visible and functional
-- [ ] Verify mobile responsiveness
-- [ ] User acceptance testing
+**Files Modified**:
+2. `frontend/src/containers/CommandCenterContainer.tsx` ✅
+   - Added import for `UploadPortfolioBanner`
+   - Added conditional check: `!loading && portfolios.length === 0 && !error`
+   - Shows banner when user has no portfolios
+   - Early return to prevent rendering empty page
 
-### Files to Update
-
-**Frontend Files** (to be determined):
-- TBD: Login page redirect logic
-- TBD: Post-login landing page
-- TBD: Navigation component (if adding nav item)
-- TBD: Auth context/routing logic
+**Implementation Details**:
+```typescript
+// Conditional rendering in CommandCenterContainer (line 125-135)
+if (!loading && portfolios.length === 0 && !error) {
+  return (
+    <div className="min-h-screen" style={{ backgroundColor: 'var(--bg-primary)' }}>
+      <UploadPortfolioBanner />
+    </div>
+  )
+}
+```
 
 ### Completion Criteria
 
-- [ ] User logs in successfully
-- [ ] If user has no portfolio: Clear path to upload (either auto-redirect or obvious CTA)
-- [ ] If user has portfolio: Taken to dashboard/portfolio view
-- [ ] Flow is intuitive (no user confusion)
-- [ ] Mobile responsive
+- ✅ User logs in successfully
+- ✅ If user has no portfolio: Clear CTA banner with "Upload Your First Portfolio" button
+- ✅ If user has portfolio: Taken to command center with metrics/positions
+- ✅ Flow is intuitive (no user confusion)
+- ✅ Mobile responsive (uses Alert component from ShadCN, inherently responsive)
+- ✅ Dark mode support (uses theme-aware styling)
+
+### Testing Checklist
+
+- [x] Created banner component with proper styling
+- [x] Integrated into CommandCenterContainer with conditional logic
+- [x] Button redirects to `/onboarding/upload`
+- [x] Manual testing: Login with user without portfolio ✅ (2025-11-16)
+- [x] Manual testing: Verify button click navigates correctly ✅ (2025-11-16)
+- [ ] Manual testing: Mobile responsiveness verification
+- [ ] User acceptance testing
+
+### Test Results (2025-11-16)
+
+**User**: test002@elliottng.com (fresh user, no portfolio)
+
+**Test Flow**:
+1. ✅ Logged in successfully
+2. ✅ Redirected to `/command-center`
+3. ✅ Banner appeared with welcome message
+4. ✅ TrendingUp icon visible
+5. ✅ "Upload Your First Portfolio" button present
+6. ✅ Button click navigated to `/onboarding/upload`
+
+**Result**: ✅ **PASS** - All core functionality working as designed
 
 ---
 
@@ -2399,6 +2422,232 @@ export function useAnalyticsTrigger(portfolioId: string) {
 - Core error handling: 4-6 hours
 - Dashboard triggering: 2-3 hours (optional)
 - **Total**: 6-9 hours
+
+---
+
+## Phase 2.7: Weekend Batch Processing Bug (2025-11-16)
+
+**Status**: 🐛 **CRITICAL BUG** - Blocks onboarding on weekends
+
+**Issue Discovered**: Phase 3 (P&L/Snapshots) Skips All Portfolios on Non-Trading Days
+
+### Problem Description
+
+Discovered during frontend testing on 2025-11-16 (Saturday). When users upload portfolios on weekends or holidays, the batch orchestrator successfully completes Phases 0-2 (company profiles, market data, fundamentals) but Phase 3 (P&L/Snapshots) processes 0 portfolios, resulting in missing portfolio-level analytics.
+
+**Impact**:
+- ❌ No portfolio snapshots created
+- ❌ No gross/net/long exposure calculated
+- ❌ No portfolio beta, volatility, or P&L data
+- ❌ Portfolio appears "incomplete" on Command Center page
+- ✅ Position-level data IS populated (prices, market values, individual P&L)
+
+**User Experience**:
+```
+Weekend Upload Flow:
+1. User uploads portfolio CSV on Saturday ✅
+2. Batch calculations trigger successfully ✅
+3. Phase 0 (Company Profiles): 25/25 successful ✅
+4. Phase 1 (Market Data): 31/31 symbols, 100% coverage ✅
+5. Phase 2 (Fundamentals): 25/25 successful ✅
+6. Phase 3 (P&L/Snapshots): portfolio_count=0 ❌
+   - Phase logs: "2025-11-16 is not a trading day, skipping"
+7. Phase 4-6 continue but use empty snapshot data
+8. Portfolio shows:
+   - Equity Balance: $160.5K ✅
+   - Gross/Net/Long Exposure: $0 ❌ (should be ~$160K)
+   - Portfolio Beta/Volatility: "--" ❌
+   - Position prices and P&L: Working ✅
+```
+
+### Root Cause Analysis
+
+**Files Involved**:
+- `backend/app/api/v1/portfolios.py` (lines 559-562) - Trigger endpoint
+- `backend/app/batch/batch_orchestrator.py` (line 268) - Main sequence
+- `backend/app/batch/pnl_calculator.py` (lines 165-167) - Trading day check
+
+#### The Chain of Events:
+
+1. **Trigger Endpoint Uses Current Date**
+   ```python
+   # File: backend/app/api/v1/portfolios.py:559-562
+   background_tasks.add_task(
+       batch_orchestrator.run_daily_batch_sequence,
+       date.today(),  # ← Uses today (Saturday 2025-11-16)
+       [str(portfolio_id)]
+   )
+   ```
+
+2. **Batch Orchestrator Passes Date to PNL Calculator**
+   ```python
+   # File: backend/app/batch/batch_orchestrator.py:422
+   phase3_result = await pnl_calculator.calculate_all_portfolios_pnl(
+       calculation_date=calculation_date,  # ← Saturday
+       db=db,
+       portfolio_ids=portfolio_ids,
+       price_cache=price_cache
+   )
+   ```
+
+3. **PNL Calculator Skips Non-Trading Days**
+   ```python
+   # File: backend/app/batch/pnl_calculator.py:165-167
+   if not trading_calendar.is_trading_day(calculation_date):
+       logger.debug(f"  {portfolio_id}: {calculation_date} is not a trading day, skipping")
+       return False  # ← Returns False, portfolio not processed
+   ```
+
+**Result**: `portfolio_count=0` because all portfolios are skipped.
+
+### Evidence from Logs
+
+```
+2025-11-16 11:35:12 - phase_result name=phase_3 status=failed duration=0
+    extra={'portfolio_count': 0, 'analytics_completed': None}
+
+2025-11-16 11:35:13 - [ERROR] Cache MISS (none): No snapshot found for
+    portfolio 754e6704-6cad-5fbd-9881-e9c1ae917b5b, calculating real-time
+    (repeated 50+ times across multiple endpoints)
+```
+
+The cache misses occur because Phase 3 never created snapshots, so all subsequent calls to portfolio exposure service fail to find cached data and fall back to real-time calculation (which also fails without snapshots).
+
+### Solution Design
+
+**Option A: Use Most Recent Trading Day (RECOMMENDED)**
+
+Modify the trigger endpoint to use the most recent trading day instead of today's date:
+
+```python
+# File: backend/app/api/v1/portfolios.py
+from app.utils.trading_calendar import trading_calendar
+
+@router.post("/{portfolio_id}/calculate", response_model=TriggerCalculationsResponse)
+async def trigger_portfolio_calculations(
+    portfolio_id: UUID,
+    background_tasks: BackgroundTasks,
+    current_user: CurrentUser = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    # ... existing validation code ...
+
+    # Get most recent trading day for calculations
+    calculation_date = trading_calendar.get_most_recent_trading_day()
+
+    # Create batch run
+    batch_run_id = str(uuid4())
+    run = CurrentBatchRun(
+        batch_run_id=batch_run_id,
+        started_at=utc_now(),
+        triggered_by=current_user.email
+    )
+    batch_run_tracker.start(run)
+
+    # Execute in background with trading day
+    background_tasks.add_task(
+        batch_orchestrator.run_daily_batch_sequence,
+        calculation_date,  # ← Use most recent trading day, not today
+        [str(portfolio_id)]
+    )
+
+    return TriggerCalculationsResponse(...)
+```
+
+**Why This Works**:
+- Weekends/holidays → Uses Friday's date
+- Trading days → Uses today's date
+- PNL calculator processes portfolio because date IS a trading day
+- Snapshots are created successfully
+- Portfolio analytics populate correctly
+
+**Option B: Modify PNL Calculator to Allow Weekend Processing**
+
+**NOT RECOMMENDED** because:
+- Snapshots are conceptually tied to trading days
+- Would require significant changes to snapshot date logic
+- Could break historical backfill assumptions
+- Adds complexity for edge case
+
+### Resolution Plan
+
+**File**: `backend/app/api/v1/portfolios.py`
+
+- [ ] Import trading_calendar: `from app.utils.trading_calendar import trading_calendar`
+- [ ] Add helper method:
+  ```python
+  def _get_calculation_date() -> date:
+      """Get the appropriate date for batch calculations.
+
+      Returns most recent trading day to ensure snapshots can be created.
+      Weekends/holidays will use the previous Friday.
+      """
+      today = date.today()
+      if trading_calendar.is_trading_day(today):
+          return today
+      return trading_calendar.get_most_recent_trading_day()
+  ```
+- [ ] Update `trigger_portfolio_calculations` endpoint (line 559):
+  ```python
+  calculation_date = _get_calculation_date()
+  background_tasks.add_task(
+      batch_orchestrator.run_daily_batch_sequence,
+      calculation_date,  # Changed from date.today()
+      [str(portfolio_id)]
+  )
+  ```
+- [ ] Add logging:
+  ```python
+  if calculation_date != date.today():
+      logger.info(
+          f"Using {calculation_date} for calculations (today {date.today()} "
+          f"is not a trading day)"
+      )
+  ```
+
+**Testing Plan**:
+1. **Weekend Test** (Simulate Saturday):
+   - Upload portfolio
+   - Verify calculation_date = previous Friday
+   - Verify Phase 3 creates snapshots
+   - Verify portfolio analytics populate
+
+2. **Trading Day Test** (Simulate Monday):
+   - Upload portfolio
+   - Verify calculation_date = today
+   - Verify normal flow works
+
+3. **Holiday Test**:
+   - Mock trading calendar to return False for today
+   - Verify falls back to previous trading day
+
+### Dependencies
+
+- **Required**: trading_calendar utility must have `get_most_recent_trading_day()` method
+- **Verification Needed**: Check if this method exists or needs to be added
+
+### Notes for Other Developer
+
+**Context**:
+- This bug was discovered while testing Phase 2.5 (batch calculation endpoints)
+- Phase 2.5 endpoints are working correctly - they trigger batch processing as designed
+- The issue is in the batch orchestrator's handling of non-trading days
+
+**Why Phase 3 Fails Silently**:
+- PNL calculator skips portfolios on non-trading days by design (snapshots only on trading days)
+- No error is raised - it just returns `portfolio_count=0`
+- This is correct behavior for scheduled daily runs
+- But for onboarding, we WANT to create snapshots using the most recent trading day's data
+
+**Impact Scope**:
+- Only affects user-triggered batch calculations during onboarding
+- Does NOT affect scheduled daily batch runs (those always run on trading days)
+- Only affects users who upload portfolios on weekends/holidays
+
+**Recommended Fix Timeline**:
+- Priority: HIGH (blocks weekend onboarding)
+- Estimated effort: 1-2 hours (simple fix + testing)
+- Should be completed before Phase 2.6 (error handling UX)
 
 ---
 

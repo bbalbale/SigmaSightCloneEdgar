@@ -8,17 +8,17 @@ Created: 2025-11-01
 """
 from typing import List
 from uuid import UUID, uuid4
-from datetime import datetime, timezone
+from datetime import datetime, timezone, date
 from decimal import Decimal
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.dependencies import get_current_user
 from app.core.uuid_strategy import generate_portfolio_uuid
-from app.database import get_async_session
+from app.database import get_async_session, get_db
 from app.models.users import User, Portfolio
 from app.models.positions import Position
 from app.models.snapshots import PortfolioSnapshot
@@ -27,9 +27,14 @@ from app.schemas.portfolios import (
     PortfolioUpdateRequest,
     PortfolioResponse,
     PortfolioListResponse,
-    PortfolioDeleteResponse
+    PortfolioDeleteResponse,
+    TriggerCalculationsResponse,
+    BatchStatusResponse
 )
 from app.core.logging import get_logger
+from app.batch.batch_orchestrator import batch_orchestrator
+from app.batch.batch_run_tracker import batch_run_tracker, CurrentBatchRun
+from app.core.datetime_utils import utc_now
 
 logger = get_logger(__name__)
 
@@ -481,4 +486,173 @@ async def delete_portfolio(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to delete portfolio: {str(e)}"
+        )
+
+
+@router.post("/{portfolio_id}/calculate", response_model=TriggerCalculationsResponse)
+async def trigger_portfolio_calculations(
+    portfolio_id: UUID,
+    background_tasks: BackgroundTasks,
+    current_user: CurrentUser = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Trigger batch calculations for user's portfolio.
+
+    Non-admin users can only trigger calculations for their own portfolios.
+    Returns batch_run_id for status polling via GET /{portfolio_id}/batch-status/{batch_run_id}.
+
+    This endpoint starts batch processing in the background which includes:
+    - Market data collection (1-year lookback)
+    - P&L calculation and snapshots
+    - Position market value updates
+    - Risk analytics (betas, factors, volatility, correlations)
+
+    Processing typically takes 30-60 seconds depending on portfolio size.
+
+    Args:
+        portfolio_id: Portfolio UUID
+        background_tasks: FastAPI background tasks
+        current_user: Authenticated user
+        db: Database session
+
+    Returns:
+        Batch run information with polling URL
+
+    Raises:
+        404: Portfolio not found or user doesn't have access
+        409: Batch already running (if concurrent run detected)
+    """
+    try:
+        # Verify portfolio exists and belongs to user
+        result = await db.execute(
+            select(Portfolio)
+            .where(
+                Portfolio.id == portfolio_id,
+                Portfolio.user_id == current_user.id
+            )
+        )
+        portfolio = result.scalar_one_or_none()
+
+        if not portfolio:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Portfolio {portfolio_id} not found"
+            )
+
+        # Create new batch run
+        batch_run_id = str(uuid4())
+        run = CurrentBatchRun(
+            batch_run_id=batch_run_id,
+            started_at=utc_now(),
+            triggered_by=current_user.email
+        )
+
+        batch_run_tracker.start(run)
+
+        logger.info(
+            f"User {current_user.email} triggered batch calculations for portfolio {portfolio_id} "
+            f"(batch_run_id: {batch_run_id})"
+        )
+
+        # Execute batch processing in background
+        background_tasks.add_task(
+            batch_orchestrator.run_daily_batch_sequence,
+            date.today(),  # calculation_date
+            [str(portfolio_id)]  # portfolio_ids as list of strings
+        )
+
+        return TriggerCalculationsResponse(
+            portfolio_id=str(portfolio_id),
+            batch_run_id=batch_run_id,
+            status="started",
+            message=f"Batch calculations started successfully. Poll status at /api/v1/portfolios/{portfolio_id}/batch-status/{batch_run_id}"
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error triggering calculations for portfolio {portfolio_id}: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to trigger calculations: {str(e)}"
+        )
+
+
+@router.get("/{portfolio_id}/batch-status/{batch_run_id}", response_model=BatchStatusResponse)
+async def get_portfolio_batch_status(
+    portfolio_id: UUID,
+    batch_run_id: str,
+    current_user: CurrentUser = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Get status of batch processing run.
+
+    Designed for polling every 3 seconds during onboarding flow.
+    Returns status information including progress, elapsed time, and current job.
+
+    Args:
+        portfolio_id: Portfolio UUID
+        batch_run_id: Batch run ID from trigger endpoint
+        current_user: Authenticated user
+        db: Database session
+
+    Returns:
+        Batch processing status and progress
+
+    Raises:
+        404: Portfolio not found or user doesn't have access
+        404: Batch run not found (returns "idle" status instead)
+    """
+    try:
+        # Verify portfolio exists and belongs to user
+        result = await db.execute(
+            select(Portfolio)
+            .where(
+                Portfolio.id == portfolio_id,
+                Portfolio.user_id == current_user.id
+            )
+        )
+        portfolio = result.scalar_one_or_none()
+
+        if not portfolio:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Portfolio {portfolio_id} not found"
+            )
+
+        # Get current batch status
+        current = batch_run_tracker.get_current()
+
+        # If no batch running or different batch_run_id, return idle/completed status
+        if not current or current.batch_run_id != batch_run_id:
+            return BatchStatusResponse(
+                status="idle",
+                batch_run_id=batch_run_id,
+                portfolio_id=str(portfolio_id),
+                started_at="",
+                triggered_by="",
+                elapsed_seconds=0
+            )
+
+        # Calculate elapsed time
+        elapsed = (utc_now() - current.started_at).total_seconds()
+
+        return BatchStatusResponse(
+            status="running",
+            batch_run_id=current.batch_run_id,
+            portfolio_id=str(portfolio_id),
+            started_at=current.started_at.isoformat(),
+            triggered_by=current.triggered_by,
+            elapsed_seconds=int(elapsed)
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting batch status for portfolio {portfolio_id}: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get batch status: {str(e)}"
         )

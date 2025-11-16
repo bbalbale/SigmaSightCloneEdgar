@@ -176,3 +176,45 @@ class PortfolioDeleteResponse(BaseModel):
                 "deleted_at": "2025-01-01T00:00:00Z"
             }
         }
+
+
+class TriggerCalculationsResponse(BaseModel):
+    """Response schema for triggering portfolio batch calculations."""
+
+    portfolio_id: str
+    batch_run_id: str
+    status: str
+    message: str
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "portfolio_id": "754e6704-6cad-5fbd-9881-e9c1ae917b5b",
+                "batch_run_id": "ba5e8400-e29b-41d4-a716-446655440000",
+                "status": "started",
+                "message": "Batch calculations started successfully. Poll status at /api/v1/portfolios/{portfolio_id}/batch-status/{batch_run_id}"
+            }
+        }
+
+
+class BatchStatusResponse(BaseModel):
+    """Response schema for batch processing status."""
+
+    status: str  # "idle", "running", "completed", "failed"
+    batch_run_id: str
+    portfolio_id: str
+    started_at: str
+    triggered_by: str
+    elapsed_seconds: int
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "status": "running",
+                "batch_run_id": "ba5e8400-e29b-41d4-a716-446655440000",
+                "portfolio_id": "754e6704-6cad-5fbd-9881-e9c1ae917b5b",
+                "started_at": "2025-11-16T10:36:33Z",
+                "triggered_by": "user@example.com",
+                "elapsed_seconds": 15
+            }
+        }

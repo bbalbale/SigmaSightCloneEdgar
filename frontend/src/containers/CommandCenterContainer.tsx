@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button'
 import { AccountFilter } from '@/components/portfolio/AccountFilter'
 import { AccountSummaryCard } from '@/components/portfolio/AccountSummaryCard'
 import { Alert, AlertDescription } from '@/components/ui/alert'
+import { UploadPortfolioBanner } from '@/components/command-center/UploadPortfolioBanner'
 
 type PortfolioSectionShape = ReturnType<typeof useCommandCenterData>['portfolios'][number]
 
@@ -120,6 +121,18 @@ export function CommandCenterContainer() {
       : placeholderSection
         ? [placeholderSection]
         : []
+
+  // Phase 2.4: Show CTA banner for users without portfolios
+  if (!loading && portfolios.length === 0 && !error) {
+    return (
+      <div
+        className="min-h-screen transition-colors duration-300"
+        style={{ backgroundColor: 'var(--bg-primary)' }}
+      >
+        <UploadPortfolioBanner />
+      </div>
+    )
+  }
 
   if (error && !loading) {
     return (
