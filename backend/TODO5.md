@@ -2216,62 +2216,60 @@ Weekend Upload Flow:
 
 The cache misses occur because Phase 3 never created snapshots, so all subsequent calls to portfolio exposure service fail to find cached data and fall back to real-time calculation (which also fails without snapshots).
 
-### Two-Part Solution Required
+### Solution Analysis
 
-This bug requires **TWO complementary fixes** to work correctly:
+After investigation, discovered that **historical data backfill already exists** and happens automatically during onboarding. Only one fix is needed:
 
-#### Part 1: Weekend Handler (Code Fix)
+#### Part 1: Weekend Handler (Code Fix) - **REQUIRED**
 **Problem**: Trigger endpoints pass `date.today()` on weekends (Saturday/Sunday)
 **Solution**: Use `trading_calendar.get_most_recent_trading_day()` instead
 **Result**: Weekend uploads use Friday's date for calculations
 
-#### Part 2: Historical Data Backfill (Data Fix)
-**Problem**: Friday's price data may not exist in database
-**Solution**: Backfill all portfolio positions with historical data to 12/31/2024
-**Result**: Friday's prices guaranteed to exist for calculations
+#### Part 2: Historical Data Backfill - **ALREADY IMPLEMENTED** ✅
+**Discovery**: Market Data Collector (Phase 1) automatically backfills 365 days of historical data for new portfolios
+**Location**: `app/batch/market_data_collector.py` (lines 98-291)
+**How it works**:
+```python
+# When new portfolio symbols have no data in database:
+lookback_days = 365  # Default parameter
+required_start = calculation_date - timedelta(days=365)
 
-#### Why Both Are Needed
+# Gap detection finds NO existing data for new symbols
+if earliest_date is None:  # True for brand new positions
+    fetch_mode = "full_backfill"
+    # Fetches from (calculation_date - 365 days) to calculation_date
+```
 
-**Weekend Handler ALONE** ❌ Insufficient:
+**Coverage**: 365 days back from upload date
+- Upload on 2025-11-16 → Backfills to 2024-11-17
+- This INCLUDES 12/31/2024 and all subsequent trading days
+- No code changes or data operations needed
+
+#### Why Weekend Handler is Still Required
+
+Even with automatic 365-day backfill, weekend uploads fail:
+
+**Current Flow (WITH automatic backfill, WITHOUT weekend handler)** ❌:
 ```
 Saturday Upload:
-1. Uses Friday's date ✅ (weekend handler works)
-2. Looks up Friday's prices in database
-3. Friday's prices don't exist ❌ (no historical backfill)
-4. Calculations fail - different error
+1. calculation_date = Saturday 2025-11-16
+2. Phase 1: Backfills 365 days ✅ (Friday's data now exists)
+3. Phase 3: Receives Saturday's date
+4. PNL Calculator: is_trading_day(Saturday) → False → Skip ❌
+5. Result: No snapshots (even though Friday's data exists)
 ```
 
-**Historical Data ALONE** ❌ Insufficient:
-```
-Saturday Upload:
-1. Uses Saturday's date ❌ (no weekend handler)
-2. Saturday is not a trading day
-3. PNL calculator skips portfolio ❌
-4. No snapshots created (even though Friday's data exists)
-```
-
-**BOTH Together** ✅ Complete Solution:
+**Fixed Flow (WITH automatic backfill + WITH weekend handler)** ✅:
 ```
 Saturday Upload:
-1. Uses Friday's date ✅ (weekend handler)
-2. Looks up Friday's prices in database
-3. Friday's prices exist ✅ (historical backfill)
-4. Calculations succeed ✅
-5. Snapshots created ✅
-6. Portfolio analytics populate ✅
+1. Weekend handler: calculation_date = Friday 2025-11-15
+2. Phase 1: Backfills 365 days ✅ (Friday's data exists)
+3. Phase 3: Receives Friday's date
+4. PNL Calculator: is_trading_day(Friday) → True → Process ✅
+5. Result: Snapshots created, analytics populate
 ```
 
-#### Implementation Order
-
-**Recommended Sequence**:
-1. **First**: Implement weekend handler (prevents weekend skipping)
-2. **Second**: Run historical data backfill (ensures data availability)
-3. **Test**: Upload portfolio on weekend, verify both fixes work together
-
-**Why This Order**:
-- Weekend handler is a code change (quick, reversible)
-- Historical backfill is a data operation (slower, permanent)
-- If weekend handler has issues, easier to debug without large data changes
+**Key Insight**: The backfill works perfectly, but we need to pass a **trading day** to the PNL calculator. Saturday is not a trading day, so it gets skipped regardless of data availability.
 
 ### Critical Issues Found with Original Solution
 
@@ -2516,201 +2514,58 @@ async def run_daily_batch_sequence(
 
 ---
 
-### Part 2: Historical Data Backfill Implementation
+### Automatic Backfill Verification
 
-**Objective**: Ensure all portfolio positions have historical price data back to 12/31/2024
+**Discovery**: Historical data backfill is **already fully implemented** and happens automatically during onboarding.
 
-**Why This Is Needed**:
-- Weekend handler uses Friday's date for weekend uploads
-- Friday's calculations require Friday's prices to exist in database
-- New portfolios uploaded on weekends won't have any historical data yet
-- Without backfill, calculations fail even with correct date
+**Implementation Location**: `app/batch/market_data_collector.py`
 
-**Backfill Scope**:
-- **Target Date**: 12/31/2024 (provides ~11 months of history as of 2025-11-16)
-- **Affected Tables**:
-  - `historical_prices` - Daily OHLCV data for each symbol
-  - `position_market_values` - Position-level market values (if not derived)
-- **Data Source**: YFinance (primary), FMP (secondary fallback)
+**How It Works**:
+1. When new portfolio uploaded, Phase 1 (Market Data Collection) runs first
+2. Collector checks if symbols have historical data in `market_data_cache`
+3. For brand new symbols (no existing data), triggers `full_backfill` mode
+4. Automatically fetches 365 days: `(calculation_date - 365 days)` to `calculation_date`
+5. Stores all data in `market_data_cache` table
 
-**Implementation Options**:
+**Coverage for 12/31/2024 Requirement**:
+- Upload on 2025-11-16 → Backfills to 2024-11-17
+- This **includes** 12/31/2024 and all subsequent trading days ✅
+- No additional implementation needed
 
-#### Option A: Batch Orchestrator Backfill (RECOMMENDED)
-Leverage existing batch infrastructure for consistency:
+**Existing Manual Script** (Optional):
+- Location: `scripts/data_operations/populate_historical_prices.py`
+- Can be run manually for data maintenance
+- Fetches ~400 calendar days (~252 trading days)
+- Usage: `uv run python scripts/data_operations/populate_historical_prices.py`
 
-```python
-# File: backend/scripts/backfill_historical_data.py
-from datetime import date, timedelta
-from app.batch.batch_orchestrator import batch_orchestrator
-from app.database import get_async_session
-from sqlalchemy import select
-from app.models.users import Portfolio
+**Conclusion**: Part 2 (historical data backfill) requires **no implementation work**. The existing system already provides 365 days of historical data automatically during onboarding, which exceeds the 12/31/2024 requirement.
 
-async def backfill_portfolio_history(portfolio_id: str, start_date: date):
-    """Backfill historical data for a single portfolio."""
-    # Generate list of trading days from start_date to most recent trading day
-    trading_days = trading_calendar.get_trading_days(
-        start_date=start_date,
-        end_date=trading_calendar.get_most_recent_trading_day()
-    )
+### Implementation Summary
 
-    # Run batch for each historical date
-    for calculation_date in trading_days:
-        logger.info(f"Backfilling {portfolio_id} for {calculation_date}")
-        await batch_orchestrator.run_daily_batch_sequence(
-            calculation_date=calculation_date,
-            portfolio_ids=[portfolio_id],
-            force_onboarding=False  # Historical mode (skip Phase 0/2)
-        )
+**Part 1: Weekend Handler (Code Fix) - REQUIRED ⚠️**
+- Change all 3 batch trigger endpoints to use `trading_calendar.get_most_recent_trading_day()` instead of `date.today()`
+- Add optional `force_onboarding` flag to prevent phase skipping
+- Ensures weekend uploads use Friday's date for calculations
+- Implementation Time: 1-2 hours (simple code change)
 
-async def backfill_all_portfolios():
-    """Backfill all portfolios to 2024-12-31."""
-    START_DATE = date(2024, 12, 31)
-
-    async with get_async_session() as db:
-        result = await db.execute(select(Portfolio.id))
-        portfolio_ids = [str(p) for p in result.scalars().all()]
-
-    for portfolio_id in portfolio_ids:
-        await backfill_portfolio_history(portfolio_id, START_DATE)
-
-# Usage:
-# uv run python scripts/backfill_historical_data.py
-```
-
-**Pros**:
-- ✅ Uses existing batch infrastructure (tested, reliable)
-- ✅ Automatically handles market data fetching, P&L calculation, snapshots
-- ✅ Respects trading calendar (only processes trading days)
-- ✅ Can be run incrementally (one portfolio at a time)
-
-**Cons**:
-- ⚠️ Slower (processes each date sequentially)
-- ⚠️ More database writes (creates snapshots for each historical date)
-
-**Estimated Time**: ~2-3 minutes per portfolio (220 trading days × 0.5s per day)
-
-#### Option B: Direct Market Data Backfill (FASTER)
-Fetch historical prices directly without running full batch:
-
-```python
-# File: backend/scripts/fast_backfill_prices.py
-from app.services.market_data_service import get_historical_prices
-from app.models.positions import Position
-
-async def backfill_prices_only(portfolio_id: str, start_date: date, end_date: date):
-    """Fetch historical prices for all symbols in portfolio."""
-    async with get_async_session() as db:
-        # Get all symbols in portfolio
-        result = await db.execute(
-            select(Position.symbol)
-            .where(Position.portfolio_id == portfolio_id)
-            .distinct()
-        )
-        symbols = result.scalars().all()
-
-        # Fetch historical data for each symbol
-        for symbol in symbols:
-            prices = await get_historical_prices(
-                symbol=symbol,
-                start_date=start_date,
-                end_date=end_date
-            )
-            # Store in historical_prices table
-            await store_historical_prices(db, symbol, prices)
-```
-
-**Pros**:
-- ✅ Much faster (parallel fetching, bulk inserts)
-- ✅ Minimal database impact (only writes to historical_prices)
-
-**Cons**:
-- ❌ Doesn't create snapshots (calculations run on-demand later)
-- ❌ Doesn't pre-calculate P&L for historical dates
-- ❌ May cause slower first-load for portfolio analytics
-
-**Estimated Time**: ~10-30 seconds per portfolio (parallel fetching)
-
-#### Recommended Approach: Hybrid
-
-**For New Portfolios (Onboarding)**:
-1. Use **Option B (Fast Backfill)** immediately after CSV upload
-2. Backfills price data quickly (under 30 seconds)
-3. Weekend handler can then use Friday's data immediately
-4. Lazy-load snapshots as needed
-
-**For Existing Portfolios (One-Time Migration)**:
-1. Use **Option A (Batch Backfill)** as background job
-2. Runs overnight or during low-traffic periods
-3. Creates complete historical snapshots for analytics
-4. Enables historical performance charts
-
-**Implementation Checklist**:
-
-**Step 1: Add Fast Backfill to Onboarding** (High Priority)
-- [ ] Create `scripts/fast_backfill_prices.py`
-- [ ] Implement `backfill_prices_only(portfolio_id, start_date, end_date)`
-- [ ] Integrate into portfolio upload flow (after CSV import, before batch trigger)
-- [ ] Add progress tracking (optional: show in UI)
-
-**Step 2: One-Time Existing Portfolio Backfill** (Lower Priority)
-- [ ] Create `scripts/backfill_historical_data.py`
-- [ ] Implement `backfill_portfolio_history(portfolio_id, start_date)`
-- [ ] Add admin endpoint: `POST /admin/portfolios/{id}/backfill`
-- [ ] Run manually for existing portfolios as needed
-
-**Testing Plan (Part 2)**:
-1. **Fast Backfill Test**:
-   - Create new portfolio with 10 positions
-   - Run fast backfill to 12/31/2024
-   - Verify `historical_prices` table populated
-   - Upload on Saturday, verify calculations succeed
-
-2. **Weekend Integration Test**:
-   - Upload portfolio on Saturday
-   - Verify fast backfill runs automatically
-   - Verify weekend handler uses Friday's date
-   - Verify Friday's prices found in database
-   - Verify snapshots created successfully
-
-3. **Historical Backfill Test** (Optional):
-   - Pick one existing portfolio
-   - Run full batch backfill to 12/31/2024
-   - Verify snapshots created for all historical trading days
-   - Check historical P&L calculations accurate
-
-### Summary of Two-Part Solution
-
-**Part 1: Weekend Handler (Code Fix)**
-- ✅ Correct import path from `app/core/trading_calendar`
-- ✅ New `force_onboarding` flag prevents phase skipping
-- ✅ All 3 entry points updated (complete coverage)
-- ✅ Weekend uploads use Friday's date instead of Saturday/Sunday
-- ✅ Admin/scheduled batches maintain historical run behavior
-
-**Part 2: Historical Data Backfill (Data Fix)**
-- ✅ Hybrid approach: Fast backfill for onboarding, full backfill for analytics
-- ✅ Ensures Friday's prices available for weekend calculations
-- ✅ Provides ~11 months of historical data (back to 12/31/2024)
-- ✅ Minimal performance impact (fast backfill under 30 seconds)
-- ✅ Enables historical performance charts and analytics
-
-**Why Both Parts Are Critical**:
-- Part 1 alone: Uses Friday's date but prices might not exist → Calculations fail
-- Part 2 alone: Has Friday's prices but uses Saturday's date → PNL calculator skips
-- Both together: Uses Friday's date AND Friday's prices exist → Complete success
+**Part 2: Historical Data Backfill - ALREADY IMPLEMENTED ✅**
+- Market Data Collector automatically backfills 365 days for new portfolios
+- Implemented in: `app/batch/market_data_collector.py` (lines 98-291)
+- Coverage: 365 days back from upload date (includes 12/31/2024 requirement)
+- No code changes or data operations needed
 
 ### Dependencies
 
 - ✅ **Verified**: `trading_calendar.get_most_recent_trading_day()` exists in `app/core/trading_calendar.py` (line 102-123)
 - ✅ **No new dependencies required**: All functionality already available
+- ✅ **Historical backfill already exists**: `market_data_collector.py` handles 365-day backfill automatically
 
 ### Notes for Other Developer
 
 **Context**:
 - This bug was discovered while testing Phase 2.5 (batch calculation endpoints)
 - Phase 2.5 endpoints are working correctly - they trigger batch processing as designed
-- The issue requires a **two-part solution**: code fix + data fix
+- The issue requires **only a code fix** - historical data backfill already exists
 
 **Why Phase 3 Fails Silently**:
 - PNL calculator skips portfolios on non-trading days by design (snapshots only on trading days)
@@ -2718,32 +2573,30 @@ async def backfill_prices_only(portfolio_id: str, start_date: date, end_date: da
 - This is correct behavior for scheduled daily runs
 - But for onboarding, we WANT to create snapshots using the most recent trading day's data
 
-**Two-Part Fix Required**:
-1. **Weekend Handler (Code)**: Change trigger endpoints to use `get_most_recent_trading_day()` instead of `date.today()`
-2. **Historical Backfill (Data)**: Ensure Friday's price data exists in database for new portfolios
+**The Fix (Code Only)**:
+1. **Weekend Handler**: Change trigger endpoints to use `get_most_recent_trading_day()` instead of `date.today()`
+   - **Files to modify**: `app/api/v1/portfolios/batch.py` (lines 39, 100-101)
+   - **Implementation time**: 1-2 hours (simple code change)
 
-**Why You Can't Skip Either Part**:
-- Code fix alone: Will look for Friday's prices that don't exist yet → Different error
-- Data fix alone: Will have Friday's prices but still pass Saturday to calculator → Still skips
-- Both together: Uses Friday's date AND Friday's prices exist → Works perfectly
+2. **Historical Data**: ✅ Already implemented via `market_data_collector.py`
+   - Automatically backfills 365 days for new portfolios
+   - No code changes or data operations needed
 
 **Impact Scope**:
 - Only affects user-triggered batch calculations during onboarding
 - Does NOT affect scheduled daily batch runs (those always run on trading days)
 - Only affects users who upload portfolios on weekends/holidays
 
-**Recommended Implementation Timeline**:
-- **Part 1 (Weekend Handler)**: HIGH priority, 1-2 hours (simple code fix)
-- **Part 2 (Fast Backfill)**: HIGH priority, 2-3 hours (integrate into onboarding flow)
-- **Part 2 (Full Backfill)**: MEDIUM priority, can be done later as background job
-- **Total for weekend fix**: 3-5 hours (both Part 1 and Part 2 fast backfill)
+**Implementation Timeline**:
+- **Weekend Handler Code Fix**: HIGH priority, 1-2 hours
+- **Testing on Weekend**: Verify with new portfolio upload on Saturday
+- **Total time**: 1-2 hours (just the code fix)
 
 **Testing Approach**:
-1. Implement Part 1 first (weekend handler)
-2. Implement Part 2 fast backfill
-3. Test together on Saturday with new portfolio upload
-4. Verify snapshots created and analytics populate
-- Should be completed before Phase 2.6 (error handling UX)
+1. Implement weekend handler code fix
+2. Test on Saturday with new portfolio upload
+3. Verify snapshots created and analytics populate using Friday's date
+4. Confirm historical data exists (automatically backfilled by Phase 1)
 
 ---
 
