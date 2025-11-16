@@ -2353,8 +2353,11 @@ async def trigger_portfolio_calculations(
     background_tasks.add_task(
         batch_orchestrator.run_daily_batch_sequence,
         calculation_date,  # ✅ Use most recent trading day, not today
-        [str(portfolio_id)],
-        force_onboarding=True  # ✅ Prevent historical run logic
+        [str(portfolio_id)],  # portfolio_ids
+        None,  # db (let orchestrator create session)
+        None,  # run_sector_analysis
+        None,  # price_cache
+        force_onboarding=True  # ✅ Use keyword arg to be safe
     )
 
     return TriggerCalculationsResponse(...)
@@ -2370,8 +2373,11 @@ calculation_date = get_most_recent_trading_day()  # ✅ Standalone function call
 background_tasks.add_task(
     batch_orchestrator.run_daily_batch_sequence,
     calculation_date,  # Changed from date.today()
-    portfolio_ids_list,
-    force_onboarding=False  # Admin runs use normal historical logic
+    portfolio_ids_list,  # portfolio_ids
+    None,  # db
+    None,  # run_sector_analysis
+    None,  # price_cache
+    force_onboarding=False  # ✅ Admin runs use normal historical logic
 )
 ```
 
@@ -2385,32 +2391,76 @@ calculation_date = get_most_recent_trading_day()  # ✅ Standalone function call
 await batch_orchestrator.run_daily_batch_sequence(
     calculation_date,  # Changed from date.today()
     portfolio_ids,
-    force_onboarding=force_onboarding  # Pass through from caller
+    db=db,  # Pass through existing db session if available
+    run_sector_analysis=run_sector_analysis,  # Pass through if provided
+    price_cache=price_cache,  # Pass through if provided
+    force_onboarding=force_onboarding  # ✅ Pass through from caller
 )
 ```
 
 **Step 4: Update batch_orchestrator.py (Add Override Flag)**
 ```python
 # File: backend/app/batch/batch_orchestrator.py
+
+# 4a. Update run_daily_batch_sequence signature (append at end to avoid breaking callers)
 async def run_daily_batch_sequence(
     self,
     calculation_date: date,
     portfolio_ids: Optional[List[str]] = None,
-    force_onboarding: bool = False  # ✅ New parameter
-):
-    # Determine if historical run
+    db: Optional[AsyncSession] = None,
+    run_sector_analysis: Optional[bool] = None,
+    price_cache: Optional[PriceCache] = None,
+    force_onboarding: bool = False  # ✅ NEW: Append at END with default
+) -> Dict[str, Any]:
+    # ... existing code ...
+
+    # Pass through to _run_sequence_with_session
+    return await self._run_sequence_with_session(
+        db=db,
+        calculation_date=calculation_date,
+        portfolio_ids=normalized_portfolio_ids,
+        run_sector_analysis=run_sector_analysis,
+        price_cache=price_cache,
+        force_onboarding=force_onboarding  # ✅ NEW: Pass through
+    )
+
+# 4b. Update _run_sequence_with_session signature
+async def _run_sequence_with_session(
+    self,
+    db: AsyncSession,
+    calculation_date: date,
+    portfolio_ids: Optional[List[UUID]],
+    run_sector_analysis: bool,
+    price_cache: Optional[PriceCache] = None,
+    force_onboarding: bool = False  # ✅ NEW parameter
+) -> Dict[str, Any]:
+    # ... existing setup code ...
+
+    # 4c. Update is_historical determination (line 347)
     is_historical = calculation_date < date.today() and not force_onboarding  # ✅ Override
 
-    if is_historical:
-        logger.info(f"Historical run detected for {calculation_date}")
-        phases_to_run = [1, 3, 4, 5, 6]  # Skip Phase 0 and 2
+    # 4d. Existing Phase 0 guard (line 351) - NO CHANGES NEEDED
+    if not is_historical:
+        # Run Phase 0 (Company Profiles)
+        # ... existing Phase 0 code ...
     else:
-        phases_to_run = [0, 1, 2, 3, 4, 5, 6]  # All phases
+        logger.debug(f"Skipping Phase 0 for historical date ({calculation_date})")
 
-    if force_onboarding:
-        logger.info("Force onboarding mode - running all phases including Phase 0 and 2")
+    # Phase 1: Market Data Collection - ALWAYS runs
+    # ... existing Phase 1 code ...
+
+    # 4e. Existing Phase 2 guard (line 397) - NO CHANGES NEEDED
+    if not is_historical:
+        # Run Phase 2 (Fundamentals)
+        # ... existing Phase 2 code ...
+    else:
+        logger.debug(f"Skipping Phase 2 for historical date ({calculation_date})")
+
+    # Phases 3-6: Always run
+    # ... existing code ...
 ```
-```
+
+**Important**: The real code uses inline `if not is_historical` guards to skip Phase 0 and Phase 2, NOT a `phases_to_run` list. The `force_onboarding` override works by changing the `is_historical` calculation, which automatically enables the existing phase guards.
 
 **Why This Works**:
 - ✅ Uses correct standalone function from `app.core.trading_calendar`
@@ -2436,8 +2486,11 @@ async def run_daily_batch_sequence(
   background_tasks.add_task(
       batch_orchestrator.run_daily_batch_sequence,
       calculation_date,
-      [str(portfolio_id)],
-      force_onboarding=True  # NEW: Prevent historical run phase skips
+      [str(portfolio_id)],  # portfolio_ids
+      None,  # db (let orchestrator create session)
+      None,  # run_sector_analysis (use default)
+      None,  # price_cache (use default)
+      force_onboarding=True  # ✅ Use keyword arg to be safe
   )
   ```
 
@@ -2449,8 +2502,11 @@ async def run_daily_batch_sequence(
   background_tasks.add_task(
       batch_orchestrator.run_daily_batch_sequence,
       calculation_date,
-      portfolio_ids_list,
-      force_onboarding=False  # Admin runs use normal historical logic
+      portfolio_ids_list,  # portfolio_ids
+      None,  # db
+      None,  # run_sector_analysis
+      None,  # price_cache
+      force_onboarding=False  # ✅ Admin runs use normal historical logic
   )
   ```
 
@@ -2467,28 +2523,38 @@ async def run_daily_batch_sequence(
   ```
 
 #### File 4: `backend/app/batch/batch_orchestrator.py`
-- [ ] Add `force_onboarding` parameter to `run_daily_batch_sequence`:
+- [ ] Update `run_daily_batch_sequence` signature (APPEND at end to avoid breaking existing callers):
   ```python
   async def run_daily_batch_sequence(
       self,
       calculation_date: date,
       portfolio_ids: Optional[List[str]] = None,
-      force_onboarding: bool = False  # NEW parameter
-  ):
+      db: Optional[AsyncSession] = None,
+      run_sector_analysis: Optional[bool] = None,
+      price_cache: Optional[PriceCache] = None,
+      force_onboarding: bool = False  # NEW: Append at END with default
+  ) -> Dict[str, Any]:
   ```
-- [ ] Update historical run logic:
+- [ ] Pass `force_onboarding` through to `_run_sequence_with_session`
+- [ ] Update `_run_sequence_with_session` signature (append at end):
+  ```python
+  async def _run_sequence_with_session(
+      self,
+      db: AsyncSession,
+      calculation_date: date,
+      portfolio_ids: Optional[List[UUID]],
+      run_sector_analysis: bool,
+      price_cache: Optional[PriceCache] = None,
+      force_onboarding: bool = False  # NEW parameter
+  ) -> Dict[str, Any]:
+  ```
+- [ ] Update `is_historical` determination (line 347):
   ```python
   is_historical = calculation_date < date.today() and not force_onboarding
-
-  if is_historical:
-      logger.info(f"Historical run detected for {calculation_date}")
-      phases_to_run = [1, 3, 4, 5, 6]  # Skip Phase 0 and 2
-  else:
-      phases_to_run = [0, 1, 2, 3, 4, 5, 6]  # All phases
-
-  if force_onboarding:
-      logger.info("Force onboarding mode - running all phases")
   ```
+- [ ] NO changes needed to existing Phase 0 and Phase 2 guards (lines 351, 397) - they already use `if not is_historical`
+
+**Note**: The real code uses inline `if not is_historical` guards, NOT a `phases_to_run` list. Changing the `is_historical` calculation is sufficient.
 
 **Testing Plan**:
 1. **Weekend Test** (Simulate Saturday):
@@ -2558,7 +2624,7 @@ async def run_daily_batch_sequence(
 
 ### Dependencies
 
-- ✅ **Verified**: `trading_calendar.get_most_recent_trading_day()` exists in `app/core/trading_calendar.py` (line 102-123)
+- ✅ **Verified**: Standalone function `get_most_recent_trading_day()` exists in `app/core/trading_calendar.py` (line 102-123)
 - ✅ **No new dependencies required**: All functionality already available
 - ✅ **Historical backfill already exists**: `market_data_collector.py` handles 365-day backfill automatically
 
