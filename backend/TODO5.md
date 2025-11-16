@@ -399,12 +399,12 @@ This service extracts shared batch orchestration logic for reuse between user-fa
 - [x] Implement `trigger_batch(portfolio_id: UUID, force: bool = False, user_id: Optional[UUID] = None) -> Dict[str, Any]`
   - Optionally validate portfolio ownership if user_id provided
   - Check if batch already running for this portfolio → 409 if true
-  - Call `batch_orchestrator_v3.run_daily_batch_sequence()` with:
+  - Call `batch_orchestrator.run_daily_batch_sequence()` with:
     ```python
     from datetime import date
-    from app.batch.batch_orchestrator_v3 import batch_orchestrator_v3
+    from app.batch.batch_orchestrator import batch_orchestrator
 
-    result = await batch_orchestrator_v3.run_daily_batch_sequence(
+    result = await batch_orchestrator.run_daily_batch_sequence(
         calculation_date=date.today(),
         portfolio_ids=[str(portfolio_id)],
         db=db  # Pass session for transaction management
@@ -455,10 +455,10 @@ class BatchTriggerService:
         db: AsyncSession = None  # For transaction management
     ) -> Dict[str, Any]:
         from datetime import date
-        from app.batch.batch_orchestrator_v3 import batch_orchestrator_v3
+        from app.batch.batch_orchestrator import batch_orchestrator
 
         # Shared orchestration logic
-        result = await batch_orchestrator_v3.run_daily_batch_sequence(
+        result = await batch_orchestrator.run_daily_batch_sequence(
             calculation_date=date.today(),
             portfolio_ids=[str(portfolio_id)],
             db=db
