@@ -3,7 +3,7 @@ Admin API endpoints for batch processing control
 Simplified real-time monitoring endpoints
 """
 from typing import Optional, Dict, Any
-from datetime import timedelta
+from datetime import timedelta, date
 from uuid import uuid4
 import asyncio
 from fastapi import APIRouter, Depends, HTTPException, Query, BackgroundTasks
@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from app.core.dependencies import get_db, require_admin
+from app.core.trading_calendar import get_most_recent_trading_day
 from app.database import AsyncSessionLocal
 from app.batch.batch_orchestrator import batch_orchestrator
 from app.batch.batch_run_tracker import batch_run_tracker, CurrentBatchRun
@@ -70,17 +71,24 @@ async def run_batch_processing(
 
     batch_run_tracker.start(run)
 
+    # Get most recent trading day for calculations (handles weekends/holidays)
+    calculation_date = get_most_recent_trading_day()
+
     logger.info(
         f"Admin {admin_user.email} triggered batch run {batch_run_id} "
-        f"for portfolio {portfolio_id or 'all'}"
+        f"for portfolio {portfolio_id or 'all'} "
+        f"(calculation_date: {calculation_date}, today: {date.today()})"
     )
 
     # Execute in background with tracking
-    from datetime import date
     background_tasks.add_task(
         batch_orchestrator.run_daily_batch_sequence,
-        date.today(),  # calculation_date
-        [portfolio_id] if portfolio_id else None  # portfolio_ids as list
+        calculation_date,  # Use most recent trading day, not today
+        [portfolio_id] if portfolio_id else None,  # portfolio_ids as list
+        None,  # db
+        None,  # run_sector_analysis
+        None,  # price_cache
+        False  # force_onboarding - Admin runs use normal historical logic
     )
 
     return {

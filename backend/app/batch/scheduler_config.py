@@ -6,7 +6,7 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.jobstores.memory import MemoryJobStore
 from apscheduler.executors.asyncio import AsyncIOExecutor
 from apscheduler.events import EVENT_JOB_ERROR, EVENT_JOB_EXECUTED
-from datetime import datetime
+from datetime import datetime, date
 from typing import Any
 import pytz
 
@@ -156,7 +156,10 @@ class BatchScheduler:
 
         try:
             # V3: Correlations run automatically in Phase 3 analytics
-            result = await batch_orchestrator.run_daily_batch_sequence()
+            # Fixed: Added required calculation_date parameter (pre-existing bug)
+            result = await batch_orchestrator.run_daily_batch_sequence(
+                date.today()  # calculation_date - required parameter
+            )
 
             logger.info(f"Daily correlations completed: {result.get('success')}")
 

@@ -272,6 +272,7 @@ class BatchOrchestrator:
         db: Optional[AsyncSession] = None,
         run_sector_analysis: Optional[bool] = None,
         price_cache: Optional[PriceCache] = None,
+        force_onboarding: bool = False,
     ) -> Dict[str, Any]:
         """
         Run 3-phase batch sequence for a single date
@@ -280,6 +281,9 @@ class BatchOrchestrator:
             calculation_date: Date to process
             portfolio_ids: Specific portfolios (None = all)
             db: Optional database session
+            run_sector_analysis: Whether to run sector analysis
+            price_cache: Optional price cache
+            force_onboarding: If True, run all phases even on historical dates (for onboarding)
 
         Returns:
             Summary of batch run
@@ -302,6 +306,7 @@ class BatchOrchestrator:
                         normalized_portfolio_ids,
                         bool(run_sector_analysis),
                         price_cache,
+                        force_onboarding,
                     )
             else:
                 return await self._run_sequence_with_session(
@@ -310,6 +315,7 @@ class BatchOrchestrator:
                     normalized_portfolio_ids,
                     bool(run_sector_analysis),
                     price_cache,
+                    force_onboarding,
                 )
         finally:
             # Clear batch run tracker when batch completes (success or failure)
@@ -325,8 +331,19 @@ class BatchOrchestrator:
         portfolio_ids: Optional[List[UUID]],
         run_sector_analysis: bool,
         price_cache: Optional[PriceCache] = None,
+        force_onboarding: bool = False,
     ) -> Dict[str, Any]:
-        """Run 7-phase sequence with provided session and optional price cache"""
+        """
+        Run 7-phase sequence with provided session and optional price cache
+
+        Args:
+            db: Database session
+            calculation_date: Date to process
+            portfolio_ids: Specific portfolios (None = all)
+            run_sector_analysis: Whether to run sector analysis
+            price_cache: Optional price cache
+            force_onboarding: If True, run all phases even on historical dates
+        """
 
         result = {
             'success': False,
@@ -344,7 +361,8 @@ class BatchOrchestrator:
         coverage_details: Dict[str, Any] = {}
 
         # OPTIMIZATION: Company profiles and fundamentals only needed on current/final date
-        is_historical = calculation_date < date.today()
+        # Override for onboarding: force_onboarding=True ensures Phases 0 & 2 run even on weekends
+        is_historical = calculation_date < date.today() and not force_onboarding
 
         # Phase 0: Company Profile Sync (BEFORE all calculations)
         # Only run on final/current date to get fresh beta values, sector, industry

@@ -32,6 +32,7 @@ from app.schemas.portfolios import (
     BatchStatusResponse
 )
 from app.core.logging import get_logger
+from app.core.trading_calendar import get_most_recent_trading_day
 from app.batch.batch_orchestrator import batch_orchestrator
 from app.batch.batch_run_tracker import batch_run_tracker, CurrentBatchRun
 from app.core.datetime_utils import utc_now
@@ -550,16 +551,23 @@ async def trigger_portfolio_calculations(
 
         batch_run_tracker.start(run)
 
+        # Get most recent trading day for calculations (handles weekends/holidays)
+        calculation_date = get_most_recent_trading_day()
+
         logger.info(
             f"User {current_user.email} triggered batch calculations for portfolio {portfolio_id} "
-            f"(batch_run_id: {batch_run_id})"
+            f"(batch_run_id: {batch_run_id}, calculation_date: {calculation_date}, today: {date.today()})"
         )
 
         # Execute batch processing in background
         background_tasks.add_task(
             batch_orchestrator.run_daily_batch_sequence,
-            date.today(),  # calculation_date
-            [str(portfolio_id)]  # portfolio_ids as list of strings
+            calculation_date,  # Use most recent trading day, not today
+            [str(portfolio_id)],  # portfolio_ids as list of strings
+            None,  # db (let orchestrator create session)
+            None,  # run_sector_analysis (use default)
+            None,  # price_cache (use default)
+            True  # force_onboarding - Prevent historical run phase skips for onboarding
         )
 
         return TriggerCalculationsResponse(

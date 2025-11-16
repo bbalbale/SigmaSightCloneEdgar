@@ -21,6 +21,7 @@ from sqlalchemy import select
 from fastapi import HTTPException, BackgroundTasks
 
 from app.core.logging import get_logger
+from app.core.trading_calendar import get_most_recent_trading_day
 from app.models.users import Portfolio
 from app.batch.batch_orchestrator import batch_orchestrator
 from app.batch.batch_run_tracker import batch_run_tracker, CurrentBatchRun
@@ -91,7 +92,8 @@ class BatchTriggerService:
         force: bool = False,
         user_id: Optional[UUID] = None,
         user_email: Optional[str] = None,
-        db: Optional[AsyncSession] = None
+        db: Optional[AsyncSession] = None,
+        force_onboarding: bool = False
     ) -> Dict[str, Any]:
         """
         Trigger batch processing.
@@ -105,6 +107,7 @@ class BatchTriggerService:
             user_id: User ID for ownership validation (optional)
             user_email: User email for audit logging
             db: Database session (required if user_id provided)
+            force_onboarding: If True, run all phases even on weekends for onboarding
 
         Returns:
             Dictionary with batch run details:
@@ -150,17 +153,25 @@ class BatchTriggerService:
 
         batch_run_tracker.start(run)
 
+        # Get most recent trading day for calculations (handles weekends/holidays)
+        calculation_date = get_most_recent_trading_day()
+
         logger.info(
             f"Batch run {batch_run_id} started by {user_email or 'system'} "
-            f"for portfolio {portfolio_id or 'all'}"
+            f"for portfolio {portfolio_id or 'all'} "
+            f"(calculation_date: {calculation_date}, today: {date.today()})"
         )
 
         # 4. Execute in background
         # Pass calculation_date and portfolio_ids list to orchestrator
         background_tasks.add_task(
             batch_orchestrator.run_daily_batch_sequence,
-            date.today(),  # calculation_date
-            [portfolio_id] if portfolio_id else None  # portfolio_ids as list or None for all
+            calculation_date,  # Use most recent trading day, not today
+            [portfolio_id] if portfolio_id else None,  # portfolio_ids as list or None for all
+            db,  # Pass through existing db session if available
+            None,  # run_sector_analysis (use default)
+            None,  # price_cache (use default)
+            force_onboarding  # Pass through force_onboarding flag
         )
 
         # 5. Determine poll URL (admin vs user endpoint)
