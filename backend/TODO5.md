@@ -2277,17 +2277,17 @@ After detailed review, the original solution has **3 critical flaws** that would
 
 #### Issue #1: Wrong Import Path ❌
 **Original plan referenced**: `from app.utils.trading_calendar import trading_calendar`
-**Problem**: `get_most_recent_trading_day()` is located in `app/core/trading_calendar.py` (line 102-123), NOT `app.utils.trading_calendar.py`
+**Problem**: `get_most_recent_trading_day()` is a **standalone function** in `app/core/trading_calendar.py` (line 102-123), NOT a method on the `trading_calendar` instance
 **Evidence**:
 ```python
 # File: backend/app/core/trading_calendar.py (lines 102-123)
-def get_most_recent_trading_day(
-    self,
-    from_date: Optional[date] = None,
-    max_lookback_days: int = 10
-) -> date:
+def get_most_recent_trading_day(from_date: date = None) -> date:
     """Get the most recent trading day on or before the given date."""
+    if from_date is None:
+        from_date = date.today()
+    # ... implementation
 ```
+**Correct import**: `from app.core.trading_calendar import get_most_recent_trading_day`
 
 #### Issue #2: Historical Run Side Effects ❌
 **Problem**: Using Friday's date on Saturday triggers `is_historical=True` in batch orchestrator, which skips Phase 0 and Phase 2
@@ -2320,7 +2320,8 @@ This solution addresses all three critical issues by:
 **Step 1: Update portfolios.py (User-Facing Endpoint)**
 ```python
 # File: backend/app/api/v1/portfolios.py
-from app.core.trading_calendar import trading_calendar  # ✅ Correct path
+from app.core.trading_calendar import get_most_recent_trading_day  # ✅ Standalone function
+from datetime import date
 
 @router.post("/{portfolio_id}/calculate", response_model=TriggerCalculationsResponse)
 async def trigger_portfolio_calculations(
@@ -2332,7 +2333,7 @@ async def trigger_portfolio_calculations(
     # ... existing validation code ...
 
     # Get most recent trading day for calculations
-    calculation_date = trading_calendar.get_most_recent_trading_day()
+    calculation_date = get_most_recent_trading_day()  # ✅ Standalone function call
 
     logger.info(
         f"Triggering calculations for portfolio {portfolio_id} "
@@ -2362,10 +2363,10 @@ async def trigger_portfolio_calculations(
 **Step 2: Update admin_batch.py (Admin Endpoint)**
 ```python
 # File: backend/app/api/v1/endpoints/admin_batch.py (line 82)
-from app.core.trading_calendar import trading_calendar  # ✅ Add import
+from app.core.trading_calendar import get_most_recent_trading_day  # ✅ Standalone function
 
 # In trigger batch endpoint:
-calculation_date = trading_calendar.get_most_recent_trading_day()
+calculation_date = get_most_recent_trading_day()  # ✅ Standalone function call
 background_tasks.add_task(
     batch_orchestrator.run_daily_batch_sequence,
     calculation_date,  # Changed from date.today()
@@ -2377,10 +2378,10 @@ background_tasks.add_task(
 **Step 3: Update batch_trigger_service.py (Service Layer)**
 ```python
 # File: backend/app/services/batch_trigger_service.py (line 162)
-from app.core.trading_calendar import trading_calendar  # ✅ Add import
+from app.core.trading_calendar import get_most_recent_trading_day  # ✅ Standalone function
 
 # In trigger method:
-calculation_date = trading_calendar.get_most_recent_trading_day()
+calculation_date = get_most_recent_trading_day()  # ✅ Standalone function call
 await batch_orchestrator.run_daily_batch_sequence(
     calculation_date,  # Changed from date.today()
     portfolio_ids,
@@ -2412,7 +2413,7 @@ async def run_daily_batch_sequence(
 ```
 
 **Why This Works**:
-- ✅ Uses correct import path (`app/core/trading_calendar`)
+- ✅ Uses correct standalone function from `app.core.trading_calendar`
 - ✅ Weekends/holidays → Uses Friday's date but `force_onboarding=True` prevents phase skipping
 - ✅ Trading days → Uses today's date with normal phase execution
 - ✅ All three entry points updated (user, admin, service)
@@ -2426,10 +2427,11 @@ async def run_daily_batch_sequence(
 **Files to Update**: 4 total
 
 #### File 1: `backend/app/api/v1/portfolios.py`
-- [ ] Add import: `from app.core.trading_calendar import trading_calendar`
-- [ ] Update `trigger_portfolio_calculations` endpoint:
+- [ ] Add import: `from app.core.trading_calendar import get_most_recent_trading_day`
+- [ ] Add import: `from datetime import date` (if not already present)
+- [ ] Update `trigger_portfolio_calculations` endpoint (around line 559):
   ```python
-  calculation_date = trading_calendar.get_most_recent_trading_day()
+  calculation_date = get_most_recent_trading_day()  # Standalone function call
   logger.info(f"Using calculation_date={calculation_date} (today={date.today()})")
   background_tasks.add_task(
       batch_orchestrator.run_daily_batch_sequence,
@@ -2440,10 +2442,10 @@ async def run_daily_batch_sequence(
   ```
 
 #### File 2: `backend/app/api/v1/endpoints/admin_batch.py`
-- [ ] Add import: `from app.core.trading_calendar import trading_calendar`
+- [ ] Add import: `from app.core.trading_calendar import get_most_recent_trading_day`
 - [ ] Update batch trigger (around line 82):
   ```python
-  calculation_date = trading_calendar.get_most_recent_trading_day()
+  calculation_date = get_most_recent_trading_day()  # Standalone function call
   background_tasks.add_task(
       batch_orchestrator.run_daily_batch_sequence,
       calculation_date,
@@ -2453,10 +2455,10 @@ async def run_daily_batch_sequence(
   ```
 
 #### File 3: `backend/app/services/batch_trigger_service.py`
-- [ ] Add import: `from app.core.trading_calendar import trading_calendar`
+- [ ] Add import: `from app.core.trading_calendar import get_most_recent_trading_day`
 - [ ] Update trigger method (around line 162):
   ```python
-  calculation_date = trading_calendar.get_most_recent_trading_day()
+  calculation_date = get_most_recent_trading_day()  # Standalone function call
   await batch_orchestrator.run_daily_batch_sequence(
       calculation_date,
       portfolio_ids,
@@ -2574,8 +2576,13 @@ async def run_daily_batch_sequence(
 - But for onboarding, we WANT to create snapshots using the most recent trading day's data
 
 **The Fix (Code Only)**:
-1. **Weekend Handler**: Change trigger endpoints to use `get_most_recent_trading_day()` instead of `date.today()`
-   - **Files to modify**: `app/api/v1/portfolios/batch.py` (lines 39, 100-101)
+1. **Weekend Handler**: Change trigger endpoints to use standalone `get_most_recent_trading_day()` function instead of `date.today()`
+   - **Files to modify**:
+     - `app/api/v1/portfolios.py` (line 559 - user-triggered endpoint)
+     - `app/api/v1/endpoints/admin_batch.py` (line 82 - admin endpoint)
+     - `app/services/batch_trigger_service.py` (line 162 - service layer)
+     - `app/batch/batch_orchestrator.py` (add `force_onboarding` parameter)
+   - **Import**: `from app.core.trading_calendar import get_most_recent_trading_day`
    - **Implementation time**: 1-2 hours (simple code change)
 
 2. **Historical Data**: ✅ Already implemented via `market_data_collector.py`
