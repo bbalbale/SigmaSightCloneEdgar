@@ -57,10 +57,40 @@ export function UploadProcessing({
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-gray-900 dark:to-gray-800 p-4">
       <div className="w-full max-w-2xl">
         <Card className="shadow-lg">
+          {/* Show error ABOVE everything if present */}
+          {error && (
+            <div className="p-4 bg-red-50 dark:bg-red-950 border-b border-red-200 dark:border-red-800">
+              <div className="flex items-start gap-3">
+                <XCircle className="h-5 w-5 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-red-900 dark:text-red-100 mb-1">
+                    An error occurred
+                  </p>
+                  <p className="text-sm text-red-700 dark:text-red-300">
+                    {error}
+                  </p>
+                </div>
+              </div>
+              {onTryAgain && (
+                <Button
+                  onClick={onTryAgain}
+                  variant="outline"
+                  className="mt-3 w-full"
+                >
+                  Try Again
+                </Button>
+              )}
+            </div>
+          )}
+
           <CardHeader>
             <div className="flex items-start gap-4">
-              <div className="rounded-full p-3 bg-blue-100 dark:bg-blue-900/20">
-                <Loader2 className="h-6 w-6 text-blue-600 animate-spin" />
+              <div className={`rounded-full p-3 ${error ? 'bg-red-100 dark:bg-red-900/20' : 'bg-blue-100 dark:bg-blue-900/20'}`}>
+                {error ? (
+                  <XCircle className="h-6 w-6 text-red-600" />
+                ) : (
+                  <Loader2 className="h-6 w-6 text-blue-600 animate-spin" />
+                )}
               </div>
               <div className="flex-1">
                 <CardTitle>
@@ -123,32 +153,6 @@ export function UploadProcessing({
                 <p className="text-xs text-muted-foreground text-center pt-4">
                   This usually takes 30-60 seconds. Hang tight!
                 </p>
-              </div>
-            )}
-
-            {/* Show error BELOW the checklist if present */}
-            {error && (
-              <div className="mt-4 p-4 bg-red-50 dark:bg-red-950 rounded-lg border border-red-200 dark:border-red-800">
-                <div className="flex items-start gap-3">
-                  <XCircle className="h-5 w-5 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
-                  <div className="flex-1">
-                    <p className="text-sm font-medium text-red-900 dark:text-red-100 mb-1">
-                      An error occurred
-                    </p>
-                    <p className="text-sm text-red-700 dark:text-red-300">
-                      {error}
-                    </p>
-                  </div>
-                </div>
-                {onTryAgain && (
-                  <Button
-                    onClick={onTryAgain}
-                    variant="outline"
-                    className="mt-3 w-full"
-                  >
-                    Try Again
-                  </Button>
-                )}
               </div>
             )}
           </CardContent>
