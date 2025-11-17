@@ -36,7 +36,8 @@ This directory contains CSV files for testing portfolio uploads with variants of
 
 ### 2. Tech-Focused-Professional.csv
 **Profile**: Professional with high risk tolerance and tech sector concentration
-**Total Value**: ~$2,850,000
+**Total Position Value**: ~$2,013,000
+**Recommended Equity Balance**: $2,013,000 (no leverage)
 **Strategy**: Growth-focused technology exposure with emerging software/cloud names
 
 **Key Characteristics**:
@@ -53,14 +54,16 @@ This directory contains CSV files for testing portfolio uploads with variants of
 
 ### 3. Contrarian-Value-Trader.csv
 **Profile**: Sophisticated trader with long/short equity positions and options overlay
-**Total Value**: ~$3,200,000 starting equity
+**Gross Position Value**: ~$3,028,000 (long + short + options)
+**Recommended Equity Balance**: $2,019,000 (for 1.5x leverage ratio)
 **Strategy**: Long undervalued sectors, short overvalued growth, options for leverage
 
 **Key Characteristics**:
-- Long Positions (100% of equity): Banks, healthcare, energy, defense
-- Short Positions (50% of equity): High-valuation tech and consumer
-- Options Overlay (15% of portfolio): Sector ETF calls, individual stock puts
-- Gross Exposure: ~150% (leveraged)
+- Long Positions: $2,123,000 (105% of equity)
+- Short Positions: $894,000 (44% of equity)
+- Options Overlay: $11,000 (0.5% of equity)
+- **Gross Exposure: $3,028,000 (150% of equity)** ← Use this divided by 1.5 for equity balance
+- Net Exposure: $1,229,000 (61% of equity)
 
 **Long Holdings**:
 - Financials: BAC, WFC, USB, PNC
@@ -84,27 +87,61 @@ All positions are set with:
 - **Entry Prices**: Approximate June 30, 2025 market close prices
 - **Purpose**: Clean P&L tracking starting July 1, 2025
 
+## 🔑 How to Calculate Equity Balance
+
+**CRITICAL**: Equity balance represents your **starting capital**, NOT your position values!
+
+### For Non-Leveraged Portfolios (Tech-Focused)
+```
+Equity Balance = Sum of all position entry values
+Example: $2,013,000 in positions → Equity Balance = $2,013,000
+```
+
+### For Leveraged Portfolios (Contrarian)
+```
+Equity Balance = Gross Exposure ÷ Target Leverage Ratio
+
+Example (Contrarian):
+- Long positions: $2,123,000
+- Short positions: $894,000
+- Options: $11,000
+- Gross Exposure: $3,028,000
+- Target Leverage: 1.5x
+- Equity Balance: $3,028,000 ÷ 1.5 = $2,019,000
+
+Why? Because you're using $2,019,000 of capital to control $3,028,000 worth of positions (1.5x leverage)
+```
+
+### Quick Formula
+- **No leverage**: Equity Balance = Position Values
+- **With leverage**: Equity Balance = Gross Exposure ÷ Leverage Ratio
+
 ## How to Use
 
 1. Navigate to SigmaSight frontend at http://localhost:3005
 2. Register a new user account
 3. Upload one of these CSV files during onboarding
-4. Wait for batch processing to complete (~1-2 minutes)
-5. View analytics and compare with other demo portfolios
+4. **IMPORTANT**: Enter the **Recommended Equity Balance** shown above, NOT the gross position value
+5. Wait for batch processing to complete (~1-2 minutes)
+6. View analytics and compare with other demo portfolios
 
 ## Comparison with Original Demo Portfolios
 
 | Metric | Original | Conservative | Tech-Focused | Contrarian |
 |--------|----------|--------------|--------------|------------|
-| **Size** | $485K/$2.85M/$3.2M | N/A | $2.85M | $3.2M |
+| **Equity Balance** | $485K/$2.85M/$3.2M | N/A | **$2.01M** | **$2.02M** |
+| **Gross Exposure** | $485K/$2.85M/$4.8M | N/A | $2.01M | $3.03M |
+| **Leverage** | No/No/Yes (1.5x) | N/A | No | Yes (1.5x) |
 | **Style** | Mixed/Balanced | ❌ Error Test | Growth/Tech | Value/Contrarian |
 | **Tickers** | AAPL, MSFT, etc. | Various (invalid) | CRWD, SNOW, PLTR | BAC, CVX, MRK |
 | **Risk** | Low/Med/High | N/A | Medium-High | High |
-| **Leverage** | No/No/Yes | N/A | No | Yes (150%) |
 | **Options** | No/No/Yes | N/A | No | Yes |
 | **Purpose** | Live portfolios | Validation testing | Live portfolio | Live portfolio |
 
-**Note**: Conservative-Retiree-Portfolio.csv is specifically designed to test error validation and should produce ~11 validation errors. Use Tech-Focused or Contrarian portfolios for successful upload testing.
+**Important Notes**:
+- **Conservative-Retiree-Portfolio.csv**: Error testing file - will fail with ~11 validation errors
+- **Tech-Focused-Professional.csv**: Enter equity balance of **$2,013,000** (no leverage)
+- **Contrarian-Value-Trader.csv**: Enter equity balance of **$2,019,000** (NOT $3,028,000 - that's the gross exposure with 1.5x leverage)
 
 ---
 
