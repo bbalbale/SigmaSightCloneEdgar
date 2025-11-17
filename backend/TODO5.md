@@ -3419,6 +3419,39 @@ For each major feature:
 - **Investigation Completed**: 2025-11-17 (codebase analysis, entry points traced, concurrency reviewed)
 - **Notes**: Batch calculator runs multiple times on same day cause equity balance to compound incorrectly, leading to massively inflated portfolio values.
 
+#### 🚨 REQUIRED READING - AI Coding Agents
+
+**BEFORE implementing this fix, you MUST read:**
+
+📖 **`backend/CLAUDE.md` - Part II, Section "Portfolio Equity & Exposure Definitions"** (lines 795-855)
+
+**Key Concepts You Must Understand**:
+
+1. **Equity Balance** = Starting capital (what you have to invest)
+   - NOT the same as sum(position market values)
+   - NOT the same as net exposure
+   - NOT the same as gross exposure
+
+2. **For leveraged portfolios**: `Gross Exposure > Equity Balance` is **NORMAL**
+   - Example: $3.2M equity controlling $4.8M positions (1.5x leverage)
+   - Hedge Fund Style demo portfolio has this intentionally
+
+3. **Equity Rollforward Formula** (from PNL calculator):
+   ```python
+   new_equity = previous_equity + daily_pnl + daily_capital_flow
+   ```
+   - This is an INCREMENTAL calculation
+   - Running it twice on the same day DOUBLES the P&L (the bug!)
+
+4. **DO NOT** compare `portfolio.equity_balance` vs `sum(position.market_value)` with a threshold
+   - This will incorrectly flag every leveraged/hedged portfolio
+   - See CLAUDE.md for why this is wrong
+
+**Why This Matters for the Fix**:
+- Data repair must use historical snapshots, NOT position market values
+- Testing must verify leveraged portfolios (Hedge Fund Style) aren't flagged
+- Idempotency check must prevent equity rollforward from running twice
+
 #### Problem Description
 
 **Bug**: The batch orchestrator accepts multiple calls for the same date without checking if processing already occurred, causing portfolio equity to compound incorrectly.
