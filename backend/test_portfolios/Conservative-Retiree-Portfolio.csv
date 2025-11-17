@@ -1,0 +1,38 @@
+# Conservative Retiree Portfolio - ERROR TESTING VERSION
+# This CSV intentionally contains various validation errors to test error reporting
+# Use for testing CSV validation error messages and row number display
+Symbol,Quantity,Entry Price Per Share,Entry Date,Investment Class,Investment Subtype,Underlying Symbol,Strike Price,Expiration Date,Option Type,Exit Date,Exit Price Per Share
+# Row 2: VALID - Baseline valid row
+VFINX,850,420.50,2025-06-30,PUBLIC,MUTUAL_FUND,,,,,,
+# Row 3: ERR_POS_017 - Invalid investment subtype "FUND" (should be MUTUAL_FUND)
+VTSAX,600,115.25,2025-06-30,PUBLIC,FUND,,,,,,
+# Row 4: ERR_POS_003 - Symbol with invalid characters (spaces)
+VT MGX,1200,38.75,2025-06-30,PUBLIC,MUTUAL_FUND,,,,,,
+# Row 5: ERR_POS_005 - Quantity not numeric
+VBMFX,LOTS,11.45,2025-06-30,PUBLIC,MUTUAL_FUND,,,,,,
+# Row 6: ERR_POS_006 - Quantity is zero
+VGTSX,0,28.90,2025-06-30,PUBLIC,MUTUAL_FUND,,,,,,
+# Row 7: ERR_POS_009 - Entry price not numeric
+VWELX,1100,EXPENSIVE,2025-06-30,PUBLIC,MUTUAL_FUND,,,,,,
+# Row 8: ERR_POS_010 - Entry price is negative
+SCHB,425,-58.80,2025-06-30,PUBLIC,ETF,,,,,,
+# Row 9: ERR_POS_011 - Entry price too many decimals (max 2)
+KO,420,63.12345,2025-06-30,PUBLIC,STOCK,,,,,,
+# Row 10: ERR_POS_013 - Entry date invalid format
+PEP,285,172.40,06/30/2025,PUBLIC,STOCK,,,,,,
+# Row 11: ERR_POS_014 - Entry date in future
+WMT,310,68.50,2026-12-31,PUBLIC,STOCK,,,,,,
+# Row 12: VALID - Another baseline valid row
+PG,365,168.75,2025-06-30,PUBLIC,STOCK,,,,,,
+# Row 13: ERR_POS_023 - Duplicate position (same symbol and date as row 12)
+PG,365,168.75,2025-06-30,PUBLIC,STOCK,,,,,,
+# Row 14: VALID - Baseline valid row
+MCD,175,265.80,2025-06-30,PUBLIC,STOCK,,,,,,
+# Row 15: ERR_POS_016 - Invalid investment class
+VZ,515,41.20,2025-06-30,CRYPTO,STOCK,,,,,,
+# Row 16: VALID - Baseline valid row
+T,940,19.85,2025-06-30,PUBLIC,STOCK,,,,,,
+# Row 17: ERR_POS_007 - Quantity too many decimals (max 6)
+MMM,185.1234567,128.60,2025-06-30,PUBLIC,STOCK,,,,,,
+# Row 18: VALID - Baseline valid row
+CAT,125,348.90,2025-06-30,PUBLIC,STOCK,,,,,,
