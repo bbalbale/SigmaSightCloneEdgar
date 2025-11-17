@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { onboardingService } from '@/services/onboardingService'
 import { setPortfolioState } from '@/stores/portfolioStore'
 
-export type UploadState = 'idle' | 'uploading' | 'processing' | 'success' | 'error'
+export type UploadState = 'idle' | 'uploading' | 'processing' | 'success' | 'validation_error' | 'error'
 
 export interface ValidationError {
   row: number
@@ -214,12 +214,22 @@ export function usePortfolioUpload(): UsePortfolioUploadReturn {
         }
       }, 3000) // Poll every 3 seconds
     } catch (err: any) {
-      setUploadState('error')
+      // Check if it's a validation error (CSV format issues)
+      // Try multiple paths for backward compatibility with different FastAPI response structures
+      const nestedErrors = err?.data?.error?.details?.error?.details?.errors  // Current onboarding endpoint
+      const detailErrors = err?.data?.detail?.errors  // FastAPI default validation errors
+      const shallowErrors = err?.data?.error?.details?.errors  // Older onboarding format
 
-      // Check if it's a validation error
-      if (err?.data?.detail?.errors || err?.data?.error?.details?.errors) {
-        const rawErrors = err.data?.detail?.errors || err.data?.error?.details?.errors || []
+      // Pick the first non-empty error array we find
+      const rawErrors = (nestedErrors && Array.isArray(nestedErrors) && nestedErrors.length > 0)
+        ? nestedErrors
+        : (detailErrors && Array.isArray(detailErrors) && detailErrors.length > 0)
+        ? detailErrors
+        : (shallowErrors && Array.isArray(shallowErrors) && shallowErrors.length > 0)
+        ? shallowErrors
+        : null
 
+      if (rawErrors) {
         // Flatten nested errors: each row may have multiple errors
         const flattenedErrors: ValidationError[] = []
         rawErrors.forEach((rowError: any) => {
@@ -248,8 +258,11 @@ export function usePortfolioUpload(): UsePortfolioUploadReturn {
 
         setValidationErrors(flattenedErrors)
         setError('CSV validation failed. Please fix the errors below.')
+        setUploadState('validation_error')  // Set validation_error state for CSV issues
       } else {
+        // Processing or network errors
         setError(getErrorMessage(err))
+        setUploadState('error')  // Set error state for processing/network issues
       }
     }
   }

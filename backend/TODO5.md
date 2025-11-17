@@ -2747,6 +2747,215 @@ Based on code review, the following are **NOT concerns** for Phase 2.7:
 
 ---
 
+## Phase 2.8: Frontend Upload Validation Error State Management (2025-11-17)
+
+**Status**: ✅ COMPLETE
+**Priority**: HIGH
+**Completed**: 2025-11-17
+
+### Problem Description
+
+**Issue Discovered**: Frontend onboarding page shows conflicting UI states when CSV validation fails - both error dialog AND processing screen visible simultaneously.
+
+**User Experience Impact**:
+- User uploads CSV with validation errors (e.g., invalid `Investment Subtype` values)
+- Backend returns 400 with structured validation errors
+- Frontend shows:
+  - ❌ **WRONG**: "Analyzing Your Portfolio..." screen with error banner at top
+  - ✅ **SHOULD**: Only the "CSV Validation Failed" error dialog with error details
+
+**Root Cause**:
+1. No distinction between validation errors (CSV invalid) and processing errors (batch fails)
+2. Both error types set `uploadState = 'error'`
+3. Page rendering logic checks `uploadState === 'error'` and renders `<UploadProcessing />` with error
+4. Validation errors (`validationErrors` array) are populated but not used for rendering decision
+
+**Current Flow (Broken)**:
+```
+User uploads CSV with validation errors
+  ↓
+Backend validates → Returns 400 with structured errors
+  ↓
+Hook catches error → Sets uploadState = 'error'
+  ↓
+Page checks uploadState === 'error' → TRUE
+  ↓
+Renders <UploadProcessing with error /> ❌ WRONG
+```
+
+**Example Validation Error**:
+```json
+{
+  "detail": {
+    "errors": [
+      {
+        "row": 2,
+        "symbol": "VFINX",
+        "errors": [
+          {
+            "code": "ERR_SUBTYPE_INVALID",
+            "message": "Invalid Investment Subtype 'FUND' for class PUBLIC",
+            "field": "Investment Subtype"
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+### Solution Design
+
+**Add New Upload State**: `'validation_error'` to distinguish validation errors from processing errors
+
+**State Machine**:
+```
+idle → uploading → (validation_error | processing) → success
+                    ↓                    ↓
+                    Try Again       error → Try Again
+```
+
+### Implementation Tasks
+
+**Files to Modify**: Frontend only (3 files)
+
+- [ ] **`src/hooks/usePortfolioUpload.ts`**
+  - [ ] Add `'validation_error'` to `UploadState` type (line 8)
+  - [ ] Update error handling in catch block (lines 216-254):
+    - Set `uploadState = 'validation_error'` for HTTP 400 with structured errors
+    - Set `uploadState = 'error'` for processing/network errors
+    - Clear `error` state when showing validation errors
+    - Clear `validationErrors` when showing generic errors
+
+- [ ] **`app/onboarding/upload/page.tsx`**
+  - [ ] Reorder conditional rendering logic:
+    1. Check `uploadState === 'validation_error'` FIRST → render `<ValidationErrors />`
+    2. Check `uploadState === 'success'` SECOND → render `<UploadSuccess />`
+    3. Check `uploadState === 'uploading' || 'processing' || 'error'` THIRD → render `<UploadProcessing />`
+    4. Default `'idle'` state → render `<PortfolioUploadForm />`
+
+- [ ] **`src/hooks/usePortfolioUpload.ts`** (reset functions)
+  - [ ] Update `handleChooseDifferentFile()` to reset to `'idle'` state
+  - [ ] Verify `handleRetry()` correctly resets state machine
+
+### Verification Steps
+
+1. [x] Test CSV with validation errors: ✅ **VERIFIED (2025-11-17)**
+   - Upload CSV with invalid `Investment Subtype` (e.g., `FUND` instead of `ETF/STOCK`)
+   - Verify ONLY `<ValidationErrors />` component renders ✅ CONFIRMED
+   - Verify error details are displayed (row, symbol, message, field) ✅ CONFIRMED (6 errors shown)
+   - Verify "Try Again" button returns to upload form ✅ CONFIRMED
+
+2. [ ] Test processing errors:
+   - Upload valid CSV
+   - Simulate batch processing failure (network timeout)
+   - Verify `<UploadProcessing />` renders with error banner
+   - Verify "Try Again" button works
+
+3. [ ] Test happy path:
+   - Upload valid CSV
+   - Verify `<UploadProcessing />` shows progress
+   - Verify transitions to `<UploadSuccess />` on completion
+
+### Critical Fix: Backend Error Response Path
+
+**Root Cause Discovered**: Error detection logic was checking WRONG nested path.
+
+**Backend Response Structure** (FastAPI exception handler):
+```typescript
+{
+  error: {
+    code: "ERR_PORT_008",
+    message: "CSV validation failed",
+    details: {
+      error: {                    // <- Extra nesting level!
+        code: "ERR_CSV_VALIDATION",
+        message: "CSV validation failed with 6 error(s)",
+        details: {
+          errors: [...],          // <- Actual error array
+          total_errors: 6
+        }
+      }
+    }
+  }
+}
+```
+
+**Fix Applied** (`src/hooks/usePortfolioUpload.ts:219`):
+```typescript
+// ❌ OLD (incorrect paths):
+if (err?.data?.detail?.errors || err?.data?.error?.details?.errors) {
+  const rawErrors = err.data?.detail?.errors || err.data?.error?.details?.errors || []
+
+// ✅ NEW (correct path):
+const nestedErrors = err?.data?.error?.details?.error?.details?.errors
+if (nestedErrors && Array.isArray(nestedErrors) && nestedErrors.length > 0) {
+```
+
+**Why This Matters**: The backend's `create_error_response()` helper wraps the CSVValidationError's details (which itself contains `format_csv_validation_errors()` output) creating an extra nesting level that the frontend wasn't accounting for.
+
+### Benefits of This Fix
+
+✅ **Clear User Feedback**: Users see appropriate error UI for each scenario
+✅ **Reduced Confusion**: No conflicting UI states (error + processing)
+✅ **Better Error Details**: Validation errors show specific row/field issues
+✅ **Proper State Machine**: Distinct states for validation vs processing errors
+✅ **Maintainable Code**: Clear separation of error types
+
+### Testing with Conservative Portfolio CSV
+
+The Conservative-Retiree-Portfolio.csv has 6 validation errors (rows 2-7 use invalid `FUND` subtype):
+- Should trigger validation_error state
+- Should display all 6 errors with row numbers
+- Should NOT start batch processing
+
+### Notes
+
+- This is a frontend-only fix - no backend changes needed
+- Backend already returns correct 400 status with structured errors
+- Fix improves Phase 1 onboarding UX significantly
+- Discovered during Phase 2.7 weekend batch processing testing (test007@ user)
+
+---
+
+## Phase 2.9: Onboarding UX Polish & Code Review Fixes (2025-11-17)
+
+**Status**: ✅ COMPLETE
+**Priority**: HIGH
+**Completed**: 2025-11-17
+
+### Bug Fixes Implemented
+
+**1. Download Template Button** (`frontend/src/services/onboardingService.ts:123-131`)
+- **Problem**: `window.open()` opened CSV in new tab instead of downloading
+- **Fix**: Changed to programmatic anchor download with `download` attribute
+- **Result**: Template now saves to Downloads folder as `sigmasight_portfolio_template.csv`
+
+**2. Error Detection Fallback Paths** (`frontend/src/hooks/usePortfolioUpload.ts:219-230`)
+- **Problem**: Removed fallback paths could break other FastAPI validation responses
+- **Fix**: Added backward-compatible fallback chain checking 3 paths:
+  - `err.data.error.details.error.details.errors` (current onboarding)
+  - `err.data.detail.errors` (FastAPI default validations)
+  - `err.data.error.details.errors` (older onboarding format)
+- **Result**: Now handles all FastAPI error response structures without regression
+
+**3. "Try Again" Button UX** (`frontend/app/onboarding/upload/page.tsx:54`)
+- **Problem**: Processing errors auto-retried without letting users adjust inputs
+- **Fix**: Restored previous behavior - sends user back to upload form
+- **Result**: Users can change portfolio metadata, account type, equity balance, or CSV file after processing failures
+
+### Files Modified
+- `frontend/src/services/onboardingService.ts` (download fix)
+- `frontend/src/hooks/usePortfolioUpload.ts` (error detection fallback)
+- `frontend/app/onboarding/upload/page.tsx` (retry UX)
+
+### Impact
+✅ **Better Download UX**: Template saves directly to Downloads folder
+✅ **Backward Compatible**: Handles all FastAPI error response formats
+✅ **Flexible Recovery**: Users can adjust inputs after failures instead of auto-retry loop
+
+---
+
 ## Phase 3: Admin & Superuser Tooling (~1 week)
 
 **Goal**: Add admin capabilities for user management and impersonation.

@@ -121,7 +121,13 @@ export const onboardingService = {
    * Download CSV template
    */
   downloadTemplate: () => {
-    window.open('/api/proxy/api/v1/onboarding/csv-template', '_blank');
+    // Create a temporary anchor element to trigger download
+    const link = document.createElement('a');
+    link.href = '/api/proxy/api/v1/onboarding/csv-template';
+    link.download = 'sigmasight_portfolio_template.csv';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   },
 };
 

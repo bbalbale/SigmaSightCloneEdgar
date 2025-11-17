@@ -73,7 +73,7 @@ export function RegistrationForm() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-white dark:from-gray-900 dark:to-gray-800">
+    <div className="min-h-screen flex items-center justify-center bg-background">
       <div className="w-full max-w-md space-y-8 px-4 py-8">
         <div className="space-y-2 px-6">
           <h1 className="text-2xl font-bold tracking-tight">Welcome to SigmaSight 🚀</h1>

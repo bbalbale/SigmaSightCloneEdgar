@@ -21,9 +21,9 @@ export default function OnboardingUploadPage() {
     handleChooseDifferentFile,
   } = usePortfolioUpload()
 
-  // Show validation errors if present
-  if (validationErrors && validationErrors.length > 0) {
-    return <ValidationErrors errors={validationErrors} onTryAgain={handleChooseDifferentFile} />
+  // Show validation errors FIRST (CSV format issues)
+  if (uploadState === 'validation_error' || (validationErrors && validationErrors.length > 0)) {
+    return <ValidationErrors errors={validationErrors || []} onTryAgain={handleChooseDifferentFile} />
   }
 
   // Show success screen
@@ -39,7 +39,8 @@ export default function OnboardingUploadPage() {
     )
   }
 
-  // Show processing screen for uploading, processing, OR error
+  // Show processing screen for uploading, processing, OR processing errors
+  // Note: validation_error is handled above, so this only shows for batch processing errors
   if (uploadState === 'uploading' || uploadState === 'processing' || uploadState === 'error') {
     const processingState: 'uploading' | 'processing' =
       uploadState === 'error' ? 'processing' : uploadState
