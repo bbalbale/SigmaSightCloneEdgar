@@ -262,9 +262,11 @@ class CSVParserService:
                         field=col
                     )
                     errors.append({
+                        "row": error.details.get("row") if error.details else None,
+                        "symbol": symbol if symbol else None,
                         "code": error.code,
                         "message": error.message,
-                        "details": error.details
+                        "field": error.details.get("field") if error.details else None
                     })
 
                 return CSVValidationResult(
@@ -373,23 +375,31 @@ class CSVParserService:
         # Trim all values
         row = {k: v.strip() if v else "" for k, v in row.items()}
 
-        # 1. Symbol validation
+        # 1. Symbol validation (allow empty for OPTIONS with separate fields)
         symbol = row.get("Symbol", "").strip()
+        investment_class = row.get("Investment Class", "").strip().upper()
+        underlying_symbol = row.get("Underlying Symbol", "").strip()
+
+        # For OPTIONS positions, symbol can be empty if underlying is provided
         if not symbol:
-            error = create_csv_error(
-                ERR_POS_001,
-                get_error_message(ERR_POS_001),
-                row_number=row_number,
-                field="Symbol"
-            )
-            errors.append({
-                "row": error.details.get("row") if error.details else None,
-                "symbol": symbol if symbol else None,
-                "code": error.code,
-                "message": error.message,
-                "field": error.details.get("field") if error.details else None
-            })
-            return {"errors": errors, "position": None}
+            if investment_class == "OPTIONS" and underlying_symbol:
+                # Use underlying symbol as placeholder for OPTIONS
+                symbol = underlying_symbol
+            else:
+                error = create_csv_error(
+                    ERR_POS_001,
+                    get_error_message(ERR_POS_001),
+                    row_number=row_number,
+                    field="Symbol"
+                )
+                errors.append({
+                    "row": error.details.get("row") if error.details else None,
+                    "symbol": symbol if symbol else None,
+                    "code": error.code,
+                    "message": error.message,
+                    "field": error.details.get("field") if error.details else None
+                })
+                return {"errors": errors, "position": None}
 
         if len(symbol) > MAX_SYMBOL_LENGTH:
             error = create_csv_error(
@@ -454,9 +464,11 @@ class CSVParserService:
                         value=quantity_str
                     )
                     errors.append({
+                        "row": error.details.get("row") if error.details else None,
+                        "symbol": symbol if symbol else None,
                         "code": error.code,
                         "message": error.message,
-                        "details": error.details
+                        "field": error.details.get("field") if error.details else None
                     })
 
                 # Check decimal places
@@ -469,9 +481,11 @@ class CSVParserService:
                         value=quantity_str
                     )
                     errors.append({
+                        "row": error.details.get("row") if error.details else None,
+                        "symbol": symbol if symbol else None,
                         "code": error.code,
                         "message": error.message,
-                        "details": error.details
+                        "field": error.details.get("field") if error.details else None
                     })
             except (InvalidOperation, ValueError):
                 error = create_csv_error(
@@ -519,9 +533,11 @@ class CSVParserService:
                         value=entry_price_str
                     )
                     errors.append({
+                        "row": error.details.get("row") if error.details else None,
+                        "symbol": symbol if symbol else None,
                         "code": error.code,
                         "message": error.message,
-                        "details": error.details
+                        "field": error.details.get("field") if error.details else None
                     })
 
                 # Check decimal places
@@ -534,9 +550,11 @@ class CSVParserService:
                         value=entry_price_str
                     )
                     errors.append({
+                        "row": error.details.get("row") if error.details else None,
+                        "symbol": symbol if symbol else None,
                         "code": error.code,
                         "message": error.message,
-                        "details": error.details
+                        "field": error.details.get("field") if error.details else None
                     })
             except (InvalidOperation, ValueError):
                 error = create_csv_error(
@@ -586,9 +604,11 @@ class CSVParserService:
                         value=entry_date_str
                     )
                     errors.append({
+                        "row": error.details.get("row") if error.details else None,
+                        "symbol": symbol if symbol else None,
                         "code": error.code,
                         "message": error.message,
-                        "details": error.details
+                        "field": error.details.get("field") if error.details else None
                     })
 
                 if entry_date_obj < MIN_DATE:
@@ -600,9 +620,11 @@ class CSVParserService:
                         value=entry_date_str
                     )
                     errors.append({
+                        "row": error.details.get("row") if error.details else None,
+                        "symbol": symbol if symbol else None,
                         "code": error.code,
                         "message": error.message,
-                        "details": error.details
+                        "field": error.details.get("field") if error.details else None
                     })
             except ValueError:
                 error = create_csv_error(
@@ -761,9 +783,11 @@ class CSVParserService:
                         value=strike_price_str
                     )
                     errors.append({
+                        "row": error.details.get("row") if error.details else None,
+                        "symbol": symbol if symbol else None,
                         "code": error.code,
                         "message": error.message,
-                        "details": error.details
+                        "field": error.details.get("field") if error.details else None
                     })
 
             if not expiration_date_str:
@@ -793,9 +817,11 @@ class CSVParserService:
                         value=expiration_date_str
                     )
                     errors.append({
+                        "row": error.details.get("row") if error.details else None,
+                        "symbol": symbol if symbol else None,
                         "code": error.code,
                         "message": error.message,
-                        "details": error.details
+                        "field": error.details.get("field") if error.details else None
                     })
 
             if not option_type or option_type not in ["CALL", "PUT"]:
