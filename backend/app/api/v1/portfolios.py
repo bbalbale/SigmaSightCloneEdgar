@@ -633,27 +633,53 @@ async def get_portfolio_batch_status(
         # Get current batch status
         current = batch_run_tracker.get_current()
 
-        # If no batch running or different batch_run_id, return idle/completed status
-        if not current or current.batch_run_id != batch_run_id:
+        # If currently running with matching batch_run_id, return running status
+        if current and current.batch_run_id == batch_run_id:
+            # Calculate elapsed time
+            elapsed = (utc_now() - current.started_at).total_seconds()
+
             return BatchStatusResponse(
-                status="idle",
-                batch_run_id=batch_run_id,
+                status="running",
+                batch_run_id=current.batch_run_id,
                 portfolio_id=str(portfolio_id),
-                started_at="",
-                triggered_by="",
-                elapsed_seconds=0
+                started_at=current.started_at.isoformat(),
+                triggered_by=current.triggered_by,
+                elapsed_seconds=int(elapsed)
             )
 
-        # Calculate elapsed time
-        elapsed = (utc_now() - current.started_at).total_seconds()
+        # No current batch or different batch_run_id
+        # Check if batch completed by looking for portfolio snapshot (evidence of completion)
+        from app.models.snapshots import PortfolioSnapshot
 
+        result = await db.execute(
+            select(PortfolioSnapshot)
+            .where(PortfolioSnapshot.portfolio_id == portfolio_id)
+            .order_by(PortfolioSnapshot.snapshot_date.desc())
+            .limit(1)
+        )
+        snapshot = result.scalar_one_or_none()
+
+        if snapshot:
+            # Snapshot exists, batch completed successfully
+            # Note: We don't have started_at or triggered_by since tracker was cleared
+            # But frontend only needs status="completed" to proceed
+            return BatchStatusResponse(
+                status="completed",
+                batch_run_id=batch_run_id,
+                portfolio_id=str(portfolio_id),
+                started_at="",  # Unknown after tracker cleared
+                triggered_by="",  # Unknown after tracker cleared
+                elapsed_seconds=0  # Unknown after tracker cleared
+            )
+
+        # No snapshot found - batch never ran or failed
         return BatchStatusResponse(
-            status="running",
-            batch_run_id=current.batch_run_id,
+            status="idle",
+            batch_run_id=batch_run_id,
             portfolio_id=str(portfolio_id),
-            started_at=current.started_at.isoformat(),
-            triggered_by=current.triggered_by,
-            elapsed_seconds=int(elapsed)
+            started_at="",
+            triggered_by="",
+            elapsed_seconds=0
         )
 
     except HTTPException:

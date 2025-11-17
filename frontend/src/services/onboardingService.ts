@@ -102,7 +102,7 @@ export const onboardingService = {
    */
   triggerCalculations: async (portfolioId: string): Promise<TriggerCalculationsResponse> => {
     const response = await apiClient.post<TriggerCalculationsResponse>(
-      `/api/v1/portfolio/${portfolioId}/calculate`
+      `/api/v1/portfolios/${portfolioId}/calculate`  // Fixed: portfolios (plural)
     );
     return response;  // apiClient.post already returns the data directly
   },
@@ -112,7 +112,7 @@ export const onboardingService = {
    */
   getBatchStatus: async (portfolioId: string, batchRunId: string): Promise<BatchStatusResponse> => {
     const response = await apiClient.get<BatchStatusResponse>(
-      `/api/v1/portfolio/${portfolioId}/batch-status/${batchRunId}`
+      `/api/v1/portfolios/${portfolioId}/batch-status/${batchRunId}`  // Fixed: portfolios (plural)
     );
     return response;  // apiClient.get already returns the data directly
   },

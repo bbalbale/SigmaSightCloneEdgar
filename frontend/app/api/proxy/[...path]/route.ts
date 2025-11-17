@@ -160,13 +160,21 @@ export async function POST(
   // Handle different content types
   let body: any
   const contentType = request.headers.get('content-type')
-  
-  if (contentType?.includes('application/json')) {
-    body = await request.json()
-  } else if (contentType?.includes('text/plain')) {
-    body = await request.text()
+
+  // Only parse body if content-length > 0 or if there's actually a body
+  const contentLength = request.headers.get('content-length')
+  const hasBody = contentLength && parseInt(contentLength) > 0
+
+  if (hasBody) {
+    if (contentType?.includes('application/json')) {
+      body = await request.json()
+    } else if (contentType?.includes('text/plain')) {
+      body = await request.text()
+    } else {
+      body = await request.text()
+    }
   } else {
-    body = await request.text()
+    body = undefined
   }
   
   console.log('Proxy POST to:', url)
@@ -189,7 +197,7 @@ export async function POST(
   const response = await handleProxyRequest(url, {
     method: 'POST',
     headers: forwardHeaders,
-    body: typeof body === 'string' ? body : JSON.stringify(body),
+    body: body === undefined ? undefined : (typeof body === 'string' ? body : JSON.stringify(body)),
     credentials: 'include',
   })
   
