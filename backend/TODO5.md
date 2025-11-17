@@ -3452,110 +3452,101 @@ For each major feature:
 - Testing must verify leveraged portfolios (Hedge Fund Style) aren't flagged
 - Idempotency check must prevent equity rollforward from running twice
 
-#### Problem Description
+#### Problem Statement
 
-**Bug**: The batch orchestrator accepts multiple calls for the same date without checking if processing already occurred, causing portfolio equity to compound incorrectly.
+**What's Broken**: Running batch processing multiple times on the same day causes portfolio equity to compound incorrectly, inflating values by 100-200%.
 
-**Root Cause**: The batch orchestrator lacks idempotency. It allows the P&L calculator to run multiple times for the same date, and the calculator uses an **incremental equity rollforward** approach:
+**Real-World Evidence** (test009 portfolio, 2025-11-17):
+- Ran batch 4 times in 40 minutes
+- Equity inflated from $5.95M → $14.22M (215% overinflated)
+- Actual portfolio value: -$6.93M (negative due to short options)
 
+**Impact**:
+- 🚨 **PRODUCTION BLOCKER** - All portfolio values incorrect
+- Users cannot trust any numbers (equity, P&L, analytics all wrong)
+- System unusable until fixed
+
+#### Why This Happens (Rationale)
+
+**Core Issue**: The batch orchestrator is **not idempotent** - running it multiple times for the same date produces different results.
+
+**The Equity Rollforward Formula** (from `pnl_calculator.py:~240`):
 ```python
-# From app/batch/pnl_calculator.py (conceptual, actual code at line ~240)
 new_equity = previous_equity + daily_pnl + daily_capital_flow
 ```
 
-**What happens on multiple runs**:
-1. **First run** (11:57): Calculates daily P&L = $2.75M, equity = $5.95M ✅
-2. **Second run** (12:00): Uses $5.95M as "previous", adds same $2.75M again → $8.71M ❌
-3. **Third run** (12:29): Uses $8.71M as "previous", adds same $2.75M again → $11.46M ❌
-4. **Fourth run** (12:31): Uses $11.46M as "previous", adds same $2.75M again → $14.22M ❌
+This is an **incremental calculation** that adds to the previous value. Running it multiple times compounds the same P&L:
 
-**Evidence** (test009 portfolio, 2025-11-17 - four batch runs in 40 minutes):
-- 11:57:32 → Equity: $5,955,878.53 (correct)
-- 12:00:57 → Added $2,755,878.53 → $8,711,757.06 (same P&L added again)
-- 12:29:27 → Added $2,755,878.53 → $11,467,635.59 (same P&L added third time)
-- 12:31:41 → Added $2,755,878.53 → $14,223,514.12 (same P&L added fourth time)
+**Example - 4 runs in 40 minutes**:
+1. **First run** (11:57): Daily P&L = $2.75M → Equity = $5.95M ✅ **CORRECT**
+2. **Second run** (12:00): Sees previous equity $5.95M, adds same $2.75M → $8.71M ❌
+3. **Third run** (12:29): Sees previous equity $8.71M, adds same $2.75M → $11.46M ❌
+4. **Fourth run** (12:31): Sees previous equity $11.46M, adds same $2.75M → $14.22M ❌
 
-**Actual portfolio value**: -$6,930,009.22 (negative due to short options positions)
-**Displayed value**: $14,223,514.12 (215% overinflated!)
+**Why No Protection Exists**:
+- Orchestrator doesn't check if already processed for a date
+- PNL calculator flushes equity to database BEFORE creating snapshot (line 244 vs 260)
+- Railway cron and CLI scripts have NO concurrency checks
+- Admin API has `batch_run_tracker` but Railway/CLI don't use it
 
-**Impact**:
-- ❌ Portfolio values completely incorrect
-- ❌ P&L calculations meaningless
-- ❌ All analytics based on equity (beta, factor exposures, etc.) are wrong
-- ❌ Users cannot trust any numbers in the system
-- 🚨 **PRODUCTION BLOCKER** - System cannot be used until fixed
+**How Duplicates Happen**:
+- Manual triggers via admin API
+- Automatic retry on failures
+- Concurrent cron jobs (if Railway runs long)
+- Developer CLI runs during production batch
 
-#### Root Cause Analysis (2025-11-17 Investigation)
+#### Why Simple Solutions Don't Work
 
-**Files Investigated**:
-1. `app/batch/batch_orchestrator.py` (lines 268-350) - Main batch flow
-2. `app/batch/pnl_calculator.py` (lines 165-260) - Equity rollforward logic
-3. `app/calculations/snapshots.py` (lines 545-552) - Snapshot creation
-4. `app/api/v1/endpoints/admin_batch.py` (lines 44-101) - Admin API entry point
-5. `scripts/automation/railway_daily_batch.py` (line 77) - Railway cron entry point
-6. `scripts/batch_processing/run_batch.py` (line 77) - CLI entry point
-7. `railway.json` (line 4-7) - Cron configuration
-
-**Actual Batch Entry Points**:
-1. **Railway Cron** (Production): Runs Mon-Fri at 23:30 UTC → `railway_daily_batch.py` → `batch_orchestrator.run_daily_batch_with_backfill()`
-2. **Admin API** (Manual): `POST /api/v1/admin/batch/run` → `batch_orchestrator.run_daily_batch_sequence()` (has force check but can be overridden)
-3. **CLI Script** (Development): `python scripts/batch_processing/run_batch.py` → `batch_orchestrator.run_daily_batch_with_backfill()`
-
-**The Real Flow** (from code inspection):
+**Approach #1: Check for Existing Snapshot Before Calculating** ❌
 ```python
-# Entry point (all 3 sources) leads to:
-batch_orchestrator.run_daily_batch_with_backfill()
-  → run_daily_batch_sequence(calculation_date, portfolio_ids, db, ...)
-    → _run_sequence_with_session(calculation_date, portfolio_ids, db, ...)
-      → Phase 3: pnl_calculator.calculate_all_portfolios_pnl(calculation_date, db)
-        → for each portfolio:
-            calculate_portfolio_pnl(portfolio_id, calculation_date, db)
-              → Line ~244: portfolio.equity_balance = new_equity
-              → await db.flush()  # ❌ Equity persisted BEFORE snapshot check
-              → Line ~260: create_portfolio_snapshot()
-```
-
-**Why the Bug Happens**:
-- ❌ No idempotency check at orchestrator level before calling PNL calculator
-- ❌ PNL calculator flushes equity BEFORE creating snapshot (line 244 vs 260)
-- ❌ If snapshot creation fails, equity is inflated but no guard against re-running
-- ✅ Admin API already has batch_run_tracker to prevent concurrent runs (good!)
-- ❌ Railway cron and CLI scripts have NO concurrency protection (main risk)
-
-**Race Condition Vulnerability** (identified 2025-11-17):
-Even if we add snapshot check, this pattern is NOT concurrency-safe:
-```python
-# ❌ UNSAFE - Race condition exists
-existing = await db.execute(select(Snapshot).where(...))
+# Check if snapshot exists
+existing = await db.execute(select(PortfolioSnapshot).where(...))
 if existing.scalar_one_or_none():
-    skip
+    skip  # Already processed
 else:
-    calculate()  # Two concurrent runs both see "no snapshot yet"
+    calculate()  # Proceed with P&L
 ```
 
-**Why SELECT FOR UPDATE SKIP LOCKED Doesn't Work** (code review 2025-11-17):
+**Problem**: **Race condition** - two concurrent processes can both see "no snapshot yet" and both proceed to calculate. Not concurrency-safe.
+
+**Approach #2: Use SELECT FOR UPDATE SKIP LOCKED** ❌
 ```python
-# ❌ ALSO UNSAFE - Only locks existing rows!
+# Try to lock the snapshot row
 result = await db.execute(
     select(PortfolioSnapshot)
     .where(and_(
         PortfolioSnapshot.portfolio_id == portfolio_id,
-        PortfolioSnapshot.snapshot_date == calculation_date  # Correct column name
+        PortfolioSnapshot.snapshot_date == calculation_date
     ))
     .with_for_update(skip_locked=True)
 )
-if result.scalar_one_or_none():  # On first run of day, this is None
-    skip
+if result.scalar_one_or_none():
+    skip  # Row exists and locked
 else:
-    calculate()  # All concurrent sessions see None and proceed!
+    calculate()  # No row, proceed
 ```
-**Problem**: Row-level locks only work on existing rows. On the first run of a day (no snapshot exists yet), every concurrent session sees an empty result set and all proceed to calculate. This doesn't prevent the race condition at all.
 
-#### Solution: Insert-First Pattern with Unique Constraint
+**Problem**: **Row-level locks only work on existing rows**. On the first run of a day (no snapshot exists yet), every concurrent session sees `None` and all proceed. The lock can't protect what doesn't exist yet.
 
-**The Fix**: Create the snapshot row FIRST (with placeholder values), then calculate P&L. The database unique constraint prevents duplicates atomically.
+**Why These Fail**: Both approaches try to check-then-act, which creates a window for race conditions. We need an atomic operation that works even when no row exists.
 
-**Option A: Insert Placeholder Snapshot First** (Recommended - both short and long term)
+#### Proposed Solution: Insert-First Pattern with Unique Constraint
+
+**Strategy**: Instead of check-then-act (which has race conditions), we **insert-then-calculate**. The database enforces uniqueness atomically.
+
+**How It Works**:
+1. **Insert placeholder snapshot FIRST** (with `is_complete=False`)
+2. If `IntegrityError` → another process already owns this (portfolio, date) → skip immediately
+3. If insert succeeds → we own it → calculate P&L
+4. Update placeholder with real values, set `is_complete=True`
+
+**Why This is Atomic**:
+- Database unique constraint on `(portfolio_id, snapshot_date)` prevents duplicates
+- Second process hits `IntegrityError` BEFORE calculating anything
+- Works on first run of day (inserts before calculating, so lock is claimed early)
+- No race condition possible (database enforces uniqueness)
+
+**Code Pattern** (in `pnl_calculator.py::calculate_portfolio_pnl()`)
 ```python
 # In pnl_calculator.py::calculate_portfolio_pnl(), at the VERY START
 try:
@@ -3608,46 +3599,38 @@ await db.flush()
 # Step 5: Commit transaction (happens in caller)
 ```
 
-**Why This Works**:
-- ✅ **Atomic**: Database unique constraint enforces one snapshot per (portfolio, date)
-- ✅ **Concurrency-safe**: Second process hits IntegrityError immediately, before touching equity
-- ✅ **No nested transactions**: Reuses caller's session and transaction
-- ✅ **Self-healing**: If process crashes after Step 1, incomplete snapshot blocks retries until manually cleaned
-- ✅ **Works on first run**: Insert happens before any calculation, so lock is claimed early
+**Database Requirements** (migration needed):
+```sql
+-- Add is_complete flag to track snapshot state
+ALTER TABLE portfolio_snapshots
+  ADD COLUMN is_complete BOOLEAN NOT NULL DEFAULT TRUE;
 
-**Option B: Add Unique Constraint + is_complete Flag** (Required for Option A)
-```python
-# Alembic migration: Add unique constraint + is_complete flag to portfolio_snapshots table
-# ALTER TABLE portfolio_snapshots
-# ADD COLUMN is_complete BOOLEAN NOT NULL DEFAULT TRUE;  -- Existing rows are complete
-# ADD CONSTRAINT uq_portfolio_snapshot_date UNIQUE (portfolio_id, snapshot_date);  -- Correct column!
-
-# Then in PNL calculator, catch IntegrityError:
-try:
-    await create_portfolio_snapshot(portfolio_id, calculation_date, ...)
-    await db.flush()
-except IntegrityError as e:
-    if "uq_portfolio_snapshot_date" in str(e):
-        logger.warning(f"Snapshot already exists for {portfolio_id} on {calculation_date}")
-        await db.rollback()
-        return {"status": "skipped", "reason": "duplicate_snapshot"}
-    raise
+-- Add unique constraint to enforce idempotency
+ALTER TABLE portfolio_snapshots
+  ADD CONSTRAINT uq_portfolio_snapshot_date
+  UNIQUE (portfolio_id, snapshot_date);
 ```
 
-**Why Insert-First Pattern is Best**:
-- ✅ Database enforces uniqueness (no race condition possible)
-- ✅ Works on first run (inserts before calculating, so lock is claimed early)
-- ✅ No nested transactions needed (reuses caller's session)
-- ✅ Self-documenting schema (constraint visible in DB)
-- ✅ Works across all entry points automatically
-- ✅ Self-healing (incomplete snapshots block retries until cleaned)
+**Note**: Column is `snapshot_date` (NOT `calculation_date`) - see `app/models/snapshots.py:19`
 
-**Recommended Approach**: Implement both Option A (insert-first) and Option B (unique constraint) together. They are complementary, not sequential.
+**Why This Works**:
+- ✅ **Atomic**: Database enforces uniqueness, no check-then-act race
+- ✅ **Concurrency-safe**: Second process hits `IntegrityError` before touching equity
+- ✅ **Works on first run**: Insert happens before calculation, so lock is claimed early
+- ✅ **No nested transactions**: Reuses caller's session (avoids `InvalidRequestError`)
+- ✅ **Self-healing**: Incomplete snapshots (`is_complete=False`) block retries until cleaned
+- ✅ **Automatic**: Works across all entry points (Railway cron, admin API, CLI)
+
+**When Process Crashes**:
+- If crash after Step 1: Incomplete snapshot exists (`is_complete=False`)
+- Next batch run hits `IntegrityError` and skips (prevents double calculation)
+- Manual cleanup: `DELETE FROM portfolio_snapshots WHERE is_complete = FALSE`
+- Re-run batch to regenerate
 
 #### Implementation Tasks
 
-##### 2.10.1: Add Unique Constraint + is_complete Flag (Option B - Database)
-**Target**: Deploy within 24 hours (required for Option A to work)
+##### 2.10.1: Database Migration (Unique Constraint + is_complete Flag)
+**Target**: Deploy within 24 hours (prerequisite for code changes)
 
 - [ ] Create Alembic migration: `alembic/versions/xxxx_add_snapshot_idempotency_fields.py`
   ```python
@@ -3682,8 +3665,8 @@ except IntegrityError as e:
   is_complete: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
   ```
 
-##### 2.10.2: Implement Insert-First Pattern (Option A - Code)
-**Target**: Deploy immediately after migration (same release)
+##### 2.10.2: Code Changes (Insert-First Pattern in PNL Calculator)
+**Target**: Deploy with migration (same release)
 
 - [ ] Modify `app/batch/pnl_calculator.py::calculate_portfolio_pnl()` to insert placeholder FIRST:
   - Move snapshot creation to BEGINNING of function (before any P&L calculation)
