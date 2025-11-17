@@ -3231,7 +3231,7 @@ The Conservative-Retiree-Portfolio.csv has 6 validation errors (rows 2-7 use inv
 
 ---
 
-### 3.1 UUID Migration - Random UUIDs for Production
+### 4.1 UUID Migration - Random UUIDs for Production
 
 - [ ] Update configuration
   - Set DETERMINISTIC_UUIDS = False in production config
@@ -3248,7 +3248,7 @@ The Conservative-Retiree-Portfolio.csv has 6 validation errors (rows 2-7 use inv
 
 ---
 
-### 3.2 Rate Limiting Implementation
+### 4.2 Rate Limiting Implementation
 
 - [ ] Add rate limiting library (slowapi or fastapi-limiter)
 - [ ] Implement rate limits per Section 9.5
@@ -3266,7 +3266,7 @@ The Conservative-Retiree-Portfolio.csv has 6 validation errors (rows 2-7 use inv
 
 ---
 
-### 3.3 Monitoring and Alerting
+### 4.3 Monitoring and Alerting
 
 - [ ] Add metrics collection
   - Registration rate
@@ -3286,7 +3286,7 @@ The Conservative-Retiree-Portfolio.csv has 6 validation errors (rows 2-7 use inv
 
 ---
 
-### 3.4 Database-Backed Invite Codes (Optional)
+### 4.4 Database-Backed Invite Codes (Optional)
 
 **Note**: Only implement if scaling beyond 50 users or need cohort tracking.
 
@@ -3301,7 +3301,7 @@ The Conservative-Retiree-Portfolio.csv has 6 validation errors (rows 2-7 use inv
 
 ---
 
-### 3.5 Enhanced Validation and Security
+### 4.5 Enhanced Validation and Security
 
 - [ ] Add CAPTCHA for repeated failures
 - [ ] Enhanced password requirements (optional)
@@ -3311,7 +3311,7 @@ The Conservative-Retiree-Portfolio.csv has 6 validation errors (rows 2-7 use inv
 
 ---
 
-### 3.6 Performance Optimizations
+### 4.6 Performance Optimizations
 
 - [ ] Database query optimization
   - Add indexes based on production query patterns
@@ -3328,7 +3328,7 @@ The Conservative-Retiree-Portfolio.csv has 6 validation errors (rows 2-7 use inv
 
 ---
 
-### 3.7 Phase 3 Completion Checklist
+### 4.7 Phase 4 Completion Checklist
 
 - [ ] UUID strategy updated for production
 - [ ] Rate limiting implemented and tested
@@ -3336,7 +3336,7 @@ The Conservative-Retiree-Portfolio.csv has 6 validation errors (rows 2-7 use inv
 - [ ] Database-backed invite codes (if needed)
 - [ ] Security audit completed
 - [ ] Performance benchmarks meet targets
-- [ ] All Phase 3 tests passing
+- [ ] All Phase 4 tests passing
 - [ ] Documentation updated
 - [ ] Production deployment successful
 
@@ -3408,6 +3408,224 @@ For each major feature:
 - **Target Completion**: TBD
 - **Actual Completion**: TBD
 - **Notes**: Need to fix post-login flow for users without portfolios - no clear path to upload portfolio after successful login. Discovered during user testing 2025-11-16.
+
+### Phase 2.10: Batch Processing Idempotency Fix (CRITICAL BUG)
+- **Status**: 🚨 CRITICAL - NOT STARTED
+- **Started**: TBD
+- **Target Completion**: TBD
+- **Actual Completion**: TBD
+- **Priority**: CRITICAL - Production blocker
+- **Discovered**: 2025-11-17 during user testing
+- **Notes**: Batch calculator runs multiple times on same day cause equity balance to compound incorrectly, leading to massively inflated portfolio values.
+
+#### Problem Description
+
+**Bug**: Running batch processing multiple times on the same trading day causes portfolio equity balance to compound incorrectly.
+
+**Root Cause**: The P&L calculator uses an **incremental equity rollforward** approach:
+```python
+new_equity = previous_equity + daily_pnl + daily_capital_flow
+```
+
+When the batch runs multiple times on the same day:
+1. **First run**: Uses correct previous_equity, calculates daily_pnl, updates portfolio.equity_balance ✅
+2. **Second run**: Uses the ALREADY UPDATED equity_balance as "previous_equity", adds the SAME daily_pnl again ❌
+3. **Third run**: Compounds the error further ❌
+
+**Evidence** (test009 portfolio, 2025-11-17):
+- 11:57:32 → Equity: $5,955,878.53 (correct)
+- 12:00:57 → Added $2,755,878.53 → $8,711,757.06 (same P&L added again)
+- 12:29:27 → Added $2,755,878.53 → $11,467,635.59 (same P&L added third time)
+- 12:31:41 → Added $2,755,878.53 → $14,223,514.12 (same P&L added fourth time)
+
+**Actual portfolio value**: -$6,930,009.22 (negative due to short options positions)
+**Displayed value**: $14,223,514.12 (215% overinflated!)
+
+**Impact**:
+- ❌ Portfolio values completely incorrect
+- ❌ P&L calculations meaningless
+- ❌ All analytics based on equity (beta, factor exposures, etc.) are wrong
+- ❌ Users cannot trust any numbers in the system
+- 🚨 **PRODUCTION BLOCKER** - System cannot be used until fixed
+
+#### Current Code Analysis
+
+**File**: `app/batch/pnl_calculator.py`
+
+The `calculate_portfolio_pnl()` method (lines 138-290):
+1. ✅ Checks if trading day (line 165)
+2. ❌ **MISSING**: Check if already calculated for this date
+3. Gets most recent snapshot BEFORE calculation_date (lines 188-196)
+4. Uses portfolio.equity_balance as previous_equity (line 185)
+5. Calculates daily P&L
+6. Updates: `portfolio.equity_balance = new_equity` (line 244)
+7. Creates/updates snapshot via `create_portfolio_snapshot()` (line 260)
+
+**File**: `app/calculations/snapshots.py`
+
+The `_create_or_update_snapshot()` method (lines 334-606):
+1. ✅ Checks for existing snapshot (lines 545-552)
+2. ✅ Updates existing snapshot if found (lines 594-598)
+3. ❌ **MISSING**: Return early or signal that equity was already calculated
+
+**The Problem**: While snapshots handle updates correctly, the P&L calculator doesn't check if it already ran today before recalculating equity.
+
+#### Proposed Solutions
+
+**OPTION A: Check for Existing Snapshot (RECOMMENDED)**
+
+Add a check at the START of `calculate_portfolio_pnl()` to see if snapshot already exists for calculation_date. If it does, skip equity calculation.
+
+**Pros**:
+- Simple, minimal code change
+- Maintains current incremental equity rollforward logic
+- Clear intent: "Already calculated, skip"
+- Fast early exit
+
+**Cons**:
+- Doesn't fix underlying reliance on portfolio.equity_balance
+- Can't re-run batch to fix data issues without manual intervention
+
+**Implementation**:
+```python
+async def calculate_portfolio_pnl(self, portfolio_id, calculation_date, db, price_cache):
+    # Check if trading day
+    if not trading_calendar.is_trading_day(calculation_date):
+        return False
+
+    # NEW: Check if already calculated today (idempotency check)
+    existing_snapshot_query = select(PortfolioSnapshot).where(
+        and_(
+            PortfolioSnapshot.portfolio_id == portfolio_id,
+            PortfolioSnapshot.snapshot_date == calculation_date
+        )
+    )
+    existing_result = await db.execute(existing_snapshot_query)
+    if existing_result.scalar_one_or_none():
+        logger.info(f"  Portfolio {portfolio_id} already has snapshot for {calculation_date}, skipping")
+        return True  # Already calculated, success
+
+    # Continue with existing logic...
+```
+
+**OPTION B: Recalculate from Scratch**
+
+Change from incremental to **absolute** equity calculation:
+```python
+new_equity = cash_balance + sum(position.market_value for all positions)
+```
+
+**Pros**:
+- No dependency on previous equity or snapshot existence
+- Can re-run batch anytime to fix data
+- More robust and self-correcting
+- Idempotent by nature
+
+**Cons**:
+- Requires accurate cash_balance tracking
+- Need to add cash_balance field to Portfolio model
+- Bigger architectural change
+- Requires migration and data backfill
+
+**OPTION C: Hybrid Approach**
+
+1. Use Option A for immediate fix
+2. Plan Option B as Phase 4+ enhancement for production hardening
+
+**Pros**:
+- Quick fix for production blocker
+- Long-term improvement planned
+- Incremental migration path
+
+**Cons**:
+- Two changes instead of one
+- Technical debt if Phase 4 never happens
+
+#### Recommended Approach: Option A + Logging
+
+**Immediate Fix (This Phase)**:
+1. Add idempotency check at start of `calculate_portfolio_pnl()`
+2. Skip calculation if snapshot exists for calculation_date
+3. Log when skipping vs. calculating
+4. Add integration test to verify batch can run multiple times safely
+
+**Future Enhancement (Phase 4+)**:
+1. Add cash_balance field to Portfolio model
+2. Change to absolute equity calculation
+3. Remove dependency on previous_equity
+4. Enables re-running batch to fix data issues
+
+#### Implementation Tasks
+
+##### 2.10.1: Add Idempotency Check
+- [ ] Add snapshot existence check in `calculate_portfolio_pnl()`
+- [ ] Return early if snapshot exists for calculation_date
+- [ ] Add structured logging for skip vs. calculate decision
+- [ ] Handle edge case: snapshot exists but equity_balance is wrong (manual override flag?)
+
+##### 2.10.2: Add Integration Tests
+- [ ] Test: Single batch run produces correct equity
+- [ ] Test: Running batch twice on same day doesn't change equity
+- [ ] Test: Running batch 4 times on same day doesn't change equity
+- [ ] Test: Equity matches actual position market values (within tolerance)
+- [ ] Test: Snapshots are updated (not duplicated) on re-run
+
+##### 2.10.3: Fix Existing Data
+- [ ] Write script to identify affected portfolios (equity > reasonable threshold)
+- [ ] Write script to recalculate correct equity from snapshots
+- [ ] Option to delete duplicate calculations and re-run batch
+- [ ] Verify all test portfolios have correct equity after fix
+
+##### 2.10.4: Add Safeguards
+- [ ] Add validation: equity should not jump >50% in single day (flag anomalies)
+- [ ] Add batch run tracking table (track when batch ran, for which date, which portfolios)
+- [ ] Add admin endpoint to view batch run history
+- [ ] Add admin endpoint to force re-calculation (with confirmation)
+
+##### 2.10.5: Documentation & Monitoring
+- [ ] Update CLAUDE.md with idempotency pattern
+- [ ] Document batch processing guarantees
+- [ ] Add monitoring for equity anomalies
+- [ ] Add alerts for batch running multiple times in same day
+
+#### Testing Strategy
+
+**Unit Tests**:
+- Test idempotency check logic
+- Test early return when snapshot exists
+- Test equity calculation still works for first run
+
+**Integration Tests**:
+- Create test portfolio
+- Run batch once → verify correct equity
+- Run batch again same day → verify equity unchanged
+- Run batch 10 times same day → verify equity unchanged
+- Delete snapshot, run batch again → verify equity recalculated correctly
+
+**Manual QA**:
+- Test with demo portfolios (test009, test011)
+- Verify equity values are reasonable
+- Run batch multiple times, check logs
+- Verify frontend displays correct values
+
+#### Success Criteria
+
+- [ ] Batch can run multiple times on same day without changing equity
+- [ ] Existing portfolio equity values are corrected
+- [ ] All integration tests passing
+- [ ] No equity anomalies in logs
+- [ ] Manual QA confirms correct values in frontend
+- [ ] Production deployment successful with monitoring
+
+#### Rollback Plan
+
+If fix causes issues:
+1. Revert code changes via git
+2. Restore database from backup (if needed)
+3. Run batch once for current day only
+4. Investigate issue and re-apply fix
+
+---
 
 ### Phase 3: Admin & Superuser
 - **Status**: NOT STARTED
