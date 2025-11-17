@@ -3629,8 +3629,95 @@ ALTER TABLE portfolio_snapshots
 
 #### Implementation Tasks
 
+##### 2.10.0: PRE-MIGRATION - Dedupe Existing Snapshots (CRITICAL)
+**Target**: Run BEFORE migration (migration will fail if duplicates exist)
+
+⚠️ **BLOCKER**: If duplicate snapshots exist (very likely given the bug), the unique constraint creation will fail with `duplicate key value violates unique constraint`.
+
+- [ ] Create dedupe script: `scripts/repair/dedupe_snapshots_pre_migration.py`
+  ```python
+  """
+  Dedupe duplicate snapshots before applying unique constraint.
+
+  Strategy: For each (portfolio_id, snapshot_date) with duplicates:
+  1. Keep the "best" row (is_complete=TRUE, or latest by id)
+  2. Delete the others
+  3. Log what was deleted for audit trail
+  """
+  async def dedupe_snapshots(db: AsyncSession) -> Dict[str, Any]:
+      # Find duplicates
+      duplicates_query = """
+          SELECT portfolio_id, snapshot_date, COUNT(*) as dup_count
+          FROM portfolio_snapshots
+          GROUP BY portfolio_id, snapshot_date
+          HAVING COUNT(*) > 1
+          ORDER BY dup_count DESC
+      """
+      result = await db.execute(text(duplicates_query))
+      duplicates = result.fetchall()
+
+      if not duplicates:
+          logger.info("No duplicate snapshots found")
+          return {"duplicates_found": 0, "rows_deleted": 0}
+
+      logger.warning(f"Found {len(duplicates)} (portfolio, date) pairs with duplicates")
+
+      rows_deleted = 0
+      for portfolio_id, snapshot_date, dup_count in duplicates:
+          # Get all snapshots for this (portfolio, date)
+          snapshots_query = select(PortfolioSnapshot).where(
+              and_(
+                  PortfolioSnapshot.portfolio_id == portfolio_id,
+                  PortfolioSnapshot.snapshot_date == snapshot_date
+              )
+          ).order_by(
+              # Keep complete snapshots over incomplete, then keep latest
+              PortfolioSnapshot.is_complete.desc(),
+              PortfolioSnapshot.created_at.desc()
+          )
+          snapshots_result = await db.execute(snapshots_query)
+          snapshots = snapshots_result.scalars().all()
+
+          # Keep first (best), delete rest
+          keeper = snapshots[0]
+          to_delete = snapshots[1:]
+
+          logger.info(
+              f"Portfolio {portfolio_id} on {snapshot_date}: "
+              f"Keeping {keeper.id} (is_complete={keeper.is_complete}), "
+              f"deleting {len(to_delete)} duplicates"
+          )
+
+          for dup in to_delete:
+              await db.delete(dup)
+              rows_deleted += 1
+
+      await db.commit()
+      return {
+          "duplicates_found": len(duplicates),
+          "rows_deleted": rows_deleted
+      }
+  ```
+
+- [ ] Run dedupe script on local database:
+  ```bash
+  uv run python scripts/repair/dedupe_snapshots_pre_migration.py
+  # Verify no duplicates remain:
+  # SELECT portfolio_id, snapshot_date, COUNT(*)
+  # FROM portfolio_snapshots
+  # GROUP BY portfolio_id, snapshot_date
+  # HAVING COUNT(*) > 1;
+  ```
+
+- [ ] **PRODUCTION**: Run dedupe script BEFORE deploying migration:
+  ```bash
+  # On Railway (SSH or via admin script):
+  railway run python scripts/repair/dedupe_snapshots_pre_migration.py
+  # Verify success, then proceed with migration deployment
+  ```
+
 ##### 2.10.1: Database Migration (Unique Constraint + is_complete Flag)
-**Target**: Deploy within 24 hours (prerequisite for code changes)
+**Target**: Deploy AFTER dedupe (Task 2.10.0) completes successfully
 
 - [ ] Create Alembic migration: `alembic/versions/xxxx_add_snapshot_idempotency_fields.py`
   ```python
@@ -3642,6 +3729,7 @@ ALTER TABLE portfolio_snapshots
 
       # Add unique constraint on (portfolio_id, snapshot_date)
       # Note: snapshot_date is the correct column name, not calculation_date!
+      # This will FAIL if duplicates exist - must run dedupe script first!
       op.create_unique_constraint(
           'uq_portfolio_snapshot_date',
           'portfolio_snapshots',
@@ -3653,7 +3741,7 @@ ALTER TABLE portfolio_snapshots
       op.drop_column('portfolio_snapshots', 'is_complete')
   ```
 
-- [ ] Verify migration runs cleanly on local database:
+- [ ] Verify migration runs cleanly on local database (after dedupe):
   ```bash
   uv run alembic upgrade head
   # Check constraint exists:
@@ -3665,23 +3753,188 @@ ALTER TABLE portfolio_snapshots
   is_complete: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
   ```
 
-##### 2.10.2: Code Changes (Insert-First Pattern in PNL Calculator)
+##### 2.10.2: Refactor Snapshot Module (Two-Phase Pattern)
 **Target**: Deploy with migration (same release)
 
-- [ ] Modify `app/batch/pnl_calculator.py::calculate_portfolio_pnl()` to insert placeholder FIRST:
-  - Move snapshot creation to BEGINNING of function (before any P&L calculation)
-  - Set `is_complete=False` on initial insert
-  - Catch `IntegrityError` and skip if duplicate
-  - Calculate P&L only after successfully claiming ownership
-  - Update placeholder with real values and set `is_complete=True` at end
-  - **Important**: Use `snapshot_date` not `calculation_date` in WHERE clauses!
-  - **Important**: Do NOT use nested transactions - reuse caller's `db` session
+⚠️ **COMPLEXITY**: Today `create_portfolio_snapshot()` does ALL the work (fetch positions, calculate market values, compute exposures/Greeks, create snapshot). We can't just "move it to the beginning" - we need to split it into two phases.
 
-- [ ] Add `record_metric("batch_portfolio_skipped", {"reason": "duplicate_run"})` telemetry when catching IntegrityError
+**Step A: Create `lock_snapshot_slot()` helper** (new function in `app/calculations/snapshots.py`):
+- [ ] Add new function `lock_snapshot_slot(db, portfolio_id, snapshot_date) -> PortfolioSnapshot`
+  ```python
+  async def lock_snapshot_slot(
+      db: AsyncSession,
+      portfolio_id: UUID,
+      snapshot_date: date
+  ) -> Optional[PortfolioSnapshot]:
+      """
+      Claim ownership of a (portfolio, date) by inserting placeholder snapshot.
 
-- [ ] Update return value to include `{status: "skipped"|"completed", reason: str}`
+      Returns:
+          PortfolioSnapshot placeholder if successful, None if duplicate (already locked)
 
-- [ ] Remove old snapshot creation call from end of function (now happens at beginning)
+      Raises:
+          IntegrityError: If unique constraint violated (caught by caller)
+      """
+      # Create minimal placeholder snapshot (all required fields with zeros)
+      placeholder = PortfolioSnapshot(
+          id=uuid4(),
+          portfolio_id=portfolio_id,
+          snapshot_date=snapshot_date,
+          net_asset_value=Decimal("0"),
+          cash_value=Decimal("0"),
+          long_value=Decimal("0"),
+          short_value=Decimal("0"),
+          gross_exposure=Decimal("0"),
+          net_exposure=Decimal("0"),
+          # ... all other required fields with placeholder values
+          is_complete=False  # Mark as incomplete
+      )
+
+      db.add(placeholder)
+      await db.flush()  # Flush NOW to claim the slot atomically
+
+      return placeholder
+  ```
+
+**Step B: Refactor `create_portfolio_snapshot()` to become `populate_snapshot_data()`**:
+- [ ] Rename `create_portfolio_snapshot()` to `populate_snapshot_data(snapshot, db, ...)`
+  - Takes existing `snapshot` object as first parameter
+  - Keeps ALL existing logic for:
+    - Fetching active positions (`_fetch_active_positions`)
+    - Calculating market values (`_prepare_position_data`)
+    - Computing aggregations (`calculate_portfolio_exposures`)
+    - Calculating P&L (`_calculate_pnl`)
+    - Counting positions (`_count_positions`)
+  - Updates the `snapshot` object with real values (instead of creating new one)
+  - Sets `snapshot.is_complete = True` at the end
+  - Returns the populated snapshot
+
+**Step C: Update PNL Calculator** (`app/batch/pnl_calculator.py::calculate_portfolio_pnl()`):
+- [ ] Replace snapshot creation logic at lines ~260 with:
+  ```python
+  # At the VERY START of calculate_portfolio_pnl() (before P&L calculation)
+  try:
+      placeholder_snapshot = await lock_snapshot_slot(db, portfolio_id, calculation_date)
+  except IntegrityError as e:
+      if "uq_portfolio_snapshot_date" in str(e):
+          logger.info(f"Portfolio {portfolio_id} already processed for {calculation_date}, skipping")
+          await db.rollback()
+          record_metric("batch_portfolio_skipped", {"reason": "duplicate_run"})
+          return {"status": "skipped", "reason": "duplicate_run"}
+      raise
+
+  # ... existing P&L calculation logic ...
+  # portfolio.equity_balance = new_equity
+  # await db.flush()
+
+  # At the END (where create_portfolio_snapshot() was called):
+  # Populate the placeholder with real calculated data
+  snapshot = await populate_snapshot_data(
+      snapshot=placeholder_snapshot,
+      db=db,
+      portfolio_id=portfolio_id,
+      calculation_date=calculation_date,
+      skip_pnl_calculation=True  # We already calculated P&L above
+  )
+  # snapshot.is_complete is now True
+  ```
+
+**Why This Works**:
+- ✅ Minimal refactoring: Keeps existing aggregation logic intact
+- ✅ Clear separation: `lock_snapshot_slot()` for atomicity, `populate_snapshot_data()` for calculations
+- ✅ Backwards compatible: `populate_snapshot_data()` can still be called standalone for manual snapshot creation
+
+**Step D: Add Automated Cleanup for Incomplete Snapshots**:
+⚠️ **CRITICAL**: Without this, operators will be paged to manually run SQL cleanup every time a batch crashes mid-calculation.
+
+- [ ] Add helper function `cleanup_incomplete_snapshots()` in `app/calculations/snapshots.py`:
+  ```python
+  async def cleanup_incomplete_snapshots(
+      db: AsyncSession,
+      portfolio_id: Optional[UUID] = None,
+      older_than_hours: int = 24
+  ) -> int:
+      """
+      Delete incomplete snapshots to allow retry.
+
+      An incomplete snapshot (is_complete=False) indicates the batch process
+      crashed after locking the slot but before finishing calculations.
+
+      Args:
+          portfolio_id: Specific portfolio or None for all portfolios
+          older_than_hours: Only delete snapshots older than this (safety margin)
+
+      Returns:
+          Number of incomplete snapshots deleted
+      """
+      cutoff_time = utc_now() - timedelta(hours=older_than_hours)
+
+      query = delete(PortfolioSnapshot).where(
+          PortfolioSnapshot.is_complete == False,
+          PortfolioSnapshot.created_at < cutoff_time
+      )
+
+      if portfolio_id:
+          query = query.where(PortfolioSnapshot.portfolio_id == portfolio_id)
+
+      result = await db.execute(query)
+      deleted_count = result.rowcount
+
+      if deleted_count > 0:
+          logger.warning(
+              f"Cleaned up {deleted_count} incomplete snapshots "
+              f"(older than {older_than_hours}h)"
+          )
+
+      return deleted_count
+  ```
+
+- [ ] Update `batch_orchestrator.py::run_daily_batch_sequence()` to call cleanup BEFORE Phase 2:
+  ```python
+  async def run_daily_batch_sequence(self, calculation_date=None, ...):
+      # ... Phase 1 market data ...
+
+      # Before Phase 2: Clean up any incomplete snapshots from crashed runs
+      # (Only delete snapshots older than 24h to avoid race conditions)
+      from app.calculations.snapshots import cleanup_incomplete_snapshots
+
+      cleaned = await cleanup_incomplete_snapshots(db, older_than_hours=24)
+      if cleaned > 0:
+          logger.info(f"Cleaned up {cleaned} incomplete snapshots before Phase 2")
+          record_metric("batch_incomplete_snapshots_cleaned", {"count": cleaned})
+
+      # Phase 2: P&L calculations (now has clean slate)
+      # ... existing Phase 2 logic ...
+  ```
+
+- [ ] Add admin endpoint for manual cleanup: `POST /api/v1/admin/batch/cleanup-incomplete`
+  ```python
+  @router.post("/cleanup-incomplete")
+  async def cleanup_incomplete_snapshots_endpoint(
+      admin_user = Depends(require_admin),
+      portfolio_id: Optional[str] = Query(None),
+      db: AsyncSession = Depends(get_db)
+  ):
+      """Manually trigger cleanup of incomplete snapshots (for crashed batch runs)"""
+      from app.calculations.snapshots import cleanup_incomplete_snapshots
+      from uuid import UUID
+
+      portfolio_uuid = UUID(portfolio_id) if portfolio_id else None
+      deleted = await cleanup_incomplete_snapshots(db, portfolio_uuid, older_than_hours=1)
+
+      return {
+          "status": "completed",
+          "incomplete_snapshots_deleted": deleted,
+          "triggered_by": admin_user.email,
+          "timestamp": utc_now()
+      }
+  ```
+
+**Why This Works**:
+- ✅ **Automatic**: No operator intervention required for crashed runs
+- ✅ **Safe**: 24-hour safety margin prevents deleting in-progress calculations
+- ✅ **Observable**: Logs and metrics track cleanup events
+- ✅ **Manual Override**: Admin endpoint for immediate cleanup if needed
 
 ##### 2.10.3: Add Unit Tests
 **Target**: Complete before deploying to production
@@ -3706,35 +3959,161 @@ ALTER TABLE portfolio_snapshots
 ##### 2.10.5: Fix Existing Data
 **⚠️ CRITICAL**: Do NOT use equity vs position comparison - it breaks for leveraged portfolios!
 
+**Deployment Sequence (MUST RUN IN THIS ORDER)**:
+1. **Task 2.10.0**: Pre-migration dedupe (removes existing duplicates)
+2. **Task 2.10.1**: Deploy migration (adds unique constraint + is_complete flag)
+3. **Task 2.10.2**: Deploy insert-first code (prevents future duplicates)
+4. **Task 2.10.5** (this task): Replay from historical snapshots to fix corrupted equity
+
+**Why This Order Matters**:
+- Dedupe FIRST ensures migration won't fail
+- Migration BEFORE code prevents race window
+- Code deployment BEFORE replay ensures no new duplicates during repair
+- Replay LAST ensures constraint is already enforced
+
 **Correct Approach**: Replay from historical snapshots
 - [ ] Create `scripts/repair/replay_snapshots.py`:
-  1. For affected portfolios (test009, test011):
-  2. Find last known good snapshot (before 2025-11-17)
-  3. Delete all snapshots after that date
-  4. Restore portfolio.equity_balance to last good snapshot value
-  5. Re-run batch processing from that date forward
+  ```python
+  async def replay_snapshots(
+      db: AsyncSession,
+      portfolio_id: UUID,
+      last_good_date: date,
+      dry_run: bool = True
+  ) -> Dict[str, Any]:
+      """
+      Repair corrupted equity by replaying from last known good snapshot.
 
-- [ ] Manual verification steps:
+      IMPORTANT: Run AFTER migration (Task 2.10.1) and code deployment (Task 2.10.2)
+                 to ensure unique constraint is enforced during replay.
+
+      Steps:
+      1. Find last good snapshot (before corruption started)
+      2. Delete all snapshots AFTER that date (inclusive)
+      3. Reset portfolio.equity_balance to last good snapshot value
+      4. Re-run batch processing from next day forward
+         (insert-first code will prevent new duplicates)
+
+      Args:
+          portfolio_id: Portfolio to repair
+          last_good_date: Last snapshot date known to be correct
+          dry_run: If True, only show what would be deleted (don't modify)
+
+      Returns:
+          Summary of operations performed
+      """
+      # 1. Find last good snapshot
+      last_good = await db.execute(
+          select(PortfolioSnapshot)
+          .where(
+              PortfolioSnapshot.portfolio_id == portfolio_id,
+              PortfolioSnapshot.snapshot_date == last_good_date
+          )
+          .limit(1)
+      )
+      last_good_snapshot = last_good.scalar_one_or_none()
+
+      if not last_good_snapshot:
+          raise ValueError(f"No snapshot found for {last_good_date}")
+
+      # 2. Find all snapshots to delete (after last good date)
+      to_delete = await db.execute(
+          select(PortfolioSnapshot)
+          .where(
+              PortfolioSnapshot.portfolio_id == portfolio_id,
+              PortfolioSnapshot.snapshot_date > last_good_date
+          )
+      )
+      snapshots_to_delete = to_delete.scalars().all()
+
+      if dry_run:
+          return {
+              "dry_run": True,
+              "last_good_snapshot_date": last_good_date,
+              "last_good_equity": float(last_good_snapshot.equity_balance),
+              "snapshots_to_delete": len(snapshots_to_delete),
+              "dates_to_delete": [s.snapshot_date.isoformat() for s in snapshots_to_delete]
+          }
+
+      # 3. Delete corrupt snapshots
+      await db.execute(
+          delete(PortfolioSnapshot)
+          .where(
+              PortfolioSnapshot.portfolio_id == portfolio_id,
+              PortfolioSnapshot.snapshot_date > last_good_date
+          )
+      )
+
+      # 4. Reset equity to last good value
+      portfolio = await db.get(Portfolio, portfolio_id)
+      old_equity = portfolio.equity_balance
+      portfolio.equity_balance = last_good_snapshot.equity_balance
+      await db.flush()
+
+      return {
+          "dry_run": False,
+          "last_good_snapshot_date": last_good_date,
+          "restored_equity": float(last_good_snapshot.equity_balance),
+          "previous_equity": float(old_equity),
+          "snapshots_deleted": len(snapshots_to_delete),
+          "next_step": f"Run batch processing from {last_good_date + timedelta(days=1)} forward"
+      }
+  ```
+
+- [ ] Manual verification steps (BEFORE running replay script):
   ```bash
-  # Check test009 portfolio equity history
-  SELECT snapshot_date, equity_balance FROM portfolio_snapshots
+  # 1. Check test009 portfolio equity history to find last good date
+  SELECT snapshot_date, equity_balance, is_complete
+  FROM portfolio_snapshots
+  WHERE portfolio_id = '99b4effe-902c-5c68-b04b-78df9a247f99'
+  ORDER BY snapshot_date DESC LIMIT 20;
+
+  # 2. Look for sudden jump in equity_balance (identifies corruption date)
+  # Example: If equity jumped from $3.2M → $14.2M on 2025-11-17, last good is 2025-11-16
+
+  # 3. Verify last good snapshot has is_complete=True
+  SELECT * FROM portfolio_snapshots
+  WHERE portfolio_id = '99b4effe-902c-5c68-b04b-78df9a247f99'
+    AND snapshot_date = '2025-11-16';
+  ```
+
+- [ ] Run replay script (dry run first):
+  ```bash
+  # Dry run (shows what would be deleted)
+  uv run python scripts/repair/replay_snapshots.py \
+    --portfolio-id 99b4effe-902c-5c68-b04b-78df9a247f99 \
+    --last-good-date 2025-11-16 \
+    --dry-run
+
+  # Review output, then run for real
+  uv run python scripts/repair/replay_snapshots.py \
+    --portfolio-id 99b4effe-902c-5c68-b04b-78df9a247f99 \
+    --last-good-date 2025-11-16
+  ```
+
+- [ ] Re-run batch processing to regenerate missing snapshots:
+  ```bash
+  # With insert-first code deployed, this will safely recreate snapshots
+  # without creating duplicates (unique constraint enforced)
+  POST /api/v1/admin/batch/run?portfolio_id=99b4effe-902c-5c68-b04b-78df9a247f99
+  ```
+
+- [ ] Verify equity values stabilize (no more compounding):
+  ```bash
+  # Check equity after replay
+  SELECT snapshot_date, equity_balance, is_complete
+  FROM portfolio_snapshots
   WHERE portfolio_id = '99b4effe-902c-5c68-b04b-78df9a247f99'
   ORDER BY snapshot_date DESC LIMIT 10;
 
-  # Find last good value (before inflation started)
-  # Delete corrupt snapshots
-  DELETE FROM portfolio_snapshots
-  WHERE portfolio_id = '99b4effe-902c-5c68-b04b-78df9a247f99'
-    AND snapshot_date >= '2025-11-17';
-
-  # Reset equity to last good value
-  UPDATE portfolios
-  SET equity_balance = <last_good_value>
-  WHERE id = '99b4effe-902c-5c68-b04b-78df9a247f99';
+  # Equity should be stable, no sudden jumps
   ```
 
-- [ ] Run batch with idempotency fix deployed to regenerate missing snapshots
-- [ ] Verify equity values stabilize (no more compounding)
+**Coordination with Pre-Migration Dedupe (Task 2.10.0)**:
+- ✅ Replay runs AFTER dedupe, so no old duplicates exist
+- ✅ Replay runs AFTER migration, so unique constraint enforced
+- ✅ Replay runs AFTER code deployment, so new snapshots use insert-first pattern
+- ✅ Dry run option prevents accidents during repair
+- ✅ Script explicitly checks for is_complete flag (verifies migration ran)
 
 ##### 2.10.6: Documentation & Monitoring
 - [ ] Update `backend/CLAUDE.md` Part II "Batch Processing System v3" section with insert-first idempotency pattern
