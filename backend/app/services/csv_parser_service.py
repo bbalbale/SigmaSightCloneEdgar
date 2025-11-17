@@ -219,9 +219,11 @@ class CSVParserService:
                 return CSVValidationResult(
                     is_valid=False,
                     errors=[{
+                        "row": error.details.get("row") if error.details else None,
+                        "symbol": None,
                         "code": error.code,
                         "message": error.message,
-                        "details": error.details
+                        "field": error.details.get("field") if error.details else None
                     }],
                     positions=[],
                     total_rows=0,
@@ -239,9 +241,11 @@ class CSVParserService:
                 return CSVValidationResult(
                     is_valid=False,
                     errors=[{
+                        "row": error.details.get("row") if error.details else None,
+                        "symbol": None,
                         "code": error.code,
                         "message": error.message,
-                        "details": error.details
+                        "field": error.details.get("field") if error.details else None
                     }],
                     positions=[],
                     total_rows=0,
@@ -302,9 +306,11 @@ class CSVParserService:
                             value=f"{position.symbol} on {position.entry_date}"
                         )
                         errors.append({
+                            "row": error.details.get("row") if error.details else None,
+                            "symbol": symbol if symbol else None,
                             "code": error.code,
                             "message": error.message,
-                            "details": error.details
+                            "field": error.details.get("field") if error.details else None
                         })
                     else:
                         seen_positions.add(position_key)
@@ -377,9 +383,11 @@ class CSVParserService:
                 field="Symbol"
             )
             errors.append({
+                "row": error.details.get("row") if error.details else None,
+                "symbol": symbol if symbol else None,
                 "code": error.code,
                 "message": error.message,
-                "details": error.details
+                "field": error.details.get("field") if error.details else None
             })
             return {"errors": errors, "position": None}
 
@@ -392,9 +400,11 @@ class CSVParserService:
                 value=symbol
             )
             errors.append({
+                "row": error.details.get("row") if error.details else None,
+                "symbol": symbol if symbol else None,
                 "code": error.code,
                 "message": error.message,
-                "details": error.details
+                "field": error.details.get("field") if error.details else None
             })
 
         # Symbol character validation (alphanumeric, dash, dot, underscore)
@@ -407,9 +417,11 @@ class CSVParserService:
                 value=symbol
             )
             errors.append({
+                "row": error.details.get("row") if error.details else None,
+                "symbol": symbol if symbol else None,
                 "code": error.code,
                 "message": error.message,
-                "details": error.details
+                "field": error.details.get("field") if error.details else None
             })
 
         # 2. Quantity validation
@@ -424,9 +436,11 @@ class CSVParserService:
                 field="Quantity"
             )
             errors.append({
+                "row": error.details.get("row") if error.details else None,
+                "symbol": symbol if symbol else None,
                 "code": error.code,
                 "message": error.message,
-                "details": error.details
+                "field": error.details.get("field") if error.details else None
             })
         else:
             try:
@@ -468,9 +482,11 @@ class CSVParserService:
                     value=quantity_str
                 )
                 errors.append({
+                    "row": error.details.get("row") if error.details else None,
+                    "symbol": symbol if symbol else None,
                     "code": error.code,
                     "message": error.message,
-                    "details": error.details
+                    "field": error.details.get("field") if error.details else None
                 })
 
         # 3. Entry price validation
@@ -485,9 +501,11 @@ class CSVParserService:
                 field="Entry Price Per Share"
             )
             errors.append({
+                "row": error.details.get("row") if error.details else None,
+                "symbol": symbol if symbol else None,
                 "code": error.code,
                 "message": error.message,
-                "details": error.details
+                "field": error.details.get("field") if error.details else None
             })
         else:
             try:
@@ -529,9 +547,11 @@ class CSVParserService:
                     value=entry_price_str
                 )
                 errors.append({
+                    "row": error.details.get("row") if error.details else None,
+                    "symbol": symbol if symbol else None,
                     "code": error.code,
                     "message": error.message,
-                    "details": error.details
+                    "field": error.details.get("field") if error.details else None
                 })
 
         # 4. Entry date validation
@@ -546,9 +566,11 @@ class CSVParserService:
                 field="Entry Date"
             )
             errors.append({
+                "row": error.details.get("row") if error.details else None,
+                "symbol": symbol if symbol else None,
                 "code": error.code,
                 "message": error.message,
-                "details": error.details
+                "field": error.details.get("field") if error.details else None
             })
         else:
             try:
@@ -591,9 +613,11 @@ class CSVParserService:
                     value=entry_date_str
                 )
                 errors.append({
+                    "row": error.details.get("row") if error.details else None,
+                    "symbol": symbol if symbol else None,
                     "code": error.code,
                     "message": error.message,
-                    "details": error.details
+                    "field": error.details.get("field") if error.details else None
                 })
 
         # 5. Investment class validation
@@ -607,9 +631,11 @@ class CSVParserService:
                 value=investment_class
             )
             errors.append({
+                "row": error.details.get("row") if error.details else None,
+                "symbol": symbol if symbol else None,
                 "code": error.code,
                 "message": error.message,
-                "details": error.details
+                "field": error.details.get("field") if error.details else None
             })
 
         # 6. Investment subtype validation
@@ -625,9 +651,11 @@ class CSVParserService:
                     value=investment_subtype
                 )
                 errors.append({
+                    "row": error.details.get("row") if error.details else None,
+                    "symbol": symbol if symbol else None,
                     "code": error.code,
                     "message": error.message,
-                    "details": error.details
+                    "field": error.details.get("field") if error.details else None
                 })
 
         # 7. Exit date validation (if provided)
@@ -650,9 +678,11 @@ class CSVParserService:
                             value=exit_date_str
                         )
                         errors.append({
+                            "row": error.details.get("row") if error.details else None,
+                            "symbol": symbol if symbol else None,
                             "code": error.code,
                             "message": error.message,
-                            "details": error.details
+                            "field": error.details.get("field") if error.details else None
                         })
             except ValueError:
                 error = create_csv_error(
@@ -663,9 +693,11 @@ class CSVParserService:
                     value=exit_date_str
                 )
                 errors.append({
+                    "row": error.details.get("row") if error.details else None,
+                    "symbol": symbol if symbol else None,
                     "code": error.code,
                     "message": error.message,
-                    "details": error.details
+                    "field": error.details.get("field") if error.details else None
                 })
 
         # 8. Exit price validation (if provided)
@@ -696,9 +728,11 @@ class CSVParserService:
                     field="Underlying Symbol"
                 )
                 errors.append({
+                    "row": error.details.get("row") if error.details else None,
+                    "symbol": symbol if symbol else None,
                     "code": error.code,
                     "message": error.message,
-                    "details": error.details
+                    "field": error.details.get("field") if error.details else None
                 })
 
             if not strike_price_str:
@@ -709,9 +743,11 @@ class CSVParserService:
                     field="Strike Price"
                 )
                 errors.append({
+                    "row": error.details.get("row") if error.details else None,
+                    "symbol": symbol if symbol else None,
                     "code": error.code,
                     "message": error.message,
-                    "details": error.details
+                    "field": error.details.get("field") if error.details else None
                 })
             else:
                 try:
@@ -738,9 +774,11 @@ class CSVParserService:
                     field="Expiration Date"
                 )
                 errors.append({
+                    "row": error.details.get("row") if error.details else None,
+                    "symbol": symbol if symbol else None,
                     "code": error.code,
                     "message": error.message,
-                    "details": error.details
+                    "field": error.details.get("field") if error.details else None
                 })
             else:
                 try:
@@ -768,9 +806,11 @@ class CSVParserService:
                     field="Option Type"
                 )
                 errors.append({
+                    "row": error.details.get("row") if error.details else None,
+                    "symbol": symbol if symbol else None,
                     "code": error.code,
                     "message": error.message,
-                    "details": error.details
+                    "field": error.details.get("field") if error.details else None
                 })
 
         # If no critical errors, create PositionData

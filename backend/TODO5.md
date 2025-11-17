@@ -2944,15 +2944,23 @@ The Conservative-Retiree-Portfolio.csv has 6 validation errors (rows 2-7 use inv
 - **Fix**: Restored previous behavior - sends user back to upload form
 - **Result**: Users can change portfolio metadata, account type, equity balance, or CSV file after processing failures
 
+**4. CSV Validation Error Row Numbers** (`backend/app/services/csv_parser_service.py`)
+- **Problem**: Row numbers not displaying in CSV validation errors (showed "Row" without number)
+- **Fix**: Standardized all 21+ error structures to use flat format with row/symbol at top level
+- **Result**: Errors now display as "Row 2: VFINX - Invalid investment subtype" instead of just "Row - Invalid investment subtype"
+
 ### Files Modified
 - `frontend/src/services/onboardingService.ts` (download fix)
 - `frontend/src/hooks/usePortfolioUpload.ts` (error detection fallback)
 - `frontend/app/onboarding/upload/page.tsx` (retry UX)
+- `backend/app/services/csv_parser_service.py` (error row numbers)
+- `frontend/src/hooks/usePortfolioUpload.ts` (redirect fix: /portfolio → /command-center)
 
 ### Impact
 ✅ **Better Download UX**: Template saves directly to Downloads folder
 ✅ **Backward Compatible**: Handles all FastAPI error response formats
 ✅ **Flexible Recovery**: Users can adjust inputs after failures instead of auto-retry loop
+✅ **Clear Error Messages**: CSV validation errors now show specific row numbers and symbols
 
 ---
 

@@ -230,33 +230,16 @@ export function usePortfolioUpload(): UsePortfolioUploadReturn {
         : null
 
       if (rawErrors) {
-        // Flatten nested errors: each row may have multiple errors
-        const flattenedErrors: ValidationError[] = []
-        rawErrors.forEach((rowError: any) => {
-          if (rowError.errors && Array.isArray(rowError.errors)) {
-            // Backend format: { row, symbol, errors: [{code, message, field}] }
-            rowError.errors.forEach((err: any) => {
-              flattenedErrors.push({
-                row: rowError.row,
-                symbol: rowError.symbol,
-                error_code: err.code || err.error_code || 'UNKNOWN',
-                message: err.message,
-                field: err.field,
-              })
-            })
-          } else {
-            // Already flat format: { row, symbol, code, message, field }
-            flattenedErrors.push({
-              row: rowError.row,
-              symbol: rowError.symbol,
-              error_code: rowError.code || rowError.error_code || 'UNKNOWN',
-              message: rowError.message,
-              field: rowError.field,
-            })
-          }
-        })
+        // Backend now returns errors in flat format: { row, symbol, code, message, field }
+        const validationErrors: ValidationError[] = rawErrors.map((error: any) => ({
+          row: error.row,
+          symbol: error.symbol,
+          error_code: error.code || error.error_code || 'UNKNOWN',
+          message: error.message,
+          field: error.field,
+        }))
 
-        setValidationErrors(flattenedErrors)
+        setValidationErrors(validationErrors)
         setError('CSV validation failed. Please fix the errors below.')
         setUploadState('validation_error')  // Set validation_error state for CSV issues
       } else {
@@ -268,7 +251,7 @@ export function usePortfolioUpload(): UsePortfolioUploadReturn {
   }
 
   const handleContinueToDashboard = () => {
-    router.push('/portfolio')
+    router.push('/command-center')
   }
 
   const handleRetry = () => {
