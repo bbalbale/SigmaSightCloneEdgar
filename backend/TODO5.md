@@ -3519,7 +3519,8 @@ batch_orchestrator.run_daily_batch_with_backfill()
 - ❌ No idempotency check at orchestrator level before calling PNL calculator
 - ❌ PNL calculator flushes equity BEFORE creating snapshot (line 244 vs 260)
 - ❌ If snapshot creation fails, equity is inflated but no guard against re-running
-- ❌ Admin API has force check but defaults to allowing concurrent runs
+- ✅ Admin API already has batch_run_tracker to prevent concurrent runs (good!)
+- ❌ Railway cron and CLI scripts have NO concurrency protection (main risk)
 
 **Race Condition Vulnerability** (identified 2025-11-17):
 Even if we add snapshot check, this pattern is NOT concurrency-safe:
@@ -3532,39 +3533,94 @@ else:
     calculate()  # Two concurrent runs both see "no snapshot yet"
 ```
 
-#### Solution: Concurrency-Safe Idempotency Primitive
-
-**The Fix**: Add database-level idempotency enforcement using PostgreSQL locking OR unique constraint.
-
-**Option A: SELECT FOR UPDATE SKIP LOCKED** (Recommended for short-term fix)
+**Why SELECT FOR UPDATE SKIP LOCKED Doesn't Work** (code review 2025-11-17):
 ```python
-# In batch_orchestrator.py, before calling PNL calculator
-async with db.begin():
-    # Acquire row-level lock
-    result = await db.execute(
-        select(PortfolioSnapshot)
-        .where(
-            and_(
-                PortfolioSnapshot.portfolio_id == portfolio_id,
-                PortfolioSnapshot.calculation_date == calculation_date
-            )
-        )
-        .with_for_update(skip_locked=True)  # Skip if another process locked it
+# ❌ ALSO UNSAFE - Only locks existing rows!
+result = await db.execute(
+    select(PortfolioSnapshot)
+    .where(and_(
+        PortfolioSnapshot.portfolio_id == portfolio_id,
+        PortfolioSnapshot.snapshot_date == calculation_date  # Correct column name
+    ))
+    .with_for_update(skip_locked=True)
+)
+if result.scalar_one_or_none():  # On first run of day, this is None
+    skip
+else:
+    calculate()  # All concurrent sessions see None and proceed!
+```
+**Problem**: Row-level locks only work on existing rows. On the first run of a day (no snapshot exists yet), every concurrent session sees an empty result set and all proceed to calculate. This doesn't prevent the race condition at all.
+
+#### Solution: Insert-First Pattern with Unique Constraint
+
+**The Fix**: Create the snapshot row FIRST (with placeholder values), then calculate P&L. The database unique constraint prevents duplicates atomically.
+
+**Option A: Insert Placeholder Snapshot First** (Recommended - both short and long term)
+```python
+# In pnl_calculator.py::calculate_portfolio_pnl(), at the VERY START
+try:
+    # Step 1: Create placeholder snapshot FIRST (before any P&L calculation)
+    # This claims ownership of this (portfolio_id, snapshot_date) combination
+    placeholder_snapshot = PortfolioSnapshot(
+        id=uuid4(),
+        portfolio_id=portfolio_id,
+        snapshot_date=calculation_date,  # Note: snapshot_date, not calculation_date!
+        net_asset_value=Decimal("0"),  # Placeholder - will update later
+        cash_value=Decimal("0"),
+        long_value=Decimal("0"),
+        short_value=Decimal("0"),
+        gross_exposure=Decimal("0"),
+        net_exposure=Decimal("0"),
+        # ... all other required fields with placeholder zeros
+        is_complete=False  # NEW FIELD: Flag to mark as incomplete (see migration)
     )
+    db.add(placeholder_snapshot)
+    await db.flush()  # ✅ Flush NOW to claim this (portfolio, date) atomically
 
-    if result.scalar_one_or_none():
-        logger.info(f"Portfolio {portfolio_id} already processed for {calculation_date}, skipping")
-        return {"status": "skipped", "reason": "already_processed"}
+except IntegrityError as e:
+    # Another process already created snapshot for this portfolio+date
+    if "uq_portfolio_snapshot_date" in str(e):
+        logger.info(
+            f"Portfolio {portfolio_id} already being processed for {calculation_date}, "
+            f"skipping (duplicate run prevented)"
+        )
+        await db.rollback()
+        return {"status": "skipped", "reason": "duplicate_run"}
+    raise
 
-    # Proceed with PNL calculation
-    await pnl_calculator.calculate_portfolio_pnl(...)
+# Step 2: Now proceed with P&L calculation (safe - we own this portfolio+date)
+previous_snapshot = await get_previous_snapshot(portfolio_id, calculation_date, db)
+daily_pnl = await calculate_daily_pnl(...)
+new_equity = previous_equity + daily_pnl + daily_capital_flow
+
+# Step 3: Update portfolio equity
+portfolio.equity_balance = new_equity
+await db.flush()
+
+# Step 4: Update the placeholder snapshot with real calculated values
+placeholder_snapshot.net_asset_value = new_equity
+placeholder_snapshot.cash_value = calculated_cash
+placeholder_snapshot.long_value = calculated_long
+# ... set all other fields with real values
+placeholder_snapshot.is_complete = True  # Mark as complete
+await db.flush()
+
+# Step 5: Commit transaction (happens in caller)
 ```
 
-**Option B: UNIQUE CONSTRAINT** (Recommended for long-term fix)
+**Why This Works**:
+- ✅ **Atomic**: Database unique constraint enforces one snapshot per (portfolio, date)
+- ✅ **Concurrency-safe**: Second process hits IntegrityError immediately, before touching equity
+- ✅ **No nested transactions**: Reuses caller's session and transaction
+- ✅ **Self-healing**: If process crashes after Step 1, incomplete snapshot blocks retries until manually cleaned
+- ✅ **Works on first run**: Insert happens before any calculation, so lock is claimed early
+
+**Option B: Add Unique Constraint + is_complete Flag** (Required for Option A)
 ```python
-# Alembic migration: Add unique constraint to portfolio_snapshots table
+# Alembic migration: Add unique constraint + is_complete flag to portfolio_snapshots table
 # ALTER TABLE portfolio_snapshots
-# ADD CONSTRAINT uq_portfolio_snapshot_date UNIQUE (portfolio_id, calculation_date);
+# ADD COLUMN is_complete BOOLEAN NOT NULL DEFAULT TRUE;  -- Existing rows are complete
+# ADD CONSTRAINT uq_portfolio_snapshot_date UNIQUE (portfolio_id, snapshot_date);  -- Correct column!
 
 # Then in PNL calculator, catch IntegrityError:
 try:
@@ -3578,84 +3634,93 @@ except IntegrityError as e:
     raise
 ```
 
-**Why Option B is Better**:
+**Why Insert-First Pattern is Best**:
 - ✅ Database enforces uniqueness (no race condition possible)
+- ✅ Works on first run (inserts before calculating, so lock is claimed early)
+- ✅ No nested transactions needed (reuses caller's session)
 - ✅ Self-documenting schema (constraint visible in DB)
 - ✅ Works across all entry points automatically
-- ✅ No need to remember to check before calling
-- ⚠️ Requires migration (can be done with zero downtime)
+- ✅ Self-healing (incomplete snapshots block retries until cleaned)
 
-**Recommended Approach**: Implement Option A first (quick fix), then Option B (proper fix).
+**Recommended Approach**: Implement both Option A (insert-first) and Option B (unique constraint) together. They are complementary, not sequential.
 
 #### Implementation Tasks
 
-##### 2.10.1: Quick Fix - SELECT FOR UPDATE SKIP LOCKED (Option A)
-**Target**: Deploy within 24 hours to stop equity inflation in production
+##### 2.10.1: Add Unique Constraint + is_complete Flag (Option B - Database)
+**Target**: Deploy within 24 hours (required for Option A to work)
 
-- [ ] Create `app/batch/idempotency.py` with concurrency-safe check function:
-  ```python
-  async def check_already_processed(
-      db: AsyncSession,
-      portfolio_id: UUID,
-      calculation_date: date
-  ) -> bool:
-      """Check if portfolio already processed for date (concurrency-safe)"""
-      async with db.begin():
-          result = await db.execute(
-              select(PortfolioSnapshot)
-              .where(and_(
-                  PortfolioSnapshot.portfolio_id == portfolio_id,
-                  PortfolioSnapshot.calculation_date == calculation_date
-              ))
-              .with_for_update(skip_locked=True)
-          )
-          return result.scalar_one_or_none() is not None
-  ```
-
-- [ ] Modify `app/batch/pnl_calculator.py::calculate_all_portfolios_pnl()` to call check before processing each portfolio
-- [ ] Add `record_metric("batch_portfolio_skipped")` telemetry event when skipping
-- [ ] Update return value to include `{portfolios_processed, portfolios_skipped}`
-- [ ] Add unit test: `tests/batch/test_idempotency_check.py`
-  - Test: No existing snapshot → returns False (proceed)
-  - Test: Existing snapshot → returns True (skip)
-  - Test: Concurrent calls → one processes, one skips (use threading)
-
-##### 2.10.2: Long-Term Fix - UNIQUE CONSTRAINT (Option B)
-**Target**: Deploy within 1 week after Option A is stable
-
-- [ ] Create Alembic migration: `alembic/versions/xxxx_add_portfolio_snapshot_unique_constraint.py`
+- [ ] Create Alembic migration: `alembic/versions/xxxx_add_snapshot_idempotency_fields.py`
   ```python
   def upgrade():
+      # Add is_complete flag (defaults TRUE for existing rows)
+      op.add_column('portfolio_snapshots',
+          sa.Column('is_complete', sa.Boolean(), nullable=False, server_default='true')
+      )
+
+      # Add unique constraint on (portfolio_id, snapshot_date)
+      # Note: snapshot_date is the correct column name, not calculation_date!
       op.create_unique_constraint(
           'uq_portfolio_snapshot_date',
           'portfolio_snapshots',
-          ['portfolio_id', 'calculation_date']
+          ['portfolio_id', 'snapshot_date']
       )
 
   def downgrade():
       op.drop_constraint('uq_portfolio_snapshot_date', 'portfolio_snapshots')
+      op.drop_column('portfolio_snapshots', 'is_complete')
   ```
 
-- [ ] Verify migration runs cleanly on local database
-- [ ] Update `app/calculations/snapshots.py::create_portfolio_snapshot()` to handle IntegrityError:
+- [ ] Verify migration runs cleanly on local database:
+  ```bash
+  uv run alembic upgrade head
+  # Check constraint exists:
+  # SELECT conname FROM pg_constraint WHERE conname = 'uq_portfolio_snapshot_date';
+  ```
+
+- [ ] Update `app/models/snapshots.py::PortfolioSnapshot` model:
   ```python
-  try:
-      db.add(snapshot)
-      await db.flush()
-  except IntegrityError as e:
-      if "uq_portfolio_snapshot_date" in str(e):
-          logger.warning(f"Duplicate snapshot for {portfolio_id} on {date}")
-          await db.rollback()
-          raise DuplicateSnapshotError(...)  # Custom exception
-      raise
+  is_complete: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
   ```
 
-- [ ] Update PNL calculator to catch DuplicateSnapshotError and skip portfolio
-- [ ] Add integration test: `tests/integration/test_unique_constraint_enforcement.py`
-  - Test: Create snapshot twice → second raises IntegrityError
-  - Test: PNL calculator catches error and skips gracefully
+##### 2.10.2: Implement Insert-First Pattern (Option A - Code)
+**Target**: Deploy immediately after migration (same release)
 
-##### 2.10.3: Fix Existing Data
+- [ ] Modify `app/batch/pnl_calculator.py::calculate_portfolio_pnl()` to insert placeholder FIRST:
+  - Move snapshot creation to BEGINNING of function (before any P&L calculation)
+  - Set `is_complete=False` on initial insert
+  - Catch `IntegrityError` and skip if duplicate
+  - Calculate P&L only after successfully claiming ownership
+  - Update placeholder with real values and set `is_complete=True` at end
+  - **Important**: Use `snapshot_date` not `calculation_date` in WHERE clauses!
+  - **Important**: Do NOT use nested transactions - reuse caller's `db` session
+
+- [ ] Add `record_metric("batch_portfolio_skipped", {"reason": "duplicate_run"})` telemetry when catching IntegrityError
+
+- [ ] Update return value to include `{status: "skipped"|"completed", reason: str}`
+
+- [ ] Remove old snapshot creation call from end of function (now happens at beginning)
+
+##### 2.10.3: Add Unit Tests
+**Target**: Complete before deploying to production
+
+- [ ] Create `tests/batch/test_idempotency_insert_first.py`:
+  - Test: First call creates placeholder snapshot with `is_complete=False`
+  - Test: Second concurrent call hits IntegrityError and skips
+  - Test: After completion, snapshot has `is_complete=True` and real values
+  - Test: Concurrent calls (threading) - only one succeeds, rest skip
+  - Test: Verify equity is NOT updated when duplicate run is skipped
+
+##### 2.10.4: Add Integration Tests
+**Target**: Complete before deploying to production
+
+- [ ] Create `tests/integration/test_batch_idempotency_e2e.py`:
+  - Test: Single batch run → snapshot created, equity correct, `is_complete=True`
+  - Test: Run batch twice for same date → second run skips, equity unchanged
+  - Test: Run batch 4 times → all subsequent runs skip, equity unchanged
+  - Test: Delete incomplete snapshot (is_complete=False) → batch recalculates
+  - Test: Unique constraint enforced → duplicate (portfolio_id, snapshot_date) blocked
+
+##### 2.10.5: Fix Existing Data
 **⚠️ CRITICAL**: Do NOT use equity vs position comparison - it breaks for leveraged portfolios!
 
 **Correct Approach**: Replay from historical snapshots
@@ -3688,64 +3753,49 @@ except IntegrityError as e:
 - [ ] Run batch with idempotency fix deployed to regenerate missing snapshots
 - [ ] Verify equity values stabilize (no more compounding)
 
-##### 2.10.4: Add Comprehensive Tests
-**Test Pyramid**:
-
-1. **Unit Tests** (`tests/batch/test_idempotency_primitive.py`):
-   - [ ] Test: `check_already_processed()` with no snapshot → False
-   - [ ] Test: `check_already_processed()` with existing snapshot → True
-   - [ ] Test: `check_already_processed()` with concurrent calls (threading)
-
-2. **Integration Tests** (`tests/integration/test_batch_idempotency.py`):
-   - [ ] Test: Single batch run → equity correct, snapshot created
-   - [ ] Test: Run batch twice for same date → second run skips all portfolios, equity unchanged
-   - [ ] Test: Run batch 4 times → all subsequent runs skip, equity unchanged
-   - [ ] Test: Delete snapshot → batch recalculates and creates new snapshot
-   - [ ] Test: Unique constraint enforced (Option B deployed) → duplicate snapshot blocked
-
-3. **End-to-End Tests** (manual QA with test accounts):
-   - [ ] Upload portfolio → trigger batch → verify equity correct
-   - [ ] Trigger batch again → verify skipped message in logs, equity unchanged
-   - [ ] Check frontend displays stable equity value
-
-##### 2.10.5: Update Force Flag Behavior (DEFERRED)
-**Note**: Current admin API already has force check. Force flag implementation deferred until needed.
-
 ##### 2.10.6: Documentation & Monitoring
-- [ ] Update `backend/CLAUDE.md` Part II "Batch Processing System v3" section with idempotency pattern
-- [ ] Add docstring to `check_already_processed()` explaining concurrency safety
-- [ ] Document in `batch_orchestrator.py` that duplicate runs are safe (idempotent)
-- [ ] Add telemetry: `record_metric("batch_portfolio_skipped")` when portfolio skipped
-- [ ] Add comment in `pnl_calculator.py` explaining why we check before processing
+- [ ] Update `backend/CLAUDE.md` Part II "Batch Processing System v3" section with insert-first idempotency pattern
+- [ ] Add docstring to `calculate_portfolio_pnl()` explaining insert-first pattern and concurrency safety
+- [ ] Document in `pnl_calculator.py` why we insert placeholder snapshot FIRST (before calculations)
+- [ ] Add comment about `is_complete` flag and what happens if process crashes mid-calculation
+- [ ] Add comment that `snapshot_date` is the correct column name (not `calculation_date`)
+- [ ] Document cleanup procedure for incomplete snapshots (WHERE is_complete = FALSE)
 
 #### Success Criteria
 
 **Code Quality**:
-- [ ] Idempotency check is concurrency-safe (SELECT FOR UPDATE or unique constraint)
-- [ ] All entry points (Railway, admin API, CLI) protected
-- [ ] Telemetry events emit portfolio skip metrics
-- [ ] Error handling graceful (no crashes if snapshot exists)
+- [ ] Insert-first pattern implemented correctly (placeholder → calculate → update)
+- [ ] Unique constraint on (portfolio_id, snapshot_date) enforced in database
+- [ ] is_complete flag added to track snapshot state
+- [ ] All entry points (Railway, admin API, CLI) protected automatically
+- [ ] Telemetry events emit portfolio skip metrics on IntegrityError
+- [ ] Error handling graceful (rollback on duplicate, no equity touch)
+- [ ] Code uses correct column name (`snapshot_date` not `calculation_date`)
+- [ ] No nested transactions (reuses caller's session)
 - [ ] Code is well-documented with clear comments
 
 **Testing**:
-- [ ] All unit tests passing (idempotency primitive)
-- [ ] All integration tests passing (end-to-end batch runs)
+- [ ] All unit tests passing (insert-first pattern, IntegrityError handling)
+- [ ] All integration tests passing (end-to-end batch runs with duplicates)
+- [ ] Concurrent execution tests pass (threading verifies only one succeeds)
 - [ ] Manual QA confirms equity stabilizes after fix
 - [ ] No equity compounding in logs after multiple batch runs
 - [ ] Frontend displays stable equity values
 
 **Data Repair**:
 - [ ] Corrupted snapshots identified and deleted
-- [ ] Equity values restored to last known good state
+- [ ] Equity values restored to last known good state via historical snapshots
 - [ ] Batch re-run produces correct snapshots
 - [ ] test009 and test011 accounts verified correct
+- [ ] Hedge Fund Style demo portfolio NOT flagged (leveraged portfolios work correctly)
 
 **Production Readiness**:
-- [ ] Option A (SELECT FOR UPDATE) deployed first
-- [ ] Option B (unique constraint) deployed after Option A stable
-- [ ] Monitoring shows `batch_portfolio_skipped` events
+- [ ] Migration deployed (unique constraint + is_complete flag)
+- [ ] Insert-first code deployed (same release as migration)
+- [ ] Monitoring shows `batch_portfolio_skipped` events on duplicate runs
 - [ ] No alerts for equity inflation
 - [ ] Railway production stable for 48 hours
+- [ ] Incomplete snapshot cleanup procedure documented
 
 #### Rollback Plan
 
