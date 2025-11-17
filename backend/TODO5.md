@@ -3420,19 +3420,21 @@ For each major feature:
 
 #### Problem Description
 
-**Bug**: Running batch processing multiple times on the same trading day causes portfolio equity balance to compound incorrectly.
+**Bug**: The batch orchestrator accepts multiple calls for the same date without checking if processing already occurred, causing portfolio equity to compound incorrectly.
 
-**Root Cause**: The P&L calculator uses an **incremental equity rollforward** approach:
+**Root Cause**: The batch orchestrator lacks idempotency. It allows the P&L calculator to run multiple times for the same date, and the calculator uses an **incremental equity rollforward** approach:
+
 ```python
 new_equity = previous_equity + daily_pnl + daily_capital_flow
 ```
 
-When the batch runs multiple times on the same day:
-1. **First run**: Uses correct previous_equity, calculates daily_pnl, updates portfolio.equity_balance ✅
-2. **Second run**: Uses the ALREADY UPDATED equity_balance as "previous_equity", adds the SAME daily_pnl again ❌
-3. **Third run**: Compounds the error further ❌
+**What happens on multiple runs**:
+1. **First run** (11:57): Calculates daily P&L = $2.75M, equity = $5.95M ✅
+2. **Second run** (12:00): Uses $5.95M as "previous", adds same $2.75M again → $8.71M ❌
+3. **Third run** (12:29): Uses $8.71M as "previous", adds same $2.75M again → $11.46M ❌
+4. **Fourth run** (12:31): Uses $11.46M as "previous", adds same $2.75M again → $14.22M ❌
 
-**Evidence** (test009 portfolio, 2025-11-17):
+**Evidence** (test009 portfolio, 2025-11-17 - four batch runs in 40 minutes):
 - 11:57:32 → Equity: $5,955,878.53 (correct)
 - 12:00:57 → Added $2,755,878.53 → $8,711,757.06 (same P&L added again)
 - 12:29:27 → Added $2,755,878.53 → $11,467,635.59 (same P&L added third time)
@@ -3448,182 +3450,208 @@ When the batch runs multiple times on the same day:
 - ❌ Users cannot trust any numbers in the system
 - 🚨 **PRODUCTION BLOCKER** - System cannot be used until fixed
 
-#### Current Code Analysis
+#### Root Cause Analysis
 
-**File**: `app/batch/pnl_calculator.py`
+**The Real Problem**: Batch orchestrator doesn't enforce its design constraint.
 
-The `calculate_portfolio_pnl()` method (lines 138-290):
-1. ✅ Checks if trading day (line 165)
-2. ❌ **MISSING**: Check if already calculated for this date
-3. Gets most recent snapshot BEFORE calculation_date (lines 188-196)
-4. Uses portfolio.equity_balance as previous_equity (line 185)
-5. Calculates daily P&L
-6. Updates: `portfolio.equity_balance = new_equity` (line 244)
-7. Creates/updates snapshot via `create_portfolio_snapshot()` (line 260)
+The batch orchestrator is designed to run **once per day** per portfolio, but it doesn't verify this before processing. Every call to `run_batch_sequence()` processes all portfolios unconditionally.
 
-**File**: `app/calculations/snapshots.py`
+**File**: `app/batch/batch_orchestrator.py`
 
-The `_create_or_update_snapshot()` method (lines 334-606):
-1. ✅ Checks for existing snapshot (lines 545-552)
-2. ✅ Updates existing snapshot if found (lines 594-598)
-3. ❌ **MISSING**: Return early or signal that equity was already calculated
+The orchestrator processes each portfolio without checking:
+```python
+async def run_batch_sequence(calculation_date, portfolio_ids=None):
+    portfolios = await get_portfolios(portfolio_ids)
 
-**The Problem**: While snapshots handle updates correctly, the P&L calculator doesn't check if it already ran today before recalculating equity.
+    for portfolio in portfolios:
+        # ❌ MISSING: Check if already processed for this date
+        await run_phases(portfolio, calculation_date)  # Always runs
+```
 
-#### Proposed Solutions
+This allows:
+- Manual triggers to double-process
+- API endpoints to accidentally call batch twice
+- Recovery attempts to compound the error further
 
-**OPTION A: Check for Existing Snapshot (RECOMMENDED)**
+**Why snapshots don't help**: The snapshot check happens AFTER equity is updated and flushed to the database. If the snapshot creation fails, we have inflated equity but no snapshot to block the next run.
 
-Add a check at the START of `calculate_portfolio_pnl()` to see if snapshot already exists for calculation_date. If it does, skip equity calculation.
+#### Solution: Add Idempotency at Orchestrator Level
 
-**Pros**:
-- Simple, minimal code change
-- Maintains current incremental equity rollforward logic
-- Clear intent: "Already calculated, skip"
-- Fast early exit
+**The Fix**: Make the batch orchestrator enforce its "once per day per portfolio" design constraint.
 
-**Cons**:
-- Doesn't fix underlying reliance on portfolio.equity_balance
-- Can't re-run batch to fix data issues without manual intervention
+**Where to fix**: `app/batch/batch_orchestrator.py` in the main processing loop
 
 **Implementation**:
 ```python
-async def calculate_portfolio_pnl(self, portfolio_id, calculation_date, db, price_cache):
-    # Check if trading day
-    if not trading_calendar.is_trading_day(calculation_date):
-        return False
+async def run_batch_sequence(
+    self,
+    calculation_date: date,
+    portfolio_ids: Optional[List[UUID]] = None,
+    force: bool = False  # NEW: Allow admin override
+) -> Dict[str, Any]:
+    """Run batch processing with idempotency check"""
 
-    # NEW: Check if already calculated today (idempotency check)
-    existing_snapshot_query = select(PortfolioSnapshot).where(
-        and_(
-            PortfolioSnapshot.portfolio_id == portfolio_id,
-            PortfolioSnapshot.snapshot_date == calculation_date
-        )
-    )
-    existing_result = await db.execute(existing_snapshot_query)
-    if existing_result.scalar_one_or_none():
-        logger.info(f"  Portfolio {portfolio_id} already has snapshot for {calculation_date}, skipping")
-        return True  # Already calculated, success
+    portfolios = await self._get_portfolios(portfolio_ids)
 
-    # Continue with existing logic...
+    processed = 0
+    skipped = 0
+
+    async with AsyncSessionLocal() as db:
+        for portfolio in portfolios:
+            # NEW: Check if already processed for this date
+            if not force:
+                existing_snapshot = await db.execute(
+                    select(PortfolioSnapshot).where(
+                        and_(
+                            PortfolioSnapshot.portfolio_id == portfolio.id,
+                            PortfolioSnapshot.snapshot_date == calculation_date
+                        )
+                    )
+                )
+
+                if existing_snapshot.scalar_one_or_none():
+                    logger.info(
+                        f"Portfolio {portfolio.id} already processed for {calculation_date} "
+                        f"(snapshot exists), skipping"
+                    )
+                    skipped += 1
+                    continue  # Skip to next portfolio
+
+            # Run all phases (Phase 1, 2, 2.5, 3)
+            await self._run_phases(portfolio, calculation_date, db)
+            processed += 1
+
+    return {
+        "processed": processed,
+        "skipped": skipped,
+        "total": len(portfolios)
+    }
 ```
 
-**OPTION B: Recalculate from Scratch**
+**Why this works**:
+- ✅ **Idempotent**: Calling batch multiple times is safe (no-op after first run)
+- ✅ **Simple**: 10-line change at orchestrator level, no calculator changes needed
+- ✅ **Recoverable**: Add `force=True` flag to allow admin to re-run after fixing data
+- ✅ **Auditable**: Logs which portfolios were processed vs. skipped
+- ✅ **Fast**: Early exit before any calculations run
 
-Change from incremental to **absolute** equity calculation:
-```python
-new_equity = cash_balance + sum(position.market_value for all positions)
-```
-
-**Pros**:
-- No dependency on previous equity or snapshot existence
-- Can re-run batch anytime to fix data
-- More robust and self-correcting
-- Idempotent by nature
-
-**Cons**:
-- Requires accurate cash_balance tracking
-- Need to add cash_balance field to Portfolio model
-- Bigger architectural change
-- Requires migration and data backfill
-
-**OPTION C: Hybrid Approach**
-
-1. Use Option A for immediate fix
-2. Plan Option B as Phase 4+ enhancement for production hardening
-
-**Pros**:
-- Quick fix for production blocker
-- Long-term improvement planned
-- Incremental migration path
-
-**Cons**:
-- Two changes instead of one
-- Technical debt if Phase 4 never happens
-
-#### Recommended Approach: Option A + Logging
-
-**Immediate Fix (This Phase)**:
-1. Add idempotency check at start of `calculate_portfolio_pnl()`
-2. Skip calculation if snapshot exists for calculation_date
-3. Log when skipping vs. calculating
-4. Add integration test to verify batch can run multiple times safely
-
-**Future Enhancement (Phase 4+)**:
-1. Add cash_balance field to Portfolio model
-2. Change to absolute equity calculation
-3. Remove dependency on previous_equity
-4. Enables re-running batch to fix data issues
+**Recovery process**:
+1. Delete corrupt snapshots for affected portfolios
+2. Run batch with `force=False` (normal mode)
+3. Batch recalculates only portfolios without snapshots
+4. Or use `force=True` to recalculate everything (admin only)
 
 #### Implementation Tasks
 
-##### 2.10.1: Add Idempotency Check
-- [ ] Add snapshot existence check in `calculate_portfolio_pnl()`
-- [ ] Return early if snapshot exists for calculation_date
-- [ ] Add structured logging for skip vs. calculate decision
-- [ ] Handle edge case: snapshot exists but equity_balance is wrong (manual override flag?)
+##### 2.10.1: Add Idempotency Check to Batch Orchestrator
+- [ ] Modify `batch_orchestrator.py::run_batch_sequence()` to check for existing snapshots
+- [ ] Add `force: bool = False` parameter for admin override
+- [ ] Return counts: `{processed, skipped, total}` for observability
+- [ ] Add structured logging: "Portfolio X already processed, skipping" vs. "Processing portfolio X"
+- [ ] Update method signature (maintain backward compatibility)
 
-##### 2.10.2: Add Integration Tests
-- [ ] Test: Single batch run produces correct equity
-- [ ] Test: Running batch twice on same day doesn't change equity
-- [ ] Test: Running batch 4 times on same day doesn't change equity
-- [ ] Test: Equity matches actual position market values (within tolerance)
-- [ ] Test: Snapshots are updated (not duplicated) on re-run
+##### 2.10.2: Update Admin Batch Endpoint
+- [ ] Add `force_recalculate: bool = False` query parameter to `/api/v1/admin/batch/run`
+- [ ] Pass force flag through to orchestrator
+- [ ] Update response schema to include `portfolios_skipped` count
+- [ ] Add warning in docs: "force=true will recalculate all portfolios regardless of existing data"
 
 ##### 2.10.3: Fix Existing Data
-- [ ] Write script to identify affected portfolios (equity > reasonable threshold)
-- [ ] Write script to recalculate correct equity from snapshots
-- [ ] Option to delete duplicate calculations and re-run batch
-- [ ] Verify all test portfolios have correct equity after fix
+- [ ] Write script to identify affected portfolios (compare equity vs. position market values)
+- [ ] Delete corrupt snapshots for affected portfolios and dates
+- [ ] Recalculate from raw position market values (not snapshots)
+- [ ] Run batch with `force=False` to regenerate missing snapshots
+- [ ] Verify all test portfolios (test009, test011) have correct equity after fix
 
-##### 2.10.4: Add Safeguards
-- [ ] Add validation: equity should not jump >50% in single day (flag anomalies)
-- [ ] Add batch run tracking table (track when batch ran, for which date, which portfolios)
-- [ ] Add admin endpoint to view batch run history
-- [ ] Add admin endpoint to force re-calculation (with confirmation)
+##### 2.10.4: Add Integration Tests
+- [ ] Test: Single batch run produces correct equity
+- [ ] Test: Running batch twice on same day with `force=False` → second run skips, equity unchanged
+- [ ] Test: Running batch 4 times on same day → all subsequent runs skip, equity unchanged
+- [ ] Test: Delete snapshot → batch with `force=False` → recalculates
+- [ ] Test: Batch with `force=True` → always processes, overrides existing data
+- [ ] Test: Verify response counts: `{processed: 1, skipped: 2, total: 3}` are accurate
 
 ##### 2.10.5: Documentation & Monitoring
-- [ ] Update CLAUDE.md with idempotency pattern
-- [ ] Document batch processing guarantees
-- [ ] Add monitoring for equity anomalies
-- [ ] Add alerts for batch running multiple times in same day
+- [ ] Update CLAUDE.md with orchestrator idempotency pattern
+- [ ] Document batch processing guarantee: "Safe to call multiple times per day"
+- [ ] Document `force` flag usage and when to use it
+- [ ] Add monitoring metric: `batch_portfolios_skipped` counter
+- [ ] Add alert: "batch called >3 times in 1 hour" (potential issue)
 
 #### Testing Strategy
 
-**Unit Tests**:
-- Test idempotency check logic
-- Test early return when snapshot exists
-- Test equity calculation still works for first run
+**Unit Tests** (`tests/test_batch_orchestrator.py`):
+- Test: Orchestrator with no snapshots → processes all portfolios
+- Test: Orchestrator with existing snapshots, `force=False` → skips all portfolios
+- Test: Orchestrator with existing snapshots, `force=True` → processes all portfolios
+- Test: Return values: `{processed, skipped, total}` are accurate
+- Test: Logging outputs correct skip/process messages
 
-**Integration Tests**:
-- Create test portfolio
-- Run batch once → verify correct equity
-- Run batch again same day → verify equity unchanged
-- Run batch 10 times same day → verify equity unchanged
-- Delete snapshot, run batch again → verify equity recalculated correctly
+**Integration Tests** (`tests/integration/test_batch_idempotency.py`):
+- Create test portfolio with positions
+- Run batch once → verify snapshot created, equity calculated
+- Run batch again (force=False) → verify skipped, equity unchanged
+- Run batch 5 times → verify all skipped, equity unchanged
+- Delete snapshot → run batch → verify recalculated
+- Run batch with `force=True` → verify always processes
 
-**Manual QA**:
-- Test with demo portfolios (test009, test011)
-- Verify equity values are reasonable
-- Run batch multiple times, check logs
-- Verify frontend displays correct values
+**Manual QA** (test009 and test011 accounts):
+- Fix corrupted data using repair script
+- Verify equity values match position market values
+- Run batch manually 3 times → check logs show "skipping" for runs 2-3
+- Trigger batch via API endpoint → verify no double processing
+- Check frontend displays correct equity (not inflated)
 
 #### Success Criteria
 
-- [ ] Batch can run multiple times on same day without changing equity
-- [ ] Existing portfolio equity values are corrected
-- [ ] All integration tests passing
-- [ ] No equity anomalies in logs
-- [ ] Manual QA confirms correct values in frontend
+- [ ] Batch orchestrator enforces "once per day per portfolio" rule
+- [ ] Running batch multiple times on same day is safe (no-op after first run)
+- [ ] `force=True` flag allows admin to override and reprocess
+- [ ] Existing test009/test011 equity values are corrected
+- [ ] All unit and integration tests passing
+- [ ] Manual QA confirms:
+  - No equity anomalies in logs
+  - Frontend displays correct values
+  - Batch can be safely triggered multiple times
 - [ ] Production deployment successful with monitoring
+
+#### Data Repair Process
+
+**Step 1: Identify Affected Portfolios**
+```python
+# Script: scripts/repair/identify_equity_inflation.py
+# Compare portfolio.equity_balance vs. sum(position.market_value)
+# Flag portfolios where difference > 20%
+```
+
+**Step 2: Delete Corrupt Snapshots**
+```python
+# For each affected portfolio:
+# DELETE FROM portfolio_snapshots WHERE portfolio_id = X AND snapshot_date >= '2025-11-17'
+```
+
+**Step 3: Reset Equity (if needed)**
+```python
+# Option A: Reset to initial capital (requires manual review)
+# Option B: Calculate from position market values
+# Option C: Run batch with force=True (will recalculate)
+```
+
+**Step 4: Rerun Batch**
+```bash
+# After deploying idempotency fix:
+curl -X POST "http://localhost:8000/api/v1/admin/batch/run?force=false"
+# Batch will only process portfolios without snapshots
+```
 
 #### Rollback Plan
 
 If fix causes issues:
-1. Revert code changes via git
-2. Restore database from backup (if needed)
-3. Run batch once for current day only
-4. Investigate issue and re-apply fix
+1. **Immediate**: Revert code changes via git
+2. **Database**: Restore from backup (if equity was reset incorrectly)
+3. **Recovery**: Run batch once manually for current day only
+4. **Investigation**: Review logs, identify issue, prepare revised fix
+5. **Reapply**: Deploy corrected version with additional safeguards
 
 ---
 
