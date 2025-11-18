@@ -2,20 +2,16 @@
 
 import React from 'react'
 import { useCorrelationMatrix } from '@/hooks/useCorrelationMatrix'
-import { useDiversificationScore } from '@/hooks/useDiversificationScore'
 import { useStressTest } from '@/hooks/useStressTest'
 import { useVolatility } from '@/hooks/useVolatility'
 import { useSectorExposure } from '@/hooks/useSectorExposure'
-import { useConcentration } from '@/hooks/useConcentration'
 import { useFactorExposures } from '@/hooks/useFactorExposures'
 import { useSpreadFactors } from '@/hooks/useSpreadFactors'
 import { CorrelationMatrix } from '@/components/risk/CorrelationMatrix'
-import { DiversificationScore } from '@/components/risk/DiversificationScore'
 import { StressTest } from '@/components/risk/StressTest'
 import { VolatilityMetrics } from '@/components/risk/VolatilityMetrics'
 import { MarketBetaComparison } from '@/components/risk-metrics/MarketBetaComparison'
 import { SectorExposure } from '@/components/risk-metrics/SectorExposure'
-import { ConcentrationMetrics } from '@/components/risk-metrics/ConcentrationMetrics'
 import { FactorExposureHeroRow } from '@/components/risk-metrics/FactorExposureHeroRow'
 import { SpreadFactorCards } from '@/components/portfolio/SpreadFactorCards'
 
@@ -39,11 +35,9 @@ export function RiskMetricsContainer() {
   const factorExposures = useFactorExposures()
   const spreadFactors = useSpreadFactors()
   const correlationMatrix = useCorrelationMatrix()
-  const diversificationScore = useDiversificationScore()
   const stressTest = useStressTest()
   const volatility = useVolatility()
   const sectorExposure = useSectorExposure()
-  const concentration = useConcentration()
 
   const spreadErrorMessage = (() => {
     const { error } = spreadFactors
@@ -137,30 +131,6 @@ export function RiskMetricsContainer() {
             loading={sectorExposure.loading}
             error={sectorExposure.error}
             onRetry={sectorExposure.refetch}
-          />
-        </div>
-      </section>
-
-      {/* Concentration Metrics Section */}
-      <section className="px-4 py-8">
-        <div className="container mx-auto">
-          <ConcentrationMetrics
-            data={concentration.data}
-            loading={concentration.loading}
-            error={concentration.error}
-            onRetry={concentration.refetch}
-          />
-        </div>
-      </section>
-
-      {/* Diversification Score Section */}
-      <section className="px-4 py-8">
-        <div className="container mx-auto">
-          <DiversificationScore
-            data={diversificationScore.data}
-            loading={diversificationScore.loading}
-            error={diversificationScore.error}
-            onRetry={diversificationScore.refetch}
           />
         </div>
       </section>
