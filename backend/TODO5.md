@@ -4123,6 +4123,12 @@ await db.commit()
 5. Deploy to Railway (dedupe → migration → code)
 6. Fix corrupted equity values (Task 2.10.5)
 
+**Code Review Fixes** (post-implementation):
+- `93829b9e`: TODO5.md completion notes
+- `57909913`: First code review fixes (4 issues: constraint matching, return dict, automated cleanup, dynamic paths)
+- `da9222db`: TODO5.md update for code review
+- `f6ceff54`: Second code review fix (dedupe script sort order - prioritize is_complete DESC)
+
 ---
 
 ##### 2.10.3: Add Unit Tests
