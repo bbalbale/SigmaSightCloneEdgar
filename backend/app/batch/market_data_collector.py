@@ -162,105 +162,110 @@ class MarketDataCollector:
         required_start = calculation_date - timedelta(days=lookback_days)
         required_end = calculation_date
 
-        # OPTIMIZATION: Use fast aggregate query to check if we have complete coverage
-        # Instead of checking day-by-day, check if ALL symbols have data for the calculation_date
-        # and for the required historical lookback period
+        # OPTIMIZATION (Phase 11.1): PER-SYMBOL granular cache checking
+        # Instead of aggregate 80% thresholds, check EACH symbol individually
+        # This prevents refetching shared positions when onboarding new portfolios
         from sqlalchemy import func, and_
         from app.models.market_data import MarketDataCache
 
-        # Fast check: Do we have data for calculation_date for all symbols?
-        has_current_data_query = select(func.count(MarketDataCache.symbol.distinct())).where(
+        # Phase 11.1: Check which symbols have sufficient cached data
+        # A symbol needs: 1) Data on calculation_date, AND 2) At least 250 days of history
+        min_required_days = 250  # ~1 year of trading days
+
+        # Step 1: Find symbols with data on calculation_date
+        current_data_query = select(MarketDataCache.symbol).where(
             and_(
                 MarketDataCache.symbol.in_(list(symbols)),
                 MarketDataCache.date == calculation_date,
                 MarketDataCache.close > 0
             )
-        )
-        current_result = await db.execute(has_current_data_query)
-        symbols_with_current_data = current_result.scalar()
+        ).distinct()
+        current_result = await db.execute(current_data_query)
+        symbols_with_current_data = {row[0] for row in current_result.fetchall()}
 
-        # Fast check: What's the earliest date we have data for 80%+ of symbols?
-        # Use a single query with GROUP BY date and HAVING count
-        coverage_threshold = int(len(symbols) * 0.8)
-        earliest_good_date_query = select(MarketDataCache.date).where(
+        # Step 2: Count historical records per symbol (GROUP BY)
+        history_count_query = select(
+            MarketDataCache.symbol,
+            func.count(MarketDataCache.id).label('record_count')
+        ).where(
             and_(
                 MarketDataCache.symbol.in_(list(symbols)),
                 MarketDataCache.date >= required_start,
                 MarketDataCache.date <= calculation_date,
                 MarketDataCache.close > 0
             )
-        ).group_by(MarketDataCache.date).having(
-            func.count(MarketDataCache.symbol.distinct()) >= coverage_threshold
-        ).order_by(MarketDataCache.date.asc()).limit(1)
+        ).group_by(MarketDataCache.symbol)
 
-        earliest_result = await db.execute(earliest_good_date_query)
-        earliest_date = earliest_result.scalar()
+        history_result = await db.execute(history_count_query)
+        symbol_history_counts = {row[0]: row[1] for row in history_result.fetchall()}
 
-        # Fast check: What's the most recent date we have data for 80%+ of symbols?
-        most_recent_good_date_query = select(MarketDataCache.date).where(
-            and_(
-                MarketDataCache.symbol.in_(list(symbols)),
-                MarketDataCache.date >= required_start,
-                MarketDataCache.date <= calculation_date,
-                MarketDataCache.close > 0
+        # Step 3: Determine which symbols are FULLY cached (have both current + history)
+        fully_cached_symbols = set()
+        for symbol in symbols_with_current_data:
+            record_count = symbol_history_counts.get(symbol, 0)
+            if record_count >= min_required_days:
+                fully_cached_symbols.add(symbol)
+
+        symbols_needing_fetch = symbols - fully_cached_symbols
+
+        logger.info(f"Granular cache check: {len(fully_cached_symbols)}/{len(symbols)} symbols fully cached")
+        logger.info(f"  {len(symbols_needing_fetch)} symbols need fetching (missing current data or insufficient history)")
+
+        # Phase 11.1: Use per-symbol logic to determine earliest/most recent dates
+        # This replaces the old aggregate 80% threshold approach
+        earliest_date = None
+        most_recent_date = None
+
+        if symbol_history_counts:
+            # Get the actual date range we have cached data for
+            date_range_query = select(
+                func.min(MarketDataCache.date).label('earliest'),
+                func.max(MarketDataCache.date).label('latest')
+            ).where(
+                and_(
+                    MarketDataCache.symbol.in_(list(symbols)),
+                    MarketDataCache.date >= required_start,
+                    MarketDataCache.date <= calculation_date,
+                    MarketDataCache.close > 0
+                )
             )
-        ).group_by(MarketDataCache.date).having(
-            func.count(MarketDataCache.symbol.distinct()) >= coverage_threshold
-        ).order_by(MarketDataCache.date.desc()).limit(1)
+            date_range_result = await db.execute(date_range_query)
+            date_row = date_range_result.fetchone()
+            if date_row:
+                earliest_date = date_row[0]
+                most_recent_date = date_row[1]
 
-        most_recent_result = await db.execute(most_recent_good_date_query)
-        most_recent_date = most_recent_result.scalar()
-
-        logger.info(f"Fast coverage check: {symbols_with_current_data}/{len(symbols)} symbols have data for {calculation_date}")
         if earliest_date:
-            logger.info(f"Earliest good coverage: {earliest_date}")
-        if most_recent_date:
-            logger.info(f"Most recent good coverage: {most_recent_date}")
+            logger.info(f"  Cached data range: {earliest_date} to {most_recent_date}")
+        else:
+            logger.info(f"  No cached data found for any symbols")
 
-        # Determine what needs to be fetched
-        fetch_ranges = []
+        # Phase 11.1: Determine what needs to be fetched based on per-symbol analysis
+        # If ALL symbols are fully cached, skip fetching entirely
+        # Otherwise, fetch the full required range for symbols that need data
 
-        # PHASE A: Check historical lookback gap
-        if earliest_date is None or earliest_date > required_start:
-            # Missing historical data before earliest_date
-            historical_start = required_start
-            historical_end = earliest_date - timedelta(days=1) if earliest_date else required_start
-            fetch_ranges.append(("historical", historical_start, historical_end))
-            logger.info(f"Historical gap: Need data from {historical_start} to {historical_end}")
-
-        # PHASE B: Check current day gap
-        if most_recent_date is None or most_recent_date < calculation_date:
-            # Missing current data after most_recent_date
-            current_start = most_recent_date + timedelta(days=1) if most_recent_date else calculation_date
-            current_end = calculation_date
-            fetch_ranges.append(("current", current_start, current_end))
-            logger.info(f"Current gap: Need data from {current_start} to {current_end}")
-
-        # Determine overall fetch mode and date range
-        if not fetch_ranges:
-            # No gaps - all data exists
+        if len(symbols_needing_fetch) == 0:
+            # All symbols fully cached - no fetch needed
+            fetch_mode = "cached"
             start_date = calculation_date
             end_date = calculation_date
-            fetch_mode = "cached"
-            logger.info(f"All data cached: {required_start} to {required_end}")
-        elif len(fetch_ranges) == 2:
-            # Both historical and current gaps
-            start_date = fetch_ranges[0][1]  # historical_start
-            end_date = fetch_ranges[1][2]    # current_end
-            fetch_mode = "full_backfill"
-            logger.info(f"Full backfill: Historical + Current gaps = {start_date} to {end_date}")
-        elif fetch_ranges[0][0] == "historical":
-            # Only historical gap
-            start_date = fetch_ranges[0][1]
-            end_date = fetch_ranges[0][2]
-            fetch_mode = "historical_backfill"
-            logger.info(f"Historical backfill: {start_date} to {end_date}")
+            logger.info(f"All {len(symbols)} symbols fully cached: {required_start} to {calculation_date}")
         else:
-            # Only current gap
-            start_date = fetch_ranges[0][1]
-            end_date = fetch_ranges[0][2]
-            fetch_mode = "incremental"
-            logger.info(f"Incremental: {start_date} to {end_date}")
+            # Some symbols need data - fetch full range for those symbols only
+            # We'll use the existing _get_cached_symbols method later to filter further
+            start_date = required_start
+            end_date = calculation_date
+
+            days_gap = (end_date - start_date).days
+            if days_gap <= 7:
+                fetch_mode = "incremental"
+                logger.info(f"Incremental: Fetching {days_gap} days for {len(symbols_needing_fetch)} symbols")
+            elif days_gap <= 30:
+                fetch_mode = "gap_fill"
+                logger.info(f"Gap fill: Fetching {days_gap} days for {len(symbols_needing_fetch)} symbols")
+            else:
+                fetch_mode = "full_backfill"
+                logger.info(f"Full backfill: Fetching {days_gap} days for {len(symbols_needing_fetch)} symbols")
 
         # TRADING CALENDAR CHECK: Adjust end_date to most recent trading day
         if not is_trading_day(end_date):

@@ -927,19 +927,33 @@ def _calculate_portfolio_returns_from_df(
             symbol_mapping[position.symbol] = fetch_symbol
 
         # Calculate position weights based on market values
+        # Phase 11.1 Fix: For new portfolios, use entry values if market_value not available
         total_value = sum(
             float(p.market_value) if p.market_value else 0.0
             for p in positions
         )
 
+        # FALLBACK: If no market_value available (new portfolio), use entry values
         if total_value == 0:
-            logger.warning("Total portfolio value is zero, cannot calculate returns")
+            logger.info("No market_value available, using entry values for weights (new portfolio)")
+            total_value = sum(
+                float(p.quantity * p.entry_price) if (p.quantity and p.entry_price) else 0.0
+                for p in positions
+            )
+
+        if total_value == 0:
+            logger.warning("Total portfolio value is zero (no market_value or entry_value), cannot calculate returns")
             return None
 
-        weights = {
-            p.symbol: float(p.market_value) / total_value if p.market_value else 0.0
-            for p in positions
-        }
+        # Calculate weights using market_value if available, otherwise entry_value
+        weights = {}
+        for p in positions:
+            if p.market_value:
+                weights[p.symbol] = float(p.market_value) / total_value
+            elif p.quantity and p.entry_price:
+                weights[p.symbol] = float(p.quantity * p.entry_price) / total_value
+            else:
+                weights[p.symbol] = 0.0
 
         # Calculate portfolio returns for each date
         portfolio_returns = pd.Series(0.0, index=returns_df.index)

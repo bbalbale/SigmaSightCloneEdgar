@@ -754,7 +754,8 @@ async def store_position_factor_exposures(
     position_betas: Dict[str, Dict[str, float]],
     calculation_date: date,
     quality_flag: str = QUALITY_FLAG_FULL_HISTORY,
-    context: Optional[PortfolioContext] = None  # Phase 3: Optional context
+    context: Optional[PortfolioContext] = None,  # Phase 3: Optional context
+    force_recalculate: bool = False  # Phase 11.1: Force recalculation flag
 ) -> Dict[str, Any]:
     """
     Store position-level factor exposures in the database
@@ -766,26 +767,59 @@ async def store_position_factor_exposures(
         quality_flag: Data quality indicator
         context: Pre-loaded portfolio context (optional, Phase 3 enhancement).
                 If None, will load factor definitions from database.
+        force_recalculate: If True, delete and recalculate all betas.
+                          If False (default), skip positions that already have betas cached.
 
     Returns:
         Dictionary with storage statistics
 
     Phase 3 Enhancement:
         If context is provided, uses context.factor_name_to_id to avoid database query.
+
+    Phase 11.1 Enhancement (Cache-Aware):
+        Checks for existing factor betas before recalculating. Only processes positions
+        that don't have cached betas for the calculation_date. This prevents redundant
+        calculations when onboarding new portfolios with shared positions.
     """
-    logger.info(f"Storing position factor exposures for {len(position_betas)} positions")
+    logger.info(f"Storing position factor exposures for {len(position_betas)} positions (force={force_recalculate})")
 
     results = {
         "positions_processed": 0,
         "records_stored": 0,
+        "records_skipped_cached": 0,
         "errors": []
     }
 
     try:
-        # First, delete any existing records for this calculation date to prevent duplicates
-        logger.info(f"Clearing existing factor exposures for date {calculation_date}")
         position_ids = [UUID(pid) for pid in position_betas.keys()]
-        if position_ids:
+        if not position_ids:
+            logger.info("No positions to process")
+            return results
+
+        # OPTIMIZATION: Check which positions already have factor betas cached
+        # This prevents recalculating betas for positions shared across portfolios
+        positions_with_existing_betas = set()
+
+        if not force_recalculate:
+            # Query for positions that already have betas for this calculation_date
+            existing_stmt = select(PositionFactorExposure.position_id).where(
+                and_(
+                    PositionFactorExposure.position_id.in_(position_ids),
+                    PositionFactorExposure.calculation_date == calculation_date
+                )
+            ).distinct()
+            existing_result = await db.execute(existing_stmt)
+            positions_with_existing_betas = {row[0] for row in existing_result.all()}
+
+            if positions_with_existing_betas:
+                logger.info(
+                    f"Found {len(positions_with_existing_betas)}/{len(position_ids)} positions "
+                    f"with existing factor betas for {calculation_date} (skipping recalculation)"
+                )
+
+        # Only delete existing records if force_recalculate=True
+        if force_recalculate:
+            logger.info(f"Force recalculate: Clearing existing factor exposures for {len(position_ids)} positions on {calculation_date}")
             delete_stmt = delete(PositionFactorExposure).where(
                 and_(
                     PositionFactorExposure.position_id.in_(position_ids),
@@ -807,19 +841,26 @@ async def store_position_factor_exposures(
         for position_id_str, factor_betas in position_betas.items():
             try:
                 position_id = UUID(position_id_str)
+
+                # OPTIMIZATION: Skip positions that already have cached betas
+                if position_id in positions_with_existing_betas:
+                    results["records_skipped_cached"] += 1
+                    logger.debug(f"Skipping position {position_id_str} - betas already cached for {calculation_date}")
+                    continue
+
                 results["positions_processed"] += 1
 
                 for factor_name, beta_value in factor_betas.items():
                     # Use centralized factor name normalization (Phase 1 Enhancement)
                     mapped_name = normalize_factor_name(factor_name)
-                    
+
                     if mapped_name not in factor_name_to_id:
                         logger.warning(f"Factor '{mapped_name}' (original: '{factor_name}') not found in database")
                         continue
-                    
+
                     factor_id = factor_name_to_id[mapped_name]
-                    
-                    # Create new record (we already deleted existing ones)
+
+                    # Create new record (we already deleted existing ones if force_recalculate=True)
                     exposure_record = PositionFactorExposure(
                         position_id=position_id,
                         factor_id=factor_id,
@@ -838,7 +879,10 @@ async def store_position_factor_exposures(
 
         # Note: Do NOT commit here - let caller manage transaction boundaries
         # Committing expires session objects and causes greenlet errors
-        logger.info(f"Staged {results['records_stored']} factor exposure records (will be committed by caller)")
+        if results["records_stored"] > 0:
+            logger.info(f"Staged {results['records_stored']} NEW factor exposure records (will be committed by caller)")
+        if results["records_skipped_cached"] > 0:
+            logger.info(f"Skipped {results['records_skipped_cached']} positions with cached betas (optimization)")
 
     except Exception as e:
         logger.error(f"Error in store_position_factor_exposures: {str(e)}")
