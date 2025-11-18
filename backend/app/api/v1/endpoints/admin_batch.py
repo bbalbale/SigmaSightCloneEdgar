@@ -331,5 +331,70 @@ async def restore_sector_tags(
         )
 
 
+@router.post("/cleanup-incomplete")
+async def cleanup_incomplete_snapshots_endpoint(
+    age_threshold_hours: int = Query(1, description="Delete incomplete snapshots older than this (hours)"),
+    portfolio_id: Optional[str] = Query(None, description="Specific portfolio ID or all portfolios"),
+    admin_user = Depends(require_admin),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Clean up incomplete snapshots (Phase 2.10 idempotency fix).
+
+    Removes placeholder snapshots that were created by crashed batch processes.
+    These placeholders have is_complete=False and block retries due to unique constraint.
+
+    **Use Cases:**
+    - Batch process crashed mid-calculation, leaving placeholder snapshots
+    - Need to retry batch processing for a specific date
+    - Automated cleanup before batch runs
+
+    **Safety:**
+    - Only deletes snapshots with is_complete=False
+    - Only deletes snapshots older than age_threshold_hours (default: 1 hour)
+    - Logs all deletions for audit trail
+
+    **Example:**
+    - `POST /api/v1/admin/batch/cleanup-incomplete?age_threshold_hours=2`
+    - Deletes incomplete snapshots older than 2 hours
+    """
+    from app.calculations.snapshots import cleanup_incomplete_snapshots
+    from uuid import UUID
+
+    logger.info(
+        f"Admin {admin_user.email} triggered incomplete snapshot cleanup "
+        f"(age > {age_threshold_hours}h) for portfolio {portfolio_id or 'all'}"
+    )
+
+    try:
+        portfolio_uuid = UUID(portfolio_id) if portfolio_id else None
+
+        result = await cleanup_incomplete_snapshots(
+            db=db,
+            age_threshold_hours=age_threshold_hours,
+            portfolio_id=portfolio_uuid
+        )
+
+        return {
+            "status": "completed",
+            "incomplete_found": result['incomplete_found'],
+            "incomplete_deleted": result['incomplete_deleted'],
+            "deleted_ids": [str(id) for id in result['deleted_ids']],
+            "age_threshold_hours": age_threshold_hours,
+            "portfolio_id": portfolio_id or "all",
+            "triggered_by": admin_user.email,
+            "timestamp": utc_now()
+        }
+
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=f"Invalid portfolio ID: {str(e)}")
+    except Exception as e:
+        logger.error(f"Error cleaning up incomplete snapshots: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error cleaning up incomplete snapshots: {str(e)}"
+        )
+
+
 # Note: data-quality endpoints removed - data_quality module was deleted
 # Batch orchestrator handles data quality internally via market_data_collector

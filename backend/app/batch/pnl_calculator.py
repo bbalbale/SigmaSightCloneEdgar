@@ -25,9 +25,14 @@ from app.models.equity_changes import EquityChange, EquityChangeType
 from app.models.snapshots import PortfolioSnapshot
 from app.models.market_data import MarketDataCache
 from app.calculations.market_data import get_previous_trading_day_price
-from app.calculations.snapshots import create_portfolio_snapshot
+from app.calculations.snapshots import (
+    create_portfolio_snapshot,  # Keep for backward compatibility
+    lock_snapshot_slot,  # Phase 2.10: Insert-first pattern
+    populate_snapshot_data  # Phase 2.10: Two-phase snapshot creation
+)
 from app.utils.trading_calendar import trading_calendar
 from app.cache.price_cache import PriceCache
+from sqlalchemy.exc import IntegrityError  # Phase 2.10: Duplicate detection
 
 logger = get_logger(__name__)
 
@@ -145,21 +150,25 @@ class PnLCalculator:
         """
         Calculate P&L for a single portfolio and create snapshot
 
-        Steps:
+        Phase 2.10 INSERT-FIRST PATTERN:
         1. Check if trading day (skip if not)
-        2. Get previous snapshot (for previous equity)
-        3. Calculate position-level P&L (using price cache if available)
-        4. Aggregate to portfolio-level P&L
-        5. Calculate new equity = previous_equity + daily_pnl
-        6. Create snapshot with new equity
+        2. **LOCK SNAPSHOT SLOT FIRST** (atomic, prevents duplicate runs)
+        3. Get previous snapshot (for previous equity)
+        4. Calculate position-level P&L (using price cache if available)
+        5. Aggregate to portfolio-level P&L
+        6. Calculate new equity = previous_equity + daily_pnl
+        7. Update portfolio.equity_balance (safe - we own the slot)
+        8. **POPULATE PLACEHOLDER** with real snapshot data
+        9. Commit (releases lock)
 
         Args:
             portfolio_id: Portfolio to process
             calculation_date: Date to calculate for
             db: Database session
+            price_cache: Optional pre-loaded price cache
 
         Returns:
-            True if snapshot created successfully
+            True if snapshot created successfully, False if skipped or failed
         """
         # Check if trading day
         if not trading_calendar.is_trading_day(calculation_date):
@@ -167,6 +176,27 @@ class PnLCalculator:
             return False
 
         logger.info(f"  Processing portfolio {portfolio_id}")
+
+        # PHASE 2.10 FIX: Lock snapshot slot FIRST (before ANY calculations)
+        # This prevents duplicate runs from processing the same (portfolio, date)
+        try:
+            placeholder = await lock_snapshot_slot(
+                db=db,
+                portfolio_id=portfolio_id,
+                snapshot_date=calculation_date
+            )
+            logger.debug(f"    [IDEMPOTENCY] Locked snapshot slot {placeholder.id}")
+        except IntegrityError as e:
+            # Another process already owns this (portfolio, date) slot
+            if "uq_portfolio_snapshot_date" in str(e):
+                logger.info(
+                    f"    [IDEMPOTENCY] Snapshot already exists for {calculation_date}, "
+                    f"skipping duplicate run"
+                )
+                await db.rollback()
+                return False  # Exit before touching equity
+            # Some other integrity error - re-raise
+            raise
 
         # Get portfolio
         portfolio_query = select(Portfolio).where(Portfolio.id == portfolio_id)
@@ -253,51 +283,54 @@ class PnLCalculator:
             # Re-raise to stop processing - silent failures are bad!
             raise
 
-        # Create snapshot with skip_pnl_calculation=True
-        # We calculate P&L ourselves for proper equity rollforward
+        # PHASE 2.10 FIX: Populate placeholder instead of creating new snapshot
+        # We already own the (portfolio, date) slot from lock_snapshot_slot()
         # OPTIMIZATION: Skip expensive analytics for historical dates (only needed for current date)
         is_historical = calculation_date < date.today()
-        snapshot_result = await create_portfolio_snapshot(
-            db=db,
-            portfolio_id=portfolio_id,
-            calculation_date=calculation_date,
-            skip_pnl_calculation=True,  # V3: We handle P&L calculation here
-            skip_provider_beta=is_historical,  # Only calculate on current/final date
-            skip_sector_analysis=is_historical  # Only calculate on current/final date
-        )
 
-        if snapshot_result.get('success'):
-            # Update the snapshot's equity_balance with our calculated equity
-            snapshot = snapshot_result.get('snapshot')
-            if snapshot:
-                snapshot.equity_balance = new_equity
-                snapshot.daily_pnl = total_daily_pnl
-                snapshot.daily_realized_pnl = daily_realized_pnl
-                snapshot.daily_capital_flow = daily_capital_flow
-                snapshot.daily_return = (total_daily_pnl / previous_equity) if previous_equity > 0 else Decimal('0')
+        try:
+            snapshot = await populate_snapshot_data(
+                snapshot=placeholder,  # Pass the placeholder we locked earlier
+                db=db,
+                portfolio_id=portfolio_id,
+                calculation_date=calculation_date,
+                skip_pnl_calculation=True,  # V3: We handle P&L calculation here
+                skip_provider_beta=is_historical,  # Only calculate on current/final date
+                skip_sector_analysis=is_historical  # Only calculate on current/final date
+            )
 
-                if previous_snapshot:
-                    snapshot.cumulative_pnl = (previous_snapshot.cumulative_pnl or Decimal('0')) + total_daily_pnl
-                    snapshot.cumulative_realized_pnl = (
-                        (previous_snapshot.cumulative_realized_pnl or Decimal('0')) + daily_realized_pnl
-                    )
-                    snapshot.cumulative_capital_flow = (
-                        (previous_snapshot.cumulative_capital_flow or Decimal('0')) + daily_capital_flow
-                    )
-                else:
-                    snapshot.cumulative_pnl = total_daily_pnl
-                    snapshot.cumulative_realized_pnl = daily_realized_pnl
-                    snapshot.cumulative_capital_flow = daily_capital_flow
+            # Update the snapshot's P&L fields with our calculated equity values
+            # (populate_snapshot_data sets is_complete=True, but we need to set P&L fields)
+            snapshot.equity_balance = new_equity
+            snapshot.daily_pnl = total_daily_pnl
+            snapshot.daily_realized_pnl = daily_realized_pnl
+            snapshot.daily_capital_flow = daily_capital_flow
+            snapshot.daily_return = (total_daily_pnl / previous_equity) if previous_equity > 0 else Decimal('0')
 
-                logger.info(f"  [EQUITY DEBUG] About to commit transaction...")
-                logger.info(f"    Portfolio equity_balance before commit: ${portfolio.equity_balance:,.2f}")
-                await db.commit()
-                logger.info(f"  [EQUITY DEBUG] [OK] TRANSACTION COMMITTED")
+            if previous_snapshot:
+                snapshot.cumulative_pnl = (previous_snapshot.cumulative_pnl or Decimal('0')) + total_daily_pnl
+                snapshot.cumulative_realized_pnl = (
+                    (previous_snapshot.cumulative_realized_pnl or Decimal('0')) + daily_realized_pnl
+                )
+                snapshot.cumulative_capital_flow = (
+                    (previous_snapshot.cumulative_capital_flow or Decimal('0')) + daily_capital_flow
+                )
+            else:
+                snapshot.cumulative_pnl = total_daily_pnl
+                snapshot.cumulative_realized_pnl = daily_realized_pnl
+                snapshot.cumulative_capital_flow = daily_capital_flow
 
-            logger.info(f"    ✓ Snapshot created")
+            logger.info(f"  [EQUITY DEBUG] About to commit transaction...")
+            logger.info(f"    Portfolio equity_balance before commit: ${portfolio.equity_balance:,.2f}")
+            logger.info(f"    Snapshot is_complete={snapshot.is_complete}")
+            await db.commit()
+            logger.info(f"  [EQUITY DEBUG] [OK] TRANSACTION COMMITTED")
+            logger.info(f"    ✓ Snapshot created and populated (is_complete=True)")
             return True
-        else:
-            logger.warning(f"    ✗ Snapshot creation failed: {snapshot_result.get('message')}")
+
+        except Exception as e:
+            logger.error(f"    ✗ Snapshot population failed: {e}", exc_info=True)
+            await db.rollback()
             return False
 
     async def _calculate_daily_pnl(
