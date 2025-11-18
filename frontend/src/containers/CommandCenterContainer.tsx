@@ -10,7 +10,6 @@ import { ManagePositionsSidePanel } from '@/components/portfolio/ManagePositions
 import { ManageEquitySidePanel } from '@/components/portfolio/ManageEquitySidePanel'
 import { Button } from '@/components/ui/button'
 import { AccountFilter } from '@/components/portfolio/AccountFilter'
-import { AccountSummaryCard } from '@/components/portfolio/AccountSummaryCard'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { UploadPortfolioBanner } from '@/components/command-center/UploadPortfolioBanner'
 
@@ -58,7 +57,6 @@ export function CommandCenterContainer() {
   const showAggregateSection = Boolean(
     isAggregateView && aggregate && multiPortfolioActive
   )
-  const showAccountSummary = showAggregateSection
   const showPortfolioBadge = isAggregateView && multiPortfolioActive && sectionsToRender.length > 1
 
   const emptyHeroMetrics = {
@@ -251,15 +249,6 @@ export function CommandCenterContainer() {
       </div>
     </div>
   )}
-
-  {/* Account Summary Card - only show in aggregate multi-portfolio view */}
-      {showAccountSummary && (
-        <section className="px-4 pt-4">
-          <div className="container mx-auto">
-            <AccountSummaryCard />
-          </div>
-        </section>
-      )}
 
       {showAggregateSection && aggregate && (
         <>
