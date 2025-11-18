@@ -3421,8 +3421,10 @@ For each major feature:
 - **Commits**:
   - `0190024a`: Foundation (dedupe script, migration, model update)
   - `661205e7`: Insert-first pattern (lock, populate, cleanup, admin endpoint)
-- **Files Modified**: 7 files, 1380+ lines added
-- **Notes**: Insert-first idempotency pattern successfully implemented. Batch runs are now idempotent - running multiple times safely skips duplicate calculations. Equity rollforward protected by database-level atomic enforcement.
+  - `93829b9e`: Documentation (TODO5.md completion notes)
+  - `57909913`: Code review fixes (4 critical/high issues - constraint mismatch, return semantics, auto-cleanup, path resolution)
+- **Files Modified**: 10 files, 1430+ lines added
+- **Notes**: Insert-first idempotency pattern successfully implemented. Batch runs are now idempotent - running multiple times safely skips duplicate calculations. Equity rollforward protected by database-level atomic enforcement. **Code review identified 4 bugs (1 critical) - all fixed before deployment.**
 
 ---
 
