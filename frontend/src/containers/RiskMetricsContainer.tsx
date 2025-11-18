@@ -12,8 +12,7 @@ import { StressTest } from '@/components/risk/StressTest'
 import { VolatilityMetrics } from '@/components/risk/VolatilityMetrics'
 import { MarketBetaComparison } from '@/components/risk-metrics/MarketBetaComparison'
 import { SectorExposure } from '@/components/risk-metrics/SectorExposure'
-import { FactorExposureHeroRow } from '@/components/risk-metrics/FactorExposureHeroRow'
-import { SpreadFactorCards } from '@/components/portfolio/SpreadFactorCards'
+import { FactorExposureCards } from '@/components/risk-metrics/FactorExposureCards'
 
 /**
  * RiskMetricsContainer
@@ -63,28 +62,18 @@ export function RiskMetricsContainer() {
         </div>
       </div>
 
-      {/* Hero Cards: Factor & Spread tilts */}
-      <FactorExposureHeroRow
-        factorExposures={factorExposures.factors}
-        factorAvailable={factorExposures.available}
-        factorLoading={factorExposures.loading}
-        factorError={factorErrorMessage}
-        factorCalculationDate={factorExposures.calculationDate}
+      {/* Factor & Spread Analysis Cards */}
+      <FactorExposureCards
+        ridgeFactors={factorExposures.factors}
         spreadFactors={spreadFactors.spreadFactors}
-        spreadAvailable={spreadFactors.available}
+        ridgeLoading={factorExposures.loading}
         spreadLoading={spreadFactors.loading}
+        ridgeError={factorErrorMessage}
         spreadError={spreadErrorMessage}
+        ridgeCalculationDate={factorExposures.calculationDate}
         spreadCalculationDate={spreadFactors.calculationDate ?? null}
-        onRefetchFactors={factorExposures.refetch}
-        onRefetchSpreads={spreadFactors.refetch}
-      />
-
-      {/* Spread Factor Details */}
-      <SpreadFactorCards
-        factors={spreadFactors.spreadFactors}
-        loading={spreadFactors.loading}
-        error={spreadErrorMessage}
-        calculationDate={spreadFactors.calculationDate ?? null}
+        onRefetchRidge={factorExposures.refetch}
+        onRefetchSpread={spreadFactors.refetch}
       />
 
       {/* Stress Test Section */}
