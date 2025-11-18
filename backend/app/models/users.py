@@ -50,18 +50,18 @@ class Portfolio(Base):
     
     # Relationships
     user: Mapped["User"] = relationship("User", back_populates="portfolios")
-    positions: Mapped[List["Position"]] = relationship("Position", back_populates="portfolio")
-    snapshots: Mapped[List["PortfolioSnapshot"]] = relationship("PortfolioSnapshot", back_populates="portfolio")
-    factor_exposures: Mapped[List["FactorExposure"]] = relationship("FactorExposure", back_populates="portfolio")
-    position_market_betas: Mapped[List["PositionMarketBeta"]] = relationship("PositionMarketBeta", back_populates="portfolio")
-    position_interest_rate_betas: Mapped[List["PositionInterestRateBeta"]] = relationship("PositionInterestRateBeta", back_populates="portfolio")
-    market_risk_scenarios: Mapped[List["MarketRiskScenario"]] = relationship("MarketRiskScenario", back_populates="portfolio")
-    stress_test_results: Mapped[List["StressTestResult"]] = relationship("StressTestResult", back_populates="portfolio")
-    correlation_calculations: Mapped[List["CorrelationCalculation"]] = relationship("CorrelationCalculation", back_populates="portfolio")
-    target_prices: Mapped[List["TargetPrice"]] = relationship("TargetPrice", back_populates="portfolio")
-    ai_insights: Mapped[List["AIInsight"]] = relationship("AIInsight", back_populates="portfolio")
-    position_realized_events: Mapped[List["PositionRealizedEvent"]] = relationship("PositionRealizedEvent", back_populates="portfolio")
-    equity_changes: Mapped[List["EquityChange"]] = relationship("EquityChange", back_populates="portfolio")
+    positions: Mapped[List["Position"]] = relationship("Position", back_populates="portfolio", cascade="all, delete-orphan")
+    snapshots: Mapped[List["PortfolioSnapshot"]] = relationship("PortfolioSnapshot", back_populates="portfolio", cascade="all, delete-orphan")
+    factor_exposures: Mapped[List["FactorExposure"]] = relationship("FactorExposure", back_populates="portfolio", cascade="all, delete-orphan")
+    position_market_betas: Mapped[List["PositionMarketBeta"]] = relationship("PositionMarketBeta", back_populates="portfolio", cascade="all, delete-orphan")
+    position_interest_rate_betas: Mapped[List["PositionInterestRateBeta"]] = relationship("PositionInterestRateBeta", back_populates="portfolio", cascade="all, delete-orphan")
+    market_risk_scenarios: Mapped[List["MarketRiskScenario"]] = relationship("MarketRiskScenario", back_populates="portfolio", cascade="all, delete-orphan")
+    stress_test_results: Mapped[List["StressTestResult"]] = relationship("StressTestResult", back_populates="portfolio", cascade="all, delete-orphan")
+    correlation_calculations: Mapped[List["CorrelationCalculation"]] = relationship("CorrelationCalculation", back_populates="portfolio", cascade="all, delete-orphan")
+    target_prices: Mapped[List["TargetPrice"]] = relationship("TargetPrice", back_populates="portfolio", cascade="all, delete-orphan")
+    ai_insights: Mapped[List["AIInsight"]] = relationship("AIInsight", back_populates="portfolio", cascade="all, delete-orphan")
+    position_realized_events: Mapped[List["PositionRealizedEvent"]] = relationship("PositionRealizedEvent", back_populates="portfolio", cascade="all, delete-orphan")
+    equity_changes: Mapped[List["EquityChange"]] = relationship("EquityChange", back_populates="portfolio", cascade="all, delete-orphan")
 
     __table_args__ = (
         Index('ix_portfolios_deleted_at', 'deleted_at'),
