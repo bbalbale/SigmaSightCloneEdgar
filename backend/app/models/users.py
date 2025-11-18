@@ -24,7 +24,7 @@ class User(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow)
     
     # Relationships
-    portfolios: Mapped[List["Portfolio"]] = relationship("Portfolio", back_populates="user", uselist=True)
+    portfolios: Mapped[List["Portfolio"]] = relationship("Portfolio", back_populates="user", uselist=True, cascade="all, delete-orphan")
     # Enhanced tag model (v2) - replaced the old tags relationship
     tags_v2: Mapped[List["TagV2"]] = relationship("TagV2", back_populates="user", foreign_keys="TagV2.user_id", cascade="all, delete-orphan")
     modeling_sessions: Mapped[List["ModelingSessionSnapshot"]] = relationship("ModelingSessionSnapshot", back_populates="user")
