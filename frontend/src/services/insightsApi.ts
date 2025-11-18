@@ -105,7 +105,8 @@ const insightsApi = {
    */
   async generateInsight(request: GenerateInsightRequest): Promise<AIInsight> {
     try {
-      const response = await apiClient.post(API_ENDPOINTS.INSIGHTS.GENERATE, request)
+      // Use 150 second timeout for Anthropic API calls (backend timeout is 120s + buffer)
+      const response = await apiClient.post(API_ENDPOINTS.INSIGHTS.GENERATE, request, { timeout: 150000 })
       return response as AIInsight
     } catch (error: any) {
       console.error('Failed to generate insight:', error)
