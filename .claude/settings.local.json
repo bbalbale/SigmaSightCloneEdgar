@@ -22,7 +22,9 @@
       "Bash(backend/scripts/database/corrected_seed_data.txt)",
       "Bash(scripts/database/corrected_seed_data.txt)",
       "Bash(git pull:*)",
-      "Bash(git stash:*)"
+      "Bash(git stash:*)",
+      "Bash(git fetch:*)",
+      "Bash(npm run type-check:*)"
     ],
     "deny": [],
     "ask": [],
