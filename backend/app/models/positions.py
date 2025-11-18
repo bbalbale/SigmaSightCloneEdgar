@@ -72,12 +72,12 @@ class Position(Base):
     portfolio: Mapped["Portfolio"] = relationship("Portfolio", back_populates="positions")
     # Direct position tagging (new system)
     position_tags: Mapped[List["PositionTag"]] = relationship("PositionTag", back_populates="position", cascade="all, delete-orphan")
-    greeks: Mapped[Optional["PositionGreeks"]] = relationship("PositionGreeks", back_populates="position", uselist=False)
-    factor_exposures: Mapped[List["PositionFactorExposure"]] = relationship("PositionFactorExposure", back_populates="position")
-    market_betas: Mapped[List["PositionMarketBeta"]] = relationship("PositionMarketBeta", back_populates="position")
-    interest_rate_betas: Mapped[List["PositionInterestRateBeta"]] = relationship("PositionInterestRateBeta", back_populates="position")
-    volatility: Mapped[List["PositionVolatility"]] = relationship("PositionVolatility", back_populates="position")
-    target_price: Mapped[Optional["TargetPrice"]] = relationship("TargetPrice", back_populates="position", uselist=False)
+    greeks: Mapped[Optional["PositionGreeks"]] = relationship("PositionGreeks", back_populates="position", uselist=False, cascade="all, delete-orphan")
+    factor_exposures: Mapped[List["PositionFactorExposure"]] = relationship("PositionFactorExposure", back_populates="position", cascade="all, delete-orphan")
+    market_betas: Mapped[List["PositionMarketBeta"]] = relationship("PositionMarketBeta", back_populates="position", cascade="all, delete-orphan")
+    interest_rate_betas: Mapped[List["PositionInterestRateBeta"]] = relationship("PositionInterestRateBeta", back_populates="position", cascade="all, delete-orphan")
+    volatility: Mapped[List["PositionVolatility"]] = relationship("PositionVolatility", back_populates="position", cascade="all, delete-orphan")
+    target_price: Mapped[Optional["TargetPrice"]] = relationship("TargetPrice", back_populates="position", uselist=False, cascade="all, delete-orphan")
     realized_events: Mapped[List["PositionRealizedEvent"]] = relationship(
         "PositionRealizedEvent",
         back_populates="position",
