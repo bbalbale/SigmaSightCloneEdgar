@@ -4,7 +4,7 @@ Portfolio snapshots and batch job models
 from datetime import datetime, date
 from uuid import uuid4
 from decimal import Decimal
-from sqlalchemy import String, DateTime, ForeignKey, Index, Numeric, Date, UniqueConstraint, JSON
+from sqlalchemy import String, DateTime, ForeignKey, Index, Numeric, Date, UniqueConstraint, JSON, Boolean
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from typing import Optional, Dict, Any
@@ -111,6 +111,11 @@ class PortfolioSnapshot(Base):
 
     # Tracking
     target_price_last_updated: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)  # When targets were last modified
+
+    # Phase 2.10: Batch idempotency flag (prevents duplicate snapshot creation on same day)
+    # TRUE = calculations complete, FALSE = placeholder snapshot (process crashed mid-calculation)
+    # Used with unique constraint on (portfolio_id, snapshot_date) for atomic idempotency
+    is_complete: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
     
