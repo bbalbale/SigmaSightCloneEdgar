@@ -11,11 +11,21 @@ Usage:
 
 import asyncio
 import sys
+import os
 from pathlib import Path
 
 # Add backend directory to path
 backend_dir = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(backend_dir))
+
+# CRITICAL: Ensure DATABASE_URL uses asyncpg driver
+# Railway sets DATABASE_URL with postgresql:// which loads psycopg2
+# We need postgresql+asyncpg:// for async operations
+if "DATABASE_URL" in os.environ:
+    db_url = os.environ["DATABASE_URL"]
+    if db_url.startswith("postgresql://"):
+        os.environ["DATABASE_URL"] = db_url.replace("postgresql://", "postgresql+asyncpg://", 1)
+        print(f"✓ Modified DATABASE_URL to use asyncpg driver")
 
 from sqlalchemy import select, func
 from sqlalchemy.orm import selectinload
