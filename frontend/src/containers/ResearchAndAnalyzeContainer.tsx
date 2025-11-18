@@ -111,9 +111,9 @@ export function ResearchAndAnalyzeContainer() {
 
   // PHASE 2: Separate positions by type
   // usePublicPositions returns both PUBLIC and OPTIONS mixed together
-  // Match the logic from PublicPositionsContainer - use position_type as source of truth
+  // Use position_type as source of truth
 
-  // Helper to check if position is an option (same as PublicPositionsContainer)
+  // Helper to check if position is an option
   const isOption = (position: EnhancedPosition) => {
     return position.investment_class === 'OPTIONS' ||
            ['LC', 'LP', 'SC', 'SP'].includes(position.position_type as string)
