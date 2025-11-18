@@ -116,17 +116,27 @@ class PnLCalculator:
 
         for portfolio in portfolios:
             try:
-                success = await self.calculate_portfolio_pnl(
+                result = await self.calculate_portfolio_pnl(
                     portfolio_id=portfolio.id,
                     calculation_date=calculation_date,
                     db=db,
                     price_cache=price_cache  # Pass cache to portfolio processing
                 )
 
-                if success:
+                # Handle dict return (new) or bool return (backward compatibility)
+                if isinstance(result, dict):
+                    if result.get("status") == "skipped":
+                        # Idempotency working as designed - not an error
+                        logger.debug(f"{portfolio.name}: Skipped (duplicate run)")
+                        continue
+                    # Other dict responses treated as errors
+                    errors.append(f"{portfolio.name}: {result.get('message', 'Unknown error')}")
+                elif result is True:
+                    # Success
                     portfolios_processed += 1
                     snapshots_created += 1
-                else:
+                elif result is False:
+                    # Legacy False return (should not happen with new code)
                     errors.append(f"{portfolio.name}: Failed to create snapshot")
 
             except Exception as e:
@@ -188,13 +198,16 @@ class PnLCalculator:
             logger.debug(f"    [IDEMPOTENCY] Locked snapshot slot {placeholder.id}")
         except IntegrityError as e:
             # Another process already owns this (portfolio, date) slot
-            if "uq_portfolio_snapshot_date" in str(e):
+            # Check for EITHER constraint name (old: uq_portfolio_snapshots_portfolio_date,
+            # new: uq_portfolio_snapshot_date) or use SQLSTATE 23505 (unique violation)
+            error_str = str(e).lower()
+            if "uq_portfolio_snapshot" in error_str or "unique constraint" in error_str:
                 logger.info(
                     f"    [IDEMPOTENCY] Snapshot already exists for {calculation_date}, "
-                    f"skipping duplicate run"
+                    f"skipping duplicate run (constraint: {e.orig.diag.constraint_name if hasattr(e.orig, 'diag') else 'unknown'})"
                 )
                 await db.rollback()
-                return False  # Exit before touching equity
+                return {"status": "skipped", "reason": "duplicate_run"}
             # Some other integrity error - re-raise
             raise
 

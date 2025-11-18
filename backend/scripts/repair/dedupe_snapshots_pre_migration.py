@@ -21,11 +21,14 @@ import asyncio
 import sys
 from typing import Dict, Any, List
 from datetime import datetime
+from pathlib import Path
 from sqlalchemy import select, func, delete, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 
-# Add parent directory to path for imports
-sys.path.insert(0, '/Users/elliottng/CascadeProjects/SigmaSight-BE/backend')
+# Add parent directory to path for imports (works from any checkout location)
+# scripts/repair/dedupe_snapshots_pre_migration.py -> backend/
+backend_root = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(backend_root))
 
 from app.database import AsyncSessionLocal
 from app.models.snapshots import PortfolioSnapshot

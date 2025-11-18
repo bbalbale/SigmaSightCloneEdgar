@@ -434,6 +434,32 @@ class BatchOrchestrator:
             logger.debug(f"Skipping Phase 2 (Fundamentals) for historical date ({calculation_date})")
             result['phase_2'] = {'success': True, 'skipped': True, 'reason': 'historical_date'}
 
+        # Phase 2.5: Cleanup incomplete snapshots (Phase 2.10 idempotency)
+        # Remove stale placeholder snapshots from crashed runs to allow retries
+        try:
+            from app.calculations.snapshots import cleanup_incomplete_snapshots
+
+            cleaned = await cleanup_incomplete_snapshots(
+                db=db,
+                age_threshold_hours=1,  # Only delete snapshots older than 1 hour
+                portfolio_id=None  # Clean up all portfolios
+            )
+
+            if cleaned['incomplete_deleted'] > 0:
+                logger.warning(
+                    f"[IDEMPOTENCY] Cleaned up {cleaned['incomplete_deleted']} incomplete snapshots "
+                    f"before Phase 3 (from crashed batch runs)"
+                )
+                # Record metric for monitoring
+                if hasattr(self, '_record_metric'):
+                    self._record_metric("batch_incomplete_snapshots_cleaned", {
+                        "count": cleaned['incomplete_deleted']
+                    })
+        except Exception as e:
+            logger.error(f"Phase 2.5 (Cleanup) error: {e}")
+            # Non-fatal - continue to Phase 3
+            # Incomplete snapshots will block duplicate runs (by design)
+
         # Phase 3: P&L & Snapshots
         try:
             self._log_phase_start("phase_3", calculation_date, portfolio_ids)
