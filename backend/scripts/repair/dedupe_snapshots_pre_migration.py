@@ -78,8 +78,9 @@ async def get_best_snapshot(
     Get the "best" snapshot from a duplicate group.
 
     Logic:
-    1. Prefer snapshots with non-zero net_asset_value (complete calculations)
-    2. If equal, prefer latest created_at timestamp
+    1. Prefer complete snapshots (is_complete=True) over incomplete placeholders
+    2. If equal, prefer snapshots with non-zero net_asset_value (complete calculations)
+    3. If equal, prefer latest created_at timestamp
 
     Returns:
         The snapshot to keep
@@ -90,7 +91,9 @@ async def get_best_snapshot(
             PortfolioSnapshot.snapshot_date == snapshot_date
         )
     ).order_by(
-        # Order by: non-zero NAV first, then latest timestamp
+        # CRITICAL: Prefer complete snapshots first (Phase 2.10 idempotency)
+        # This prevents deleting real $0 NAV snapshots in favor of incomplete placeholders
+        PortfolioSnapshot.is_complete.desc(),
         PortfolioSnapshot.net_asset_value.desc(),
         PortfolioSnapshot.created_at.desc()
     )
