@@ -1,7 +1,7 @@
 """add_snapshot_idempotency_fields
 
 Revision ID: k8l9m0n1o2p3
-Revises: j7k8l9m0n1o2
+Revises: 792ffb1ab1ad
 Create Date: 2025-11-17 20:15:00.000000
 
 Phase 2.10: Batch Processing Idempotency Fix
@@ -16,7 +16,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision = 'k8l9m0n1o2p3'
-down_revision = 'j7k8l9m0n1o2'
+down_revision = '792ffb1ab1ad'
 branch_labels = None
 depends_on = None
 
