@@ -310,7 +310,12 @@ class AnalyticsRunner:
         portfolio_id: UUID,
         calculation_date: date
     ) -> bool:
-        """Calculate market beta using 90-day regression"""
+        """
+        Calculate market beta using 90-day regression
+
+        PHASE 3 FIX (2025-11-17): After calculating beta, update the snapshot
+        created in Phase 3 with the beta values.
+        """
         try:
             from app.calculations.market_beta import calculate_portfolio_market_beta
 
@@ -321,6 +326,10 @@ class AnalyticsRunner:
                 persist=True,
                 price_cache=self._price_cache  # Pass through cache for optimization
             )
+
+            # PHASE 3 FIX: Update snapshot with calculated beta
+            if result:
+                await self._update_snapshot_beta(db, portfolio_id, calculation_date, result)
 
             return result.get('success', False) if result else False
 
@@ -597,7 +606,12 @@ class AnalyticsRunner:
         portfolio_id: UUID,
         calculation_date: date
     ) -> Dict[str, Any]:
-        """Calculate volatility metrics (21d, 63d, 252d)"""
+        """
+        Calculate volatility metrics (21d, 63d, 252d)
+
+        PHASE 3 FIX (2025-11-17): After calculating volatility, update the snapshot
+        created in Phase 3 with the volatility values.
+        """
         try:
             from app.calculations.volatility_analytics import calculate_portfolio_volatility_batch
 
@@ -607,6 +621,10 @@ class AnalyticsRunner:
                 calculation_date=calculation_date,
                 price_cache=self._price_cache  # Pass through cache for optimization
             )
+
+            # PHASE 3 FIX: Update snapshot with calculated volatility
+            if result:
+                await self._update_snapshot_volatility(db, portfolio_id, calculation_date, result)
 
             success = bool(result.get('success'))
             message = result.get('message')
@@ -734,6 +752,143 @@ class AnalyticsRunner:
                 'success': False,
                 'message': str(e),
             }
+
+    async def _update_snapshot_beta(
+        self,
+        db: AsyncSession,
+        portfolio_id: UUID,
+        calculation_date: date,
+        beta_result: Dict[str, Any]
+    ) -> None:
+        """
+        Update snapshot with market beta from Phase 6
+
+        PHASE 3 FIX (2025-11-17): Phase 3 creates snapshots with NULL beta fields.
+        Phase 6 calculates betas (after Phase 4 sets position.market_value) and
+        updates existing snapshots with the calculated values.
+        """
+        from app.models.snapshots import PortfolioSnapshot
+        from sqlalchemy import select, and_
+        from decimal import Decimal
+
+        if not beta_result.get('success'):
+            logger.debug(f"Beta calculation failed, skipping snapshot update")
+            return
+
+        try:
+            # Query existing snapshot
+            snapshot_stmt = select(PortfolioSnapshot).where(
+                and_(
+                    PortfolioSnapshot.portfolio_id == portfolio_id,
+                    PortfolioSnapshot.snapshot_date == calculation_date
+                )
+            )
+            result = await db.execute(snapshot_stmt)
+            snapshot = result.scalar_one_or_none()
+
+            if not snapshot:
+                logger.warning(
+                    f"No snapshot found for portfolio {portfolio_id} on {calculation_date}, "
+                    f"cannot update beta"
+                )
+                return
+
+            # Update beta fields from Phase 6 calculation
+            portfolio_beta = beta_result.get('portfolio_beta')
+            if portfolio_beta is not None:
+                snapshot.beta_calculated_90d = Decimal(str(portfolio_beta))
+
+            r_squared = beta_result.get('r_squared')
+            if r_squared is not None:
+                snapshot.beta_calculated_90d_r_squared = Decimal(str(r_squared))
+
+            observations = beta_result.get('observations')
+            if observations is not None:
+                snapshot.beta_calculated_90d_observations = observations
+
+            logger.info(
+                f"Updated snapshot beta: β={float(snapshot.beta_calculated_90d):.3f}, "
+                f"R²={float(snapshot.beta_calculated_90d_r_squared):.3f}, "
+                f"obs={snapshot.beta_calculated_90d_observations}"
+            )
+
+        except Exception as e:
+            logger.error(f"Error updating snapshot beta: {e}")
+
+    async def _update_snapshot_volatility(
+        self,
+        db: AsyncSession,
+        portfolio_id: UUID,
+        calculation_date: date,
+        vol_result: Dict[str, Any]
+    ) -> None:
+        """
+        Update snapshot with volatility from Phase 6
+
+        PHASE 3 FIX (2025-11-17): Phase 3 creates snapshots with NULL volatility fields.
+        Phase 6 calculates volatility (after Phase 4 sets position.market_value) and
+        updates existing snapshots with the calculated values.
+        """
+        from app.models.snapshots import PortfolioSnapshot
+        from sqlalchemy import select, and_
+        from decimal import Decimal
+
+        if not vol_result.get('success'):
+            logger.debug(f"Volatility calculation failed, skipping snapshot update")
+            return
+
+        portfolio_vol = vol_result.get('portfolio_volatility')
+        if not portfolio_vol:
+            logger.debug(f"No portfolio volatility data in result, skipping snapshot update")
+            return
+
+        try:
+            # Query existing snapshot
+            snapshot_stmt = select(PortfolioSnapshot).where(
+                and_(
+                    PortfolioSnapshot.portfolio_id == portfolio_id,
+                    PortfolioSnapshot.snapshot_date == calculation_date
+                )
+            )
+            result = await db.execute(snapshot_stmt)
+            snapshot = result.scalar_one_or_none()
+
+            if not snapshot:
+                logger.warning(
+                    f"No snapshot found for portfolio {portfolio_id} on {calculation_date}, "
+                    f"cannot update volatility"
+                )
+                return
+
+            # Update volatility fields from Phase 6 calculation
+            vol_21d = portfolio_vol.get('realized_volatility_21d')
+            if vol_21d is not None:
+                snapshot.realized_volatility_21d = Decimal(str(vol_21d))
+
+            vol_63d = portfolio_vol.get('realized_volatility_63d')
+            if vol_63d is not None:
+                snapshot.realized_volatility_63d = Decimal(str(vol_63d))
+
+            expected_21d = portfolio_vol.get('expected_volatility_21d')
+            if expected_21d is not None:
+                snapshot.expected_volatility_21d = Decimal(str(expected_21d))
+
+            trend = portfolio_vol.get('volatility_trend')
+            if trend is not None:
+                snapshot.volatility_trend = trend
+
+            percentile = portfolio_vol.get('volatility_percentile')
+            if percentile is not None:
+                snapshot.volatility_percentile = Decimal(str(percentile))
+
+            logger.info(
+                f"Updated snapshot volatility: 21d={float(snapshot.realized_volatility_21d or 0):.2%}, "
+                f"expected={float(snapshot.expected_volatility_21d or 0):.2%}, "
+                f"trend={snapshot.volatility_trend}"
+            )
+
+        except Exception as e:
+            logger.error(f"Error updating snapshot volatility: {e}")
 
 
 # Global instance

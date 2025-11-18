@@ -345,7 +345,6 @@ async def _create_or_update_snapshot(
 
     # Import Portfolio model for equity_balance lookup
     from app.models.users import Portfolio
-    from app.models.market_data import PositionMarketBeta
 
     # Get portfolio to access equity_balance (already updated by equity_balance_update job)
     portfolio_query = select(Portfolio).where(Portfolio.id == portfolio_id)
@@ -362,30 +361,6 @@ async def _create_or_update_snapshot(
         f"Using pre-calculated equity balance for {portfolio_id}: ${float(today_equity):,.2f}"
     )
 
-    # Fetch market beta data (Phase 0: Single-factor model)
-    # Use latest available beta data as of calculation_date (not exact match)
-    latest_beta_date_query = select(PositionMarketBeta.calc_date).where(
-        and_(
-            PositionMarketBeta.portfolio_id == portfolio_id,
-            PositionMarketBeta.calc_date <= calculation_date
-        )
-    ).order_by(PositionMarketBeta.calc_date.desc()).limit(1)
-
-    latest_beta_date_result = await db.execute(latest_beta_date_query)
-    latest_beta_date = latest_beta_date_result.scalar_one_or_none()
-
-    market_beta_records = []
-    if latest_beta_date:
-        market_beta_query = select(PositionMarketBeta).where(
-            and_(
-                PositionMarketBeta.portfolio_id == portfolio_id,
-                PositionMarketBeta.calc_date == latest_beta_date
-            )
-        )
-        market_beta_result = await db.execute(market_beta_query)
-        market_beta_records = market_beta_result.scalars().all()
-        logger.info(f"Using beta data from {latest_beta_date} for snapshot {calculation_date}")
-
     # Calculate cash from equity minus deployed capital (long usage minus short proceeds)
     long_exposure = aggregations.get('long_exposure', Decimal('0'))
     short_exposure = aggregations.get('short_exposure', Decimal('0'))
@@ -400,41 +375,13 @@ async def _create_or_update_snapshot(
         cash_value,
     )
 
-    # Calculate portfolio-level calculated beta (90-day OLS regression, equity-weighted average)
+    # PHASE 3 FIX (2025-11-17): Remove beta calculation from Phase 3
+    # Beta calculation moved to Phase 6 where position.market_value is available
+    # Phase 6 will update snapshots after calculation completes
     beta_calculated_90d = None
     beta_calculated_90d_r_squared = None
     beta_calculated_90d_observations = None
-
-    if market_beta_records and today_equity > 0:
-        total_weighted_beta = Decimal('0')
-        total_weighted_r_squared = Decimal('0')
-        min_observations = None
-
-        for beta_record in market_beta_records:
-            # Get position to find market value
-            position_query = select(Position).where(Position.id == beta_record.position_id)
-            position_result = await db.execute(position_query)
-            position = position_result.scalar_one_or_none()
-
-            if position and position.market_value:
-                weight = position.market_value / today_equity
-                total_weighted_beta += beta_record.beta * weight
-                total_weighted_r_squared += (beta_record.r_squared or Decimal('0')) * weight
-
-                # Track minimum observations
-                if min_observations is None or beta_record.observations < min_observations:
-                    min_observations = beta_record.observations
-
-        beta_calculated_90d = total_weighted_beta
-        beta_calculated_90d_r_squared = total_weighted_r_squared
-        beta_calculated_90d_observations = min_observations
-
-        logger.info(
-            f"Calculated beta (90d) for snapshot: {float(beta_calculated_90d):.3f} "
-            f"(R²={float(beta_calculated_90d_r_squared):.3f}, obs={beta_calculated_90d_observations})"
-        )
-    else:
-        logger.info("No calculated beta data available for snapshot")
+    logger.debug("Beta calculation deferred to Phase 6 (requires position.market_value from Phase 4)")
 
     # Calculate provider beta (1-year, from CompanyProfile)
     # OPTIMIZATION: Skip for historical dates (only needed for current/final date)
@@ -506,40 +453,15 @@ async def _create_or_update_snapshot(
     else:
         logger.debug(f"Skipping sector analysis for historical snapshot ({calculation_date})")
 
-    # Phase 2: Volatility analytics
+    # PHASE 3 FIX (2025-11-17): Remove volatility calculation from Phase 3
+    # Volatility calculation moved to Phase 6 where position.market_value is available
+    # Phase 6 will update snapshots after calculation completes
     realized_volatility_21d = None
     realized_volatility_63d = None
     expected_volatility_21d = None
     volatility_trend = None
     volatility_percentile = None
-
-    try:
-        from app.calculations.volatility_analytics import calculate_portfolio_volatility_batch
-
-        volatility_result = await calculate_portfolio_volatility_batch(
-            db=db,
-            portfolio_id=portfolio_id,
-            calculation_date=calculation_date
-        )
-
-        if volatility_result.get('success'):
-            # Extract portfolio-level volatility data
-            if volatility_result.get('portfolio_volatility'):
-                pv = volatility_result['portfolio_volatility']
-                realized_volatility_21d = Decimal(str(pv.get('realized_volatility_21d', 0))) if pv.get('realized_volatility_21d') else None
-                realized_volatility_63d = Decimal(str(pv.get('realized_volatility_63d', 0))) if pv.get('realized_volatility_63d') else None
-                expected_volatility_21d = Decimal(str(pv.get('expected_volatility_21d', 0))) if pv.get('expected_volatility_21d') else None
-                volatility_trend = pv.get('volatility_trend')
-                volatility_percentile = Decimal(str(pv.get('volatility_percentile', 0))) if pv.get('volatility_percentile') else None
-                logger.info(
-                    f"Volatility metrics: 21d={float(realized_volatility_21d) if realized_volatility_21d else 0:.2%}, "
-                    f"expected={float(expected_volatility_21d) if expected_volatility_21d else 0:.2%}, "
-                    f"trend={volatility_trend}"
-                )
-        else:
-            logger.warning(f"Volatility analytics failed for snapshot: {volatility_result.get('error')}")
-    except Exception as e:
-        logger.warning(f"Could not calculate volatility metrics for snapshot: {e}")
+    logger.debug("Volatility calculation deferred to Phase 6 (requires position.market_value from Phase 4)")
 
     # Check if snapshot already exists
     existing_query = select(PortfolioSnapshot).where(
