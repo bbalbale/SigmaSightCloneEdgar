@@ -3419,6 +3419,73 @@ For each major feature:
 - **Investigation Completed**: 2025-11-17 (codebase analysis, entry points traced, concurrency reviewed)
 - **Notes**: Batch calculator runs multiple times on same day cause equity balance to compound incorrectly, leading to massively inflated portfolio values.
 
+---
+
+#### Executive Summary (Email-Ready Proposal)
+
+**Problem**: Running batch processing multiple times on the same day causes portfolio equity to compound incorrectly, resulting in severe data corruption (215% equity inflation observed in production).
+
+**Root Cause**: Race condition in snapshot creation allows concurrent batch runs to create duplicate snapshots and apply the same P&L calculations multiple times.
+
+**Solution**: Implement database-level idempotency using insert-first pattern with unique constraint and automated crash recovery.
+
+**Impact**: Production blocker - must fix before Railway cron can safely run automated daily batches.
+
+**Development Time**: 25-35 hours (includes development, testing, deployment, data repair)
+
+**Key Components**:
+1. **Pre-migration dedupe** - Remove existing duplicate snapshots
+2. **Database migration** - Add unique constraint on (portfolio_id, snapshot_date) + is_complete flag
+3. **Two-phase snapshot code** - Insert placeholder FIRST (atomic), then calculate (slow)
+4. **Automated cleanup** - Delete incomplete snapshots from crashed runs (no manual intervention)
+5. **Data repair** - Fix test009/test011 portfolios via historical snapshot replay
+
+**Why Database Migration is Required**:
+
+The migration adds two critical fields to `portfolio_snapshots`:
+
+1. **Unique constraint on (portfolio_id, snapshot_date)**:
+   - Provides atomic database-level enforcement that application code cannot achieve
+   - Prevents race condition: Only ONE process can insert a snapshot for (portfolio X, date Y)
+   - Second concurrent process gets `IntegrityError`, skips gracefully
+   - Application-level checks ("does snapshot exist?") have race windows - database constraints are atomic
+
+2. **is_complete flag (Boolean)**:
+   - Handles crashes during calculation without manual cleanup
+   - Placeholder snapshots marked `is_complete=FALSE` when inserted
+   - Set to `is_complete=TRUE` only after calculations finish
+   - If process crashes mid-calculation, incomplete snapshot auto-deleted after 24h
+   - Allows retry without operator intervention
+
+**Without Migration**: Application-level checks alone are insufficient - race conditions continue, equity inflation persists.
+
+**With Migration**: Database enforces idempotency atomically, crashed runs auto-recover, zero manual intervention required.
+
+**Deployment Sequence** (MUST run in this order):
+1. Task 2.10.0: Pre-migration dedupe (removes old duplicates)
+2. Task 2.10.1: Deploy migration (adds constraint + flag)
+3. Task 2.10.2: Deploy insert-first code (prevents future duplicates)
+4. Task 2.10.5: Replay historical snapshots (fixes corrupted equity)
+
+**Expected Outcomes**:
+- ✅ Concurrent runs: Second process skips gracefully (no duplicate calculations)
+- ✅ Crashed runs: Auto-cleanup after 24h (no manual SQL required)
+- ✅ Equity stability: Only calculated once per day (no compounding)
+- ✅ Railway cron: Safe to run automated daily batches
+- ✅ Observable: Metrics track skip events and cleanup operations
+
+**Risk**: Low with strict deployment sequence adherence. Rollback plan documented.
+
+**Timeline**:
+- Development: 19-26 hours
+- Testing: 4-6 hours
+- Deployment: 2-3 hours
+- **Total: 25-35 hours**
+
+**See detailed implementation plan below** ↓
+
+---
+
 #### 🚨 REQUIRED READING - AI Coding Agents
 
 **BEFORE implementing this fix, you MUST read:**
