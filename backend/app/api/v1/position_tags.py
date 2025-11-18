@@ -11,10 +11,10 @@ querying tags for individual positions. This is the PREFERRED tagging method
 - tags_v2.py: Database models (TagV2, PositionTag)
 
 **Endpoints**:
-- POST   /positions/{id}/tags       → Add tags to position
-- GET    /positions/{id}/tags       → Get position's tags
-- DELETE /positions/{id}/tags       → Remove tags from position
-- PATCH  /positions/{id}/tags       → Replace all position tags
+- POST   /positions/{id}/tags       -> Add tags to position
+- GET    /positions/{id}/tags       -> Get position's tags
+- DELETE /positions/{id}/tags       -> Remove tags from position
+- PATCH  /positions/{id}/tags       -> Replace all position tags
 
 **Related Files**:
 - Service: app/services/position_tag_service.py (PositionTagService)

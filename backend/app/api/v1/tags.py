@@ -10,21 +10,21 @@ and listing tags, plus the reverse lookup for positions by tag.
 - tags_v2.py: Database models (TagV2, PositionTag)
 
 **Endpoints - Tag Management**:
-- POST   /tags/                    → Create new tag
-- GET    /tags/                    → List user's tags
-- GET    /tags/{id}                → Get tag details
-- PATCH  /tags/{id}                → Update tag
-- POST   /tags/{id}/archive        → Archive tag (soft delete)
-- POST   /tags/{id}/restore        → Restore archived tag
-- POST   /tags/defaults            → Create/get default tags
+- POST   /tags/                    -> Create new tag
+- GET    /tags/                    -> List user's tags
+- GET    /tags/{id}                -> Get tag details
+- PATCH  /tags/{id}                -> Update tag
+- POST   /tags/{id}/archive        -> Archive tag (soft delete)
+- POST   /tags/{id}/restore        -> Restore archived tag
+- POST   /tags/defaults            -> Create/get default tags
 
 **Endpoint - Reverse Lookup**:
-- GET    /tags/{id}/positions      → Get positions with this tag (preferred grouping mechanism)
+- GET    /tags/{id}/positions      -> Get positions with this tag (preferred grouping mechanism)
 
 **Why is the reverse lookup here?**
 This follows REST API design patterns for many-to-many relationships:
-- Position-centric: "What tags does THIS position have?" → position_tags.py
-- Tag-centric: "What positions have THIS tag?" → tags.py (this file)
+- Position-centric: "What tags does THIS position have?" -> position_tags.py
+- Tag-centric: "What positions have THIS tag?" -> tags.py (this file)
 
 **Related Files**:
 - Service: app/services/tag_service.py (TagService)

@@ -13,11 +13,11 @@ and provide actionable recommendations.
 - Cost and performance tracking
 
 **Endpoints**:
-- POST   /insights/generate                → Generate new insight
-- GET    /insights/portfolio/{portfolio_id} → List portfolio insights
-- GET    /insights/{insight_id}            → Get single insight
-- PATCH  /insights/{insight_id}            → Update insight metadata
-- POST   /insights/{insight_id}/feedback   → Submit feedback/rating
+- POST   /insights/generate                -> Generate new insight
+- GET    /insights/portfolio/{portfolio_id} -> List portfolio insights
+- GET    /insights/{insight_id}            -> Get single insight
+- PATCH  /insights/{insight_id}            -> Update insight metadata
+- POST   /insights/{insight_id}/feedback   -> Submit feedback/rating
 
 **Backend Integration**:
 - Service: app/services/analytical_reasoning_service.py (investigate_portfolio)

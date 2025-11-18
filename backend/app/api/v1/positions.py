@@ -10,17 +10,17 @@ deleting positions with smart features (validation, duplicate detection, etc.).
 - Data Layer: app/models/positions.py (Position model)
 
 **Endpoints - Core CRUD**:
-- POST   /positions/                    → Create single position
-- POST   /positions/bulk                → Bulk create positions
-- GET    /positions/{id}                → Get single position
-- PUT    /positions/{id}                → Update position
-- DELETE /positions/{id}                → Delete position (soft/hard)
-- DELETE /positions/bulk                → Bulk delete positions
+- POST   /positions/                    -> Create single position
+- POST   /positions/bulk                -> Bulk create positions
+- GET    /positions/{id}                -> Get single position
+- PUT    /positions/{id}                -> Update position
+- DELETE /positions/{id}                -> Delete position (soft/hard)
+- DELETE /positions/bulk                -> Bulk delete positions
 
 **Endpoints - Smart Features**:
-- POST   /positions/validate-symbol     → Validate symbol via market data
-- GET    /positions/check-duplicate     → Check for duplicate symbols
-- GET    /positions/tags-for-symbol     → Get tags to inherit
+- POST   /positions/validate-symbol     -> Validate symbol via market data
+- GET    /positions/check-duplicate     -> Check for duplicate symbols
+- GET    /positions/tags-for-symbol     -> Get tags to inherit
 
 **Related Files**:
 - Service: app/services/position_service.py (PositionService)

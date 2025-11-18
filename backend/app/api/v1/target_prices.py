@@ -37,7 +37,7 @@ target_price_service = TargetPriceService()
     description="""Creates a portfolio-specific target price with smart price resolution, automatic position linking, and investment class detection. 
     
     Features:
-    - Smart price resolution (market data → live API → user provided)
+    - Smart price resolution (market data -> live API -> user provided)
     - Automatic position linking if position_id not provided
     - Investment class detection (PUBLIC/OPTIONS/PRIVATE)
     - Options underlying symbol resolution for accurate pricing
