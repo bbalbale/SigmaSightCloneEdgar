@@ -27,8 +27,8 @@ class User(Base):
     portfolios: Mapped[List["Portfolio"]] = relationship("Portfolio", back_populates="user", uselist=True, cascade="all, delete-orphan")
     # Enhanced tag model (v2) - replaced the old tags relationship
     tags_v2: Mapped[List["TagV2"]] = relationship("TagV2", back_populates="user", foreign_keys="TagV2.user_id", cascade="all, delete-orphan")
-    modeling_sessions: Mapped[List["ModelingSessionSnapshot"]] = relationship("ModelingSessionSnapshot", back_populates="user")
-    equity_changes: Mapped[List["EquityChange"]] = relationship("EquityChange", back_populates="created_by_user")
+    modeling_sessions: Mapped[List["ModelingSessionSnapshot"]] = relationship("ModelingSessionSnapshot", back_populates="user", cascade="all, delete-orphan")
+    equity_changes: Mapped[List["EquityChange"]] = relationship("EquityChange", back_populates="created_by_user", cascade="all, delete-orphan")
 
 
 class Portfolio(Base):

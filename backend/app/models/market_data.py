@@ -210,10 +210,10 @@ class FactorDefinition(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow)
     
     # Relationships
-    exposures: Mapped[list["FactorExposure"]] = relationship("FactorExposure", back_populates="factor")
-    position_exposures: Mapped[list["PositionFactorExposure"]] = relationship("PositionFactorExposure", back_populates="factor")
-    correlations_as_factor_1: Mapped[List["FactorCorrelation"]] = relationship("FactorCorrelation", foreign_keys="FactorCorrelation.factor_1_id", back_populates="factor_1")
-    correlations_as_factor_2: Mapped[List["FactorCorrelation"]] = relationship("FactorCorrelation", foreign_keys="FactorCorrelation.factor_2_id", back_populates="factor_2")
+    exposures: Mapped[list["FactorExposure"]] = relationship("FactorExposure", back_populates="factor", cascade="all, delete-orphan")
+    position_exposures: Mapped[list["PositionFactorExposure"]] = relationship("PositionFactorExposure", back_populates="factor", cascade="all, delete-orphan")
+    correlations_as_factor_1: Mapped[List["FactorCorrelation"]] = relationship("FactorCorrelation", foreign_keys="FactorCorrelation.factor_1_id", back_populates="factor_1", cascade="all, delete-orphan")
+    correlations_as_factor_2: Mapped[List["FactorCorrelation"]] = relationship("FactorCorrelation", foreign_keys="FactorCorrelation.factor_2_id", back_populates="factor_2", cascade="all, delete-orphan")
 
 
 class FactorExposure(Base):
@@ -433,7 +433,7 @@ class StressTestScenario(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow)
     
     # Relationships
-    stress_test_results: Mapped[List["StressTestResult"]] = relationship("StressTestResult", back_populates="scenario")
+    stress_test_results: Mapped[List["StressTestResult"]] = relationship("StressTestResult", back_populates="scenario", cascade="all, delete-orphan")
     
     __table_args__ = (
         Index('idx_stress_scenarios_category', 'category'),
