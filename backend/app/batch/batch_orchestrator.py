@@ -345,7 +345,7 @@ class BatchOrchestrator:
             force_onboarding: If True, run all phases even on historical dates
         """
 
-        result = {
+        result: Dict[str, Any] = {
             'success': False,
             'calculation_date': calculation_date,
             'phase_0': {},
@@ -357,8 +357,7 @@ class BatchOrchestrator:
             'phase_6': {},
             'errors': []
         }
-        insufficient_price_coverage = False
-        coverage_details: Dict[str, Any] = {}
+        phase4_result: Dict[str, Any] = {}
 
         # OPTIMIZATION: Company profiles and fundamentals only needed on current/final date
         # Override for onboarding: force_onboarding=True ensures Phases 0 & 2 run even on weekends
@@ -496,32 +495,26 @@ class BatchOrchestrator:
                 total_positions = phase4_result.get('total_positions') or 0
                 positions_skipped = phase4_result.get('positions_skipped') or 0
                 positions_ignored = phase4_result.get('positions_ignored', 0)
-                coverage_details = {
-                    'total_positions': total_positions,
-                    'positions_skipped': positions_skipped,
-                    'positions_ignored': positions_ignored,
-                }
-
                 if total_positions > 0:
                     missing_ratio = positions_skipped / total_positions
-                    coverage_details['missing_ratio'] = round(missing_ratio, 4)
+                    missing_ratio_rounded = round(missing_ratio, 4)
+                    phase4_result['missing_ratio'] = missing_ratio_rounded
 
                     if missing_ratio > 0.05:
-                        insufficient_price_coverage = True
-                        message = (
+                        warning_msg = (
                             f"Phase 4 insufficient price coverage: "
                             f"{positions_skipped}/{total_positions} positions missing ({missing_ratio:.1%})"
                         )
-                        logger.error(message)
-                        result['errors'].append(message)
-                        record_metric(
-                            "phase_4_insufficient_coverage",
-                            {
-                                'calculation_date': calculation_date.isoformat(),
-                                'portfolio_scope': len(portfolio_ids) if portfolio_ids else "all",
-                                **coverage_details,
-                            },
-                        )
+                        logger.warning(warning_msg)
+                        metric_payload = {
+                            'calculation_date': calculation_date.isoformat(),
+                            'portfolio_scope': len(portfolio_ids) if portfolio_ids else "all",
+                            'total_positions': total_positions,
+                            'positions_skipped': positions_skipped,
+                            'positions_ignored': positions_ignored,
+                            'missing_ratio': missing_ratio_rounded,
+                        }
+                        record_metric("phase_4_insufficient_coverage", metric_payload)
 
             if not phase4_result.get('success'):
                 logger.warning("Phase 4 (Position Updates) had errors, continuing to Phase 5")
@@ -557,43 +550,39 @@ class BatchOrchestrator:
             result['phase_5'] = {'success': True, 'skipped': True, 'reason': 'historical_date'}
 
         # Phase 6: Risk Analytics
-        if insufficient_price_coverage:
-            logger.error("Skipping Phase 6 due to insufficient price coverage in Phase 4")
-            phase6_result = {
-                'success': False,
-                'skipped': True,
-                'reason': 'insufficient_price_coverage',
-                **coverage_details,
-            }
+        try:
+            self._log_phase_start("phase_6", calculation_date, portfolio_ids)
+            phase6_result = await analytics_runner.run_all_portfolios_analytics(
+                calculation_date=calculation_date,
+                db=db,
+                portfolio_ids=portfolio_ids,
+                run_sector_analysis=run_sector_analysis,
+                price_cache=price_cache,  # Pass price cache for optimization
+            )
             result['phase_6'] = phase6_result
             self._log_phase_result("phase_6", phase6_result)
-            record_metric(
-                "phase_6_skipped",
-                {
-                    'calculation_date': calculation_date.isoformat(),
-                    'portfolio_scope': len(portfolio_ids) if portfolio_ids else "all",
-                    **coverage_details,
-                },
+
+            if not phase6_result.get('success'):
+                result['errors'].append("Phase 6 (Analytics) had errors")
+
+        except Exception as e:
+            logger.error(f"Phase 6 (Analytics) error: {e}")
+            result['errors'].append(f"Phase 6 (Analytics) error: {str(e)}")
+
+        # Final visibility into missing symbols (if any) once the run is complete
+        if phase4_result and phase4_result.get('missing_price_symbols'):
+            unique_missing_symbols = sorted(set(phase4_result.get('missing_price_symbols', [])))
+            missing_ratio = phase4_result.get('missing_ratio')
+            ratio_text = ""
+            if isinstance(missing_ratio, (int, float)):
+                ratio_text = f" (~{missing_ratio * 100:.2f}% of eligible positions)"
+            logger.warning(
+                "Final coverage check for %s%s: missing market data for %d symbols: %s",
+                calculation_date,
+                ratio_text,
+                len(unique_missing_symbols),
+                ", ".join(unique_missing_symbols),
             )
-        else:
-            try:
-                self._log_phase_start("phase_6", calculation_date, portfolio_ids)
-                phase6_result = await analytics_runner.run_all_portfolios_analytics(
-                    calculation_date=calculation_date,
-                    db=db,
-                    portfolio_ids=portfolio_ids,
-                    run_sector_analysis=run_sector_analysis,
-                    price_cache=price_cache,  # Pass price cache for optimization
-                )
-                result['phase_6'] = phase6_result
-                self._log_phase_result("phase_6", phase6_result)
-
-                if not phase6_result.get('success'):
-                    result['errors'].append("Phase 6 (Analytics) had errors")
-
-            except Exception as e:
-                logger.error(f"Phase 6 (Analytics) error: {e}")
-                result['errors'].append(f"Phase 6 (Analytics) error: {str(e)}")
 
         # Determine overall success
         # CRITICAL FIX (2025-11-14): Phase 6 (analytics) failures should NOT fail the batch!
