@@ -217,6 +217,11 @@ class AnthropicProvider:
         """
         Execute AI-powered investigation using Claude Sonnet 4.
 
+        OPTION C: Hybrid Interpretation-First with Tools on Demand
+        - Checks for analytics_bundle_available in context
+        - Guides AI to prefer interpretation when data available
+        - Keeps tools enabled but discourages overuse
+
         Args:
             context: Portfolio data and metrics for investigation
             insight_type: Type of analysis to perform
@@ -237,8 +242,11 @@ class AnthropicProvider:
         """
         start_time = time.time()
 
-        # Build system prompt
-        system_prompt = self._build_system_prompt(insight_type, focus_area)
+        # Check if analytics bundle is available (Option C)
+        has_analytics_bundle = context.get("analytics_bundle_available", False)
+
+        # Build system prompt with interpretation-first guidance (Option C)
+        system_prompt = self._build_system_prompt(insight_type, focus_area, has_analytics_bundle)
 
         # Build investigation prompt with context
         investigation_prompt = self._build_investigation_prompt(
@@ -412,12 +420,55 @@ class AnthropicProvider:
             logger.error(f"Unexpected error in investigation: {e}")
             raise
 
-    def _build_system_prompt(self, insight_type: InsightType, focus_area: Optional[str]) -> str:
+    def _build_system_prompt(self, insight_type: InsightType, focus_area: Optional[str], has_analytics_bundle: bool = False) -> str:
         """
         Build system prompt for Claude based on insight type.
 
+        OPTION C: Adds interpretation-first guidance when analytics bundle available.
+
+        Args:
+            insight_type: Type of insight to generate
+            focus_area: Optional focus area
+            has_analytics_bundle: Whether pre-calculated analytics are available (Option C)
+
         Returns conversational partner prompt with required structure.
         """
+        # Option C: Add interpretation-first guidance if analytics bundle available
+        interpretation_guidance = ""
+        if has_analytics_bundle:
+            interpretation_guidance = """
+OPTION C - INTERPRETATION-FIRST STRATEGY:
+
+You have comprehensive PRE-CALCULATED analytics in the user message. This includes:
+- Portfolio overview (beta, volatility, Sharpe ratio)
+- Sector exposure vs S&P 500
+- Concentration metrics (HHI, top positions)
+- Volatility analysis with HAR forecasting
+- Factor exposures (Market, Value, Growth, Momentum, Quality)
+- Correlation matrix
+- Stress test results
+
+**CRITICAL GUIDANCE:**
+- **PREFER INTERPRETING** these pre-calculated metrics over calling tools
+- Only call tools when you genuinely need additional data (target <20% of time)
+- When you have the data you need: Interpret directly, don't call tools
+- When data is missing or user asks for specifics: Use tools as needed
+
+**Default Approach (80% of cases):**
+- Use the pre-calculated metrics in the user message
+- Interpret, synthesize, and explain the numbers
+- Reference specific values from the data
+- No need to call tools
+
+**When to Use Tools (20% of cases):**
+- User asks about a SPECIFIC company not in the data
+- Need target prices or position tags
+- Missing data in pre-calculated bundle
+- User explicitly asks for "more detail" or "deep dive"
+
+Think: "Do I already have this data?" before calling any tool.
+"""
+
         base_prompt = """You are my trusted portfolio advisor - think of yourself as a sharp, experienced partner who's analyzing my portfolio with me.
 
 YOUR ROLE:
@@ -631,10 +682,13 @@ IMPORTANT:
 - Always include "as of [date]" for data freshness
 """
 
-        if focus_area:
-            base_prompt += f"\n\nFOCUS AREA: {focus_area}\nI want you to dig deep on this specific area and tell me what you're seeing."
+        # Option C: Add interpretation-first guidance if analytics bundle available
+        full_prompt = interpretation_guidance + base_prompt
 
-        return base_prompt
+        if focus_area:
+            full_prompt += f"\n\nFOCUS AREA: {focus_area}\nI want you to dig deep on this specific area and tell me what you're seeing."
+
+        return full_prompt
 
     def _build_investigation_prompt(
         self,

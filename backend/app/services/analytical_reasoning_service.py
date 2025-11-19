@@ -25,6 +25,7 @@ from app.models.ai_insights import AIInsight, InsightType, InsightSeverity
 from app.models.users import Portfolio
 from app.services.anthropic_provider import anthropic_provider
 from app.services.hybrid_context_builder import hybrid_context_builder
+from app.services.analytics_bundle import analytics_bundle_service
 
 logger = get_logger(__name__)
 
@@ -191,25 +192,52 @@ class AnalyticalReasoningService:
         """
         Build hybrid investigation context from batch results and API data.
 
-        This is a placeholder implementation. Will be enhanced with:
-        - Batch calculation results (volatility, Greeks, correlations, etc.)
-        - Real-time market data
-        - Data quality assessments
-        - Historical trends
+        OPTION C: Hybrid Interpretation-First
+        - ALWAYS fetch pre-calculated analytics bundle first
+        - Merge with existing hybrid_context_builder
+        - Provide comprehensive context to AI
 
         Returns:
             Dict containing portfolio metrics and data quality flags
         """
         logger.info(f"Building investigation context for portfolio {portfolio_id}")
 
-        # Use hybrid context builder to aggregate real portfolio data
-        context = await hybrid_context_builder.build_context(
+        # STEP 1: Fetch pre-calculated analytics bundle (NEW - Option C)
+        logger.info("Fetching analytics bundle (pre-calculated metrics)")
+        try:
+            analytics_bundle = await analytics_bundle_service.fetch_portfolio_analytics_bundle(
+                db=db,  # Pass database session
+                portfolio_id=portfolio_id,
+                focus_area=focus_area
+            )
+            analytics_available = True
+            logger.info(f"✓ Analytics bundle fetched successfully")
+        except Exception as e:
+            logger.warning(f"Failed to fetch analytics bundle: {e}")
+            analytics_bundle = {}
+            analytics_available = False
+
+        # STEP 2: Use hybrid context builder (KEEP - don't remove)
+        logger.info("Building hybrid context")
+        hybrid_context = await hybrid_context_builder.build_context(
             db=db,
             portfolio_id=portfolio_id,
             focus_area=focus_area,
         )
 
-        return context
+        # STEP 3: MERGE both contexts (Option C key feature)
+        merged_context = {
+            **hybrid_context,  # Existing context (portfolio snapshot, positions, etc.)
+            "pre_calculated_analytics": analytics_bundle,  # NEW: Pre-calculated metrics
+            "analytics_bundle_available": analytics_available,  # Flag for prompt logic
+        }
+
+        logger.info(
+            f"Context merged: hybrid_keys={len(hybrid_context)}, "
+            f"analytics_available={analytics_available}"
+        )
+
+        return merged_context
 
     async def _execute_investigation(
         self,
