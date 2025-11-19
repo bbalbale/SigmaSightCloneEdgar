@@ -10,6 +10,7 @@ from pydantic import BaseModel, ValidationError
 
 from app.core.datetime_utils import utc_now, to_utc_iso8601
 from app.agent.tools.handlers import PortfolioTools
+from app.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -56,12 +57,12 @@ class ToolRegistry:
     def __init__(self, tools: Optional[PortfolioTools] = None, auth_token: Optional[str] = None):
         """
         Initialize the tool registry.
-        
+
         Args:
             tools: PortfolioTools instance (will create if not provided)
             auth_token: Bearer token for API authentication
         """
-        self.tools = tools or PortfolioTools(auth_token=auth_token)
+        self.tools = tools or PortfolioTools(base_url=settings.BACKEND_URL, auth_token=auth_token)
         self.auth_token = auth_token
         
         # Registry mapping tool names to methods
@@ -303,7 +304,7 @@ class ToolRegistry:
         
         # Create authenticated PortfolioTools instance
         auth_token = ctx["auth_token"]
-        authenticated_tools = PortfolioTools(auth_token=auth_token)
+        authenticated_tools = PortfolioTools(base_url=settings.BACKEND_URL, auth_token=auth_token)
         
         # Map tool names to authenticated methods
         authenticated_registry = {
@@ -320,6 +321,11 @@ class ToolRegistry:
             "get_correlation_matrix": authenticated_tools.get_correlation_matrix,
             "get_stress_test_results": authenticated_tools.get_stress_test_results,
             "get_company_profile": authenticated_tools.get_company_profile,
+            # Phase 5 Enhanced Analytics Tools (December 3, 2025)
+            "get_concentration_metrics": authenticated_tools.get_concentration_metrics,
+            "get_volatility_analysis": authenticated_tools.get_volatility_analysis,
+            "get_target_prices": authenticated_tools.get_target_prices,
+            "get_position_tags": authenticated_tools.get_position_tags,
         }
         
         return authenticated_registry.get(tool_name, self.registry[tool_name])

@@ -100,6 +100,10 @@ class Settings(BaseSettings):
     ANTHROPIC_MAX_TOKENS: int = Field(default=8000, env="ANTHROPIC_MAX_TOKENS")
     ANTHROPIC_TEMPERATURE: float = Field(default=0.7, env="ANTHROPIC_TEMPERATURE")
     ANTHROPIC_TIMEOUT_SECONDS: int = Field(default=120, env="ANTHROPIC_TIMEOUT_SECONDS")
+
+    # Backend URL for internal API calls (used by AI agent tools)
+    # Default to localhost for development, override with Railway URL in production
+    BACKEND_URL: str = Field(default="http://localhost:8000", env="BACKEND_URL")
     
     # Onboarding settings
     BETA_INVITE_CODE: str = Field(
