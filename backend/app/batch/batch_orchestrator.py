@@ -183,41 +183,43 @@ class BatchOrchestrator:
 
         logger.info(f"Backfilling {len(missing_dates)} missing dates: {missing_dates[0]} to {missing_dates[-1]}")
 
-        # OPTIMIZATION: Create multi-day price cache ONCE for entire backfill
-        # This eliminates repeated price queries across all dates (10,000x speedup)
+        # OPTIMIZATION: Create price cache for ALL batch runs (single-day or multi-day)
+        # This eliminates repeated price queries during Phase 6 analytics
+        # FIX: Load 120 days of history before earliest date for 90-day regression windows
         price_cache = None
-        if len(missing_dates) > 1:
-            logger.info(f"[LAUNCH] OPTIMIZATION: Pre-loading multi-day price cache for {len(missing_dates)} dates")
-            async with AsyncSessionLocal() as cache_db:
-                # Get all symbols from active PUBLIC/OPTIONS positions
-                # Skip PRIVATE positions - they don't have market prices
-                symbols_stmt = select(Position.symbol).where(
-                    and_(
-                        Position.deleted_at.is_(None),
-                        Position.symbol.isnot(None),
-                        Position.symbol != '',
-                        Position.investment_class.in_(['PUBLIC', 'OPTIONS'])  # Exclude PRIVATE
-                    )
-                ).distinct()
-                symbols_result = await cache_db.execute(symbols_stmt)
-                symbols = {row[0] for row in symbols_result.all()}
+        logger.info(f"[LAUNCH] OPTIMIZATION: Pre-loading price cache for {len(missing_dates)} date(s)")
+        async with AsyncSessionLocal() as cache_db:
+            # Get all symbols from active PUBLIC/OPTIONS positions
+            # Skip PRIVATE positions - they don't have market prices
+            symbols_stmt = select(Position.symbol).where(
+                and_(
+                    Position.deleted_at.is_(None),
+                    Position.symbol.isnot(None),
+                    Position.symbol != '',
+                    Position.investment_class.in_(['PUBLIC', 'OPTIONS'])  # Exclude PRIVATE
+                )
+            ).distinct()
+            symbols_result = await cache_db.execute(symbols_stmt)
+            symbols = {row[0] for row in symbols_result.all()}
 
-                # Add factor ETF symbols for spread factor calculations + IR Beta
-                # These are required by app/calculations/factors_spread.py and interest_rate_beta.py
-                factor_etf_symbols = {'VUG', 'VTV', 'MTUM', 'QUAL', 'IWM', 'SPY', 'USMV', 'TLT'}
-                symbols = symbols.union(factor_etf_symbols)
+            # Add factor ETF symbols for spread factor calculations + IR Beta
+            # These are required by app/calculations/factors_spread.py and interest_rate_beta.py
+            factor_etf_symbols = {'VUG', 'VTV', 'MTUM', 'QUAL', 'IWM', 'SPY', 'USMV', 'TLT'}
+            symbols = symbols.union(factor_etf_symbols)
 
-                if symbols:
-                    # Load prices for entire date range (ONE bulk query)
-                    price_cache = PriceCache()
-                    loaded_count = await price_cache.load_date_range(
-                        db=cache_db,
-                        symbols=symbols,
-                        start_date=missing_dates[0],
-                        end_date=missing_dates[-1]
-                    )
-                    logger.info(f"[OK] Price cache loaded: {loaded_count} prices across {len(missing_dates)} dates")
-                    logger.info(f"   Cache stats: {price_cache.get_stats()}")
+            if symbols:
+                # Load prices with 120-day lookback for regression windows
+                price_cache = PriceCache()
+                cache_start = missing_dates[0] - timedelta(days=120)
+                loaded_count = await price_cache.load_date_range(
+                    db=cache_db,
+                    symbols=symbols,
+                    start_date=cache_start,
+                    end_date=missing_dates[-1]
+                )
+                logger.info(f"[OK] Price cache loaded: {loaded_count} prices")
+                logger.info(f"   Date range: {cache_start} to {missing_dates[-1]}")
+                logger.info(f"   Cache stats: {price_cache.get_stats()}")
 
         # Step 3: Process each missing date with its own fresh session
         # CRITICAL FIX: Each date gets a fresh session to avoid greenlet errors
