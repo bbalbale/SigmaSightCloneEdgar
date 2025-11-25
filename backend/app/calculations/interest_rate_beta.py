@@ -320,11 +320,12 @@ async def calculate_portfolio_ir_beta(
 
         portfolio_equity = float(portfolio.equity_balance)
 
-        # Get active positions
+        # Get active positions (exclude soft-deleted)
         positions_stmt = select(Position).where(
             and_(
                 Position.portfolio_id == portfolio_id,
-                Position.exit_date.is_(None)
+                Position.exit_date.is_(None),
+                Position.deleted_at.is_(None)
             )
         )
         positions_result = await db.execute(positions_stmt)
@@ -337,31 +338,70 @@ async def calculate_portfolio_ir_beta(
                 'error': 'No active positions found'
             }
 
+        # OPTIMIZATION: Check which positions already have cached IR betas for this date
+        # This prevents recalculating betas for positions shared across portfolios
+        position_ids = [p.id for p in positions]
+        cached_betas_stmt = select(PositionInterestRateBeta).where(
+            and_(
+                PositionInterestRateBeta.position_id.in_(position_ids),
+                PositionInterestRateBeta.calculation_date == calculation_date
+            )
+        )
+        cached_result = await db.execute(cached_betas_stmt)
+        cached_betas = {row.position_id: row for row in cached_result.scalars().all()}
+
+        if cached_betas:
+            logger.info(
+                f"Found {len(cached_betas)}/{len(positions)} positions with cached IR betas "
+                f"for {calculation_date} (skipping recalculation)"
+            )
+
         # Calculate IR beta for each position
         position_ir_betas = {}
         position_market_values = {}
         position_r_squareds = {}
         min_observations = float('inf')
+        positions_calculated = 0
+        positions_from_cache = 0
+
+        # Import get_position_value once (not in loop)
+        from app.calculations.market_data import get_position_value
 
         for position in positions:
-            ir_beta_result = await calculate_position_ir_beta(
-                db, position.id, calculation_date, window_days, treasury_symbol, price_cache
-            )
-
-            if not ir_beta_result['success']:
-                logger.warning(
-                    f"Could not calculate IR beta for {position.symbol}: "
-                    f"{ir_beta_result.get('error', 'Unknown error')}"
+            # Check if we have a cached IR beta for this position
+            if position.id in cached_betas:
+                cached = cached_betas[position.id]
+                ir_beta_result = {
+                    'position_id': position.id,
+                    'symbol': position.symbol,
+                    'ir_beta': float(cached.ir_beta),
+                    'r_squared': float(cached.r_squared) if cached.r_squared else 0.0,
+                    'observations': 60,  # Default observation count for cached
+                    'calculation_date': calculation_date,
+                    'success': True,
+                    'from_cache': True
+                }
+                positions_from_cache += 1
+            else:
+                # Calculate IR beta (not cached)
+                ir_beta_result = await calculate_position_ir_beta(
+                    db, position.id, calculation_date, window_days, treasury_symbol, price_cache
                 )
-                continue
+                positions_calculated += 1
 
-            # Persist position IR beta
-            if persist:
-                await persist_position_ir_beta(db, position.id, portfolio_id, ir_beta_result)
+                if not ir_beta_result['success']:
+                    logger.warning(
+                        f"Could not calculate IR beta for {position.symbol}: "
+                        f"{ir_beta_result.get('error', 'Unknown error')}"
+                    )
+                    continue
+
+                # Persist position IR beta (only for newly calculated)
+                if persist:
+                    await persist_position_ir_beta(db, position.id, portfolio_id, ir_beta_result)
 
             # Get position market value (absolute value for weighting)
             # Use canonical position value function (signed=False for absolute value)
-            from app.calculations.market_data import get_position_value
             market_value = float(get_position_value(position, signed=False, recalculate=True))
 
             position_ir_betas[position.id] = ir_beta_result['ir_beta']
@@ -375,6 +415,13 @@ async def calculate_portfolio_ir_beta(
                 'success': False,
                 'error': 'No position IR betas could be calculated'
             }
+
+        # Log cache optimization stats
+        if positions_from_cache > 0 or positions_calculated > 0:
+            logger.info(
+                f"IR beta stats: {positions_from_cache} from cache, "
+                f"{positions_calculated} calculated, {len(positions) - positions_from_cache - positions_calculated} failed"
+            )
 
         # Calculate equity-weighted portfolio IR beta
         total_weighted_ir_beta = 0.0

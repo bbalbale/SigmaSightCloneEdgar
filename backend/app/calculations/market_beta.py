@@ -304,11 +304,12 @@ async def calculate_portfolio_market_beta(
 
         portfolio_equity = float(portfolio.equity_balance)
 
-        # Get active positions
+        # Get active positions (exclude soft-deleted)
         positions_stmt = select(Position).where(
             and_(
                 Position.portfolio_id == portfolio_id,
-                Position.exit_date.is_(None)
+                Position.exit_date.is_(None),
+                Position.deleted_at.is_(None)
             )
         )
         positions_result = await db.execute(positions_stmt)
@@ -321,30 +322,69 @@ async def calculate_portfolio_market_beta(
                 'error': 'No active positions found'
             }
 
+        # OPTIMIZATION: Check which positions already have cached betas for this date
+        # This prevents recalculating betas for positions shared across portfolios
+        position_ids = [p.id for p in positions]
+        cached_betas_stmt = select(PositionMarketBeta).where(
+            and_(
+                PositionMarketBeta.position_id.in_(position_ids),
+                PositionMarketBeta.calc_date == calculation_date,
+                PositionMarketBeta.method == 'OLS_SIMPLE',
+                PositionMarketBeta.window_days == window_days
+            )
+        )
+        cached_result = await db.execute(cached_betas_stmt)
+        cached_betas = {row.position_id: row for row in cached_result.scalars().all()}
+
+        if cached_betas:
+            logger.info(
+                f"Found {len(cached_betas)}/{len(positions)} positions with cached market betas "
+                f"for {calculation_date} (skipping recalculation)"
+            )
+
         # Calculate beta for each position
         position_betas = {}
         position_signed_exposures = {}
         position_r_squareds = {}
         position_objects = {}
         min_observations = float('inf')
+        positions_calculated = 0
+        positions_from_cache = 0
 
         for position in positions:
-            beta_result = await calculate_position_market_beta(
-                db, position.id, calculation_date, window_days, price_cache
-            )
-
-            if not beta_result['success']:
-                logger.warning(
-                    f"Could not calculate beta for {position.symbol}: "
-                    f"{beta_result.get('error', 'Unknown error')}"
+            # Check if we have a cached beta for this position
+            if position.id in cached_betas:
+                cached = cached_betas[position.id]
+                beta_result = {
+                    'position_id': position.id,
+                    'symbol': position.symbol,
+                    'beta': float(cached.beta),
+                    'r_squared': float(cached.r_squared) if cached.r_squared else 0.0,
+                    'observations': cached.observations or 60,
+                    'calculation_date': calculation_date,
+                    'success': True,
+                    'from_cache': True
+                }
+                positions_from_cache += 1
+            else:
+                # Calculate beta (not cached)
+                beta_result = await calculate_position_market_beta(
+                    db, position.id, calculation_date, window_days, price_cache
                 )
-                continue
+                positions_calculated += 1
 
-            # Persist position beta to position_market_betas table
-            if persist:
-                await persist_position_beta(
-                    db, portfolio_id, position.id, beta_result, window_days
-                )
+                if not beta_result['success']:
+                    logger.warning(
+                        f"Could not calculate beta for {position.symbol}: "
+                        f"{beta_result.get('error', 'Unknown error')}"
+                    )
+                    continue
+
+                # Persist position beta to position_market_betas table (only for newly calculated)
+                if persist:
+                    await persist_position_beta(
+                        db, portfolio_id, position.id, beta_result, window_days
+                    )
 
             # Get position signed exposure (positive for longs, negative for shorts)
             # Use canonical position value function (signed=True for directional exposure)
@@ -362,6 +402,13 @@ async def calculate_portfolio_market_beta(
                 'success': False,
                 'error': 'No position betas could be calculated'
             }
+
+        # Log cache optimization stats
+        if positions_from_cache > 0 or positions_calculated > 0:
+            logger.info(
+                f"Market beta stats: {positions_from_cache} from cache, "
+                f"{positions_calculated} calculated, {len(positions) - positions_from_cache - positions_calculated} failed"
+            )
 
         # Calculate equity-weighted portfolio beta using signed exposures
         # This ensures short positions reduce overall market exposure
@@ -558,12 +605,13 @@ async def calculate_portfolio_provider_beta(
 
         portfolio_equity = float(portfolio.equity_balance)
 
-        # Get active PUBLIC stock positions only (exclude OPTIONS and PRIVATE)
+        # Get active PUBLIC stock positions only (exclude OPTIONS, PRIVATE, and soft-deleted)
         # OPTIMIZATION: Provider beta only makes sense for public equities
         positions_stmt = select(Position).where(
             and_(
                 Position.portfolio_id == portfolio_id,
                 Position.exit_date.is_(None),
+                Position.deleted_at.is_(None),
                 Position.position_type.in_([PositionType.LONG, PositionType.SHORT]),
                 Position.investment_class == 'PUBLIC'  # Only public stocks/ETFs
             )
