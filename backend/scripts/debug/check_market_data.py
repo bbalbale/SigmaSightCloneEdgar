@@ -5,11 +5,17 @@ Usage: python scripts/debug/check_market_data.py
 """
 import asyncio
 import sys
+import os
 from pathlib import Path
 
 # Add backend directory to path
 project_root = Path(__file__).resolve().parents[2]
 sys.path.append(str(project_root))
+
+# Fix DATABASE_URL for asyncpg if needed (Railway provides postgresql://)
+db_url = os.environ.get('DATABASE_URL', '')
+if db_url.startswith('postgresql://') and '+asyncpg' not in db_url:
+    os.environ['DATABASE_URL'] = db_url.replace('postgresql://', 'postgresql+asyncpg://', 1)
 
 from sqlalchemy import select, func
 from datetime import date
