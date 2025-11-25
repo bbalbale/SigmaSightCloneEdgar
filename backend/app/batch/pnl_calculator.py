@@ -108,7 +108,7 @@ class PnLCalculator:
         result = await db.execute(query)
         portfolios = result.scalars().all()
 
-        logger.info(f"Found {len(portfolios)} active portfolios")
+        logger.debug(f"Found {len(portfolios)} active portfolios")
 
         portfolios_processed = 0
         snapshots_created = 0

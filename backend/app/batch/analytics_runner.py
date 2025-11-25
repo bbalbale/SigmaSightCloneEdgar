@@ -69,7 +69,7 @@ class AnalyticsRunner:
         self._price_cache = price_cache
         if price_cache:
             stats = price_cache.get_stats()
-            logger.info(f"OPTIMIZATION: Using price cache with {stats.get('total_prices', 0)} preloaded prices")
+            logger.debug(f"OPTIMIZATION: Using price cache with {stats.get('total_prices', 0)} preloaded prices")
         else:
             logger.warning("Price cache not provided - will use slower database queries")
 

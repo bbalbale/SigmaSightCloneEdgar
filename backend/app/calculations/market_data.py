@@ -278,7 +278,7 @@ async def get_returns(
         - align_dates=True is REQUIRED for regressions (no NaN allowed)
         - align_dates=False useful for exploratory analysis
     """
-    logger.info(f"Fetching returns for {len(symbols)} symbols from {start_date} to {end_date}")
+    logger.debug(f"Fetching returns for {len(symbols)} symbols from {start_date} to {end_date}")
 
     # Fetch historical prices using existing canonical function (with optional cache)
     price_df = await fetch_historical_prices(
@@ -300,7 +300,7 @@ async def get_returns(
         rows_after = len(price_df)
 
         if rows_after < rows_before:
-            logger.info(
+            logger.debug(
                 f"Date alignment: dropped {rows_before - rows_after} rows with missing data "
                 f"({rows_after} aligned dates remain)"
             )
@@ -313,7 +313,7 @@ async def get_returns(
     # Using fill_method=None to avoid FutureWarning (Pandas 2.1+)
     returns_df = price_df.pct_change(fill_method=None).dropna()
 
-    logger.info(
+    logger.debug(
         f"Calculated returns for {len(symbols)} symbols over {len(returns_df)} days "
         f"(aligned={align_dates})"
     )
@@ -513,14 +513,14 @@ async def fetch_and_cache_prices(
                 end_date=date.today(),
                 include_gics=False  # Skip GICS for real-time price updates
             )
-            logger.info(f"Updated market_data_cache for {len(valid_prices)} symbols")
+            logger.debug(f"Updated market_data_cache for {len(valid_prices)} symbols")
         except Exception as e:
             logger.error(f"Error updating market_data_cache: {str(e)}")
     
     # Step 3: Fallback to cached prices for symbols with missing data
     missing_symbols = [k for k, v in current_prices.items() if v is None]
     if missing_symbols:
-        logger.info(f"Attempting to retrieve cached prices for {len(missing_symbols)} symbols")
+        logger.debug(f"Attempting to retrieve cached prices for {len(missing_symbols)} symbols")
         try:
             cached_prices = await market_data_service.get_cached_prices(
                 db=db,
@@ -540,7 +540,7 @@ async def fetch_and_cache_prices(
     final_prices = {k: v for k, v in current_prices.items() if v is not None}
     missing_final = [k for k, v in current_prices.items() if v is None]
     
-    logger.info(f"Price fetch complete: {len(final_prices)} prices available, {len(missing_final)} still missing")
+    logger.debug(f"Price fetch complete: {len(final_prices)} prices available, {len(missing_final)} still missing")
     
     if missing_final:
         logger.warning(f"No prices available for symbols: {missing_final}")
@@ -688,7 +688,7 @@ async def fetch_historical_prices(
         - With cache: 1 bulk query upfront, O(1) lookups (300x speedup)
         - Without cache: 1 query per call (slower but still works)
     """
-    logger.info(f"Fetching historical prices for {len(symbols)} symbols from {start_date} to {end_date}")
+    logger.debug(f"Fetching historical prices for {len(symbols)} symbols from {start_date} to {end_date}")
 
     if not symbols:
         logger.warning("Empty symbols list provided")
@@ -696,7 +696,7 @@ async def fetch_historical_prices(
 
     # OPTIMIZATION: Use price cache if provided (cache-first approach)
     if price_cache:
-        logger.info(f"CACHE: Using price cache for {len(symbols)} symbols")
+        logger.debug(f"CACHE: Using price cache for {len(symbols)} symbols")
 
         # Generate all dates in range (we'll check cache for each)
         from datetime import timedelta
@@ -724,10 +724,13 @@ async def fetch_historical_prices(
                 else:
                     cache_misses += 1
 
-        # Log cache performance
+        # Log cache performance (only log warnings for poor hit rates)
         total = cache_hits + cache_misses
         hit_rate = (cache_hits / total * 100) if total > 0 else 0
-        logger.info(f"CACHE STATS: {cache_hits} hits, {cache_misses} misses (hit rate: {hit_rate:.1f}%)")
+        if hit_rate < 80:
+            logger.warning(f"CACHE: Low hit rate {hit_rate:.1f}% ({cache_hits}/{total}) for {len(symbols)} symbols")
+        else:
+            logger.debug(f"CACHE: {hit_rate:.1f}% hit rate ({cache_hits}/{total})")
 
         if not data:
             logger.warning(f"No cached data found for symbols {symbols} between {start_date} and {end_date}")
@@ -743,7 +746,7 @@ async def fetch_historical_prices(
         price_df.index = pd.to_datetime(price_df.index)
 
         # Log data availability
-        logger.info(f"Retrieved {len(price_df)} days of data for {len(price_df.columns)} symbols from cache")
+        logger.debug(f"Retrieved {len(price_df)} days of data for {len(price_df.columns)} symbols from cache")
 
         # Check for missing data
         missing_data = price_df.isnull().sum()

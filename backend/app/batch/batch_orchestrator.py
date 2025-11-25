@@ -218,9 +218,8 @@ class BatchOrchestrator:
                     start_date=cache_start,
                     end_date=missing_dates[-1]
                 )
-                logger.info(f"[OK] Price cache loaded: {loaded_count} prices")
-                logger.info(f"   Date range: {cache_start} to {missing_dates[-1]}")
-                logger.info(f"   Cache stats: {price_cache.get_stats()}")
+                logger.info(f"[OK] Price cache loaded: {loaded_count} prices for {cache_start} to {missing_dates[-1]}")
+                logger.debug(f"   Cache stats: {price_cache.get_stats()}")
 
         # Step 3: Process each missing date with its own fresh session
         # CRITICAL FIX: Each date gets a fresh session to avoid greenlet errors

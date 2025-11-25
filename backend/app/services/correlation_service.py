@@ -857,7 +857,7 @@ class CorrelationService:
 
         if self.price_cache:
             # OPTIMIZATION: Use preloaded price cache instead of database query
-            logger.info(f"CACHE: Loading {len(ordered_symbols)} symbols from cache for date range {start_bound} to {end_bound}")
+            logger.debug(f"CACHE: Loading {len(ordered_symbols)} symbols from cache for date range {start_bound} to {end_bound}")
             cache_hits = 0
             cache_misses = 0
 
@@ -878,11 +878,17 @@ class CorrelationService:
                     else:
                         cache_misses += 1
 
-            logger.info(f"CACHE STATS: {cache_hits} hits, {cache_misses} misses (hit rate: {cache_hits/(cache_hits+cache_misses)*100:.1f}%)")
+            # Only log warnings for poor hit rates
+            total = cache_hits + cache_misses
+            hit_rate = (cache_hits / total * 100) if total > 0 else 0
+            if hit_rate < 80:
+                logger.warning(f"CACHE: Low hit rate {hit_rate:.1f}% ({cache_hits}/{total})")
+            else:
+                logger.debug(f"CACHE STATS: {cache_hits} hits, {cache_misses} misses (hit rate: {hit_rate:.1f}%)")
 
         if not rows:
             # Fallback to database query if cache not available or empty
-            logger.info("Using database query for historical prices (no cache or cache empty)")
+            logger.debug("Using database query for historical prices (no cache or cache empty)")
             price_query = (
                 select(
                     MarketDataCache.symbol,

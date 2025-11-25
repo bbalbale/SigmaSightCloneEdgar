@@ -82,7 +82,7 @@ class PriceCache:
             logger.debug(f"Price cache: Date {calculation_date} already loaded")
             return 0
 
-        logger.info(f"Loading price cache for {len(symbols)} symbols on {calculation_date}")
+        logger.debug(f"Loading price cache for {len(symbols)} symbols on {calculation_date}")
 
         # ONE bulk query instead of N individual queries
         stmt = select(
@@ -111,7 +111,7 @@ class PriceCache:
         self._loaded_dates.add(calculation_date)
         self._loaded_symbols.update(symbols)
 
-        logger.info(f"Price cache loaded: {loaded_count} prices for {calculation_date}")
+        logger.debug(f"Price cache loaded: {loaded_count} prices for {calculation_date}")
         return loaded_count
 
     async def load_date_range(

@@ -208,8 +208,8 @@ class MarketDataCollector:
 
         symbols_needing_fetch = symbols - fully_cached_symbols
 
-        logger.info(f"Granular cache check: {len(fully_cached_symbols)}/{len(symbols)} symbols fully cached")
-        logger.info(f"  {len(symbols_needing_fetch)} symbols need fetching (missing current data or insufficient history)")
+        logger.debug(f"Granular cache check: {len(fully_cached_symbols)}/{len(symbols)} symbols fully cached")
+        logger.debug(f"  {len(symbols_needing_fetch)} symbols need fetching (missing current data or insufficient history)")
 
         # Phase 11.1: Use per-symbol logic to determine earliest/most recent dates
         # This replaces the old aggregate 80% threshold approach
@@ -236,9 +236,9 @@ class MarketDataCollector:
                 most_recent_date = date_row[1]
 
         if earliest_date:
-            logger.info(f"  Cached data range: {earliest_date} to {most_recent_date}")
+            logger.debug(f"  Cached data range: {earliest_date} to {most_recent_date}")
         else:
-            logger.info(f"  No cached data found for any symbols")
+            logger.debug(f"  No cached data found for any symbols")
 
         # Phase 11.1: Determine what needs to be fetched based on per-symbol analysis
         # If ALL symbols are fully cached, skip fetching entirely
@@ -249,7 +249,7 @@ class MarketDataCollector:
             fetch_mode = "cached"
             start_date = calculation_date
             end_date = calculation_date
-            logger.info(f"All {len(symbols)} symbols fully cached: {required_start} to {calculation_date}")
+            logger.debug(f"All {len(symbols)} symbols fully cached: {required_start} to {calculation_date}")
         else:
             # Some symbols need data - fetch full range for those symbols only
             # We'll use the existing _get_cached_symbols method later to filter further
@@ -297,7 +297,7 @@ class MarketDataCollector:
 
         # OPTIMIZATION: If fetch_mode is "cached", skip fetching entirely
         if fetch_mode == "cached":
-            logger.info("All required data is cached - skipping fetch")
+            logger.debug("All required data is cached - skipping fetch")
             return {
                 'success': True,
                 'calculation_date': calculation_date,
@@ -318,8 +318,8 @@ class MarketDataCollector:
         cached_symbols = await self._get_cached_symbols(db, symbols, start_date, end_date)
         missing_symbols = symbols - cached_symbols
 
-        logger.info(f"Already cached: {len(cached_symbols)} symbols")
-        logger.info(f"Need to fetch: {len(missing_symbols)} symbols")
+        logger.debug(f"Already cached: {len(cached_symbols)} symbols")
+        logger.debug(f"Need to fetch: {len(missing_symbols)} symbols")
 
         # Step 4: Fetch missing data using provider priority chain
         fetched_data = {}
@@ -472,7 +472,7 @@ class MarketDataCollector:
         min_date = result.scalar()
 
         if not min_date:
-            logger.info("No market data found in cache")
+            logger.debug("No market data found in cache")
             return None
 
         # Check forwards from min_date to find a date with good coverage
@@ -522,7 +522,7 @@ class MarketDataCollector:
         max_date = result.scalar()
 
         if not max_date:
-            logger.info("No market data found in cache")
+            logger.debug("No market data found in cache")
             return None
 
         # Check backwards from max_date to find a date with good coverage
@@ -732,7 +732,7 @@ class MarketDataCollector:
         if not fetched_data:
             return 0
 
-        logger.info(f"Storing {len(fetched_data)} symbols in cache...")
+        logger.debug(f"Storing {len(fetched_data)} symbols in cache...")
 
         # Prepare all records for batch insert
         all_records = []
