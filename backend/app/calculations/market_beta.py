@@ -572,11 +572,7 @@ async def calculate_portfolio_provider_beta(
             'error': str (if failed)
         }
     """
-    # [STEP 2 DEBUG] Query counter to detect infinite loops
-    company_profile_query_count = 0
-    MAX_QUERIES = 100  # Circuit breaker
-
-    logger.info(f"[PROVIDER BETA DEBUG] Starting calculation for portfolio {portfolio_id}")
+    logger.info(f"[PROVIDER BETA] Starting calculation for portfolio {portfolio_id}")
 
     try:
         # Get portfolio
@@ -626,50 +622,62 @@ async def calculate_portfolio_provider_beta(
                 'error': 'No active public stock positions found'
             }
 
+        # OPTIMIZATION: Bulk-load all company profile betas in ONE query (fixes N+1 issue)
+        position_symbols = [p.symbol for p in positions]
+        position_ids = [p.id for p in positions]
+
+        # Bulk fetch provider betas from company_profiles
+        profiles_stmt = select(CompanyProfile.symbol, CompanyProfile.beta).where(
+            CompanyProfile.symbol.in_(position_symbols)
+        )
+        profiles_result = await db.execute(profiles_stmt)
+        provider_betas = {row.symbol: row.beta for row in profiles_result.all()}
+        logger.info(f"[PROVIDER BETA] Bulk-loaded {len(provider_betas)} company profile betas (1 query)")
+
+        # Bulk fetch calculated betas as fallback (latest per position)
+        from sqlalchemy import func as sqlfunc
+        # Subquery to get max calc_date per position
+        latest_dates_subq = (
+            select(
+                PositionMarketBeta.position_id,
+                sqlfunc.max(PositionMarketBeta.calc_date).label('max_date')
+            )
+            .where(PositionMarketBeta.position_id.in_(position_ids))
+            .group_by(PositionMarketBeta.position_id)
+            .subquery()
+        )
+        # Join to get the beta values at those dates
+        calculated_betas_stmt = (
+            select(PositionMarketBeta.position_id, PositionMarketBeta.beta)
+            .join(
+                latest_dates_subq,
+                and_(
+                    PositionMarketBeta.position_id == latest_dates_subq.c.position_id,
+                    PositionMarketBeta.calc_date == latest_dates_subq.c.max_date
+                )
+            )
+        )
+        calculated_result = await db.execute(calculated_betas_stmt)
+        calculated_betas = {row.position_id: row.beta for row in calculated_result.all()}
+        logger.info(f"[PROVIDER BETA] Bulk-loaded {len(calculated_betas)} calculated betas as fallback (1 query)")
+
         # Calculate provider beta for each position using signed exposures
         total_weighted_beta_numerator = 0.0
         positions_with_beta = 0
         positions_without_beta = 0
 
-        logger.info(f"[PROVIDER BETA DEBUG] Processing {len(positions)} positions...")
+        logger.info(f"[PROVIDER BETA] Processing {len(positions)} positions...")
 
         for position in positions:
-            # [STEP 2 DEBUG] Track company_profile queries with circuit breaker
-            company_profile_query_count += 1
-            logger.info(f"[QUERY #{company_profile_query_count}] Fetching beta for {position.symbol}")
-
-            if company_profile_query_count > MAX_QUERIES:
-                error_msg = f"CIRCUIT BREAKER: Exceeded {MAX_QUERIES} company_profile queries! Possible infinite loop."
-                logger.error(f"[PROVIDER BETA DEBUG] {error_msg}")
-                return {
-                    'portfolio_id': portfolio_id,
-                    'success': False,
-                    'error': error_msg
-                }
-
-            # Get company profile beta (N+1 QUERY - PERFORMANCE ISSUE)
-            # OPTIMIZATION: Only SELECT beta field (not all 53 fields!)
-            profile_stmt = select(CompanyProfile.beta).where(CompanyProfile.symbol == position.symbol)
-            profile_result = await db.execute(profile_stmt)
-            provider_beta = profile_result.scalar_one_or_none()
+            # Get provider beta from bulk-loaded cache
+            provider_beta = provider_betas.get(position.symbol)
 
             # FALLBACK: If company profile beta is missing or zero, try calculated beta
             if not provider_beta or float(provider_beta) == 0.0:
-                logger.info(f"No provider beta for {position.symbol}, checking for calculated beta...")
-
-                # Query latest calculated beta from position_market_betas table
-                latest_beta_stmt = (
-                    select(PositionMarketBeta.beta)
-                    .where(PositionMarketBeta.position_id == position.id)
-                    .order_by(PositionMarketBeta.calc_date.desc())
-                    .limit(1)
-                )
-                latest_beta_result = await db.execute(latest_beta_stmt)
-                calculated_beta = latest_beta_result.scalar_one_or_none()
-
+                calculated_beta = calculated_betas.get(position.id)
                 if calculated_beta is not None:
                     provider_beta = calculated_beta
-                    logger.info(
+                    logger.debug(
                         f"Using calculated beta ({float(calculated_beta):.4f}) "
                         f"as fallback for {position.symbol}"
                     )
@@ -716,15 +724,9 @@ async def calculate_portfolio_provider_beta(
             'success': True
         }
 
-        # [STEP 2 DEBUG] Report query statistics
         logger.info(
-            f"[PROVIDER BETA DEBUG] [OK] COMPLETE: {portfolio_beta:.3f} "
+            f"[PROVIDER BETA] Complete: {portfolio_beta:.3f} "
             f"({positions_with_beta}/{len(positions)} positions with beta data)"
-        )
-        logger.info(f"[PROVIDER BETA DEBUG] Total company_profile queries: {company_profile_query_count}")
-        logger.warning(
-            f"[PERFORMANCE] N+1 QUERY PATTERN: {company_profile_query_count} individual queries! "
-            f"Should bulk-load company_profiles."
         )
 
         return result
