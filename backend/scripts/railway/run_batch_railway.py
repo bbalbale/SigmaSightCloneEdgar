@@ -29,39 +29,43 @@ async def run_batch_processing():
     logger.info("BATCH PROCESSING (Railway Production)")
     logger.info("=" * 80)
 
+    # Count portfolios (separate session, closed before batch runs)
+    # FIX: Close session BEFORE calling batch orchestrator to avoid session interference
+    # where equity_balance updates weren't persisting correctly on daily runs.
     async with get_async_session() as db:
-        try:
-            # Count portfolios
-            portfolio_count = await db.execute(select(func.count(Portfolio.id)))
-            total_portfolios = portfolio_count.scalar()
+        portfolio_count = await db.execute(select(func.count(Portfolio.id)))
+        total_portfolios = portfolio_count.scalar()
+    # Session is now CLOSED before batch processing starts
 
-            logger.info(f"\nFound {total_portfolios} portfolios to process")
+    logger.info(f"\nFound {total_portfolios} portfolios to process")
 
-            # Run batch processing for all portfolios
-            logger.info("\nStarting batch processing...")
-            logger.info("This will:")
-            logger.info("  - Phase 0: Company profile sync (beta values, sector, industry)")
-            logger.info("  - Phase 1: Collect market data (1-year lookback)")
-            logger.info("  - Phase 2: Collect fundamental data")
-            logger.info("  - Phase 3: Calculate P&L and snapshots")
-            logger.info("  - Phase 4: Update position market values")
-            logger.info("  - Phase 5: Restore sector tags")
-            logger.info("  - Phase 6: Calculate risk analytics (betas, factors, correlations)")
+    # Run batch processing for all portfolios
+    logger.info("\nStarting batch processing...")
+    logger.info("This will:")
+    logger.info("  - Phase 0: Company profile sync (beta values, sector, industry)")
+    logger.info("  - Phase 1: Collect market data (1-year lookback)")
+    logger.info("  - Phase 2: Collect fundamental data")
+    logger.info("  - Phase 3: Calculate P&L and snapshots")
+    logger.info("  - Phase 4: Update position market values")
+    logger.info("  - Phase 5: Restore sector tags")
+    logger.info("  - Phase 6: Calculate risk analytics (betas, factors, correlations)")
 
-            # Use the correct batch orchestrator method with automatic backfill
-            result = await batch_orchestrator.run_daily_batch_with_backfill()
+    try:
+        # Use the correct batch orchestrator method with automatic backfill
+        # Called OUTSIDE any session context - orchestrator manages its own sessions
+        result = await batch_orchestrator.run_daily_batch_with_backfill()
 
-            logger.info("\n" + "=" * 80)
-            logger.info("BATCH PROCESSING COMPLETED SUCCESSFULLY")
-            logger.info("=" * 80)
-            logger.info(f"Result: {result.get('message', 'Success')}")
-            logger.info("\nNext steps:")
-            logger.info("  1. Verify calculations via frontend")
-            logger.info("  2. Check data quality endpoint: /api/v1/data/portfolio/{id}/data-quality")
+        logger.info("\n" + "=" * 80)
+        logger.info("BATCH PROCESSING COMPLETED SUCCESSFULLY")
+        logger.info("=" * 80)
+        logger.info(f"Result: {result.get('message', 'Success')}")
+        logger.info("\nNext steps:")
+        logger.info("  1. Verify calculations via frontend")
+        logger.info("  2. Check data quality endpoint: /api/v1/data/portfolio/{id}/data-quality")
 
-        except Exception as e:
-            logger.error(f"Error running batch processing: {e}")
-            raise
+    except Exception as e:
+        logger.error(f"Error running batch processing: {e}")
+        raise
 
 
 if __name__ == "__main__":

@@ -208,9 +208,10 @@ class BatchOrchestrator:
             symbols = symbols.union(factor_etf_symbols)
 
             if symbols:
-                # Load prices with 120-day lookback for regression windows
+                # Load 366 days of price history for regression windows
+                # Covers 1-year lookback for all calculations (beta, correlation, volatility)
                 price_cache = PriceCache()
-                cache_start = missing_dates[0] - timedelta(days=120)
+                cache_start = missing_dates[0] - timedelta(days=366)
                 loaded_count = await price_cache.load_date_range(
                     db=cache_db,
                     symbols=symbols,
