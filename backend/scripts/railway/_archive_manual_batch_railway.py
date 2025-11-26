@@ -1,10 +1,16 @@
 #!/usr/bin/env python
 """
-Run Batch Processing on Railway Production
-Runs batch calculations for all portfolios to generate P&L and analytics
+ARCHIVED - Manual Batch Processing on Railway Production
 
-Usage:
-    railway run --service SigmaSight-BE python scripts/railway/run_batch_railway.py
+⚠️ THIS SCRIPT IS ARCHIVED - DO NOT USE
+   - `railway run` doesn't work properly with async drivers
+   - Use `trigger_railway_fix.py` instead (calls HTTP API)
+   - Or use `railway ssh` + `uv run python` for direct execution
+
+For the automated daily cron job, Railway uses: scripts/automation/railway_daily_batch.py
+
+Historical Usage (no longer recommended):
+    railway run --service SigmaSight-BE python scripts/railway/manual_batch_railway.py
 """
 import asyncio
 import sys
@@ -15,12 +21,28 @@ project_root = Path(__file__).resolve().parents[2]
 sys.path.append(str(project_root))
 
 from sqlalchemy import select, func
-from app.database import get_async_session
+from app.database import get_async_session, AsyncSessionLocal
 from app.models.users import Portfolio
 from app.batch.batch_orchestrator import batch_orchestrator
 from app.core.logging import get_logger
+from app.db.seed_factors import seed_factors
 
 logger = get_logger(__name__)
+
+
+async def ensure_factor_definitions():
+    """Ensure factor definitions exist before running batch.
+
+    This is critical because:
+    1. Factor definitions must exist for analytics_runner to save exposures
+    2. Stress testing needs factor exposures to calculate scenario impacts
+    3. seed_factors() is idempotent - won't duplicate existing factors
+    """
+    logger.info("Verifying factor definitions...")
+    async with AsyncSessionLocal() as db:
+        await seed_factors(db)
+        await db.commit()
+    logger.info("Factor definitions verified/seeded")
 
 
 async def run_batch_processing():
@@ -51,6 +73,9 @@ async def run_batch_processing():
     logger.info("  - Phase 6: Calculate risk analytics (betas, factors, correlations)")
 
     try:
+        # Ensure factor definitions exist before running batch
+        await ensure_factor_definitions()
+
         # Use the correct batch orchestrator method with automatic backfill
         # Called OUTSIDE any session context - orchestrator manages its own sessions
         result = await batch_orchestrator.run_daily_batch_with_backfill()

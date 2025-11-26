@@ -74,10 +74,11 @@ async def main():
     """Main entry point for daily batch job."""
     job_start = datetime.datetime.now()
 
-    logger.info("╔══════════════════════════════════════════════════════════════╗")
-    logger.info("║       SIGMASIGHT DAILY BATCH WORKFLOW - STARTING             ║")
-    logger.info("╚══════════════════════════════════════════════════════════════╝")
-    logger.info(f"Timestamp: {job_start.strftime('%Y-%m-%d %H:%M:%S %Z')}")
+    # Use print() for critical messages - logger.info() doesn't show in Railway logs
+    print("╔══════════════════════════════════════════════════════════════╗")
+    print("║       SIGMASIGHT DAILY BATCH WORKFLOW - STARTING             ║")
+    print("╚══════════════════════════════════════════════════════════════╝")
+    print(f"Timestamp: {job_start.strftime('%Y-%m-%d %H:%M:%S %Z')}")
 
     try:
         # Ensure factor definitions exist before running batch
@@ -100,32 +101,32 @@ async def main():
         job_end = datetime.datetime.now()
         total_duration = (job_end - job_start).total_seconds()
 
-        # Log completion summary
-        logger.info("=" * 60)
-        logger.info("DAILY BATCH JOB COMPLETE")
-        logger.info("=" * 60)
-        logger.info(f"Start Time:    {job_start.strftime('%Y-%m-%d %H:%M:%S')}")
-        logger.info(f"End Time:      {job_end.strftime('%Y-%m-%d %H:%M:%S')}")
-        logger.info(f"Total Runtime: {total_duration:.1f}s ({total_duration/60:.1f} minutes)")
-        logger.info(f"")
-        logger.info(f"Results: {results}")
-        logger.info("=" * 60)
+        # Print completion summary - use print() for Railway visibility
+        print("=" * 60)
+        print("DAILY BATCH JOB COMPLETE")
+        print("=" * 60)
+        print(f"Start Time:    {job_start.strftime('%Y-%m-%d %H:%M:%S')}")
+        print(f"End Time:      {job_end.strftime('%Y-%m-%d %H:%M:%S')}")
+        print(f"Total Runtime: {total_duration:.1f}s ({total_duration/60:.1f} minutes)")
+        print(f"Results: {results}")
+        print("=" * 60)
 
         # Check for success
         if results.get('success'):
-            logger.info("✅ All operations completed successfully")
+            print("✅ All operations completed successfully")
             sys.exit(0)
         else:
-            logger.warning(f"⚠️ Job completed with issues: {results.get('message', 'Unknown error')}")
+            print(f"⚠️ Job completed with issues: {results.get('message', 'Unknown error')}")
             sys.exit(1)
 
     except KeyboardInterrupt:
-        logger.warning("⚠️ Job interrupted by user (Ctrl+C)")
+        print("⚠️ Job interrupted by user (Ctrl+C)")
         sys.exit(130)  # Standard exit code for SIGINT
 
     except Exception as e:
-        logger.error(f"❌ FATAL ERROR: Daily batch job failed")
-        logger.exception(e)
+        print(f"❌ FATAL ERROR: Daily batch job failed: {e}")
+        import traceback
+        traceback.print_exc()
         sys.exit(1)
 
 
