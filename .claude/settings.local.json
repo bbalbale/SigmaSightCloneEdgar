@@ -24,7 +24,8 @@
       "Bash(git pull:*)",
       "Bash(git stash:*)",
       "Bash(git fetch:*)",
-      "Bash(npm run type-check:*)"
+      "Bash(npm run type-check:*)",
+      "Bash(railway service)"
     ],
     "deny": [],
     "ask": [],

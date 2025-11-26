@@ -320,22 +320,28 @@ async def calculate_portfolio_ir_beta(
 
         portfolio_equity = float(portfolio.equity_balance)
 
-        # Get active positions (exclude soft-deleted)
+        # Get active PUBLIC positions (exclude soft-deleted and PRIVATE positions)
+        # PRIVATE positions don't have market price data for beta calculation
         positions_stmt = select(Position).where(
             and_(
                 Position.portfolio_id == portfolio_id,
                 Position.exit_date.is_(None),
-                Position.deleted_at.is_(None)
+                Position.deleted_at.is_(None),
+                Position.investment_class == 'PUBLIC'  # Only PUBLIC positions have price data
             )
         )
         positions_result = await db.execute(positions_stmt)
         positions = positions_result.scalars().all()
 
         if not positions:
+            # Graceful skip for PRIVATE-only portfolios
+            logger.info(f"No PUBLIC positions found for portfolio {portfolio_id} - skipping IR beta")
             return {
                 'portfolio_id': portfolio_id,
-                'success': False,
-                'error': 'No active positions found'
+                'success': True,
+                'skipped': True,
+                'reason': 'no_public_positions',
+                'portfolio_ir_beta': None
             }
 
         # OPTIMIZATION: Check which positions already have cached IR betas for this date

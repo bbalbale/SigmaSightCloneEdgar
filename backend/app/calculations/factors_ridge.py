@@ -136,14 +136,17 @@ async def calculate_factor_betas_ridge(
             context=context
         )
 
-        # Handle no public positions case
+        # Handle no public positions case - graceful skip for PRIVATE-only portfolios
         if position_returns.empty:
             counts = context.get_position_count_summary()
-            logger.warning(
-                f"No PUBLIC positions with sufficient price history for portfolio {portfolio_id}. "
-                f"Returning skip payload."
+            logger.info(
+                f"No PUBLIC positions with sufficient price history for portfolio {portfolio_id} - skipping ridge factors. "
+                f"Position counts: {counts}"
             )
             skip_results = {
+                'success': True,
+                'skipped': True,
+                'reason': 'no_public_positions',
                 'factor_betas': {},
                 'position_betas': {},
                 'data_quality': get_default_data_quality(),
@@ -376,6 +379,7 @@ async def calculate_factor_betas_ridge(
 
         # Step 7: Prepare results
         results = {
+            'success': True,
             'factor_betas': portfolio_betas,
             'position_betas': position_betas,
             'data_quality': {

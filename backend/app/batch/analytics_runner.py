@@ -342,7 +342,7 @@ class AnalyticsRunner:
         db: AsyncSession,
         portfolio_id: UUID,
         calculation_date: date
-    ) -> bool:
+    ) -> Dict[str, Any]:
         """Calculate provider beta (1-year) from company profiles with fallback to calculated beta"""
         try:
             from app.calculations.market_beta import calculate_portfolio_provider_beta
@@ -355,6 +355,13 @@ class AnalyticsRunner:
                 portfolio_id=portfolio_id,
                 calculation_date=calculation_date
             )
+
+            # Handle graceful skip for PRIVATE-only portfolios
+            if result.get('skipped'):
+                return {
+                    'success': True,
+                    'message': f"Skipped: {result.get('reason', 'no_public_positions')}"
+                }
 
             if result.get('success'):
                 # Save as "Provider Beta (1Y)" factor exposure
@@ -418,21 +425,21 @@ class AnalyticsRunner:
                     db.add(new_exposure)
                     logger.debug(f"Created Provider Beta (1Y) factor exposure: {portfolio_beta:.3f}")
 
-                return True
+                return {'success': True}
             else:
                 logger.warning(f"Provider beta calculation returned error: {result.get('error')}")
-                return False
+                return {'success': False, 'message': result.get('error', 'unknown error')}
 
         except Exception as e:
             logger.warning(f"Provider beta calculation failed: {e}")
-            return False
+            return {'success': False, 'message': str(e)}
 
     async def _calculate_ir_beta(
         self,
         db: AsyncSession,
         portfolio_id: UUID,
         calculation_date: date
-    ) -> bool:
+    ) -> Dict[str, Any]:
         """Calculate interest rate beta using 90-day regression and persist as FactorExposure"""
         try:
             from app.calculations.interest_rate_beta import calculate_portfolio_ir_beta
@@ -449,6 +456,13 @@ class AnalyticsRunner:
                 persist=True,
                 price_cache=self._price_cache  # Pass through cache for optimization
             )
+
+            # Handle graceful skip for PRIVATE-only portfolios
+            if result.get('skipped'):
+                return {
+                    'success': True,
+                    'message': f"Skipped: {result.get('reason', 'no_public_positions')}"
+                }
 
             if result.get('success'):
                 # Save as "IR Beta" factor exposure
@@ -512,21 +526,21 @@ class AnalyticsRunner:
                     db.add(new_exposure)
                     logger.debug(f"Created IR Beta factor exposure: {portfolio_ir_beta:.3f}")
 
-                return True
+                return {'success': True}
             else:
                 logger.warning(f"IR beta calculation returned error: {result.get('error')}")
-                return False
+                return {'success': False, 'message': result.get('error', 'unknown error')}
 
         except Exception as e:
             logger.warning(f"IR beta calculation failed: {e}")
-            return False
+            return {'success': False, 'message': str(e)}
 
     async def _calculate_ridge_factors(
         self,
         db: AsyncSession,
         portfolio_id: UUID,
         calculation_date: date
-    ) -> bool:
+    ) -> Dict[str, Any]:
         """Calculate ridge factor betas"""
         try:
             from app.calculations.factors_ridge import calculate_factor_betas_ridge
@@ -538,18 +552,33 @@ class AnalyticsRunner:
                 price_cache=self._price_cache  # Pass through cache for optimization
             )
 
-            return result is not None
+            # Handle graceful skip for PRIVATE-only portfolios
+            if result and result.get('skipped'):
+                return {
+                    'success': True,
+                    'message': f"Skipped: {result.get('reason', 'no_public_positions')}"
+                }
+
+            if result and result.get('success'):
+                return {'success': True}
+            elif result:
+                return {
+                    'success': False,
+                    'message': result.get('error', 'unknown error')
+                }
+            else:
+                return {'success': False, 'message': 'no result returned'}
 
         except Exception as e:
             logger.warning(f"Ridge factors calculation failed: {e}")
-            return False
+            return {'success': False, 'message': str(e)}
 
     async def _calculate_spread_factors(
         self,
         db: AsyncSession,
         portfolio_id: UUID,
         calculation_date: date
-    ) -> bool:
+    ) -> Dict[str, Any]:
         """Calculate spread factor betas"""
         logger.info(f"[SPREAD_FACTORS_DEBUG] CALLED for portfolio {portfolio_id} on {calculation_date}")
         try:
@@ -568,14 +597,27 @@ class AnalyticsRunner:
                 logger.info(f"[SPREAD_FACTORS_DEBUG] Result has position_betas: {len(result.get('position_betas', {}))}")
                 logger.info(f"[SPREAD_FACTORS_DEBUG] Result success: {result.get('success', False)}")
 
-            return result.get('success', False) if result else False
+            # Handle graceful skip for PRIVATE-only portfolios
+            if result and result.get('skipped'):
+                return {
+                    'success': True,
+                    'message': f"Skipped: {result.get('reason', 'no_public_positions')}"
+                }
+
+            if result and result.get('success'):
+                return {'success': True}
+            else:
+                return {
+                    'success': False,
+                    'message': result.get('error', 'unknown error') if result else 'no result returned'
+                }
 
         except Exception as e:
             logger.error(f"[SPREAD_FACTORS_DEBUG] Exception: {e}")
             logger.warning(f"Spread factors calculation failed: {e}")
             import traceback
             logger.error(f"[SPREAD_FACTORS_DEBUG] Traceback: {traceback.format_exc()}")
-            return False
+            return {'success': False, 'message': str(e)}
 
     async def _calculate_sector_analysis(
         self,
@@ -621,6 +663,13 @@ class AnalyticsRunner:
                 calculation_date=calculation_date,
                 price_cache=self._price_cache  # Pass through cache for optimization
             )
+
+            # Handle graceful skip for PRIVATE-only portfolios
+            if result and result.get('skipped'):
+                return {
+                    'success': True,
+                    'message': f"Skipped: {result.get('reason', 'no_public_positions')}"
+                }
 
             # PHASE 3 FIX: Update snapshot with calculated volatility
             if result:

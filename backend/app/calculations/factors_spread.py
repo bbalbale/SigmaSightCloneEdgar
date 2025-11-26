@@ -288,11 +288,15 @@ async def calculate_portfolio_spread_betas(
 
         if position_returns.empty:
             counts = context.get_position_count_summary()
-            logger.warning(
-                f"No position returns available for portfolio {portfolio_id}. "
+            # Graceful skip for PRIVATE-only portfolios
+            logger.info(
+                f"No position returns available for portfolio {portfolio_id} - skipping spread factors. "
                 f"Position counts: {counts}"
             )
             return {
+                'success': True,
+                'skipped': True,
+                'reason': 'no_public_positions' if counts['private'] > 0 and counts['public'] == 0 else 'no_position_returns',
                 'factor_betas': {},
                 'position_betas': {},
                 'data_quality': {
@@ -422,6 +426,7 @@ async def calculate_portfolio_spread_betas(
 
         # Step 7: Prepare results
         results = {
+            'success': True,
             'factor_betas': portfolio_betas,
             'position_betas': position_betas,
             'data_quality': {

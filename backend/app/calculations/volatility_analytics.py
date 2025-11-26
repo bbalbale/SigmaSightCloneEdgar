@@ -472,9 +472,12 @@ async def calculate_portfolio_volatility_batch(
         positions = list(result.scalars().all())
 
         if not positions:
+            # Graceful skip for empty portfolios
+            logger.info(f"No active positions found for portfolio {portfolio_id} - skipping volatility")
             return {
-                'success': False,
-                'error': 'No active positions found',
+                'success': True,
+                'skipped': True,
+                'reason': 'no_active_positions',
                 'positions_processed': 0,
                 'positions_failed': 0,
                 'positions_ignored': 0,
@@ -495,28 +498,20 @@ async def calculate_portfolio_volatility_batch(
             eligible_positions.append(position)
 
         if not eligible_positions:
+            # Graceful skip for PRIVATE-only portfolios (no market data)
             logger.info(
-                "Skipping volatility analytics for portfolio %s: %s positions ignored (no market data eligible)",
+                "No market-data-eligible positions for portfolio %s - skipping volatility. "
+                "%s positions ignored (likely PRIVATE)",
                 portfolio_id,
                 len(ignored_positions),
             )
             return {
-                'success': False,
-                'error': 'No market-data-eligible positions found',
+                'success': True,
+                'skipped': True,
+                'reason': 'no_public_positions',
                 'positions_processed': 0,
                 'positions_failed': 0,
                 'positions_ignored': len(ignored_positions),
-                'failure_reasons': [
-                    {
-                        'reason': 'symbol_skipped',
-                        'position_id': str(position.id),
-                        'details': {
-                            'symbol': position.symbol,
-                            'underlying_symbol': position.underlying_symbol,
-                        },
-                    }
-                    for position in ignored_positions
-                ],
             }
 
         # Calculate position-level volatilities

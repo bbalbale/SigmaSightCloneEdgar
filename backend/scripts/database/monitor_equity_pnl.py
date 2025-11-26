@@ -9,37 +9,70 @@ Shows one line per day per portfolio with:
 - Gross Exposure
 - Net Exposure
 
-For July 1 to Nov 7, 2025, you should see ~91 trading days per portfolio.
+Usage:
+    # Show all data
+    python monitor_equity_pnl.py
+
+    # Show data from Nov 20 to today
+    python monitor_equity_pnl.py --start-date 2025-11-20
+
+    # Show data for specific date range
+    python monitor_equity_pnl.py --start-date 2025-11-20 --end-date 2025-11-25
+
+    # Show specific portfolio
+    python monitor_equity_pnl.py --portfolio <uuid> --start-date 2025-11-20
 """
 
 import argparse
-import asyncio
 import sys
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Optional
 from uuid import UUID
 
 # Ensure backend package is importable when invoked directly
 sys.path.append(str(Path(__file__).resolve().parents[2]))
 
-from sqlalchemy import select
-from app.database import get_async_session
+import os
+from sqlalchemy import select, create_engine
+from sqlalchemy.orm import Session
 from app.models.users import Portfolio
 from app.models.snapshots import PortfolioSnapshot
 
 
-async def show_daily_progression(portfolio_id: Optional[str] = None):
-    """Show daily progression for each portfolio."""
+def get_sync_session():
+    """Get a sync database session (works with Railway's psycopg2 driver)."""
+    database_url = os.environ.get("DATABASE_URL", "")
 
-    async with get_async_session() as db:
+    # Handle Railway's postgresql:// URL (convert to sync if needed)
+    if database_url.startswith("postgresql+asyncpg://"):
+        database_url = database_url.replace("postgresql+asyncpg://", "postgresql://")
+
+    engine = create_engine(database_url)
+    return Session(engine)
+
+
+def show_daily_progression(
+    portfolio_id: Optional[str] = None,
+    start_date: Optional[date] = None,
+    end_date: Optional[date] = None
+):
+    """Show daily progression for each portfolio.
+
+    Args:
+        portfolio_id: Optional portfolio UUID to filter
+        start_date: Optional start date filter (inclusive)
+        end_date: Optional end date filter (inclusive)
+    """
+
+    with get_sync_session() as db:
         # Get portfolios
         portfolio_query = select(Portfolio.id, Portfolio.name, Portfolio.equity_balance)
         if portfolio_id:
             portfolio_query = portfolio_query.where(Portfolio.id == UUID(portfolio_id))
 
-        portfolios_result = await db.execute(portfolio_query)
+        portfolios_result = db.execute(portfolio_query)
         portfolios = portfolios_result.all()
 
         if not portfolios:
@@ -67,10 +100,17 @@ async def show_daily_progression(portfolio_id: Optional[str] = None):
                     PortfolioSnapshot.short_value,
                 )
                 .where(PortfolioSnapshot.portfolio_id == portfolio_id)
-                .order_by(PortfolioSnapshot.snapshot_date)
             )
 
-            snapshots_result = await db.execute(snapshots_query)
+            # Apply date filters
+            if start_date:
+                snapshots_query = snapshots_query.where(PortfolioSnapshot.snapshot_date >= start_date)
+            if end_date:
+                snapshots_query = snapshots_query.where(PortfolioSnapshot.snapshot_date <= end_date)
+
+            snapshots_query = snapshots_query.order_by(PortfolioSnapshot.snapshot_date)
+
+            snapshots_result = db.execute(snapshots_query)
             snapshots = snapshots_result.all()
 
             if not snapshots:
@@ -129,9 +169,32 @@ async def show_daily_progression(portfolio_id: Optional[str] = None):
                 # Update previous equity for next iteration
                 previous_equity = end_equity
 
+            # Summary statistics
             print()
             print(f"Total Snapshots: {len(snapshots)} trading days")
+
+            if snapshots:
+                # Calculate period summary
+                first_equity = snapshots[0][1]  # equity_balance from first snapshot
+                last_equity = snapshots[-1][1]   # equity_balance from last snapshot
+                total_pnl = sum((s[2] or Decimal('0')) for s in snapshots)  # sum of daily_pnl
+                first_date = snapshots[0][0]
+                last_date = snapshots[-1][0]
+
+                print()
+                print("-" * 60)
+                print(f"PERIOD SUMMARY ({first_date} to {last_date}):")
+                print("-" * 60)
+                print(f"  Starting Equity:  ${first_equity:>16,.2f}")
+                print(f"  Ending Equity:    ${last_equity:>16,.2f}")
+                print(f"  Total P&L:        ${total_pnl:>+16,.2f}")
+                print(f"  Return:           {(last_equity - first_equity) / first_equity * 100:>+16.2f}%")
             print()
+
+
+def parse_date(date_str: str) -> date:
+    """Parse date string in YYYY-MM-DD format."""
+    return datetime.strptime(date_str, "%Y-%m-%d").date()
 
 
 def main() -> None:
@@ -144,10 +207,29 @@ def main() -> None:
         type=str,
         help="Portfolio UUID to show (shows all if not specified)",
     )
+    parser.add_argument(
+        "--start-date",
+        type=parse_date,
+        help="Start date filter (YYYY-MM-DD format, e.g., 2025-11-20)",
+    )
+    parser.add_argument(
+        "--end-date",
+        type=parse_date,
+        default=date.today(),
+        help="End date filter (YYYY-MM-DD format, defaults to today)",
+    )
     args = parser.parse_args()
 
+    # Print filter info
+    if args.start_date or args.end_date != date.today():
+        print(f"\nDate Filter: {args.start_date or 'beginning'} to {args.end_date}\n")
+
     try:
-        asyncio.run(show_daily_progression(portfolio_id=args.portfolio))
+        show_daily_progression(
+            portfolio_id=args.portfolio,
+            start_date=args.start_date,
+            end_date=args.end_date
+        )
     except KeyboardInterrupt:
         print("\n\nStopped.")
     except Exception as e:
