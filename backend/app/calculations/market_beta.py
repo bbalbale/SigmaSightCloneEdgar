@@ -616,10 +616,15 @@ async def calculate_portfolio_provider_beta(
         positions = positions_result.scalars().all()
 
         if not positions:
+            logger.info(f"No PUBLIC positions found for portfolio {portfolio_id} - skipping provider beta")
             return {
-                'portfolio_id': portfolio_id,
-                'success': False,
-                'error': 'No active public stock positions found'
+                'portfolio_id': str(portfolio_id),
+                'success': True,
+                'skipped': True,
+                'reason': 'no_public_positions',
+                'portfolio_beta': None,
+                'positions_with_beta': 0,
+                'total_positions': 0
             }
 
         # OPTIMIZATION: Bulk-load all company profile betas in ONE query (fixes N+1 issue)

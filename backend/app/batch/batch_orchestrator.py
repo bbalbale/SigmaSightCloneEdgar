@@ -183,11 +183,34 @@ class BatchOrchestrator:
 
         logger.info(f"Backfilling {len(missing_dates)} missing dates: {missing_dates[0]} to {missing_dates[-1]}")
 
-        # OPTIMIZATION: Create price cache for ALL batch runs (single-day or multi-day)
-        # This eliminates repeated price queries during Phase 6 analytics
-        # FIX: Load 120 days of history before earliest date for 90-day regression windows
+        # =============================================================================
+        # STEP 1: Run Phase 1 (Market Data) for ALL dates FIRST
+        # This ensures market_data_cache has all prices before we load the price cache
+        # =============================================================================
+        logger.info(f"[PHASE 1] Collecting market data for {len(missing_dates)} date(s)...")
+        for i, calc_date in enumerate(missing_dates, 1):
+            logger.info(f"[PHASE 1] Market data for {calc_date} ({i}/{len(missing_dates)})")
+            async with AsyncSessionLocal() as db:
+                try:
+                    phase1_result = await market_data_collector.collect_daily_market_data(
+                        calculation_date=calc_date,
+                        lookback_days=365,
+                        db=db,
+                        portfolio_ids=portfolio_ids,
+                        skip_company_profiles=True  # Company profiles handled in Phase 0
+                    )
+                    if not phase1_result.get('success'):
+                        logger.warning(f"[PHASE 1] Market data collection had issues for {calc_date}")
+                except Exception as e:
+                    logger.error(f"[PHASE 1] Error collecting market data for {calc_date}: {e}")
+                    # Continue to next date - we'll try to process what we have
+
+        # =============================================================================
+        # STEP 2: Load price cache AFTER all market data is collected
+        # Now the cache will include today's prices from Phase 1
+        # =============================================================================
         price_cache = None
-        logger.info(f"[LAUNCH] OPTIMIZATION: Pre-loading price cache for {len(missing_dates)} date(s)")
+        logger.info(f"[CACHE] Loading price cache after market data collection...")
         async with AsyncSessionLocal() as cache_db:
             # Get all symbols from active PUBLIC/OPTIONS positions
             # Skip PRIVATE positions - they don't have market prices
@@ -221,23 +244,24 @@ class BatchOrchestrator:
                 logger.info(f"[OK] Price cache loaded: {loaded_count} prices for {cache_start} to {missing_dates[-1]}")
                 logger.debug(f"   Cache stats: {price_cache.get_stats()}")
 
-        # Step 3: Process each missing date with its own fresh session
-        # CRITICAL FIX: Each date gets a fresh session to avoid greenlet errors
-        # caused by expired objects after commits in analytics calculations
+        # =============================================================================
+        # STEP 3: Run Phases 0, 2-6 for each date (using populated price cache)
+        # Phase 1 already completed above, so we skip it in run_daily_batch_sequence
+        # =============================================================================
         results = []
         for i, calc_date in enumerate(missing_dates, 1):
             logger.info(f"\n{'=' * 80}")
-            logger.info(f"Processing {calc_date} ({i}/{len(missing_dates)})")
+            logger.info(f"Processing Phases 2-6 for {calc_date} ({i}/{len(missing_dates)})")
             logger.info(f"{'=' * 80}")
 
             # Create fresh session for this date
             async with AsyncSessionLocal() as db:
-                result = await self.run_daily_batch_sequence(
+                result = await self._run_phases_2_through_6(
+                    db=db,
                     calculation_date=calc_date,
                     portfolio_ids=portfolio_ids,
-                    db=db,
                     run_sector_analysis=(calc_date == target_date),
-                    price_cache=price_cache  # Pass shared cache
+                    price_cache=price_cache
                 )
 
                 results.append(result)
@@ -592,6 +616,211 @@ class BatchOrchestrator:
         # Phase 6 is "best effort" analytics that can be re-run later.
         # If we mark the batch as failed, _mark_batch_run_complete() won't be called,
         # causing batch_run_tracking to get out of sync with actual snapshots.
+        critical_errors = [e for e in result['errors'] if not e.startswith('Phase 6')]
+        result['success'] = len(critical_errors) == 0
+
+        if not result['success']:
+            logger.error(f"Batch failed with critical errors: {critical_errors}")
+        elif result['errors']:
+            logger.warning(f"Batch succeeded with non-critical errors: {result['errors']}")
+
+        return result
+
+    async def _run_phases_2_through_6(
+        self,
+        db: AsyncSession,
+        calculation_date: date,
+        portfolio_ids: Optional[List[str]] = None,
+        run_sector_analysis: bool = True,
+        price_cache: Optional[PriceCache] = None,
+    ) -> Dict[str, Any]:
+        """
+        Run Phases 0, 2-6 for a single date (Phase 1 already completed).
+
+        This is called after all Phase 1 (market data) runs have completed,
+        so the price cache is fully populated with all dates including today.
+
+        Args:
+            db: Database session
+            calculation_date: Date to process
+            portfolio_ids: Specific portfolios (None = all)
+            run_sector_analysis: Whether to run sector analysis
+            price_cache: Populated price cache
+
+        Returns:
+            Summary of batch run
+        """
+        normalized_portfolio_ids = self._normalize_portfolio_ids(portfolio_ids)
+
+        result: Dict[str, Any] = {
+            'success': False,
+            'calculation_date': calculation_date,
+            'phase_0': {},
+            'phase_1': {'success': True, 'skipped': False, 'note': 'completed_in_first_pass'},
+            'phase_2': {},
+            'phase_3': {},
+            'phase_4': {},
+            'phase_5': {},
+            'phase_6': {},
+            'errors': []
+        }
+        phase4_result: Dict[str, Any] = {}
+
+        # OPTIMIZATION: Company profiles and fundamentals only needed on current/final date
+        is_historical = calculation_date < date.today()
+
+        # Phase 0: Company Profile Sync (BEFORE all calculations)
+        # Only run on final/current date to get fresh beta values, sector, industry
+        if not is_historical:
+            try:
+                self._log_phase_start("phase_0", calculation_date, normalized_portfolio_ids)
+                phase0_result = await self._sync_company_profiles(
+                    db=db,
+                    portfolio_ids=normalized_portfolio_ids
+                )
+                result['phase_0'] = phase0_result
+                self._log_phase_result("phase_0", phase0_result)
+
+                if not phase0_result.get('success'):
+                    logger.warning("Phase 0 (Company Profiles) had errors, continuing to Phase 2")
+
+            except Exception as e:
+                logger.error(f"Phase 0 (Company Profiles) error: {e}")
+                result['errors'].append(f"Phase 0 (Company Profiles) error: {str(e)}")
+        else:
+            logger.debug(f"Skipping Phase 0 (Company Profiles) for historical date ({calculation_date})")
+            result['phase_0'] = {'success': True, 'skipped': True, 'reason': 'historical_date'}
+
+        # Phase 1: SKIPPED - already completed in first pass
+        # (result['phase_1'] already set above)
+
+        # Phase 2: Fundamental Data Collection
+        # OPTIMIZATION: Only run on current/final date (fundamentals don't change historically)
+        if not is_historical:
+            try:
+                self._log_phase_start("phase_2", calculation_date, normalized_portfolio_ids)
+                phase2_fundamentals_result = await fundamentals_collector.collect_fundamentals_data(
+                    db=db,
+                    portfolio_ids=normalized_portfolio_ids
+                )
+                result['phase_2'] = phase2_fundamentals_result
+                self._log_phase_result("phase_2", phase2_fundamentals_result)
+
+                if not phase2_fundamentals_result.get('success'):
+                    logger.warning("Phase 2 (Fundamentals) had errors, continuing to Phase 3")
+
+            except Exception as e:
+                logger.error(f"Phase 2 (Fundamentals) error: {e}")
+                result['errors'].append(f"Phase 2 (Fundamentals) error: {str(e)}")
+        else:
+            logger.debug(f"Skipping Phase 2 (Fundamentals) for historical date ({calculation_date})")
+            result['phase_2'] = {'success': True, 'skipped': True, 'reason': 'historical_date'}
+
+        # Phase 2.5: Cleanup incomplete snapshots
+        try:
+            from app.calculations.snapshots import cleanup_incomplete_snapshots
+
+            cleaned = await cleanup_incomplete_snapshots(
+                db=db,
+                age_threshold_hours=1,
+                portfolio_id=None
+            )
+
+            if cleaned['incomplete_deleted'] > 0:
+                logger.warning(
+                    f"[IDEMPOTENCY] Cleaned up {cleaned['incomplete_deleted']} incomplete snapshots "
+                    f"before Phase 3 (from crashed batch runs)"
+                )
+        except Exception as e:
+            logger.error(f"Phase 2.5 (Cleanup) error: {e}")
+
+        # Phase 3: P&L & Snapshots
+        try:
+            self._log_phase_start("phase_3", calculation_date, normalized_portfolio_ids)
+            phase3_result = await pnl_calculator.calculate_all_portfolios_pnl(
+                calculation_date=calculation_date,
+                db=db,
+                portfolio_ids=normalized_portfolio_ids,
+                price_cache=price_cache
+            )
+            result['phase_3'] = phase3_result
+            self._log_phase_result("phase_3", phase3_result)
+
+            if not phase3_result.get('success'):
+                result['errors'].append("Phase 3 (P&L) had errors")
+
+        except Exception as e:
+            logger.error(f"Phase 3 (P&L) error: {e}")
+            result['errors'].append(f"Phase 3 (P&L) error: {str(e)}")
+
+        # Phase 4: Update Position Market Values
+        try:
+            self._log_phase_start("phase_4", calculation_date, normalized_portfolio_ids)
+            phase4_result = await self._update_all_position_market_values(
+                calculation_date=calculation_date,
+                db=db,
+                portfolio_ids=normalized_portfolio_ids
+            )
+            result['phase_4'] = phase4_result
+            self._log_phase_result("phase_4", phase4_result)
+
+            if not phase4_result.get('success'):
+                logger.warning("Phase 4 (Position Updates) had errors, continuing to Phase 5")
+
+        except Exception as e:
+            logger.error(f"Phase 4 (Position Updates) error: {e}")
+            result['errors'].append(f"Phase 4 (Position Updates) error: {str(e)}")
+
+        # Phase 5: Restore Sector Tags from Company Profiles
+        if not is_historical:
+            try:
+                self._log_phase_start("phase_5", calculation_date, normalized_portfolio_ids)
+                phase5_result = await self._restore_all_sector_tags(
+                    db=db,
+                    portfolio_ids=normalized_portfolio_ids
+                )
+                result['phase_5'] = phase5_result
+                self._log_phase_result("phase_5", phase5_result)
+
+                if not phase5_result.get('success'):
+                    logger.warning("Phase 5 (Sector Tags) had errors, continuing to Phase 6")
+
+            except Exception as e:
+                logger.error(f"Phase 5 (Sector Tags) error: {e}")
+                result['errors'].append(f"Phase 5 (Sector Tags) error: {str(e)}")
+        else:
+            logger.debug(f"Skipping Phase 5 (Sector Tags) for historical date ({calculation_date})")
+            result['phase_5'] = {'success': True, 'skipped': True, 'reason': 'historical_date'}
+
+        # Phase 6: Risk Analytics
+        try:
+            self._log_phase_start("phase_6", calculation_date, normalized_portfolio_ids)
+            phase6_result = await analytics_runner.run_all_portfolios_analytics(
+                calculation_date=calculation_date,
+                db=db,
+                portfolio_ids=normalized_portfolio_ids,
+                run_sector_analysis=run_sector_analysis,
+                price_cache=price_cache,
+            )
+            result['phase_6'] = phase6_result
+            self._log_phase_result("phase_6", phase6_result)
+
+            if not phase6_result.get('success'):
+                result['errors'].append("Phase 6 (Analytics) had errors")
+
+        except Exception as e:
+            logger.error(f"Phase 6 (Analytics) error: {e}")
+            result['errors'].append(f"Phase 6 (Analytics) error: {str(e)}")
+
+        # Final visibility into missing symbols
+        if phase4_result and phase4_result.get('missing_price_symbols'):
+            unique_missing_symbols = sorted(set(phase4_result.get('missing_price_symbols', [])))
+            logger.warning(
+                f"Final coverage check for {calculation_date}: missing market data for "
+                f"{len(unique_missing_symbols)} symbols: {', '.join(unique_missing_symbols)}"
+            )
+
+        # Determine overall success (Phase 6 failures don't fail the batch)
         critical_errors = [e for e in result['errors'] if not e.startswith('Phase 6')]
         result['success'] = len(critical_errors) == 0
 

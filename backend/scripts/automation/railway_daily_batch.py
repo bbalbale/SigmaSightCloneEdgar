@@ -49,8 +49,25 @@ sys.path.insert(0, '.')      # Local development path
 
 from app.core.logging import get_logger
 from app.batch.batch_orchestrator import batch_orchestrator
+from app.database import AsyncSessionLocal
+from app.db.seed_factors import seed_factors
 
 logger = get_logger(__name__)
+
+
+async def ensure_factor_definitions():
+    """Ensure factor definitions exist before running batch.
+
+    This is critical because:
+    1. Factor definitions must exist for analytics_runner to save exposures
+    2. Stress testing needs factor exposures to calculate scenario impacts
+    3. seed_factors() is idempotent - won't duplicate existing factors
+    """
+    logger.info("Verifying factor definitions...")
+    async with AsyncSessionLocal() as db:
+        await seed_factors(db)
+        await db.commit()
+    logger.info("✅ Factor definitions verified/seeded")
 
 
 async def main():
@@ -63,6 +80,9 @@ async def main():
     logger.info(f"Timestamp: {job_start.strftime('%Y-%m-%d %H:%M:%S %Z')}")
 
     try:
+        # Ensure factor definitions exist before running batch
+        await ensure_factor_definitions()
+
         # Run the batch orchestrator - it handles everything:
         # - Trading day detection and adjustment (to previous trading day if needed)
         # - Phase 0: Company profile sync (on final date only)

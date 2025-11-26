@@ -179,7 +179,16 @@ async def calculate_position_interest_rate_betas(
         positions = result.scalars().all()
 
         if not positions:
-            raise ValueError(f"No active positions found for portfolio {portfolio_id}")
+            logger.info(f"No active positions found for portfolio {portfolio_id} - skipping market risk scenarios")
+            return {
+                'portfolio_id': str(portfolio_id),
+                'calculation_date': calculation_date,
+                'success': True,
+                'skipped': True,
+                'reason': 'no_active_positions',
+                'scenarios': {},
+                'records_stored': 0
+            }
         
         # Fetch Treasury yield data
         end_date = calculation_date
