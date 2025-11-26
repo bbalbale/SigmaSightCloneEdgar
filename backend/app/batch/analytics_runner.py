@@ -855,11 +855,14 @@ class AnalyticsRunner:
             if observations is not None:
                 snapshot.beta_calculated_90d_observations = observations
 
-            logger.info(
-                f"Updated snapshot beta: β={float(snapshot.beta_calculated_90d):.3f}, "
-                f"R²={float(snapshot.beta_calculated_90d_r_squared):.3f}, "
-                f"obs={snapshot.beta_calculated_90d_observations}"
-            )
+            # Safe logging - only log if values were actually set
+            if snapshot.beta_calculated_90d is not None:
+                beta_str = f"β={float(snapshot.beta_calculated_90d):.3f}"
+                r2_str = f"R²={float(snapshot.beta_calculated_90d_r_squared):.3f}" if snapshot.beta_calculated_90d_r_squared else "R²=N/A"
+                obs_str = f"obs={snapshot.beta_calculated_90d_observations}" if snapshot.beta_calculated_90d_observations else "obs=N/A"
+                logger.info(f"Updated snapshot beta: {beta_str}, {r2_str}, {obs_str}")
+            else:
+                logger.debug("Beta result had no portfolio_beta value to update")
 
         except Exception as e:
             logger.error(f"Error updating snapshot beta: {e}")

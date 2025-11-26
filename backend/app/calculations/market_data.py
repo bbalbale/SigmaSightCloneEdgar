@@ -721,11 +721,15 @@ async def fetch_historical_prices(
                 else:
                     cache_misses += 1
 
-        # Log cache performance (only log warnings for poor hit rates)
+        # Log cache performance (only log warnings for very poor hit rates)
         total = cache_hits + cache_misses
         hit_rate = (cache_hits / total * 100) if total > 0 else 0
-        if hit_rate < 80:
-            logger.warning(f"CACHE: Low hit rate {hit_rate:.1f}% ({cache_hits}/{total}) for {len(symbols)} symbols")
+        # 50% is expected when 1 of 2 symbols is missing from cache (e.g., options)
+        # Only warn for truly poor rates (<30%) indicating cache issues
+        if hit_rate < 30:
+            logger.warning(f"CACHE: Very low hit rate {hit_rate:.1f}% ({cache_hits}/{total}) for {len(symbols)} symbols: {symbols}")
+        elif hit_rate < 80:
+            logger.debug(f"CACHE: Partial hit rate {hit_rate:.1f}% ({cache_hits}/{total}) for symbols {symbols} - some symbols may not be in cache")
         else:
             logger.debug(f"CACHE: {hit_rate:.1f}% hit rate ({cache_hits}/{total})")
 
@@ -737,7 +741,8 @@ async def fetch_historical_prices(
         df = pd.DataFrame(data)
 
         # Pivot to have dates as index and symbols as columns
-        price_df = df.pivot(index='date', columns='symbol', values='close')
+        # Use pivot_table with 'last' to handle any duplicate entries gracefully
+        price_df = df.pivot_table(index='date', columns='symbol', values='close', aggfunc='last')
 
         # Convert index to DatetimeIndex for compatibility
         price_df.index = pd.to_datetime(price_df.index)
@@ -787,7 +792,8 @@ async def fetch_historical_prices(
     df = pd.DataFrame(data)
 
     # Pivot to have dates as index and symbols as columns
-    price_df = df.pivot(index='date', columns='symbol', values='close')
+    # Use pivot_table with 'last' to handle any duplicate entries gracefully
+    price_df = df.pivot_table(index='date', columns='symbol', values='close', aggfunc='last')
 
     # Convert index to DatetimeIndex for compatibility with other time series data (e.g., FRED Treasury data)
     price_df.index = pd.to_datetime(price_df.index)
