@@ -167,16 +167,17 @@ async def calculate_position_interest_rate_betas(
         
         fred = Fred(api_key=settings.FRED_API_KEY)
         
-        # Get active positions
+        # Get active positions (exclude soft-deleted)
         stmt = select(Position).where(
             and_(
                 Position.portfolio_id == portfolio_id,
-                Position.exit_date.is_(None)
+                Position.exit_date.is_(None),
+                Position.deleted_at.is_(None)
             )
         )
         result = await db.execute(stmt)
         positions = result.scalars().all()
-        
+
         if not positions:
             raise ValueError(f"No active positions found for portfolio {portfolio_id}")
         
@@ -320,16 +321,17 @@ async def calculate_interest_rate_scenarios(
         
         position_ir_betas = ir_data['position_ir_betas']
         
-        # Get position values for weighting
+        # Get position values for weighting (exclude soft-deleted)
         stmt = select(Position).where(
             and_(
                 Position.portfolio_id == portfolio_id,
-                Position.exit_date.is_(None)
+                Position.exit_date.is_(None),
+                Position.deleted_at.is_(None)
             )
         )
         result = await db.execute(stmt)
         positions = result.scalars().all()
-        
+
         # Calculate portfolio-weighted interest rate beta
         total_value = Decimal('0')
         weighted_ir_beta = 0.0
@@ -412,17 +414,18 @@ async def _calculate_mock_interest_rate_betas(
     Uses simplified assumptions based on position types
     """
     logger.info("Using mock interest rate betas (FRED API not configured)")
-    
-    # Get active positions
+
+    # Get active positions (exclude soft-deleted)
     stmt = select(Position).where(
         and_(
             Position.portfolio_id == portfolio_id,
-            Position.exit_date.is_(None)
+            Position.exit_date.is_(None),
+            Position.deleted_at.is_(None)
         )
     )
     result = await db.execute(stmt)
     positions = result.scalars().all()
-    
+
     position_ir_betas = {}
     records_to_store = []
     

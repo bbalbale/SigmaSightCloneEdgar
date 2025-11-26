@@ -243,7 +243,8 @@ async def calculate_portfolio_volatility(
             result = await db.execute(
                 select(Position).where(
                     Position.portfolio_id == portfolio_id,
-                    Position.exit_date.is_(None)  # Only active positions
+                    Position.exit_date.is_(None),  # Only active positions
+                    Position.deleted_at.is_(None)  # Exclude soft-deleted
                 )
             )
             positions = list(result.scalars().all())
@@ -460,11 +461,12 @@ async def calculate_portfolio_volatility_batch(
     try:
         logger.info(f"Calculating volatility for portfolio {portfolio_id}")
 
-        # Get all active positions (eagerly load to avoid greenlet errors)
+        # Get all active positions (eagerly load to avoid greenlet errors, exclude soft-deleted)
         result = await db.execute(
             select(Position).where(
                 Position.portfolio_id == portfolio_id,
-                Position.exit_date.is_(None)
+                Position.exit_date.is_(None),
+                Position.deleted_at.is_(None)
             )
         )
         positions = list(result.scalars().all())

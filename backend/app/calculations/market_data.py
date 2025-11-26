@@ -15,6 +15,7 @@ from app.models.market_data import MarketDataCache
 from app.models.positions import Position, PositionType
 from app.services.market_data_service import market_data_service
 from app.core.logging import get_logger
+from app.utils.trading_calendar import trading_calendar
 
 logger = get_logger(__name__)
 
@@ -698,13 +699,9 @@ async def fetch_historical_prices(
     if price_cache:
         logger.debug(f"CACHE: Using price cache for {len(symbols)} symbols")
 
-        # Generate all dates in range (we'll check cache for each)
-        from datetime import timedelta
-        current_date = start_date
-        date_list = []
-        while current_date <= end_date:
-            date_list.append(current_date)
-            current_date += timedelta(days=1)
+        # Generate trading days only (not calendar days) for better cache hit rate
+        date_list = trading_calendar.get_trading_days_between(start_date, end_date)
+        logger.debug(f"CACHE: Checking {len(date_list)} trading days (not calendar days)")
 
         # Try to fetch all prices from cache
         data = []

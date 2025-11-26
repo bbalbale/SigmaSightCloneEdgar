@@ -70,7 +70,8 @@ async def get_portfolio_ir_beta(
         positions_stmt = select(Position).where(
             and_(
                 Position.portfolio_id == portfolio_id,
-                Position.exit_date.is_(None)
+                Position.exit_date.is_(None),
+                Position.deleted_at.is_(None)
             )
         )
         positions_result = await db.execute(positions_stmt)

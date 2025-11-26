@@ -162,13 +162,14 @@ async def calculate_position_returns(
             logger.info(f"Excluding {counts['private']} PRIVATE positions from factor analysis")
     else:
         # Backward compatible: Load from database
-        # IMPORTANT: Exclude PRIVATE positions from factor analysis
+        # IMPORTANT: Exclude PRIVATE and soft-deleted positions from factor analysis
         # Phase 8.1: Handle NULL investment_class to avoid SQL three-valued logic issue
         # NULL != 'PRIVATE' evaluates to NULL (unknown), which would exclude legitimate positions
         stmt = select(Position).where(
             and_(
                 Position.portfolio_id == portfolio_id,
                 Position.exit_date.is_(None),  # Only active positions
+                Position.deleted_at.is_(None),  # Exclude soft-deleted positions
                 # Exclude PRIVATE investment class from factor analysis
                 # Explicitly include NULL for backwards compatibility (not yet classified)
                 or_(
@@ -185,6 +186,7 @@ async def calculate_position_returns(
             and_(
                 Position.portfolio_id == portfolio_id,
                 Position.exit_date.is_(None),
+                Position.deleted_at.is_(None),
                 Position.investment_class == 'PRIVATE'
             )
         )
@@ -696,11 +698,12 @@ async def _aggregate_portfolio_betas(
 
         portfolio_equity = float(portfolio.equity_balance)
 
-        # Get current positions for weighting
+        # Get current positions for weighting (exclude soft-deleted)
         stmt = select(Position).where(
             and_(
                 Position.portfolio_id == portfolio_id,
-                Position.exit_date.is_(None)
+                Position.exit_date.is_(None),
+                Position.deleted_at.is_(None)
             )
         )
         result = await db.execute(stmt)

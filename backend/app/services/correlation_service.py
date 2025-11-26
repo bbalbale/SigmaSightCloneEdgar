@@ -30,6 +30,7 @@ from app.schemas.correlations import (
 )
 from app.calculations.market_data import get_position_valuation
 from app.services.market_data_service import MarketDataService
+from app.utils.trading_calendar import trading_calendar
 
 logger = logging.getLogger(__name__)
 
@@ -861,12 +862,9 @@ class CorrelationService:
             cache_hits = 0
             cache_misses = 0
 
-            # Generate all dates in range (approximation - includes weekends but cache will miss those)
-            current_date = start_bound
-            date_list = []
-            while current_date <= end_bound:
-                date_list.append(current_date)
-                current_date += timedelta(days=1)
+            # Generate trading days only (not calendar days) for better cache hit rate
+            date_list = trading_calendar.get_trading_days_between(start_bound, end_bound)
+            logger.debug(f"CACHE: Checking {len(date_list)} trading days (not calendar days)")
 
             # Try to get all prices from cache
             for symbol in ordered_symbols:
@@ -1422,7 +1420,8 @@ class CorrelationService:
             pos_stmt = select(Position).where(
                 and_(
                     Position.portfolio_id == portfolio_id,
-                    Position.exit_date.is_(None)
+                    Position.exit_date.is_(None),
+                    Position.deleted_at.is_(None)
                 )
             )
             pos_result = await self.db.execute(pos_stmt)
@@ -1544,7 +1543,8 @@ class CorrelationService:
         total_stmt = select(func.count(Position.id)).where(
             and_(
                 Position.portfolio_id == portfolio_id,
-                Position.quantity != 0  # Only count active positions
+                Position.quantity != 0,  # Only count active positions
+                Position.deleted_at.is_(None)  # Exclude soft-deleted
             )
         )
         positions_total = (await self.db.execute(total_stmt)).scalar() or 0
@@ -1554,6 +1554,7 @@ class CorrelationService:
             and_(
                 Position.portfolio_id == portfolio_id,
                 Position.quantity != 0,
+                Position.deleted_at.is_(None),  # Exclude soft-deleted
                 or_(
                     Position.investment_class != 'PRIVATE',
                     Position.investment_class.is_(None)  # Include NULL (not yet classified)

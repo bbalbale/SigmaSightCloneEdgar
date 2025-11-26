@@ -252,11 +252,12 @@ async def calculate_sector_exposure(
                 'error': 'Portfolio equity balance is zero'
             }
 
-        # Get active positions
+        # Get active positions (exclude soft-deleted)
         stmt = select(Position).where(
             and_(
                 Position.portfolio_id == portfolio_id,
-                Position.exit_date.is_(None)
+                Position.exit_date.is_(None),
+                Position.deleted_at.is_(None)
             )
         )
         result = await db.execute(stmt)
@@ -406,11 +407,12 @@ async def calculate_concentration_metrics(
     logger.info(f"Calculating concentration metrics for portfolio {portfolio_id}")
 
     try:
-        # Get active positions
+        # Get active positions (exclude soft-deleted)
         stmt = select(Position).where(
             and_(
                 Position.portfolio_id == portfolio_id,
-                Position.exit_date.is_(None)
+                Position.exit_date.is_(None),
+                Position.deleted_at.is_(None)
             )
         )
         result = await db.execute(stmt)
