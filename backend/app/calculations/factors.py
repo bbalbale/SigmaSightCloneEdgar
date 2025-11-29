@@ -714,22 +714,33 @@ async def _aggregate_portfolio_betas(
     if not positions:
         return {}
 
-    # Calculate equity-based weights
+    # Calculate equity-based weights using SIGNED market values
+    # Short positions must have NEGATIVE weights so their betas are subtracted
+    # from the portfolio beta, not added. This is essential for long/short
+    # portfolios where shorts hedge market exposure.
+    #
+    # Formula: weight_i = signed_market_value_i / equity_balance
+    # Portfolio Beta = Σ(weight_i × beta_i)
+    #
+    # Example: Long $500k AAPL (beta=1.2), Short $300k SPY (beta=1.0), Equity=$200k
+    #   AAPL weight = +500k/200k = +2.5, contribution = +2.5 × 1.2 = +3.0
+    #   SPY weight  = -300k/200k = -1.5, contribution = -1.5 × 1.0 = -1.5
+    #   Portfolio beta = 3.0 - 1.5 = 1.5 (correctly shows net long exposure)
     position_weights = {}
-    total_market_value = Decimal('0')
+    total_abs_market_value = Decimal('0')
 
     for position in positions:
-        # Calculate position market value using canonical function
-        market_value = get_position_value(position, signed=False, recalculate=True)
-        total_market_value += market_value
+        # Calculate SIGNED position market value (negative for shorts)
+        signed_market_value = get_position_value(position, signed=True, recalculate=True)
+        total_abs_market_value += abs(signed_market_value)
 
-        # Weight = market value / portfolio equity
-        position_weights[str(position.id)] = float(market_value / Decimal(str(portfolio_equity)))
+        # Weight = SIGNED market value / portfolio equity
+        position_weights[str(position.id)] = float(signed_market_value / Decimal(str(portfolio_equity)))
 
-    leverage_ratio = float(total_market_value / Decimal(str(portfolio_equity)))
+    leverage_ratio = float(total_abs_market_value / Decimal(str(portfolio_equity)))
     logger.info(
         f"Portfolio leverage: {leverage_ratio:.2f}x "
-        f"(Gross exposure: ${float(total_market_value):,.2f}, Equity: ${portfolio_equity:,.2f})"
+        f"(Gross exposure: ${float(total_abs_market_value):,.2f}, Equity: ${portfolio_equity:,.2f})"
     )
     
     # Calculate weighted average betas

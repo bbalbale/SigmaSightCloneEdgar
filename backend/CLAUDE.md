@@ -4,7 +4,7 @@
 
 **Target**: Claude Code, Claude 3.5 Sonnet, Cursor, Windsurf, and other AI coding agents
 
-**Last Updated**: 2025-10-29
+**Last Updated**: 2025-11-28
 
 ---
 
@@ -103,9 +103,10 @@
 
 2. **[_docs/reference/API_REFERENCE_V1.4.6.md](_docs/reference/API_REFERENCE_V1.4.6.md)** - Complete API endpoint documentation (57 endpoints)
 3. **[_docs/guides/RAILWAY_DATA_DOWNLOAD_GUIDE.md](_docs/guides/RAILWAY_DATA_DOWNLOAD_GUIDE.md)** - Railway production data download & import guide ⭐ **READ BEFORE IMPORTING DATA**
-4. **[_archive/todos/](_archive/todos/)** - Historical TODO files (Phases 1-3 complete, archived)
-5. **[README.md](README.md)** - Setup instructions and environment
-6. **[_docs/requirements/](docs/requirements/)** - Product requirements and specifications
+4. **[CLEANUP_PLAN.md](CLEANUP_PLAN.md)** - Backend cleanup plan and archive inventory
+5. **[_archive/todos/](_archive/todos/)** - Historical TODO files (Phases 1-3 complete, archived)
+6. **[README.md](README.md)** - Setup instructions and environment
+7. **[_docs/requirements/](docs/requirements/)** - Product requirements and specifications
 
 ### **Specialized References**
 - **Batch Processing**: See Part II Section on Batch Orchestrator v3
@@ -302,8 +303,15 @@ backend/
 │   │   └── API_REFERENCE_V1.4.6.md - Complete API endpoint reference (57 endpoints)
 │   └── requirements/     - Product requirements and specifications
 │
-├── _archive/             - Archived files
-│   └── todos/            - Historical TODO files (Phases 1-3 complete)
+├── _archive/             - Archived files (see CLEANUP_PLAN.md for full inventory)
+│   ├── todos/            - Historical TODO files (TODO1-5.md, Phases 1-3 complete)
+│   ├── debug/            - One-time debug scripts (check_*.py, test_*.py)
+│   ├── code-reviews/     - Code review documentation
+│   ├── guides/           - Historical guides (onboarding, verification)
+│   ├── incidents/        - Incident reports and fix documentation
+│   ├── planning/         - Historical planning documents
+│   ├── scripts/          - Old diagnostic scripts
+│   └── legacy_scripts_for_reference_only/ - Reference implementations
 │
 ├── alembic/              - Database migrations
 ├── docker-compose.yml    - PostgreSQL database
@@ -905,6 +913,7 @@ except Exception as e:
 - **Production Ready**: Railway deployment with audit scripts and automatic cron jobs
 
 ## 📊 Recent Major Updates
+- **November 28, 2025**: Backend cleanup Phase 1 - archived 12 files (debug scripts + legacy docs) to `_archive/`
 - **October 29, 2025**: Phase 2.5 position market value updates added
 - **October 17, 2025**: Risk Metrics Phase 1-2 complete (3 new endpoints: sector-exposure, concentration, volatility with HAR forecasting)
 - **October 7, 2025**: Railway cron hardening - removed 4x market data duplication, added critical/non-critical job failure detection
@@ -930,6 +939,7 @@ except Exception as e:
 8. **Update this file** when discovering new patterns
 9. **Avoid strategy endpoints** - system removed October 2025
 10. **Reference Railway audit scripts** for deployment verification
+11. **Check `_archive/`** for historical scripts/docs before recreating - see `CLEANUP_PLAN.md` for inventory
 
 ---
 
