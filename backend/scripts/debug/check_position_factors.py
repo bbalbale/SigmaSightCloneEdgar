@@ -162,7 +162,7 @@ async def check_factors():
         print(f"{'Name':<25} {'Type':<10} {'Method':<20} {'ETF':<6}")
         print("-" * 65)
         for f in factors:
-            print(f"{f.name:<25} {f.factor_type:<10} {f.calculation_method:<20} {f.etf_proxy or 'N/A':<6}")
+            print(f"{f.name:<25} {f.factor_type or 'N/A':<10} {(f.calculation_method or 'N/A'):<20} {f.etf_proxy or 'N/A':<6}")
 
         factor_ids = {f.id: f.name for f in factors}
         style_factor_ids = {f.id for f in factors if f.factor_type == 'style'}
