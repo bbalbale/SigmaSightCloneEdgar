@@ -810,60 +810,33 @@ async def store_position_factor_exposures(
             logger.info("No positions to process")
             return results
 
-        # OPTIMIZATION: Check which positions already have ALL expected factor betas cached
+        # OPTIMIZATION: Check which positions already have factor betas cached
         # This prevents recalculating betas for positions shared across portfolios
-        # NOTE: We check for positions that have the EXPECTED NUMBER of style factors (6),
-        # not just any records. This prevents skipping if a previous broken run stored partial data.
         positions_with_existing_betas = set()
-        EXPECTED_STYLE_FACTOR_COUNT = 6  # Value, Growth, Momentum, Quality, Size, Low Volatility
 
         if not force_recalculate:
-            # Query for positions that already have ALL style factor betas for this calculation_date
-            # Group by position and count - only skip if position has all 6 style factors
-            from sqlalchemy import func as sql_func
-            existing_stmt = (
-                select(
-                    PositionFactorExposure.position_id,
-                    sql_func.count(PositionFactorExposure.factor_id).label('factor_count')
+            # Query for positions that already have betas for this calculation_date
+            existing_stmt = select(PositionFactorExposure.position_id).where(
+                and_(
+                    PositionFactorExposure.position_id.in_(position_ids),
+                    PositionFactorExposure.calculation_date == calculation_date
                 )
-                .where(
-                    and_(
-                        PositionFactorExposure.position_id.in_(position_ids),
-                        PositionFactorExposure.calculation_date == calculation_date
-                    )
-                )
-                .group_by(PositionFactorExposure.position_id)
-                .having(sql_func.count(PositionFactorExposure.factor_id) >= EXPECTED_STYLE_FACTOR_COUNT)
-            )
+            ).distinct()
             existing_result = await db.execute(existing_stmt)
             positions_with_existing_betas = {row[0] for row in existing_result.all()}
 
             if positions_with_existing_betas:
                 logger.info(
                     f"Found {len(positions_with_existing_betas)}/{len(position_ids)} positions "
-                    f"with complete factor betas ({EXPECTED_STYLE_FACTOR_COUNT} factors) for {calculation_date} (skipping recalculation)"
+                    f"with existing factor betas for {calculation_date} (skipping recalculation)"
                 )
 
-        # Delete existing records if force_recalculate=True OR if we're going to store new ones
-        # This handles both explicit recalculation and clearing partial/broken data
-        positions_to_store = set(position_ids) - positions_with_existing_betas
-
+        # Only delete existing records if force_recalculate=True
         if force_recalculate:
-            # Force recalculate: clear ALL positions
             logger.info(f"Force recalculate: Clearing existing factor exposures for {len(position_ids)} positions on {calculation_date}")
             delete_stmt = delete(PositionFactorExposure).where(
                 and_(
                     PositionFactorExposure.position_id.in_(position_ids),
-                    PositionFactorExposure.calculation_date == calculation_date
-                )
-            )
-            await db.execute(delete_stmt)
-        elif positions_to_store:
-            # Clear ONLY positions that don't have complete data (partial/broken records)
-            logger.info(f"Clearing partial factor exposures for {len(positions_to_store)} positions before storing new data")
-            delete_stmt = delete(PositionFactorExposure).where(
-                and_(
-                    PositionFactorExposure.position_id.in_(list(positions_to_store)),
                     PositionFactorExposure.calculation_date == calculation_date
                 )
             )
