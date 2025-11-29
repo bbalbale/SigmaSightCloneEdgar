@@ -2,6 +2,9 @@
 Debug script to check position-level vs portfolio-level factor exposures
 for the Hedge Fund Style portfolio.
 
+This script is STANDALONE - it creates its own database connection to avoid
+Railway's psycopg2 vs asyncpg driver conflicts.
+
 Run on Railway:
     railway run python scripts/debug/check_position_factors.py
 
@@ -10,35 +13,102 @@ Or locally with DATABASE_URL set:
 """
 import asyncio
 import os
-from datetime import date, timedelta
+from contextlib import asynccontextmanager
+from datetime import date
 from uuid import UUID
 
-# Set DATABASE_URL before any app imports
+# ============================================================================
+# STANDALONE DATABASE SETUP (no app imports for database connection)
+# ============================================================================
+
 DATABASE_URL = os.environ.get("DATABASE_URL")
 if not DATABASE_URL:
     raise ValueError("DATABASE_URL environment variable not set")
 
-# Convert postgres:// to postgresql+asyncpg://
+# Convert to asyncpg driver
 if DATABASE_URL.startswith("postgres://"):
     DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql+asyncpg://", 1)
 elif DATABASE_URL.startswith("postgresql://") and "asyncpg" not in DATABASE_URL:
     DATABASE_URL = DATABASE_URL.replace("postgresql://", "postgresql+asyncpg://", 1)
 
-# Override the environment variable so app.database uses asyncpg
-os.environ["DATABASE_URL"] = DATABASE_URL
+print(f"Using database: {DATABASE_URL[:50]}...")
 
-from sqlalchemy import select, func, and_
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select, func, and_, Column, String, Boolean, Integer, Numeric, Date, ForeignKey, DateTime, text
+from sqlalchemy.dialects.postgresql import UUID as PGUUID
+from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
+from sqlalchemy.orm import declarative_base
 
-# Now import from app - it will use the corrected DATABASE_URL
-from app.database import get_async_session
-from app.models.users import User, Portfolio
-from app.models.positions import Position
-from app.models.market_data import PositionFactorExposure, FactorDefinition, FactorExposure
+# Create standalone engine
+engine = create_async_engine(DATABASE_URL, echo=False)
+async_session_maker = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
+Base = declarative_base()
+
+
+# ============================================================================
+# MINIMAL MODEL DEFINITIONS (just what we need for querying)
+# ============================================================================
+
+class User(Base):
+    __tablename__ = "users"
+    id = Column(PGUUID(as_uuid=True), primary_key=True)
+    email = Column(String, unique=True)
+
+
+class Portfolio(Base):
+    __tablename__ = "portfolios"
+    id = Column(PGUUID(as_uuid=True), primary_key=True)
+    user_id = Column(PGUUID(as_uuid=True), ForeignKey("users.id"))
+    name = Column(String)
+
+
+class Position(Base):
+    __tablename__ = "positions"
+    id = Column(PGUUID(as_uuid=True), primary_key=True)
+    portfolio_id = Column(PGUUID(as_uuid=True), ForeignKey("portfolios.id"))
+    symbol = Column(String)
+    investment_class = Column(String)
+    position_type = Column(String)
+    exit_date = Column(Date, nullable=True)
+    deleted_at = Column(DateTime, nullable=True)
+
+
+class FactorDefinition(Base):
+    __tablename__ = "factor_definitions"
+    id = Column(PGUUID(as_uuid=True), primary_key=True)
+    name = Column(String)
+    factor_type = Column(String)
+    calculation_method = Column(String)
+    etf_proxy = Column(String, nullable=True)
+    is_active = Column(Boolean, default=True)
+    display_order = Column(Integer)
+
+
+class PositionFactorExposure(Base):
+    __tablename__ = "position_factor_exposures"
+    id = Column(PGUUID(as_uuid=True), primary_key=True)
+    position_id = Column(PGUUID(as_uuid=True), ForeignKey("positions.id"))
+    factor_id = Column(PGUUID(as_uuid=True), ForeignKey("factor_definitions.id"))
+    calculation_date = Column(Date)
+    exposure_value = Column(Numeric)
+
+
+class FactorExposure(Base):
+    __tablename__ = "factor_exposures"
+    id = Column(PGUUID(as_uuid=True), primary_key=True)
+    portfolio_id = Column(PGUUID(as_uuid=True), ForeignKey("portfolios.id"))
+    factor_id = Column(PGUUID(as_uuid=True), ForeignKey("factor_definitions.id"))
+    calculation_date = Column(Date)
+    exposure_value = Column(Numeric)
+    exposure_dollar = Column(Numeric, nullable=True)
+
+
+# ============================================================================
+# MAIN CHECK FUNCTION
+# ============================================================================
 
 async def check_factors():
-    async with get_async_session() as db:
+    async with async_session_maker() as db:
         # 1. Find the Hedge Fund Style portfolio
         print("=" * 80)
         print("CHECKING FACTOR DATA FOR HEDGE FUND STYLE PORTFOLIO")
@@ -231,12 +301,15 @@ async def check_factors():
         print(f"Positions with exposures: {len(positions_with_exp)} / {len(positions)}")
 
         if total_count == 0:
-            print("\n⚠️  NO POSITION-LEVEL FACTORS STORED!")
-            print("   This is the bug - Ridge regression is not storing position factors.")
+            print("\n[!] NO POSITION-LEVEL FACTORS STORED!")
+            print("    This is the bug - Ridge regression is not storing position factors.")
         elif len(positions_with_exp) < len(positions):
-            print(f"\n⚠️  PARTIAL DATA - {len(positions) - len(positions_with_exp)} positions missing factors")
+            print(f"\n[!] PARTIAL DATA - {len(positions) - len(positions_with_exp)} positions missing factors")
         else:
-            print("\n✅ All positions have factor exposures")
+            print("\n[OK] All positions have factor exposures")
+
+    # Close the engine
+    await engine.dispose()
 
 
 if __name__ == "__main__":
