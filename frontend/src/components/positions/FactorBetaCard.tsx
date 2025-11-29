@@ -23,9 +23,11 @@ interface FactorBetaCardProps {
   calculationDate?: string | null
 }
 
-// Factor descriptions for tooltips
+// Factor descriptions for tooltips - names must match backend FactorDefinition names
 const FACTOR_DESCRIPTIONS: Record<string, string> = {
-  'Market Beta': 'Sensitivity to overall market movements (SPY)',
+  'Market Beta (90D)': 'Sensitivity to overall market movements (SPY) - 90 day',
+  'Provider Beta (1Y)': 'Market beta from data provider - 1 year',
+  'IR Beta': 'Interest rate sensitivity (TLT)',
   'Value': 'Exposure to value stocks vs growth stocks (VTV)',
   'Growth': 'Exposure to growth stocks vs value stocks (VUG)',
   'Momentum': 'Exposure to stocks with strong recent performance (MTUM)',
@@ -34,9 +36,9 @@ const FACTOR_DESCRIPTIONS: Record<string, string> = {
   'Low Volatility': 'Exposure to low-volatility stocks (USMV)'
 }
 
-// Preferred display order for factors
+// Preferred display order for factors - names must match backend FactorDefinition names
 const FACTOR_ORDER = [
-  'Market Beta',
+  'Market Beta (90D)',
   'Value',
   'Growth',
   'Momentum',

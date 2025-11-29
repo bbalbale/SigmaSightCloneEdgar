@@ -19,8 +19,11 @@ function getAuthHeader(): Record<string, string> {
 }
 
 // Types
+// Factor names must match backend FactorDefinition names in seed_factors.py
 export interface PositionFactorExposures {
-  'Market Beta'?: number
+  'Market Beta (90D)'?: number  // 90-day OLS regression beta vs S&P 500
+  'Provider Beta (1Y)'?: number // 1-year market beta from data providers
+  'IR Beta'?: number            // Interest rate sensitivity vs TLT
   'Size'?: number
   'Value'?: number
   'Momentum'?: number
@@ -92,8 +95,8 @@ export async function getPositionRiskMetrics(
       const positionData = factorResponse.positions.find(p => p.position_id === positionId || p.symbol === symbol)
       if (positionData) {
         metrics.factor_exposures = positionData.exposures
-        // Market Beta is in factor exposures
-        metrics.beta = positionData.exposures['Market Beta']
+        // Market Beta (90D) is the calculated beta from factor exposures
+        metrics.beta = positionData.exposures['Market Beta (90D)']
       }
     }
   } catch (error) {

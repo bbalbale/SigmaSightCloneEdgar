@@ -198,7 +198,8 @@ export function useCommandCenterData(refreshTrigger?: number): UseCommandCenterD
     const betaMap = new Map<string, number>()
     if (positionBetas.data.available && positionBetas.data.positions) {
       positionBetas.data.positions.forEach((pos: any) => {
-        const marketBeta = pos.exposures?.['Market Beta']
+        // Use correct factor name from backend: 'Market Beta (90D)'
+        const marketBeta = pos.exposures?.['Market Beta (90D)']
         if (marketBeta !== undefined && marketBeta !== null) {
           betaMap.set(pos.symbol, marketBeta)
         }

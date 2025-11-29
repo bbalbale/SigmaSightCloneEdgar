@@ -11,9 +11,9 @@ interface FactorExposureCardsProps {
   dataQuality?: DataStalenessInfo | DataQualityInfo | null
 }
 
-// Factor order as specified
+// Factor order as specified - names must match backend FactorDefinition names
 const FACTOR_ORDER = [
-  'Market Beta',
+  'Market Beta (90D)',
   'Momentum',
   'Value',
   'Growth',
