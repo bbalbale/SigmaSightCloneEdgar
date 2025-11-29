@@ -25,7 +25,13 @@
       "Bash(git stash:*)",
       "Bash(git fetch:*)",
       "Bash(npm run type-check:*)",
-      "Bash(railway service)"
+      "Bash(railway service)",
+      "WebSearch",
+      "WebFetch(domain:www.aqr.com)",
+      "Bash(git mv:*)",
+      "WebFetch(domain:quant.stackexchange.com)",
+      "Bash(rmdir:*)",
+      "mcp__playwright__browser_evaluate"
     ],
     "deny": [],
     "ask": [],
