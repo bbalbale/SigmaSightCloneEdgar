@@ -11,11 +11,9 @@ Or locally with DATABASE_URL set:
 import asyncio
 import os
 from datetime import date, timedelta
-from sqlalchemy import select, func, and_
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
-from sqlalchemy.orm import sessionmaker
+from uuid import UUID
 
-# Get DATABASE_URL from environment
+# Set DATABASE_URL before any app imports
 DATABASE_URL = os.environ.get("DATABASE_URL")
 if not DATABASE_URL:
     raise ValueError("DATABASE_URL environment variable not set")
@@ -26,18 +24,21 @@ if DATABASE_URL.startswith("postgres://"):
 elif DATABASE_URL.startswith("postgresql://") and "asyncpg" not in DATABASE_URL:
     DATABASE_URL = DATABASE_URL.replace("postgresql://", "postgresql+asyncpg://", 1)
 
-# Create async engine
-engine = create_async_engine(DATABASE_URL, echo=False)
-AsyncSessionLocal = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+# Override the environment variable so app.database uses asyncpg
+os.environ["DATABASE_URL"] = DATABASE_URL
+
+from sqlalchemy import select, func, and_
+from sqlalchemy.ext.asyncio import AsyncSession
+
+# Now import from app - it will use the corrected DATABASE_URL
+from app.database import get_async_session
+from app.models.users import User, Portfolio
+from app.models.positions import Position
+from app.models.market_data import PositionFactorExposure, FactorDefinition, FactorExposure
 
 
 async def check_factors():
-    # Import models after engine is set up
-    from app.models.users import User, Portfolio
-    from app.models.positions import Position
-    from app.models.market_data import PositionFactorExposure, FactorDefinition, FactorExposure
-
-    async with AsyncSessionLocal() as db:
+    async with get_async_session() as db:
         # 1. Find the Hedge Fund Style portfolio
         print("=" * 80)
         print("CHECKING FACTOR DATA FOR HEDGE FUND STYLE PORTFOLIO")
@@ -236,8 +237,6 @@ async def check_factors():
             print(f"\n⚠️  PARTIAL DATA - {len(positions) - len(positions_with_exp)} positions missing factors")
         else:
             print("\n✅ All positions have factor exposures")
-
-    await engine.dispose()
 
 
 if __name__ == "__main__":
