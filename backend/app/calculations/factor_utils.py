@@ -10,7 +10,62 @@ This module provides centralized utilities to:
 - Analyze factor correlations
 
 Created: 2025-01-14
+Updated: 2025-11-29
 Part of Factor Analysis Enhancement Plan
+
+================================================================================
+FACTOR/BETA ARCHITECTURE OVERVIEW
+================================================================================
+
+SigmaSight calculates multiple types of betas/factors at different levels:
+
+PORTFOLIO-LEVEL BETAS (stored in PortfolioSnapshot):
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ Beta Type          │ Source              │ Calculation Method              │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ Market Beta (90D)  │ market_beta.py      │ 90-day OLS regression vs SPY    │
+│ Provider Beta (1Y) │ market_beta.py      │ Weighted avg of company betas   │
+│                    │                     │ from FMP/data providers         │
+│ IR Beta            │ interest_rate_beta  │ 90-day OLS regression vs TLT    │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+POSITION-LEVEL BETAS (stored in separate tables):
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ Beta Type          │ Table                    │ Calculation                 │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ Market Beta (90D)  │ PositionMarketBeta       │ OLS regression vs SPY       │
+│ IR Beta            │ PositionInterestRateBeta │ OLS regression vs TLT       │
+│ 6 Style Factors    │ PositionFactorExposure   │ Ridge regression            │
+│   - Value          │                          │   (VTV proxy)               │
+│   - Growth         │                          │   (VUG proxy)               │
+│   - Momentum       │                          │   (MTUM proxy)              │
+│   - Quality        │                          │   (QUAL proxy)              │
+│   - Size           │                          │   (IWM proxy)               │
+│   - Low Volatility │                          │   (USMV proxy)              │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+SPREAD FACTORS (stored in PositionFactorExposure):
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ Spread Factor         │ Long-Short Spread    │ Calculation                  │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ Growth-Value Spread   │ VUG - VTV            │ OLS regression               │
+│ Momentum Spread       │ MTUM - SPY           │ OLS regression               │
+│ Size Spread           │ IWM - SPY            │ OLS regression               │
+│ Quality Spread        │ QUAL - SPY           │ OLS regression               │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+KEY FILES:
+- market_beta.py         → Market Beta (90D) + Provider Beta (1Y)
+- interest_rate_beta.py  → IR Beta (TLT sensitivity)
+- factors_ridge.py       → 6 Style Factors (Ridge regression)
+- factors_spread.py      → 4 Spread Factors (long-short spreads)
+- factor_utils.py        → This file - shared utilities
+
+DATABASE FACTOR DEFINITIONS:
+- See app/db/seed_factors.py for FactorDefinition records
+- factor_type: 'market', 'macro', 'style' (determines API filtering)
+
+================================================================================
 """
 from dataclasses import dataclass, field
 from datetime import date
@@ -34,8 +89,16 @@ logger = get_logger(__name__)
 # ============================================================================
 
 # Centralized factor name mapping (calculation name -> database name)
+# Used by: factors_ridge.py, factors_spread.py when storing to PositionFactorExposure
+#
+# NOTE: This mapping is ONLY for Ridge/Spread style factors.
+# Market Beta and IR Beta have their own storage paths:
+#   - Market Beta (90D): market_beta.py → PositionMarketBeta table
+#   - Provider Beta (1Y): market_beta.py → PortfolioSnapshot.provider_beta_1y
+#   - IR Beta: interest_rate_beta.py → PositionInterestRateBeta table
+#
+# The 6 Ridge style factors map directly (no transformation needed):
 FACTOR_NAME_MAPPING = {
-    'Market': 'Market Beta',
     'Value': 'Value',
     'Growth': 'Growth',
     'Momentum': 'Momentum',

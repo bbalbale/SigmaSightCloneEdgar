@@ -1,5 +1,7 @@
 """
 Constants for factor analysis calculations
+
+See factor_utils.py for complete architecture documentation.
 """
 
 # Factor calculation parameters
@@ -15,16 +17,31 @@ QUALITY_FLAG_FULL_HISTORY = "full_history"
 QUALITY_FLAG_LIMITED_HISTORY = "limited_history"
 QUALITY_FLAG_NO_PUBLIC_POSITIONS = "no_public_positions"  # Phase 8.1 Task 4: All PUBLIC positions filtered out
 
-# Factor ETF symbols (8-factor model for V1.4)
+# ================================================================================
+# FACTOR ETF SYMBOLS - Master list of all factor proxies
+# ================================================================================
+# This is the MASTER LIST of all factor ETF proxies used across the system.
+# Different calculation modules filter this list for their specific needs:
+#
+#   factors_ridge.py:       Uses 6 style factors (excludes Market, Interest Rate)
+#   market_beta.py:         Uses Market (SPY) only
+#   interest_rate_beta.py:  Uses Interest Rate (TLT) only
+#   factors_spread.py:      Uses pairs from SPREAD_FACTORS below
+#
 FACTOR_ETFS = {
-    "Market": "SPY",       # Market factor
-    "Value": "VTV",        # Value factor
-    "Growth": "VUG",       # Growth factor
-    "Momentum": "MTUM",    # Momentum factor
-    "Quality": "QUAL",     # Quality factor
-    "Size": "IWM",         # Size factor (Russell 2000 small-cap index)
-    "Low Volatility": "USMV",  # Low Volatility factor
-    "Interest Rate": "TLT"     # Interest Rate sensitivity (20+ Year Treasury Bond ETF)
+    # Market factor - calculated separately by market_beta.py
+    "Market": "SPY",
+
+    # 6 Style factors - calculated by factors_ridge.py (Ridge regression)
+    "Value": "VTV",
+    "Growth": "VUG",
+    "Momentum": "MTUM",
+    "Quality": "QUAL",
+    "Size": "IWM",
+    "Low Volatility": "USMV",
+
+    # Macro factor - calculated separately by interest_rate_beta.py
+    "Interest Rate": "TLT"
 }
 
 # Factor types

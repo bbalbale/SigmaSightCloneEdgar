@@ -1,17 +1,30 @@
 """
-Ridge Regression Factor Analysis - 6 Non-Market Factors Only
+Ridge Regression Factor Analysis - 6 Style Factors Only
 Addresses multicollinearity in style/quality factors using L2 regularization
 
-IMPORTANT: This module handles ONLY the 6 non-market factors:
-- Value, Growth, Momentum, Quality, Size, Low Volatility
+================================================================================
+SCOPE: This module calculates ONLY the 6 STYLE factors via Ridge regression:
+================================================================================
+  1. Value        (VTV proxy)
+  2. Growth       (VUG proxy)
+  3. Momentum     (MTUM proxy)
+  4. Quality      (QUAL proxy)
+  5. Size         (IWM proxy)
+  6. Low Volatility (USMV proxy)
 
-Market Beta is calculated SEPARATELY via market_beta.py (simple OLS against SPY).
+EXCLUDED FROM THIS MODULE (calculated elsewhere):
+  - Market Beta (90D)  → market_beta.py → PositionMarketBeta table
+  - Provider Beta (1Y) → market_beta.py → PortfolioSnapshot (from company profiles)
+  - IR Beta            → interest_rate_beta.py → PositionInterestRateBeta table
 
-Key improvements over OLS (factors.py):
+OUTPUT: Stores to PositionFactorExposure table with factor_type='style'
+
+Key improvements over OLS:
 - Ridge regression reduces VIF from 299 to ~15-20
 - Fixes sign-flip issues in correlated factors
-- Excludes Market beta (handled separately)
 - Adds regularization_alpha and method='ridge' to database records
+
+See factor_utils.py for complete architecture documentation.
 """
 from datetime import date, timedelta
 from decimal import Decimal
@@ -36,7 +49,7 @@ from app.calculations.factor_utils import (
     load_portfolio_context,
 )
 from app.constants.factors import (
-    FACTOR_ETFS, REGRESSION_WINDOW_DAYS, MIN_REGRESSION_DAYS,
+    REGRESSION_WINDOW_DAYS, MIN_REGRESSION_DAYS,
     BETA_CAP_LIMIT, QUALITY_FLAG_FULL_HISTORY,
     QUALITY_FLAG_LIMITED_HISTORY, QUALITY_FLAG_NO_PUBLIC_POSITIONS
 )
@@ -106,14 +119,22 @@ async def calculate_factor_betas_ridge(
     start_date = end_date - timedelta(days=REGRESSION_WINDOW_DAYS + 30)
 
     try:
-        # Step 1: Fetch factor returns (EXCLUDE Market - handled separately by market_beta.py)
+        # Step 1: Fetch factor returns for the 6 style factors
         from app.calculations.factors import fetch_factor_returns, calculate_position_returns
 
-        # Filter out "Market" from FACTOR_ETFS (Market beta calculated separately)
-        NON_MARKET_FACTORS = {k: v for k, v in FACTOR_ETFS.items() if k != "Market"}
-        factor_symbols = list(NON_MARKET_FACTORS.values())
+        # Ridge regression calculates exactly these 6 style factors
+        # (Market Beta and IR Beta are calculated by their own dedicated modules)
+        RIDGE_STYLE_FACTORS = {
+            "Value": "VTV",
+            "Growth": "VUG",
+            "Momentum": "MTUM",
+            "Quality": "QUAL",
+            "Size": "IWM",
+            "Low Volatility": "USMV",
+        }
+        factor_symbols = list(RIDGE_STYLE_FACTORS.values())
 
-        logger.info(f"Ridge regression using {len(factor_symbols)} non-market factors: {list(NON_MARKET_FACTORS.keys())}")
+        logger.info(f"Ridge regression using {len(factor_symbols)} style factors: {list(RIDGE_STYLE_FACTORS.keys())}")
 
         factor_returns = await fetch_factor_returns(
             db=db,
