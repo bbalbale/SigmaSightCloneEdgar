@@ -266,7 +266,7 @@ async def calculate_factor_betas_ridge(
     cached_betas = await bulk_load_cached_position_factors(
         db=db,
         position_ids=position_ids,
-        factor_type='style',
+        calculation_method='ridge_regression',
         calculation_date=calculation_date,
         expected_factor_count=EXPECTED_STYLE_FACTOR_COUNT
     )

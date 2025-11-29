@@ -265,7 +265,7 @@ async def calculate_portfolio_spread_betas(
     cached_betas = await bulk_load_cached_position_factors(
         db=db,
         position_ids=position_ids,
-        factor_type='spread',
+        calculation_method='spread_regression',
         calculation_date=calculation_date,
         expected_factor_count=EXPECTED_SPREAD_FACTOR_COUNT
     )

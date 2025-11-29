@@ -558,7 +558,7 @@ async def load_portfolio_context(
 async def bulk_load_cached_position_factors(
     db: AsyncSession,
     position_ids: List[UUID],
-    factor_type: str,
+    calculation_method: str,
     calculation_date: date,
     expected_factor_count: int
 ) -> Dict[UUID, Dict[str, float]]:
@@ -571,7 +571,9 @@ async def bulk_load_cached_position_factors(
     Args:
         db: Database session
         position_ids: List of position UUIDs to load
-        factor_type: Factor type filter ('style', 'spread', etc.)
+        calculation_method: Calculation method filter ('ridge_regression', 'spread_regression')
+                           This distinguishes between Ridge (6 style factors) and Spread (4 factors)
+                           since both have factor_type='style' in the database.
         calculation_date: Date of calculation
         expected_factor_count: Number of factors expected per position (e.g., 6 for Ridge, 4 for Spread)
                               Only returns positions with ALL expected factors cached.
@@ -582,7 +584,7 @@ async def bulk_load_cached_position_factors(
 
     Example:
         >>> cached = await bulk_load_cached_position_factors(
-        ...     db, position_ids, 'style', date.today(), 6
+        ...     db, position_ids, 'ridge_regression', date.today(), 6
         ... )
         >>> # cached = {pos_id_1: {'Value': 0.5, 'Growth': 0.8, ...}, ...}
     """
@@ -593,7 +595,8 @@ async def bulk_load_cached_position_factors(
         return {}
 
     # First, find positions that have ALL expected factors
-    # Subquery to count factors per position
+    # Filter by calculation_method (not factor_type) because both Ridge and Spread
+    # factors have factor_type='style' in the database
     count_stmt = (
         select(
             PositionFactorExposure.position_id,
@@ -604,7 +607,7 @@ async def bulk_load_cached_position_factors(
             and_(
                 PositionFactorExposure.position_id.in_(position_ids),
                 PositionFactorExposure.calculation_date == calculation_date,
-                FactorDefinition.factor_type == factor_type
+                FactorDefinition.calculation_method == calculation_method
             )
         )
         .group_by(PositionFactorExposure.position_id)
@@ -628,7 +631,7 @@ async def bulk_load_cached_position_factors(
             and_(
                 PositionFactorExposure.position_id.in_(complete_position_ids),
                 PositionFactorExposure.calculation_date == calculation_date,
-                FactorDefinition.factor_type == factor_type
+                FactorDefinition.calculation_method == calculation_method
             )
         )
     )
@@ -642,7 +645,7 @@ async def bulk_load_cached_position_factors(
         cached_betas[position_id][factor_name] = float(exposure_value)
 
     logger.info(
-        f"Loaded {len(cached_betas)} positions with complete {factor_type} factor cache "
+        f"Loaded {len(cached_betas)} positions with complete {calculation_method} factor cache "
         f"({expected_factor_count} factors each) for {calculation_date}"
     )
 
