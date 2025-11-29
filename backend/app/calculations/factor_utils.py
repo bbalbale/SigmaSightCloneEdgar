@@ -541,3 +541,278 @@ async def load_portfolio_context(
     )
 
     return context
+
+
+# ============================================================================
+# SECTION 8: POSITION-FIRST FACTOR CALCULATION INFRASTRUCTURE
+# ============================================================================
+# This section provides shared utilities for position-first factor calculations.
+# The pattern is:
+#   1. Calculate factors per-position (once per unique symbol)
+#   2. Cache position-level results in database
+#   3. Load cached results for portfolio aggregation
+#
+# This avoids recalculating the same position factors for positions that
+# appear in multiple portfolios.
+
+async def bulk_load_cached_position_factors(
+    db: AsyncSession,
+    position_ids: List[UUID],
+    factor_type: str,
+    calculation_date: date,
+    expected_factor_count: int
+) -> Dict[UUID, Dict[str, float]]:
+    """
+    Bulk load cached position factor betas from PositionFactorExposure table.
+
+    This function loads all cached factor betas for the given positions in a
+    single database query, avoiding N+1 query problems.
+
+    Args:
+        db: Database session
+        position_ids: List of position UUIDs to load
+        factor_type: Factor type filter ('style', 'spread', etc.)
+        calculation_date: Date of calculation
+        expected_factor_count: Number of factors expected per position (e.g., 6 for Ridge, 4 for Spread)
+                              Only returns positions with ALL expected factors cached.
+
+    Returns:
+        Dictionary mapping position_id -> {factor_name: beta_value}
+        Only includes positions that have ALL expected factors cached.
+
+    Example:
+        >>> cached = await bulk_load_cached_position_factors(
+        ...     db, position_ids, 'style', date.today(), 6
+        ... )
+        >>> # cached = {pos_id_1: {'Value': 0.5, 'Growth': 0.8, ...}, ...}
+    """
+    from app.models.market_data import PositionFactorExposure, FactorDefinition
+    from sqlalchemy import func as sql_func
+
+    if not position_ids:
+        return {}
+
+    # First, find positions that have ALL expected factors
+    # Subquery to count factors per position
+    count_stmt = (
+        select(
+            PositionFactorExposure.position_id,
+            sql_func.count(PositionFactorExposure.factor_id).label('factor_count')
+        )
+        .join(FactorDefinition, PositionFactorExposure.factor_id == FactorDefinition.id)
+        .where(
+            and_(
+                PositionFactorExposure.position_id.in_(position_ids),
+                PositionFactorExposure.calculation_date == calculation_date,
+                FactorDefinition.factor_type == factor_type
+            )
+        )
+        .group_by(PositionFactorExposure.position_id)
+        .having(sql_func.count(PositionFactorExposure.factor_id) >= expected_factor_count)
+    )
+    count_result = await db.execute(count_stmt)
+    complete_position_ids = {row[0] for row in count_result.all()}
+
+    if not complete_position_ids:
+        return {}
+
+    # Now load the actual factor values for complete positions
+    load_stmt = (
+        select(
+            PositionFactorExposure.position_id,
+            FactorDefinition.name,
+            PositionFactorExposure.exposure_value
+        )
+        .join(FactorDefinition, PositionFactorExposure.factor_id == FactorDefinition.id)
+        .where(
+            and_(
+                PositionFactorExposure.position_id.in_(complete_position_ids),
+                PositionFactorExposure.calculation_date == calculation_date,
+                FactorDefinition.factor_type == factor_type
+            )
+        )
+    )
+    load_result = await db.execute(load_stmt)
+
+    # Build result dictionary
+    cached_betas: Dict[UUID, Dict[str, float]] = {}
+    for position_id, factor_name, exposure_value in load_result.all():
+        if position_id not in cached_betas:
+            cached_betas[position_id] = {}
+        cached_betas[position_id][factor_name] = float(exposure_value)
+
+    logger.info(
+        f"Loaded {len(cached_betas)} positions with complete {factor_type} factor cache "
+        f"({expected_factor_count} factors each) for {calculation_date}"
+    )
+
+    return cached_betas
+
+
+async def persist_position_factor_betas(
+    db: AsyncSession,
+    position_id: UUID,
+    factor_betas: Dict[str, float],
+    calculation_date: date,
+    factor_name_to_id: Dict[str, UUID],
+    quality_flag: str = 'full_history'
+) -> Dict[str, Any]:
+    """
+    Persist factor betas for a single position to PositionFactorExposure table.
+
+    This function uses upsert logic (update if exists, insert if not) to handle
+    re-runs without duplicating data.
+
+    Args:
+        db: Database session
+        position_id: Position UUID
+        factor_betas: Dictionary of {factor_name: beta_value}
+        calculation_date: Date of calculation
+        factor_name_to_id: Mapping of factor names to UUIDs
+        quality_flag: Data quality indicator
+
+    Returns:
+        Dictionary with storage results
+
+    Note:
+        Does NOT commit - caller manages transaction boundaries.
+    """
+    from app.models.market_data import PositionFactorExposure
+    from sqlalchemy import delete
+    from decimal import Decimal
+    import uuid
+
+    results = {
+        'position_id': str(position_id),
+        'records_stored': 0,
+        'factors_stored': [],
+        'errors': []
+    }
+
+    try:
+        # Delete existing records for this position/date (upsert pattern)
+        factor_ids_to_store = [
+            factor_name_to_id[normalize_factor_name(fn)]
+            for fn in factor_betas.keys()
+            if normalize_factor_name(fn) in factor_name_to_id
+        ]
+
+        if factor_ids_to_store:
+            delete_stmt = delete(PositionFactorExposure).where(
+                and_(
+                    PositionFactorExposure.position_id == position_id,
+                    PositionFactorExposure.calculation_date == calculation_date,
+                    PositionFactorExposure.factor_id.in_(factor_ids_to_store)
+                )
+            )
+            await db.execute(delete_stmt)
+
+        # Insert new records
+        for factor_name, beta_value in factor_betas.items():
+            mapped_name = normalize_factor_name(factor_name)
+
+            if mapped_name not in factor_name_to_id:
+                results['errors'].append(f"Factor '{mapped_name}' not found in database")
+                continue
+
+            factor_id = factor_name_to_id[mapped_name]
+
+            exposure_record = PositionFactorExposure(
+                id=uuid.uuid4(),
+                position_id=position_id,
+                factor_id=factor_id,
+                calculation_date=calculation_date,
+                exposure_value=Decimal(str(beta_value)),
+                quality_flag=quality_flag
+            )
+            db.add(exposure_record)
+
+            results['records_stored'] += 1
+            results['factors_stored'].append(mapped_name)
+
+        logger.debug(
+            f"Staged {results['records_stored']} factor betas for position {position_id}"
+        )
+
+    except Exception as e:
+        logger.error(f"Error persisting factor betas for position {position_id}: {e}")
+        results['errors'].append(str(e))
+        raise
+
+    return results
+
+
+async def aggregate_position_betas_to_portfolio(
+    position_betas: Dict[UUID, Dict[str, float]],
+    position_weights: Dict[UUID, float]
+) -> Dict[str, float]:
+    """
+    Aggregate position-level factor betas to portfolio level using provided weights.
+
+    Portfolio Beta = Σ(weight_i × beta_i)
+
+    Args:
+        position_betas: Dictionary mapping position_id -> {factor_name: beta}
+        position_weights: Dictionary mapping position_id -> weight (signed, based on equity)
+
+    Returns:
+        Dictionary of portfolio-level factor betas {factor_name: beta}
+
+    Example:
+        >>> pos_betas = {
+        ...     uuid1: {'Value': 0.8, 'Growth': 1.2},
+        ...     uuid2: {'Value': 0.5, 'Growth': 0.9}
+        ... }
+        >>> weights = {uuid1: 0.6, uuid2: 0.4}  # Weights based on signed_exposure / equity
+        >>> portfolio_betas = await aggregate_position_betas_to_portfolio(pos_betas, weights)
+        >>> # portfolio_betas = {'Value': 0.68, 'Growth': 1.08}
+    """
+    # Collect all factor names
+    factor_names = set()
+    for betas in position_betas.values():
+        factor_names.update(betas.keys())
+
+    # Calculate weighted average for each factor
+    portfolio_betas = {}
+
+    for factor_name in factor_names:
+        weighted_sum = 0.0
+
+        for position_id, weight in position_weights.items():
+            if position_id in position_betas and factor_name in position_betas[position_id]:
+                weighted_sum += position_betas[position_id][factor_name] * weight
+
+        portfolio_betas[factor_name] = weighted_sum
+
+    return portfolio_betas
+
+
+def calculate_position_weights(
+    positions: List[Any],
+    portfolio_equity: float
+) -> Dict[UUID, float]:
+    """
+    Calculate position weights for portfolio beta aggregation.
+
+    Weight = signed_market_value / portfolio_equity
+
+    For leveraged portfolios, weights will sum to leverage ratio (not 1.0).
+    Short positions have negative weights.
+
+    Args:
+        positions: List of Position model instances
+        portfolio_equity: Portfolio equity balance
+
+    Returns:
+        Dictionary mapping position_id -> weight (can be negative for shorts)
+    """
+    from app.calculations.market_data import get_position_value
+
+    weights = {}
+
+    for position in positions:
+        # Signed market value (negative for shorts)
+        signed_value = float(get_position_value(position, signed=True, recalculate=False))
+        weights[position.id] = signed_value / portfolio_equity
+
+    return weights
