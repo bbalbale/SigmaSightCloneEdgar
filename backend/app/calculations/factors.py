@@ -810,25 +810,56 @@ async def store_position_factor_exposures(
             logger.info("No positions to process")
             return results
 
-        # OPTIMIZATION: Check which positions already have factor betas cached
+        # Phase 3: Use context if provided, otherwise load from database
+        # IMPORTANT: Load factor definitions BEFORE cache check so we know which factors to look for
+        if context is not None:
+            factor_name_to_id = context.factor_name_to_id
+        else:
+            # Backward compatible: Load from database
+            stmt = select(FactorDefinition).where(FactorDefinition.is_active == True)
+            result = await db.execute(stmt)
+            factor_definitions = result.scalars().all()
+            factor_name_to_id = {fd.name: fd.id for fd in factor_definitions}
+
+        # Determine which factor IDs are being stored in this call
+        # This is needed to check cache correctly - we only skip positions that have
+        # ALL of THESE specific factors cached, not just ANY factor
+        factors_being_stored = set()
+        for factor_betas in position_betas.values():
+            for factor_name in factor_betas.keys():
+                mapped_name = normalize_factor_name(factor_name)
+                if mapped_name in factor_name_to_id:
+                    factors_being_stored.add(factor_name_to_id[mapped_name])
+
+        logger.info(f"Storing {len(factors_being_stored)} factors: {[k for k,v in factor_name_to_id.items() if v in factors_being_stored]}")
+
+        # OPTIMIZATION: Check which positions already have ALL of these specific factor betas cached
         # This prevents recalculating betas for positions shared across portfolios
+        # BUG FIX: Previously checked for ANY factor, which skipped Ridge when Spread existed
         positions_with_existing_betas = set()
 
-        if not force_recalculate:
-            # Query for positions that already have betas for this calculation_date
-            existing_stmt = select(PositionFactorExposure.position_id).where(
-                and_(
-                    PositionFactorExposure.position_id.in_(position_ids),
-                    PositionFactorExposure.calculation_date == calculation_date
+        if not force_recalculate and factors_being_stored:
+            # For each position, check if it has ALL of the factors being stored
+            # A position is only "cached" if it has all required factors
+            for position_id in position_ids:
+                existing_stmt = select(PositionFactorExposure.factor_id).where(
+                    and_(
+                        PositionFactorExposure.position_id == position_id,
+                        PositionFactorExposure.calculation_date == calculation_date,
+                        PositionFactorExposure.factor_id.in_(factors_being_stored)
+                    )
                 )
-            ).distinct()
-            existing_result = await db.execute(existing_stmt)
-            positions_with_existing_betas = {row[0] for row in existing_result.all()}
+                existing_result = await db.execute(existing_stmt)
+                existing_factor_ids = {row[0] for row in existing_result.all()}
+
+                # Only skip if position has ALL the factors we're trying to store
+                if existing_factor_ids == factors_being_stored:
+                    positions_with_existing_betas.add(position_id)
 
             if positions_with_existing_betas:
                 logger.info(
                     f"Found {len(positions_with_existing_betas)}/{len(position_ids)} positions "
-                    f"with existing factor betas for {calculation_date} (skipping recalculation)"
+                    f"with ALL {len(factors_being_stored)} factors already cached for {calculation_date} (skipping)"
                 )
 
         # Only delete existing records if force_recalculate=True
@@ -841,16 +872,6 @@ async def store_position_factor_exposures(
                 )
             )
             await db.execute(delete_stmt)
-
-        # Phase 3: Use context if provided, otherwise load from database
-        if context is not None:
-            factor_name_to_id = context.factor_name_to_id
-        else:
-            # Backward compatible: Load from database
-            stmt = select(FactorDefinition).where(FactorDefinition.is_active == True)
-            result = await db.execute(stmt)
-            factor_definitions = result.scalars().all()
-            factor_name_to_id = {fd.name: fd.id for fd in factor_definitions}
 
         for position_id_str, factor_betas in position_betas.items():
             try:
