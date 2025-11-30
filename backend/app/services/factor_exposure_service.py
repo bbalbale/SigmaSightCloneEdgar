@@ -18,6 +18,7 @@ from app.models import (
     PositionFactorExposure,
     Position,
 )
+from app.models.market_data import PositionMarketBeta
 
 from app.core.logging import get_logger
 
@@ -493,6 +494,27 @@ class FactorExposureService:
         exposures_by_pos: Dict[UUID, Dict[str, float]] = {}
         for exp, fdef in rows:
             exposures_by_pos.setdefault(exp.position_id, {})[fdef.name] = float(exp.exposure_value)
+
+        # Also fetch Market Beta (90D) from PositionMarketBeta table
+        # This is stored separately from PositionFactorExposure
+        market_beta_stmt = (
+            select(PositionMarketBeta)
+            .where(
+                and_(
+                    PositionMarketBeta.position_id.in_(page_pos_ids),
+                    PositionMarketBeta.calc_date == anchor_date,
+                    PositionMarketBeta.window_days == 90,  # 90-day beta
+                )
+            )
+        )
+        market_beta_result = await self.db.execute(market_beta_stmt)
+        market_betas = market_beta_result.scalars().all()
+
+        # Add Market Beta to exposures
+        for mb in market_betas:
+            exposures_by_pos.setdefault(mb.position_id, {})["Market Beta (90D)"] = float(mb.beta)
+
+        logger.debug(f"Added Market Beta (90D) for {len(market_betas)} positions")
 
         positions_payload = []
         symbol_by_pos = {pid: sym for pid, sym in page_positions}
