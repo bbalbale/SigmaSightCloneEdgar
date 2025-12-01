@@ -425,6 +425,10 @@ class AnalyticsRunner:
                     db.add(new_exposure)
                     logger.debug(f"Created Provider Beta (1Y) factor exposure: {portfolio_beta:.3f}")
 
+                # CRITICAL FIX: Also update snapshot with provider beta
+                # The /beta-provider-1y API reads from snapshot.beta_provider_1y, not FactorExposure
+                await self._update_snapshot_provider_beta(db, portfolio_id, calculation_date, portfolio_beta)
+
                 return {'success': True}
             else:
                 logger.warning(f"Provider beta calculation returned error: {result.get('error')}")
@@ -867,6 +871,48 @@ class AnalyticsRunner:
 
         except Exception as e:
             logger.error(f"Error updating snapshot beta: {e}")
+
+    async def _update_snapshot_provider_beta(
+        self,
+        db: AsyncSession,
+        portfolio_id: UUID,
+        calculation_date: date,
+        provider_beta: float
+    ) -> None:
+        """
+        Update snapshot with provider beta (1Y) from Phase 6.
+
+        The /beta-provider-1y API reads from snapshot.beta_provider_1y,
+        so we must update the snapshot in addition to storing in FactorExposure.
+        """
+        from app.models.snapshots import PortfolioSnapshot
+        from sqlalchemy import select, and_
+        from decimal import Decimal
+
+        try:
+            # Query existing snapshot
+            snapshot_stmt = select(PortfolioSnapshot).where(
+                and_(
+                    PortfolioSnapshot.portfolio_id == portfolio_id,
+                    PortfolioSnapshot.snapshot_date == calculation_date
+                )
+            )
+            result = await db.execute(snapshot_stmt)
+            snapshot = result.scalar_one_or_none()
+
+            if not snapshot:
+                logger.warning(
+                    f"No snapshot found for portfolio {portfolio_id} on {calculation_date}, "
+                    f"cannot update provider beta"
+                )
+                return
+
+            # Update provider beta field
+            snapshot.beta_provider_1y = Decimal(str(provider_beta))
+            logger.info(f"Updated snapshot provider beta (1Y): {provider_beta:.3f}")
+
+        except Exception as e:
+            logger.error(f"Error updating snapshot provider beta: {e}")
 
     async def _update_snapshot_volatility(
         self,
