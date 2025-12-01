@@ -843,7 +843,8 @@ class AnalyticsRunner:
                 return
 
             # Update beta fields from Phase 6 calculation
-            portfolio_beta = beta_result.get('portfolio_beta')
+            # Note: market_beta.py returns 'market_beta', not 'portfolio_beta'
+            portfolio_beta = beta_result.get('portfolio_beta') or beta_result.get('market_beta')
             if portfolio_beta is not None:
                 snapshot.beta_calculated_90d = Decimal(str(portfolio_beta))
 
