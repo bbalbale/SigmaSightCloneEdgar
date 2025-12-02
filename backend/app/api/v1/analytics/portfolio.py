@@ -612,12 +612,16 @@ async def get_volatility_metrics(
         # Validate portfolio ownership
         await validate_portfolio_ownership(db, portfolio_id, current_user.id)
 
-        # Fetch volatility data from latest snapshot
+        # Fetch volatility data from latest snapshot that has data
+        # This handles the case where today's snapshot exists but hasn't been populated yet
         from app.models.snapshots import PortfolioSnapshot
         from sqlalchemy import select, and_
 
         snapshot_query = select(PortfolioSnapshot).where(
-            PortfolioSnapshot.portfolio_id == portfolio_id
+            and_(
+                PortfolioSnapshot.portfolio_id == portfolio_id,
+                PortfolioSnapshot.realized_volatility_21d.isnot(None)
+            )
         ).order_by(PortfolioSnapshot.snapshot_date.desc()).limit(1)
 
         snapshot_result = await db.execute(snapshot_query)
@@ -995,12 +999,16 @@ async def get_calculated_beta_90d(
         # Validate portfolio ownership
         await validate_portfolio_ownership(db, portfolio_id, current_user.id)
 
-        # Fetch calculated beta from latest snapshot
+        # Fetch calculated beta from latest snapshot that has data
+        # This handles the case where today's snapshot exists but hasn't been populated yet
         from app.models.snapshots import PortfolioSnapshot
-        from sqlalchemy import select
+        from sqlalchemy import select, and_
 
         snapshot_query = select(PortfolioSnapshot).where(
-            PortfolioSnapshot.portfolio_id == portfolio_id
+            and_(
+                PortfolioSnapshot.portfolio_id == portfolio_id,
+                PortfolioSnapshot.beta_calculated_90d.isnot(None)
+            )
         ).order_by(PortfolioSnapshot.snapshot_date.desc()).limit(1)
 
         snapshot_result = await db.execute(snapshot_query)
@@ -1082,13 +1090,17 @@ async def get_provider_beta_1y(
         # Validate portfolio ownership
         await validate_portfolio_ownership(db, portfolio_id, current_user.id)
 
-        # Fetch provider beta from latest snapshot
+        # Fetch provider beta from latest snapshot that has data
+        # This handles the case where today's snapshot exists but hasn't been populated yet
         from app.models.snapshots import PortfolioSnapshot
         from app.models.positions import Position
         from sqlalchemy import select, and_
 
         snapshot_query = select(PortfolioSnapshot).where(
-            PortfolioSnapshot.portfolio_id == portfolio_id
+            and_(
+                PortfolioSnapshot.portfolio_id == portfolio_id,
+                PortfolioSnapshot.beta_provider_1y.isnot(None)
+            )
         ).order_by(PortfolioSnapshot.snapshot_date.desc()).limit(1)
 
         snapshot_result = await db.execute(snapshot_query)
