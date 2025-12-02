@@ -142,6 +142,26 @@ def main():
             else:
                 print(f"  {check_date}: MISSING")
 
+        # Check factor_exposures dates (separate table from snapshots)
+        print(f"\n\nFactor Exposures dates (last 10):")
+        cur.execute("""
+            SELECT DISTINCT calculation_date
+            FROM factor_exposures
+            WHERE portfolio_id = %s
+            ORDER BY calculation_date DESC
+            LIMIT 10
+        """, (portfolio_id,))
+        factor_dates = cur.fetchall()
+        if factor_dates:
+            for row in factor_dates:
+                calc_date = row[0]
+                # Check if it's a weekend
+                day_name = calc_date.strftime('%A') if calc_date else 'Unknown'
+                weekend_flag = " [WEEKEND!]" if day_name in ('Saturday', 'Sunday') else ""
+                print(f"  {calc_date} ({day_name}){weekend_flag}")
+        else:
+            print("  NO FACTOR EXPOSURES FOUND")
+
     cur.close()
     conn.close()
 
