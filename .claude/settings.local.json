@@ -31,7 +31,10 @@
       "Bash(git mv:*)",
       "WebFetch(domain:quant.stackexchange.com)",
       "Bash(rmdir:*)",
-      "mcp__playwright__browser_evaluate"
+      "mcp__playwright__browser_evaluate",
+      "Bash(docker-compose up:*)",
+      "Bash(docker-compose:*)",
+      "Bash(docker exec:*)"
     ],
     "deny": [],
     "ask": [],
