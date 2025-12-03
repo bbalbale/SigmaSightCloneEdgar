@@ -158,10 +158,13 @@ def check_api_stress_test(token: str, portfolio_id: str) -> dict:
         return {"ok": False, "error": resp.status_code}
 
     data = resp.json()
-    scenarios = data.get('scenarios', [])
+    # Stress test response has scenarios inside 'data' object
+    stress_data = data.get('data', {})
+    scenarios = stress_data.get('scenarios', [])
     return {
-        "ok": len(scenarios) > 0,
+        "ok": data.get('available', False) and len(scenarios) > 0,
         "scenarios_count": len(scenarios),
+        "date": stress_data.get('calculation_date'),
     }
 
 
@@ -228,6 +231,7 @@ def run_api_checks(portfolio_keys=None):
         stress = check_api_stress_test(token, portfolio_id)
         status = "[OK]" if stress['ok'] else "[FAIL]"
         print(f"\n  {status} Stress Test")
+        print(f"      Date: {stress.get('date')}")
         if stress['ok']:
             print(f"      Scenarios: {stress.get('scenarios_count')}")
 
