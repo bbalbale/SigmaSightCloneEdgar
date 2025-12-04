@@ -221,10 +221,14 @@ function formatCurrency(value: number): string {
   }).format(value)
 }
 
-// Helper: Format date
+// Helper: Format date (handles ISO date strings without timezone issues)
 function formatDate(value: string | null): string | null {
   if (!value) return null
-  const parsed = new Date(value)
+  // Append T12:00:00 to interpret the date as noon local time, avoiding timezone rollover
+  // This fixes the issue where "2025-12-01" was being interpreted as midnight UTC
+  // and then displayed as "Nov 30" in US timezones
+  const dateString = value.includes('T') ? value : `${value}T12:00:00`
+  const parsed = new Date(dateString)
   if (Number.isNaN(parsed.getTime())) return null
   return parsed.toLocaleDateString(undefined, {
     month: 'short',
