@@ -303,8 +303,88 @@ export function RiskMetricsContainer() {
           </div>
         </div>
 
-        {/* Render each public portfolio's metrics first */}
-        {publicPortfolios.map((portfolio) => (
+        {/* Render first public portfolio's full metrics */}
+        {publicPortfolios.length > 0 && (
+          <div className="border-t border-border/50 pt-6 mt-6">
+            <div className="px-4 pb-4">
+              <div className="container mx-auto">
+                <h3 className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>
+                  {publicPortfolios[0].account_name}
+                </h3>
+                <p className="text-sm text-muted-foreground">
+                  {publicPortfolios[0].position_count} positions • Public market analytics
+                </p>
+              </div>
+            </div>
+
+            {/* Show full metrics for the first public portfolio */}
+            <FactorExposureCards
+              ridgeFactors={factorExposures.factors}
+              spreadFactors={spreadFactors.spreadFactors}
+              ridgeLoading={factorExposures.loading}
+              spreadLoading={spreadFactors.loading}
+              ridgeError={factorErrorMessage}
+              spreadError={spreadErrorMessage}
+              ridgeCalculationDate={factorExposures.calculationDate}
+              spreadCalculationDate={spreadFactors.calculationDate ?? null}
+              onRefetchRidge={factorExposures.refetch}
+              onRefetchSpread={spreadFactors.refetch}
+            />
+
+            <section className="px-4 pb-6">
+              <div className="container mx-auto">
+                <StressTest
+                  data={stressTest.data}
+                  loading={stressTest.loading}
+                  error={stressTest.error}
+                  onRetry={stressTest.refetch}
+                />
+              </div>
+            </section>
+
+            <section className="px-4 pb-6">
+              <div className="container mx-auto">
+                <CorrelationMatrix
+                  data={correlationMatrix.data}
+                  loading={correlationMatrix.loading}
+                  error={correlationMatrix.error}
+                  onRetry={correlationMatrix.refetch}
+                />
+              </div>
+            </section>
+
+            <section className="px-4 py-8">
+              <div className="container mx-auto">
+                <VolatilityMetrics
+                  data={volatility.data}
+                  loading={volatility.loading}
+                  error={volatility.error}
+                  onRetry={volatility.refetch}
+                />
+              </div>
+            </section>
+
+            <section className="px-4 py-8">
+              <div className="container mx-auto">
+                <SectorExposure
+                  data={sectorExposure.data}
+                  loading={sectorExposure.loading}
+                  error={sectorExposure.error}
+                  onRetry={sectorExposure.refetch}
+                />
+              </div>
+            </section>
+
+            <section className="px-4 py-8">
+              <div className="container mx-auto">
+                <MarketBetaComparison />
+              </div>
+            </section>
+          </div>
+        )}
+
+        {/* For additional public portfolios beyond the first, show a message */}
+        {publicPortfolios.slice(1).map((portfolio) => (
           <div key={portfolio.id} className="border-t border-border/50 pt-6 mt-6">
             <div className="px-4 pb-4">
               <div className="container mx-auto">
@@ -316,88 +396,15 @@ export function RiskMetricsContainer() {
                 </p>
               </div>
             </div>
-
-            {/* Show metrics for this portfolio using the current hook data
-                (hooks use portfolioId which we've set to first public portfolio in aggregate view) */}
-            {portfolio.id === effectivePortfolioId && (
-              <>
-                <FactorExposureCards
-                  ridgeFactors={factorExposures.factors}
-                  spreadFactors={spreadFactors.spreadFactors}
-                  ridgeLoading={factorExposures.loading}
-                  spreadLoading={spreadFactors.loading}
-                  ridgeError={factorErrorMessage}
-                  spreadError={spreadErrorMessage}
-                  ridgeCalculationDate={factorExposures.calculationDate}
-                  spreadCalculationDate={spreadFactors.calculationDate ?? null}
-                  onRefetchRidge={factorExposures.refetch}
-                  onRefetchSpread={spreadFactors.refetch}
-                />
-
-                <section className="px-4 pb-6">
-                  <div className="container mx-auto">
-                    <StressTest
-                      data={stressTest.data}
-                      loading={stressTest.loading}
-                      error={stressTest.error}
-                      onRetry={stressTest.refetch}
-                    />
-                  </div>
-                </section>
-
-                <section className="px-4 pb-6">
-                  <div className="container mx-auto">
-                    <CorrelationMatrix
-                      data={correlationMatrix.data}
-                      loading={correlationMatrix.loading}
-                      error={correlationMatrix.error}
-                      onRetry={correlationMatrix.refetch}
-                    />
-                  </div>
-                </section>
-
-                <section className="px-4 py-8">
-                  <div className="container mx-auto">
-                    <VolatilityMetrics
-                      data={volatility.data}
-                      loading={volatility.loading}
-                      error={volatility.error}
-                      onRetry={volatility.refetch}
-                    />
-                  </div>
-                </section>
-
-                <section className="px-4 py-8">
-                  <div className="container mx-auto">
-                    <SectorExposure
-                      data={sectorExposure.data}
-                      loading={sectorExposure.loading}
-                      error={sectorExposure.error}
-                      onRetry={sectorExposure.refetch}
-                    />
-                  </div>
-                </section>
-
-                <section className="px-4 py-8">
-                  <div className="container mx-auto">
-                    <MarketBetaComparison />
-                  </div>
-                </section>
-              </>
-            )}
-
-            {/* For other public portfolios, show a message to select them */}
-            {portfolio.id !== effectivePortfolioId && (
-              <div className="px-4 pb-6">
-                <div className="container mx-auto">
-                  <div className="p-6 rounded-lg border border-border/50 bg-muted/30 text-center">
-                    <p className="text-sm text-muted-foreground">
-                      Select &quot;{portfolio.account_name}&quot; from the dropdown above to view detailed risk metrics.
-                    </p>
-                  </div>
+            <div className="px-4 pb-6">
+              <div className="container mx-auto">
+                <div className="p-6 rounded-lg border border-border/50 bg-muted/30 text-center">
+                  <p className="text-sm text-muted-foreground">
+                    Select &quot;{portfolio.account_name}&quot; from the dropdown above to view detailed risk metrics.
+                  </p>
                 </div>
               </div>
-            )}
+            </div>
           </div>
         ))}
 
