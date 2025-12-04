@@ -44,6 +44,16 @@ PORTFOLIOS = {
         "name": "Demo Individual Investor Portfolio",
         "email": "demo_individual@sigmasight.com",
     },
+    "family_office_public": {
+        "id": "9381dd8d-db58-9843-f5e4-4eea0ae62e9a",
+        "name": "Demo Family Office Public Growth",
+        "email": "demo_familyoffice@sigmasight.com",
+    },
+    "family_office_private": {
+        "id": "ab46c3c0-ed71-6f5b-b3f3-d36fa65e210c",
+        "name": "Demo Family Office Private Opportunities",
+        "email": "demo_familyoffice@sigmasight.com",
+    },
 }
 
 

@@ -13,12 +13,20 @@ import { VolatilityMetrics } from '@/components/risk/VolatilityMetrics'
 import { MarketBetaComparison } from '@/components/risk-metrics/MarketBetaComparison'
 import { SectorExposure } from '@/components/risk-metrics/SectorExposure'
 import { FactorExposureCards } from '@/components/risk-metrics/FactorExposureCards'
+import { AccountFilter } from '@/components/portfolio/AccountFilter'
+import { usePortfolioStore } from '@/stores/portfolioStore'
+import { AlertTriangle } from 'lucide-react'
 
 /**
  * RiskMetricsContainer
  *
  * Container component for the Risk Metrics page.
  * Follows standard architecture: thin page → container → hooks → services
+ *
+ * Updated December 2025: Added multi-portfolio support with AccountFilter
+ * - Shows portfolio selector for users with multiple portfolios
+ * - Displays current portfolio name in header
+ * - Shows warning for private portfolios (no public market data)
  *
  * Responsibilities:
  * - Fetch all risk metrics data via custom hooks
@@ -29,6 +37,19 @@ import { FactorExposureCards } from '@/components/risk-metrics/FactorExposureCar
  * hooks → analyticsApi service → apiClient → backend
  */
 export function RiskMetricsContainer() {
+  // Get current portfolio info from store
+  const portfolios = usePortfolioStore((state) => state.portfolios)
+  const selectedPortfolioId = usePortfolioStore((state) => state.selectedPortfolioId)
+  const portfolioId = usePortfolioStore((state) => state.portfolioId)
+
+  // Get current portfolio details
+  const currentPortfolio = portfolios.find((p) => p.id === portfolioId)
+  const isMultiPortfolio = portfolios.length > 1
+  const isAggregateView = selectedPortfolioId === null
+
+  // Check if current portfolio is private (no public market analytics available)
+  const isPrivatePortfolio = currentPortfolio?.account_name?.toLowerCase().includes('private') ?? false
+
   // Fetch all risk metrics data via custom hooks
   // Each hook uses analyticsApi service (no direct fetch calls)
   const factorExposures = useFactorExposures()
@@ -53,14 +74,54 @@ export function RiskMetricsContainer() {
 
   return (
     <div className="min-h-screen transition-colors duration-300 bg-primary">
-      {/* Page Description */}
+      {/* Page Description with Account Filter */}
       <div className="px-4 pt-4 pb-2">
-        <div className="container mx-auto">
-          <p className="text-sm text-muted-foreground">
-            Portfolio risk analytics, scenario testing, and benchmark comparisons
-          </p>
+        <div className="container mx-auto flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <div className="flex items-center gap-4 flex-1">
+            <p className="text-sm text-muted-foreground">
+              Portfolio risk analytics, scenario testing, and benchmark comparisons
+            </p>
+            {/* Account Filter - Multi-Portfolio Feature */}
+            <AccountFilter className="ml-auto" showForSinglePortfolio={false} />
+          </div>
         </div>
       </div>
+
+      {/* Portfolio Header - Shows which portfolio data is displayed */}
+      {currentPortfolio && (
+        <div className="px-4 pb-4">
+          <div className="container mx-auto">
+            <h2 className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>
+              {isAggregateView && isMultiPortfolio ? 'All Accounts' : currentPortfolio.account_name}
+            </h2>
+            <p className="text-sm text-muted-foreground">
+              {isAggregateView && isMultiPortfolio
+                ? `Combined risk analytics across ${portfolios.length} portfolios`
+                : 'Portfolio-specific risk analytics and scenario testing'}
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Private Portfolio Warning */}
+      {isPrivatePortfolio && (
+        <div className="px-4 pb-4">
+          <div className="container mx-auto">
+            <div className="flex items-center gap-3 p-4 rounded-lg border border-yellow-500/30 bg-yellow-500/10">
+              <AlertTriangle className="h-5 w-5 text-yellow-500 flex-shrink-0" />
+              <div>
+                <p className="text-sm font-medium text-yellow-600 dark:text-yellow-400">
+                  Limited Analytics for Private Holdings
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  Risk metrics require public market data. Private investments don&apos;t have standard market analytics.
+                  {isMultiPortfolio && ' Select a public portfolio to view full risk metrics.'}
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Factor & Spread Analysis Cards */}
       <FactorExposureCards
