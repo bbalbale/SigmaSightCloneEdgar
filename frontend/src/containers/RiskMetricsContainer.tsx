@@ -204,32 +204,8 @@ export function RiskMetricsContainer() {
   const isMultiPortfolio = portfolios.length > 1
   const isAggregateView = selectedPortfolioId === null
 
-  // For Risk Metrics in aggregate view, use first PUBLIC portfolio for data fetching
-  // This ensures we show analytics data even when store defaults to a private portfolio
-  const effectivePortfolioId = React.useMemo(() => {
-    if (!isAggregateView) {
-      return portfolioId
-    }
-    // In aggregate view, prefer first public portfolio that has analytics
-    if (publicPortfolios.length > 0) {
-      return publicPortfolios[0].id
-    }
-    // Fall back to store default
-    return portfolioId
-  }, [isAggregateView, portfolioId, publicPortfolios])
-
-  // Temporarily override the store's portfolioId for hooks when in aggregate view
-  // This effect ensures hooks fetch data for the public portfolio
-  React.useEffect(() => {
-    if (isAggregateView && publicPortfolios.length > 0 && portfolioId !== publicPortfolios[0].id) {
-      // We need to update the portfolioId in store for hooks to work correctly
-      // But we don't want to change selectedPortfolioId (keep aggregate view)
-      usePortfolioStore.setState({ portfolioId: publicPortfolios[0].id })
-    }
-  }, [isAggregateView, publicPortfolios, portfolioId])
-
   // Get current portfolio details
-  const currentPortfolio = portfolios.find((p) => p.id === effectivePortfolioId)
+  const currentPortfolio = portfolios.find((p) => p.id === portfolioId)
 
   // Check if current portfolio is private (no public market analytics available)
   const isPrivatePortfolio = currentPortfolio?.account_name?.toLowerCase().includes('private') ?? false
