@@ -58,18 +58,37 @@ export const usePortfolioStore = create<PortfolioStore>()(
       portfolioId: null,
 
       // Set all portfolios (called on login/data load)
+      // Prefer public portfolios over private ones for default selection
       setPortfolios: (portfolios) => {
         const selectedId = get().selectedPortfolioId
-        const fallbackId = selectedId ?? (portfolios[0]?.id ?? null)
+        // If no selection, prefer first public portfolio (has analytics data)
+        let fallbackId = selectedId
+        if (!fallbackId) {
+          const publicPortfolio = portfolios.find(
+            (p) => !p.account_name?.toLowerCase().includes('private')
+          )
+          fallbackId = publicPortfolio?.id ?? portfolios[0]?.id ?? null
+        }
         set({ portfolios, portfolioId: fallbackId })
       },
 
       // Set selected portfolio ID (null for aggregate view)
+      // When null (aggregate view), prefer first public portfolio for data fetching
       setSelectedPortfolio: (id) => {
-        set((state) => ({
-          selectedPortfolioId: id,
-          portfolioId: id ?? (state.portfolios[0]?.id ?? null)
-        }))
+        set((state) => {
+          let fallbackId = id
+          if (!fallbackId) {
+            // In aggregate view, prefer first public portfolio (has analytics)
+            const publicPortfolio = state.portfolios.find(
+              (p) => !p.account_name?.toLowerCase().includes('private')
+            )
+            fallbackId = publicPortfolio?.id ?? state.portfolios[0]?.id ?? null
+          }
+          return {
+            selectedPortfolioId: id,
+            portfolioId: fallbackId
+          }
+        })
       },
 
       // Add a portfolio to the list
