@@ -1,10 +1,8 @@
 'use client'
 
-import React, { useMemo, useEffect, useState } from 'react'
+import React, { useMemo, useEffect, useState, useCallback } from 'react'
 import { useResearchStore } from '@/stores/researchStore'
-import { usePortfolioStore } from '@/stores/portfolioStore'
-import { usePublicPositions } from '@/hooks/usePublicPositions'
-import { usePrivatePositions } from '@/hooks/usePrivatePositions'
+import { usePortfolioStore, type PortfolioListItem } from '@/stores/portfolioStore'
 import { analyticsApi } from '@/services/analyticsApi'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Button } from '@/components/ui/button'
@@ -19,10 +17,25 @@ import { usePositionTags } from '@/hooks/usePositionTags'
 import type { PositionTag } from '@/types/tags'
 import tagsApi from '@/services/tagsApi'
 import { positionResearchService, type EnhancedPosition } from '@/services/positionResearchService'
+import { AccountFilter } from '@/components/portfolio/AccountFilter'
+import { portfolioService } from '@/services/portfolioApi'
+import { Info } from 'lucide-react'
+
+// Extended position type with portfolio metadata for aggregate view
+interface EnhancedPositionWithPortfolio extends EnhancedPosition {
+  account_name?: string
+  portfolio_id?: string
+}
 
 export function ResearchAndAnalyzeContainer() {
-  // Portfolio ID
-  const { portfolioId } = usePortfolioStore()
+  // Portfolio store state - use selectedPortfolioId for aggregate view detection
+  const portfolios = usePortfolioStore((state) => state.portfolios)
+  const selectedPortfolioId = usePortfolioStore((state) => state.selectedPortfolioId)
+  const portfolioId = usePortfolioStore((state) => state.portfolioId)
+
+  // Determine if we're in aggregate view
+  const isAggregateView = selectedPortfolioId === null
+  const isMultiPortfolio = portfolios.length > 1
 
   // Zustand store state
   const activeTab = useResearchStore((state) => state.activeTab)
@@ -46,25 +59,145 @@ export function ResearchAndAnalyzeContainer() {
   const [sortBy, setSortBy] = useState<'percent_of_equity' | 'symbol' | 'target_return_eoy'>('percent_of_equity')
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc')
 
-  // Data fetching - PHASE 1: Replace useResearchPageData with proven hooks
-  const {
-    longPositions,
-    shortPositions,
-    loading: publicLoading,
-    error: publicError,
-    aggregateReturns: publicAggregates,
-    updatePositionTargetOptimistic: updatePublicTarget,
-    refetch: refetchPublicPositions
-  } = usePublicPositions()
+  // Multi-portfolio data fetching state
+  const [longPositions, setLongPositions] = useState<EnhancedPositionWithPortfolio[]>([])
+  const [shortPositions, setShortPositions] = useState<EnhancedPositionWithPortfolio[]>([])
+  const [privatePositions, setPrivatePositions] = useState<EnhancedPositionWithPortfolio[]>([])
+  const [publicLoading, setPublicLoading] = useState(true)
+  const [privateLoading, setPrivateLoading] = useState(true)
+  const [publicError, setPublicError] = useState<string | null>(null)
+  const [privateError, setPrivateError] = useState<string | null>(null)
 
-  const {
-    positions: privatePositions,
-    loading: privateLoading,
-    error: privateError,
-    aggregateReturns: privateAggregates,
-    updatePositionTargetOptimistic: updatePrivateTarget,
-    refetch: refetchPrivatePositions
-  } = usePrivatePositions()
+  // Fetch positions for a single portfolio
+  const fetchPortfolioPositions = useCallback(async (
+    portfolioIdToFetch: string,
+    accountName: string
+  ): Promise<{
+    longPositions: EnhancedPositionWithPortfolio[]
+    shortPositions: EnhancedPositionWithPortfolio[]
+    privatePositions: EnhancedPositionWithPortfolio[]
+  }> => {
+    // Fetch public/options positions
+    const publicResult = await positionResearchService.fetchEnhancedPositions({
+      portfolioId: portfolioIdToFetch
+    })
+
+    // Filter to only PUBLIC and OPTIONS
+    const filteredLong = publicResult.longPositions
+      .filter(p => p.investment_class === 'PUBLIC' || p.investment_class === 'OPTIONS')
+      .map(p => ({ ...p, account_name: accountName, portfolio_id: portfolioIdToFetch }))
+
+    const filteredShort = publicResult.shortPositions
+      .filter(p => p.investment_class === 'PUBLIC' || p.investment_class === 'OPTIONS')
+      .map(p => ({ ...p, account_name: accountName, portfolio_id: portfolioIdToFetch }))
+
+    // Fetch private positions
+    const privateResult = await positionResearchService.fetchEnhancedPositions({
+      portfolioId: portfolioIdToFetch,
+      investmentClass: 'PRIVATE'
+    })
+
+    const allPrivate = [...privateResult.longPositions, ...privateResult.shortPositions]
+      .map(p => ({ ...p, account_name: accountName, portfolio_id: portfolioIdToFetch }))
+
+    return {
+      longPositions: filteredLong,
+      shortPositions: filteredShort,
+      privatePositions: allPrivate
+    }
+  }, [])
+
+  // Fetch all positions (single portfolio or aggregate)
+  const fetchAllPositions = useCallback(async () => {
+    setPublicLoading(true)
+    setPrivateLoading(true)
+    setPublicError(null)
+    setPrivateError(null)
+
+    try {
+      if (isAggregateView && isMultiPortfolio) {
+        // Aggregate view: fetch from ALL portfolios
+        const allPortfolios = await portfolioService.getPortfolios()
+
+        const results = await Promise.all(
+          allPortfolios.map(async (portfolio) => {
+            try {
+              return await fetchPortfolioPositions(
+                portfolio.id,
+                portfolio.account_name || portfolio.name || 'Portfolio'
+              )
+            } catch (err) {
+              console.warn(`[R&A] Failed to fetch positions for portfolio ${portfolio.id}:`, err)
+              return { longPositions: [], shortPositions: [], privatePositions: [] }
+            }
+          })
+        )
+
+        // Combine all positions from all portfolios
+        const combinedLong = results.flatMap(r => r.longPositions)
+        const combinedShort = results.flatMap(r => r.shortPositions)
+        const combinedPrivate = results.flatMap(r => r.privatePositions)
+
+        setLongPositions(combinedLong)
+        setShortPositions(combinedShort)
+        setPrivatePositions(combinedPrivate)
+      } else if (portfolioId) {
+        // Single portfolio view
+        const currentPortfolio = portfolios.find(p => p.id === portfolioId)
+        const accountName = currentPortfolio?.account_name || 'Portfolio'
+
+        const result = await fetchPortfolioPositions(portfolioId, accountName)
+        setLongPositions(result.longPositions)
+        setShortPositions(result.shortPositions)
+        setPrivatePositions(result.privatePositions)
+      }
+    } catch (err) {
+      console.error('[R&A] Failed to fetch positions:', err)
+      setPublicError('Failed to load positions data')
+      setPrivateError('Failed to load private positions data')
+    } finally {
+      setPublicLoading(false)
+      setPrivateLoading(false)
+    }
+  }, [isAggregateView, isMultiPortfolio, portfolioId, portfolios, fetchPortfolioPositions])
+
+  // Refetch functions for tag operations
+  const refetchPublicPositions = useCallback(async () => {
+    await fetchAllPositions()
+  }, [fetchAllPositions])
+
+  const refetchPrivatePositions = useCallback(async () => {
+    await fetchAllPositions()
+  }, [fetchAllPositions])
+
+  // Fetch positions on mount and when selection changes
+  useEffect(() => {
+    fetchAllPositions()
+  }, [selectedPortfolioId, portfolioId, fetchAllPositions])
+
+  // Calculate aggregate returns for private positions
+  const privateAggregates = useMemo(() => ({
+    eoy: positionResearchService.calculateAggregateReturn(
+      privatePositions,
+      'target_return_eoy',
+      'analyst_return_eoy'
+    ),
+    next_year: positionResearchService.calculateAggregateReturn(
+      privatePositions,
+      'target_return_next_year'
+    )
+  }), [privatePositions])
+
+  // Optimistic update for target prices
+  const updatePublicTarget = useCallback(async (update: any) => {
+    // For simplicity, just refetch after update
+    // TODO: Implement proper optimistic updates for multi-portfolio
+    console.log('[R&A] Target price update:', update)
+  }, [])
+
+  const updatePrivateTarget = useCallback(async (update: any) => {
+    console.log('[R&A] Private target price update:', update)
+  }, [])
 
   const { restoreTags, loading: restoringTags } = useRestoreSectorTags()
 
@@ -550,16 +683,69 @@ export function ResearchAndAnalyzeContainer() {
     )
   }
 
+  // Get current portfolio name for display
+  const currentPortfolio = portfolios.find(p => p.id === portfolioId)
+  const activePortfolios = portfolios.filter(p => p.is_active)
+
   return (
     <div className="min-h-screen transition-colors duration-300" style={{ backgroundColor: 'var(--bg-primary)' }}>
-      {/* Page Description */}
+      {/* Page Description with Account Filter */}
       <div className="px-4 pt-4 pb-2">
-        <div className="container mx-auto">
-          <p className="text-sm text-muted-foreground">
-            Position research, target prices, and analysis
-          </p>
+        <div className="container mx-auto flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <div className="flex items-center gap-4 flex-1">
+            <p className="text-sm text-muted-foreground">
+              Position research, target prices, and analysis
+            </p>
+            {/* Account Filter - Multi-Portfolio Feature */}
+            <AccountFilter className="ml-auto" showForSinglePortfolio={false} />
+          </div>
         </div>
       </div>
+
+      {/* Aggregate View Header */}
+      {isAggregateView && isMultiPortfolio && (
+        <div className="px-4 pb-4">
+          <div className="container mx-auto">
+            <h2 className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>
+              All Accounts
+            </h2>
+            <p className="text-sm text-muted-foreground">
+              Combined positions across {activePortfolios.length} portfolios
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Single Portfolio Header */}
+      {!isAggregateView && currentPortfolio && (
+        <div className="px-4 pb-4">
+          <div className="container mx-auto">
+            <h2 className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>
+              {currentPortfolio.account_name}
+            </h2>
+            <p className="text-sm text-muted-foreground">
+              Position research and analysis
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Info Banner about Aggregate View */}
+      {isAggregateView && isMultiPortfolio && (
+        <div className="px-4 pb-4">
+          <div className="container mx-auto">
+            <div className="flex items-center gap-3 p-4 rounded-lg border border-blue-500/30 bg-blue-500/10">
+              <Info className="h-5 w-5 text-blue-500 flex-shrink-0" />
+              <div>
+                <p className="text-sm text-muted-foreground">
+                  Viewing positions from {activePortfolios.length} portfolio{activePortfolios.length !== 1 ? 's' : ''}.
+                  Combined totals: {longPositions.length + shortPositions.length} public/options, {privatePositions.length} private positions.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* STICKY SECTION #1: Position Tags */}
       <section
