@@ -5,12 +5,9 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
   Home,
-  PieChart,
-  Bot,
   Menu,
   ChevronRight,
   Sparkles,
-  Briefcase,
   TrendingUp,
   Command,
   Search
@@ -28,12 +25,9 @@ import { cn } from '@/lib/utils'
 const navigationItems = [
   { href: '/command-center', label: 'Command Center', icon: Command },
   { href: '/dashboard', label: 'Dashboard', icon: Home },
-  { href: '/portfolio-holdings', label: 'Portfolio Holdings', icon: Briefcase },
   { href: '/risk-metrics', label: 'Risk Metrics', icon: TrendingUp },
   { href: '/research-and-analyze', label: 'Research & Analyze', icon: Search },
-  { href: '/organize', label: 'Organize', icon: PieChart },
   { href: '/sigmasight-ai', label: 'SigmaSight AI', icon: Sparkles },
-  { href: '/ai-chat', label: 'AI Chat', icon: Bot },
 ]
 
 export function NavigationDropdown() {

@@ -34,7 +34,12 @@
       "mcp__playwright__browser_evaluate",
       "Bash(docker-compose up:*)",
       "Bash(docker-compose:*)",
-      "Bash(docker exec:*)"
+      "Bash(docker exec:*)",
+      "Bash(git checkout:*)",
+      "Bash(dir \"C:\\Users\\BenBalbale\\CascadeProjects\\SigmaSight\\frontend\\_docs\" /b)",
+      "Bash(dir /s /b \"C:\\Users\\BenBalbale\\CascadeProjects\\SigmaSight\\gptagent\\*.json\")",
+      "Bash(findstr:*)",
+      "Bash(dir /s /b \"C:\\Users\\BenBalbale\\CascadeProjects\\SigmaSight\\gptagent\\*.ts\")"
     ],
     "deny": [],
     "ask": [],
