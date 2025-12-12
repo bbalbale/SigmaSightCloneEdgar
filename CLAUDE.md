@@ -2,14 +2,14 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-**Last Updated**: 2025-10-29
+**Last Updated**: 2025-12-11
 
 ## Project Overview
 
 **SigmaSight** - A full-stack portfolio risk analytics platform combining a FastAPI backend with Next.js 14 frontend. The system provides real-time portfolio analytics, AI-powered chat interface, automated batch processing, and comprehensive financial risk calculations.
 
 **Architecture**:
-- **Backend**: FastAPI with 57 production endpoints, 8 calculation engines, batch processing framework
+- **Backend**: FastAPI with 129+ production endpoints, 8 calculation engines, batch processing framework
 - **Frontend**: Next.js 14 multi-page application with 6 authenticated pages, AI chat integration
 - **Database**: PostgreSQL with UUID primary keys, Alembic migrations
 - **AI Integration**: OpenAI Responses API (NOT Chat Completions API) for analytical reasoning
