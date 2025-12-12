@@ -4,7 +4,6 @@ import React from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
-  Home,
   Menu,
   ChevronRight,
   Sparkles,
@@ -24,7 +23,6 @@ import { cn } from '@/lib/utils'
 
 const navigationItems = [
   { href: '/command-center', label: 'Command Center', icon: Command },
-  { href: '/dashboard', label: 'Dashboard', icon: Home },
   { href: '/risk-metrics', label: 'Risk Metrics', icon: TrendingUp },
   { href: '/research-and-analyze', label: 'Research & Analyze', icon: Search },
   { href: '/sigmasight-ai', label: 'SigmaSight AI', icon: Sparkles },
