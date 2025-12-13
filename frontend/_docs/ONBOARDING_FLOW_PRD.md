@@ -1,11 +1,17 @@
 # User Onboarding Flow - Product Requirements Document
 
 **Created**: 2025-10-29
-**Last Updated**: 2025-10-29
-**Status**: ✅ **Complete & Ready for Implementation** 🚀
-**Your First Frontend Feature**: You've got this! 💪
+**Last Updated**: 2025-12-12
+**Status**: ✅ **Updated to Match Current Implementation** 🔧
+**Code Analysis**: Updated API endpoints, schemas, and multi-portfolio support
 
 **Design Decisions Finalized**: All UX patterns, animations, error handling, and edge cases specified below. No guessing needed - just implement! 👇
+
+> ⚠️ **UPDATED 2025-12-12**: PRD synchronized with current backend implementation after code analysis. Key changes:
+> - Added `account_name` and `account_type` fields (multi-portfolio support)
+> - Updated API endpoints: `/api/v1/portfolios/{id}/calculate` and `/api/v1/portfolios/{id}/batch-status/{batch_run_id}`
+> - Updated response schemas to match actual backend models
+> - Corrected validation error response format
 
 ---
 
@@ -380,7 +386,20 @@ The magical moment where user uploads their CSV and sees their portfolio come to
    - Placeholder: "e.g., Main Portfolio, Retirement Account"
    - Help: "You can change this later"
 
-2. **Equity Balance** (number input)
+2. **Account Name** (text input)
+   - Required
+   - Placeholder: "e.g., Main-Brokerage, IRA-Rollover"
+   - Help: "Unique identifier for this account (cannot be changed later)"
+   - Validation: Must be unique per user
+   - **API Note**: Used to support multi-portfolio functionality
+
+3. **Account Type** (select dropdown)
+   - Required
+   - Options: taxable, ira, roth_ira, 401k, 403b, 529, hsa, trust, other
+   - Default: "taxable"
+   - Help: "Select your account type for proper tax treatment"
+
+4. **Equity Balance** (number input)
    - Required
    - Formatted as currency ($) in UI
    - Placeholder: "$100,000"
@@ -388,7 +407,7 @@ The magical moment where user uploads their CSV and sees their portfolio come to
    - Validation: Must be positive number
    - **API Note**: Strip $ and commas before sending (send `100000` not `"$100,000"`)
 
-3. **CSV File** (file upload)
+5. **CSV File** (file upload)
    - Required
    - Accept: `.csv` only
    - Max size: 10 MB
@@ -437,7 +456,10 @@ POST /api/v1/onboarding/create-portfolio
 Content-Type: multipart/form-data
 
 portfolio_name: "My Investment Portfolio"
+account_name: "Main-Brokerage"
+account_type: "taxable"
 equity_balance: "100000"
+description: "Optional portfolio description"
 csv_file: <file>
 ```
 
@@ -506,9 +528,9 @@ After CSV upload succeeds, trigger batch processing and show progress:
 - All batch items stay as ⏳ until `status === "completed"`, then all flip to ✅
 
 **Technical Implementation**:
-1. After Step 1 (CSV upload) succeeds, immediately call `POST /api/v1/portfolio/{portfolio_id}/calculate`
+1. After Step 1 (CSV upload) succeeds, immediately call `POST /api/v1/portfolios/{portfolio_id}/calculate`
 2. Backend returns `202 Accepted` with `batch_run_id`
-3. Poll `GET /api/v1/portfolio/{portfolio_id}/batch-status/{batch_run_id}` every 3 seconds
+3. Poll `GET /api/v1/portfolios/{portfolio_id}/batch-status/{batch_run_id}` every 3 seconds
 4. API only returns: `status` ("running"/"completed"/"idle"), `elapsed_seconds`
 5. Rotate spinner icon through checklist items based on client-side timer
 6. When `status === "completed"`, transition to success state
@@ -518,19 +540,17 @@ After CSV upload succeeds, trigger batch processing and show progress:
 {
   "portfolio_id": "uuid",
   "portfolio_name": "My Investment Portfolio",
+  "account_name": "Main-Brokerage",
+  "account_type": "taxable",
+  "equity_balance": 100000.0,
   "positions_imported": 43,
   "positions_failed": 0,
-  "validation_errors": [],
-  "market_data_status": {
-    "symbols_count": 43,
-    "security_master_enriched": 43,
-    "prices_bootstrapped": 1290,
-    "ready_for_batch": true
-  },
+  "total_positions": 43,
+  "message": "Portfolio created successfully",
   "next_step": {
-    "action": "view_portfolio",
-    "endpoint": "/portfolio",
-    "description": "View your portfolio dashboard"
+    "action": "calculate",
+    "endpoint": "/api/v1/portfolios/{portfolio_id}/calculate",
+    "description": "Trigger batch analytics calculations"
   }
 }
 ```
@@ -930,12 +950,12 @@ export const onboardingService = {
 
   // Step 2: Trigger batch processing (returns 202 with batch_run_id)
   triggerCalculations: async (portfolioId: string) => {
-    return apiClient.post(`/api/v1/portfolio/${portfolioId}/calculate`)
+    return apiClient.post(`/api/v1/portfolios/${portfolioId}/calculate`)
   },
 
   // Poll batch status (call every 2-5 seconds)
   getBatchStatus: async (portfolioId: string, batchRunId: string) => {
-    return apiClient.get(`/api/v1/portfolio/${portfolioId}/batch-status/${batchRunId}`)
+    return apiClient.get(`/api/v1/portfolios/${portfolioId}/batch-status/${batchRunId}`)
   },
 
   // Download CSV template
@@ -1027,6 +1047,8 @@ export function usePortfolioUpload() {
 
   const handleUpload = async (data: {
     portfolio_name: string
+    account_name: string
+    account_type: string
     equity_balance: string
     csv_file: File
   }) => {
@@ -1036,6 +1058,8 @@ export function usePortfolioUpload() {
 
       const formData = new FormData()
       formData.append('portfolio_name', data.portfolio_name)
+      formData.append('account_name', data.account_name)
+      formData.append('account_type', data.account_type)
       formData.append('equity_balance', data.equity_balance)
       formData.append('csv_file', data.csv_file)
 
@@ -1366,7 +1390,10 @@ If this feels overwhelming, here's how to tackle it in small pieces:
 **Request** (multipart/form-data):
 ```
 portfolio_name: "My Portfolio"
+account_name: "Main-Brokerage"
+account_type: "taxable" 
 equity_balance: "100000"
+description: "Optional portfolio description"
 csv_file: <file>
 ```
 
@@ -1375,14 +1402,17 @@ csv_file: <file>
 {
   "portfolio_id": "uuid",
   "portfolio_name": "My Portfolio",
+  "account_name": "Main-Brokerage", 
+  "account_type": "taxable",
+  "equity_balance": 100000.0,
   "positions_imported": 43,
   "positions_failed": 0,
-  "validation_errors": [],
-  "market_data_status": {
-    "symbols_count": 43,
-    "security_master_enriched": 43,
-    "prices_bootstrapped": 1290,
-    "ready_for_batch": true
+  "total_positions": 43,
+  "message": "Portfolio created successfully",
+  "next_step": {
+    "action": "calculate",
+    "endpoint": "/api/v1/portfolios/{portfolio_id}/calculate",
+    "description": "Trigger batch analytics calculations"
   }
 }
 ```
@@ -1390,10 +1420,22 @@ csv_file: <file>
 **Validation Error (400)** - Strict rejection, no portfolio created:
 ```json
 {
-  "error": {
-    "code": "ERR_PORT_008",
+  "detail": {
+    "code": "ERR_PORT_008", 
     "message": "CSV validation failed",
-    "validation_errors": [...]
+    "errors": [
+      {
+        "row": 5,
+        "symbol": "AAPL",
+        "errors": [
+          {
+            "code": "ERR_POS_012",
+            "message": "Missing entry date",
+            "field": "entry_date"
+          }
+        ]
+      }
+    ]
   }
 }
 ```
