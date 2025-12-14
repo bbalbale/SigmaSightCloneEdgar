@@ -300,6 +300,32 @@ onboardingSession: {
 
 ---
 
+## 🎯 **Prototype Requirements (Essential Only)**
+
+### Success Criteria
+- **Definition of Done**: Full analytics completion before dashboard access (follow existing pattern)
+- **Navigation**: "Continue to Dashboard" goes to `/command-center`
+- **Celebration**: Console logging only (`console.log('🎉 Portfolio upload successful!')`)
+
+### Implementation Scope for Prototype
+- **Auth Flow**: Registration auto-login on success, simple error message if auto-login fails
+- **CSV Schema**: Use existing template and validation (no new documentation required)
+- **Invite Codes**: Use existing system as-is
+- **Account Metadata**: Use existing account_type options and validation
+- **Error Handling**: Use existing error messages and patterns
+- **Edge Cases**: Handle basic flow only, advanced scenarios in future versions
+
+### Deferred for Post-Prototype
+- Detailed CSV schema documentation
+- Advanced error copy and messaging
+- Metrics and telemetry tracking  
+- Complex edge case handling
+- Mobile-specific UX optimizations
+- Template download fallback strategies
+- Advanced batch timeout handling
+
+---
+
 ## ✅ **Implementation Ready**
 
-All requirements defined. This PRD provides complete specifications for implementing multi-portfolio onboarding while leveraging the existing excellent foundation. Ready for development planning and execution.
+Essential prototype requirements defined. This PRD provides focused specifications for implementing multi-portfolio onboarding MVP while leveraging the existing excellent foundation. Ready for development planning and execution.
