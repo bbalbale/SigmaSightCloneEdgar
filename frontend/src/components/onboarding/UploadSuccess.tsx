@@ -1,10 +1,16 @@
 'use client'
 
 import { useEffect } from 'react'
-import { Check, ArrowRight } from 'lucide-react'
+import { Check, ArrowRight, Plus, AlertCircle, Loader2, RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { ChecklistState } from '@/hooks/usePortfolioUpload'
+import {
+  useOnboardingPortfolios,
+  useCanAddAnotherPortfolio,
+  useIsInOnboardingSession,
+  type OnboardingSessionPortfolio
+} from '@/stores/portfolioStore'
 
 interface UploadSuccessProps {
   portfolioName: string
@@ -12,6 +18,8 @@ interface UploadSuccessProps {
   positionsFailed?: number
   checklist: ChecklistState
   onContinue: () => void
+  onAddAnother?: () => void
+  onRetryFailed?: (portfolioId: string) => void
   isFromSettings?: boolean
 }
 
@@ -33,42 +41,108 @@ const checklistLabels: Record<string, string> = {
   correlations: 'Correlations computed',
 }
 
-export function UploadSuccess({ portfolioName, positionsImported, positionsFailed = 0, checklist, onContinue, isFromSettings }: UploadSuccessProps) {
+// Status indicator component for session portfolios
+function PortfolioStatusIndicator({ status }: { status: OnboardingSessionPortfolio['status'] }) {
+  switch (status) {
+    case 'success':
+      return <Check className="h-4 w-4 text-green-600" />
+    case 'failed':
+      return <AlertCircle className="h-4 w-4 text-red-500" />
+    case 'processing':
+      return <Loader2 className="h-4 w-4 text-amber-500 animate-spin" />
+  }
+}
+
+// Session portfolio list item
+function SessionPortfolioItem({
+  portfolio,
+  onRetry
+}: {
+  portfolio: OnboardingSessionPortfolio
+  onRetry?: (portfolioId: string) => void
+}) {
+  return (
+    <div className={`flex items-center justify-between p-3 rounded-lg ${
+      portfolio.status === 'success'
+        ? 'bg-green-50 dark:bg-green-950'
+        : portfolio.status === 'failed'
+        ? 'bg-red-50 dark:bg-red-950'
+        : 'bg-amber-50 dark:bg-amber-950'
+    }`}>
+      <div className="flex items-center gap-3">
+        <PortfolioStatusIndicator status={portfolio.status} />
+        <div>
+          <p className="text-sm font-medium">{portfolio.portfolioName}</p>
+          <p className="text-xs text-muted-foreground">
+            {portfolio.status === 'success' && portfolio.positionsCount !== undefined
+              ? `${portfolio.positionsCount} positions imported`
+              : portfolio.status === 'failed'
+              ? portfolio.error || 'Upload failed'
+              : 'Processing...'}
+          </p>
+        </div>
+      </div>
+      {portfolio.status === 'failed' && onRetry && (
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => onRetry(portfolio.portfolioId)}
+        >
+          <RefreshCw className="h-4 w-4 mr-1" />
+          Retry
+        </Button>
+      )}
+    </div>
+  )
+}
+
+export function UploadSuccess({
+  portfolioName,
+  positionsImported,
+  positionsFailed = 0,
+  checklist,
+  onContinue,
+  onAddAnother,
+  onRetryFailed,
+  isFromSettings = false
+}: UploadSuccessProps) {
+  // Session state from store
+  const sessionPortfolios = useOnboardingPortfolios()
+  const canAddAnother = useCanAddAnotherPortfolio()
+  const isInSession = useIsInOnboardingSession()
+
+  // Check if we're in a multi-portfolio session with previous uploads
+  const hasMultiplePortfolios = isInSession && sessionPortfolios.length > 0
+  const successCount = sessionPortfolios.filter(p => p.status === 'success').length
+  const failedCount = sessionPortfolios.filter(p => p.status === 'failed').length
+  const processingCount = sessionPortfolios.filter(p => p.status === 'processing').length
+
   useEffect(() => {
-    // Trigger confetti animation on mount
-    // NOTE: Requires canvas-confetti or react-confetti package
-    // Installation: npm install canvas-confetti
-    // Then uncomment and use:
-
-    /*
-    import confetti from 'canvas-confetti';
-
-    confetti({
-      particleCount: 100,
-      spread: 70,
-      origin: { y: 0.6 }
-    });
-
-    // Trigger again after 200ms for extra celebration
-    setTimeout(() => {
-      confetti({
-        particleCount: 50,
-        angle: 60,
-        spread: 55,
-        origin: { x: 0 }
-      });
-      confetti({
-        particleCount: 50,
-        angle: 120,
-        spread: 55,
-        origin: { x: 1 }
-      });
-    }, 200);
-    */
-
-    // Temporary fallback: console celebration
     console.log('🎉 Portfolio upload successful!');
   }, [])
+
+  // Determine title based on context
+  const getTitle = () => {
+    if (hasMultiplePortfolios && sessionPortfolios.length > 1) {
+      return '🎉 Portfolio Session Summary'
+    }
+    return '🎉 Portfolio Ready!'
+  }
+
+  // Determine description based on context
+  const getDescription = () => {
+    if (hasMultiplePortfolios && sessionPortfolios.length > 1) {
+      const parts = []
+      if (successCount > 0) parts.push(`${successCount} successful`)
+      if (failedCount > 0) parts.push(`${failedCount} failed`)
+      if (processingCount > 0) parts.push(`${processingCount} processing`)
+      return `${sessionPortfolios.length} portfolios: ${parts.join(', ')}`
+    }
+    return 'Your portfolio has been successfully uploaded and analyzed'
+  }
+
+  // Show "Add Another" button only in onboarding flow, not from settings
+  const showAddAnotherButton = !isFromSettings && onAddAnother && canAddAnother
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-green-50 to-emerald-50 dark:from-gray-900 dark:to-gray-800 p-4">
@@ -81,35 +155,55 @@ export function UploadSuccess({ portfolioName, positionsImported, positionsFaile
               </div>
               <div className="flex-1">
                 <CardTitle className="text-green-900 dark:text-green-100">
-                  🎉 Portfolio Ready!
+                  {getTitle()}
                 </CardTitle>
                 <CardDescription className="text-green-700 dark:text-green-300">
-                  Your portfolio has been successfully uploaded and analyzed
+                  {getDescription()}
                 </CardDescription>
               </div>
             </div>
           </CardHeader>
 
           <CardContent className="space-y-6">
-            {/* Summary */}
-            <div className="bg-green-50 dark:bg-green-950 rounded-lg p-4 space-y-2">
-              <div className="flex justify-between items-center">
-                <span className="text-sm font-medium text-green-900 dark:text-green-100">
-                  Portfolio Name:
-                </span>
-                <span className="text-sm text-green-700 dark:text-green-300">
-                  {portfolioName}
-                </span>
+            {/* Session Portfolio List (for multi-portfolio sessions) */}
+            {hasMultiplePortfolios && sessionPortfolios.length > 0 && (
+              <div className="space-y-2">
+                <p className="text-sm font-medium text-muted-foreground">
+                  Portfolios in this session:
+                </p>
+                <div className="space-y-2">
+                  {sessionPortfolios.map((portfolio) => (
+                    <SessionPortfolioItem
+                      key={portfolio.portfolioId}
+                      portfolio={portfolio}
+                      onRetry={onRetryFailed}
+                    />
+                  ))}
+                </div>
               </div>
-              <div className="flex justify-between items-center">
-                <span className="text-sm font-medium text-green-900 dark:text-green-100">
-                  Positions Imported:
-                </span>
-                <span className="text-sm text-green-700 dark:text-green-300">
-                  {positionsImported} {positionsFailed > 0 ? `(${positionsFailed} failed)` : ''}
-                </span>
+            )}
+
+            {/* Single Portfolio Summary (for individual upload or non-session) */}
+            {!hasMultiplePortfolios && (
+              <div className="bg-green-50 dark:bg-green-950 rounded-lg p-4 space-y-2">
+                <div className="flex justify-between items-center">
+                  <span className="text-sm font-medium text-green-900 dark:text-green-100">
+                    Portfolio Name:
+                  </span>
+                  <span className="text-sm text-green-700 dark:text-green-300">
+                    {portfolioName}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-sm font-medium text-green-900 dark:text-green-100">
+                    Positions Imported:
+                  </span>
+                  <span className="text-sm text-green-700 dark:text-green-300">
+                    {positionsImported} {positionsFailed > 0 ? `(${positionsFailed} failed)` : ''}
+                  </span>
+                </div>
               </div>
-            </div>
+            )}
 
             {/* Completed Checklist */}
             <div className="space-y-2">
@@ -141,7 +235,22 @@ export function UploadSuccess({ portfolioName, positionsImported, positionsFaile
             </div>
           </CardContent>
 
-          <CardFooter>
+          <CardFooter className="flex flex-col gap-3">
+            {/* Add Another Portfolio Button (only in onboarding flow) */}
+            {showAddAnotherButton && (
+              <Button
+                className="w-full"
+                variant="outline"
+                size="lg"
+                onClick={onAddAnother}
+                disabled={!canAddAnother}
+              >
+                <Plus className="mr-2 h-4 w-4" />
+                {canAddAnother ? 'Add Another Portfolio' : 'Processing...'}
+              </Button>
+            )}
+
+            {/* Continue to Dashboard Button */}
             <Button
               className="w-full"
               size="lg"
@@ -150,6 +259,14 @@ export function UploadSuccess({ portfolioName, positionsImported, positionsFaile
               Continue to Dashboard
               <ArrowRight className="ml-2 h-4 w-4" />
             </Button>
+
+            {/* Mixed results hint */}
+            {failedCount > 0 && (
+              <p className="text-xs text-muted-foreground text-center">
+                You can continue to the dashboard even with failed uploads.
+                Retry them later from Settings.
+              </p>
+            )}
           </CardFooter>
         </Card>
       </div>

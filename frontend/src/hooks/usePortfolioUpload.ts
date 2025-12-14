@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { onboardingService } from '@/services/onboardingService'
-import { setPortfolioState } from '@/stores/portfolioStore'
+import { setPortfolioState, usePortfolioStore } from '@/stores/portfolioStore'
 
 export type UploadState = 'idle' | 'uploading' | 'processing' | 'success' | 'validation_error' | 'error'
 
@@ -51,18 +51,35 @@ interface UsePortfolioUploadReturn {
   validationErrors: ValidationError[] | null
   handleUpload: (portfolioName: string, accountName: string, accountType: string, equityBalance: number, file: File) => Promise<void>
   handleContinueToDashboard: () => void
+  handleAddAnother: () => void
   handleRetry: () => void
   handleChooseDifferentFile: () => void
+  // Session management
+  startSession: () => void
+  isInSession: boolean
 }
 
 /**
  * Hook for handling portfolio CSV upload and batch processing
+ * Now with session management for multi-portfolio onboarding
  */
 export function usePortfolioUpload(): UsePortfolioUploadReturn {
   const router = useRouter()
   const [uploadState, setUploadState] = useState<UploadState>('idle')
   const [batchStatus, setBatchStatus] = useState<string>('idle')
   const [currentSpinnerItem, setCurrentSpinnerItem] = useState<string | null>(null)
+
+  // Session management from store
+  const {
+    onboardingSession,
+    startOnboardingSession,
+    addToOnboardingSession,
+    updateSessionPortfolioStatus,
+    completeOnboardingSession,
+    resetForNextUpload,
+    setBatchRunning,
+    isInOnboardingSession
+  } = usePortfolioStore()
   const [checklist, setChecklist] = useState<ChecklistState>({
     portfolio_created: false,
     positions_imported: false,
@@ -113,6 +130,11 @@ export function usePortfolioUpload(): UsePortfolioUploadReturn {
     setError(null)
     setValidationErrors(null)
 
+    // Mark batch as running in session (blocks "Add Another" button)
+    if (isInOnboardingSession()) {
+      setBatchRunning(true)
+    }
+
     try {
       // PHASE 2A: CSV Upload (10-30 seconds)
       const formData = new FormData()
@@ -133,6 +155,16 @@ export function usePortfolioUpload(): UsePortfolioUploadReturn {
         positions_failed: uploadResponse.positions_failed,
         total_positions: uploadResponse.total_positions,
       })
+
+      // Add to onboarding session with 'processing' status
+      if (isInOnboardingSession()) {
+        addToOnboardingSession({
+          portfolioId: uploadResponse.portfolio_id,
+          portfolioName: uploadResponse.portfolio_name,
+          accountName: accountName,
+          positionsCount: uploadResponse.positions_imported,
+        }, 'processing')
+      }
 
       // Mark first two items complete
       setChecklist((prev) => ({
@@ -203,6 +235,14 @@ export function usePortfolioUpload(): UsePortfolioUploadReturn {
               correlations: true,
             })
             setUploadState('success')
+
+            // Update session status to success and unblock "Add Another"
+            if (isInOnboardingSession()) {
+              updateSessionPortfolioStatus(uploadResponse.portfolio_id, 'success', {
+                positionsCount: uploadResponse.positions_imported
+              })
+              setBatchRunning(false)
+            }
             // DO NOT auto-navigate - wait for user to click "Continue to Dashboard" button
           }
         } catch (error) {
@@ -211,6 +251,14 @@ export function usePortfolioUpload(): UsePortfolioUploadReturn {
           }
           setUploadState('error')
           setError(getErrorMessage(error))
+
+          // Update session status to failed and unblock "Add Another"
+          if (isInOnboardingSession()) {
+            updateSessionPortfolioStatus(uploadResponse.portfolio_id, 'failed', {
+              error: getErrorMessage(error)
+            })
+            setBatchRunning(false)
+          }
         }
       }, 3000) // Poll every 3 seconds
     } catch (err: any) {
@@ -247,11 +295,59 @@ export function usePortfolioUpload(): UsePortfolioUploadReturn {
         setError(getErrorMessage(err))
         setUploadState('error')  // Set error state for processing/network issues
       }
+
+      // Unblock session on any error during upload phase
+      if (isInOnboardingSession()) {
+        setBatchRunning(false)
+      }
     }
   }
 
   const handleContinueToDashboard = () => {
+    // Complete the onboarding session if active
+    if (isInOnboardingSession()) {
+      completeOnboardingSession()
+    }
     router.push('/command-center')
+  }
+
+  const handleAddAnother = () => {
+    // Reset local state for next upload
+    setUploadState('idle')
+    setError(null)
+    setValidationErrors(null)
+    setResult(null)
+    setCurrentSpinnerItem(null)
+    setChecklist({
+      portfolio_created: false,
+      positions_imported: false,
+      symbol_extraction: false,
+      security_enrichment: false,
+      price_bootstrap: false,
+      market_data_collection: false,
+      pnl_calculation: false,
+      position_values: false,
+      market_beta: false,
+      ir_beta: false,
+      factor_spread: false,
+      factor_ridge: false,
+      sector_analysis: false,
+      volatility: false,
+      correlations: false,
+    })
+    currentFileRef.current = null
+
+    // Reset session state for next upload (keeps session active)
+    if (isInOnboardingSession()) {
+      resetForNextUpload()
+    }
+  }
+
+  // Start a new onboarding session
+  const startSession = () => {
+    if (!isInOnboardingSession()) {
+      startOnboardingSession()
+    }
   }
 
   const handleRetry = () => {
@@ -327,8 +423,12 @@ export function usePortfolioUpload(): UsePortfolioUploadReturn {
     validationErrors,
     handleUpload,
     handleContinueToDashboard,
+    handleAddAnother,
     handleRetry,
     handleChooseDifferentFile,
+    // Session management
+    startSession,
+    isInSession: isInOnboardingSession(),
   }
 }
 

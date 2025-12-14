@@ -1,5 +1,6 @@
 'use client'
 
+import { useEffect } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { usePortfolioUpload } from '@/hooks/usePortfolioUpload'
 import { PortfolioUploadForm } from '@/components/onboarding/PortfolioUploadForm'
@@ -10,7 +11,7 @@ import { ValidationErrors } from '@/components/onboarding/ValidationErrors'
 export default function OnboardingUploadPage() {
   const searchParams = useSearchParams()
   const isFromSettings = searchParams?.get('context') === 'settings'
-  
+
   const {
     uploadState,
     batchStatus,
@@ -21,9 +22,20 @@ export default function OnboardingUploadPage() {
     validationErrors,
     handleUpload,
     handleContinueToDashboard,
+    handleAddAnother,
     handleRetry,
     handleChooseDifferentFile,
+    // Session management
+    startSession,
+    isInSession,
   } = usePortfolioUpload()
+
+  // Start onboarding session on mount (only for normal onboarding, not from Settings)
+  useEffect(() => {
+    if (!isFromSettings) {
+      startSession()
+    }
+  }, [isFromSettings, startSession])
 
   // Show validation errors FIRST (CSV format issues)
   if (uploadState === 'validation_error' || (validationErrors && validationErrors.length > 0)) {
@@ -39,6 +51,7 @@ export default function OnboardingUploadPage() {
         positionsFailed={result.positions_failed}
         checklist={checklist}
         onContinue={handleContinueToDashboard}
+        onAddAnother={handleAddAnother}
         isFromSettings={isFromSettings}
       />
     )

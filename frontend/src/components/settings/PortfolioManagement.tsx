@@ -67,7 +67,7 @@ export function PortfolioManagement({ showForSinglePortfolio = false }: Portfoli
   const [formData, setFormData] = useState({
     portfolio_name: '',
     account_name: '',
-    account_type: 'taxable' as 'taxable' | 'ira' | 'roth_ira' | '401k' | 'trust' | 'other',
+    account_type: 'taxable' as 'taxable' | 'ira' | 'roth_ira' | '401k' | '403b' | '529' | 'hsa' | 'trust' | 'other',
     description: '',
   })
 
@@ -141,6 +141,9 @@ export function PortfolioManagement({ showForSinglePortfolio = false }: Portfoli
       ira: 'IRA',
       roth_ira: 'Roth IRA',
       '401k': '401(k)',
+      '403b': '403(b)',
+      '529': '529 Plan',
+      hsa: 'HSA',
       trust: 'Trust',
       other: 'Other',
     }
@@ -229,10 +232,13 @@ export function PortfolioManagement({ showForSinglePortfolio = false }: Portfoli
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="taxable">Taxable</SelectItem>
-                      <SelectItem value="ira">IRA</SelectItem>
+                      <SelectItem value="taxable">Taxable Brokerage</SelectItem>
+                      <SelectItem value="ira">Traditional IRA</SelectItem>
                       <SelectItem value="roth_ira">Roth IRA</SelectItem>
                       <SelectItem value="401k">401(k)</SelectItem>
+                      <SelectItem value="403b">403(b)</SelectItem>
+                      <SelectItem value="529">529 Education Plan</SelectItem>
+                      <SelectItem value="hsa">Health Savings Account</SelectItem>
                       <SelectItem value="trust">Trust</SelectItem>
                       <SelectItem value="other">Other</SelectItem>
                     </SelectContent>
@@ -370,10 +376,13 @@ export function PortfolioManagement({ showForSinglePortfolio = false }: Portfoli
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="taxable">Taxable</SelectItem>
-                  <SelectItem value="ira">IRA</SelectItem>
+                  <SelectItem value="taxable">Taxable Brokerage</SelectItem>
+                  <SelectItem value="ira">Traditional IRA</SelectItem>
                   <SelectItem value="roth_ira">Roth IRA</SelectItem>
                   <SelectItem value="401k">401(k)</SelectItem>
+                  <SelectItem value="403b">403(b)</SelectItem>
+                  <SelectItem value="529">529 Education Plan</SelectItem>
+                  <SelectItem value="hsa">Health Savings Account</SelectItem>
                   <SelectItem value="trust">Trust</SelectItem>
                   <SelectItem value="other">Other</SelectItem>
                 </SelectContent>

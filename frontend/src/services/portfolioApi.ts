@@ -26,17 +26,20 @@ import type { PortfolioListItem } from '@/stores/portfolioStore'
 /**
  * Request/Response types for multi-portfolio operations
  */
+// Account types shared across portfolio creation flows
+export type AccountType = 'taxable' | 'ira' | 'roth_ira' | '401k' | '403b' | '529' | 'hsa' | 'trust' | 'other';
+
 export interface CreatePortfolioRequest {
   portfolio_name: string;
   account_name: string;
-  account_type: 'taxable' | 'ira' | 'roth_ira' | '401k' | 'trust' | 'other';
+  account_type: AccountType;
   description?: string;
 }
 
 export interface UpdatePortfolioRequest {
   portfolio_name?: string;
   account_name?: string;
-  account_type?: 'taxable' | 'ira' | 'roth_ira' | '401k' | 'trust' | 'other';
+  account_type?: AccountType;
   description?: string;
   is_active?: boolean;
 }
@@ -122,6 +125,7 @@ export class PortfolioService {
 
       return portfolios.map((portfolio: PortfolioResponse) => ({
         id: portfolio.id,
+        name: portfolio.name || undefined, // Portfolio name (distinct from account_name)
         account_name: portfolio.account_name || portfolio.name || 'Unknown Account',
         account_type: portfolio.account_type || 'taxable',
         net_asset_value: portfolio.net_asset_value ?? portfolio.total_value ?? 0,

@@ -281,74 +281,97 @@ onboardingSession: {
 
 ---
 
-## ✅ **IMPLEMENTATION COMPLETED** - 2025-12-14
+## ✅ **IMPLEMENTATION COMPLETED** - 2025-12-14 (Revised)
+
+### **Implementation History**
+
+**Initial PR (52b9b0f4)**: Partial implementation with significant gaps identified in code review.
+
+**Code Review Findings (2025-12-14)**:
+- Missing onboarding session state in portfolioStore.ts
+- Missing session-aware cumulative display in UploadSuccess.tsx
+- Missing "Add Another Portfolio" functionality
+- Portfolio name field not properly mapped in API response
+- Account type options inconsistent between forms
+
+**Fixes Applied (2025-12-14)**: All gaps addressed with comprehensive implementation.
 
 ### **Implementation Summary**
 
-All 4 tasks from this TODO guide have been successfully implemented and tested:
+All 4 tasks from this TODO guide have been successfully implemented:
 
-**✅ Task 1: Onboarding Session State (6 hours)**
+**✅ Task 1: Onboarding Session State**
 - **Status**: COMPLETE
-- **Files Modified**: 
-  - `frontend/src/stores/portfolioStore.ts` - Added comprehensive session state management
+- **Files Modified**:
+  - `frontend/src/stores/portfolioStore.ts` - Added comprehensive session state management (Version 5)
+  - `frontend/src/hooks/usePortfolioUpload.ts` - Integrated session management with upload flow
 - **Key Features Implemented**:
   - Complete `OnboardingSession` and `OnboardingSessionPortfolio` interfaces
   - Session lifecycle management with in-memory state (no localStorage persistence)
   - Session actions: `startOnboardingSession`, `addToOnboardingSession`, `updateSessionPortfolioStatus`, `completeOnboardingSession`, `clearOnboardingSession`, `resetForNextUpload`, `setBatchRunning`
+  - Session getter hooks: `useOnboardingSession`, `useOnboardingPortfolios`, `useCanAddAnotherPortfolio`, `useIsInOnboardingSession`
   - Batch concurrency tracking with `currentBatchRunning` flag
   - Error tracking for failed portfolios with detailed error messages
+  - Automatic session start on mount (for onboarding flow only)
+  - Session completion on dashboard navigation
 
-**✅ Task 2: Enhanced Success Screen (4 hours)**
+**✅ Task 2: Enhanced Success Screen**
 - **Status**: COMPLETE
 - **Files Modified**:
   - `frontend/src/components/onboarding/UploadSuccess.tsx` - Enhanced for session awareness
 - **Key Features Implemented**:
   - Session-aware cumulative display for multiple portfolios
+  - `SessionPortfolioItem` component with status indicators
+  - `PortfolioStatusIndicator` component (Success ✅, Failed ❌, Processing 🔄)
   - "Add Another Portfolio" button with conditional rendering
   - Batch concurrency blocking (disabled during processing)
   - Mixed success/failure scenario handling with error state display
   - Context-aware rendering for both individual and session uploads
-  - Status indicators: Success ✅, Failed ❌, Processing ⚠️
+  - Retry button for failed portfolios
+  - Proper use of `isFromSettings` prop to hide "Add Another" for Settings flow
 
-**✅ Task 3: CSV Upload from Settings (3 hours)**
+**✅ Task 3: CSV Upload from Settings**
 - **Status**: COMPLETE
 - **Files Modified**:
   - `frontend/src/components/settings/PortfolioManagement.tsx` - Added CSV upload button
-  - `frontend/app/onboarding/upload/page.tsx` - Added context parameter detection
+  - `frontend/app/onboarding/upload/page.tsx` - Added context parameter detection + session initialization
   - `frontend/src/components/onboarding/PortfolioUploadForm.tsx` - Added context-aware titles
   - `frontend/src/components/onboarding/UploadSuccess.tsx` - Added Settings context support
 - **Key Features Implemented**:
   - "Create Portfolio from CSV" button alongside manual "Add Portfolio"
   - Navigation to `/onboarding/upload?context=settings`
   - Context-aware page titles: "Add Portfolio from CSV" vs "Upload Your Portfolio"
-  - Simple single-portfolio flow with no session management integration
-  - Direct navigation to dashboard after success (no "Add Another" button)
+  - Simple single-portfolio flow with no session management integration for Settings
+  - Direct navigation to dashboard after success (no "Add Another" button for Settings)
+  - Session NOT started for Settings flow (only for regular onboarding)
 
-**✅ Task 4: Portfolio Name Field Standardization (1 hour)**
+**✅ Task 4: Portfolio Name Field Standardization**
 - **Status**: COMPLETE
 - **Files Modified**:
-  - `frontend/src/components/settings/PortfolioManagement.tsx` - Added Portfolio Name field
-  - `frontend/src/services/portfolioApi.ts` - Updated API interfaces
-  - `frontend/src/hooks/useMultiPortfolio.ts` - Updated store integration
+  - `frontend/src/components/settings/PortfolioManagement.tsx` - Added Portfolio Name field + harmonized account types
+  - `frontend/src/services/portfolioApi.ts` - Updated API interfaces with `AccountType` type + name mapping
+  - `frontend/src/hooks/useMultiPortfolio.ts` - Store integration (already working)
 - **Key Features Implemented**:
   - Portfolio Name as first field in both create and edit dialogs
   - Updated form validation to require both Portfolio Name and Account Name
   - Enhanced `CreatePortfolioRequest` and `UpdatePortfolioRequest` interfaces
-  - Updated portfolio store integration with proper name field mapping
+  - New `AccountType` type export for consistent account type definitions
+  - Proper `name` field mapping in `getPortfolios` response
   - Field order standardization: Portfolio Name → Account Name → Account Type → Description
+  - Harmonized account type options: taxable, ira, roth_ira, 401k, 403b, 529, hsa, trust, other
 
 ### **Design Decisions Implemented**
 
 All design decisions from the TODO guide were successfully implemented:
 
-- **✅ Session Management**: In-memory only (no localStorage persistence)
-- **✅ Clear Triggers**: Success, logout, navigation away from onboarding
-- **✅ Concurrency Control**: Block "Add Another" until current batch completes
+- **✅ Session Management**: In-memory only (no localStorage persistence via partialize exclusion)
+- **✅ Clear Triggers**: Session completes on dashboard navigation, clears on logout
+- **✅ Concurrency Control**: Block "Add Another" until current batch completes via `currentBatchRunning`
 - **✅ Failed Portfolios**: Show on success screen with error states and retry options
-- **✅ Default Selection**: First created portfolio selected after session completion
+- **✅ Default Selection**: First successful portfolio selected after session completion
 - **✅ Navigation Control**: Always route to `/command-center` after completion
-- **✅ Settings CSV Flow**: Simple single-portfolio approach with no session integration
-- **✅ Field Consistency**: Portfolio Name standardized across all creation forms
+- **✅ Settings CSV Flow**: Simple single-portfolio approach - no session started for Settings context
+- **✅ Field Consistency**: Portfolio Name standardized across all creation flows
 
 ### **Testing Verification**
 
@@ -362,46 +385,41 @@ The implementation supports all core functionality requirements:
 - **✅ Field standardization**: Portfolio Name field present in all creation forms
 - **✅ Mixed success scenarios**: Partial failures handled gracefully
 - **✅ Context awareness**: Different behavior for Settings vs onboarding entry points
+- **✅ Account type consistency**: All 9 account types available in both onboarding and Settings forms
 
 ### **Architecture Quality**
 
 The implementation maintains high code quality and architectural consistency:
 
 - **Follows existing patterns**: Built on established Zustand store and React patterns
-- **Type safety**: Full TypeScript interfaces for all new functionality
+- **Type safety**: Full TypeScript interfaces for all new functionality including `AccountType` export
 - **Error handling**: Comprehensive error states and user feedback
 - **Progressive disclosure**: Existing multi-portfolio behavior preserved
 - **Backward compatibility**: No breaking changes to existing functionality
-- **Performance**: In-memory session state for optimal performance
-
-### **Scope Achievement**
-
-**Estimated**: 1-2 days (14-16 hours)  
-**Actual**: ~4 hours implementation time  
-**Efficiency**: 4x faster than estimated due to excellent existing foundation
-
-The implementation successfully reduced from the original weeks-long estimate to a focused 4-task approach, leveraging the existing comprehensive multi-portfolio infrastructure.
+- **Performance**: In-memory session state for optimal performance (excluded from persistence)
 
 ---
 
 ## 📁 **Implementation Files Reference**
 
 ### **Core Files Modified**
-- `frontend/src/stores/portfolioStore.ts` - Session state management
+- `frontend/src/stores/portfolioStore.ts` - Session state management (Version 5)
+- `frontend/src/hooks/usePortfolioUpload.ts` - Session integration with upload flow
 - `frontend/src/components/onboarding/UploadSuccess.tsx` - Session-aware success screen
-- `frontend/src/components/settings/PortfolioManagement.tsx` - CSV upload + Portfolio Name field
-- `frontend/app/onboarding/upload/page.tsx` - Context parameter detection
+- `frontend/src/components/settings/PortfolioManagement.tsx` - CSV upload + Portfolio Name field + account types
+- `frontend/app/onboarding/upload/page.tsx` - Context parameter detection + session start
 - `frontend/src/components/onboarding/PortfolioUploadForm.tsx` - Context-aware rendering
-- `frontend/src/services/portfolioApi.ts` - Updated API interfaces
-- `frontend/src/hooks/useMultiPortfolio.ts` - Enhanced store integration
+- `frontend/src/services/portfolioApi.ts` - Updated API interfaces + name field mapping
 
 ### **Key Features Added**
-- **Session Management**: 8 new actions for complete session lifecycle
+- **Session Management**: 10 new actions/getters for complete session lifecycle
+- **Session Hooks**: 4 selector hooks for React components
 - **Context Detection**: Settings vs onboarding entry point detection
-- **Progress Tracking**: Cumulative multi-portfolio session display
+- **Progress Tracking**: Cumulative multi-portfolio session display with status indicators
 - **Field Standardization**: Portfolio Name field across all creation flows
-- **Error Handling**: Mixed success/failure scenario support
+- **Error Handling**: Mixed success/failure scenario support with retry
 - **Concurrency Control**: Batch processing awareness and blocking
+- **Account Type Harmonization**: Consistent 9 account types across all forms
 
 ---
 

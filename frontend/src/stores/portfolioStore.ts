@@ -1,5 +1,5 @@
 /**
- * Portfolio Store - Multi-Portfolio Management (Version 4)
+ * Portfolio Store - Multi-Portfolio Management (Version 5)
  * Handles multiple portfolios with aggregate view support
  * Portfolio switching requires logout (no in-app switching)
  *
@@ -8,6 +8,7 @@
  * - v2: Added portfolio name
  * - v3: Multi-portfolio support with aggregate view
  * - v4: Restored legacy portfolioId alias for backward compatibility
+ * - v5: Added onboarding session state for multi-portfolio uploads (Dec 2025)
  */
 
 import { create } from 'zustand'
@@ -26,11 +27,33 @@ export interface PortfolioListItem {
   description?: string | null
 }
 
+// Onboarding session portfolio status
+export type OnboardingPortfolioStatus = 'processing' | 'success' | 'failed'
+
+// Portfolio added during onboarding session
+export interface OnboardingSessionPortfolio {
+  portfolioId: string
+  status: OnboardingPortfolioStatus
+  portfolioName: string
+  accountName: string
+  positionsCount?: number
+  error?: string
+}
+
+// Onboarding session state (in-memory only, not persisted)
+export interface OnboardingSession {
+  isActive: boolean
+  portfoliosAdded: OnboardingSessionPortfolio[]
+  sessionStartedAt: string | null
+  currentBatchRunning: boolean
+}
+
 interface PortfolioStore {
   // State
   portfolios: PortfolioListItem[]
   selectedPortfolioId: string | null  // null = aggregate view
   portfolioId: string | null  // Legacy alias for single-portfolio consumers
+  onboardingSession: OnboardingSession | null  // In-memory only, not persisted
 
   // Portfolio CRUD Actions
   setPortfolios: (portfolios: PortfolioListItem[]) => void
@@ -39,6 +62,20 @@ interface PortfolioStore {
   updatePortfolio: (id: string, updates: Partial<PortfolioListItem>) => void
   removePortfolio: (id: string) => void
   clearAll: () => void
+
+  // Onboarding Session Actions (in-memory only)
+  startOnboardingSession: () => void
+  addToOnboardingSession: (portfolio: Omit<OnboardingSessionPortfolio, 'status'>, status: OnboardingPortfolioStatus) => void
+  updateSessionPortfolioStatus: (portfolioId: string, status: OnboardingPortfolioStatus, data?: { positionsCount?: number; error?: string }) => void
+  completeOnboardingSession: () => void
+  clearOnboardingSession: () => void
+  resetForNextUpload: () => void
+  setBatchRunning: (running: boolean) => void
+
+  // Onboarding Session Getters
+  getOnboardingPortfolios: () => OnboardingSessionPortfolio[]
+  canAddAnotherPortfolio: () => boolean
+  isInOnboardingSession: () => boolean
 
   // Computed Getters
   getTotalValue: () => number
@@ -56,6 +93,7 @@ export const usePortfolioStore = create<PortfolioStore>()(
       portfolios: [],
       selectedPortfolioId: null, // null = aggregate view by default
       portfolioId: null,
+      onboardingSession: null, // In-memory only, not persisted
 
       // Set all portfolios (called on login/data load)
       // Prefer public portfolios over private ones for default selection
@@ -129,9 +167,129 @@ export const usePortfolioStore = create<PortfolioStore>()(
         set({
           portfolios: [],
           selectedPortfolioId: null,
-          portfolioId: null
+          portfolioId: null,
+          onboardingSession: null
         })
       },
+
+      // ===== ONBOARDING SESSION ACTIONS (in-memory only) =====
+
+      // Start a new onboarding session
+      startOnboardingSession: () => {
+        set({
+          onboardingSession: {
+            isActive: true,
+            portfoliosAdded: [],
+            sessionStartedAt: new Date().toISOString(),
+            currentBatchRunning: false
+          }
+        })
+        console.log('🚀 Onboarding session started')
+      },
+
+      // Add a portfolio to the current onboarding session
+      addToOnboardingSession: (portfolio, status) => {
+        set((state) => {
+          if (!state.onboardingSession) {
+            console.warn('No active onboarding session')
+            return state
+          }
+          return {
+            onboardingSession: {
+              ...state.onboardingSession,
+              portfoliosAdded: [
+                ...state.onboardingSession.portfoliosAdded,
+                { ...portfolio, status }
+              ]
+            }
+          }
+        })
+        console.log(`📦 Added portfolio to session: ${portfolio.portfolioName} (${status})`)
+      },
+
+      // Update the status of a portfolio in the session
+      updateSessionPortfolioStatus: (portfolioId, status, data) => {
+        set((state) => {
+          if (!state.onboardingSession) return state
+          return {
+            onboardingSession: {
+              ...state.onboardingSession,
+              portfoliosAdded: state.onboardingSession.portfoliosAdded.map((p) =>
+                p.portfolioId === portfolioId
+                  ? { ...p, status, ...data }
+                  : p
+              )
+            }
+          }
+        })
+        console.log(`📊 Updated portfolio ${portfolioId} status: ${status}`)
+      },
+
+      // Complete the onboarding session and select the first created portfolio
+      completeOnboardingSession: () => {
+        const session = get().onboardingSession
+        if (!session) return
+
+        // Find the first successful portfolio to select as default
+        const firstSuccess = session.portfoliosAdded.find((p) => p.status === 'success')
+        if (firstSuccess) {
+          get().setSelectedPortfolio(firstSuccess.portfolioId)
+        }
+
+        set({ onboardingSession: null })
+        console.log('🎉 Onboarding session completed')
+      },
+
+      // Clear the onboarding session (on logout, navigation away)
+      clearOnboardingSession: () => {
+        set({ onboardingSession: null })
+        console.log('🧹 Onboarding session cleared')
+      },
+
+      // Reset for next upload (keep session active, clear form-related state)
+      resetForNextUpload: () => {
+        set((state) => {
+          if (!state.onboardingSession) return state
+          return {
+            onboardingSession: {
+              ...state.onboardingSession,
+              currentBatchRunning: false
+            }
+          }
+        })
+        console.log('🔄 Ready for next portfolio upload')
+      },
+
+      // Set batch running state (blocks "Add Another" during processing)
+      setBatchRunning: (running) => {
+        set((state) => {
+          if (!state.onboardingSession) return state
+          return {
+            onboardingSession: {
+              ...state.onboardingSession,
+              currentBatchRunning: running
+            }
+          }
+        })
+      },
+
+      // Get all portfolios added during the current session
+      getOnboardingPortfolios: () => {
+        return get().onboardingSession?.portfoliosAdded ?? []
+      },
+
+      // Check if user can add another portfolio (not during batch processing)
+      canAddAnotherPortfolio: () => {
+        const session = get().onboardingSession
+        return session?.isActive === true && !session.currentBatchRunning
+      },
+
+      // Check if currently in an onboarding session
+      isInOnboardingSession: () => {
+        return get().onboardingSession?.isActive === true
+      },
+
+      // ===== COMPUTED GETTERS =====
 
       // Get total value across all portfolios
       getTotalValue: () => {
@@ -167,7 +325,7 @@ export const usePortfolioStore = create<PortfolioStore>()(
     }),
     {
       name: 'portfolio-storage', // localStorage key
-      version: 4, // v4 adds portfolioId alias for backward compatibility
+      version: 5, // v5 adds onboarding session state (in-memory only)
       migrate: (persistedState: any, version: number) => {
         if (version <= 2) {
           // Legacy versions used a single portfolioId field only
@@ -207,6 +365,12 @@ export const useIsAggregateView = () => usePortfolioStore((state) => state.isAgg
 export const useHasPortfolio = () => usePortfolioStore((state) => state.hasPortfolio())
 export const usePortfolioCount = () => usePortfolioStore((state) => state.getPortfolioCount())
 export const useTotalValue = () => usePortfolioStore((state) => state.getTotalValue())
+
+// Onboarding session selector hooks
+export const useOnboardingSession = () => usePortfolioStore((state) => state.onboardingSession)
+export const useOnboardingPortfolios = () => usePortfolioStore((state) => state.getOnboardingPortfolios())
+export const useCanAddAnotherPortfolio = () => usePortfolioStore((state) => state.canAddAnotherPortfolio())
+export const useIsInOnboardingSession = () => usePortfolioStore((state) => state.isInOnboardingSession())
 
 // Helper functions to get/set portfolio data outside of React components
 export const getPortfolios = () => usePortfolioStore.getState().portfolios
