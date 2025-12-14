@@ -33,29 +33,61 @@
 
 ## ⚠️ **What Actually Needs Implementation**
 
+## 🎯 **Design Decisions Finalized**
+
+### **Session Management**
+- ✅ **Persistence**: In-memory only (simpler, no localStorage persistence)
+- ✅ **Clear triggers**: On success, logout, navigation away from onboarding
+- ✅ **Concurrency**: Block "Add Another" until current batch completes
+- ✅ **Failed portfolios**: Show on success screen with error states
+- ✅ **Default selection**: First created portfolio after session
+- ✅ **Navigation**: Always go to `/command-center` after completion
+
+### **Settings CSV Flow**
+- ✅ **Approach**: Simple single-portfolio flow (Option A)
+- ✅ **No session integration**: Direct upload → process → return to dashboard
+- ✅ **Simpler implementation**: Reuse onboarding page without session chrome
+
+---
+
 ### 1. 🔧 **Add Onboarding Session State** 
 **File**: `frontend/src/stores/portfolioStore.ts`
 **Status**: Missing onboarding session tracking
 
-**Add minimal session state to existing store:**
+**Add session state to existing store:**
 ```typescript
 onboardingSession: {
   isActive: boolean
-  portfoliosAdded: string[]  // Portfolio IDs added this session
+  portfoliosAdded: Array<{
+    portfolioId: string
+    status: 'success' | 'failed' | 'processing'
+    portfolioName: string
+    accountName: string
+    positionsCount?: number
+    error?: string
+  }>
   sessionStartedAt: string | null
+  currentBatchRunning: boolean  // Block "Add Another" during batch
 } | null
 ```
 
-**Add session actions to existing store:**
-- [ ] `startOnboardingSession()` - Begin session tracking
-- [ ] `addToOnboardingSession(portfolioId)` - Add portfolio to session
-- [ ] `completeOnboardingSession()` - End session, set default portfolio (first created)
-- [ ] `resetForNextUpload()` - Clear upload state, keep session active
-- [ ] `getOnboardingPortfolios()` - Return session portfolios for display
+**Session lifecycle actions:**
+- [ ] `startOnboardingSession()` - Begin session (called on first upload page entry)
+- [ ] `addToOnboardingSession(portfolio, status)` - Add portfolio with status
+- [ ] `updateSessionPortfolioStatus(portfolioId, status, data)` - Update during processing
+- [ ] `completeOnboardingSession()` - End session, set first portfolio as selected
+- [ ] `clearOnboardingSession()` - Clear session (on logout, navigation away)
+- [ ] `resetForNextUpload()` - Clear upload form state only, keep session active
+
+**Session state management:**
+- [ ] `getOnboardingPortfolios()` - Return portfolios for success screen display
+- [ ] `canAddAnotherPortfolio()` - Return false if batch is running
+- [ ] `isInOnboardingSession()` - Check active session state
 
 **Notes:**
-- ✅ **Store already has**: Full multi-portfolio management, CRUD operations, persistence
-- ✅ **Just add**: Lightweight session tracking overlay
+- **In-memory only**: Session doesn't persist across browser reloads
+- **Batch tracking**: Prevent concurrent uploads with `currentBatchRunning` flag
+- **Error tracking**: Store failed portfolios with error messages for display
 
 ---
 
@@ -66,28 +98,39 @@ onboardingSession: {
 **Current**: Shows individual portfolio success  
 **Needed**: Show cumulative session progress + "Add Another Portfolio" option
 
-**Enhancements:**
-- [ ] **Import session hooks**: Use session state from enhanced store
-- [ ] **Cumulative display**: Show all portfolios added in current session
-- [ ] **Add Another button**: Show when in active onboarding session
+**Enhanced cumulative display:**
+- [ ] **Import session hooks**: Use `getOnboardingPortfolios()` from enhanced store
+- [ ] **Show all session portfolios**: Including failed ones with error states
+- [ ] **Status indicators**: Success ✅, Failed ❌, Processing ⚠️
 - [ ] **Session progress format**:
   ```
-  🎉 Portfolio Ready!
+  🎉 Portfolio Session Summary
   
-  ✅ Schwab IRA - 45 positions imported
-  ✅ Fidelity 401k - 23 positions imported  
-  ✅ Personal Brokerage - 67 positions imported (just completed)
+  ✅ Schwab IRA - 45 positions imported, analytics complete
+  ⚠️ Fidelity 401k - 23 positions imported, analytics pending  
+  ❌ Personal Brokerage - Upload failed (validation errors)
+  ✅ Trust Account - 12 positions imported, analytics complete
   
   [Add Another Portfolio] [Continue to Dashboard]
   ```
 
-**Navigation:**
-- [ ] **"Add Another Portfolio"** → reset upload form, keep session active
-- [ ] **"Continue to Dashboard"** → complete session → `/command-center`
+**Button logic:**
+- [ ] **"Add Another Portfolio"**: Only show if `canAddAnotherPortfolio()` returns true
+- [ ] **Disabled state**: When `currentBatchRunning` is true, disable button
+- [ ] **Button text**: "Add Another Portfolio" or "Processing..." when disabled
+
+**Navigation implementation:**
+- [ ] **"Add Another Portfolio"** → `resetForNextUpload()` → return to upload form
+- [ ] **"Continue to Dashboard"** → `completeOnboardingSession()` → navigate to `/command-center`
+
+**Error handling display:**
+- [ ] **Failed portfolios**: Show with error message from session state
+- [ ] **Retry option**: For failed portfolios, show "Try Again" link that clears the error and returns to upload
+- [ ] **Mixed success**: Allow continuing to dashboard even with some failures
 
 **Notes:**
-- ✅ **Component exists**: Just needs session awareness and additional button
-- ✅ **Console logging**: `console.log('🎉 Portfolio upload successful!')` (no confetti library)
+- **Console celebration**: `console.log('🎉 Portfolio upload successful!')` for each successful portfolio
+- **Session context**: Component detects session vs individual portfolio based on session state
 
 ---
 
@@ -95,19 +138,30 @@ onboardingSession: {
 **File**: `frontend/src/components/settings/PortfolioManagement.tsx`
 **Status**: Missing CSV upload option
 
-**Current**: Manual portfolio creation only  
-**Needed**: Add CSV upload option
+**Simple single-portfolio approach (no session integration):**
 
-**Enhancement:**
+**UI Enhancement:**
 - [ ] **Add "Create Portfolio from CSV" button** alongside existing manual creation
-- [ ] **CSV flow**: Navigate to onboarding upload page with context parameter
-- [ ] **Return navigation**: After completion, return to dashboard (not onboarding flow)
+- [ ] **Button styling**: Match existing "+ Add Portfolio" button style
+- [ ] **Progressive disclosure**: Only show for users with existing portfolio management access
+
+**Navigation flow:**
+- [ ] **CSV button click** → Navigate to `/onboarding/upload?context=settings`
+- [ ] **Context parameter**: Pass `context=settings` to distinguish from initial onboarding
+- [ ] **Upload page behavior**: Detect context parameter and adapt:
+  - **Title**: "Add Portfolio from CSV" vs "Upload Your Portfolio"
+  - **No session management**: Single portfolio upload only
+  - **Return navigation**: After success → `/command-center` (not onboarding flow)
+  - **No "Add Another" button**: Just "Continue to Dashboard"
+
+**Implementation details:**
+- [ ] **URL parameter detection**: Check for `?context=settings` in onboarding upload page
+- [ ] **Conditional rendering**: Hide session-related UI when coming from Settings
+- [ ] **Success flow**: Direct navigation to dashboard without session completion
 
 **Notes:**
-- ✅ **Manual creation**: Already fully implemented with comprehensive form
-- ✅ **Error handling**: Already has validation and error states  
-- ✅ **Progressive disclosure**: Already hides for single-portfolio users
-- ✅ **Just add**: CSV upload option to existing interface
+- ✅ **Simpler implementation**: No session state needed for Settings-initiated uploads
+- ✅ **Consistent upload experience**: Reuse same onboarding upload page with minor adaptations
 
 ---
 
@@ -115,20 +169,30 @@ onboardingSession: {
 **File**: `frontend/src/components/settings/PortfolioManagement.tsx`
 **Status**: Missing Portfolio Name field in manual creation
 
-**Current manual creation form has:**
+**Field standardization across all portfolio creation flows:**
+
+**Current manual creation form:**
+- ❌ **Portfolio Name** (missing - needs to be added)
 - ✅ Account Name  
 - ✅ Account Type
 - ✅ Description
-- ❌ Portfolio Name (missing)
 
 **Add Portfolio Name field:**
-- [ ] **Add Portfolio Name input** to match onboarding form structure
-- [ ] **Update validation** to include Portfolio Name requirements
-- [ ] **Field order**: Portfolio Name, Account Name, Account Type, Description
+- [ ] **Add Portfolio Name input**: First field in form
+- [ ] **Validation requirements**: 1-255 characters, required
+- [ ] **Field order**: Portfolio Name → Account Name → Account Type → Description
+- [ ] **Update API call**: Ensure manual creation sends `portfolio_name` field to backend
+- [ ] **Error handling**: Add Portfolio Name to validation error display
+
+**Backend integration:**
+- [ ] **Verify API contract**: Confirm Settings manual creation endpoint accepts `portfolio_name`
+- [ ] **Payload updates**: Include Portfolio Name in manual creation API calls
+- [ ] **Error mapping**: Handle Portfolio Name validation errors from backend
 
 **Notes:**
-- ✅ **Form structure**: Already has proper validation and error handling
-- ✅ **Just add**: One missing field for consistency
+- ✅ **Form validation**: Already has comprehensive error handling infrastructure
+- ✅ **API integration**: Already connected to portfolio creation endpoints
+- ✅ **Just add**: One field to achieve parity with onboarding form
 
 ---
 
@@ -159,40 +223,62 @@ onboardingSession: {
 
 ---
 
-## 🎯 **Simplified Implementation Plan**
+## 🎯 **Implementation Plan with Design Decisions**
 
-**Total Effort**: ~1-2 days (not weeks!)
+**Total Effort**: ~1-2 days with all design decisions finalized
 
-### **Task 1**: Add session tracking to store (~4 hours)
-### **Task 2**: Enhance success screen (~2 hours)  
-### **Task 3**: Add CSV option to settings (~2 hours)
-### **Task 4**: Add Portfolio Name field (~1 hour)
+### **Task 1**: Session state management (~6 hours)
+- Enhanced session state structure with status tracking
+- Batch concurrency blocking logic
+- Session lifecycle management (clear triggers, no persistence)
 
----
+### **Task 2**: Success screen enhancement (~4 hours)  
+- Cumulative display with error states
+- Conditional "Add Another" button with disabled states
+- Mixed success/failure handling
 
-## ✅ **Simplified Definition of Done**
+### **Task 3**: Settings CSV integration (~3 hours)
+- Simple single-portfolio flow with context parameter
+- No session management integration
+- Conditional rendering based on entry point
 
-**Success Criteria:**
-- [ ] **Onboarding Sessions**: Users can add multiple portfolios in one session with cumulative display
-- [ ] **Settings CSV**: Users can create portfolios from CSV via Settings
-- [ ] **Field Consistency**: Portfolio Name field present in all creation forms
-- [ ] **Navigation**: Proper flow between session and individual portfolio creation
-
-**Already Working:**
-- ✅ Portfolio switching and dropdown
-- ✅ Backend multi-portfolio support  
-- ✅ Error handling and validation
-- ✅ Progressive disclosure
-- ✅ Settings portfolio management
+### **Task 4**: Field standardization (~1 hour)
+- Add Portfolio Name field to Settings manual form
+- Backend integration verification
 
 ---
 
-## 📚 **References**
+## ✅ **Definition of Done with Specifications**
+
+**Core Functionality:**
+- [ ] **Onboarding Sessions**: Multi-portfolio uploads with cumulative progress display
+- [ ] **Concurrency Control**: Block "Add Another" during batch processing
+- [ ] **Error State Handling**: Show failed portfolios on success screen with retry options  
+- [ ] **Settings CSV**: Single-portfolio CSV upload from Settings
+- [ ] **Field Consistency**: Portfolio Name in all creation forms
+- [ ] **Navigation Control**: Always route to `/command-center`, first portfolio selected by default
+
+**Session Management:**
+- [ ] **In-memory sessions**: No persistence across reloads
+- [ ] **Clear triggers**: Success, logout, navigation away from onboarding
+- [ ] **Status tracking**: Success, failed, processing states per portfolio
+- [ ] **Batch awareness**: Prevent concurrent uploads
+
+**User Experience:**
+- [ ] **Mixed states**: Handle partial success scenarios gracefully
+- [ ] **Retry capability**: Allow retrying failed portfolios
+- [ ] **Context awareness**: Different behavior for Settings vs onboarding entry points
+- [ ] **Progressive disclosure**: All existing behavior preserved
+
+---
+
+## 📚 **References & Context**
 
 - **PRD**: `MULTI_PORTFOLIO_ONBOARDING_PRD.md` - Complete requirements
-- **Demo**: Family office demo (`demo_familyoffice@sigmasight.com`) shows working multi-portfolio
-- **Investigation**: Most functionality already exists and works well
+- **Design Input**: AI agent feedback addressing session lifecycle, concurrency, navigation
+- **Existing Demo**: Family office (`demo_familyoffice@sigmasight.com`) shows working foundation
+- **Architecture**: Builds on existing comprehensive multi-portfolio infrastructure
 
 ---
 
-**Implementation Reality**: Simple enhancements to excellent existing foundation! 🚀
+**Ready for Implementation**: All design decisions documented and finalized! 🚀
