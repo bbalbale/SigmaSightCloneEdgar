@@ -223,6 +223,7 @@ export function usePortfolioMutations(): UsePortfolioMutationsReturn {
         // Update Zustand store
         addPortfolio({
           id: response.id,
+          name: response.name,
           account_name: response.account_name,
           account_type: response.account_type,
           net_asset_value: response.net_asset_value ?? response.equity_balance ?? 0,
@@ -255,6 +256,7 @@ export function usePortfolioMutations(): UsePortfolioMutationsReturn {
 
         // Update Zustand store
         updatePortfolioInStore(id, {
+          name: response.name,
           account_name: response.account_name,
           account_type: response.account_type,
           is_active: response.is_active,

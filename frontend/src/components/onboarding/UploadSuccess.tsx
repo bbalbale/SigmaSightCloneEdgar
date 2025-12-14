@@ -12,6 +12,7 @@ interface UploadSuccessProps {
   positionsFailed?: number
   checklist: ChecklistState
   onContinue: () => void
+  isFromSettings?: boolean
 }
 
 const checklistLabels: Record<string, string> = {
@@ -32,7 +33,7 @@ const checklistLabels: Record<string, string> = {
   correlations: 'Correlations computed',
 }
 
-export function UploadSuccess({ portfolioName, positionsImported, positionsFailed = 0, checklist, onContinue }: UploadSuccessProps) {
+export function UploadSuccess({ portfolioName, positionsImported, positionsFailed = 0, checklist, onContinue, isFromSettings }: UploadSuccessProps) {
   useEffect(() => {
     // Trigger confetti animation on mount
     // NOTE: Requires canvas-confetti or react-confetti package

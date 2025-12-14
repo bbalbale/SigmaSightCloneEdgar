@@ -1,5 +1,6 @@
 'use client'
 
+import { useSearchParams } from 'next/navigation'
 import { usePortfolioUpload } from '@/hooks/usePortfolioUpload'
 import { PortfolioUploadForm } from '@/components/onboarding/PortfolioUploadForm'
 import { UploadProcessing } from '@/components/onboarding/UploadProcessing'
@@ -7,6 +8,9 @@ import { UploadSuccess } from '@/components/onboarding/UploadSuccess'
 import { ValidationErrors } from '@/components/onboarding/ValidationErrors'
 
 export default function OnboardingUploadPage() {
+  const searchParams = useSearchParams()
+  const isFromSettings = searchParams?.get('context') === 'settings'
+  
   const {
     uploadState,
     batchStatus,
@@ -35,6 +39,7 @@ export default function OnboardingUploadPage() {
         positionsFailed={result.positions_failed}
         checklist={checklist}
         onContinue={handleContinueToDashboard}
+        isFromSettings={isFromSettings}
       />
     )
   }
@@ -63,6 +68,7 @@ export default function OnboardingUploadPage() {
       disabled={false}
       error={null}
       onRetry={handleRetry}
+      isFromSettings={isFromSettings}
     />
   )
 }

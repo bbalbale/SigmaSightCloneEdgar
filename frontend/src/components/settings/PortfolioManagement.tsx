@@ -40,8 +40,9 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
-import { Building2, Plus, Pencil, Trash2, Loader2 } from 'lucide-react'
+import { Building2, Plus, Pencil, Trash2, Loader2, Upload } from 'lucide-react'
 import { formatNumber } from '@/lib/formatters'
+import { useRouter } from 'next/navigation'
 
 interface PortfolioManagementProps {
   /**
@@ -55,6 +56,7 @@ export function PortfolioManagement({ showForSinglePortfolio = false }: Portfoli
   const { portfolios, loading, refetch } = usePortfolios()
   const { createPortfolio, updatePortfolio, deletePortfolio, creating, updating, deleting, error } =
     usePortfolioMutations()
+  const router = useRouter()
 
   // Form state for create/edit
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
@@ -63,6 +65,7 @@ export function PortfolioManagement({ showForSinglePortfolio = false }: Portfoli
   const [selectedPortfolioId, setSelectedPortfolioId] = useState<string | null>(null)
 
   const [formData, setFormData] = useState({
+    portfolio_name: '',
     account_name: '',
     account_type: 'taxable' as 'taxable' | 'ira' | 'roth_ira' | '401k' | 'trust' | 'other',
     description: '',
@@ -77,7 +80,7 @@ export function PortfolioManagement({ showForSinglePortfolio = false }: Portfoli
     try {
       await createPortfolio(formData)
       setIsCreateDialogOpen(false)
-      setFormData({ account_name: '', account_type: 'taxable', description: '' })
+      setFormData({ portfolio_name: '', account_name: '', account_type: 'taxable', description: '' })
       await refetch()
     } catch (err) {
       console.error('Failed to create portfolio:', err)
@@ -90,7 +93,7 @@ export function PortfolioManagement({ showForSinglePortfolio = false }: Portfoli
       await updatePortfolio(selectedPortfolioId, formData)
       setIsEditDialogOpen(false)
       setSelectedPortfolioId(null)
-      setFormData({ account_name: '', account_type: 'taxable', description: '' })
+      setFormData({ portfolio_name: '', account_name: '', account_type: 'taxable', description: '' })
       await refetch()
     } catch (err) {
       console.error('Failed to update portfolio:', err)
@@ -114,6 +117,7 @@ export function PortfolioManagement({ showForSinglePortfolio = false }: Portfoli
     if (portfolio) {
       setSelectedPortfolioId(portfolioId)
       setFormData({
+        portfolio_name: portfolio.name || '',
         account_name: portfolio.account_name,
         account_type: portfolio.account_type as any,
         description: portfolio.description || '',
@@ -125,6 +129,10 @@ export function PortfolioManagement({ showForSinglePortfolio = false }: Portfoli
   const openDeleteDialog = (portfolioId: string) => {
     setSelectedPortfolioId(portfolioId)
     setIsDeleteDialogOpen(true)
+  }
+
+  const handleCreateFromCSV = () => {
+    router.push('/onboarding/upload?context=settings')
   }
 
   const formatAccountType = (accountType: string): string => {
@@ -169,25 +177,44 @@ export function PortfolioManagement({ showForSinglePortfolio = false }: Portfoli
             <CardDescription>Manage your investment accounts</CardDescription>
           </div>
 
-          {/* Create Portfolio Button */}
-          <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-            <DialogTrigger asChild>
-              <Button size="sm">
-                <Plus className="h-4 w-4 mr-2" />
-                Add Portfolio
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
+          {/* Create Portfolio Buttons */}
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleCreateFromCSV}
+            >
+              <Upload className="h-4 w-4 mr-2" />
+              Create Portfolio from CSV
+            </Button>
+
+            <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+              <DialogTrigger asChild>
+                <Button size="sm">
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add Portfolio
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
               <DialogHeader>
                 <DialogTitle>Create New Portfolio</DialogTitle>
                 <DialogDescription>Add a new investment account to track</DialogDescription>
               </DialogHeader>
               <div className="space-y-4 py-4">
                 <div className="space-y-2">
+                  <Label htmlFor="portfolio_name">Portfolio Name *</Label>
+                  <Input
+                    id="portfolio_name"
+                    placeholder="e.g., My Investment Portfolio"
+                    value={formData.portfolio_name}
+                    onChange={(e) => setFormData({ ...formData, portfolio_name: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-2">
                   <Label htmlFor="account_name">Account Name *</Label>
                   <Input
                     id="account_name"
-                    placeholder="e.g., Growth Portfolio"
+                    placeholder="e.g., Schwab Living Trust, Fidelity IRA"
                     value={formData.account_name}
                     onChange={(e) => setFormData({ ...formData, account_name: e.target.value })}
                   />
@@ -231,7 +258,7 @@ export function PortfolioManagement({ showForSinglePortfolio = false }: Portfoli
                 >
                   Cancel
                 </Button>
-                <Button onClick={handleCreatePortfolio} disabled={creating || !formData.account_name}>
+                <Button onClick={handleCreatePortfolio} disabled={creating || !formData.portfolio_name || !formData.account_name}>
                   {creating ? (
                     <>
                       <Loader2 className="h-4 w-4 mr-2 animate-spin" />
@@ -244,6 +271,7 @@ export function PortfolioManagement({ showForSinglePortfolio = false }: Portfoli
               </DialogFooter>
             </DialogContent>
           </Dialog>
+          </div>
         </div>
       </CardHeader>
 
@@ -317,6 +345,14 @@ export function PortfolioManagement({ showForSinglePortfolio = false }: Portfoli
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
+              <Label htmlFor="edit_portfolio_name">Portfolio Name *</Label>
+              <Input
+                id="edit_portfolio_name"
+                value={formData.portfolio_name}
+                onChange={(e) => setFormData({ ...formData, portfolio_name: e.target.value })}
+              />
+            </div>
+            <div className="space-y-2">
               <Label htmlFor="edit_account_name">Account Name *</Label>
               <Input
                 id="edit_account_name"
@@ -362,7 +398,7 @@ export function PortfolioManagement({ showForSinglePortfolio = false }: Portfoli
             >
               Cancel
             </Button>
-            <Button onClick={handleEditPortfolio} disabled={updating || !formData.account_name}>
+            <Button onClick={handleEditPortfolio} disabled={updating || !formData.portfolio_name || !formData.account_name}>
               {updating ? (
                 <>
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />

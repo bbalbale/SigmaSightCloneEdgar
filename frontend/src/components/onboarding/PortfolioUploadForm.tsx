@@ -12,9 +12,10 @@ interface PortfolioUploadFormProps {
   disabled?: boolean
   error?: string | null
   onRetry?: () => void
+  isFromSettings?: boolean
 }
 
-export function PortfolioUploadForm({ onUpload, disabled, error, onRetry }: PortfolioUploadFormProps) {
+export function PortfolioUploadForm({ onUpload, disabled, error, onRetry, isFromSettings }: PortfolioUploadFormProps) {
   const [portfolioName, setPortfolioName] = useState('')
   const [accountName, setAccountName] = useState('')
   const [accountType, setAccountType] = useState('')
@@ -123,9 +124,14 @@ export function PortfolioUploadForm({ onUpload, disabled, error, onRetry }: Port
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-gray-900 dark:to-gray-800 p-4">
       <div className="w-full max-w-2xl space-y-6">
         <div className="text-center space-y-2">
-          <h1 className="text-3xl font-bold tracking-tight">Upload Your Portfolio</h1>
+          <h1 className="text-3xl font-bold tracking-tight">
+            {isFromSettings ? 'Add Portfolio from CSV' : 'Upload Your Portfolio'}
+          </h1>
           <p className="text-muted-foreground">
-            Let's get your positions loaded into SigmaSight so we can start analyzing your portfolio risk
+            {isFromSettings 
+              ? 'Add a new portfolio by uploading a CSV file with your positions'
+              : 'Let's get your positions loaded into SigmaSight so we can start analyzing your portfolio risk'
+            }
           </p>
         </div>
 

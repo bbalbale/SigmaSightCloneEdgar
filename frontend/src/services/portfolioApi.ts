@@ -27,12 +27,14 @@ import type { PortfolioListItem } from '@/stores/portfolioStore'
  * Request/Response types for multi-portfolio operations
  */
 export interface CreatePortfolioRequest {
+  portfolio_name: string;
   account_name: string;
   account_type: 'taxable' | 'ira' | 'roth_ira' | '401k' | 'trust' | 'other';
   description?: string;
 }
 
 export interface UpdatePortfolioRequest {
+  portfolio_name?: string;
   account_name?: string;
   account_type?: 'taxable' | 'ira' | 'roth_ira' | '401k' | 'trust' | 'other';
   description?: string;
