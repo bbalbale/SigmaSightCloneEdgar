@@ -2,7 +2,7 @@
 
 **Created**: 2025-12-13
 **Last Updated**: 2025-12-13
-**Status**: 🚧 **DRAFT - Requirements Gathering in Progress**
+**Status**: ✅ **REQUIREMENTS COMPLETE - Ready for Implementation**
 **Implementation Quality**: Building on existing excellent foundation
 
 ---
@@ -169,86 +169,73 @@
 
 ---
 
-## 🚧 Open Questions for Future Discussion
+## ✅ Additional Requirements Finalized
 
-### **Question 12: Default Portfolio**
-Which portfolio should be displayed when user logs in?
-- Most recently viewed?
-- Largest by balance? 
-- User-designated primary?
-- First created?
+### 12. **Default Portfolio Selection**
+- **Decision**: First created portfolio
+- **Rationale**: Provides consistent, predictable user experience
 
-### **Question 13: URL Structure** 
-How should portfolio-specific pages be addressed?
-- `/portfolio/{portfolio-id}/dashboard`?
-- `/dashboard?portfolio={id}`?
-- Keep current URLs with state management?
+### 13. **URL Structure** 
+- **Decision**: Keep current state-based implementation
+- **Current Pattern**: Static URLs (e.g., `/command-center`) with portfolio selection via Zustand store
+- **Benefits**: Smooth switching without page reloads, existing proven architecture
 
-### **Question 14: State Persistence**
-Should the app remember:
-- Last viewed portfolio across sessions?
-- Portfolio-specific settings/preferences?
-- Navigation state per portfolio?
+### 14. **State Persistence**
+- **Decision**: Keep current behavior
+- **Current**: Last viewed portfolio persists across sessions via localStorage
+- **No changes**: Portfolio-specific settings and navigation state remain as-is
 
-### **Question 15: Backward Compatibility**
-How should existing single-portfolio users be handled?
-- Automatically upgrade their experience?
-- Keep current flow for simplicity?
-- Opt-in to multi-portfolio features?
+### 15. **Backward Compatibility**
+- **Decision**: Keep current progressive disclosure pattern
+- **Behavior**: Portfolio selector automatically appears when user has 2+ portfolios
+- **Single-portfolio users**: UI remains clean and simple
 
-### **Question 16: Partial Failures**
-If user uploads 3 portfolios and 1 fails:
-- Show success for completed portfolios?
-- Treat entire batch as failed?
-- Allow retry of failed portfolios only?
+### 16. **Partial Failures**
+- **Decision**: Show accurate status for each portfolio
+- **Support**: Mixed states (import success + batch failure, import failure, etc.)
+- **User flow**: Can continue to dashboard and retry failed operations later
+- **Example**: ✅ Schwab IRA (complete), ⚠️ Fidelity 401k (analytics pending), ❌ Personal Brokerage (import failed)
 
-### **Question 17: Portfolio Deletion**
-Should users be able to:
-- Delete portfolios after creation?
-- Archive vs permanently delete?
-- What happens to calculations/history?
+### 17. **Portfolio Deletion**
+- **Decision**: Keep current soft delete with improved UX messaging
+- **Current**: Soft delete preserves all data, sets `deleted_at` timestamp
+- **Enhancement**: Update dialog text to "Archive portfolio? Data can be recovered by contacting support"
+- **Safety**: Cannot delete last portfolio, user ownership validation maintained
 
-### **Question 18: Portfolio Validation**
-Should there be restrictions on:
-- Duplicate account names across portfolios?
-- Same account type multiple times?
-- Minimum/maximum equity balance per portfolio?
+### 18. **Portfolio Validation**
+- **Account Names**: Keep current uniqueness requirement per user
+- **Account Types**: Allow multiple (e.g., multiple IRAs from different brokers)
+- **Equity Balance**: Minimum $1, no maximum limit
+- **Additional**: Portfolio name (1-255 chars), description (0-1000 chars), account name format validation
 
-### **Question 19: Calculation Dependencies**
-Should portfolio calculations:
-- Run independently for each portfolio?
-- Consider cross-portfolio correlations? 
-- Share market data across portfolios?
+### 19. **Calculation Dependencies**
+- **Decision**: Out of scope for onboarding PRD
+- **Current**: Portfolios calculate independently, then aggregate for "All Accounts" view
+- **Rationale**: Backend architecture decision, not onboarding flow requirement
 
-### **Question 20: Implementation Scope Prioritization**
-What's the minimum viable multi-portfolio experience?
-- Just the additional portfolio flow?
-- Basic portfolio switching?
-- Full multi-portfolio dashboard?
+### 20. **Implementation Scope (MVP)**
+- **Decision**: Option C - Enhanced onboarding + enhanced Settings + field standardization
+- **Includes**: "Add Another Portfolio" button, dual-option Settings dialog, Portfolio Name field addition
+- **Phase 1 scope**: Complete consistent multi-portfolio experience
 
-### **Question 21: Future Features**
-What advanced multi-portfolio features might come later?
-- Portfolio comparison views?
-- Cross-portfolio rebalancing suggestions?
-- Consolidated reporting?
+### 21. **Future Features**
+- **Decision**: Future enhancements TBD
+- **Rationale**: Keep PRD focused, avoid scope creep
 
-### **Question 22: Visual Design**
-Should multi-portfolio users see:
-- Same dashboard with portfolio selector?
-- Portfolio-specific dashboards?
-- Combined overview dashboard + individual views?
+### 22. **Visual Design**
+- **Decision**: Follow current implementation
+- **Pattern**: Same dashboard with portfolio selector dropdown
+- **Proven**: Already working well in family office demo
 
-### **Question 23: Breadcrumb Strategy**
-How should users understand which portfolio they're viewing?
-- Portfolio name in page title?
-- Persistent indicator/badge?
-- Context-aware navigation?
+### 23. **Breadcrumb Strategy**
+- **Decision**: Follow current implementation  
+- **Pattern**: Portfolio name displayed in dropdown selector
+- **Format**: Two-line display (Account Name + Account Type • X positions)
 
-### **Question 24: Existing Implementation Integration**
-Should we:
-- Extend existing Zustand store to handle multiple portfolios?
-- Create new multi-portfolio state management?
-- Keep single-portfolio approach with switching logic?
+### 24. **State Management Integration**
+- **Decision**: Enhance existing Zustand store
+- **Approach**: Add onboarding session tracking overlay to current architecture
+- **Benefits**: Builds on proven foundation, maintains backward compatibility
 
 ---
 
@@ -281,6 +268,38 @@ Should we:
 - **Option Disclosure**: Present CSV vs Manual options clearly
 - **Graceful Degradation**: Handle failures without losing previous progress
 
+## 📋 Zustand Store Enhancements Required
+
+### Onboarding Session State
+```typescript
+onboardingSession: {
+  isActive: boolean
+  portfoliosAdded: string[]  // Portfolio IDs added this session
+  currentStep: 'upload' | 'processing' | 'success'
+  sessionStartedAt: string | null
+} | null
+```
+
+### New Actions Needed
+- `startOnboardingSession()` - Begin session tracking
+- `addToOnboardingSession(portfolioId)` - Add portfolio to session
+- `completeOnboardingSession()` - End session, set default portfolio
+- `resetForNextUpload()` - Clear upload state, keep session active
+
+### New Getters Needed  
+- `getOnboardingPortfolios()` - Return session portfolios
+- `isInOnboardingSession()` - Check session status
+- `getOnboardingProgress()` - Count completed vs total
+- `canAddAnotherPortfolio()` - Show "Add Another" button logic
+
+### Integration Notes
+- Session state is **temporary** (doesn't persist to localStorage)
+- Build on existing portfolio CRUD operations
+- Maintain full backward compatibility
+- Use for cumulative success screen display
+
 ---
 
-**Next Steps**: Complete open questions 12-24 to finalize PRD and begin implementation planning.
+## ✅ **Implementation Ready**
+
+All requirements defined. This PRD provides complete specifications for implementing multi-portfolio onboarding while leveraging the existing excellent foundation. Ready for development planning and execution.
