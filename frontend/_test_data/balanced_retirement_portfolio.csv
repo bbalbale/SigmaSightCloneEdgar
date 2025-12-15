@@ -1,0 +1,11 @@
+Symbol,Quantity,Entry Price Per Share,Entry Date,Investment Class,Position Type,Account Name,Account Type,Notes,Target Price,Price Alert Low,Price Alert High
+SPY,50,450.00,2023-01-15,PUBLIC,LONG,401k Retirement,401K,S&P 500 core,520.00,420.00,550.00
+QQQ,30,380.00,2023-02-01,PUBLIC,LONG,401k Retirement,401K,Nasdaq exposure,450.00,350.00,475.00
+VTI,40,220.00,2023-03-10,PUBLIC,LONG,401k Retirement,401K,Total market,260.00,200.00,275.00
+BND,100,72.00,2023-04-01,PUBLIC,LONG,401k Retirement,401K,Bond allocation,78.00,68.00,82.00
+VNQ,60,85.00,2023-05-15,PUBLIC,LONG,401k Retirement,401K,Real estate,100.00,75.00,110.00
+SCHD,80,75.00,2023-06-01,PUBLIC,LONG,401k Retirement,401K,Dividend ETF,90.00,68.00,95.00
+BRK.B,25,350.00,2023-07-10,PUBLIC,LONG,401k Retirement,401K,Value anchor,420.00,320.00,450.00
+V,35,240.00,2023-08-01,PUBLIC,LONG,401k Retirement,401K,Payments growth,290.00,220.00,310.00
+UNH,20,480.00,2023-09-15,PUBLIC,LONG,401k Retirement,401K,Healthcare leader,550.00,450.00,580.00
+JPM,45,145.00,2023-10-01,PUBLIC,LONG,401k Retirement,401K,Banking core,180.00,135.00,195.00
