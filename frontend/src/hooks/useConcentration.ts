@@ -15,29 +15,35 @@ import type { ConcentrationMetricsResponse, AggregateConcentrationResponse } fro
 
 // Convert aggregate response to single-portfolio format for consistent UI
 function normalizeAggregateConcentration(response: AggregateConcentrationResponse): ConcentrationMetricsResponse {
+  // Backend returns data nested in response.data
+  const concentrationData = response.data || {}
+  const topPositions = concentrationData.top_positions || []
+
   // Build position weights from top positions
   const position_weights: Record<string, number> = {}
-  response.top_positions.forEach(p => {
+  topPositions.forEach(p => {
     position_weights[p.symbol] = p.weight
   })
 
+  const hhi = concentrationData.hhi || 0
+
   return {
-    available: true,
+    available: response.available,
     portfolio_id: 'aggregate',
-    calculation_date: response.calculation_date,
+    calculation_date: new Date().toISOString(),
     data: {
-      hhi: response.aggregate_hhi,
-      effective_num_positions: response.aggregate_effective_num_positions,
-      top_3_concentration: response.aggregate_top_3_concentration,
-      top_10_concentration: response.aggregate_top_10_concentration,
-      total_positions: response.total_positions,
+      hhi: hhi,
+      effective_num_positions: concentrationData.effective_num_positions || 0,
+      top_3_concentration: concentrationData.top_3_concentration || 0,
+      top_10_concentration: concentrationData.top_10_concentration || 0,
+      total_positions: concentrationData.total_positions || 0,
       position_weights,
     },
     metadata: {
       calculation_method: 'equity_weighted_aggregate',
-      interpretation: response.aggregate_hhi < 1500
+      interpretation: hhi < 1500
         ? 'Diversified (HHI < 1500)'
-        : response.aggregate_hhi < 2500
+        : hhi < 2500
           ? 'Moderately Concentrated (HHI 1500-2500)'
           : 'Highly Concentrated (HHI > 2500)',
     },

@@ -369,41 +369,39 @@ export interface AggregateFactorExposuresResponse {
 }
 
 export interface AggregateSectorExposureResponse {
-  aggregate_portfolio_weights: Record<string, number>;
-  benchmark_weights: Record<string, number>;
-  over_underweight: Record<string, number>;
-  largest_overweight: string | null;
-  largest_underweight: string | null;
-  total_value: number;
+  available: boolean;
+  data: {
+    portfolio_weights: Record<string, number>;
+    benchmark_weights: Record<string, number>;
+    over_underweight: Record<string, number>;
+    largest_overweight: string | null;
+    largest_underweight: string | null;
+  };
+  net_asset_value: number;
   portfolio_count: number;
-  portfolios: Array<{
-    portfolio_id: string;
-    portfolio_name: string;
-    weight: number;
-  }>;
-  calculation_date: string;
+  calculation_method: string;
+  formula: string;
 }
 
 export interface AggregateConcentrationResponse {
-  aggregate_hhi: number;
-  aggregate_effective_num_positions: number;
-  aggregate_top_3_concentration: number;
-  aggregate_top_10_concentration: number;
-  total_positions: number;
-  total_value: number;
+  available: boolean;
+  data: {
+    hhi: number;
+    effective_num_positions: number;
+    top_3_concentration: number;
+    top_10_concentration: number;
+    unique_symbols: number;
+    total_positions: number;
+    top_positions: Array<{
+      symbol: string;
+      value: number;
+      weight: number;
+    }>;
+  };
+  net_asset_value: number;
   portfolio_count: number;
-  top_positions: Array<{
-    symbol: string;
-    total_value: number;
-    weight: number;
-    portfolios: string[];
-  }>;
-  portfolios: Array<{
-    portfolio_id: string;
-    portfolio_name: string;
-    weight: number;
-  }>;
-  calculation_date: string;
+  calculation_method: string;
+  formula: string;
 }
 
 export interface AggregateCorrelationMatrixResponse {
@@ -423,23 +421,27 @@ export interface AggregateCorrelationMatrixResponse {
 }
 
 export interface AggregateStressTestResponse {
-  scenarios: Array<{
-    id: string;
-    name: string;
-    description: string;
-    category: string;
-    aggregate_dollar_impact: number;
-    aggregate_percentage_impact: number;
-    portfolios: Array<{
-      portfolio_id: string;
-      portfolio_name: string;
-      weight: number;
-      dollar_impact: number;
-      percentage_impact: number;
+  available: boolean;
+  data: {
+    scenarios: Array<{
+      id: string;
+      name: string;
+      description: string;
+      category: string;
+      severity?: string;
+      impact: {
+        dollar_impact: number;
+        percentage_impact: number;
+        new_portfolio_value: number;
+      };
+      portfolios_included: number;
     }>;
-  }>;
-  total_value: number;
+    portfolio_value: number;
+  };
+  net_asset_value: number;
   portfolio_count: number;
-  calculation_date: string;
+  portfolios_with_stress_data: number;
+  calculation_method: string;
+  formula: string;
 }
 

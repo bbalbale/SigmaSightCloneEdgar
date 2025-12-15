@@ -27,25 +27,25 @@ interface UseStressTestReturn {
 
 // Convert aggregate response to single-portfolio format for consistent UI
 function normalizeAggregateStressTest(response: AggregateStressTestResponse): StressTestResponse {
+  // Backend returns scenarios nested in data.scenarios
+  const scenarios = response.data?.scenarios || []
+  const portfolioValue = response.data?.portfolio_value || response.net_asset_value || 0
+
   return {
-    available: true,
+    available: response.available,
     data: {
-      scenarios: response.scenarios.map(s => ({
+      scenarios: scenarios.map(s => ({
         id: s.id,
         name: s.name,
         description: s.description,
         category: s.category,
-        impact: {
-          dollar_impact: s.aggregate_dollar_impact,
-          percentage_impact: s.aggregate_percentage_impact,
-          new_portfolio_value: response.total_value + s.aggregate_dollar_impact,
-        },
+        impact: s.impact,
       })),
-      portfolio_value: response.total_value,
-      calculation_date: response.calculation_date,
+      portfolio_value: portfolioValue,
+      calculation_date: new Date().toISOString(),
     },
     metadata: {
-      scenarios_requested: response.scenarios.map(s => s.id),
+      scenarios_requested: scenarios.map(s => s.id),
     },
   }
 }

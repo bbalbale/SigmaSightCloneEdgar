@@ -15,17 +15,20 @@ import type { SectorExposureResponse, AggregateSectorExposureResponse } from '@/
 
 // Convert aggregate response to single-portfolio format for consistent UI
 function normalizeAggregateSectorExposure(response: AggregateSectorExposureResponse): SectorExposureResponse {
+  // Backend returns data nested in response.data
+  const sectorData = response.data || {}
+
   return {
-    available: true,
+    available: response.available,
     portfolio_id: 'aggregate',
-    calculation_date: response.calculation_date,
+    calculation_date: new Date().toISOString(),
     data: {
-      portfolio_weights: response.aggregate_portfolio_weights,
-      benchmark_weights: response.benchmark_weights,
-      over_underweight: response.over_underweight,
-      largest_overweight: response.largest_overweight,
-      largest_underweight: response.largest_underweight,
-      total_portfolio_value: response.total_value,
+      portfolio_weights: sectorData.portfolio_weights || {},
+      benchmark_weights: sectorData.benchmark_weights || {},
+      over_underweight: sectorData.over_underweight || {},
+      largest_overweight: sectorData.largest_overweight || null,
+      largest_underweight: sectorData.largest_underweight || null,
+      total_portfolio_value: response.net_asset_value || 0,
       positions_by_sector: {}, // Not available in aggregate
       unclassified_value: 0,
       unclassified_count: 0,

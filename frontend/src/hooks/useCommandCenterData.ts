@@ -650,8 +650,9 @@ export function useCommandCenterData(refreshTrigger?: number): UseCommandCenterD
 
             // Use backend aggregate sector data if available (equity-weighted), fallback to aggregateAnalytics
             // Convert aggregate_portfolio_weights Record to find top sector
-            const sectorWeights = aggregateSectorResponse?.data?.aggregate_portfolio_weights
-            const benchmarkWeights = aggregateSectorResponse?.data?.benchmark_weights
+            // Backend returns data nested in response.data.data
+            const sectorWeights = aggregateSectorResponse?.data?.data?.portfolio_weights
+            const benchmarkWeights = aggregateSectorResponse?.data?.data?.benchmark_weights
             let topSectorData = null
             if (sectorWeights && Object.keys(sectorWeights).length > 0) {
               // Find sector with highest weight
@@ -672,7 +673,8 @@ export function useCommandCenterData(refreshTrigger?: number): UseCommandCenterD
             }
 
             // Use backend aggregate concentration data for largest position (equity-weighted), fallback to client calc
-            const topPositionFromBackend = aggregateConcentrationResponse?.data?.top_positions?.[0]
+            // Backend returns data nested in response.data.data
+            const topPositionFromBackend = aggregateConcentrationResponse?.data?.data?.top_positions?.[0]
             const largestPositionData = topPositionFromBackend
               ? {
                   symbol: topPositionFromBackend.symbol,
