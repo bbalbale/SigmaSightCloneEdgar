@@ -1,7 +1,7 @@
 # Plan: Multi-Portfolio Aggregate Risk Metrics with Equity-Weighted Averages
 
 **Created**: December 14, 2025
-**Status**: Phases 1-6 Complete (Core Implementation Done)
+**Status**: All Phases Complete (1-7)
 **Approach**: Option B - Backend endpoints as single source of truth
 
 ## Summary
@@ -276,9 +276,13 @@ Example with 3 portfolios:
 - Removed per-portfolio sections in aggregate view
 - Hooks auto-fetch aggregate data when in aggregate mode
 
-**Phase 7: Command Center Refactor** (Optional - Not Yet Done)
-- Would eliminate client-side aggregation in favor of backend endpoints
-- Lower priority since Risk Metrics page is the primary aggregate display
+**Phase 7: Command Center Refactor** ✅
+- Refactored `useCommandCenterData.ts` to use backend aggregate endpoints
+- Beta: Uses `/aggregate/beta` endpoint (equity-weighted) instead of client-side calculation
+- Volatility: Uses `/aggregate/volatility` endpoint (equity-weighted) instead of client-side calculation
+- Sector: Uses `/aggregate/sector-exposure` endpoint for top sector data
+- Concentration: Uses `/aggregate/concentration` endpoint for largest position data
+- Stress tests now use backend aggregate beta values
 
 ---
 
@@ -288,6 +292,6 @@ Example with 3 portfolios:
 - [x] Backend: Equity-weighted calculations match expected values
 - [x] Frontend: Risk Metrics shows aggregate data when "All Accounts" selected
 - [x] Frontend: Risk Metrics shows single portfolio data when specific portfolio selected
-- [ ] Frontend: Command Center uses backend aggregate endpoints (Phase 7 - optional)
+- [x] Frontend: Command Center uses backend aggregate endpoints (Phase 7)
 - [x] Frontend: Default view is "All Accounts" on login
 - [x] Frontend: AccountFilter switches correctly between aggregate and individual views
