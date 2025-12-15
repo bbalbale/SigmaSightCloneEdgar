@@ -1,8 +1,9 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useCallback } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { usePortfolioUpload } from '@/hooks/usePortfolioUpload'
+import { usePortfolioStore } from '@/stores/portfolioStore'
 import { PortfolioUploadForm } from '@/components/onboarding/PortfolioUploadForm'
 import { UploadProcessing } from '@/components/onboarding/UploadProcessing'
 import { UploadSuccess } from '@/components/onboarding/UploadSuccess'
@@ -11,6 +12,10 @@ import { ValidationErrors } from '@/components/onboarding/ValidationErrors'
 export default function OnboardingUploadPage() {
   const searchParams = useSearchParams()
   const isFromSettings = searchParams?.get('context') === 'settings'
+
+  // Get session cleanup function directly from store for unmount
+  // Use clearOnboardingSession (not resetForNextUpload) to fully clear stale session data
+  const clearOnboardingSession = usePortfolioStore((state) => state.clearOnboardingSession)
 
   const {
     uploadState,
@@ -30,12 +35,25 @@ export default function OnboardingUploadPage() {
     isInSession,
   } = usePortfolioUpload()
 
-  // Start onboarding session on mount (only for normal onboarding, not from Settings)
-  useEffect(() => {
+  // Memoize startSession call to prevent effect re-runs
+  const initSession = useCallback(() => {
     if (!isFromSettings) {
       startSession()
     }
   }, [isFromSettings, startSession])
+
+  // Start onboarding session on mount (only for normal onboarding, not from Settings)
+  // Cleanup on unmount to clear entire session (prevents stale session data if user navigates away)
+  useEffect(() => {
+    initSession()
+
+    // Cleanup: clear entire session on unmount to prevent stale data
+    // Session is preserved only via explicit "Continue to Dashboard" (completeOnboardingSession)
+    // or "Add Another" (resetForNextUpload) - both keep user on this page
+    return () => {
+      clearOnboardingSession()
+    }
+  }, [initSession, clearOnboardingSession])
 
   // Show validation errors FIRST (CSV format issues)
   if (uploadState === 'validation_error' || (validationErrors && validationErrors.length > 0)) {

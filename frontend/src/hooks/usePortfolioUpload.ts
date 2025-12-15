@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { onboardingService } from '@/services/onboardingService'
 import { setPortfolioState, usePortfolioStore } from '@/stores/portfolioStore'
@@ -101,13 +101,14 @@ export function usePortfolioUpload(): UsePortfolioUploadReturn {
   const [error, setError] = useState<string | null>(null)
   const [validationErrors, setValidationErrors] = useState<ValidationError[] | null>(null)
 
-  // Refs for cleanup
+  // Refs for cleanup and tracking
   const pollIntervalRef = useRef<NodeJS.Timeout | null>(null)
   const currentFileRef = useRef<File | null>(null)
   const currentPortfolioNameRef = useRef<string>('')
   const currentAccountNameRef = useRef<string>('')
   const currentAccountTypeRef = useRef<string>('')
   const currentEquityBalanceRef = useRef<number>(0)
+  const currentUploadPortfolioIdRef = useRef<string | null>(null)
 
   // Cleanup on unmount
   useEffect(() => {
@@ -145,6 +146,9 @@ export function usePortfolioUpload(): UsePortfolioUploadReturn {
       formData.append('csv_file', file)  // Backend expects 'csv_file', not 'file'
 
       const uploadResponse = await onboardingService.createPortfolio(formData)
+
+      // Track current upload for error handling
+      currentUploadPortfolioIdRef.current = uploadResponse.portfolio_id
 
       // Store portfolio ID in Zustand
       setPortfolioState(uploadResponse.portfolio_id, uploadResponse.portfolio_name)
@@ -243,6 +247,8 @@ export function usePortfolioUpload(): UsePortfolioUploadReturn {
               })
               setBatchRunning(false)
             }
+            // Clear current upload tracking on success
+            currentUploadPortfolioIdRef.current = null
             // DO NOT auto-navigate - wait for user to click "Continue to Dashboard" button
           }
         } catch (error) {
@@ -277,6 +283,8 @@ export function usePortfolioUpload(): UsePortfolioUploadReturn {
         ? shallowErrors
         : null
 
+      const errorMessage = getErrorMessage(err)
+
       if (rawErrors) {
         // Backend now returns errors in flat format: { row, symbol, code, message, field }
         const validationErrors: ValidationError[] = rawErrors.map((error: any) => ({
@@ -292,14 +300,22 @@ export function usePortfolioUpload(): UsePortfolioUploadReturn {
         setUploadState('validation_error')  // Set validation_error state for CSV issues
       } else {
         // Processing or network errors
-        setError(getErrorMessage(err))
+        setError(errorMessage)
         setUploadState('error')  // Set error state for processing/network issues
       }
 
-      // Unblock session on any error during upload phase
+      // Update session: mark portfolio as failed if it was added, unblock session
       if (isInOnboardingSession()) {
+        // If portfolio was created but triggerCalculations failed, update status
+        if (currentUploadPortfolioIdRef.current) {
+          updateSessionPortfolioStatus(currentUploadPortfolioIdRef.current, 'failed', {
+            error: errorMessage
+          })
+        }
         setBatchRunning(false)
       }
+      // Clear current upload tracking
+      currentUploadPortfolioIdRef.current = null
     }
   }
 
@@ -343,12 +359,12 @@ export function usePortfolioUpload(): UsePortfolioUploadReturn {
     }
   }
 
-  // Start a new onboarding session
-  const startSession = () => {
+  // Start a new onboarding session (memoized for stable reference)
+  const startSession = useCallback(() => {
     if (!isInOnboardingSession()) {
       startOnboardingSession()
     }
-  }
+  }, [isInOnboardingSession, startOnboardingSession])
 
   const handleRetry = () => {
     // Reset all state before retry

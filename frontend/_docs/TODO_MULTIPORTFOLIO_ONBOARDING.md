@@ -281,20 +281,50 @@ onboardingSession: {
 
 ---
 
-## ✅ **IMPLEMENTATION COMPLETED** - 2025-12-14 (Revised)
+## ✅ **IMPLEMENTATION COMPLETED** - 2025-12-14 (Revised & Refined)
 
 ### **Implementation History**
 
 **Initial PR (52b9b0f4)**: Partial implementation with significant gaps identified in code review.
 
-**Code Review Findings (2025-12-14)**:
+**Code Review Findings - Round 1 (2025-12-14)**:
 - Missing onboarding session state in portfolioStore.ts
 - Missing session-aware cumulative display in UploadSuccess.tsx
 - Missing "Add Another Portfolio" functionality
 - Portfolio name field not properly mapped in API response
 - Account type options inconsistent between forms
 
-**Fixes Applied (2025-12-14)**: All gaps addressed with comprehensive implementation.
+**Fixes Applied - Round 1 (2025-12-14)**: All gaps addressed with comprehensive implementation.
+
+**Code Review Findings - Round 2 (2025-12-14)**:
+- Self-review and external agent review identified additional refinements needed
+- Selector hooks calling getter methods (defeats Zustand memoization)
+- Dead retry button referencing unimplemented `onRetryFailed` prop
+- Missing failure handling for `triggerCalculations` errors
+- Missing cleanup on component unmount
+- `startSession` function not memoized with useCallback
+
+**Refinements Applied - Round 2 (2025-12-14)**:
+- ✅ Verified concurrency flag reset works correctly on validation errors
+- ✅ Added useEffect cleanup on unmount to reset batch running state
+- ✅ Removed dead retry button from UploadSuccess (onRetryFailed was never passed)
+- ✅ Added ref-based tracking for triggerCalculations failure handling
+- ✅ Fixed all selector hooks to use direct state selection (not method calls)
+- ✅ Wrapped startSession with useCallback for stable reference
+
+**Code Review Findings - Round 3 (2025-12-14)**:
+- Session cleanup on navigation only reset batch flag, leaving stale session data
+- hasMultiplePortfolios triggered on length > 0, showing session view for first upload
+- Helper getters noted as bypassing memoized selectors (acceptable for non-render paths)
+- Retry UX removed without user-facing notice explaining deferral
+- Verified batch flag reset order is correct (ref set before triggerCalculations)
+
+**Refinements Applied - Round 3 (2025-12-14)**:
+- ✅ Changed unmount cleanup to use `clearOnboardingSession` (not `resetForNextUpload`)
+- ✅ Changed hasMultiplePortfolios to `sessionPortfolios.length > 1` (first upload shows single-portfolio view)
+- ✅ Updated retry message to indicate "available in a future update"
+- ✅ Verified batch flag reset order is correct (no changes needed)
+- ✅ Documented that helper getters are for non-React use only
 
 ### **Implementation Summary**
 
@@ -327,8 +357,8 @@ All 4 tasks from this TODO guide have been successfully implemented:
   - Batch concurrency blocking (disabled during processing)
   - Mixed success/failure scenario handling with error state display
   - Context-aware rendering for both individual and session uploads
-  - Retry button for failed portfolios
   - Proper use of `isFromSettings` prop to hide "Add Another" for Settings flow
+- **Note**: Retry functionality for failed portfolios deferred to future iteration (requires backend retry endpoint)
 
 **✅ Task 3: CSV Upload from Settings**
 - **Status**: COMPLETE
@@ -397,6 +427,11 @@ The implementation maintains high code quality and architectural consistency:
 - **Progressive disclosure**: Existing multi-portfolio behavior preserved
 - **Backward compatibility**: No breaking changes to existing functionality
 - **Performance**: In-memory session state for optimal performance (excluded from persistence)
+- **Zustand memoization**: Selector hooks use direct state selection (not method calls) for proper memoization
+- **Helper function separation**: Helper getters (getSelectedPortfolio, isAggregateView) use method calls but are for non-React use only
+- **React best practices**: useCallback for stable function references, useEffect cleanup clears entire session on unmount
+- **Ref-based tracking**: currentUploadPortfolioIdRef for reliable failure handling across async boundaries
+- **UX clarity**: First upload shows single-portfolio view; session list view only appears with 2+ portfolios
 
 ---
 

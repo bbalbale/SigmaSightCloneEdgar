@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect } from 'react'
-import { Check, ArrowRight, Plus, AlertCircle, Loader2, RefreshCw } from 'lucide-react'
+import { Check, ArrowRight, Plus, AlertCircle, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { ChecklistState } from '@/hooks/usePortfolioUpload'
@@ -19,7 +19,6 @@ interface UploadSuccessProps {
   checklist: ChecklistState
   onContinue: () => void
   onAddAnother?: () => void
-  onRetryFailed?: (portfolioId: string) => void
   isFromSettings?: boolean
 }
 
@@ -55,11 +54,9 @@ function PortfolioStatusIndicator({ status }: { status: OnboardingSessionPortfol
 
 // Session portfolio list item
 function SessionPortfolioItem({
-  portfolio,
-  onRetry
+  portfolio
 }: {
   portfolio: OnboardingSessionPortfolio
-  onRetry?: (portfolioId: string) => void
 }) {
   return (
     <div className={`flex items-center justify-between p-3 rounded-lg ${
@@ -82,16 +79,6 @@ function SessionPortfolioItem({
           </p>
         </div>
       </div>
-      {portfolio.status === 'failed' && onRetry && (
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => onRetry(portfolio.portfolioId)}
-        >
-          <RefreshCw className="h-4 w-4 mr-1" />
-          Retry
-        </Button>
-      )}
     </div>
   )
 }
@@ -103,7 +90,6 @@ export function UploadSuccess({
   checklist,
   onContinue,
   onAddAnother,
-  onRetryFailed,
   isFromSettings = false
 }: UploadSuccessProps) {
   // Session state from store
@@ -111,8 +97,9 @@ export function UploadSuccess({
   const canAddAnother = useCanAddAnotherPortfolio()
   const isInSession = useIsInOnboardingSession()
 
-  // Check if we're in a multi-portfolio session with previous uploads
-  const hasMultiplePortfolios = isInSession && sessionPortfolios.length > 0
+  // Check if we're in a multi-portfolio session with multiple uploads
+  // Only show session list view when there are 2+ portfolios (not for first upload)
+  const hasMultiplePortfolios = isInSession && sessionPortfolios.length > 1
   const successCount = sessionPortfolios.filter(p => p.status === 'success').length
   const failedCount = sessionPortfolios.filter(p => p.status === 'failed').length
   const processingCount = sessionPortfolios.filter(p => p.status === 'processing').length
@@ -123,7 +110,7 @@ export function UploadSuccess({
 
   // Determine title based on context
   const getTitle = () => {
-    if (hasMultiplePortfolios && sessionPortfolios.length > 1) {
+    if (hasMultiplePortfolios) {
       return '🎉 Portfolio Session Summary'
     }
     return '🎉 Portfolio Ready!'
@@ -131,7 +118,7 @@ export function UploadSuccess({
 
   // Determine description based on context
   const getDescription = () => {
-    if (hasMultiplePortfolios && sessionPortfolios.length > 1) {
+    if (hasMultiplePortfolios) {
       const parts = []
       if (successCount > 0) parts.push(`${successCount} successful`)
       if (failedCount > 0) parts.push(`${failedCount} failed`)
@@ -165,8 +152,8 @@ export function UploadSuccess({
           </CardHeader>
 
           <CardContent className="space-y-6">
-            {/* Session Portfolio List (for multi-portfolio sessions) */}
-            {hasMultiplePortfolios && sessionPortfolios.length > 0 && (
+            {/* Session Portfolio List (for multi-portfolio sessions with 2+ uploads) */}
+            {hasMultiplePortfolios && (
               <div className="space-y-2">
                 <p className="text-sm font-medium text-muted-foreground">
                   Portfolios in this session:
@@ -176,7 +163,6 @@ export function UploadSuccess({
                     <SessionPortfolioItem
                       key={portfolio.portfolioId}
                       portfolio={portfolio}
-                      onRetry={onRetryFailed}
                     />
                   ))}
                 </div>
@@ -264,7 +250,7 @@ export function UploadSuccess({
             {failedCount > 0 && (
               <p className="text-xs text-muted-foreground text-center">
                 You can continue to the dashboard even with failed uploads.
-                Retry them later from Settings.
+                Retry functionality will be available in a future update.
               </p>
             )}
           </CardFooter>

@@ -358,19 +358,31 @@ export const usePortfolioStore = create<PortfolioStore>()(
 )
 
 // Selector hooks for common use cases
+// Use direct state selection for proper Zustand memoization (not method calls)
 export const usePortfolios = () => usePortfolioStore((state) => state.portfolios)
 export const useSelectedPortfolioId = () => usePortfolioStore((state) => state.selectedPortfolioId)
-export const useSelectedPortfolio = () => usePortfolioStore((state) => state.getSelectedPortfolio())
-export const useIsAggregateView = () => usePortfolioStore((state) => state.isAggregateView())
-export const useHasPortfolio = () => usePortfolioStore((state) => state.hasPortfolio())
-export const usePortfolioCount = () => usePortfolioStore((state) => state.getPortfolioCount())
-export const useTotalValue = () => usePortfolioStore((state) => state.getTotalValue())
+export const useSelectedPortfolio = () => usePortfolioStore((state) => {
+  if (state.selectedPortfolioId === null) return null
+  return state.portfolios.find((p) => p.id === state.selectedPortfolioId) || null
+})
+export const useIsAggregateView = () => usePortfolioStore((state) => state.selectedPortfolioId === null)
+export const useHasPortfolio = () => usePortfolioStore((state) => state.portfolios.length > 0)
+export const usePortfolioCount = () => usePortfolioStore((state) => state.portfolios.length)
+export const useTotalValue = () => usePortfolioStore((state) =>
+  state.portfolios.reduce((sum, p) => sum + (p.net_asset_value ?? p.total_value ?? 0), 0)
+)
 
-// Onboarding session selector hooks
+// Onboarding session selector hooks (direct state selection for memoization)
 export const useOnboardingSession = () => usePortfolioStore((state) => state.onboardingSession)
-export const useOnboardingPortfolios = () => usePortfolioStore((state) => state.getOnboardingPortfolios())
-export const useCanAddAnotherPortfolio = () => usePortfolioStore((state) => state.canAddAnotherPortfolio())
-export const useIsInOnboardingSession = () => usePortfolioStore((state) => state.isInOnboardingSession())
+export const useOnboardingPortfolios = () => usePortfolioStore((state) =>
+  state.onboardingSession?.portfoliosAdded ?? []
+)
+export const useCanAddAnotherPortfolio = () => usePortfolioStore((state) =>
+  state.onboardingSession?.isActive === true && !state.onboardingSession?.currentBatchRunning
+)
+export const useIsInOnboardingSession = () => usePortfolioStore((state) =>
+  state.onboardingSession?.isActive === true
+)
 
 // Helper functions to get/set portfolio data outside of React components
 export const getPortfolios = () => usePortfolioStore.getState().portfolios
