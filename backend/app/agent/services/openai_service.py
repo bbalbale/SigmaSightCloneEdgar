@@ -28,6 +28,10 @@ from app.agent.services.rag_service import (
     retrieve_relevant_docs,
     format_rag_docs_for_prompt,
 )
+from app.agent.services.memory_service import (
+    get_user_memories,
+    format_memories_for_prompt,
+)
 
 logger = get_logger(__name__)
 
@@ -100,8 +104,66 @@ class OpenAIService:
         except Exception as e:
             logger.warning(f"[RAG] Failed to retrieve context: {e}")
             return ""
-        
-    
+
+    async def _get_user_memories_context(
+        self,
+        db: Optional[AsyncSession],
+        auth_context: Optional[Dict[str, Any]] = None,
+        portfolio_context: Optional[Dict[str, Any]] = None,
+    ) -> str:
+        """
+        Retrieve user memories and format them for prompt injection.
+
+        Args:
+            db: Async database session (if None, memories are skipped)
+            auth_context: Authentication context with user_id
+            portfolio_context: Optional portfolio context for portfolio-scoped memories
+
+        Returns:
+            Formatted memories context string, or empty string if no memories
+        """
+        if db is None or auth_context is None:
+            return ""
+
+        user_id = auth_context.get("user_id")
+        if not user_id:
+            return ""
+
+        try:
+            from uuid import UUID
+            user_uuid = UUID(user_id) if isinstance(user_id, str) else user_id
+
+            # Get user memories (general + portfolio-specific if available)
+            memories = await get_user_memories(db, user_uuid, limit=10)
+
+            # Also get portfolio-specific memories if we have a portfolio context
+            if portfolio_context and portfolio_context.get("portfolio_id"):
+                portfolio_id = portfolio_context["portfolio_id"]
+                portfolio_uuid = UUID(portfolio_id) if isinstance(portfolio_id, str) else portfolio_id
+                portfolio_memories = await get_user_memories(
+                    db, user_uuid, portfolio_id=portfolio_uuid, limit=5
+                )
+                # Combine, avoiding duplicates
+                existing_ids = {m["id"] for m in memories}
+                for pm in portfolio_memories:
+                    if pm["id"] not in existing_ids:
+                        memories.append(pm)
+
+            if not memories:
+                logger.debug("[Memory] No memories found for user")
+                return ""
+
+            # Format memories for prompt injection
+            memories_context = format_memories_for_prompt(memories, max_chars=1000)
+            logger.info(f"[Memory] Injecting {len(memories)} memories ({len(memories_context)} chars) into prompt")
+
+            return memories_context
+
+        except Exception as e:
+            logger.warning(f"[Memory] Failed to retrieve memories: {e}")
+            return ""
+
+
     def _get_tool_definitions(self) -> List[Dict[str, Any]]:
         """Default tool definitions method - delegates to Responses API format"""
         return self._get_tool_definitions_responses()
@@ -525,6 +587,7 @@ class OpenAIService:
         user_message: str,
         portfolio_context: Optional[Dict[str, Any]] = None,
         rag_context: Optional[str] = None,
+        memories_context: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
         """Build input structure for OpenAI Responses API (array of messages)"""
         # Get system prompt for the mode
@@ -532,6 +595,22 @@ class OpenAIService:
             conversation_mode,
             user_context=portfolio_context
         )
+
+        # Inject user memories if available (before RAG for higher priority)
+        if memories_context:
+            memories_section = f"""
+---
+
+## User Preferences & Context
+
+Things to remember about this user (apply these to your responses):
+
+{memories_context}
+
+---
+"""
+            system_prompt = system_prompt + "\n" + memories_section
+            logger.debug(f"[Memory] Added {len(memories_context)} chars of memories to system prompt")
 
         # Inject RAG context if available
         if rag_context:
@@ -633,13 +712,21 @@ The following documents may be relevant to the user's question. Use this informa
                 portfolio_context=portfolio_context,
             )
 
-            # Build Responses API input with RAG context
+            # Retrieve user memories for personalization
+            memories_context = await self._get_user_memories_context(
+                db=db,
+                auth_context=auth_context,
+                portfolio_context=portfolio_context,
+            )
+
+            # Build Responses API input with RAG and memories context
             input_data = self._build_responses_input(
                 conversation_mode,
                 message_history or [],
                 message_text,
                 portfolio_context,
                 rag_context=rag_context,
+                memories_context=memories_context,
             )
             
             # Get tool definitions for Responses API

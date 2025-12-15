@@ -17,6 +17,7 @@ from app.api.v1.endpoints import admin_batch
 from app.api.v1.admin_fix import router as admin_fix_router
 from app.api.v1.fundamentals import router as fundamentals_router
 from app.api.v1.equity_changes import router as equity_changes_router
+from app.api.v1.agent_memories import router as agent_memories_router
 
 # Create the main v1 router
 api_router = APIRouter(prefix="/v1")
@@ -64,6 +65,9 @@ api_router.include_router(admin_batch.router)
 
 # Admin Fix APIs (/admin/fix/) - Railway production data fix operations
 api_router.include_router(admin_fix_router)
+
+# Agent Memories APIs (/agent/memories/) - AI memory management
+api_router.include_router(agent_memories_router)
 
 # Legacy placeholder and market-data routers are intentionally not registered in v1.2
 # (See TODO3.md 6.8/6.9 for removal plan and rationale.)
