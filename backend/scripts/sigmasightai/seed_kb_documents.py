@@ -183,6 +183,304 @@ Response includes:
 - _tool_recommendation: guidance message""",
         "metadata": {"type": "tool_doc", "tool_name": "get_portfolio_data_quality"},
     },
+    {
+        "scope": "global",
+        "title": "Analytics Overview Tool - get_analytics_overview",
+        "content": """The get_analytics_overview tool provides a portfolio analytics overview with key metrics.
+
+Parameters:
+- portfolio_id (required): Portfolio UUID
+
+Use this tool when the user asks about:
+- Portfolio risk metrics
+- Beta, Sharpe ratio, volatility
+- Overall portfolio analytics
+- Risk-adjusted returns
+- Portfolio performance summary
+
+Response includes:
+- total_value: Current portfolio value
+- returns: Period returns (daily, weekly, monthly, YTD)
+- beta: Portfolio beta vs market
+- volatility: Annualized volatility
+- sharpe_ratio: Risk-adjusted return metric
+- sector_breakdown: Allocation by sector
+
+This is a good starting point for risk analysis before drilling into specific metrics.""",
+        "metadata": {"type": "tool_doc", "tool_name": "get_analytics_overview"},
+    },
+    {
+        "scope": "global",
+        "title": "Factor Exposures Tool - get_factor_exposures",
+        "content": """The get_factor_exposures tool provides portfolio factor exposures and betas.
+
+Parameters:
+- portfolio_id (required): Portfolio UUID
+
+Use this tool when the user asks about:
+- Factor exposures
+- What factors drive portfolio returns
+- Style analysis (value, growth, momentum)
+- Factor tilts
+- Beta to different factors
+
+Response includes:
+- Factor betas for: Market, Size, Value, Momentum, Quality, Low Volatility
+- R-squared: How much of returns are explained by factors
+- Factor contribution to returns
+
+Factors measured:
+- Market (SPY): Overall market sensitivity
+- Size (IWM): Small cap exposure
+- Value (IWD): Value stock tilt
+- Momentum (MTUM): Momentum exposure
+- Quality (QUAL): Quality factor exposure
+- Low Volatility (USMV): Defensive positioning""",
+        "metadata": {"type": "tool_doc", "tool_name": "get_factor_exposures"},
+    },
+    {
+        "scope": "global",
+        "title": "Sector Exposure Tool - get_sector_exposure",
+        "content": """The get_sector_exposure tool provides detailed sector allocation vs S&P 500 benchmark.
+
+Parameters:
+- portfolio_id (required): Portfolio UUID
+
+Use this tool when the user asks about:
+- Sector allocation
+- Which sectors they're overweight/underweight
+- Sector diversification
+- Industry exposure
+- Comparing sector weights to benchmark
+
+Response includes:
+- sector_weights: Portfolio allocation by GICS sector
+- benchmark_weights: S&P 500 sector weights
+- over_underweights: Difference from benchmark
+- top_holdings_per_sector: Largest positions in each sector
+
+GICS Sectors covered:
+Technology, Healthcare, Financials, Consumer Discretionary, Consumer Staples,
+Industrials, Energy, Materials, Real Estate, Utilities, Communication Services""",
+        "metadata": {"type": "tool_doc", "tool_name": "get_sector_exposure"},
+    },
+    {
+        "scope": "global",
+        "title": "Correlation Matrix Tool - get_correlation_matrix",
+        "content": """The get_correlation_matrix tool shows how portfolio positions move relative to each other.
+
+Parameters:
+- portfolio_id (required): Portfolio UUID
+
+Use this tool when the user asks about:
+- Position correlations
+- How holdings move together
+- Diversification analysis
+- Which positions are correlated
+- Portfolio diversification quality
+
+Response includes:
+- correlation_matrix: Pairwise correlations between positions
+- highly_correlated_pairs: Pairs with correlation > 0.7
+- low_correlation_pairs: Pairs with correlation < 0.3
+- diversification_score: Overall diversification metric
+
+Interpretation:
+- Correlation of 1.0: Positions move perfectly together
+- Correlation of 0: No relationship
+- Correlation of -1.0: Positions move opposite
+- High correlations reduce diversification benefits""",
+        "metadata": {"type": "tool_doc", "tool_name": "get_correlation_matrix"},
+    },
+    {
+        "scope": "global",
+        "title": "Stress Test Tool - get_stress_test_results",
+        "content": """The get_stress_test_results tool shows portfolio impact under various market scenarios.
+
+Parameters:
+- portfolio_id (required): Portfolio UUID
+
+Use this tool when the user asks about:
+- Stress testing
+- What if scenarios
+- How would portfolio perform in a crash
+- Market crisis impact
+- Downside scenarios
+
+Response includes stress scenarios:
+- 2008 Financial Crisis: ~-50% market drop
+- COVID Crash (Mar 2020): ~-34% rapid decline
+- Interest Rate Shock: Rising rates impact
+- Tech Bubble Burst: Technology sector crash
+- Recession scenario: Economic downturn
+- Black Monday: Single-day crash
+
+For each scenario:
+- estimated_loss: Portfolio impact in dollars
+- estimated_loss_pct: Impact as percentage
+- positions_most_affected: Highest impact holdings
+
+Use this for risk awareness and contingency planning.""",
+        "metadata": {"type": "tool_doc", "tool_name": "get_stress_test_results"},
+    },
+    {
+        "scope": "global",
+        "title": "Concentration Metrics Tool - get_concentration_metrics",
+        "content": """The get_concentration_metrics tool provides portfolio concentration risk analysis.
+
+Parameters:
+- portfolio_id (required): Portfolio UUID
+
+Use this tool when the user asks about:
+- Portfolio concentration
+- Position sizing
+- Largest holdings
+- HHI (Herfindahl-Hirschman Index)
+- Diversification level
+- Single stock risk
+
+Response includes:
+- hhi_score: Concentration index (0-10000 scale)
+- top_5_weight: Percentage in top 5 positions
+- top_10_weight: Percentage in top 10 positions
+- max_position_weight: Largest single position
+- position_count: Total number of positions
+- concentration_risk_level: Low/Medium/High/Extreme
+
+Interpretation:
+- HHI < 1500: Well diversified
+- HHI 1500-2500: Moderate concentration
+- HHI > 2500: Highly concentrated
+- Single position > 20%: High single-stock risk""",
+        "metadata": {"type": "tool_doc", "tool_name": "get_concentration_metrics"},
+    },
+    {
+        "scope": "global",
+        "title": "Volatility Analysis Tool - get_volatility_analysis",
+        "content": """The get_volatility_analysis tool provides portfolio volatility metrics and forecasts.
+
+Parameters:
+- portfolio_id (required): Portfolio UUID
+
+Use this tool when the user asks about:
+- Portfolio volatility
+- Risk level
+- VaR (Value at Risk)
+- Expected volatility
+- Risk forecasting
+- Volatility forecast
+
+Response includes:
+- historical_volatility: Realized volatility over past period
+- annualized_volatility: Volatility expressed annually
+- var_95: 95% Value at Risk (1-day)
+- var_99: 99% Value at Risk (1-day)
+- har_forecast: HAR model volatility forecast
+- volatility_trend: Rising/Stable/Falling
+
+HAR (Heterogeneous Autoregressive) Forecasting:
+- Uses daily, weekly, monthly volatility components
+- Provides forward-looking volatility estimate
+- Useful for risk budgeting and position sizing
+
+Volatility ranges:
+- <15%: Low volatility
+- 15-25%: Normal volatility
+- 25-40%: High volatility
+- >40%: Very high volatility""",
+        "metadata": {"type": "tool_doc", "tool_name": "get_volatility_analysis"},
+    },
+    {
+        "scope": "global",
+        "title": "Company Profile Tool - get_company_profile",
+        "content": """The get_company_profile tool provides company information for a specific symbol.
+
+Parameters:
+- symbol (required): Stock symbol (e.g., 'AAPL', 'MSFT')
+
+Use this tool when the user asks about:
+- Company information
+- What does a company do
+- Company sector/industry
+- Market cap
+- Company description
+- Business overview
+
+Response includes:
+- name: Company name
+- symbol: Ticker symbol
+- sector: GICS sector
+- industry: Specific industry
+- market_cap: Market capitalization
+- description: Business description
+- employees: Number of employees
+- headquarters: Location
+- website: Company website
+- ceo: Chief Executive Officer
+
+Use for researching individual holdings or understanding what a company does.""",
+        "metadata": {"type": "tool_doc", "tool_name": "get_company_profile"},
+    },
+    {
+        "scope": "global",
+        "title": "Target Prices Tool - get_target_prices",
+        "content": """The get_target_prices tool retrieves analyst target prices for portfolio positions.
+
+Parameters:
+- portfolio_id (required): Portfolio UUID
+
+Use this tool when the user asks about:
+- Target prices
+- Price targets
+- Analyst estimates
+- Upside/downside potential
+- Expected returns
+
+Response includes for each position:
+- symbol: Stock ticker
+- current_price: Current market price
+- target_price: User's target price
+- upside_percent: Potential upside to target
+- time_horizon: Target timeframe
+- notes: Any notes on the target
+
+Target price analysis helps:
+- Identify positions with upside potential
+- Set exit points
+- Prioritize positions for review
+- Track investment thesis""",
+        "metadata": {"type": "tool_doc", "tool_name": "get_target_prices"},
+    },
+    {
+        "scope": "global",
+        "title": "Position Tags Tool - get_position_tags",
+        "content": """The get_position_tags tool retrieves tags/labels assigned to portfolio positions.
+
+Parameters:
+- portfolio_id (required): Portfolio UUID
+
+Use this tool when the user asks about:
+- Position tags or labels
+- How positions are categorized
+- Investment themes
+- Position groupings
+- Custom classifications
+
+Response includes:
+- positions with their assigned tags
+- tag names and colors
+- tag counts
+
+Common tag use cases:
+- Investment themes: 'AI Play', 'Dividend', 'Growth'
+- Position type: 'Core Holding', 'Tactical', 'Hedge'
+- Time horizon: 'Long-term', 'Trading', 'Swing'
+- Risk level: 'High Risk', 'Conservative'
+- Source: 'Inherited', 'Research Pick'
+
+Tags help organize and filter portfolio positions by custom criteria.""",
+        "metadata": {"type": "tool_doc", "tool_name": "get_position_tags"},
+    },
 
     # ===========================================
     # DOMAIN PRIMERS (scope: global)
@@ -456,6 +754,256 @@ Available analyses depend on data:
 
 If data is incomplete, the tool will suggest what's missing and what can still be analyzed.""",
         "metadata": {"type": "faq", "question_type": "capabilities"},
+    },
+    {
+        "scope": "global",
+        "title": "FAQ: How risky is my portfolio?",
+        "content": """To assess portfolio risk:
+
+1. Get overall risk metrics:
+   Use get_analytics_overview with portfolio_id
+   Returns: beta, volatility, Sharpe ratio
+
+2. Check concentration risk:
+   Use get_concentration_metrics with portfolio_id
+   Returns: HHI score, top position weights
+
+3. Analyze volatility in detail:
+   Use get_volatility_analysis with portfolio_id
+   Returns: VaR, HAR forecast, volatility trend
+
+4. Run stress tests:
+   Use get_stress_test_results with portfolio_id
+   Returns: Impact under various crisis scenarios
+
+5. Check correlations:
+   Use get_correlation_matrix with portfolio_id
+   Returns: How positions move together
+
+Risk interpretation:
+- High beta (>1.2): More market sensitivity
+- High volatility (>25%): More price swings
+- High concentration (HHI>2500): Single-stock risk
+- High correlations: Less diversification benefit""",
+        "metadata": {"type": "faq", "question_type": "risk"},
+    },
+    {
+        "scope": "global",
+        "title": "FAQ: What sectors am I exposed to?",
+        "content": """To analyze sector exposure:
+
+1. Get detailed sector breakdown:
+   Use get_sector_exposure with portfolio_id
+   Returns: Sector weights vs S&P 500 benchmark
+
+2. For quick sector overview:
+   Use get_analytics_overview with portfolio_id
+   Returns: sector_breakdown in response
+
+3. See positions by sector:
+   Use get_portfolio_complete with include_holdings=true
+   Each position includes sector information
+
+Key sector analysis questions:
+- Am I overweight any sector vs benchmark?
+- Do I have technology concentration?
+- Am I underweight defensive sectors (utilities, staples)?
+- Is my sector allocation intentional or accidental?
+
+Sector allocation is important for:
+- Diversification across economic cycles
+- Managing sector-specific risks
+- Aligning with investment views""",
+        "metadata": {"type": "faq", "question_type": "sectors"},
+    },
+    {
+        "scope": "global",
+        "title": "FAQ: What factors drive my portfolio returns?",
+        "content": """To understand what drives your returns:
+
+1. Get factor exposures:
+   Use get_factor_exposures with portfolio_id
+   Returns: Beta to Market, Size, Value, Momentum, Quality, Low Vol
+
+2. Get factor benchmark prices:
+   Use get_factor_etf_prices
+   Returns: Historical prices for factor ETFs
+
+Factor analysis reveals:
+- How much of your returns come from market beta
+- Whether you have style tilts (value, growth, momentum)
+- Quality and volatility factor exposures
+- What's driving performance beyond stock selection
+
+Common factor interpretations:
+- High market beta: Returns driven by market moves
+- Value tilt: Exposed to cheap stocks
+- Momentum tilt: Benefiting from trending stocks
+- Quality tilt: Holding profitable, stable companies
+- Low vol tilt: Defensive positioning
+
+Use factors to:
+- Understand return sources
+- Manage risk exposures
+- Make intentional style decisions""",
+        "metadata": {"type": "faq", "question_type": "factors"},
+    },
+
+    # ===========================================
+    # ADVANCED DOMAIN PRIMERS (scope: global)
+    # ===========================================
+    {
+        "scope": "global",
+        "title": "Understanding Sharpe Ratio",
+        "content": """The Sharpe ratio measures risk-adjusted returns.
+
+Formula:
+Sharpe Ratio = (Portfolio Return - Risk-Free Rate) / Portfolio Volatility
+
+Interpretation:
+- Sharpe < 0: Returns below risk-free rate (poor)
+- Sharpe 0-0.5: Low risk-adjusted returns
+- Sharpe 0.5-1.0: Acceptable risk-adjusted returns
+- Sharpe 1.0-2.0: Good risk-adjusted returns
+- Sharpe > 2.0: Excellent (but verify data period)
+
+Why it matters:
+- Compares returns per unit of risk taken
+- Allows comparison between different strategies
+- Higher is better (more return per risk)
+
+Caveats:
+- Assumes returns are normally distributed
+- Sensitive to time period chosen
+- May not capture tail risks
+- Past Sharpe doesn't guarantee future
+
+Use get_analytics_overview to see portfolio Sharpe ratio.""",
+        "metadata": {"type": "domain_primer", "topic": "sharpe_ratio"},
+    },
+    {
+        "scope": "global",
+        "title": "Understanding Value at Risk (VaR)",
+        "content": """VaR estimates the maximum potential loss over a time period at a confidence level.
+
+Key concepts:
+- VaR 95%: 5% chance of losing more than this amount
+- VaR 99%: 1% chance of losing more than this amount
+- Time horizon: Usually 1-day or 10-day
+- Expressed in dollars or percentage
+
+Example:
+"1-day 95% VaR of $10,000" means:
+- On 95% of days, you won't lose more than $10,000
+- On 5% of days (about 13 per year), you might lose more
+
+VaR types:
+- Historical VaR: Based on actual past returns
+- Parametric VaR: Assumes normal distribution
+- Monte Carlo VaR: Uses simulations
+
+Limitations:
+- Doesn't say HOW MUCH you might lose beyond VaR
+- Assumes market conditions similar to history
+- May underestimate tail risks
+
+Use get_volatility_analysis for portfolio VaR estimates.""",
+        "metadata": {"type": "domain_primer", "topic": "var"},
+    },
+    {
+        "scope": "global",
+        "title": "Understanding Long/Short Portfolios",
+        "content": """Long/short portfolios hold both long and short positions.
+
+Key concepts:
+- Long position: Own the stock, profit when it rises
+- Short position: Borrowed stock sold, profit when it falls
+- Gross exposure: Long + Short (total market exposure)
+- Net exposure: Long - Short (directional exposure)
+
+Example:
+- Long exposure: $1,000,000
+- Short exposure: $500,000
+- Gross exposure: $1,500,000 (150% of capital if $1M capital)
+- Net exposure: $500,000 (50% net long)
+
+Why use long/short:
+- Hedge market risk
+- Profit from both rising and falling stocks
+- Reduce portfolio volatility
+- Express relative value views
+
+Metrics to track:
+- Gross exposure: Total risk deployed
+- Net exposure: Directional market bet
+- Beta: Market sensitivity after hedging
+- Alpha: Returns above what beta explains
+
+SigmaSight supports long (positive) and short (negative) positions.""",
+        "metadata": {"type": "domain_primer", "topic": "long_short"},
+    },
+    {
+        "scope": "global",
+        "title": "Understanding Correlation in Portfolios",
+        "content": """Correlation measures how positions move relative to each other.
+
+Correlation values:
+- +1.0: Perfect positive correlation (move together)
+- 0.0: No correlation (independent)
+- -1.0: Perfect negative correlation (move opposite)
+
+Portfolio implications:
+- High correlations: Positions amplify each other
+- Low correlations: Better diversification
+- Negative correlations: Natural hedging
+
+Diversification benefit:
+- Portfolio with correlated stocks: Risk reduction limited
+- Portfolio with uncorrelated stocks: Significant risk reduction
+- A well-diversified portfolio has low average correlation
+
+Common correlations:
+- Stocks in same sector: Often highly correlated (0.6-0.9)
+- Stocks vs bonds: Often negatively correlated (-0.2 to -0.5)
+- Tech stocks with each other: Highly correlated
+- Utilities vs tech: Lower correlation
+
+Use get_correlation_matrix to see position correlations.""",
+        "metadata": {"type": "domain_primer", "topic": "correlation"},
+    },
+    {
+        "scope": "global",
+        "title": "Understanding Options Greeks",
+        "content": """Options Greeks measure sensitivities of option prices to various factors.
+
+Key Greeks:
+- Delta: Price change per $1 move in underlying
+  - Call delta: 0 to 1 (positive)
+  - Put delta: -1 to 0 (negative)
+  - At-the-money: ~0.5 or -0.5
+
+- Gamma: Rate of change of delta
+  - Highest for at-the-money options
+  - Shows delta instability
+
+- Theta: Time decay per day
+  - Usually negative (option loses value over time)
+  - Accelerates near expiration
+
+- Vega: Price change per 1% change in volatility
+  - Higher for longer-dated options
+  - Long options have positive vega
+
+- Rho: Price change per 1% change in interest rates
+  - Usually small effect
+
+Portfolio Greeks:
+- Sum of position Greeks weighted by position size
+- Delta-adjusted exposure: Stock equivalent exposure
+- Vega exposure: Volatility sensitivity
+
+SigmaSight calculates Greeks for options positions.""",
+        "metadata": {"type": "domain_primer", "topic": "greeks"},
     },
 ]
 
