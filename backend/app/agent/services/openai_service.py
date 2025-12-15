@@ -171,6 +171,17 @@ class OpenAIService:
     def _get_tool_definitions_responses(self) -> List[Dict[str, Any]]:
         """Convert our tool definitions to Responses API format (with full schemas)"""
         tools = [
+            # ===== Multi-Portfolio Discovery Tool =====
+            {
+                "name": "list_user_portfolios",
+                "type": "function",
+                "description": "List ALL portfolios for the authenticated user. Returns portfolio names, IDs, descriptions, and position counts. USE THIS TOOL FIRST when: (1) user asks about 'all my portfolios' or 'my portfolios', (2) user wants to compare portfolios, (3) user asks about aggregate holdings across accounts, (4) user asks a question without specifying which portfolio. After getting the list, use the portfolio_id from the results to query specific portfolios with other tools.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {},
+                    "required": []
+                }
+            },
             # ===== Core Portfolio Data Tools =====
             {
                 "name": "get_portfolio_complete",

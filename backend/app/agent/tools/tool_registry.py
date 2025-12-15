@@ -67,6 +67,9 @@ class ToolRegistry:
         
         # Registry mapping tool names to methods
         self.registry: Dict[str, Callable] = {
+            # Multi-Portfolio Discovery Tool (December 15, 2025)
+            "list_user_portfolios": self.tools.list_user_portfolios,
+            # Core Portfolio Data Tools
             "get_portfolio_complete": self.tools.get_portfolio_complete,
             "get_positions_details": self.tools.get_positions_details,
             "get_prices_historical": self.tools.get_prices_historical,
@@ -308,6 +311,9 @@ class ToolRegistry:
         
         # Map tool names to authenticated methods
         authenticated_registry = {
+            # Multi-Portfolio Discovery Tool (December 15, 2025)
+            "list_user_portfolios": authenticated_tools.list_user_portfolios,
+            # Core Portfolio Data Tools
             "get_portfolio_complete": authenticated_tools.get_portfolio_complete,
             "get_positions_details": authenticated_tools.get_positions_details,
             "get_prices_historical": authenticated_tools.get_prices_historical,

@@ -867,6 +867,52 @@ class PortfolioTools:
                 "retryable": isinstance(e, (httpx.TimeoutException, httpx.HTTPStatusError))
             }
 
+    async def list_user_portfolios(
+        self,
+        **kwargs
+    ) -> Dict[str, Any]:
+        """
+        List all portfolios for the authenticated user.
+
+        Returns a list of all portfolios the user has access to, including:
+        - Portfolio ID, name, and description
+        - Number of positions in each portfolio
+        - Total market value (if available)
+        - Investment class breakdown
+
+        Use this tool FIRST when:
+        - User asks about "all my portfolios" or "my portfolios"
+        - User wants to compare portfolios
+        - User asks about aggregate holdings across accounts
+        - User hasn't specified which portfolio they're asking about
+
+        Returns:
+            List of user portfolios with summary info
+        """
+        try:
+            endpoint = "/api/v1/portfolios"
+            response = await self._make_request(
+                method="GET",
+                endpoint=endpoint
+            )
+
+            # Add helper info about portfolios
+            if isinstance(response, list):
+                response = {
+                    "portfolios": response,
+                    "total_portfolios": len(response),
+                    "_tool_note": f"User has {len(response)} portfolio(s). Use portfolio_id from this list to query specific portfolios."
+                }
+
+            return response
+
+        except Exception as e:
+            logger.error(f"Error in list_user_portfolios: {e}")
+            return {
+                "error": str(e),
+                "retryable": isinstance(e, (httpx.TimeoutException, httpx.HTTPStatusError))
+            }
+
 
 # Import asyncio for retry logic
 import asyncio
