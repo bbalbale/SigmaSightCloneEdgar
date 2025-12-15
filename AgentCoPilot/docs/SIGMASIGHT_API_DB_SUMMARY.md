@@ -1,1 +1,0 @@
-See: /frontend/_docs/1. API_AND_DATABASE_SUMMARY.md

@@ -5,7 +5,11 @@
  * legacy/new response formats. Returns loading/error flags plus
  * calculation metadata for display in the risk metrics hero cards.
  *
+ * Supports aggregate view (when selectedPortfolioId is null) by calling
+ * the aggregate endpoint for equity-weighted averages across all portfolios.
+ *
  * Created for Risk Metrics hero refactor (Nov 2025).
+ * Updated for aggregate support (Dec 2025).
  */
 
 import { useEffect, useState } from 'react'
@@ -17,6 +21,7 @@ import type {
   DataQualityInfo,
   DataStalenessInfo,
   PortfolioFactorExposuresResponse,
+  AggregateFactorExposuresResponse,
 } from '@/types/analytics'
 
 type FactorResponse = PortfolioFactorExposuresResponse & {
@@ -124,8 +129,53 @@ function normalizeFactorExposure(response: FactorResponse | null | undefined): {
   }
 }
 
+// Normalize aggregate response to match single-portfolio format
+function normalizeAggregateFactorResponse(response: AggregateFactorExposuresResponse): {
+  factors: FactorExposure[] | null
+  available: boolean
+  calculationDate: string | null
+  metadata: FactorMetadata
+  dataQuality: FactorDataQuality
+  reason?: string
+} {
+  if (!response?.factors || response.factors.length === 0) {
+    return {
+      factors: null,
+      available: false,
+      calculationDate: null,
+      metadata: undefined,
+      dataQuality: null,
+      reason: undefined,
+    }
+  }
+
+  const factors: FactorExposure[] = response.factors.map(f => ({
+    name: f.name,
+    beta: f.aggregate_beta,
+    exposure_dollar: f.aggregate_exposure_dollar,
+  }))
+
+  return {
+    factors,
+    available: true,
+    calculationDate: response.calculation_date ?? null,
+    metadata: {
+      factor_model: 'aggregate',
+      calculation_method: 'equity_weighted',
+      completeness: 'full',
+      total_active_factors: factors.length,
+      factors_calculated: factors.length,
+      has_market_beta: factors.some(f => f.name.toLowerCase() === 'market') ? 1 : 0,
+    },
+    dataQuality: null,
+    reason: undefined,
+  }
+}
+
 export function useFactorExposures(): UseFactorExposuresReturn {
+  const selectedPortfolioId = usePortfolioStore(state => state.selectedPortfolioId)
   const portfolioId = usePortfolioStore(state => state.portfolioId)
+  const isAggregateView = selectedPortfolioId === null
 
   const [factors, setFactors] = useState<FactorExposure[] | null>(null)
   const [loading, setLoading] = useState(false)
@@ -141,7 +191,9 @@ export function useFactorExposures(): UseFactorExposuresReturn {
     let isMounted = true
 
     async function loadFactorExposures() {
-      if (!portfolioId) {
+      // For aggregate view, we don't need a portfolioId
+      // For single-portfolio view, we need the portfolioId
+      if (!isAggregateView && !portfolioId) {
         if (isMounted) {
           setFactors(null)
           setAvailable(false)
@@ -158,8 +210,24 @@ export function useFactorExposures(): UseFactorExposuresReturn {
       setError(null)
 
       try {
-        const { data } = await analyticsApi.getPortfolioFactorExposures(portfolioId)
-        const normalized = normalizeFactorExposure(data as FactorResponse)
+        let normalized: {
+          factors: FactorExposure[] | null
+          available: boolean
+          calculationDate: string | null
+          metadata: FactorMetadata
+          dataQuality: FactorDataQuality
+          reason?: string
+        }
+
+        if (isAggregateView) {
+          // Call aggregate endpoint for equity-weighted average across all portfolios
+          const { data } = await analyticsApi.getAggregateFactorExposures()
+          normalized = normalizeAggregateFactorResponse(data)
+        } else {
+          // Call single-portfolio endpoint
+          const { data } = await analyticsApi.getPortfolioFactorExposures(portfolioId!)
+          normalized = normalizeFactorExposure(data as FactorResponse)
+        }
 
         if (!isMounted) {
           return
@@ -196,7 +264,7 @@ export function useFactorExposures(): UseFactorExposuresReturn {
     return () => {
       isMounted = false
     }
-  }, [portfolioId, refetchToken])
+  }, [isAggregateView, portfolioId, refetchToken])
 
   const refetch = () => {
     setRefetchToken(prev => prev + 1)

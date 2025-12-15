@@ -54,6 +54,10 @@ class AnthropicProvider:
         """
         Get tool schemas in Anthropic format for Claude tool calling.
 
+        Core Data Tools (CRITICAL for answering position questions):
+        - get_portfolio_complete: Full portfolio with ALL positions, weights, values
+        - get_positions_details: Detailed position info with P&L
+
         Phase 1 Analytics Tools (October 31, 2025):
         - Portfolio risk metrics overview
         - Factor exposures
@@ -63,6 +67,35 @@ class AnthropicProvider:
         - Company profiles
         """
         return [
+            # CRITICAL: Core data tool for position questions
+            {
+                "name": "get_portfolio_complete",
+                "description": "Get comprehensive portfolio snapshot with ALL positions, their symbols, quantities, market values, and weights. Returns: portfolio total value, cash balance, and a list of all holdings with symbol, quantity, entry_price, current_price, market_value, weight_pct, sector, and P&L. USE THIS TOOL FIRST when asked about portfolio holdings, biggest positions, sector exposure, or portfolio composition.",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {
+                        "portfolio_id": {
+                            "type": "string",
+                            "description": "Portfolio UUID to retrieve complete data for"
+                        }
+                    },
+                    "required": ["portfolio_id"]
+                }
+            },
+            {
+                "name": "get_positions_details",
+                "description": "Get detailed position information including entry price, current price, quantity, market value, unrealized P&L, and investment class. Use this for detailed position-level analysis.",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {
+                        "portfolio_id": {
+                            "type": "string",
+                            "description": "Portfolio UUID to get position details for"
+                        }
+                    },
+                    "required": ["portfolio_id"]
+                }
+            },
             {
                 "name": "get_analytics_overview",
                 "description": "Get comprehensive portfolio risk analytics including beta, volatility, Sharpe ratio, max drawdown, and tracking error. Use this to understand overall portfolio risk profile.",

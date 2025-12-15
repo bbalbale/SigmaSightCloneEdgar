@@ -11,7 +11,7 @@ import React from 'react'
 import { useTheme } from '@/contexts/ThemeContext'
 import { useAIInsights } from '@/hooks/useAIInsights'
 import { AIInsightsRow } from '@/components/command-center/AIInsightsRow'
-import { ClaudeChatInterface } from '@/components/claude-insights/ClaudeChatInterface'
+import { CopilotPanel } from '@/components/copilot'
 import { Sparkles } from 'lucide-react'
 
 export function SigmaSightAIContainer() {
@@ -130,9 +130,9 @@ export function SigmaSightAIContainer() {
               </div>
             </div>
 
-            {/* Right Column: Claude Chat */}
+            {/* Right Column: AI Chat */}
             <div>
-              <ClaudeChatInterface />
+              <CopilotPanel variant="inline" pageHint="ai-chat" />
             </div>
           </div>
         </div>

@@ -2,7 +2,8 @@ version: '3.8'
 
 services:
   postgres:
-    image: postgres:17
+    # Use pgvector image for vector similarity search (RAG)
+    image: pgvector/pgvector:pg17
     environment:
       POSTGRES_USER: sigmasight
       POSTGRES_PASSWORD: sigmasight_dev

@@ -9,6 +9,8 @@ from openai.types.chat import ChatCompletionMessageParam, ChatCompletionToolPara
 import asyncio
 import uuid
 
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.config import settings
 from app.core.logging import get_logger
 from app.agent.tools.tool_registry import tool_registry
@@ -22,13 +24,17 @@ from app.agent.schemas.sse import (
     SSEDoneEvent,
     SSEErrorEvent
 )
+from app.agent.services.rag_service import (
+    retrieve_relevant_docs,
+    format_rag_docs_for_prompt,
+)
 
 logger = get_logger(__name__)
 
 
 class OpenAIService:
     """Service for handling OpenAI API interactions"""
-    
+
     def __init__(self):
         self.client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
         self.prompt_manager = PromptManager()
@@ -36,6 +42,64 @@ class OpenAIService:
         self.fallback_model = settings.MODEL_FALLBACK
         # Track tool call IDs for correlation between OpenAI and our system
         self.tool_call_id_map: Dict[str, Dict[str, Any]] = {}
+        # RAG configuration (from settings)
+        self.rag_enabled = settings.RAG_ENABLED
+        self.rag_doc_limit = settings.RAG_DOC_LIMIT
+        self.rag_max_chars = settings.RAG_MAX_CHARS
+
+    async def _get_rag_context(
+        self,
+        db: Optional[AsyncSession],
+        query: str,
+        portfolio_context: Optional[Dict[str, Any]] = None,
+    ) -> str:
+        """
+        Retrieve relevant RAG documents and format them for prompt injection.
+
+        Args:
+            db: Async database session (if None, RAG is skipped)
+            query: The user's query to search for
+            portfolio_context: Optional portfolio context for scope filtering
+
+        Returns:
+            Formatted RAG context string, or empty string if no docs found
+        """
+        if not self.rag_enabled or db is None:
+            return ""
+
+        try:
+            # Build scopes for filtering
+            scopes = ["global"]
+
+            # Add portfolio-specific scope if available
+            if portfolio_context and portfolio_context.get("portfolio_id"):
+                scopes.append(f"portfolio:{portfolio_context['portfolio_id']}")
+
+            # Add page-specific scope if available
+            if portfolio_context and portfolio_context.get("page_hint"):
+                scopes.append(f"page:{portfolio_context['page_hint']}")
+
+            # Retrieve relevant documents
+            docs = await retrieve_relevant_docs(
+                db,
+                query=query,
+                scopes=scopes,
+                limit=self.rag_doc_limit,
+            )
+
+            if not docs:
+                logger.debug(f"[RAG] No relevant docs found for query")
+                return ""
+
+            # Format docs for prompt injection
+            rag_context = format_rag_docs_for_prompt(docs, max_chars=self.rag_max_chars)
+            logger.info(f"[RAG] Injecting {len(docs)} docs ({len(rag_context)} chars) into prompt")
+
+            return rag_context
+
+        except Exception as e:
+            logger.warning(f"[RAG] Failed to retrieve context: {e}")
+            return ""
         
     
     def _get_tool_definitions(self) -> List[Dict[str, Any]]:
@@ -45,10 +109,11 @@ class OpenAIService:
     def _get_tool_definitions_responses(self) -> List[Dict[str, Any]]:
         """Convert our tool definitions to Responses API format (with full schemas)"""
         tools = [
+            # ===== Core Portfolio Data Tools =====
             {
                 "name": "get_portfolio_complete",
                 "type": "function",
-                "description": "Get comprehensive portfolio snapshot with positions, values, and optional data",
+                "description": "Get comprehensive portfolio snapshot with ALL positions, their symbols, quantities, market values, and weights. Returns: portfolio total value, cash balance, and a list of all holdings with symbol, quantity, entry_price, current_price, market_value, weight_pct, sector, and P&L. USE THIS TOOL FIRST when asked about portfolio holdings, biggest positions, sector exposure, or portfolio composition.",
                 "parameters": {
                     "type": "object",
                     "properties": {
@@ -58,7 +123,7 @@ class OpenAIService:
                         },
                         "include_holdings": {
                             "type": "boolean",
-                            "description": "Include position details",
+                            "description": "Include position details (always True for position questions)",
                             "default": True
                         },
                         "include_timeseries": {
@@ -76,9 +141,33 @@ class OpenAIService:
                 }
             },
             {
+                "name": "get_positions_details",
+                "type": "function",
+                "description": "Get detailed position-level information with P&L calculations. Returns for each position: symbol, quantity, entry_price, current_price, market_value, cost_basis, unrealized_pnl, unrealized_pnl_pct, sector, industry. Use when asked about specific positions or detailed P&L breakdown.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "portfolio_id": {
+                            "type": "string",
+                            "description": "Portfolio UUID"
+                        },
+                        "position_ids": {
+                            "type": "string",
+                            "description": "Comma-separated position IDs (optional, gets all if omitted)"
+                        },
+                        "include_closed": {
+                            "type": "boolean",
+                            "description": "Include closed positions",
+                            "default": False
+                        }
+                    },
+                    "required": ["portfolio_id"]
+                }
+            },
+            {
                 "name": "get_portfolio_data_quality",
-                "type": "function", 
-                "description": "Assess portfolio data completeness and quality metrics",
+                "type": "function",
+                "description": "Assess portfolio data completeness and quality metrics. Returns data quality score, available analyses, and any missing data warnings.",
                 "parameters": {
                     "type": "object",
                     "properties": {
@@ -100,34 +189,11 @@ class OpenAIService:
                     "required": ["portfolio_id"]
                 }
             },
-            {
-                "name": "get_positions_details",
-                "type": "function",
-                "description": "Get detailed position information with P&L calculations",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "portfolio_id": {
-                            "type": "string",
-                            "description": "Portfolio UUID"
-                        },
-                        "position_ids": {
-                            "type": "string",
-                            "description": "Comma-separated position IDs"
-                        },
-                        "include_closed": {
-                            "type": "boolean",
-                            "description": "Include closed positions",
-                            "default": False
-                        }
-                    },
-                    "required": []
-                }
-            },
+            # ===== Market Data Tools =====
             {
                 "name": "get_prices_historical",
                 "type": "function",
-                "description": "Retrieve historical price data for portfolio symbols",
+                "description": "Retrieve historical price data for portfolio symbols. Returns daily OHLCV data for top holdings.",
                 "parameters": {
                     "type": "object",
                     "properties": {
@@ -142,7 +208,7 @@ class OpenAIService:
                         },
                         "include_factor_etfs": {
                             "type": "boolean",
-                            "description": "Include factor ETF prices",
+                            "description": "Include factor ETF prices for comparison",
                             "default": False
                         }
                     },
@@ -152,7 +218,7 @@ class OpenAIService:
             {
                 "name": "get_current_quotes",
                 "type": "function",
-                "description": "Get real-time market quotes for specified symbols",
+                "description": "Get real-time market quotes for specified symbols. Returns current price, change, change_pct, volume, bid, ask.",
                 "parameters": {
                     "type": "object",
                     "properties": {
@@ -172,7 +238,7 @@ class OpenAIService:
             {
                 "name": "get_factor_etf_prices",
                 "type": "function",
-                "description": "Get current and historical prices for factor ETFs. Call this tool when users ask about factor ETF prices, factor investing, or factor analysis. Returns market beta (SPY) by default, or specific factors if requested. Available factors: SPY (Market Beta), VTV (Value), VUG (Growth), MTUM (Momentum), QUAL (Quality), SLY (Size/Small Cap), USMV (Low Volatility).",
+                "description": "Get historical prices for factor ETFs (SPY, VTV, VUG, MTUM, QUAL, SLY, USMV). Use for factor analysis and benchmark comparison.",
                 "parameters": {
                     "type": "object",
                     "properties": {
@@ -183,10 +249,162 @@ class OpenAIService:
                         },
                         "factors": {
                             "type": "string",
-                            "description": "Comma-separated factor names"
+                            "description": "Comma-separated factor names (e.g., 'SPY,VTV,MTUM')"
                         }
                     },
                     "required": []
+                }
+            },
+            # ===== Analytics Tools =====
+            {
+                "name": "get_analytics_overview",
+                "type": "function",
+                "description": "Get portfolio analytics overview including total value, returns, beta, volatility, Sharpe ratio, and sector breakdown.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "portfolio_id": {
+                            "type": "string",
+                            "description": "Portfolio UUID"
+                        }
+                    },
+                    "required": ["portfolio_id"]
+                }
+            },
+            {
+                "name": "get_factor_exposures",
+                "type": "function",
+                "description": "Get portfolio factor exposures (Market, Size, Value, Momentum, Quality, Low Volatility). Returns factor betas and R-squared.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "portfolio_id": {
+                            "type": "string",
+                            "description": "Portfolio UUID"
+                        }
+                    },
+                    "required": ["portfolio_id"]
+                }
+            },
+            {
+                "name": "get_sector_exposure",
+                "type": "function",
+                "description": "Get detailed sector exposure breakdown vs S&P 500 benchmark. Returns sector weights, over/underweights, and top holdings per sector.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "portfolio_id": {
+                            "type": "string",
+                            "description": "Portfolio UUID"
+                        }
+                    },
+                    "required": ["portfolio_id"]
+                }
+            },
+            {
+                "name": "get_correlation_matrix",
+                "type": "function",
+                "description": "Get correlation matrix for portfolio positions. Shows how positions move relative to each other.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "portfolio_id": {
+                            "type": "string",
+                            "description": "Portfolio UUID"
+                        }
+                    },
+                    "required": ["portfolio_id"]
+                }
+            },
+            {
+                "name": "get_stress_test_results",
+                "type": "function",
+                "description": "Get stress test results showing portfolio impact under various market scenarios (e.g., 2008 crisis, COVID crash, rate hikes).",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "portfolio_id": {
+                            "type": "string",
+                            "description": "Portfolio UUID"
+                        }
+                    },
+                    "required": ["portfolio_id"]
+                }
+            },
+            {
+                "name": "get_concentration_metrics",
+                "type": "function",
+                "description": "Get portfolio concentration metrics including HHI (Herfindahl-Hirschman Index), top position weights, and concentration risk scores.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "portfolio_id": {
+                            "type": "string",
+                            "description": "Portfolio UUID"
+                        }
+                    },
+                    "required": ["portfolio_id"]
+                }
+            },
+            {
+                "name": "get_volatility_analysis",
+                "type": "function",
+                "description": "Get portfolio volatility analysis including historical volatility, VaR (Value at Risk), and HAR volatility forecasts.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "portfolio_id": {
+                            "type": "string",
+                            "description": "Portfolio UUID"
+                        }
+                    },
+                    "required": ["portfolio_id"]
+                }
+            },
+            # ===== Reference Data Tools =====
+            {
+                "name": "get_company_profile",
+                "type": "function",
+                "description": "Get company profile information including name, sector, industry, market cap, description, and key financials.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "symbol": {
+                            "type": "string",
+                            "description": "Stock symbol (e.g., 'AAPL')"
+                        }
+                    },
+                    "required": ["symbol"]
+                }
+            },
+            {
+                "name": "get_target_prices",
+                "type": "function",
+                "description": "Get analyst target prices for positions in the portfolio.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "portfolio_id": {
+                            "type": "string",
+                            "description": "Portfolio UUID"
+                        }
+                    },
+                    "required": ["portfolio_id"]
+                }
+            },
+            {
+                "name": "get_position_tags",
+                "type": "function",
+                "description": "Get tags/labels assigned to portfolio positions (e.g., 'growth', 'dividend', 'core holding').",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "portfolio_id": {
+                            "type": "string",
+                            "description": "Portfolio UUID"
+                        }
+                    },
+                    "required": ["portfolio_id"]
                 }
             }
         ]
@@ -301,11 +519,12 @@ class OpenAIService:
         return messages
     
     def _build_responses_input(
-        self, 
-        conversation_mode: str, 
-        message_history: List[Dict[str, Any]], 
+        self,
+        conversation_mode: str,
+        message_history: List[Dict[str, Any]],
         user_message: str,
-        portfolio_context: Optional[Dict[str, Any]] = None
+        portfolio_context: Optional[Dict[str, Any]] = None,
+        rag_context: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
         """Build input structure for OpenAI Responses API (array of messages)"""
         # Get system prompt for the mode
@@ -313,13 +532,30 @@ class OpenAIService:
             conversation_mode,
             user_context=portfolio_context
         )
-        
+
+        # Inject RAG context if available
+        if rag_context:
+            rag_section = f"""
+---
+
+## Relevant Knowledge Base Context
+
+The following documents may be relevant to the user's question. Use this information to provide more accurate and informed responses:
+
+{rag_context}
+
+---
+"""
+            # Insert RAG context after the system prompt header
+            system_prompt = system_prompt + "\n" + rag_section
+            logger.debug(f"[RAG] Added {len(rag_context)} chars of RAG context to system prompt")
+
         # [TRACE] PROMPT-CHECK System Prompt (Phase 9.12.1 investigation)
         logger.info(f"[TRACE] PROMPT-CHECK: {system_prompt[:200]}...")
-        
+
         # Build message history for input (starting with system message)
         messages = []
-        
+
         # Add system message first (Responses API format)
         messages.append({
             "role": "system",
@@ -363,11 +599,23 @@ class OpenAIService:
         portfolio_context: Optional[Dict[str, Any]] = None,
         run_id: Optional[str] = None,
         auth_context: Optional[Dict[str, Any]] = None,
-        model_override: Optional[str] = None
+        model_override: Optional[str] = None,
+        db: Optional[AsyncSession] = None,
     ) -> AsyncGenerator[str, None]:
         """
         Stream responses using OpenAI Responses API with proper tool execution handshake
-        
+
+        Args:
+            conversation_id: Conversation UUID
+            conversation_mode: Mode for prompt selection (e.g., 'green', 'blue')
+            message_text: User's message text
+            message_history: Previous conversation messages
+            portfolio_context: Portfolio context dict with portfolio_id, etc.
+            run_id: Optional run ID for tracing
+            auth_context: Authentication context
+            model_override: Optional model override
+            db: Optional database session for RAG context retrieval
+
         Yields SSE formatted events with standardized contract (type, run_id, seq fields)
         """
         run_id = run_id or str(uuid.uuid4())
@@ -376,14 +624,22 @@ class OpenAIService:
         token_count_initial = 0
         token_count_continuation = 0
         model_to_use = model_override or self.model
-        
+
         try:
-            # Build Responses API input
+            # Retrieve RAG context before building input
+            rag_context = await self._get_rag_context(
+                db=db,
+                query=message_text,
+                portfolio_context=portfolio_context,
+            )
+
+            # Build Responses API input with RAG context
             input_data = self._build_responses_input(
                 conversation_mode,
                 message_history or [],
                 message_text,
-                portfolio_context
+                portfolio_context,
+                rag_context=rag_context,
             )
             
             # Get tool definitions for Responses API

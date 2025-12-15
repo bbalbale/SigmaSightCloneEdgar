@@ -10,6 +10,16 @@ import type {
   VolatilityMetricsResponse,
   SectorExposureResponse,
   ConcentrationMetricsResponse,
+  // Aggregate types
+  AggregateOverviewResponse,
+  AggregateBreakdownResponse,
+  AggregateBetaResponse,
+  AggregateVolatilityResponse,
+  AggregateFactorExposuresResponse,
+  AggregateSectorExposureResponse,
+  AggregateConcentrationResponse,
+  AggregateCorrelationMatrixResponse,
+  AggregateStressTestResponse,
 } from '@/types/analytics';
 
 function getAuthHeader(): Record<string, string> {
@@ -149,6 +159,107 @@ export const analyticsApi = {
     const url = apiClient.buildUrl(endpoint);
     const data = await apiClient.get<ConcentrationMetricsResponse>(endpoint, {
       ...REQUEST_CONFIGS.STANDARD,
+      headers: { ...getAuthHeader() },
+    });
+    return { data, url };
+  },
+
+  // ============================================================================
+  // Aggregate Methods (Equity-weighted across all portfolios)
+  // ============================================================================
+
+  async getAggregateOverview(): Promise<{ data: AggregateOverviewResponse; url: string }> {
+    const endpoint = API_ENDPOINTS.ANALYTICS.AGGREGATE.OVERVIEW;
+    const url = apiClient.buildUrl(endpoint);
+    const data = await apiClient.get<AggregateOverviewResponse>(endpoint, {
+      ...REQUEST_CONFIGS.STANDARD,
+      headers: { ...getAuthHeader() },
+    });
+    return { data, url };
+  },
+
+  async getAggregateBreakdown(): Promise<{ data: AggregateBreakdownResponse; url: string }> {
+    const endpoint = API_ENDPOINTS.ANALYTICS.AGGREGATE.BREAKDOWN;
+    const url = apiClient.buildUrl(endpoint);
+    const data = await apiClient.get<AggregateBreakdownResponse>(endpoint, {
+      ...REQUEST_CONFIGS.STANDARD,
+      headers: { ...getAuthHeader() },
+    });
+    return { data, url };
+  },
+
+  async getAggregateBeta(): Promise<{ data: AggregateBetaResponse; url: string }> {
+    const endpoint = API_ENDPOINTS.ANALYTICS.AGGREGATE.BETA;
+    const url = apiClient.buildUrl(endpoint);
+    const data = await apiClient.get<AggregateBetaResponse>(endpoint, {
+      ...REQUEST_CONFIGS.STANDARD,
+      headers: { ...getAuthHeader() },
+    });
+    return { data, url };
+  },
+
+  async getAggregateVolatility(): Promise<{ data: AggregateVolatilityResponse; url: string }> {
+    const endpoint = API_ENDPOINTS.ANALYTICS.AGGREGATE.VOLATILITY;
+    const url = apiClient.buildUrl(endpoint);
+    const data = await apiClient.get<AggregateVolatilityResponse>(endpoint, {
+      ...REQUEST_CONFIGS.STANDARD,
+      headers: { ...getAuthHeader() },
+    });
+    return { data, url };
+  },
+
+  async getAggregateFactorExposures(): Promise<{ data: AggregateFactorExposuresResponse; url: string }> {
+    const endpoint = API_ENDPOINTS.ANALYTICS.AGGREGATE.FACTOR_EXPOSURES;
+    const url = apiClient.buildUrl(endpoint);
+    const data = await apiClient.get<AggregateFactorExposuresResponse>(endpoint, {
+      ...REQUEST_CONFIGS.ANALYTICS_HEAVY,
+      headers: { ...getAuthHeader() },
+    });
+    return { data, url };
+  },
+
+  async getAggregateSectorExposure(): Promise<{ data: AggregateSectorExposureResponse; url: string }> {
+    const endpoint = API_ENDPOINTS.ANALYTICS.AGGREGATE.SECTOR_EXPOSURE;
+    const url = apiClient.buildUrl(endpoint);
+    const data = await apiClient.get<AggregateSectorExposureResponse>(endpoint, {
+      ...REQUEST_CONFIGS.STANDARD,
+      headers: { ...getAuthHeader() },
+    });
+    return { data, url };
+  },
+
+  async getAggregateConcentration(): Promise<{ data: AggregateConcentrationResponse; url: string }> {
+    const endpoint = API_ENDPOINTS.ANALYTICS.AGGREGATE.CONCENTRATION;
+    const url = apiClient.buildUrl(endpoint);
+    const data = await apiClient.get<AggregateConcentrationResponse>(endpoint, {
+      ...REQUEST_CONFIGS.STANDARD,
+      headers: { ...getAuthHeader() },
+    });
+    return { data, url };
+  },
+
+  async getAggregateCorrelationMatrix(
+    params?: { lookback_days?: number; max_positions?: number }
+  ): Promise<{ data: AggregateCorrelationMatrixResponse; url: string }> {
+    const baseEndpoint = API_ENDPOINTS.ANALYTICS.AGGREGATE.CORRELATION_MATRIX;
+    const queryParams = new URLSearchParams();
+    if (params?.lookback_days != null) queryParams.set('lookback_days', String(params.lookback_days));
+    if (params?.max_positions != null) queryParams.set('max_positions', String(params.max_positions));
+    const queryString = queryParams.toString();
+    const endpoint = queryString ? `${baseEndpoint}?${queryString}` : baseEndpoint;
+    const url = apiClient.buildUrl(endpoint);
+    const data = await apiClient.get<AggregateCorrelationMatrixResponse>(endpoint, {
+      ...REQUEST_CONFIGS.CALCULATION,
+      headers: { ...getAuthHeader() },
+    });
+    return { data, url };
+  },
+
+  async getAggregateStressTest(): Promise<{ data: AggregateStressTestResponse; url: string }> {
+    const endpoint = API_ENDPOINTS.ANALYTICS.AGGREGATE.STRESS_TEST;
+    const url = apiClient.buildUrl(endpoint);
+    const data = await apiClient.get<AggregateStressTestResponse>(endpoint, {
+      ...REQUEST_CONFIGS.CALCULATION,
       headers: { ...getAuthHeader() },
     });
     return { data, url };
