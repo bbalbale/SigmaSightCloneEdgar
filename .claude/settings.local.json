@@ -39,7 +39,10 @@
       "Bash(dir \"C:\\Users\\BenBalbale\\CascadeProjects\\SigmaSight\\frontend\\_docs\" /b)",
       "Bash(dir /s /b \"C:\\Users\\BenBalbale\\CascadeProjects\\SigmaSight\\gptagent\\*.json\")",
       "Bash(findstr:*)",
-      "Bash(dir /s /b \"C:\\Users\\BenBalbale\\CascadeProjects\\SigmaSight\\gptagent\\*.ts\")"
+      "Bash(dir /s /b \"C:\\Users\\BenBalbale\\CascadeProjects\\SigmaSight\\gptagent\\*.ts\")",
+      "mcp__playwright__browser_take_screenshot",
+      "Bash(uv run:*)",
+      "Bash(dir:*)"
     ],
     "deny": [],
     "ask": [],

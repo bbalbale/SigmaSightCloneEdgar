@@ -15,7 +15,7 @@ import { SectorExposure } from '@/components/risk-metrics/SectorExposure'
 import { FactorExposureCards } from '@/components/risk-metrics/FactorExposureCards'
 import { AccountFilter } from '@/components/portfolio/AccountFilter'
 import { usePortfolioStore, type PortfolioListItem } from '@/stores/portfolioStore'
-import { AlertTriangle, Info } from 'lucide-react'
+import { AlertTriangle, Info, TrendingUp } from 'lucide-react'
 
 /**
  * RiskMetricsContainer
@@ -23,166 +23,20 @@ import { AlertTriangle, Info } from 'lucide-react'
  * Container component for the Risk Metrics page.
  * Follows standard architecture: thin page → container → hooks → services
  *
- * Updated December 2025: Added multi-portfolio support with AccountFilter
- * - Shows portfolio selector for users with multiple portfolios
- * - Displays current portfolio name in header
+ * Updated December 2025: True aggregate view support
+ * - Default view is "All Accounts" with equity-weighted aggregate metrics
+ * - Hooks automatically call aggregate endpoints when selectedPortfolioId is null
+ * - Shows portfolio selector for switching between aggregate and individual portfolios
  * - Shows warning for private portfolios (no public market data)
- * - In aggregate view, shows metrics for each portfolio separately
  *
  * Responsibilities:
- * - Fetch all risk metrics data via custom hooks
+ * - Fetch all risk metrics data via custom hooks (hooks auto-detect aggregate mode)
  * - Orchestrate layout and component composition
  * - Pass data down to presentation components
  *
  * All API calls go through:
  * hooks → analyticsApi service → apiClient → backend
  */
-
-/**
- * Single Portfolio Risk Metrics Section
- * Renders all risk metrics for a single portfolio
- */
-function PortfolioRiskMetricsSection({
-  portfolio,
-  showHeader = true
-}: {
-  portfolio: PortfolioListItem
-  showHeader?: boolean
-}) {
-  // Temporarily set the portfolioId in store to fetch this portfolio's data
-  const setSelectedPortfolio = usePortfolioStore((state) => state.setSelectedPortfolio)
-
-  // Check if this portfolio is private
-  const isPrivatePortfolio = portfolio.account_name?.toLowerCase().includes('private') ?? false
-
-  // We need the hooks to use this specific portfolio
-  // The hooks read from portfolioId in the store
-  const factorExposures = useFactorExposures()
-  const spreadFactors = useSpreadFactors()
-  const correlationMatrix = useCorrelationMatrix()
-  const stressTest = useStressTest()
-  const volatility = useVolatility()
-  const sectorExposure = useSectorExposure()
-
-  const spreadErrorMessage = (() => {
-    const { error } = spreadFactors
-    if (!error) return null
-    if (typeof error === 'string') return error
-    if (error instanceof Error) return error.message
-    if (typeof error === 'object' && 'message' in error) {
-      return String((error as { message?: unknown }).message ?? 'Unable to load spread factors')
-    }
-    return 'Unable to load spread factors'
-  })()
-
-  const factorErrorMessage = factorExposures.error ?? factorExposures.reason ?? null
-
-  return (
-    <div className="mb-8">
-      {/* Portfolio Header */}
-      {showHeader && (
-        <div className="px-4 pb-4">
-          <div className="container mx-auto">
-            <h2 className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>
-              {portfolio.account_name}
-            </h2>
-            <p className="text-sm text-muted-foreground">
-              Portfolio-specific risk analytics and scenario testing
-            </p>
-          </div>
-        </div>
-      )}
-
-      {/* Private Portfolio Warning */}
-      {isPrivatePortfolio && (
-        <div className="px-4 pb-4">
-          <div className="container mx-auto">
-            <div className="flex items-center gap-3 p-4 rounded-lg border border-yellow-500/30 bg-yellow-500/10">
-              <AlertTriangle className="h-5 w-5 text-yellow-500 flex-shrink-0" />
-              <div>
-                <p className="text-sm font-medium text-yellow-600 dark:text-yellow-400">
-                  Limited Analytics for Private Holdings
-                </p>
-                <p className="text-sm text-muted-foreground">
-                  Risk metrics require public market data. Private investments don&apos;t have standard market analytics.
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Factor & Spread Analysis Cards */}
-      <FactorExposureCards
-        ridgeFactors={factorExposures.factors}
-        spreadFactors={spreadFactors.spreadFactors}
-        ridgeLoading={factorExposures.loading}
-        spreadLoading={spreadFactors.loading}
-        ridgeError={factorErrorMessage}
-        spreadError={spreadErrorMessage}
-        ridgeCalculationDate={factorExposures.calculationDate}
-        spreadCalculationDate={spreadFactors.calculationDate ?? null}
-        onRefetchRidge={factorExposures.refetch}
-        onRefetchSpread={spreadFactors.refetch}
-      />
-
-      {/* Stress Test Section */}
-      <section className="px-4 pb-6">
-        <div className="container mx-auto">
-          <StressTest
-            data={stressTest.data}
-            loading={stressTest.loading}
-            error={stressTest.error}
-            onRetry={stressTest.refetch}
-          />
-        </div>
-      </section>
-
-      {/* Correlation Matrix Section */}
-      <section className="px-4 pb-6">
-        <div className="container mx-auto">
-          <CorrelationMatrix
-            data={correlationMatrix.data}
-            loading={correlationMatrix.loading}
-            error={correlationMatrix.error}
-            onRetry={correlationMatrix.refetch}
-          />
-        </div>
-      </section>
-
-      {/* Volatility Analysis Section */}
-      <section className="px-4 py-8">
-        <div className="container mx-auto">
-          <VolatilityMetrics
-            data={volatility.data}
-            loading={volatility.loading}
-            error={volatility.error}
-            onRetry={volatility.refetch}
-          />
-        </div>
-      </section>
-
-      {/* S&P Sector Allocation */}
-      <section className="px-4 py-8">
-        <div className="container mx-auto">
-          <SectorExposure
-            data={sectorExposure.data}
-            loading={sectorExposure.loading}
-            error={sectorExposure.error}
-            onRetry={sectorExposure.refetch}
-          />
-        </div>
-      </section>
-
-      {/* Market Beta Comparison Section */}
-      <section className="px-4 py-8">
-        <div className="container mx-auto">
-          <MarketBetaComparison />
-        </div>
-      </section>
-    </div>
-  )
-}
 
 export function RiskMetricsContainer() {
   // Get current portfolio info from store
@@ -232,7 +86,21 @@ export function RiskMetricsContainer() {
 
   const factorErrorMessage = factorExposures.error ?? factorExposures.reason ?? null
 
-  // In aggregate view with multiple portfolios, show each portfolio's metrics separately
+  // Calculate total NAV for aggregate view
+  const totalNAV = activePortfolios.reduce((sum, p) => sum + (p.net_asset_value ?? p.total_value ?? 0), 0)
+  const totalPositions = activePortfolios.reduce((sum, p) => sum + (p.position_count ?? 0), 0)
+
+  // Format currency
+  const formatCurrency = (value: number) => {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(value)
+  }
+
+  // In aggregate view with multiple portfolios, show TRUE aggregate metrics (equity-weighted)
   if (isAggregateView && isMultiPortfolio) {
     return (
       <div className="min-h-screen transition-colors duration-300 bg-primary">
@@ -249,29 +117,34 @@ export function RiskMetricsContainer() {
           </div>
         </div>
 
-        {/* Aggregate View Header */}
+        {/* Aggregate View Header with Total NAV */}
         <div className="px-4 pb-4">
           <div className="container mx-auto">
-            <h2 className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>
-              All Accounts
-            </h2>
-            <p className="text-sm text-muted-foreground">
-              Combined risk analytics across {activePortfolios.length} portfolios
-            </p>
+            <div className="flex items-center gap-3">
+              <TrendingUp className="h-6 w-6 text-emerald-500" />
+              <div>
+                <h2 className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>
+                  All Accounts
+                </h2>
+                <p className="text-sm text-muted-foreground">
+                  {formatCurrency(totalNAV)} across {activePortfolios.length} portfolios • {totalPositions} total positions
+                </p>
+              </div>
+            </div>
           </div>
         </div>
 
-        {/* Info Banner about Aggregate View */}
+        {/* Info Banner about Equity-Weighted Aggregate View */}
         <div className="px-4 pb-4">
           <div className="container mx-auto">
             <div className="flex items-center gap-3 p-4 rounded-lg border border-blue-500/30 bg-blue-500/10">
               <Info className="h-5 w-5 text-blue-500 flex-shrink-0" />
               <div>
                 <p className="text-sm text-muted-foreground">
-                  Viewing risk metrics for {activePortfolios.length} portfolio{activePortfolios.length !== 1 ? 's' : ''}.
-                  {publicPortfolios.length > 0 && privatePortfolios.length > 0 && (
-                    <> Public portfolios ({publicPortfolios.length}) show full analytics.
-                    Private portfolios ({privatePortfolios.length}) have limited market data.</>
+                  <span className="font-medium text-blue-600 dark:text-blue-400">Equity-Weighted Aggregate View</span>
+                  {' — '}All risk metrics are calculated as weighted averages based on each portfolio&apos;s NAV.
+                  {privatePortfolios.length > 0 && (
+                    <> Note: {privatePortfolios.length} private portfolio{privatePortfolios.length !== 1 ? 's' : ''} excluded from public market analytics.</>
                   )}
                 </p>
               </div>
@@ -279,141 +152,69 @@ export function RiskMetricsContainer() {
           </div>
         </div>
 
-        {/* Render first public portfolio's full metrics */}
-        {publicPortfolios.length > 0 && (
-          <div className="border-t border-border/50 pt-6 mt-6">
-            <div className="px-4 pb-4">
-              <div className="container mx-auto">
-                <h3 className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>
-                  {publicPortfolios[0].account_name}
-                </h3>
-                <p className="text-sm text-muted-foreground">
-                  {publicPortfolios[0].position_count} positions • Public market analytics
-                </p>
-              </div>
-            </div>
+        {/* Show aggregate metrics (hooks automatically fetch aggregate data) */}
+        <FactorExposureCards
+          ridgeFactors={factorExposures.factors}
+          spreadFactors={spreadFactors.spreadFactors}
+          ridgeLoading={factorExposures.loading}
+          spreadLoading={spreadFactors.loading}
+          ridgeError={factorErrorMessage}
+          spreadError={spreadErrorMessage}
+          ridgeCalculationDate={factorExposures.calculationDate}
+          spreadCalculationDate={spreadFactors.calculationDate ?? null}
+          onRefetchRidge={factorExposures.refetch}
+          onRefetchSpread={spreadFactors.refetch}
+        />
 
-            {/* Show full metrics for the first public portfolio */}
-            <FactorExposureCards
-              ridgeFactors={factorExposures.factors}
-              spreadFactors={spreadFactors.spreadFactors}
-              ridgeLoading={factorExposures.loading}
-              spreadLoading={spreadFactors.loading}
-              ridgeError={factorErrorMessage}
-              spreadError={spreadErrorMessage}
-              ridgeCalculationDate={factorExposures.calculationDate}
-              spreadCalculationDate={spreadFactors.calculationDate ?? null}
-              onRefetchRidge={factorExposures.refetch}
-              onRefetchSpread={spreadFactors.refetch}
+        <section className="px-4 pb-6">
+          <div className="container mx-auto">
+            <StressTest
+              data={stressTest.data}
+              loading={stressTest.loading}
+              error={stressTest.error}
+              onRetry={stressTest.refetch}
             />
-
-            <section className="px-4 pb-6">
-              <div className="container mx-auto">
-                <StressTest
-                  data={stressTest.data}
-                  loading={stressTest.loading}
-                  error={stressTest.error}
-                  onRetry={stressTest.refetch}
-                />
-              </div>
-            </section>
-
-            <section className="px-4 pb-6">
-              <div className="container mx-auto">
-                <CorrelationMatrix
-                  data={correlationMatrix.data}
-                  loading={correlationMatrix.loading}
-                  error={correlationMatrix.error}
-                  onRetry={correlationMatrix.refetch}
-                />
-              </div>
-            </section>
-
-            <section className="px-4 py-8">
-              <div className="container mx-auto">
-                <VolatilityMetrics
-                  data={volatility.data}
-                  loading={volatility.loading}
-                  error={volatility.error}
-                  onRetry={volatility.refetch}
-                />
-              </div>
-            </section>
-
-            <section className="px-4 py-8">
-              <div className="container mx-auto">
-                <SectorExposure
-                  data={sectorExposure.data}
-                  loading={sectorExposure.loading}
-                  error={sectorExposure.error}
-                  onRetry={sectorExposure.refetch}
-                />
-              </div>
-            </section>
-
-            <section className="px-4 py-8">
-              <div className="container mx-auto">
-                <MarketBetaComparison />
-              </div>
-            </section>
           </div>
-        )}
+        </section>
 
-        {/* For additional public portfolios beyond the first, show a message */}
-        {publicPortfolios.slice(1).map((portfolio) => (
-          <div key={portfolio.id} className="border-t border-border/50 pt-6 mt-6">
-            <div className="px-4 pb-4">
-              <div className="container mx-auto">
-                <h3 className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>
-                  {portfolio.account_name}
-                </h3>
-                <p className="text-sm text-muted-foreground">
-                  {portfolio.position_count} positions • Public market analytics available
-                </p>
-              </div>
-            </div>
-            <div className="px-4 pb-6">
-              <div className="container mx-auto">
-                <div className="p-6 rounded-lg border border-border/50 bg-muted/30 text-center">
-                  <p className="text-sm text-muted-foreground">
-                    Select &quot;{portfolio.account_name}&quot; from the dropdown above to view detailed risk metrics.
-                  </p>
-                </div>
-              </div>
-            </div>
+        <section className="px-4 pb-6">
+          <div className="container mx-auto">
+            <CorrelationMatrix
+              data={correlationMatrix.data}
+              loading={correlationMatrix.loading}
+              error={correlationMatrix.error}
+              onRetry={correlationMatrix.refetch}
+            />
           </div>
-        ))}
+        </section>
 
-        {/* Show private portfolios with limited analytics message */}
-        {privatePortfolios.map((portfolio) => (
-          <div key={portfolio.id} className="border-t border-border/50 pt-6 mt-6">
-            <div className="px-4 pb-4">
-              <div className="container mx-auto">
-                <h3 className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>
-                  {portfolio.account_name}
-                </h3>
-                <p className="text-sm text-muted-foreground">
-                  {portfolio.position_count} positions • Private holdings
-                </p>
-              </div>
-            </div>
-            <div className="px-4 pb-6">
-              <div className="container mx-auto">
-                <div className="flex items-center gap-3 p-4 rounded-lg border border-yellow-500/30 bg-yellow-500/10">
-                  <AlertTriangle className="h-5 w-5 text-yellow-500 flex-shrink-0" />
-                  <div>
-                    <p className="text-sm font-medium text-yellow-600 dark:text-yellow-400">
-                      Limited Analytics Available
-                    </p>
-                    <p className="text-sm text-muted-foreground">
-                      Risk metrics require public market data. Private investments don&apos;t have standard market analytics like volatility, beta, or factor exposures.
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </div>
+        <section className="px-4 py-8">
+          <div className="container mx-auto">
+            <VolatilityMetrics
+              data={volatility.data}
+              loading={volatility.loading}
+              error={volatility.error}
+              onRetry={volatility.refetch}
+            />
           </div>
-        ))}
+        </section>
+
+        <section className="px-4 py-8">
+          <div className="container mx-auto">
+            <SectorExposure
+              data={sectorExposure.data}
+              loading={sectorExposure.loading}
+              error={sectorExposure.error}
+              onRetry={sectorExposure.refetch}
+            />
+          </div>
+        </section>
+
+        <section className="px-4 py-8">
+          <div className="container mx-auto">
+            <MarketBetaComparison />
+          </div>
+        </section>
       </div>
     )
   }

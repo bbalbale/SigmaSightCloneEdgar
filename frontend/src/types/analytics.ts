@@ -286,3 +286,162 @@ export interface ConcentrationMetricsResponse {
   };
 }
 
+// ============================================================================
+// Aggregate Response Types (Equity-weighted across all portfolios)
+// ============================================================================
+
+export interface AggregatePortfolioBreakdown {
+  portfolio_id: string;
+  portfolio_name: string;
+  value: number;
+  weight: number;
+}
+
+export interface AggregateOverviewResponse {
+  total_value: number;
+  portfolio_count: number;
+  portfolios: AggregatePortfolioBreakdown[];
+  calculation_date: string;
+}
+
+export interface AggregateBreakdownResponse {
+  portfolios: Array<{
+    portfolio_id: string;
+    portfolio_name: string;
+    value: number;
+    weight: number;
+    metrics: {
+      beta_90d?: number;
+      beta_180d?: number;
+      volatility_21d?: number;
+      volatility_63d?: number;
+    };
+  }>;
+  total_value: number;
+  calculation_date: string;
+}
+
+export interface AggregateBetaResponse {
+  aggregate_beta_90d: number;
+  aggregate_beta_180d: number;
+  portfolio_count: number;
+  total_value: number;
+  portfolios: Array<{
+    portfolio_id: string;
+    portfolio_name: string;
+    weight: number;
+    beta_90d: number;
+    beta_180d: number;
+  }>;
+  calculation_date: string;
+}
+
+export interface AggregateVolatilityResponse {
+  aggregate_volatility_21d: number;
+  aggregate_volatility_63d: number;
+  aggregate_expected_volatility_21d: number | null;
+  portfolio_count: number;
+  total_value: number;
+  portfolios: Array<{
+    portfolio_id: string;
+    portfolio_name: string;
+    weight: number;
+    volatility_21d: number;
+    volatility_63d: number;
+  }>;
+  calculation_date: string;
+}
+
+export interface AggregateFactorExposuresResponse {
+  factors: Array<{
+    name: string;
+    aggregate_beta: number;
+    aggregate_exposure_dollar: number;
+  }>;
+  portfolio_count: number;
+  total_value: number;
+  portfolios: Array<{
+    portfolio_id: string;
+    portfolio_name: string;
+    weight: number;
+  }>;
+  calculation_date: string;
+}
+
+export interface AggregateSectorExposureResponse {
+  available: boolean;
+  data: {
+    portfolio_weights: Record<string, number>;
+    benchmark_weights: Record<string, number>;
+    over_underweight: Record<string, number>;
+    largest_overweight: string | null;
+    largest_underweight: string | null;
+  };
+  net_asset_value: number;
+  portfolio_count: number;
+  calculation_method: string;
+  formula: string;
+}
+
+export interface AggregateConcentrationResponse {
+  available: boolean;
+  data: {
+    hhi: number;
+    effective_num_positions: number;
+    top_3_concentration: number;
+    top_10_concentration: number;
+    unique_symbols: number;
+    total_positions: number;
+    top_positions: Array<{
+      symbol: string;
+      value: number;
+      weight: number;
+    }>;
+  };
+  net_asset_value: number;
+  portfolio_count: number;
+  calculation_method: string;
+  formula: string;
+}
+
+export interface AggregateCorrelationMatrixResponse {
+  available: boolean;
+  symbols: string[];
+  correlation_matrix: number[][];
+  average_correlation: number;
+  total_positions_analyzed: number;
+  total_value: number;
+  portfolio_count: number;
+  data_quality: {
+    total_pairs: number;
+    valid_pairs: number;
+    coverage_percent: number;
+  };
+  calculation_date: string;
+}
+
+export interface AggregateStressTestResponse {
+  available: boolean;
+  data: {
+    scenarios: Array<{
+      id: string;
+      name: string;
+      description: string;
+      category: string;
+      severity?: string;
+      impact: {
+        dollar_impact: number;
+        percentage_impact: number;
+        new_portfolio_value: number;
+      };
+      portfolios_included: number;
+    }>;
+    portfolio_value: number;
+  };
+  net_asset_value: number;
+  portfolio_count: number;
+  portfolios_with_stress_data: number;
+  calculation_method: string;
+  formula: string;
+}
+

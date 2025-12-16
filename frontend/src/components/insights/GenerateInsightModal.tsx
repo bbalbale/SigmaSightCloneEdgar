@@ -123,7 +123,7 @@ export function GenerateInsightModal({
         <DialogHeader>
           <DialogTitle>Generate AI Insight</DialogTitle>
           <DialogDescription>
-            Claude Sonnet 4 will analyze your portfolio data and provide detailed insights.
+            SigmaSight AI will analyze your portfolio data and provide detailed insights.
             <br />
             <span className="text-xs mt-1 block">
               Cost: ~$0.02 | Time: 25-30 seconds

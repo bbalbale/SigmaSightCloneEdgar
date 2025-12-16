@@ -90,9 +90,38 @@ class PortfolioTools:
                     logger.error(f"Unexpected error for {endpoint}: {e}")
                     raise
     
-    async def get_portfolio_complete(
+    async def _get_portfolio_complete_single(
         self,
         portfolio_id: str,
+        include_holdings: bool,
+        include_timeseries: bool,
+        include_attrib: bool,
+    ) -> Dict[str, Any]:
+        params = {
+            "include_holdings": include_holdings,
+            "include_timeseries": include_timeseries,
+            "include_attrib": include_attrib
+        }
+
+        endpoint = f"/api/v1/data/portfolio/{portfolio_id}/complete"
+        logger.info(f"[SEARCH] TRACE-3 Tool URL: portfolio_id={portfolio_id} | final_url={endpoint}")
+
+        response = await self._make_request(
+            method="GET",
+            endpoint=endpoint,
+            params=params
+        )
+
+        if response.get("meta", {}).get("truncated"):
+            response["_tool_note"] = "Data was truncated. Consider narrowing your query."
+
+        return response
+
+
+    async def get_portfolio_complete(
+        self,
+        portfolio_id: Optional[str] = None,
+        portfolio_ids: Optional[list[str]] = None,
         include_holdings: bool = True,
         include_timeseries: bool = False,
         include_attrib: bool = False,
@@ -100,45 +129,48 @@ class PortfolioTools:
     ) -> Dict[str, Any]:
         """
         Get complete portfolio data with optional sections.
-        
-        Business logic:
-        - Enforces data caps (max 2000 positions)
-        - Includes proper meta object
-        - Returns consistent as_of timestamps
-        
-        Args:
-            portfolio_id: Portfolio UUID
-            include_holdings: Include position details
-            include_timeseries: Include historical data
-            include_attrib: Include attribution data
-            
-        Returns:
-            Complete portfolio data with meta object
+
+        Supports single portfolio_id or multi-portfolio via portfolio_ids.
+        Returns aggregated structure when multiple portfolios are requested.
         """
         try:
-            # Build query parameters
-            params = {
-                "include_holdings": include_holdings,
-                "include_timeseries": include_timeseries,
-                "include_attrib": include_attrib
-            }
-            
-            # Call API endpoint
-            endpoint = f"/api/v1/data/portfolio/{portfolio_id}/complete"
-            # [SEARCH] TRACE-3 Tool URL (Phase 9.12.1 investigation)
-            logger.info(f"[SEARCH] TRACE-3 Tool URL: portfolio_id={portfolio_id} | final_url={endpoint}")
-            response = await self._make_request(
-                method="GET",
-                endpoint=endpoint,
-                params=params
+            # Multi-portfolio aggregation
+            if portfolio_ids and len(portfolio_ids) > 0:
+                portfolios_data = []
+                for pid in portfolio_ids:
+                    try:
+                        data = await self._get_portfolio_complete_single(
+                            portfolio_id=pid,
+                            include_holdings=include_holdings,
+                            include_timeseries=include_timeseries,
+                            include_attrib=include_attrib,
+                        )
+                        portfolios_data.append({
+                            "portfolio_id": pid,
+                            "data": data
+                        })
+                    except Exception as e:
+                        portfolios_data.append({
+                            "portfolio_id": pid,
+                            "error": str(e)
+                        })
+
+                return {
+                    "multi_portfolio": True,
+                    "portfolios": portfolios_data
+                }
+
+            # Single portfolio path (existing behavior)
+            if not portfolio_id:
+                raise ValueError("portfolio_id is required when portfolio_ids is not provided")
+
+            return await self._get_portfolio_complete_single(
+                portfolio_id=portfolio_id,
+                include_holdings=include_holdings,
+                include_timeseries=include_timeseries,
+                include_attrib=include_attrib,
             )
-            
-            # Business logic: Add summary info if truncated
-            if response.get("meta", {}).get("truncated"):
-                response["_tool_note"] = "Data was truncated. Consider narrowing your query."
-                
-            return response
-            
+
         except Exception as e:
             logger.error(f"Error in get_portfolio_complete: {e}")
             return {
@@ -862,6 +894,243 @@ class PortfolioTools:
 
         except Exception as e:
             logger.error(f"Error in get_position_tags: {e}")
+            return {
+                "error": str(e),
+                "retryable": isinstance(e, (httpx.TimeoutException, httpx.HTTPStatusError))
+            }
+
+    async def list_user_portfolios(
+        self,
+        **kwargs
+    ) -> Dict[str, Any]:
+        """
+        List all portfolios for the authenticated user.
+
+        Returns a list of all portfolios the user has access to, including:
+        - Portfolio ID, name, and description
+        - Number of positions in each portfolio
+        - Total market value (if available)
+        - Investment class breakdown
+
+        Use this tool FIRST when:
+        - User asks about "all my portfolios" or "my portfolios"
+        - User wants to compare portfolios
+        - User asks about aggregate holdings across accounts
+        - User hasn't specified which portfolio they're asking about
+
+        Returns:
+            List of user portfolios with summary info
+        """
+        try:
+            endpoint = "/api/v1/portfolios"
+            response = await self._make_request(
+                method="GET",
+                endpoint=endpoint
+            )
+
+            # Add helper info about portfolios
+            if isinstance(response, list):
+                response = {
+                    "portfolios": response,
+                    "total_portfolios": len(response),
+                    "_tool_note": f"User has {len(response)} portfolio(s). Use portfolio_id from this list to query specific portfolios."
+                }
+
+            return response
+
+        except Exception as e:
+            logger.error(f"Error in list_user_portfolios: {e}")
+            return {
+                "error": str(e),
+                "retryable": isinstance(e, (httpx.TimeoutException, httpx.HTTPStatusError))
+            }
+
+    # ==========================================
+    # Daily Insight Tools (December 15, 2025)
+    # ==========================================
+
+    async def get_daily_movers(
+        self,
+        portfolio_id: str,
+        threshold_pct: float = 2.0,
+        **kwargs
+    ) -> Dict[str, Any]:
+        """
+        Get today's biggest movers (gainers and losers) in the portfolio.
+
+        Returns positions sorted by absolute daily change percentage.
+        Use when generating daily insights or answering "what moved today?"
+
+        Args:
+            portfolio_id: Portfolio UUID
+            threshold_pct: Minimum absolute % change to include (default 2%)
+
+        Returns:
+            Dictionary with gainers, losers, and portfolio daily change
+        """
+        try:
+            # Get complete portfolio data with current prices
+            portfolio_response = await self.get_portfolio_complete(portfolio_id=portfolio_id)
+
+            if "error" in portfolio_response:
+                return portfolio_response
+
+            holdings = portfolio_response.get("data", {}).get("holdings", [])
+
+            if not holdings:
+                return {
+                    "error": "No holdings found in portfolio",
+                    "retryable": False
+                }
+
+            # Calculate daily changes for each position
+            movers = []
+            for holding in holdings:
+                symbol = holding.get("symbol", "UNKNOWN")
+                current_price = holding.get("current_price", 0)
+                previous_close = holding.get("previous_close") or holding.get("entry_price", 0)
+                market_value = holding.get("market_value", 0)
+                quantity = holding.get("quantity", 0)
+
+                # Calculate daily change
+                if previous_close and previous_close > 0:
+                    daily_change_pct = ((current_price - previous_close) / previous_close) * 100
+                    daily_change_dollar = (current_price - previous_close) * abs(quantity)
+                else:
+                    daily_change_pct = 0
+                    daily_change_dollar = 0
+
+                movers.append({
+                    "symbol": symbol,
+                    "current_price": current_price,
+                    "previous_close": previous_close,
+                    "daily_change_pct": round(daily_change_pct, 2),
+                    "daily_change_dollar": round(daily_change_dollar, 2),
+                    "market_value": market_value,
+                    "quantity": quantity
+                })
+
+            # Sort by absolute change percentage
+            movers.sort(key=lambda x: abs(x["daily_change_pct"]), reverse=True)
+
+            # Separate gainers and losers
+            gainers = [m for m in movers if m["daily_change_pct"] > threshold_pct]
+            losers = [m for m in movers if m["daily_change_pct"] < -threshold_pct]
+
+            # Calculate portfolio-level daily P&L
+            total_daily_pnl = sum(m["daily_change_dollar"] for m in movers)
+            total_market_value = sum(m["market_value"] for m in movers)
+            portfolio_daily_change_pct = (total_daily_pnl / total_market_value * 100) if total_market_value > 0 else 0
+
+            return {
+                "data": {
+                    "gainers": gainers[:5],  # Top 5 gainers
+                    "losers": losers[:5],    # Top 5 losers
+                    "all_movers": movers[:10],  # Top 10 by absolute movement
+                    "portfolio_daily_change": {
+                        "pnl_dollar": round(total_daily_pnl, 2),
+                        "pnl_pct": round(portfolio_daily_change_pct, 2),
+                        "total_market_value": round(total_market_value, 2)
+                    },
+                    "biggest_winner": gainers[0] if gainers else None,
+                    "biggest_loser": losers[0] if losers else None
+                },
+                "meta": {
+                    "threshold_pct": threshold_pct,
+                    "total_positions": len(holdings),
+                    "positions_above_threshold": len(gainers) + len(losers),
+                    "as_of": to_utc_iso8601(utc_now())
+                }
+            }
+
+        except Exception as e:
+            logger.error(f"Error in get_daily_movers: {e}")
+            return {
+                "error": str(e),
+                "retryable": isinstance(e, (httpx.TimeoutException, httpx.HTTPStatusError))
+            }
+
+    async def get_market_news(
+        self,
+        symbols: Optional[str] = None,
+        portfolio_id: Optional[str] = None,
+        limit: int = 10,
+        **kwargs
+    ) -> Dict[str, Any]:
+        """
+        Get market news relevant to portfolio positions.
+
+        Fetches recent news headlines for specified symbols or all portfolio positions.
+        Use when generating daily insights or answering "what's in the news?"
+
+        Args:
+            symbols: Comma-separated list of symbols (optional)
+            portfolio_id: Portfolio UUID to get symbols from (optional)
+            limit: Maximum number of news items (default 10, max 25)
+
+        Returns:
+            Dictionary with news items per symbol
+        """
+        try:
+            # Get symbols from portfolio if not provided
+            if not symbols and portfolio_id:
+                portfolio_response = await self.get_portfolio_complete(portfolio_id=portfolio_id)
+                if "error" not in portfolio_response:
+                    holdings = portfolio_response.get("data", {}).get("holdings", [])
+                    # Get top 10 positions by market value
+                    holdings_sorted = sorted(holdings, key=lambda x: x.get("market_value", 0), reverse=True)
+                    symbols = ",".join([h.get("symbol") for h in holdings_sorted[:10] if h.get("symbol")])
+
+            if not symbols:
+                return {
+                    "error": "Either symbols or portfolio_id is required",
+                    "retryable": False
+                }
+
+            # Apply limit cap
+            limit = min(limit, 25)
+
+            # Parse symbols
+            symbol_list = [s.strip().upper() for s in symbols.split(",")][:10]
+
+            # Try to fetch news from backend API (if endpoint exists)
+            # Fall back to a structured response indicating news would go here
+            try:
+                params = {
+                    "symbols": ",".join(symbol_list),
+                    "limit": limit
+                }
+                response = await self._make_request(
+                    method="GET",
+                    endpoint="/api/v1/data/news",
+                    params=params
+                )
+                return response
+            except Exception:
+                # News endpoint doesn't exist yet - return placeholder
+                # This allows the LLM to use its training knowledge
+                logger.info("News endpoint not available - returning guidance for LLM")
+                return {
+                    "data": {
+                        "symbols_requested": symbol_list,
+                        "news_available": False,
+                        "_guidance": (
+                            "News API not configured. Use your training knowledge to provide "
+                            "relevant market context for these symbols. Consider: "
+                            "1) Recent earnings reports, 2) Sector trends, "
+                            "3) Major market events, 4) Fed/macro news affecting these stocks."
+                        )
+                    },
+                    "meta": {
+                        "symbols": symbol_list,
+                        "limit": limit,
+                        "as_of": to_utc_iso8601(utc_now()),
+                        "source": "llm_knowledge"
+                    }
+                }
+
+        except Exception as e:
+            logger.error(f"Error in get_market_news: {e}")
             return {
                 "error": str(e),
                 "retryable": isinstance(e, (httpx.TimeoutException, httpx.HTTPStatusError))

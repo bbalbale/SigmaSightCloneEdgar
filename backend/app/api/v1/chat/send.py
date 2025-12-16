@@ -306,7 +306,8 @@ async def sse_generator(
                 portfolio_context=portfolio_context,
                 auth_context=auth_context,
                 run_id=run_id,
-                model_override=model_for_attempt
+                model_override=model_for_attempt,
+                db=db,  # Pass db session for RAG context retrieval
             ):
                 # Intercept service 'done' for metrics only
                 if "event: done" in sse_event:

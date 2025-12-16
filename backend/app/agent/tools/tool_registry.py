@@ -67,6 +67,9 @@ class ToolRegistry:
         
         # Registry mapping tool names to methods
         self.registry: Dict[str, Callable] = {
+            # Multi-Portfolio Discovery Tool (December 15, 2025)
+            "list_user_portfolios": self.tools.list_user_portfolios,
+            # Core Portfolio Data Tools
             "get_portfolio_complete": self.tools.get_portfolio_complete,
             "get_positions_details": self.tools.get_positions_details,
             "get_prices_historical": self.tools.get_prices_historical,
@@ -85,6 +88,9 @@ class ToolRegistry:
             "get_volatility_analysis": self.tools.get_volatility_analysis,
             "get_target_prices": self.tools.get_target_prices,
             "get_position_tags": self.tools.get_position_tags,
+            # Daily Insight Tools (December 15, 2025)
+            "get_daily_movers": self.tools.get_daily_movers,
+            "get_market_news": self.tools.get_market_news,
         }
         
     async def dispatch_tool_call(
@@ -308,6 +314,9 @@ class ToolRegistry:
         
         # Map tool names to authenticated methods
         authenticated_registry = {
+            # Multi-Portfolio Discovery Tool (December 15, 2025)
+            "list_user_portfolios": authenticated_tools.list_user_portfolios,
+            # Core Portfolio Data Tools
             "get_portfolio_complete": authenticated_tools.get_portfolio_complete,
             "get_positions_details": authenticated_tools.get_positions_details,
             "get_prices_historical": authenticated_tools.get_prices_historical,
@@ -326,8 +335,11 @@ class ToolRegistry:
             "get_volatility_analysis": authenticated_tools.get_volatility_analysis,
             "get_target_prices": authenticated_tools.get_target_prices,
             "get_position_tags": authenticated_tools.get_position_tags,
+            # Daily Insight Tools (December 15, 2025)
+            "get_daily_movers": authenticated_tools.get_daily_movers,
+            "get_market_news": authenticated_tools.get_market_news,
         }
-        
+
         return authenticated_registry.get(tool_name, self.registry[tool_name])
     
     def get_tool_info(self, tool_name: str) -> Optional[Dict[str, Any]]:

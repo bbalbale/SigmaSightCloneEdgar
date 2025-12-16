@@ -9,6 +9,8 @@ from openai.types.chat import ChatCompletionMessageParam, ChatCompletionToolPara
 import asyncio
 import uuid
 
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.config import settings
 from app.core.logging import get_logger
 from app.agent.tools.tool_registry import tool_registry
@@ -22,13 +24,21 @@ from app.agent.schemas.sse import (
     SSEDoneEvent,
     SSEErrorEvent
 )
+from app.agent.services.rag_service import (
+    retrieve_relevant_docs,
+    format_rag_docs_for_prompt,
+)
+from app.agent.services.memory_service import (
+    get_user_memories,
+    format_memories_for_prompt,
+)
 
 logger = get_logger(__name__)
 
 
 class OpenAIService:
     """Service for handling OpenAI API interactions"""
-    
+
     def __init__(self):
         self.client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
         self.prompt_manager = PromptManager()
@@ -36,8 +46,130 @@ class OpenAIService:
         self.fallback_model = settings.MODEL_FALLBACK
         # Track tool call IDs for correlation between OpenAI and our system
         self.tool_call_id_map: Dict[str, Dict[str, Any]] = {}
-        
-    
+        # RAG configuration (from settings)
+        self.rag_enabled = settings.RAG_ENABLED
+        self.rag_doc_limit = settings.RAG_DOC_LIMIT
+        self.rag_max_chars = settings.RAG_MAX_CHARS
+
+    async def _get_rag_context(
+        self,
+        db: Optional[AsyncSession],
+        query: str,
+        portfolio_context: Optional[Dict[str, Any]] = None,
+    ) -> str:
+        """
+        Retrieve relevant RAG documents and format them for prompt injection.
+
+        Args:
+            db: Async database session (if None, RAG is skipped)
+            query: The user's query to search for
+            portfolio_context: Optional portfolio context for scope filtering
+
+        Returns:
+            Formatted RAG context string, or empty string if no docs found
+        """
+        if not self.rag_enabled or db is None:
+            return ""
+
+        try:
+            # Build scopes for filtering
+            scopes = ["global"]
+
+            # Add portfolio-specific scope if available
+            if portfolio_context and portfolio_context.get("portfolio_id"):
+                scopes.append(f"portfolio:{portfolio_context['portfolio_id']}")
+            if portfolio_context and portfolio_context.get("portfolio_ids"):
+                for pid in portfolio_context.get("portfolio_ids"):
+                    scopes.append(f"portfolio:{pid}")
+
+            # Add page-specific scope if available
+            if portfolio_context and portfolio_context.get("page_hint"):
+                scopes.append(f"page:{portfolio_context['page_hint']}")
+            # Add route-specific scope if available (more granular than page_hint)
+            if portfolio_context and portfolio_context.get("route"):
+                scopes.append(f"route:{portfolio_context['route']}")
+
+            # Retrieve relevant documents
+            docs = await retrieve_relevant_docs(
+                db,
+                query=query,
+                scopes=scopes,
+                limit=self.rag_doc_limit,
+            )
+
+            if not docs:
+                logger.debug(f"[RAG] No relevant docs found for query")
+                return ""
+
+            # Format docs for prompt injection
+            rag_context = format_rag_docs_for_prompt(docs, max_chars=self.rag_max_chars)
+            logger.info(f"[RAG] Injecting {len(docs)} docs ({len(rag_context)} chars) into prompt")
+
+            return rag_context
+
+        except Exception as e:
+            logger.warning(f"[RAG] Failed to retrieve context: {e}")
+            return ""
+
+    async def _get_user_memories_context(
+        self,
+        db: Optional[AsyncSession],
+        auth_context: Optional[Dict[str, Any]] = None,
+        portfolio_context: Optional[Dict[str, Any]] = None,
+    ) -> str:
+        """
+        Retrieve user memories and format them for prompt injection.
+
+        Args:
+            db: Async database session (if None, memories are skipped)
+            auth_context: Authentication context with user_id
+            portfolio_context: Optional portfolio context for portfolio-scoped memories
+
+        Returns:
+            Formatted memories context string, or empty string if no memories
+        """
+        if db is None or auth_context is None:
+            return ""
+
+        user_id = auth_context.get("user_id")
+        if not user_id:
+            return ""
+
+        try:
+            from uuid import UUID
+            user_uuid = UUID(user_id) if isinstance(user_id, str) else user_id
+
+            # Get user memories (general + portfolio-specific if available)
+            memories = await get_user_memories(db, user_uuid, limit=10)
+
+            # Also get portfolio-specific memories if we have a portfolio context
+            if portfolio_context and portfolio_context.get("portfolio_id"):
+                portfolio_id = portfolio_context["portfolio_id"]
+                portfolio_uuid = UUID(portfolio_id) if isinstance(portfolio_id, str) else portfolio_id
+                portfolio_memories = await get_user_memories(
+                    db, user_uuid, portfolio_id=portfolio_uuid, limit=5
+                )
+                # Combine, avoiding duplicates
+                existing_ids = {m["id"] for m in memories}
+                for pm in portfolio_memories:
+                    if pm["id"] not in existing_ids:
+                        memories.append(pm)
+
+            if not memories:
+                logger.debug("[Memory] No memories found for user")
+                return ""
+
+            # Format memories for prompt injection
+            memories_context = format_memories_for_prompt(memories, max_chars=1000)
+            logger.info(f"[Memory] Injecting {len(memories)} memories ({len(memories_context)} chars) into prompt")
+
+            return memories_context
+
+        except Exception as e:
+            logger.warning(f"[Memory] Failed to retrieve memories: {e}")
+            return ""
+
+
     def _get_tool_definitions(self) -> List[Dict[str, Any]]:
         """Default tool definitions method - delegates to Responses API format"""
         return self._get_tool_definitions_responses()
@@ -45,10 +177,22 @@ class OpenAIService:
     def _get_tool_definitions_responses(self) -> List[Dict[str, Any]]:
         """Convert our tool definitions to Responses API format (with full schemas)"""
         tools = [
+            # ===== Multi-Portfolio Discovery Tool =====
+            {
+                "name": "list_user_portfolios",
+                "type": "function",
+                "description": "List ALL portfolios for the authenticated user. Returns portfolio names, IDs, descriptions, and position counts. USE THIS TOOL FIRST when: (1) user asks about 'all my portfolios' or 'my portfolios', (2) user wants to compare portfolios, (3) user asks about aggregate holdings across accounts, (4) user asks a question without specifying which portfolio. After getting the list, use the portfolio_id from the results to query specific portfolios with other tools.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {},
+                    "required": []
+                }
+            },
+            # ===== Core Portfolio Data Tools =====
             {
                 "name": "get_portfolio_complete",
                 "type": "function",
-                "description": "Get comprehensive portfolio snapshot with positions, values, and optional data",
+                "description": "Get comprehensive portfolio snapshot with ALL positions, their symbols, quantities, market values, and weights. Returns: portfolio total value, cash balance, and a list of all holdings with symbol, quantity, entry_price, current_price, market_value, weight_pct, sector, and P&L. USE THIS TOOL FIRST when asked about portfolio holdings, biggest positions, sector exposure, or portfolio composition.",
                 "parameters": {
                     "type": "object",
                     "properties": {
@@ -58,7 +202,7 @@ class OpenAIService:
                         },
                         "include_holdings": {
                             "type": "boolean",
-                            "description": "Include position details",
+                            "description": "Include position details (always True for position questions)",
                             "default": True
                         },
                         "include_timeseries": {
@@ -76,9 +220,33 @@ class OpenAIService:
                 }
             },
             {
+                "name": "get_positions_details",
+                "type": "function",
+                "description": "Get detailed position-level information with P&L calculations. Returns for each position: symbol, quantity, entry_price, current_price, market_value, cost_basis, unrealized_pnl, unrealized_pnl_pct, sector, industry. Use when asked about specific positions or detailed P&L breakdown.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "portfolio_id": {
+                            "type": "string",
+                            "description": "Portfolio UUID"
+                        },
+                        "position_ids": {
+                            "type": "string",
+                            "description": "Comma-separated position IDs (optional, gets all if omitted)"
+                        },
+                        "include_closed": {
+                            "type": "boolean",
+                            "description": "Include closed positions",
+                            "default": False
+                        }
+                    },
+                    "required": ["portfolio_id"]
+                }
+            },
+            {
                 "name": "get_portfolio_data_quality",
-                "type": "function", 
-                "description": "Assess portfolio data completeness and quality metrics",
+                "type": "function",
+                "description": "Assess portfolio data completeness and quality metrics. Returns data quality score, available analyses, and any missing data warnings.",
                 "parameters": {
                     "type": "object",
                     "properties": {
@@ -100,34 +268,11 @@ class OpenAIService:
                     "required": ["portfolio_id"]
                 }
             },
-            {
-                "name": "get_positions_details",
-                "type": "function",
-                "description": "Get detailed position information with P&L calculations",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "portfolio_id": {
-                            "type": "string",
-                            "description": "Portfolio UUID"
-                        },
-                        "position_ids": {
-                            "type": "string",
-                            "description": "Comma-separated position IDs"
-                        },
-                        "include_closed": {
-                            "type": "boolean",
-                            "description": "Include closed positions",
-                            "default": False
-                        }
-                    },
-                    "required": []
-                }
-            },
+            # ===== Market Data Tools =====
             {
                 "name": "get_prices_historical",
                 "type": "function",
-                "description": "Retrieve historical price data for portfolio symbols",
+                "description": "Retrieve historical price data for portfolio symbols. Returns daily OHLCV data for top holdings.",
                 "parameters": {
                     "type": "object",
                     "properties": {
@@ -142,7 +287,7 @@ class OpenAIService:
                         },
                         "include_factor_etfs": {
                             "type": "boolean",
-                            "description": "Include factor ETF prices",
+                            "description": "Include factor ETF prices for comparison",
                             "default": False
                         }
                     },
@@ -152,7 +297,7 @@ class OpenAIService:
             {
                 "name": "get_current_quotes",
                 "type": "function",
-                "description": "Get real-time market quotes for specified symbols",
+                "description": "Get real-time market quotes for specified symbols. Returns current price, change, change_pct, volume, bid, ask.",
                 "parameters": {
                     "type": "object",
                     "properties": {
@@ -172,7 +317,7 @@ class OpenAIService:
             {
                 "name": "get_factor_etf_prices",
                 "type": "function",
-                "description": "Get current and historical prices for factor ETFs. Call this tool when users ask about factor ETF prices, factor investing, or factor analysis. Returns market beta (SPY) by default, or specific factors if requested. Available factors: SPY (Market Beta), VTV (Value), VUG (Growth), MTUM (Momentum), QUAL (Quality), SLY (Size/Small Cap), USMV (Low Volatility).",
+                "description": "Get historical prices for factor ETFs (SPY, VTV, VUG, MTUM, QUAL, SLY, USMV). Use for factor analysis and benchmark comparison.",
                 "parameters": {
                     "type": "object",
                     "properties": {
@@ -183,7 +328,204 @@ class OpenAIService:
                         },
                         "factors": {
                             "type": "string",
-                            "description": "Comma-separated factor names"
+                            "description": "Comma-separated factor names (e.g., 'SPY,VTV,MTUM')"
+                        }
+                    },
+                    "required": []
+                }
+            },
+            # ===== Analytics Tools =====
+            {
+                "name": "get_analytics_overview",
+                "type": "function",
+                "description": "Get portfolio analytics overview including total value, returns, beta, volatility, Sharpe ratio, and sector breakdown.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "portfolio_id": {
+                            "type": "string",
+                            "description": "Portfolio UUID"
+                        }
+                    },
+                    "required": ["portfolio_id"]
+                }
+            },
+            {
+                "name": "get_factor_exposures",
+                "type": "function",
+                "description": "Get portfolio factor exposures (Market, Size, Value, Momentum, Quality, Low Volatility). Returns factor betas and R-squared.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "portfolio_id": {
+                            "type": "string",
+                            "description": "Portfolio UUID"
+                        }
+                    },
+                    "required": ["portfolio_id"]
+                }
+            },
+            {
+                "name": "get_sector_exposure",
+                "type": "function",
+                "description": "Get detailed sector exposure breakdown vs S&P 500 benchmark. Returns sector weights, over/underweights, and top holdings per sector.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "portfolio_id": {
+                            "type": "string",
+                            "description": "Portfolio UUID"
+                        }
+                    },
+                    "required": ["portfolio_id"]
+                }
+            },
+            {
+                "name": "get_correlation_matrix",
+                "type": "function",
+                "description": "Get correlation matrix for portfolio positions. Shows how positions move relative to each other.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "portfolio_id": {
+                            "type": "string",
+                            "description": "Portfolio UUID"
+                        }
+                    },
+                    "required": ["portfolio_id"]
+                }
+            },
+            {
+                "name": "get_stress_test_results",
+                "type": "function",
+                "description": "Get stress test results showing portfolio impact under various market scenarios (e.g., 2008 crisis, COVID crash, rate hikes).",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "portfolio_id": {
+                            "type": "string",
+                            "description": "Portfolio UUID"
+                        }
+                    },
+                    "required": ["portfolio_id"]
+                }
+            },
+            {
+                "name": "get_concentration_metrics",
+                "type": "function",
+                "description": "Get portfolio concentration metrics including HHI (Herfindahl-Hirschman Index), top position weights, and concentration risk scores.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "portfolio_id": {
+                            "type": "string",
+                            "description": "Portfolio UUID"
+                        }
+                    },
+                    "required": ["portfolio_id"]
+                }
+            },
+            {
+                "name": "get_volatility_analysis",
+                "type": "function",
+                "description": "Get portfolio volatility analysis including historical volatility, VaR (Value at Risk), and HAR volatility forecasts.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "portfolio_id": {
+                            "type": "string",
+                            "description": "Portfolio UUID"
+                        }
+                    },
+                    "required": ["portfolio_id"]
+                }
+            },
+            # ===== Reference Data Tools =====
+            {
+                "name": "get_company_profile",
+                "type": "function",
+                "description": "Get company profile information including name, sector, industry, market cap, description, and key financials.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "symbol": {
+                            "type": "string",
+                            "description": "Stock symbol (e.g., 'AAPL')"
+                        }
+                    },
+                    "required": ["symbol"]
+                }
+            },
+            {
+                "name": "get_target_prices",
+                "type": "function",
+                "description": "Get analyst target prices for positions in the portfolio.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "portfolio_id": {
+                            "type": "string",
+                            "description": "Portfolio UUID"
+                        }
+                    },
+                    "required": ["portfolio_id"]
+                }
+            },
+            {
+                "name": "get_position_tags",
+                "type": "function",
+                "description": "Get tags/labels assigned to portfolio positions (e.g., 'growth', 'dividend', 'core holding').",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "portfolio_id": {
+                            "type": "string",
+                            "description": "Portfolio UUID"
+                        }
+                    },
+                    "required": ["portfolio_id"]
+                }
+            },
+            # ===== Daily Insight Tools (December 15, 2025) =====
+            {
+                "name": "get_daily_movers",
+                "type": "function",
+                "description": "Get today's biggest movers (gainers and losers) in the portfolio. Returns positions sorted by daily change percentage, portfolio daily P&L, biggest winner and loser. USE THIS FIRST for daily insights or when asked 'what moved today?' or 'how did my portfolio do today?'",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "portfolio_id": {
+                            "type": "string",
+                            "description": "Portfolio UUID"
+                        },
+                        "threshold_pct": {
+                            "type": "number",
+                            "description": "Minimum absolute % change to include (default 2.0)",
+                            "default": 2.0
+                        }
+                    },
+                    "required": ["portfolio_id"]
+                }
+            },
+            {
+                "name": "get_market_news",
+                "type": "function",
+                "description": "Get market news relevant to portfolio positions. Returns news headlines, sources, and sentiment for symbols. Use for daily insights or when asked about news affecting the portfolio.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "symbols": {
+                            "type": "string",
+                            "description": "Comma-separated symbols (e.g., 'AAPL,MSFT,GOOGL')"
+                        },
+                        "portfolio_id": {
+                            "type": "string",
+                            "description": "Portfolio UUID (alternative to symbols - gets news for top holdings)"
+                        },
+                        "limit": {
+                            "type": "integer",
+                            "description": "Maximum news items (default 10, max 25)",
+                            "default": 10
                         }
                     },
                     "required": []
@@ -271,6 +613,37 @@ class OpenAIService:
             conversation_mode,
             user_context=portfolio_context
         )
+
+        # Inject UI context explicitly so the model can tailor tools/RAG
+        if portfolio_context:
+            ui_context_lines = []
+            page_hint = portfolio_context.get("page_hint")
+            route = portfolio_context.get("route")
+            portfolio_id = portfolio_context.get("portfolio_id")
+            selection = portfolio_context.get("selection")
+
+            if page_hint:
+                ui_context_lines.append(f"Page: {page_hint}")
+            if route:
+                ui_context_lines.append(f"Route: {route}")
+            if portfolio_id:
+                ui_context_lines.append(f"Portfolio ID: {portfolio_id}")
+            if portfolio_context and portfolio_context.get("portfolio_ids"):
+                try:
+                    portfolio_ids_str = ", ".join([str(pid) for pid in portfolio_context.get("portfolio_ids")])
+                except Exception:
+                    portfolio_ids_str = str(portfolio_context.get("portfolio_ids"))
+                ui_context_lines.append(f"Portfolio IDs: {portfolio_ids_str}")
+            if selection:
+                try:
+                    selection_str = json.dumps(selection, ensure_ascii=False)
+                except Exception:
+                    selection_str = str(selection)
+                ui_context_lines.append(f"Selection: {selection_str}")
+
+            if ui_context_lines:
+                ui_context_section = "\n".join(ui_context_lines)
+                system_prompt = system_prompt + "\n---\n\n## UI Context\n\n" + ui_context_section + "\n\n---\n"
         
         messages = [{"role": "system", "content": system_prompt}]
         
@@ -301,11 +674,13 @@ class OpenAIService:
         return messages
     
     def _build_responses_input(
-        self, 
-        conversation_mode: str, 
-        message_history: List[Dict[str, Any]], 
+        self,
+        conversation_mode: str,
+        message_history: List[Dict[str, Any]],
         user_message: str,
-        portfolio_context: Optional[Dict[str, Any]] = None
+        portfolio_context: Optional[Dict[str, Any]] = None,
+        rag_context: Optional[str] = None,
+        memories_context: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
         """Build input structure for OpenAI Responses API (array of messages)"""
         # Get system prompt for the mode
@@ -313,13 +688,46 @@ class OpenAIService:
             conversation_mode,
             user_context=portfolio_context
         )
-        
+
+        # Inject user memories if available (before RAG for higher priority)
+        if memories_context:
+            memories_section = f"""
+---
+
+## User Preferences & Context
+
+Things to remember about this user (apply these to your responses):
+
+{memories_context}
+
+---
+"""
+            system_prompt = system_prompt + "\n" + memories_section
+            logger.debug(f"[Memory] Added {len(memories_context)} chars of memories to system prompt")
+
+        # Inject RAG context if available
+        if rag_context:
+            rag_section = f"""
+---
+
+## Relevant Knowledge Base Context
+
+The following documents may be relevant to the user's question. Use this information to provide more accurate and informed responses:
+
+{rag_context}
+
+---
+"""
+            # Insert RAG context after the system prompt header
+            system_prompt = system_prompt + "\n" + rag_section
+            logger.debug(f"[RAG] Added {len(rag_context)} chars of RAG context to system prompt")
+
         # [TRACE] PROMPT-CHECK System Prompt (Phase 9.12.1 investigation)
         logger.info(f"[TRACE] PROMPT-CHECK: {system_prompt[:200]}...")
-        
+
         # Build message history for input (starting with system message)
         messages = []
-        
+
         # Add system message first (Responses API format)
         messages.append({
             "role": "system",
@@ -363,11 +771,23 @@ class OpenAIService:
         portfolio_context: Optional[Dict[str, Any]] = None,
         run_id: Optional[str] = None,
         auth_context: Optional[Dict[str, Any]] = None,
-        model_override: Optional[str] = None
+        model_override: Optional[str] = None,
+        db: Optional[AsyncSession] = None,
     ) -> AsyncGenerator[str, None]:
         """
         Stream responses using OpenAI Responses API with proper tool execution handshake
-        
+
+        Args:
+            conversation_id: Conversation UUID
+            conversation_mode: Mode for prompt selection (e.g., 'green', 'blue')
+            message_text: User's message text
+            message_history: Previous conversation messages
+            portfolio_context: Portfolio context dict with portfolio_id, etc.
+            run_id: Optional run ID for tracing
+            auth_context: Authentication context
+            model_override: Optional model override
+            db: Optional database session for RAG context retrieval
+
         Yields SSE formatted events with standardized contract (type, run_id, seq fields)
         """
         run_id = run_id or str(uuid.uuid4())
@@ -376,16 +796,36 @@ class OpenAIService:
         token_count_initial = 0
         token_count_continuation = 0
         model_to_use = model_override or self.model
-        
+
         try:
-            # Build Responses API input
+            # Retrieve RAG context before building input
+            rag_context = await self._get_rag_context(
+                db=db,
+                query=message_text,
+                portfolio_context=portfolio_context,
+            )
+
+            # Retrieve user memories for personalization
+            memories_context = await self._get_user_memories_context(
+                db=db,
+                auth_context=auth_context,
+                portfolio_context=portfolio_context,
+            )
+
+            # Build Responses API input with RAG and memories context
             input_data = self._build_responses_input(
                 conversation_mode,
                 message_history or [],
                 message_text,
-                portfolio_context
+                portfolio_context,
+                rag_context=rag_context,
+                memories_context=memories_context,
             )
-            
+
+            logger.info(
+                f"[TRACE] START-PAYLOAD ctx={portfolio_context} rag={'yes' if rag_context else 'no'} memories={'yes' if memories_context else 'no'}"
+            )
+
             # Get tool definitions for Responses API
             tools = self._get_tool_definitions_responses()
             
@@ -397,10 +837,15 @@ class OpenAIService:
                 "data": {
                     "conversation_id": conversation_id,
                     "mode": conversation_mode,
-                    "model": model_to_use
+                    "model": model_to_use,
+                    "page_hint": portfolio_context.get("page_hint") if portfolio_context else None,
+                    "route": portfolio_context.get("route") if portfolio_context else None,
+                    "portfolio_id": portfolio_context.get("portfolio_id") if portfolio_context else None,
+                    "portfolio_ids": portfolio_context.get("portfolio_ids") if portfolio_context else None,
                 },
                 "timestamp": int(time.time() * 1000)
             }
+            logger.info(f"[TRACE] START-EVENT payload={start_payload}")
             yield f"event: start\ndata: {json.dumps(start_payload)}\n\n"
             seq += 1
             
@@ -549,6 +994,29 @@ class OpenAIService:
                             except json.JSONDecodeError as e:
                                 logger.error(f"Failed to parse tool arguments for {function_name}: {e}")
                                 function_args = {"error": f"Parse error: {str(e)}"}
+
+                            # Auto-inject portfolio context when missing
+                            if validated_function_name in {"get_portfolio_complete", "get_portfolio_snapshot", "get_portfolio_overview"}:
+                                if portfolio_context:
+                                    primary_pid = portfolio_context.get("portfolio_id")
+                                    fallback_pids = portfolio_context.get("portfolio_ids") or []
+                                    candidate_pids = []
+                                    if primary_pid:
+                                        candidate_pids.append(primary_pid)
+                                    if fallback_pids:
+                                        candidate_pids.extend([pid for pid in fallback_pids if pid not in candidate_pids])
+
+                                    if len(candidate_pids) == 1:
+                                        chosen = candidate_pids[0]
+                                        if not function_args.get("portfolio_id") or function_args.get("portfolio_id") == "default":
+                                            function_args["portfolio_id"] = chosen
+                                            logger.info(f"[TOOL] Injected portfolio_id={chosen} for tool {validated_function_name}")
+                                    elif len(candidate_pids) > 1:
+                                        # Multi-portfolio: pass the list if caller didn't specify
+                                        if not function_args.get("portfolio_ids"):
+                                            function_args["portfolio_ids"] = candidate_pids
+                                        if function_args.get("portfolio_id") == "default":
+                                            del function_args["portfolio_id"]
                             
                             # Emit tool_call event 
                             # Phase 5.9.5.4: Final validation that tool_name is string (prevents frontend 400s)
@@ -926,6 +1394,426 @@ class OpenAIService:
                 logger.info(f"  - {tool_id[:8]}... | {tool_name} | Status: {status} | Duration: {duration}ms")
         else:
             logger.info(f"[DATA] No tool calls recorded for conversation {conversation_id}")
+
+    async def generate_insight(
+        self,
+        portfolio_id: Optional[str] = None,
+        portfolio_ids: Optional[List[str]] = None,
+        insight_type: str = "daily_summary",
+        focus_area: Optional[str] = None,
+        auth_context: Optional[Dict[str, Any]] = None,
+        db: Optional[AsyncSession] = None,
+    ) -> Dict[str, Any]:
+        """
+        Generate a structured portfolio insight using OpenAI with tool calling.
+
+        This method uses the new generalized LLM architecture to:
+        1. Load the daily insight prompt
+        2. Call tools to get real-time portfolio data (movers, news, analytics)
+        3. Return a structured insight object
+
+        Args:
+            portfolio_id: Single portfolio UUID to analyze (optional if portfolio_ids provided)
+            portfolio_ids: List of portfolio UUIDs to analyze (for multi-portfolio accounts)
+            insight_type: Type of insight (daily_summary, volatility_analysis, etc.)
+            focus_area: Optional specific focus area
+            auth_context: Authentication context for tool calls
+            db: Optional database session for RAG
+
+        Returns:
+            Dict with structured insight (title, summary, key_findings, recommendations, etc.)
+        """
+        from pathlib import Path
+
+        start_time = time.time()
+        run_id = str(uuid.uuid4())
+        tool_calls_count = 0
+
+        # Handle multi-portfolio: prefer list, fall back to single
+        if portfolio_ids and len(portfolio_ids) > 0:
+            portfolio_id_list = portfolio_ids
+            is_multi_portfolio = len(portfolio_ids) > 1
+        elif portfolio_id:
+            portfolio_id_list = [portfolio_id]
+            is_multi_portfolio = False
+        else:
+            return {
+                "title": "Error - No Portfolio",
+                "summary": "No portfolio ID provided",
+                "error": "Either portfolio_id or portfolio_ids must be provided"
+            }
+
+        logger.info(f"[Insight] Starting insight generation: type={insight_type}, portfolios={portfolio_id_list}, multi={is_multi_portfolio}")
+
+        try:
+            # Load the daily insight prompt
+            prompts_dir = Path(__file__).parent.parent / "prompts"
+            insight_prompt_path = prompts_dir / "daily_insight_prompt.md"
+
+            if insight_prompt_path.exists():
+                with open(insight_prompt_path, 'r', encoding='utf-8') as f:
+                    system_prompt = f.read()
+            else:
+                # Fallback prompt
+                system_prompt = """You are generating a daily portfolio insight.
+                Use tools to get portfolio data (get_daily_movers, get_portfolio_complete, get_market_news).
+                Return a structured insight with: Title, Today's Snapshot, What Happened Today, News Driving Moves, Watch List, Action Items."""
+
+            # Add focus area if provided
+            if focus_area:
+                system_prompt += f"\n\n## FOCUS AREA\nPay special attention to: {focus_area}"
+
+            # Build portfolio context for user message
+            portfolio_ids_str = ", ".join(portfolio_id_list)
+            num_portfolios = len(portfolio_id_list)
+
+            # Build the user message with explicit data fetching sequence
+            if is_multi_portfolio:
+                user_message = f"""Generate a {insight_type.replace('_', ' ')} for this user's {num_portfolios} portfolios.
+
+Portfolio IDs: {portfolio_ids_str}
+
+**IMPORTANT: Follow this exact sequence to gather data:**
+
+STEP 1 - Get positions for EACH portfolio:
+Call get_portfolio_complete with portfolio_ids parameter to get all holdings across portfolios.
+This returns the positions you need BEFORE you can analyze movers.
+
+STEP 2 - Get daily movers for EACH portfolio:
+For each portfolio_id, call get_daily_movers to see biggest gainers/losers today.
+
+STEP 3 - Get market news:
+Call get_market_news with the top symbols from your positions to understand WHY things moved.
+If news API unavailable, use your knowledge of recent market events.
+
+STEP 4 - Synthesize:
+Combine data from all {num_portfolios} portfolios into a unified daily insight.
+Show aggregate stats (total value, total daily P&L) plus per-portfolio breakdown.
+
+Follow the format in the system prompt for your final response."""
+            else:
+                # Single portfolio - simpler message
+                single_portfolio_id = portfolio_id_list[0]
+                user_message = f"""Generate a {insight_type.replace('_', ' ')} for portfolio {single_portfolio_id}.
+
+**IMPORTANT: Follow this exact sequence to gather data:**
+
+STEP 1 - Get portfolio positions:
+Call get_portfolio_complete with portfolio_id="{single_portfolio_id}" to get all holdings.
+This returns the positions you need BEFORE you can analyze movers.
+
+STEP 2 - Get daily movers:
+Call get_daily_movers with portfolio_id="{single_portfolio_id}" to see biggest gainers/losers today.
+(This tool calls get_portfolio_complete internally, so you can skip Step 1 if preferred)
+
+STEP 3 - Get market news:
+Call get_market_news with portfolio_id="{single_portfolio_id}" to understand WHY things moved.
+If news API unavailable, use your knowledge of recent market events.
+
+STEP 4 - Synthesize:
+Combine the data into a daily insight following the format in the system prompt."""
+
+            # Build messages for the API
+            messages = [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_message}
+            ]
+
+            # Get tool definitions
+            tools = self._get_tool_definitions_responses()
+
+            # Use Responses API (non-streaming) with tool execution loop
+            max_iterations = 5
+            accumulated_tool_results = []
+            final_response_text = None
+
+            for iteration in range(max_iterations):
+                logger.info(f"[Insight] API call iteration {iteration + 1}/{max_iterations}")
+
+                # Create the response
+                response = await self.client.responses.create(
+                    model=self.model,
+                    input=messages,
+                    tools=tools
+                )
+
+                # Check the response output
+                if not response.output:
+                    logger.warning("[Insight] Empty response output")
+                    break
+
+                # Process output items
+                has_tool_calls = False
+                text_content = []
+
+                for item in response.output:
+                    if item.type == "message":
+                        # Extract text content
+                        for content in item.content:
+                            if hasattr(content, 'text'):
+                                text_content.append(content.text)
+
+                    elif item.type == "function_call":
+                        has_tool_calls = True
+                        tool_calls_count += 1
+
+                        function_name = item.name
+                        call_id = item.call_id
+
+                        # Parse arguments
+                        try:
+                            function_args = json.loads(item.arguments) if item.arguments else {}
+                        except json.JSONDecodeError:
+                            function_args = {}
+
+                        # Auto-inject portfolio context if needed
+                        portfolio_aware_tools = ["get_daily_movers", "get_portfolio_complete", "get_market_news",
+                                                 "get_analytics_overview", "get_factor_exposures"]
+                        if function_name in portfolio_aware_tools:
+                            # For get_portfolio_complete, prefer portfolio_ids list for multi-portfolio
+                            if function_name == "get_portfolio_complete" and is_multi_portfolio:
+                                if not function_args.get("portfolio_ids"):
+                                    function_args["portfolio_ids"] = portfolio_id_list
+                            # For single-portfolio tools, inject first portfolio_id
+                            elif not function_args.get("portfolio_id"):
+                                function_args["portfolio_id"] = portfolio_id_list[0]
+
+                        logger.info(f"[Insight] Executing tool: {function_name} with args: {list(function_args.keys())}")
+
+                        # Execute tool
+                        try:
+                            from app.agent.tools.tool_registry import tool_registry
+
+                            tool_context = {
+                                "portfolio_id": portfolio_id_list[0],  # Primary portfolio
+                                "portfolio_ids": portfolio_id_list,    # All portfolios
+                            }
+                            if auth_context:
+                                tool_context.update(auth_context)
+
+                            result = await tool_registry.dispatch_tool_call(
+                                function_name,
+                                function_args,
+                                tool_context
+                            )
+
+                            accumulated_tool_results.append({
+                                "call_id": call_id,
+                                "tool_name": function_name,
+                                "result": result
+                            })
+
+                            logger.info(f"[Insight] Tool {function_name} completed successfully")
+
+                        except Exception as e:
+                            logger.error(f"[Insight] Tool {function_name} failed: {e}")
+                            accumulated_tool_results.append({
+                                "call_id": call_id,
+                                "tool_name": function_name,
+                                "result": {"error": str(e)}
+                            })
+
+                # If we got text content and no tool calls, we're done
+                if text_content and not has_tool_calls:
+                    final_response_text = "\n".join(text_content)
+                    break
+
+                # If we had tool calls, continue the conversation with tool results
+                if has_tool_calls and accumulated_tool_results:
+                    # Format tool outputs for continuation
+                    tool_outputs = []
+                    for tr in accumulated_tool_results:
+                        tool_outputs.append({
+                            "type": "function_call_output",
+                            "call_id": tr["call_id"],
+                            "output": json.dumps(tr["result"]) if isinstance(tr["result"], dict) else str(tr["result"])
+                        })
+
+                    # Create continuation with tool outputs
+                    messages = tool_outputs
+
+                    # Clear accumulated results for next iteration
+                    accumulated_tool_results = []
+                    continue
+
+                # No tool calls and no text - something went wrong
+                if not text_content and not has_tool_calls:
+                    logger.warning("[Insight] No content or tool calls in response")
+                    break
+
+            # Parse the final response into structured format
+            if not final_response_text:
+                final_response_text = "Unable to generate insight. Please try again."
+
+            # Parse sections from markdown response
+            insight = self._parse_insight_response(final_response_text, insight_type)
+
+            # Add performance metrics
+            generation_time_ms = (time.time() - start_time) * 1000
+            insight["performance"] = {
+                "generation_time_ms": round(generation_time_ms),
+                "tool_calls_count": tool_calls_count,
+                "model": self.model,
+                "run_id": run_id
+            }
+
+            logger.info(f"[Insight] Generation complete: {generation_time_ms:.0f}ms, {tool_calls_count} tool calls")
+
+            return insight
+
+        except Exception as e:
+            logger.error(f"[Insight] Error generating insight: {e}")
+            return {
+                "title": f"{insight_type.replace('_', ' ').title()} - Error",
+                "summary": f"Failed to generate insight: {str(e)}",
+                "key_findings": [],
+                "recommendations": [],
+                "data_limitations": str(e),
+                "full_analysis": "",
+                "severity": "INFO",
+                "performance": {
+                    "generation_time_ms": round((time.time() - start_time) * 1000),
+                    "tool_calls_count": 0,
+                    "error": str(e)
+                }
+            }
+
+    def _parse_insight_response(self, response_text: str, insight_type: str) -> Dict[str, Any]:
+        """Parse the LLM's markdown response into structured insight format."""
+        result = {
+            "title": None,
+            "summary": "",
+            "key_findings": [],
+            "recommendations": [],
+            "data_limitations": "",
+            "full_analysis": response_text,
+            "severity": "INFO",
+            "todays_snapshot": None,
+            "what_happened": "",
+            "news_driving_moves": [],
+            "watch_list": [],
+            "action_items": []
+        }
+
+        lines = response_text.split('\n')
+        current_section = None
+        section_content = []
+
+        for line in lines:
+            line_stripped = line.strip()
+
+            # Detect section headers
+            if 'Title' in line_stripped and line_stripped.startswith('#'):
+                if current_section and section_content:
+                    self._assign_section_content(result, current_section, section_content)
+                current_section = 'title'
+                section_content = []
+            elif "Today's Snapshot" in line_stripped and line_stripped.startswith('#'):
+                if current_section and section_content:
+                    self._assign_section_content(result, current_section, section_content)
+                current_section = 'snapshot'
+                section_content = []
+            elif 'What Happened Today' in line_stripped and line_stripped.startswith('#'):
+                if current_section and section_content:
+                    self._assign_section_content(result, current_section, section_content)
+                current_section = 'what_happened'
+                section_content = []
+            elif 'News Driving Moves' in line_stripped and line_stripped.startswith('#'):
+                if current_section and section_content:
+                    self._assign_section_content(result, current_section, section_content)
+                current_section = 'news'
+                section_content = []
+            elif 'Watch List' in line_stripped and line_stripped.startswith('#'):
+                if current_section and section_content:
+                    self._assign_section_content(result, current_section, section_content)
+                current_section = 'watch_list'
+                section_content = []
+            elif 'Action Items' in line_stripped and line_stripped.startswith('#'):
+                if current_section and section_content:
+                    self._assign_section_content(result, current_section, section_content)
+                current_section = 'action_items'
+                section_content = []
+            elif 'Key Findings' in line_stripped and line_stripped.startswith('#'):
+                if current_section and section_content:
+                    self._assign_section_content(result, current_section, section_content)
+                current_section = 'key_findings'
+                section_content = []
+            elif 'Recommendations' in line_stripped and line_stripped.startswith('#'):
+                if current_section and section_content:
+                    self._assign_section_content(result, current_section, section_content)
+                current_section = 'recommendations'
+                section_content = []
+            elif 'Summary' in line_stripped and line_stripped.startswith('#'):
+                if current_section and section_content:
+                    self._assign_section_content(result, current_section, section_content)
+                current_section = 'summary'
+                section_content = []
+            elif line_stripped.startswith('###') or line_stripped.startswith('##'):
+                if current_section and section_content:
+                    self._assign_section_content(result, current_section, section_content)
+                current_section = 'other'
+                section_content = []
+            else:
+                if current_section:
+                    section_content.append(line)
+
+        if current_section and section_content:
+            self._assign_section_content(result, current_section, section_content)
+
+        if not result["title"]:
+            result["title"] = f"{insight_type.replace('_', ' ').title()} Analysis"
+
+        if not result["summary"] and result["what_happened"]:
+            wh = result["what_happened"]
+            result["summary"] = wh[:300] + "..." if len(wh) > 300 else wh
+
+        return result
+
+    def _assign_section_content(self, result: Dict[str, Any], section: str, content: List[str]):
+        """Assign parsed content to the appropriate result field."""
+        text = "\n".join(content).strip()
+
+        if section == 'title':
+            for line in content:
+                if line.strip():
+                    result["title"] = line.strip().lstrip('#').strip()
+                    break
+        elif section == 'summary':
+            result["summary"] = text
+        elif section == 'snapshot':
+            result["todays_snapshot"] = text
+        elif section == 'what_happened':
+            result["what_happened"] = text
+        elif section == 'news':
+            result["news_driving_moves"] = [
+                line.lstrip('-*• ').strip()
+                for line in content
+                if line.strip().startswith(('-', '*', '•'))
+            ]
+        elif section == 'watch_list':
+            result["watch_list"] = [
+                line.lstrip('-*• ').strip()
+                for line in content
+                if line.strip().startswith(('-', '*', '•'))
+            ]
+        elif section == 'action_items':
+            result["action_items"] = [
+                line.lstrip('-*• ').strip()
+                for line in content
+                if line.strip().startswith(('-', '*', '•'))
+            ]
+        elif section == 'key_findings':
+            result["key_findings"] = [
+                line.lstrip('-*• ').strip()
+                for line in content
+                if line.strip().startswith(('-', '*', '•'))
+            ]
+        elif section == 'recommendations':
+            result["recommendations"] = [
+                line.lstrip('-*• ').strip()
+                for line in content
+                if line.strip().startswith(('-', '*', '•'))
+            ]
 
 
 # Singleton instance

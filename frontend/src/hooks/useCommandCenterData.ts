@@ -1,4 +1,18 @@
-﻿import { useState, useEffect } from 'react'
+﻿/**
+ * useCommandCenterData Hook
+ *
+ * Fetches and aggregates data for the Command Center page.
+ *
+ * Updated December 2025: Uses backend aggregate endpoints for equity-weighted metrics
+ * - Beta: Uses /aggregate/beta endpoint instead of client-side calculation
+ * - Volatility: Uses /aggregate/volatility endpoint instead of client-side calculation
+ * - Sector: Uses /aggregate/sector-exposure endpoint
+ * - Concentration: Uses /aggregate/concentration endpoint
+ *
+ * This ensures consistency with Risk Metrics page calculations.
+ */
+
+import { useState, useEffect } from 'react'
 import { useSelectedPortfolioId } from '@/stores/portfolioStore'
 import { fetchPortfolioSnapshot } from '@/services/portfolioService'
 import { analyticsApi } from '@/services/analyticsApi'
@@ -9,7 +23,13 @@ import equityChangeService, {
   type EquityChange,
   type EquityChangeSummary,
 } from '@/services/equityChangeService'
-import type { VolatilityMetricsResponse } from '@/types/analytics'
+import type {
+  VolatilityMetricsResponse,
+  AggregateBetaResponse,
+  AggregateVolatilityResponse,
+  AggregateSectorExposureResponse,
+  AggregateConcentrationResponse,
+} from '@/types/analytics'
 
 type CapitalChangeType = 'CONTRIBUTION' | 'WITHDRAWAL'
 
@@ -547,77 +567,45 @@ export function useCommandCenterData(refreshTrigger?: number): UseCommandCenterD
                   ) / totalAbsMarketValue
                 : 0
 
-            const betaAccumulator = validSections.reduce(
-              (acc, section) => {
-                const weight = Math.max(section.heroMetrics.equityBalance, 0)
-                if (weight > 0) {
-                  if (section.riskMetrics.portfolioBeta90d !== null) {
-                    acc.beta90dSum += section.riskMetrics.portfolioBeta90d * weight
-                  }
-                  if (section.riskMetrics.portfolioBeta1y !== null) {
-                    acc.beta1ySum += section.riskMetrics.portfolioBeta1y * weight
-                  }
-                  acc.totalWeight += weight
-                }
-                return acc
-              },
-              { beta90dSum: 0, beta1ySum: 0, totalWeight: 0 }
-            )
+            // Fetch backend aggregate metrics (equity-weighted calculations)
+            // This ensures consistency with Risk Metrics page
+            const [
+              aggregateBetaResponse,
+              aggregateVolatilityResponse,
+              aggregateSectorResponse,
+              aggregateConcentrationResponse,
+            ] = await Promise.all([
+              analyticsApi.getAggregateBeta().catch((err) => {
+                console.warn('[useCommandCenterData] Failed to fetch aggregate beta:', err)
+                return null
+              }),
+              analyticsApi.getAggregateVolatility().catch((err) => {
+                console.warn('[useCommandCenterData] Failed to fetch aggregate volatility:', err)
+                return null
+              }),
+              analyticsApi.getAggregateSectorExposure().catch((err) => {
+                console.warn('[useCommandCenterData] Failed to fetch aggregate sector:', err)
+                return null
+              }),
+              analyticsApi.getAggregateConcentration().catch((err) => {
+                console.warn('[useCommandCenterData] Failed to fetch aggregate concentration:', err)
+                return null
+              }),
+            ])
 
-            const weightedBeta90d =
-              betaAccumulator.totalWeight > 0
-                ? betaAccumulator.beta90dSum / betaAccumulator.totalWeight
-                : null
+            if (isCancelled) {
+              return
+            }
 
-            const weightedBeta1y =
-              betaAccumulator.totalWeight > 0
-                ? betaAccumulator.beta1ySum / betaAccumulator.totalWeight
-                : null
+            // Use backend aggregate beta (equity-weighted) instead of client-side calculation
+            const aggregateBeta90d = aggregateBetaResponse?.data?.aggregate_beta_90d ?? null
+            const aggregateBeta180d = aggregateBetaResponse?.data?.aggregate_beta_180d ?? null
 
-            const aggregateBeta90d =
-              aggregateAnalytics?.risk_metrics?.portfolio_beta ?? weightedBeta90d ?? null
-
-            const volatilityAccumulator = validSections.reduce(
-              (acc, section) => {
-                const weight = Math.max(section.heroMetrics.equityBalance, 0)
-                if (weight <= 0) {
-                  return acc
-                }
-                const vol = section.performanceMetrics.volatility
-                if (vol.current21d !== null) {
-                  acc.current.sum += vol.current21d * weight
-                  acc.current.weight += weight
-                }
-                if (vol.historical63d !== null) {
-                  acc.historical.sum += vol.historical63d * weight
-                  acc.historical.weight += weight
-                }
-                if (vol.forward21d !== null) {
-                  acc.forward.sum += vol.forward21d * weight
-                  acc.forward.weight += weight
-                }
-                return acc
-              },
-              {
-                current: { sum: 0, weight: 0 },
-                historical: { sum: 0, weight: 0 },
-                forward: { sum: 0, weight: 0 }
-              }
-            )
-
+            // Use backend aggregate volatility (equity-weighted) instead of client-side calculation
             const aggregateVolatility = {
-              current21d:
-                volatilityAccumulator.current.weight > 0
-                  ? volatilityAccumulator.current.sum / volatilityAccumulator.current.weight
-                  : null,
-              historical63d:
-                volatilityAccumulator.historical.weight > 0
-                  ? volatilityAccumulator.historical.sum / volatilityAccumulator.historical.weight
-                  : null,
-              forward21d:
-                volatilityAccumulator.forward.weight > 0
-                  ? volatilityAccumulator.forward.sum / volatilityAccumulator.forward.weight
-                  : null
+              current21d: aggregateVolatilityResponse?.data?.aggregate_volatility_21d ?? null,
+              historical63d: aggregateVolatilityResponse?.data?.aggregate_volatility_63d ?? null,
+              forward21d: aggregateVolatilityResponse?.data?.aggregate_expected_volatility_21d ?? null,
             }
 
             const aggregateHero: HeroMetrics = {
@@ -645,12 +633,12 @@ export function useCommandCenterData(refreshTrigger?: number): UseCommandCenterD
               mtdPnl: validSections.reduce((sum, section) => sum + section.performanceMetrics.mtdPnl, 0),
               cashBalance: validSections.reduce((sum, section) => sum + section.performanceMetrics.cashBalance, 0),
               portfolioBeta90d: aggregateBeta90d,
-              portfolioBeta1y: weightedBeta1y,
+              portfolioBeta1y: aggregateBeta180d,  // Use backend aggregate beta (equity-weighted)
               stressTest:
-                weightedBeta1y !== null && netExposure !== 0
+                aggregateBeta180d !== null && netExposure !== 0
                   ? {
-                      up: netExposure * weightedBeta1y * 0.01,
-                      down: netExposure * weightedBeta1y * -0.01
+                      up: netExposure * aggregateBeta180d * 0.01,
+                      down: netExposure * aggregateBeta180d * -0.01
                     }
                   : null,
               volatility: aggregateVolatility
@@ -660,28 +648,56 @@ export function useCommandCenterData(refreshTrigger?: number): UseCommandCenterD
               .slice()
               .sort((a, b) => Math.abs(b.weight) - Math.abs(a.weight))[0] || null
 
-            const aggregateRisk: RiskMetrics = {
-              portfolioBeta90d: aggregateBeta90d,
-              portfolioBeta1y: weightedBeta1y,
-              topSector: aggregateAnalytics?.sector_allocation?.length
-                ? {
-                    name: aggregateAnalytics.sector_allocation[0].sector,
-                    weight: aggregateAnalytics.sector_allocation[0].pct_of_total,
-                    vs_sp: 0
-                  }
-                : null,
-              largestPosition: aggregateLargestHolding
+            // Use backend aggregate sector data if available (equity-weighted), fallback to aggregateAnalytics
+            // Convert aggregate_portfolio_weights Record to find top sector
+            // Backend returns data nested in response.data.data
+            const sectorWeights = aggregateSectorResponse?.data?.data?.portfolio_weights
+            const benchmarkWeights = aggregateSectorResponse?.data?.data?.benchmark_weights
+            let topSectorData = null
+            if (sectorWeights && Object.keys(sectorWeights).length > 0) {
+              // Find sector with highest weight
+              const sortedSectors = Object.entries(sectorWeights).sort(([, a], [, b]) => b - a)
+              const [topSectorName, topSectorWeight] = sortedSectors[0]
+              const benchmarkWeight = benchmarkWeights?.[topSectorName] ?? 0
+              topSectorData = {
+                name: topSectorName,
+                weight: topSectorWeight,
+                vs_sp: topSectorWeight - benchmarkWeight
+              }
+            } else if (aggregateAnalytics?.sector_allocation?.length) {
+              topSectorData = {
+                name: aggregateAnalytics.sector_allocation[0].sector,
+                weight: aggregateAnalytics.sector_allocation[0].pct_of_total,
+                vs_sp: 0
+              }
+            }
+
+            // Use backend aggregate concentration data for largest position (equity-weighted), fallback to client calc
+            // Backend returns data nested in response.data.data
+            const topPositionFromBackend = aggregateConcentrationResponse?.data?.data?.top_positions?.[0]
+            const largestPositionData = topPositionFromBackend
+              ? {
+                  symbol: topPositionFromBackend.symbol,
+                  weight: topPositionFromBackend.weight
+                }
+              : aggregateLargestHolding
                 ? {
                     symbol: aggregateLargestHolding.symbol,
                     weight: aggregateLargestHolding.weight
                   }
-                : null,
+                : null
+
+            const aggregateRisk: RiskMetrics = {
+              portfolioBeta90d: aggregateBeta90d,
+              portfolioBeta1y: aggregateBeta180d,  // Use backend aggregate beta (equity-weighted)
+              topSector: topSectorData,
+              largestPosition: largestPositionData,
               spCorrelation: null,
               stressTest:
-                weightedBeta1y !== null && netExposure !== 0
+                aggregateBeta180d !== null && netExposure !== 0
                   ? {
-                      up: netExposure * weightedBeta1y * 0.01,
-                      down: netExposure * weightedBeta1y * -0.01
+                      up: netExposure * aggregateBeta180d * 0.01,
+                      down: netExposure * aggregateBeta180d * -0.01
                     }
                 : null
             }

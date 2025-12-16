@@ -1,5 +1,7 @@
 """
-Prompt management system for loading and injecting mode-specific prompts.
+Prompt management system for loading system prompts.
+
+Simplified to use a single unified analyst prompt instead of multiple modes.
 """
 import os
 import re
@@ -15,12 +17,12 @@ logger = logging.getLogger(__name__)
 
 
 class PromptManager:
-    """Manages prompt templates for different conversation modes."""
-    
+    """Manages the system prompt for the investment analyst."""
+
     def __init__(self, prompts_dir: Optional[Path] = None):
         """
         Initialize the prompt manager.
-        
+
         Args:
             prompts_dir: Directory containing prompt templates
         """
@@ -29,50 +31,54 @@ class PromptManager:
         self.prompts_dir = prompts_dir
         self._cache: Dict[str, str] = {}
         self._metadata_cache: Dict[str, Dict[str, Any]] = {}
-        
-    def load_prompt(self, mode: str, version: str = "v001") -> str:
+        self._system_prompt: Optional[str] = None
+
+    def _load_system_prompt(self) -> str:
         """
-        Load a prompt template for the specified mode.
-        
-        Args:
-            mode: Conversation mode (green, blue, indigo, violet)
-            version: Prompt version (default: v001)
-            
+        Load the unified system prompt.
+
         Returns:
-            Prompt content as string
-            
-        Raises:
-            FileNotFoundError: If prompt file doesn't exist
-            ValueError: If prompt file is invalid
+            System prompt content as string
         """
-        cache_key = f"{mode}_{version}"
-        
-        # Check cache first
-        if cache_key in self._cache:
-            logger.debug(f"Returning cached prompt for {mode} {version}")
-            return self._cache[cache_key]
-        
-        # Load from file
-        file_path = self.prompts_dir / f"{mode}_{version}.md"
-        
+        if self._system_prompt is not None:
+            return self._system_prompt
+
+        file_path = self.prompts_dir / "system_prompt.md"
+
         if not file_path.exists():
-            raise FileNotFoundError(f"Prompt file not found: {file_path}")
-        
+            logger.warning(f"System prompt not found at {file_path}, using fallback")
+            return self._get_fallback_prompt()
+
         try:
             with open(file_path, 'r', encoding='utf-8') as f:
-                content = f.read()
-            
-            # Parse and cache
-            metadata, prompt_body = self._parse_prompt_file(content)
-            self._cache[cache_key] = prompt_body
-            self._metadata_cache[cache_key] = metadata
-            
-            logger.info(f"Loaded prompt for {mode} {version}")
-            return prompt_body
-            
+                self._system_prompt = f.read()
+            logger.info("Loaded unified system prompt")
+            return self._system_prompt
         except Exception as e:
-            logger.error(f"Error loading prompt {file_path}: {e}")
-            raise ValueError(f"Invalid prompt file: {e}")
+            logger.error(f"Error loading system prompt: {e}")
+            return self._get_fallback_prompt()
+
+    def _get_fallback_prompt(self) -> str:
+        """Return a basic fallback prompt if main prompt fails to load."""
+        return """You are SigmaSight, an investment analyst with access to the user's portfolio data through function tools.
+
+Use tools to get portfolio data (positions, values, P&L), then combine with your financial knowledge to provide insightful analysis.
+
+Never make up portfolio data - always use tools. But freely use your training knowledge for company analysis, market context, and investment education."""
+
+    def load_prompt(self, mode: str, version: str = "v001") -> str:
+        """
+        Load prompt - now returns unified prompt regardless of mode.
+
+        Args:
+            mode: Ignored - kept for backward compatibility
+            version: Ignored - kept for backward compatibility
+
+        Returns:
+            Unified system prompt content
+        """
+        # Mode is ignored - return unified prompt
+        return self._load_system_prompt()
     
     def _parse_prompt_file(self, content: str) -> tuple[Dict[str, Any], str]:
         """
@@ -103,37 +109,25 @@ class PromptManager:
         
         return metadata, prompt_body
     
-    def get_system_prompt(self, mode: str, user_context: Optional[Dict[str, Any]] = None) -> str:
+    def get_system_prompt(self, mode: str = None, user_context: Optional[Dict[str, Any]] = None) -> str:
         """
-        Get complete system prompt with common instructions and mode-specific prompt.
-        
+        Get the system prompt for the investment analyst.
+
         Args:
-            mode: Conversation mode
+            mode: Ignored - kept for backward compatibility
             user_context: Optional context to inject into prompt
-            
+
         Returns:
             Complete system prompt
         """
-        # Load common instructions
-        try:
-            common_path = self.prompts_dir / "common_instructions.md"
-            with open(common_path, 'r', encoding='utf-8') as f:
-                common_instructions = f.read()
-        except FileNotFoundError:
-            logger.warning("Common instructions not found, using mode prompt only")
-            common_instructions = ""
-        
-        # Load mode-specific prompt
-        mode_prompt = self.load_prompt(mode)
-        
-        # Combine prompts
-        full_prompt = f"{common_instructions}\n\n---\n\n{mode_prompt}"
-        
+        # Load unified system prompt
+        prompt = self._load_system_prompt()
+
         # Inject context if provided
         if user_context:
-            full_prompt = self.inject_variables(full_prompt, user_context)
-        
-        return full_prompt
+            prompt = self.inject_variables(prompt, user_context)
+
+        return prompt
     
     def inject_variables(self, prompt: str, variables: Dict[str, Any]) -> str:
         """

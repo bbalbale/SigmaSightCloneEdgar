@@ -84,6 +84,18 @@ export const API_ENDPOINTS = {
     SECTOR_EXPOSURE: (portfolioId: string) => `/api/v1/analytics/portfolio/${portfolioId}/sector-exposure`,
     CONCENTRATION: (portfolioId: string) => `/api/v1/analytics/portfolio/${portfolioId}/concentration`,
     VOLATILITY: (portfolioId: string) => `/api/v1/analytics/portfolio/${portfolioId}/volatility`,
+    // Aggregate endpoints (equity-weighted across all portfolios)
+    AGGREGATE: {
+      OVERVIEW: '/api/v1/analytics/aggregate/overview',
+      BREAKDOWN: '/api/v1/analytics/aggregate/breakdown',
+      BETA: '/api/v1/analytics/aggregate/beta',
+      VOLATILITY: '/api/v1/analytics/aggregate/volatility',
+      FACTOR_EXPOSURES: '/api/v1/analytics/aggregate/factor-exposures',
+      SECTOR_EXPOSURE: '/api/v1/analytics/aggregate/sector-exposure',
+      CONCENTRATION: '/api/v1/analytics/aggregate/concentration',
+      CORRELATION_MATRIX: '/api/v1/analytics/aggregate/correlation-matrix',
+      STRESS_TEST: '/api/v1/analytics/aggregate/stress-test',
+    },
   },
 
   // Strategy management endpoints
@@ -137,7 +149,7 @@ export const API_ENDPOINTS = {
     SUMMARY: (portfolioId: string) => `/api/v1/target-prices/${portfolioId}/summary`,
   },
 
-  // AI Insights endpoints (Claude-powered portfolio analysis)
+  // AI Insights endpoints (AI-powered portfolio analysis)
   INSIGHTS: {
     GENERATE: '/api/v1/insights/generate',
     LIST: (portfolioId: string) => `/api/v1/insights/portfolio/${portfolioId}`,

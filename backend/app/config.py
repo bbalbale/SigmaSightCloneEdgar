@@ -94,6 +94,16 @@ class Settings(BaseSettings):
     SSE_EMIT_MESSAGE_CREATED: bool = Field(default=True, env="SSE_EMIT_MESSAGE_CREATED")
     API_MESSAGES_ENABLED: bool = Field(default=False, env="API_MESSAGES_ENABLED")
 
+    # RAG (Retrieval Augmented Generation) settings
+    RAG_ENABLED: bool = Field(default=True, env="RAG_ENABLED",
+                              description="Enable RAG for knowledge base context injection")
+    RAG_DOC_LIMIT: int = Field(default=3, env="RAG_DOC_LIMIT",
+                               description="Maximum number of KB documents to retrieve per query")
+    RAG_MAX_CHARS: int = Field(default=4000, env="RAG_MAX_CHARS",
+                               description="Maximum characters of RAG context to inject into prompt")
+    RAG_SIMILARITY_THRESHOLD: float = Field(default=0.0, env="RAG_SIMILARITY_THRESHOLD",
+                                            description="Minimum similarity score for RAG doc inclusion (0.0 = no threshold)")
+
     # Anthropic settings for Analytical Reasoning Layer
     ANTHROPIC_API_KEY: str = Field(default="", env="ANTHROPIC_API_KEY")
     ANTHROPIC_MODEL: str = Field(default="claude-sonnet-4-20250514", env="ANTHROPIC_MODEL")  # Latest Claude Sonnet 4

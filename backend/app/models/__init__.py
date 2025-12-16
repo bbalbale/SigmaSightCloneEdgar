@@ -16,6 +16,7 @@ from app.models.position_tags import PositionTag
 from app.models.position_realized_events import PositionRealizedEvent
 from app.models.equity_changes import EquityChange, EquityChangeType
 from app.models.ai_insights import AIInsight
+from app.models.ai_learning import AIKBDocument, AIMemory, AIFeedback
 from app.models.fundamentals import IncomeStatement, BalanceSheet, CashFlow
 
 # Export all models

@@ -199,16 +199,22 @@ async def generate_insight(
                 detail=f"Invalid insight_type. Must be one of: {', '.join([t.value for t in InsightType])}"
             )
 
-        # Generate insight using analytical reasoning service
-        logger.info(f"Generating {request.insight_type} insight for portfolio {portfolio_id}")
+        # Get ALL portfolios for this user (multi-portfolio support)
+        all_portfolios_stmt = select(Portfolio).where(Portfolio.user_id == current_user.id)
+        all_portfolios_result = await db.execute(all_portfolios_stmt)
+        all_portfolios = all_portfolios_result.scalars().all()
+        all_portfolio_ids = [p.id for p in all_portfolios]
+
+        logger.info(f"Generating {request.insight_type} insight for user {current_user.id} with {len(all_portfolio_ids)} portfolios")
 
         insight = await analytical_reasoning_service.investigate_portfolio(
             db=db,
-            portfolio_id=portfolio_id,
+            portfolio_id=portfolio_id,  # Primary portfolio from request
             insight_type=insight_type_enum,
             focus_area=request.focus_area,
             user_question=request.user_question,
-            auth_token=auth_token
+            auth_token=auth_token,
+            portfolio_ids=all_portfolio_ids,  # All user portfolios for multi-portfolio analysis
         )
 
         if not insight:
