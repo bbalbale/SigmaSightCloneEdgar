@@ -46,6 +46,11 @@ export interface CopilotPanelProps {
   pageHint?: PageHint
 
   /**
+   * Optional route for finer-grained context
+   */
+  route?: string
+
+  /**
    * Custom class name for the container
    */
   className?: string
@@ -54,6 +59,21 @@ export interface CopilotPanelProps {
    * Callback when an insight is ready
    */
   onInsightReady?: (insight: string) => void
+
+  /**
+   * Prefill the input with an externally provided message
+   */
+  prefillMessage?: string
+
+  /**
+   * Notify caller when the prefill has been consumed
+   */
+  onPrefillConsumed?: () => void
+
+  /**
+   * Optional quick prompts to render above the input
+   */
+  quickPrompts?: string[]
 }
 
 /**
@@ -247,8 +267,12 @@ export function CopilotPanel({
   height,
   showHeader = true,
   pageHint,
+  route,
   className = '',
-  onInsightReady
+  onInsightReady,
+  prefillMessage,
+  onPrefillConsumed,
+  quickPrompts
 }: CopilotPanelProps) {
   const [input, setInput] = useState('')
   const [isSending, setIsSending] = useState(false)
@@ -264,7 +288,7 @@ export function CopilotPanel({
     sendMessage,
     resetConversation,
     submitMessageFeedback
-  } = useCopilot({ pageHint, onInsightReady })
+  } = useCopilot({ pageHint, route, onInsightReady })
 
   // Determine height based on variant
   const messagesHeight = height || (variant === 'compact' ? '400px' : '700px')
@@ -289,6 +313,13 @@ export function CopilotPanel({
     }
   }
 
+  useEffect(() => {
+    if (prefillMessage) {
+      setInput(prefillMessage)
+      onPrefillConsumed?.()
+    }
+  }, [prefillMessage, onPrefillConsumed])
+
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
@@ -310,6 +341,16 @@ export function CopilotPanel({
       setFeedbackLoading(null)
     }
   }
+
+  const derivedQuickPrompts = quickPrompts || (
+    pageHint === 'ai-chat'
+      ? [
+          "Summarize today's top risk drivers in my portfolio.",
+          'What are the biggest concentration risks I should watch?',
+          'Run a quick factor exposure check and explain any extremes.'
+        ]
+      : []
+  )
 
   return (
     <div
@@ -403,6 +444,21 @@ export function CopilotPanel({
           boxShadow: '0 -2px 8px rgba(0, 0, 0, 0.1)'
         }}
       >
+        {derivedQuickPrompts.length > 0 && (
+          <div className="mb-3 flex flex-wrap gap-2">
+            {derivedQuickPrompts.map((prompt) => (
+              <Button
+                key={prompt}
+                variant="outline"
+                size="sm"
+                disabled={isStreaming || isSending}
+                onClick={() => setInput(prompt)}
+              >
+                {prompt}
+              </Button>
+            ))}
+          </div>
+        )}
         <div className="flex gap-2">
           <Textarea
             value={input}

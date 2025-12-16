@@ -12,6 +12,9 @@ class ConversationCreate(AgentBaseSchema):
     """Request schema for creating a conversation"""
     mode: str = Field(default="green", pattern="^(green|blue|indigo|violet)$")
     portfolio_id: Optional[str] = Field(None, description="Portfolio ID to associate with conversation")
+    portfolio_ids: Optional[list[str]] = Field(None, description="Multiple portfolio IDs for aggregate context")
+    page_hint: Optional[str] = Field(None, description="Page/feature hint for routing tools & RAG")
+    route: Optional[str] = Field(None, description="Route path for additional context")
 
 
 class ConversationResponse(AgentBaseSchema):
@@ -23,10 +26,21 @@ class ConversationResponse(AgentBaseSchema):
     provider_thread_id: Optional[str] = None
 
 
+class UIContext(AgentBaseSchema):
+    """UI context passed from the frontend for routing, RAG, and prompting"""
+
+    page_hint: Optional[str] = Field(None, description="Page/feature hint (e.g., portfolio, ai-chat)")
+    route: Optional[str] = Field(None, description="Route path for finer scoping (optional)")
+    portfolio_id: Optional[str] = Field(None, description="Portfolio context override")
+    portfolio_ids: Optional[list[str]] = Field(None, description="Multiple portfolio IDs for aggregate context")
+    selection: Optional[dict] = Field(None, description="Current selection (symbol, tag, etc.)")
+
+
 class MessageSend(AgentBaseSchema):
     """Request schema for sending a message"""
     conversation_id: UUID
     text: str = Field(..., min_length=1, max_length=4000)
+    ui_context: Optional[UIContext] = Field(None, description="UI context for this turn")
 
 
 class MessageResponse(AgentBaseSchema):

@@ -10,11 +10,18 @@ interface AIInsightsRowProps {
   onGenerateInsight: () => void;
   onDismissInsight: (insightId: string) => void;
   generatingInsight: boolean;
+  onAskInsight?: (insight: AIInsight) => void;
+  onFeedback?: (insightId: string, rating: 'up' | 'down') => void;
+  hasMore?: boolean;
+  loadingMore?: boolean;
+  onLoadMore?: () => void;
 }
 
 interface InsightCardProps {
   insight: AIInsight;
   onDismiss: (id: string) => void;
+  onAsk?: (insight: AIInsight) => void;
+  onFeedback?: (insightId: string, rating: 'up' | 'down') => void;
   onExpand: () => void;
   isExpanded: boolean;
 }
@@ -61,7 +68,7 @@ function getSeverityStyles(severity: InsightSeverity) {
   return styles[severity] || styles.normal;
 }
 
-function InsightCard({ insight, onDismiss, onExpand, isExpanded }: InsightCardProps) {
+function InsightCard({ insight, onDismiss, onExpand, isExpanded, onAsk, onFeedback }: InsightCardProps) {
   const styles = getSeverityStyles(insight.severity);
   const createdDate = new Date(insight.created_at).toLocaleDateString();
 
@@ -102,23 +109,43 @@ function InsightCard({ insight, onDismiss, onExpand, isExpanded }: InsightCardPr
               {insight.title}
             </h3>
           </div>
-          <button
-            onClick={() => onDismiss(insight.id)}
-            className="ml-2 text-xs font-medium px-2 py-1 rounded transition-colors text-tertiary"
-            style={{
-              backgroundColor: 'transparent',
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.color = 'var(--text-primary)';
-              e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.color = 'var(--text-tertiary)';
-              e.currentTarget.style.backgroundColor = 'transparent';
-            }}
-          >
-            Dismiss
-          </button>
+          <div className="flex items-center gap-2">
+            {onAsk && (
+              <button
+                onClick={() => onAsk(insight)}
+                className="ml-2 text-xs font-medium px-2 py-1 rounded transition-colors"
+                style={{
+                  backgroundColor: 'var(--bg-tertiary)',
+                  color: 'var(--text-primary)'
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.opacity = '0.8';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.opacity = '1';
+                }}
+              >
+                Ask in chat
+              </button>
+            )}
+            <button
+              onClick={() => onDismiss(insight.id)}
+              className="ml-2 text-xs font-medium px-2 py-1 rounded transition-colors text-tertiary"
+              style={{
+                backgroundColor: 'transparent',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.color = 'var(--text-primary)';
+                e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.color = 'var(--text-tertiary)';
+                e.currentTarget.style.backgroundColor = 'transparent';
+              }}
+            >
+              Dismiss
+            </button>
+          </div>
         </div>
 
         {/* Summary */}
@@ -193,28 +220,49 @@ function InsightCard({ insight, onDismiss, onExpand, isExpanded }: InsightCardPr
         <div className="flex items-center justify-between pt-2 border-t border-opacity-30">
           <div className="text-[10px] text-tertiary">
             Generated {createdDate} • ${insight.performance.cost_usd.toFixed(3)} • {(insight.performance.generation_time_ms / 1000).toFixed(1)}s
+            {insight.performance.token_count ? ` • ${insight.performance.token_count} tokens` : ''}
           </div>
-          {!isExpanded && (
-            <button
-              onClick={onExpand}
-              className="text-xs font-medium transition-colors"
-              style={{ color: 'var(--color-info)' }}
-              onMouseEnter={(e) => e.currentTarget.style.opacity = '0.8'}
-              onMouseLeave={(e) => e.currentTarget.style.opacity = '1'}
-            >
-              View full analysis
-            </button>
-          )}
-          {isExpanded && (
-            <button
-              onClick={onExpand}
-              className="text-xs font-medium text-tertiary transition-colors"
-              onMouseEnter={(e) => e.currentTarget.style.color = 'var(--text-primary)'}
-              onMouseLeave={(e) => e.currentTarget.style.color = 'var(--text-tertiary)'}
-            >
-              Collapse
-            </button>
-          )}
+          <div className="flex items-center gap-2">
+            {onFeedback && (
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => onFeedback(insight.id, 'up')}
+                  className={`text-xs px-2 py-1 rounded transition-colors ${insight.user_rating && insight.user_rating >= 4 ? 'text-green-500' : 'text-tertiary'}`}
+                  style={{ backgroundColor: 'var(--bg-tertiary)' }}
+                >
+                  👍
+                </button>
+                <button
+                  onClick={() => onFeedback(insight.id, 'down')}
+                  className={`text-xs px-2 py-1 rounded transition-colors ${insight.user_rating && insight.user_rating <= 2 ? 'text-red-500' : 'text-tertiary'}`}
+                  style={{ backgroundColor: 'var(--bg-tertiary)' }}
+                >
+                  👎
+                </button>
+              </div>
+            )}
+            {!isExpanded && (
+              <button
+                onClick={onExpand}
+                className="text-xs font-medium transition-colors"
+                style={{ color: 'var(--color-info)' }}
+                onMouseEnter={(e) => e.currentTarget.style.opacity = '0.8'}
+                onMouseLeave={(e) => e.currentTarget.style.opacity = '1'}
+              >
+                View full analysis
+              </button>
+            )}
+            {isExpanded && (
+              <button
+                onClick={onExpand}
+                className="text-xs font-medium text-tertiary transition-colors"
+                onMouseEnter={(e) => e.currentTarget.style.color = 'var(--text-primary)'}
+                onMouseLeave={(e) => e.currentTarget.style.color = 'var(--text-tertiary)'}
+              >
+                Collapse
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Full Analysis (expanded only) */}
@@ -264,6 +312,11 @@ export function AIInsightsRow({
   onGenerateInsight,
   onDismissInsight,
   generatingInsight,
+  onAskInsight,
+  onFeedback,
+  hasMore,
+  loadingMore,
+  onLoadMore,
 }: AIInsightsRowProps) {
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
 
@@ -312,12 +365,29 @@ export function AIInsightsRow({
                 key={insight.id}
                 insight={insight}
                 onDismiss={onDismissInsight}
+                onAsk={onAskInsight}
+                onFeedback={onFeedback}
                 onExpand={() => toggleExpanded(insight.id)}
                 isExpanded={expandedIds.has(insight.id)}
               />
             ))}
           </div>
         )}
+      {hasMore && onLoadMore && (
+        <div className="flex justify-center mt-4">
+          <button
+            onClick={onLoadMore}
+            disabled={loadingMore}
+            className="text-sm font-semibold px-4 py-2 rounded transition-colors"
+            style={{
+              backgroundColor: 'var(--bg-tertiary)',
+              color: 'var(--text-primary)'
+            }}
+          >
+            {loadingMore ? 'Loading...' : 'Load more insights'}
+          </button>
+        </div>
+      )}
     </>
   );
 }

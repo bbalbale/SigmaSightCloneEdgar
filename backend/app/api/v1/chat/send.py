@@ -37,6 +37,7 @@ import random
 from app.database import get_db
 from app.core.dependencies import get_current_user, CurrentUser
 from app.agent.models.conversations import Conversation, ConversationMessage
+from app.models.users import Portfolio
 from app.agent.schemas.chat import MessageSend
 from app.agent.schemas.sse import (
     SSEStartEvent,
@@ -88,7 +89,8 @@ async def sse_generator(
     conversation: Conversation,
     db: AsyncSession,
     current_user: CurrentUser,
-    request: Request = None
+    request: Request = None,
+    ui_context: dict = None
 ) -> AsyncGenerator[str, None]:
     """
     Generate Server-Sent Events for the chat response using OpenAI.
@@ -140,18 +142,38 @@ async def sse_generator(
         # Load message history
         message_history = await load_message_history(conversation.id, db)
         
-        # Get portfolio context if available (stored in metadata)
-        # AI will use get_portfolio_complete tool to fetch holdings on-demand
-        portfolio_context = None
-        if conversation.meta_data and conversation.meta_data.get("portfolio_id"):
-            portfolio_context = {
-                "portfolio_id": str(conversation.meta_data.get("portfolio_id"))
-            }
-            logger.info(f"Using portfolio context for conversation: portfolio_id={portfolio_context['portfolio_id']}")
-        
+        # Merge runtime UI context (from request) with stored conversation metadata
+        incoming_ui_context = ui_context or {}
+        stored_context = conversation.meta_data or {}
+        portfolio_context = {
+            **stored_context,
+            **incoming_ui_context,
+        } if (stored_context or incoming_ui_context) else {}
+
+        # Ensure portfolio ids remain strings for downstream tools
+        if portfolio_context.get("portfolio_id"):
+            portfolio_context["portfolio_id"] = str(portfolio_context.get("portfolio_id"))
+        if portfolio_context.get("portfolio_ids"):
+            portfolio_context["portfolio_ids"] = [str(pid) for pid in portfolio_context.get("portfolio_ids") if pid]
+
+        # Persist merged context back to conversation metadata for future turns
+        try:
+            conversation.meta_data = portfolio_context
+            await db.commit()
+        except Exception as e:
+            logger.warning(f"Failed to persist portfolio_context to conversation: {e}")
+            await db.rollback()
+
         # [TRACE] TRACE-2 Send Context (Phase 9.12.1 investigation)
-        logger.info(f"[TRACE] TRACE-2 Send Context: conversation={conversation.id} | portfolio_context={portfolio_context}")
+        logger.info(
+            f"[TRACE] TRACE-2 Send Context: conversation={conversation.id} | stored={stored_context} | incoming={incoming_ui_context} | merged={portfolio_context}"
+        )
         
+        # Debug: log final portfolio context flowing into the agent (avoid PII)
+        logger.info(
+            f"[TRACE] TRACE-CTX conversation={conversation.id} portfolio_context={portfolio_context}"
+        )
+
         # Create BOTH messages upfront with backend-generated IDs
         user_message = ConversationMessage(
             id=uuid4(),
@@ -608,12 +630,15 @@ async def send_message(
             )
         
         # Create SSE generator
+        # Convert ui_context to dict if present
+        ui_context_dict = message_data.ui_context.model_dump(exclude_none=True) if message_data.ui_context else None
         generator = sse_generator(
             message_data.text,
             conversation,
             db,
             current_user,
-            http_request
+            http_request,
+            ui_context_dict
         )
         
         # Return streaming response

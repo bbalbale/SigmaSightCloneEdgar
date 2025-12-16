@@ -66,11 +66,17 @@ async def create_conversation(
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail="No portfolio found for user"
                 )
-        
-        # Create metadata with portfolio context (always populated)
+
+        # Create metadata with portfolio + page context
         meta_data = {
-            "portfolio_id": portfolio_id
+            "portfolio_id": portfolio_id,
         }
+        if request.portfolio_ids:
+            meta_data["portfolio_ids"] = request.portfolio_ids
+        if request.page_hint:
+            meta_data["page_hint"] = request.page_hint
+        if request.route:
+            meta_data["route"] = request.route
             
         conversation = Conversation(
             id=uuid4(),  # Our canonical ID

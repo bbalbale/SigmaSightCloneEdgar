@@ -17,6 +17,7 @@
 
 import { useCallback, useMemo } from 'react'
 import { useAIChatStore, AIChatMessage } from '@/stores/aiChatStore'
+import { usePortfolioStore } from '@/stores/portfolioStore'
 import { sendMessage as sendAIMessage, createNewConversation } from '@/services/aiChatService'
 import { submitFeedback } from '@/services/feedbackService'
 
@@ -35,6 +36,16 @@ export interface CopilotOptions {
    * Can be used for future prefill/commentary logic
    */
   pageHint?: PageHint
+
+  /**
+   * Route path for finer context scoping
+   */
+  route?: string
+
+  /**
+   * Current selection on the page (symbol, tag, etc.)
+   */
+  selection?: Record<string, unknown>
 
   /**
    * Callback when an insight is ready (for prefill/commentary)
@@ -97,7 +108,20 @@ export function useCopilot(options?: CopilotOptions): UseCopilotReturn {
     updateMessage
   } = useAIChatStore()
 
-  const { pageHint, onInsightReady } = options || {}
+  const portfolioId = usePortfolioStore(state => state.portfolioId)
+  const portfolios = usePortfolioStore(state => state.portfolios)
+  const selectedPortfolioId = usePortfolioStore(state => state.selectedPortfolioId)
+
+  const portfolioIds = useMemo(() => {
+    // If aggregate view (selectedPortfolioId null) include all; else include selected/effective
+    if (selectedPortfolioId === null && portfolios.length > 0) {
+      return portfolios.map(p => p.id)
+    }
+    const effective = selectedPortfolioId || portfolioId
+    return effective ? [effective] : []
+  }, [selectedPortfolioId, portfolioId, portfolios])
+
+  const { pageHint, route, selection, onInsightReady } = options || {}
 
   /**
    * Send a message to the AI copilot
@@ -106,7 +130,13 @@ export function useCopilot(options?: CopilotOptions): UseCopilotReturn {
     if (!message.trim()) return
 
     try {
-      await sendAIMessage(message)
+      await sendAIMessage(message, {
+        pageHint,
+        route,
+        selection,
+        portfolioId: portfolioId || undefined,
+        portfolioIds,
+      })
 
       // If callback provided, notify when response is ready
       if (onInsightReady) {

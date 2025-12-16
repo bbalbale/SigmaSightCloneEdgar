@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_
 from sqlalchemy.orm import selectinload
 
-from app.database import get_async_session, get_db
+from app.database import get_db
 from app.core.dependencies import get_current_user
 from app.core.datetime_utils import utc_now, to_utc_iso8601, to_iso_date
 from app.models.users import Portfolio
@@ -35,7 +35,7 @@ router = APIRouter(prefix="/data", tags=["raw-data"])
 @router.get("/portfolios")
 async def get_user_portfolios(
     current_user: CurrentUser = Depends(get_current_user),
-    db: AsyncSession = Depends(get_async_session)
+    db: AsyncSession = Depends(get_db)
 ):
     """
     Get list of portfolios for the authenticated user.
@@ -92,7 +92,7 @@ async def get_portfolio_complete(
     include_attrib: bool = Query(False, description="Include attribution data"),
     as_of_date: Optional[date] = Query(None, description="Historical snapshot date"),
     current_user: CurrentUser = Depends(get_current_user),
-    db: AsyncSession = Depends(get_async_session)
+    db: AsyncSession = Depends(get_db)
 ):
     """
     Get complete portfolio data with optional sections.
@@ -297,7 +297,7 @@ async def get_portfolio_complete(
 async def get_portfolio_snapshot(
     portfolio_id: UUID,
     current_user: CurrentUser = Depends(get_current_user),
-    db: AsyncSession = Depends(get_async_session)
+    db: AsyncSession = Depends(get_db)
 ):
     """
     Get latest portfolio snapshot with target price metrics, betas, and daily P&L.
@@ -385,7 +385,7 @@ async def get_portfolio_data_quality(
     check_factors: bool = Query(True, description="Check factor data completeness"),
     check_correlations: bool = Query(True, description="Check correlation feasibility"),
     current_user: CurrentUser = Depends(get_current_user),
-    db: AsyncSession = Depends(get_async_session)
+    db: AsyncSession = Depends(get_db)
 ):
     """
     Assess data availability for portfolio calculations.
@@ -801,7 +801,7 @@ async def get_historical_prices(
     include_factor_etfs: bool = Query(True, description="Include factor ETF prices"),
     date_format: str = Query("iso", description="Date format (iso|unix)"),
     current_user: CurrentUser = Depends(get_current_user),
-    db: AsyncSession = Depends(get_async_session)
+    db: AsyncSession = Depends(get_db)
 ):
     """
     Get historical price data for all portfolio positions.
@@ -905,7 +905,7 @@ async def get_benchmark_historical_prices(
     lookback_days: int = Query(400, description="Number of calendar days to look back"),
     date_format: str = Query("iso", description="Date format (iso|unix)"),
     current_user: CurrentUser = Depends(get_current_user),
-    db: AsyncSession = Depends(get_async_session)
+    db: AsyncSession = Depends(get_db)
 ):
     """
     Get historical price data for a benchmark symbol (e.g., SPY, QQQ).
@@ -1002,7 +1002,7 @@ async def get_market_quotes(
     symbols: str = Query(..., description="Comma-separated list of ticker symbols"),
     include_options: bool = Query(False, description="Include options chains (future)"),
     current_user: CurrentUser = Depends(get_current_user),
-    db: AsyncSession = Depends(get_async_session)
+    db: AsyncSession = Depends(get_db)
 ):
     """
     Get current market quotes for specified symbols.
@@ -1083,7 +1083,7 @@ async def get_factor_etf_prices(
     lookback_days: int = Query(150, description="Number of trading days"),
     factors: Optional[str] = Query(None, description="Comma-separated factor names to filter"),
     current_user: CurrentUser = Depends(get_current_user),
-    db: AsyncSession = Depends(get_async_session)
+    db: AsyncSession = Depends(get_db)
 ):
     """
     Get historical prices for factor ETFs used in the 7-factor risk model.
@@ -1160,7 +1160,7 @@ async def get_top_positions(
     sort_by: str = Query("market_value", regex="^(market_value|weight)$"),
     as_of_date: Optional[str] = Query(None, description="ISO date, max 180d lookback"),
     current_user: CurrentUser = Depends(get_current_user),
-    db: AsyncSession = Depends(get_async_session)
+    db: AsyncSession = Depends(get_db)
 ):
     """
     Get top N positions sorted by market value or weight.

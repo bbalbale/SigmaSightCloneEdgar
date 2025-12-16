@@ -169,6 +169,133 @@ class OpenAIService:
             logger.warning(f"[Memory] Failed to retrieve memories: {e}")
             return ""
 
+    async def _execute_tool_call(
+        self,
+        tool_call_id: str,
+        function_name: str,
+        function_args: Dict[str, Any],
+        conversation_id: str,
+        portfolio_context: Optional[Dict[str, Any]],
+        auth_context: Optional[Dict[str, Any]],
+        run_id: str,
+        seq: int
+    ) -> AsyncGenerator[str, None]:
+        """
+        Execute a single tool call and yield SSE events.
+
+        This is extracted to allow reuse in both initial stream and continuation loops.
+
+        Yields:
+            SSE events for tool_call and tool_result
+        """
+        from app.agent.tools.tool_registry import tool_registry
+
+        # Auto-inject portfolio context when missing
+        portfolio_tools = {
+            "get_portfolio_complete", "get_portfolio_snapshot", "get_portfolio_overview",
+            "get_positions_details", "get_analytics_overview", "get_factor_exposures",
+            "get_sector_exposure", "get_daily_movers", "get_concentration_metrics",
+            "get_volatility_analysis", "get_correlation_matrix", "get_stress_test_results",
+            "get_target_prices", "get_position_tags"
+        }
+
+        if function_name in portfolio_tools and portfolio_context:
+            primary_pid = portfolio_context.get("portfolio_id")
+            fallback_pids = portfolio_context.get("portfolio_ids") or []
+            candidate_pids = []
+            if primary_pid:
+                candidate_pids.append(primary_pid)
+            if fallback_pids:
+                candidate_pids.extend([pid for pid in fallback_pids if pid not in candidate_pids])
+
+            if len(candidate_pids) == 1:
+                chosen = candidate_pids[0]
+                if not function_args.get("portfolio_id") or function_args.get("portfolio_id") == "default":
+                    function_args["portfolio_id"] = chosen
+                    logger.info(f"[TOOL] Injected portfolio_id={chosen} for tool {function_name}")
+            elif len(candidate_pids) > 1:
+                if not function_args.get("portfolio_ids"):
+                    function_args["portfolio_ids"] = candidate_pids
+                if function_args.get("portfolio_id") == "default":
+                    del function_args["portfolio_id"]
+
+        # Emit tool_call event
+        tool_call_payload = {
+            "type": "tool_call",
+            "run_id": run_id,
+            "seq": seq,
+            "data": {
+                "tool_call_id": tool_call_id,
+                "tool_name": function_name,
+                "tool_args": function_args
+            },
+            "timestamp": int(time.time() * 1000)
+        }
+        yield f"event: tool_call\ndata: {json.dumps(tool_call_payload)}\n\n"
+
+        # Execute tool
+        logger.info(f"[TOOL] Executing tool call - ID: {tool_call_id}, Tool: {function_name}")
+        start_time = time.time()
+
+        try:
+            # Build context for tool execution
+            tool_context = {
+                "conversation_id": conversation_id,
+                "portfolio_context": portfolio_context,
+                "request_id": f"{conversation_id}_{tool_call_id}"
+            }
+
+            if auth_context:
+                tool_context.update(auth_context)
+
+            result = await tool_registry.dispatch_tool_call(function_name, function_args, tool_context)
+            duration_ms = int((time.time() - start_time) * 1000)
+
+            logger.info(f"[OK] Tool call completed - ID: {tool_call_id}, Tool: {function_name}, Duration: {duration_ms}ms")
+
+            # Emit tool_result event
+            tool_result_payload = {
+                "type": "tool_result",
+                "run_id": run_id,
+                "seq": seq + 1,
+                "data": {
+                    "tool_call_id": tool_call_id,
+                    "tool_name": function_name,
+                    "tool_result": result,
+                    "duration_ms": duration_ms
+                },
+                "timestamp": int(time.time() * 1000)
+            }
+            yield f"event: tool_result\ndata: {json.dumps(tool_result_payload)}\n\n"
+
+            # Return result for accumulation (stored in result attribute)
+            yield json.dumps({"_result": result, "_tool_call_id": tool_call_id})
+
+        except Exception as e:
+            duration_ms = int((time.time() - start_time) * 1000)
+            logger.error(f"[ERROR] Tool call failed - ID: {tool_call_id}, Tool: {function_name}, Error: {e}")
+
+            error_result = {
+                "error": str(e),
+                "tool_call_id": tool_call_id,
+                "tool_name": function_name
+            }
+
+            tool_error_payload = {
+                "type": "tool_result",
+                "run_id": run_id,
+                "seq": seq + 1,
+                "data": {
+                    "tool_call_id": tool_call_id,
+                    "tool_name": function_name,
+                    "tool_result": error_result,
+                    "duration_ms": duration_ms
+                },
+                "timestamp": int(time.time() * 1000)
+            }
+            yield f"event: tool_result\ndata: {json.dumps(tool_error_payload)}\n\n"
+
+            yield json.dumps({"_result": error_result, "_tool_call_id": tool_call_id})
 
     def _get_tool_definitions(self) -> List[Dict[str, Any]]:
         """Default tool definitions method - delegates to Responses API format"""
@@ -995,8 +1122,11 @@ The following documents may be relevant to the user's question. Use this informa
                                 logger.error(f"Failed to parse tool arguments for {function_name}: {e}")
                                 function_args = {"error": f"Parse error: {str(e)}"}
 
+                            # Phase 5.9.5.4: Validate function_name is string BEFORE using it
+                            validated_function_name = str(function_name) if function_name else 'unknown_function'
+
                             # Auto-inject portfolio context when missing
-                            if validated_function_name in {"get_portfolio_complete", "get_portfolio_snapshot", "get_portfolio_overview"}:
+                            if validated_function_name in {"get_portfolio_complete", "get_portfolio_snapshot", "get_portfolio_overview", "get_positions_details", "get_analytics_overview", "get_factor_exposures", "get_sector_exposure", "get_daily_movers"}:
                                 if portfolio_context:
                                     primary_pid = portfolio_context.get("portfolio_id")
                                     fallback_pids = portfolio_context.get("portfolio_ids") or []
@@ -1017,10 +1147,8 @@ The following documents may be relevant to the user's question. Use this informa
                                             function_args["portfolio_ids"] = candidate_pids
                                         if function_args.get("portfolio_id") == "default":
                                             del function_args["portfolio_id"]
-                            
-                            # Emit tool_call event 
-                            # Phase 5.9.5.4: Final validation that tool_name is string (prevents frontend 400s)
-                            validated_function_name = str(function_name) if function_name else 'unknown_function'
+
+                            # Emit tool_call event
                             tool_call_payload = {
                                 "type": "tool_call",
                                 "run_id": run_id,
@@ -1149,99 +1277,122 @@ The following documents may be relevant to the user's question. Use this informa
                         }
                         yield f"event: error\ndata: {json.dumps(error_payload)}\n\n"
                         break
-                        
-                    else:
-                        # Unknown event type - log for investigation but don't fail
-                        logger.warning(f"Unknown Responses API event type: {event.type}")
-                        logger.debug(f"Event data: {event}")
+
+                    elif event.type in ("response.in_progress", "response.output_item.done"):
+                        # Expected housekeeping events - log at debug level
+                        logger.debug(f"[STREAM] Housekeeping event: {event.type}")
                         continue
-                        
+
+                    else:
+                        # Truly unknown event type - log for investigation but don't fail
+                        logger.debug(f"[STREAM] Unhandled event type: {event.type}")
+                        continue
+
                 except Exception as event_error:
                     logger.error(f"Error processing Responses API event: {event_error} - event: {event}")
                     continue
             
-            # After stream completes, if tools were called, continue conversation with tool results
-            if accumulated_tool_calls:
-                logger.info(f"🔄 Continuing conversation with {len(accumulated_tool_calls)} tool results")
-                
-                # Build continuation input with tool results
-                continuation_input = input_data.copy()
-                
-                # Add user message asking OpenAI to analyze the tool results
+            # After stream completes, if tools were called, continue with recursive tool loop
+            # This loop handles sequential tool calls (e.g., list_portfolios -> get_portfolio_complete)
+            max_tool_iterations = 5  # Safety limit to prevent infinite loops
+            tool_iteration = 0
+
+            while accumulated_tool_calls and tool_iteration < max_tool_iterations:
+                tool_iteration += 1
+                logger.info(f"🔄 Tool loop iteration {tool_iteration}: {len(accumulated_tool_calls)} tool results to process")
+
+                # Build tool results summary (without re-sending system prompt)
                 tool_summary_parts = []
+                portfolio_tools_list = ["get_portfolio_complete", "get_positions_details", "get_portfolio_data_quality"]
+
                 for tool_call in accumulated_tool_calls.values():
                     tool_name = tool_call["function"]["name"]
                     tool_result = tool_call.get("result", {})
-                    
-                    # Determine truncation limit based on tool type
-                    # Portfolio tools get larger limits for complete data visibility
-                    portfolio_tools = ["get_portfolio_complete", "get_positions_details", "get_portfolio_data_quality"]
-                    
+
+                    # Determine truncation limit
                     if settings.TOOL_RESPONSE_TRUNCATE_ENABLED:
-                        if tool_name in portfolio_tools:
+                        if tool_name in portfolio_tools_list:
                             max_chars = settings.TOOL_RESPONSE_PORTFOLIO_MAX_CHARS
                         else:
                             max_chars = settings.TOOL_RESPONSE_MAX_CHARS
                     else:
-                        # Truncation disabled - pass full response
                         max_chars = None
-                    
-                    # Create a summary of what the tool returned
+
+                    # Format tool result
                     if isinstance(tool_result, dict) and "data" in tool_result:
                         full_json = json.dumps(tool_result["data"], indent=2)
-                        data_summary = full_json[:max_chars] if max_chars else full_json
                     else:
                         full_json = json.dumps(tool_result, indent=2)
-                        data_summary = full_json[:max_chars] if max_chars else full_json
-                    
-                    # Log truncation info for debugging
-                    if max_chars and len(data_summary) == max_chars:
+
+                    data_summary = full_json[:max_chars] if max_chars else full_json
+
+                    if max_chars and len(full_json) > max_chars:
                         logger.info(f"Tool response truncated: {tool_name} - {len(full_json)} chars -> {max_chars} chars")
-                    
+
                     tool_summary_parts.append(f"Tool '{tool_name}' returned:\n{data_summary}")
-                
+
                 tool_summary = "\n\n".join(tool_summary_parts)
-                
-                # For Responses API, we add a follow-up user message with tool results
-                continuation_message = {
-                    "role": "user",
-                    "content": f"Based on the tool results below, please provide a comprehensive analysis and answer to my original question:\n\n{tool_summary}"
-                }
-                continuation_input.append(continuation_message)
-                
-                # Make continuation call to get final response
+
+                # Build MINIMAL continuation input - NO system prompt re-send!
+                # Only include: original user message + tool results as assistant context
+                continuation_input = [
+                    {
+                        "role": "user",
+                        "content": message_text  # Original user query
+                    },
+                    {
+                        "role": "assistant",
+                        "content": f"I've gathered the following data from tools:\n\n{tool_summary}"
+                    },
+                    {
+                        "role": "user",
+                        "content": "Based on this data, please provide a comprehensive analysis and answer."
+                    }
+                ]
+
+                # Clear accumulated tool calls for this iteration
+                accumulated_tool_calls = {}
+                cont_tool_calls = {}  # Track new tool calls in continuation
+
                 try:
+                    logger.info(f"[CONTINUATION] Starting call {tool_iteration} with {len(continuation_input)} messages (no system prompt)")
+                    logger.debug(f"[CONTINUATION] Tool summary: {len(tool_summary)} chars")
+
                     continuation_stream = await self.client.responses.create(
                         model=model_to_use,
                         input=continuation_input,
                         tools=tools if tools else None,
                         stream=True
                     )
-                    
-                    # Process continuation stream events
-                    async for cont_event in continuation_stream:
-                        try:
-                            # Continuation heartbeats to keep connection warm during long reasoning gaps
-                            current_time = asyncio.get_event_loop().time()
-                            if current_time - last_heartbeat > heartbeat_interval:
-                                heartbeat_payload = {
-                                    "type": "heartbeat",
-                                    "run_id": run_id,
-                                    "seq": 0,  # Heartbeats don't increment sequence
-                                    "data": {},
-                                    "timestamp": int(time.time() * 1000)
-                                }
-                                yield f"event: heartbeat\ndata: {json.dumps(heartbeat_payload)}\n\n"
-                                last_heartbeat = current_time
 
+                    cont_event_count = 0
+                    cont_has_text_output = False
+
+                    async for cont_event in continuation_stream:
+                        cont_event_count += 1
+
+                        # Heartbeat
+                        current_time = asyncio.get_event_loop().time()
+                        if current_time - last_heartbeat > heartbeat_interval:
+                            heartbeat_payload = {
+                                "type": "heartbeat",
+                                "run_id": run_id,
+                                "seq": 0,
+                                "data": {},
+                                "timestamp": int(time.time() * 1000)
+                            }
+                            yield f"event: heartbeat\ndata: {json.dumps(heartbeat_payload)}\n\n"
+                            last_heartbeat = current_time
+
+                        try:
+                            # Handle text output
                             if cont_event.type == "response.output_text.delta":
                                 if hasattr(cont_event, 'delta') and cont_event.delta:
                                     current_content += cont_event.delta
                                     final_content_parts.append(cont_event.delta)
                                     token_count_continuation += 1
-                                    logger.debug(f"TOKEN-DEBUG(continuation): run_id={run_id} seq={seq} len={len(cont_event.delta)}")
-                                    
-                                    # Emit token event for continuation
+                                    cont_has_text_output = True
+
                                     token_payload = {
                                         "type": "token",
                                         "run_id": run_id,
@@ -1251,62 +1402,116 @@ The following documents may be relevant to the user's question. Use this informa
                                     }
                                     yield f"event: token\ndata: {json.dumps(token_payload)}\n\n"
                                     seq += 1
+
+                            elif cont_event.type == "response.output_text.done":
+                                if hasattr(cont_event, 'text') and cont_event.text and not final_content_parts:
+                                    final_content_parts.append(cont_event.text)
+                                    current_content = cont_event.text
+                                    cont_has_text_output = True
+                                logger.debug(f"[CONTINUATION] Text output done")
+
+                            # Handle tool calls in continuation (recursive support)
+                            elif cont_event.type == "response.output_item.added":
+                                if hasattr(cont_event, 'item') and hasattr(cont_event.item, 'type') and cont_event.item.type == "function_call":
+                                    function_name = cont_event.item.name
+                                    tool_call_id = cont_event.item.id
+                                    cont_tool_calls[tool_call_id] = {
+                                        "id": tool_call_id,
+                                        "type": "function",
+                                        "function": {"name": str(function_name), "arguments": ""}
+                                    }
+                                    logger.debug(f"[CONTINUATION] New tool call: {function_name}")
+
+                            elif cont_event.type == "response.function_call_arguments.delta":
+                                tool_call_id = cont_event.item_id
+                                if tool_call_id in cont_tool_calls and cont_event.delta:
+                                    cont_tool_calls[tool_call_id]["function"]["arguments"] += cont_event.delta
+
+                            elif cont_event.type == "response.function_call_arguments.done":
+                                tool_call_id = cont_event.item_id
+                                if tool_call_id in cont_tool_calls:
+                                    tc = cont_tool_calls[tool_call_id]
+                                    fn_name = tc["function"]["name"]
+                                    try:
+                                        fn_args = json.loads(tc["function"]["arguments"]) if tc["function"]["arguments"].strip() else {}
+                                    except json.JSONDecodeError:
+                                        fn_args = {}
+
+                                    logger.info(f"[CONTINUATION] Executing tool: {fn_name}")
+
+                                    # Execute the tool
+                                    async for sse_chunk in self._execute_tool_call(
+                                        tool_call_id, fn_name, fn_args,
+                                        conversation_id, portfolio_context, auth_context,
+                                        run_id, seq
+                                    ):
+                                        if sse_chunk.startswith("event:"):
+                                            yield sse_chunk
+                                            seq += 1
+                                        else:
+                                            # This is the result JSON
+                                            try:
+                                                result_data = json.loads(sse_chunk)
+                                                if "_result" in result_data:
+                                                    cont_tool_calls[tool_call_id]["result"] = result_data["_result"]
+                                            except json.JSONDecodeError:
+                                                pass
+
                             elif cont_event.type == "response.completed":
-                                logger.info(f"Continuation response completed")
+                                logger.info(f"[CONTINUATION] Completed after {cont_event_count} events")
                                 break
+
                             elif cont_event.type == "response.failed":
-                                # Propagate continuation failure as SSE error so frontend can handle gracefully
-                                error_msg = str(getattr(cont_event, 'error', 'Unknown continuation failure'))
-                                logger.error(f"OpenAI continuation failed: {error_msg}")
+                                error_msg = str(getattr(cont_event, 'error', 'Unknown failure'))
+                                logger.error(f"[CONTINUATION] Failed: {error_msg}")
                                 error_payload = {
                                     "type": "error",
                                     "run_id": run_id,
                                     "seq": 0,
-                                    "data": {
-                                        "error": error_msg,
-                                        "error_type": "continuation_failed",
-                                        "retryable": True
-                                    },
+                                    "data": {"error": error_msg, "error_type": "continuation_failed", "retryable": True},
                                     "timestamp": int(time.time() * 1000)
                                 }
                                 yield f"event: error\ndata: {json.dumps(error_payload)}\n\n"
                                 break
+
                             elif cont_event.type == "response.incomplete":
-                                # Timeout/incomplete continuation
-                                logger.error("OpenAI continuation incomplete/timed out")
-                                error_payload = {
-                                    "type": "error",
-                                    "run_id": run_id,
-                                    "seq": 0,
-                                    "data": {
-                                        "error": "Continuation timed out or was incomplete",
-                                        "error_type": "continuation_incomplete",
-                                        "retryable": True
-                                    },
-                                    "timestamp": int(time.time() * 1000)
-                                }
-                                yield f"event: error\ndata: {json.dumps(error_payload)}\n\n"
+                                logger.error("[CONTINUATION] Incomplete/timed out")
                                 break
-                        except Exception as cont_event_error:
-                            logger.error(f"Error processing continuation event: {cont_event_error}")
+
+                            elif cont_event.type in ("response.created", "response.in_progress", "response.output_item.done"):
+                                logger.debug(f"[CONTINUATION] Housekeeping: {cont_event.type}")
+
+                            else:
+                                logger.debug(f"[CONTINUATION] Event: {cont_event.type}")
+
+                        except Exception as evt_err:
+                            logger.error(f"[CONTINUATION] Event error: {evt_err}")
                             continue
-                            
+
+                    # If continuation called more tools, loop again
+                    if cont_tool_calls and any("result" in tc for tc in cont_tool_calls.values()):
+                        accumulated_tool_calls = cont_tool_calls
+                        logger.info(f"[CONTINUATION] {len(accumulated_tool_calls)} more tool calls to process")
+                    else:
+                        # No more tool calls, exit loop
+                        accumulated_tool_calls = {}
+
+                    logger.info(f"[CONTINUATION] Iteration {tool_iteration} done: {token_count_continuation} tokens, text={cont_has_text_output}")
+
                 except Exception as continuation_error:
-                    logger.error(f"Error in conversation continuation: {continuation_error}")
-                    # Emit error SSE so frontend can show a meaningful message instead of a silent gap
+                    logger.error(f"[CONTINUATION] Error: {continuation_error}")
                     error_payload = {
                         "type": "error",
                         "run_id": run_id,
                         "seq": 0,
-                        "data": {
-                            "error": str(continuation_error),
-                            "error_type": "continuation_exception",
-                            "retryable": True
-                        },
+                        "data": {"error": str(continuation_error), "error_type": "continuation_exception", "retryable": True},
                         "timestamp": int(time.time() * 1000)
                     }
                     yield f"event: error\ndata: {json.dumps(error_payload)}\n\n"
-                    # Continue to send done event afterward
+                    break  # Exit loop on error
+
+            if tool_iteration >= max_tool_iterations:
+                logger.warning(f"[CONTINUATION] Hit max iterations ({max_tool_iterations}), forcing completion")
             
             # Send final done event
             final_text = "".join(final_content_parts)

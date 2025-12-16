@@ -1,7 +1,7 @@
 
-import { test, expect } from '@playwright/test';
+import { test, expect, Page } from '@playwright/test';
 
-async function login(page) {
+async function login(page: Page) {
   await page.goto('/login');
   await page.fill('#email', 'demo_hnw@sigmasight.com');
   await page.fill('#password', 'demo12345');

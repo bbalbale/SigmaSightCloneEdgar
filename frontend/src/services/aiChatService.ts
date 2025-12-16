@@ -22,10 +22,19 @@ import { usePortfolioStore } from '@/stores/portfolioStore'
 
 const BACKEND_API_URL = process.env.NEXT_PUBLIC_BACKEND_API_URL || 'http://localhost:8000/api/v1'
 
+interface UIContext {
+  pageHint?: string
+  route?: string
+  selection?: Record<string, unknown>
+  portfolioId?: string
+  portfolioIds?: string[]
+}
+
 interface SendMessageOptions {
   message: string
   conversationId?: string
   portfolioId?: string
+  uiContext?: UIContext
   onStart?: (data: any) => void
   onMessage?: (chunk: string) => void
   onToolCall?: (data: any) => void
@@ -44,7 +53,7 @@ interface CreateConversationResponse {
 /**
  * Create a new conversation with portfolio context
  */
-async function createConversation(portfolioId?: string): Promise<CreateConversationResponse> {
+async function createConversation(portfolioId?: string, pageHint?: string, route?: string, portfolioIds?: string[]): Promise<CreateConversationResponse> {
   const token = localStorage.getItem('access_token')
   if (!token) {
     throw new Error('Not authenticated')
@@ -53,6 +62,15 @@ async function createConversation(portfolioId?: string): Promise<CreateConversat
   const payload: any = { mode: 'green' }
   if (portfolioId) {
     payload.portfolio_id = portfolioId
+  }
+  if (portfolioIds && portfolioIds.length > 0) {
+    payload.portfolio_ids = portfolioIds
+  }
+  if (pageHint) {
+    payload.page_hint = pageHint
+  }
+  if (route) {
+    payload.route = route
   }
 
   const response = await fetch(`${BACKEND_API_URL}/chat/conversations`, {
@@ -77,8 +95,39 @@ async function createConversation(portfolioId?: string): Promise<CreateConversat
  * Uses OpenAI Responses API backend endpoint
  */
 export async function sendAIMessage(options: SendMessageOptions): Promise<void> {
-  const { message, onStart, onMessage, onToolCall, onToolResult, onDone, onError } = options
+  const { message, uiContext, onStart, onMessage, onToolCall, onToolResult, onDone, onError } = options
   let { conversationId, portfolioId } = options
+
+  // Build a complete UI context with portfolio selection rules that avoid silent fallbacks
+  const finalUiContext: UIContext = { ...(uiContext || {}) }
+  const portfolioStore = usePortfolioStore.getState()
+
+  // Primary portfolio: only set when explicitly selected or only one portfolio exists
+  if (!portfolioId) {
+    if (portfolioStore.selectedPortfolioId) {
+      portfolioId = portfolioStore.selectedPortfolioId
+    } else if (portfolioStore.portfolios.length === 1) {
+      portfolioId = portfolioStore.portfolios[0].id
+    }
+  }
+  if (!finalUiContext.portfolioId && portfolioId) {
+    finalUiContext.portfolioId = portfolioId
+  }
+
+  // Multi-portfolio support
+  if (!finalUiContext.portfolioIds || finalUiContext.portfolioIds.length === 0) {
+    if (portfolioStore.selectedPortfolioId === null && portfolioStore.portfolios.length > 1) {
+      // Aggregate view: send all portfolio IDs but no primary
+      finalUiContext.portfolioIds = portfolioStore.portfolios.map(p => p.id)
+      if (!finalUiContext.portfolioId) {
+        delete finalUiContext.portfolioId
+      }
+    } else if (portfolioStore.selectedPortfolioId) {
+      finalUiContext.portfolioIds = [portfolioStore.selectedPortfolioId]
+    } else if (portfolioStore.portfolios.length === 1) {
+      finalUiContext.portfolioIds = [portfolioStore.portfolios[0].id]
+    }
+  }
 
   // Get auth token from localStorage
   const token = localStorage.getItem('access_token')
@@ -102,7 +151,7 @@ export async function sendAIMessage(options: SendMessageOptions): Promise<void> 
   if (!conversationId) {
     try {
       console.log('[AI] Creating new conversation with portfolio:', portfolioId)
-      const conversation = await createConversation(portfolioId)
+      const conversation = await createConversation(portfolioId, finalUiContext.pageHint, finalUiContext.route, finalUiContext.portfolioIds)
       conversationId = conversation.id
 
       // Store the conversation ID
@@ -117,9 +166,23 @@ export async function sendAIMessage(options: SendMessageOptions): Promise<void> 
   }
 
   // Prepare request body for /chat/send endpoint
-  const body = {
+  const body: any = {
     conversation_id: conversationId,
     text: message
+  }
+
+  if (finalUiContext) {
+    const { pageHint, route, selection, portfolioId: ctxPortfolioId, portfolioIds } = finalUiContext
+    const ui_context: Record<string, unknown> = {}
+    if (pageHint) ui_context.page_hint = pageHint
+    if (route) ui_context.route = route
+    if (ctxPortfolioId) ui_context.portfolio_id = ctxPortfolioId
+    if (portfolioIds && portfolioIds.length > 0) ui_context.portfolio_ids = portfolioIds
+    if (selection) ui_context.selection = selection
+
+    if (Object.keys(ui_context).length > 0) {
+      body.ui_context = ui_context
+    }
   }
 
   // Make fetch request with SSE streaming to /chat/send
@@ -319,7 +382,7 @@ export function createNewConversation(): void {
 /**
  * Send a message with store integration
  */
-export async function sendMessage(message: string): Promise<void> {
+export async function sendMessage(message: string, uiContext?: UIContext): Promise<void> {
   const store = useAIChatStore.getState()
 
   // Add user message to store
@@ -334,6 +397,7 @@ export async function sendMessage(message: string): Promise<void> {
   // Send to AI
   await sendAIMessage({
     message,
-    conversationId: store.conversationId || undefined
+    conversationId: store.conversationId || undefined,
+    uiContext,
   })
 }

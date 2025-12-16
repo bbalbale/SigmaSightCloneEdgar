@@ -60,6 +60,9 @@
     "node_modules",
     "playwright.config.ts",
     "tests/chat-auth.test.ts",
-    "tests/chat-integration.spec.ts"
+    "tests/chat-integration.spec.ts",
+    ".next",
+    ".next/types",
+    ".next/dev"
   ]
 }

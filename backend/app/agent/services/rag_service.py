@@ -425,10 +425,28 @@ def format_rag_docs_for_prompt(docs: List[Dict[str, Any]], max_chars: int = 8000
 
     parts = []
     total_chars = 0
+    seen_titles = set()  # Track seen titles to deduplicate
+    seen_ids = set()  # Track seen document IDs
 
-    for i, doc in enumerate(docs, 1):
+    doc_index = 1
+    for doc in docs:
+        # Skip duplicates by ID
+        doc_id = doc.get("id")
+        if doc_id and doc_id in seen_ids:
+            logger.debug(f"[RAG] Skipping duplicate doc by ID: {doc_id}")
+            continue
+        if doc_id:
+            seen_ids.add(doc_id)
+
+        # Skip duplicates by title (often indicates same content)
+        title = doc.get("title", "").strip()
+        if title in seen_titles:
+            logger.debug(f"[RAG] Skipping duplicate doc by title: {title}")
+            continue
+        seen_titles.add(title)
+
         # Format each document
-        doc_text = f"[{i}] {doc['title']}\n{doc['content']}"
+        doc_text = f"[{doc_index}] {title}\n{doc['content']}"
 
         # Check if we'd exceed max_chars
         if total_chars + len(doc_text) > max_chars:
@@ -441,5 +459,7 @@ def format_rag_docs_for_prompt(docs: List[Dict[str, Any]], max_chars: int = 8000
 
         parts.append(doc_text)
         total_chars += len(doc_text) + 2  # +2 for newlines
+        doc_index += 1
 
+    logger.debug(f"[RAG] Formatted {len(parts)} unique docs (from {len(docs)} retrieved)")
     return "\n\n".join(parts)
