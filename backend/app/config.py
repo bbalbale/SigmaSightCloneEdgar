@@ -53,6 +53,20 @@ class Settings(BaseSettings):
     # GPT-5 models confirmed to exist - see https://platform.openai.com/docs/models/gpt-5-mini
     MODEL_DEFAULT: str = Field(default="gpt-5-mini-2025-08-07", env="MODEL_DEFAULT")
     MODEL_FALLBACK: str = Field(default="gpt-5-nano-2025-08-07", env="MODEL_FALLBACK")
+    MODEL_DEEP_REASONING: str = Field(default="gpt-5-mini-2025-08-07", env="MODEL_DEEP_REASONING",
+                                       description="Model for complex reasoning tasks (investment thesis, multi-step analysis)")
+
+    # Smart Routing settings
+    SMART_ROUTING_ENABLED: bool = Field(default=True, env="SMART_ROUTING_ENABLED",
+                                        description="Enable smart routing to select model/reasoning based on query complexity")
+    DEFAULT_REASONING_EFFORT: str = Field(default="medium", env="DEFAULT_REASONING_EFFORT",
+                                          description="Default reasoning effort: none, low, medium, high, xhigh")
+    DEFAULT_TEXT_VERBOSITY: str = Field(default="medium", env="DEFAULT_TEXT_VERBOSITY",
+                                        description="Default text verbosity: low, medium, high")
+
+    # Web Search settings (OpenAI built-in tool)
+    WEB_SEARCH_ENABLED: bool = Field(default=True, env="WEB_SEARCH_ENABLED",
+                                     description="Enable OpenAI web_search tool for current events and citations")
     AGENT_CACHE_TTL: int = Field(default=600, env="AGENT_CACHE_TTL")
     SSE_HEARTBEAT_INTERVAL_MS: int = Field(default=15000, env="SSE_HEARTBEAT_INTERVAL_MS")
     # SSE streaming retry/fallback settings

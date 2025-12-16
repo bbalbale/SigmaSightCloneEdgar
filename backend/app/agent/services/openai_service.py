@@ -44,12 +44,34 @@ class OpenAIService:
         self.prompt_manager = PromptManager()
         self.model = settings.MODEL_DEFAULT
         self.fallback_model = settings.MODEL_FALLBACK
+        self.deep_reasoning_model = settings.MODEL_DEEP_REASONING
         # Track tool call IDs for correlation between OpenAI and our system
         self.tool_call_id_map: Dict[str, Dict[str, Any]] = {}
         # RAG configuration (from settings)
         self.rag_enabled = settings.RAG_ENABLED
         self.rag_doc_limit = settings.RAG_DOC_LIMIT
         self.rag_max_chars = settings.RAG_MAX_CHARS
+        # Smart routing configuration
+        self.smart_routing_enabled = settings.SMART_ROUTING_ENABLED
+        self.default_reasoning_effort = settings.DEFAULT_REASONING_EFFORT
+        self.default_text_verbosity = settings.DEFAULT_TEXT_VERBOSITY
+        # Web search configuration
+        self.web_search_enabled = settings.WEB_SEARCH_ENABLED
+
+        # Keywords for smart routing classification
+        self._deep_reasoning_keywords = [
+            "deep dive", "investment thesis", "thesis", "compare scenarios",
+            "root cause", "analysis of", "evaluate", "comprehensive",
+            "multi-step", "strategic", "long-term", "scenario analysis",
+            "risk assessment", "due diligence", "fundamental analysis",
+            "valuation", "intrinsic value", "dcf", "discounted cash flow"
+        ]
+        self._web_search_keywords = [
+            "today", "recent", "latest", "news", "current", "now",
+            "this week", "this month", "yesterday", "what happened",
+            "breaking", "update", "announcement", "earnings report",
+            "market news", "fed", "interest rate", "inflation"
+        ]
 
     async def _get_rag_context(
         self,
@@ -168,6 +190,57 @@ class OpenAIService:
         except Exception as e:
             logger.warning(f"[Memory] Failed to retrieve memories: {e}")
             return ""
+
+    def _classify_query(self, query: str) -> Dict[str, Any]:
+        """
+        Classify a query to determine optimal routing parameters.
+
+        Returns a dict with:
+        - model: which model to use
+        - reasoning_effort: none, low, medium, high, xhigh
+        - text_verbosity: low, medium, high
+        - use_web_search: whether to enable web_search tool
+        """
+        query_lower = query.lower()
+
+        # Default routing parameters
+        routing = {
+            "model": self.model,
+            "reasoning_effort": self.default_reasoning_effort,
+            "text_verbosity": self.default_text_verbosity,
+            "use_web_search": False,
+        }
+
+        if not self.smart_routing_enabled:
+            return routing
+
+        # Check for deep reasoning keywords
+        needs_deep_reasoning = any(kw in query_lower for kw in self._deep_reasoning_keywords)
+
+        # Check for web search keywords
+        needs_web_search = any(kw in query_lower for kw in self._web_search_keywords)
+
+        # Detect question complexity by length and structure
+        word_count = len(query.split())
+        has_multiple_questions = query.count("?") > 1
+        is_complex = word_count > 50 or has_multiple_questions
+
+        # Route based on classification
+        if needs_deep_reasoning or is_complex:
+            routing["model"] = self.deep_reasoning_model
+            routing["reasoning_effort"] = "high"
+            routing["text_verbosity"] = "high"
+            logger.info(f"[ROUTING] Deep reasoning mode: {query[:50]}...")
+        elif needs_web_search:
+            routing["reasoning_effort"] = "medium"
+            routing["use_web_search"] = self.web_search_enabled
+            logger.info(f"[ROUTING] Web search mode: {query[:50]}...")
+        else:
+            # Default: balanced mode for typical portfolio questions
+            routing["reasoning_effort"] = "medium"
+            routing["text_verbosity"] = "medium"
+
+        return routing
 
     async def _execute_tool_call(
         self,
@@ -297,12 +370,17 @@ class OpenAIService:
 
             yield json.dumps({"_result": error_result, "_tool_call_id": tool_call_id})
 
-    def _get_tool_definitions(self) -> List[Dict[str, Any]]:
+    def _get_tool_definitions(self, include_web_search: bool = False) -> List[Dict[str, Any]]:
         """Default tool definitions method - delegates to Responses API format"""
-        return self._get_tool_definitions_responses()
-    
-    def _get_tool_definitions_responses(self) -> List[Dict[str, Any]]:
-        """Convert our tool definitions to Responses API format (with full schemas)"""
+        return self._get_tool_definitions_responses(include_web_search=include_web_search)
+
+    def _get_tool_definitions_responses(self, include_web_search: bool = False) -> List[Dict[str, Any]]:
+        """
+        Convert our tool definitions to Responses API format (with full schemas).
+
+        Args:
+            include_web_search: If True, include OpenAI's built-in web_search tool
+        """
         tools = [
             # ===== Multi-Portfolio Discovery Tool =====
             {
@@ -659,8 +737,16 @@ class OpenAIService:
                 }
             }
         ]
+
+        # Add OpenAI's built-in web_search tool if requested
+        if include_web_search and self.web_search_enabled:
+            tools.append({
+                "type": "web_search"
+            })
+            logger.info("[TOOLS] web_search tool enabled for this request")
+
         return tools
-    
+
     def _validate_tool_call_format(self, tool_call: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """
         Validate and fix tool call format to ensure OpenAI API compliance.
@@ -922,9 +1008,20 @@ The following documents may be relevant to the user's question. Use this informa
         final_content_parts = []
         token_count_initial = 0
         token_count_continuation = 0
-        model_to_use = model_override or self.model
 
         try:
+            # Smart routing: classify query to determine model/reasoning/tools
+            routing = self._classify_query(message_text)
+            model_to_use = model_override or routing["model"]
+            reasoning_effort = routing["reasoning_effort"]
+            text_verbosity = routing["text_verbosity"]
+            use_web_search = routing["use_web_search"]
+
+            logger.info(
+                f"[ROUTING] model={model_to_use} reasoning={reasoning_effort} "
+                f"verbosity={text_verbosity} web_search={use_web_search}"
+            )
+
             # Retrieve RAG context before building input
             rag_context = await self._get_rag_context(
                 db=db,
@@ -953,10 +1050,10 @@ The following documents may be relevant to the user's question. Use this informa
                 f"[TRACE] START-PAYLOAD ctx={portfolio_context} rag={'yes' if rag_context else 'no'} memories={'yes' if memories_context else 'no'}"
             )
 
-            # Get tool definitions for Responses API
-            tools = self._get_tool_definitions_responses()
+            # Get tool definitions for Responses API (with optional web_search)
+            tools = self._get_tool_definitions_responses(include_web_search=use_web_search)
             
-            # Yield start event with standardized format
+            # Yield start event with standardized format (includes routing info)
             start_payload = {
                 "type": "start",
                 "run_id": run_id,
@@ -965,6 +1062,9 @@ The following documents may be relevant to the user's question. Use this informa
                     "conversation_id": conversation_id,
                     "mode": conversation_mode,
                     "model": model_to_use,
+                    "reasoning_effort": reasoning_effort,
+                    "text_verbosity": text_verbosity,
+                    "web_search_enabled": use_web_search,
                     "page_hint": portfolio_context.get("page_hint") if portfolio_context else None,
                     "route": portfolio_context.get("route") if portfolio_context else None,
                     "portfolio_id": portfolio_context.get("portfolio_id") if portfolio_context else None,
@@ -977,11 +1077,14 @@ The following documents may be relevant to the user's question. Use this informa
             seq += 1
             
             # Call OpenAI Responses API with streaming
+            # Include reasoning effort and text verbosity for better response quality
             stream = await self.client.responses.create(
                 model=model_to_use,
                 input=input_data,  # Use input structure instead of messages
                 tools=tools if tools else None,
-                stream=True
+                stream=True,
+                reasoning={"effort": reasoning_effort},
+                text={"format": {"type": "text"}, "verbosity": text_verbosity},
                 # Note: max_completion_tokens is not supported by Responses API
             )
             
@@ -1362,7 +1465,9 @@ The following documents may be relevant to the user's question. Use this informa
                         model=model_to_use,
                         input=continuation_input,
                         tools=tools if tools else None,
-                        stream=True
+                        stream=True,
+                        reasoning={"effort": reasoning_effort},
+                        text={"format": {"type": "text"}, "verbosity": text_verbosity},
                     )
 
                     cont_event_count = 0
