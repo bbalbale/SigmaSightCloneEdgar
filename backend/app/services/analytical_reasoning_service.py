@@ -23,7 +23,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.logging import get_logger
 from app.models.ai_insights import AIInsight, InsightType, InsightSeverity
 from app.models.users import Portfolio
-from app.services.anthropic_provider import anthropic_provider
+# DEPRECATED: from app.services.anthropic_provider import anthropic_provider
+from app.agent.services.openai_service import openai_service
 from app.services.hybrid_context_builder import hybrid_context_builder
 from app.services.analytics_bundle import analytics_bundle_service
 
@@ -40,9 +41,9 @@ class AnalyticalReasoningService:
 
     def __init__(self):
         """Initialize the analytical reasoning service."""
-        self.model_name = "claude-sonnet-4"
-        self.provider = "anthropic"
-        logger.info("AnalyticalReasoningService initialized")
+        self.model_name = "gpt-4o-mini"  # Updated to OpenAI model
+        self.provider = "openai"  # Migrated from anthropic
+        logger.info("AnalyticalReasoningService initialized (using OpenAI with tool-calling)")
 
     async def investigate_portfolio(
         self,
@@ -52,6 +53,7 @@ class AnalyticalReasoningService:
         focus_area: Optional[str] = None,
         user_question: Optional[str] = None,
         auth_token: Optional[str] = None,
+        portfolio_ids: Optional[List[UUID]] = None,
     ) -> AIInsight:
         """
         Conduct AI-powered investigation of portfolio metrics.
@@ -64,11 +66,12 @@ class AnalyticalReasoningService:
 
         Args:
             db: Database session
-            portfolio_id: UUID of portfolio to investigate
+            portfolio_id: UUID of primary portfolio to investigate
             insight_type: Type of insight to generate
             focus_area: Optional focus area (e.g., "volatility", "concentration")
             user_question: Optional user question for on-demand analysis
             auth_token: Optional JWT token for authenticating tool API calls
+            portfolio_ids: Optional list of all portfolio UUIDs for multi-portfolio accounts
 
         Returns:
             AIInsight: Generated insight with analysis and recommendations
@@ -76,9 +79,10 @@ class AnalyticalReasoningService:
         Raises:
             ValueError: If portfolio not found
         """
+        num_portfolios = len(portfolio_ids) if portfolio_ids else 1
         logger.info(
-            f"Starting investigation: portfolio={portfolio_id}, type={insight_type.value}, "
-            f"focus={focus_area}, question={user_question[:50] if user_question else None}"
+            f"Starting investigation: portfolio={portfolio_id}, portfolios_count={num_portfolios}, "
+            f"type={insight_type.value}, focus={focus_area}, question={user_question[:50] if user_question else None}"
         )
 
         # 1. Verify portfolio exists
@@ -94,7 +98,7 @@ class AnalyticalReasoningService:
         # 3. Build investigation context
         context = await self._build_investigation_context(db, portfolio_id, focus_area)
 
-        # 4. Execute AI investigation (placeholder - will implement with Claude integration)
+        # 4. Execute AI investigation using OpenAI with tool-calling
         insight_data = await self._execute_investigation(
             portfolio_id=portfolio_id,
             insight_type=insight_type,
@@ -102,6 +106,8 @@ class AnalyticalReasoningService:
             focus_area=focus_area,
             user_question=user_question,
             auth_token=auth_token,
+            db=db,  # Pass db for RAG context
+            portfolio_ids=portfolio_ids,  # Pass all portfolios for multi-portfolio accounts
         )
 
         # 5. Store insight in database
@@ -247,33 +253,57 @@ class AnalyticalReasoningService:
         focus_area: Optional[str],
         user_question: Optional[str],
         auth_token: Optional[str] = None,
+        db: Optional[AsyncSession] = None,
+        portfolio_ids: Optional[List[UUID]] = None,
     ) -> Dict[str, Any]:
         """
-        Execute AI-powered investigation using Claude Sonnet 4.
+        Execute AI-powered investigation using OpenAI with tool-calling.
 
-        Delegates to AnthropicProvider for actual investigation.
+        Uses the new generalized LLM architecture with:
+        - Real-time tool calls for portfolio data (get_daily_movers, get_market_news)
+        - Structured insight generation
+        - More actionable daily insights
+        - Multi-portfolio support for accounts with multiple portfolios
 
         Args:
-            portfolio_id: Portfolio UUID
+            portfolio_id: Primary portfolio UUID
             insight_type: Type of insight to generate
-            context: Investigation context with portfolio data
+            context: Investigation context with portfolio data (used for fallback)
             focus_area: Optional focus area
             user_question: Optional user question
             auth_token: Optional JWT token for tool authentication
+            db: Optional database session for RAG
+            portfolio_ids: Optional list of all portfolio UUIDs for multi-portfolio accounts
 
         Returns:
             Dict containing analysis results
         """
-        logger.info(f"Executing AI investigation: type={insight_type.value}")
+        # Convert portfolio IDs to strings
+        portfolio_ids_str = None
+        if portfolio_ids and len(portfolio_ids) > 0:
+            portfolio_ids_str = [str(pid) for pid in portfolio_ids]
+            logger.info(f"Executing AI investigation: type={insight_type.value}, portfolios={len(portfolio_ids_str)} (OpenAI with tools)")
+        else:
+            logger.info(f"Executing AI investigation: type={insight_type.value} (OpenAI with tools)")
 
-        # Call Anthropic provider for investigation with auth token for tool calls
-        result = await anthropic_provider.investigate(
-            context=context,
-            insight_type=insight_type,
+        # Build auth context for tool calls
+        auth_context = {"auth_token": auth_token} if auth_token else None
+
+        # Use new OpenAI generate_insight method with tool-calling
+        result = await openai_service.generate_insight(
+            portfolio_id=str(portfolio_id),
+            portfolio_ids=portfolio_ids_str,  # Pass all portfolios for multi-portfolio accounts
+            insight_type=insight_type.value if hasattr(insight_type, 'value') else str(insight_type),
             focus_area=focus_area,
-            user_question=user_question,
-            auth_token=auth_token,
+            auth_context=auth_context,
+            db=db,
         )
+
+        # Ensure result has required fields for storage
+        if "severity" not in result:
+            result["severity"] = "INFO"
+        if "performance" not in result:
+            result["performance"] = {}
 
         return result
 

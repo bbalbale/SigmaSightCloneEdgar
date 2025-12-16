@@ -88,6 +88,9 @@ class ToolRegistry:
             "get_volatility_analysis": self.tools.get_volatility_analysis,
             "get_target_prices": self.tools.get_target_prices,
             "get_position_tags": self.tools.get_position_tags,
+            # Daily Insight Tools (December 15, 2025)
+            "get_daily_movers": self.tools.get_daily_movers,
+            "get_market_news": self.tools.get_market_news,
         }
         
     async def dispatch_tool_call(
@@ -332,8 +335,11 @@ class ToolRegistry:
             "get_volatility_analysis": authenticated_tools.get_volatility_analysis,
             "get_target_prices": authenticated_tools.get_target_prices,
             "get_position_tags": authenticated_tools.get_position_tags,
+            # Daily Insight Tools (December 15, 2025)
+            "get_daily_movers": authenticated_tools.get_daily_movers,
+            "get_market_news": authenticated_tools.get_market_news,
         }
-        
+
         return authenticated_registry.get(tool_name, self.registry[tool_name])
     
     def get_tool_info(self, tool_name: str) -> Optional[Dict[str, Any]]:
