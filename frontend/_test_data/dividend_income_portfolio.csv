@@ -1,10 +1,10 @@
-Symbol,Quantity,Entry Price Per Share,Entry Date,Investment Class,Position Type,Account Name,Account Type,Notes,Target Price,Price Alert Low,Price Alert High
-JNJ,120,155.00,2023-06-15,PUBLIC,LONG,Dividend Taxable,TAXABLE,Healthcare dividend,180.00,145.00,190.00
-PG,100,145.00,2023-07-01,PUBLIC,LONG,Dividend Taxable,TAXABLE,Consumer staples,170.00,135.00,180.00
-KO,150,58.00,2023-08-10,PUBLIC,LONG,Dividend Taxable,TAXABLE,Dividend aristocrat,68.00,52.00,72.00
-PEP,90,175.00,2023-09-01,PUBLIC,LONG,Dividend Taxable,TAXABLE,Beverage leader,200.00,160.00,210.00
-VZ,200,35.00,2023-10-15,PUBLIC,LONG,Dividend Taxable,TAXABLE,High yield telecom,45.00,30.00,48.00
-XOM,80,105.00,2023-11-01,PUBLIC,LONG,Dividend Taxable,TAXABLE,Energy income,130.00,95.00,140.00
-ABBV,70,145.00,2023-12-01,PUBLIC,LONG,Dividend Taxable,TAXABLE,Pharma dividend,175.00,135.00,185.00
-O,100,55.00,2024-01-05,PUBLIC,LONG,Dividend Taxable,TAXABLE,Monthly REIT,65.00,50.00,70.00
-MMM,60,95.00,2024-02-01,PUBLIC,LONG,Dividend Taxable,TAXABLE,Industrial yield,120.00,85.00,130.00
+Symbol,Quantity,Entry Price Per Share,Entry Date,Investment Class,Investment Subtype,Underlying Symbol,Strike Price,Expiration Date,Option Type,Exit Date,Exit Price Per Share
+JNJ,120,155.00,2023-06-15,PUBLIC,STOCK,,,,,,
+PG,100,145.00,2023-07-01,PUBLIC,STOCK,,,,,,
+KO,150,58.00,2023-08-10,PUBLIC,STOCK,,,,,,
+PEP,90,175.00,2023-09-01,PUBLIC,STOCK,,,,,,
+VZ,200,35.00,2023-10-15,PUBLIC,STOCK,,,,,,
+XOM,80,105.00,2023-11-01,PUBLIC,STOCK,,,,,,
+ABBV,70,145.00,2023-12-01,PUBLIC,STOCK,,,,,,
+O,100,55.00,2024-01-05,PUBLIC,STOCK,,,,,,
+MMM,60,95.00,2024-02-01,PUBLIC,STOCK,,,,,,

@@ -2,35 +2,62 @@
 
 This directory contains sample CSV portfolios designed to test the multi-portfolio onboarding features.
 
+## CSV Format (12 Columns)
+
+All files follow the backend's required 12-column format:
+
+**Required Columns:**
+- `Symbol` - Stock/ETF ticker symbol
+- `Quantity` - Number of shares (negative for shorts)
+- `Entry Price Per Share` - Purchase price per share
+- `Entry Date` - Date position was entered (YYYY-MM-DD)
+
+**Optional Columns:**
+- `Investment Class` - PUBLIC, OPTIONS, or PRIVATE
+- `Investment Subtype` - STOCK, ETF, CALL, PUT, etc.
+- `Underlying Symbol` - For options only
+- `Strike Price` - For options only
+- `Expiration Date` - For options only (YYYY-MM-DD)
+- `Option Type` - CALL or PUT
+- `Exit Date` - For closed positions (YYYY-MM-DD)
+- `Exit Price Per Share` - For closed positions
+
+**Header Row:**
+```csv
+Symbol,Quantity,Entry Price Per Share,Entry Date,Investment Class,Investment Subtype,Underlying Symbol,Strike Price,Expiration Date,Option Type,Exit Date,Exit Price Per Share
+```
+
+**Note:** Account Name, Account Type, and Equity Balance are NOT CSV columns - they are form fields submitted separately during portfolio creation.
+
 ## Test Files
 
 ### 1. tech_growth_portfolio.csv
-- **Account Name**: Tech IRA
-- **Account Type**: IRA
+- **Suggested Account Name**: Tech IRA
+- **Suggested Account Type**: IRA
 - **Focus**: Growth-oriented technology stocks
 - **Positions**: 8 (AAPL, MSFT, NVDA, GOOGL, META, AMZN, AMD, CRM)
 - **Estimated Value**: ~$200,000+
 - **Use Case**: Test IRA account type, technology sector concentration
 
 ### 2. dividend_income_portfolio.csv
-- **Account Name**: Dividend Taxable
-- **Account Type**: TAXABLE
+- **Suggested Account Name**: Dividend Taxable
+- **Suggested Account Type**: TAXABLE
 - **Focus**: Income-focused dividend stocks
 - **Positions**: 9 (JNJ, PG, KO, PEP, VZ, XOM, ABBV, O, MMM)
 - **Estimated Value**: ~$150,000+
 - **Use Case**: Test taxable account, defensive/income sectors
 
 ### 3. balanced_retirement_portfolio.csv
-- **Account Name**: 401k Retirement
-- **Account Type**: 401K
+- **Suggested Account Name**: 401k Retirement
+- **Suggested Account Type**: 401K
 - **Focus**: Diversified mix of stocks and ETFs
 - **Positions**: 10 (SPY, QQQ, VTI, BND, VNQ, SCHD, BRK.B, V, UNH, JPM)
 - **Estimated Value**: ~$100,000+
 - **Use Case**: Test 401k account type, ETF holdings, balanced allocation
 
 ### 4. small_test_portfolio.csv
-- **Account Name**: Quick Test
-- **Account Type**: TAXABLE
+- **Suggested Account Name**: Quick Test
+- **Suggested Account Type**: TAXABLE
 - **Focus**: Minimal portfolio for quick testing
 - **Positions**: 3 (TSLA, DIS, COST)
 - **Estimated Value**: ~$50,000+
@@ -39,11 +66,11 @@ This directory contains sample CSV portfolios designed to test the multi-portfol
 ## Testing Scenarios
 
 ### Scenario 1: Full Multi-Portfolio Session
-1. Upload `tech_growth_portfolio.csv` (IRA)
+1. Upload `tech_growth_portfolio.csv` with Account Name "Tech IRA", Type "IRA"
 2. Click "Add Another Portfolio"
-3. Upload `dividend_income_portfolio.csv` (Taxable)
+3. Upload `dividend_income_portfolio.csv` with Account Name "Dividend Taxable", Type "Taxable"
 4. Click "Add Another Portfolio"
-5. Upload `balanced_retirement_portfolio.csv` (401k)
+5. Upload `balanced_retirement_portfolio.csv` with Account Name "401k Retirement", Type "401k"
 6. Verify session summary shows 3 portfolios
 7. Click "Continue to Dashboard"
 
@@ -58,7 +85,7 @@ This directory contains sample CSV portfolios designed to test the multi-portfol
 
 ### Scenario 3: Quick Single Upload
 1. Upload `small_test_portfolio.csv`
-2. Verify single-portfolio success view (not session list)
+2. Verify single-portfolio success view
 3. Continue to dashboard
 
 ### Scenario 4: Navigation Abandonment
@@ -68,15 +95,18 @@ This directory contains sample CSV portfolios designed to test the multi-portfol
 4. Return to onboarding
 5. Verify session is cleared, fresh start
 
-## CSV Format
-
-All files follow the 12-column format:
-- **Required**: Symbol, Quantity, Entry Price Per Share, Entry Date
-- **Optional**: Investment Class, Position Type, Account Name, Account Type, Notes, Target Price, Price Alert Low, Price Alert High
-
 ## Notes
 
 - All entry dates are set to 2023-2024 for realistic holding periods
-- Target prices and price alerts are included for testing those features
 - Symbols are all valid, tradeable securities
 - Quantities and prices are realistic for typical retail investors
+- Investment Class and Subtype are optional - backend auto-detects if not provided
+
+## Full Template
+
+See `backend/Sample_Template.csv` for a complete template with examples including options and closed positions.
+
+## Documentation
+
+For complete CSV format specification, see:
+- `backend/_docs/requirements/SAMPLE_CSV_FORMAT.md`

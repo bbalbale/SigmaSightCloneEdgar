@@ -1,4 +1,4 @@
-Symbol,Quantity,Entry Price Per Share,Entry Date,Investment Class,Position Type,Account Name,Account Type,Notes,Target Price,Price Alert Low,Price Alert High
-TSLA,25,250.00,2024-06-01,PUBLIC,LONG,Quick Test,TAXABLE,EV play,320.00,200.00,350.00
-DIS,40,95.00,2024-06-15,PUBLIC,LONG,Quick Test,TAXABLE,Entertainment,120.00,85.00,130.00
-COST,15,720.00,2024-07-01,PUBLIC,LONG,Quick Test,TAXABLE,Retail winner,850.00,680.00,900.00
+Symbol,Quantity,Entry Price Per Share,Entry Date,Investment Class,Investment Subtype,Underlying Symbol,Strike Price,Expiration Date,Option Type,Exit Date,Exit Price Per Share
+TSLA,25,250.00,2024-06-01,PUBLIC,STOCK,,,,,,
+DIS,40,95.00,2024-06-15,PUBLIC,STOCK,,,,,,
+COST,15,720.00,2024-07-01,PUBLIC,STOCK,,,,,,
