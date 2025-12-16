@@ -5,10 +5,12 @@ Revises: k8l9m0n1o2p3
 Create Date: 2025-12-11 10:00:00.000000
 
 Phase 3.1: AI Learning Tables for RAG and Feedback
-- Enables pgvector extension for embedding storage
+- Enables pgvector extension for embedding storage (if available)
 - Creates ai_kb_documents table for RAG knowledge base
 - Creates ai_memories table for persistent rules/preferences
 - Creates ai_feedback table for user feedback on AI responses
+
+Note: pgvector is optional - RAG features gracefully degrade if not available
 """
 from alembic import op
 import sqlalchemy as sa
@@ -22,11 +24,28 @@ branch_labels = None
 depends_on = None
 
 
+def _check_pgvector_available(connection) -> bool:
+    """Check if pgvector extension is available on this PostgreSQL instance."""
+    try:
+        result = connection.execute(sa.text(
+            "SELECT EXISTS(SELECT 1 FROM pg_available_extensions WHERE name = 'vector')"
+        ))
+        return result.scalar()
+    except Exception:
+        return False
+
+
 def upgrade() -> None:
-    # Enable pgvector extension for embedding storage
-    op.execute("CREATE EXTENSION IF NOT EXISTS vector")
+    # Get connection to check pgvector availability
+    connection = op.get_bind()
+    pgvector_available = _check_pgvector_available(connection)
+
+    if pgvector_available:
+        # Enable pgvector extension for embedding storage
+        op.execute("CREATE EXTENSION IF NOT EXISTS vector")
 
     # Create ai_kb_documents table for RAG knowledge base
+    # Note: embedding column only added if pgvector is available
     op.create_table(
         'ai_kb_documents',
         sa.Column('id', postgresql.UUID(as_uuid=True), primary_key=True, server_default=sa.text('gen_random_uuid()')),
@@ -38,19 +57,21 @@ def upgrade() -> None:
         sa.Column('updated_at', sa.DateTime(timezone=True), nullable=False, server_default=sa.text('now()')),
     )
 
-    # Add embedding column using raw SQL (SQLAlchemy doesn't natively support pgvector)
-    op.execute("ALTER TABLE ai_kb_documents ADD COLUMN embedding vector(1536)")
+    if pgvector_available:
+        # Add embedding column using raw SQL (SQLAlchemy doesn't natively support pgvector)
+        op.execute("ALTER TABLE ai_kb_documents ADD COLUMN embedding vector(1536)")
 
     # Create indexes for ai_kb_documents
     op.create_index('ix_ai_kb_documents_scope', 'ai_kb_documents', ['scope'])
 
-    # Create IVFFlat index for vector similarity search
-    # Note: lists=100 is a good default for datasets < 100k rows
-    op.execute(
-        "CREATE INDEX IF NOT EXISTS ix_ai_kb_documents_embedding "
-        "ON ai_kb_documents USING ivfflat (embedding vector_cosine_ops) "
-        "WITH (lists = 100)"
-    )
+    if pgvector_available:
+        # Create IVFFlat index for vector similarity search
+        # Note: lists=100 is a good default for datasets < 100k rows
+        op.execute(
+            "CREATE INDEX IF NOT EXISTS ix_ai_kb_documents_embedding "
+            "ON ai_kb_documents USING ivfflat (embedding vector_cosine_ops) "
+            "WITH (lists = 100)"
+        )
 
     # Create ai_memories table for persistent rules/preferences
     op.create_table(
