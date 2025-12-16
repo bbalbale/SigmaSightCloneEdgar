@@ -214,13 +214,13 @@ async def download_csv_template():
 # Instructions:
 # 1. Fill in your positions below the header row
 # 2. Required columns: Symbol, Quantity, Entry Price Per Share, Entry Date
-# 3. For options: Fill in Underlying Symbol, Strike Price, Expiration Date, Option Type
+# 3. For options: Use a descriptive symbol (e.g., SPY_C450_20240315) + fill options columns
 # 4. For closed positions: Fill in Exit Date and Exit Price Per Share
 # 5. Negative quantity = short position
 # 6. Date format: YYYY-MM-DD
-# 7. Remove these comment lines (starting with #) before uploading
+# 7. Comment lines (starting with #) are automatically ignored - no need to remove them
 #
-# Account Types (used when importing portfolio):
+# Account Types (used when creating portfolio):
 # - taxable: Standard brokerage account
 # - ira: Traditional IRA
 # - roth_ira: Roth IRA
@@ -232,15 +232,17 @@ async def download_csv_template():
 # - other: Other account types
 #
 Symbol,Quantity,Entry Price Per Share,Entry Date,Investment Class,Investment Subtype,Underlying Symbol,Strike Price,Expiration Date,Option Type,Exit Date,Exit Price Per Share
-# Example: Stock position
+# Example: Stock position (long)
 AAPL,100,158.00,2024-01-15,PUBLIC,STOCK,,,,,,
-# Example: Options position (long call)
-,10,5.50,2024-02-01,OPTIONS,,SPY,450.00,2024-03-15,CALL,,
+# Example: Long call option
+SPY_C450_20240315,10,5.50,2024-02-01,OPTIONS,,SPY,450.00,2024-03-15,CALL,,
+# Example: Long put option
+AAPL_P160_20240315,5,3.25,2024-02-05,OPTIONS,,AAPL,160.00,2024-03-15,PUT,,
 # Example: ETF position
-SPY,50,445.20,2024-01-20,PUBLIC,ETF,,,,,,
-# Example: Short position (negative quantity)
+QQQ,50,445.20,2024-01-20,PUBLIC,ETF,,,,,,
+# Example: Short stock position (negative quantity)
 SHOP,-25,62.50,2024-02-10,PUBLIC,STOCK,,,,,,
-# Example: Cash/Money Market (use symbol SPAXX, VMFXX, etc.)
+# Example: Cash/Money Market
 SPAXX,10000,1.00,2024-01-01,PUBLIC,CASH,,,,,,
 # Example: Closed position (with exit date/price)
 TSLA,50,185.00,2023-12-01,PUBLIC,STOCK,,,,2024-01-15,215.00
