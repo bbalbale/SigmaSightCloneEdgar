@@ -9,7 +9,8 @@ import {
   Sparkles,
   TrendingUp,
   Command,
-  Search
+  Search,
+  Home
 } from 'lucide-react'
 import {
   DropdownMenu,
@@ -22,6 +23,7 @@ import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 
 const navigationItems = [
+  { href: '/home', label: 'Home', icon: Home },
   { href: '/command-center', label: 'Command Center', icon: Command },
   { href: '/risk-metrics', label: 'Risk Metrics', icon: TrendingUp },
   { href: '/research-and-analyze', label: 'Research & Analyze', icon: Search },

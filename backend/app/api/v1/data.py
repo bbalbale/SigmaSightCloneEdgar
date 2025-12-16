@@ -899,6 +899,104 @@ async def get_historical_prices(
         }
 
 
+@router.get("/prices/benchmark/{symbol}")
+async def get_benchmark_historical_prices(
+    symbol: str,
+    lookback_days: int = Query(400, description="Number of calendar days to look back"),
+    date_format: str = Query("iso", description="Date format (iso|unix)"),
+    current_user: CurrentUser = Depends(get_current_user),
+    db: AsyncSession = Depends(get_async_session)
+):
+    """
+    Get historical price data for a benchmark symbol (e.g., SPY, QQQ).
+    Queries MarketDataCache directly by symbol without requiring a portfolio ID.
+
+    This endpoint is designed for benchmark comparison on the home page,
+    allowing frontend to calculate returns (1M, 3M, YTD, 1Y) and volatility.
+
+    Args:
+        symbol: Ticker symbol (e.g., "SPY", "QQQ")
+        lookback_days: Number of calendar days to look back (default 400 for ~1 year trading days)
+        date_format: "iso" for ISO date strings, "unix" for timestamps
+
+    Returns:
+        Historical OHLCV data with dates array for charting and calculations
+    """
+    from datetime import timedelta
+
+    symbol = symbol.upper().strip()
+
+    async with db as session:
+        end_date = date.today()
+        start_date = end_date - timedelta(days=lookback_days)
+
+        # Query MarketDataCache directly by symbol
+        cache_stmt = select(MarketDataCache).where(
+            and_(
+                MarketDataCache.symbol == symbol,
+                MarketDataCache.date >= start_date,
+                MarketDataCache.date <= end_date
+            )
+        ).order_by(MarketDataCache.date)
+
+        cache_result = await session.execute(cache_stmt)
+        market_data_rows = cache_result.scalars().all()
+
+        if not market_data_rows:
+            # No data found for this symbol
+            return {
+                "symbol": symbol,
+                "available": False,
+                "message": f"No historical data found for {symbol}",
+                "metadata": {
+                    "lookback_days": lookback_days,
+                    "start_date": to_iso_date(start_date),
+                    "end_date": to_iso_date(end_date),
+                    "trading_days_found": 0
+                },
+                "data": None
+            }
+
+        # Build arrays from historical data
+        dates = []
+        opens = []
+        highs = []
+        lows = []
+        closes = []
+        volumes = []
+
+        for row in market_data_rows:
+            dates.append(to_iso_date(row.date) if date_format == "iso" else int(row.date.timestamp()))
+
+            close_price = float(row.close)
+            opens.append(float(row.open) if row.open else close_price)
+            highs.append(float(row.high) if row.high else close_price)
+            lows.append(float(row.low) if row.low else close_price)
+            closes.append(close_price)
+            volumes.append(int(row.volume) if row.volume else 0)
+
+        return {
+            "symbol": symbol,
+            "available": True,
+            "metadata": {
+                "lookback_days": lookback_days,
+                "start_date": to_iso_date(start_date),
+                "end_date": to_iso_date(end_date),
+                "trading_days_found": len(closes),
+                "first_date": dates[0] if dates else None,
+                "last_date": dates[-1] if dates else None
+            },
+            "data": {
+                "dates": dates,
+                "open": opens,
+                "high": highs,
+                "low": lows,
+                "close": closes,
+                "volume": volumes
+            }
+        }
+
+
 @router.get("/prices/quotes")
 async def get_market_quotes(
     symbols: str = Query(..., description="Comma-separated list of ticker symbols"),
