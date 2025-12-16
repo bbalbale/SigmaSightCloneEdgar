@@ -762,8 +762,14 @@ export function useCommandCenterData(refreshTrigger?: number): UseCommandCenterD
         if (isCancelled) {
           return
         }
-        console.error('Failed to load Command Center data:', err)
-        setError(err.message || 'Failed to load data')
+        const errorCode = `CC-FETCH-${Date.now().toString(36).slice(-6).toUpperCase()}`
+        console.error(`[${errorCode}] Failed to load Command Center data:`, {
+          error: err,
+          message: err?.message,
+          stack: err?.stack,
+          selectedPortfolioId,
+        })
+        setError(`[${errorCode}] ${err.message || 'Failed to load data'}`)
         setAggregateData(null)
         setPortfolioSections([])
         setLoading(false)
@@ -771,9 +777,14 @@ export function useCommandCenterData(refreshTrigger?: number): UseCommandCenterD
     }
 
     fetchData().catch((err) => {
-      console.error('[useCommandCenterData] Unhandled error:', err)
+      const errorCode = `CC-UNHANDLED-${Date.now().toString(36).slice(-6).toUpperCase()}`
+      console.error(`[${errorCode}] Unhandled error in useCommandCenterData:`, {
+        error: err,
+        message: err?.message,
+        stack: err?.stack,
+      })
       if (!isCancelled) {
-        setError(err instanceof Error ? err.message : 'Failed to load data')
+        setError(`[${errorCode}] ${err instanceof Error ? err.message : 'Failed to load data'}`)
         setAggregateData(null)
         setPortfolioSections([])
         setLoading(false)

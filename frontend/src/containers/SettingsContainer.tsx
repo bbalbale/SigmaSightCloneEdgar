@@ -48,7 +48,8 @@ export function SettingsContainer() {
       </Card>
 
       {/* Portfolio Management - Multi-Portfolio Feature (November 3, 2025) */}
-      <PortfolioManagement />
+      {/* Always show for single portfolio users so they can add more portfolios */}
+      <PortfolioManagement showForSinglePortfolio={true} />
 
       {/* Actions Section - Power User Features */}
       <Card>

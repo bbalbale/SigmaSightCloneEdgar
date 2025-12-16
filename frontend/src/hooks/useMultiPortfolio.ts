@@ -312,6 +312,10 @@ export function usePortfolioMutations(): UsePortfolioMutationsReturn {
 /**
  * Hook: useSelectedPortfolio
  * Returns the currently selected portfolio or null for aggregate view
+ *
+ * IMPORTANT: Uses direct state selectors instead of method calls to prevent
+ * infinite render loops. Method calls inside selectors create new references
+ * on every render, causing Zustand to trigger re-renders infinitely.
  */
 interface UseSelectedPortfolioReturn {
   selectedPortfolio: PortfolioListItem | null
@@ -320,9 +324,14 @@ interface UseSelectedPortfolioReturn {
 }
 
 export function useSelectedPortfolio(): UseSelectedPortfolioReturn {
-  const selectedPortfolio = usePortfolioStore((state) => state.getSelectedPortfolio())
-  const isAggregateView = usePortfolioStore((state) => state.isAggregateView())
-  const portfolioCount = usePortfolioStore((state) => state.getPortfolioCount())
+  // Use direct state access to avoid infinite render loops
+  // DO NOT call methods like state.getSelectedPortfolio() inside selectors
+  const selectedPortfolio = usePortfolioStore((state) => {
+    if (state.selectedPortfolioId === null) return null
+    return state.portfolios.find((p) => p.id === state.selectedPortfolioId) || null
+  })
+  const isAggregateView = usePortfolioStore((state) => state.selectedPortfolioId === null)
+  const portfolioCount = usePortfolioStore((state) => state.portfolios.length)
 
   return {
     selectedPortfolio,

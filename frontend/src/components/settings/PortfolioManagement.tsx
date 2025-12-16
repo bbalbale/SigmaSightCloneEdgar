@@ -65,10 +65,11 @@ export function PortfolioManagement({ showForSinglePortfolio = false }: Portfoli
   const [selectedPortfolioId, setSelectedPortfolioId] = useState<string | null>(null)
 
   const [formData, setFormData] = useState({
-    portfolio_name: '',
+    name: '',  // Backend expects 'name', not 'portfolio_name'
     account_name: '',
     account_type: 'taxable' as 'taxable' | 'ira' | 'roth_ira' | '401k' | '403b' | '529' | 'hsa' | 'trust' | 'other',
     description: '',
+    equity_balance: '' as string,  // Optional equity balance
   })
 
   // Progressive disclosure: Hide for single-portfolio users unless explicitly shown
@@ -78,9 +79,17 @@ export function PortfolioManagement({ showForSinglePortfolio = false }: Portfoli
 
   const handleCreatePortfolio = async () => {
     try {
-      await createPortfolio(formData)
+      // Build request with optional equity_balance
+      const request = {
+        name: formData.name,
+        account_name: formData.account_name,
+        account_type: formData.account_type,
+        description: formData.description || undefined,
+        equity_balance: formData.equity_balance ? parseFloat(formData.equity_balance.replace(/[$,]/g, '')) : undefined,
+      }
+      await createPortfolio(request)
       setIsCreateDialogOpen(false)
-      setFormData({ portfolio_name: '', account_name: '', account_type: 'taxable', description: '' })
+      setFormData({ name: '', account_name: '', account_type: 'taxable', description: '', equity_balance: '' })
       await refetch()
     } catch (err) {
       console.error('Failed to create portfolio:', err)
@@ -90,10 +99,17 @@ export function PortfolioManagement({ showForSinglePortfolio = false }: Portfoli
   const handleEditPortfolio = async () => {
     if (!selectedPortfolioId) return
     try {
-      await updatePortfolio(selectedPortfolioId, formData)
+      const request = {
+        name: formData.name,
+        account_name: formData.account_name,
+        account_type: formData.account_type,
+        description: formData.description || undefined,
+        equity_balance: formData.equity_balance ? parseFloat(formData.equity_balance.replace(/[$,]/g, '')) : undefined,
+      }
+      await updatePortfolio(selectedPortfolioId, request)
       setIsEditDialogOpen(false)
       setSelectedPortfolioId(null)
-      setFormData({ portfolio_name: '', account_name: '', account_type: 'taxable', description: '' })
+      setFormData({ name: '', account_name: '', account_type: 'taxable', description: '', equity_balance: '' })
       await refetch()
     } catch (err) {
       console.error('Failed to update portfolio:', err)
@@ -117,10 +133,11 @@ export function PortfolioManagement({ showForSinglePortfolio = false }: Portfoli
     if (portfolio) {
       setSelectedPortfolioId(portfolioId)
       setFormData({
-        portfolio_name: portfolio.name || '',
+        name: portfolio.name || '',
         account_name: portfolio.account_name,
         account_type: portfolio.account_type as any,
         description: portfolio.description || '',
+        equity_balance: portfolio.net_asset_value ? portfolio.net_asset_value.toString() : '',
       })
       setIsEditDialogOpen(true)
     }
@@ -205,12 +222,12 @@ export function PortfolioManagement({ showForSinglePortfolio = false }: Portfoli
               </DialogHeader>
               <div className="space-y-4 py-4">
                 <div className="space-y-2">
-                  <Label htmlFor="portfolio_name">Portfolio Name *</Label>
+                  <Label htmlFor="name">Portfolio Name *</Label>
                   <Input
-                    id="portfolio_name"
+                    id="name"
                     placeholder="e.g., My Investment Portfolio"
-                    value={formData.portfolio_name}
-                    onChange={(e) => setFormData({ ...formData, portfolio_name: e.target.value })}
+                    value={formData.name}
+                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                   />
                 </div>
                 <div className="space-y-2">
@@ -245,6 +262,18 @@ export function PortfolioManagement({ showForSinglePortfolio = false }: Portfoli
                   </Select>
                 </div>
                 <div className="space-y-2">
+                  <Label htmlFor="equity_balance">Equity Balance *</Label>
+                  <Input
+                    id="equity_balance"
+                    placeholder="e.g., $100,000"
+                    value={formData.equity_balance}
+                    onChange={(e) => setFormData({ ...formData, equity_balance: e.target.value })}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Starting equity balance for the portfolio.
+                  </p>
+                </div>
+                <div className="space-y-2">
                   <Label htmlFor="description">Description</Label>
                   <Textarea
                     id="description"
@@ -264,7 +293,7 @@ export function PortfolioManagement({ showForSinglePortfolio = false }: Portfoli
                 >
                   Cancel
                 </Button>
-                <Button onClick={handleCreatePortfolio} disabled={creating || !formData.portfolio_name || !formData.account_name}>
+                <Button onClick={handleCreatePortfolio} disabled={creating || !formData.name || !formData.account_name || !formData.equity_balance}>
                   {creating ? (
                     <>
                       <Loader2 className="h-4 w-4 mr-2 animate-spin" />
@@ -351,11 +380,11 @@ export function PortfolioManagement({ showForSinglePortfolio = false }: Portfoli
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
-              <Label htmlFor="edit_portfolio_name">Portfolio Name *</Label>
+              <Label htmlFor="edit_name">Portfolio Name *</Label>
               <Input
-                id="edit_portfolio_name"
-                value={formData.portfolio_name}
-                onChange={(e) => setFormData({ ...formData, portfolio_name: e.target.value })}
+                id="edit_name"
+                value={formData.name}
+                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
               />
             </div>
             <div className="space-y-2">
@@ -389,6 +418,15 @@ export function PortfolioManagement({ showForSinglePortfolio = false }: Portfoli
               </Select>
             </div>
             <div className="space-y-2">
+              <Label htmlFor="edit_equity_balance">Equity Balance</Label>
+              <Input
+                id="edit_equity_balance"
+                placeholder="e.g., $100,000"
+                value={formData.equity_balance}
+                onChange={(e) => setFormData({ ...formData, equity_balance: e.target.value })}
+              />
+            </div>
+            <div className="space-y-2">
               <Label htmlFor="edit_description">Description</Label>
               <Textarea
                 id="edit_description"
@@ -407,7 +445,7 @@ export function PortfolioManagement({ showForSinglePortfolio = false }: Portfoli
             >
               Cancel
             </Button>
-            <Button onClick={handleEditPortfolio} disabled={updating || !formData.portfolio_name || !formData.account_name}>
+            <Button onClick={handleEditPortfolio} disabled={updating || !formData.name || !formData.account_name}>
               {updating ? (
                 <>
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />

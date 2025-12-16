@@ -130,7 +130,7 @@ export function PortfolioUploadForm({ onUpload, disabled, error, onRetry, isFrom
           <p className="text-muted-foreground">
             {isFromSettings 
               ? 'Add a new portfolio by uploading a CSV file with your positions'
-              : 'Let's get your positions loaded into SigmaSight so we can start analyzing your portfolio risk'
+              : "Let's get your positions loaded into SigmaSight so we can start analyzing your portfolio risk"
             }
           </p>
         </div>

@@ -48,6 +48,11 @@ export interface OnboardingSession {
   currentBatchRunning: boolean
 }
 
+// Stable empty array references to prevent infinite render loops
+// CRITICAL: Using ?? [] creates a new array reference every render,
+// causing Zustand to think state changed, triggering infinite re-renders
+const EMPTY_ONBOARDING_PORTFOLIOS: OnboardingSessionPortfolio[] = []
+
 interface PortfolioStore {
   // State
   portfolios: PortfolioListItem[]
@@ -375,7 +380,7 @@ export const useTotalValue = () => usePortfolioStore((state) =>
 // Onboarding session selector hooks (direct state selection for memoization)
 export const useOnboardingSession = () => usePortfolioStore((state) => state.onboardingSession)
 export const useOnboardingPortfolios = () => usePortfolioStore((state) =>
-  state.onboardingSession?.portfoliosAdded ?? []
+  state.onboardingSession?.portfoliosAdded ?? EMPTY_ONBOARDING_PORTFOLIOS
 )
 export const useCanAddAnotherPortfolio = () => usePortfolioStore((state) =>
   state.onboardingSession?.isActive === true && !state.onboardingSession?.currentBatchRunning

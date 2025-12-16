@@ -131,6 +131,15 @@ export function UploadSuccess({
   // Show "Add Another" button only in onboarding flow, not from settings
   const showAddAnotherButton = !isFromSettings && onAddAnother && canAddAnother
 
+  // Debug logging for button visibility
+  console.log('🔍 Add Another Button Debug:', {
+    isFromSettings,
+    hasOnAddAnother: !!onAddAnother,
+    canAddAnother,
+    isInSession,
+    showAddAnotherButton
+  })
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-green-50 to-emerald-50 dark:from-gray-900 dark:to-gray-800 p-4">
       <div className="w-full max-w-2xl">

@@ -30,17 +30,19 @@ import type { PortfolioListItem } from '@/stores/portfolioStore'
 export type AccountType = 'taxable' | 'ira' | 'roth_ira' | '401k' | '403b' | '529' | 'hsa' | 'trust' | 'other';
 
 export interface CreatePortfolioRequest {
-  portfolio_name: string;
+  name: string;  // Backend expects 'name', not 'portfolio_name'
   account_name: string;
   account_type: AccountType;
   description?: string;
+  equity_balance?: number;  // Optional starting equity balance
 }
 
 export interface UpdatePortfolioRequest {
-  portfolio_name?: string;
+  name?: string;  // Backend expects 'name', not 'portfolio_name'
   account_name?: string;
   account_type?: AccountType;
   description?: string;
+  equity_balance?: number;
   is_active?: boolean;
 }
 
@@ -271,12 +273,13 @@ export class PortfolioService {
    */
   async createPortfolio(data: CreatePortfolioRequest): Promise<PortfolioResponse> {
     try {
-      const response = await apiClient.post<ApiResponse<PortfolioResponse>>(
-        '/portfolios',
+      // apiClient already unwraps .data, so response IS the PortfolioResponse
+      const response = await apiClient.post<PortfolioResponse>(
+        '/api/v1/portfolios',
         data,
         REQUEST_CONFIGS.STANDARD
       );
-      return response.data;
+      return response;
     } catch (error) {
       console.error('Failed to create portfolio:', error);
       throw new Error('Unable to create portfolio. Please try again.');
@@ -289,12 +292,13 @@ export class PortfolioService {
    */
   async updatePortfolio(portfolioId: string, data: UpdatePortfolioRequest): Promise<PortfolioResponse> {
     try {
-      const response = await apiClient.put<ApiResponse<PortfolioResponse>>(
-        `/portfolios/${portfolioId}`,
+      // apiClient already unwraps .data, so response IS the PortfolioResponse
+      const response = await apiClient.put<PortfolioResponse>(
+        `/api/v1/portfolios/${portfolioId}`,
         data,
         REQUEST_CONFIGS.STANDARD
       );
-      return response.data;
+      return response;
     } catch (error) {
       console.error(`Failed to update portfolio ${portfolioId}:`, error);
       throw new Error('Unable to update portfolio. Please try again.');
@@ -308,7 +312,7 @@ export class PortfolioService {
   async deletePortfolio(portfolioId: string): Promise<void> {
     try {
       await apiClient.delete(
-        `/portfolios/${portfolioId}`,
+        `/api/v1/portfolios/${portfolioId}`,
         REQUEST_CONFIGS.STANDARD
       );
     } catch (error) {

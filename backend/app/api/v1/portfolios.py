@@ -49,7 +49,7 @@ CurrentUser = User
 async def create_portfolio(
     portfolio_data: PortfolioCreateRequest,
     current_user: CurrentUser = Depends(get_current_user),
-    db: AsyncSession = Depends(get_async_session)
+    db: AsyncSession = Depends(get_db)
 ):
     """
     Create a new portfolio for the authenticated user.
@@ -131,7 +131,7 @@ async def create_portfolio(
 async def list_portfolios(
     include_inactive: bool = False,
     current_user: CurrentUser = Depends(get_current_user),
-    db: AsyncSession = Depends(get_async_session)
+    db: AsyncSession = Depends(get_db)
 ):
     """
     Get all portfolios for the authenticated user.
@@ -224,7 +224,7 @@ async def list_portfolios(
 async def get_portfolio(
     portfolio_id: UUID,
     current_user: CurrentUser = Depends(get_current_user),
-    db: AsyncSession = Depends(get_async_session)
+    db: AsyncSession = Depends(get_db)
 ):
     """
     Get a specific portfolio by ID.
@@ -303,7 +303,7 @@ async def update_portfolio(
     portfolio_id: UUID,
     portfolio_data: PortfolioUpdateRequest,
     current_user: CurrentUser = Depends(get_current_user),
-    db: AsyncSession = Depends(get_async_session)
+    db: AsyncSession = Depends(get_db)
 ):
     """
     Update an existing portfolio.
@@ -406,7 +406,7 @@ async def update_portfolio(
 async def delete_portfolio(
     portfolio_id: UUID,
     current_user: CurrentUser = Depends(get_current_user),
-    db: AsyncSession = Depends(get_async_session)
+    db: AsyncSession = Depends(get_db)
 ):
     """
     Soft delete a portfolio.

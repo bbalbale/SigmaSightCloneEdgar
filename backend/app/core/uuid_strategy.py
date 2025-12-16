@@ -210,11 +210,11 @@ def generate_user_uuid(email: str, use_deterministic: Optional[bool] = None) -> 
 
 def generate_portfolio_uuid(
     user_id: UUID,
-    portfolio_name: str,
+    account_name: str,
     use_deterministic: Optional[bool] = None
 ) -> UUID:
     """Generate UUID for a portfolio. See UUIDStrategy.generate_portfolio_uuid for details."""
-    return UUIDStrategy.generate_portfolio_uuid(user_id, portfolio_name, use_deterministic)
+    return UUIDStrategy.generate_portfolio_uuid(user_id, account_name, use_deterministic)
 
 
 def generate_position_uuid(
