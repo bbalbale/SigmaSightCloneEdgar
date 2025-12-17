@@ -171,6 +171,8 @@ class MarketDataCollector:
         # Phase 11.1: Check which symbols have sufficient cached data
         # A symbol needs: 1) Data on calculation_date, AND 2) At least 250 days of history
         min_required_days = 250  # ~1 year of trading days
+        # Threshold for "has partial history" - enough to do gap-fill instead of full backfill
+        min_partial_history_days = 50  # If symbol has 50+ days, fill gaps instead of full refetch
 
         # Step 1: Find symbols with data on calculation_date
         current_data_query = select(MarketDataCache.symbol).where(
@@ -201,31 +203,38 @@ class MarketDataCollector:
 
         # Step 3: Categorize symbols by cache status
         # - fully_cached: Has current day data AND 250+ days history (no fetch needed)
-        # - has_history_only: Has 250+ days history but missing current day (incremental fetch)
-        # - needs_full_fetch: Missing history entirely (full backfill needed)
+        # - has_sufficient_history: Has 250+ days history but missing current day (incremental fetch)
+        # - has_partial_history: Has 50-249 days history (gap-fill, not full backfill)
+        # - needs_full_fetch: Has < 50 days history (full backfill needed)
 
         fully_cached_symbols = set()
         symbols_with_sufficient_history = set()
+        symbols_with_partial_history = set()
 
         for symbol in symbols:
             record_count = symbol_history_counts.get(symbol, 0)
             has_current = symbol in symbols_with_current_data
-            has_history = record_count >= min_required_days
+            has_full_history = record_count >= min_required_days
+            has_partial_history = record_count >= min_partial_history_days
 
-            if has_current and has_history:
+            if has_current and has_full_history:
                 fully_cached_symbols.add(symbol)
-            elif has_history:
-                # Has history but missing current day - only needs incremental fetch
+            elif has_full_history:
+                # Has full history but missing current day - only needs incremental fetch
                 symbols_with_sufficient_history.add(symbol)
+            elif has_partial_history:
+                # Has partial history (50-249 days) - gap-fill instead of full backfill
+                symbols_with_partial_history.add(symbol)
 
-        # Symbols needing full backfill = no sufficient history at all
-        symbols_needing_full_fetch = symbols - fully_cached_symbols - symbols_with_sufficient_history
+        # Symbols needing full backfill = truly no meaningful history (< 50 days)
+        symbols_needing_full_fetch = symbols - fully_cached_symbols - symbols_with_sufficient_history - symbols_with_partial_history
 
         # Symbols needing any fetch = missing current day OR missing history
         symbols_needing_fetch = (symbols - fully_cached_symbols)
 
         logger.debug(f"Granular cache check: {len(fully_cached_symbols)}/{len(symbols)} symbols fully cached")
-        logger.debug(f"  {len(symbols_with_sufficient_history)} symbols have history but need current data")
+        logger.debug(f"  {len(symbols_with_sufficient_history)} symbols have full history but need current data")
+        logger.debug(f"  {len(symbols_with_partial_history)} symbols have partial history (gap-fill)")
         logger.debug(f"  {len(symbols_needing_full_fetch)} symbols need full backfill")
 
         # Phase 11.1: Use per-symbol logic to determine earliest/most recent dates
@@ -268,7 +277,8 @@ class MarketDataCollector:
             end_date = calculation_date
             logger.debug(f"All {len(symbols)} symbols fully cached: {required_start} to {calculation_date}")
         elif len(symbols_needing_full_fetch) == 0 and most_recent_date:
-            # All symbols that need data have sufficient history - just fetch recent days
+            # All symbols have at least partial history - just fetch recent days (gap-fill)
+            # This covers both symbols_with_sufficient_history (250+) and symbols_with_partial_history (50-249)
             # Start from day after most recent cached date
             start_date = most_recent_date + timedelta(days=1)
             end_date = calculation_date
@@ -280,7 +290,8 @@ class MarketDataCollector:
                 logger.debug(f"All data up to date (most recent: {most_recent_date})")
             else:
                 fetch_mode = "incremental"
-                logger.info(f"Incremental: Fetching {days_gap} days ({start_date} to {end_date}) for {len(symbols_with_sufficient_history)} symbols")
+                symbols_to_update = len(symbols_with_sufficient_history) + len(symbols_with_partial_history)
+                logger.info(f"Incremental: Fetching {days_gap} days ({start_date} to {end_date}) for {symbols_to_update} symbols with existing history")
         else:
             # Some symbols need full history - fetch full range for those symbols only
             start_date = required_start
