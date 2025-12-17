@@ -148,6 +148,37 @@ def get_sync_connection_context() -> Generator[Any, None, None]:
         conn.close()
 
 
+# SQLAlchemy sync session for scripts that need ORM models
+@contextmanager
+def get_sync_session() -> Generator[Any, None, None]:
+    """
+    Get a synchronous SQLAlchemy session for ORM operations.
+
+    Works in both local and Railway environments.
+    Use this when you need to query using SQLAlchemy models.
+
+    Usage:
+        from app.core.db_utils import get_sync_session
+        from app.models.users import Portfolio
+
+        with get_sync_session() as db:
+            result = db.execute(select(Portfolio))
+            portfolios = result.scalars().all()
+    """
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import Session
+
+    database_url = get_sync_database_url()
+    engine = create_engine(database_url)
+
+    session = Session(engine)
+    try:
+        yield session
+    finally:
+        session.close()
+        engine.dispose()
+
+
 # For backwards compatibility and convenience
 def execute_sync_query(query: str, params: tuple = None, fetch: bool = False) -> list | None:
     """

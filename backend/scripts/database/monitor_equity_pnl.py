@@ -34,23 +34,10 @@ from uuid import UUID
 # Ensure backend package is importable when invoked directly
 sys.path.append(str(Path(__file__).resolve().parents[2]))
 
-import os
-from sqlalchemy import select, create_engine
-from sqlalchemy.orm import Session
+from sqlalchemy import select
+from app.core.db_utils import get_sync_session
 from app.models.users import Portfolio
 from app.models.snapshots import PortfolioSnapshot
-
-
-def get_sync_session():
-    """Get a sync database session (works with Railway's psycopg2 driver)."""
-    database_url = os.environ.get("DATABASE_URL", "")
-
-    # Handle Railway's postgresql:// URL (convert to sync if needed)
-    if database_url.startswith("postgresql+asyncpg://"):
-        database_url = database_url.replace("postgresql+asyncpg://", "postgresql://")
-
-    engine = create_engine(database_url)
-    return Session(engine)
 
 
 def show_daily_progression(
