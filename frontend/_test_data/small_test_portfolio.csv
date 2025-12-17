@@ -1,0 +1,4 @@
+Symbol,Quantity,Entry Price Per Share,Entry Date,Investment Class,Investment Subtype,Underlying Symbol,Strike Price,Expiration Date,Option Type,Exit Date,Exit Price Per Share
+TSLA,25,250.00,2024-06-01,PUBLIC,STOCK,,,,,,
+DIS,40,95.00,2024-06-15,PUBLIC,STOCK,,,,,,
+COST,15,720.00,2024-07-01,PUBLIC,STOCK,,,,,,

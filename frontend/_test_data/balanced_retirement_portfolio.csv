@@ -1,0 +1,11 @@
+Symbol,Quantity,Entry Price Per Share,Entry Date,Investment Class,Investment Subtype,Underlying Symbol,Strike Price,Expiration Date,Option Type,Exit Date,Exit Price Per Share
+SPY,50,450.00,2023-01-15,PUBLIC,ETF,,,,,,
+QQQ,30,380.00,2023-02-01,PUBLIC,ETF,,,,,,
+VTI,40,220.00,2023-03-10,PUBLIC,ETF,,,,,,
+BND,100,72.00,2023-04-01,PUBLIC,ETF,,,,,,
+VNQ,60,85.00,2023-05-15,PUBLIC,ETF,,,,,,
+SCHD,80,75.00,2023-06-01,PUBLIC,ETF,,,,,,
+BRK.B,25,350.00,2023-07-10,PUBLIC,STOCK,,,,,,
+V,35,240.00,2023-08-01,PUBLIC,STOCK,,,,,,
+UNH,20,480.00,2023-09-15,PUBLIC,STOCK,,,,,,
+JPM,45,145.00,2023-10-01,PUBLIC,STOCK,,,,,,

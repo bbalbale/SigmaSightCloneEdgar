@@ -1,0 +1,10 @@
+Symbol,Quantity,Entry Price Per Share,Entry Date,Investment Class,Investment Subtype,Underlying Symbol,Strike Price,Expiration Date,Option Type,Exit Date,Exit Price Per Share
+JNJ,120,155.00,2023-06-15,PUBLIC,STOCK,,,,,,
+PG,100,145.00,2023-07-01,PUBLIC,STOCK,,,,,,
+KO,150,58.00,2023-08-10,PUBLIC,STOCK,,,,,,
+PEP,90,175.00,2023-09-01,PUBLIC,STOCK,,,,,,
+VZ,200,35.00,2023-10-15,PUBLIC,STOCK,,,,,,
+XOM,80,105.00,2023-11-01,PUBLIC,STOCK,,,,,,
+ABBV,70,145.00,2023-12-01,PUBLIC,STOCK,,,,,,
+O,100,55.00,2024-01-05,PUBLIC,STOCK,,,,,,
+MMM,60,95.00,2024-02-01,PUBLIC,STOCK,,,,,,

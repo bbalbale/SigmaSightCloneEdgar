@@ -1,0 +1,9 @@
+Symbol,Quantity,Entry Price Per Share,Entry Date,Investment Class,Investment Subtype,Underlying Symbol,Strike Price,Expiration Date,Option Type,Exit Date,Exit Price Per Share
+AAPL,100,175.50,2024-01-15,PUBLIC,STOCK,,,,,,
+MSFT,75,380.00,2024-02-01,PUBLIC,STOCK,,,,,,
+NVDA,50,480.00,2024-03-10,PUBLIC,STOCK,,,,,,
+GOOGL,40,140.00,2024-01-20,PUBLIC,STOCK,,,,,,
+META,60,350.00,2024-02-15,PUBLIC,STOCK,,,,,,
+AMZN,45,155.00,2024-03-01,PUBLIC,STOCK,,,,,,
+AMD,80,150.00,2024-02-28,PUBLIC,STOCK,,,,,,
+CRM,35,275.00,2024-01-10,PUBLIC,STOCK,,,,,,

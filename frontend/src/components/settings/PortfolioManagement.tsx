@@ -40,8 +40,9 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
-import { Building2, Plus, Pencil, Trash2, Loader2 } from 'lucide-react'
+import { Building2, Plus, Pencil, Trash2, Loader2, Upload } from 'lucide-react'
 import { formatNumber } from '@/lib/formatters'
+import { useRouter } from 'next/navigation'
 
 interface PortfolioManagementProps {
   /**
@@ -55,6 +56,7 @@ export function PortfolioManagement({ showForSinglePortfolio = false }: Portfoli
   const { portfolios, loading, refetch } = usePortfolios()
   const { createPortfolio, updatePortfolio, deletePortfolio, creating, updating, deleting, error } =
     usePortfolioMutations()
+  const router = useRouter()
 
   // Form state for create/edit
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
@@ -63,9 +65,11 @@ export function PortfolioManagement({ showForSinglePortfolio = false }: Portfoli
   const [selectedPortfolioId, setSelectedPortfolioId] = useState<string | null>(null)
 
   const [formData, setFormData] = useState({
+    name: '',  // Backend expects 'name', not 'portfolio_name'
     account_name: '',
-    account_type: 'taxable' as 'taxable' | 'ira' | 'roth_ira' | '401k' | 'trust' | 'other',
+    account_type: 'taxable' as 'taxable' | 'ira' | 'roth_ira' | '401k' | '403b' | '529' | 'hsa' | 'trust' | 'other',
     description: '',
+    equity_balance: '' as string,  // Optional equity balance
   })
 
   // Progressive disclosure: Hide for single-portfolio users unless explicitly shown
@@ -75,9 +79,17 @@ export function PortfolioManagement({ showForSinglePortfolio = false }: Portfoli
 
   const handleCreatePortfolio = async () => {
     try {
-      await createPortfolio(formData)
+      // Build request with optional equity_balance
+      const request = {
+        name: formData.name,
+        account_name: formData.account_name,
+        account_type: formData.account_type,
+        description: formData.description || undefined,
+        equity_balance: formData.equity_balance ? parseFloat(formData.equity_balance.replace(/[$,]/g, '')) : undefined,
+      }
+      await createPortfolio(request)
       setIsCreateDialogOpen(false)
-      setFormData({ account_name: '', account_type: 'taxable', description: '' })
+      setFormData({ name: '', account_name: '', account_type: 'taxable', description: '', equity_balance: '' })
       await refetch()
     } catch (err) {
       console.error('Failed to create portfolio:', err)
@@ -87,10 +99,17 @@ export function PortfolioManagement({ showForSinglePortfolio = false }: Portfoli
   const handleEditPortfolio = async () => {
     if (!selectedPortfolioId) return
     try {
-      await updatePortfolio(selectedPortfolioId, formData)
+      const request = {
+        name: formData.name,
+        account_name: formData.account_name,
+        account_type: formData.account_type,
+        description: formData.description || undefined,
+        equity_balance: formData.equity_balance ? parseFloat(formData.equity_balance.replace(/[$,]/g, '')) : undefined,
+      }
+      await updatePortfolio(selectedPortfolioId, request)
       setIsEditDialogOpen(false)
       setSelectedPortfolioId(null)
-      setFormData({ account_name: '', account_type: 'taxable', description: '' })
+      setFormData({ name: '', account_name: '', account_type: 'taxable', description: '', equity_balance: '' })
       await refetch()
     } catch (err) {
       console.error('Failed to update portfolio:', err)
@@ -114,9 +133,11 @@ export function PortfolioManagement({ showForSinglePortfolio = false }: Portfoli
     if (portfolio) {
       setSelectedPortfolioId(portfolioId)
       setFormData({
+        name: portfolio.name || '',
         account_name: portfolio.account_name,
         account_type: portfolio.account_type as any,
         description: portfolio.description || '',
+        equity_balance: portfolio.net_asset_value ? portfolio.net_asset_value.toString() : '',
       })
       setIsEditDialogOpen(true)
     }
@@ -127,12 +148,19 @@ export function PortfolioManagement({ showForSinglePortfolio = false }: Portfoli
     setIsDeleteDialogOpen(true)
   }
 
+  const handleCreateFromCSV = () => {
+    router.push('/onboarding/upload?context=settings')
+  }
+
   const formatAccountType = (accountType: string): string => {
     const typeMap: Record<string, string> = {
       taxable: 'Taxable',
       ira: 'IRA',
       roth_ira: 'Roth IRA',
       '401k': '401(k)',
+      '403b': '403(b)',
+      '529': '529 Plan',
+      hsa: 'HSA',
       trust: 'Trust',
       other: 'Other',
     }
@@ -169,25 +197,44 @@ export function PortfolioManagement({ showForSinglePortfolio = false }: Portfoli
             <CardDescription>Manage your investment accounts</CardDescription>
           </div>
 
-          {/* Create Portfolio Button */}
-          <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-            <DialogTrigger asChild>
-              <Button size="sm">
-                <Plus className="h-4 w-4 mr-2" />
-                Add Portfolio
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
+          {/* Create Portfolio Buttons */}
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleCreateFromCSV}
+            >
+              <Upload className="h-4 w-4 mr-2" />
+              Create Portfolio from CSV
+            </Button>
+
+            <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+              <DialogTrigger asChild>
+                <Button size="sm">
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add Portfolio
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
               <DialogHeader>
                 <DialogTitle>Create New Portfolio</DialogTitle>
                 <DialogDescription>Add a new investment account to track</DialogDescription>
               </DialogHeader>
               <div className="space-y-4 py-4">
                 <div className="space-y-2">
+                  <Label htmlFor="name">Portfolio Name *</Label>
+                  <Input
+                    id="name"
+                    placeholder="e.g., My Investment Portfolio"
+                    value={formData.name}
+                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-2">
                   <Label htmlFor="account_name">Account Name *</Label>
                   <Input
                     id="account_name"
-                    placeholder="e.g., Growth Portfolio"
+                    placeholder="e.g., Schwab Living Trust, Fidelity IRA"
                     value={formData.account_name}
                     onChange={(e) => setFormData({ ...formData, account_name: e.target.value })}
                   />
@@ -202,14 +249,29 @@ export function PortfolioManagement({ showForSinglePortfolio = false }: Portfoli
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="taxable">Taxable</SelectItem>
-                      <SelectItem value="ira">IRA</SelectItem>
+                      <SelectItem value="taxable">Taxable Brokerage</SelectItem>
+                      <SelectItem value="ira">Traditional IRA</SelectItem>
                       <SelectItem value="roth_ira">Roth IRA</SelectItem>
                       <SelectItem value="401k">401(k)</SelectItem>
+                      <SelectItem value="403b">403(b)</SelectItem>
+                      <SelectItem value="529">529 Education Plan</SelectItem>
+                      <SelectItem value="hsa">Health Savings Account</SelectItem>
                       <SelectItem value="trust">Trust</SelectItem>
                       <SelectItem value="other">Other</SelectItem>
                     </SelectContent>
                   </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="equity_balance">Equity Balance *</Label>
+                  <Input
+                    id="equity_balance"
+                    placeholder="e.g., $100,000"
+                    value={formData.equity_balance}
+                    onChange={(e) => setFormData({ ...formData, equity_balance: e.target.value })}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Starting equity balance for the portfolio.
+                  </p>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="description">Description</Label>
@@ -231,7 +293,7 @@ export function PortfolioManagement({ showForSinglePortfolio = false }: Portfoli
                 >
                   Cancel
                 </Button>
-                <Button onClick={handleCreatePortfolio} disabled={creating || !formData.account_name}>
+                <Button onClick={handleCreatePortfolio} disabled={creating || !formData.name || !formData.account_name || !formData.equity_balance}>
                   {creating ? (
                     <>
                       <Loader2 className="h-4 w-4 mr-2 animate-spin" />
@@ -244,6 +306,7 @@ export function PortfolioManagement({ showForSinglePortfolio = false }: Portfoli
               </DialogFooter>
             </DialogContent>
           </Dialog>
+          </div>
         </div>
       </CardHeader>
 
@@ -317,6 +380,14 @@ export function PortfolioManagement({ showForSinglePortfolio = false }: Portfoli
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
+              <Label htmlFor="edit_name">Portfolio Name *</Label>
+              <Input
+                id="edit_name"
+                value={formData.name}
+                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+              />
+            </div>
+            <div className="space-y-2">
               <Label htmlFor="edit_account_name">Account Name *</Label>
               <Input
                 id="edit_account_name"
@@ -334,14 +405,26 @@ export function PortfolioManagement({ showForSinglePortfolio = false }: Portfoli
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="taxable">Taxable</SelectItem>
-                  <SelectItem value="ira">IRA</SelectItem>
+                  <SelectItem value="taxable">Taxable Brokerage</SelectItem>
+                  <SelectItem value="ira">Traditional IRA</SelectItem>
                   <SelectItem value="roth_ira">Roth IRA</SelectItem>
                   <SelectItem value="401k">401(k)</SelectItem>
+                  <SelectItem value="403b">403(b)</SelectItem>
+                  <SelectItem value="529">529 Education Plan</SelectItem>
+                  <SelectItem value="hsa">Health Savings Account</SelectItem>
                   <SelectItem value="trust">Trust</SelectItem>
                   <SelectItem value="other">Other</SelectItem>
                 </SelectContent>
               </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit_equity_balance">Equity Balance</Label>
+              <Input
+                id="edit_equity_balance"
+                placeholder="e.g., $100,000"
+                value={formData.equity_balance}
+                onChange={(e) => setFormData({ ...formData, equity_balance: e.target.value })}
+              />
             </div>
             <div className="space-y-2">
               <Label htmlFor="edit_description">Description</Label>
@@ -362,7 +445,7 @@ export function PortfolioManagement({ showForSinglePortfolio = false }: Portfoli
             >
               Cancel
             </Button>
-            <Button onClick={handleEditPortfolio} disabled={updating || !formData.account_name}>
+            <Button onClick={handleEditPortfolio} disabled={updating || !formData.name || !formData.account_name}>
               {updating ? (
                 <>
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
