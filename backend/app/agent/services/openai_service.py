@@ -70,7 +70,8 @@ class OpenAIService:
             "today", "recent", "latest", "news", "current", "now",
             "this week", "this month", "yesterday", "what happened",
             "breaking", "update", "announcement", "earnings report",
-            "market news", "fed", "interest rate", "inflation"
+            "market news", "fed", "interest rate", "inflation",
+            "morning briefing", "morning brief", "morning update", "morning meeting"
         ]
 
     async def _get_rag_context(
@@ -1756,9 +1757,16 @@ The following documents may be relevant to the user's question. Use this informa
         logger.info(f"[Insight] Starting insight generation: type={insight_type}, portfolios={portfolio_id_list}, multi={is_multi_portfolio}")
 
         try:
-            # Load the daily insight prompt
+            # Load the appropriate insight prompt based on insight_type
             prompts_dir = Path(__file__).parent.parent / "prompts"
-            insight_prompt_path = prompts_dir / "daily_insight_prompt.md"
+
+            # Morning briefing uses a special prompt with weekly data and web search emphasis
+            if insight_type == "morning_briefing":
+                insight_prompt_path = prompts_dir / "morning_briefing_prompt.md"
+                include_web_search = True  # Always enable web search for morning briefing
+            else:
+                insight_prompt_path = prompts_dir / "daily_insight_prompt.md"
+                include_web_search = False  # Web search optional for other insight types
 
             if insight_prompt_path.exists():
                 with open(insight_prompt_path, 'r', encoding='utf-8') as f:
@@ -1829,8 +1837,8 @@ Combine the data into a daily insight following the format in the system prompt.
                 {"role": "user", "content": user_message}
             ]
 
-            # Get tool definitions
-            tools = self._get_tool_definitions_responses()
+            # Get tool definitions (include web search for morning briefing)
+            tools = self._get_tool_definitions_responses(include_web_search=include_web_search)
 
             # Use Responses API (non-streaming) with tool execution loop
             max_iterations = 5

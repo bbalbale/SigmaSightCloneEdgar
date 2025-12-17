@@ -24,6 +24,7 @@ import { API_ENDPOINTS } from '@/config/api'
 
 export type InsightType =
   | 'daily_summary'
+  | 'morning_briefing'
   | 'volatility_analysis'
   | 'concentration_risk'
   | 'hedge_quality'

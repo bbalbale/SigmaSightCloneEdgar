@@ -16,6 +16,7 @@ from app.database import Base
 class InsightType(str, enum.Enum):
     """Types of AI-generated insights"""
     DAILY_SUMMARY = "daily_summary"
+    MORNING_BRIEFING = "morning_briefing"
     VOLATILITY_ANALYSIS = "volatility_analysis"
     CONCENTRATION_RISK = "concentration_risk"
     HEDGE_QUALITY = "hedge_quality"

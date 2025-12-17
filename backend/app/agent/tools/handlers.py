@@ -953,20 +953,22 @@ class PortfolioTools:
         self,
         portfolio_id: str,
         threshold_pct: float = 2.0,
+        include_weekly: bool = True,
         **kwargs
     ) -> Dict[str, Any]:
         """
-        Get today's biggest movers (gainers and losers) in the portfolio.
+        Get today's and this week's biggest movers (gainers and losers) in the portfolio.
 
-        Returns positions sorted by absolute daily change percentage.
-        Use when generating daily insights or answering "what moved today?"
+        Returns positions sorted by absolute daily change percentage, plus weekly data.
+        Use when generating daily insights, morning briefings, or answering "what moved today/this week?"
 
         Args:
             portfolio_id: Portfolio UUID
             threshold_pct: Minimum absolute % change to include (default 2%)
+            include_weekly: Include weekly performance data (default True)
 
         Returns:
-            Dictionary with gainers, losers, and portfolio daily change
+            Dictionary with daily and weekly gainers, losers, and portfolio changes
         """
         try:
             # Get complete portfolio data with current prices
@@ -983,7 +985,29 @@ class PortfolioTools:
                     "retryable": False
                 }
 
-            # Calculate daily changes for each position
+            # Build symbol to weekly price map if weekly data requested
+            weekly_prices = {}
+            if include_weekly:
+                try:
+                    # Get historical prices for weekly calculation (7 days lookback for ~5 trading days)
+                    historical_response = await self.get_prices_historical(
+                        portfolio_id=portfolio_id,
+                        lookback_days=10,  # 10 days to ensure we have 5 trading days
+                        include_factor_etfs=False
+                    )
+                    if "error" not in historical_response:
+                        prices_data = historical_response.get("data", {}).get("prices", {})
+                        for symbol, price_history in prices_data.items():
+                            if isinstance(price_history, list) and len(price_history) >= 5:
+                                # Get the price from ~5 trading days ago (index -5 or earlier)
+                                week_ago_idx = min(5, len(price_history) - 1)
+                                week_ago_price = price_history[-week_ago_idx - 1].get("close") if week_ago_idx < len(price_history) else None
+                                if week_ago_price:
+                                    weekly_prices[symbol] = week_ago_price
+                except Exception as e:
+                    logger.warning(f"Could not fetch weekly prices: {e}")
+
+            # Calculate daily and weekly changes for each position
             movers = []
             for holding in holdings:
                 symbol = holding.get("symbol", "UNKNOWN")
@@ -1000,20 +1024,31 @@ class PortfolioTools:
                     daily_change_pct = 0
                     daily_change_dollar = 0
 
+                # Calculate weekly change if data available
+                weekly_change_pct = 0
+                weekly_change_dollar = 0
+                week_ago_price = weekly_prices.get(symbol)
+                if week_ago_price and week_ago_price > 0 and current_price:
+                    weekly_change_pct = ((current_price - week_ago_price) / week_ago_price) * 100
+                    weekly_change_dollar = (current_price - week_ago_price) * abs(quantity)
+
                 movers.append({
                     "symbol": symbol,
                     "current_price": current_price,
                     "previous_close": previous_close,
                     "daily_change_pct": round(daily_change_pct, 2),
                     "daily_change_dollar": round(daily_change_dollar, 2),
+                    "weekly_change_pct": round(weekly_change_pct, 2),
+                    "weekly_change_dollar": round(weekly_change_dollar, 2),
+                    "week_ago_price": week_ago_price,
                     "market_value": market_value,
                     "quantity": quantity
                 })
 
-            # Sort by absolute change percentage
+            # Sort by absolute daily change percentage
             movers.sort(key=lambda x: abs(x["daily_change_pct"]), reverse=True)
 
-            # Separate gainers and losers
+            # Separate daily gainers and losers
             gainers = [m for m in movers if m["daily_change_pct"] > threshold_pct]
             losers = [m for m in movers if m["daily_change_pct"] < -threshold_pct]
 
@@ -1022,23 +1057,51 @@ class PortfolioTools:
             total_market_value = sum(m["market_value"] for m in movers)
             portfolio_daily_change_pct = (total_daily_pnl / total_market_value * 100) if total_market_value > 0 else 0
 
+            # Weekly data
+            weekly_data = {}
+            if include_weekly:
+                # Sort by absolute weekly change for weekly movers
+                weekly_movers = sorted(movers, key=lambda x: abs(x["weekly_change_pct"]), reverse=True)
+                weekly_gainers = [m for m in weekly_movers if m["weekly_change_pct"] > threshold_pct]
+                weekly_losers = [m for m in weekly_movers if m["weekly_change_pct"] < -threshold_pct]
+
+                # Calculate portfolio-level weekly P&L
+                total_weekly_pnl = sum(m["weekly_change_dollar"] for m in movers)
+                portfolio_weekly_change_pct = (total_weekly_pnl / total_market_value * 100) if total_market_value > 0 else 0
+
+                weekly_data = {
+                    "weekly_gainers": weekly_gainers[:5],
+                    "weekly_losers": weekly_losers[:5],
+                    "portfolio_weekly_change": {
+                        "pnl_dollar": round(total_weekly_pnl, 2),
+                        "pnl_pct": round(portfolio_weekly_change_pct, 2),
+                    },
+                    "biggest_weekly_winner": weekly_gainers[0] if weekly_gainers else None,
+                    "biggest_weekly_loser": weekly_losers[0] if weekly_losers else None,
+                }
+
             return {
                 "data": {
-                    "gainers": gainers[:5],  # Top 5 gainers
-                    "losers": losers[:5],    # Top 5 losers
-                    "all_movers": movers[:10],  # Top 10 by absolute movement
+                    # Daily data
+                    "gainers": gainers[:5],  # Top 5 daily gainers
+                    "losers": losers[:5],    # Top 5 daily losers
+                    "all_movers": movers[:10],  # Top 10 by absolute daily movement
                     "portfolio_daily_change": {
                         "pnl_dollar": round(total_daily_pnl, 2),
                         "pnl_pct": round(portfolio_daily_change_pct, 2),
                         "total_market_value": round(total_market_value, 2)
                     },
                     "biggest_winner": gainers[0] if gainers else None,
-                    "biggest_loser": losers[0] if losers else None
+                    "biggest_loser": losers[0] if losers else None,
+                    # Weekly data (if included)
+                    **weekly_data
                 },
                 "meta": {
                     "threshold_pct": threshold_pct,
                     "total_positions": len(holdings),
                     "positions_above_threshold": len(gainers) + len(losers),
+                    "includes_weekly": include_weekly,
+                    "weekly_data_available": bool(weekly_prices),
                     "as_of": to_utc_iso8601(utc_now())
                 }
             }

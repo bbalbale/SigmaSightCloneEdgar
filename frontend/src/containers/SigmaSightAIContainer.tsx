@@ -100,6 +100,30 @@ export function SigmaSightAIContainer() {
                   </h3>
                 </div>
                 <div className="flex items-center gap-2">
+                  {/* Morning Briefing Button - Prominent */}
+                  <button
+                    onClick={() => {
+                      handleGenerateInsight({ insightType: 'morning_briefing' })
+                      setPrefillMessage("I just generated a morning briefing. What questions do you have about today's portfolio performance, the weekly trends, or the news items mentioned?")
+                    }}
+                    disabled={generatingInsight}
+                    className="text-sm font-semibold px-4 py-2 rounded transition-colors"
+                    style={
+                      generatingInsight
+                        ? {
+                            backgroundColor: 'var(--bg-tertiary)',
+                            color: 'var(--text-tertiary)',
+                            cursor: 'not-allowed',
+                          }
+                        : {
+                            background: 'linear-gradient(135deg, #f59e0b, #ea580c)',
+                            color: '#ffffff',
+                          }
+                    }
+                    title="Generate a morning meeting style briefing with daily/weekly performance and news"
+                  >
+                    {generatingInsight ? "Generating..." : "Morning Briefing"}
+                  </button>
                   <select
                     value={generationType}
                     onChange={(e) => setGenerationType(e.target.value as InsightType)}
@@ -111,6 +135,7 @@ export function SigmaSightAIContainer() {
                     }}
                   >
                     <option value="daily_summary">Daily summary</option>
+                    <option value="morning_briefing">Morning briefing</option>
                     <option value="volatility_analysis">Volatility analysis</option>
                     <option value="concentration_risk">Concentration risk</option>
                     <option value="stress_test_review">Stress test review</option>
@@ -167,6 +192,7 @@ export function SigmaSightAIContainer() {
                   >
                     <option value="all">All</option>
                     <option value="daily_summary">Daily summary</option>
+                    <option value="morning_briefing">Morning briefing</option>
                     <option value="volatility_analysis">Volatility analysis</option>
                     <option value="concentration_risk">Concentration risk</option>
                     <option value="stress_test_review">Stress test review</option>
