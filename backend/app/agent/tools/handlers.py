@@ -27,14 +27,20 @@ def get_internal_api_url() -> str:
         Internal API URL (localhost if PORT is set, otherwise BACKEND_URL)
     """
     port = os.environ.get("PORT")
+    backend_url = os.environ.get("BACKEND_URL", settings.BACKEND_URL)
+
+    # ALWAYS log for debugging
+    logger.warning(f"[INTERNAL_URL_DEBUG] PORT={port}, BACKEND_URL={backend_url}")
+
     if port:
         # We're on Railway or similar platform - use localhost for internal calls
         internal_url = f"http://localhost:{port}"
-        logger.info(f"Using internal URL for self-calls: {internal_url}")
+        logger.warning(f"[INTERNAL_URL_DEBUG] Using localhost: {internal_url}")
         return internal_url
     else:
         # Local development - use BACKEND_URL
-        return settings.BACKEND_URL
+        logger.warning(f"[INTERNAL_URL_DEBUG] Using BACKEND_URL: {backend_url}")
+        return backend_url
 
 
 class PortfolioTools:
