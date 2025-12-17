@@ -1844,16 +1844,28 @@ Combine the data into a daily insight following the format in the system prompt.
             max_iterations = 5
             accumulated_tool_results = []
             final_response_text = None
+            previous_response_id = None  # Track response ID for continuation
 
             for iteration in range(max_iterations):
                 logger.info(f"[Insight] API call iteration {iteration + 1}/{max_iterations}")
 
-                # Create the response
-                response = await self.client.responses.create(
-                    model=self.model,
-                    input=messages,
-                    tools=tools
-                )
+                # Create the response (use previous_response_id for continuation after tool calls)
+                if previous_response_id:
+                    response = await self.client.responses.create(
+                        model=self.model,
+                        input=messages,
+                        tools=tools,
+                        previous_response_id=previous_response_id
+                    )
+                else:
+                    response = await self.client.responses.create(
+                        model=self.model,
+                        input=messages,
+                        tools=tools
+                    )
+
+                # Store response ID for potential continuation
+                previous_response_id = response.id
 
                 # Check the response output
                 if not response.output:

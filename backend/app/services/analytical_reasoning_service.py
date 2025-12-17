@@ -339,7 +339,7 @@ class AnalyticalReasoningService:
             portfolio_id=portfolio_id,
             insight_type=insight_type.value if isinstance(insight_type, InsightType) else insight_type,
             title=insight_data["title"],
-            severity=insight_data["severity"].value if isinstance(insight_data["severity"], InsightSeverity) else insight_data["severity"],
+            severity=insight_data["severity"].value if isinstance(insight_data["severity"], InsightSeverity) else insight_data["severity"].lower(),
             summary=insight_data["summary"],
             full_analysis=insight_data.get("full_analysis"),
             key_findings=insight_data.get("key_findings"),

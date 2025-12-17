@@ -50,10 +50,10 @@ class Settings(BaseSettings):
     # OpenAI Agent settings
     OPENAI_API_KEY: str = Field(default="", env="OPENAI_API_KEY")
     OPENAI_ORG_ID: str = Field(default="", env="OPENAI_ORG_ID")  # Optional
-    # GPT-5 models confirmed to exist - see https://platform.openai.com/docs/models/gpt-5-mini
-    MODEL_DEFAULT: str = Field(default="gpt-5-mini-2025-08-07", env="MODEL_DEFAULT")
-    MODEL_FALLBACK: str = Field(default="gpt-5-nano-2025-08-07", env="MODEL_FALLBACK")
-    MODEL_DEEP_REASONING: str = Field(default="gpt-5-mini-2025-08-07", env="MODEL_DEEP_REASONING",
+    # OpenAI models - see https://platform.openai.com/docs/models
+    MODEL_DEFAULT: str = Field(default="gpt-4o-mini", env="MODEL_DEFAULT")
+    MODEL_FALLBACK: str = Field(default="gpt-4o-mini", env="MODEL_FALLBACK")
+    MODEL_DEEP_REASONING: str = Field(default="gpt-4o", env="MODEL_DEEP_REASONING",
                                        description="Model for complex reasoning tasks (investment thesis, multi-step analysis)")
 
     # Smart Routing settings

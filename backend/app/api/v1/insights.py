@@ -173,22 +173,23 @@ async def generate_insight(
         portfolio_id = UUID(request.portfolio_id)
         await validate_portfolio_ownership(db, portfolio_id, current_user.id)
 
+        # TEMP: Rate limiting disabled for debugging
         # Check rate limiting (max 10 per portfolio per day)
-        today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
-        count_stmt = select(func.count(AIInsight.id)).where(
-            and_(
-                AIInsight.portfolio_id == portfolio_id,
-                AIInsight.created_at >= today_start
-            )
-        )
-        count_result = await db.execute(count_stmt)
-        count = count_result.scalar()
-
-        if count >= 10:
-            raise HTTPException(
-                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                detail="Daily insight generation limit reached (10 per portfolio per day)"
-            )
+        # today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+        # count_stmt = select(func.count(AIInsight.id)).where(
+        #     and_(
+        #         AIInsight.portfolio_id == portfolio_id,
+        #         AIInsight.created_at >= today_start
+        #     )
+        # )
+        # count_result = await db.execute(count_stmt)
+        # count = count_result.scalar()
+        #
+        # if count >= 10:
+        #     raise HTTPException(
+        #         status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+        #         detail="Daily insight generation limit reached (10 per portfolio per day)"
+        #     )
 
         # Convert insight_type string to enum
         try:
@@ -223,7 +224,9 @@ async def generate_insight(
                 detail="Failed to generate insight"
             )
 
-        logger.info(f"Generated insight {insight.id} (cost: ${insight.cost_usd:.4f}, time: {insight.generation_time_ms}ms)")
+        cost_str = f"${insight.cost_usd:.4f}" if insight.cost_usd is not None else "N/A"
+        time_str = f"{insight.generation_time_ms}ms" if insight.generation_time_ms is not None else "N/A"
+        logger.info(f"Generated insight {insight.id} (cost: {cost_str}, time: {time_str})")
 
         # Build response
         return AIInsightResponse(
@@ -254,10 +257,6 @@ async def generate_insight(
     except HTTPException:
         raise
     except Exception as e:
-        # TEMP DEBUG: Show actual error since logging is broken
-        import traceback
-        error_detail = f"{type(e).__name__}: {str(e)}\n{traceback.format_exc()}"
-        print(f"[ERROR] ERROR GENERATING INSIGHT:\n{error_detail}")
         logger.error(f"Error generating insight: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
