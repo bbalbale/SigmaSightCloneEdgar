@@ -2131,29 +2131,36 @@ Combine the data into a daily insight following the format in the system prompt.
             previous_response_id = None  # Track response ID for continuation
 
             for iteration in range(max_iterations):
-                logger.info(f"[Insight] API call iteration {iteration + 1}/{max_iterations}")
+                logger.warning(f"[Insight-DEBUG] API call iteration {iteration + 1}/{max_iterations}, model={self.model}")
 
                 # Create the response (use previous_response_id for continuation after tool calls)
-                if previous_response_id:
-                    response = await self.client.responses.create(
-                        model=self.model,
-                        input=messages,
-                        tools=tools,
-                        previous_response_id=previous_response_id
-                    )
-                else:
-                    response = await self.client.responses.create(
-                        model=self.model,
-                        input=messages,
-                        tools=tools
-                    )
+                try:
+                    if previous_response_id:
+                        logger.warning(f"[Insight-DEBUG] Continuing with previous_response_id={previous_response_id}")
+                        response = await self.client.responses.create(
+                            model=self.model,
+                            input=messages,
+                            tools=tools,
+                            previous_response_id=previous_response_id
+                        )
+                    else:
+                        logger.warning(f"[Insight-DEBUG] Initial API call, tools={len(tools) if tools else 0}")
+                        response = await self.client.responses.create(
+                            model=self.model,
+                            input=messages,
+                            tools=tools
+                        )
+                    logger.warning(f"[Insight-DEBUG] Got response id={response.id}, output_items={len(response.output) if response.output else 0}")
+                except Exception as api_error:
+                    logger.error(f"[Insight-DEBUG] OpenAI API call FAILED: {type(api_error).__name__}: {api_error}")
+                    raise
 
                 # Store response ID for potential continuation
                 previous_response_id = response.id
 
                 # Check the response output
                 if not response.output:
-                    logger.warning("[Insight] Empty response output")
+                    logger.warning("[Insight-DEBUG] Empty response output - breaking loop")
                     break
 
                 # Process output items
@@ -2192,7 +2199,7 @@ Combine the data into a daily insight following the format in the system prompt.
                             elif not function_args.get("portfolio_id"):
                                 function_args["portfolio_id"] = portfolio_id_list[0]
 
-                        logger.info(f"[Insight] Executing tool: {function_name} with args: {list(function_args.keys())}")
+                        logger.warning(f"[Insight-DEBUG] Executing tool: {function_name} with args: {function_args}")
 
                         # Execute tool
                         try:
@@ -2205,11 +2212,19 @@ Combine the data into a daily insight following the format in the system prompt.
                             if auth_context:
                                 tool_context.update(auth_context)
 
+                            logger.warning(f"[Insight-DEBUG] Tool context: portfolio_id={tool_context.get('portfolio_id')}, has_auth={bool(auth_context)}")
+
                             result = await tool_registry.dispatch_tool_call(
                                 function_name,
                                 function_args,
                                 tool_context
                             )
+
+                            # Check if result contains an error
+                            if isinstance(result, dict) and result.get("error"):
+                                logger.error(f"[Insight-DEBUG] Tool {function_name} returned ERROR: {result.get('error')}")
+                            else:
+                                logger.warning(f"[Insight-DEBUG] Tool {function_name} SUCCESS, result_keys={list(result.keys()) if isinstance(result, dict) else 'not_dict'}")
 
                             accumulated_tool_results.append({
                                 "call_id": call_id,
@@ -2217,10 +2232,8 @@ Combine the data into a daily insight following the format in the system prompt.
                                 "result": result
                             })
 
-                            logger.info(f"[Insight] Tool {function_name} completed successfully")
-
                         except Exception as e:
-                            logger.error(f"[Insight] Tool {function_name} failed: {e}")
+                            logger.error(f"[Insight-DEBUG] Tool {function_name} EXCEPTION: {type(e).__name__}: {e}")
                             accumulated_tool_results.append({
                                 "call_id": call_id,
                                 "tool_name": function_name,
