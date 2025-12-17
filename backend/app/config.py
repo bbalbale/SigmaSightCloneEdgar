@@ -51,9 +51,10 @@ class Settings(BaseSettings):
     OPENAI_API_KEY: str = Field(default="", env="OPENAI_API_KEY")
     OPENAI_ORG_ID: str = Field(default="", env="OPENAI_ORG_ID")  # Optional
     # OpenAI models - see https://platform.openai.com/docs/models
-    MODEL_DEFAULT: str = Field(default="gpt-4o-mini", env="MODEL_DEFAULT")
-    MODEL_FALLBACK: str = Field(default="gpt-4o-mini", env="MODEL_FALLBACK")
-    MODEL_DEEP_REASONING: str = Field(default="gpt-4o", env="MODEL_DEEP_REASONING",
+    # Note: GPT-5 series does NOT support reasoning.effort (only o-series models do)
+    MODEL_DEFAULT: str = Field(default="gpt-5-mini", env="MODEL_DEFAULT")
+    MODEL_FALLBACK: str = Field(default="gpt-5-mini", env="MODEL_FALLBACK")
+    MODEL_DEEP_REASONING: str = Field(default="gpt-5-mini", env="MODEL_DEEP_REASONING",
                                        description="Model for complex reasoning tasks (investment thesis, multi-step analysis)")
 
     # Smart Routing settings

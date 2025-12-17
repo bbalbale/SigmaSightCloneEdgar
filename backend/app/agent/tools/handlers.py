@@ -1113,6 +1113,82 @@ class PortfolioTools:
                 "retryable": isinstance(e, (httpx.TimeoutException, httpx.HTTPStatusError))
             }
 
+    async def get_morning_briefing(
+        self,
+        portfolio_id: str,
+        **kwargs
+    ) -> Dict[str, Any]:
+        """
+        Get the most recent morning briefing for the portfolio.
+
+        Retrieves the latest AI-generated morning briefing including:
+        - Performance summary (daily and weekly)
+        - Top movers and their drivers
+        - News affecting positions
+        - Watch list items
+        - Action recommendations
+
+        Use when:
+        - User asks "what did the briefing say?"
+        - User wants to reference this morning's analysis
+        - You need to recall specific findings from the briefing
+
+        Args:
+            portfolio_id: Portfolio UUID to get briefing for
+
+        Returns:
+            Dictionary with briefing title, summary, key findings, and recommendations
+        """
+        try:
+            from sqlalchemy import select
+            from app.models.ai_insights import AIInsight, InsightType
+            from app.database import get_async_session
+            from uuid import UUID
+
+            portfolio_uuid = UUID(portfolio_id) if isinstance(portfolio_id, str) else portfolio_id
+
+            async with get_async_session() as db:
+                result = await db.execute(
+                    select(AIInsight)
+                    .where(AIInsight.portfolio_id == portfolio_uuid)
+                    .where(AIInsight.insight_type == InsightType.MORNING_BRIEFING)
+                    .order_by(AIInsight.created_at.desc())
+                    .limit(1)
+                )
+                briefing = result.scalar_one_or_none()
+
+                if not briefing:
+                    return {
+                        "error": "No morning briefing found for this portfolio",
+                        "suggestion": "Generate a morning briefing first using the insights feature"
+                    }
+
+                # Format the briefing data
+                return {
+                    "data": {
+                        "title": briefing.title,
+                        "summary": briefing.summary,
+                        "full_analysis": briefing.full_analysis,
+                        "key_findings": briefing.key_findings or [],
+                        "recommendations": briefing.recommendations or [],
+                        "severity": briefing.severity.value if briefing.severity else "normal",
+                        "generated_at": briefing.created_at.isoformat(),
+                        "model_used": briefing.model_used,
+                    },
+                    "meta": {
+                        "portfolio_id": str(portfolio_id),
+                        "insight_type": "morning_briefing",
+                        "age_hours": round((utc_now() - briefing.created_at).total_seconds() / 3600, 1),
+                    }
+                }
+
+        except Exception as e:
+            logger.error(f"Error in get_morning_briefing: {e}")
+            return {
+                "error": str(e),
+                "retryable": False
+            }
+
     async def get_market_news(
         self,
         symbols: Optional[str] = None,

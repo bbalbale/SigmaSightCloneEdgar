@@ -192,6 +192,240 @@ class OpenAIService:
             logger.warning(f"[Memory] Failed to retrieve memories: {e}")
             return ""
 
+    async def _get_portfolio_data_context(
+        self,
+        db: Optional[AsyncSession],
+        portfolio_context: Optional[Dict[str, Any]] = None,
+    ) -> str:
+        """
+        Pre-fetch portfolio data to inject into chat context.
+
+        Includes:
+        - Portfolio holdings summary
+        - Risk metrics (analytics overview)
+        - Factor exposures
+        - Most recent morning briefing
+
+        Returns formatted context string for prompt injection.
+        """
+        if not portfolio_context:
+            return ""
+
+        portfolio_id = portfolio_context.get("portfolio_id")
+        if not portfolio_id:
+            return ""
+
+        context_parts = []
+
+        try:
+            # Create a minimal tool context for calling handlers
+            tool_context = {
+                "portfolio_id": portfolio_id,
+                "portfolio_ids": portfolio_context.get("portfolio_ids", [portfolio_id]),
+            }
+
+            # 1. Fetch portfolio holdings summary
+            try:
+                from app.agent.tools.tool_registry import tool_registry
+
+                holdings_result = await tool_registry.dispatch_tool_call(
+                    "get_portfolio_complete",
+                    {"portfolio_id": portfolio_id},
+                    tool_context
+                )
+
+                if holdings_result and not holdings_result.get("error"):
+                    # Format holdings summary
+                    holdings_summary = self._format_holdings_summary(holdings_result)
+                    if holdings_summary:
+                        context_parts.append(holdings_summary)
+                        logger.debug(f"[PortfolioContext] Added holdings summary ({len(holdings_summary)} chars)")
+            except Exception as e:
+                logger.warning(f"[PortfolioContext] Failed to fetch holdings: {e}")
+
+            # 2. Fetch analytics overview (risk metrics)
+            try:
+                analytics_result = await tool_registry.dispatch_tool_call(
+                    "get_analytics_overview",
+                    {"portfolio_id": portfolio_id},
+                    tool_context
+                )
+
+                if analytics_result and not analytics_result.get("error"):
+                    analytics_summary = self._format_analytics_summary(analytics_result)
+                    if analytics_summary:
+                        context_parts.append(analytics_summary)
+                        logger.debug(f"[PortfolioContext] Added analytics summary ({len(analytics_summary)} chars)")
+            except Exception as e:
+                logger.warning(f"[PortfolioContext] Failed to fetch analytics: {e}")
+
+            # 3. Fetch factor exposures
+            try:
+                factors_result = await tool_registry.dispatch_tool_call(
+                    "get_factor_exposures",
+                    {"portfolio_id": portfolio_id},
+                    tool_context
+                )
+
+                if factors_result and not factors_result.get("error"):
+                    factors_summary = self._format_factors_summary(factors_result)
+                    if factors_summary:
+                        context_parts.append(factors_summary)
+                        logger.debug(f"[PortfolioContext] Added factors summary ({len(factors_summary)} chars)")
+            except Exception as e:
+                logger.warning(f"[PortfolioContext] Failed to fetch factor exposures: {e}")
+
+            # 4. Fetch most recent morning briefing
+            if db:
+                try:
+                    from sqlalchemy import select
+                    from app.models.ai_insights import AIInsight, InsightType
+                    from uuid import UUID as UUIDType
+
+                    portfolio_uuid = UUIDType(portfolio_id) if isinstance(portfolio_id, str) else portfolio_id
+
+                    result = await db.execute(
+                        select(AIInsight)
+                        .where(AIInsight.portfolio_id == portfolio_uuid)
+                        .where(AIInsight.insight_type == InsightType.MORNING_BRIEFING)
+                        .order_by(AIInsight.created_at.desc())
+                        .limit(1)
+                    )
+                    latest_briefing = result.scalar_one_or_none()
+
+                    if latest_briefing:
+                        briefing_summary = self._format_briefing_summary(latest_briefing)
+                        if briefing_summary:
+                            context_parts.append(briefing_summary)
+                            logger.debug(f"[PortfolioContext] Added morning briefing ({len(briefing_summary)} chars)")
+                except Exception as e:
+                    logger.warning(f"[PortfolioContext] Failed to fetch morning briefing: {e}")
+
+            if not context_parts:
+                return ""
+
+            # Combine all context parts
+            full_context = "\n\n".join(context_parts)
+            logger.info(f"[PortfolioContext] Injecting portfolio context ({len(full_context)} chars)")
+            return full_context
+
+        except Exception as e:
+            logger.warning(f"[PortfolioContext] Failed to build portfolio context: {e}")
+            return ""
+
+    def _format_holdings_summary(self, holdings_data: Dict[str, Any]) -> str:
+        """Format portfolio holdings for context injection."""
+        try:
+            positions = holdings_data.get("positions", [])
+            if not positions:
+                return ""
+
+            lines = ["### Current Portfolio Holdings"]
+            lines.append(f"Total positions: {len(positions)}")
+
+            # Summarize top positions by market value
+            sorted_positions = sorted(
+                [p for p in positions if p.get("market_value")],
+                key=lambda x: abs(x.get("market_value", 0)),
+                reverse=True
+            )[:10]  # Top 10
+
+            if sorted_positions:
+                lines.append("\n**Top Holdings:**")
+                for p in sorted_positions:
+                    symbol = p.get("symbol", "N/A")
+                    qty = p.get("quantity", 0)
+                    mv = p.get("market_value", 0)
+                    daily_pnl = p.get("daily_pnl_dollar", 0)
+                    lines.append(f"- {symbol}: {qty:,.0f} shares, ${mv:,.0f} value, ${daily_pnl:+,.0f} today")
+
+            return "\n".join(lines)
+        except Exception as e:
+            logger.warning(f"[PortfolioContext] Error formatting holdings: {e}")
+            return ""
+
+    def _format_analytics_summary(self, analytics_data: Dict[str, Any]) -> str:
+        """Format analytics/risk metrics for context injection."""
+        try:
+            lines = ["### Portfolio Risk Metrics"]
+
+            # Portfolio-level metrics
+            if analytics_data.get("portfolio_beta"):
+                lines.append(f"- Portfolio Beta: {analytics_data['portfolio_beta']:.2f}")
+            if analytics_data.get("total_value"):
+                lines.append(f"- Total Market Value: ${analytics_data['total_value']:,.0f}")
+            if analytics_data.get("daily_pnl"):
+                lines.append(f"- Daily P&L: ${analytics_data['daily_pnl']:+,.0f}")
+            if analytics_data.get("volatility"):
+                lines.append(f"- Portfolio Volatility: {analytics_data['volatility']:.1%}")
+            if analytics_data.get("sharpe_ratio"):
+                lines.append(f"- Sharpe Ratio: {analytics_data['sharpe_ratio']:.2f}")
+
+            # Sector exposure if available
+            sectors = analytics_data.get("sector_exposure", {})
+            if sectors:
+                lines.append("\n**Sector Exposure:**")
+                for sector, weight in sorted(sectors.items(), key=lambda x: x[1], reverse=True)[:5]:
+                    lines.append(f"- {sector}: {weight:.1%}")
+
+            return "\n".join(lines) if len(lines) > 1 else ""
+        except Exception as e:
+            logger.warning(f"[PortfolioContext] Error formatting analytics: {e}")
+            return ""
+
+    def _format_factors_summary(self, factors_data: Dict[str, Any]) -> str:
+        """Format factor exposures for context injection."""
+        try:
+            exposures = factors_data.get("exposures", factors_data.get("factor_exposures", {}))
+            if not exposures:
+                return ""
+
+            lines = ["### Factor Exposures"]
+
+            # Handle different data formats
+            if isinstance(exposures, list):
+                for factor in exposures[:5]:
+                    name = factor.get("factor_name", factor.get("name", "Unknown"))
+                    beta = factor.get("beta", factor.get("exposure", 0))
+                    lines.append(f"- {name}: {beta:+.2f}")
+            elif isinstance(exposures, dict):
+                for name, beta in list(exposures.items())[:5]:
+                    if isinstance(beta, (int, float)):
+                        lines.append(f"- {name}: {beta:+.2f}")
+
+            return "\n".join(lines) if len(lines) > 1 else ""
+        except Exception as e:
+            logger.warning(f"[PortfolioContext] Error formatting factors: {e}")
+            return ""
+
+    def _format_briefing_summary(self, briefing: Any) -> str:
+        """Format the most recent morning briefing for context injection."""
+        try:
+            lines = ["### Latest Morning Briefing"]
+            lines.append(f"*Generated: {briefing.created_at.strftime('%Y-%m-%d %H:%M')}*")
+
+            if briefing.title:
+                lines.append(f"\n**{briefing.title}**")
+
+            if briefing.summary:
+                lines.append(f"\n{briefing.summary}")
+
+            # Add key findings if available
+            if briefing.key_findings:
+                findings = briefing.key_findings if isinstance(briefing.key_findings, list) else []
+                if findings:
+                    lines.append("\n**Key Findings:**")
+                    for finding in findings[:5]:
+                        if isinstance(finding, str):
+                            lines.append(f"- {finding}")
+                        elif isinstance(finding, dict):
+                            lines.append(f"- {finding.get('text', finding.get('finding', str(finding)))}")
+
+            return "\n".join(lines)
+        except Exception as e:
+            logger.warning(f"[PortfolioContext] Error formatting briefing: {e}")
+            return ""
+
     def _classify_query(self, query: str) -> Dict[str, Any]:
         """
         Classify a query to determine optimal routing parameters.
@@ -736,6 +970,21 @@ class OpenAIService:
                     },
                     "required": []
                 }
+            },
+            {
+                "name": "get_morning_briefing",
+                "type": "function",
+                "description": "Get the most recent morning briefing for the portfolio. Returns the AI-generated morning meeting analysis including: title, summary, key findings (top movers, news, watch items), and recommendations. Use when: (1) user asks 'what did the briefing say?' or 'what's in the morning briefing?', (2) you want to reference specific analysis from today's briefing, (3) user asks about recent performance summary.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "portfolio_id": {
+                            "type": "string",
+                            "description": "Portfolio UUID"
+                        }
+                    },
+                    "required": ["portfolio_id"]
+                }
             }
         ]
 
@@ -895,6 +1144,7 @@ class OpenAIService:
         portfolio_context: Optional[Dict[str, Any]] = None,
         rag_context: Optional[str] = None,
         memories_context: Optional[str] = None,
+        portfolio_data_context: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
         """Build input structure for OpenAI Responses API (array of messages)"""
         # Get system prompt for the mode
@@ -902,6 +1152,22 @@ class OpenAIService:
             conversation_mode,
             user_context=portfolio_context
         )
+
+        # Inject portfolio data context FIRST (highest priority - always available)
+        if portfolio_data_context:
+            portfolio_section = f"""
+---
+
+## Current Portfolio Context
+
+The following is real-time data about the user's portfolio. Use this information to provide informed, contextual responses:
+
+{portfolio_data_context}
+
+---
+"""
+            system_prompt = system_prompt + "\n" + portfolio_section
+            logger.debug(f"[PortfolioData] Added {len(portfolio_data_context)} chars of portfolio data to system prompt")
 
         # Inject user memories if available (before RAG for higher priority)
         if memories_context:
@@ -1037,7 +1303,13 @@ The following documents may be relevant to the user's question. Use this informa
                 portfolio_context=portfolio_context,
             )
 
-            # Build Responses API input with RAG and memories context
+            # Pre-fetch portfolio data (holdings, risk metrics, factor exposures, latest briefing)
+            portfolio_data_context = await self._get_portfolio_data_context(
+                db=db,
+                portfolio_context=portfolio_context,
+            )
+
+            # Build Responses API input with RAG, memories, and portfolio data context
             input_data = self._build_responses_input(
                 conversation_mode,
                 message_history or [],
@@ -1045,10 +1317,11 @@ The following documents may be relevant to the user's question. Use this informa
                 portfolio_context,
                 rag_context=rag_context,
                 memories_context=memories_context,
+                portfolio_data_context=portfolio_data_context,
             )
 
             logger.info(
-                f"[TRACE] START-PAYLOAD ctx={portfolio_context} rag={'yes' if rag_context else 'no'} memories={'yes' if memories_context else 'no'}"
+                f"[TRACE] START-PAYLOAD ctx={portfolio_context} rag={'yes' if rag_context else 'no'} memories={'yes' if memories_context else 'no'} portfolio_data={'yes' if portfolio_data_context else 'no'}"
             )
 
             # Get tool definitions for Responses API (with optional web_search)
@@ -1078,16 +1351,23 @@ The following documents may be relevant to the user's question. Use this informa
             seq += 1
             
             # Call OpenAI Responses API with streaming
-            # Include reasoning effort and text verbosity for better response quality
-            stream = await self.client.responses.create(
-                model=model_to_use,
-                input=input_data,  # Use input structure instead of messages
-                tools=tools if tools else None,
-                stream=True,
-                reasoning={"effort": reasoning_effort},
-                text={"format": {"type": "text"}, "verbosity": text_verbosity},
-                # Note: max_completion_tokens is not supported by Responses API
-            )
+            # Note: reasoning.effort is NOT supported by GPT-5 series (gpt-5, gpt-5-mini, etc.)
+            # Only o-series models (o1, o3, o4-mini) support reasoning.effort parameter
+            # See: https://github.com/sst/opencode/issues/1859
+            reasoning_supported_models = ["o1", "o3", "o3-mini", "o4-mini"]
+            supports_reasoning = any(model_to_use.startswith(m) for m in reasoning_supported_models)
+
+            create_params = {
+                "model": model_to_use,
+                "input": input_data,
+                "tools": tools if tools else None,
+                "stream": True,
+                "text": {"format": {"type": "text"}, "verbosity": text_verbosity},
+            }
+            if supports_reasoning:
+                create_params["reasoning"] = {"effort": reasoning_effort}
+
+            stream = await self.client.responses.create(**create_params)
             
             # Track state for streaming
             current_content = ""
@@ -1462,14 +1742,18 @@ The following documents may be relevant to the user's question. Use this informa
                     logger.info(f"[CONTINUATION] Starting call {tool_iteration} with {len(continuation_input)} messages (no system prompt)")
                     logger.debug(f"[CONTINUATION] Tool summary: {len(tool_summary)} chars")
 
-                    continuation_stream = await self.client.responses.create(
-                        model=model_to_use,
-                        input=continuation_input,
-                        tools=tools if tools else None,
-                        stream=True,
-                        reasoning={"effort": reasoning_effort},
-                        text={"format": {"type": "text"}, "verbosity": text_verbosity},
-                    )
+                    # Build continuation params (reasoning only for supported models)
+                    cont_params = {
+                        "model": model_to_use,
+                        "input": continuation_input,
+                        "tools": tools if tools else None,
+                        "stream": True,
+                        "text": {"format": {"type": "text"}, "verbosity": text_verbosity},
+                    }
+                    if supports_reasoning:
+                        cont_params["reasoning"] = {"effort": reasoning_effort}
+
+                    continuation_stream = await self.client.responses.create(**cont_params)
 
                     cont_event_count = 0
                     cont_has_text_output = False

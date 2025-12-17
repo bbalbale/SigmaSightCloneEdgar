@@ -91,8 +91,9 @@ class ToolRegistry:
             # Daily Insight Tools (December 15, 2025)
             "get_daily_movers": self.tools.get_daily_movers,
             "get_market_news": self.tools.get_market_news,
+            "get_morning_briefing": self.tools.get_morning_briefing,
         }
-        
+
     async def dispatch_tool_call(
         self,
         tool_name: str,
@@ -338,6 +339,7 @@ class ToolRegistry:
             # Daily Insight Tools (December 15, 2025)
             "get_daily_movers": authenticated_tools.get_daily_movers,
             "get_market_news": authenticated_tools.get_market_news,
+            "get_morning_briefing": authenticated_tools.get_morning_briefing,
         }
 
         return authenticated_registry.get(tool_name, self.registry[tool_name])

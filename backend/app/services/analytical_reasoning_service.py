@@ -41,7 +41,7 @@ class AnalyticalReasoningService:
 
     def __init__(self):
         """Initialize the analytical reasoning service."""
-        self.model_name = "gpt-4o-mini"  # Updated to OpenAI model
+        self.model_name = "gpt-5-mini"  # GPT-5 series supports reasoning.effort parameter
         self.provider = "openai"  # Migrated from anthropic
         logger.info("AnalyticalReasoningService initialized (using OpenAI with tool-calling)")
 
