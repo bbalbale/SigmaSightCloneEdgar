@@ -18,6 +18,15 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ---
 
+## 🚨 Critical Instructions
+
+### Git Operations
+- **NEVER push to any branch without explicit user permission**
+- **NEVER assume branch syncing** - only push to branches the user specifically requests
+- Always wait for user confirmation before `git push`, `git commit`, or merging branches
+
+---
+
 ## Common Development Commands
 
 ### Quick Start - Full Stack

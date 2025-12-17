@@ -5,6 +5,16 @@ Trigger the full Railway data-fix workflow via HTTP.
 This script logs in with demo credentials (override via CLI flags), calls the
 `/admin/fix/fix-all` endpoint, and prints a detailed summary of each phase so
 we can confirm clearing, seeding, and batch processing actually ran.
+
+Usage:
+    # Run on sandbox (default)
+    python trigger_railway_fix.py --env sandbox --start-date 2025-07-01 --end-date 2025-12-17
+
+    # Run on production
+    python trigger_railway_fix.py --env production --start-date 2025-07-01 --end-date 2025-12-17
+
+    # Or specify custom URL
+    python trigger_railway_fix.py --base-url https://custom-url.up.railway.app/api/v1
 """
 import argparse
 import sys
@@ -12,14 +22,41 @@ from typing import Dict, Any
 
 import requests
 
-DEFAULT_BASE_URL = "https://sigmasight-be-production.up.railway.app/api/v1"
+# Environment URLs
+ENVIRONMENTS = {
+    "sandbox": "https://sigmasight-be-sandbox-production.up.railway.app/api/v1",
+    "production": "https://sigmasight-be-production.up.railway.app/api/v1",
+}
+
+DEFAULT_ENV = "sandbox"  # Default to sandbox for safety
 DEFAULT_EMAIL = "demo_hnw@sigmasight.com"
 DEFAULT_PASSWORD = "demo12345"
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Trigger Railway data fix via HTTP API")
-    parser.add_argument("--base-url", default=DEFAULT_BASE_URL, help="Backend base URL (default: %(default)s)")
+    parser = argparse.ArgumentParser(
+        description="Trigger Railway data fix via HTTP API",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+    # Run on sandbox (default, safer)
+    python trigger_railway_fix.py --env sandbox --start-date 2025-07-01 --end-date 2025-12-17
+
+    # Run on production
+    python trigger_railway_fix.py --env production --start-date 2025-07-01 --end-date 2025-12-17
+        """
+    )
+    parser.add_argument(
+        "--env",
+        choices=["sandbox", "production"],
+        default=DEFAULT_ENV,
+        help=f"Environment to target (default: {DEFAULT_ENV})"
+    )
+    parser.add_argument(
+        "--base-url",
+        default=None,
+        help="Override base URL (ignores --env if provided)"
+    )
     parser.add_argument("--email", default=DEFAULT_EMAIL, help="Login email (default: %(default)s)")
     parser.add_argument("--password", default=DEFAULT_PASSWORD, help="Login password (default: %(default)s)")
     parser.add_argument(
@@ -189,14 +226,32 @@ def print_summary(result: Dict[str, Any]) -> None:
 
 def main():
     args = parse_args()
+
+    # Resolve base URL from --base-url or --env
+    if args.base_url:
+        base_url = args.base_url
+        env_name = "custom"
+    else:
+        base_url = ENVIRONMENTS[args.env]
+        env_name = args.env
+
     print("=" * 80)
-    print(f"RAILWAY PRODUCTION DATA FIX TRIGGER\nTarget: {args.base_url}")
+    print(f"RAILWAY DATA FIX TRIGGER")
+    print(f"Environment: {env_name.upper()}")
+    print(f"Target: {base_url}")
     if args.start_date or args.end_date:
         print(f"Batch Date Range: {args.start_date or 'auto'} to {args.end_date or 'today'}")
     print("=" * 80)
 
-    token = login(args.base_url, args.email, args.password)
-    result = trigger_fix(args.base_url, token, args.timeout, args.start_date, args.end_date)
+    # Confirmation for production
+    if env_name == "production":
+        confirm = input("\n⚠️  You are targeting PRODUCTION. Type 'yes' to continue: ")
+        if confirm.lower() != 'yes':
+            print("Aborted.")
+            sys.exit(0)
+
+    token = login(base_url, args.email, args.password)
+    result = trigger_fix(base_url, token, args.timeout, args.start_date, args.end_date)
     print_summary(result)
 
 
