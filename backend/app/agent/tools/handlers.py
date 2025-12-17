@@ -31,7 +31,8 @@ class PortfolioTools:
         """
         self.base_url = base_url or settings.BACKEND_URL
         self.auth_token = auth_token
-        self.timeout = httpx.Timeout(3.0, connect=5.0)  # 3s read, 5s connect
+        self.timeout = httpx.Timeout(30.0, connect=10.0)  # 30s read, 10s connect
+        logger.info(f"PortfolioTools initialized with base_url={self.base_url}")
         
     async def _make_request(
         self, 
@@ -53,10 +54,11 @@ class PortfolioTools:
             API response as dictionary
         """
         url = f"{self.base_url}{endpoint}"
+        logger.info(f"Making request to: {url}")
         headers = {}
         if self.auth_token:
             headers["Authorization"] = f"Bearer {self.auth_token}"
-            
+
         async with httpx.AsyncClient(timeout=self.timeout) as client:
             for attempt in range(retry_count + 1):
                 try:
