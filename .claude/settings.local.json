@@ -42,7 +42,13 @@
       "Bash(dir /s /b \"C:\\Users\\BenBalbale\\CascadeProjects\\SigmaSight\\gptagent\\*.ts\")",
       "mcp__playwright__browser_take_screenshot",
       "Bash(uv run:*)",
-      "Bash(dir:*)"
+      "Bash(dir:*)",
+      "Bash(npm run dev:*)",
+      "Bash(tasklist:*)",
+      "Bash(cmd //c \"taskkill /F /IM python.exe\")",
+      "mcp__playwright__browser_type",
+      "Bash(xargs:*)",
+      "mcp__playwright__browser_handle_dialog"
     ],
     "deny": [],
     "ask": [],
