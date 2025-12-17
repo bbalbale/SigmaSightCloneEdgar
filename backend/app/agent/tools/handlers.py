@@ -5,6 +5,7 @@ These handlers contain all business logic and are 100% portable across AI provid
 from typing import Dict, Any, Optional, List
 from uuid import UUID
 import httpx
+import os
 from datetime import datetime, timedelta
 import logging
 
@@ -12,6 +13,28 @@ from app.config import settings
 from app.core.datetime_utils import utc_now, to_utc_iso8601
 
 logger = logging.getLogger(__name__)
+
+
+def get_internal_api_url() -> str:
+    """
+    Get the internal API URL for self-calls.
+
+    On Railway (or any platform with PORT env var), use localhost to avoid
+    going out to the internet and back when the backend calls itself.
+    This prevents SSL/networking issues with self-referential HTTP calls.
+
+    Returns:
+        Internal API URL (localhost if PORT is set, otherwise BACKEND_URL)
+    """
+    port = os.environ.get("PORT")
+    if port:
+        # We're on Railway or similar platform - use localhost for internal calls
+        internal_url = f"http://localhost:{port}"
+        logger.info(f"Using internal URL for self-calls: {internal_url}")
+        return internal_url
+    else:
+        # Local development - use BACKEND_URL
+        return settings.BACKEND_URL
 
 
 class PortfolioTools:
@@ -24,12 +47,13 @@ class PortfolioTools:
     def __init__(self, base_url: str = None, auth_token: str = None):
         """
         Initialize the tools with API configuration.
-        
+
         Args:
-            base_url: Base URL for the API (defaults to settings)
+            base_url: Base URL for the API (defaults to internal URL for self-calls)
             auth_token: Bearer token for authentication
         """
-        self.base_url = base_url or settings.BACKEND_URL
+        # Use internal URL (localhost on Railway) for self-calls to avoid network issues
+        self.base_url = base_url or get_internal_api_url()
         self.auth_token = auth_token
         self.timeout = httpx.Timeout(30.0, connect=10.0)  # 30s read, 10s connect
         logger.info(f"PortfolioTools initialized with base_url={self.base_url}")

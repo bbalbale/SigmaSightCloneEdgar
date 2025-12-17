@@ -9,7 +9,7 @@ import logging
 from pydantic import BaseModel, ValidationError
 
 from app.core.datetime_utils import utc_now, to_utc_iso8601
-from app.agent.tools.handlers import PortfolioTools
+from app.agent.tools.handlers import PortfolioTools, get_internal_api_url
 from app.config import settings
 
 logger = logging.getLogger(__name__)
@@ -62,7 +62,8 @@ class ToolRegistry:
             tools: PortfolioTools instance (will create if not provided)
             auth_token: Bearer token for API authentication
         """
-        self.tools = tools or PortfolioTools(base_url=settings.BACKEND_URL, auth_token=auth_token)
+        # Use internal URL (localhost on Railway) for self-calls to avoid network issues
+        self.tools = tools or PortfolioTools(base_url=get_internal_api_url(), auth_token=auth_token)
         self.auth_token = auth_token
         
         # Registry mapping tool names to methods
@@ -310,8 +311,9 @@ class ToolRegistry:
             return self.registry[tool_name]
         
         # Create authenticated PortfolioTools instance
+        # Use internal URL (localhost on Railway) for self-calls
         auth_token = ctx["auth_token"]
-        authenticated_tools = PortfolioTools(base_url=settings.BACKEND_URL, auth_token=auth_token)
+        authenticated_tools = PortfolioTools(base_url=get_internal_api_url(), auth_token=auth_token)
         
         # Map tool names to authenticated methods
         authenticated_registry = {
