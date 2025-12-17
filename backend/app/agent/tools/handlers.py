@@ -29,7 +29,7 @@ class PortfolioTools:
             base_url: Base URL for the API (defaults to settings)
             auth_token: Bearer token for authentication
         """
-        self.base_url = base_url or "http://localhost:8000"
+        self.base_url = base_url or settings.BACKEND_URL
         self.auth_token = auth_token
         self.timeout = httpx.Timeout(3.0, connect=5.0)  # 3s read, 5s connect
         
