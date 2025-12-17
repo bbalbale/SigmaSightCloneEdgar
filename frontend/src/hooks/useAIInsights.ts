@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { usePortfolioStore } from '@/stores/portfolioStore'
 import insightsApi, { AIInsight, InsightType } from '@/services/insightsApi'
 
@@ -32,13 +32,14 @@ export function useAIInsights(): UseAIInsightsReturn {
   const [generatingInsight, setGeneratingInsight] = useState(false)
   const [insights, setInsights] = useState<AIInsight[]>([])
   const [filters, setFilters] = useState<{ insightType?: InsightType, daysBack: number, limit: number }>({
-    insightType: 'daily_summary',
+    insightType: 'morning_briefing',
     daysBack: 30,
     limit: 10
   })
   const [offset, setOffset] = useState(0)
   const [hasMore, setHasMore] = useState(false)
   const [total, setTotal] = useState(0)
+  const autoGenerateAttempted = useRef(false)
 
   // Fetch insights
   const fetchInsights = useCallback(async ({ append = false, nextOffset }: { append?: boolean, nextOffset?: number } = {}) => {
@@ -153,6 +154,35 @@ export function useAIInsights(): UseAIInsightsReturn {
       setGeneratingInsight(false)
     }
   }, [portfolioId, generatingInsight, filters.insightType])
+
+  // Auto-generate morning briefing if none exists for today
+  useEffect(() => {
+    // Skip if already attempted, still loading, or no portfolio
+    if (autoGenerateAttempted.current || loading || !portfolioId || generatingInsight) {
+      return
+    }
+
+    // Check if we have a morning briefing from today
+    const today = new Date().toDateString()
+    const hasTodaysBriefing = insights.some(insight => {
+      if (insight.insight_type !== 'morning_briefing') return false
+      const insightDate = new Date(insight.created_at).toDateString()
+      return insightDate === today
+    })
+
+    // If no morning briefing for today, auto-generate one
+    if (!hasTodaysBriefing) {
+      console.log('🌅 No morning briefing for today, auto-generating...')
+      autoGenerateAttempted.current = true
+      // Use setTimeout to avoid calling during render
+      setTimeout(() => {
+        handleGenerateInsight({ insightType: 'morning_briefing' })
+      }, 100)
+    } else {
+      console.log('✅ Morning briefing already exists for today')
+      autoGenerateAttempted.current = true
+    }
+  }, [loading, insights, portfolioId, generatingInsight, handleGenerateInsight])
 
   // Dismiss insight
   const handleDismissInsight = useCallback(async (insightId: string) => {

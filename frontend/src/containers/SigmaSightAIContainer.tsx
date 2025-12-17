@@ -34,8 +34,6 @@ export function SigmaSightAIContainer() {
     refetchInsights
   } = useAIInsights()
 
-  const [generationType, setGenerationType] = useState<InsightType>('daily_summary')
-  const [focusArea, setFocusArea] = useState('')
   const [prefillMessage, setPrefillMessage] = useState<string | null>(null)
 
   if (error && !loading) {
@@ -100,7 +98,7 @@ export function SigmaSightAIContainer() {
                   </h3>
                 </div>
                 <div className="flex items-center gap-2">
-                  {/* Morning Briefing Button - Prominent */}
+                  {/* Morning Briefing Button - Manual refresh */}
                   <button
                     onClick={() => {
                       handleGenerateInsight({ insightType: 'morning_briefing' })
@@ -120,55 +118,9 @@ export function SigmaSightAIContainer() {
                             color: '#ffffff',
                           }
                     }
-                    title="Generate a morning meeting style briefing with daily/weekly performance and news"
+                    title="Generate a new morning briefing with daily/weekly performance and news"
                   >
-                    {generatingInsight ? "Generating..." : "Morning Briefing"}
-                  </button>
-                  <select
-                    value={generationType}
-                    onChange={(e) => setGenerationType(e.target.value as InsightType)}
-                    className="text-sm px-2 py-1 rounded border"
-                    style={{
-                      backgroundColor: 'var(--bg-secondary)',
-                      borderColor: 'var(--border-primary)',
-                      color: 'var(--text-primary)'
-                    }}
-                  >
-                    <option value="daily_summary">Daily summary</option>
-                    <option value="morning_briefing">Morning briefing</option>
-                    <option value="volatility_analysis">Volatility analysis</option>
-                    <option value="concentration_risk">Concentration risk</option>
-                    <option value="stress_test_review">Stress test review</option>
-                    <option value="factor_exposure">Factor exposure</option>
-                  </select>
-                  <button
-                    onClick={() => handleGenerateInsight({ insightType: generationType, focusArea: focusArea || undefined })}
-                    disabled={generatingInsight}
-                    className="text-sm font-semibold px-4 py-2 rounded transition-colors"
-                    style={
-                      generatingInsight
-                        ? {
-                            backgroundColor: 'var(--bg-tertiary)',
-                            color: 'var(--text-tertiary)',
-                            cursor: 'not-allowed',
-                          }
-                        : {
-                            backgroundColor: 'var(--color-accent)',
-                            color: '#000000',
-                          }
-                    }
-                    onMouseEnter={(e) => {
-                      if (!generatingInsight) {
-                        e.currentTarget.style.backgroundColor = 'var(--color-accent-hover)';
-                      }
-                    }}
-                    onMouseLeave={(e) => {
-                      if (!generatingInsight) {
-                        e.currentTarget.style.backgroundColor = 'var(--color-accent)';
-                      }
-                    }}
-                  >
-                    {generatingInsight ? "Generating..." : "Generate"}
+                    {generatingInsight ? "Generating..." : "New Briefing"}
                   </button>
                 </div>
               </div>
@@ -181,7 +133,6 @@ export function SigmaSightAIContainer() {
                     onChange={(e) => {
                       const value = e.target.value === 'all' ? undefined : e.target.value as InsightType
                       updateFilters({ insightType: value })
-                      setGenerationType(value || 'daily_summary')
                     }}
                     className="px-2 py-1 rounded border"
                     style={{
@@ -215,20 +166,6 @@ export function SigmaSightAIContainer() {
                     <option value={30}>Last 30 days</option>
                     <option value={90}>Last 90 days</option>
                   </select>
-                </div>
-                <div className="flex flex-col gap-1 flex-1 min-w-[200px]">
-                  <span className="text-xs" style={{ color: 'var(--text-tertiary)' }}>Focus area (optional)</span>
-                  <input
-                    value={focusArea}
-                    onChange={(e) => setFocusArea(e.target.value)}
-                    placeholder="e.g. tech exposure, top movers"
-                    className="px-2 py-1 rounded border"
-                    style={{
-                      backgroundColor: 'var(--bg-secondary)',
-                      borderColor: 'var(--border-primary)',
-                      color: 'var(--text-primary)'
-                    }}
-                  />
                 </div>
                 <div className="flex items-end text-xs" style={{ color: 'var(--text-tertiary)' }}>
                   {total ? `${total} insights` : ' '} 
