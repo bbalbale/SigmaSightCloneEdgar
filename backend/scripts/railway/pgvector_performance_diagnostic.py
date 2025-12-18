@@ -83,40 +83,47 @@ def show_settings(cur):
 
 def show_top_queries(cur):
     header("Top 15 by total_time (pg_stat_statements)")
-    rows = fetch_all(
-        cur,
-        """
-        SELECT queryid, calls, round(total_time/1000,2) AS total_s,
-               round(mean_time,2) AS mean_ms, rows
-        FROM pg_stat_statements
-        ORDER BY total_time DESC
-        LIMIT 15;
-        """,
-    )
-    for r in rows:
-        print(
-            f"queryid={r['queryid']} calls={r['calls']} total_s={r['total_s']} "
-            f"mean_ms={r['mean_ms']} rows={r['rows']}"
+    try:
+        rows = fetch_all(
+            cur,
+            """
+            SELECT queryid, calls, round(total_time/1000,2) AS total_s,
+                   round(mean_time,2) AS mean_ms, rows
+            FROM pg_stat_statements
+            ORDER BY total_time DESC
+            LIMIT 15;
+            """,
         )
+        for r in rows:
+            print(
+                f"queryid={r['queryid']} calls={r['calls']} total_s={r['total_s']} "
+                f"mean_ms={r['mean_ms']} rows={r['rows']}"
+            )
 
-    header("Vector-ish queries (pg_stat_statements)")
-    rows = fetch_all(
-        cur,
-        """
-        SELECT queryid, calls, round(total_time/1000,2) AS total_s,
-               round(mean_time,2) AS mean_ms, rows, query
-        FROM pg_stat_statements
-        WHERE query ILIKE '%<->%' OR query ILIKE '%vector%' OR query ILIKE '%embedding%'
-        ORDER BY total_time DESC
-        LIMIT 10;
-        """,
-    )
-    for r in rows:
-        print(
-            f"queryid={r['queryid']} calls={r['calls']} total_s={r['total_s']} "
-            f"mean_ms={r['mean_ms']} rows={r['rows']}"
+        header("Vector-ish queries (pg_stat_statements)")
+        rows = fetch_all(
+            cur,
+            """
+            SELECT queryid, calls, round(total_time/1000,2) AS total_s,
+                   round(mean_time,2) AS mean_ms, rows, query
+            FROM pg_stat_statements
+            WHERE query ILIKE '%<->%' OR query ILIKE '%vector%' OR query ILIKE '%embedding%'
+            ORDER BY total_time DESC
+            LIMIT 10;
+            """,
         )
-        print(f"query: {r['query']}\n")
+        for r in rows:
+            print(
+                f"queryid={r['queryid']} calls={r['calls']} total_s={r['total_s']} "
+                f"mean_ms={r['mean_ms']} rows={r['rows']}"
+            )
+            print(f"query: {r['query']}\n")
+    except Exception as e:
+        print(f"pg_stat_statements not available ({e.__class__.__name__}: {e})")
+        try:
+            cur.connection.rollback()
+        except Exception:
+            pass
 
 
 def show_vector_indexes(cur):
@@ -183,20 +190,29 @@ def show_index_usage(cur):
 
 
 def show_query_and_plan(cur, queryid: int):
-    header(f"Query text for queryid={queryid}")
-    cur.execute("SELECT query FROM pg_stat_statements WHERE queryid = %s;", (queryid,))
-    row = cur.fetchone()
-    if not row:
-        print("Query not found")
-        return
-    query = row[0]
-    print(query)
+    try:
+        header(f"Query text for queryid={queryid}")
+        cur.execute(
+            "SELECT query FROM pg_stat_statements WHERE queryid = %s;", (queryid,)
+        )
+        row = cur.fetchone()
+        if not row:
+            print("Query not found")
+            return
+        query = row[0]
+        print(query)
 
-    header(f"EXPLAIN (ANALYZE, BUFFERS, VERBOSE) for queryid={queryid}")
-    cur.execute("SET track_io_timing = on;")
-    cur.execute(f"EXPLAIN (ANALYZE, BUFFERS, VERBOSE) {query}")
-    for plan_line in cur.fetchall():
-        print(plan_line[0])
+        header(f"EXPLAIN (ANALYZE, BUFFERS, VERBOSE) for queryid={queryid}")
+        cur.execute("SET track_io_timing = on;")
+        cur.execute(f"EXPLAIN (ANALYZE, BUFFERS, VERBOSE) {query}")
+        for plan_line in cur.fetchall():
+            print(plan_line[0])
+    except Exception as e:
+        print(f"Could not get plan for queryid={queryid} ({e.__class__.__name__}: {e})")
+        try:
+            cur.connection.rollback()
+        except Exception:
+            pass
 
 
 def main():
