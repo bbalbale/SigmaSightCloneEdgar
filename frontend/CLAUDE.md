@@ -73,10 +73,10 @@ BACKEND_URL=http://localhost:8000
 NEXT_PUBLIC_BACKEND_API_URL=http://localhost:8000/api/v1
 ```
 
-**Railway Backend:**
+**Railway Backend (Production):**
 ```bash
-BACKEND_URL=https://sigmasight-be-sandbox-frontendrailway.up.railway.app
-NEXT_PUBLIC_BACKEND_API_URL=https://sigmasight-be-sandbox-frontendrailway.up.railway.app/api/v1
+BACKEND_URL=https://sigmasight-be-production.up.railway.app
+NEXT_PUBLIC_BACKEND_API_URL=https://sigmasight-be-production.up.railway.app/api/v1
 ```
 
 After changing `.env.local`, rebuild:

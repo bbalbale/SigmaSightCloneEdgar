@@ -41,6 +41,17 @@ def get_db_url():
     return url
 
 
+async def safe_query(conn, sql, description=""):
+    """Execute a query with error handling, rolling back on failure."""
+    try:
+        result = await conn.execute(text(sql))
+        return result, None
+    except Exception as e:
+        # Rollback to clear the aborted transaction state
+        await conn.rollback()
+        return None, str(e)
+
+
 async def run_diagnostics():
     """Run comprehensive database diagnostics."""
     db_url = get_db_url()
@@ -52,7 +63,8 @@ async def run_diagnostics():
     print("DATABASE DIAGNOSTIC REPORT")
     print("=" * 80)
 
-    engine = create_async_engine(db_url)
+    # Use autocommit to avoid transaction issues on errors
+    engine = create_async_engine(db_url, isolation_level="AUTOCOMMIT")
 
     async with engine.connect() as conn:
         # 1. List all tables with row counts
@@ -74,21 +86,21 @@ async def run_diagnostics():
             except Exception as e:
                 print(f"  {table_name}: ERROR - {e}")
 
-        # 2. Check stress_scenarios
+        # 2. Check stress_test_scenarios (correct table name)
         print("\n🔥 STRESS TEST SCENARIOS:")
         print("-" * 50)
         try:
-            result = await conn.execute(text("SELECT COUNT(*) FROM stress_scenarios"))
+            result = await conn.execute(text("SELECT COUNT(*) FROM stress_test_scenarios"))
             count = result.scalar()
             print(f"  Total scenarios: {count}")
 
             if count > 0:
-                result = await conn.execute(text("SELECT name, category FROM stress_scenarios LIMIT 5"))
+                result = await conn.execute(text("SELECT name, category FROM stress_test_scenarios LIMIT 5"))
                 scenarios = result.fetchall()
                 for name, category in scenarios:
                     print(f"    - {name} ({category})")
             else:
-                print("  ⚠️ NO STRESS SCENARIOS - Need to run seed_stress_scenarios.py")
+                print("  ⚠️ NO STRESS SCENARIOS - Need to seed stress test data")
         except Exception as e:
             print(f"  ❌ Error: {e}")
 

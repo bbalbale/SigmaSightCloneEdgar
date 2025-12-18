@@ -226,9 +226,9 @@ OPENAI_API_KEY=your_openai_key
 BACKEND_URL=http://localhost:8000
 NEXT_PUBLIC_BACKEND_API_URL=http://localhost:8000/api/v1
 
-# Or for Railway backend:
-# BACKEND_URL=https://sigmasight-be-sandbox-frontendrailway.up.railway.app
-# NEXT_PUBLIC_BACKEND_API_URL=https://sigmasight-be-sandbox-frontendrailway.up.railway.app/api/v1
+# Or for Railway backend (Production):
+# BACKEND_URL=https://sigmasight-be-production.up.railway.app
+# NEXT_PUBLIC_BACKEND_API_URL=https://sigmasight-be-production.up.railway.app/api/v1
 ```
 
 ### Common Gotchas
