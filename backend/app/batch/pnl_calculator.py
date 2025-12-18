@@ -505,20 +505,16 @@ class PnLCalculator:
         price_date_used: Optional[date] = None
 
         # SPECIAL CASE: First calculation day (no previous snapshot)
-        # Use entry_price instead of current price to capture initial unrealized gain
+        # FIX (2025-12-17): Use current_price as baseline so daily P&L = $0 for day 1.
+        # Previously used entry_price which incorrectly added TOTAL unrealized gain to equity.
+        # The equity_balance represents starting capital, not mark-to-market value.
+        # Unrealized gains are reflected in position market_value, NOT in equity_balance.
         if previous_snapshot is None:
-            # This is the first calculation day - use entry price as baseline
-            if position.entry_price is not None:
-                previous_price = position.entry_price
-                logger.debug(
-                    f"      {position.symbol}: First calculation day, using entry price ${previous_price} as baseline"
-                )
-            else:
-                # Fallback if entry_price is missing
-                previous_price = current_price
-                logger.warning(
-                    f"      {position.symbol}: First calculation day but no entry_price, using current price (P&L=0)"
-                )
+            # First calculation day - no prior day to compare, so daily P&L should be $0
+            previous_price = current_price
+            logger.debug(
+                f"      {position.symbol}: First calculation day, P&L = $0 (no prior day to compare)"
+            )
         else:
             # Normal day-over-day P&L calculation
             price_lookup = await get_previous_trading_day_price(

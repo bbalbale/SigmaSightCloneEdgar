@@ -50,7 +50,7 @@ def header(title: str):
 
 
 def fetch_all(cur, sql, params=None):
-    cur.execute(sql, params or {})
+    cur.execute(sql, params if params is not None else None)
     return cur.fetchall()
 
 

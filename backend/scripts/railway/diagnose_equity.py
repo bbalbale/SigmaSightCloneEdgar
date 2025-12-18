@@ -187,25 +187,29 @@ async def run_equity_diagnostic():
         # 5. Check batch_run_tracking for clues
         print("\n📋 RECENT BATCH RUNS:")
         print("-" * 50)
-        result = await conn.execute(text("""
-            SELECT
-                run_id,
-                status,
-                started_at,
-                completed_at,
-                portfolios_processed,
-                error_message
-            FROM batch_run_tracking
-            ORDER BY started_at DESC
-            LIMIT 10
-        """))
-        runs = result.fetchall()
+        try:
+            result = await conn.execute(text("""
+                SELECT
+                    run_date,
+                    phase_1_status,
+                    phase_2_status,
+                    phase_3_status,
+                    portfolios_processed,
+                    error_message,
+                    created_at
+                FROM batch_run_tracking
+                ORDER BY run_date DESC
+                LIMIT 10
+            """))
+            runs = result.fetchall()
 
-        for row in runs:
-            run_id, status, started, completed, processed, error = row
-            print(f"  {started}: {status} - {processed} portfolios")
-            if error:
-                print(f"    Error: {error[:50]}...")
+            for row in runs:
+                run_date, p1, p2, p3, processed, error, created = row
+                print(f"  {run_date}: P1={p1} P2={p2} P3={p3} - {processed} portfolios")
+                if error:
+                    print(f"    Error: {error[:50]}...")
+        except Exception as e:
+            print(f"  ❌ Error querying batch runs: {e}")
 
     await engine.dispose()
 
