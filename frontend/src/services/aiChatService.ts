@@ -20,7 +20,9 @@ import { useAIChatStore } from '@/stores/aiChatStore'
 import type { AIChatMessage } from '@/stores/aiChatStore'
 import { usePortfolioStore } from '@/stores/portfolioStore'
 
-const BACKEND_API_URL = process.env.NEXT_PUBLIC_BACKEND_API_URL || 'http://localhost:8000/api/v1'
+// Use the Next.js proxy to avoid CORS issues
+// The proxy at /api/proxy forwards to BACKEND_URL configured on the server
+const API_BASE_URL = '/api/proxy/api/v1'
 
 interface UIContext {
   pageHint?: string
@@ -73,7 +75,7 @@ async function createConversation(portfolioId?: string, pageHint?: string, route
     payload.route = route
   }
 
-  const response = await fetch(`${BACKEND_API_URL}/chat/conversations`, {
+  const response = await fetch(`${API_BASE_URL}/chat/conversations`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -187,7 +189,7 @@ export async function sendAIMessage(options: SendMessageOptions): Promise<void> 
 
   // Make fetch request with SSE streaming to /chat/send
   try {
-    const response = await fetch(`${BACKEND_API_URL}/chat/send`, {
+    const response = await fetch(`${API_BASE_URL}/chat/send`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
