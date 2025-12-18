@@ -10,6 +10,7 @@ from app.api.v1.router import api_router
 from app.core.logging import setup_logging, api_logger
 from app.core.onboarding_errors import OnboardingException, create_error_response
 from app.core.startup_validation import validate_system_prerequisites, get_prerequisite_status
+from app.database import get_async_session
 
 # Initialize logging
 setup_logging()
@@ -98,6 +99,52 @@ async def startup_validation():
         # In production, this will prevent startup
         api_logger.error(f"Startup validation failed: {e}")
         raise
+
+
+@app.on_event("startup")
+async def seed_kb_documents_if_needed():
+    """
+    Seed AI Knowledge Base documents on startup if below expected count.
+
+    Expected: 36 unique documents (tool docs, domain primers, FAQs)
+    Threshold: 30 (allow for minor variations)
+    """
+    try:
+        from app.agent.services.rag_service import count_kb_documents, upsert_kb_document
+
+        async with get_async_session() as db:
+            current_count = await count_kb_documents(db)
+            api_logger.info(f"[KB] Current document count: {current_count}")
+
+            # Only seed if significantly below expected (36 docs expected)
+            if current_count < 30:
+                api_logger.info(f"[KB] Document count below threshold (30), seeding KB documents...")
+
+                # Import KB documents from seed script
+                from scripts.sigmasightai.seed_kb_documents import KB_DOCUMENTS
+
+                success_count = 0
+                for doc in KB_DOCUMENTS:
+                    try:
+                        await upsert_kb_document(
+                            db,
+                            scope=doc["scope"],
+                            title=doc["title"],
+                            content=doc["content"],
+                            metadata=doc.get("metadata", {}),
+                        )
+                        success_count += 1
+                    except Exception as e:
+                        api_logger.warning(f"[KB] Failed to seed '{doc['title'][:50]}': {e}")
+
+                final_count = await count_kb_documents(db)
+                api_logger.info(f"[KB] Seeding complete: {success_count} docs processed, total now: {final_count}")
+            else:
+                api_logger.info(f"[KB] Document count sufficient ({current_count} >= 30), skipping seed")
+
+    except Exception as e:
+        # Don't block startup on KB seeding failure
+        api_logger.warning(f"[KB] Failed to seed KB documents (non-blocking): {e}")
 
 @app.get("/debug/routes")
 async def debug_routes():
