@@ -1018,44 +1018,49 @@ class PortfolioTools:
                     "retryable": False
                 }
 
-            # Build symbol to weekly price map if weekly data requested
-            weekly_prices = {}
-            if include_weekly:
-                try:
-                    # Get historical prices for weekly calculation (7 days lookback for ~5 trading days)
-                    historical_response = await self.get_prices_historical(
-                        portfolio_id=portfolio_id,
-                        lookback_days=10,  # 10 days to ensure we have 5 trading days
-                        include_factor_etfs=False
-                    )
-                    if "error" not in historical_response:
-                        prices_data = historical_response.get("data", {}).get("prices", {})
-                        for symbol, price_history in prices_data.items():
-                            if isinstance(price_history, list) and len(price_history) >= 5:
-                                # Get the price from ~5 trading days ago (index -5 or earlier)
+            # Build symbol to daily and weekly price maps from historical data
+            daily_prices = {}  # yesterday's close for daily change
+            weekly_prices = {}  # 5 trading days ago for weekly change
+            try:
+                # Get historical prices for daily and weekly calculation
+                historical_response = await self.get_prices_historical(
+                    portfolio_id=portfolio_id,
+                    lookback_days=10,  # 10 days to ensure we have 5 trading days
+                    include_factor_etfs=False
+                )
+                if "error" not in historical_response:
+                    prices_data = historical_response.get("data", {}).get("prices", {})
+                    for symbol, price_history in prices_data.items():
+                        if isinstance(price_history, list) and len(price_history) >= 2:
+                            # Get yesterday's price (second most recent) for daily change
+                            yesterday_price = price_history[-2].get("close") if len(price_history) >= 2 else None
+                            if yesterday_price:
+                                daily_prices[symbol] = yesterday_price
+
+                            # Get price from ~5 trading days ago for weekly change
+                            if include_weekly and len(price_history) >= 5:
                                 week_ago_idx = min(5, len(price_history) - 1)
                                 week_ago_price = price_history[-week_ago_idx - 1].get("close") if week_ago_idx < len(price_history) else None
                                 if week_ago_price:
                                     weekly_prices[symbol] = week_ago_price
-                except Exception as e:
-                    logger.warning(f"Could not fetch weekly prices: {e}")
+            except Exception as e:
+                logger.warning(f"Could not fetch historical prices: {e}")
 
             # Calculate daily and weekly changes for each position
             movers = []
             for holding in holdings:
                 symbol = holding.get("symbol", "UNKNOWN")
                 current_price = holding.get("current_price", 0)
-                previous_close = holding.get("previous_close") or holding.get("entry_price", 0)
                 market_value = holding.get("market_value", 0)
                 quantity = holding.get("quantity", 0)
 
-                # Calculate daily change
-                if previous_close and previous_close > 0:
-                    daily_change_pct = ((current_price - previous_close) / previous_close) * 100
-                    daily_change_dollar = (current_price - previous_close) * abs(quantity)
-                else:
-                    daily_change_pct = 0
-                    daily_change_dollar = 0
+                # Get yesterday's price from historical data for daily change
+                yesterday_price = daily_prices.get(symbol)
+                daily_change_pct = 0
+                daily_change_dollar = 0
+                if yesterday_price and yesterday_price > 0 and current_price:
+                    daily_change_pct = ((current_price - yesterday_price) / yesterday_price) * 100
+                    daily_change_dollar = (current_price - yesterday_price) * abs(quantity)
 
                 # Calculate weekly change if data available
                 weekly_change_pct = 0
@@ -1068,7 +1073,7 @@ class PortfolioTools:
                 movers.append({
                     "symbol": symbol,
                     "current_price": current_price,
-                    "previous_close": previous_close,
+                    "yesterday_price": yesterday_price,
                     "daily_change_pct": round(daily_change_pct, 2),
                     "daily_change_dollar": round(daily_change_dollar, 2),
                     "weekly_change_pct": round(weekly_change_pct, 2),
@@ -1133,6 +1138,7 @@ class PortfolioTools:
                     "threshold_pct": threshold_pct,
                     "total_positions": len(holdings),
                     "positions_above_threshold": len(gainers) + len(losers),
+                    "daily_data_available": bool(daily_prices),
                     "includes_weekly": include_weekly,
                     "weekly_data_available": bool(weekly_prices),
                     "as_of": to_utc_iso8601(utc_now())
