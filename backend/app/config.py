@@ -68,11 +68,11 @@ class Settings(BaseSettings):
     # OpenAI Agent settings
     OPENAI_API_KEY: str = Field(default="", env="OPENAI_API_KEY")
     OPENAI_ORG_ID: str = Field(default="", env="OPENAI_ORG_ID")  # Optional
-    # OpenAI models - see https://platform.openai.com/docs/models/gpt-5.1
-    # Note: GPT-5.1 series does NOT support reasoning.effort (only o-series models do)
-    MODEL_DEFAULT: str = Field(default="gpt-5.1-mini", env="MODEL_DEFAULT")
-    MODEL_FALLBACK: str = Field(default="gpt-5.1-mini", env="MODEL_FALLBACK")
-    MODEL_DEEP_REASONING: str = Field(default="gpt-5.1-mini", env="MODEL_DEEP_REASONING",
+    # OpenAI models - see https://platform.openai.com/docs/models
+    # Note: GPT-5 series does NOT support reasoning.effort (only o-series models do)
+    MODEL_DEFAULT: str = Field(default="gpt-5-mini", env="MODEL_DEFAULT")
+    MODEL_FALLBACK: str = Field(default="gpt-5-mini", env="MODEL_FALLBACK")
+    MODEL_DEEP_REASONING: str = Field(default="gpt-5-mini", env="MODEL_DEEP_REASONING",
                                        description="Model for complex reasoning tasks (investment thesis, multi-step analysis)")
 
     # Smart Routing settings
