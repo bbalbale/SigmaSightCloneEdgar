@@ -393,3 +393,103 @@ async def check_for_duplicate_memory(
             return True
 
     return False
+
+
+async def extract_memories_from_conversation(
+    db: AsyncSession,
+    user_id: UUID,
+    conversation_text: str,
+    portfolio_id: Optional[UUID] = None,
+) -> List[str]:
+    """
+    Extract memories from a conversation using LLM analysis.
+
+    This function analyzes conversation text to identify information worth
+    remembering about the user for future conversations.
+
+    Args:
+        db: Async database session
+        user_id: The user's UUID
+        conversation_text: The full conversation text to analyze
+        portfolio_id: Optional portfolio UUID for portfolio-scoped memories
+
+    Returns:
+        List of memory strings that were saved (empty if none extracted)
+    """
+    from openai import AsyncOpenAI
+    from app.config import settings
+
+    # Skip if conversation is too short
+    if len(conversation_text) < 100:
+        logger.debug("[Memory] Conversation too short for extraction")
+        return []
+
+    try:
+        client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
+
+        # Format the extraction prompt
+        prompt = MEMORY_EXTRACTION_PROMPT.format(conversation=conversation_text)
+
+        # Call OpenAI to extract memories (use fast model)
+        response = await client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=500,
+            temperature=0.3,
+        )
+
+        response_text = response.choices[0].message.content.strip()
+        logger.debug(f"[Memory] Extraction response: {response_text}")
+
+        # Check for NONE response
+        if response_text.upper() == "NONE" or not response_text:
+            logger.debug("[Memory] No memories to extract")
+            return []
+
+        # Parse JSON array response
+        try:
+            import json
+            memories = json.loads(response_text)
+            if not isinstance(memories, list):
+                logger.warning(f"[Memory] Expected list, got {type(memories)}")
+                return []
+        except json.JSONDecodeError as e:
+            logger.warning(f"[Memory] Failed to parse extraction response: {e}")
+            return []
+
+        # Save each memory (with duplicate checking)
+        saved_memories = []
+        for memory_content in memories:
+            if not isinstance(memory_content, str) or not memory_content.strip():
+                continue
+
+            memory_content = memory_content.strip()
+
+            # Check for duplicates
+            if await check_for_duplicate_memory(db, user_id, memory_content):
+                logger.debug(f"[Memory] Skipping duplicate: {memory_content[:50]}...")
+                continue
+
+            # Determine scope
+            scope = SCOPE_PORTFOLIO if portfolio_id else SCOPE_USER
+
+            # Save the memory
+            try:
+                await save_memory(
+                    db,
+                    user_id=user_id,
+                    content=memory_content,
+                    scope=scope,
+                    portfolio_id=portfolio_id,
+                    tags={"source": "auto_extraction"},
+                )
+                saved_memories.append(memory_content)
+                logger.info(f"[Memory] Auto-saved: {memory_content[:50]}...")
+            except Exception as e:
+                logger.warning(f"[Memory] Failed to save memory: {e}")
+
+        return saved_memories
+
+    except Exception as e:
+        logger.error(f"[Memory] Extraction failed: {e}")
+        return []

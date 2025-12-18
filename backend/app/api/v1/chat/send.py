@@ -47,13 +47,55 @@ from app.agent.schemas.sse import (
     SSEHeartbeatEvent
 )
 from app.agent.services.openai_service import openai_service
+from app.agent.services.memory_service import extract_memories_from_conversation
 from app.core.datetime_utils import utc_now
 from app.core.logging import get_logger
 from app.config import settings
+from app.database import AsyncSessionLocal
 
 logger = get_logger(__name__)
 
 router = APIRouter()
+
+
+async def _run_memory_extraction_background(
+    user_id: str,
+    user_message: str,
+    assistant_response: str,
+    portfolio_id: str = None
+):
+    """
+    Background task to extract and save memories from a conversation turn.
+
+    Uses a separate database session to avoid issues with the request session.
+    """
+    try:
+        # Format the conversation text
+        conversation_text = f"User: {user_message}\n\nAssistant: {assistant_response}"
+
+        # Only extract if the conversation has substantial content
+        if len(assistant_response) < 50:
+            logger.debug("[Memory] Response too short for extraction")
+            return
+
+        # Use a fresh database session for background work
+        async with AsyncSessionLocal() as db:
+            from uuid import UUID
+            user_uuid = UUID(user_id) if isinstance(user_id, str) else user_id
+            portfolio_uuid = UUID(portfolio_id) if portfolio_id else None
+
+            saved = await extract_memories_from_conversation(
+                db=db,
+                user_id=user_uuid,
+                conversation_text=conversation_text,
+                portfolio_id=portfolio_uuid,
+            )
+
+            if saved:
+                logger.info(f"[Memory] Background extraction saved {len(saved)} memories")
+    except Exception as e:
+        # Don't let memory extraction failures affect the user experience
+        logger.warning(f"[Memory] Background extraction failed: {e}")
 
 
 async def load_message_history(
@@ -552,6 +594,22 @@ async def sse_generator(
                     logger.warning("Used upstream final_text or model fallback due to issues in primary attempt")
             except Exception:
                 pass
+
+            # Trigger background memory extraction (non-blocking)
+            try:
+                portfolio_id_for_memory = portfolio_context.get("portfolio_id") if portfolio_context else None
+                asyncio.create_task(
+                    _run_memory_extraction_background(
+                        user_id=str(current_user.id),
+                        user_message=message_text,
+                        assistant_response=final_text_out,
+                        portfolio_id=portfolio_id_for_memory,
+                    )
+                )
+                logger.debug("[Memory] Triggered background extraction task")
+            except Exception as e:
+                logger.warning(f"[Memory] Failed to schedule extraction: {e}")
+
             return  # Properly close the generator after done event
         else:
             # All attempts failed or non-retryable error

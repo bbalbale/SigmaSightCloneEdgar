@@ -5,6 +5,7 @@ from fastapi import APIRouter
 from .conversations import router as conversations_router
 from .send import router as send_router
 from .feedback import router as feedback_router
+from .memories import router as memories_router
 
 router = APIRouter()
 
@@ -12,3 +13,4 @@ router = APIRouter()
 router.include_router(conversations_router, tags=["conversations"])
 router.include_router(send_router, tags=["messages"])
 router.include_router(feedback_router, tags=["feedback"])
+router.include_router(memories_router, tags=["memories"])
