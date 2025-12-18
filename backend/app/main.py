@@ -116,9 +116,10 @@ async def seed_kb_documents_if_needed():
             current_count = await count_kb_documents(db)
             api_logger.info(f"[KB] Current document count: {current_count}")
 
-            # Only seed if significantly below expected (36 docs expected)
-            if current_count < 30:
-                api_logger.info(f"[KB] Document count below threshold (30), seeding KB documents...")
+            # Only seed if below expected (36 docs expected)
+            # Use upsert, so re-seeding is safe and will update existing + add missing
+            if current_count < 36:
+                api_logger.info(f"[KB] Document count below threshold (36), seeding KB documents...")
 
                 # Import KB documents from seed script
                 from scripts.sigmasightai.seed_kb_documents import KB_DOCUMENTS
@@ -140,7 +141,7 @@ async def seed_kb_documents_if_needed():
                 final_count = await count_kb_documents(db)
                 api_logger.info(f"[KB] Seeding complete: {success_count} docs processed, total now: {final_count}")
             else:
-                api_logger.info(f"[KB] Document count sufficient ({current_count} >= 30), skipping seed")
+                api_logger.info(f"[KB] Document count sufficient ({current_count} >= 36), skipping seed")
 
     except Exception as e:
         # Don't block startup on KB seeding failure
