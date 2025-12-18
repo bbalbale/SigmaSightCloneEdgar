@@ -6,11 +6,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button'
 import { User, RefreshCw, Zap, AlertCircle, CheckCircle2 } from 'lucide-react'
 import { PortfolioManagement } from '@/components/settings/PortfolioManagement'
+import { MemoryPanel } from '@/components/ai/MemoryPanel'
 import { useRecalculateAnalytics } from '@/hooks/useRecalculateAnalytics'
 import { Alert, AlertDescription } from '@/components/ui/alert'
+import { usePortfolioStore } from '@/stores/portfolioStore'
 
 export function SettingsContainer() {
   const { user } = useAuth()
+  const { portfolioId } = usePortfolioStore()
   const {
     state,
     error,
@@ -130,16 +133,8 @@ export function SettingsContainer() {
         </CardContent>
       </Card>
 
-      {/* Placeholder for future settings */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Preferences</CardTitle>
-          <CardDescription>Customize your SigmaSight experience</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <p className="text-muted-foreground">Additional settings coming soon...</p>
-        </CardContent>
-      </Card>
+      {/* AI Memory Management */}
+      <MemoryPanel portfolioId={portfolioId || undefined} />
     </div>
   )
 }
