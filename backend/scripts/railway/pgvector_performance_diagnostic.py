@@ -66,7 +66,9 @@ def show_settings(cur):
     ]
     for s in settings:
         cur.execute(f"SHOW {s};")
-        value = cur.fetchone()[0]
+        row = cur.fetchone()
+        # RealDictCursor returns a dict keyed by the setting name; fall back to first value
+        value = next(iter(row.values())) if isinstance(row, dict) else row[0]
         print(f"{s}: {value}")
 
 
