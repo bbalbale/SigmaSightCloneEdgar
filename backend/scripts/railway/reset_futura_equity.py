@@ -33,7 +33,7 @@ def get_db_url():
 
 
 # Original equity balance when portfolio was uploaded
-ORIGINAL_EQUITY = Decimal("5800000.00")
+ORIGINAL_EQUITY = Decimal("5000000.00")
 PORTFOLIO_NAME = "Futura Test Portfolio"
 
 

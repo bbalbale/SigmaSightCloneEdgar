@@ -179,10 +179,10 @@ async def run_equity_diagnostic():
             print(f"     Actual:           ${current_equity:,.2f}")
 
         # What should equity be? The original upload value
-        print(f"\n  If portfolio was uploaded with $5.8M equity:")
-        print(f"    Expected equity_balance: $5,800,000.00")
+        print(f"\n  If portfolio was uploaded with $5.0M equity:")
+        print(f"    Expected equity_balance: $5,000,000.00")
         print(f"    Actual equity_balance:   ${current_equity:,.2f}")
-        print(f"    Difference:              ${current_equity - 5800000:+,.2f}")
+        print(f"    Difference:              ${current_equity - 5000000:+,.2f}")
 
         # 5. Check batch_run_tracking for clues
         print("\n📋 RECENT BATCH RUNS:")
