@@ -2265,7 +2265,10 @@ Combine the data into a daily insight following the format in the system prompt.
             tools = self._get_tool_definitions_responses(include_web_search=include_web_search)
 
             # Use Responses API (non-streaming) with tool execution loop
-            max_iterations = 5
+            # Increased from 5 to 10 to allow model to call multiple tools AND produce final response
+            # Typical morning briefing may call: get_market_overview, get_daily_movers, get_portfolio_complete,
+            # get_market_news, get_analytics_overview, etc. before producing final text
+            max_iterations = 10
             accumulated_tool_results = []
             final_response_text = None
 

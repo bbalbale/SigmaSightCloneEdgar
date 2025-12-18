@@ -43,8 +43,7 @@ Examples:
     python trigger_railway_fix.py --env sandbox --start-date 2025-07-01 --end-date 2025-12-17
 
     # Run on production
-    python trigger_railway_fix.py --env production --start-date 2025-07-01 --end-date 2025-12-17
-        """
+    u
     )
     parser.add_argument(
         "--env",
