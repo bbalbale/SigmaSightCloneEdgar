@@ -2,22 +2,40 @@
 Configuration settings for SigmaSight Backend
 """
 from typing import List
-from pydantic import Field
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
     """Application settings"""
-    
+
     # Application settings
     APP_NAME: str = "SigmaSight Backend"
     VERSION: str = "1.0.0"
     DEBUG: bool = False
     ENVIRONMENT: str = Field(default="development", env="ENVIRONMENT")
     LOG_LEVEL: str = Field(default="INFO", env="LOG_LEVEL")
-    
+
     # Database settings
     DATABASE_URL: str = Field(..., env="DATABASE_URL")
+
+    @field_validator("DATABASE_URL", mode="after")
+    @classmethod
+    def ensure_asyncpg_driver(cls, v: str) -> str:
+        """Ensure DATABASE_URL uses asyncpg driver for async SQLAlchemy.
+
+        Handles various formats from different providers:
+        - postgresql://... (standard)
+        - postgres://... (shorthand used by some cloud providers)
+        - postgresql+asyncpg://... (already correct, no change)
+        """
+        if v.startswith("postgresql+asyncpg://"):
+            return v  # Already correct
+        if v.startswith("postgresql://"):
+            return v.replace("postgresql://", "postgresql+asyncpg://", 1)
+        if v.startswith("postgres://"):
+            return v.replace("postgres://", "postgresql+asyncpg://", 1)
+        return v
     
     # Market data API keys
     POLYGON_API_KEY: str = Field(..., env="POLYGON_API_KEY")
