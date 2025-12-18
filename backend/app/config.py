@@ -173,6 +173,7 @@ class Settings(BaseSettings):
         "https://sigmasight-frontend.vercel.app",  # Production frontend (Vercel)
         "https://sigmasight-frontend-production.up.railway.app",  # Production frontend (Railway)
         "https://sigmasight-fe-production.up.railway.app",  # Production frontend (Railway - actual)
+        "https://sigmasight-fe-sandbox-production.up.railway.app",  # Sandbox frontend (Railway)
     ]
     
     # Batch processing settings
