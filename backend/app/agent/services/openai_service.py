@@ -985,6 +985,54 @@ class OpenAIService:
                     },
                     "required": ["portfolio_id"]
                 }
+            },
+            # ===== Phase 2: Market Overview Tool (December 18, 2025) =====
+            {
+                "name": "get_market_overview",
+                "type": "function",
+                "description": "Get broad market overview including major indices (S&P 500, NASDAQ, Dow Jones), VIX volatility, and sector ETF performance. Returns market sentiment (bullish/bearish/neutral), top/bottom performing sectors, and volatility regime. USE THIS FIRST in morning briefings to establish market context before diving into portfolio-specific data. Also useful when asked about 'how is the market doing?' or 'what's happening in the market?'",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "include_sectors": {
+                            "type": "boolean",
+                            "description": "Include sector ETF performance breakdown (default True)",
+                            "default": True
+                        },
+                        "include_vix": {
+                            "type": "boolean",
+                            "description": "Include VIX volatility data (default True)",
+                            "default": True
+                        }
+                    },
+                    "required": []
+                }
+            },
+            # ===== Phase 2: Briefing History Tool (December 18, 2025) =====
+            {
+                "name": "get_briefing_history",
+                "type": "function",
+                "description": "Get historical morning briefings for context and trend analysis. Returns past briefing summaries, key findings, recommendations, and extracted trends (recurring symbols, severity patterns). Use when: (1) user asks about past briefings or 'what did we discuss last week?', (2) you want to compare current situation to recent history, (3) identifying recurring themes or concerns across briefings, (4) tracking how recommendations evolved over time.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "portfolio_id": {
+                            "type": "string",
+                            "description": "Portfolio UUID"
+                        },
+                        "limit": {
+                            "type": "integer",
+                            "description": "Number of past briefings to retrieve (default 5, max 10)",
+                            "default": 5
+                        },
+                        "include_full_analysis": {
+                            "type": "boolean",
+                            "description": "Include full analysis text (can be lengthy, default False)",
+                            "default": False
+                        }
+                    },
+                    "required": ["portfolio_id"]
+                }
             }
         ]
 
@@ -1998,6 +2046,7 @@ The following documents may be relevant to the user's question. Use this informa
         focus_area: Optional[str] = None,
         auth_context: Optional[Dict[str, Any]] = None,
         db: Optional[AsyncSession] = None,
+        customization: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """
         Generate a structured portfolio insight using OpenAI with tool calling.
@@ -2061,9 +2110,100 @@ The following documents may be relevant to the user's question. Use this informa
                 Use tools to get portfolio data (get_daily_movers, get_portfolio_complete, get_market_news).
                 Return a structured insight with: Title, Today's Snapshot, What Happened Today, News Driving Moves, Watch List, Action Items."""
 
+            # Phase 2: Inject user memory context for personalized briefings
+            memory_context = ""
+            if db and auth_context and auth_context.get("auth_token"):
+                try:
+                    from app.agent.services.memory_service import get_user_memories, format_memories_for_prompt
+                    from app.core.auth import decode_token
+
+                    # Decode user_id from JWT token
+                    token_data = decode_token(auth_context["auth_token"])
+                    if token_data and token_data.get("sub"):
+                        from uuid import UUID
+                        user_id = UUID(token_data["sub"])
+
+                        # Fetch user memories
+                        memories = await get_user_memories(
+                            db,
+                            user_id,
+                            portfolio_id=UUID(portfolio_id_list[0]) if portfolio_id_list else None,
+                            limit=15  # Get up to 15 most recent memories
+                        )
+
+                        if memories:
+                            formatted_memories = format_memories_for_prompt(memories, max_chars=1500)
+                            memory_context = f"""## USER PREFERENCES & CONTEXT
+
+The user has shared the following preferences and context that should inform your briefing:
+
+{formatted_memories}
+
+**Personalization Instructions:**
+- Reference these preferences naturally where relevant (e.g., if they prefer concise updates, be more brief)
+- If they mentioned specific positions as core holdings, give those appropriate attention
+- Adapt your communication style to their preferences
+- Do NOT explicitly mention "you told me" or "according to your preferences" - just apply them naturally
+
+"""
+                            logger.info(f"[Insight] Injected {len(memories)} user memories into briefing prompt")
+                except Exception as mem_error:
+                    logger.warning(f"[Insight] Failed to load user memories: {mem_error}")
+                    memory_context = ""
+
+            # Replace memory placeholder in prompt (or append if placeholder not present)
+            if "{{USER_MEMORY_CONTEXT}}" in system_prompt:
+                system_prompt = system_prompt.replace("{{USER_MEMORY_CONTEXT}}", memory_context)
+            elif memory_context:
+                # Insert memory context near the beginning if no placeholder
+                system_prompt = memory_context + system_prompt
+
             # Add focus area if provided
             if focus_area:
                 system_prompt += f"\n\n## FOCUS AREA\nPay special attention to: {focus_area}"
+
+            # Phase 2: Apply customization options for morning briefings
+            if customization and insight_type == "morning_briefing":
+                customization_instructions = []
+
+                # Verbosity setting
+                verbosity = customization.get("verbosity", "standard")
+                if verbosity == "brief":
+                    customization_instructions.append(
+                        "- Be CONCISE: Keep the briefing to key highlights only. "
+                        "Skip detailed tables, minimize explanations. Focus on what truly matters."
+                    )
+                elif verbosity == "detailed":
+                    customization_instructions.append(
+                        "- Be DETAILED: Provide comprehensive analysis with full context. "
+                        "Include detailed tables, explain market dynamics, provide thorough reasoning."
+                    )
+
+                # Include news setting
+                if not customization.get("include_news", True):
+                    customization_instructions.append(
+                        "- SKIP NEWS: Do not use web_search or get_market_news tools. "
+                        "Focus only on portfolio data and performance metrics."
+                    )
+
+                # Include market overview setting
+                if not customization.get("include_market_overview", True):
+                    customization_instructions.append(
+                        "- SKIP MARKET OVERVIEW: Do not use get_market_overview tool. "
+                        "Focus only on portfolio-specific data."
+                    )
+
+                # Custom focus areas
+                focus_areas = customization.get("focus_areas")
+                if focus_areas and len(focus_areas) > 0:
+                    areas_str = ", ".join(focus_areas)
+                    customization_instructions.append(
+                        f"- FOCUS ON: {areas_str}. Give these areas extra attention in your analysis."
+                    )
+
+                if customization_instructions:
+                    system_prompt += "\n\n## CUSTOMIZATION PREFERENCES\n" + "\n".join(customization_instructions)
+                    logger.info(f"[Insight] Applied {len(customization_instructions)} customization options")
 
             # Build portfolio context for user message
             portfolio_ids_str = ", ".join(portfolio_id_list)

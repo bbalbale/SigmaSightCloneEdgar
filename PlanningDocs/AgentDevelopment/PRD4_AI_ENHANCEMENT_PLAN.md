@@ -21,13 +21,13 @@ This PRD outlines a 5-phase plan to enhance SigmaSight's AI chat capabilities, b
 | Phase | Name | Description | Effort | Status |
 |-------|------|-------------|--------|--------|
 | 1 | Memory Integration | Wire existing memory service into agent | 2-3 days | **COMPLETE** ✅ |
-| 2 | Enhanced Morning Briefing | Personalize briefings with memory context | 3-4 days | Pending |
+| 2 | Enhanced Morning Briefing | Personalize briefings with memory context | 3-4 days | **COMPLETE** ✅ |
 | 3 | Feedback Learning Loop | Convert feedback into improvements | 5-7 days | Pending |
 | 4 | UX Polish | Copy, regenerate, stop streaming controls | 2-3 days | Pending |
 | 5 | User Controls | Reasoning depth and verbosity toggles | 2-3 days | Pending |
 
 **Total Estimated Effort**: 14-20 days
-**Completed**: ~2-3 days (Phase 1)
+**Completed**: ~5-7 days (Phase 1 + Phase 2)
 
 ---
 
@@ -259,11 +259,71 @@ Allow users to configure:
 6. **Today's Focus**: Based on user preferences
 
 ### Success Criteria
-- [ ] Briefing reflects user's communication style
-- [ ] Watch list items from memory are highlighted
-- [ ] Previous briefing context referenced
-- [ ] Market overview provides broader context
-- [ ] Customization options work correctly
+- [x] Briefing reflects user's communication style
+- [x] Watch list items from memory are highlighted
+- [x] Previous briefing context referenced
+- [x] Market overview provides broader context
+- [x] Customization options work correctly
+
+### Implementation Notes (December 18, 2025)
+
+**2.1 Memory-Aware Briefing Prompt - IMPLEMENTED**
+- Updated `backend/app/agent/prompts/morning_briefing_prompt.md`:
+  - Added `{{USER_MEMORY_CONTEXT}}` placeholder for memory injection
+  - Added `get_market_overview` tool to tool sequence
+- Updated `backend/app/agent/services/openai_service.py`:
+  - Added memory injection logic in `generate_insight()` method
+  - Fetches user memories via `get_user_memories()` and formats with `format_memories_for_prompt()`
+  - Injects personalization instructions for natural preference application
+
+**2.2 Market Overview Tool - IMPLEMENTED**
+- Created `get_market_overview` method in `backend/app/agent/tools/handlers.py`:
+  - Returns major indices (S&P 500, NASDAQ, Dow Jones via SPY, QQQ, DIA)
+  - Returns VIX volatility data (via VIXY proxy)
+  - Returns sector ETF performance (11 sector ETFs)
+  - Calculates market sentiment (bullish/bearish/neutral)
+  - Top/bottom performing sectors
+- Registered in `tool_registry.py` (both registries)
+- Added tool definition in `openai_service.py` for Responses API
+
+**2.3 Historical Awareness - IMPLEMENTED**
+- Created `get_briefing_history` method in `backend/app/agent/tools/handlers.py`:
+  - Returns last N briefings (default 5, max 10)
+  - Extracts trends: recurring symbols, severity distribution
+  - Provides date range and briefing age information
+- Registered as a new tool for AI access
+
+**2.4 Briefing Customization Options - IMPLEMENTED**
+- Updated `backend/app/api/v1/insights.py`:
+  - Added `BriefingCustomization` Pydantic model with:
+    - `include_news` (boolean)
+    - `include_market_overview` (boolean)
+    - `verbosity` (brief/standard/detailed)
+    - `focus_areas` (list of strings)
+  - Added `customization` field to `GenerateInsightRequest`
+- Updated `backend/app/services/analytical_reasoning_service.py`:
+  - Passes customization through the chain
+- Updated `backend/app/agent/services/openai_service.py`:
+  - Applies customization options to system prompt
+  - Verbosity affects output detail level
+  - Focus areas add emphasis instructions
+
+**2.5 Frontend Briefing Settings - IMPLEMENTED**
+- Created `frontend/src/components/settings/BriefingSettings.tsx`:
+  - Toggle buttons for include_news and include_market_overview
+  - Verbosity level selector (brief/standard/detailed)
+  - Focus area selector with 6 options (tech, dividends, risk, options, movers, news)
+  - Saves to localStorage for persistence
+  - Export function `getBriefingPreferences()` for other components
+- Added to `frontend/src/containers/SettingsContainer.tsx`
+
+**New Tools Added**:
+- `get_market_overview` - Broad market context (indices, VIX, sectors)
+- `get_briefing_history` - Historical briefing context and trends
+
+**Total Tools**: 22 (up from 20)
+
+**Deployment Status**: Code complete, pending Railway deployment for full testing.
 
 ---
 

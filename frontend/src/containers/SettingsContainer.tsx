@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { User, RefreshCw, Zap, AlertCircle, CheckCircle2 } from 'lucide-react'
 import { PortfolioManagement } from '@/components/settings/PortfolioManagement'
 import { MemoryPanel } from '@/components/ai/MemoryPanel'
+import { BriefingSettings } from '@/components/settings/BriefingSettings'
 import { useRecalculateAnalytics } from '@/hooks/useRecalculateAnalytics'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { usePortfolioStore } from '@/stores/portfolioStore'
@@ -135,6 +136,9 @@ export function SettingsContainer() {
 
       {/* AI Memory Management */}
       <MemoryPanel portfolioId={portfolioId || undefined} />
+
+      {/* Morning Briefing Settings (Phase 2) */}
+      <BriefingSettings />
     </div>
   )
 }

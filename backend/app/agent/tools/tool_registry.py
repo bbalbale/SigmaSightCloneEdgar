@@ -93,6 +93,9 @@ class ToolRegistry:
             "get_daily_movers": self.tools.get_daily_movers,
             "get_market_news": self.tools.get_market_news,
             "get_morning_briefing": self.tools.get_morning_briefing,
+            # Phase 2: Market Overview & History Tools (December 18, 2025)
+            "get_market_overview": self.tools.get_market_overview,
+            "get_briefing_history": self.tools.get_briefing_history,
         }
 
     async def dispatch_tool_call(
@@ -342,6 +345,9 @@ class ToolRegistry:
             "get_daily_movers": authenticated_tools.get_daily_movers,
             "get_market_news": authenticated_tools.get_market_news,
             "get_morning_briefing": authenticated_tools.get_morning_briefing,
+            # Phase 2: Market Overview & History Tools (December 18, 2025)
+            "get_market_overview": authenticated_tools.get_market_overview,
+            "get_briefing_history": authenticated_tools.get_briefing_history,
         }
 
         return authenticated_registry.get(tool_name, self.registry[tool_name])

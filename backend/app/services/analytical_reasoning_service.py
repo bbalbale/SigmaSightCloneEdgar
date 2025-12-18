@@ -54,6 +54,7 @@ class AnalyticalReasoningService:
         user_question: Optional[str] = None,
         auth_token: Optional[str] = None,
         portfolio_ids: Optional[List[UUID]] = None,
+        customization: Optional[Dict[str, Any]] = None,
     ) -> AIInsight:
         """
         Conduct AI-powered investigation of portfolio metrics.
@@ -108,6 +109,7 @@ class AnalyticalReasoningService:
             auth_token=auth_token,
             db=db,  # Pass db for RAG context
             portfolio_ids=portfolio_ids,  # Pass all portfolios for multi-portfolio accounts
+            customization=customization,  # Phase 2: Briefing customization
         )
 
         # 5. Store insight in database
@@ -255,6 +257,7 @@ class AnalyticalReasoningService:
         auth_token: Optional[str] = None,
         db: Optional[AsyncSession] = None,
         portfolio_ids: Optional[List[UUID]] = None,
+        customization: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """
         Execute AI-powered investigation using OpenAI with tool-calling.
@@ -274,6 +277,7 @@ class AnalyticalReasoningService:
             auth_token: Optional JWT token for tool authentication
             db: Optional database session for RAG
             portfolio_ids: Optional list of all portfolio UUIDs for multi-portfolio accounts
+            customization: Optional dict with briefing customization (include_news, verbosity, focus_areas)
 
         Returns:
             Dict containing analysis results
@@ -297,6 +301,7 @@ class AnalyticalReasoningService:
             focus_area=focus_area,
             auth_context=auth_context,
             db=db,
+            customization=customization,  # Phase 2: Briefing customization
         )
 
         # Ensure result has required fields for storage

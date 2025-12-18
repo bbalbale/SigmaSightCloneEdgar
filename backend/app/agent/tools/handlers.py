@@ -1230,6 +1230,152 @@ class PortfolioTools:
                 "retryable": False
             }
 
+    # ==========================================
+    # Phase 2: Briefing History Tool (December 2025)
+    # ==========================================
+
+    async def get_briefing_history(
+        self,
+        portfolio_id: str,
+        limit: int = 5,
+        include_full_analysis: bool = False,
+        **kwargs
+    ) -> Dict[str, Any]:
+        """
+        Get historical morning briefings for context and trend analysis.
+
+        Retrieves past AI-generated morning briefings to provide historical context.
+        Useful for:
+        - Comparing current performance to recent history
+        - Identifying recurring themes or concerns
+        - Tracking recommendations over time
+        - Understanding trend evolution
+
+        Args:
+            portfolio_id: Portfolio UUID
+            limit: Maximum number of briefings to return (default 5, max 10)
+            include_full_analysis: Include full analysis text (can be lengthy)
+
+        Returns:
+            Dictionary with list of historical briefings (summaries by default)
+        """
+        try:
+            from sqlalchemy import select
+            from app.models.ai_insights import AIInsight, InsightType
+            from app.database import get_async_session
+            from uuid import UUID
+
+            portfolio_uuid = UUID(portfolio_id) if isinstance(portfolio_id, str) else portfolio_id
+            limit = min(limit, 10)  # Cap at 10 to avoid excessive context
+
+            async with get_async_session() as db:
+                result = await db.execute(
+                    select(AIInsight)
+                    .where(AIInsight.portfolio_id == portfolio_uuid)
+                    .where(AIInsight.insight_type == InsightType.MORNING_BRIEFING)
+                    .order_by(AIInsight.created_at.desc())
+                    .limit(limit)
+                )
+                briefings = result.scalars().all()
+
+                if not briefings:
+                    return {
+                        "data": {
+                            "briefings": [],
+                            "total_found": 0,
+                            "_note": "No historical briefings found for this portfolio"
+                        },
+                        "meta": {
+                            "portfolio_id": str(portfolio_id),
+                            "limit_requested": limit,
+                        }
+                    }
+
+                # Format briefing history
+                briefing_list = []
+                for briefing in briefings:
+                    briefing_data = {
+                        "id": str(briefing.id),
+                        "title": briefing.title,
+                        "summary": briefing.summary,
+                        "key_findings": briefing.key_findings or [],
+                        "recommendations": briefing.recommendations or [],
+                        "severity": briefing.severity.value if briefing.severity else "normal",
+                        "generated_at": briefing.created_at.isoformat(),
+                        "age_days": round((utc_now() - briefing.created_at).total_seconds() / 86400, 1),
+                    }
+
+                    if include_full_analysis:
+                        briefing_data["full_analysis"] = briefing.full_analysis
+
+                    briefing_list.append(briefing_data)
+
+                # Extract trends from briefings
+                trends = self._extract_briefing_trends(briefing_list)
+
+                return {
+                    "data": {
+                        "briefings": briefing_list,
+                        "total_found": len(briefing_list),
+                        "trends": trends,
+                    },
+                    "meta": {
+                        "portfolio_id": str(portfolio_id),
+                        "limit_requested": limit,
+                        "include_full_analysis": include_full_analysis,
+                        "date_range": {
+                            "oldest": briefing_list[-1]["generated_at"] if briefing_list else None,
+                            "newest": briefing_list[0]["generated_at"] if briefing_list else None,
+                        },
+                        "as_of": to_utc_iso8601(utc_now()),
+                    }
+                }
+
+        except Exception as e:
+            logger.error(f"Error in get_briefing_history: {e}")
+            return {
+                "error": str(e),
+                "retryable": False
+            }
+
+    def _extract_briefing_trends(self, briefings: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """Extract trends and recurring themes from historical briefings."""
+        if not briefings:
+            return {"available": False}
+
+        # Count recurring symbols in recommendations
+        mentioned_symbols = []
+        severity_counts = {"info": 0, "normal": 0, "elevated": 0, "warning": 0, "critical": 0}
+
+        for briefing in briefings:
+            severity = briefing.get("severity", "normal")
+            if severity in severity_counts:
+                severity_counts[severity] += 1
+
+            # Extract symbols from recommendations
+            for rec in briefing.get("recommendations", []):
+                if isinstance(rec, str):
+                    # Simple symbol extraction (uppercase 1-5 letter words)
+                    import re
+                    symbols = re.findall(r'\b[A-Z]{1,5}\b', rec)
+                    mentioned_symbols.extend(symbols)
+
+        # Find most mentioned symbols
+        from collections import Counter
+        symbol_counts = Counter(mentioned_symbols)
+        frequently_mentioned = [
+            {"symbol": s, "mentions": c}
+            for s, c in symbol_counts.most_common(5)
+            if c >= 2  # Only include if mentioned 2+ times
+        ]
+
+        return {
+            "available": True,
+            "briefings_analyzed": len(briefings),
+            "severity_distribution": severity_counts,
+            "frequently_mentioned_symbols": frequently_mentioned,
+        }
+
     async def get_market_news(
         self,
         symbols: Optional[str] = None,
@@ -1316,6 +1462,218 @@ class PortfolioTools:
                 "error": str(e),
                 "retryable": isinstance(e, (httpx.TimeoutException, httpx.HTTPStatusError))
             }
+
+    # ==========================================
+    # Phase 2: Market Overview Tool (December 2025)
+    # ==========================================
+
+    async def get_market_overview(
+        self,
+        include_sectors: bool = True,
+        include_vix: bool = True,
+        **kwargs
+    ) -> Dict[str, Any]:
+        """
+        Get broad market overview including major indices, VIX, and sector performance.
+
+        Returns current market data for:
+        - Major indices (S&P 500, NASDAQ, Dow Jones)
+        - VIX (volatility index)
+        - Sector ETF performance (XLF, XLK, XLE, XLV, etc.)
+        - Key macro indicators (if available)
+
+        Use this tool FIRST in morning briefings to establish market context
+        before diving into portfolio-specific data.
+
+        Args:
+            include_sectors: Include sector ETF performance (default True)
+            include_vix: Include VIX volatility data (default True)
+
+        Returns:
+            Dictionary with market overview data including indices, sectors, and sentiment
+        """
+        try:
+            # Major market indices and their proxy ETFs
+            index_symbols = ["SPY", "QQQ", "DIA"]  # S&P 500, NASDAQ 100, Dow Jones
+            vix_symbol = "^VIX"  # VIX index
+
+            # Sector ETFs for sector performance
+            sector_etfs = {
+                "XLF": "Financials",
+                "XLK": "Technology",
+                "XLE": "Energy",
+                "XLV": "Healthcare",
+                "XLY": "Consumer Discretionary",
+                "XLP": "Consumer Staples",
+                "XLI": "Industrials",
+                "XLB": "Materials",
+                "XLU": "Utilities",
+                "XLRE": "Real Estate",
+                "XLC": "Communication Services",
+            }
+
+            # Fetch index quotes using existing get_current_quotes
+            index_data = {}
+            try:
+                index_response = await self.get_current_quotes(symbols=",".join(index_symbols))
+                if "data" in index_response and index_response["data"]:
+                    quotes = index_response["data"].get("quotes", {})
+                    for symbol in index_symbols:
+                        if symbol in quotes:
+                            quote = quotes[symbol]
+                            index_name = {
+                                "SPY": "S&P 500",
+                                "QQQ": "NASDAQ 100",
+                                "DIA": "Dow Jones"
+                            }.get(symbol, symbol)
+                            index_data[index_name] = {
+                                "symbol": symbol,
+                                "price": quote.get("price"),
+                                "change_pct": quote.get("change_percent"),
+                                "change_dollar": quote.get("change"),
+                            }
+            except Exception as idx_err:
+                logger.warning(f"Could not fetch index data: {idx_err}")
+
+            # Fetch VIX data if requested
+            vix_data = None
+            if include_vix:
+                try:
+                    # Try to get VIX through factor ETF prices or direct quote
+                    vix_response = await self.get_current_quotes(symbols="VIXY")  # VIX proxy ETF
+                    if "data" in vix_response and vix_response["data"]:
+                        quotes = vix_response["data"].get("quotes", {})
+                        if "VIXY" in quotes:
+                            quote = quotes["VIXY"]
+                            vix_data = {
+                                "symbol": "VIX (via VIXY)",
+                                "level": quote.get("price"),
+                                "change_pct": quote.get("change_percent"),
+                                "sentiment": self._interpret_vix_level(quote.get("price", 0))
+                            }
+                except Exception as vix_err:
+                    logger.warning(f"Could not fetch VIX data: {vix_err}")
+
+            # Fetch sector performance if requested
+            sector_performance = {}
+            if include_sectors:
+                try:
+                    sector_symbols = list(sector_etfs.keys())
+                    # Fetch in batches of 5 (API limit)
+                    for i in range(0, len(sector_symbols), 5):
+                        batch = sector_symbols[i:i+5]
+                        sector_response = await self.get_current_quotes(symbols=",".join(batch))
+                        if "data" in sector_response and sector_response["data"]:
+                            quotes = sector_response["data"].get("quotes", {})
+                            for symbol in batch:
+                                if symbol in quotes:
+                                    quote = quotes[symbol]
+                                    sector_performance[sector_etfs[symbol]] = {
+                                        "symbol": symbol,
+                                        "change_pct": quote.get("change_percent", 0),
+                                        "price": quote.get("price"),
+                                    }
+                except Exception as sector_err:
+                    logger.warning(f"Could not fetch sector data: {sector_err}")
+
+            # Sort sectors by performance
+            if sector_performance:
+                sorted_sectors = sorted(
+                    sector_performance.items(),
+                    key=lambda x: x[1].get("change_pct", 0) or 0,
+                    reverse=True
+                )
+                top_performers = sorted_sectors[:3]
+                bottom_performers = sorted_sectors[-3:]
+            else:
+                top_performers = []
+                bottom_performers = []
+
+            # Determine overall market sentiment
+            market_sentiment = self._determine_market_sentiment(index_data, vix_data)
+
+            return {
+                "data": {
+                    "indices": index_data,
+                    "vix": vix_data,
+                    "sector_performance": sector_performance,
+                    "top_sectors": [{"sector": s[0], **s[1]} for s in top_performers] if top_performers else None,
+                    "bottom_sectors": [{"sector": s[0], **s[1]} for s in bottom_performers] if bottom_performers else None,
+                    "market_sentiment": market_sentiment,
+                },
+                "meta": {
+                    "as_of": to_utc_iso8601(utc_now()),
+                    "indices_included": list(index_data.keys()),
+                    "sectors_included": len(sector_performance),
+                    "vix_available": vix_data is not None,
+                }
+            }
+
+        except Exception as e:
+            logger.error(f"Error in get_market_overview: {e}")
+            return {
+                "error": str(e),
+                "retryable": isinstance(e, (httpx.TimeoutException, httpx.HTTPStatusError))
+            }
+
+    def _interpret_vix_level(self, vix_level: float) -> str:
+        """Interpret VIX level for market sentiment."""
+        if vix_level is None:
+            return "unknown"
+        if vix_level < 12:
+            return "very_low_volatility"
+        elif vix_level < 18:
+            return "low_volatility"
+        elif vix_level < 25:
+            return "moderate_volatility"
+        elif vix_level < 35:
+            return "elevated_volatility"
+        else:
+            return "high_volatility"
+
+    def _determine_market_sentiment(
+        self,
+        index_data: Dict[str, Any],
+        vix_data: Optional[Dict[str, Any]]
+    ) -> Dict[str, Any]:
+        """Determine overall market sentiment from indices and VIX."""
+        # Calculate average index change
+        index_changes = []
+        for idx_name, idx_info in index_data.items():
+            change = idx_info.get("change_pct")
+            if change is not None:
+                index_changes.append(change)
+
+        avg_change = sum(index_changes) / len(index_changes) if index_changes else 0
+
+        # Determine sentiment
+        if avg_change > 1.0:
+            direction = "strong_bullish"
+            description = "Markets strongly positive"
+        elif avg_change > 0.25:
+            direction = "bullish"
+            description = "Markets trending higher"
+        elif avg_change > -0.25:
+            direction = "neutral"
+            description = "Markets mixed or flat"
+        elif avg_change > -1.0:
+            direction = "bearish"
+            description = "Markets trending lower"
+        else:
+            direction = "strong_bearish"
+            description = "Markets strongly negative"
+
+        # Factor in VIX if available
+        volatility_regime = "unknown"
+        if vix_data and vix_data.get("sentiment"):
+            volatility_regime = vix_data["sentiment"]
+
+        return {
+            "direction": direction,
+            "description": description,
+            "avg_index_change_pct": round(avg_change, 2) if avg_change else None,
+            "volatility_regime": volatility_regime,
+        }
 
 
 # Import asyncio for retry logic

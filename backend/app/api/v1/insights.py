@@ -61,12 +61,22 @@ router = APIRouter(prefix="/insights", tags=["insights"])
 # Pydantic Schemas
 # ============================================================================
 
+class BriefingCustomization(BaseModel):
+    """Customization options for morning briefings (Phase 2)"""
+    include_news: bool = Field(True, description="Include news in briefing")
+    include_market_overview: bool = Field(True, description="Include market overview (S&P, VIX, sectors)")
+    verbosity: str = Field("standard", description="Verbosity level: brief, standard, detailed")
+    focus_areas: Optional[List[str]] = Field(None, description="Areas to focus on (e.g., ['tech', 'dividends', 'risk'])")
+
+
 class GenerateInsightRequest(BaseModel):
     """Request to generate a new AI insight"""
     portfolio_id: str = Field(..., description="Portfolio UUID")
     insight_type: str = Field(..., description="Type of insight to generate")
     focus_area: Optional[str] = Field(None, description="Optional focus area (e.g., 'tech exposure', 'options risk')")
     user_question: Optional[str] = Field(None, description="Optional custom question for 'custom' insight type")
+    # Phase 2: Briefing customization options
+    customization: Optional[BriefingCustomization] = Field(None, description="Customization options for morning briefings")
 
 
 class InsightPerformance(BaseModel):
@@ -213,6 +223,16 @@ async def generate_insight(
 
         logger.info(f"Generating {request.insight_type} insight for user {current_user.id} with {len(all_portfolio_ids)} portfolios")
 
+        # Build customization dict if provided
+        customization_dict = None
+        if request.customization:
+            customization_dict = {
+                "include_news": request.customization.include_news,
+                "include_market_overview": request.customization.include_market_overview,
+                "verbosity": request.customization.verbosity,
+                "focus_areas": request.customization.focus_areas,
+            }
+
         insight = await analytical_reasoning_service.investigate_portfolio(
             db=db,
             portfolio_id=portfolio_id,  # Primary portfolio from request
@@ -221,6 +241,7 @@ async def generate_insight(
             user_question=request.user_question,
             auth_token=auth_token,
             portfolio_ids=all_portfolio_ids,  # All user portfolios for multi-portfolio analysis
+            customization=customization_dict,  # Phase 2: Briefing customization
         )
 
         if not insight:
