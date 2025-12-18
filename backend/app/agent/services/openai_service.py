@@ -2128,35 +2128,30 @@ Combine the data into a daily insight following the format in the system prompt.
             max_iterations = 5
             accumulated_tool_results = []
             final_response_text = None
-            previous_response_id = None  # Track response ID for continuation
 
             for iteration in range(max_iterations):
                 logger.warning(f"[Insight-DEBUG] API call iteration {iteration + 1}/{max_iterations}, model={self.model}")
 
-                # Create the response (use previous_response_id for continuation after tool calls)
+                # Create the response
                 try:
-                    if previous_response_id:
-                        logger.warning(f"[Insight-DEBUG] Continuing with previous_response_id={previous_response_id}")
-                        response = await self.client.responses.create(
-                            model=self.model,
-                            input=messages,
-                            tools=tools,
-                            previous_response_id=previous_response_id
-                        )
-                    else:
-                        logger.warning(f"[Insight-DEBUG] Initial API call, tools={len(tools) if tools else 0}")
-                        response = await self.client.responses.create(
-                            model=self.model,
-                            input=messages,
-                            tools=tools
-                        )
+                    logger.warning(f"[Insight-DEBUG] API call with {len(messages)} messages, tools={len(tools) if tools else 0}")
+                    response = await self.client.responses.create(
+                        model=self.model,
+                        input=messages,
+                        tools=tools,
+                        text={"format": {"type": "text"}},  # Match streaming call format
+                    )
                     logger.warning(f"[Insight-DEBUG] Got response id={response.id}, output_items={len(response.output) if response.output else 0}")
+
+                    # Log output types for debugging
+                    if response.output:
+                        output_types = [item.type for item in response.output]
+                        logger.warning(f"[Insight-DEBUG] Output types: {output_types}")
                 except Exception as api_error:
                     logger.error(f"[Insight-DEBUG] OpenAI API call FAILED: {type(api_error).__name__}: {api_error}")
+                    import traceback
+                    logger.error(f"[Insight-DEBUG] Traceback: {traceback.format_exc()}")
                     raise
-
-                # Store response ID for potential continuation
-                previous_response_id = response.id
 
                 # Check the response output
                 if not response.output:
@@ -2247,17 +2242,28 @@ Combine the data into a daily insight following the format in the system prompt.
 
                 # If we had tool calls, continue the conversation with tool results
                 if has_tool_calls and accumulated_tool_results:
-                    # Format tool outputs for continuation
-                    tool_outputs = []
+                    logger.warning(f"[Insight-DEBUG] Processing {len(accumulated_tool_results)} tool results for continuation")
+
+                    # For Responses API, we need to include both the function calls and their outputs
+                    # First, add the function calls from the response
+                    for item in response.output:
+                        if item.type == "function_call":
+                            messages.append({
+                                "type": "function_call",
+                                "call_id": item.call_id,
+                                "name": item.name,
+                                "arguments": item.arguments
+                            })
+
+                    # Then add the function call outputs
                     for tr in accumulated_tool_results:
-                        tool_outputs.append({
+                        messages.append({
                             "type": "function_call_output",
                             "call_id": tr["call_id"],
                             "output": json.dumps(tr["result"]) if isinstance(tr["result"], dict) else str(tr["result"])
                         })
 
-                    # Create continuation with tool outputs
-                    messages = tool_outputs
+                    logger.warning(f"[Insight-DEBUG] Messages now has {len(messages)} items, continuing...")
 
                     # Clear accumulated results for next iteration
                     accumulated_tool_results = []
