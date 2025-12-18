@@ -1009,7 +1009,8 @@ class PortfolioTools:
             if "error" in portfolio_response:
                 return portfolio_response
 
-            holdings = portfolio_response.get("data", {}).get("holdings", [])
+            # Holdings are at top level in API response, not nested under "data"
+            holdings = portfolio_response.get("holdings", [])
 
             if not holdings:
                 return {
@@ -1247,7 +1248,8 @@ class PortfolioTools:
             if not symbols and portfolio_id:
                 portfolio_response = await self.get_portfolio_complete(portfolio_id=portfolio_id)
                 if "error" not in portfolio_response:
-                    holdings = portfolio_response.get("data", {}).get("holdings", [])
+                    # Holdings are at top level in API response, not nested under "data"
+                    holdings = portfolio_response.get("holdings", [])
                     # Get top 10 positions by market value
                     holdings_sorted = sorted(holdings, key=lambda x: x.get("market_value", 0), reverse=True)
                     symbols = ",".join([h.get("symbol") for h in holdings_sorted[:10] if h.get("symbol")])
