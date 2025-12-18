@@ -2,8 +2,10 @@
 """
 Database Diagnostic Script for Railway pgvector Database
 
-Run on Railway: railway run python scripts/railway/diagnose_db.py
+Run on Railway: python scripts/railway/diagnose_db.py
 Or locally with DATABASE_URL set
+
+Uses asyncpg via SQLAlchemy (no psycopg2 dependency)
 
 Checks:
 1. All tables and row counts
@@ -13,7 +15,9 @@ Checks:
 5. AI Memories
 6. Portfolio/Position data
 7. Recent insights
+8. Agent conversations/messages
 """
+import asyncio
 import os
 import sys
 from pathlib import Path
@@ -22,19 +26,22 @@ from pathlib import Path
 project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 
-import psycopg2
-from psycopg2.extras import RealDictCursor
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import create_async_engine
 
 
 def get_db_url():
-    """Get database URL, handling async driver prefix."""
+    """Get database URL, ensuring asyncpg driver."""
     url = os.environ.get("DATABASE_URL", "")
-    if url.startswith("postgresql+asyncpg://"):
-        url = url.replace("postgresql+asyncpg://", "postgresql://")
+    if not url:
+        return ""
+    # Ensure we use asyncpg driver
+    if url.startswith("postgresql://"):
+        url = url.replace("postgresql://", "postgresql+asyncpg://")
     return url
 
 
-def run_diagnostics():
+async def run_diagnostics():
     """Run comprehensive database diagnostics."""
     db_url = get_db_url()
     if not db_url:
@@ -45,169 +52,199 @@ def run_diagnostics():
     print("DATABASE DIAGNOSTIC REPORT")
     print("=" * 80)
 
-    conn = psycopg2.connect(db_url)
-    cur = conn.cursor(cursor_factory=RealDictCursor)
+    engine = create_async_engine(db_url)
 
-    # 1. List all tables with row counts
-    print("\n📋 ALL TABLES AND ROW COUNTS:")
-    print("-" * 50)
-    cur.execute("""
-        SELECT schemaname, tablename
-        FROM pg_tables
-        WHERE schemaname = 'public'
-        ORDER BY tablename
-    """)
-    tables = cur.fetchall()
+    async with engine.connect() as conn:
+        # 1. List all tables with row counts
+        print("\n📋 ALL TABLES AND ROW COUNTS:")
+        print("-" * 50)
+        result = await conn.execute(text("""
+            SELECT tablename
+            FROM pg_tables
+            WHERE schemaname = 'public'
+            ORDER BY tablename
+        """))
+        tables = result.fetchall()
 
-    for table in tables:
-        table_name = table['tablename']
+        for (table_name,) in tables:
+            try:
+                result = await conn.execute(text(f"SELECT COUNT(*) FROM {table_name}"))
+                count = result.scalar()
+                print(f"  {table_name}: {count} rows")
+            except Exception as e:
+                print(f"  {table_name}: ERROR - {e}")
+
+        # 2. Check stress_scenarios
+        print("\n🔥 STRESS TEST SCENARIOS:")
+        print("-" * 50)
         try:
-            cur.execute(f"SELECT COUNT(*) as cnt FROM {table_name}")
-            count = cur.fetchone()['cnt']
-            print(f"  {table_name}: {count} rows")
+            result = await conn.execute(text("SELECT COUNT(*) FROM stress_scenarios"))
+            count = result.scalar()
+            print(f"  Total scenarios: {count}")
+
+            if count > 0:
+                result = await conn.execute(text("SELECT name, category FROM stress_scenarios LIMIT 5"))
+                scenarios = result.fetchall()
+                for name, category in scenarios:
+                    print(f"    - {name} ({category})")
+            else:
+                print("  ⚠️ NO STRESS SCENARIOS - Need to run seed_stress_scenarios.py")
         except Exception as e:
-            print(f"  {table_name}: ERROR - {e}")
+            print(f"  ❌ Error: {e}")
 
-    # 2. Check stress_scenarios
-    print("\n🔥 STRESS TEST SCENARIOS:")
-    print("-" * 50)
-    cur.execute("SELECT COUNT(*) as cnt FROM stress_scenarios")
-    count = cur.fetchone()['cnt']
-    print(f"  Total scenarios: {count}")
+        # 3. Check factor_definitions
+        print("\n📊 FACTOR DEFINITIONS:")
+        print("-" * 50)
+        try:
+            result = await conn.execute(text("SELECT COUNT(*) FROM factor_definitions"))
+            count = result.scalar()
+            print(f"  Total factors: {count}")
 
-    if count > 0:
-        cur.execute("SELECT name, category, description FROM stress_scenarios LIMIT 5")
-        scenarios = cur.fetchall()
-        for s in scenarios:
-            print(f"    - {s['name']} ({s['category']})")
-    else:
-        print("  ⚠️ NO STRESS SCENARIOS - Need to run seed_stress_scenarios.py")
+            if count > 0:
+                result = await conn.execute(text("SELECT name, factor_type FROM factor_definitions"))
+                factors = result.fetchall()
+                for name, factor_type in factors:
+                    print(f"    - {name} ({factor_type})")
+            else:
+                print("  ⚠️ NO FACTOR DEFINITIONS - Need to run seed_factors")
+        except Exception as e:
+            print(f"  ❌ Error: {e}")
 
-    # 3. Check factor_definitions
-    print("\n📊 FACTOR DEFINITIONS:")
-    print("-" * 50)
-    cur.execute("SELECT COUNT(*) as cnt FROM factor_definitions")
-    count = cur.fetchone()['cnt']
-    print(f"  Total factors: {count}")
+        # 4. Check AI Knowledge Base
+        print("\n🧠 AI KNOWLEDGE BASE (ai_kb_documents):")
+        print("-" * 50)
+        try:
+            result = await conn.execute(text("SELECT COUNT(*) FROM ai_kb_documents"))
+            count = result.scalar()
+            print(f"  Total KB documents: {count}")
 
-    if count > 0:
-        cur.execute("SELECT name, factor_type FROM factor_definitions")
-        factors = cur.fetchall()
-        for f in factors:
-            print(f"    - {f['name']} ({f['factor_type']})")
-    else:
-        print("  ⚠️ NO FACTOR DEFINITIONS - Need to run seed_factors")
+            if count > 0:
+                result = await conn.execute(text("SELECT title, scope FROM ai_kb_documents LIMIT 5"))
+                docs = result.fetchall()
+                for title, scope in docs:
+                    print(f"    - {title[:50]} (scope: {scope})")
+            else:
+                print("  ⚠️ NO KB DOCUMENTS - RAG will not work")
+        except Exception as e:
+            print(f"  ❌ TABLE MISSING OR ERROR: {e}")
 
-    # 4. Check AI Knowledge Base
-    print("\n🧠 AI KNOWLEDGE BASE (ai_kb_documents):")
-    print("-" * 50)
-    try:
-        cur.execute("SELECT COUNT(*) as cnt FROM ai_kb_documents")
-        count = cur.fetchone()['cnt']
-        print(f"  Total KB documents: {count}")
+        # 5. Check AI Memories
+        print("\n💭 AI MEMORIES (ai_memories):")
+        print("-" * 50)
+        try:
+            result = await conn.execute(text("SELECT COUNT(*) FROM ai_memories"))
+            count = result.scalar()
+            print(f"  Total memories: {count}")
+        except Exception as e:
+            print(f"  ❌ TABLE MISSING OR ERROR: {e}")
 
-        if count > 0:
-            cur.execute("SELECT title, scope, doc_type FROM ai_kb_documents LIMIT 5")
-            docs = cur.fetchall()
-            for d in docs:
-                print(f"    - {d['title']} (scope: {d['scope']}, type: {d['doc_type']})")
-        else:
-            print("  ⚠️ NO KB DOCUMENTS - RAG will not work")
-    except Exception as e:
-        print(f"  ❌ TABLE MISSING OR ERROR: {e}")
+        # 6. Check pgvector extension
+        print("\n🔌 PGVECTOR EXTENSION:")
+        print("-" * 50)
+        try:
+            result = await conn.execute(text("SELECT extversion FROM pg_extension WHERE extname = 'vector'"))
+            row = result.fetchone()
+            if row:
+                print(f"  ✅ pgvector installed (version: {row[0]})")
+            else:
+                print("  ❌ pgvector NOT installed")
+        except Exception as e:
+            print(f"  ❌ Error checking: {e}")
 
-    # 5. Check AI Memories
-    print("\n💭 AI MEMORIES (ai_memories):")
-    print("-" * 50)
-    try:
-        cur.execute("SELECT COUNT(*) as cnt FROM ai_memories")
-        count = cur.fetchone()['cnt']
-        print(f"  Total memories: {count}")
-    except Exception as e:
-        print(f"  ❌ TABLE MISSING OR ERROR: {e}")
+        # 7. Check portfolios and positions
+        print("\n💼 PORTFOLIOS AND POSITIONS:")
+        print("-" * 50)
+        try:
+            result = await conn.execute(text("SELECT COUNT(*) FROM portfolios"))
+            portfolio_count = result.scalar()
+            result = await conn.execute(text("SELECT COUNT(*) FROM positions WHERE deleted_at IS NULL"))
+            position_count = result.scalar()
+            print(f"  Portfolios: {portfolio_count}")
+            print(f"  Active Positions: {position_count}")
 
-    # 6. Check pgvector extension
-    print("\n🔌 PGVECTOR EXTENSION:")
-    print("-" * 50)
-    try:
-        cur.execute("SELECT * FROM pg_extension WHERE extname = 'vector'")
-        ext = cur.fetchone()
-        if ext:
-            print(f"  ✅ pgvector installed (version: {ext.get('extversion', 'unknown')})")
-        else:
-            print("  ❌ pgvector NOT installed")
-    except Exception as e:
-        print(f"  ❌ Error checking: {e}")
+            if portfolio_count > 0:
+                result = await conn.execute(text("""
+                    SELECT p.name, p.equity_balance, COUNT(pos.id) as pos_count
+                    FROM portfolios p
+                    LEFT JOIN positions pos ON p.id = pos.portfolio_id AND pos.deleted_at IS NULL
+                    GROUP BY p.id, p.name, p.equity_balance
+                """))
+                portfolios = result.fetchall()
+                for name, equity_balance, pos_count in portfolios:
+                    print(f"    - {name}: {pos_count} positions, ${equity_balance:,.2f}")
+        except Exception as e:
+            print(f"  ❌ Error: {e}")
 
-    # 7. Check portfolios and positions
-    print("\n💼 PORTFOLIOS AND POSITIONS:")
-    print("-" * 50)
-    cur.execute("SELECT COUNT(*) as cnt FROM portfolios")
-    portfolio_count = cur.fetchone()['cnt']
-    cur.execute("SELECT COUNT(*) as cnt FROM positions WHERE deleted_at IS NULL")
-    position_count = cur.fetchone()['cnt']
-    print(f"  Portfolios: {portfolio_count}")
-    print(f"  Active Positions: {position_count}")
+        # 8. Check agent conversations and messages
+        print("\n💬 AGENT CONVERSATIONS & MESSAGES:")
+        print("-" * 50)
+        try:
+            result = await conn.execute(text("SELECT COUNT(*) FROM agent_conversations"))
+            conv_count = result.scalar()
+            result = await conn.execute(text("SELECT COUNT(*) FROM agent_messages"))
+            msg_count = result.scalar()
+            print(f"  Conversations: {conv_count}")
+            print(f"  Messages: {msg_count}")
 
-    if portfolio_count > 0:
-        cur.execute("""
-            SELECT p.name, p.equity_balance, COUNT(pos.id) as pos_count
-            FROM portfolios p
-            LEFT JOIN positions pos ON p.id = pos.portfolio_id AND pos.deleted_at IS NULL
-            GROUP BY p.id, p.name, p.equity_balance
-        """)
-        portfolios = cur.fetchall()
-        for p in portfolios:
-            print(f"    - {p['name']}: {p['pos_count']} positions, ${p['equity_balance']:,.2f}")
+            if conv_count > 0:
+                result = await conn.execute(text("""
+                    SELECT c.id, c.mode, c.metadata->>'portfolio_id' as portfolio_id,
+                           COUNT(m.id) as msg_count, c.created_at
+                    FROM agent_conversations c
+                    LEFT JOIN agent_messages m ON m.conversation_id = c.id
+                    GROUP BY c.id, c.mode, c.metadata, c.created_at
+                    ORDER BY c.created_at DESC
+                    LIMIT 5
+                """))
+                convs = result.fetchall()
+                for conv_id, mode, portfolio_id, msg_count, created_at in convs:
+                    print(f"    - {str(conv_id)[:8]}... mode={mode} portfolio={portfolio_id[:8] if portfolio_id else 'None'}... msgs={msg_count}")
+        except Exception as e:
+            print(f"  ❌ TABLE MISSING OR ERROR: {e}")
 
-    # 8. Check recent AI insights
-    print("\n🤖 RECENT AI INSIGHTS:")
-    print("-" * 50)
-    try:
-        cur.execute("""
-            SELECT insight_type, title, created_at,
-                   CASE WHEN full_analysis IS NULL OR full_analysis = '' THEN 'EMPTY' ELSE 'HAS CONTENT' END as content_status
-            FROM ai_insights
-            ORDER BY created_at DESC
-            LIMIT 5
-        """)
-        insights = cur.fetchall()
-        if insights:
-            for i in insights:
-                print(f"    - [{i['content_status']}] {i['insight_type']}: {i['title'][:50]}... ({i['created_at']})")
-        else:
-            print("  No insights found")
-    except Exception as e:
-        print(f"  ❌ Error: {e}")
+        # 9. Check portfolio_snapshots
+        print("\n📸 PORTFOLIO SNAPSHOTS:")
+        print("-" * 50)
+        try:
+            result = await conn.execute(text("SELECT COUNT(*) FROM portfolio_snapshots"))
+            count = result.scalar()
+            print(f"  Total snapshots: {count}")
 
-    # 9. Check portfolio_snapshots
-    print("\n📸 PORTFOLIO SNAPSHOTS:")
-    print("-" * 50)
-    cur.execute("SELECT COUNT(*) as cnt FROM portfolio_snapshots")
-    count = cur.fetchone()['cnt']
-    print(f"  Total snapshots: {count}")
+            if count > 0:
+                result = await conn.execute(text("""
+                    SELECT snapshot_date, COUNT(*) as cnt
+                    FROM portfolio_snapshots
+                    GROUP BY snapshot_date
+                    ORDER BY snapshot_date DESC
+                    LIMIT 5
+                """))
+                dates = result.fetchall()
+                for snapshot_date, cnt in dates:
+                    print(f"    - {snapshot_date}: {cnt} snapshots")
+        except Exception as e:
+            print(f"  ❌ Error: {e}")
 
-    if count > 0:
-        cur.execute("""
-            SELECT snapshot_date, COUNT(*) as cnt
-            FROM portfolio_snapshots
-            GROUP BY snapshot_date
-            ORDER BY snapshot_date DESC
-            LIMIT 5
-        """)
-        dates = cur.fetchall()
-        for d in dates:
-            print(f"    - {d['snapshot_date']}: {d['cnt']} snapshots")
+        # 10. Check market_data_cache
+        print("\n📈 MARKET DATA CACHE:")
+        print("-" * 50)
+        try:
+            result = await conn.execute(text("SELECT COUNT(*) FROM market_data_cache"))
+            count = result.scalar()
+            print(f"  Total cached prices: {count}")
+        except Exception as e:
+            print(f"  ❌ Error: {e}")
 
-    # 10. Check market_data_cache
-    print("\n📈 MARKET DATA CACHE:")
-    print("-" * 50)
-    cur.execute("SELECT COUNT(*) as cnt FROM market_data_cache")
-    count = cur.fetchone()['cnt']
-    print(f"  Total cached prices: {count}")
+        # 11. Check alembic version
+        print("\n🔄 ALEMBIC MIGRATION STATUS:")
+        print("-" * 50)
+        try:
+            result = await conn.execute(text("SELECT version_num FROM alembic_version"))
+            version = result.scalar()
+            print(f"  Current version: {version}")
+        except Exception as e:
+            print(f"  ❌ Error: {e}")
 
-    cur.close()
-    conn.close()
+    await engine.dispose()
 
     print("\n" + "=" * 80)
     print("DIAGNOSTIC COMPLETE")
@@ -215,4 +252,4 @@ def run_diagnostics():
 
 
 if __name__ == "__main__":
-    run_diagnostics()
+    asyncio.run(run_diagnostics())

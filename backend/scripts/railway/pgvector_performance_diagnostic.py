@@ -65,11 +65,14 @@ def show_settings(cur):
         "hnsw.ef_construction",
     ]
     for s in settings:
-        cur.execute(f"SHOW {s};")
-        row = cur.fetchone()
-        # RealDictCursor returns a dict keyed by the setting name; fall back to first value
-        value = next(iter(row.values())) if isinstance(row, dict) else row[0]
-        print(f"{s}: {value}")
+        try:
+            cur.execute(f"SHOW {s};")
+            row = cur.fetchone()
+            # RealDictCursor returns a dict keyed by the setting name; fall back to first value
+            value = next(iter(row.values())) if isinstance(row, dict) else row[0]
+            print(f"{s}: {value}")
+        except Exception as e:
+            print(f"{s}: not supported ({e.__class__.__name__})")
 
 
 def show_top_queries(cur):
