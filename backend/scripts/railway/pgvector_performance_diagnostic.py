@@ -38,7 +38,9 @@ def connect():
     if not db_url:
         print("ERROR: DATABASE_URL not set")
         sys.exit(1)
-    return psycopg2.connect(db_url)
+    conn = psycopg2.connect(db_url)
+    conn.set_session(autocommit=True)
+    return conn
 
 
 def header(title: str):
@@ -73,6 +75,10 @@ def show_settings(cur):
             print(f"{s}: {value}")
         except Exception as e:
             print(f"{s}: not supported ({e.__class__.__name__})")
+            try:
+                cur.connection.rollback()
+            except Exception:
+                pass
 
 
 def show_top_queries(cur):

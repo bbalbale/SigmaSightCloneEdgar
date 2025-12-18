@@ -16,7 +16,7 @@ import {
   Session
 } from './types'
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://sigmasight-be-production.up.railway.app'
 
 // Helper function to get auth token from cookies
 async function getAuthToken(): Promise<string | null> {
