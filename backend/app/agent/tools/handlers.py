@@ -1029,18 +1029,20 @@ class PortfolioTools:
                     include_factor_etfs=False
                 )
                 if "error" not in historical_response:
-                    prices_data = historical_response.get("data", {}).get("prices", {})
-                    for symbol, price_history in prices_data.items():
-                        if isinstance(price_history, list) and len(price_history) >= 2:
+                    # API returns {"symbols": {"AAPL": {"dates": [...], "close": [...]}}}
+                    symbols_data = historical_response.get("symbols", {})
+                    for symbol, price_data in symbols_data.items():
+                        close_prices = price_data.get("close", [])
+                        if isinstance(close_prices, list) and len(close_prices) >= 2:
                             # Get yesterday's price (second most recent) for daily change
-                            yesterday_price = price_history[-2].get("close") if len(price_history) >= 2 else None
+                            yesterday_price = close_prices[-2] if len(close_prices) >= 2 else None
                             if yesterday_price:
                                 daily_prices[symbol] = yesterday_price
 
                             # Get price from ~5 trading days ago for weekly change
-                            if include_weekly and len(price_history) >= 5:
-                                week_ago_idx = min(5, len(price_history) - 1)
-                                week_ago_price = price_history[-week_ago_idx - 1].get("close") if week_ago_idx < len(price_history) else None
+                            if include_weekly and len(close_prices) >= 5:
+                                week_ago_idx = min(5, len(close_prices) - 1)
+                                week_ago_price = close_prices[-week_ago_idx - 1] if week_ago_idx < len(close_prices) else None
                                 if week_ago_price:
                                     weekly_prices[symbol] = week_ago_price
             except Exception as e:
