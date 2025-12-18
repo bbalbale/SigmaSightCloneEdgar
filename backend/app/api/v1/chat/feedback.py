@@ -3,8 +3,14 @@ Feedback endpoint for AI message ratings.
 
 Allows users to provide thumbs up/down feedback on AI-generated messages.
 This data is used for offline analysis and knowledge base improvement.
+
+Phase 3 Enhancement (December 2025):
+- Added background learning processing on feedback submission
+- Positive feedback stores response as RAG example
+- Negative feedback with edits extracts preference rules
 """
-from fastapi import APIRouter, Depends, HTTPException, status
+import asyncio
+from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from pydantic import BaseModel, Field
@@ -18,6 +24,38 @@ from app.models.ai_learning import AIFeedback
 from app.core.logging import get_logger
 
 logger = get_logger(__name__)
+
+
+async def _run_learning_background(feedback_id: UUID) -> None:
+    """
+    Background task to process feedback and trigger learning.
+
+    This runs asynchronously after the feedback is saved, so it doesn't
+    block the response to the user.
+    """
+    try:
+        # Import here to avoid circular imports
+        from app.agent.services.learning_service import learning_service
+        from app.database import get_async_session
+
+        async with get_async_session() as db:
+            # Get the feedback record
+            result = await db.execute(
+                select(AIFeedback).where(AIFeedback.id == feedback_id)
+            )
+            feedback = result.scalar_one_or_none()
+
+            if feedback:
+                learning_result = await learning_service.process_feedback(feedback)
+                logger.info(
+                    f"[Feedback-Learning] Processed feedback {feedback_id}: "
+                    f"actions={learning_result.get('actions_taken', [])}"
+                )
+            else:
+                logger.warning(f"[Feedback-Learning] Feedback {feedback_id} not found")
+
+    except Exception as e:
+        logger.error(f"[Feedback-Learning] Background learning failed for {feedback_id}: {e}")
 
 router = APIRouter()
 
@@ -42,6 +80,7 @@ class FeedbackResponse(BaseModel):
 async def create_message_feedback(
     message_id: UUID,
     feedback: FeedbackCreate,
+    background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
     current_user: CurrentUser = Depends(get_current_user),
 ) -> FeedbackResponse:
@@ -117,6 +156,9 @@ async def create_message_feedback(
             f"Updated feedback for message {message_id}: rating={feedback.rating}"
         )
 
+        # Trigger background learning process
+        asyncio.create_task(_run_learning_background(existing_feedback.id))
+
         return FeedbackResponse(
             id=existing_feedback.id,
             message_id=existing_feedback.message_id,
@@ -139,6 +181,9 @@ async def create_message_feedback(
     logger.info(
         f"Created feedback for message {message_id}: rating={feedback.rating}"
     )
+
+    # Trigger background learning process
+    asyncio.create_task(_run_learning_background(new_feedback.id))
 
     return FeedbackResponse(
         id=new_feedback.id,

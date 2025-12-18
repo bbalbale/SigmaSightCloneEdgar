@@ -14,6 +14,7 @@ from app.api.v1.position_tags import router as position_tags_router
 from app.api.v1.insights import router as insights_router
 from app.api.v1.onboarding import router as onboarding_router
 from app.api.v1.endpoints import admin_batch
+from app.api.v1.endpoints import admin_feedback
 from app.api.v1.admin_fix import router as admin_fix_router
 from app.api.v1.fundamentals import router as fundamentals_router
 from app.api.v1.equity_changes import router as equity_changes_router
@@ -62,6 +63,9 @@ api_router.include_router(insights_router)
 
 # Admin Batch Processing APIs (/admin/batch/) - batch job control and monitoring
 api_router.include_router(admin_batch.router)
+
+# Admin Feedback Learning APIs (/admin/feedback/) - feedback analysis and learning (Phase 3 PRD4)
+api_router.include_router(admin_feedback.router)
 
 # Admin Fix APIs (/admin/fix/) - Railway production data fix operations
 api_router.include_router(admin_fix_router)

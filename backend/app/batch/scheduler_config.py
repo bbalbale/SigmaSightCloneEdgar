@@ -124,7 +124,18 @@ class BatchScheduler:
             name='Weekly Historical Data Backfill',
             replace_existing=True
         )
-        
+
+        # Feedback learning batch job - Daily at 8:00 PM ET (Phase 3 PRD4)
+        self.scheduler.add_job(
+            func=self._run_feedback_learning,
+            trigger='cron',
+            hour=20,  # 8:00 PM
+            minute=0,
+            id='feedback_learning',
+            name='Daily Feedback Learning Analysis',
+            replace_existing=True
+        )
+
         logger.info("Batch jobs initialized successfully")
         self._log_scheduled_jobs()
     
@@ -222,18 +233,49 @@ class BatchScheduler:
     async def _backfill_historical_data(self):
         """Backfill missing historical market data."""
         from app.batch.market_data_sync import fetch_missing_historical_data
-        
+
         logger.info("Starting weekly historical data backfill")
-        
+
         try:
             result = await fetch_missing_historical_data(days_back=90)
             logger.info(f"Historical backfill completed: {result}")
-            
+
         except Exception as e:
             logger.error(f"Historical backfill failed: {str(e)}")
             await self._send_batch_alert(f"Historical backfill failed: {str(e)}", None)
             raise
-    
+
+    async def _run_feedback_learning(self):
+        """Execute daily feedback learning analysis (Phase 3 PRD4)."""
+        from app.batch.feedback_learning_job import run_feedback_learning_batch
+
+        logger.info("Starting scheduled feedback learning analysis")
+
+        try:
+            result = await run_feedback_learning_batch(
+                min_confidence=0.7,
+                days_lookback=30,
+                min_feedback_per_user=3
+            )
+
+            logger.info(
+                f"Feedback learning completed: "
+                f"processed {result.get('users_processed', 0)} users, "
+                f"created {result.get('total_rules_created', 0)} rules"
+            )
+
+            # Alert if errors occurred
+            if result.get('errors'):
+                await self._send_batch_alert(
+                    f"Feedback learning: {len(result['errors'])} errors",
+                    result
+                )
+
+        except Exception as e:
+            logger.error(f"Feedback learning failed: {str(e)}")
+            await self._send_batch_alert(f"Feedback learning failed: {str(e)}", None)
+            raise
+
     def _job_executed(self, event):
         """Log successful job execution."""
         logger.info(
