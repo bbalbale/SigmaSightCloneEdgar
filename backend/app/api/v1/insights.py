@@ -138,6 +138,11 @@ async def generate_insight(
 ):
     """
     Generate a new AI insight for a portfolio.
+    """
+    # CRITICAL DEBUG - This MUST appear in logs
+    print(f"[INSIGHT-ENDPOINT] HIT! type={request.insight_type}, portfolio={request.portfolio_id}")
+    logger.warning(f"[INSIGHT-ENDPOINT] HIT! type={request.insight_type}, portfolio={request.portfolio_id}")
+    """
 
     **Process**:
     1. Validates portfolio ownership
