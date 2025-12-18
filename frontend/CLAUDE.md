@@ -2,7 +2,7 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-**Last Updated**: 2025-10-29
+**Last Updated**: 2025-12-18
 
 ## Project Overview
 
@@ -479,10 +479,14 @@ const response = await fetch('http://localhost:8000/api/v1/data/positions')
 - `TargetPriceManager.tsx` - Target price management (Phase 8)
 - `SectorTagging.tsx` - Sector tagging with auto-tag service
 
-### Chat System
-- `ChatInterface.tsx` - Sheet-based chat overlay
-- `chatService.ts` - Conversation management
-- `chatAuthService.ts` - Cookie-based auth for streaming
+### AI Chat System (Consolidated Dec 2025)
+- `aiChatService.ts` - SSE streaming to backend `/api/v1/chat/send`
+- `chatService.ts` - Conversation CRUD management
+- `chatAuthService.ts` - Authentication helpers
+- `insightsApi.ts` - Insight generation via `/api/v1/insights/generate`
+- `useCopilot.ts` - Main hook for AI chat (uses aiChatService)
+- `CopilotPanel.tsx` - AI chat UI component
+- **Note**: All direct OpenAI code removed (PRD3 Phase 1) - all AI goes through backend
 
 ---
 
