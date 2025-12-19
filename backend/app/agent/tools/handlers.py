@@ -1434,25 +1434,27 @@ class PortfolioTools:
                 )
                 return response
             except Exception:
-                # News endpoint doesn't exist yet - return placeholder
-                # This allows the LLM to use its training knowledge
-                logger.info("News endpoint not available - returning guidance for LLM")
+                # News endpoint doesn't exist - direct LLM to use web_search tool instead
+                logger.info("News endpoint not available - directing LLM to use web_search tool")
                 return {
                     "data": {
                         "symbols_requested": symbol_list,
                         "news_available": False,
                         "_guidance": (
-                            "News API not configured. Use your training knowledge to provide "
-                            "relevant market context for these symbols. Consider: "
-                            "1) Recent earnings reports, 2) Sector trends, "
-                            "3) Major market events, 4) Fed/macro news affecting these stocks."
+                            "Backend news API not available. "
+                            "IMPORTANT: Use the web_search tool to get real-time news for these symbols. "
+                            "Search queries to try: "
+                            f"1) '{symbol_list[0]} stock news today' for the top holding, "
+                            "2) 'stock market news today' for broader market context, "
+                            "3) '[symbol] earnings' for any companies with recent/upcoming earnings. "
+                            "The web_search tool will provide current headlines with sources and citations."
                         )
                     },
                     "meta": {
                         "symbols": symbol_list,
                         "limit": limit,
                         "as_of": to_utc_iso8601(utc_now()),
-                        "source": "llm_knowledge"
+                        "source": "redirect_to_web_search"
                     }
                 }
 

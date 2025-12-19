@@ -950,7 +950,7 @@ class OpenAIService:
             {
                 "name": "get_market_news",
                 "type": "function",
-                "description": "Get market news relevant to portfolio positions. Returns news headlines, sources, and sentiment for symbols. Use for daily insights or when asked about news affecting the portfolio.",
+                "description": "Get market news relevant to portfolio positions. NOTE: This endpoint may not be configured - if it returns 'news_available: false', you MUST use the web_search tool instead to get real-time news. Prefer web_search for morning briefings and current events.",
                 "parameters": {
                     "type": "object",
                     "properties": {
