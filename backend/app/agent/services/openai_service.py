@@ -930,7 +930,7 @@ class OpenAIService:
             {
                 "name": "get_daily_movers",
                 "type": "function",
-                "description": "Get today's biggest movers (gainers and losers) in the portfolio. Returns positions sorted by daily change percentage, portfolio daily P&L, biggest winner and loser. USE THIS FIRST for daily insights or when asked 'what moved today?' or 'how did my portfolio do today?'",
+                "description": "Get today's AND this week's biggest movers (gainers and losers) in the portfolio. Returns positions sorted by daily/weekly change percentage, portfolio daily/weekly P&L, biggest winners and losers. USE THIS FIRST for daily insights, morning briefings, or when asked 'what moved today/this week?' NOTE: all_movers includes ALL positions regardless of threshold - use this if gainers/losers are empty to see actual movements.",
                 "parameters": {
                     "type": "object",
                     "properties": {
@@ -940,8 +940,8 @@ class OpenAIService:
                         },
                         "threshold_pct": {
                             "type": "number",
-                            "description": "Minimum absolute % change to include (default 2.0)",
-                            "default": 2.0
+                            "description": "Minimum absolute % change to include in gainers/losers lists (default 0.5). Use all_movers to see all positions regardless.",
+                            "default": 0.5
                         }
                     },
                     "required": ["portfolio_id"]

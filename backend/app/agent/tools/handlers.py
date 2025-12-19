@@ -984,7 +984,7 @@ class PortfolioTools:
     async def get_daily_movers(
         self,
         portfolio_id: str,
-        threshold_pct: float = 2.0,
+        threshold_pct: float = 0.5,
         include_weekly: bool = True,
         **kwargs
     ) -> Dict[str, Any]:
@@ -996,11 +996,13 @@ class PortfolioTools:
 
         Args:
             portfolio_id: Portfolio UUID
-            threshold_pct: Minimum absolute % change to include (default 2%)
+            threshold_pct: Minimum absolute % change to include in gainers/losers lists (default 0.5%)
             include_weekly: Include weekly performance data (default True)
 
         Returns:
-            Dictionary with daily and weekly gainers, losers, and portfolio changes
+            Dictionary with daily and weekly gainers, losers, and portfolio changes.
+            Note: all_movers always includes ALL positions sorted by absolute movement,
+            regardless of threshold. Use this to see actual movements even if small.
         """
         try:
             # Get complete portfolio data with current prices
@@ -1143,7 +1145,14 @@ class PortfolioTools:
                     "daily_data_available": bool(daily_prices),
                     "includes_weekly": include_weekly,
                     "weekly_data_available": bool(weekly_prices),
-                    "as_of": to_utc_iso8601(utc_now())
+                    "as_of": to_utc_iso8601(utc_now()),
+                    "symbols_with_daily_data": list(daily_prices.keys())[:10],
+                    "symbols_with_weekly_data": list(weekly_prices.keys())[:10],
+                    "_data_note": (
+                        "If all changes show 0%, this may indicate: (1) Market is closed and current_price "
+                        "equals yesterday's close, (2) Historical price data not available for some symbols, "
+                        "or (3) Weekend/holiday - no trading occurred. Check all_movers for raw values."
+                    )
                 }
             }
 
