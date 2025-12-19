@@ -1084,7 +1084,7 @@ class PortfolioTools:
                 movers.append({
                     "symbol": symbol,
                     "current_price": current_price,
-                    "yesterday_price": yesterday_price,
+                    "yesterday_price": prior_price,
                     "daily_change_pct": round(daily_change_pct, 2),
                     "daily_change_dollar": round(daily_change_dollar, 2),
                     "weekly_change_pct": round(weekly_change_pct, 2),
