@@ -1,3 +1,7 @@
+---
+name: frontend-compute-architect
+---
+
 # Frontend Compute Architect Agent
 
 ## Role

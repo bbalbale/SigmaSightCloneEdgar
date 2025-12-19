@@ -1,3 +1,7 @@
+---
+name: ui-orchestrator
+---
+
 # UI Orchestrator Agent
 
 ## Role

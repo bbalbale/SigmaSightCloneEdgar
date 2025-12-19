@@ -1,3 +1,7 @@
+---
+name: ui-developer
+---
+
 # UI Developer Agent
 
 ## Role

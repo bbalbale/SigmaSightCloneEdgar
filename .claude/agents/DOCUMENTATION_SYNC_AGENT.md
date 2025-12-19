@@ -1,3 +1,7 @@
+---
+name: documentation-sync
+---
+
 # Documentation Synchronization Agent Specification
 
 **Version**: 1.0.0  
