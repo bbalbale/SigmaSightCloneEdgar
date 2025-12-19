@@ -1020,9 +1020,14 @@ class PortfolioTools:
                     "retryable": False
                 }
 
-            # Build symbol to daily and weekly price maps from historical data
-            daily_prices = {}  # yesterday's close for daily change
-            weekly_prices = {}  # 5 trading days ago for weekly change
+            # Build symbol price maps from historical data
+            # Since pricing is not real-time, last_price = yesterday's close
+            # For daily change: compare last close (T-1) to prior close (T-2)
+            # For weekly change: compare last close (T-1) to 5 trading days ago (T-6)
+            latest_prices = {}    # Most recent close (T-1, same as last_price)
+            prior_day_prices = {}  # Prior day close (T-2) for daily change
+            weekly_prices = {}     # 5 trading days ago for weekly change
+
             try:
                 # Get historical prices for daily and weekly calculation
                 historical_response = await self.get_prices_historical(
@@ -1035,18 +1040,17 @@ class PortfolioTools:
                     symbols_data = historical_response.get("symbols", {})
                     for symbol, price_data in symbols_data.items():
                         close_prices = price_data.get("close", [])
-                        if isinstance(close_prices, list) and len(close_prices) >= 2:
-                            # Get yesterday's price (second most recent) for daily change
-                            yesterday_price = close_prices[-2] if len(close_prices) >= 2 else None
-                            if yesterday_price:
-                                daily_prices[symbol] = yesterday_price
+                        if isinstance(close_prices, list) and len(close_prices) >= 1:
+                            # Most recent close (T-1) - this is what last_price should be
+                            latest_prices[symbol] = close_prices[-1]
 
-                            # Get price from ~5 trading days ago for weekly change
-                            if include_weekly and len(close_prices) >= 5:
-                                week_ago_idx = min(5, len(close_prices) - 1)
-                                week_ago_price = close_prices[-week_ago_idx - 1] if week_ago_idx < len(close_prices) else None
-                                if week_ago_price:
-                                    weekly_prices[symbol] = week_ago_price
+                            # Prior day close (T-2) for daily change calculation
+                            if len(close_prices) >= 2:
+                                prior_day_prices[symbol] = close_prices[-2]
+
+                            # 5 trading days ago for weekly change
+                            if include_weekly and len(close_prices) >= 6:
+                                weekly_prices[symbol] = close_prices[-6]
             except Exception as e:
                 logger.warning(f"Could not fetch historical prices: {e}")
 
@@ -1054,19 +1058,22 @@ class PortfolioTools:
             movers = []
             for holding in holdings:
                 symbol = holding.get("symbol", "UNKNOWN")
-                current_price = holding.get("current_price", 0)
                 market_value = holding.get("market_value", 0)
                 quantity = holding.get("quantity", 0)
 
-                # Get yesterday's price from historical data for daily change
-                yesterday_price = daily_prices.get(symbol)
+                # Use historical data for price comparisons (more reliable than holdings)
+                # Fall back to holdings last_price if historical not available
+                current_price = latest_prices.get(symbol) or holding.get("last_price") or holding.get("current_price", 0)
+                prior_price = prior_day_prices.get(symbol)
+
+                # Daily change: T-1 vs T-2 (yesterday vs day before)
                 daily_change_pct = 0
                 daily_change_dollar = 0
-                if yesterday_price and yesterday_price > 0 and current_price:
-                    daily_change_pct = ((current_price - yesterday_price) / yesterday_price) * 100
-                    daily_change_dollar = (current_price - yesterday_price) * abs(quantity)
+                if prior_price and prior_price > 0 and current_price:
+                    daily_change_pct = ((current_price - prior_price) / prior_price) * 100
+                    daily_change_dollar = (current_price - prior_price) * abs(quantity)
 
-                # Calculate weekly change if data available
+                # Weekly change: T-1 vs T-6 (yesterday vs 5 trading days ago)
                 weekly_change_pct = 0
                 weekly_change_dollar = 0
                 week_ago_price = weekly_prices.get(symbol)
@@ -1142,16 +1149,15 @@ class PortfolioTools:
                     "threshold_pct": threshold_pct,
                     "total_positions": len(holdings),
                     "positions_above_threshold": len(gainers) + len(losers),
-                    "daily_data_available": bool(daily_prices),
+                    "daily_data_available": bool(prior_day_prices),
                     "includes_weekly": include_weekly,
                     "weekly_data_available": bool(weekly_prices),
                     "as_of": to_utc_iso8601(utc_now()),
-                    "symbols_with_daily_data": list(daily_prices.keys())[:10],
+                    "symbols_with_daily_data": list(prior_day_prices.keys())[:10],
                     "symbols_with_weekly_data": list(weekly_prices.keys())[:10],
                     "_data_note": (
-                        "If all changes show 0%, this may indicate: (1) Market is closed and current_price "
-                        "equals yesterday's close, (2) Historical price data not available for some symbols, "
-                        "or (3) Weekend/holiday - no trading occurred. Check all_movers for raw values."
+                        "Daily change compares T-1 (yesterday close) to T-2 (prior day close). "
+                        "Weekly change compares T-1 to T-6. Positions without historical data show 0%."
                     )
                 }
             }

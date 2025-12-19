@@ -196,6 +196,7 @@ async def get_portfolio_complete(
                     "investment_class": position.investment_class if position.investment_class else "PUBLIC",
                     "market_value": market_value,
                     "last_price": float(last_price),
+                    "current_price": float(last_price),  # Alias for consistency with get_positions_details
                     "has_complete_history": has_complete_history
                 }
 
