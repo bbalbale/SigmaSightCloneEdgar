@@ -8,6 +8,13 @@ Phase 3 Enhancement (December 2025):
 - Added background learning processing on feedback submission
 - Positive feedback stores response as RAG example
 - Negative feedback with edits extracts preference rules
+
+Dual-DB Architecture Note (December 2025):
+- ConversationMessage/Conversation live in Core DB (get_db)
+- AIFeedback lives in AI DB (get_ai_db)
+- The main endpoints currently use get_db for both, which works because
+  ai_feedback table was also created in Core DB during initial migration.
+- TODO: Refactor to use separate sessions for clean dual-DB separation.
 """
 import asyncio
 from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
@@ -32,13 +39,15 @@ async def _run_learning_background(feedback_id: UUID) -> None:
 
     This runs asynchronously after the feedback is saved, so it doesn't
     block the response to the user.
+
+    NOTE: AIFeedback lives in the AI database (dual-DB architecture).
     """
     try:
         # Import here to avoid circular imports
         from app.agent.services.learning_service import learning_service
-        from app.database import get_async_session
+        from app.database import get_ai_session  # AI feedback in AI database
 
-        async with get_async_session() as db:
+        async with get_ai_session() as db:
             # Get the feedback record
             result = await db.execute(
                 select(AIFeedback).where(AIFeedback.id == feedback_id)

@@ -37,6 +37,25 @@ if config.config_file_name is not None:
 # for 'autogenerate' support
 target_metadata = Base.metadata
 
+# AI tables to EXCLUDE from Core migrations (these live in AI database)
+AI_TABLES = {
+    'ai_kb_documents',
+    'ai_memories',
+    'ai_feedback',
+    'ai_insights',
+    'ai_insight_templates',
+}
+
+
+def include_object(object, name, type_, reflected, compare_to):
+    """
+    Exclude AI tables from Core database migrations.
+    AI tables are managed by alembic_ai.ini / migrations_ai/
+    """
+    if type_ == "table" and name in AI_TABLES:
+        return False
+    return True
+
 # other values from the config, defined by the needs of env.py,
 # can be acquired:
 # my_important_option = config.get_main_option("my_important_option")
@@ -61,6 +80,7 @@ def run_migrations_offline() -> None:
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
+        include_object=include_object,
     )
 
     with context.begin_transaction():
@@ -82,7 +102,9 @@ def run_migrations_online() -> None:
 
     with connectable.connect() as connection:
         context.configure(
-            connection=connection, target_metadata=target_metadata
+            connection=connection,
+            target_metadata=target_metadata,
+            include_object=include_object,
         )
 
         with context.begin_transaction():

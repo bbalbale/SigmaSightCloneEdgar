@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field
 from typing import List, Optional, Dict, Any
 from uuid import UUID
 
-from app.database import get_db
+from app.database import get_ai_db  # AI memories live in AI database
 from app.core.dependencies import get_current_user, CurrentUser
 from app.core.logging import get_logger
 from app.agent.services.memory_service import (
@@ -74,7 +74,7 @@ async def list_memories(
     scope: Optional[str] = Query(default=None, description="Filter by scope: 'user' or 'portfolio'"),
     portfolio_id: Optional[UUID] = Query(default=None, description="Filter by portfolio ID"),
     limit: int = Query(default=50, ge=1, le=100, description="Maximum number of memories to return"),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_ai_db),
     current_user: CurrentUser = Depends(get_current_user),
 ) -> MemoryListResponse:
     """
@@ -109,7 +109,7 @@ async def list_memories(
 @router.post("/memories", response_model=MemoryResponse, status_code=status.HTTP_201_CREATED)
 async def create_memory(
     memory: MemoryCreate,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_ai_db),
     current_user: CurrentUser = Depends(get_current_user),
 ) -> MemoryResponse:
     """
@@ -174,7 +174,7 @@ async def create_memory(
 @router.delete("/memories/{memory_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_memory_endpoint(
     memory_id: str,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_ai_db),
     current_user: CurrentUser = Depends(get_current_user),
 ):
     """
@@ -205,7 +205,7 @@ async def delete_memory_endpoint(
 
 @router.delete("/memories", status_code=status.HTTP_200_OK)
 async def delete_all_memories(
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_ai_db),
     current_user: CurrentUser = Depends(get_current_user),
 ) -> Dict[str, int]:
     """
@@ -228,7 +228,7 @@ async def delete_all_memories(
 
 @router.get("/memories/count", response_model=MemoryCountResponse)
 async def get_memory_count(
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_ai_db),
     current_user: CurrentUser = Depends(get_current_user),
 ) -> MemoryCountResponse:
     """

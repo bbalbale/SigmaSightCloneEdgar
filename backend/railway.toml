@@ -1,0 +1,12 @@
+# Railway configuration for SigmaSight Backend
+# Note: railway.json is for cron jobs, this file is for the main web service
+
+[build]
+builder = "nixpacks"
+
+[deploy]
+# Run both Core and AI migrations before starting the server
+# Both migrations run against their respective databases via environment variables
+startCommand = "alembic -c alembic.ini upgrade head && alembic -c alembic_ai.ini upgrade head && uvicorn app.main:app --host 0.0.0.0 --port $PORT"
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 3

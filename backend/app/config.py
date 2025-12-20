@@ -1,7 +1,11 @@
 """
 Configuration settings for SigmaSight Backend
+
+Dual Database Architecture:
+- Core DB (DATABASE_URL): portfolios, positions, calculations, market data, chat
+- AI DB (AI_DATABASE_URL): RAG, memories, feedback (with pgvector)
 """
-from typing import List
+from typing import List, Optional
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings
 
@@ -18,6 +22,7 @@ class Settings(BaseSettings):
 
     # Database settings
     DATABASE_URL: str = Field(..., env="DATABASE_URL")
+    AI_DATABASE_URL: Optional[str] = Field(default=None, env="AI_DATABASE_URL")
 
     @field_validator("DATABASE_URL", mode="after")
     @classmethod
@@ -36,7 +41,34 @@ class Settings(BaseSettings):
         if v.startswith("postgres://"):
             return v.replace("postgres://", "postgresql+asyncpg://", 1)
         return v
-    
+
+    @field_validator("AI_DATABASE_URL", mode="after")
+    @classmethod
+    def ensure_asyncpg_driver_ai(cls, v: Optional[str]) -> Optional[str]:
+        """Ensure AI_DATABASE_URL uses asyncpg driver for async SQLAlchemy."""
+        if v is None:
+            return None
+        if v.startswith("postgresql+asyncpg://"):
+            return v
+        if v.startswith("postgresql://"):
+            return v.replace("postgresql://", "postgresql+asyncpg://", 1)
+        if v.startswith("postgres://"):
+            return v.replace("postgres://", "postgresql+asyncpg://", 1)
+        return v
+
+    @property
+    def core_database_url(self) -> str:
+        """Core database URL (portfolios, positions, calculations, market data, chat)."""
+        return self.DATABASE_URL
+
+    @property
+    def ai_database_url(self) -> str:
+        """AI database URL (RAG, memories, feedback with pgvector).
+
+        Falls back to DATABASE_URL if AI_DATABASE_URL is not set (for local dev).
+        """
+        return self.AI_DATABASE_URL or self.DATABASE_URL
+
     # Market data API keys
     POLYGON_API_KEY: str = Field(..., env="POLYGON_API_KEY")
     POLYGON_PLAN: str = Field(default="free", env="POLYGON_PLAN")  # free, starter, developer, advanced
