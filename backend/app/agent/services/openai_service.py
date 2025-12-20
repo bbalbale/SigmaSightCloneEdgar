@@ -32,6 +32,7 @@ from app.agent.services.memory_service import (
     get_user_memories,
     format_memories_for_prompt,
 )
+from app.database import get_ai_session
 
 logger = get_logger(__name__)
 
@@ -112,13 +113,15 @@ class OpenAIService:
             if portfolio_context and portfolio_context.get("route"):
                 scopes.append(f"route:{portfolio_context['route']}")
 
-            # Retrieve relevant documents
-            docs = await retrieve_relevant_docs(
-                db,
-                query=query,
-                scopes=scopes,
-                limit=self.rag_doc_limit,
-            )
+            # Retrieve relevant documents using AI database session
+            # (ai_kb_documents table is in the AI database, not Core database)
+            async with get_ai_session() as ai_db:
+                docs = await retrieve_relevant_docs(
+                    ai_db,
+                    query=query,
+                    scopes=scopes,
+                    limit=self.rag_doc_limit,
+                )
 
             if not docs:
                 logger.debug(f"[RAG] No relevant docs found for query")
@@ -162,21 +165,24 @@ class OpenAIService:
             from uuid import UUID
             user_uuid = UUID(user_id) if isinstance(user_id, str) else user_id
 
-            # Get user memories (general + portfolio-specific if available)
-            memories = await get_user_memories(db, user_uuid, limit=10)
+            # Get user memories using AI database session
+            # (ai_memories table is in the AI database, not Core database)
+            async with get_ai_session() as ai_db:
+                # Get user memories (general + portfolio-specific if available)
+                memories = await get_user_memories(ai_db, user_uuid, limit=10)
 
-            # Also get portfolio-specific memories if we have a portfolio context
-            if portfolio_context and portfolio_context.get("portfolio_id"):
-                portfolio_id = portfolio_context["portfolio_id"]
-                portfolio_uuid = UUID(portfolio_id) if isinstance(portfolio_id, str) else portfolio_id
-                portfolio_memories = await get_user_memories(
-                    db, user_uuid, portfolio_id=portfolio_uuid, limit=5
-                )
-                # Combine, avoiding duplicates
-                existing_ids = {m["id"] for m in memories}
-                for pm in portfolio_memories:
-                    if pm["id"] not in existing_ids:
-                        memories.append(pm)
+                # Also get portfolio-specific memories if we have a portfolio context
+                if portfolio_context and portfolio_context.get("portfolio_id"):
+                    portfolio_id = portfolio_context["portfolio_id"]
+                    portfolio_uuid = UUID(portfolio_id) if isinstance(portfolio_id, str) else portfolio_id
+                    portfolio_memories = await get_user_memories(
+                        ai_db, user_uuid, portfolio_id=portfolio_uuid, limit=5
+                    )
+                    # Combine, avoiding duplicates
+                    existing_ids = {m["id"] for m in memories}
+                    for pm in portfolio_memories:
+                        if pm["id"] not in existing_ids:
+                            memories.append(pm)
 
             if not memories:
                 logger.debug("[Memory] No memories found for user")
