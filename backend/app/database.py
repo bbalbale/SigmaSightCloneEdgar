@@ -40,16 +40,29 @@ CoreSessionLocal = async_sessionmaker(
 # =============================================================================
 # AI Database Engine (RAG, memories, feedback with pgvector)
 # =============================================================================
-ai_engine = create_async_engine(
-    settings.ai_database_url,
-    echo=settings.DEBUG,
-    future=True,
-    pool_pre_ping=True,
-    pool_size=5,         # Lower throughput for heavy AI queries
-    max_overflow=10,
-    pool_timeout=60,     # Longer timeout for vector searches
-    pool_recycle=1800,
-)
+# Try to create AI engine, fall back to Core engine if AI DB not configured
+try:
+    _ai_db_url = settings.ai_database_url
+    if _ai_db_url and _ai_db_url != settings.core_database_url:
+        ai_engine = create_async_engine(
+            _ai_db_url,
+            echo=settings.DEBUG,
+            future=True,
+            pool_pre_ping=True,
+            pool_size=5,         # Lower throughput for heavy AI queries
+            max_overflow=10,
+            pool_timeout=60,     # Longer timeout for vector searches
+            pool_recycle=1800,
+        )
+        db_logger.info("AI database engine created with separate connection")
+    else:
+        # Fall back to core engine if AI DB URL not set or same as core
+        ai_engine = core_engine
+        db_logger.info("AI database using Core engine (AI_DATABASE_URL not set separately)")
+except Exception as e:
+    # Fall back to core engine on any error
+    db_logger.warning(f"Failed to create AI engine, using Core engine: {e}")
+    ai_engine = core_engine
 
 # AI session factory
 AISessionLocal = async_sessionmaker(
