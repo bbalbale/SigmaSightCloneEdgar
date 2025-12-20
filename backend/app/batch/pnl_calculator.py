@@ -67,9 +67,7 @@ class PnLCalculator:
         Returns:
             Summary of portfolios processed
         """
-        logger.info(f"=" * 80)
         logger.info(f"Phase 2: P&L Calculation for {calculation_date}")
-        logger.info(f"=" * 80)
 
         start_time = asyncio.get_event_loop().time()
 
@@ -270,30 +268,15 @@ class PnLCalculator:
         # Calculate new equity (incremental)
         new_equity = previous_equity + total_daily_pnl + daily_capital_flow
 
-        # EQUITY DEBUG LOGGING (Step 1 - Critical Investigation)
-        logger.info(f"[EQUITY DEBUG] Portfolio {portfolio_id} ({calculation_date}):")
-        logger.info(f"  Components breakdown:")
-        logger.info(f"    prev_equity:           ${previous_equity:,.2f}")
-        logger.info(f"    daily_unrealized_pnl:  ${daily_unrealized_pnl:,.2f}")
-        logger.info(f"    daily_realized_pnl:    ${daily_realized_pnl:,.2f}")
-        logger.info(f"    daily_capital_flow:    ${daily_capital_flow:,.2f}")
-        logger.info(f"    total_daily_pnl:       ${total_daily_pnl:,.2f}")
-        logger.info(f"  Calculation: {previous_equity} + {daily_unrealized_pnl} + {daily_realized_pnl} + {daily_capital_flow}")
-        logger.info(f"  new_equity:              ${new_equity:,.2f}")
-        logger.info(f"  BEFORE UPDATE: portfolio.equity_balance = ${portfolio.equity_balance:,.2f}")
+        # Equity calculation confirmation (single line)
+        logger.info(f"[EQUITY] {calculation_date}: ${previous_equity:,.0f} + PnL ${total_daily_pnl:,.0f} = ${new_equity:,.0f}")
 
         # Persist rolled equity so Portfolio.equity_balance remains the source of truth
         try:
             portfolio.equity_balance = new_equity
-            logger.info(f"  AFTER ASSIGNMENT: portfolio.equity_balance = ${portfolio.equity_balance:,.2f}")
-
             await db.flush()
-            logger.info(f"  AFTER FLUSH: portfolio.equity_balance = ${portfolio.equity_balance:,.2f}")
-            logger.info(f"  [OK] EQUITY UPDATE SUCCESSFUL")
         except Exception as e:
-            logger.error(f"  [ERROR] EQUITY UPDATE FAILED: {type(e).__name__}: {e}")
-            logger.error(f"  Exception details:", exc_info=True)
-            # Re-raise to stop processing - silent failures are bad!
+            logger.error(f"[EQUITY] Update failed: {e}")
             raise
 
         # PHASE 2.10 FIX: Populate placeholder instead of creating new snapshot
@@ -333,12 +316,7 @@ class PnLCalculator:
                 snapshot.cumulative_realized_pnl = daily_realized_pnl
                 snapshot.cumulative_capital_flow = daily_capital_flow
 
-            logger.info(f"  [EQUITY DEBUG] About to commit transaction...")
-            logger.info(f"    Portfolio equity_balance before commit: ${portfolio.equity_balance:,.2f}")
-            logger.info(f"    Snapshot is_complete={snapshot.is_complete}")
             await db.commit()
-            logger.info(f"  [EQUITY DEBUG] [OK] TRANSACTION COMMITTED")
-            logger.info(f"    ✓ Snapshot created and populated (is_complete=True)")
             return True
 
         except Exception as e:

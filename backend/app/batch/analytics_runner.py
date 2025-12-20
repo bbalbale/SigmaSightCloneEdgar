@@ -61,17 +61,11 @@ class AnalyticsRunner:
         Returns:
             Summary of analytics completed
         """
-        logger.info(f"=" * 80)
-        logger.info(f"Phase 3: Risk Analytics for {calculation_date}")
-        logger.info(f"=" * 80)
+        logger.debug(f"Phase 6: Analytics for {calculation_date}")
 
         # Store price cache for use by calculation methods
         self._price_cache = price_cache
-        if price_cache:
-            stats = price_cache.get_stats()
-            logger.debug(f"OPTIMIZATION: Using price cache with {stats.get('total_prices', 0)} preloaded prices")
-        else:
-            logger.warning("Price cache not provided - will use slower database queries")
+        # Price cache used if provided for faster lookups
 
         start_time = asyncio.get_event_loop().time()
 
@@ -96,9 +90,7 @@ class AnalyticsRunner:
         duration = int(asyncio.get_event_loop().time() - start_time)
         result['duration_seconds'] = duration
 
-        logger.info(f"Phase 3 complete in {duration}s")
-        logger.info(f"  Portfolios processed: {result['portfolios_processed']}")
-        logger.info(f"  Analytics completed: {result['analytics_completed']}")
+        logger.info(f"[ANALYTICS] {result['portfolios_processed']} portfolios, {result['analytics_completed']} jobs in {duration}s")
 
         return result
 
@@ -110,13 +102,7 @@ class AnalyticsRunner:
         run_sector_analysis: bool = True,
         price_cache: Optional[Any] = None,
     ) -> Dict[str, Any]:
-        """
-        Process all portfolios with parallel execution.
-
-        OPTIMIZATION (2025-12-20): Run portfolios in parallel with isolated sessions
-        to reduce Phase 6 time by 60-75%. Each portfolio gets its own database session
-        to avoid session conflicts during concurrent operations.
-        """
+        """Process all portfolios with provided session"""
         from sqlalchemy import select
 
         # Get all active portfolios
@@ -126,76 +112,37 @@ class AnalyticsRunner:
         result = await db.execute(query)
         portfolios = result.scalars().all()
 
-        logger.info(f"Found {len(portfolios)} active portfolios (PARALLEL MODE)")
+        logger.debug(f"Found {len(portfolios)} portfolios")
 
-        if not portfolios:
-            return {
-                'success': True,
-                'portfolios_processed': 0,
-                'analytics_completed': 0,
-                'errors': [],
-                'portfolio_reports': [],
-            }
-
-        # Helper to process a single portfolio with isolated session
-        async def _process_portfolio_isolated(portfolio_id: UUID, portfolio_name: str) -> Dict[str, Any]:
-            """Process single portfolio with its own database session."""
-            try:
-                async with AsyncSessionLocal() as isolated_db:
-                    report = await self.run_portfolio_analytics(
-                        portfolio_id=portfolio_id,
-                        calculation_date=calculation_date,
-                        db=isolated_db,
-                        run_sector_analysis=run_sector_analysis,
-                    )
-                    return {
-                        'success': True,
-                        'portfolio_id': str(portfolio_id),
-                        'portfolio_name': portfolio_name,
-                        'completed_count': report["completed_count"],
-                        'jobs': report["jobs"],
-                    }
-            except Exception as e:
-                import traceback
-                logger.error(f"Error processing portfolio {portfolio_name}: {e}")
-                logger.error(f"Traceback: {traceback.format_exc()}")
-                return {
-                    'success': False,
-                    'portfolio_id': str(portfolio_id),
-                    'portfolio_name': portfolio_name,
-                    'error': str(e),
-                }
-
-        # Run all portfolios in parallel
-        logger.info(f"  Starting parallel processing of {len(portfolios)} portfolios...")
-        tasks = [
-            _process_portfolio_isolated(portfolio.id, portfolio.name)
-            for portfolio in portfolios
-        ]
-        results = await asyncio.gather(*tasks, return_exceptions=True)
-
-        # Collect results
         portfolios_processed = 0
         analytics_completed = 0
         errors = []
         portfolio_reports: List[Dict[str, Any]] = []
 
-        for result in results:
-            if isinstance(result, Exception):
-                errors.append(f"Unexpected error: {str(result)}")
-            elif result.get('success'):
-                portfolios_processed += 1
-                analytics_completed += result.get('completed_count', 0)
-                portfolio_reports.append({
-                    'portfolio_id': result['portfolio_id'],
-                    'portfolio_name': result['portfolio_name'],
-                    'completed_count': result.get('completed_count', 0),
-                    'jobs': result.get('jobs', []),
-                })
-            else:
-                errors.append(f"{result.get('portfolio_name', 'Unknown')}: {result.get('error', 'Unknown error')}")
+        for portfolio in portfolios:
+            try:
+                report = await self.run_portfolio_analytics(
+                    portfolio_id=portfolio.id,
+                    calculation_date=calculation_date,
+                    db=db,
+                    run_sector_analysis=run_sector_analysis,
+                )
 
-        logger.info(f"  Parallel processing complete: {portfolios_processed}/{len(portfolios)} portfolios")
+                portfolios_processed += 1
+                analytics_completed += report["completed_count"]
+                portfolio_reports.append(
+                    {
+                        'portfolio_id': str(portfolio.id),
+                        'portfolio_name': portfolio.name,
+                        'completed_count': report["completed_count"],
+                        'jobs': report["jobs"],
+                    }
+                )
+            except Exception as e:
+                import traceback
+                logger.error(f"Error processing portfolio {portfolio.name}: {e}")
+                logger.error(f"Traceback: {traceback.format_exc()}")
+                errors.append(f"{portfolio.name}: {str(e)}")
 
         return {
             'success': len(errors) == 0,
@@ -215,50 +162,48 @@ class AnalyticsRunner:
         """
         Run all analytics for a single portfolio
 
-        NOTE: Jobs run sequentially within a portfolio to avoid SQLAlchemy session
-        conflicts. Parallelization happens at the portfolio level (multiple portfolios
-        processed concurrently) and date level (multiple dates processed concurrently).
-
         Args:
             portfolio_id: Portfolio to process
             calculation_date: Date to run analytics for
             db: Database session
-            run_sector_analysis: Whether to run sector analysis
 
         Returns:
             Dictionary containing job-level results and completion counts
         """
-        logger.info(f"  Running analytics for portfolio {portfolio_id}")
+        logger.debug(f"  Analytics for portfolio {portfolio_id}")
 
         completed = 0
         job_results: List[Dict[str, Any]] = []
         loop = asyncio.get_running_loop()
 
-        # Define all analytics jobs in order
+        # Define analytics to run (sequential to avoid session conflicts)
         analytics_jobs = [
             ("Market Beta (90D)", self._calculate_market_beta),
             ("Provider Beta (1Y)", self._calculate_provider_beta),
             ("IR Beta", self._calculate_ir_beta),
             ("Spread Factors", self._calculate_spread_factors),
             ("Ridge Factors", self._calculate_ridge_factors),
-            ("Volatility Analytics", self._calculate_volatility_analytics),
-            ("Correlations", self._calculate_correlations),
         ]
 
-        # Add sector analysis if enabled
         if run_sector_analysis:
             analytics_jobs.append(("Sector Analysis", self._calculate_sector_analysis))
-        else:
+
+        analytics_jobs.extend(
+            [
+                ("Volatility Analytics", self._calculate_volatility_analytics),
+                ("Correlations", self._calculate_correlations),
+                ("Stress Testing", self._calculate_stress_testing),
+            ]
+        )
+
+        if not run_sector_analysis:
             logger.debug(
                 "Skipping sector analysis for portfolio %s on %s (not target date)",
                 portfolio_id,
                 calculation_date,
             )
 
-        # Add stress testing last (depends on factor calculations)
-        analytics_jobs.append(("Stress Testing", self._calculate_stress_testing))
-
-        # Run jobs sequentially to avoid session conflicts
+        # Run analytics sequentially (single session can't handle concurrent ops)
         for job_name, job_func in analytics_jobs:
             job_start = loop.time()
             success_flag = False
@@ -269,8 +214,8 @@ class AnalyticsRunner:
                 raw_result = await job_func(db, portfolio_id, calculation_date)
                 success_flag, message, extra_payload = self._normalize_job_result(raw_result)
                 if success_flag:
-                    logger.debug(f"    OK {job_name}")
                     completed += 1
+                    logger.debug(f"    OK {job_name}")
                 else:
                     if not message:
                         message = "Job returned falsy result"
@@ -281,29 +226,28 @@ class AnalyticsRunner:
                 message = str(e)
                 logger.error(f"    FAIL {job_name} error: {e}")
                 logger.error(f"    Traceback: {traceback.format_exc()}")
+            finally:
+                duration = loop.time() - job_start
+                job_record: Dict[str, Any] = {
+                    'name': job_name,
+                    'success': success_flag,
+                    'duration_seconds': round(duration, 3),
+                }
+                if message:
+                    job_record['message'] = message
+                if extra_payload:
+                    job_record['details'] = extra_payload
 
-            duration = loop.time() - job_start
-            job_record: Dict[str, Any] = {
-                'name': job_name,
-                'success': success_flag,
-                'duration_seconds': round(duration, 3),
-            }
-            if message:
-                job_record['message'] = message
-            if extra_payload:
-                job_record['details'] = extra_payload
-
-            job_results.append(job_record)
-
-            record_metric(
-                "analytics_job_result",
-                {
-                    'portfolio_id': str(portfolio_id),
-                    'calculation_date': calculation_date.isoformat(),
-                    **job_record,
-                },
-                source="analytics_runner",
-            )
+                job_results.append(job_record)
+                record_metric(
+                    "analytics_job_result",
+                    {
+                        'portfolio_id': str(portfolio_id),
+                        'calculation_date': calculation_date.isoformat(),
+                        **job_record,
+                    },
+                    source="analytics_runner",
+                )
 
         # Commit all analytics results at once (prevents object expiration between calcs)
         try:
@@ -314,8 +258,7 @@ class AnalyticsRunner:
             await db.rollback()
             raise
 
-        total_jobs = len(analytics_jobs)
-        logger.info(f"    Analytics complete: {completed}/{total_jobs}")
+        logger.debug(f"    {completed}/{len(analytics_jobs)} jobs complete")
         return {
             'completed_count': completed,
             'jobs': job_results,
