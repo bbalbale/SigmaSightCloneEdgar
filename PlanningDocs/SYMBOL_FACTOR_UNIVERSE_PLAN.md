@@ -185,7 +185,7 @@ CREATE INDEX idx_symbol_factor_method ON symbol_factor_exposures(calculation_met
 - Spread factors: 4 records (Growth-Value, Momentum, Size, Quality spreads)
 - Total: 10 factor betas per symbol per date
 
-### New Table: `symbol_universe` (optional, for tracking)
+### New Table: `symbol_universe` (REQUIRED - supports Symbol Dashboard)
 ```sql
 CREATE TABLE symbol_universe (
     symbol VARCHAR(20) PRIMARY KEY,
@@ -197,6 +197,80 @@ CREATE TABLE symbol_universe (
     created_at TIMESTAMP DEFAULT NOW(),
     updated_at TIMESTAMP DEFAULT NOW()
 );
+```
+
+### New Table: `symbol_daily_metrics` (for Symbol Dashboard page)
+
+This table consolidates all current-day metrics for fast dashboard queries. Updated daily by batch process.
+
+```sql
+CREATE TABLE symbol_daily_metrics (
+    symbol VARCHAR(20) PRIMARY KEY REFERENCES symbol_universe(symbol),
+    metrics_date DATE NOT NULL,
+
+    -- Price & Returns (calculated from market_data)
+    current_price DECIMAL(12, 4),
+    return_1d DECIMAL(8, 6),        -- Daily return
+    return_mtd DECIMAL(8, 6),       -- Month-to-date
+    return_ytd DECIMAL(8, 6),       -- Year-to-date
+    return_1m DECIMAL(8, 6),        -- Rolling 1 month
+    return_3m DECIMAL(8, 6),        -- Rolling 3 months
+    return_1y DECIMAL(8, 6),        -- Rolling 1 year
+
+    -- Valuation (from company_profiles/fundamentals)
+    market_cap DECIMAL(18, 2),
+    enterprise_value DECIMAL(18, 2),
+    pe_ratio DECIMAL(10, 4),
+    ps_ratio DECIMAL(10, 4),
+    pb_ratio DECIMAL(10, 4),
+
+    -- Company Info (from company_profiles)
+    sector VARCHAR(100),
+    industry VARCHAR(100),
+    company_name VARCHAR(255),
+
+    -- Factor Exposures (denormalized from symbol_factor_exposures for fast reads)
+    -- Ridge Factors
+    factor_value DECIMAL(8, 6),
+    factor_growth DECIMAL(8, 6),
+    factor_momentum DECIMAL(8, 6),
+    factor_quality DECIMAL(8, 6),
+    factor_size DECIMAL(8, 6),
+    factor_low_vol DECIMAL(8, 6),
+    -- Spread Factors
+    factor_growth_value_spread DECIMAL(8, 6),
+    factor_momentum_spread DECIMAL(8, 6),
+    factor_size_spread DECIMAL(8, 6),
+    factor_quality_spread DECIMAL(8, 6),
+
+    -- Metadata
+    data_quality_score DECIMAL(4, 2),  -- 0-100, completeness indicator
+    updated_at TIMESTAMP DEFAULT NOW(),
+
+    -- Index for sorting by any metric
+    CONSTRAINT uq_symbol_metrics_date UNIQUE (symbol, metrics_date)
+);
+
+-- Indexes for common sort/filter operations
+CREATE INDEX idx_metrics_sector ON symbol_daily_metrics(sector);
+CREATE INDEX idx_metrics_market_cap ON symbol_daily_metrics(market_cap DESC);
+CREATE INDEX idx_metrics_return_ytd ON symbol_daily_metrics(return_ytd DESC);
+CREATE INDEX idx_metrics_pe ON symbol_daily_metrics(pe_ratio);
+CREATE INDEX idx_metrics_factor_momentum ON symbol_daily_metrics(factor_momentum DESC);
+```
+
+**Why denormalize factors into this table?**
+- Dashboard needs to sort/filter by factor exposure (e.g., "show me highest momentum stocks")
+- Single query returns all columns - no joins needed
+- ~100 symbols × 1 row each = tiny table, fast full scans
+- Updated once per day during batch processing
+
+**Data flow:**
+```
+Batch Processing:
+├── market_data → calculate returns → symbol_daily_metrics.return_*
+├── company_profiles → copy to → symbol_daily_metrics.sector, pe_ratio, etc.
+└── symbol_factor_exposures → denormalize → symbol_daily_metrics.factor_*
 ```
 
 ### What Happens to `position_factor_exposures`?
@@ -386,8 +460,9 @@ async def get_portfolio_factor_exposures(
 
 ### Phase 4: Batch Orchestrator Integration (2-3 hours)
 1. Add new Phase 0.5: Universe Factor Calculation (runs BEFORE portfolio processing)
-2. Modify Phase 6 analytics to use new aggregation service
-3. Keep backward compatibility with existing PositionFactorExposure table
+2. Add new Phase 7: Symbol Daily Metrics (runs AFTER all calculations)
+3. Modify Phase 6 analytics to use new aggregation service
+4. Keep backward compatibility with existing PositionFactorExposure table
 
 ```python
 # In batch_orchestrator.py
@@ -402,9 +477,56 @@ async def run_daily_batch_with_backfill(...):
 
     # ...existing Phase 1 (Market Data)...
     # ...existing Phase 2-6...
+
+    # NEW: Phase 7 - Update Symbol Daily Metrics (for dashboard)
+    logger.info(f"Phase 7: Updating symbol daily metrics")
+    metrics_result = await update_symbol_daily_metrics(calculation_date)
+    logger.info(f"[METRICS] {metrics_result['symbols_updated']} symbols updated")
 ```
 
-### Phase 5: Testing & Validation (2-3 hours)
+### Phase 5: Symbol Daily Metrics Service (2-3 hours)
+
+Create service to consolidate all metrics for the Symbol Dashboard.
+
+```python
+# app/services/symbol_metrics_service.py
+
+async def update_symbol_daily_metrics(calculation_date: date) -> Dict:
+    """
+    Consolidate all symbol metrics into symbol_daily_metrics table.
+    Called at end of batch processing.
+    """
+    async with AsyncSessionLocal() as db:
+        # Get all symbols in universe
+        symbols = await get_active_symbols(db)
+
+        for symbol in symbols:
+            # Gather data from multiple sources
+            returns = await calculate_symbol_returns(db, symbol, calculation_date)
+            profile = await get_company_profile(db, symbol)
+            factors = await get_symbol_factors(db, symbol, calculation_date)
+
+            # Upsert into symbol_daily_metrics
+            await upsert_symbol_metrics(db, symbol, {
+                'metrics_date': calculation_date,
+                'current_price': returns.get('current_price'),
+                'return_1d': returns.get('return_1d'),
+                'return_mtd': returns.get('return_mtd'),
+                'return_ytd': returns.get('return_ytd'),
+                'market_cap': profile.market_cap,
+                'pe_ratio': profile.pe_ratio,
+                'ps_ratio': profile.ps_ratio,
+                'sector': profile.sector,
+                'factor_momentum': factors.get('momentum'),
+                'factor_value': factors.get('value'),
+                # ... other factors
+            })
+
+        await db.commit()
+        return {'symbols_updated': len(symbols)}
+```
+
+### Phase 6: Testing & Validation (2-3 hours)
 1. Verify symbol betas match position betas (for same symbol)
 2. Verify portfolio aggregation matches current calculation
 3. Performance benchmarks: before vs after
@@ -637,6 +759,140 @@ Before deprecating `position_factor_exposures`:
 
 ---
 
+## Symbol Dashboard API
+
+New endpoint to power the Symbol Universe dashboard page.
+
+### Endpoint: `GET /api/v1/data/symbols`
+
+Returns all symbols with current metrics, supporting sorting and filtering.
+
+```python
+# app/api/v1/data.py
+
+@router.get("/symbols")
+async def get_symbol_universe(
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(get_current_user),
+    # Sorting
+    sort_by: str = Query("market_cap", regex="^(symbol|sector|market_cap|pe_ratio|ps_ratio|return_1d|return_ytd|factor_.*)$"),
+    sort_order: str = Query("desc", regex="^(asc|desc)$"),
+    # Filtering
+    sector: Optional[str] = Query(None),
+    min_market_cap: Optional[float] = Query(None),
+    max_pe_ratio: Optional[float] = Query(None),
+    # Pagination
+    limit: int = Query(100, le=500),
+    offset: int = Query(0),
+) -> SymbolUniverseResponse:
+    """
+    Get all symbols with current metrics for dashboard display.
+
+    Single query against symbol_daily_metrics table - no joins needed.
+    Supports sorting by any column and filtering by sector/valuation.
+    """
+    stmt = select(SymbolDailyMetrics)
+
+    # Apply filters
+    if sector:
+        stmt = stmt.where(SymbolDailyMetrics.sector == sector)
+    if min_market_cap:
+        stmt = stmt.where(SymbolDailyMetrics.market_cap >= min_market_cap)
+    if max_pe_ratio:
+        stmt = stmt.where(SymbolDailyMetrics.pe_ratio <= max_pe_ratio)
+
+    # Apply sorting
+    sort_column = getattr(SymbolDailyMetrics, sort_by)
+    if sort_order == "desc":
+        stmt = stmt.order_by(sort_column.desc().nulls_last())
+    else:
+        stmt = stmt.order_by(sort_column.asc().nulls_last())
+
+    # Pagination
+    stmt = stmt.limit(limit).offset(offset)
+
+    result = await db.execute(stmt)
+    symbols = result.scalars().all()
+
+    return SymbolUniverseResponse(
+        symbols=[SymbolMetricsSchema.from_orm(s) for s in symbols],
+        total_count=await get_total_count(db, sector, min_market_cap, max_pe_ratio),
+        metrics_date=symbols[0].metrics_date if symbols else None
+    )
+```
+
+### Response Schema
+
+```python
+class SymbolMetricsSchema(BaseModel):
+    symbol: str
+    company_name: Optional[str]
+    sector: Optional[str]
+    industry: Optional[str]
+
+    # Price & Returns
+    current_price: Optional[float]
+    return_1d: Optional[float]
+    return_mtd: Optional[float]
+    return_ytd: Optional[float]
+    return_1y: Optional[float]
+
+    # Valuation
+    market_cap: Optional[float]
+    enterprise_value: Optional[float]
+    pe_ratio: Optional[float]
+    ps_ratio: Optional[float]
+
+    # Factor Exposures
+    factor_value: Optional[float]
+    factor_growth: Optional[float]
+    factor_momentum: Optional[float]
+    factor_quality: Optional[float]
+    factor_size: Optional[float]
+    factor_low_vol: Optional[float]
+
+    data_quality_score: Optional[float]
+
+class SymbolUniverseResponse(BaseModel):
+    symbols: List[SymbolMetricsSchema]
+    total_count: int
+    metrics_date: Optional[date]
+```
+
+### Frontend Usage
+
+```typescript
+// services/symbolsApi.ts
+export const symbolsApi = {
+  getUniverse: async (params: {
+    sortBy?: string;
+    sortOrder?: 'asc' | 'desc';
+    sector?: string;
+    minMarketCap?: number;
+  }) => {
+    const response = await apiClient.get('/data/symbols', { params });
+    return response.data;
+  }
+};
+
+// Example: Sort by momentum factor, descending
+const highMomentumStocks = await symbolsApi.getUniverse({
+  sortBy: 'factor_momentum',
+  sortOrder: 'desc',
+  limit: 20
+});
+```
+
+### Query Performance
+
+| Operation | Expected Time |
+|-----------|--------------|
+| Full table scan (100 symbols) | <50ms |
+| Filtered by sector | <20ms |
+| Sorted by any column | <50ms (indexed) |
+
+---
+
 ## Performance Expectations
 
 ### Current Performance (100 symbols across 3 portfolios)
@@ -705,17 +961,25 @@ Before deprecating `position_factor_exposures`:
 
 ## File Changes Summary
 
-### New Files
+### New Files - Core Architecture
 - `app/calculations/symbol_factors.py` - Core symbol-level calculation
 - `app/services/portfolio_factor_service.py` - Portfolio aggregation
-- `app/models/symbol_factor_exposures.py` - SQLAlchemy model for new table
-- `alembic/versions/xxx_add_symbol_factor_exposures.py` - Migration
-- `scripts/validation/compare_factor_exposures.py` - **Comparison script for dual-write validation**
+- `app/models/symbol_factor_exposures.py` - SQLAlchemy model for factor table
+- `app/models/symbol_daily_metrics.py` - SQLAlchemy model for dashboard table
+- `app/models/symbol_universe.py` - SQLAlchemy model for universe tracking
+- `alembic/versions/xxx_add_symbol_tables.py` - Migration for all 3 new tables
+- `scripts/validation/compare_factor_exposures.py` - Comparison script for dual-write validation
+
+### New Files - Symbol Dashboard
+- `app/services/symbol_metrics_service.py` - Consolidates metrics for dashboard
+- `app/api/v1/schemas/symbols.py` - Pydantic schemas for API response
+- `frontend/src/services/symbolsApi.ts` - Frontend API client
 
 ### Modified Files
-- `app/batch/batch_orchestrator.py` - Add Phase 0.5
+- `app/batch/batch_orchestrator.py` - Add Phase 0.5 (factors) and Phase 7 (metrics)
 - `app/batch/analytics_runner.py` - Use new aggregation service
 - `app/calculations/factors_ridge.py` - Refactor to use symbol-level
+- `app/api/v1/data.py` - Add `/symbols` endpoint
 
 ### Deprecated (Eventually, after validation passes)
 - Position-level factor calculation in `factors_ridge.py`
@@ -732,6 +996,8 @@ Before deprecating `position_factor_exposures`:
 | Redundant calculations (shared symbols) | Yes | None |
 | Parallel batch errors | N/A | 0 |
 | Portfolio aggregation time | ~10s | <1s |
+| Symbol Dashboard API response | N/A | <100ms |
+| Dashboard table size | N/A | ~100 rows |
 
 ---
 
