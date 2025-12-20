@@ -184,12 +184,14 @@ class BatchOrchestrator:
         logger.info(f"Backfilling {len(missing_dates)} missing dates: {missing_dates[0]} to {missing_dates[-1]}")
 
         # =============================================================================
-        # STEP 1: Run Phase 1 (Market Data) for ALL dates FIRST
+        # STEP 1: Run Phase 1 (Market Data) for ALL dates FIRST (PARALLEL)
         # This ensures market_data_cache has all prices before we load the price cache
         # =============================================================================
         logger.info(f"[PHASE 1] Collecting market data for {len(missing_dates)} date(s)...")
-        for i, calc_date in enumerate(missing_dates, 1):
-            logger.info(f"[PHASE 1] Market data for {calc_date} ({i}/{len(missing_dates)})")
+
+        async def _collect_market_data_for_date(calc_date: date, date_index: int, total_dates: int) -> Dict[str, Any]:
+            """Collect market data for a single date with its own database session."""
+            logger.info(f"[PHASE 1] Market data for {calc_date} ({date_index}/{total_dates})")
             async with AsyncSessionLocal() as db:
                 try:
                     phase1_result = await market_data_collector.collect_daily_market_data(
@@ -201,8 +203,31 @@ class BatchOrchestrator:
                     )
                     if not phase1_result.get('success'):
                         logger.warning(f"[PHASE 1] Market data collection had issues for {calc_date}")
+                    return {'date': calc_date, 'success': phase1_result.get('success', False), 'result': phase1_result}
                 except Exception as e:
                     logger.error(f"[PHASE 1] Error collecting market data for {calc_date}: {e}")
+                    return {'date': calc_date, 'success': False, 'error': str(e)}
+
+        # Process Phase 1 dates in parallel batches (5 dates at a time to avoid API rate limits)
+        phase1_batch_size = 5
+        total_dates = len(missing_dates)
+        for batch_start in range(0, total_dates, phase1_batch_size):
+            batch_end = min(batch_start + phase1_batch_size, total_dates)
+            batch_dates = missing_dates[batch_start:batch_end]
+            logger.info(f"[PHASE 1] Processing batch {batch_start // phase1_batch_size + 1}: dates {batch_start + 1}-{batch_end} of {total_dates}")
+
+            tasks = [
+                _collect_market_data_for_date(calc_date, batch_start + i + 1, total_dates)
+                for i, calc_date in enumerate(batch_dates)
+            ]
+            batch_results = await asyncio.gather(*tasks, return_exceptions=True)
+
+            # Log any failures in the batch
+            for result in batch_results:
+                if isinstance(result, Exception):
+                    logger.error(f"[PHASE 1] Batch task exception: {result}")
+                elif isinstance(result, dict) and not result.get('success'):
+                    logger.warning(f"[PHASE 1] Date {result.get('date')} had issues")
                     # Continue to next date - we'll try to process what we have
 
         # =============================================================================
@@ -245,35 +270,71 @@ class BatchOrchestrator:
                 logger.debug(f"   Cache stats: {price_cache.get_stats()}")
 
         # =============================================================================
-        # STEP 3: Run Phases 0, 2-6 for each date (using populated price cache)
+        # STEP 3: Run Phases 0, 2-6 for each date (using populated price cache) - PARALLEL
         # Phase 1 already completed above, so we skip it in run_daily_batch_sequence
         # =============================================================================
-        results = []
-        for i, calc_date in enumerate(missing_dates, 1):
+        async def _run_phases_2_6_for_date(calc_date: date, date_index: int, total_count: int) -> Dict[str, Any]:
+            """Run Phases 2-6 for a single date with its own database session."""
             logger.info(f"\n{'=' * 80}")
-            logger.info(f"Processing Phases 2-6 for {calc_date} ({i}/{len(missing_dates)})")
+            logger.info(f"Processing Phases 2-6 for {calc_date} ({date_index}/{total_count})")
             logger.info(f"{'=' * 80}")
 
             # Create fresh session for this date
             async with AsyncSessionLocal() as db:
-                result = await self._run_phases_2_through_6(
-                    db=db,
-                    calculation_date=calc_date,
-                    portfolio_ids=portfolio_ids,
-                    run_sector_analysis=(calc_date == target_date),
-                    price_cache=price_cache
-                )
+                try:
+                    result = await self._run_phases_2_through_6(
+                        db=db,
+                        calculation_date=calc_date,
+                        portfolio_ids=portfolio_ids,
+                        run_sector_analysis=(calc_date == target_date),
+                        price_cache=price_cache
+                    )
 
-                results.append(result)
+                    # Mark as complete in tracking table
+                    if result['success']:
+                        await self._mark_batch_run_complete(db, calc_date, result)
 
-                # Mark as complete in tracking table
-                if result['success']:
-                    await self._mark_batch_run_complete(db, calc_date, result)
+                    # Final commit to ensure all Phase 6 analytics are persisted
+                    await db.commit()
+                    logger.debug(f"Final commit completed for {calc_date}")
+                    return result
+                except Exception as e:
+                    logger.error(f"Error processing Phases 2-6 for {calc_date}: {e}")
+                    import traceback
+                    logger.error(f"Traceback: {traceback.format_exc()}")
+                    return {
+                        'success': False,
+                        'calculation_date': calc_date,
+                        'errors': [f"Exception: {str(e)}"]
+                    }
 
-                # Final commit to ensure all Phase 6 analytics are persisted
-                # (analytics_runner commits internally, but we need final commit before context exits)
-                await db.commit()
-                logger.debug(f"Final commit completed for {calc_date}")
+        # Process Phases 2-6 in parallel batches (5 dates at a time)
+        phases_batch_size = 5
+        results = []
+        total_count = len(missing_dates)
+        for batch_start in range(0, total_count, phases_batch_size):
+            batch_end = min(batch_start + phases_batch_size, total_count)
+            batch_dates = missing_dates[batch_start:batch_end]
+            logger.info(f"\n[PHASES 2-6] Processing batch {batch_start // phases_batch_size + 1}: dates {batch_start + 1}-{batch_end} of {total_count}")
+
+            tasks = [
+                _run_phases_2_6_for_date(calc_date, batch_start + i + 1, total_count)
+                for i, calc_date in enumerate(batch_dates)
+            ]
+            batch_results = await asyncio.gather(*tasks, return_exceptions=True)
+
+            # Process batch results
+            for result in batch_results:
+                if isinstance(result, Exception):
+                    logger.error(f"[PHASES 2-6] Batch task exception: {result}")
+                    results.append({
+                        'success': False,
+                        'errors': [f"Exception: {str(result)}"]
+                    })
+                elif isinstance(result, dict):
+                    results.append(result)
+                    if not result.get('success'):
+                        logger.warning(f"[PHASES 2-6] Date {result.get('calculation_date')} had issues")
 
         duration = int(asyncio.get_event_loop().time() - start_time)
 
