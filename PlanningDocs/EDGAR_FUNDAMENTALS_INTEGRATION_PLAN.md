@@ -1,9 +1,10 @@
 # EDGAR Fundamentals Integration Plan
 
 **Project**: Integrate StockFundamentals (SEC EDGAR) into SigmaSight
-**Approach**: Option A - Microservice Architecture
+**Approach**: Option A - Microservice Architecture (Same Railway Project)
 **Created**: 2025-12-17
-**Status**: Planning
+**Updated**: 2025-12-19
+**Status**: Planning (Revised)
 
 ---
 
@@ -18,8 +19,10 @@
 7. [Phase 5: Frontend Integration](#phase-5-frontend-integration)
 8. [Phase 6: Testing & Validation](#phase-6-testing--validation)
 9. [Deployment Strategy](#deployment-strategy)
-10. [Risk Assessment](#risk-assessment)
-11. [Appendices](#appendices)
+10. [Monitoring & Alerting](#monitoring--alerting)
+11. [Rollback Strategy](#rollback-strategy)
+12. [Risk Assessment](#risk-assessment)
+13. [Appendices](#appendices)
 
 ---
 
@@ -36,7 +39,9 @@ Integrate the StockFundamentals microservice into SigmaSight to provide users wi
 - **Audit Trail**: Direct links to SEC filings
 
 ### Approach
-Deploy StockFundamentals as a separate microservice that SigmaSight calls via HTTP API. This maintains separation of concerns and allows independent scaling.
+Deploy StockFundamentals as services **within the existing SigmaSight Railway project**. This enables Railway's private networking between services while maintaining code separation (separate Git repos). Services communicate via HTTP API over Railway's internal network.
+
+> ⚠️ **Critical Decision**: Railway private networking (`*.railway.internal`) only works within the SAME project. Deploying as separate Railway projects would require public URLs, adding latency and security exposure.
 
 ### Timeline Estimate
 - **Total Duration**: 5-7 working days
@@ -49,6 +54,18 @@ Deploy StockFundamentals as a separate microservice that SigmaSight calls via HT
 - **StockFundamentals** stays in its own repo (`bbalbalbae/StockFundamentals`)
 - **SigmaSight** only adds a thin HTTP client + proxy endpoints (~300 lines)
 - **No code copying** - services communicate via HTTP API
+
+### Gradual Rollout Strategy
+1. **Phase A**: Deploy with `EDGAR_ENABLED=false` - service runs but endpoints hidden
+2. **Phase B**: Enable for internal testing - flip flag, verify data quality
+3. **Phase C**: Enable UI toggle - users can switch between EDGAR and Yahoo
+4. **Phase D**: Make EDGAR default - Yahoo becomes fallback
+
+### Simplified Initial Deployment
+Start **without Celery/Redis** for faster initial deployment:
+- Synchronous EDGAR API calls (acceptable for user-triggered requests)
+- Add Celery later when async refresh jobs become necessary
+- Reduces Railway cost from ~$20/mo to ~$10/mo initially
 
 ### Database Architecture (IMPORTANT)
 ```
@@ -93,33 +110,45 @@ All Alembic commands in this plan run in the StockFundamentals repo.
 └─────────────────────────────────────────────────────────────┘
 ```
 
-### Target State
+### Target State (Same Railway Project)
 ```
-┌─────────────────────────────────────────────────────────────────────────┐
-│                              SigmaSight                                  │
-│  ┌─────────────┐    ┌──────────────┐    ┌───────────────┐               │
-│  │   Frontend  │───▶│   Backend    │───▶│  PostgreSQL   │               │
-│  │  (Next.js)  │    │  (FastAPI)   │    │   (Railway)   │               │
-│  └─────────────┘    └──────┬───────┘    └───────┬───────┘               │
-│                            │                    │                        │
-│              ┌─────────────┼────────────────────┤                        │
-│              │             │                    │                        │
-│              ▼             ▼                    │                        │
-│    ┌───────────────┐ ┌─────────────────────────┴────────────────────┐   │
-│    │  YahooQuery   │ │         StockFundamentals Service            │   │
-│    │  (Fallback)   │ │  ┌──────────┐  ┌────────┐  ┌─────────────┐   │   │
-│    └───────────────┘ │  │ FastAPI  │  │ Redis  │  │ PostgreSQL  │   │   │
-│                      │  │  :8001   │  │ :6379  │  │   :5433     │   │   │
-│                      │  └────┬─────┘  └────────┘  └─────────────┘   │   │
-│                      │       │                                       │   │
-│                      │       ▼                                       │   │
-│                      │  ┌──────────┐                                 │   │
-│                      │  │SEC EDGAR │                                 │   │
-│                      │  │  (API)   │                                 │   │
-│                      │  └──────────┘                                 │   │
-│                      └──────────────────────────────────────────────┘   │
-└─────────────────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    Railway Project: SigmaSight                               │
+│                                                                              │
+│  ┌─────────────────────────────────────────────────────────────────────┐    │
+│  │                     EXISTING SERVICES                                │    │
+│  │  ┌─────────────┐    ┌──────────────┐    ┌───────────────┐           │    │
+│  │  │   Frontend  │───▶│   Backend    │───▶│  PostgreSQL   │           │    │
+│  │  │  (Next.js)  │    │  (FastAPI)   │    │   (existing)  │           │    │
+│  │  └─────────────┘    └──────┬───────┘    └───────────────┘           │    │
+│  └────────────────────────────┼─────────────────────────────────────────┘    │
+│                               │                                              │
+│                               │ HTTP (*.railway.internal)                    │
+│                               ▼                                              │
+│  ┌─────────────────────────────────────────────────────────────────────┐    │
+│  │                     NEW SERVICES (StockFundamentals)                 │    │
+│  │  ┌──────────────┐           ┌─────────────────┐                     │    │
+│  │  │ stockfund-api│           │ stockfund-db    │                     │    │
+│  │  │  (FastAPI)   │──────────▶│ (PostgreSQL)    │                     │    │
+│  │  │  :8000       │           │ (separate DB)   │                     │    │
+│  │  └──────┬───────┘           └─────────────────┘                     │    │
+│  │         │                                                            │    │
+│  │         ▼                                                            │    │
+│  │  ┌──────────────┐                                                   │    │
+│  │  │  SEC EDGAR   │   ┌───────────────────────────────────────────┐   │    │
+│  │  │  (External)  │   │ OPTIONAL (Phase 2): Redis + Celery Worker │   │    │
+│  │  └──────────────┘   └───────────────────────────────────────────┘   │    │
+│  └─────────────────────────────────────────────────────────────────────┘    │
+│                                                                              │
+│         YahooQuery (External) ◀─── Fallback when EDGAR unavailable          │
+└─────────────────────────────────────────────────────────────────────────────┘
 ```
+
+**Key Benefits of Same Project:**
+- Private networking works (`stockfund-api.railway.internal`)
+- Shared environment variable references
+- Single billing/monitoring dashboard
+- Simpler deployment coordination
 
 ### Service Communication
 ```
@@ -266,11 +295,13 @@ Create `backend/app/services/edgar_client.py`:
 EDGAR Fundamentals Client
 
 HTTP client for communicating with StockFundamentals microservice.
+Uses FastAPI dependency injection for proper lifecycle management.
 """
 
 import httpx
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any
 from datetime import date
+from contextlib import asynccontextmanager
 
 from app.core.config import settings
 from app.core.logging import get_logger
@@ -283,22 +314,37 @@ class EdgarClientError(Exception):
     pass
 
 
+class EdgarServiceUnavailable(EdgarClientError):
+    """Raised when StockFundamentals service is unreachable."""
+    pass
+
+
+class EdgarTickerNotFound(EdgarClientError):
+    """Raised when ticker has no EDGAR data."""
+    pass
+
+
 class EdgarClient:
-    """Async HTTP client for StockFundamentals API."""
+    """
+    Async HTTP client for StockFundamentals API.
+
+    Uses dependency injection pattern - do NOT instantiate at module level.
+    Use get_edgar_client() dependency instead.
+    """
 
     def __init__(
         self,
-        base_url: str = None,
-        api_key: str = None,
+        base_url: str,
+        api_key: str,
         timeout: float = 30.0
     ):
-        self.base_url = (base_url or settings.STOCKFUND_API_URL).rstrip("/")
-        self.api_key = api_key or settings.STOCKFUND_API_KEY
+        self.base_url = base_url.rstrip("/")
+        self.api_key = api_key
         self.timeout = timeout
         self._client: Optional[httpx.AsyncClient] = None
 
     async def _get_client(self) -> httpx.AsyncClient:
-        """Get or create HTTP client."""
+        """Get or create HTTP client with connection pooling."""
         if self._client is None or self._client.is_closed:
             self._client = httpx.AsyncClient(
                 base_url=self.base_url,
@@ -307,13 +353,19 @@ class EdgarClient:
                     "Accept": "application/json",
                 },
                 timeout=httpx.Timeout(self.timeout),
+                # Connection pooling settings
+                limits=httpx.Limits(
+                    max_keepalive_connections=5,
+                    max_connections=10,
+                ),
             )
         return self._client
 
     async def close(self):
-        """Close HTTP client."""
+        """Close HTTP client and release connections."""
         if self._client and not self._client.is_closed:
             await self._client.aclose()
+            self._client = None
 
     async def health_check(self) -> Dict[str, Any]:
         """Check StockFundamentals service health."""
@@ -322,6 +374,12 @@ class EdgarClient:
             response = await client.get("/health")
             response.raise_for_status()
             return response.json()
+        except httpx.ConnectError as e:
+            logger.error("EDGAR service unreachable", error=str(e))
+            raise EdgarServiceUnavailable(f"Service unreachable: {e}")
+        except httpx.TimeoutException as e:
+            logger.error("EDGAR service timeout", error=str(e))
+            raise EdgarServiceUnavailable(f"Service timeout: {e}")
         except httpx.HTTPError as e:
             logger.error("EDGAR service health check failed", error=str(e))
             raise EdgarClientError(f"Health check failed: {e}")
@@ -332,7 +390,7 @@ class EdgarClient:
         freq: str = "quarter",
         periods: int = 4,
         end_date: Optional[date] = None,
-    ) -> Dict[str, Any]:
+    ) -> Optional[Dict[str, Any]]:
         """
         Fetch multi-period financial data from EDGAR.
 
@@ -343,7 +401,11 @@ class EdgarClient:
             end_date: Optional end date filter
 
         Returns:
-            Financial data with periods array
+            Financial data with periods array, or None if ticker not found
+
+        Raises:
+            EdgarServiceUnavailable: Service is down or unreachable
+            EdgarClientError: Other API errors
         """
         client = await self._get_client()
 
@@ -361,10 +423,19 @@ class EdgarClient:
             )
             response.raise_for_status()
             return response.json()
+        except httpx.ConnectError as e:
+            logger.error("EDGAR service unreachable", ticker=ticker, error=str(e))
+            raise EdgarServiceUnavailable(f"Service unreachable: {e}")
+        except httpx.TimeoutException as e:
+            logger.error("EDGAR request timeout", ticker=ticker, error=str(e))
+            raise EdgarServiceUnavailable(f"Request timeout: {e}")
         except httpx.HTTPStatusError as e:
             if e.response.status_code == 404:
-                logger.warning("Ticker not found in EDGAR", ticker=ticker)
+                logger.info("Ticker not found in EDGAR", ticker=ticker)
                 return None
+            if e.response.status_code >= 500:
+                logger.error("EDGAR service error", ticker=ticker, status=e.response.status_code)
+                raise EdgarServiceUnavailable(f"Service error: {e.response.status_code}")
             logger.error("EDGAR API error", ticker=ticker, error=str(e))
             raise EdgarClientError(f"API error: {e}")
         except httpx.HTTPError as e:
@@ -375,7 +446,7 @@ class EdgarClient:
         self,
         ticker: str,
         period_end: Optional[date] = None,
-    ) -> Dict[str, Any]:
+    ) -> Optional[Dict[str, Any]]:
         """Fetch single period financial data."""
         client = await self._get_client()
 
@@ -390,9 +461,15 @@ class EdgarClient:
             )
             response.raise_for_status()
             return response.json()
+        except httpx.ConnectError as e:
+            raise EdgarServiceUnavailable(f"Service unreachable: {e}")
+        except httpx.TimeoutException as e:
+            raise EdgarServiceUnavailable(f"Request timeout: {e}")
         except httpx.HTTPStatusError as e:
             if e.response.status_code == 404:
                 return None
+            if e.response.status_code >= 500:
+                raise EdgarServiceUnavailable(f"Service error: {e.response.status_code}")
             raise EdgarClientError(f"API error: {e}")
 
     async def refresh_ticker(
@@ -414,6 +491,8 @@ class EdgarClient:
             )
             response.raise_for_status()
             return response.json()
+        except httpx.ConnectError as e:
+            raise EdgarServiceUnavailable(f"Service unreachable: {e}")
         except httpx.HTTPError as e:
             raise EdgarClientError(f"Refresh failed: {e}")
 
@@ -424,9 +503,66 @@ class EdgarClient:
         await self.close()
 
 
-# Singleton instance
-edgar_client = EdgarClient()
+# ============================================================================
+# FastAPI Dependency Injection
+# ============================================================================
+
+# Global client instance - initialized via lifespan
+_edgar_client: Optional[EdgarClient] = None
+
+
+@asynccontextmanager
+async def edgar_client_lifespan(app):
+    """
+    FastAPI lifespan context manager for EdgarClient.
+
+    Usage in main.py:
+        from app.services.edgar_client import edgar_client_lifespan
+
+        app = FastAPI(lifespan=edgar_client_lifespan)
+    """
+    global _edgar_client
+
+    if settings.EDGAR_ENABLED:
+        _edgar_client = EdgarClient(
+            base_url=settings.STOCKFUND_API_URL,
+            api_key=settings.STOCKFUND_API_KEY,
+        )
+        logger.info("EdgarClient initialized", base_url=settings.STOCKFUND_API_URL)
+
+    yield
+
+    if _edgar_client:
+        await _edgar_client.close()
+        logger.info("EdgarClient closed")
+
+
+async def get_edgar_client() -> Optional[EdgarClient]:
+    """
+    FastAPI dependency for EdgarClient.
+
+    Returns None if EDGAR is disabled, allowing graceful degradation.
+
+    Usage:
+        @router.get("/financials/{ticker}")
+        async def get_financials(
+            ticker: str,
+            edgar: Optional[EdgarClient] = Depends(get_edgar_client)
+        ):
+            if edgar is None:
+                raise HTTPException(503, "EDGAR service disabled")
+            ...
+    """
+    if not settings.EDGAR_ENABLED:
+        return None
+    return _edgar_client
 ```
+
+> ⚠️ **Important Changes from Original:**
+> 1. No module-level singleton - uses FastAPI lifespan for proper initialization
+> 2. Specific exception types (`EdgarServiceUnavailable`, `EdgarTickerNotFound`)
+> 3. Handles `ConnectError` and `TimeoutException` separately
+> 4. Returns `None` when EDGAR disabled (graceful degradation)
 
 ##### 3.1.2 Create Pydantic Schemas
 Create `backend/app/schemas/edgar_fundamentals.py`:
@@ -534,6 +670,16 @@ class EdgarHealthResponse(BaseModel):
     database: Optional[bool] = None
     redis: Optional[bool] = None
     edgar_api: Optional[bool] = None
+
+
+class EdgarRefreshResponse(BaseModel):
+    """Response from refresh endpoint."""
+
+    ticker: str
+    status: str = Field(..., description="pending, in_progress, or completed")
+    job_id: Optional[str] = Field(None, description="Background job ID (if async)")
+    message: Optional[str] = None
+    filings_found: Optional[int] = None
 ```
 
 #### Acceptance Criteria
@@ -558,40 +704,72 @@ Create `backend/app/api/v1/edgar_fundamentals.py`:
 EDGAR Fundamentals API Endpoints
 
 Proxy endpoints for SEC EDGAR financial data via StockFundamentals service.
+Uses dependency injection for proper client lifecycle management.
 """
 
 from typing import Optional
 from datetime import date
-from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Path
-from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.dependencies import get_current_user, get_db
+from app.core.dependencies import get_current_user
+from app.core.config import settings
 from app.models.users import User
-from app.services.edgar_client import edgar_client, EdgarClientError
+from app.services.edgar_client import (
+    EdgarClient,
+    EdgarClientError,
+    EdgarServiceUnavailable,
+    get_edgar_client,
+)
 from app.schemas.edgar_fundamentals import (
     EdgarFinancialsResponse,
     EdgarHealthResponse,
+    EdgarPeriod,
+    EdgarRefreshResponse,
 )
 
 router = APIRouter(prefix="/edgar", tags=["EDGAR Fundamentals"])
 
 
+def _check_edgar_enabled(edgar: Optional[EdgarClient]) -> EdgarClient:
+    """Helper to check if EDGAR is enabled and client is available."""
+    if not settings.EDGAR_ENABLED:
+        raise HTTPException(
+            status_code=503,
+            detail="EDGAR integration is disabled. Set EDGAR_ENABLED=true to enable."
+        )
+    if edgar is None:
+        raise HTTPException(
+            status_code=503,
+            detail="EDGAR client not initialized. Check service configuration."
+        )
+    return edgar
+
+
 @router.get("/health", response_model=EdgarHealthResponse)
-async def check_edgar_service_health():
+async def check_edgar_service_health(
+    edgar: Optional[EdgarClient] = Depends(get_edgar_client),
+):
     """
     Check StockFundamentals service health.
 
     Returns service status, database connectivity, and EDGAR API reachability.
+    Does not require authentication - useful for monitoring.
     """
+    client = _check_edgar_enabled(edgar)
+
     try:
-        health = await edgar_client.health_check()
+        health = await client.health_check()
         return EdgarHealthResponse(**health)
-    except EdgarClientError as e:
+    except EdgarServiceUnavailable as e:
         raise HTTPException(
             status_code=503,
             detail=f"EDGAR service unavailable: {str(e)}"
+        )
+    except EdgarClientError as e:
+        raise HTTPException(
+            status_code=502,
+            detail=f"EDGAR service error: {str(e)}"
         )
 
 
@@ -601,11 +779,12 @@ async def check_edgar_service_health():
     summary="Get multi-period EDGAR financials"
 )
 async def get_edgar_financials(
-    ticker: str = Path(..., description="Stock ticker symbol"),
-    freq: str = Query("quarter", description="Frequency: quarter or annual"),
+    ticker: str = Path(..., description="Stock ticker symbol", min_length=1, max_length=10),
+    freq: str = Query("quarter", regex="^(quarter|annual)$", description="Frequency: quarter or annual"),
     periods: int = Query(4, ge=1, le=20, description="Number of periods"),
     end_date: Optional[date] = Query(None, description="End date filter"),
     current_user: User = Depends(get_current_user),
+    edgar: Optional[EdgarClient] = Depends(get_edgar_client),
 ):
     """
     Retrieve multi-period financial data from SEC EDGAR.
@@ -621,8 +800,10 @@ async def get_edgar_financials(
     - Minimum 5 years of historical data
     - Automatic backfill from EDGAR if data missing
     """
+    client = _check_edgar_enabled(edgar)
+
     try:
-        result = await edgar_client.get_financials(
+        result = await client.get_financials(
             ticker=ticker,
             freq=freq,
             periods=periods,
@@ -637,6 +818,11 @@ async def get_edgar_financials(
 
         return EdgarFinancialsResponse(**result)
 
+    except EdgarServiceUnavailable as e:
+        raise HTTPException(
+            status_code=503,
+            detail=f"EDGAR service unavailable: {str(e)}"
+        )
     except EdgarClientError as e:
         raise HTTPException(
             status_code=502,
@@ -646,18 +832,22 @@ async def get_edgar_financials(
 
 @router.get(
     "/financials/{ticker}",
+    response_model=EdgarPeriod,  # Fixed: Now returns typed response
     summary="Get latest EDGAR financials"
 )
 async def get_edgar_latest(
-    ticker: str = Path(..., description="Stock ticker symbol"),
+    ticker: str = Path(..., description="Stock ticker symbol", min_length=1, max_length=10),
     period_end: Optional[date] = Query(None, description="Specific period"),
     current_user: User = Depends(get_current_user),
+    edgar: Optional[EdgarClient] = Depends(get_edgar_client),
 ):
     """
     Retrieve latest (or specific) period financial data from SEC EDGAR.
     """
+    client = _check_edgar_enabled(edgar)
+
     try:
-        result = await edgar_client.get_single_period(
+        result = await client.get_single_period(
             ticker=ticker,
             period_end=period_end,
         )
@@ -668,8 +858,13 @@ async def get_edgar_latest(
                 detail=f"No EDGAR data found for ticker: {ticker}"
             )
 
-        return result
+        return EdgarPeriod(**result)  # Fixed: Now returns typed response
 
+    except EdgarServiceUnavailable as e:
+        raise HTTPException(
+            status_code=503,
+            detail=f"EDGAR service unavailable: {str(e)}"
+        )
     except EdgarClientError as e:
         raise HTTPException(
             status_code=502,
@@ -679,32 +874,50 @@ async def get_edgar_latest(
 
 @router.post(
     "/financials/refresh/{ticker}",
+    response_model=EdgarRefreshResponse,  # Fixed: Now returns typed response
     summary="Refresh EDGAR data for ticker"
 )
 async def refresh_edgar_data(
-    ticker: str = Path(..., description="Stock ticker to refresh"),
-    form_type: Optional[str] = Query(None, description="10-K or 10-Q"),
+    ticker: str = Path(..., description="Stock ticker to refresh", min_length=1, max_length=10),
+    form_type: Optional[str] = Query(None, regex="^(10-K|10-Q)$", description="10-K or 10-Q"),
     current_user: User = Depends(get_current_user),
+    edgar: Optional[EdgarClient] = Depends(get_edgar_client),
 ):
     """
     Trigger asynchronous refresh of EDGAR data for a ticker.
 
     This queues a background job to fetch latest filings from SEC EDGAR.
     Returns a job ID that can be used to poll status.
+
+    Note: Without Celery, this runs synchronously and may take 10-30 seconds.
     """
+    client = _check_edgar_enabled(edgar)
+
     try:
-        result = await edgar_client.refresh_ticker(
+        result = await client.refresh_ticker(
             ticker=ticker,
             form_type=form_type,
         )
-        return result
+        return EdgarRefreshResponse(**result)
 
+    except EdgarServiceUnavailable as e:
+        raise HTTPException(
+            status_code=503,
+            detail=f"EDGAR service unavailable: {str(e)}"
+        )
     except EdgarClientError as e:
         raise HTTPException(
             status_code=502,
             detail=f"Refresh request failed: {str(e)}"
         )
 ```
+
+> ⚠️ **Important Changes from Original:**
+> 1. Uses dependency injection (`Depends(get_edgar_client)`) instead of global singleton
+> 2. All endpoints now return typed Pydantic models (fixed inconsistency)
+> 3. Added input validation (regex for freq, min/max length for ticker)
+> 4. Separate handling for `EdgarServiceUnavailable` (503) vs `EdgarClientError` (502)
+> 5. Helper function `_check_edgar_enabled()` for consistent EDGAR status checking
 
 ##### 3.2.2 Register Router
 Update `backend/app/api/v1/router.py`:
@@ -926,9 +1139,11 @@ Create `frontend/src/hooks/useEdgarFundamentals.ts`:
 ```typescript
 /**
  * Hook for fetching EDGAR fundamentals data
+ *
+ * Uses stable dependencies to prevent infinite refetch loops.
  */
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { edgarApi, EdgarFinancialsResponse } from '@/services/edgarApi';
 
 interface UseEdgarFundamentalsOptions {
@@ -942,6 +1157,7 @@ interface UseEdgarFundamentalsResult {
   isLoading: boolean;
   error: string | null;
   refetch: () => Promise<void>;
+  isServiceAvailable: boolean;
 }
 
 export function useEdgarFundamentals(
@@ -953,37 +1169,91 @@ export function useEdgarFundamentals(
   const [data, setData] = useState<EdgarFinancialsResponse | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isServiceAvailable, setIsServiceAvailable] = useState(true);
+
+  // Use ref to track if component is mounted (prevents state updates after unmount)
+  const isMountedRef = useRef(true);
+
+  // Use ref for stable callback that doesn't cause re-renders
+  const optionsRef = useRef({ freq, periods, enabled });
+  optionsRef.current = { freq, periods, enabled };
 
   const fetchData = useCallback(async () => {
-    if (!ticker || !enabled) return;
+    const { freq, periods, enabled } = optionsRef.current;
+
+    if (!ticker || !enabled) {
+      setData(null);
+      return;
+    }
 
     setIsLoading(true);
     setError(null);
 
     try {
       const result = await edgarApi.getFinancials(ticker, { freq, periods });
-      setData(result);
+
+      if (isMountedRef.current) {
+        setData(result);
+        setIsServiceAvailable(true);
+      }
     } catch (err: any) {
+      if (!isMountedRef.current) return;
+
+      const status = err.response?.status;
       const message = err.response?.data?.detail || 'Failed to fetch EDGAR data';
-      setError(message);
+
+      // 503 = service unavailable (EDGAR disabled or down)
+      if (status === 503) {
+        setIsServiceAvailable(false);
+        setError('EDGAR service is currently unavailable');
+      } else if (status === 404) {
+        // Not an error - just no data for this ticker
+        setError(null);
+        setData(null);
+      } else {
+        setError(message);
+      }
       setData(null);
     } finally {
-      setIsLoading(false);
+      if (isMountedRef.current) {
+        setIsLoading(false);
+      }
     }
-  }, [ticker, freq, periods, enabled]);
+  }, [ticker]); // Only depend on ticker - options accessed via ref
 
+  // Fetch on mount and when ticker changes
   useEffect(() => {
+    isMountedRef.current = true;
     fetchData();
+
+    return () => {
+      isMountedRef.current = false;
+    };
   }, [fetchData]);
+
+  // Refetch when options change (separate effect to avoid dependency issues)
+  useEffect(() => {
+    if (ticker && enabled) {
+      fetchData();
+    }
+  }, [freq, periods, enabled, ticker, fetchData]);
 
   return {
     data,
     isLoading,
     error,
     refetch: fetchData,
+    isServiceAvailable,
   };
 }
 ```
+
+> ⚠️ **Important Changes from Original:**
+> 1. Uses `useRef` for options to prevent infinite refetch loops
+> 2. Added `isMountedRef` to prevent state updates after unmount
+> 3. Added `isServiceAvailable` flag for graceful degradation
+> 4. Handles 503 (service unavailable) distinctly from other errors
+> 5. Handles 404 (no data) as non-error state
 
 #### Acceptance Criteria
 - [ ] Service correctly calls backend API
@@ -1332,18 +1602,33 @@ describe('EdgarFinancialsTable', () => {
 
 ## Deployment Strategy
 
-### Infrastructure Choice: Option 2 (Core Stack)
+### Infrastructure Choice: Minimal Initial Stack
 
-**Selected Stack:**
+**Selected Stack (Phase 1):**
 ```
-PostgreSQL + Redis + Celery Worker (No MinIO)
+PostgreSQL only (No Redis, No Celery)
 ```
 
 **Rationale:**
-- Full 60+ XBRL metrics from 10-K/10-Q filings
-- Background jobs prevent API timeouts on EDGAR fetches
-- No MinIO complexity - can add Non-GAAP AI extraction later
-- Redis is cheap on Railway ($5/mo or free tier)
+- Fastest path to production
+- Synchronous EDGAR calls are acceptable for user-triggered requests (10-30 sec)
+- Add Redis + Celery later when async refresh jobs become necessary
+- Reduces complexity and Railway cost (~$10/mo vs ~$20/mo)
+
+**Future Stack (Phase 2 - when needed):**
+```
+PostgreSQL + Redis + Celery Worker
+```
+
+### Critical: Same Railway Project
+
+> ⚠️ **Railway private networking (`*.railway.internal`) only works within the SAME project.**
+
+Deploy StockFundamentals services as **additional services within the existing SigmaSight Railway project**, NOT as a separate project. This enables:
+- Private networking via `stockfund-api.railway.internal`
+- Shared environment variable references (`${{service.VAR}}`)
+- Single dashboard for monitoring all services
+- Simpler CORS and authentication
 
 ---
 
@@ -1353,7 +1638,7 @@ PostgreSQL + Redis + Celery Worker (No MinIO)
 Create `docker-compose.dev.yml` in SigmaSight root:
 
 ```yaml
-version: '3.8'
+# Note: 'version' is deprecated in Docker Compose v2+, omitted intentionally
 
 services:
   # ============================================
@@ -1372,6 +1657,11 @@ services:
       - sigmasight_postgres_data:/var/lib/postgresql/data
     networks:
       - sigmasight-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sigmasight -d sigmasight_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   # ============================================
   # STOCKFUNDAMENTALS SERVICES
@@ -1389,120 +1679,144 @@ services:
       - stockfund_postgres_data:/var/lib/postgresql/data
     networks:
       - sigmasight-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d stock_fundamentals"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
-  stockfund-redis:
-    image: redis:7-alpine
-    container_name: stockfund-redis
-    ports:
-      - "6379:6379"
-    networks:
-      - sigmasight-network
+  # Redis (OPTIONAL - only needed for Phase 2 with Celery)
+  # Uncomment when adding async job processing
+  # stockfund-redis:
+  #   image: redis:7-alpine
+  #   container_name: stockfund-redis
+  #   ports:
+  #     - "6379:6379"
+  #   volumes:
+  #     - stockfund_redis_data:/data
+  #   networks:
+  #     - sigmasight-network
+  #   healthcheck:
+  #     test: ["CMD", "redis-cli", "ping"]
+  #     interval: 10s
+  #     timeout: 5s
+  #     retries: 5
 
 volumes:
   sigmasight_postgres_data:
   stockfund_postgres_data:
+  # stockfund_redis_data:  # Uncomment for Phase 2
 
 networks:
   sigmasight-network:
     driver: bridge
 ```
 
+> ⚠️ **Changes from Original:**
+> 1. Removed deprecated `version: '3.8'`
+> 2. Added healthchecks for all services
+> 3. Added Redis volume for data persistence
+> 4. Commented out Redis (not needed for Phase 1)
+> 5. Added comments explaining optional services
+
 #### Start Local Development
 ```bash
-# 1. Start infrastructure
+# 1. Start infrastructure (wait for healthchecks)
 docker-compose -f docker-compose.dev.yml up -d
+docker-compose -f docker-compose.dev.yml ps  # Verify all healthy
 
-# 2. Start StockFundamentals API (in separate terminal)
+# 2. Run StockFundamentals migrations (one-time)
 cd ../StockFundamentals/backend
 uv run alembic upgrade head
+
+# 3. Start StockFundamentals API (in separate terminal)
+cd ../StockFundamentals/backend
 uv run uvicorn app.main:app --reload --port 8001
 
-# 3. Start StockFundamentals Celery worker (in separate terminal)
-cd ../StockFundamentals/backend
-uv run celery -A app.tasks.worker worker -l info
-
-# 4. Start SigmaSight backend
+# 4. Start SigmaSight backend (in separate terminal)
 cd backend && uv run python run.py
 
-# 5. Start SigmaSight frontend
+# 5. Start SigmaSight frontend (in separate terminal)
 cd frontend && npm run dev
+
+# OPTIONAL (Phase 2): Start Celery worker for async jobs
+# cd ../StockFundamentals/backend
+# uv run celery -A app.tasks.worker worker -l info
 ```
+
+> **Note**: Migrations are run separately (step 2), not on every API start.
+> This prevents race conditions and makes failures more visible.
 
 ---
 
 ### Railway Deployment
 
-#### Architecture Overview
+#### Architecture Overview (Same Project)
 
 ```
-┌─────────────────────────────────────────────────────────────────────┐
-│                        Railway Platform                              │
-│                                                                      │
-│  ┌─────────────────────────────────────────────────────────────┐   │
-│  │              SigmaSight Project (existing)                   │   │
-│  │  ┌──────────────┐  ┌──────────────┐  ┌──────────────────┐   │   │
-│  │  │   Frontend   │  │   Backend    │  │   PostgreSQL     │   │   │
-│  │  │   (Next.js)  │  │   (FastAPI)  │  │   (existing)     │   │   │
-│  │  └──────────────┘  └──────┬───────┘  └──────────────────┘   │   │
-│  └───────────────────────────┼─────────────────────────────────┘   │
-│                              │                                      │
-│                              │ HTTP (private network)               │
-│                              ▼                                      │
-│  ┌─────────────────────────────────────────────────────────────┐   │
-│  │           StockFundamentals Project (NEW)                    │   │
-│  │  ┌──────────────┐  ┌──────────────┐  ┌──────────────────┐   │   │
-│  │  │   API        │  │   Celery     │  │   PostgreSQL     │   │   │
-│  │  │   (FastAPI)  │  │   Worker     │  │   (separate)     │   │   │
-│  │  │   :8000      │  │              │  │                  │   │   │
-│  │  └──────────────┘  └──────────────┘  └──────────────────┘   │   │
-│  │                                                              │   │
-│  │  ┌──────────────┐                                            │   │
-│  │  │    Redis     │                                            │   │
-│  │  │              │                                            │   │
-│  │  └──────────────┘                                            │   │
-│  └─────────────────────────────────────────────────────────────┘   │
-│                                                                      │
-└─────────────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                     Railway Project: SigmaSight                              │
+│                                                                              │
+│  ┌─────────────────────────────────────────────────────────────────────┐    │
+│  │                     EXISTING SERVICES                                │    │
+│  │  ┌─────────────┐  ┌──────────────┐  ┌─────────────────┐             │    │
+│  │  │  Frontend   │  │   Backend    │  │  PostgreSQL     │             │    │
+│  │  │  (Next.js)  │  │  (FastAPI)   │  │  (sigmasight)   │             │    │
+│  │  │             │  │              │  │                 │             │    │
+│  │  └─────────────┘  └──────┬───────┘  └─────────────────┘             │    │
+│  └──────────────────────────┼───────────────────────────────────────────┘    │
+│                             │                                                │
+│                             │ HTTP via stockfund-api.railway.internal        │
+│                             ▼                                                │
+│  ┌─────────────────────────────────────────────────────────────────────┐    │
+│  │                     NEW SERVICES (added to same project)             │    │
+│  │  ┌─────────────────┐            ┌─────────────────┐                 │    │
+│  │  │  stockfund-api  │            │  stockfund-db   │                 │    │
+│  │  │  (FastAPI)      │───────────▶│  (PostgreSQL)   │                 │    │
+│  │  │  Port: 8000     │            │  (separate DB)  │                 │    │
+│  │  └────────┬────────┘            └─────────────────┘                 │    │
+│  │           │                                                          │    │
+│  │           ▼                                                          │    │
+│  │  ┌─────────────────┐                                                │    │
+│  │  │   SEC EDGAR     │     ┌────────────────────────────────────┐     │    │
+│  │  │   (External)    │     │ PHASE 2 (optional): Redis + Worker │     │    │
+│  │  └─────────────────┘     └────────────────────────────────────┘     │    │
+│  └─────────────────────────────────────────────────────────────────────┘    │
+│                                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
 ```
 
-#### Step 1: Create StockFundamentals Railway Project
+> ⚠️ **Key Insight**: All services in the SAME Railway project enables private networking.
+> Cross-project communication would require public URLs.
 
+#### Step 1: Add Services to Existing SigmaSight Project
+
+> ⚠️ **Do NOT create a new Railway project.** Add services to the existing SigmaSight project.
+
+**Via Railway Dashboard:**
+1. Open the existing **SigmaSight** project in Railway dashboard
+2. Click "New" → "Database" → "PostgreSQL"
+3. Name it `stockfund-db` (this creates a separate database instance)
+4. Wait for provisioning
+
+**Via CLI (alternative):**
 ```bash
-# 1. Navigate to StockFundamentals repo
+# Link to existing SigmaSight project
 cd ~/CascadeProjects/StockFundamentals
+railway link  # Select existing SigmaSight project
 
-# 2. Login to Railway CLI
-railway login
-
-# 3. Create new project
-railway init
-# Name: stockfundamentals-prod (or stockfundamentals-sandbox)
-```
-
-#### Step 2: Add PostgreSQL Database
-
-```bash
-# Add PostgreSQL plugin to the project
+# Add PostgreSQL to the project
 railway add --plugin postgresql
-
-# Or via Railway Dashboard:
-# 1. Open project in Railway dashboard
-# 2. Click "New" → "Database" → "PostgreSQL"
-# 3. Wait for provisioning
 ```
 
-#### Step 3: Add Redis
+#### Step 2: Add StockFundamentals API Service
 
-```bash
-# Add Redis plugin
-railway add --plugin redis
-
-# Or via Railway Dashboard:
-# 1. Click "New" → "Database" → "Redis"
-# 2. Wait for provisioning
-```
-
-#### Step 4: Deploy API Service
+**In Railway Dashboard:**
+1. Click "New" → "GitHub Repo"
+2. Select `bbalbalbae/StockFundamentals`
+3. Name the service `stockfund-api`
+4. Set Root Directory: `backend`
+5. Railway will auto-detect Dockerfile
 
 **Create `Dockerfile` in StockFundamentals/backend:**
 ```dockerfile
@@ -1531,9 +1845,11 @@ COPY . .
 # Expose port
 EXPOSE 8000
 
-# Run migrations and start server
-CMD ["sh", "-c", "uv run alembic upgrade head && uv run uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
+# NOTE: Migrations run via deploy hook, NOT on every container start
+CMD ["uv", "run", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "${PORT:-8000}"]
 ```
+
+> ⚠️ **Critical**: Migrations are NOT in CMD. They run via deploy hook (see Step 4).
 
 **Create `railway.toml` in StockFundamentals/backend:**
 ```toml
@@ -1549,179 +1865,351 @@ restartPolicyType = "on_failure"
 restartPolicyMaxRetries = 3
 ```
 
-**Deploy via CLI:**
-```bash
-cd backend
-railway up
-```
+#### Step 3: Configure Environment Variables
 
-#### Step 5: Deploy Celery Worker Service
-
-**Create `Dockerfile.worker` in StockFundamentals/backend:**
-```dockerfile
-FROM python:3.11-slim
-
-WORKDIR /app
-
-RUN apt-get update && apt-get install -y \
-    gcc \
-    libpq-dev \
-    && rm -rf /var/lib/apt/lists/*
-
-RUN pip install uv
-
-COPY pyproject.toml uv.lock ./
-RUN uv sync --frozen --no-dev
-
-COPY . .
-
-# Run Celery worker
-CMD ["uv", "run", "celery", "-A", "app.tasks.worker", "worker", "-l", "info", "--concurrency", "2"]
-```
-
-**In Railway Dashboard:**
-1. Click "New" → "Empty Service"
-2. Name it "celery-worker"
-3. Connect to same GitHub repo
-4. Set Dockerfile path: `backend/Dockerfile.worker`
-5. Link to same PostgreSQL and Redis
-
-#### Step 6: Configure Environment Variables
-
-**StockFundamentals API Service:**
+**stockfund-api Service Variables:**
 ```env
-# Database (auto-populated by Railway plugin)
-DATABASE_URL=${{Postgres.DATABASE_URL}}
+# Database - reference the stockfund-db service
+DATABASE_URL=${{stockfund-db.DATABASE_URL}}
 
-# Redis (auto-populated by Railway plugin)
-REDIS_URL=${{Redis.REDIS_URL}}
+# SEC EDGAR Configuration (REQUIRED)
+# Use real contact email for SEC compliance
+EDGAR_USER_AGENT=SigmaSight/1.0 (your-real-email@domain.com)
 
-# SEC EDGAR Configuration
-EDGAR_USER_AGENT=SigmaSight Platform (contact@sigmasight.com)
+# API Authentication - generate random key!
+# Generate with: openssl rand -hex 32
+API_KEYS=${{shared.STOCKFUND_API_KEY}}
 
-# API Authentication
-API_KEYS=sigmasight_internal_abc123xyz,devtoken123
+# Phase 1: No Redis (synchronous mode)
+REDIS_URL=
+CELERY_BROKER_URL=
 
-# Disable MinIO/S3 (not using Non-GAAP extraction)
-S3_ENDPOINT_URL=
-S3_ACCESS_KEY_ID=
-S3_SECRET_ACCESS_KEY=
-S3_BUCKET_NAME=
-
-# Optional: Anthropic (only if enabling Non-GAAP later)
-# ANTHROPIC_API_KEY=
+# Feature flags
+SYNC_MODE=true  # Disable Celery, run synchronously
 ```
 
-**StockFundamentals Celery Worker:**
-```env
-# Same database and redis
-DATABASE_URL=${{Postgres.DATABASE_URL}}
-REDIS_URL=${{Redis.REDIS_URL}}
+**Create Shared Variables (for cross-service reference):**
+1. In Railway dashboard, go to Project Settings → Variables
+2. Add shared variable:
+   - `STOCKFUND_API_KEY`: Generate with `openssl rand -hex 32`
 
-# Same EDGAR config
-EDGAR_USER_AGENT=SigmaSight Platform (contact@sigmasight.com)
-```
-
-#### Step 7: Enable Private Networking
-
-Railway provides private networking between services in the same project and across projects.
-
-**Get the private URL:**
-1. In Railway dashboard, click on the API service
-2. Go to Settings → Networking
-3. Enable "Private Networking"
-4. Copy the private URL: `stockfundamentals-api.railway.internal`
-
-**For cross-project communication:**
-1. Both projects must be in the same Railway team/account
-2. Use the private DNS: `<service-name>.<project-name>.railway.internal`
-
-#### Step 8: Update SigmaSight Configuration
-
-**Add to SigmaSight backend environment (Railway):**
+**SigmaSight Backend Variables (add these):**
 ```env
 # StockFundamentals Integration
-STOCKFUND_API_URL=http://stockfundamentals-api.railway.internal:8000
-STOCKFUND_API_KEY=sigmasight_internal_abc123xyz
-EDGAR_ENABLED=true
+STOCKFUND_API_URL=http://stockfund-api.railway.internal:8000
+STOCKFUND_API_KEY=${{shared.STOCKFUND_API_KEY}}
+EDGAR_ENABLED=false  # Start disabled, enable after testing
 ```
 
-**Or if separate Railway projects, use public URL temporarily:**
-```env
-# Public URL (less ideal, but works across projects)
-STOCKFUND_API_URL=https://stockfundamentals-prod.up.railway.app
-STOCKFUND_API_KEY=sigmasight_internal_abc123xyz
-EDGAR_ENABLED=true
+> ⚠️ **Security**: Never use example API keys. Generate with `openssl rand -hex 32`.
+
+#### Step 4: Configure Deploy Hook for Migrations
+
+> ⚠️ **Critical**: Running migrations in CMD causes issues with multiple replicas and failed deployments.
+
+**Option A: Railway Deploy Hook (Recommended)**
+
+In Railway dashboard for `stockfund-api`:
+1. Go to Settings → Deploy → Build & Deploy
+2. Set "Deploy Command" (runs after build, before start):
+   ```bash
+   uv run alembic upgrade head
+   ```
+
+**Option B: Separate One-Off Migration Service**
+
+Create a migration-only service that runs once:
+1. Create `Dockerfile.migrate`:
+   ```dockerfile
+   FROM python:3.11-slim
+   WORKDIR /app
+   RUN apt-get update && apt-get install -y gcc libpq-dev && rm -rf /var/lib/apt/lists/*
+   RUN pip install uv
+   COPY pyproject.toml uv.lock ./
+   RUN uv sync --frozen --no-dev
+   COPY . .
+   CMD ["uv", "run", "alembic", "upgrade", "head"]
+   ```
+2. Deploy as one-off service, run once, then delete
+
+#### Step 5: Enable Private Networking
+
+1. In Railway dashboard, click on `stockfund-api`
+2. Go to Settings → Networking
+3. Enable "Private Networking"
+4. Note the private URL: `stockfund-api.railway.internal`
+
+The SigmaSight backend can now reach StockFundamentals at:
+```
+http://stockfund-api.railway.internal:8000
 ```
 
-#### Step 9: Verify Deployment
+> **No public URL needed** - private networking is sufficient for internal communication.
+
+#### Step 6: Deploy and Verify
 
 ```bash
-# Test StockFundamentals health endpoint
-curl https://stockfundamentals-prod.up.railway.app/health
+# 1. Deploy StockFundamentals (from StockFundamentals repo)
+cd ~/CascadeProjects/StockFundamentals/backend
+railway up
 
-# Expected response:
+# 2. Check deployment logs
+railway logs
+
+# 3. Verify health (via SigmaSight backend or Railway shell)
+railway run curl http://stockfund-api.railway.internal:8000/health
+```
+
+**Expected health response:**
+```json
 {
   "status": "ok",
   "service": "stockfundamentals",
-  "version": "1.0.0"
+  "version": "1.0.0",
+  "database": true,
+  "redis": false,
+  "edgar_api": true
 }
-
-# Test financial data endpoint
-curl -H "X-API-Key: sigmasight_internal_abc123xyz" \
-  "https://stockfundamentals-prod.up.railway.app/v1/financials/AAPL/periods?periods=4"
 ```
+
+#### Step 7: Enable EDGAR in SigmaSight
+
+After verifying StockFundamentals is healthy:
+
+1. Update SigmaSight backend environment:
+   ```env
+   EDGAR_ENABLED=true
+   ```
+2. Redeploy SigmaSight backend
+3. Test via SigmaSight API:
+   ```bash
+   curl -H "Authorization: Bearer <token>" \
+     "https://sigmasight-be-production.up.railway.app/api/v1/edgar/health"
+   ```
+
+#### Phase 2 (Later): Add Redis + Celery Worker
+
+When async job processing is needed:
+
+1. Add Redis to project: "New" → "Database" → "Redis"
+2. Add Celery worker service with `Dockerfile.worker`
+3. Update environment variables:
+   ```env
+   REDIS_URL=${{Redis.REDIS_URL}}
+   CELERY_BROKER_URL=${{Redis.REDIS_URL}}
+   SYNC_MODE=false
+   ```
 
 ---
 
 ### Railway Cost Estimate
 
+**Phase 1 (Initial - Recommended):**
+| Service | Railway Plan | Estimated Cost |
+|---------|--------------|----------------|
+| StockFundamentals API | Hobby | ~$5/mo |
+| PostgreSQL (stockfund-db) | Hobby | ~$5/mo |
+| **Phase 1 Total** | | **~$10/mo** |
+
+**Phase 2 (With Async Jobs):**
 | Service | Railway Plan | Estimated Cost |
 |---------|--------------|----------------|
 | StockFundamentals API | Hobby | ~$5/mo |
 | Celery Worker | Hobby | ~$5/mo |
-| PostgreSQL | Hobby | ~$5/mo |
-| Redis | Hobby | ~$0-5/mo |
-| **Total** | | **~$15-20/mo** |
+| PostgreSQL (stockfund-db) | Hobby | ~$5/mo |
+| Redis | Hobby | ~$3-5/mo |
+| **Phase 2 Total** | | **~$18-20/mo** |
 
-*Note: Costs vary based on usage. The Hobby plan includes $5 free credits.*
+*Note: Costs vary based on usage. Railway Pro plan ($20/mo) includes more resources.*
+
+---
+
+## Monitoring & Alerting
+
+### Health Monitoring
+
+**Railway Built-in Monitoring:**
+- CPU/Memory usage graphs
+- Request count and latency
+- Deploy status and logs
+
+**Custom Health Endpoint Monitoring:**
+
+Add the `/api/v1/edgar/health` endpoint to your monitoring:
+
+```bash
+# Example: Add to uptime monitoring (UptimeRobot, Pingdom, etc.)
+# Monitor: https://sigmasight-be-production.up.railway.app/api/v1/edgar/health
+# Check interval: 5 minutes
+# Alert on: 503 (service unavailable) or timeout
+```
+
+### Key Metrics to Track
+
+| Metric | Source | Alert Threshold |
+|--------|--------|-----------------|
+| EDGAR service health | `/api/v1/edgar/health` | Any non-200 |
+| API response time | Railway metrics | > 5 seconds |
+| Error rate | Application logs | > 5% of requests |
+| Database connections | PostgreSQL metrics | > 80% pool |
+| EDGAR rate limit hits | Application logs | Any 429 responses |
+
+### Logging Strategy
+
+**Structured Logging in StockFundamentals:**
+```python
+# Log all EDGAR API calls
+logger.info("EDGAR request", ticker=ticker, endpoint=endpoint, response_time_ms=elapsed)
+
+# Log rate limit warnings
+logger.warning("EDGAR rate limit approaching", current_rate=rate, limit=10)
+
+# Log errors with context
+logger.error("EDGAR fetch failed", ticker=ticker, error=str(e), traceback=True)
+```
+
+**Railway Log Aggregation:**
+- Logs available in Railway dashboard per service
+- Use `railway logs` CLI for real-time streaming
+- Consider forwarding to external service (Datadog, Logtail) for long-term retention
+
+### SEC Rate Limit Monitoring
+
+> ⚠️ **Critical**: SEC EDGAR rate limits are 10 requests/second per IP.
+
+**Rate Limit Tracking:**
+```python
+# Add to StockFundamentals
+from collections import deque
+from time import time
+
+class RateLimitMonitor:
+    def __init__(self, window_seconds=1, max_requests=8):
+        self.requests = deque()
+        self.window = window_seconds
+        self.max = max_requests  # Stay below 10 for safety
+
+    def record_request(self):
+        now = time()
+        # Remove old requests outside window
+        while self.requests and self.requests[0] < now - self.window:
+            self.requests.popleft()
+        self.requests.append(now)
+
+        if len(self.requests) >= self.max:
+            logger.warning("EDGAR rate limit threshold",
+                          current=len(self.requests),
+                          max=self.max)
+```
 
 ---
 
-### Alternative: Single Railway Project
+## Rollback Strategy
 
-If you want to keep everything in one Railway project:
+### Feature Flag Rollback (Fastest)
 
-1. Add StockFundamentals services to existing SigmaSight project
-2. Use shared PostgreSQL or add a second one
-3. Simpler networking (all services in same project)
-4. More services to manage in one place
+**Disable EDGAR without redeployment:**
+1. In Railway dashboard, go to SigmaSight backend service
+2. Update environment variable: `EDGAR_ENABLED=false`
+3. Service automatically restarts
+4. EDGAR endpoints return 503 gracefully
 
-**Recommendation:** Start with separate projects for cleaner separation, merge later if desired.
+**Time to rollback**: ~30 seconds
 
----
+### Service Rollback (Railway)
+
+**Rollback to previous deployment:**
+1. In Railway dashboard, click on `stockfund-api`
+2. Go to Deployments tab
+3. Find last known good deployment
+4. Click "Redeploy" on that deployment
+
+**Time to rollback**: ~2-3 minutes
+
+### Database Rollback
+
+> ⚠️ **StockFundamentals has its own database** - SigmaSight data is unaffected.
+
+**If migration breaks StockFundamentals:**
+```bash
+# 1. SSH into Railway service
+railway shell -s stockfund-api
+
+# 2. Rollback one migration
+uv run alembic downgrade -1
+
+# 3. Or rollback to specific revision
+uv run alembic downgrade <revision_id>
+```
+
+**If data is corrupted:**
+1. Railway PostgreSQL has automatic backups
+2. In Railway dashboard → stockfund-db → Backups
+3. Restore from point-in-time backup
+
+### Complete Removal
+
+If EDGAR integration needs to be completely removed:
+
+1. Set `EDGAR_ENABLED=false` in SigmaSight
+2. Remove the `stockfund-api` service from Railway
+3. (Optional) Remove `stockfund-db` if data not needed
+4. EDGAR endpoints will return 503 until code is removed
+5. Remove frontend toggle and EDGAR components
+
+### Incident Response Checklist
+
+```markdown
+## EDGAR Service Incident Response
+
+1. [ ] Identify issue (check `/api/v1/edgar/health`)
+2. [ ] Set `EDGAR_ENABLED=false` if affecting users
+3. [ ] Check StockFundamentals logs: `railway logs -s stockfund-api`
+4. [ ] Determine root cause:
+   - [ ] SEC EDGAR down? Check https://www.sec.gov/cgi-bin/browse-edgar
+   - [ ] Rate limited? Check logs for 429 errors
+   - [ ] Database issue? Check `stockfund-db` metrics
+   - [ ] Code bug? Check recent deployments
+5. [ ] Fix or rollback as appropriate
+6. [ ] Re-enable: `EDGAR_ENABLED=true`
+7. [ ] Monitor for 15 minutes
+8. [ ] Document incident
+```
 
 ## Risk Assessment
 
 ### High Risk
-| Risk | Mitigation |
-|------|------------|
-| SEC EDGAR rate limiting | Implemented 8 req/sec limit with backoff |
-| StockFundamentals service downtime | Fallback to YahooQuery, caching layer |
-| Data inconsistency between sources | Clear source labeling in UI |
+| Risk | Mitigation | Status |
+|------|------------|--------|
+| SEC EDGAR rate limiting | 8 req/sec limit with monitoring + backoff | ✅ Addressed |
+| StockFundamentals service downtime | `EDGAR_ENABLED` flag for instant disable, YahooQuery fallback | ✅ Addressed |
+| Data inconsistency between sources | Clear source labeling in UI, toggle for user choice | ✅ Addressed |
+| Railway private networking failure | Deploy in same project (not separate) | ✅ Addressed |
 
 ### Medium Risk
-| Risk | Mitigation |
-|------|------------|
-| Network latency between services | Response caching, connection pooling |
-| Redis/infrastructure complexity | Can deploy without Celery initially |
-| API versioning conflicts | Version-pinned internal API calls |
+| Risk | Mitigation | Status |
+|------|------------|--------|
+| Network latency between services | Connection pooling, private networking | ✅ Addressed |
+| Migration failures on deploy | Deploy hooks (not CMD), separate from app start | ✅ Addressed |
+| Redis/infrastructure complexity | Phase 1 without Redis/Celery, add later | ✅ Addressed |
+| API versioning conflicts | Version-pinned internal API calls | ⏳ Monitor |
+| EdgarClient initialization timing | FastAPI lifespan + dependency injection | ✅ Addressed |
 
 ### Low Risk
-| Risk | Mitigation |
-|------|------------|
-| Schema changes in EDGAR | XBRL mapping is standardized |
-| Authentication complexity | Simple API key for internal communication |
+| Risk | Mitigation | Status |
+|------|------------|--------|
+| Schema changes in EDGAR | XBRL mapping is standardized by SEC | ⏳ Monitor |
+| API key exposure | Railway secrets, randomly generated keys | ✅ Addressed |
+| Cross-project networking issues | Same Railway project deployment | ✅ Addressed |
+
+### Risks NOT Fully Mitigated
+
+| Risk | Current Status | Future Mitigation |
+|------|----------------|-------------------|
+| No external monitoring | Relying on Railway built-in | Add UptimeRobot or similar |
+| No long-term log retention | Logs in Railway only | Consider Datadog/Logtail |
+| No automated E2E tests | Manual testing only | Add Playwright tests |
+| Single replica | No HA | Add second replica in Phase 2 |
 
 ---
 
@@ -1756,42 +2244,104 @@ See `StockFundamentals/backend/config/xbrl_map.json` for complete mapping.
 ### C. File Checklist
 
 **SigmaSight Backend (integration layer only):**
-- [ ] `app/services/edgar_client.py` - HTTP client (~100 lines)
-- [ ] `app/schemas/edgar_fundamentals.py` - Response schemas (~80 lines)
-- [ ] `app/api/v1/edgar_fundamentals.py` - Proxy endpoints (~80 lines)
+- [ ] `app/services/edgar_client.py` - HTTP client with DI (~200 lines)
+- [ ] `app/schemas/edgar_fundamentals.py` - Response schemas (~100 lines)
+- [ ] `app/api/v1/edgar_fundamentals.py` - Proxy endpoints (~180 lines)
+- [ ] `app/core/config.py` - Add EDGAR settings (3 lines)
+- [ ] `app/api/v1/router.py` - Register router (1 line)
+- [ ] `app/main.py` - Add lifespan handler (5 lines)
 - [ ] `tests/test_edgar_client.py` - Unit tests
 
 **SigmaSight Frontend:**
-- [ ] `src/services/edgarApi.ts` - API service (~60 lines)
-- [ ] `src/hooks/useEdgarFundamentals.ts` - React hook (~40 lines)
+- [ ] `src/services/edgarApi.ts` - API service (~80 lines)
+- [ ] `src/hooks/useEdgarFundamentals.ts` - React hook (~100 lines)
 - [ ] `src/components/fundamentals/EdgarFinancialsTable.tsx` - Display component
+- [ ] `src/components/fundamentals/DataSourceSelector.tsx` - Toggle component
 
-**Configuration Updates:**
+**Configuration Files:**
 - [ ] `docker-compose.dev.yml` (new file for local dev)
 - [ ] `backend/.env` (add 3 EDGAR variables)
-- [ ] `backend/app/core/config.py` (add 3 settings)
-- [ ] `backend/app/api/v1/router.py` (1 line to register router)
 
-**StockFundamentals Repo (NO CHANGES to SigmaSight):**
+**StockFundamentals Repo:**
+- [ ] `backend/Dockerfile` - Production container
+- [ ] `backend/railway.toml` - Railway configuration
 - Stays in separate `bbalbalbae/StockFundamentals` repo
 - Has its own database, migrations, models
-- Deployed as separate service (Railway project or Docker container)
-- SigmaSight only calls it via HTTP API
+- Deployed as service within SigmaSight Railway project
+- SigmaSight calls it via private networking
+
+---
+
+### D. Revision History
+
+| Date | Version | Changes |
+|------|---------|---------|
+| 2025-12-17 | 1.0 | Initial plan |
+| 2025-12-19 | 2.0 | Major revisions: |
+| | | - Changed to same Railway project (private networking) |
+| | | - Added deploy hooks for migrations (not in CMD) |
+| | | - Fixed EdgarClient to use FastAPI dependency injection |
+| | | - Added specific exception types for better error handling |
+| | | - Fixed frontend hook dependencies (useRef pattern) |
+| | | - Added Monitoring & Alerting section |
+| | | - Added Rollback Strategy section |
+| | | - Simplified Phase 1 (no Redis/Celery) |
+| | | - Fixed docker-compose (healthchecks, no deprecated version) |
+| | | - Updated all code examples with fixes |
 
 ---
 
 ## Next Steps
 
-1. **Review and approve this plan**
-2. **Phase 1**: Set up local development environment with Docker
-3. **Phase 2**: Deploy and test StockFundamentals locally
-4. **Phase 3**: Build SigmaSight proxy layer
-5. **Phase 4**: Implement caching
-6. **Phase 5**: Frontend integration
-7. **Phase 6**: Testing and validation
-8. **Deploy to Railway**
+### Immediate (This Week)
+1. ✅ **Review and approve this revised plan**
+2. **Set up local development environment**
+   - Create `docker-compose.dev.yml` with healthchecks
+   - Run StockFundamentals locally on port 8001
+   - Verify EDGAR API connectivity
+
+### Phase 1: Backend Integration (Days 1-2)
+3. **Create SigmaSight integration layer**
+   - `edgar_client.py` with dependency injection
+   - `edgar_fundamentals.py` router
+   - Add to `main.py` lifespan handler
+4. **Test locally end-to-end**
+   - Verify `/api/v1/edgar/health` returns status
+   - Test with real ticker (AAPL, MSFT)
+
+### Phase 2: Railway Deployment (Days 2-3)
+5. **Deploy to Railway (same project)**
+   - Add `stockfund-db` PostgreSQL
+   - Add `stockfund-api` service
+   - Configure deploy hooks for migrations
+   - Enable private networking
+6. **Configure and test**
+   - Set `EDGAR_ENABLED=false` initially
+   - Verify health via Railway shell
+   - Enable and test with SigmaSight backend
+
+### Phase 3: Frontend & Validation (Days 3-5)
+7. **Frontend integration**
+   - Create `edgarApi.ts` service
+   - Create `useEdgarFundamentals` hook
+   - Add financials table component
+   - Add data source toggle
+8. **Testing and validation**
+   - Manual E2E testing
+   - Verify data quality
+   - Monitor for 24 hours
+
+### Phase 4: Production Rollout
+9. **Gradual rollout**
+   - Enable for internal testing
+   - Enable UI toggle for users
+   - Make EDGAR default (Yahoo fallback)
+10. **Post-launch**
+    - Set up external monitoring
+    - Document any issues
+    - Consider Phase 2 (Redis + Celery) if needed
 
 ---
 
 *Document created by Claude Code*
-*Last updated: 2025-12-17*
+*Last updated: 2025-12-19 (v2.0)*
