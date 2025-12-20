@@ -1103,6 +1103,163 @@ const highMomentumStocks = await symbolsApi.getUniverse({
 
 ---
 
+## Performance Optimization: Caching & Indexing
+
+### Predicted Calculation Time Impact
+
+| Scenario | Current | With Symbol Architecture | Improvement |
+|----------|---------|--------------------------|-------------|
+| Daily batch (1 date, 63 positions) | ~45-60s | ~25-35s | **35-45%** |
+| Backfill (120 dates) | ~90+ min | ~40-50 min | **45-55%** |
+| Symbol Dashboard API | N/A (joins) | <50ms | **New capability** |
+
+**Why daily improvement is modest:**
+- `PriceCache` already bulk-loads prices (we have this)
+- Factor regression (Ridge/Spread) dominates daily time
+- Improvement comes from eliminating redundant return calculations
+
+**Where big wins come from:**
+- Backfills: Symbol-level caching across dates
+- Dashboard: Single-table queries vs multi-table joins
+- Parallel batches: Safe parallelization pattern
+
+### Current Indexes (Already Have)
+
+```sql
+-- market_data_cache (prices) ✅
+ix_market_data_cache_symbol
+ix_market_data_cache_date
+idx_market_data_cache_symbol_date (composite)
+idx_market_data_valid_prices (partial - WHERE close > 0)
+
+-- position_factor_exposures ✅
+idx_pfe_factor_date
+idx_pfe_position_date
+idx_pfe_calculation_date
+```
+
+### New Indexes Needed for symbol_daily_metrics
+
+```sql
+-- Primary lookup (dashboard default sort)
+CREATE INDEX idx_metrics_date ON symbol_daily_metrics(metrics_date);
+
+-- Sort/filter by key columns
+CREATE INDEX idx_metrics_sector ON symbol_daily_metrics(sector);
+CREATE INDEX idx_metrics_market_cap ON symbol_daily_metrics(market_cap DESC NULLS LAST);
+CREATE INDEX idx_metrics_return_ytd ON symbol_daily_metrics(return_ytd DESC NULLS LAST);
+CREATE INDEX idx_metrics_pe ON symbol_daily_metrics(pe_ratio NULLS LAST);
+
+-- Factor exposure sorts (dashboard "sort by momentum")
+CREATE INDEX idx_metrics_factor_momentum ON symbol_daily_metrics(factor_momentum DESC NULLS LAST);
+CREATE INDEX idx_metrics_factor_value ON symbol_daily_metrics(factor_value DESC NULLS LAST);
+
+-- Composite for common query pattern
+CREATE INDEX idx_metrics_sector_cap ON symbol_daily_metrics(sector, market_cap DESC NULLS LAST);
+```
+
+### New Indexes Needed for symbol_factor_exposures
+
+```sql
+-- Primary lookup pattern (symbol + date)
+CREATE INDEX idx_symbol_factor_lookup ON symbol_factor_exposures(symbol, calculation_date);
+
+-- Batch processing (find uncached symbols)
+CREATE INDEX idx_symbol_factor_date ON symbol_factor_exposures(calculation_date);
+
+-- Factor type filtering
+CREATE INDEX idx_symbol_factor_method ON symbol_factor_exposures(calculation_method, calculation_date);
+```
+
+### Caching Strategy
+
+**What we already have:**
+- `PriceCache` class for bulk price loading (300x speedup claimed)
+
+**What we'll add:**
+
+```python
+# 1. Symbol Returns Cache (new in Phase 1.5)
+class SymbolReturnsCache:
+    """
+    Cache symbol returns for the batch run.
+    Loaded once in Phase 1.5, used by P&L and analytics.
+    """
+    _returns: Dict[Tuple[str, date], SymbolReturns] = {}
+
+    async def load_for_date(self, db: AsyncSession, calc_date: date):
+        # Bulk load from symbol_daily_metrics
+        stmt = select(SymbolDailyMetrics).where(
+            SymbolDailyMetrics.metrics_date == calc_date
+        )
+        result = await db.execute(stmt)
+        for row in result.scalars():
+            self._returns[(row.symbol, calc_date)] = row
+
+    def get_return(self, symbol: str, calc_date: date) -> Optional[float]:
+        return self._returns.get((symbol, calc_date))
+
+
+# 2. Symbol Factors Cache (new in Phase 0.5)
+class SymbolFactorsCache:
+    """
+    Cache symbol factor betas for portfolio aggregation.
+    Loaded after Phase 0.5, used by Phase 6 analytics.
+    """
+    _factors: Dict[Tuple[str, date], Dict[str, float]] = {}
+
+    async def load_for_symbols(
+        self,
+        db: AsyncSession,
+        symbols: List[str],
+        calc_date: date
+    ):
+        # Bulk load from symbol_factor_exposures
+        stmt = select(SymbolFactorExposure).where(
+            and_(
+                SymbolFactorExposure.symbol.in_(symbols),
+                SymbolFactorExposure.calculation_date == calc_date
+            )
+        )
+        # ... build cache
+```
+
+### Cache Lifecycle in Batch
+
+```
+Batch Run for Date D:
+├── Phase 0.5: Calculate symbol factors → symbol_factor_exposures
+│   └── SymbolFactorsCache.load_for_symbols() after calculation
+├── Phase 1: Fetch market data → market_data_cache
+│   └── PriceCache.load_single_date() (existing)
+├── Phase 1.5: Calculate symbol returns → symbol_daily_metrics
+│   └── SymbolReturnsCache.load_for_date() after calculation
+├── Phase 2: Portfolio P&L
+│   └── Uses SymbolReturnsCache.get_return() (no DB queries!)
+├── Phase 6: Analytics
+│   └── Uses SymbolFactorsCache.get_factor() (no DB queries!)
+└── End of date: Clear all caches for next date
+```
+
+### Are We Using Existing Indexes?
+
+**Yes, but could be better:**
+
+```python
+# Current query pattern (uses ix_market_data_cache_symbol)
+SELECT * FROM market_data_cache WHERE symbol = 'AAPL' AND date = '2025-12-19'
+
+# Better query pattern (uses idx_market_data_cache_symbol_date composite)
+SELECT symbol, date, close FROM market_data_cache
+WHERE symbol IN ('AAPL', 'MSFT', ...) AND date = '2025-12-19'
+```
+
+The `PriceCache` class already does bulk loading, which uses the composite index efficiently.
+
+**Key insight**: The new `symbol_daily_metrics` table will be tiny (~100 rows), so even without indexes, full table scans are fast. Indexes mainly help with sorting.
+
+---
+
 ## Appendix: Key Code Patterns
 
 ### Safe Parallel Batch Pattern
