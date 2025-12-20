@@ -215,30 +215,51 @@ class AnalyticsRunner:
         """
         Run all analytics for a single portfolio
 
-        OPTIMIZATION (2025-12-20): Run independent analytics jobs in parallel groups
-        to reduce Phase 6 time by ~60%. Jobs are grouped by dependency:
-        - Group A (Betas): Market Beta, Provider Beta, IR Beta - independent
-        - Group B (Factors): Spread Factors, Ridge Factors - independent
-        - Group C (Vol/Corr): Volatility Analytics, Correlations - independent
-        - Group D: Sector Analysis - independent
-        - Group E: Stress Testing - depends on Group B (factors)
+        NOTE: Jobs run sequentially within a portfolio to avoid SQLAlchemy session
+        conflicts. Parallelization happens at the portfolio level (multiple portfolios
+        processed concurrently) and date level (multiple dates processed concurrently).
 
         Args:
             portfolio_id: Portfolio to process
             calculation_date: Date to run analytics for
             db: Database session
+            run_sector_analysis: Whether to run sector analysis
 
         Returns:
             Dictionary containing job-level results and completion counts
         """
-        logger.info(f"  Running analytics for portfolio {portfolio_id} (PARALLEL MODE)")
+        logger.info(f"  Running analytics for portfolio {portfolio_id}")
 
         completed = 0
         job_results: List[Dict[str, Any]] = []
         loop = asyncio.get_running_loop()
 
-        # Helper to run a job and capture results
-        async def _run_job(job_name: str, job_func) -> Dict[str, Any]:
+        # Define all analytics jobs in order
+        analytics_jobs = [
+            ("Market Beta (90D)", self._calculate_market_beta),
+            ("Provider Beta (1Y)", self._calculate_provider_beta),
+            ("IR Beta", self._calculate_ir_beta),
+            ("Spread Factors", self._calculate_spread_factors),
+            ("Ridge Factors", self._calculate_ridge_factors),
+            ("Volatility Analytics", self._calculate_volatility_analytics),
+            ("Correlations", self._calculate_correlations),
+        ]
+
+        # Add sector analysis if enabled
+        if run_sector_analysis:
+            analytics_jobs.append(("Sector Analysis", self._calculate_sector_analysis))
+        else:
+            logger.debug(
+                "Skipping sector analysis for portfolio %s on %s (not target date)",
+                portfolio_id,
+                calculation_date,
+            )
+
+        # Add stress testing last (depends on factor calculations)
+        analytics_jobs.append(("Stress Testing", self._calculate_stress_testing))
+
+        # Run jobs sequentially to avoid session conflicts
+        for job_name, job_func in analytics_jobs:
             job_start = loop.time()
             success_flag = False
             message: Optional[str] = None
@@ -249,6 +270,7 @@ class AnalyticsRunner:
                 success_flag, message, extra_payload = self._normalize_job_result(raw_result)
                 if success_flag:
                     logger.debug(f"    OK {job_name}")
+                    completed += 1
                 else:
                     if not message:
                         message = "Job returned falsy result"
@@ -271,6 +293,8 @@ class AnalyticsRunner:
             if extra_payload:
                 job_record['details'] = extra_payload
 
+            job_results.append(job_record)
+
             record_metric(
                 "analytics_job_result",
                 {
@@ -281,91 +305,6 @@ class AnalyticsRunner:
                 source="analytics_runner",
             )
 
-            return job_record
-
-        # =========================================================================
-        # GROUP A: Beta calculations (independent, can run in parallel)
-        # =========================================================================
-        logger.debug(f"    Running Group A (Betas) in parallel...")
-        group_a_jobs = [
-            ("Market Beta (90D)", self._calculate_market_beta),
-            ("Provider Beta (1Y)", self._calculate_provider_beta),
-            ("IR Beta", self._calculate_ir_beta),
-        ]
-        group_a_tasks = [_run_job(name, func) for name, func in group_a_jobs]
-        group_a_results = await asyncio.gather(*group_a_tasks, return_exceptions=True)
-
-        for result in group_a_results:
-            if isinstance(result, Exception):
-                job_results.append({'name': 'Group A job', 'success': False, 'message': str(result)})
-            else:
-                job_results.append(result)
-                if result.get('success'):
-                    completed += 1
-
-        # =========================================================================
-        # GROUP B: Factor calculations (independent, can run in parallel)
-        # =========================================================================
-        logger.debug(f"    Running Group B (Factors) in parallel...")
-        group_b_jobs = [
-            ("Spread Factors", self._calculate_spread_factors),
-            ("Ridge Factors", self._calculate_ridge_factors),
-        ]
-        group_b_tasks = [_run_job(name, func) for name, func in group_b_jobs]
-        group_b_results = await asyncio.gather(*group_b_tasks, return_exceptions=True)
-
-        for result in group_b_results:
-            if isinstance(result, Exception):
-                job_results.append({'name': 'Group B job', 'success': False, 'message': str(result)})
-            else:
-                job_results.append(result)
-                if result.get('success'):
-                    completed += 1
-
-        # =========================================================================
-        # GROUP C: Volatility and Correlations (independent, can run in parallel)
-        # =========================================================================
-        logger.debug(f"    Running Group C (Vol/Corr) in parallel...")
-        group_c_jobs = [
-            ("Volatility Analytics", self._calculate_volatility_analytics),
-            ("Correlations", self._calculate_correlations),
-        ]
-        group_c_tasks = [_run_job(name, func) for name, func in group_c_jobs]
-        group_c_results = await asyncio.gather(*group_c_tasks, return_exceptions=True)
-
-        for result in group_c_results:
-            if isinstance(result, Exception):
-                job_results.append({'name': 'Group C job', 'success': False, 'message': str(result)})
-            else:
-                job_results.append(result)
-                if result.get('success'):
-                    completed += 1
-
-        # =========================================================================
-        # GROUP D: Sector Analysis (independent, runs if enabled)
-        # =========================================================================
-        if run_sector_analysis:
-            logger.debug(f"    Running Group D (Sector Analysis)...")
-            sector_result = await _run_job("Sector Analysis", self._calculate_sector_analysis)
-            job_results.append(sector_result)
-            if sector_result.get('success'):
-                completed += 1
-        else:
-            logger.debug(
-                "Skipping sector analysis for portfolio %s on %s (not target date)",
-                portfolio_id,
-                calculation_date,
-            )
-
-        # =========================================================================
-        # GROUP E: Stress Testing (depends on Group B factors, must run last)
-        # =========================================================================
-        logger.debug(f"    Running Group E (Stress Testing)...")
-        stress_result = await _run_job("Stress Testing", self._calculate_stress_testing)
-        job_results.append(stress_result)
-        if stress_result.get('success'):
-            completed += 1
-
         # Commit all analytics results at once (prevents object expiration between calcs)
         try:
             await db.commit()
@@ -375,8 +314,8 @@ class AnalyticsRunner:
             await db.rollback()
             raise
 
-        total_jobs = len(group_a_jobs) + len(group_b_jobs) + len(group_c_jobs) + (1 if run_sector_analysis else 0) + 1
-        logger.info(f"    Analytics complete: {completed}/{total_jobs} (PARALLEL MODE)")
+        total_jobs = len(analytics_jobs)
+        logger.info(f"    Analytics complete: {completed}/{total_jobs}")
         return {
             'completed_count': completed,
             'jobs': job_results,
