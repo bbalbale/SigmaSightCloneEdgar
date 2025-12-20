@@ -52,10 +52,19 @@ for position in positions:
 | Schema simplicity | Simpler | More complex |
 | Options handling | Compute delta×beta | Pre-computed |
 
-### Decision: TBD
-- Leaning toward symbol-only with on-demand position computation
+### Decision: Keep Both Initially
+
+**Approach**: Dual-write to both tables during validation phase:
+1. Calculate symbol-level factors → store in `symbol_factor_exposures`
+2. Continue writing position-level factors → store in `position_factor_exposures`
+3. Run comparison script to validate consistency
+4. Only deprecate position-level after high confidence in symbol-level accuracy
+
+**Rationale**:
 - Need to validate options delta handling works correctly
-- May keep PositionFactorExposure for transition period
+- Need to compare aggregated symbol-level vs direct position-level calculations
+- Provides safety net during transition
+- Enables A/B testing of calculation approaches
 
 ---
 
@@ -192,17 +201,26 @@ CREATE TABLE symbol_universe (
 
 ### What Happens to `position_factor_exposures`?
 
-**Option A: Deprecate entirely**
-- Stop writing to it
-- Portfolio aggregation uses `symbol_factor_exposures` + position weights
-- Eventually drop the table
+**Decision: Dual-Write During Validation**
 
-**Option B: Keep for transition**
-- Dual-write during validation period
-- Compare results to ensure correctness
-- Deprecate after confidence is high
+Both tables will be written during the transition period:
 
-**Recommendation**: Option B initially, then Option A after validation.
+```
+Batch Processing Flow (Dual-Write Mode):
+├── Phase 0.5: Calculate symbol factors → symbol_factor_exposures
+├── Phase 6: Calculate position factors → position_factor_exposures (existing)
+└── Post-batch: Run comparison script → validate consistency
+```
+
+**Transition Timeline**:
+1. **Dual-write mode** (Weeks 1-4): Write to both tables, run comparison daily
+2. **Validation mode** (Weeks 3-4): Review comparison reports, investigate discrepancies
+3. **Deprecation mode** (Week 5+): Stop writing to position_factor_exposures (only after 99.9%+ match rate)
+
+**Key Validation Points**:
+- Same symbol in different portfolios should have identical betas
+- Options: `position_beta = delta × symbol_beta`
+- Portfolio aggregation should match within tolerance
 
 ---
 
@@ -394,6 +412,231 @@ async def run_daily_batch_with_backfill(...):
 
 ---
 
+## Validation Script: Compare Position vs Symbol Factors
+
+A critical component of the dual-write approach is a comparison script that validates consistency between the two calculation methods.
+
+### Script Location
+`backend/scripts/validation/compare_factor_exposures.py`
+
+### What It Compares
+
+For each position on each calculation date:
+
+| Metric | Position-Level (Current) | Symbol-Level (New) |
+|--------|--------------------------|-------------------|
+| Factor beta | Direct from `position_factor_exposures` | Lookup from `symbol_factor_exposures` |
+| Portfolio exposure | Sum of position betas × weights | Sum of symbol betas × weights |
+| Options adjustment | Pre-computed with delta | Computed as delta × symbol_beta |
+
+### Comparison Script Design
+
+```python
+"""
+compare_factor_exposures.py
+
+Validates that symbol-level factor calculations match position-level calculations.
+Run after dual-write batch processing to ensure consistency before deprecation.
+"""
+
+import asyncio
+from datetime import date, timedelta
+from typing import Dict, List, Tuple
+from sqlalchemy import select
+from app.database import AsyncSessionLocal
+from app.models.market_data import PositionFactorExposure
+from app.models.symbol_factor_exposures import SymbolFactorExposure
+from app.models.positions import Position
+
+# Tolerance for floating point comparison
+BETA_TOLERANCE = 0.0001  # 0.01% difference allowed
+PORTFOLIO_TOLERANCE = 0.001  # 0.1% difference for aggregated values
+
+
+async def compare_for_date(calculation_date: date) -> Dict:
+    """Compare position-level vs symbol-level factors for a single date."""
+
+    async with AsyncSessionLocal() as db:
+        # Get all position factor exposures for this date
+        position_factors = await db.execute(
+            select(PositionFactorExposure)
+            .where(PositionFactorExposure.calculation_date == calculation_date)
+        )
+        position_factors = position_factors.scalars().all()
+
+        # Get corresponding symbol factors
+        symbol_factors = await db.execute(
+            select(SymbolFactorExposure)
+            .where(SymbolFactorExposure.calculation_date == calculation_date)
+        )
+        symbol_factors = symbol_factors.scalars().all()
+
+        # Build lookup: {symbol: {factor_name: beta}}
+        symbol_betas = {}
+        for sf in symbol_factors:
+            if sf.symbol not in symbol_betas:
+                symbol_betas[sf.symbol] = {}
+            symbol_betas[sf.symbol][sf.factor_name] = sf.beta_value
+
+        # Compare each position
+        discrepancies = []
+        matches = 0
+        missing_symbols = set()
+
+        for pf in position_factors:
+            position = await db.get(Position, pf.position_id)
+            symbol = position.symbol
+
+            # Get symbol-level beta
+            if symbol not in symbol_betas:
+                missing_symbols.add(symbol)
+                continue
+
+            symbol_beta = symbol_betas.get(symbol, {}).get(pf.factor_name)
+            if symbol_beta is None:
+                missing_symbols.add(f"{symbol}:{pf.factor_name}")
+                continue
+
+            # For options, apply delta adjustment
+            if position.is_option:
+                expected_beta = position.delta * symbol_beta
+            else:
+                expected_beta = symbol_beta
+
+            # Compare
+            diff = abs(pf.beta_value - expected_beta)
+            if diff > BETA_TOLERANCE:
+                discrepancies.append({
+                    'position_id': str(pf.position_id),
+                    'symbol': symbol,
+                    'factor': pf.factor_name,
+                    'position_beta': float(pf.beta_value),
+                    'symbol_beta': float(expected_beta),
+                    'difference': float(diff),
+                    'is_option': position.is_option
+                })
+            else:
+                matches += 1
+
+        return {
+            'date': calculation_date.isoformat(),
+            'total_comparisons': len(position_factors),
+            'matches': matches,
+            'discrepancies': discrepancies,
+            'discrepancy_count': len(discrepancies),
+            'missing_symbols': list(missing_symbols),
+            'match_rate': matches / len(position_factors) if position_factors else 1.0
+        }
+
+
+async def compare_portfolio_aggregation(
+    portfolio_id: str,
+    calculation_date: date
+) -> Dict:
+    """
+    Compare portfolio-level factor exposure calculated two ways:
+    1. Sum of position_factor_exposures (current method)
+    2. Sum of symbol_factor_exposures × position weights (new method)
+    """
+
+    async with AsyncSessionLocal() as db:
+        # Method 1: Current approach (position-level)
+        # ... aggregate from position_factor_exposures
+
+        # Method 2: New approach (symbol-level)
+        # ... aggregate from symbol_factor_exposures × weights
+
+        # Compare
+        pass  # Implementation details
+
+
+async def run_full_comparison(
+    start_date: date,
+    end_date: date
+) -> Dict:
+    """Run comparison across date range and generate report."""
+
+    results = []
+    current = start_date
+
+    while current <= end_date:
+        result = await compare_for_date(current)
+        results.append(result)
+        current += timedelta(days=1)
+
+    # Summary statistics
+    total_comparisons = sum(r['total_comparisons'] for r in results)
+    total_matches = sum(r['matches'] for r in results)
+    total_discrepancies = sum(r['discrepancy_count'] for r in results)
+
+    return {
+        'date_range': f"{start_date} to {end_date}",
+        'dates_analyzed': len(results),
+        'total_comparisons': total_comparisons,
+        'total_matches': total_matches,
+        'total_discrepancies': total_discrepancies,
+        'overall_match_rate': total_matches / total_comparisons if total_comparisons else 1.0,
+        'daily_results': results,
+        'recommendation': 'SAFE_TO_DEPRECATE' if total_discrepancies == 0 else 'INVESTIGATE_DISCREPANCIES'
+    }
+
+
+if __name__ == '__main__':
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--start-date', required=True)
+    parser.add_argument('--end-date', required=True)
+    parser.add_argument('--output', default='factor_comparison_report.json')
+    args = parser.parse_args()
+
+    result = asyncio.run(run_full_comparison(
+        date.fromisoformat(args.start_date),
+        date.fromisoformat(args.end_date)
+    ))
+
+    # Write report
+    import json
+    with open(args.output, 'w') as f:
+        json.dump(result, f, indent=2)
+
+    print(f"Match rate: {result['overall_match_rate']:.2%}")
+    print(f"Recommendation: {result['recommendation']}")
+```
+
+### Expected Discrepancy Sources
+
+| Source | Cause | Expected? |
+|--------|-------|-----------|
+| Floating point | Minor rounding differences | Yes, within tolerance |
+| Options delta | Delta × symbol_beta vs pre-computed | Should match exactly |
+| Stale cache | Position calculated at different time | No, investigate |
+| Missing symbol | Symbol not in universe | No, add to universe |
+| Regression differences | Different data windows | No, align windows |
+
+### Usage
+
+```bash
+# Run comparison for recent batch
+cd backend
+uv run python scripts/validation/compare_factor_exposures.py \
+    --start-date 2025-12-01 \
+    --end-date 2025-12-19 \
+    --output factor_comparison_report.json
+
+# Review output
+cat factor_comparison_report.json | jq '.overall_match_rate, .recommendation'
+```
+
+### Success Criteria for Deprecation
+
+Before deprecating `position_factor_exposures`:
+1. **Match rate > 99.9%** across 30+ days
+2. **Zero unexplained discrepancies** (all within tolerance or documented)
+3. **Options handling validated** for all option positions
+4. **Performance improvement confirmed** (5x target met)
+
+---
+
 ## Performance Expectations
 
 ### Current Performance (100 symbols across 3 portfolios)
@@ -415,24 +658,36 @@ async def run_daily_batch_with_backfill(...):
 
 ## Rollout Strategy
 
-### Step 1: Deploy Schema (Day 1)
-- Run migration to create new tables
-- No code changes yet
+### Step 1: Deploy Schema & Comparison Script (Day 1)
+- Run migration to create `symbol_factor_exposures` table
+- Deploy `compare_factor_exposures.py` validation script
+- No batch processing changes yet
 
-### Step 2: Dual-Write Mode (Day 2-3)
-- Calculate factors using new symbol-level approach
-- ALSO write to existing PositionFactorExposure (backward compatibility)
-- Compare results to validate
+### Step 2: Enable Dual-Write Mode (Day 2-3)
+- Add Phase 0.5 to batch orchestrator (symbol-level calculation)
+- Keep existing Phase 6 position-level calculation
+- Both tables populated on each batch run
 
-### Step 3: Switch Read Path (Day 4-5)
-- Portfolio aggregation reads from symbol_factor_exposures
-- Falls back to PositionFactorExposure if missing
+### Step 3: Daily Comparison Runs (Days 4-30)
+- Run comparison script after each batch:
+  ```bash
+  uv run python scripts/validation/compare_factor_exposures.py \
+      --start-date $(date -d "yesterday" +%Y-%m-%d) \
+      --end-date $(date +%Y-%m-%d)
+  ```
+- Review discrepancies, fix root causes
+- Target: 99.9%+ match rate for 7+ consecutive days
+
+### Step 4: Switch Read Path (Day 14+, after validation)
+- Portfolio aggregation reads from `symbol_factor_exposures`
+- Falls back to `position_factor_exposures` if missing
 - Monitor for issues
 
-### Step 4: Deprecate Position-Level (Day 7+)
-- Stop writing to PositionFactorExposure for factor betas
-- Keep table for other position-specific metrics
-- Clean up old code
+### Step 5: Deprecate Position-Level (Day 30+)
+- Only proceed after comparison script shows 99.9%+ match for 14+ days
+- Stop writing to `position_factor_exposures` for factor betas
+- Keep table for historical data reference
+- Clean up old code paths
 
 ---
 
@@ -453,16 +708,19 @@ async def run_daily_batch_with_backfill(...):
 ### New Files
 - `app/calculations/symbol_factors.py` - Core symbol-level calculation
 - `app/services/portfolio_factor_service.py` - Portfolio aggregation
+- `app/models/symbol_factor_exposures.py` - SQLAlchemy model for new table
 - `alembic/versions/xxx_add_symbol_factor_exposures.py` - Migration
+- `scripts/validation/compare_factor_exposures.py` - **Comparison script for dual-write validation**
 
 ### Modified Files
 - `app/batch/batch_orchestrator.py` - Add Phase 0.5
 - `app/batch/analytics_runner.py` - Use new aggregation service
 - `app/calculations/factors_ridge.py` - Refactor to use symbol-level
 
-### Deprecated (Eventually)
+### Deprecated (Eventually, after validation passes)
 - Position-level factor calculation in `factors_ridge.py`
 - Position-level caching in `factor_utils.py`
+- Writing to `position_factor_exposures` for factor betas
 
 ---
 
