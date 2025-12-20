@@ -273,6 +273,81 @@ Batch Processing:
 └── symbol_factor_exposures → denormalize → symbol_daily_metrics.factor_*
 ```
 
+---
+
+## Symbol Returns as Single Source of Truth
+
+**Key Insight**: Symbol returns should be calculated ONCE per symbol, then reused for:
+1. Portfolio P&L calculation (position_weight × symbol_return)
+2. Symbol Dashboard display
+3. Factor regression inputs (if needed)
+
+### Current Problem (Redundant Calculation)
+
+```
+AAPL in Portfolio A, B, C:
+├── P&L Calculator: Fetch AAPL prices → calculate return (×3 redundant!)
+├── Dashboard: Fetch AAPL prices → calculate return (×1 more!)
+└── Total: 4 calculations of the same return
+```
+
+### New Approach (Calculate Once)
+
+```
+Phase 1.5: Symbol Returns
+├── For each unique symbol in universe:
+│   ├── Fetch prices from market_data
+│   ├── Calculate return_1d, return_mtd, return_ytd, etc.
+│   └── Store in symbol_daily_metrics
+└── Done ONCE per symbol
+
+Phase 2: Portfolio P&L (uses cached returns)
+├── For each portfolio:
+│   ├── Get positions with weights
+│   ├── Lookup symbol returns from symbol_daily_metrics
+│   ├── portfolio_pnl = Σ(position_weight × position_value × symbol_return_1d)
+│   └── Update snapshots
+└── No price fetching, just lookups!
+```
+
+### Impact on pnl_calculator.py
+
+```python
+# OLD: Calculate returns from prices for each position
+async def calculate_position_pnl(position, calculation_date):
+    prices = await get_prices(position.symbol, calculation_date)
+    daily_return = (prices.close - prices.prev_close) / prices.prev_close
+    return position.market_value * daily_return
+
+# NEW: Lookup pre-calculated symbol returns
+async def calculate_position_pnl(position, symbol_metrics: Dict[str, SymbolDailyMetrics]):
+    symbol_return = symbol_metrics[position.symbol].return_1d
+    return position.market_value * symbol_return
+```
+
+### Efficiency Gains
+
+| Scenario | Old (per-position) | New (per-symbol) | Savings |
+|----------|-------------------|------------------|---------|
+| AAPL in 3 portfolios | 3 calculations | 1 calculation | 67% |
+| 63 positions, 50 unique symbols | 63 calculations | 50 calculations | 21% |
+| 120 days backfill | 63 × 120 = 7,560 | 50 × 120 = 6,000 | 21% |
+
+### Dependency Change
+
+```
+OLD Order:
+Phase 1: Market Data
+Phase 2: P&L (calculates returns internally)
+Phase 7: Dashboard (calculates returns again)
+
+NEW Order:
+Phase 1: Market Data (prices only)
+Phase 1.5: Symbol Returns → symbol_daily_metrics  ← NEW, runs EARLY
+Phase 2: P&L (lookups from symbol_daily_metrics)  ← MODIFIED
+Phase 7: Dashboard (already populated)            ← SIMPLIFIED
+```
+
 ### What Happens to `position_factor_exposures`?
 
 **Decision: Dual-Write During Validation**
@@ -459,67 +534,92 @@ async def get_portfolio_factor_exposures(
 ```
 
 ### Phase 4: Batch Orchestrator Integration (2-3 hours)
-1. Add new Phase 0.5: Universe Factor Calculation (runs BEFORE portfolio processing)
-2. Add new Phase 7: Symbol Daily Metrics (runs AFTER all calculations)
-3. Modify Phase 6 analytics to use new aggregation service
-4. Keep backward compatibility with existing PositionFactorExposure table
+
+**Critical Change**: Symbol returns must be calculated BEFORE P&L calculation.
+
+```
+NEW Batch Phase Order:
+Phase 0:   Company Profiles (existing)
+Phase 0.5: Universe Factor Calculation → symbol_factor_exposures
+Phase 1:   Market Data Fetch (prices only)
+Phase 1.5: Symbol Returns & Metrics → symbol_daily_metrics  ← NEW, CRITICAL
+Phase 2:   Portfolio P&L (uses symbol_daily_metrics.return_1d)  ← MODIFIED
+Phase 2.5: Position Market Values (existing)
+Phase 3-5: Snapshots, Greeks, Stress Tests (existing)
+Phase 6:   Analytics (uses symbol_factor_exposures)  ← MODIFIED
+```
 
 ```python
 # In batch_orchestrator.py
 
 async def run_daily_batch_with_backfill(...):
-    # ...existing Phase 0 (Company Profiles)...
+    # Phase 0: Company Profiles (existing)
+    ...
 
     # NEW: Phase 0.5 - Universe Factor Calculation
     logger.info(f"Phase 0.5: Calculating universe factor exposures")
     universe_result = await calculate_universe_factors(calculation_date)
-    logger.info(f"[FACTORS] {universe_result['symbols_calculated']} symbols in {universe_result['duration']}s")
+    logger.info(f"[FACTORS] {universe_result['symbols_calculated']} symbols")
 
-    # ...existing Phase 1 (Market Data)...
-    # ...existing Phase 2-6...
+    # Phase 1: Market Data (existing - fetches prices)
+    ...
 
-    # NEW: Phase 7 - Update Symbol Daily Metrics (for dashboard)
-    logger.info(f"Phase 7: Updating symbol daily metrics")
-    metrics_result = await update_symbol_daily_metrics(calculation_date)
-    logger.info(f"[METRICS] {metrics_result['symbols_updated']} symbols updated")
+    # NEW: Phase 1.5 - Symbol Returns & Metrics (BEFORE P&L!)
+    logger.info(f"Phase 1.5: Calculating symbol returns")
+    metrics_result = await calculate_symbol_metrics(calculation_date)
+    logger.info(f"[METRICS] {metrics_result['symbols_updated']} symbols")
+
+    # Phase 2: Portfolio P&L (MODIFIED - uses cached symbol returns)
+    symbol_metrics = await load_symbol_metrics(calculation_date)  # Bulk load
+    for portfolio in portfolios:
+        await calculate_portfolio_pnl(portfolio, symbol_metrics)  # Lookups only
+
+    # Phase 2.5-6: Existing phases...
 ```
 
-### Phase 5: Symbol Daily Metrics Service (2-3 hours)
+### Phase 5: Symbol Metrics Service (2-3 hours)
 
-Create service to consolidate all metrics for the Symbol Dashboard.
+Calculates returns and consolidates metrics for all symbols. **Runs EARLY in batch (Phase 1.5)**.
 
 ```python
 # app/services/symbol_metrics_service.py
 
-async def update_symbol_daily_metrics(calculation_date: date) -> Dict:
+async def calculate_symbol_metrics(calculation_date: date) -> Dict:
     """
-    Consolidate all symbol metrics into symbol_daily_metrics table.
-    Called at end of batch processing.
+    Calculate returns and populate symbol_daily_metrics.
+
+    MUST run before P&L calculation (Phase 1.5).
+    P&L calculator will lookup returns from this table.
     """
     async with AsyncSessionLocal() as db:
-        # Get all symbols in universe
-        symbols = await get_active_symbols(db)
+        # Get all unique symbols from positions + universe
+        symbols = await get_all_active_symbols(db)
+
+        # Bulk fetch prices for all symbols (single query)
+        prices = await bulk_fetch_prices(db, symbols, calculation_date)
 
         for symbol in symbols:
-            # Gather data from multiple sources
-            returns = await calculate_symbol_returns(db, symbol, calculation_date)
+            symbol_prices = prices.get(symbol, {})
+
+            # Calculate returns
+            return_1d = calculate_daily_return(symbol_prices)
+            return_mtd = calculate_mtd_return(symbol_prices, calculation_date)
+            return_ytd = calculate_ytd_return(symbol_prices, calculation_date)
+
+            # Get company profile data
             profile = await get_company_profile(db, symbol)
-            factors = await get_symbol_factors(db, symbol, calculation_date)
 
             # Upsert into symbol_daily_metrics
             await upsert_symbol_metrics(db, symbol, {
                 'metrics_date': calculation_date,
-                'current_price': returns.get('current_price'),
-                'return_1d': returns.get('return_1d'),
-                'return_mtd': returns.get('return_mtd'),
-                'return_ytd': returns.get('return_ytd'),
-                'market_cap': profile.market_cap,
-                'pe_ratio': profile.pe_ratio,
-                'ps_ratio': profile.ps_ratio,
-                'sector': profile.sector,
-                'factor_momentum': factors.get('momentum'),
-                'factor_value': factors.get('value'),
-                # ... other factors
+                'current_price': symbol_prices.get('close'),
+                'return_1d': return_1d,
+                'return_mtd': return_mtd,
+                'return_ytd': return_ytd,
+                'market_cap': profile.market_cap if profile else None,
+                'pe_ratio': profile.pe_ratio if profile else None,
+                'sector': profile.sector if profile else None,
+                # Factor exposures populated later in Phase 6
             })
 
         await db.commit()
@@ -976,7 +1076,8 @@ const highMomentumStocks = await symbolsApi.getUniverse({
 - `frontend/src/services/symbolsApi.ts` - Frontend API client
 
 ### Modified Files
-- `app/batch/batch_orchestrator.py` - Add Phase 0.5 (factors) and Phase 7 (metrics)
+- `app/batch/batch_orchestrator.py` - Add Phase 0.5 (factors), Phase 1.5 (returns)
+- `app/batch/pnl_calculator.py` - **Use cached symbol returns instead of calculating**
 - `app/batch/analytics_runner.py` - Use new aggregation service
 - `app/calculations/factors_ridge.py` - Refactor to use symbol-level
 - `app/api/v1/data.py` - Add `/symbols` endpoint
@@ -985,6 +1086,7 @@ const highMomentumStocks = await symbolsApi.getUniverse({
 - Position-level factor calculation in `factors_ridge.py`
 - Position-level caching in `factor_utils.py`
 - Writing to `position_factor_exposures` for factor betas
+- Per-position return calculation in `pnl_calculator.py`
 
 ---
 
