@@ -1,10 +1,11 @@
 """
-Batch Orchestrator - Production-Ready 8-Phase Architecture with Automatic Backfill
+Batch Orchestrator - Production-Ready 9-Phase Architecture with Automatic Backfill
 
-Architecture (Updated 2025-12-20 to add Phase 1.5):
+Architecture (Updated 2025-12-20 to add Phases 1.5 and 1.75):
 - Phase 0: Company Profile Sync (beta values, sector, industry) - RUNS FIRST on final date only
 - Phase 1: Market Data Collection (1-year lookback)
-- Phase 1.5: Symbol Factor Calculation (universe-level ridge/spread factors) - NEW
+- Phase 1.5: Symbol Factor Calculation (universe-level ridge/spread factors)
+- Phase 1.75: Symbol Metrics Calculation (returns, valuations, denormalized factors)
 - Phase 2: Fundamental Data Collection (earnings-driven updates)
 - Phase 3: P&L Calculation & Snapshots (equity rollforward)
 - Phase 4: Position Market Value Updates (for analytics accuracy)
@@ -290,6 +291,38 @@ class BatchOrchestrator:
             # Portfolio-level analytics will fall back to position-level calculations
 
         # =============================================================================
+        # STEP 2.75: Calculate Symbol Metrics (returns, valuations) (Phase 1.75)
+        # Pre-calculates returns and metrics for all symbols before P&L calculation.
+        # P&L calculator can then lookup returns instead of recalculating per position.
+        # Also populates symbol_daily_metrics for the Symbol Dashboard.
+        # =============================================================================
+        symbol_metrics_result = None
+        try:
+            from app.services.symbol_metrics_service import calculate_symbol_metrics
+
+            final_date = missing_dates[-1]
+            logger.info(f"Phase 1.75: Calculating symbol metrics (date={final_date})")
+
+            symbol_metrics_result = await calculate_symbol_metrics(
+                calculation_date=final_date,
+                price_cache=price_cache
+            )
+
+            logger.info(
+                f"Phase 1.75 complete: {symbol_metrics_result['symbols_updated']}/{symbol_metrics_result['symbols_total']} symbols updated"
+            )
+
+            if symbol_metrics_result.get('errors'):
+                logger.warning(f"Phase 1.75 had {len(symbol_metrics_result['errors'])} errors")
+
+        except Exception as e:
+            logger.error(f"Phase 1.75 (Symbol Metrics) error: {e}")
+            import traceback
+            logger.error(f"Traceback: {traceback.format_exc()}")
+            # Continue to Phase 2-6 even if symbol metrics fail
+            # P&L calculator will calculate returns directly from prices as fallback
+
+        # =============================================================================
         # STEP 3: Run Phases 0, 2-6 for each date (using populated price cache)
         # Phase 1 already completed above, so we skip it in run_daily_batch_sequence
         # =============================================================================
@@ -329,6 +362,7 @@ class BatchOrchestrator:
             'dates_processed': len(missing_dates),
             'duration_seconds': duration,
             'phase_1_5': symbol_factor_result or {'success': False, 'skipped': True},
+            'phase_1_75': symbol_metrics_result or {'success': False, 'skipped': True},
             'results': results
         }
 
