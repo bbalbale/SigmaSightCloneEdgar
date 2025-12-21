@@ -51,7 +51,7 @@ from app.agent.services.memory_service import extract_memories_from_conversation
 from app.core.datetime_utils import utc_now
 from app.core.logging import get_logger
 from app.config import settings
-from app.database import AsyncSessionLocal
+from app.database import AsyncSessionLocal, get_ai_session
 
 logger = get_logger(__name__)
 
@@ -67,7 +67,7 @@ async def _run_memory_extraction_background(
     """
     Background task to extract and save memories from a conversation turn.
 
-    Uses a separate database session to avoid issues with the request session.
+    Uses AI database session for memories (ai_memories table lives in AI database).
     """
     try:
         # Format the conversation text
@@ -78,14 +78,14 @@ async def _run_memory_extraction_background(
             logger.debug("[Memory] Response too short for extraction")
             return
 
-        # Use a fresh database session for background work
-        async with AsyncSessionLocal() as db:
+        # Use AI database session for memories (ai_memories is in AI database)
+        async with get_ai_session() as ai_db:
             from uuid import UUID
             user_uuid = UUID(user_id) if isinstance(user_id, str) else user_id
             portfolio_uuid = UUID(portfolio_id) if portfolio_id else None
 
             saved = await extract_memories_from_conversation(
-                db=db,
+                db=ai_db,
                 user_id=user_uuid,
                 conversation_text=conversation_text,
                 portfolio_id=portfolio_uuid,

@@ -10,7 +10,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.database import get_db
+from app.database import get_ai_db  # AI memories live in AI database
 from app.core.dependencies import get_current_user
 from app.schemas.auth import CurrentUser
 from app.agent.services.memory_service import (
@@ -82,7 +82,7 @@ async def list_memories(
     portfolio_id: Optional[str] = Query(None, description="Filter by portfolio ID"),
     limit: int = Query(20, ge=1, le=50, description="Maximum memories to return"),
     current_user: CurrentUser = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_ai_db),
 ):
     """
     List the current user's memories.
@@ -119,7 +119,7 @@ async def list_memories(
 async def create_memory(
     request: MemoryCreateRequest,
     current_user: CurrentUser = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_ai_db),
 ):
     """
     Create a new memory for the current user.
@@ -154,7 +154,7 @@ async def create_memory(
 async def delete_single_memory(
     memory_id: str,
     current_user: CurrentUser = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_ai_db),
 ):
     """
     Delete a specific memory by ID.
@@ -182,7 +182,7 @@ async def delete_single_memory(
 @router.delete("", response_model=MemoryDeleteResponse)
 async def delete_all_memories(
     current_user: CurrentUser = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_ai_db),
 ):
     """
     Delete ALL memories for the current user.
@@ -205,7 +205,7 @@ async def delete_all_memories(
 @router.get("/count", response_model=MemoryCountResponse)
 async def get_memory_count(
     current_user: CurrentUser = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_ai_db),
 ):
     """
     Get the count of memories for the current user.
