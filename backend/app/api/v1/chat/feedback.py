@@ -25,7 +25,7 @@ from uuid import UUID
 from app.database import get_db, get_ai_db
 from app.core.dependencies import get_current_user, CurrentUser
 from app.agent.models.conversations import Conversation, ConversationMessage
-from app.models.ai_learning import AIFeedback
+from app.models.ai_models import AIFeedback
 from app.core.logging import get_logger
 
 logger = get_logger(__name__)

@@ -18,7 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.logging import get_logger
 from app.database import get_async_session, get_ai_session
-from app.models.ai_learning import AIFeedback, AIMemory
+from app.models.ai_models import AIFeedback, AIMemory
 from app.agent.models.conversations import ConversationMessage, Conversation
 from app.agent.services.feedback_analyzer import feedback_analyzer, LearningRule
 from app.agent.services.rag_service import (

@@ -16,7 +16,7 @@ from app.models.position_tags import PositionTag
 from app.models.position_realized_events import PositionRealizedEvent
 from app.models.equity_changes import EquityChange, EquityChangeType
 from app.models.ai_insights import AIInsight
-from app.models.ai_learning import AIKBDocument, AIMemory, AIFeedback
+from app.models.ai_models import AIKBDocument, AIMemory, AIFeedback
 from app.models.fundamentals import IncomeStatement, BalanceSheet, CashFlow
 from app.models.symbol_analytics import SymbolUniverse, SymbolFactorExposure, SymbolDailyMetrics
 
@@ -68,8 +68,13 @@ __all__ = [
     "EquityChange",
     "EquityChangeType",
 
-    # AI insights module
+    # AI insights module (Core database)
     "AIInsight",
+
+    # AI learning models (AI database - uses AiBase, not Base)
+    "AIKBDocument",
+    "AIMemory",
+    "AIFeedback",
 
     # Fundamentals module
     "IncomeStatement",

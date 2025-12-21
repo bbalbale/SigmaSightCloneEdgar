@@ -352,8 +352,8 @@ from app.models.correlations import CorrelationCalculation
 from app.models.snapshots import PortfolioSnapshot
 
 # AI Learning models (AI Database - December 2025)
-from app.models.ai_learning import AIFeedback, AIMemory
-from app.agent.models.ai_kb_documents import AIKBDocument
+# These use AiBase (separate from Core's Base) for cross-database separation
+from app.models.ai_models import AIFeedback, AIMemory, AIKBDocument
 
 # Database utilities (Dual Database Architecture)
 # Core database (portfolios, positions, market data)

@@ -22,7 +22,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import settings
 from app.core.logging import get_logger
 from app.database import get_async_session, get_ai_session
-from app.models.ai_learning import AIFeedback
+from app.models.ai_models import AIFeedback
 from app.agent.models.conversations import ConversationMessage, Conversation
 
 logger = get_logger(__name__)

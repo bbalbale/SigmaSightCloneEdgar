@@ -61,6 +61,10 @@ class AIKBDocument(AiBase):
         # HNSW index for vector similarity search is added via migration
     )
 
+    def __repr__(self):
+        title_preview = self.title[:50] if self.title else ""
+        return f"<AIKBDocument {self.id} scope={self.scope} title={title_preview}>"
+
 
 class AIMemory(AiBase):
     """
@@ -98,6 +102,10 @@ class AIMemory(AiBase):
         Index('ix_ai_memories_tenant_id', 'tenant_id'),
     )
 
+    def __repr__(self):
+        content_preview = self.content[:50] if self.content else ""
+        return f"<AIMemory {self.id} scope={self.scope} content={content_preview}>"
+
 
 class AIFeedback(AiBase):
     """
@@ -129,3 +137,6 @@ class AIFeedback(AiBase):
         Index('ix_ai_feedback_message_id', 'message_id'),
         Index('ix_ai_feedback_rating', 'rating'),
     )
+
+    def __repr__(self):
+        return f"<AIFeedback {self.id} message={self.message_id} rating={self.rating}>"

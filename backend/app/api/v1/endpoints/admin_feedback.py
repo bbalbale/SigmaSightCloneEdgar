@@ -22,7 +22,7 @@ from pydantic import BaseModel
 from app.core.dependencies import get_db, require_admin
 from app.core.logging import get_logger
 from app.database import get_db as get_core_db, get_ai_db
-from app.models.ai_learning import AIFeedback, AIMemory
+from app.models.ai_models import AIFeedback, AIMemory
 from app.agent.models.conversations import Conversation, ConversationMessage
 from app.agent.services.feedback_analyzer import feedback_analyzer
 from app.agent.services.learning_service import learning_service
