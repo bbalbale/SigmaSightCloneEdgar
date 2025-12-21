@@ -1,16 +1,26 @@
 """
-Phase 3: Risk Analytics Runner
+Phase 6: Risk Analytics Runner
 Runs all risk calculations using cached market data (NO API calls)
 
 Analytics:
 1. Market beta (90-day regression)
-2. IR beta (90-day regression)
-3. Factor analysis (ridge + spread)
-4. Sector analysis
-5. Volatility analytics
-6. Correlations
-7. Stress testing (market risk scenarios)
-8. Target returns
+2. Provider beta (1-year from data providers)
+3. IR beta (90-day regression)
+4. Factor analysis (ridge + spread) - NEW: Uses symbol-level pre-computation from Phase 1.5
+5. Sector analysis
+6. Volatility analytics
+7. Correlations
+8. Stress testing (market risk scenarios)
+
+Architecture Update (2025-12-20):
+Factor analysis now uses a two-tier approach:
+1. Symbol-level pre-computation (Phase 1.5): Factor betas calculated once per symbol
+2. Portfolio aggregation (Phase 6): Symbol betas aggregated by position weight
+3. Fallback: Position-level calculations if symbol coverage < 80%
+
+Key insight: Factor beta is intrinsic to the symbol (AAPL's momentum beta is the same
+regardless of which portfolio holds it). Pre-computing once per symbol eliminates
+redundant regression calculations.
 """
 import asyncio
 from datetime import date
@@ -537,15 +547,78 @@ class AnalyticsRunner:
         portfolio_id: UUID,
         calculation_date: date
     ) -> Dict[str, Any]:
-        """Calculate ridge factor betas"""
+        """
+        Calculate ridge factor betas using symbol-level pre-computation.
+
+        New Architecture (2025-12-20):
+        1. First try to use pre-computed symbol betas from Phase 1.5
+        2. Aggregate symbol betas by position weight to get portfolio factors
+        3. Fall back to position-level calculations if symbol coverage is insufficient
+        """
         try:
+            # Try symbol-level aggregation first (faster, uses Phase 1.5 pre-computed betas)
+            try:
+                from app.services.portfolio_factor_service import get_portfolio_factor_exposures
+
+                symbol_result = await get_portfolio_factor_exposures(
+                    db=db,
+                    portfolio_id=portfolio_id,
+                    calculation_date=calculation_date,
+                    use_delta_adjusted=False,
+                    include_ridge=True,
+                    include_spread=False  # Only ridge for this method
+                )
+
+                # Check if we have sufficient symbol coverage (>= 80%)
+                data_quality = symbol_result.get('data_quality', {})
+                total_symbols = data_quality.get('total_symbols', 0)
+                symbols_with_ridge = data_quality.get('symbols_with_ridge', 0)
+
+                if total_symbols > 0 and symbols_with_ridge / total_symbols >= 0.8:
+                    # Good coverage - use symbol-level aggregation
+                    ridge_betas = symbol_result.get('ridge_betas', {})
+
+                    if ridge_betas:
+                        # Store the aggregated portfolio factors
+                        from app.services.portfolio_factor_service import store_portfolio_factor_exposures
+
+                        await store_portfolio_factor_exposures(
+                            db=db,
+                            portfolio_id=portfolio_id,
+                            calculation_date=calculation_date,
+                            ridge_betas=ridge_betas,
+                            spread_betas={}
+                        )
+
+                        logger.debug(
+                            f"Ridge factors via symbol aggregation: "
+                            f"{symbols_with_ridge}/{total_symbols} symbols, "
+                            f"{len(ridge_betas)} factors"
+                        )
+                        return {
+                            'success': True,
+                            'method': 'symbol_aggregation',
+                            'coverage': f"{symbols_with_ridge}/{total_symbols}"
+                        }
+
+                logger.debug(
+                    f"Symbol coverage insufficient ({symbols_with_ridge}/{total_symbols}), "
+                    f"falling back to position-level calculation"
+                )
+
+            except ImportError:
+                logger.debug("portfolio_factor_service not available, using position-level")
+            except Exception as e:
+                logger.debug(f"Symbol aggregation failed: {e}, falling back to position-level")
+
+            # Fallback: Position-level calculation (original method)
             from app.calculations.factors_ridge import calculate_factor_betas_ridge
 
             result = await calculate_factor_betas_ridge(
                 db=db,
                 portfolio_id=portfolio_id,
                 calculation_date=calculation_date,
-                price_cache=self._price_cache  # Pass through cache for optimization
+                price_cache=self._price_cache
             )
 
             # Handle graceful skip for PRIVATE-only portfolios
@@ -556,7 +629,7 @@ class AnalyticsRunner:
                 }
 
             if result and result.get('success'):
-                return {'success': True}
+                return {'success': True, 'method': 'position_level'}
             elif result:
                 return {
                     'success': False,
@@ -575,23 +648,79 @@ class AnalyticsRunner:
         portfolio_id: UUID,
         calculation_date: date
     ) -> Dict[str, Any]:
-        """Calculate spread factor betas"""
-        logger.info(f"[SPREAD_FACTORS_DEBUG] CALLED for portfolio {portfolio_id} on {calculation_date}")
+        """
+        Calculate spread factor betas using symbol-level pre-computation.
+
+        New Architecture (2025-12-20):
+        1. First try to use pre-computed symbol betas from Phase 1.5
+        2. Aggregate symbol betas by position weight to get portfolio factors
+        3. Fall back to position-level calculations if symbol coverage is insufficient
+        """
         try:
+            # Try symbol-level aggregation first (faster, uses Phase 1.5 pre-computed betas)
+            try:
+                from app.services.portfolio_factor_service import get_portfolio_factor_exposures
+
+                symbol_result = await get_portfolio_factor_exposures(
+                    db=db,
+                    portfolio_id=portfolio_id,
+                    calculation_date=calculation_date,
+                    use_delta_adjusted=False,
+                    include_ridge=False,  # Only spread for this method
+                    include_spread=True
+                )
+
+                # Check if we have sufficient symbol coverage (>= 80%)
+                data_quality = symbol_result.get('data_quality', {})
+                total_symbols = data_quality.get('total_symbols', 0)
+                symbols_with_spread = data_quality.get('symbols_with_spread', 0)
+
+                if total_symbols > 0 and symbols_with_spread / total_symbols >= 0.8:
+                    # Good coverage - use symbol-level aggregation
+                    spread_betas = symbol_result.get('spread_betas', {})
+
+                    if spread_betas:
+                        # Store the aggregated portfolio factors
+                        from app.services.portfolio_factor_service import store_portfolio_factor_exposures
+
+                        await store_portfolio_factor_exposures(
+                            db=db,
+                            portfolio_id=portfolio_id,
+                            calculation_date=calculation_date,
+                            ridge_betas={},
+                            spread_betas=spread_betas
+                        )
+
+                        logger.debug(
+                            f"Spread factors via symbol aggregation: "
+                            f"{symbols_with_spread}/{total_symbols} symbols, "
+                            f"{len(spread_betas)} factors"
+                        )
+                        return {
+                            'success': True,
+                            'method': 'symbol_aggregation',
+                            'coverage': f"{symbols_with_spread}/{total_symbols}"
+                        }
+
+                logger.debug(
+                    f"Symbol coverage insufficient ({symbols_with_spread}/{total_symbols}), "
+                    f"falling back to position-level calculation"
+                )
+
+            except ImportError:
+                logger.debug("portfolio_factor_service not available, using position-level")
+            except Exception as e:
+                logger.debug(f"Symbol aggregation failed: {e}, falling back to position-level")
+
+            # Fallback: Position-level calculation (original method)
             from app.calculations.factors_spread import calculate_portfolio_spread_betas
 
-            logger.info(f"[SPREAD_FACTORS_DEBUG] About to call calculate_portfolio_spread_betas")
             result = await calculate_portfolio_spread_betas(
                 db=db,
                 portfolio_id=portfolio_id,
                 calculation_date=calculation_date,
-                price_cache=self._price_cache  # Pass through cache for optimization
+                price_cache=self._price_cache
             )
-
-            logger.info(f"[SPREAD_FACTORS_DEBUG] Result is None: {result is None}")
-            if result:
-                logger.info(f"[SPREAD_FACTORS_DEBUG] Result has position_betas: {len(result.get('position_betas', {}))}")
-                logger.info(f"[SPREAD_FACTORS_DEBUG] Result success: {result.get('success', False)}")
 
             # Handle graceful skip for PRIVATE-only portfolios
             if result and result.get('skipped'):
@@ -601,7 +730,7 @@ class AnalyticsRunner:
                 }
 
             if result and result.get('success'):
-                return {'success': True}
+                return {'success': True, 'method': 'position_level'}
             else:
                 return {
                     'success': False,
@@ -609,10 +738,9 @@ class AnalyticsRunner:
                 }
 
         except Exception as e:
-            logger.error(f"[SPREAD_FACTORS_DEBUG] Exception: {e}")
             logger.warning(f"Spread factors calculation failed: {e}")
             import traceback
-            logger.error(f"[SPREAD_FACTORS_DEBUG] Traceback: {traceback.format_exc()}")
+            logger.error(f"Traceback: {traceback.format_exc()}")
             return {'success': False, 'message': str(e)}
 
     async def _calculate_sector_analysis(

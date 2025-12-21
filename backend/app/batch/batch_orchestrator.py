@@ -1,14 +1,21 @@
 """
-Batch Orchestrator - Production-Ready 7-Phase Architecture with Automatic Backfill
+Batch Orchestrator - Production-Ready 8-Phase Architecture with Automatic Backfill
 
-Architecture (Updated 2025-11-09 to add Phase 0):
+Architecture (Updated 2025-12-20 to add Phase 1.5):
 - Phase 0: Company Profile Sync (beta values, sector, industry) - RUNS FIRST on final date only
 - Phase 1: Market Data Collection (1-year lookback)
+- Phase 1.5: Symbol Factor Calculation (universe-level ridge/spread factors) - NEW
 - Phase 2: Fundamental Data Collection (earnings-driven updates)
 - Phase 3: P&L Calculation & Snapshots (equity rollforward)
 - Phase 4: Position Market Value Updates (for analytics accuracy)
 - Phase 5: Sector Tag Restoration (auto-tag from company profiles)
 - Phase 6: Risk Analytics (betas, factors, volatility, correlations)
+
+Phase 1.5 (Symbol Factor Calculation) Key Insight:
+- Factor betas are intrinsic to the symbol (AAPL's momentum beta is the same in every portfolio)
+- Pre-compute once per symbol, then aggregate via position weights at portfolio level
+- Eliminates redundant regression calculations (O(symbols) instead of O(positions))
+- Stored in symbol_factor_exposures table for fast lookup during Phase 6
 
 Features:
 - Automatic backfill detection
@@ -18,6 +25,7 @@ Features:
 - Automatic sector tagging from company profiles
 - Smart fundamentals fetching (3+ days after earnings)
 - Company profiles synced BEFORE calculations on final date only for fresh beta values
+- Symbol factor pre-computation before portfolio analytics
 """
 import asyncio
 import json
@@ -243,6 +251,45 @@ class BatchOrchestrator:
                 logger.debug(f"   Cache stats: {price_cache.get_stats()}")
 
         # =============================================================================
+        # STEP 2.5: Calculate Symbol Factors ONCE for all symbols (Phase 1.5)
+        # This pre-computes factor betas for the entire universe before portfolio processing.
+        # Symbol betas are intrinsic to the symbol (not position-specific), so we calculate
+        # them once and reuse during portfolio aggregation in Phase 6.
+        # =============================================================================
+        symbol_factor_result = None
+        try:
+            from app.calculations.symbol_factors import calculate_universe_factors
+
+            final_date = missing_dates[-1]
+            logger.info(f"Phase 1.5: Calculating symbol factors for universe (date={final_date})")
+
+            symbol_factor_result = await calculate_universe_factors(
+                calculation_date=final_date,
+                regularization_alpha=1.0,
+                calculate_ridge=True,
+                calculate_spread=True,
+                price_cache=price_cache
+            )
+
+            logger.info(
+                f"Phase 1.5 complete: {symbol_factor_result['symbols_processed']} symbols, "
+                f"Ridge: {symbol_factor_result['ridge_results']['calculated']} calc / "
+                f"{symbol_factor_result['ridge_results']['cached']} cached, "
+                f"Spread: {symbol_factor_result['spread_results']['calculated']} calc / "
+                f"{symbol_factor_result['spread_results']['cached']} cached"
+            )
+
+            if symbol_factor_result.get('errors'):
+                logger.warning(f"Phase 1.5 had {len(symbol_factor_result['errors'])} errors")
+
+        except Exception as e:
+            logger.error(f"Phase 1.5 (Symbol Factors) error: {e}")
+            import traceback
+            logger.error(f"Traceback: {traceback.format_exc()}")
+            # Continue to Phase 2-6 even if symbol factors fail
+            # Portfolio-level analytics will fall back to position-level calculations
+
+        # =============================================================================
         # STEP 3: Run Phases 0, 2-6 for each date (using populated price cache)
         # Phase 1 already completed above, so we skip it in run_daily_batch_sequence
         # =============================================================================
@@ -281,6 +328,7 @@ class BatchOrchestrator:
             'success': all(r['success'] for r in results),
             'dates_processed': len(missing_dates),
             'duration_seconds': duration,
+            'phase_1_5': symbol_factor_result or {'success': False, 'skipped': True},
             'results': results
         }
 

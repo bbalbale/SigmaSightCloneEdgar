@@ -18,6 +18,7 @@ from app.models.equity_changes import EquityChange, EquityChangeType
 from app.models.ai_insights import AIInsight
 from app.models.ai_learning import AIKBDocument, AIMemory, AIFeedback
 from app.models.fundamentals import IncomeStatement, BalanceSheet, CashFlow
+from app.models.symbol_analytics import SymbolUniverse, SymbolFactorExposure, SymbolDailyMetrics
 
 # Export all models
 __all__ = [
@@ -74,4 +75,9 @@ __all__ = [
     "IncomeStatement",
     "BalanceSheet",
     "CashFlow",
+
+    # Symbol analytics module (Symbol Factor Universe architecture)
+    "SymbolUniverse",
+    "SymbolFactorExposure",
+    "SymbolDailyMetrics",
 ]
