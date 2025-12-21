@@ -10,7 +10,7 @@ from app.api.v1.router import api_router
 from app.core.logging import setup_logging, api_logger
 from app.core.onboarding_errors import OnboardingException, create_error_response
 from app.core.startup_validation import validate_system_prerequisites, get_prerequisite_status
-from app.database import get_async_session
+from app.database import get_async_session, get_ai_session
 
 # Initialize logging
 setup_logging()
@@ -112,7 +112,8 @@ async def seed_kb_documents_if_needed():
     try:
         from app.agent.services.rag_service import count_kb_documents, upsert_kb_document
 
-        async with get_async_session() as db:
+        # Use AI session for AI tables (ai_kb_documents lives in AI database)
+        async with get_ai_session() as db:
             current_count = await count_kb_documents(db)
             api_logger.info(f"[KB] Current document count: {current_count}")
 
