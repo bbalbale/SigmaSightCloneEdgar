@@ -62,7 +62,7 @@ async def get_position_factor_exposures(
             pfe.position_id,
             p.symbol,
             fd.name as factor_name,
-            pfe.beta_value
+            pfe.exposure_value
         FROM position_factor_exposures pfe
         JOIN positions p ON pfe.position_id = p.id
         JOIN factor_definitions fd ON pfe.factor_id = fd.id
@@ -268,7 +268,7 @@ async def compare_portfolio_aggregation(
         position_stmt = text("""
             SELECT
                 fd.name as factor_name,
-                SUM(pfe.beta_value * (p.market_value / port.equity_balance)) as weighted_beta
+                SUM(pfe.exposure_value * (p.market_value / port.equity_balance)) as weighted_beta
             FROM position_factor_exposures pfe
             JOIN positions p ON pfe.position_id = p.id
             JOIN portfolios port ON p.portfolio_id = port.id
