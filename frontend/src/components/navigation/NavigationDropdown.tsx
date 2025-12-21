@@ -10,7 +10,8 @@ import {
   TrendingUp,
   Command,
   Search,
-  Home
+  Home,
+  BarChart3
 } from 'lucide-react'
 import {
   DropdownMenu,
@@ -25,6 +26,7 @@ import { cn } from '@/lib/utils'
 const navigationItems = [
   { href: '/home', label: 'Home', icon: Home },
   { href: '/command-center', label: 'Command Center', icon: Command },
+  { href: '/equity-search', label: 'Equity Search', icon: BarChart3 },
   { href: '/risk-metrics', label: 'Risk Metrics', icon: TrendingUp },
   { href: '/research-and-analyze', label: 'Research & Analyze', icon: Search },
   { href: '/sigmasight-ai', label: 'SigmaSight AI', icon: Sparkles },

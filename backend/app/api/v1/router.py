@@ -17,6 +17,7 @@ from app.api.v1.endpoints import admin_batch
 from app.api.v1.endpoints import admin_feedback
 from app.api.v1.admin_fix import router as admin_fix_router
 from app.api.v1.fundamentals import router as fundamentals_router
+from app.api.v1.equity_search import router as equity_search_router
 from app.api.v1.equity_changes import router as equity_changes_router
 from app.api.v1.agent_memories import router as agent_memories_router
 
@@ -45,6 +46,9 @@ api_router.include_router(analytics_router)
 
 # Fundamentals APIs (/fundamentals/) - financial statements and analyst data
 api_router.include_router(fundamentals_router)
+
+# Equity Search APIs (/equity-search/) - search and filter equities
+api_router.include_router(equity_search_router)
 
 # Target Prices APIs (/target-prices/) - portfolio-specific price targets
 api_router.include_router(target_prices_router)
