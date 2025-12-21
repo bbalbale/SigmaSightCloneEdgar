@@ -248,9 +248,16 @@ Configure rate limits for EDGAR API compliance:
 - Max 10 requests/second to SEC EDGAR (current: 8/sec with buffer)
 - Implement request queuing for burst protection
 
+##### 2.1.4 SEC Compliance & Secrets
+- Set SEC-compliant `User-Agent` with contact email/phone for all outbound EDGAR calls
+- Per-environment `STOCKFUND_API_KEY` (rotate quarterly; no shared static key)
+- Centralize request shaping/backoff in one middleware to log and throttle 429s/5xx
+
 #### Acceptance Criteria
 - [ ] Health endpoint returns detailed status
 - [ ] Rate limiting prevents SEC EDGAR violations
+- [ ] SEC User-Agent/contact configured and visible in logs
+- [ ] Per-env API keys loaded from Railway secrets and rotated
 - [ ] Service starts cleanly with all dependencies
 
 ---
@@ -688,6 +695,11 @@ class EdgarRefreshResponse(BaseModel):
 - [ ] Schemas match StockFundamentals responses
 - [ ] Connection pooling and timeout handling
 
+##### 3.1.4 Client Lifecycle & Rate Limiting
+- Initialize a single shared `EdgarClient` and shared `RateLimiter` via FastAPI lifespan (no per-request instantiation)
+- Ensure httpx connection pooling is reused across requests/workers; keep limits aligned with SEC caps
+- Log and backoff on 429/5xx centrally; surface metrics for observability
+
 ---
 
 ### 3.2 Create API Endpoints
@@ -889,7 +901,7 @@ async def refresh_edgar_data(
     This queues a background job to fetch latest filings from SEC EDGAR.
     Returns a job ID that can be used to poll status.
 
-    Note: Without Celery, this runs synchronously and may take 10-30 seconds.
+    Note: Requires Redis + Celery worker running; otherwise return 503/feature-flag off.
     """
     client = _check_edgar_enabled(edgar)
 
@@ -992,6 +1004,31 @@ from datetime import datetime, timedelta
 - SigmaSight calls StockFundamentals via HTTP API
 - No Alembic migrations needed in SigmaSight
 - Existing `fundamentals_service.py` (Yahoo) remains unchanged
+
+### 4.3 Prefetching & Batch Change Detection (Optional)
+
+**Objective**: Warm caches for popular tickers and avoid full-refresh batch pulls.
+
+#### Tasks
+
+##### 4.3.1 Prefetch Scope & Trigger
+- Identify top N tickers (e.g., holdings universe or most-viewed) for prefetch
+- Trigger prefetch via StockFundamentals refresh endpoint during off-peak windows
+- Enforce per-call timeout/backoff aligned to SEC limits (matches 2.1.3/2.1.4)
+
+##### 4.3.2 Batch Pipeline Adjustment
+- Update SigmaSight batch flow: before pulling fundamentals, call EDGAR to check for new filings per ticker
+- Only load company profile/financials when filings changed; otherwise skip
+- Log skipped vs refreshed tickers for observability
+
+##### 4.3.3 Async Path (When Needed)
+- If prefetch latency exceeds UX tolerance, queue refresh jobs via Celery/Redis worker
+- Keep sync path for on-demand requests; background warm cache for popular names
+
+#### Acceptance Criteria
+- [ ] Prefetch limited to defined ticker set and respects SEC rate/timeout budgets
+- [ ] Batch runs skip unchanged tickers based on EDGAR change checks
+- [ ] Optional async queue documented for future activation
 
 ---
 
@@ -1545,6 +1582,11 @@ async def test_edgar_financials_endpoint(auth_headers):
 - [ ] Error cases properly tested
 - [ ] Test coverage > 80%
 
+##### 6.1.3 Contract & Data-Quality Tests
+- Add contract tests hitting StockFundamentals (or stub) from SigmaSight to validate response shape/versioning
+- Add data-quality regression: compare small ticker set (e.g., AAPL, MSFT, SPY) EDGAR vs Yahoo for key metrics (revenue, net_income, EPS) with tolerances
+- Fail CI on schema drift or large metric deltas; surface diffs in test output
+
 ---
 
 ### 6.2 Frontend Testing
@@ -1606,18 +1648,23 @@ describe('EdgarFinancialsTable', () => {
 
 **Selected Stack (Phase 1):**
 ```
-PostgreSQL only (No Redis, No Celery)
+PostgreSQL + Redis + Celery Worker
 ```
 
 **Rationale:**
-- Fastest path to production
-- Synchronous EDGAR calls are acceptable for user-triggered requests (10-30 sec)
-- Add Redis + Celery later when async refresh jobs become necessary
-- Reduces complexity and Railway cost (~$10/mo vs ~$20/mo)
+- Keep refresh/prefetch off the request path; reduce user-facing latency
+- Shared broker enables durable jobs, retries, and off-peak scheduling
+- Central rate limiting/locks across replicas to stay under SEC caps
+- Adds small cost/ops overhead but smoother UX under load
+
+**Operational Limits (ensure before go-live):**
+- Backend/NGINX/Railway timeouts set >= EDGAR worst-case latency but < 35s
+- httpx client timeouts/backoff aligned with SEC limits; pooled connections enabled
+- Frontend UX: loading state + cancel/refresh guidance for long-running fetches
 
 **Future Stack (Phase 2 - when needed):**
 ```
-PostgreSQL + Redis + Celery Worker
+PostgreSQL + Redis + Celery Worker (scale up workers)
 ```
 
 ### Critical: Same Railway Project
@@ -1685,27 +1732,26 @@ services:
       timeout: 5s
       retries: 5
 
-  # Redis (OPTIONAL - only needed for Phase 2 with Celery)
-  # Uncomment when adding async job processing
-  # stockfund-redis:
-  #   image: redis:7-alpine
-  #   container_name: stockfund-redis
-  #   ports:
-  #     - "6379:6379"
-  #   volumes:
-  #     - stockfund_redis_data:/data
-  #   networks:
-  #     - sigmasight-network
-  #   healthcheck:
-  #     test: ["CMD", "redis-cli", "ping"]
-  #     interval: 10s
-  #     timeout: 5s
-  #     retries: 5
+  # Redis (required for Celery refresh/prefetch)
+  stockfund-redis:
+    image: redis:7-alpine
+    container_name: stockfund-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - stockfund_redis_data:/data
+    networks:
+      - sigmasight-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
 volumes:
   sigmasight_postgres_data:
   stockfund_postgres_data:
-  # stockfund_redis_data:  # Uncomment for Phase 2
+  stockfund_redis_data:
 
 networks:
   sigmasight-network:
@@ -2004,21 +2050,21 @@ When async job processing is needed:
 
 ### Railway Cost Estimate
 
-**Phase 1 (Initial - Recommended):**
-| Service | Railway Plan | Estimated Cost |
-|---------|--------------|----------------|
-| StockFundamentals API | Hobby | ~$5/mo |
-| PostgreSQL (stockfund-db) | Hobby | ~$5/mo |
-| **Phase 1 Total** | | **~$10/mo** |
-
-**Phase 2 (With Async Jobs):**
+**Phase 1 (Initial - Recommended with Redis/Celery):**
 | Service | Railway Plan | Estimated Cost |
 |---------|--------------|----------------|
 | StockFundamentals API | Hobby | ~$5/mo |
 | Celery Worker | Hobby | ~$5/mo |
 | PostgreSQL (stockfund-db) | Hobby | ~$5/mo |
 | Redis | Hobby | ~$3-5/mo |
-| **Phase 2 Total** | | **~$18-20/mo** |
+| **Phase 1 Total** | | **~$18-20/mo** |
+
+**Phase 2 (Scale Out):**
+| Service | Railway Plan | Estimated Cost |
+|---------|--------------|----------------|
+| Additional Worker Replica | Hobby | ~$5/mo each |
+| Redis (upgrade if needed) | Pro | ~$? depending on tier |
+| **Phase 2 Total** | | **TBD based on replicas** |
 
 *Note: Costs vary based on usage. Railway Pro plan ($20/mo) includes more resources.*
 

@@ -43,7 +43,8 @@ Examples:
     python trigger_railway_fix.py --env sandbox --start-date 2025-07-01 --end-date 2025-12-17
 
     # Run on production
-    u
+    python trigger_railway_fix.py --env production --start-date 2025-07-01 --end-date 2025-12-19
+"""
     )
     parser.add_argument(
         "--env",
@@ -75,6 +76,11 @@ Examples:
         type=str,
         default=None,
         help="Optional end date for batch processing (YYYY-MM-DD), defaults to today, e.g., 2025-11-12",
+    )
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Skip production confirmation prompt (for automation)",
     )
     return parser.parse_args()
 
@@ -243,8 +249,8 @@ def main():
     print("=" * 80)
 
     # Confirmation for production
-    if env_name == "production":
-        confirm = input("\n⚠️  You are targeting PRODUCTION. Type 'yes' to continue: ")
+    if env_name == "production" and not args.force:
+        confirm = input("\n[WARNING] You are targeting PRODUCTION. Type 'yes' to continue: ")
         if confirm.lower() != 'yes':
             print("Aborted.")
             sys.exit(0)

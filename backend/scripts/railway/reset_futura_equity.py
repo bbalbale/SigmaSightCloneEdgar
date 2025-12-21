@@ -26,7 +26,9 @@ def get_db_url():
     """Get database URL, ensuring asyncpg driver."""
     url = os.environ.get("DATABASE_URL", "")
     if not url:
-        return ""
+        # Fallback to Railway Core DB for local execution
+        url = "postgresql+asyncpg://postgres:GdTokAXPkwuJtsMQYbfTgJtPUvFIVYbo@gondola.proxy.rlwy.net:38391/railway"
+        return url
     if url.startswith("postgresql://"):
         url = url.replace("postgresql://", "postgresql+asyncpg://")
     return url
@@ -52,7 +54,7 @@ async def reset_futura_equity():
 
     async with engine.connect() as conn:
         # 1. Find the portfolio
-        print("\n🔍 FINDING PORTFOLIO:")
+        print("\n[1] FINDING PORTFOLIO:")
         print("-" * 50)
         result = await conn.execute(text(f"""
             SELECT id, name, equity_balance
@@ -62,7 +64,7 @@ async def reset_futura_equity():
         row = result.fetchone()
 
         if not row:
-            print("  ❌ Futura portfolio not found")
+            print("  [X] Futura portfolio not found")
             await engine.dispose()
             return
 
@@ -73,7 +75,7 @@ async def reset_futura_equity():
         print(f"  Target equity_balance:  ${ORIGINAL_EQUITY:,.2f}")
 
         # 2. Show current snapshots
-        print("\n📸 CURRENT SNAPSHOTS:")
+        print("\n[2] CURRENT SNAPSHOTS:")
         print("-" * 50)
         result = await conn.execute(text(f"""
             SELECT snapshot_date, equity_balance, daily_pnl
@@ -84,10 +86,11 @@ async def reset_futura_equity():
         snapshots = result.fetchall()
         print(f"  Found {len(snapshots)} snapshots")
         for snap_date, equity, pnl in snapshots:
-            print(f"    {snap_date}: equity=${equity:,.2f}, daily_pnl=${pnl:,.2f if pnl else 0}")
+            pnl_val = float(pnl) if pnl else 0
+            print(f"    {snap_date}: equity=${equity:,.2f}, daily_pnl=${pnl_val:,.2f}")
 
         # 3. Delete snapshots
-        print("\n🗑️  DELETING SNAPSHOTS:")
+        print("\n[3] DELETING SNAPSHOTS:")
         print("-" * 50)
         result = await conn.execute(text(f"""
             DELETE FROM portfolio_snapshots
@@ -95,20 +98,25 @@ async def reset_futura_equity():
             RETURNING id
         """))
         deleted = result.fetchall()
-        print(f"  ✅ Deleted {len(deleted)} snapshots")
+        print(f"  [OK] Deleted {len(deleted)} snapshots")
 
         # 4. Reset equity_balance
-        print("\n💰 RESETTING EQUITY BALANCE:")
+        print("\n[4] RESETTING EQUITY BALANCE:")
         print("-" * 50)
-        await conn.execute(text(f"""
+        result = await conn.execute(text(f"""
             UPDATE portfolios
             SET equity_balance = {ORIGINAL_EQUITY}
             WHERE id = '{portfolio_id}'
+            RETURNING equity_balance
         """))
-        print(f"  ✅ Set equity_balance = ${ORIGINAL_EQUITY:,.2f}")
+        updated_row = result.fetchone()
+        if updated_row:
+            print(f"  [OK] Set equity_balance = ${updated_row[0]:,.2f} (confirmed via RETURNING)")
+        else:
+            print(f"  [WARN] UPDATE executed but no row returned - may not have matched")
 
         # 5. Verify
-        print("\n✅ VERIFICATION:")
+        print("\n[5] VERIFICATION:")
         print("-" * 50)
         result = await conn.execute(text(f"""
             SELECT equity_balance FROM portfolios WHERE id = '{portfolio_id}'

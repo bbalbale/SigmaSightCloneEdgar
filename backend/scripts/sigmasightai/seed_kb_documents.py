@@ -25,7 +25,7 @@ sys.path.insert(0, str(backend_dir))
 from dotenv import load_dotenv
 load_dotenv(backend_dir / ".env")
 
-from app.database import get_async_session
+from app.database import get_ai_session
 from app.agent.services.rag_service import upsert_kb_document, count_kb_documents
 from app.core.logging import get_logger
 
@@ -1012,7 +1012,7 @@ async def seed_kb_documents():
     """Seed the knowledge base with initial documents."""
     logger.info("Starting KB document seeding...")
 
-    async with get_async_session() as db:
+    async with get_ai_session() as db:
         # Check current document count
         current_count = await count_kb_documents(db)
         logger.info(f"Current KB document count: {current_count}")
