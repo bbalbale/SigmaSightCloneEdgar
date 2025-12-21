@@ -17,7 +17,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.logging import get_logger
-from app.database import get_async_session
+from app.database import get_async_session, get_ai_session
 from app.models.ai_learning import AIFeedback, AIMemory
 from app.agent.models.conversations import ConversationMessage, Conversation
 from app.agent.services.feedback_analyzer import feedback_analyzer, LearningRule
@@ -100,9 +100,9 @@ class LearningService:
         Returns:
             True if example was stored successfully
         """
-        async with get_async_session() as db:
-            # Get the message content
-            msg_result = await db.execute(
+        # Get message and conversation from Core database
+        async with get_async_session() as core_db:
+            msg_result = await core_db.execute(
                 select(ConversationMessage)
                 .where(ConversationMessage.id == feedback.message_id)
             )
@@ -112,8 +112,7 @@ class LearningService:
                 logger.warning(f"[Learning] No message content for feedback {feedback.id}")
                 return False
 
-            # Get the conversation to find user query
-            conv_result = await db.execute(
+            conv_result = await core_db.execute(
                 select(Conversation)
                 .where(Conversation.id == message.conversation_id)
             )
@@ -124,7 +123,7 @@ class LearningService:
                 return False
 
             # Get the user's preceding message (the query)
-            query_result = await db.execute(
+            query_result = await core_db.execute(
                 select(ConversationMessage)
                 .where(
                     ConversationMessage.conversation_id == message.conversation_id,
@@ -136,45 +135,46 @@ class LearningService:
             )
             user_message = query_result.scalar_one_or_none()
 
-            user_query = user_message.content if user_message else "Unknown query"
+        user_query = user_message.content if user_message else "Unknown query"
 
-            # Create KB document with the positive example
-            # Content combines query and response for better semantic matching
-            doc_content = f"""User Query: {user_query}
+        # Create KB document with the positive example
+        doc_content = f"""User Query: {user_query}
 
 Well-Received Response:
 {message.content}"""
 
-            # Metadata for filtering and analysis
-            metadata = {
-                'type': 'positive_example',
-                'user_id': str(conversation.user_id),
-                'message_id': str(message.id),
-                'feedback_id': str(feedback.id),
-                'created_from_feedback': True,
-                'feedback_date': datetime.utcnow().isoformat()
-            }
+        # Metadata for filtering and analysis
+        metadata = {
+            'type': 'positive_example',
+            'user_id': str(conversation.user_id),
+            'message_id': str(message.id),
+            'feedback_id': str(feedback.id),
+            'created_from_feedback': True,
+            'feedback_date': datetime.utcnow().isoformat()
+        }
 
-            # Generate title from query
-            title = f"Positive Example: {user_query[:100]}"
+        # Generate title from query
+        title = f"Positive Example: {user_query[:100]}"
 
-            try:
+        # Store in AI database (ai_kb_documents)
+        try:
+            async with get_ai_session() as ai_db:
                 doc_id = await upsert_kb_document(
-                    db,
+                    ai_db,
                     scope=POSITIVE_EXAMPLE_SCOPE,
                     title=title,
                     content=doc_content,
                     metadata=metadata
                 )
-                logger.info(
-                    f"[Learning] Stored positive example as KB doc {doc_id} "
-                    f"for user {conversation.user_id}"
-                )
-                return True
+            logger.info(
+                f"[Learning] Stored positive example as KB doc {doc_id} "
+                f"for user {conversation.user_id}"
+            )
+            return True
 
-            except Exception as e:
-                logger.error(f"[Learning] Failed to store positive example: {e}")
-                return False
+        except Exception as e:
+            logger.error(f"[Learning] Failed to store positive example: {e}")
+            return False
 
     async def _process_negative_feedback(
         self,
@@ -196,9 +196,9 @@ Well-Received Response:
             logger.debug(f"[Learning] No edited text in feedback {feedback.id}, skipping")
             return []
 
-        async with get_async_session() as db:
-            # Get the original message
-            msg_result = await db.execute(
+        # Get the original message from Core database
+        async with get_async_session() as core_db:
+            msg_result = await core_db.execute(
                 select(ConversationMessage)
                 .where(ConversationMessage.id == feedback.message_id)
             )
@@ -207,8 +207,7 @@ Well-Received Response:
             if not message or not message.content:
                 return []
 
-            # Get the conversation to find user_id
-            conv_result = await db.execute(
+            conv_result = await core_db.execute(
                 select(Conversation)
                 .where(Conversation.id == message.conversation_id)
             )
@@ -217,23 +216,27 @@ Well-Received Response:
             if not conversation:
                 return []
 
-            # Extract rule from the edit using LLM
-            rule = await feedback_analyzer.extract_rule_from_edit(
-                original=message.content,
-                edited=feedback.edited_text,
-                comment=feedback.comment
-            )
+        # Extract rule from the edit using LLM
+        rule = await feedback_analyzer.extract_rule_from_edit(
+            original=message.content,
+            edited=feedback.edited_text,
+            comment=feedback.comment
+        )
 
-            if rule:
+        if rule:
+            # Use AI database for memory operations
+            async with get_ai_session() as ai_db:
                 # Check for duplicate before saving
                 is_duplicate = await check_for_duplicate_memory(
+                    ai_db,
                     user_id=conversation.user_id,
-                    proposed_content=rule.content
+                    content=rule.content
                 )
 
                 if not is_duplicate:
                     # Save as user memory
                     memory_id = await save_memory(
+                        ai_db,
                         user_id=conversation.user_id,
                         content=rule.content,
                         scope='user',
@@ -281,33 +284,34 @@ Well-Received Response:
         """
         enhanced_parts = [base_prompt]
 
-        # 1. Get learned preferences from memories
-        memories = await get_user_memories(user_id, scope='user')
+        # Use AI session for both memories and KB documents (both in AI database)
+        async with get_ai_session() as ai_db:
+            # 1. Get learned preferences from memories
+            memories = await get_user_memories(ai_db, user_id, scope='user')
 
-        # Filter for learned preferences
-        learned_prefs = [
-            m for m in memories
-            if m.get('tags', {}).get('source') == 'feedback_learning'
-        ]
+            # Filter for learned preferences
+            learned_prefs = [
+                m for m in memories
+                if m.get('tags', {}).get('source') == 'feedback_learning'
+            ]
 
-        if learned_prefs:
-            prefs_text = "\n".join([
-                f"- {m['content']}"
-                for m in learned_prefs[:10]  # Limit to 10 preferences
-            ])
+            if learned_prefs:
+                prefs_text = "\n".join([
+                    f"- {m['content']}"
+                    for m in learned_prefs[:10]  # Limit to 10 preferences
+                ])
 
-            enhanced_parts.append(f"""
+                enhanced_parts.append(f"""
 ## Learned User Preferences
 Based on previous feedback, the user has these preferences:
 {prefs_text}
 
 Apply these preferences naturally in your response.""")
 
-        # 2. Get relevant positive examples if enabled
-        if include_examples:
-            async with get_async_session() as db:
+            # 2. Get relevant positive examples if enabled
+            if include_examples:
                 examples = await retrieve_relevant_docs(
-                    db,
+                    ai_db,
                     query=query,
                     scopes=[POSITIVE_EXAMPLE_SCOPE],
                     limit=max_examples,
@@ -349,9 +353,10 @@ Use these as guidance for tone, structure, and detail level.""")
         Returns:
             List of relevant example documents
         """
-        async with get_async_session() as db:
+        # Use AI session for KB documents (ai_kb_documents is in AI database)
+        async with get_ai_session() as ai_db:
             examples = await retrieve_relevant_docs(
-                db,
+                ai_db,
                 query=query,
                 scopes=[POSITIVE_EXAMPLE_SCOPE],
                 limit=limit * 2,  # Fetch extra to filter by user
@@ -402,33 +407,36 @@ Use these as guidance for tone, structure, and detail level.""")
 
             result['patterns_found'] = len(patterns)
 
-            # Create memories for high-confidence patterns
-            for pattern in patterns:
-                is_duplicate = await check_for_duplicate_memory(
-                    user_id=user_id,
-                    proposed_content=pattern.content
-                )
-
-                if not is_duplicate:
-                    memory_id = await save_memory(
+            # Create memories for high-confidence patterns (use AI database)
+            async with get_ai_session() as ai_db:
+                for pattern in patterns:
+                    is_duplicate = await check_for_duplicate_memory(
+                        ai_db,
                         user_id=user_id,
-                        content=pattern.content,
-                        scope='user',
-                        tags={
-                            'category': pattern.category,
-                            'source': 'pattern_analysis',
-                            'confidence': pattern.confidence,
-                            'evidence_count': pattern.evidence_count
-                        }
+                        content=pattern.content
                     )
 
-                    if memory_id:
-                        result['rules_created'] += 1
-                        result['details'].append({
-                            'rule': pattern.content,
-                            'confidence': pattern.confidence,
-                            'memory_id': str(memory_id)
-                        })
+                    if not is_duplicate:
+                        memory_id = await save_memory(
+                            ai_db,
+                            user_id=user_id,
+                            content=pattern.content,
+                            scope='user',
+                            tags={
+                                'category': pattern.category,
+                                'source': 'pattern_analysis',
+                                'confidence': pattern.confidence,
+                                'evidence_count': pattern.evidence_count
+                            }
+                        )
+
+                        if memory_id:
+                            result['rules_created'] += 1
+                            result['details'].append({
+                                'rule': pattern.content,
+                                'confidence': pattern.confidence,
+                                'memory_id': str(memory_id)
+                            })
 
             logger.info(
                 f"[Learning] Batch analysis complete for user {user_id}: "
@@ -457,11 +465,11 @@ Use these as guidance for tone, structure, and detail level.""")
         # Get feedback summary
         feedback_summary = await feedback_analyzer.get_feedback_summary(user_id)
 
-        # Get learned preferences count
-        async with get_async_session() as db:
+        # Get learned preferences count from AI database (ai_memories table)
+        async with get_ai_session() as ai_db:
             if user_id:
                 # Count user's learned preferences
-                result = await db.execute(
+                result = await ai_db.execute(
                     select(AIMemory)
                     .where(AIMemory.user_id == user_id)
                 )

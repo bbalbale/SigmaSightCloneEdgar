@@ -21,7 +21,7 @@ from pydantic import BaseModel
 
 from app.core.dependencies import get_db, require_admin
 from app.core.logging import get_logger
-from app.database import get_async_session
+from app.database import get_db as get_core_db, get_ai_db
 from app.models.ai_learning import AIFeedback, AIMemory
 from app.agent.models.conversations import Conversation, ConversationMessage
 from app.agent.services.feedback_analyzer import feedback_analyzer
@@ -159,7 +159,8 @@ async def get_detected_patterns(
 @router.get("/negative")
 async def get_negative_feedback(
     admin_user=Depends(require_admin),
-    db: AsyncSession = Depends(get_db),
+    core_db: AsyncSession = Depends(get_core_db),
+    ai_db: AsyncSession = Depends(get_ai_db),
     limit: int = Query(50, ge=1, le=200, description="Maximum records to return"),
     days: int = Query(30, ge=1, le=365, description="Look-back period in days"),
     with_edits_only: bool = Query(False, description="Only show feedback with edits")
@@ -169,9 +170,12 @@ async def get_negative_feedback(
 
     Returns list of negative feedback items with original and edited text
     for human review and analysis.
+
+    Note: Uses dual-DB architecture (AIFeedback in AI DB, messages in Core DB)
     """
     cutoff = datetime.utcnow() - timedelta(days=days)
 
+    # Query AIFeedback from AI database
     query = select(AIFeedback).where(
         AIFeedback.rating == 'down',
         AIFeedback.created_at >= cutoff
@@ -182,21 +186,21 @@ async def get_negative_feedback(
 
     query = query.order_by(AIFeedback.created_at.desc()).limit(limit)
 
-    result = await db.execute(query)
+    result = await ai_db.execute(query)
     feedbacks = result.scalars().all()
 
     items = []
     for fb in feedbacks:
-        # Get associated message
-        msg_result = await db.execute(
+        # Get associated message from Core database
+        msg_result = await core_db.execute(
             select(ConversationMessage).where(ConversationMessage.id == fb.message_id)
         )
         message = msg_result.scalar_one_or_none()
 
-        # Get user_id from conversation
+        # Get user_id from conversation (Core database)
         user_id = None
         if message:
-            conv_result = await db.execute(
+            conv_result = await core_db.execute(
                 select(Conversation).where(Conversation.id == message.conversation_id)
             )
             conv = conv_result.scalar_one_or_none()
@@ -225,7 +229,7 @@ async def get_negative_feedback(
 @router.get("/learned-preferences")
 async def get_learned_preferences(
     admin_user=Depends(require_admin),
-    db: AsyncSession = Depends(get_db),
+    ai_db: AsyncSession = Depends(get_ai_db),
     user_id: Optional[str] = Query(None, description="Filter by user ID"),
     limit: int = Query(100, ge=1, le=500, description="Maximum records to return")
 ) -> Dict[str, Any]:
@@ -233,6 +237,8 @@ async def get_learned_preferences(
     Get learned preferences that have been created from feedback.
 
     Shows all memory rules that were created by the feedback learning system.
+
+    Note: Uses AI database (ai_memories table)
     """
     query = select(AIMemory).where(AIMemory.scope == 'user')
 
@@ -245,7 +251,7 @@ async def get_learned_preferences(
 
     query = query.order_by(AIMemory.created_at.desc()).limit(limit)
 
-    result = await db.execute(query)
+    result = await ai_db.execute(query)
     memories = result.scalars().all()
 
     # Filter to only learned preferences

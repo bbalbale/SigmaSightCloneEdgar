@@ -9,12 +9,10 @@ Phase 3 Enhancement (December 2025):
 - Positive feedback stores response as RAG example
 - Negative feedback with edits extracts preference rules
 
-Dual-DB Architecture Note (December 2025):
+Dual-DB Architecture (December 2025):
 - ConversationMessage/Conversation live in Core DB (get_db)
 - AIFeedback lives in AI DB (get_ai_db)
-- The main endpoints currently use get_db for both, which works because
-  ai_feedback table was also created in Core DB during initial migration.
-- TODO: Refactor to use separate sessions for clean dual-DB separation.
+- Endpoints use both sessions for proper data separation
 """
 import asyncio
 from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
@@ -24,7 +22,7 @@ from pydantic import BaseModel, Field
 from typing import Optional
 from uuid import UUID
 
-from app.database import get_db
+from app.database import get_db, get_ai_db
 from app.core.dependencies import get_current_user, CurrentUser
 from app.agent.models.conversations import Conversation, ConversationMessage
 from app.models.ai_learning import AIFeedback
@@ -90,7 +88,8 @@ async def create_message_feedback(
     message_id: UUID,
     feedback: FeedbackCreate,
     background_tasks: BackgroundTasks,
-    db: AsyncSession = Depends(get_db),
+    core_db: AsyncSession = Depends(get_db),
+    ai_db: AsyncSession = Depends(get_ai_db),
     current_user: CurrentUser = Depends(get_current_user),
 ) -> FeedbackResponse:
     """
@@ -99,7 +98,8 @@ async def create_message_feedback(
     Args:
         message_id: The UUID of the message to rate
         feedback: Feedback data (rating, optional edited_text, optional comment)
-        db: Database session
+        core_db: Core database session (messages, conversations)
+        ai_db: AI database session (feedback)
         current_user: Authenticated user
 
     Returns:
@@ -110,8 +110,8 @@ async def create_message_feedback(
         403: Not authorized (message belongs to different user)
         400: Message is not from assistant (can only rate AI responses)
     """
-    # Find the message
-    result = await db.execute(
+    # Find the message (Core database)
+    result = await core_db.execute(
         select(ConversationMessage).where(ConversationMessage.id == message_id)
     )
     message = result.scalar_one_or_none()
@@ -122,8 +122,8 @@ async def create_message_feedback(
             detail="Message not found"
         )
 
-    # Verify user owns the conversation
-    result = await db.execute(
+    # Verify user owns the conversation (Core database)
+    result = await core_db.execute(
         select(Conversation).where(Conversation.id == message.conversation_id)
     )
     conversation = result.scalar_one_or_none()
@@ -147,8 +147,8 @@ async def create_message_feedback(
             detail="Feedback can only be provided on assistant messages"
         )
 
-    # Check if feedback already exists for this message
-    result = await db.execute(
+    # Check if feedback already exists for this message (AI database)
+    result = await ai_db.execute(
         select(AIFeedback).where(AIFeedback.message_id == message_id)
     )
     existing_feedback = result.scalar_one_or_none()
@@ -158,8 +158,8 @@ async def create_message_feedback(
         existing_feedback.rating = feedback.rating
         existing_feedback.edited_text = feedback.edited_text
         existing_feedback.comment = feedback.comment
-        await db.commit()
-        await db.refresh(existing_feedback)
+        await ai_db.commit()
+        await ai_db.refresh(existing_feedback)
 
         logger.info(
             f"Updated feedback for message {message_id}: rating={feedback.rating}"
@@ -176,16 +176,16 @@ async def create_message_feedback(
             comment=existing_feedback.comment,
         )
 
-    # Create new feedback
+    # Create new feedback (AI database)
     new_feedback = AIFeedback(
         message_id=message_id,
         rating=feedback.rating,
         edited_text=feedback.edited_text,
         comment=feedback.comment,
     )
-    db.add(new_feedback)
-    await db.commit()
-    await db.refresh(new_feedback)
+    ai_db.add(new_feedback)
+    await ai_db.commit()
+    await ai_db.refresh(new_feedback)
 
     logger.info(
         f"Created feedback for message {message_id}: rating={feedback.rating}"
@@ -206,7 +206,8 @@ async def create_message_feedback(
 @router.get("/messages/{message_id}/feedback", response_model=Optional[FeedbackResponse])
 async def get_message_feedback(
     message_id: UUID,
-    db: AsyncSession = Depends(get_db),
+    core_db: AsyncSession = Depends(get_db),
+    ai_db: AsyncSession = Depends(get_ai_db),
     current_user: CurrentUser = Depends(get_current_user),
 ) -> Optional[FeedbackResponse]:
     """
@@ -214,7 +215,8 @@ async def get_message_feedback(
 
     Args:
         message_id: The UUID of the message
-        db: Database session
+        core_db: Core database session (messages, conversations)
+        ai_db: AI database session (feedback)
         current_user: Authenticated user
 
     Returns:
@@ -224,8 +226,8 @@ async def get_message_feedback(
         404: Message not found
         403: Not authorized
     """
-    # Find the message
-    result = await db.execute(
+    # Find the message (Core database)
+    result = await core_db.execute(
         select(ConversationMessage).where(ConversationMessage.id == message_id)
     )
     message = result.scalar_one_or_none()
@@ -236,8 +238,8 @@ async def get_message_feedback(
             detail="Message not found"
         )
 
-    # Verify user owns the conversation
-    result = await db.execute(
+    # Verify user owns the conversation (Core database)
+    result = await core_db.execute(
         select(Conversation).where(Conversation.id == message.conversation_id)
     )
     conversation = result.scalar_one_or_none()
@@ -254,8 +256,8 @@ async def get_message_feedback(
             detail="Not authorized to view feedback for this message"
         )
 
-    # Get feedback
-    result = await db.execute(
+    # Get feedback (AI database)
+    result = await ai_db.execute(
         select(AIFeedback).where(AIFeedback.message_id == message_id)
     )
     feedback = result.scalar_one_or_none()
@@ -275,7 +277,8 @@ async def get_message_feedback(
 @router.delete("/messages/{message_id}/feedback", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_message_feedback(
     message_id: UUID,
-    db: AsyncSession = Depends(get_db),
+    core_db: AsyncSession = Depends(get_db),
+    ai_db: AsyncSession = Depends(get_ai_db),
     current_user: CurrentUser = Depends(get_current_user),
 ):
     """
@@ -283,15 +286,16 @@ async def delete_message_feedback(
 
     Args:
         message_id: The UUID of the message
-        db: Database session
+        core_db: Core database session (messages, conversations)
+        ai_db: AI database session (feedback)
         current_user: Authenticated user
 
     Raises:
         404: Message or feedback not found
         403: Not authorized
     """
-    # Find the message
-    result = await db.execute(
+    # Find the message (Core database)
+    result = await core_db.execute(
         select(ConversationMessage).where(ConversationMessage.id == message_id)
     )
     message = result.scalar_one_or_none()
@@ -302,8 +306,8 @@ async def delete_message_feedback(
             detail="Message not found"
         )
 
-    # Verify user owns the conversation
-    result = await db.execute(
+    # Verify user owns the conversation (Core database)
+    result = await core_db.execute(
         select(Conversation).where(Conversation.id == message.conversation_id)
     )
     conversation = result.scalar_one_or_none()
@@ -320,8 +324,8 @@ async def delete_message_feedback(
             detail="Not authorized to delete feedback for this message"
         )
 
-    # Find and delete feedback
-    result = await db.execute(
+    # Find and delete feedback (AI database)
+    result = await ai_db.execute(
         select(AIFeedback).where(AIFeedback.message_id == message_id)
     )
     feedback = result.scalar_one_or_none()
@@ -332,7 +336,7 @@ async def delete_message_feedback(
             detail="Feedback not found for this message"
         )
 
-    await db.delete(feedback)
-    await db.commit()
+    await ai_db.delete(feedback)
+    await ai_db.commit()
 
     logger.info(f"Deleted feedback for message {message_id}")

@@ -21,7 +21,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.core.logging import get_logger
-from app.database import get_async_session
+from app.database import get_async_session, get_ai_session
 from app.models.ai_learning import AIFeedback
 from app.agent.models.conversations import ConversationMessage, Conversation
 
@@ -71,9 +71,9 @@ class FeedbackAnalyzer:
         """
         cutoff = datetime.utcnow() - timedelta(days=days)
 
-        async with get_async_session() as db:
-            # Get feedback records
-            result = await db.execute(
+        # Query AI database for feedback records
+        async with get_ai_session() as ai_db:
+            result = await ai_db.execute(
                 select(AIFeedback)
                 .where(AIFeedback.created_at >= cutoff)
                 .order_by(AIFeedback.created_at.desc())
@@ -81,11 +81,12 @@ class FeedbackAnalyzer:
             )
             feedbacks = result.scalars().all()
 
-            # Enrich with message content
-            enriched = []
+        # Query Core database for message content
+        enriched = []
+        async with get_async_session() as core_db:
             for feedback in feedbacks:
-                # Get the associated message
-                msg_result = await db.execute(
+                # Get the associated message from Core DB
+                msg_result = await core_db.execute(
                     select(ConversationMessage)
                     .where(ConversationMessage.id == feedback.message_id)
                 )
@@ -93,7 +94,7 @@ class FeedbackAnalyzer:
 
                 if message:
                     # Get the conversation to check user ownership
-                    conv_result = await db.execute(
+                    conv_result = await core_db.execute(
                         select(Conversation)
                         .where(Conversation.id == message.conversation_id)
                     )
@@ -111,7 +112,7 @@ class FeedbackAnalyzer:
                             'created_at': feedback.created_at
                         })
 
-            return enriched
+        return enriched
 
     async def analyze_feedback_patterns(
         self,
@@ -444,27 +445,30 @@ If no clear preference is identifiable, set preference to null."""
         """
         cutoff = datetime.utcnow() - timedelta(days=days)
 
-        async with get_async_session() as db:
-            base_query = select(AIFeedback).where(AIFeedback.created_at >= cutoff)
-
-            # If user_id specified, filter by user's messages
-            if user_id:
+        # If user_id specified, first get their message IDs from Core DB
+        msg_ids = None
+        if user_id:
+            async with get_async_session() as core_db:
                 # Get user's conversation IDs
-                conv_result = await db.execute(
+                conv_result = await core_db.execute(
                     select(Conversation.id).where(Conversation.user_id == user_id)
                 )
                 conv_ids = [c for c in conv_result.scalars().all()]
 
                 if conv_ids:
-                    msg_result = await db.execute(
+                    msg_result = await core_db.execute(
                         select(ConversationMessage.id)
                         .where(ConversationMessage.conversation_id.in_(conv_ids))
                     )
                     msg_ids = [m for m in msg_result.scalars().all()]
-                    base_query = base_query.where(AIFeedback.message_id.in_(msg_ids))
 
-            # Get all feedback
-            result = await db.execute(base_query)
+        # Query AI database for feedback
+        async with get_ai_session() as ai_db:
+            base_query = select(AIFeedback).where(AIFeedback.created_at >= cutoff)
+            if msg_ids:
+                base_query = base_query.where(AIFeedback.message_id.in_(msg_ids))
+
+            result = await ai_db.execute(base_query)
             feedbacks = result.scalars().all()
 
             # Calculate statistics

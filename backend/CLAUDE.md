@@ -4,7 +4,7 @@
 
 **Target**: Claude Code, Claude 3.5 Sonnet, Cursor, Windsurf, and other AI coding agents
 
-**Last Updated**: 2025-11-28
+**Last Updated**: 2025-12-21
 
 ---
 
@@ -351,8 +351,16 @@ from app.models.market_data import PositionGreeks, PositionFactorExposure
 from app.models.correlations import CorrelationCalculation
 from app.models.snapshots import PortfolioSnapshot
 
-# Database utilities
-from app.database import get_async_session, AsyncSessionLocal
+# AI Learning models (AI Database - December 2025)
+from app.models.ai_learning import AIFeedback, AIMemory
+from app.agent.models.ai_kb_documents import AIKBDocument
+
+# Database utilities (Dual Database Architecture)
+# Core database (portfolios, positions, market data)
+from app.database import get_async_session, get_db, AsyncSessionLocal
+
+# AI database (feedback, memories, RAG documents)
+from app.database import get_ai_session, get_ai_db
 ```
 
 ### **Batch Processing**
@@ -497,6 +505,135 @@ else:
 
 ---
 
+## 🗄️ Dual Database Architecture (Railway Production)
+
+### **🚨 CRITICAL: Two PostgreSQL Databases**
+
+**Production runs on Railway with TWO separate PostgreSQL databases.** This is essential for session management.
+
+### **Core Database (gondola)** - High-throughput transactional data:
+- Users, Portfolios, Positions
+- Market data, calculations, snapshots
+- Chat conversations and messages
+- Target prices, tags, position tags
+- Company profiles
+
+**Connection:**
+```python
+# Environment variable
+DATABASE_URL=postgresql+asyncpg://...@gondola.proxy.rlwy.net:.../railway
+
+# FastAPI dependency injection
+from app.database import get_db
+db: AsyncSession = Depends(get_db)
+
+# Context manager for scripts/services
+from app.database import get_async_session
+async with get_async_session() as db:
+    result = await db.execute(select(Position)...)
+```
+
+### **AI Database (metro)** - Vector search and learning data:
+- `ai_kb_documents` - RAG knowledge base with pgvector embeddings
+- `ai_memories` - User preferences and learned rules
+- `ai_feedback` - Message feedback ratings
+
+**Connection:**
+```python
+# Environment variable
+AI_DATABASE_URL=postgresql+asyncpg://...@metro.proxy.rlwy.net:.../railway
+
+# FastAPI dependency injection
+from app.database import get_ai_db
+ai_db: AsyncSession = Depends(get_ai_db)
+
+# Context manager for scripts/services
+from app.database import get_ai_session
+async with get_ai_session() as ai_db:
+    result = await ai_db.execute(select(AIMemory)...)
+```
+
+### **Session Management Rules**
+
+| Table | Database | FastAPI Dependency | Context Manager |
+|-------|----------|-------------------|-----------------|
+| User, Portfolio, Position | Core | `Depends(get_db)` | `get_async_session()` |
+| Conversation, ConversationMessage | Core | `Depends(get_db)` | `get_async_session()` |
+| MarketData, Snapshots | Core | `Depends(get_db)` | `get_async_session()` |
+| AIFeedback | AI | `Depends(get_ai_db)` | `get_ai_session()` |
+| AIMemory | AI | `Depends(get_ai_db)` | `get_ai_session()` |
+| AIKBDocument | AI | `Depends(get_ai_db)` | `get_ai_session()` |
+
+### **Dual-Session Endpoint Pattern**
+
+When an endpoint needs both databases (e.g., feedback endpoints that read messages from Core and write feedback to AI):
+
+```python
+from app.database import get_db, get_ai_db
+
+@router.post("/messages/{message_id}/feedback")
+async def create_message_feedback(
+    message_id: UUID,
+    core_db: AsyncSession = Depends(get_db),    # For messages
+    ai_db: AsyncSession = Depends(get_ai_db),   # For feedback
+    current_user: CurrentUser = Depends(get_current_user),
+):
+    # Read message from Core database
+    msg_result = await core_db.execute(
+        select(ConversationMessage).where(...)
+    )
+
+    # Write feedback to AI database
+    new_feedback = AIFeedback(message_id=message_id, ...)
+    ai_db.add(new_feedback)
+    await ai_db.commit()
+```
+
+### **Service/Batch Job Pattern**
+
+For services and batch jobs that need both databases:
+
+```python
+from app.database import get_async_session, get_ai_session
+
+async def process_feedback(feedback: AIFeedback):
+    # Get message from Core database
+    async with get_async_session() as core_db:
+        msg = await core_db.execute(
+            select(ConversationMessage).where(...)
+        )
+
+    # Save memory to AI database
+    async with get_ai_session() as ai_db:
+        await save_memory(ai_db, user_id=..., content=...)
+```
+
+### **Common Mistakes to Avoid**
+
+```python
+# ❌ WRONG: Using Core session for AI tables
+async with get_async_session() as db:
+    result = await db.execute(select(AIFeedback)...)  # FAILS - wrong DB!
+
+# ✅ CORRECT: Use AI session for AI tables
+async with get_ai_session() as ai_db:
+    result = await ai_db.execute(select(AIFeedback)...)
+
+# ❌ WRONG: Single session for mixed tables
+async def endpoint(db: AsyncSession = Depends(get_db)):
+    await db.execute(select(AIMemory)...)  # FAILS - AIMemory is in AI DB!
+
+# ✅ CORRECT: Dual sessions for mixed tables
+async def endpoint(
+    core_db: AsyncSession = Depends(get_db),
+    ai_db: AsyncSession = Depends(get_ai_db)
+):
+    await core_db.execute(select(Position)...)
+    await ai_db.execute(select(AIMemory)...)
+```
+
+---
+
 ## ⚙️ Batch Processing System v3
 
 ### **Architecture Overview**
@@ -636,8 +773,15 @@ uv run python run.py
 
 ### **Key Environment Variables (.env)**
 ```bash
-# Database (required)
+# Core Database (required) - Portfolios, positions, market data
 DATABASE_URL=postgresql+asyncpg://sigmasight:sigmasight_dev@localhost:5432/sigmasight_db
+
+# AI Database (required for AI features) - RAG, memories, feedback
+AI_DATABASE_URL=postgresql+asyncpg://sigmasight:sigmasight_dev@localhost:5432/sigmasight_ai_db
+
+# Railway Production URLs (reference)
+# DATABASE_URL=postgresql+asyncpg://...@gondola.proxy.rlwy.net:.../railway
+# AI_DATABASE_URL=postgresql+asyncpg://...@metro.proxy.rlwy.net:.../railway
 
 # Market Data APIs (required for batch processing)
 POLYGON_API_KEY=your_polygon_key
@@ -796,6 +940,26 @@ except Exception as e:
     data = await fmp_provider.get_data(symbol)
 ```
 
+### **Dual Database Session Issues**
+```python
+# Error: "relation ai_kb_documents does not exist"
+# Cause: Using Core session for AI tables
+
+# ❌ WRONG
+async with get_async_session() as db:
+    await db.execute(select(AIFeedback)...)
+
+# ✅ CORRECT - Use AI session for AI tables
+async with get_ai_session() as ai_db:
+    await ai_db.execute(select(AIFeedback)...)
+
+# For endpoints needing both databases, use dual dependencies:
+async def endpoint(
+    core_db: AsyncSession = Depends(get_db),
+    ai_db: AsyncSession = Depends(get_ai_db)
+):
+```
+
 ---
 
 ## 📐 Design Decisions & Policies
@@ -913,6 +1077,8 @@ except Exception as e:
 - **Production Ready**: Railway deployment with audit scripts and automatic cron jobs
 
 ## 📊 Recent Major Updates
+- **December 21, 2025**: Dual database architecture documented - Core (gondola) and AI (metro) PostgreSQL databases on Railway
+- **December 18, 2025**: AI Learning system (PRD4 Phase 3) - feedback learning, RAG, memories using AI database
 - **November 28, 2025**: Backend cleanup Phase 1 - archived 12 files (debug scripts + legacy docs) to `_archive/`
 - **October 29, 2025**: Phase 2.5 position market value updates added
 - **October 17, 2025**: Risk Metrics Phase 1-2 complete (3 new endpoints: sector-exposure, concentration, volatility with HAR forecasting)

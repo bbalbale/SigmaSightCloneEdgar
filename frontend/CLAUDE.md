@@ -2,7 +2,7 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-**Last Updated**: 2025-12-18
+**Last Updated**: 2025-12-21
 
 ## Project Overview
 
@@ -402,6 +402,15 @@ export default function PublicPositionsPage() {
 
 ## Backend Integration
 
+### Railway Production Architecture
+
+**Production runs on Railway with the following setup:**
+- **FastAPI Backend**: `sigmasight-be-production.up.railway.app`
+- **Core Database (gondola)**: PostgreSQL for portfolios, positions, market data, conversations
+- **AI Database (metro)**: PostgreSQL with pgvector for RAG, memories, feedback learning
+
+> **Note**: The dual database architecture is transparent to the frontend. All API calls go through the single FastAPI backend URL, which handles routing to the appropriate database internally.
+
 ### Connecting to Railway Backend
 
 By default, frontend connects to **local backend** (`http://localhost:8000`).
@@ -756,6 +765,7 @@ import strategiesApi from '@/services/strategiesApi'  // DON'T USE
 **Services**: 11 existing services, always use them (tagsApi for tagging, NOT strategiesApi)
 **Pages**: 6 authenticated pages with dropdown navigation
 **Backend**: FastAPI via Next.js proxy (59 endpoints across 9 categories)
+**Production**: Railway deployment with dual PostgreSQL databases (Core + AI)
 **Authentication**: JWT in localStorage, mandatory login flow
 **Documentation**: Comprehensive guides in `_docs/requirements/`
 **Pattern**: Hook → Components → Container → Page

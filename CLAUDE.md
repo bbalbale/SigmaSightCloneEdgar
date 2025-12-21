@@ -2,7 +2,7 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-**Last Updated**: 2025-12-11
+**Last Updated**: 2025-12-21
 
 ## Project Overview
 
@@ -169,9 +169,38 @@ SigmaSight/
    - **Strategy System Removed**: All `/api/v1/strategies/*` endpoints deprecated (October 2025)
    - Migration to position-level tagging only
 
-### Database Architecture
+### Database Architecture (Dual PostgreSQL)
+**Production runs on Railway with TWO separate PostgreSQL databases:**
+
+**Core Database (gondola)** - High-throughput transactional data:
+- Users, Portfolios, Positions
+- Market data, calculations, snapshots
+- Chat conversations and messages
+- Target prices, tags, position tags
+- Connection: `DATABASE_URL` / `get_db()` / `get_async_session()`
+
+**AI Database (metro)** - Vector search and learning data:
+- `ai_kb_documents` - RAG knowledge base with pgvector embeddings
+- `ai_memories` - User preferences and learned rules
+- `ai_feedback` - Message feedback ratings
+- Connection: `AI_DATABASE_URL` / `get_ai_db()` / `get_ai_session()`
+
+**⚠️ CRITICAL: Always use correct database session:**
+```python
+# Core tables (portfolios, positions, messages, etc.)
+from app.database import get_db, get_async_session
+async with get_async_session() as core_db:
+    # Query users, portfolios, positions, etc.
+
+# AI tables (ai_kb_documents, ai_memories, ai_feedback)
+from app.database import get_ai_db, get_ai_session
+async with get_ai_session() as ai_db:
+    # Query/write AI data
+```
+
+**Schema Details:**
 - PostgreSQL with UUID primary keys
-- Alembic for schema migrations
+- Alembic for schema migrations (`alembic/` for Core, `alembic_ai/` for AI)
 - Full audit trails with created_at/updated_at
 - Relationships: User → Portfolio → Position → Calculations
 - Position → Tags (M:N via position_tags junction table)
@@ -205,8 +234,11 @@ SigmaSight/
 
 **Backend `.env` file**:
 ```
-# Database (required)
+# Core Database (required) - portfolios, positions, market data
 DATABASE_URL=postgresql+asyncpg://sigmasight:sigmasight_dev@localhost:5432/sigmasight_db
+
+# AI Database (required for AI features) - RAG, memories, feedback with pgvector
+AI_DATABASE_URL=postgresql+asyncpg://sigmasight:sigmasight_dev@localhost:5432/sigmasight_ai_db
 
 # Market Data APIs (required for batch processing)
 POLYGON_API_KEY=your_polygon_key
@@ -216,8 +248,14 @@ FRED_API_KEY=your_fred_key
 # JWT Authentication (required)
 SECRET_KEY=your_jwt_secret
 
-# OpenAI (required for AI chat)
+# OpenAI (required for AI chat and embeddings)
 OPENAI_API_KEY=your_openai_key
+```
+
+**Railway Environment Variables** (set in Railway dashboard):
+```
+DATABASE_URL=postgresql+asyncpg://...@gondola.proxy.rlwy.net:.../railway  # Core DB
+AI_DATABASE_URL=postgresql+asyncpg://...@metro.proxy.rlwy.net:.../railway  # AI DB
 ```
 
 **Frontend `.env.local` file**:
@@ -240,6 +278,9 @@ NEXT_PUBLIC_BACKEND_API_URL=http://localhost:8000/api/v1
 6. **Demo Data**: Always test with existing demo portfolios first (password: demo12345)
 7. **Frontend Client-Side**: All pages use `'use client'` directive, no SSR
 8. **Service Layer**: Never make direct `fetch()` calls, always use service layer
+9. **Dual Database Sessions**: Use `get_ai_session()` for AI tables, `get_async_session()` for Core tables
+   - AI tables: `ai_kb_documents`, `ai_memories`, `ai_feedback`
+   - Core tables: Everything else (users, portfolios, positions, messages, etc.)
 
 ### Testing Approach
 - Use existing demo data (don't create new test data)

@@ -20,7 +20,7 @@ from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.logging import get_logger
-from app.database import get_async_session
+from app.database import get_async_session, get_ai_session
 from app.models.ai_learning import AIFeedback
 from app.agent.models.conversations import Conversation, ConversationMessage
 from app.agent.services.learning_service import learning_service
@@ -45,19 +45,20 @@ async def get_users_with_recent_feedback(
     """
     cutoff = datetime.utcnow() - timedelta(days=days)
 
-    async with get_async_session() as db:
-        # Get all feedback from the period
-        feedback_result = await db.execute(
+    # Get all feedback message IDs from AI database
+    async with get_ai_session() as ai_db:
+        feedback_result = await ai_db.execute(
             select(AIFeedback.message_id)
             .where(AIFeedback.created_at >= cutoff)
         )
         message_ids = [f for f in feedback_result.scalars().all()]
 
-        if not message_ids:
-            return []
+    if not message_ids:
+        return []
 
-        # Get conversations for those messages
-        msg_result = await db.execute(
+    # Get conversations and users from Core database
+    async with get_async_session() as core_db:
+        msg_result = await core_db.execute(
             select(ConversationMessage.conversation_id)
             .where(ConversationMessage.id.in_(message_ids))
         )
@@ -67,7 +68,7 @@ async def get_users_with_recent_feedback(
             return []
 
         # Get user IDs with feedback counts
-        conv_result = await db.execute(
+        conv_result = await core_db.execute(
             select(
                 Conversation.user_id,
                 func.count(Conversation.id).label('conv_count')
@@ -79,12 +80,12 @@ async def get_users_with_recent_feedback(
 
         users = [row[0] for row in conv_result.all()]
 
-        logger.info(
-            f"Found {len(users)} users with {min_feedback_count}+ feedback "
-            f"records in the last {days} days"
-        )
+    logger.info(
+        f"Found {len(users)} users with {min_feedback_count}+ feedback "
+        f"records in the last {days} days"
+    )
 
-        return users
+    return users
 
 
 async def run_feedback_learning_batch(
@@ -208,28 +209,28 @@ async def reprocess_unlearned_feedback(days: int = 7) -> Dict[str, Any]:
     }
 
     try:
-        async with get_async_session() as db:
-            # Get recent feedback
-            feedback_result = await db.execute(
+        # Get recent feedback from AI database
+        async with get_ai_session() as ai_db:
+            feedback_result = await ai_db.execute(
                 select(AIFeedback)
                 .where(AIFeedback.created_at >= cutoff)
                 .order_by(AIFeedback.created_at.desc())
             )
             feedbacks = feedback_result.scalars().all()
 
-            for feedback in feedbacks:
-                try:
-                    learning_result = await learning_service.process_feedback(feedback)
-                    result['feedback_processed'] += 1
+        for feedback in feedbacks:
+            try:
+                learning_result = await learning_service.process_feedback(feedback)
+                result['feedback_processed'] += 1
 
-                    if learning_result.get('actions_taken'):
-                        result['actions_taken'] += len(learning_result['actions_taken'])
+                if learning_result.get('actions_taken'):
+                    result['actions_taken'] += len(learning_result['actions_taken'])
 
-                except Exception as e:
-                    result['errors'].append({
-                        'feedback_id': str(feedback.id),
-                        'error': str(e)
-                    })
+            except Exception as e:
+                result['errors'].append({
+                    'feedback_id': str(feedback.id),
+                    'error': str(e)
+                })
 
         result['status'] = 'completed'
 
@@ -249,28 +250,29 @@ async def get_feedback_learning_stats() -> Dict[str, Any]:
     Returns:
         Statistics dictionary
     """
-    async with get_async_session() as db:
+    # Query AI database for feedback statistics
+    async with get_ai_session() as ai_db:
         # Total feedback count
-        total_result = await db.execute(
+        total_result = await ai_db.execute(
             select(func.count(AIFeedback.id))
         )
         total_feedback = total_result.scalar() or 0
 
         # Positive/negative counts
-        positive_result = await db.execute(
+        positive_result = await ai_db.execute(
             select(func.count(AIFeedback.id))
             .where(AIFeedback.rating == 'up')
         )
         positive_count = positive_result.scalar() or 0
 
-        negative_result = await db.execute(
+        negative_result = await ai_db.execute(
             select(func.count(AIFeedback.id))
             .where(AIFeedback.rating == 'down')
         )
         negative_count = negative_result.scalar() or 0
 
         # Feedback with edits
-        edits_result = await db.execute(
+        edits_result = await ai_db.execute(
             select(func.count(AIFeedback.id))
             .where(AIFeedback.edited_text.isnot(None))
         )
@@ -278,7 +280,7 @@ async def get_feedback_learning_stats() -> Dict[str, Any]:
 
         # Recent feedback (last 7 days)
         week_ago = datetime.utcnow() - timedelta(days=7)
-        recent_result = await db.execute(
+        recent_result = await ai_db.execute(
             select(func.count(AIFeedback.id))
             .where(AIFeedback.created_at >= week_ago)
         )
