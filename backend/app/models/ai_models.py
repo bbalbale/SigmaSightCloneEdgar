@@ -140,3 +140,59 @@ class AIFeedback(AiBase):
 
     def __repr__(self):
         return f"<AIFeedback {self.id} message={self.message_id} rating={self.rating}>"
+
+
+class AIAdminAnnotation(AiBase):
+    """
+    Admin annotations on AI responses for tuning and quality improvement.
+
+    Allows admins to review AI responses and add corrections, suggestions,
+    or flags that can be exported for fine-tuning or RAG updates.
+
+    Note: message_id and admin_user_id are logical references to Core DB.
+    No foreign key constraints - this is intentional for cross-database separation.
+
+    Created: December 22, 2025 (Phase 2 Admin Dashboard)
+    """
+    __tablename__ = "ai_admin_annotations"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid())
+
+    # Logical reference to message in Core DB (NO foreign key - cross-database)
+    message_id = Column(UUID(as_uuid=True), nullable=False, index=True)
+
+    # Logical reference to admin_users in Core DB (NO foreign key - cross-database)
+    admin_user_id = Column(UUID(as_uuid=True), nullable=False, index=True)
+
+    # Annotation type: 'correction', 'improvement', 'flag', 'approved'
+    annotation_type = Column(String(50), nullable=False, index=True)
+
+    # Admin's comment explaining the issue or improvement
+    content = Column(Text, nullable=False)
+
+    # Optional: what the AI should have said instead
+    suggested_response = Column(Text, nullable=True)
+
+    # Severity level: 'minor', 'moderate', 'critical'
+    severity = Column(String(20), nullable=True, index=True)
+
+    # Categorization tags: ['tone', 'accuracy', 'completeness', 'safety', etc.]
+    tags = Column(JSONB, nullable=False, server_default='[]')
+
+    # Processing status: 'pending', 'reviewed', 'applied'
+    status = Column(String(20), nullable=False, server_default="'pending'", index=True)
+
+    # Timestamps
+    created_at = Column(TIMESTAMP(timezone=True), nullable=False, server_default=func.now())
+    updated_at = Column(TIMESTAMP(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now())
+
+    __table_args__ = (
+        Index('ix_ai_admin_annotations_message_id', 'message_id'),
+        Index('ix_ai_admin_annotations_status', 'status'),
+        Index('ix_ai_admin_annotations_type', 'annotation_type'),
+        Index('ix_ai_admin_annotations_severity', 'severity'),
+    )
+
+    def __repr__(self):
+        content_preview = self.content[:50] if self.content else ""
+        return f"<AIAdminAnnotation {self.id} type={self.annotation_type} status={self.status} content={content_preview}>"

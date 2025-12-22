@@ -2,7 +2,7 @@
 
 **Created**: 2025-12-22
 **Updated**: 2025-12-22
-**Status**: Phase 1 Complete, Phase 1.5 (AI Data Access) Complete
+**Status**: Phases 1, 1.5, and 2 Complete (AI Tuning System)
 
 ## Overview
 
@@ -133,9 +133,15 @@ SigmaSight uses **two separate PostgreSQL databases** on Railway:
 
 ---
 
-### Phase 2: AI Tuning System (NEXT)
+### Phase 2: AI Tuning System (COMPLETE)
 
 **Purpose**: Allow admins to review AI responses and add annotations to tune the system.
+
+#### Completed:
+- [x] `AIAdminAnnotation` model added to `backend/app/models/ai_models.py`
+- [x] Migration: `backend/migrations_ai/versions/0002_add_admin_annotations.py`
+- [x] Endpoints: `backend/app/api/v1/admin/ai_tuning.py` (11 endpoints)
+- [x] Router updated to include tuning endpoints
 
 #### New Table (AI Database):
 
@@ -160,27 +166,31 @@ CREATE INDEX ix_ai_admin_annotations_status ON ai_admin_annotations(status);
 CREATE INDEX ix_ai_admin_annotations_type ON ai_admin_annotations(annotation_type);
 ```
 
-#### Backend Endpoints:
+#### Backend Endpoints Created:
 
-```
-# Conversation browsing (reads from Core DB)
-GET    /api/v1/admin/ai/conversations              - List all conversations (paginated)
-GET    /api/v1/admin/ai/conversations/{id}         - Get conversation with messages
-GET    /api/v1/admin/ai/messages/{id}              - Get single message with context
+**Conversation Browsing (Core DB)**:
+| Endpoint | Purpose |
+|----------|---------|
+| `GET /admin/ai/tuning/conversations` | List all conversations (paginated) |
+| `GET /admin/ai/tuning/conversations/{id}` | Get conversation with messages |
+| `GET /admin/ai/tuning/messages/{id}` | Get single message with context |
 
-# Admin annotations (writes to AI DB)
-POST   /api/v1/admin/ai/annotations                - Create annotation on a message
-GET    /api/v1/admin/ai/annotations                - List annotations (filter by status, type)
-GET    /api/v1/admin/ai/annotations/{id}           - Get annotation
-PUT    /api/v1/admin/ai/annotations/{id}           - Update annotation
-DELETE /api/v1/admin/ai/annotations/{id}           - Delete annotation
+**Admin Annotations (AI DB)**:
+| Endpoint | Purpose |
+|----------|---------|
+| `POST /admin/ai/tuning/annotations` | Create annotation on a message |
+| `GET /admin/ai/tuning/annotations` | List annotations (filter by status, type, severity) |
+| `GET /admin/ai/tuning/annotations/{id}` | Get annotation |
+| `PUT /admin/ai/tuning/annotations/{id}` | Update annotation |
+| `DELETE /admin/ai/tuning/annotations/{id}` | Delete annotation |
 
-# Analytics
-GET    /api/v1/admin/ai/tuning/summary             - Annotation stats by type/severity
-GET    /api/v1/admin/ai/tuning/export              - Export annotations for training
-```
+**Analytics**:
+| Endpoint | Purpose |
+|----------|---------|
+| `GET /admin/ai/tuning/summary` | Annotation stats by type/severity/status |
+| `GET /admin/ai/tuning/export` | Export annotations for training (super_admin only) |
 
-#### Frontend Page (`/admin/ai/tuning`):
+#### Frontend Page (`/admin/ai/tuning`) - TODO:
 
 **Features:**
 1. **Conversation Browser**: List recent conversations, filter by user/date
@@ -194,12 +204,13 @@ GET    /api/v1/admin/ai/tuning/export              - Export annotations for trai
 4. **Annotation Queue**: View pending annotations for review
 5. **Export Function**: Export annotations for fine-tuning or RAG updates
 
-#### Files to Create:
-- `backend/app/models/ai_admin_annotations.py` (new - uses AiBase)
-- `backend/migrations_ai/versions/xxx_add_admin_annotations.py` (new)
-- `backend/app/api/v1/admin/ai_tuning.py` (new)
-- `frontend/app/admin/ai/tuning/page.tsx` (new)
-- `frontend/src/containers/AdminAITuningContainer.tsx` (new)
+#### Files Created:
+- [x] `backend/app/models/ai_models.py` - Added AIAdminAnnotation class
+- [x] `backend/migrations_ai/versions/0002_add_admin_annotations.py` - Migration
+- [x] `backend/app/api/v1/admin/ai_tuning.py` - 11 new endpoints
+- [x] `backend/app/api/v1/admin/router.py` - Updated to include tuning router
+- [ ] `frontend/app/admin/ai/tuning/page.tsx` (TODO - Phase 6)
+- [ ] `frontend/src/containers/AdminAITuningContainer.tsx` (TODO - Phase 6)
 
 ---
 
@@ -462,11 +473,11 @@ CREATE TABLE ai_admin_annotations (...);  -- Admin tuning comments
 
 1. **Phase 1** ✅ **COMPLETE**: Admin auth foundation (backend + frontend)
 2. **Phase 1.5** ✅ **COMPLETE**: AI data access (view KB, memories, feedback)
-3. **Phase 2** 🎯 **NEXT**: AI tuning system (admin annotations on AI responses)
-4. **Phase 3**: User activity tracking (onboarding funnel events)
+3. **Phase 2** ✅ **COMPLETE**: AI tuning system (11 backend endpoints)
+4. **Phase 3** 🎯 **NEXT**: User activity tracking (onboarding funnel events)
 5. **Phase 4**: AI performance metrics (latency, tokens, errors)
 6. **Phase 5**: Batch history + onboarding analytics
-7. **Phase 6**: Frontend dashboard pages (users, onboarding, AI metrics, batch)
+7. **Phase 6**: Frontend dashboard pages (users, onboarding, AI metrics, AI tuning, batch)
 8. **Phase 7**: Daily aggregation job + cleanup (30-day retention)
 
 ---
