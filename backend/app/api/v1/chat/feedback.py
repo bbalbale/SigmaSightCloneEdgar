@@ -15,7 +15,7 @@ Dual-DB Architecture (December 2025):
 - Endpoints use both sessions for proper data separation
 """
 import asyncio
-from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, Request, status, BackgroundTasks
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from pydantic import BaseModel, Field
@@ -27,6 +27,7 @@ from app.core.dependencies import get_current_user, CurrentUser
 from app.agent.models.conversations import Conversation, ConversationMessage
 from app.models.ai_models import AIFeedback
 from app.core.logging import get_logger
+from app.services.activity_tracking_service import track_chat_feedback
 
 logger = get_logger(__name__)
 
@@ -87,6 +88,7 @@ class FeedbackResponse(BaseModel):
 async def create_message_feedback(
     message_id: UUID,
     feedback: FeedbackCreate,
+    request: Request,
     background_tasks: BackgroundTasks,
     core_db: AsyncSession = Depends(get_db),
     ai_db: AsyncSession = Depends(get_ai_db),
@@ -153,6 +155,10 @@ async def create_message_feedback(
     )
     existing_feedback = result.scalar_one_or_none()
 
+    # Extract client info for tracking
+    ip_address = request.client.host if request.client else None
+    user_agent = request.headers.get("user-agent")
+
     if existing_feedback:
         # Update existing feedback
         existing_feedback.rating = feedback.rating
@@ -163,6 +169,15 @@ async def create_message_feedback(
 
         logger.info(
             f"Updated feedback for message {message_id}: rating={feedback.rating}"
+        )
+
+        # Track feedback event
+        track_chat_feedback(
+            user_id=current_user.id,
+            message_id=message_id,
+            rating=feedback.rating,
+            ip_address=ip_address,
+            user_agent=user_agent,
         )
 
         # Trigger background learning process
@@ -189,6 +204,15 @@ async def create_message_feedback(
 
     logger.info(
         f"Created feedback for message {message_id}: rating={feedback.rating}"
+    )
+
+    # Track feedback event
+    track_chat_feedback(
+        user_id=current_user.id,
+        message_id=message_id,
+        rating=feedback.rating,
+        ip_address=ip_address,
+        user_agent=user_agent,
     )
 
     # Trigger background learning process

@@ -12,7 +12,7 @@ All endpoints follow the error handling framework with structured error codes.
 """
 from typing import Optional
 from decimal import Decimal
-from fastapi import APIRouter, Depends, UploadFile, File, Form, Response
+from fastapi import APIRouter, Depends, UploadFile, File, Form, Request, Response
 from fastapi.responses import PlainTextResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import BaseModel, EmailStr, Field
@@ -22,6 +22,14 @@ from app.core.dependencies import get_current_user
 from app.models.users import User
 from app.services.onboarding_service import onboarding_service
 from app.core.logging import get_logger
+from app.services.activity_tracking_service import (
+    track_register_start,
+    track_register_complete,
+    track_register_error,
+    track_portfolio_start,
+    track_portfolio_complete,
+    track_portfolio_error,
+)
 
 logger = get_logger(__name__)
 
@@ -70,7 +78,8 @@ class CreatePortfolioResponse(BaseModel):
 
 @router.post("/register", response_model=RegisterResponse, status_code=201)
 async def register_user(
-    request: RegisterRequest,
+    request_body: RegisterRequest,
+    request: Request,
     db: AsyncSession = Depends(get_db)
 ):
     """
@@ -90,37 +99,70 @@ async def register_user(
     - 422: Weak password (ERR_USER_003)
     - 422: Invalid full name (ERR_USER_004)
     """
-    logger.info(f"Registration attempt: {request.email}")
+    logger.info(f"Registration attempt: {request_body.email}")
 
-    # Register user (service validates everything)
-    user = await onboarding_service.register_user(
-        email=request.email,
-        password=request.password,
-        full_name=request.full_name,
-        invite_code=request.invite_code,
-        db=db
+    # Extract client info for tracking
+    ip_address = request.client.host if request.client else None
+    user_agent = request.headers.get("user-agent")
+
+    # Track registration start
+    track_register_start(
+        email=request_body.email,
+        ip_address=ip_address,
+        user_agent=user_agent,
     )
 
-    # Commit transaction
-    await db.commit()
+    try:
+        # Register user (service validates everything)
+        user = await onboarding_service.register_user(
+            email=request_body.email,
+            password=request_body.password,
+            full_name=request_body.full_name,
+            invite_code=request_body.invite_code,
+            db=db
+        )
 
-    logger.info(f"User registered successfully: {user.email}")
+        # Commit transaction
+        await db.commit()
 
-    return RegisterResponse(
-        user_id=str(user.id),
-        email=user.email,
-        full_name=user.full_name,
-        message="Account created successfully! You can now log in and create your portfolio.",
-        next_step={
-            "action": "login",
-            "endpoint": "/api/v1/auth/login",
-            "description": "Log in with your email and password to get access token"
-        }
-    )
+        logger.info(f"User registered successfully: {user.email}")
+
+        # Track successful registration
+        track_register_complete(
+            user_id=user.id,
+            email=user.email,
+            ip_address=ip_address,
+            user_agent=user_agent,
+        )
+
+        return RegisterResponse(
+            user_id=str(user.id),
+            email=user.email,
+            full_name=user.full_name,
+            message="Account created successfully! You can now log in and create your portfolio.",
+            next_step={
+                "action": "login",
+                "endpoint": "/api/v1/auth/login",
+                "description": "Log in with your email and password to get access token"
+            }
+        )
+    except Exception as e:
+        # Track registration error
+        error_code = getattr(e, 'detail', {}).get('code', 'UNKNOWN_ERROR') if hasattr(e, 'detail') and isinstance(e.detail, dict) else str(type(e).__name__)
+        error_message = str(e.detail) if hasattr(e, 'detail') else str(e)
+        track_register_error(
+            error_code=error_code,
+            error_message=error_message,
+            email=request_body.email,
+            ip_address=ip_address,
+            user_agent=user_agent,
+        )
+        raise
 
 
 @router.post("/create-portfolio", response_model=CreatePortfolioResponse, status_code=201)
 async def create_portfolio(
+    request: Request,
     portfolio_name: str = Form(..., description="Portfolio display name"),
     account_name: str = Form(..., description="Portfolio account name (unique per user)"),
     account_type: str = Form(..., description="Account type (taxable, ira, roth_ira, 401k, 403b, 529, hsa, trust, other)"),
@@ -158,27 +200,63 @@ async def create_portfolio(
     """
     logger.info(f"Portfolio creation attempt for user {current_user.id} (account_name='{account_name}')")
 
-    # Create portfolio with CSV import
-    result = await onboarding_service.create_portfolio_with_csv(
+    # Extract client info for tracking
+    ip_address = request.client.host if request.client else None
+    user_agent = request.headers.get("user-agent")
+
+    # Track portfolio creation start
+    track_portfolio_start(
         user_id=current_user.id,
-        portfolio_name=portfolio_name,
-        account_name=account_name,
-        account_type=account_type,
-        equity_balance=equity_balance,
-        csv_file=csv_file,
-        description=description,
-        db=db
+        ip_address=ip_address,
+        user_agent=user_agent,
     )
 
-    # Commit transaction
-    await db.commit()
+    try:
+        # Create portfolio with CSV import
+        result = await onboarding_service.create_portfolio_with_csv(
+            user_id=current_user.id,
+            portfolio_name=portfolio_name,
+            account_name=account_name,
+            account_type=account_type,
+            equity_balance=equity_balance,
+            csv_file=csv_file,
+            description=description,
+            db=db
+        )
 
-    logger.info(
-        f"Portfolio created successfully: {result['portfolio_id']} "
-        f"with {result['positions_imported']} positions"
-    )
+        # Commit transaction
+        await db.commit()
 
-    return CreatePortfolioResponse(**result)
+        logger.info(
+            f"Portfolio created successfully: {result['portfolio_id']} "
+            f"with {result['positions_imported']} positions"
+        )
+
+        # Track successful portfolio creation
+        from uuid import UUID
+        track_portfolio_complete(
+            user_id=current_user.id,
+            portfolio_id=UUID(result['portfolio_id']),
+            portfolio_name=result['portfolio_name'],
+            position_count=result['positions_imported'],
+            ip_address=ip_address,
+            user_agent=user_agent,
+        )
+
+        return CreatePortfolioResponse(**result)
+
+    except Exception as e:
+        # Track portfolio creation error
+        error_code = getattr(e, 'detail', {}).get('code', 'UNKNOWN_ERROR') if hasattr(e, 'detail') and isinstance(e.detail, dict) else str(type(e).__name__)
+        error_message = str(e.detail) if hasattr(e, 'detail') else str(e)
+        track_portfolio_error(
+            user_id=current_user.id,
+            error_code=error_code,
+            error_message=error_message,
+            ip_address=ip_address,
+            user_agent=user_agent,
+        )
+        raise
 
 
 @router.get("/csv-template", response_class=PlainTextResponse)

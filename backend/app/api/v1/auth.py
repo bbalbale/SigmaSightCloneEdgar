@@ -1,7 +1,7 @@
 """
 Authentication API endpoints
 """
-from fastapi import APIRouter, Depends, HTTPException, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -14,36 +14,69 @@ from app.models.users import User, Portfolio
 from app.schemas.auth import UserLogin, UserRegister, TokenResponse, UserResponse, CurrentUser
 from app.core.logging import auth_logger
 from app.config import settings
+from app.services.activity_tracking_service import (
+    track_login_success,
+    track_login_error,
+    track_register_start,
+    track_register_complete,
+    track_register_error,
+    track_logout,
+)
 
 router = APIRouter(prefix="/auth", tags=["authentication"])
 
 
 @router.post("/login")
-async def login(user_login: UserLogin, db: AsyncSession = Depends(get_db)):
+async def login(user_login: UserLogin, request: Request, db: AsyncSession = Depends(get_db)):
     """Authenticate user and return JWT token (in response body AND cookie)"""
     auth_logger.info(f"Login attempt for email: {user_login.email}")
-    
+
+    # Extract client info for tracking
+    ip_address = request.client.host if request.client else None
+    user_agent = request.headers.get("user-agent")
+
     # Get user by email
     stmt = select(User).where(User.email == user_login.email)
     result = await db.execute(stmt)
     user = result.scalar_one_or_none()
-    
+
     if not user:
         auth_logger.warning(f"Login failed - user not found: {user_login.email}")
+        track_login_error(
+            error_code="USER_NOT_FOUND",
+            error_message="User not found",
+            email=user_login.email,
+            ip_address=ip_address,
+            user_agent=user_agent,
+        )
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect email or password"
         )
-    
+
     if not user.is_active:
         auth_logger.warning(f"Login failed - inactive user: {user_login.email}")
+        track_login_error(
+            error_code="USER_INACTIVE",
+            error_message="Inactive user account",
+            email=user_login.email,
+            ip_address=ip_address,
+            user_agent=user_agent,
+        )
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Inactive user account"
         )
-    
+
     if not verify_password(user_login.password, user.hashed_password):
         auth_logger.warning(f"Login failed - incorrect password: {user_login.email}")
+        track_login_error(
+            error_code="INVALID_PASSWORD",
+            error_message="Incorrect password",
+            email=user_login.email,
+            ip_address=ip_address,
+            user_agent=user_agent,
+        )
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect email or password"
@@ -58,6 +91,13 @@ async def login(user_login: UserLogin, db: AsyncSession = Depends(get_db)):
     # Create JWT token with guaranteed portfolio_id in claims
     token_data = await create_token_response(str(user.id), user.email, default_portfolio_id)
     auth_logger.info(f"Login successful for user: {user.email}, portfolio: {default_portfolio_id}")
+
+    # Track successful login
+    track_login_success(
+        user_id=user.id,
+        ip_address=ip_address,
+        user_agent=user_agent,
+    )
     
     # Create response with token in body (for existing clients)
     response = JSONResponse(content={
@@ -86,17 +126,35 @@ async def login(user_login: UserLogin, db: AsyncSession = Depends(get_db)):
 
 
 @router.post("/register", response_model=UserResponse)
-async def register(user_register: UserRegister, db: AsyncSession = Depends(get_db)):
+async def register(user_register: UserRegister, request: Request, db: AsyncSession = Depends(get_db)):
     """Register a new user (admin-only initially)"""
     auth_logger.info(f"Registration attempt for email: {user_register.email}")
-    
+
+    # Extract client info for tracking
+    ip_address = request.client.host if request.client else None
+    user_agent = request.headers.get("user-agent")
+
+    # Track registration start
+    track_register_start(
+        email=user_register.email,
+        ip_address=ip_address,
+        user_agent=user_agent,
+    )
+
     # Check if user already exists
     stmt = select(User).where(User.email == user_register.email)
     result = await db.execute(stmt)
     existing_user = result.scalar_one_or_none()
-    
+
     if existing_user:
         auth_logger.warning(f"Registration failed - email already exists: {user_register.email}")
+        track_register_error(
+            error_code="EMAIL_EXISTS",
+            error_message="Email already registered",
+            email=user_register.email,
+            ip_address=ip_address,
+            user_agent=user_agent,
+        )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Email already registered"
@@ -127,10 +185,29 @@ async def register(user_register: UserRegister, db: AsyncSession = Depends(get_d
         await db.commit()
         await db.refresh(new_user)
         auth_logger.info(f"User registered successfully: {user_register.email}")
+
+        # Track successful registration
+        track_register_complete(
+            user_id=new_user.id,
+            email=user_register.email,
+            ip_address=ip_address,
+            user_agent=user_agent,
+        )
+
         return UserResponse.model_validate(new_user)
     except Exception as e:
         await db.rollback()
         auth_logger.error(f"Registration failed for {user_register.email}: {e}")
+
+        # Track registration error
+        track_register_error(
+            error_code="DATABASE_ERROR",
+            error_message=str(e),
+            email=user_register.email,
+            ip_address=ip_address,
+            user_agent=user_agent,
+        )
+
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Registration failed"
@@ -185,12 +262,17 @@ async def refresh_token(current_user: CurrentUser = Depends(get_current_user), d
 
 @router.post("/logout")
 async def logout(
+    request: Request,
     response: Response,
     current_user: CurrentUser = Depends(get_current_user)
 ):
     """Logout endpoint - clears auth cookie and instructs client to discard token"""
     auth_logger.info(f"Logout requested: {current_user.email}")
-    
+
+    # Extract client info for tracking
+    ip_address = request.client.host if request.client else None
+    user_agent = request.headers.get("user-agent")
+
     # Clear the auth cookie
     response.delete_cookie(
         key="auth_token",
@@ -198,9 +280,16 @@ async def logout(
         secure=settings.ENVIRONMENT == "production",
         domain=getattr(settings, "COOKIE_DOMAIN", None) if settings.ENVIRONMENT == "production" else None
     )
-    
+
     auth_logger.info(f"Cleared auth cookie for user: {current_user.email}")
-    
+
+    # Track logout
+    track_logout(
+        user_id=current_user.id,
+        ip_address=ip_address,
+        user_agent=user_agent,
+    )
+
     # Note: Client should also discard any stored Bearer tokens
     # In a future version, we could implement token blacklisting
     return {"message": "Successfully logged out", "success": True}

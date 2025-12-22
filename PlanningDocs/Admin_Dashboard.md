@@ -2,7 +2,7 @@
 
 **Created**: 2025-12-22
 **Updated**: 2025-12-22
-**Status**: Phases 1, 1.5, and 2 Complete (AI Tuning System)
+**Status**: Phases 1, 1.5, 2, and 3 Complete (User Activity Tracking)
 
 ## Overview
 
@@ -214,7 +214,9 @@ CREATE INDEX ix_ai_admin_annotations_type ON ai_admin_annotations(annotation_typ
 
 ---
 
-### Phase 3: User Activity Tracking
+### Phase 3: User Activity Tracking (COMPLETE)
+
+**Purpose**: Track user onboarding funnel and activity for admin dashboard analytics.
 
 **Database**: Core DB
 
@@ -229,8 +231,18 @@ CREATE TABLE user_activity_events (
     event_data JSONB DEFAULT '{}',
     error_code VARCHAR(50),
     error_message TEXT,
+    ip_address VARCHAR(45),
+    user_agent TEXT,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- Indexes for efficient querying
+CREATE INDEX ix_user_activity_events_user_id ON user_activity_events(user_id);
+CREATE INDEX ix_user_activity_events_session_id ON user_activity_events(session_id);
+CREATE INDEX ix_user_activity_events_event_type ON user_activity_events(event_type);
+CREATE INDEX ix_user_activity_events_event_category ON user_activity_events(event_category);
+CREATE INDEX ix_user_activity_events_error_code ON user_activity_events(error_code);
+CREATE INDEX ix_user_activity_events_created_at ON user_activity_events(created_at);
 ```
 
 **Event Types:**
@@ -244,9 +256,43 @@ onboarding.portfolio_start     -> Started portfolio creation
 onboarding.portfolio_complete  -> Portfolio created
 onboarding.portfolio_error     -> Portfolio creation failed
 chat.session_start             -> New conversation created
-chat.message_sent              -> Message sent
 chat.feedback_given            -> Feedback submitted
+auth.logout                    -> User logged out
 ```
+
+#### Completed:
+- [x] `backend/app/models/admin.py` - Added UserActivityEvent model
+- [x] `backend/migrations_core/versions/p2q3r4s5t6u7_add_user_activity_events.py` - Migration
+- [x] `backend/app/services/activity_tracking_service.py` - Fire-and-forget tracking service
+- [x] Integrated tracking into:
+  - `backend/app/api/v1/auth.py` - Login success/error, register complete/error, logout
+  - `backend/app/api/v1/onboarding.py` - Register start/complete/error, portfolio start/complete/error
+  - `backend/app/api/v1/chat/conversations.py` - Chat session start
+  - `backend/app/api/v1/chat/feedback.py` - Feedback given
+- [x] `backend/app/api/v1/admin/onboarding.py` - Admin analytics endpoints
+
+#### Admin Analytics Endpoints Created:
+
+| Endpoint | Purpose | Database |
+|----------|---------|----------|
+| `GET /admin/onboarding/funnel` | Funnel conversion rates (5 steps) | Core DB |
+| `GET /admin/onboarding/errors` | Error breakdown by code with samples | Core DB |
+| `GET /admin/onboarding/daily` | Daily trends for all event types | Core DB |
+| `GET /admin/onboarding/events` | Recent events (debugging) | Core DB |
+
+#### Files Created:
+- [x] `backend/app/models/admin.py` - UserActivityEvent model
+- [x] `backend/migrations_core/versions/p2q3r4s5t6u7_add_user_activity_events.py`
+- [x] `backend/app/services/activity_tracking_service.py`
+- [x] `backend/app/api/v1/admin/onboarding.py`
+
+#### Files Modified:
+- [x] `backend/app/api/v1/auth.py` - Added tracking imports and calls
+- [x] `backend/app/api/v1/onboarding.py` - Added tracking imports and calls
+- [x] `backend/app/api/v1/chat/conversations.py` - Added session start tracking
+- [x] `backend/app/api/v1/chat/feedback.py` - Added feedback tracking
+- [x] `backend/app/api/v1/admin/router.py` - Included onboarding router
+- [x] `backend/app/models/__init__.py` - Exported admin models
 
 ---
 
@@ -474,9 +520,9 @@ CREATE TABLE ai_admin_annotations (...);  -- Admin tuning comments
 1. **Phase 1** ✅ **COMPLETE**: Admin auth foundation (backend + frontend)
 2. **Phase 1.5** ✅ **COMPLETE**: AI data access (view KB, memories, feedback)
 3. **Phase 2** ✅ **COMPLETE**: AI tuning system (11 backend endpoints)
-4. **Phase 3** 🎯 **NEXT**: User activity tracking (onboarding funnel events)
-5. **Phase 4**: AI performance metrics (latency, tokens, errors)
-6. **Phase 5**: Batch history + onboarding analytics
+4. **Phase 3** ✅ **COMPLETE**: User activity tracking (onboarding funnel events + 4 admin endpoints)
+5. **Phase 4** 🎯 **NEXT**: AI performance metrics (latency, tokens, errors)
+6. **Phase 5**: Batch history enhancement
 7. **Phase 6**: Frontend dashboard pages (users, onboarding, AI metrics, AI tuning, batch)
 8. **Phase 7**: Daily aggregation job + cleanup (30-day retention)
 

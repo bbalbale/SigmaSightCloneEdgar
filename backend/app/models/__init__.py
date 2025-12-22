@@ -19,6 +19,7 @@ from app.models.ai_insights import AIInsight
 from app.models.ai_models import AIKBDocument, AIMemory, AIFeedback
 from app.models.fundamentals import IncomeStatement, BalanceSheet, CashFlow
 from app.models.symbol_analytics import SymbolUniverse, SymbolFactorExposure, SymbolDailyMetrics
+from app.models.admin import AdminUser, AdminSession, UserActivityEvent
 
 # Export all models
 __all__ = [
@@ -85,4 +86,9 @@ __all__ = [
     "SymbolUniverse",
     "SymbolFactorExposure",
     "SymbolDailyMetrics",
+
+    # Admin module (Admin Dashboard)
+    "AdminUser",
+    "AdminSession",
+    "UserActivityEvent",
 ]

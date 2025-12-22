@@ -1,7 +1,7 @@
 """
 Conversation management endpoints
 """
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_
 from uuid import uuid4, UUID
@@ -19,6 +19,7 @@ from app.agent.schemas.chat import (
 )
 from app.core.datetime_utils import utc_now
 from app.core.logging import get_logger
+from app.services.activity_tracking_service import track_chat_session_start
 
 logger = get_logger(__name__)
 
@@ -27,7 +28,8 @@ router = APIRouter()
 
 @router.post("/conversations", response_model=ConversationResponse, status_code=status.HTTP_201_CREATED)
 async def create_conversation(
-    request: ConversationCreate,
+    request_body: ConversationCreate,
+    request: Request,
     db: AsyncSession = Depends(get_db),
     current_user: CurrentUser = Depends(get_current_user)
 ) -> ConversationResponse:
@@ -42,12 +44,16 @@ async def create_conversation(
     Returns:
         ConversationResponse with conversation_id and metadata
     """
+    # Extract client info for tracking
+    ip_address = request.client.host if request.client else None
+    user_agent = request.headers.get("user-agent")
+
     try:
         # Resolve portfolio ID - use provided or auto-resolve user's portfolio
         portfolio_id = None
-        if request.portfolio_id:
+        if request_body.portfolio_id:
             # Use explicitly provided portfolio ID
-            portfolio_id = request.portfolio_id
+            portfolio_id = request_body.portfolio_id
             logger.info(f"Using explicit portfolio {portfolio_id} for user {current_user.id}")
         else:
             # Auto-resolve user's portfolio ID
@@ -71,31 +77,39 @@ async def create_conversation(
         meta_data = {
             "portfolio_id": portfolio_id,
         }
-        if request.portfolio_ids:
-            meta_data["portfolio_ids"] = request.portfolio_ids
-        if request.page_hint:
-            meta_data["page_hint"] = request.page_hint
-        if request.route:
-            meta_data["route"] = request.route
-            
+        if request_body.portfolio_ids:
+            meta_data["portfolio_ids"] = request_body.portfolio_ids
+        if request_body.page_hint:
+            meta_data["page_hint"] = request_body.page_hint
+        if request_body.route:
+            meta_data["route"] = request_body.route
+
         conversation = Conversation(
             id=uuid4(),  # Our canonical ID
             user_id=current_user.id,
-            mode=request.mode,
+            mode=request_body.mode,
             provider="openai",
             created_at=utc_now(),
             updated_at=utc_now(),
             meta_data=meta_data  # Store portfolio_id and other metadata
         )
-        
+
         db.add(conversation)
         await db.commit()
         await db.refresh(conversation)
-        
+
         # [TRACE] TRACE-1 Conversation Created (Phase 9.12.1 investigation)
         logger.info(f"[TRACE] TRACE-1 Conversation Created: {conversation.id} | meta_data: {conversation.meta_data}")
         logger.info(f"Created conversation {conversation.id} for user {current_user.id}")
-        
+
+        # Track chat session start
+        track_chat_session_start(
+            user_id=current_user.id,
+            conversation_id=conversation.id,
+            ip_address=ip_address,
+            user_agent=user_agent,
+        )
+
         return ConversationResponse(
             id=conversation.id,
             mode=conversation.mode,
