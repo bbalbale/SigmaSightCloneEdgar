@@ -9,8 +9,9 @@ FastAPI-based portfolio risk analytics platform with 8 calculation engines, auto
 # Start PostgreSQL
 docker-compose up -d
 
-# Run migrations
-uv run alembic upgrade head
+# Run migrations (DUAL DATABASE - both Core and AI)
+uv run alembic -c alembic.ini upgrade head        # Core DB
+uv run alembic -c alembic_ai.ini upgrade head     # AI DB
 
 # Seed demo data
 uv run python scripts/database/seed_database.py
@@ -32,8 +33,9 @@ When pulling updates that include database migrations:
 # 1. Pull latest code
 git pull origin main
 
-# 2. Apply migrations
-uv run alembic upgrade head
+# 2. Apply migrations (DUAL DATABASE)
+uv run alembic -c alembic.ini upgrade head        # Core DB
+uv run alembic -c alembic_ai.ini upgrade head     # AI DB
 
 # 3. If migration requires reset (check migration notes or errors):
 uv run python scripts/database/reset_and_seed.py reset --confirm
@@ -46,7 +48,8 @@ Migration `a766488d98ea` removes the legacy strategy system. **Requires full dat
 ```bash
 # After pulling this change:
 git pull origin main
-uv run alembic upgrade head  # Apply migration
+uv run alembic -c alembic.ini upgrade head        # Apply Core migration
+uv run alembic -c alembic_ai.ini upgrade head     # Apply AI migration
 uv run python scripts/database/reset_and_seed.py reset --confirm  # Reset required
 ```
 

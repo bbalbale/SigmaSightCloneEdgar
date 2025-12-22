@@ -50,15 +50,17 @@ uv run python scripts/batch_processing/run_batch.py
 - No platform-specific commands needed
 
 #### 2. Database Migrations (CRITICAL)
-**Issue**: New fields added to database models require migrations  
-**Solution**: ALWAYS run migrations after pulling code
+**Issue**: New fields added to database models require migrations
+**Solution**: ALWAYS run migrations after pulling code for BOTH databases
 
 ```bash
-# After every git pull or code update:
-uv run alembic upgrade head
+# After every git pull or code update (DUAL DATABASE):
+uv run alembic -c alembic.ini upgrade head        # Core DB migrations
+uv run alembic -c alembic_ai.ini upgrade head     # AI DB migrations
 
 # Verify current status:
-uv run alembic current
+uv run alembic -c alembic.ini current             # Core DB
+uv run alembic -c alembic_ai.ini current          # AI DB
 ```
 
 **Recent Critical Migrations**:
@@ -212,14 +214,16 @@ uv run python scripts/database/check_database_content.py
 
 ### Step 4: Apply Database Migrations ⚠️ CRITICAL
 ```bash
-# Check current migration status
-uv run alembic current
+# Check current migration status (DUAL DATABASE)
+uv run alembic -c alembic.ini current             # Core DB
+uv run alembic -c alembic_ai.ini current          # AI DB
 
 # Apply any pending migrations - ALWAYS DO THIS AFTER PULLING CODE
-uv run alembic upgrade head
+uv run alembic -c alembic.ini upgrade head        # Core DB migrations
+uv run alembic -c alembic_ai.ini upgrade head     # AI DB migrations
 
 # Verify migrations applied
-uv run alembic history --verbose | head -10
+uv run alembic -c alembic.ini history --verbose | head -10
 
 # Recent critical migrations:
 # - add_equity_balance_to_portfolio.py (adds equity_balance field)
@@ -900,7 +904,7 @@ curl -H "Authorization: Bearer $TOKEN" http://localhost:8000/api/v1/data/portfol
 
 - [ ] Docker Desktop running
 - [ ] PostgreSQL container started
-- [ ] ⚠️ Database migrations applied (CRITICAL - check after every pull)
+- [ ] ⚠️ Database migrations applied for BOTH Core and AI DBs (CRITICAL - check after every pull)
 - [ ] Market data synced
 - [ ] Target prices populated (if using Target Price APIs)
 - [ ] Batch calculations run
@@ -921,7 +925,7 @@ curl -H "Authorization: Bearer $TOKEN" http://localhost:8000/api/v1/data/portfol
 - **Batch Processing**: Takes ~60 seconds per portfolio
 - **Database Backups**: Volumes persist between container restarts
 - **✅ Unicode Encoding**: Fixed - scripts now handle UTF-8 automatically on all platforms
-- **⚠️ Database Changes**: ALWAYS run `uv run alembic upgrade head` after pulling code
+- **⚠️ Database Changes**: ALWAYS run BOTH `uv run alembic -c alembic.ini upgrade head` AND `uv run alembic -c alembic_ai.ini upgrade head` after pulling code
 - **Equity System**: Portfolios now have equity_balance field for risk calculations
 - **Tag System**: New position tagging added October 2, 2025 for flexible organization
 - **Strategy Sunset**: Strategy system planned for removal (Phase 3.0) - use tags instead

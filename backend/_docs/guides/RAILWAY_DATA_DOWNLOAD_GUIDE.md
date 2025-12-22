@@ -66,9 +66,10 @@ docker exec backend-postgres-1 pg_dump -U sigmasight -d sigmasight_db \
 docker exec backend-postgres-1 psql -U sigmasight -d postgres -c "DROP DATABASE IF EXISTS sigmasight_db;"
 docker exec backend-postgres-1 psql -U sigmasight -d postgres -c "CREATE DATABASE sigmasight_db OWNER sigmasight;"
 
-# 5. Run Alembic migrations to create schema
+# 5. Run Alembic migrations to create schema (DUAL DATABASE)
 cd backend
-uv run python -m alembic upgrade head
+uv run alembic -c alembic.ini upgrade head        # Core DB migrations
+uv run alembic -c alembic_ai.ini upgrade head     # AI DB migrations
 
 # 6. Import data from Railway with PROPER ERROR HANDLING
 bash -o pipefail -c "docker exec backend-postgres-1 pg_dump \"$RAILWAY_DB_URL\" \
@@ -182,14 +183,16 @@ Expected output: "Did not find any relations."
 ```bash
 cd backend
 
-# Apply all migrations to create schema
-uv run python -m alembic upgrade head
+# Apply all migrations to create schema (DUAL DATABASE)
+uv run alembic -c alembic.ini upgrade head        # Core DB migrations
+uv run alembic -c alembic_ai.ini upgrade head     # AI DB migrations
 
 # Verify migration success
-uv run python -m alembic current
+uv run alembic -c alembic.ini current             # Core DB
+uv run alembic -c alembic_ai.ini current          # AI DB
 ```
 
-Expected output: Shows current revision (e.g., `792ffb1ab1ad (head)`)
+Expected output: Shows current revision for each database (e.g., `n0o1p2q3r4s5 (head)` for Core)
 
 **Verify schema created:**
 ```bash
@@ -472,7 +475,8 @@ DETAIL: Key (id)=(UUID) already exists.
 # Clear database before import (connect to postgres DB to avoid "cannot drop active DB" error)
 docker exec backend-postgres-1 psql -U sigmasight -d postgres -c "DROP DATABASE IF EXISTS sigmasight_db;"
 docker exec backend-postgres-1 psql -U sigmasight -d postgres -c "CREATE DATABASE sigmasight_db OWNER sigmasight;"
-uv run python -m alembic upgrade head  # Recreate schema
+uv run alembic -c alembic.ini upgrade head        # Recreate Core schema
+uv run alembic -c alembic_ai.ini upgrade head     # Recreate AI schema
 ```
 
 ### Issue 4: PostgreSQL Version Incompatibility
@@ -654,7 +658,7 @@ When import doesn't work as expected:
 - [ ] Check import log file for errors
 - [ ] Verify `--set ON_ERROR_STOP=on` was used
 - [ ] Compare row counts Railway vs local for each table
-- [ ] Check Alembic version matches: `alembic current`
+- [ ] Check Alembic version matches: `alembic -c alembic.ini current` and `alembic -c alembic_ai.ini current`
 - [ ] Verify DATABASE_PUBLIC_URL is correct (not DATABASE_URL)
 - [ ] Test Railway connection: `psql "$RAILWAY_DB_URL" -c "SELECT 1;"`
 - [ ] Check PostgreSQL versions match (both should be 17)
@@ -672,7 +676,7 @@ When import doesn't work as expected:
 3. ✅ Use `bash -o pipefail` (catch pipeline failures)
 4. ✅ Use `--column-inserts` (handle column order differences)
 5. ✅ Use `-d postgres` for DROP/CREATE DATABASE commands
-6. ✅ Run Alembic migrations BEFORE importing data
+6. ✅ Run Alembic migrations for BOTH databases BEFORE importing data
 7. ✅ Stop backend server before import
 8. ✅ Log everything with `tee` inside pipefail
 9. ✅ Verify row counts match EXACTLY (use COUNT(*), not pg_stat)
@@ -688,4 +692,4 @@ When import doesn't work as expected:
 - Compare this guide's expected outputs vs actual
 - When in doubt, start over with fresh database
 
-**Last verified working**: 2025-11-12 with PostgreSQL 17, Alembic head `792ffb1ab1ad`
+**Last verified working**: 2025-11-12 with PostgreSQL 17, dual database Alembic setup (Core + AI)

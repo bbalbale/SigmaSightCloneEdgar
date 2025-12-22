@@ -165,7 +165,9 @@ else:
 
 # ALWAYS use Alembic for schema changes
 # Never: db.execute("CREATE TABLE ...")
-# Instead: uv run alembic revision --autogenerate -m "description"
+# Instead (specify which database):
+# uv run alembic -c alembic.ini revision --autogenerate -m "description"       # Core DB
+# uv run alembic -c alembic_ai.ini revision --autogenerate -m "description"    # AI DB
 ```
 
 **Error Handling:**
@@ -313,7 +315,8 @@ backend/
 │   ├── scripts/          - Old diagnostic scripts
 │   └── legacy_scripts_for_reference_only/ - Reference implementations
 │
-├── alembic/              - Database migrations
+├── migrations_core/      - Core DB migrations (users, portfolios, positions, etc.)
+├── migrations_ai/        - AI DB migrations (RAG, memories, feedback)
 ├── docker-compose.yml    - PostgreSQL database
 ├── pyproject.toml        - Dependencies (mibian, not py_vollib)
 └── .env                  - Environment variables
@@ -324,7 +327,10 @@ backend/
 docker-compose.yml    - PostgreSQL database (Redis removed)
 pyproject.toml       - Dependencies (mibian, not py_vollib)
 .env                 - Environment variables (no REDIS_URL)
-alembic/             - Database migrations
+migrations_core/     - Core DB migrations (portfolios, positions, market data)
+migrations_ai/       - AI DB migrations (RAG, memories, feedback)
+alembic.ini          - Alembic config for Core DB
+alembic_ai.ini       - Alembic config for AI DB
 ```
 
 ---
@@ -758,8 +764,9 @@ asyncio.run(check())
 # 1. Start PostgreSQL database
 docker-compose up -d
 
-# 2. Apply database migrations
-uv run alembic upgrade head
+# 2. Apply database migrations (DUAL DATABASE - both Core and AI)
+uv run alembic -c alembic.ini upgrade head        # Core DB migrations
+uv run alembic -c alembic_ai.ini upgrade head     # AI DB migrations
 
 # 3. Seed demo data (3 portfolios, 63 positions)
 python scripts/database/reset_and_seed.py seed

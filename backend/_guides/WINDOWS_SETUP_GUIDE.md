@@ -198,13 +198,14 @@ We'll install these tools in order:
    ```
    - You should see a container named `backend_postgres_1` or similar
 
-3. **Set up database tables (Professional Approach):**
+3. **Set up database tables (Dual Database Migrations):**
    ```bash
-   uv run python scripts/setup_dev_database_alembic.py
+   # Run migrations for BOTH Core and AI databases
+   uv run alembic -c alembic.ini upgrade head
+   uv run alembic -c alembic_ai.ini upgrade head
    ```
-   - This uses proper Alembic migrations for professional development
-   - When prompted, type `y` and press Enter to continue
-   - Provides proper database versioning and rollback capabilities
+   - The project uses dual databases: Core (portfolios, positions) and AI (RAG, memories)
+   - Both migrations must be run for full functionality
 
 4. **Create demo users (bulletproof method):**
    ```bash
@@ -353,10 +354,9 @@ git pull
 # Install/update dependencies
 uv sync
 
-# Set up database with Alembic migrations
-uv run alembic upgrade head
-# Or use the automated script:
-uv run python scripts/setup_dev_database_alembic.py
+# Set up database with Alembic migrations (DUAL DATABASE)
+uv run alembic -c alembic.ini upgrade head        # Core DB
+uv run alembic -c alembic_ai.ini upgrade head     # AI DB
 
 # Seed demo data (use minimal setup to avoid Unicode issues)
 set PYTHONIOENCODING=utf-8 && uv run python scripts/setup_minimal_demo.py

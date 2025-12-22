@@ -254,8 +254,9 @@ if __name__ == "__main__":
     asyncio.run(main())
 EOF
 
-# Run professional Alembic database setup
-uv run python scripts/setup_dev_database_alembic.py
+# Run dual database migrations
+uv run alembic -c alembic.ini upgrade head        # Core DB (portfolios, positions, etc.)
+uv run alembic -c alembic_ai.ini upgrade head     # AI DB (RAG, memories, feedback)
 
 # Create demo users with bulletproof script (avoids async/sync issues)
 echo "Creating demo users..."
@@ -606,11 +607,13 @@ source .venv/bin/activate
 #### 6. Alembic Migration Errors
 ```bash
 # Check current migration status:
-uv run alembic current
+uv run alembic -c alembic.ini current        # Core DB
+uv run alembic -c alembic_ai.ini current     # AI DB
 
 # If corrupted, reset (WARNING: loses data):
 docker exec $(docker ps -qf "name=postgres") psql -U sigmasight -d sigmasight_db -c "DROP TABLE IF EXISTS alembic_version;"
-uv run python scripts/setup_dev_database_alembic.py
+uv run alembic -c alembic.ini upgrade head
+uv run alembic -c alembic_ai.ini upgrade head
 ```
 
 ## 📝 Daily Usage
@@ -682,7 +685,8 @@ docker exec -it $(docker ps -qf "name=postgres") psql -U sigmasight -d sigmasigh
 # Update from GitHub
 git pull
 uv sync
-uv run python scripts/setup_dev_database_alembic.py
+uv run alembic -c alembic.ini upgrade head        # Core DB
+uv run alembic -c alembic_ai.ini upgrade head     # AI DB
 
 # Seed demo data
 uv run python scripts/database/seed_database.py

@@ -64,8 +64,9 @@ cd backend
 cp .env.example .env
 # Edit .env with your API keys (POLYGON_API_KEY, FMP_API_KEY, etc.)
 
-# Run migrations
-uv run alembic upgrade head
+# Run migrations (DUAL DATABASE - both Core and AI)
+uv run alembic -c alembic.ini upgrade head        # Core DB migrations
+uv run alembic -c alembic_ai.ini upgrade head     # AI DB migrations
 
 # Seed demo data (3 portfolios, 75 positions)
 uv run python scripts/database/seed_database.py
@@ -127,7 +128,8 @@ SigmaSight-BE/
 │   │   ├── reference/       # API reference
 │   │   └── requirements/    # Product requirements
 │   ├── _guides/             # Workflow guides
-│   └── alembic/             # Database migrations
+│   ├── migrations_core/     # Core DB migrations
+│   └── migrations_ai/       # AI DB migrations
 ├── frontend/                # React frontend
 │   ├── src/
 │   │   ├── components/      # React components
@@ -158,11 +160,13 @@ uv run python scripts/batch_processing/run_batch_orchestrator.py
 # Check database status
 uv run python scripts/verification/verify_setup.py
 
-# Create new migration
-uv run alembic revision --autogenerate -m "description"
+# Create new migration (specify which database)
+uv run alembic -c alembic.ini revision --autogenerate -m "description"       # Core DB
+uv run alembic -c alembic_ai.ini revision --autogenerate -m "description"    # AI DB
 
-# Apply migrations
-uv run alembic upgrade head
+# Apply migrations (both databases)
+uv run alembic -c alembic.ini upgrade head        # Core DB
+uv run alembic -c alembic_ai.ini upgrade head     # AI DB
 ```
 
 ### Frontend Development

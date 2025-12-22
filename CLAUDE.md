@@ -72,7 +72,11 @@ uvicorn app.main:app --reload     # Alternative with auto-reload
 
 # Database setup
 docker-compose up -d               # Start PostgreSQL
-uv run alembic upgrade head        # Run migrations
+
+# Run migrations (DUAL DATABASE - both Core and AI)
+uv run alembic -c alembic.ini upgrade head        # Core DB migrations
+uv run alembic -c alembic_ai.ini upgrade head     # AI DB migrations
+
 uv run python scripts/database/reset_and_seed.py seed  # Seed demo data (3 portfolios, 63 positions)
 ```
 
@@ -137,7 +141,8 @@ SigmaSight/
 │   │   ├── agent/        # AI agent system (OpenAI Responses API)
 │   │   └── core/         # Shared utilities (auth, db, logging)
 │   ├── scripts/          # Utility and verification scripts
-│   ├── alembic/          # Database migrations
+│   ├── migrations_core/  # Core DB migrations (users, portfolios, positions, etc.)
+│   ├── migrations_ai/    # AI DB migrations (RAG, memories, feedback)
 │   └── _docs/            # Backend documentation
 │
 ├── frontend/             # Next.js 14 application
@@ -200,7 +205,7 @@ async with get_ai_session() as ai_db:
 
 **Schema Details:**
 - PostgreSQL with UUID primary keys
-- Alembic for schema migrations (`alembic/` for Core, `alembic_ai/` for AI)
+- Alembic for schema migrations (`migrations_core/` for Core, `migrations_ai/` for AI)
 - Full audit trails with created_at/updated_at
 - Relationships: User → Portfolio → Position → Calculations
 - Position → Tags (M:N via position_tags junction table)

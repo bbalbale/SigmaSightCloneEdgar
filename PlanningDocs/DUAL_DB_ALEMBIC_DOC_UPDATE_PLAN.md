@@ -99,26 +99,28 @@ uv run alembic -c alembic_ai.ini revision --autogenerate -m "<msg>"
 
 ## Acceptance Criteria
 
-- [ ] Every user-facing doc that instructs running migrations shows both Core and AI commands (or a combined one-liner).
-- [ ] Project structure sections reference `migrations_core/` and `migrations_ai/` (not `alembic/`).
-- [ ] All setup guides list both `DATABASE_URL` and `AI_DATABASE_URL` as required inputs.
-- [ ] No references remain to the missing `scripts/setup_dev_database_alembic.py` or single-DB-only migration steps.
-- [ ] Railway deployment guidance clearly states when/how both migration chains run.
-- [ ] Fallback behavior documented as local-dev-only convenience.
+- [x] Every user-facing doc that instructs running migrations shows both Core and AI commands (or a combined one-liner).
+- [x] Project structure sections reference `migrations_core/` and `migrations_ai/` (not `alembic/`).
+- [x] All setup guides list both `DATABASE_URL` and `AI_DATABASE_URL` as required inputs.
+- [x] No references remain to the missing `scripts/setup_dev_database_alembic.py` or single-DB-only migration steps.
+- [x] Railway deployment guidance clearly states when/how both migration chains run.
+- [x] Fallback behavior documented as local-dev-only convenience.
 
 ---
 
 ## Execution Checklist
 
-- [ ] Update root CLAUDE.md Quick Start, project structure, and env vars.
-- [ ] Update root README quick start + structure.
-- [ ] Update backend README migration sections.
-- [ ] Update backend CLAUDE.md Quick Start and migration instructions.
-- [ ] Update backend guides (README, Windows, Mac) to dual commands.
-- [ ] Update BACKEND_DAILY_COMPLETE_WORKFLOW_GUIDE.md to dual commands.
-- [ ] Update RAILWAY_DATA_DOWNLOAD_GUIDE.md migration step to dual commands.
-- [ ] Verify railway.toml startCommand; update comment block accordingly.
-- [ ] Self-review for lingering single-DB references and the missing setup script callouts.
+- [x] Update root CLAUDE.md Quick Start, project structure, and env vars.
+- [x] Update root README quick start + structure.
+- [x] Update backend README migration sections.
+- [x] Update backend CLAUDE.md Quick Start and migration instructions.
+- [x] Update backend guides (README, Windows, Mac) to dual commands.
+- [x] Update BACKEND_DAILY_COMPLETE_WORKFLOW_GUIDE.md to dual commands.
+- [x] Update RAILWAY_DATA_DOWNLOAD_GUIDE.md migration step to dual commands.
+- [x] Verify railway.toml startCommand; update comment block accordingly.
+- [x] Self-review for lingering single-DB references and the missing setup script callouts.
+
+**Status**: COMPLETED on 2025-12-22
 
 ---
 

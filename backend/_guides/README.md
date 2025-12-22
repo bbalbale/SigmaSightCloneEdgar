@@ -135,17 +135,16 @@ docker-compose ps
 DATABASE_URL=postgresql+asyncpg://sigmasight:sigmasight_dev@localhost:5432/sigmasight_db
 ```
 
-4. **Set up database (Professional Alembic Approach):**
+4. **Set up database (Dual Database Migrations):**
 ```bash
-# Professional database migrations (recommended)
-uv run python scripts/setup_dev_database_alembic.py
+# Run migrations for BOTH Core and AI databases
+uv run alembic -c alembic.ini upgrade head        # Core DB (portfolios, positions, etc.)
+uv run alembic -c alembic_ai.ini upgrade head     # AI DB (RAG, memories, feedback)
 ```
 
-**Alternative Direct Alembic:**
-```bash
-# Direct Alembic usage (for experienced developers)
-uv run alembic upgrade head
-```
+**Note:** The project uses a dual database architecture:
+- **Core DB** (`DATABASE_URL`): Portfolios, positions, market data, chat messages
+- **AI DB** (`AI_DATABASE_URL`): RAG knowledge base, user memories, feedback with pgvector
 
 5. **Seed demo data (optional):**
 ```bash
@@ -159,7 +158,11 @@ This creates the three demo accounts and portfolios:
 
 **Option B: Use Existing PostgreSQL**
 1. Update DATABASE_URL in .env file with your PostgreSQL connection
-2. Set up database: `uv run python scripts/setup_dev_database_alembic.py`
+2. Set up database (dual migrations):
+   ```bash
+   uv run alembic -c alembic.ini upgrade head        # Core DB
+   uv run alembic -c alembic_ai.ini upgrade head     # AI DB
+   ```
 3. Optionally seed demo data: `uv run python scripts/database/seed_database.py`
 
 **Note:** The database is required for authentication, portfolio management, and all core features.
@@ -249,7 +252,7 @@ Run this checklist to ensure identical setup:
 - [ ] Dependencies installed (`uv sync` completed successfully)
 - [ ] Environment file created (`.env` exists with correct DATABASE_URL)
 - [ ] PostgreSQL container running (`docker-compose ps` shows postgres as "Up")
-- [ ] Database migrations applied (`uv run alembic upgrade head` succeeded)
+- [ ] Database migrations applied (both `alembic.ini` and `alembic_ai.ini` upgrade head succeeded)
 - [ ] Demo data seeded (optional: `uv run python scripts/database/seed_database.py`)
 - [ ] Server starts without errors (`uv run python run.py`)
 - [ ] API responds at http://localhost:8000
