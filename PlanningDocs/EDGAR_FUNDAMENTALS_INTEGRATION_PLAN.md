@@ -64,40 +64,95 @@ Deploy StockFundamentals as services **within the existing SigmaSight Railway pr
 4. **Phase D**: Make EDGAR default - Yahoo becomes fallback
 
 ### Infrastructure Decision: Redis + Celery Required
-EDGAR data will be part of batch processing on a **separate schedule** from daily market data:
-- **Daily batch** (existing): Market data, P&L, analytics
-- **Weekly EDGAR batch** (new): Fundamentals refresh from SEC filings
-- **On-demand**: Manual refresh via admin endpoint
+StockFundamentals runs **independently** with its own data collection schedule:
+- **StockFundamentals cron** (new): Weekly EDGAR refresh into its own database
+- **SigmaSight batch** (unchanged): Continues using Yahoo for now
+- **Future**: Switch SigmaSight to read from EDGAR once validated
 
 **Why Redis/Celery is required:**
 - SEC rate limits (10 req/sec) need centralized tracking across workers
 - Background job queue for batch fundamentals refresh
-- Separate schedule from main SigmaSight batch orchestrator
-- Portfolio-wide prefetch without blocking user requests
+- StockFundamentals manages its own refresh schedule independently
+- SigmaSight only reads from EDGAR API (no batch integration yet)
 
 **Estimated cost:** ~$18-20/mo for EDGAR integration services
 
-### Database Architecture (IMPORTANT)
+### Phased Integration Strategy (IMPORTANT)
 ```
-┌─────────────────────────┐          ┌─────────────────────────┐
-│   SigmaSight Database   │          │ StockFundamentals DB    │
-│   (existing, NO CHANGES)│          │ (NEW, separate)         │
-├─────────────────────────┤          ├─────────────────────────┤
-│ users                   │          │ companies               │
-│ portfolios              │   HTTP   │ filings                 │
-│ positions               │◀────────▶│ financials              │
-│ snapshots               │          │ non_gaap_adjustments    │
-│ ... (existing tables)   │          │                         │
-└─────────────────────────┘          └─────────────────────────┘
-      │                                      │
-      │ NO migrations                        │ Own Alembic
-      │ NO schema changes                    │ Own migrations
-      │                                      │
-      └──────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────────┐
+│                    PHASED INTEGRATION APPROACH                           │
+├─────────────────────────────────────────────────────────────────────────┤
+│ Phase A: Deploy StockFundamentals independently                         │
+│          - Service runs its own cron to populate EDGAR database         │
+│          - SigmaSight batch process UNCHANGED (still uses Yahoo)        │
+│          - SigmaSight can READ from EDGAR API for on-demand requests    │
+│                                                                          │
+│ Phase B: Validate EDGAR data quality                                    │
+│          - Compare EDGAR vs Yahoo for key metrics                        │
+│          - Verify coverage for portfolio symbols                         │
+│          - Run for 2-4 weeks to ensure reliability                       │
+│                                                                          │
+│ Phase C: Switch SigmaSight batch to EDGAR (FUTURE)                      │
+│          - Modify fundamentals_collector.py to use EDGAR-first          │
+│          - Yahoo becomes fallback for non-EDGAR tickers                  │
+│          - Only after Phase B validation is complete                     │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+**Current Scope: Phase A only** - StockFundamentals populates its own DB, SigmaSight reads on-demand.
+
+### Database Architecture (IMPORTANT)
+
+SigmaSight uses a **dual-database architecture** on Railway. StockFundamentals adds a third database.
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                        SIGMASIGHT DATABASES (EXISTING)                       │
+│                                                                              │
+│  ┌─────────────────────────────┐    ┌─────────────────────────────┐         │
+│  │   Core DB (gondola)         │    │   AI DB (metro)             │         │
+│  │   High-throughput data      │    │   Vector search + learning  │         │
+│  ├─────────────────────────────┤    ├─────────────────────────────┤         │
+│  │ users                       │    │ ai_kb_documents (pgvector)  │         │
+│  │ portfolios                  │    │ ai_memories                 │         │
+│  │ positions                   │    │ ai_feedback                 │         │
+│  │ market_data                 │    │                             │         │
+│  │ snapshots                   │    │                             │         │
+│  │ conversations               │    │                             │         │
+│  │ company_profiles            │    │                             │         │
+│  │ fundamentals                │    │                             │         │
+│  └─────────────────────────────┘    └─────────────────────────────┘         │
+│         │                                  │                                 │
+│         │ DATABASE_URL                     │ AI_DATABASE_URL                 │
+│         │ get_db() / get_async_session()   │ get_ai_db() / get_ai_session()  │
+│         │                                  │                                 │
+│         │ NO changes for EDGAR             │ NO changes for EDGAR            │
+└─────────┼──────────────────────────────────┼─────────────────────────────────┘
+          │                                  │
+          │              HTTP                │
+          └─────────────┬────────────────────┘
+                        │
+                        ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                     STOCKFUNDAMENTALS DATABASE (NEW)                         │
+│                                                                              │
+│  ┌─────────────────────────────┐    ┌─────────────────────────────┐         │
+│  │   StockFund DB (new)        │    │   Redis (new)               │         │
+│  │   EDGAR financial data      │    │   Job queue + rate limiting │         │
+│  ├─────────────────────────────┤    ├─────────────────────────────┤         │
+│  │ companies                   │    │ Celery task queue           │         │
+│  │ filings                     │    │ SEC rate limit tracking     │         │
+│  │ financials                  │    │ Job status cache            │         │
+│  │ non_gaap_adjustments        │    │                             │         │
+│  └─────────────────────────────┘    └─────────────────────────────┘         │
+│         │                                  │                                 │
+│         │ Own Alembic migrations           │ REDIS_URL                       │
+│         │ Own connection pool              │ CELERY_BROKER_URL               │
+└─────────────────────────────────────────────────────────────────────────────┘
 ```
 
 **SigmaSight changes: ZERO database changes, ZERO Alembic migrations.**
-All Alembic commands in this plan run in the StockFundamentals repo.
+All database/Alembic commands in this plan run in the StockFundamentals repo.
 
 ---
 
@@ -122,36 +177,54 @@ All Alembic commands in this plan run in the StockFundamentals repo.
 
 ### Target State (Same Railway Project)
 ```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                    Railway Project: SigmaSight                               │
-│                                                                              │
-│  ┌─────────────────────────────────────────────────────────────────────┐    │
-│  │                     EXISTING SERVICES                                │    │
-│  │  ┌─────────────┐    ┌──────────────┐    ┌───────────────┐           │    │
-│  │  │   Frontend  │───▶│   Backend    │───▶│  PostgreSQL   │           │    │
-│  │  │  (Next.js)  │    │  (FastAPI)   │    │   (existing)  │           │    │
-│  │  └─────────────┘    └──────┬───────┘    └───────────────┘           │    │
-│  └────────────────────────────┼─────────────────────────────────────────┘    │
-│                               │                                              │
-│                               │ HTTP (*.railway.internal)                    │
-│                               ▼                                              │
-│  ┌─────────────────────────────────────────────────────────────────────┐    │
-│  │                     NEW SERVICES (StockFundamentals)                 │    │
-│  │  ┌──────────────┐           ┌─────────────────┐                     │    │
-│  │  │ stockfund-api│           │ stockfund-db    │                     │    │
-│  │  │  (FastAPI)   │──────────▶│ (PostgreSQL)    │                     │    │
-│  │  │  :8000       │           │ (separate DB)   │                     │    │
-│  │  └──────┬───────┘           └─────────────────┘                     │    │
-│  │         │                                                            │    │
-│  │         ▼                                                            │    │
-│  │  ┌──────────────┐                                                   │    │
-│  │  │  SEC EDGAR   │   ┌───────────────────────────────────────────┐   │    │
-│  │  │  (External)  │   │ OPTIONAL (Phase 2): Redis + Celery Worker │   │    │
-│  │  └──────────────┘   └───────────────────────────────────────────┘   │    │
-│  └─────────────────────────────────────────────────────────────────────┘    │
-│                                                                              │
-│         YahooQuery (External) ◀─── Fallback when EDGAR unavailable          │
-└─────────────────────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────────────────────┐
+│                         Railway Project: SigmaSight                               │
+│                                                                                   │
+│  ┌──────────────────────────────────────────────────────────────────────────┐    │
+│  │                      EXISTING SIGMASIGHT SERVICES                         │    │
+│  │                                                                           │    │
+│  │  ┌─────────────┐    ┌──────────────┐                                     │    │
+│  │  │   Frontend  │───▶│   Backend    │                                     │    │
+│  │  │  (Next.js)  │    │  (FastAPI)   │                                     │    │
+│  │  └─────────────┘    └──────┬───────┘                                     │    │
+│  │                            │                                              │    │
+│  │              ┌─────────────┴─────────────┐                               │    │
+│  │              ▼                           ▼                               │    │
+│  │  ┌─────────────────────┐    ┌─────────────────────┐                     │    │
+│  │  │  Core DB (gondola)  │    │   AI DB (metro)     │                     │    │
+│  │  │  portfolios, etc.   │    │   pgvector, RAG     │                     │    │
+│  │  └─────────────────────┘    └─────────────────────┘                     │    │
+│  └──────────────────────────────────────────────────────────────────────────┘    │
+│                               │                                                   │
+│                               │ HTTP (*.railway.internal)                         │
+│                               ▼                                                   │
+│  ┌──────────────────────────────────────────────────────────────────────────┐    │
+│  │                    NEW SERVICES (StockFundamentals)                       │    │
+│  │                                                                           │    │
+│  │  ┌──────────────┐    ┌──────────────┐    ┌──────────────┐               │    │
+│  │  │ stockfund-api│    │ stockfund-db │    │stockfund-redis│              │    │
+│  │  │  (FastAPI)   │───▶│ (PostgreSQL) │    │   (Redis)    │              │    │
+│  │  │  :8000       │    │              │    │   :6379      │              │    │
+│  │  └──────┬───────┘    └──────────────┘    └──────┬───────┘              │    │
+│  │         │                                        │                      │    │
+│  │         │            ┌───────────────────────────┘                      │    │
+│  │         │            │                                                  │    │
+│  │         │            ▼                                                  │    │
+│  │  ┌──────▼───────────────────────┐                                      │    │
+│  │  │    stockfund-worker          │                                      │    │
+│  │  │    (Celery Worker)           │                                      │    │
+│  │  │    Rate-limited SEC fetches  │                                      │    │
+│  │  └──────────────────────────────┘                                      │    │
+│  │         │                                                               │    │
+│  │         ▼                                                               │    │
+│  │  ┌──────────────┐                                                      │    │
+│  │  │  SEC EDGAR   │                                                      │    │
+│  │  │  (External)  │                                                      │    │
+│  │  └──────────────┘                                                      │    │
+│  └──────────────────────────────────────────────────────────────────────────┘    │
+│                                                                                   │
+│         YahooQuery (External) ◀─── Fallback when EDGAR unavailable               │
+└──────────────────────────────────────────────────────────────────────────────────┘
 ```
 
 **Key Benefits of Same Project:**
@@ -1044,6 +1117,10 @@ from datetime import datetime, timedelta
 
 ## Phase 4.5: EDGAR Batch Job Integration
 
+> ⚠️ **FUTURE PHASE C**: This section documents the batch integration to be implemented AFTER Phase B validation is complete. **Do NOT implement until EDGAR data quality is verified.**
+>
+> **Current state**: StockFundamentals runs independently and populates its own database. SigmaSight batch continues using Yahoo.
+
 ### 4.5.1 Batch Job Schedule Architecture
 
 **Objective**: Integrate EDGAR fundamentals into SigmaSight's batch processing with a separate schedule from daily market data.
@@ -1532,6 +1609,10 @@ Run manual refresh after earnings seasons end:
 ---
 
 ## Phase 4.6: Yahoo Fallback for Non-EDGAR Tickers
+
+> ⚠️ **FUTURE PHASE C**: This section documents the Yahoo fallback logic for batch integration. Only implement after Phase B validation is complete.
+>
+> **Current state**: SigmaSight batch uses Yahoo exclusively. No fallback needed until EDGAR becomes primary.
 
 ### 4.6.1 Tickers Without EDGAR Data
 
@@ -2565,7 +2646,7 @@ cd frontend && npm run dev
 > ⚠️ **Key Insight**: All services in the SAME Railway project enables private networking.
 > Cross-project communication would require public URLs.
 
-#### Step 1: Add Services to Existing SigmaSight Project
+#### Step 1: Add PostgreSQL Database for StockFundamentals
 
 > ⚠️ **Do NOT create a new Railway project.** Add services to the existing SigmaSight project.
 
@@ -2573,7 +2654,7 @@ cd frontend && npm run dev
 1. Open the existing **SigmaSight** project in Railway dashboard
 2. Click "New" → "Database" → "PostgreSQL"
 3. Name it `stockfund-db` (this creates a separate database instance)
-4. Wait for provisioning
+4. Wait for provisioning (~30 seconds)
 
 **Via CLI (alternative):**
 ```bash
@@ -2584,6 +2665,27 @@ railway link  # Select existing SigmaSight project
 # Add PostgreSQL to the project
 railway add --plugin postgresql
 ```
+
+#### Step 1.5: Add Redis for Job Queue and Rate Limiting
+
+> ⚠️ **Redis is REQUIRED** for Celery task queue and SEC rate limiting across workers.
+
+**Via Railway Dashboard:**
+1. In the same SigmaSight project, click "New" → "Database" → "Redis"
+2. Name it `stockfund-redis`
+3. Wait for provisioning (~30 seconds)
+4. Note the `REDIS_URL` environment variable (automatically created)
+
+**Via CLI (alternative):**
+```bash
+# Add Redis to the project
+railway add --plugin redis
+```
+
+**Redis Configuration Notes:**
+- Railway Redis includes persistence by default
+- The `REDIS_URL` format is: `redis://default:password@host:port`
+- Use reference syntax: `${{stockfund-redis.REDIS_URL}}` in other services
 
 #### Step 2: Add StockFundamentals API Service
 
@@ -3107,34 +3209,62 @@ See `StockFundamentals/backend/config/xbrl_map.json` for complete mapping.
 | | | - Updated docker-compose with Celery worker service |
 | | | - Added DataSourceBadge component for frontend |
 | | | - Updated cost estimate to ~$18-20/mo |
+| 2025-12-22 | 3.1 | Phased approach clarification: |
+| | | - **Clarified Phase A/B/C integration strategy** |
+| | | - Phase A (current): StockFundamentals runs independently |
+| | | - Phase B (validation): Compare EDGAR vs Yahoo data |
+| | | - Phase C (future): Switch SigmaSight batch to EDGAR |
+| | | - Marked Phase 4.5/4.6 as "Future Phase C" work |
+| | | - SigmaSight batch UNCHANGED until validation complete |
 
 ---
 
 ## Next Steps
 
-### Immediate (This Week)
+### Phase A: Deploy StockFundamentals Independently (Current Scope)
+
+**Objective**: Get StockFundamentals running on Railway with its own database, populating EDGAR data via its own cron schedule.
+
 1. ✅ **Review and approve this revised plan**
-2. **Set up local development environment**
+2. **Set up StockFundamentals locally**
    - Create `docker-compose.dev.yml` with Redis + Celery
    - Run StockFundamentals locally on port 8001
-   - Start Celery worker for batch processing
-   - Verify EDGAR API connectivity
+   - Start Celery worker for EDGAR data collection
+   - Verify SEC EDGAR API connectivity
+3. **Deploy StockFundamentals to Railway (same project)**
+   - Add PostgreSQL for StockFundamentals (separate from SigmaSight DB)
+   - Add Redis service
+   - Deploy StockFundamentals backend + Celery worker
+   - Configure Railway cron for weekly EDGAR refresh
+4. **Add SigmaSight read-only integration**
+   - `edgar_client.py` - HTTP client for on-demand EDGAR queries
+   - `/api/v1/edgar/fundamentals/{symbol}` - Read from EDGAR API
+   - **NO changes to SigmaSight batch process**
+5. **Verify EDGAR data population**
+   - Check StockFundamentals database has companies/filings
+   - Test a few symbols via SigmaSight proxy endpoint
 
-### Phase 1: Backend Integration (Days 1-2)
-3. **Create SigmaSight integration layer**
-   - `edgar_client.py` with dependency injection
-   - `fundamentals_orchestrator.py` (EDGAR-first, Yahoo fallback)
-   - `cik_lookup.py` for SEC filer detection
-   - `edgar_fundamentals.py` router
-   - `admin_edgar.py` for batch refresh endpoints
-   - Add to `main.py` lifespan handler
-4. **Test locally end-to-end**
-   - Verify `/api/v1/edgar/health` returns status
-   - Test with real ticker (AAPL, MSFT)
-   - Test Yahoo fallback (SPY, TSM)
+### Phase B: Validate EDGAR Data (2-4 Weeks)
 
-### Phase 2: Railway Deployment (Days 2-3)
-5. **Deploy full stack to Railway (same project)**
+6. **Create comparison reports**
+   - Compare EDGAR vs Yahoo for key metrics
+   - Check coverage for all portfolio symbols
+   - Identify any discrepancies
+7. **Monitor reliability**
+   - Watch for SEC API rate limiting
+   - Verify weekly cron runs successfully
+   - Check data freshness after earnings
+
+### Phase C: Switch SigmaSight Batch to EDGAR (Future)
+
+8. **Only after Phase B validation is complete**
+   - Implement Phase 4.5 (batch integration)
+   - Implement Phase 4.6 (Yahoo fallback)
+   - Modify `fundamentals_collector.py` to use EDGAR-first
+   - Yahoo becomes fallback for non-EDGAR tickers
+
+### Frontend Integration (After Phase A Complete)
+9. **Deploy full stack to Railway (same project)**
    - Add `stockfund-db` PostgreSQL
    - Add `stockfund-redis` Redis
    - Add `stockfund-api` service
