@@ -796,9 +796,7 @@ class MarketDataCollector:
                 all_records.append({
                     'symbol': symbol,
                     'date': record['date'],
-                    'open': record.get('open'),
-                    'high': record.get('high'),
-                    'low': record.get('low'),
+                    # Only store close price (open/high/low not used)
                     'close': record['close'],
                     'volume': record.get('volume'),
                     'data_source': record.get('data_source', 'unknown')
@@ -822,9 +820,7 @@ class MarketDataCollector:
                 index_elements=['symbol', 'date'],
                 set_={
                     'close': stmt.excluded.close,
-                    'open': stmt.excluded.open,
-                    'high': stmt.excluded.high,
-                    'low': stmt.excluded.low,
+                    # Only update close price (open/high/low not used)
                     'volume': stmt.excluded.volume,
                     'data_source': stmt.excluded.data_source,
                 }

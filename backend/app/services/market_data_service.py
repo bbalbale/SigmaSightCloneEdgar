@@ -116,7 +116,7 @@ class MarketDataService:
                     batch_size=50  # Fetch 50 symbols per yfinance.download() call
                 )
 
-                # Convert results to expected format
+                # Convert results to expected format (close only)
                 for fetch_symbol, historical_data in batch_results.items():
                     original_symbol = symbol_map.get(fetch_symbol, fetch_symbol)
                     if historical_data:
@@ -125,11 +125,8 @@ class MarketDataService:
                             price_records.append({
                                 'symbol': original_symbol.upper(),
                                 'date': day_data['date'],
-                                'open': day_data['open'],
-                                'high': day_data['high'],
-                                'low': day_data['low'],
                                 'close': day_data['close'],
-                                'volume': day_data['volume'],
+                                'volume': day_data.get('volume', 0),
                                 'data_source': 'yfinance'
                             })
                         results[original_symbol] = price_records

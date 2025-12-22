@@ -327,7 +327,7 @@ class YFinanceClient(MarketDataProvider):
         return results
 
     def _parse_single_ticker_data(self, symbol: str, data: pd.DataFrame) -> List[Dict[str, Any]]:
-        """Parse a single ticker's DataFrame into list of price records."""
+        """Parse a single ticker's DataFrame into list of price records (close only)."""
         if data.empty:
             return []
 
@@ -341,9 +341,6 @@ class YFinanceClient(MarketDataProvider):
                         return val.item()
                     return val
 
-                open_price = get_value('Open')
-                high_price = get_value('High')
-                low_price = get_value('Low')
                 close_price = get_value('Close')
                 volume = get_value('Volume')
 
@@ -351,11 +348,9 @@ class YFinanceClient(MarketDataProvider):
                 if pd.isna(close_price):
                     continue
 
+                # Only store close price - open/high/low not needed
                 historical_data.append({
                     'date': idx.date() if hasattr(idx, 'date') else idx,
-                    'open': Decimal(str(open_price)) if not pd.isna(open_price) else None,
-                    'high': Decimal(str(high_price)) if not pd.isna(high_price) else None,
-                    'low': Decimal(str(low_price)) if not pd.isna(low_price) else None,
                     'close': Decimal(str(close_price)),
                     'volume': int(volume) if volume and not pd.isna(volume) else 0,
                     'provider': 'YFinance'

@@ -242,7 +242,7 @@ def fetch_market_data_batch(
 ) -> pd.DataFrame:
     """
     Fetch market data for multiple tickers using yfinance batch download.
-    Returns combined DataFrame with all ticker data.
+    Returns combined DataFrame with ticker close prices only.
     """
     all_data = []
 
@@ -279,13 +279,11 @@ def fetch_market_data_batch(
                 df = df.reset_index()
                 df = df.rename(columns={
                     'Date': 'date',
-                    'Open': 'open',
-                    'High': 'high',
-                    'Low': 'low',
                     'Close': 'close',
                     'Volume': 'volume'
                 })
-                all_data.append(df[['symbol', 'date', 'open', 'high', 'low', 'close', 'volume']])
+                # Only keep close price (no open/high/low)
+                all_data.append(df[['symbol', 'date', 'close', 'volume']])
             else:
                 # Multiple tickers - data has multi-level columns
                 for ticker in batch:
@@ -296,16 +294,14 @@ def fetch_market_data_batch(
                             ticker_data = ticker_data.reset_index()
                             ticker_data = ticker_data.rename(columns={
                                 'Date': 'date',
-                                'Open': 'open',
-                                'High': 'high',
-                                'Low': 'low',
                                 'Close': 'close',
                                 'Volume': 'volume'
                             })
                             # Drop rows with NaN close prices
                             ticker_data = ticker_data.dropna(subset=['close'])
                             if not ticker_data.empty:
-                                all_data.append(ticker_data[['symbol', 'date', 'open', 'high', 'low', 'close', 'volume']])
+                                # Only keep close price (no open/high/low)
+                                all_data.append(ticker_data[['symbol', 'date', 'close', 'volume']])
                     except Exception as e:
                         logger.debug(f"    Could not extract data for {ticker}: {e}")
                         continue
@@ -339,7 +335,7 @@ async def upsert_market_data(engine, df: pd.DataFrame, dry_run: bool = False) ->
 
     logger.info(f"  Upserting {len(df)} records to database...")
 
-    # Prepare records for insert
+    # Prepare records for insert (close only - no open/high/low)
     records = []
     for _, row in df.iterrows():
         try:
@@ -347,9 +343,6 @@ async def upsert_market_data(engine, df: pd.DataFrame, dry_run: bool = False) ->
                 'id': str(uuid4()),
                 'symbol': row['symbol'],
                 'date': row['date'].date() if hasattr(row['date'], 'date') else row['date'],
-                'open': float(row['open']) if pd.notna(row['open']) else None,
-                'high': float(row['high']) if pd.notna(row['high']) else None,
-                'low': float(row['low']) if pd.notna(row['low']) else None,
                 'close': float(row['close']),
                 'volume': int(row['volume']) if pd.notna(row['volume']) else None,
                 'data_source': 'yfinance'
@@ -370,18 +363,15 @@ async def upsert_market_data(engine, df: pd.DataFrame, dry_run: bool = False) ->
         for i in range(0, len(records), chunk_size):
             chunk = records[i:i + chunk_size]
 
-            # Build the upsert query
+            # Build the upsert query (close only - no open/high/low)
             values_list = []
             for r in chunk:
                 date_str = r['date'].strftime('%Y-%m-%d') if hasattr(r['date'], 'strftime') else str(r['date'])
-                open_val = str(r['open']) if r['open'] is not None else 'NULL'
-                high_val = str(r['high']) if r['high'] is not None else 'NULL'
-                low_val = str(r['low']) if r['low'] is not None else 'NULL'
                 volume_val = str(r['volume']) if r['volume'] is not None else 'NULL'
 
                 values_list.append(
                     f"('{r['id']}', '{r['symbol']}', '{date_str}', "
-                    f"{open_val}, {high_val}, {low_val}, {r['close']}, {volume_val}, "
+                    f"{r['close']}, {volume_val}, "
                     f"'{r['data_source']}', NOW(), NOW())"
                 )
 
@@ -389,13 +379,10 @@ async def upsert_market_data(engine, df: pd.DataFrame, dry_run: bool = False) ->
 
             upsert_sql = f"""
                 INSERT INTO market_data_cache
-                    (id, symbol, date, open, high, low, close, volume, data_source, created_at, updated_at)
+                    (id, symbol, date, close, volume, data_source, created_at, updated_at)
                 VALUES {values_sql}
                 ON CONFLICT (symbol, date)
                 DO UPDATE SET
-                    open = EXCLUDED.open,
-                    high = EXCLUDED.high,
-                    low = EXCLUDED.low,
                     close = EXCLUDED.close,
                     volume = EXCLUDED.volume,
                     data_source = EXCLUDED.data_source,
