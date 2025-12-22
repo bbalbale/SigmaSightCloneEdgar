@@ -19,7 +19,7 @@ from app.models.ai_insights import AIInsight
 from app.models.ai_models import AIKBDocument, AIMemory, AIFeedback
 from app.models.fundamentals import IncomeStatement, BalanceSheet, CashFlow
 from app.models.symbol_analytics import SymbolUniverse, SymbolFactorExposure, SymbolDailyMetrics
-from app.models.admin import AdminUser, AdminSession, UserActivityEvent, AIRequestMetrics
+from app.models.admin import AdminUser, AdminSession, UserActivityEvent, AIRequestMetrics, BatchRunHistory, DailyMetrics
 
 # Export all models
 __all__ = [
@@ -92,4 +92,6 @@ __all__ = [
     "AdminSession",
     "UserActivityEvent",
     "AIRequestMetrics",
+    "BatchRunHistory",
+    "DailyMetrics",
 ]

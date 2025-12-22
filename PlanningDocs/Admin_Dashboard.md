@@ -2,7 +2,7 @@
 
 **Created**: 2025-12-22
 **Updated**: 2025-12-22
-**Status**: Phases 1, 1.5, 2, 3, and 4 Complete (AI Performance Metrics)
+**Status**: Phases 1, 1.5, 2, 3, 4, and 5 Complete (Batch History & Daily Metrics)
 
 ## Overview
 
@@ -356,37 +356,66 @@ CREATE TABLE ai_request_metrics (
 
 ---
 
-### Phase 5: Batch History & Onboarding Analytics
+### Phase 5: Batch History & Daily Metrics (COMPLETE)
+
+**Purpose**: Track batch processing history and provide pre-aggregated daily metrics for dashboard.
 
 **Database**: Core DB
+
+#### Completed:
+- [x] `backend/app/models/admin.py` - Added BatchRunHistory and DailyMetrics models
+- [x] `backend/migrations_core/versions/r4s5t6u7v8w9_add_batch_history_daily_metrics.py` - Migration
+- [x] `backend/app/services/batch_history_service.py` - Fire-and-forget batch history recording
+- [x] `backend/app/batch/batch_orchestrator.py` - Integrated history recording at batch start/end
+- [x] `backend/app/api/v1/endpoints/admin_batch.py` - 3 new history endpoints
+
+#### New Tables (Core Database):
 
 ```sql
 -- Core Database (gondola)
 CREATE TABLE batch_run_history (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     batch_run_id VARCHAR(255) NOT NULL,
-    triggered_by VARCHAR(255) NOT NULL,
+    triggered_by VARCHAR(255) NOT NULL,  -- "cron", "manual", "admin:email"
     started_at TIMESTAMPTZ NOT NULL,
     completed_at TIMESTAMPTZ,
-    status VARCHAR(50) NOT NULL,
+    status VARCHAR(50) NOT NULL,         -- "running", "completed", "failed", "partial"
     total_jobs INT DEFAULT 0,
     completed_jobs INT DEFAULT 0,
     failed_jobs INT DEFAULT 0,
-    phase_durations JSONB DEFAULT '{}',
-    error_summary JSONB,
+    phase_durations JSONB DEFAULT '{}',  -- {"phase_1_5_symbol_factors": 12.5, ...}
+    error_summary JSONB,                 -- {"count": 3, "types": [...], "details": [...]}
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 CREATE TABLE daily_metrics (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     date DATE NOT NULL,
-    metric_type VARCHAR(100) NOT NULL,
+    metric_type VARCHAR(100) NOT NULL,   -- "user_registrations", "ai_requests", etc.
     metric_value NUMERIC(16,4) NOT NULL,
-    dimensions JSONB DEFAULT '{}',
+    dimensions JSONB DEFAULT '{}',       -- {"model": "gpt-4o"}, etc.
     created_at TIMESTAMPTZ DEFAULT NOW(),
     UNIQUE(date, metric_type, dimensions)
 );
 ```
+
+#### Admin Endpoints Created:
+
+| Endpoint | Purpose | Database |
+|----------|---------|----------|
+| `GET /admin/batch/history` | List batch runs (filter by days, status) | Core DB |
+| `GET /admin/batch/history/{batch_run_id}` | Get batch run details with errors | Core DB |
+| `GET /admin/batch/history/summary` | Aggregate stats (success rate, avg duration) | Core DB |
+
+#### Files Created:
+- [x] `backend/app/models/admin.py` - BatchRunHistory, DailyMetrics models
+- [x] `backend/migrations_core/versions/r4s5t6u7v8w9_add_batch_history_daily_metrics.py`
+- [x] `backend/app/services/batch_history_service.py`
+
+#### Files Modified:
+- [x] `backend/app/batch/batch_orchestrator.py` - Added history recording
+- [x] `backend/app/api/v1/endpoints/admin_batch.py` - Added history endpoints
+- [x] `backend/app/models/__init__.py` - Exported new models
 
 ---
 
@@ -498,10 +527,11 @@ GET    /api/v1/admin/ai/tuning/summary
 GET    /api/v1/admin/ai/tuning/export
 ```
 
-### Batch (Core DB)
+### Batch (Core DB) ✅ Complete
 ```
 GET    /api/v1/admin/batch/history
-GET    /api/v1/admin/batch/phases
+GET    /api/v1/admin/batch/history/{batch_run_id}
+GET    /api/v1/admin/batch/history/summary
 ```
 
 ### System
@@ -517,15 +547,13 @@ POST   /api/v1/admin/system/cleanup
 ### Core Database (gondola)
 
 ```sql
--- Already created
-CREATE TABLE admin_users (...);           -- Admin authentication
-CREATE TABLE admin_sessions (...);        -- Session tracking
+-- All tables created
+CREATE TABLE admin_users (...);           -- Admin authentication (Phase 1)
+CREATE TABLE admin_sessions (...);        -- Session tracking (Phase 1)
 CREATE TABLE user_activity_events (...);  -- Onboarding funnel (Phase 3)
 CREATE TABLE ai_request_metrics (...);    -- AI performance (Phase 4)
-
--- To be created
 CREATE TABLE batch_run_history (...);     -- Batch history (Phase 5)
-CREATE TABLE daily_metrics (...);         -- Aggregated metrics (Phase 7)
+CREATE TABLE daily_metrics (...);         -- Aggregated metrics (Phase 5)
 ```
 
 ### AI Database (metro)
@@ -547,8 +575,8 @@ ai_admin_annotations   -- Admin tuning comments (Phase 2)
 3. **Phase 2** ✅ **COMPLETE**: AI tuning system (11 backend endpoints)
 4. **Phase 3** ✅ **COMPLETE**: User activity tracking (onboarding funnel events + 4 admin endpoints)
 5. **Phase 4** ✅ **COMPLETE**: AI performance metrics (6 admin endpoints + metrics recording)
-6. **Phase 5** 🎯 **NEXT**: Batch history enhancement
-7. **Phase 6**: Frontend dashboard pages (users, onboarding, AI metrics, AI tuning, batch)
+6. **Phase 5** ✅ **COMPLETE**: Batch history & daily metrics (3 history endpoints + batch_orchestrator integration)
+7. **Phase 6** 🎯 **NEXT**: Frontend dashboard pages (users, onboarding, AI metrics, AI tuning, batch)
 8. **Phase 7**: Daily aggregation job + cleanup (30-day retention)
 
 ---

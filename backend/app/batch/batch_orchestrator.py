@@ -56,6 +56,7 @@ from app.calculations.market_data import get_previous_trading_day_price
 from app.services.symbol_utils import should_skip_symbol
 from app.telemetry.metrics import record_metric
 from app.cache.price_cache import PriceCache
+from app.services.batch_history_service import record_batch_start, record_batch_complete
 
 logger = get_logger(__name__)
 
@@ -148,6 +149,15 @@ class BatchOrchestrator:
 
         start_time = asyncio.get_event_loop().time()
         analytics_runner.reset_caches()
+
+        # Generate batch run ID and record start (Phase 5 Admin Dashboard)
+        batch_run_id = f"batch_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        triggered_by = "cron" if os.environ.get("RAILWAY_ENVIRONMENT") else "manual"
+        record_batch_start(
+            batch_run_id=batch_run_id,
+            triggered_by=triggered_by,
+            total_jobs=0,  # Updated after we know missing dates count
+        )
 
         # Step 1: Determine the date range to process
         async with AsyncSessionLocal() as db:
@@ -354,11 +364,47 @@ class BatchOrchestrator:
         duration = int(asyncio.get_event_loop().time() - start_time)
 
         success_count = sum(1 for r in results if r['success'])
+        failed_count = len(results) - success_count
         logger.info(f"Backfill complete: {success_count}/{len(results)} dates in {duration}s")
         self._sector_analysis_target_date = None
 
+        # Record batch completion (Phase 5 Admin Dashboard)
+        overall_success = all(r['success'] for r in results)
+        status = "completed" if overall_success else ("partial" if success_count > 0 else "failed")
+
+        # Calculate phase durations from results
+        phase_durations = {}
+        if symbol_factor_result:
+            phase_durations["phase_1_5_symbol_factors"] = symbol_factor_result.get('duration_seconds', 0)
+        if symbol_metrics_result:
+            phase_durations["phase_1_75_symbol_metrics"] = symbol_metrics_result.get('duration_seconds', 0)
+        phase_durations["total_duration"] = duration
+
+        # Collect error summary if any failures
+        error_summary = None
+        if not overall_success:
+            errors = []
+            for r in results:
+                if not r.get('success') and r.get('errors'):
+                    errors.extend(r['errors'])
+            if errors:
+                error_summary = {
+                    "count": len(errors),
+                    "types": list(set(e.split(':')[0] for e in errors if ':' in e))[:5],
+                    "details": errors[:10]  # First 10 errors only
+                }
+
+        record_batch_complete(
+            batch_run_id=batch_run_id,
+            status=status,
+            completed_jobs=success_count,
+            failed_jobs=failed_count,
+            phase_durations=phase_durations,
+            error_summary=error_summary,
+        )
+
         return {
-            'success': all(r['success'] for r in results),
+            'success': overall_success,
             'dates_processed': len(missing_dates),
             'duration_seconds': duration,
             'phase_1_5': symbol_factor_result or {'success': False, 'skipped': True},
