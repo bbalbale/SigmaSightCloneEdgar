@@ -25,7 +25,7 @@ from app.core.logging import get_logger
 
 logger = get_logger(__name__)
 
-router = APIRouter(prefix="/onboarding", tags=["admin-onboarding"])
+router = APIRouter(prefix="/admin/onboarding", tags=["Admin - Onboarding Analytics"])
 
 
 # ==============================================================================
