@@ -371,7 +371,7 @@ async def create_annotation(
     # Create annotation in AI DB
     new_annotation = AIAdminAnnotation(
         message_id=message_uuid,
-        admin_user_id=UUID(admin_user.id),
+        admin_user_id=admin_user.id,  # Already a UUID from CurrentAdmin
         annotation_type=annotation.annotation_type.value,
         content=annotation.content,
         suggested_response=annotation.suggested_response,

@@ -180,7 +180,7 @@ class AIAdminAnnotation(AiBase):
     tags = Column(JSONB, nullable=False, server_default='[]')
 
     # Processing status: 'pending', 'reviewed', 'applied'
-    status = Column(String(20), nullable=False, server_default="'pending'", index=True)
+    status = Column(String(20), nullable=False, default='pending', index=True)
 
     # Timestamps
     created_at = Column(TIMESTAMP(timezone=True), nullable=False, server_default=func.now())
