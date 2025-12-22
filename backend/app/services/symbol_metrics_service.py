@@ -199,10 +199,41 @@ async def calculate_symbol_metrics(
 
 
 async def get_all_active_symbols(db: AsyncSession) -> List[str]:
-    """Get all active symbols from the universe."""
-    stmt = select(SymbolUniverse.symbol).where(SymbolUniverse.is_active == True)
-    result = await db.execute(stmt)
-    return [row[0] for row in result.fetchall()]
+    """
+    Get all symbols that need metrics calculation.
+
+    Sources:
+    1. symbol_universe (active symbols from Phase 1.5)
+    2. market_data_cache (full universe - S&P 500, Nasdaq 100, Russell 2000, etc.)
+
+    Using both sources ensures we calculate metrics even if Phase 1.5 hasn't
+    populated symbol_universe yet, or if there are symbols in market_data_cache
+    that haven't been added to the universe.
+    """
+    from sqlalchemy import distinct
+    from app.models.market_data import MarketDataCache
+
+    # Get symbols from symbol_universe
+    universe_stmt = select(SymbolUniverse.symbol).where(SymbolUniverse.is_active == True)
+    universe_result = await db.execute(universe_stmt)
+    universe_symbols = {row[0] for row in universe_result.fetchall()}
+
+    # Get symbols from market_data_cache (full universe)
+    cache_stmt = select(distinct(MarketDataCache.symbol)).where(
+        MarketDataCache.symbol.isnot(None),
+        MarketDataCache.symbol != ''
+    )
+    cache_result = await db.execute(cache_stmt)
+    cache_symbols = {row[0] for row in cache_result.fetchall()}
+
+    # Union of both sources
+    all_symbols = list(universe_symbols | cache_symbols)
+
+    logger.info(
+        f"Found {len(all_symbols)} symbols for metrics calculation "
+        f"(universe: {len(universe_symbols)}, market_data_cache: {len(cache_symbols)})"
+    )
+    return all_symbols
 
 
 async def bulk_fetch_prices(

@@ -68,12 +68,20 @@ DEFAULT_REGULARIZATION_ALPHA = 1.0
 
 async def get_all_active_symbols(db: AsyncSession) -> List[str]:
     """
-    Get all unique symbols from positions table.
+    Get all unique symbols that need factor calculations.
 
-    Returns symbols from PUBLIC equity positions only (LONG/SHORT).
-    These are the symbols that need factor calculations.
+    Sources:
+    1. PUBLIC equity positions (LONG/SHORT) - portfolio holdings
+    2. market_data_cache - full universe (S&P 500, Nasdaq 100, Russell 2000, etc.)
+
+    This ensures factor betas are pre-computed for:
+    - All current portfolio holdings (for P&L and analytics)
+    - All symbols in the universe (for equity search and what-if analysis)
     """
-    stmt = (
+    from app.models.market_data import MarketDataCache
+
+    # Get symbols from positions
+    position_stmt = (
         select(distinct(Position.symbol))
         .where(
             and_(
@@ -84,11 +92,25 @@ async def get_all_active_symbols(db: AsyncSession) -> List[str]:
             )
         )
     )
-    result = await db.execute(stmt)
-    symbols = [row[0] for row in result.fetchall()]
+    position_result = await db.execute(position_stmt)
+    position_symbols = {row[0] for row in position_result.fetchall()}
 
-    logger.info(f"Found {len(symbols)} unique PUBLIC equity symbols in positions")
-    return symbols
+    # Get symbols from market_data_cache (full universe)
+    cache_stmt = select(distinct(MarketDataCache.symbol)).where(
+        MarketDataCache.symbol.isnot(None),
+        MarketDataCache.symbol != ''
+    )
+    cache_result = await db.execute(cache_stmt)
+    cache_symbols = {row[0] for row in cache_result.fetchall()}
+
+    # Union of both sources
+    all_symbols = list(position_symbols | cache_symbols)
+
+    logger.info(
+        f"Found {len(all_symbols)} unique symbols for factor calculation "
+        f"(positions: {len(position_symbols)}, market_data_cache: {len(cache_symbols)})"
+    )
+    return all_symbols
 
 
 async def get_uncached_symbols(
