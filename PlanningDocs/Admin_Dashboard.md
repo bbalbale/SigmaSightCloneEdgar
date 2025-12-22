@@ -2,7 +2,7 @@
 
 **Created**: 2025-12-22
 **Updated**: 2025-12-22
-**Status**: Phases 1, 1.5, 2, 3, 4, and 5 Complete (Batch History & Daily Metrics)
+**Status**: Phases 1-6 Complete (Frontend Dashboard Pages)
 
 ## Overview
 
@@ -419,46 +419,59 @@ CREATE TABLE daily_metrics (
 
 ---
 
-### Phase 6: Admin Dashboard Frontend
+### Phase 6: Admin Dashboard Frontend (COMPLETE)
 
-**Pages:**
+**Purpose**: Build React frontend pages for admin dashboard analytics.
 
-1. **Dashboard Overview** (`/admin`):
-   - User count, conversion rate, AI latency, feedback ratio
-   - Quick links to key sections
-   - Recent alerts
+#### Completed:
 
-2. **User Management** (`/admin/users`):
-   - Paginated user table with search/filter
-   - Onboarding status badges
-   - Click to view journey
+**Admin API Service** (`frontend/src/services/adminApiService.ts`):
+- [x] Types for all admin API responses
+- [x] Methods for onboarding, AI metrics, and batch history endpoints
+- [x] Dashboard overview aggregation helper
 
-3. **User Journey** (`/admin/users/[id]`):
-   - Timeline of user events
-   - Error events highlighted
-   - Time between steps
+**Dashboard Overview** (`/admin`) - Updated:
+- [x] Real-time AI request count, avg latency, error rate
+- [x] Last batch run status
+- [x] Navigation cards to sub-pages (3 enabled, 2 coming soon)
+- [x] Implementation status badges
 
-4. **Onboarding Analytics** (`/admin/onboarding`):
-   - Funnel visualization
-   - Error breakdown by code
-   - Daily trends
+**Onboarding Analytics** (`/admin/onboarding`):
+- [x] Funnel visualization with step-by-step conversion
+- [x] Drop-off rate indicators per step
+- [x] Error breakdown by error code with samples
+- [x] Daily activity table (registrations, logins, portfolios, chats)
+- [x] Period selector (7-90 days)
 
-5. **AI Metrics** (`/admin/ai`):
-   - Latency histogram
-   - Token usage chart
-   - Error rate trend
-   - Tool usage breakdown
+**AI Metrics** (`/admin/ai`):
+- [x] Summary cards (total requests, avg latency, error rate, tool usage)
+- [x] Latency percentiles (P50-P99) with first token times
+- [x] Token usage with daily breakdown
+- [x] Tool usage breakdown with percentage bars
+- [x] Model usage breakdown with avg latency
+- [x] Error breakdown with error types and samples
+- [x] Period selector (1-30 days)
 
-6. **AI Tuning** (`/admin/ai/tuning`) - NEW:
-   - Conversation browser
-   - Message review panel
-   - Annotation form
-   - Annotation queue
+**Batch History** (`/admin/batch`):
+- [x] Summary cards (total runs, success rate, avg duration, last status)
+- [x] Status breakdown (completed, failed, partial, running)
+- [x] Run history list with status icons and job counts
+- [x] Run details panel (triggered by, jobs, phase durations, errors)
+- [x] Status and period filters
 
-7. **Batch Processing** (`/admin/batch`):
-   - Historical runs table
-   - Phase timing breakdown
-   - Success rate trend
+**Pending (User Management & AI Tuning)**:
+- [ ] User Management (`/admin/users`) - Coming Soon
+- [ ] User Journey (`/admin/users/[id]`) - Coming Soon
+- [ ] AI Tuning (`/admin/ai/tuning`) - Backend complete, frontend pending
+
+#### Files Created:
+- [x] `frontend/src/services/adminApiService.ts`
+- [x] `frontend/app/admin/onboarding/page.tsx`
+- [x] `frontend/app/admin/ai/page.tsx`
+- [x] `frontend/app/admin/batch/page.tsx`
+
+#### Files Modified:
+- [x] `frontend/app/admin/page.tsx` - Updated with real data and navigation
 
 ---
 
@@ -576,8 +589,8 @@ ai_admin_annotations   -- Admin tuning comments (Phase 2)
 4. **Phase 3** ✅ **COMPLETE**: User activity tracking (onboarding funnel events + 4 admin endpoints)
 5. **Phase 4** ✅ **COMPLETE**: AI performance metrics (6 admin endpoints + metrics recording)
 6. **Phase 5** ✅ **COMPLETE**: Batch history & daily metrics (3 history endpoints + batch_orchestrator integration)
-7. **Phase 6** 🎯 **NEXT**: Frontend dashboard pages (users, onboarding, AI metrics, AI tuning, batch)
-8. **Phase 7**: Daily aggregation job + cleanup (30-day retention)
+7. **Phase 6** ✅ **COMPLETE**: Frontend dashboard pages (onboarding, AI metrics, batch history)
+8. **Phase 7** 🎯 **NEXT**: Daily aggregation job + cleanup (30-day retention)
 
 ---
 
