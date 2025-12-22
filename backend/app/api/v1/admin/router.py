@@ -4,12 +4,16 @@ Admin API router - combines all admin endpoint routers.
 from fastapi import APIRouter
 
 from app.api.v1.admin.auth import router as auth_router
+from app.api.v1.admin.ai_knowledge import router as ai_knowledge_router
 
 # Create the main admin router
 admin_router = APIRouter()
 
 # Include admin auth endpoints
 admin_router.include_router(auth_router)
+
+# Include AI knowledge base management endpoints
+admin_router.include_router(ai_knowledge_router)
 
 # Future admin routers will be added here:
 # admin_router.include_router(users_router)

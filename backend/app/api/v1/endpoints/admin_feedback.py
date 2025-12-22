@@ -19,7 +19,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 from pydantic import BaseModel
 
-from app.core.dependencies import get_db, require_admin
+from app.core.dependencies import get_db
+from app.core.admin_dependencies import get_current_admin, CurrentAdmin
 from app.core.logging import get_logger
 from app.database import get_db as get_core_db, get_ai_db
 from app.models.ai_models import AIFeedback, AIMemory
@@ -96,7 +97,7 @@ class LearningJobResponse(BaseModel):
 
 @router.get("/summary", response_model=FeedbackSummaryResponse)
 async def get_feedback_summary(
-    admin_user=Depends(require_admin),
+    admin_user: CurrentAdmin = Depends(get_current_admin),
     days: int = Query(30, ge=1, le=365, description="Look-back period in days"),
     user_id: Optional[str] = Query(None, description="Filter by specific user ID")
 ) -> FeedbackSummaryResponse:
@@ -118,7 +119,7 @@ async def get_feedback_summary(
 
 @router.get("/patterns")
 async def get_detected_patterns(
-    admin_user=Depends(require_admin),
+    admin_user: CurrentAdmin = Depends(get_current_admin),
     user_id: str = Query(..., description="User ID to analyze"),
     min_confidence: float = Query(0.5, ge=0.0, le=1.0, description="Minimum confidence threshold")
 ) -> Dict[str, Any]:
@@ -158,7 +159,7 @@ async def get_detected_patterns(
 
 @router.get("/negative")
 async def get_negative_feedback(
-    admin_user=Depends(require_admin),
+    admin_user: CurrentAdmin = Depends(get_current_admin),
     core_db: AsyncSession = Depends(get_core_db),
     ai_db: AsyncSession = Depends(get_ai_db),
     limit: int = Query(50, ge=1, le=200, description="Maximum records to return"),
@@ -228,7 +229,7 @@ async def get_negative_feedback(
 
 @router.get("/learned-preferences")
 async def get_learned_preferences(
-    admin_user=Depends(require_admin),
+    admin_user: CurrentAdmin = Depends(get_current_admin),
     ai_db: AsyncSession = Depends(get_ai_db),
     user_id: Optional[str] = Query(None, description="Filter by user ID"),
     limit: int = Query(100, ge=1, le=500, description="Maximum records to return")
@@ -277,7 +278,7 @@ async def get_learned_preferences(
 
 @router.get("/stats")
 async def get_learning_stats(
-    admin_user=Depends(require_admin)
+    admin_user: CurrentAdmin = Depends(get_current_admin)
 ) -> Dict[str, Any]:
     """
     Get comprehensive feedback learning statistics.
@@ -290,7 +291,7 @@ async def get_learning_stats(
 @router.post("/run-learning")
 async def trigger_learning_job(
     background_tasks: BackgroundTasks,
-    admin_user=Depends(require_admin),
+    admin_user: CurrentAdmin = Depends(get_current_admin),
     min_confidence: float = Query(0.7, ge=0.0, le=1.0, description="Minimum confidence for rules"),
     days: int = Query(30, ge=1, le=365, description="Days of feedback to analyze")
 ) -> Dict[str, Any]:
@@ -313,7 +314,7 @@ async def trigger_learning_job(
 
 @router.post("/reprocess")
 async def reprocess_feedback(
-    admin_user=Depends(require_admin),
+    admin_user: CurrentAdmin = Depends(get_current_admin),
     days: int = Query(7, ge=1, le=30, description="Days of feedback to reprocess")
 ) -> Dict[str, Any]:
     """
@@ -332,7 +333,7 @@ async def reprocess_feedback(
 @router.post("/analyze-user/{user_id}")
 async def analyze_user_feedback(
     user_id: str,
-    admin_user=Depends(require_admin),
+    admin_user: CurrentAdmin = Depends(get_current_admin),
     min_confidence: float = Query(0.7, ge=0.0, le=1.0, description="Minimum confidence for rules"),
     create_rules: bool = Query(False, description="Actually create memory rules")
 ) -> Dict[str, Any]:

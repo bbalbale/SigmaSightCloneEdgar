@@ -10,7 +10,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query, BackgroundTasks
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
-from app.core.dependencies import get_db, require_admin
+from app.core.dependencies import get_db
+from app.core.admin_dependencies import get_current_admin, CurrentAdmin
 from app.core.trading_calendar import get_most_recent_trading_day
 from app.database import AsyncSessionLocal
 from app.batch.batch_orchestrator import batch_orchestrator
@@ -44,7 +45,7 @@ async def _run_market_data_refresh_with_session():
 @router.post("/run")
 async def run_batch_processing(
     background_tasks: BackgroundTasks,
-    admin_user = Depends(require_admin),
+    admin_user: CurrentAdmin = Depends(get_current_admin),
     portfolio_id: Optional[str] = Query(None, description="Specific portfolio ID or all"),
     force: bool = Query(False, description="Force run even if batch already running")
 ):
@@ -103,7 +104,7 @@ async def run_batch_processing(
 
 @router.get("/run/current")
 async def get_current_batch_status(
-    admin_user = Depends(require_admin)
+    admin_user: CurrentAdmin = Depends(get_current_admin)
 ):
     """
     Get status of currently running batch process.
@@ -149,7 +150,7 @@ async def get_current_batch_status(
 async def trigger_market_data_update(
     background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
-    admin_user = Depends(require_admin)
+    admin_user: CurrentAdmin = Depends(get_current_admin)
 ):
     """
     Manually trigger market data update for all symbols.
@@ -172,7 +173,7 @@ async def trigger_correlation_calculation(
     background_tasks: BackgroundTasks,
     portfolio_id: Optional[str] = Query(None, description="Specific portfolio ID or all"),
     db: AsyncSession = Depends(get_db),
-    admin_user = Depends(require_admin)
+    admin_user: CurrentAdmin = Depends(get_current_admin)
 ):
     """
     Manually trigger correlation calculations (normally runs as part of batch).
@@ -198,7 +199,7 @@ async def trigger_correlation_calculation(
 @router.post("/trigger/company-profiles")
 async def trigger_company_profile_sync(
     background_tasks: BackgroundTasks,
-    admin_user = Depends(require_admin)
+    admin_user: CurrentAdmin = Depends(get_current_admin)
 ):
     """
     Manually trigger company profile synchronization (normally runs daily at 7 PM ET).
@@ -223,7 +224,7 @@ async def trigger_company_profile_sync(
 async def restore_sector_tags(
     background_tasks: BackgroundTasks,
     portfolio_id: Optional[str] = Query(None, description="Specific portfolio ID or all portfolios"),
-    admin_user = Depends(require_admin),
+    admin_user: CurrentAdmin = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db)
 ):
     """
@@ -335,7 +336,7 @@ async def restore_sector_tags(
 async def cleanup_incomplete_snapshots_endpoint(
     age_threshold_hours: int = Query(1, description="Delete incomplete snapshots older than this (hours)"),
     portfolio_id: Optional[str] = Query(None, description="Specific portfolio ID or all portfolios"),
-    admin_user = Depends(require_admin),
+    admin_user: CurrentAdmin = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db)
 ):
     """
