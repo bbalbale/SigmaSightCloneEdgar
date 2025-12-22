@@ -2,7 +2,7 @@
 
 **Created**: 2025-12-22
 **Updated**: 2025-12-22
-**Status**: Phase 1 Complete
+**Status**: Phase 1 Complete, Phase 1.5 (AI Data Access) Complete
 
 ## Overview
 
@@ -105,7 +105,35 @@ SigmaSight uses **two separate PostgreSQL databases** on Railway:
 
 ---
 
-### Phase 2: AI Tuning System (NEW)
+### Phase 1.5: AI Data Access (Complete)
+
+**Purpose**: Allow admins to view AI database content (knowledge base, memories, feedback).
+
+#### Backend (Complete):
+- [x] `backend/app/api/v1/admin/ai_knowledge.py` - New endpoints for AI data access
+- [x] Updated `backend/app/api/v1/endpoints/admin_feedback.py` - Now uses proper admin auth
+- [x] Updated `backend/app/api/v1/endpoints/admin_batch.py` - Now uses proper admin auth
+
+#### New Endpoints Created:
+
+**AI Knowledge Base** (`/admin/ai/knowledge/`):
+| Endpoint | Purpose | Database |
+|----------|---------|----------|
+| `GET /documents` | List RAG documents (paginated, searchable) | AI DB |
+| `GET /documents/{id}` | Get full document content | AI DB |
+| `GET /documents/stats` | Document statistics by scope | AI DB |
+| `GET /memories` | List all user preferences/rules | AI DB |
+| `GET /memories/stats` | Memory statistics | AI DB |
+| `GET /feedback` | List all user feedback (with context) | AI DB + Core DB |
+| `GET /feedback/stats` | Feedback statistics | AI DB |
+
+**Existing Endpoints Updated** (now require admin auth):
+- All `/admin/feedback/*` endpoints (8 total)
+- All `/admin/batch/*` endpoints (7 total)
+
+---
+
+### Phase 2: AI Tuning System (NEXT)
 
 **Purpose**: Allow admins to review AI responses and add annotations to tune the system.
 
@@ -432,13 +460,14 @@ CREATE TABLE ai_admin_annotations (...);  -- Admin tuning comments
 
 ## Implementation Order
 
-1. **Phase 1** (Partial Complete): Admin auth foundation
-2. **Phase 2**: AI tuning system (admin annotations)
-3. **Phase 3**: User activity tracking
-4. **Phase 4**: AI performance metrics
-5. **Phase 5**: Batch history + onboarding analytics
-6. **Phase 6**: Frontend dashboard pages
-7. **Phase 7**: Daily aggregation job + cleanup
+1. **Phase 1** ✅ **COMPLETE**: Admin auth foundation (backend + frontend)
+2. **Phase 1.5** ✅ **COMPLETE**: AI data access (view KB, memories, feedback)
+3. **Phase 2** 🎯 **NEXT**: AI tuning system (admin annotations on AI responses)
+4. **Phase 3**: User activity tracking (onboarding funnel events)
+5. **Phase 4**: AI performance metrics (latency, tokens, errors)
+6. **Phase 5**: Batch history + onboarding analytics
+7. **Phase 6**: Frontend dashboard pages (users, onboarding, AI metrics, batch)
+8. **Phase 7**: Daily aggregation job + cleanup (30-day retention)
 
 ---
 

@@ -2611,36 +2611,55 @@ cd frontend && npm run dev
 #### Architecture Overview (Same Project)
 
 ```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                     Railway Project: SigmaSight                              │
-│                                                                              │
-│  ┌─────────────────────────────────────────────────────────────────────┐    │
-│  │                     EXISTING SERVICES                                │    │
-│  │  ┌─────────────┐  ┌──────────────┐  ┌─────────────────┐             │    │
-│  │  │  Frontend   │  │   Backend    │  │  PostgreSQL     │             │    │
-│  │  │  (Next.js)  │  │  (FastAPI)   │  │  (sigmasight)   │             │    │
-│  │  │             │  │              │  │                 │             │    │
-│  │  └─────────────┘  └──────┬───────┘  └─────────────────┘             │    │
-│  └──────────────────────────┼───────────────────────────────────────────┘    │
-│                             │                                                │
-│                             │ HTTP via stockfund-api.railway.internal        │
-│                             ▼                                                │
-│  ┌─────────────────────────────────────────────────────────────────────┐    │
-│  │                     NEW SERVICES (added to same project)             │    │
-│  │  ┌─────────────────┐            ┌─────────────────┐                 │    │
-│  │  │  stockfund-api  │            │  stockfund-db   │                 │    │
-│  │  │  (FastAPI)      │───────────▶│  (PostgreSQL)   │                 │    │
-│  │  │  Port: 8000     │            │  (separate DB)  │                 │    │
-│  │  └────────┬────────┘            └─────────────────┘                 │    │
-│  │           │                                                          │    │
-│  │           ▼                                                          │    │
-│  │  ┌─────────────────┐                                                │    │
-│  │  │   SEC EDGAR     │     ┌────────────────────────────────────┐     │    │
-│  │  │   (External)    │     │ PHASE 2 (optional): Redis + Worker │     │    │
-│  │  └─────────────────┘     └────────────────────────────────────┘     │    │
-│  └─────────────────────────────────────────────────────────────────────┘    │
-│                                                                              │
-└─────────────────────────────────────────────────────────────────────────────┘
+┌───────────────────────────────────────────────────────────────────────────────────┐
+│                         Railway Project: SigmaSight                                │
+│                                                                                    │
+│  ┌───────────────────────────────────────────────────────────────────────────┐    │
+│  │                    EXISTING SIGMASIGHT SERVICES (5 services)               │    │
+│  │                                                                            │    │
+│  │  ┌─────────────┐  ┌──────────────┐                                        │    │
+│  │  │  Frontend   │  │   Backend    │                                        │    │
+│  │  │  (Next.js)  │  │  (FastAPI)   │                                        │    │
+│  │  └─────────────┘  └──────┬───────┘                                        │    │
+│  │                          │                                                 │    │
+│  │            ┌─────────────┴─────────────┐                                  │    │
+│  │            ▼                           ▼                                  │    │
+│  │  ┌─────────────────────┐    ┌─────────────────────┐                      │    │
+│  │  │  Core DB (gondola)  │    │   AI DB (metro)     │                      │    │
+│  │  │  portfolios, users  │    │   pgvector, RAG     │                      │    │
+│  │  │  positions, data    │    │   memories, feedback│                      │    │
+│  │  └─────────────────────┘    └─────────────────────┘                      │    │
+│  └───────────────────────────────────────────────────────────────────────────┘    │
+│                          │                                                         │
+│                          │ HTTP via stockfund-api.railway.internal                 │
+│                          ▼                                                         │
+│  ┌───────────────────────────────────────────────────────────────────────────┐    │
+│  │                    NEW STOCKFUNDAMENTALS SERVICES (4 services)             │    │
+│  │                                                                            │    │
+│  │  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐           │    │
+│  │  │  stockfund-api  │  │  stockfund-db   │  │ stockfund-redis │           │    │
+│  │  │  (FastAPI)      │  │  (PostgreSQL)   │  │ (Redis)         │           │    │
+│  │  │  Port: 8000     │  │  EDGAR data     │  │ Job queue       │           │    │
+│  │  └────────┬────────┘  └─────────────────┘  └────────┬────────┘           │    │
+│  │           │                                          │                    │    │
+│  │           │                ┌──────────────────────────┘                   │    │
+│  │           │                ▼                                              │    │
+│  │           │     ┌─────────────────────────┐                              │    │
+│  │           │     │   stockfund-worker      │                              │    │
+│  │           │     │   (Celery Worker)       │                              │    │
+│  │           │     │   Rate-limited fetches  │                              │    │
+│  │           │     └───────────┬─────────────┘                              │    │
+│  │           │                 │                                             │    │
+│  │           │                 ▼                                             │    │
+│  │           │     ┌─────────────────────────┐                              │    │
+│  │           └────▶│      SEC EDGAR          │                              │    │
+│  │                 │      (External API)     │                              │    │
+│  │                 └─────────────────────────┘                              │    │
+│  └───────────────────────────────────────────────────────────────────────────┘    │
+│                                                                                    │
+│  Total Services: 9 (5 existing + 4 new)                                           │
+│  Total Databases: 3 (Core DB + AI DB + StockFund DB)                              │
+└───────────────────────────────────────────────────────────────────────────────────┘
 ```
 
 > ⚠️ **Key Insight**: All services in the SAME Railway project enables private networking.
@@ -2742,6 +2761,70 @@ healthcheckTimeout = 30
 restartPolicyType = "on_failure"
 restartPolicyMaxRetries = 3
 ```
+
+#### Step 2.5: Add Celery Worker Service
+
+> ⚠️ **Celery Worker is REQUIRED** for background EDGAR fetching and SEC rate limit compliance.
+
+**Via Railway Dashboard:**
+1. In the same SigmaSight project, click "New" → "GitHub Repo"
+2. Select the SAME repo: `bbalbalbae/StockFundamentals`
+3. Name the service `stockfund-worker` (different from `stockfund-api`)
+4. Set Root Directory: `backend`
+
+**Create `Dockerfile.worker` in StockFundamentals/backend:**
+```dockerfile
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    gcc \
+    libpq-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install uv
+RUN pip install uv
+
+# Copy dependency files
+COPY pyproject.toml uv.lock ./
+
+# Install dependencies
+RUN uv sync --frozen --no-dev
+
+# Copy application code
+COPY . .
+
+# Celery worker command
+# -c 2 = 2 concurrent workers (stay under SEC rate limits)
+# -Q default,edgar = process both default and edgar queues
+CMD ["uv", "run", "celery", "-A", "app.tasks.worker", "worker", "-l", "info", "-c", "2", "-Q", "default,edgar"]
+```
+
+**Create `railway.worker.toml` in StockFundamentals/backend:**
+```toml
+[build]
+builder = "dockerfile"
+dockerfilePath = "Dockerfile.worker"
+
+[deploy]
+numReplicas = 1
+# No healthcheck for worker - Railway monitors process
+restartPolicyType = "on_failure"
+restartPolicyMaxRetries = 5
+```
+
+**Worker Service Settings in Railway Dashboard:**
+1. Go to `stockfund-worker` service → Settings → Build
+2. Set "Config File Path" to `railway.worker.toml`
+3. This tells Railway to use `Dockerfile.worker` instead of `Dockerfile`
+
+**Why separate Dockerfile?**
+- API service runs `uvicorn` (web server)
+- Worker service runs `celery` (background processor)
+- Same codebase, different entry points
+- Railway needs different CMD for each
 
 #### Step 3: Configure Environment Variables
 
@@ -3216,6 +3299,13 @@ See `StockFundamentals/backend/config/xbrl_map.json` for complete mapping.
 | | | - Phase C (future): Switch SigmaSight batch to EDGAR |
 | | | - Marked Phase 4.5/4.6 as "Future Phase C" work |
 | | | - SigmaSight batch UNCHANGED until validation complete |
+| 2025-12-22 | 3.2 | Database architecture & Railway setup: |
+| | | - **Updated database diagrams for dual-database architecture** |
+| | | - Shows Core DB (gondola) + AI DB (metro) + StockFund DB |
+| | | - Added Step 1.5: Railway Redis setup instructions |
+| | | - Added Step 2.5: Railway Celery worker setup instructions |
+| | | - Updated Railway architecture diagram (9 services, 3 databases) |
+| | | - Added Dockerfile.worker and railway.worker.toml examples |
 
 ---
 
