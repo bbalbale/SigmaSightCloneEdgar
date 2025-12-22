@@ -65,19 +65,18 @@ async def get_async_session() -> AsyncGenerator[AsyncSession, None]:
 
 async def init_db():
     """
-    Initialize database (create tables if needed)
+    Initialize database connections.
+
+    NOTE: Tables are created via Alembic migrations, NOT create_all.
+    Using create_all causes conflicts with Alembic-managed tables.
+
+    Run migrations:
+    - Core DB: uv run alembic -c alembic.ini upgrade head
+    - AI DB: uv run alembic -c alembic_ai.ini upgrade head
     """
-    async with engine.begin() as conn:
-        db_logger.info("Initializing database...")
-        # Import all models to register them
-        from app.models.users import User, Portfolio
-        from app.models.positions import Position, Tag
-        from app.models.market_data import MarketDataCache, PositionGreeks, FactorDefinition, FactorExposure
-        from app.models.snapshots import PortfolioSnapshot, BatchJob, BatchJobSchedule
-        
-        # Create all tables
-        await conn.run_sync(Base.metadata.create_all)
-        db_logger.info("Database initialization completed")
+    db_logger.info("Database initialization - tables managed via Alembic migrations")
+    # Tables are created via Alembic migrations
+    # DO NOT use Base.metadata.create_all() - it conflicts with Alembic-managed tables
 
 
 async def close_db():
