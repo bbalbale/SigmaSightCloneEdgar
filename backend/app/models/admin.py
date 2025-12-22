@@ -121,3 +121,62 @@ class UserActivityEvent(Base):
 
     def __repr__(self):
         return f"<UserActivityEvent {self.id} type={self.event_type} user={self.user_id}>"
+
+
+class AIRequestMetrics(Base):
+    """
+    AI request metrics for performance monitoring and analytics.
+
+    Tracks metrics for each AI chat request:
+    - Token usage (prompt, completion, total)
+    - Latency (time to first token, total response time)
+    - Tool usage (count and details)
+    - Errors (type and message)
+
+    Data retention: 30 days rolling (aggregated to daily_metrics)
+
+    Created: December 22, 2025 (Phase 4 Admin Dashboard)
+    """
+    __tablename__ = "ai_request_metrics"
+
+    id: Mapped[UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid4)
+
+    # Request identification
+    conversation_id: Mapped[UUID] = mapped_column(UUID(as_uuid=True), nullable=False, index=True)
+    message_id: Mapped[UUID] = mapped_column(UUID(as_uuid=True), nullable=False, index=True)
+    user_id: Mapped[Optional[UUID]] = mapped_column(UUID(as_uuid=True), nullable=True, index=True)
+
+    # Model information
+    model: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
+
+    # Token usage
+    input_tokens: Mapped[Optional[int]] = mapped_column(nullable=True)   # Prompt/input tokens
+    output_tokens: Mapped[Optional[int]] = mapped_column(nullable=True)  # Completion/output tokens
+    total_tokens: Mapped[Optional[int]] = mapped_column(nullable=True)   # input + output
+
+    # Latency metrics (milliseconds)
+    first_token_ms: Mapped[Optional[int]] = mapped_column(nullable=True)  # Time to first token
+    total_latency_ms: Mapped[Optional[int]] = mapped_column(nullable=True)  # Total response time
+
+    # Tool usage
+    tool_calls_count: Mapped[int] = mapped_column(nullable=False, default=0)
+    tool_calls: Mapped[Optional[Dict[str, Any]]] = mapped_column(JSONB, nullable=True)  # Tool names and durations
+
+    # Error tracking
+    error_type: Mapped[Optional[str]] = mapped_column(String(100), nullable=True, index=True)
+    error_message: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
+    # Timestamp
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow, index=True)
+
+    __table_args__ = (
+        Index('ix_ai_request_metrics_conversation_id', 'conversation_id'),
+        Index('ix_ai_request_metrics_message_id', 'message_id'),
+        Index('ix_ai_request_metrics_user_id', 'user_id'),
+        Index('ix_ai_request_metrics_model', 'model'),
+        Index('ix_ai_request_metrics_error_type', 'error_type'),
+        Index('ix_ai_request_metrics_created_at', 'created_at'),
+    )
+
+    def __repr__(self):
+        return f"<AIRequestMetrics {self.id} conv={self.conversation_id} latency={self.total_latency_ms}ms>"

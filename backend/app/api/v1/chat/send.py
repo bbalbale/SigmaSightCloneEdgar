@@ -52,6 +52,7 @@ from app.core.datetime_utils import utc_now
 from app.core.logging import get_logger
 from app.config import settings
 from app.database import AsyncSessionLocal, get_ai_session
+from app.services.ai_metrics_service import record_ai_metrics
 
 logger = get_logger(__name__)
 
@@ -595,6 +596,33 @@ async def sse_generator(
             except Exception:
                 pass
 
+            # Record AI metrics (fire-and-forget, non-blocking)
+            try:
+                # Extract token counts from upstream response
+                token_counts = upstream_token_counts or {}
+                input_tokens = token_counts.get("input_tokens") or token_counts.get("prompt_tokens")
+                output_tokens = token_counts.get("output_tokens") or token_counts.get("completion_tokens")
+                total_tokens_val = token_counts.get("total_tokens")
+                if not total_tokens_val and input_tokens and output_tokens:
+                    total_tokens_val = input_tokens + output_tokens
+
+                record_ai_metrics(
+                    conversation_id=conversation.id,
+                    message_id=assistant_message.id,
+                    user_id=current_user.id,
+                    model=final_model_used,
+                    input_tokens=input_tokens,
+                    output_tokens=output_tokens,
+                    total_tokens=total_tokens_val,
+                    first_token_ms=int((first_token_time - start_time) * 1000) if first_token_time else None,
+                    total_latency_ms=latency_ms,
+                    tool_calls_count=len(tool_calls_made),
+                    tool_calls=tool_calls_made if tool_calls_made else None,
+                )
+                logger.debug(f"[AIMetrics] Scheduled metrics recording for message {assistant_message.id}")
+            except Exception as e:
+                logger.warning(f"[AIMetrics] Failed to schedule metrics: {e}")
+
             # Trigger background memory extraction (non-blocking)
             try:
                 portfolio_id_for_memory = portfolio_context.get("portfolio_id") if portfolio_context else None
@@ -613,19 +641,39 @@ async def sse_generator(
             return  # Properly close the generator after done event
         else:
             # All attempts failed or non-retryable error
+            error_type_str = last_error_obj.get("error_type") if last_error_obj else "STREAM_FAILED"
+            error_message_str = last_error_obj.get("error") if last_error_obj else "Streaming failed"
             error_payload = {
                 "type": "error",
                 "run_id": run_id,
                 "seq": 0,
                 "data": {
-                    "error": last_error_obj.get("error") if last_error_obj else "Streaming failed",
-                    "error_type": (last_error_obj.get("error_type") if last_error_obj else "STREAM_FAILED"),
+                    "error": error_message_str,
+                    "error_type": error_type_str,
                     "retryable": False,
                     "attempts": attempts + 1
                 },
                 "timestamp": int(time.time() * 1000)
             }
             yield f"event: error\ndata: {json.dumps(error_payload)}\n\n"
+
+            # Record AI metrics for failed request (fire-and-forget)
+            try:
+                record_ai_metrics(
+                    conversation_id=conversation.id,
+                    message_id=assistant_message.id,
+                    user_id=current_user.id,
+                    model=final_model_used,
+                    total_latency_ms=int((time.time() - start_time) * 1000),
+                    tool_calls_count=len(tool_calls_made),
+                    tool_calls=tool_calls_made if tool_calls_made else None,
+                    error_type=error_type_str,
+                    error_message=error_message_str,
+                )
+                logger.debug(f"[AIMetrics] Scheduled error metrics for message {assistant_message.id}")
+            except Exception as e:
+                logger.warning(f"[AIMetrics] Failed to schedule error metrics: {e}")
+
             return  # Properly close the generator after error event
         
     except Exception as e:

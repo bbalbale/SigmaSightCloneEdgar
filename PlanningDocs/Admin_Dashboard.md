@@ -2,7 +2,7 @@
 
 **Created**: 2025-12-22
 **Updated**: 2025-12-22
-**Status**: Phases 1, 1.5, 2, and 3 Complete (User Activity Tracking)
+**Status**: Phases 1, 1.5, 2, 3, and 4 Complete (AI Performance Metrics)
 
 ## Overview
 
@@ -278,7 +278,7 @@ auth.logout                    -> User logged out
 | `GET /admin/onboarding/funnel` | Funnel conversion rates (5 steps) | Core DB |
 | `GET /admin/onboarding/errors` | Error breakdown by code with samples | Core DB |
 | `GET /admin/onboarding/daily` | Daily trends for all event types | Core DB |
-| `GET /admin/onboarding/events` | Recent events (debugging) | Core DB |
+| `GET /admin/onboarding/events` | Recent events list (debugging, filterable) | Core DB |
 
 #### Files Created:
 - [x] `backend/app/models/admin.py` - UserActivityEvent model
@@ -296,9 +296,20 @@ auth.logout                    -> User logged out
 
 ---
 
-### Phase 4: AI Performance Metrics
+### Phase 4: AI Performance Metrics (COMPLETE)
 
-**Database**: Core DB (for request metrics)
+**Purpose**: Track AI request performance (latency, tokens, errors, tool usage)
+
+**Database**: Core DB
+
+#### Completed:
+- [x] `backend/app/models/admin.py` - Added AIRequestMetrics model
+- [x] `backend/migrations_core/versions/q3r4s5t6u7v8_add_ai_request_metrics.py` - Migration
+- [x] `backend/app/services/ai_metrics_service.py` - Fire-and-forget metrics recording
+- [x] `backend/app/api/v1/chat/send.py` - Integrated metrics recording after SSE completes
+- [x] `backend/app/api/v1/admin/ai_metrics.py` - 6 admin analytics endpoints
+
+#### New Table (Core Database):
 
 ```sql
 -- Core Database (gondola)
@@ -308,27 +319,40 @@ CREATE TABLE ai_request_metrics (
     message_id UUID NOT NULL,
     user_id UUID,
     model VARCHAR(100) NOT NULL,
-    prompt_tokens INT,
-    completion_tokens INT,
+    input_tokens INT,              -- Prompt/input tokens
+    output_tokens INT,             -- Completion/output tokens
     total_tokens INT,
-    first_token_ms INT,
-    total_latency_ms INT,
+    first_token_ms INT,            -- Time to first token
+    total_latency_ms INT,          -- Total response time
     tool_calls_count INT DEFAULT 0,
-    tool_calls JSONB,
+    tool_calls JSONB,              -- Tool names and details
     error_type VARCHAR(100),
     error_message TEXT,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 ```
 
-**Endpoints:**
-```
-GET /api/v1/admin/ai/metrics   - Summary stats (total requests, avg latency, error rate)
-GET /api/v1/admin/ai/latency   - Latency percentiles (p50, p95, p99)
-GET /api/v1/admin/ai/tokens    - Token usage trends
-GET /api/v1/admin/ai/errors    - Error breakdown by type
-GET /api/v1/admin/ai/tools     - Tool usage frequency
-```
+#### Admin Endpoints Created:
+
+| Endpoint | Purpose | Database |
+|----------|---------|----------|
+| `GET /admin/ai/metrics` | Summary stats (requests, latency, tokens, error rate) | Core DB |
+| `GET /admin/ai/latency` | Latency percentiles (p50, p75, p90, p95, p99) | Core DB |
+| `GET /admin/ai/tokens` | Daily token usage trends | Core DB |
+| `GET /admin/ai/errors` | Error breakdown by type with samples | Core DB |
+| `GET /admin/ai/tools` | Tool usage frequency | Core DB |
+| `GET /admin/ai/models` | Model usage breakdown | Core DB |
+
+#### Files Created:
+- [x] `backend/app/models/admin.py` - AIRequestMetrics model
+- [x] `backend/migrations_core/versions/q3r4s5t6u7v8_add_ai_request_metrics.py`
+- [x] `backend/app/services/ai_metrics_service.py`
+- [x] `backend/app/api/v1/admin/ai_metrics.py`
+
+#### Files Modified:
+- [x] `backend/app/api/v1/chat/send.py` - Added metrics recording
+- [x] `backend/app/api/v1/admin/router.py` - Included ai_metrics router
+- [x] `backend/app/models/__init__.py` - Exported AIRequestMetrics
 
 ---
 
@@ -427,10 +451,11 @@ CREATE TABLE daily_metrics (
 
 ## API Endpoints Summary
 
-### Admin Auth (Core DB)
+### Admin Auth (Core DB) ✅ Complete
 ```
 POST   /api/v1/admin/auth/login
 POST   /api/v1/admin/auth/logout
+POST   /api/v1/admin/auth/refresh
 GET    /api/v1/admin/auth/me
 ```
 
@@ -441,32 +466,34 @@ GET    /api/v1/admin/users/{id}
 GET    /api/v1/admin/users/{id}/journey
 ```
 
-### Onboarding Analytics (Core DB)
+### Onboarding Analytics (Core DB) ✅ Complete
 ```
 GET    /api/v1/admin/onboarding/funnel
 GET    /api/v1/admin/onboarding/errors
 GET    /api/v1/admin/onboarding/daily
+GET    /api/v1/admin/onboarding/events
 ```
 
-### AI Metrics (Core DB)
+### AI Metrics (Core DB) ✅ Complete
 ```
 GET    /api/v1/admin/ai/metrics
 GET    /api/v1/admin/ai/latency
 GET    /api/v1/admin/ai/tokens
 GET    /api/v1/admin/ai/errors
 GET    /api/v1/admin/ai/tools
+GET    /api/v1/admin/ai/models
 ```
 
-### AI Tuning (Core DB for reads, AI DB for writes)
+### AI Tuning (Core DB for reads, AI DB for writes) ✅ Complete
 ```
-GET    /api/v1/admin/ai/conversations
-GET    /api/v1/admin/ai/conversations/{id}
-GET    /api/v1/admin/ai/messages/{id}
-POST   /api/v1/admin/ai/annotations
-GET    /api/v1/admin/ai/annotations
-GET    /api/v1/admin/ai/annotations/{id}
-PUT    /api/v1/admin/ai/annotations/{id}
-DELETE /api/v1/admin/ai/annotations/{id}
+GET    /api/v1/admin/ai/tuning/conversations
+GET    /api/v1/admin/ai/tuning/conversations/{id}
+GET    /api/v1/admin/ai/tuning/messages/{id}
+POST   /api/v1/admin/ai/tuning/annotations
+GET    /api/v1/admin/ai/tuning/annotations
+GET    /api/v1/admin/ai/tuning/annotations/{id}
+PUT    /api/v1/admin/ai/tuning/annotations/{id}
+DELETE /api/v1/admin/ai/tuning/annotations/{id}
 GET    /api/v1/admin/ai/tuning/summary
 GET    /api/v1/admin/ai/tuning/export
 ```
@@ -491,26 +518,24 @@ POST   /api/v1/admin/system/cleanup
 
 ```sql
 -- Already created
-CREATE TABLE admin_users (...);      -- Admin authentication
-CREATE TABLE admin_sessions (...);   -- Session tracking
+CREATE TABLE admin_users (...);           -- Admin authentication
+CREATE TABLE admin_sessions (...);        -- Session tracking
+CREATE TABLE user_activity_events (...);  -- Onboarding funnel (Phase 3)
+CREATE TABLE ai_request_metrics (...);    -- AI performance (Phase 4)
 
 -- To be created
-CREATE TABLE user_activity_events (...);  -- Onboarding funnel
-CREATE TABLE ai_request_metrics (...);    -- AI performance
-CREATE TABLE batch_run_history (...);     -- Batch history
-CREATE TABLE daily_metrics (...);         -- Aggregated metrics
+CREATE TABLE batch_run_history (...);     -- Batch history (Phase 5)
+CREATE TABLE daily_metrics (...);         -- Aggregated metrics (Phase 7)
 ```
 
 ### AI Database (metro)
 
 ```sql
 -- Already exists
-ai_feedback       -- User feedback on AI responses
-ai_memories       -- Learned preferences
-ai_kb_documents   -- RAG knowledge base
-
--- To be created
-CREATE TABLE ai_admin_annotations (...);  -- Admin tuning comments
+ai_feedback            -- User feedback on AI responses
+ai_memories            -- Learned preferences
+ai_kb_documents        -- RAG knowledge base
+ai_admin_annotations   -- Admin tuning comments (Phase 2)
 ```
 
 ---
@@ -521,8 +546,8 @@ CREATE TABLE ai_admin_annotations (...);  -- Admin tuning comments
 2. **Phase 1.5** ✅ **COMPLETE**: AI data access (view KB, memories, feedback)
 3. **Phase 2** ✅ **COMPLETE**: AI tuning system (11 backend endpoints)
 4. **Phase 3** ✅ **COMPLETE**: User activity tracking (onboarding funnel events + 4 admin endpoints)
-5. **Phase 4** 🎯 **NEXT**: AI performance metrics (latency, tokens, errors)
-6. **Phase 5**: Batch history enhancement
+5. **Phase 4** ✅ **COMPLETE**: AI performance metrics (6 admin endpoints + metrics recording)
+6. **Phase 5** 🎯 **NEXT**: Batch history enhancement
 7. **Phase 6**: Frontend dashboard pages (users, onboarding, AI metrics, AI tuning, batch)
 8. **Phase 7**: Daily aggregation job + cleanup (30-day retention)
 
