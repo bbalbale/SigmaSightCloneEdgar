@@ -411,7 +411,10 @@ class MarketDataCollector:
         portfolio_ids: Optional[List[UUID]] = None
     ) -> Set[str]:
         """
-        Get all unique symbols from active positions + factor ETFs
+        Get all unique symbols from:
+        1. Active positions (from portfolios)
+        2. Factor ETFs (required for analytics)
+        3. All symbols already in market_data_cache (to keep index data up to date)
 
         Returns:
             Set of symbols that need market data
@@ -438,9 +441,20 @@ class MarketDataCollector:
             for symbol in result.scalars().all()
         }
 
+        # Get all symbols already in market_data_cache (to keep index/universe data up to date)
+        # This ensures S&P 500, Nasdaq 100, Russell 2000 tickers stay current even if not in portfolios
+        cached_symbols_query = select(MarketDataCache.symbol).distinct()
+        cached_result = await db.execute(cached_symbols_query)
+        cached_symbols = {
+            normalize_symbol(symbol)
+            for symbol in cached_result.scalars().all()
+            if symbol  # Skip None/empty
+        }
+        logger.info(f"  Cached universe symbols: {len(cached_symbols)}")
+
         # Add factor ETFs
         factor_symbols = {normalize_symbol(symbol) for symbol in FACTOR_ETFS}
-        all_symbols = {symbol for symbol in (position_symbols | factor_symbols) if symbol}
+        all_symbols = {symbol for symbol in (position_symbols | factor_symbols | cached_symbols) if symbol}
 
         filtered_symbols: Set[str] = set()
         skipped_symbols: list[str] = []

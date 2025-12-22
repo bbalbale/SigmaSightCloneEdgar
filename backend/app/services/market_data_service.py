@@ -70,7 +70,7 @@ class MarketDataService:
         Fetch historical stock price data using unified fallback chain
 
         **Unified Fallback Chain (all symbols):**
-        1. YFinance (primary)
+        1. YFinance BATCH (primary) - fetches multiple symbols at once for efficiency
         2. YahooQuery (secondary)
         3. Polygon (tertiary)
         4. FMP (last resort)
@@ -96,28 +96,34 @@ class MarketDataService:
         if not end_date:
             end_date = date.today()
 
-        days_back = (end_date - start_date).days
         results = {}
 
-        # Step 1: Try YFinance for all symbols
-        logger.info(f"Step 1: Trying YFinance for {len(symbols)} symbols")
+        # Step 1: Try YFinance BATCH download for all symbols (much more efficient)
+        logger.info(f"Step 1: Trying YFinance BATCH for {len(symbols)} symbols")
         yfinance_provider = market_data_factory.get_provider_for_data_type(DataType.STOCKS)
 
         if yfinance_provider and yfinance_provider.provider_name == "YFinance":
-            for symbol in symbols:
-                try:
-                    fetch_symbol = to_provider_symbol(symbol)
-                    historical_data = await yfinance_provider.get_historical_prices(
-                        symbol=fetch_symbol, 
-                        calculation_date=end_date,
-                        days=days_back
-                    )
+            try:
+                # Convert symbols for provider
+                fetch_symbols = [to_provider_symbol(s) for s in symbols]
+                symbol_map = {to_provider_symbol(s): s for s in symbols}  # Map back to original
 
+                # Use batch download method
+                batch_results = await yfinance_provider.get_historical_prices_batch(
+                    symbols=fetch_symbols,
+                    start_date=start_date,
+                    end_date=end_date,
+                    batch_size=50  # Fetch 50 symbols per yfinance.download() call
+                )
+
+                # Convert results to expected format
+                for fetch_symbol, historical_data in batch_results.items():
+                    original_symbol = symbol_map.get(fetch_symbol, fetch_symbol)
                     if historical_data:
                         price_records = []
                         for day_data in historical_data:
                             price_records.append({
-                                'symbol': symbol.upper(),
+                                'symbol': original_symbol.upper(),
                                 'date': day_data['date'],
                                 'open': day_data['open'],
                                 'high': day_data['high'],
@@ -126,14 +132,12 @@ class MarketDataService:
                                 'volume': day_data['volume'],
                                 'data_source': 'yfinance'
                             })
-                        results[symbol] = price_records
-                        logger.debug(f"YFinance: ✓ {symbol} ({len(price_records)} records)")
-                    else:
-                        results[symbol] = []
+                        results[original_symbol] = price_records
 
-                except Exception as e:
-                    logger.debug(f"YFinance: ✗ {symbol} - {str(e)}")
-                    results[symbol] = []
+                logger.info(f"YFinance BATCH: Retrieved data for {len(results)}/{len(symbols)} symbols")
+
+            except Exception as e:
+                logger.error(f"YFinance BATCH failed: {e}")
 
         # Track failures
         failed_symbols = [s for s in symbols if not results.get(s)]

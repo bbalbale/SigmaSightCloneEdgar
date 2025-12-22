@@ -179,7 +179,7 @@ class YFinanceClient(MarketDataProvider):
 
     async def get_historical_prices(self, symbol: str, calculation_date: date, days: int = 90) -> List[Dict[str, Any]]:
         """
-        Get historical prices for a symbol
+        Get historical prices for a single symbol
 
         Uses the download function for efficient historical data retrieval
         """
@@ -242,6 +242,131 @@ class YFinanceClient(MarketDataProvider):
         except Exception as e:
             logger.error(f"YFinance get_historical_prices failed for {symbol}: {str(e)}")
             raise
+
+    async def get_historical_prices_batch(
+        self,
+        symbols: List[str],
+        start_date: date,
+        end_date: date,
+        batch_size: int = 50
+    ) -> Dict[str, List[Dict[str, Any]]]:
+        """
+        Get historical prices for multiple symbols using yfinance batch download.
+
+        This is much more efficient than calling get_historical_prices one symbol at a time.
+        yfinance.download() natively supports downloading multiple tickers in one call.
+
+        Args:
+            symbols: List of ticker symbols
+            start_date: Start date for historical data
+            end_date: End date for historical data
+            batch_size: Number of symbols to fetch per batch (default 50)
+
+        Returns:
+            Dictionary with symbol as key and list of price records as value
+        """
+        results = {}
+        # yfinance end date is exclusive, add one day
+        exclusive_end_date = end_date + timedelta(days=1)
+
+        # Process in batches
+        total_batches = (len(symbols) + batch_size - 1) // batch_size
+
+        for i in range(0, len(symbols), batch_size):
+            batch = symbols[i:i + batch_size]
+            batch_num = i // batch_size + 1
+
+            logger.info(f"YFinance batch {batch_num}/{total_batches}: Fetching {len(batch)} symbols...")
+
+            try:
+                loop = asyncio.get_event_loop()
+                data = await loop.run_in_executor(
+                    None,
+                    lambda b=batch: yf.download(
+                        tickers=b,
+                        start=start_date.strftime('%Y-%m-%d'),
+                        end=exclusive_end_date.strftime('%Y-%m-%d'),
+                        progress=False,
+                        auto_adjust=True,
+                        threads=True,  # Enable threading for batch downloads
+                        group_by='ticker'
+                    )
+                )
+
+                if data.empty:
+                    logger.warning(f"YFinance batch {batch_num}: No data returned")
+                    continue
+
+                # Handle single ticker vs multiple tickers response format
+                if len(batch) == 1:
+                    # Single ticker - data columns are just OHLCV
+                    symbol = batch[0]
+                    symbol_data = self._parse_single_ticker_data(symbol, data)
+                    if symbol_data:
+                        results[symbol] = symbol_data
+                else:
+                    # Multiple tickers - data has multi-level columns (ticker, field)
+                    for symbol in batch:
+                        try:
+                            if symbol in data.columns.get_level_values(0):
+                                ticker_data = data[symbol]
+                                symbol_data = self._parse_single_ticker_data(symbol, ticker_data)
+                                if symbol_data:
+                                    results[symbol] = symbol_data
+                        except Exception as e:
+                            logger.debug(f"YFinance: Could not extract data for {symbol}: {e}")
+                            continue
+
+                logger.info(f"YFinance batch {batch_num}: Retrieved data for {len([s for s in batch if s in results])}/{len(batch)} symbols")
+
+            except Exception as e:
+                logger.error(f"YFinance batch {batch_num} failed: {e}")
+                continue
+
+        logger.info(f"YFinance batch download complete: {len(results)}/{len(symbols)} symbols successful")
+        return results
+
+    def _parse_single_ticker_data(self, symbol: str, data: pd.DataFrame) -> List[Dict[str, Any]]:
+        """Parse a single ticker's DataFrame into list of price records."""
+        if data.empty:
+            return []
+
+        historical_data = []
+        for idx, row in data.iterrows():
+            try:
+                # Handle both Series and scalar values
+                def get_value(col):
+                    val = row[col]
+                    if hasattr(val, 'item'):
+                        return val.item()
+                    return val
+
+                open_price = get_value('Open')
+                high_price = get_value('High')
+                low_price = get_value('Low')
+                close_price = get_value('Close')
+                volume = get_value('Volume')
+
+                # Skip rows with NaN close prices
+                if pd.isna(close_price):
+                    continue
+
+                historical_data.append({
+                    'date': idx.date() if hasattr(idx, 'date') else idx,
+                    'open': Decimal(str(open_price)) if not pd.isna(open_price) else None,
+                    'high': Decimal(str(high_price)) if not pd.isna(high_price) else None,
+                    'low': Decimal(str(low_price)) if not pd.isna(low_price) else None,
+                    'close': Decimal(str(close_price)),
+                    'volume': int(volume) if volume and not pd.isna(volume) else 0,
+                    'provider': 'YFinance'
+                })
+            except (ValueError, TypeError, KeyError) as e:
+                logger.debug(f"Skipping row for {symbol}: {e}")
+                continue
+
+        # Sort by date (oldest first)
+        historical_data.sort(key=lambda x: x['date'])
+        return historical_data
 
     async def get_company_profile(self, symbols: List[str]) -> Dict[str, Dict[str, Any]]:
         """
