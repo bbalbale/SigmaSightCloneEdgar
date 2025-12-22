@@ -16,6 +16,7 @@ from app.api.v1.onboarding import router as onboarding_router
 from app.api.v1.endpoints import admin_batch
 from app.api.v1.endpoints import admin_feedback
 from app.api.v1.admin_fix import router as admin_fix_router
+from app.api.v1.admin.router import admin_router as admin_auth_router
 from app.api.v1.fundamentals import router as fundamentals_router
 from app.api.v1.equity_search import router as equity_search_router
 from app.api.v1.equity_changes import router as equity_changes_router
@@ -73,6 +74,9 @@ api_router.include_router(admin_feedback.router)
 
 # Admin Fix APIs (/admin/fix/) - Railway production data fix operations
 api_router.include_router(admin_fix_router)
+
+# Admin Authentication APIs (/admin/auth/) - separate admin login system
+api_router.include_router(admin_auth_router)
 
 # Agent Memories APIs (/agent/memories/) - AI memory management
 api_router.include_router(agent_memories_router)
