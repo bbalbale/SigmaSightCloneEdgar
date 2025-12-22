@@ -136,6 +136,19 @@ class BatchScheduler:
             replace_existing=True
         )
 
+        # Admin metrics aggregation and cleanup - Daily at 8:00 PM UTC (1 AM UTC next day)
+        # Note: 8 PM ET = 1 AM UTC next day during EST, 12 AM UTC during EDT
+        # Running at 8 PM ET to ensure all daily data is captured before aggregation
+        self.scheduler.add_job(
+            func=self._run_admin_metrics_batch,
+            trigger='cron',
+            hour=20,  # 8:00 PM ET (same as feedback learning, but staggered by 30 min)
+            minute=30,
+            id='admin_metrics_batch',
+            name='Daily Admin Metrics Aggregation & Cleanup',
+            replace_existing=True
+        )
+
         logger.info("Batch jobs initialized successfully")
         self._log_scheduled_jobs()
     
@@ -274,6 +287,36 @@ class BatchScheduler:
         except Exception as e:
             logger.error(f"Feedback learning failed: {str(e)}")
             await self._send_batch_alert(f"Feedback learning failed: {str(e)}", None)
+            raise
+
+    async def _run_admin_metrics_batch(self):
+        """Execute daily admin metrics aggregation and cleanup (Phase 7)."""
+        from app.batch.admin_metrics_job import run_admin_metrics_batch
+
+        logger.info("Starting scheduled admin metrics batch")
+
+        try:
+            result = await run_admin_metrics_batch(
+                aggregate_days=1,  # Yesterday only
+                run_cleanup=True   # Clean up old data
+            )
+
+            logger.info(
+                f"Admin metrics batch completed: "
+                f"aggregations={len(result.get('aggregation', []))}, "
+                f"cleanup={result.get('cleanup', {})}"
+            )
+
+            # Alert if errors occurred
+            if result.get('errors'):
+                await self._send_batch_alert(
+                    f"Admin metrics batch: {len(result['errors'])} errors",
+                    result
+                )
+
+        except Exception as e:
+            logger.error(f"Admin metrics batch failed: {str(e)}")
+            await self._send_batch_alert(f"Admin metrics batch failed: {str(e)}", None)
             raise
 
     def _job_executed(self, event):

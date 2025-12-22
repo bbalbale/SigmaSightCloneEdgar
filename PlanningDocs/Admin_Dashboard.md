@@ -2,7 +2,7 @@
 
 **Created**: 2025-12-22
 **Updated**: 2025-12-22
-**Status**: Phases 1-6 Complete (Frontend Dashboard Pages)
+**Status**: Phases 1-7 Complete (All Admin Dashboard Features)
 
 ## Overview
 
@@ -475,9 +475,9 @@ CREATE TABLE daily_metrics (
 
 ---
 
-### Phase 7: Data Aggregation & Cleanup
+### Phase 7: Data Aggregation & Cleanup (COMPLETE)
 
-**Daily job** (Railway cron at 1 AM UTC):
+**Daily job** (Railway scheduler at 8:30 PM ET):
 1. Aggregate raw events -> `daily_metrics`
 2. Cleanup data older than 30 days:
    - `user_activity_events` (Core DB)
@@ -488,6 +488,42 @@ CREATE TABLE daily_metrics (
 **Permanent data:**
 - `daily_metrics` (aggregated)
 - `ai_admin_annotations` (training data)
+
+#### Completed:
+- [x] `backend/app/batch/admin_metrics_job.py` - Aggregation and cleanup job
+- [x] `backend/app/api/v1/admin/system.py` - 7 new system endpoints
+- [x] `backend/app/batch/scheduler_config.py` - Added scheduled job at 8:30 PM ET
+- [x] `backend/app/api/v1/admin/router.py` - Added system router
+
+#### New Admin System Endpoints:
+| Endpoint | Purpose |
+|----------|---------|
+| `GET /admin/system/health` | System health status |
+| `GET /admin/system/aggregation/status` | Aggregation coverage |
+| `GET /admin/system/retention/status` | Retention compliance |
+| `POST /admin/system/cleanup` | Manual cleanup trigger (super_admin) |
+| `POST /admin/system/aggregate` | Manual aggregation trigger (super_admin) |
+| `POST /admin/system/run-batch` | Full batch job trigger (super_admin) |
+| `GET /admin/system/daily-metrics` | Query aggregated metrics |
+
+#### Aggregation Metrics Captured:
+**User Activity:**
+- user_registrations, user_logins, portfolios_created
+- chat_sessions, feedback_given
+- registration_errors, login_errors
+- total_activity_events, unique_users
+
+**AI Requests:**
+- ai_requests, ai_requests_with_errors
+- avg_latency_ms, avg_first_token_ms
+- total_input_tokens, total_output_tokens
+- latency_p50, p75, p90, p95, p99
+- model_breakdown
+
+**Batch Processing:**
+- batch_runs, batch_completed, batch_failed, batch_partial
+- avg_duration_minutes
+- total_jobs, total_completed_jobs, total_failed_jobs
 
 ---
 
@@ -547,10 +583,15 @@ GET    /api/v1/admin/batch/history/{batch_run_id}
 GET    /api/v1/admin/batch/history/summary
 ```
 
-### System
+### System (Core DB) ✅ Complete
 ```
 GET    /api/v1/admin/system/health
+GET    /api/v1/admin/system/aggregation/status
+GET    /api/v1/admin/system/retention/status
 POST   /api/v1/admin/system/cleanup
+POST   /api/v1/admin/system/aggregate
+POST   /api/v1/admin/system/run-batch
+GET    /api/v1/admin/system/daily-metrics
 ```
 
 ---
@@ -590,7 +631,7 @@ ai_admin_annotations   -- Admin tuning comments (Phase 2)
 5. **Phase 4** ✅ **COMPLETE**: AI performance metrics (6 admin endpoints + metrics recording)
 6. **Phase 5** ✅ **COMPLETE**: Batch history & daily metrics (3 history endpoints + batch_orchestrator integration)
 7. **Phase 6** ✅ **COMPLETE**: Frontend dashboard pages (onboarding, AI metrics, batch history)
-8. **Phase 7** 🎯 **NEXT**: Daily aggregation job + cleanup (30-day retention)
+8. **Phase 7** ✅ **COMPLETE**: Daily aggregation job + cleanup (7 system endpoints + scheduled job)
 
 ---
 
