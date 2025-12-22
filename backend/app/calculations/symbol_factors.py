@@ -61,8 +61,10 @@ from app.core.logging import get_logger
 logger = get_logger(__name__)
 
 # Parallelization parameters
-BATCH_SIZE = 15  # Symbols per batch (balance parallelism vs session overhead)
-MAX_CONCURRENT_BATCHES = 5  # Limit concurrent DB connections
+# Tuned for Railway PostgreSQL (~100 connection limit)
+# Higher batch sizes reduce session overhead, higher concurrency speeds processing
+BATCH_SIZE = 50  # Symbols per batch (was 15, increased for full universe)
+MAX_CONCURRENT_BATCHES = 8  # Concurrent DB connections (was 5, safe for Railway)
 DEFAULT_REGULARIZATION_ALPHA = 1.0
 
 

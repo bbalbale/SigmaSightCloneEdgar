@@ -225,6 +225,7 @@ class BatchOrchestrator:
         # =============================================================================
         # STEP 2: Load price cache AFTER all market data is collected
         # Now the cache will include today's prices from Phase 1
+        # IMPORTANT: Load ALL symbols from market_data_cache for full universe support
         # =============================================================================
         price_cache = None
         logger.debug(f"Loading price cache...")
@@ -240,12 +241,27 @@ class BatchOrchestrator:
                 )
             ).distinct()
             symbols_result = await cache_db.execute(symbols_stmt)
-            symbols = {row[0] for row in symbols_result.all()}
+            position_symbols = {row[0] for row in symbols_result.all()}
+
+            # Get ALL symbols from market_data_cache (full universe for Phase 1.5)
+            # This includes S&P 500, Nasdaq 100, Russell 2000, etc.
+            from app.models.market_data import MarketDataCache
+            cache_symbols_stmt = select(MarketDataCache.symbol).where(
+                and_(
+                    MarketDataCache.symbol.isnot(None),
+                    MarketDataCache.symbol != ''
+                )
+            ).distinct()
+            cache_symbols_result = await cache_db.execute(cache_symbols_stmt)
+            universe_symbols = {row[0] for row in cache_symbols_result.all()}
 
             # Add factor ETF symbols for spread factor calculations + IR Beta
             # These are required by app/calculations/factors_spread.py and interest_rate_beta.py
             factor_etf_symbols = {'VUG', 'VTV', 'MTUM', 'QUAL', 'IWM', 'SPY', 'USMV', 'TLT'}
-            symbols = symbols.union(factor_etf_symbols)
+
+            # Union all symbol sources
+            symbols = position_symbols.union(universe_symbols).union(factor_etf_symbols)
+            logger.info(f"Price cache: loading {len(symbols)} symbols (positions: {len(position_symbols)}, universe: {len(universe_symbols)})")
 
             if symbols:
                 # Load 366 days of price history for regression windows
