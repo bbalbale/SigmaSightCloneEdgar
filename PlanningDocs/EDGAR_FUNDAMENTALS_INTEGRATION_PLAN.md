@@ -3,8 +3,8 @@
 **Project**: Integrate StockFundamentals (SEC EDGAR) into SigmaSight
 **Approach**: Option A - Microservice Architecture (Same Railway Project)
 **Created**: 2025-12-17
-**Updated**: 2025-12-19
-**Status**: Planning (Revised)
+**Updated**: 2025-12-22
+**Status**: Planning (v3.0 - Batch Integration)
 
 ---
 
@@ -15,14 +15,16 @@
 3. [Phase 1: Infrastructure Setup](#phase-1-infrastructure-setup)
 4. [Phase 2: StockFundamentals Service Deployment](#phase-2-stockfundamentals-service-deployment)
 5. [Phase 3: SigmaSight Proxy Layer](#phase-3-sigmasight-proxy-layer)
-6. [Phase 4: Data Caching & Persistence](#phase-4-data-caching--persistence)
-7. [Phase 5: Frontend Integration](#phase-5-frontend-integration)
-8. [Phase 6: Testing & Validation](#phase-6-testing--validation)
-9. [Deployment Strategy](#deployment-strategy)
-10. [Monitoring & Alerting](#monitoring--alerting)
-11. [Rollback Strategy](#rollback-strategy)
-12. [Risk Assessment](#risk-assessment)
-13. [Appendices](#appendices)
+6. [Phase 4: Response Caching](#phase-4-response-caching-optional)
+7. [Phase 4.5: EDGAR Batch Job Integration](#phase-45-edgar-batch-job-integration)
+8. [Phase 4.6: Yahoo Fallback for Non-EDGAR Tickers](#phase-46-yahoo-fallback-for-non-edgar-tickers)
+9. [Phase 5: Frontend Integration](#phase-5-frontend-integration)
+10. [Phase 6: Testing & Validation](#phase-6-testing--validation)
+11. [Deployment Strategy](#deployment-strategy)
+12. [Monitoring & Alerting](#monitoring--alerting)
+13. [Rollback Strategy](#rollback-strategy)
+14. [Risk Assessment](#risk-assessment)
+15. [Appendices](#appendices)
 
 ---
 
@@ -47,7 +49,7 @@ Deploy StockFundamentals as services **within the existing SigmaSight Railway pr
 - **Total Duration**: 5-7 working days
 - **Phase 1-2**: Infrastructure & Deployment (2 days)
 - **Phase 3**: SigmaSight Integration Layer (2 days)
-- **Phase 4**: Caching - Optional/Skip initially
+- **Phase 4-4.6**: Batch Integration & Fallback Logic (1-2 days)
 - **Phase 5-6**: Frontend & Testing (2-3 days)
 
 ### Key Principle: Clean Separation
@@ -61,11 +63,19 @@ Deploy StockFundamentals as services **within the existing SigmaSight Railway pr
 3. **Phase C**: Enable UI toggle - users can switch between EDGAR and Yahoo
 4. **Phase D**: Make EDGAR default - Yahoo becomes fallback
 
-### Simplified Initial Deployment
-Start **without Celery/Redis** for faster initial deployment:
-- Synchronous EDGAR API calls (acceptable for user-triggered requests)
-- Add Celery later when async refresh jobs become necessary
-- Reduces Railway cost from ~$20/mo to ~$10/mo initially
+### Infrastructure Decision: Redis + Celery Required
+EDGAR data will be part of batch processing on a **separate schedule** from daily market data:
+- **Daily batch** (existing): Market data, P&L, analytics
+- **Weekly EDGAR batch** (new): Fundamentals refresh from SEC filings
+- **On-demand**: Manual refresh via admin endpoint
+
+**Why Redis/Celery is required:**
+- SEC rate limits (10 req/sec) need centralized tracking across workers
+- Background job queue for batch fundamentals refresh
+- Separate schedule from main SigmaSight batch orchestrator
+- Portfolio-wide prefetch without blocking user requests
+
+**Estimated cost:** ~$18-20/mo for EDGAR integration services
 
 ### Database Architecture (IMPORTANT)
 ```
@@ -1032,6 +1042,708 @@ from datetime import datetime, timedelta
 
 ---
 
+## Phase 4.5: EDGAR Batch Job Integration
+
+### 4.5.1 Batch Job Schedule Architecture
+
+**Objective**: Integrate EDGAR fundamentals into SigmaSight's batch processing with a separate schedule from daily market data.
+
+**Existing SigmaSight Batch Schedule** (runs daily after market close):
+- Phase 0: Company Profile Sync
+- Phase 1: Market Data Collection
+- Phase 1.5: Symbol Factor Calculation
+- Phase 1.75: Symbol Metrics
+- Phase 2: Fundamental Data Collection (Yahoo/FMP) ← **ENHANCED**
+- Phase 3-6: P&L, Analytics, etc.
+
+**New EDGAR Batch Schedule** (runs weekly + on-demand):
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                 EDGAR Fundamentals Batch Job                     │
+├─────────────────────────────────────────────────────────────────┤
+│ Schedule: Weekly (Sunday 2 AM UTC) + Post-Earnings Season       │
+│ Trigger: Railway Cron OR manual via /api/v1/admin/edgar/refresh │
+├─────────────────────────────────────────────────────────────────┤
+│ Step 1: Get all unique symbols from portfolios                  │
+│ Step 2: For each symbol:                                        │
+│         ├─ Check if US-listed (has CIK) → Queue EDGAR fetch     │
+│         └─ If no CIK (ADR, foreign) → Mark for Yahoo fallback   │
+│ Step 3: Celery workers process EDGAR queue (rate-limited)       │
+│ Step 4: Fallback symbols fetched via Yahoo                      │
+│ Step 5: Store results with source indicator                     │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**Why separate schedule?**
+- SEC filings are quarterly (10-Q) or annual (10-K)
+- Daily refresh is wasteful and risks rate limiting
+- Weekly + post-earnings provides optimal freshness
+
+---
+
+### 4.5.2 Data Source Orchestrator
+
+**Objective**: Create unified orchestrator that tries EDGAR first, falls back to Yahoo.
+
+#### Tasks
+
+##### 4.5.2.1 Create Fundamentals Orchestrator
+Create `backend/app/services/fundamentals_orchestrator.py`:
+
+```python
+"""
+Fundamentals Orchestrator
+
+Unified interface for fundamentals data from multiple sources.
+EDGAR is authoritative; Yahoo is fallback for non-US tickers.
+"""
+
+from typing import Optional
+from dataclasses import dataclass
+from enum import Enum
+
+from app.core.logging import get_logger
+from app.services.edgar_client import (
+    EdgarClient,
+    EdgarServiceUnavailable,
+    get_edgar_client,
+)
+from app.services.fundamentals_service import fundamentals_service
+
+logger = get_logger(__name__)
+
+
+class FundamentalsSource(str, Enum):
+    EDGAR = "EDGAR"
+    YAHOO = "Yahoo"
+
+
+@dataclass
+class FundamentalsResult:
+    """Result from fundamentals lookup with source tracking."""
+    data: Optional[dict]
+    source: Optional[FundamentalsSource]
+    source_details: Optional[str] = None
+    error: Optional[str] = None
+
+    @property
+    def success(self) -> bool:
+        return self.data is not None
+
+
+class FundamentalsOrchestrator:
+    """
+    Orchestrates fundamentals data from multiple sources.
+    EDGAR is authoritative; Yahoo is fallback.
+    """
+
+    async def get_fundamentals(
+        self,
+        ticker: str,
+        force_source: Optional[FundamentalsSource] = None,
+        periods: int = 4,
+        freq: str = "quarter",
+    ) -> FundamentalsResult:
+        """
+        Get fundamentals with automatic source selection.
+
+        Priority:
+        1. EDGAR (if US-listed and data available)
+        2. Yahoo (fallback for non-EDGAR or EDGAR failures)
+
+        Args:
+            ticker: Stock symbol
+            force_source: Override automatic source selection
+            periods: Number of periods to fetch
+            freq: "quarter" or "annual"
+
+        Returns:
+            FundamentalsResult with data and source tracking
+        """
+        ticker = ticker.upper()
+
+        # Try EDGAR first (unless forcing Yahoo)
+        if force_source != FundamentalsSource.YAHOO:
+            edgar_result = await self._try_edgar(ticker, periods, freq)
+            if edgar_result.success:
+                return edgar_result
+
+        # Fallback to Yahoo (unless forcing EDGAR)
+        if force_source != FundamentalsSource.EDGAR:
+            yahoo_result = await self._try_yahoo(ticker)
+            if yahoo_result.success:
+                return yahoo_result
+
+        # Both failed
+        return FundamentalsResult(
+            data=None,
+            source=None,
+            error=f"No fundamentals data available for {ticker}"
+        )
+
+    async def _try_edgar(
+        self,
+        ticker: str,
+        periods: int,
+        freq: str
+    ) -> FundamentalsResult:
+        """Try EDGAR via StockFundamentals service."""
+        try:
+            edgar_client = await get_edgar_client()
+            if edgar_client is None:
+                logger.debug(f"EDGAR disabled, skipping for {ticker}")
+                return FundamentalsResult(data=None, source=None)
+
+            data = await edgar_client.get_financials(
+                ticker=ticker,
+                periods=periods,
+                freq=freq,
+            )
+
+            if data is None:
+                logger.info(f"No EDGAR data for {ticker} (not SEC filer)")
+                return FundamentalsResult(data=None, source=None)
+
+            return FundamentalsResult(
+                data=data,
+                source=FundamentalsSource.EDGAR,
+                source_details="SEC 10-K/10-Q XBRL"
+            )
+
+        except EdgarServiceUnavailable as e:
+            logger.warning(f"EDGAR unavailable for {ticker}: {e}")
+            return FundamentalsResult(data=None, source=None, error=str(e))
+        except Exception as e:
+            logger.error(f"EDGAR error for {ticker}: {e}")
+            return FundamentalsResult(data=None, source=None, error=str(e))
+
+    async def _try_yahoo(self, ticker: str) -> FundamentalsResult:
+        """Fallback to YahooQuery."""
+        try:
+            data = await fundamentals_service.get_fundamentals(ticker)
+            if data is None:
+                return FundamentalsResult(data=None, source=None)
+
+            return FundamentalsResult(
+                data=data,
+                source=FundamentalsSource.YAHOO,
+                source_details="YahooQuery API"
+            )
+        except Exception as e:
+            logger.error(f"Yahoo error for {ticker}: {e}")
+            return FundamentalsResult(data=None, source=None, error=str(e))
+
+
+# Global instance
+fundamentals_orchestrator = FundamentalsOrchestrator()
+```
+
+---
+
+### 4.5.3 Celery Task Definitions
+
+**Objective**: Define Celery tasks for background EDGAR fetching with rate limiting.
+
+##### 4.5.3.1 Create Celery Tasks in StockFundamentals
+Create `StockFundamentals/backend/app/tasks/fundamentals_tasks.py`:
+
+```python
+"""
+Celery tasks for EDGAR fundamentals fetching.
+Rate-limited to comply with SEC EDGAR limits (10 req/sec).
+"""
+
+from celery import shared_task, group
+from app.services.edgar_fetcher import EdgarFetcher
+from app.core.rate_limiter import sec_rate_limiter
+from app.core.logging import get_logger
+
+logger = get_logger(__name__)
+
+
+@shared_task(
+    bind=True,
+    max_retries=3,
+    default_retry_delay=60,
+    rate_limit='8/s'  # SEC limit is 10/s, we use 8 for safety buffer
+)
+def fetch_edgar_fundamentals(self, ticker: str, form_types: list = None):
+    """
+    Celery task to fetch EDGAR fundamentals for a single ticker.
+
+    Rate-limited to comply with SEC EDGAR limits.
+    Retries on transient failures with exponential backoff.
+
+    Args:
+        ticker: Stock symbol
+        form_types: List of form types to fetch (default: ['10-K', '10-Q'])
+
+    Returns:
+        dict with ticker, status, and filings count
+    """
+    form_types = form_types or ['10-K', '10-Q']
+
+    try:
+        with sec_rate_limiter.acquire():
+            fetcher = EdgarFetcher()
+            result = fetcher.fetch_and_store(
+                ticker=ticker,
+                form_types=form_types
+            )
+            logger.info(f"EDGAR fetch complete for {ticker}: {result} filings")
+            return {
+                'ticker': ticker,
+                'status': 'success',
+                'filings': result
+            }
+
+    except RateLimitExceeded:
+        logger.warning(f"Rate limit hit for {ticker}, retrying...")
+        raise self.retry(countdown=2)
+
+    except Exception as e:
+        logger.error(f"EDGAR fetch failed for {ticker}: {e}")
+        return {
+            'ticker': ticker,
+            'status': 'error',
+            'error': str(e)
+        }
+
+
+@shared_task
+def batch_refresh_edgar_fundamentals(ticker_list: list):
+    """
+    Batch task to refresh EDGAR data for multiple tickers.
+
+    Dispatches individual tasks to leverage worker parallelism
+    while respecting rate limits.
+
+    Args:
+        ticker_list: List of stock symbols to refresh
+
+    Returns:
+        dict with job_id and ticker count
+    """
+    logger.info(f"Starting batch EDGAR refresh for {len(ticker_list)} tickers")
+
+    # Create group of individual tasks
+    job = group(
+        fetch_edgar_fundamentals.s(ticker)
+        for ticker in ticker_list
+    )
+
+    # Execute asynchronously
+    result = job.apply_async()
+
+    return {
+        'job_id': result.id,
+        'ticker_count': len(ticker_list),
+        'status': 'dispatched'
+    }
+```
+
+---
+
+### 4.5.4 SigmaSight Admin Endpoints
+
+**Objective**: Add admin endpoints for manual EDGAR refresh and status monitoring.
+
+##### 4.5.4.1 Create Admin EDGAR Router
+Create `backend/app/api/v1/admin_edgar.py`:
+
+```python
+"""
+Admin EDGAR Endpoints
+
+Manual control and monitoring for EDGAR fundamentals batch processing.
+"""
+
+from typing import Optional, List
+from uuid import UUID
+
+from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.core.dependencies import get_current_user
+from app.core.config import settings
+from app.database import get_async_session
+from app.models.users import User
+from app.models.positions import Position
+from app.services.edgar_client import get_edgar_client, EdgarClient
+
+router = APIRouter(prefix="/admin/edgar", tags=["Admin - EDGAR"])
+
+
+async def get_all_portfolio_symbols(db: AsyncSession) -> List[str]:
+    """Get all unique symbols from all portfolios."""
+    result = await db.execute(
+        select(Position.symbol)
+        .where(Position.investment_class == "PUBLIC")
+        .distinct()
+    )
+    return [row[0] for row in result.fetchall() if row[0]]
+
+
+@router.post("/refresh")
+async def trigger_edgar_refresh(
+    symbols: Optional[List[str]] = Query(
+        None,
+        description="Specific symbols to refresh. If empty, refreshes all portfolio symbols."
+    ),
+    current_user: User = Depends(get_current_user),
+    edgar: Optional[EdgarClient] = Depends(get_edgar_client),
+):
+    """
+    Trigger EDGAR data refresh for specified symbols or all portfolio symbols.
+
+    This queues Celery tasks for background processing.
+    Returns job_id for status polling.
+
+    **Requires admin privileges.**
+    """
+    if not settings.EDGAR_ENABLED:
+        raise HTTPException(
+            status_code=503,
+            detail="EDGAR integration is disabled"
+        )
+
+    # Get symbols from portfolios if not specified
+    if not symbols:
+        async with get_async_session() as db:
+            symbols = await get_all_portfolio_symbols(db)
+
+    if not symbols:
+        raise HTTPException(
+            status_code=400,
+            detail="No symbols found to refresh"
+        )
+
+    # Queue batch refresh task via StockFundamentals
+    try:
+        result = await edgar.refresh_batch(symbols)
+        return {
+            "job_id": result.get("job_id"),
+            "symbols_queued": len(symbols),
+            "symbols": symbols[:20],  # Show first 20
+            "status": "pending"
+        }
+    except Exception as e:
+        raise HTTPException(
+            status_code=502,
+            detail=f"Failed to queue EDGAR refresh: {str(e)}"
+        )
+
+
+@router.get("/refresh/{job_id}")
+async def get_edgar_refresh_status(
+    job_id: str,
+    current_user: User = Depends(get_current_user),
+    edgar: Optional[EdgarClient] = Depends(get_edgar_client),
+):
+    """
+    Poll status of EDGAR refresh job.
+
+    Returns job status and results when complete.
+    """
+    if not settings.EDGAR_ENABLED:
+        raise HTTPException(503, "EDGAR integration is disabled")
+
+    try:
+        status = await edgar.get_job_status(job_id)
+        return status
+    except Exception as e:
+        raise HTTPException(502, f"Failed to get job status: {str(e)}")
+
+
+@router.get("/coverage")
+async def get_edgar_coverage(
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Get EDGAR data coverage summary.
+
+    Shows which portfolio symbols have EDGAR data vs Yahoo fallback.
+    """
+    async with get_async_session() as db:
+        symbols = await get_all_portfolio_symbols(db)
+
+    # TODO: Query StockFundamentals for coverage stats
+    return {
+        "total_symbols": len(symbols),
+        "edgar_coverage": "Not yet implemented",
+        "yahoo_fallback": "Not yet implemented"
+    }
+```
+
+##### 4.5.4.2 Register Admin Router
+Update `backend/app/api/v1/router.py`:
+
+```python
+# Add import
+from app.api.v1.admin_edgar import router as admin_edgar_router
+
+# Add to router includes (with existing admin routes)
+api_router.include_router(admin_edgar_router)
+```
+
+---
+
+### 4.5.5 Railway Cron Configuration
+
+**Objective**: Configure Railway cron jobs for scheduled EDGAR refresh.
+
+#### Cron Schedule
+
+```bash
+# Existing daily batch (unchanged)
+# Runs after US market close
+0 22 * * 1-5   # 10 PM UTC weekdays → Main batch orchestrator
+
+# NEW: Weekly EDGAR fundamentals refresh
+# Runs early Sunday morning (off-peak)
+0 2 * * 0      # 2 AM UTC Sunday → EDGAR fundamentals batch
+
+# Cron command for EDGAR refresh:
+curl -X POST \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  "https://sigmasight-be-production.up.railway.app/api/v1/admin/edgar/refresh"
+```
+
+#### Post-Earnings Season Manual Triggers
+
+Run manual refresh after earnings seasons end:
+- **~Feb 20**: After Q4 earnings (10-K filings)
+- **~May 20**: After Q1 earnings (10-Q filings)
+- **~Aug 20**: After Q2 earnings (10-Q filings)
+- **~Nov 20**: After Q3 earnings (10-Q filings)
+
+---
+
+### 4.5.6 Acceptance Criteria
+
+- [ ] Celery tasks defined with proper rate limiting (8 req/sec)
+- [ ] FundamentalsOrchestrator tries EDGAR first, Yahoo fallback
+- [ ] Admin endpoint `/admin/edgar/refresh` queues batch jobs
+- [ ] Admin endpoint `/admin/edgar/refresh/{job_id}` returns status
+- [ ] Railway cron configured for weekly EDGAR refresh
+- [ ] Source tracking stored with fundamentals data
+
+---
+
+## Phase 4.6: Yahoo Fallback for Non-EDGAR Tickers
+
+### 4.6.1 Tickers Without EDGAR Data
+
+**Objective**: Automatically fallback to Yahoo for tickers that don't file with SEC.
+
+#### Categories Requiring Yahoo Fallback
+
+| Category | Examples | Reason |
+|----------|----------|--------|
+| Foreign ADRs | TSM, NVO, BABA | File with home country, not SEC |
+| Canadian listings | TD, RY, SHOP | File with SEDAR, not EDGAR |
+| ETFs | SPY, QQQ, VTI, IWM | ETFs don't file 10-K/10-Q |
+| Mutual Funds | VFIAX, FXAIX | Not SEC equity filers |
+| OTC stocks | Various | Many don't file XBRL |
+| Recent IPOs | Various | May not have 4 quarters of data |
+
+---
+
+### 4.6.2 Detection Logic
+
+##### 4.6.2.1 CIK Lookup Service
+Create `backend/app/services/cik_lookup.py`:
+
+```python
+"""
+CIK (Central Index Key) Lookup Service
+
+Determines if a ticker files with SEC EDGAR.
+"""
+
+import httpx
+from typing import Optional, Dict
+from functools import lru_cache
+
+from app.core.logging import get_logger
+from app.core.config import settings
+
+logger = get_logger(__name__)
+
+# SEC CIK mapping endpoint
+SEC_CIK_URL = "https://www.sec.gov/cgi-bin/browse-edgar"
+
+
+class CIKLookupService:
+    """
+    Service to check if a ticker has an SEC CIK.
+
+    Tickers with CIK file with SEC and should have EDGAR data.
+    Tickers without CIK need Yahoo fallback.
+    """
+
+    def __init__(self):
+        self._cache: Dict[str, Optional[str]] = {}
+
+    async def get_cik(self, ticker: str) -> Optional[str]:
+        """
+        Get SEC CIK for a ticker.
+
+        Returns:
+            CIK string if found, None if not an SEC filer
+        """
+        ticker = ticker.upper()
+
+        # Check cache first
+        if ticker in self._cache:
+            return self._cache[ticker]
+
+        # Query StockFundamentals for CIK
+        # (StockFundamentals maintains CIK mapping from SEC)
+        try:
+            edgar_client = await get_edgar_client()
+            if edgar_client:
+                company_info = await edgar_client.get_company_info(ticker)
+                cik = company_info.get("cik") if company_info else None
+                self._cache[ticker] = cik
+                return cik
+        except Exception as e:
+            logger.debug(f"CIK lookup failed for {ticker}: {e}")
+
+        self._cache[ticker] = None
+        return None
+
+    async def should_use_edgar(self, ticker: str) -> bool:
+        """
+        Determine if ticker should use EDGAR or fallback to Yahoo.
+
+        Returns True if:
+        1. Ticker has a valid CIK
+        2. Ticker is not an ETF (detected by common patterns)
+        """
+        # Quick ETF detection (common patterns)
+        etf_patterns = ['SPY', 'QQQ', 'IWM', 'VTI', 'VOO', 'EEM', 'GLD', 'SLV']
+        if ticker.upper() in etf_patterns:
+            return False
+
+        # Check for CIK
+        cik = await self.get_cik(ticker)
+        return cik is not None
+
+
+cik_lookup_service = CIKLookupService()
+```
+
+---
+
+### 4.6.3 Data Source Tracking
+
+##### 4.6.3.1 Fundamentals Record Schema
+Add source tracking to fundamentals storage:
+
+```python
+# backend/app/schemas/fundamentals.py
+
+from pydantic import BaseModel
+from typing import Optional, Dict, Any
+from datetime import date, datetime
+from enum import Enum
+
+
+class FundamentalsSource(str, Enum):
+    EDGAR = "EDGAR"
+    YAHOO = "Yahoo"
+
+
+class FundamentalsRecord(BaseModel):
+    """Fundamentals data with source tracking."""
+
+    ticker: str
+    period_end: date
+    source: FundamentalsSource
+    source_details: str  # "10-K XBRL", "10-Q XBRL", "YahooQuery API"
+    fetched_at: datetime
+    data: Dict[str, Any]
+
+    class Config:
+        use_enum_values = True
+```
+
+---
+
+### 4.6.4 Frontend Source Display
+
+##### 4.6.4.1 Source Badge Component
+Create `frontend/src/components/fundamentals/DataSourceBadge.tsx`:
+
+```typescript
+/**
+ * Data Source Badge
+ *
+ * Shows whether fundamentals data came from EDGAR or Yahoo.
+ */
+
+'use client';
+
+import React from 'react';
+import { Badge } from '@/components/ui/badge';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+
+interface DataSourceBadgeProps {
+  source: 'EDGAR' | 'Yahoo' | null;
+  sourceDetails?: string;
+}
+
+export function DataSourceBadge({ source, sourceDetails }: DataSourceBadgeProps) {
+  if (!source) {
+    return (
+      <Badge variant="outline" className="text-gray-400">
+        No Data
+      </Badge>
+    );
+  }
+
+  const isEdgar = source === 'EDGAR';
+
+  return (
+    <Tooltip>
+      <TooltipTrigger>
+        <Badge
+          variant={isEdgar ? 'default' : 'secondary'}
+          className={isEdgar ? 'bg-green-600' : 'bg-gray-500'}
+        >
+          {isEdgar ? '📊 SEC EDGAR' : '📈 Yahoo Finance'}
+        </Badge>
+      </TooltipTrigger>
+      <TooltipContent>
+        <p className="text-sm">
+          {isEdgar
+            ? 'Authoritative data from SEC filings (10-K/10-Q)'
+            : 'Data from Yahoo Finance API (fallback)'}
+        </p>
+        {sourceDetails && (
+          <p className="text-xs text-gray-400 mt-1">{sourceDetails}</p>
+        )}
+      </TooltipContent>
+    </Tooltip>
+  );
+}
+```
+
+---
+
+### 4.6.5 Acceptance Criteria
+
+- [ ] CIK lookup service identifies SEC filers
+- [ ] ETFs automatically routed to Yahoo
+- [ ] Foreign ADRs automatically routed to Yahoo
+- [ ] Source tracked with every fundamentals record
+- [ ] Frontend displays source badge (EDGAR vs Yahoo)
+- [ ] Tooltip explains data source to users
+
+---
+
 ## Phase 5: Frontend Integration
 
 ### 5.1 API Service
@@ -1732,7 +2444,7 @@ services:
       timeout: 5s
       retries: 5
 
-  # Redis (required for Celery refresh/prefetch)
+  # Redis (REQUIRED for Celery batch jobs and rate limiting)
   stockfund-redis:
     image: redis:7-alpine
     container_name: stockfund-redis
@@ -1748,6 +2460,25 @@ services:
       timeout: 5s
       retries: 5
 
+  # Celery Worker (REQUIRED for EDGAR batch processing)
+  stockfund-worker:
+    build:
+      context: ../StockFundamentals/backend
+      dockerfile: Dockerfile
+    container_name: stockfund-worker
+    command: celery -A app.tasks.worker worker -l info -c 2
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@stockfund-db:5432/stock_fundamentals
+      REDIS_URL: redis://stockfund-redis:6379/0
+      CELERY_BROKER_URL: redis://stockfund-redis:6379/0
+    depends_on:
+      stockfund-db:
+        condition: service_healthy
+      stockfund-redis:
+        condition: service_healthy
+    networks:
+      - sigmasight-network
+
 volumes:
   sigmasight_postgres_data:
   stockfund_postgres_data:
@@ -1758,16 +2489,15 @@ networks:
     driver: bridge
 ```
 
-> ⚠️ **Changes from Original:**
-> 1. Removed deprecated `version: '3.8'`
-> 2. Added healthchecks for all services
-> 3. Added Redis volume for data persistence
-> 4. Commented out Redis (not needed for Phase 1)
-> 5. Added comments explaining optional services
+> **Infrastructure Notes:**
+> 1. Redis is **REQUIRED** for Celery task queue and distributed rate limiting
+> 2. Celery worker processes EDGAR fetch tasks in background
+> 3. Worker concurrency set to 2 (`-c 2`) to stay under SEC rate limits
+> 4. All services use healthchecks for proper startup ordering
 
 #### Start Local Development
 ```bash
-# 1. Start infrastructure (wait for healthchecks)
+# 1. Start all infrastructure (wait for healthchecks)
 docker-compose -f docker-compose.dev.yml up -d
 docker-compose -f docker-compose.dev.yml ps  # Verify all healthy
 
@@ -1779,15 +2509,15 @@ uv run alembic upgrade head
 cd ../StockFundamentals/backend
 uv run uvicorn app.main:app --reload --port 8001
 
-# 4. Start SigmaSight backend (in separate terminal)
+# 4. Start Celery worker (in separate terminal) - for batch processing
+cd ../StockFundamentals/backend
+uv run celery -A app.tasks.worker worker -l info
+
+# 5. Start SigmaSight backend (in separate terminal)
 cd backend && uv run python run.py
 
-# 5. Start SigmaSight frontend (in separate terminal)
+# 6. Start SigmaSight frontend (in separate terminal)
 cd frontend && npm run dev
-
-# OPTIONAL (Phase 2): Start Celery worker for async jobs
-# cd ../StockFundamentals/backend
-# uv run celery -A app.tasks.worker worker -l info
 ```
 
 > **Note**: Migrations are run separately (step 2), not on every API start.
@@ -1926,12 +2656,24 @@ EDGAR_USER_AGENT=SigmaSight/1.0 (your-real-email@domain.com)
 # Generate with: openssl rand -hex 32
 API_KEYS=${{shared.STOCKFUND_API_KEY}}
 
-# Phase 1: No Redis (synchronous mode)
-REDIS_URL=
-CELERY_BROKER_URL=
+# Redis + Celery (REQUIRED for batch processing)
+REDIS_URL=${{stockfund-redis.REDIS_URL}}
+CELERY_BROKER_URL=${{stockfund-redis.REDIS_URL}}
 
 # Feature flags
-SYNC_MODE=true  # Disable Celery, run synchronously
+SYNC_MODE=false  # Enable Celery for batch job processing
+```
+
+**stockfund-worker Service Variables:**
+```env
+# Same as stockfund-api, plus worker-specific settings
+DATABASE_URL=${{stockfund-db.DATABASE_URL}}
+REDIS_URL=${{stockfund-redis.REDIS_URL}}
+CELERY_BROKER_URL=${{stockfund-redis.REDIS_URL}}
+EDGAR_USER_AGENT=SigmaSight/1.0 (your-real-email@domain.com)
+
+# Worker concurrency (keep low for SEC rate limits)
+CELERY_WORKER_CONCURRENCY=2
 ```
 
 **Create Shared Variables (for cross-service reference):**
@@ -2013,7 +2755,8 @@ railway run curl http://stockfund-api.railway.internal:8000/health
   "service": "stockfundamentals",
   "version": "1.0.0",
   "database": true,
-  "redis": false,
+  "redis": true,
+  "celery_worker": true,
   "edgar_api": true
 }
 ```
@@ -2033,40 +2776,47 @@ After verifying StockFundamentals is healthy:
      "https://sigmasight-be-production.up.railway.app/api/v1/edgar/health"
    ```
 
-#### Phase 2 (Later): Add Redis + Celery Worker
+#### Step 8: Configure Railway Cron for Weekly EDGAR Refresh
 
-When async job processing is needed:
+Add cron job in Railway dashboard:
 
-1. Add Redis to project: "New" → "Database" → "Redis"
-2. Add Celery worker service with `Dockerfile.worker`
-3. Update environment variables:
-   ```env
-   REDIS_URL=${{Redis.REDIS_URL}}
-   CELERY_BROKER_URL=${{Redis.REDIS_URL}}
-   SYNC_MODE=false
-   ```
+1. Go to Project Settings → Cron
+2. Add new cron job:
+   - **Schedule**: `0 2 * * 0` (2 AM UTC every Sunday)
+   - **Command**: `curl -X POST -H "Authorization: Bearer $ADMIN_TOKEN" "https://sigmasight-be-production.up.railway.app/api/v1/admin/edgar/refresh"`
+3. Set `ADMIN_TOKEN` environment variable with valid admin JWT
+
+#### Future Scaling: Add More Celery Workers
+
+When processing load increases (e.g., more portfolios, faster refresh needed):
+
+1. Increase worker replicas in Railway dashboard:
+   - Go to stockfund-worker service → Settings → Scaling
+   - Increase replica count (start with 2)
+2. Monitor SEC rate limit usage - ensure total requests stay under 10/sec
+3. Consider upgrading Redis if job queue grows large
 
 ---
 
 ### Railway Cost Estimate
 
-**Phase 1 (Initial - Recommended with Redis/Celery):**
+**Initial Deployment (Full Stack with Redis/Celery):**
 | Service | Railway Plan | Estimated Cost |
 |---------|--------------|----------------|
-| StockFundamentals API | Hobby | ~$5/mo |
-| Celery Worker | Hobby | ~$5/mo |
-| PostgreSQL (stockfund-db) | Hobby | ~$5/mo |
-| Redis | Hobby | ~$3-5/mo |
-| **Phase 1 Total** | | **~$18-20/mo** |
+| stockfund-api (FastAPI) | Hobby | ~$5/mo |
+| stockfund-worker (Celery) | Hobby | ~$5/mo |
+| stockfund-db (PostgreSQL) | Hobby | ~$5/mo |
+| stockfund-redis (Redis) | Hobby | ~$3-5/mo |
+| **Total EDGAR Integration** | | **~$18-20/mo** |
 
-**Phase 2 (Scale Out):**
-| Service | Railway Plan | Estimated Cost |
-|---------|--------------|----------------|
-| Additional Worker Replica | Hobby | ~$5/mo each |
-| Redis (upgrade if needed) | Pro | ~$? depending on tier |
-| **Phase 2 Total** | | **TBD based on replicas** |
+**Scaling (if needed):**
+| Change | Additional Cost |
+|--------|-----------------|
+| Additional worker replica | ~$5/mo each |
+| Redis upgrade (larger memory) | ~$5-10/mo |
+| API replica for HA | ~$5/mo |
 
-*Note: Costs vary based on usage. Railway Pro plan ($20/mo) includes more resources.*
+*Note: Costs vary based on usage. Railway Pro plan ($20/mo) includes more resources and better support.*
 
 ---
 
@@ -2286,31 +3036,42 @@ See `StockFundamentals/backend/config/xbrl_map.json` for complete mapping.
 | `/api/v1/edgar/financials/{ticker}/periods` | GET | Multi-period financials |
 | `/api/v1/edgar/financials/{ticker}` | GET | Single period financials |
 | `/api/v1/edgar/financials/refresh/{ticker}` | POST | Trigger data refresh |
+| `/api/v1/admin/edgar/refresh` | POST | Batch refresh all portfolio symbols |
+| `/api/v1/admin/edgar/refresh/{job_id}` | GET | Poll batch job status |
+| `/api/v1/admin/edgar/coverage` | GET | EDGAR vs Yahoo coverage stats |
 
 ### C. File Checklist
 
 **SigmaSight Backend (integration layer only):**
 - [ ] `app/services/edgar_client.py` - HTTP client with DI (~200 lines)
+- [ ] `app/services/fundamentals_orchestrator.py` - EDGAR/Yahoo source selector (~150 lines)
+- [ ] `app/services/cik_lookup.py` - SEC CIK lookup for source detection (~80 lines)
 - [ ] `app/schemas/edgar_fundamentals.py` - Response schemas (~100 lines)
+- [ ] `app/schemas/fundamentals.py` - Source tracking schemas (~50 lines)
 - [ ] `app/api/v1/edgar_fundamentals.py` - Proxy endpoints (~180 lines)
+- [ ] `app/api/v1/admin_edgar.py` - Admin batch refresh endpoints (~100 lines)
 - [ ] `app/core/config.py` - Add EDGAR settings (3 lines)
-- [ ] `app/api/v1/router.py` - Register router (1 line)
+- [ ] `app/api/v1/router.py` - Register routers (2 lines)
 - [ ] `app/main.py` - Add lifespan handler (5 lines)
 - [ ] `tests/test_edgar_client.py` - Unit tests
+- [ ] `tests/test_fundamentals_orchestrator.py` - Orchestrator tests
 
 **SigmaSight Frontend:**
 - [ ] `src/services/edgarApi.ts` - API service (~80 lines)
 - [ ] `src/hooks/useEdgarFundamentals.ts` - React hook (~100 lines)
 - [ ] `src/components/fundamentals/EdgarFinancialsTable.tsx` - Display component
 - [ ] `src/components/fundamentals/DataSourceSelector.tsx` - Toggle component
+- [ ] `src/components/fundamentals/DataSourceBadge.tsx` - EDGAR/Yahoo badge (~50 lines)
 
 **Configuration Files:**
-- [ ] `docker-compose.dev.yml` (new file for local dev)
+- [ ] `docker-compose.dev.yml` (new file for local dev with Redis + Celery)
 - [ ] `backend/.env` (add 3 EDGAR variables)
 
 **StockFundamentals Repo:**
 - [ ] `backend/Dockerfile` - Production container
+- [ ] `backend/Dockerfile.worker` - Celery worker container
 - [ ] `backend/railway.toml` - Railway configuration
+- [ ] `backend/app/tasks/fundamentals_tasks.py` - Celery tasks (~100 lines)
 - Stays in separate `bbalbalbae/StockFundamentals` repo
 - Has its own database, migrations, models
 - Deployed as service within SigmaSight Railway project
@@ -2334,6 +3095,18 @@ See `StockFundamentals/backend/config/xbrl_map.json` for complete mapping.
 | | | - Simplified Phase 1 (no Redis/Celery) |
 | | | - Fixed docker-compose (healthchecks, no deprecated version) |
 | | | - Updated all code examples with fixes |
+| 2025-12-22 | 3.0 | Batch processing integration: |
+| | | - **Redis + Celery now REQUIRED** (not optional) |
+| | | - Added Phase 4.5: EDGAR Batch Job Integration |
+| | | - Added Phase 4.6: Yahoo Fallback for Non-EDGAR Tickers |
+| | | - Added FundamentalsOrchestrator (EDGAR-first, Yahoo fallback) |
+| | | - Added Celery tasks for background EDGAR fetching |
+| | | - Added admin endpoints for batch refresh (/admin/edgar/*) |
+| | | - Added CIK lookup service for SEC filer detection |
+| | | - Added Railway cron for weekly EDGAR refresh |
+| | | - Updated docker-compose with Celery worker service |
+| | | - Added DataSourceBadge component for frontend |
+| | | - Updated cost estimate to ~$18-20/mo |
 
 ---
 
@@ -2342,29 +3115,37 @@ See `StockFundamentals/backend/config/xbrl_map.json` for complete mapping.
 ### Immediate (This Week)
 1. ✅ **Review and approve this revised plan**
 2. **Set up local development environment**
-   - Create `docker-compose.dev.yml` with healthchecks
+   - Create `docker-compose.dev.yml` with Redis + Celery
    - Run StockFundamentals locally on port 8001
+   - Start Celery worker for batch processing
    - Verify EDGAR API connectivity
 
 ### Phase 1: Backend Integration (Days 1-2)
 3. **Create SigmaSight integration layer**
    - `edgar_client.py` with dependency injection
+   - `fundamentals_orchestrator.py` (EDGAR-first, Yahoo fallback)
+   - `cik_lookup.py` for SEC filer detection
    - `edgar_fundamentals.py` router
+   - `admin_edgar.py` for batch refresh endpoints
    - Add to `main.py` lifespan handler
 4. **Test locally end-to-end**
    - Verify `/api/v1/edgar/health` returns status
    - Test with real ticker (AAPL, MSFT)
+   - Test Yahoo fallback (SPY, TSM)
 
 ### Phase 2: Railway Deployment (Days 2-3)
-5. **Deploy to Railway (same project)**
+5. **Deploy full stack to Railway (same project)**
    - Add `stockfund-db` PostgreSQL
+   - Add `stockfund-redis` Redis
    - Add `stockfund-api` service
+   - Add `stockfund-worker` Celery service
    - Configure deploy hooks for migrations
    - Enable private networking
 6. **Configure and test**
    - Set `EDGAR_ENABLED=false` initially
-   - Verify health via Railway shell
+   - Verify health via Railway shell (redis: true, celery: true)
    - Enable and test with SigmaSight backend
+   - Test batch refresh via `/admin/edgar/refresh`
 
 ### Phase 3: Frontend & Validation (Days 3-5)
 7. **Frontend integration**
@@ -2372,9 +3153,10 @@ See `StockFundamentals/backend/config/xbrl_map.json` for complete mapping.
    - Create `useEdgarFundamentals` hook
    - Add financials table component
    - Add data source toggle
+   - Add `DataSourceBadge` (EDGAR vs Yahoo indicator)
 8. **Testing and validation**
    - Manual E2E testing
-   - Verify data quality
+   - Verify data quality (EDGAR vs Yahoo comparison)
    - Monitor for 24 hours
 
 ### Phase 4: Production Rollout
@@ -2382,12 +3164,16 @@ See `StockFundamentals/backend/config/xbrl_map.json` for complete mapping.
    - Enable for internal testing
    - Enable UI toggle for users
    - Make EDGAR default (Yahoo fallback)
-10. **Post-launch**
-    - Set up external monitoring
+10. **Configure batch processing**
+    - Set up Railway cron for weekly EDGAR refresh
+    - Configure post-earnings manual refresh schedule
+    - Set up monitoring for batch job success/failure
+11. **Post-launch**
+    - Set up external monitoring (UptimeRobot, etc.)
     - Document any issues
-    - Consider Phase 2 (Redis + Celery) if needed
+    - Scale workers if needed
 
 ---
 
 *Document created by Claude Code*
-*Last updated: 2025-12-19 (v2.0)*
+*Last updated: 2025-12-22 (v3.0 - Batch Integration)*
