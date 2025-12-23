@@ -23,10 +23,13 @@ SYNTHETIC_SYMBOLS = {
     "ART_COLLECTIBLES",
     "RENTAL_CONDO",
     "MONEY_MARKET",
+    "EQ5D6A2D8F",  # Placeholder synthetic equity position
 }
 
 # Prefixes we use for private or synthetic positions (fund-of funds, etc.).
-SYNTHETIC_PREFIXES = ("FO_", "EQ")
+# Note: "EQ" was too broad and blocked real stocks like EQIX, EQR, EQT
+# Changed to "EQ_" to only match underscore-prefixed synthetic symbols
+SYNTHETIC_PREFIXES = ("FO_", "EQ_")
 
 
 def normalize_symbol(symbol: str) -> str:
