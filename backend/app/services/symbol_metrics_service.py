@@ -260,13 +260,13 @@ async def bulk_fetch_prices(
     # Use price cache if available
     if price_cache:
         for symbol in symbols:
-            close = price_cache.get(symbol, calculation_date)
-            prev_close = price_cache.get(symbol, prev_day)
-            month_start_price = price_cache.get(symbol, month_start)
-            year_start_price = price_cache.get(symbol, year_start)
-            price_1m_val = price_cache.get(symbol, date_1m)
-            price_3m_val = price_cache.get(symbol, date_3m)
-            price_1y_val = price_cache.get(symbol, date_1y)
+            close = price_cache.get_price(symbol, calculation_date)
+            prev_close = price_cache.get_price(symbol, prev_day)
+            month_start_price = price_cache.get_price(symbol, month_start)
+            year_start_price = price_cache.get_price(symbol, year_start)
+            price_1m_val = price_cache.get_price(symbol, date_1m)
+            price_3m_val = price_cache.get_price(symbol, date_3m)
+            price_1y_val = price_cache.get_price(symbol, date_1y)
 
             prices_data[symbol] = {
                 'close': close,
