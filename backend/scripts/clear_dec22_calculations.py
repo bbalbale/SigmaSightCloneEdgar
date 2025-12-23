@@ -38,7 +38,7 @@ async def clear():
         # 4. Reset batch tracking for Dec 22
         result = await conn.execute(text("""
             DELETE FROM batch_run_tracking
-            WHERE DATE(started_at) >= :target_date
+            WHERE DATE(run_date) >= :target_date
         """), {'target_date': target_date})
         print(f"  Deleted {result.rowcount} batch_run_tracking records")
 
