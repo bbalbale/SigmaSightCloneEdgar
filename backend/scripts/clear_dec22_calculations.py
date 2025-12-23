@@ -31,7 +31,7 @@ async def clear():
         # 3. Delete portfolio snapshots for Dec 22
         result = await conn.execute(text("""
             DELETE FROM portfolio_snapshots
-            WHERE calculation_date = :target_date
+            WHERE snapshot_date = :target_date
         """), {'target_date': target_date})
         print(f"  Deleted {result.rowcount} portfolio_snapshots records")
 
@@ -61,10 +61,10 @@ async def clear():
         print(f"  symbol_daily_metrics: {result.scalar()}")
 
         result = await conn.execute(text("""
-            SELECT calculation_date, COUNT(*)
+            SELECT snapshot_date, COUNT(*)
             FROM portfolio_snapshots
-            GROUP BY calculation_date
-            ORDER BY calculation_date DESC
+            GROUP BY snapshot_date
+            ORDER BY snapshot_date DESC
             LIMIT 3
         """))
         rows = result.fetchall()
