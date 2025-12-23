@@ -424,28 +424,40 @@ async def bulk_upsert_metrics(
     """
     Bulk upsert symbol_daily_metrics using PostgreSQL ON CONFLICT.
 
+    Batches inserts to stay under PostgreSQL's 32,767 parameter limit.
+    With 29 columns per row, max ~1,130 rows per batch.
+    Using 500 rows per batch for safety margin.
+
     Returns count of upserted records.
     """
     if not metrics_list:
         return 0
 
-    # Use PostgreSQL insert with ON CONFLICT DO UPDATE
-    stmt = insert(SymbolDailyMetrics).values(metrics_list)
+    BATCH_SIZE = 500  # 500 rows × 29 cols = 14,500 params (well under 32,767)
+    total_upserted = 0
 
-    # Update all columns on conflict (except primary key)
-    update_dict = {
-        col.name: stmt.excluded[col.name]
-        for col in SymbolDailyMetrics.__table__.columns
-        if col.name != 'symbol'  # Primary key
-    }
+    for i in range(0, len(metrics_list), BATCH_SIZE):
+        batch = metrics_list[i:i + BATCH_SIZE]
 
-    stmt = stmt.on_conflict_do_update(
-        index_elements=['symbol'],
-        set_=update_dict
-    )
+        # Use PostgreSQL insert with ON CONFLICT DO UPDATE
+        stmt = insert(SymbolDailyMetrics).values(batch)
 
-    await db.execute(stmt)
-    return len(metrics_list)
+        # Update all columns on conflict (except primary key)
+        update_dict = {
+            col.name: stmt.excluded[col.name]
+            for col in SymbolDailyMetrics.__table__.columns
+            if col.name != 'symbol'  # Primary key
+        }
+
+        stmt = stmt.on_conflict_do_update(
+            index_elements=['symbol'],
+            set_=update_dict
+        )
+
+        await db.execute(stmt)
+        total_upserted += len(batch)
+
+    return total_upserted
 
 
 # =============================================================================
