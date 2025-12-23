@@ -1,8 +1,34 @@
 # Symbol-Level Factor Universe Architecture
 
 **Created**: 2025-12-20
-**Status**: Planning
+**Status**: ✅ IMPLEMENTED (2025-12-22)
 **Goal**: Pre-compute factor exposures for all symbols in the universe, then aggregate to portfolios
+
+---
+
+## Implementation Status (2025-12-22)
+
+### ✅ Completed
+- **Phase 1**: Database schema (symbol_universe, symbol_factor_exposures, symbol_daily_metrics)
+- **Phase 2**: Symbol factor calculator (symbol_factors.py)
+- **Phase 3**: Portfolio aggregation service (portfolio_factor_service.py)
+- **Phase 4**: Batch orchestrator integration (Phase 1.5 + Phase 1.75)
+- **Phase 5**: Symbol metrics service (symbol_metrics_service.py)
+- **Phase 6**: Validation script (compare_factor_exposures.py - kept for cross-DB comparison)
+
+### Decision: Symbol-Level Only (No Dual-Write)
+- Position-level calculation removed from main batch pipeline
+- analytics_runner.py now uses symbol aggregation exclusively
+- Old position-level functions marked DEPRECATED in factors_ridge.py and factors_spread.py
+- External database comparison used for validation instead of internal dual-write
+
+### Files Modified (2025-12-22)
+- `app/batch/analytics_runner.py` - Removed position-level fallback
+- `app/services/snapshot_refresh_service.py` - Updated to use symbol-level
+- `app/services/portfolio_factor_service.py` - Removed comparison function
+- `app/calculations/factors_ridge.py` - Added deprecation notice
+- `app/calculations/factors_spread.py` - Added deprecation notice
+- `app/calculations/factor_utils.py` - Added deprecation notice
 
 ---
 

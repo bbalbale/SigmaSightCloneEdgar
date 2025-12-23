@@ -1,6 +1,8 @@
 """
 Service for automatically triggering portfolio snapshot recalculations when stale data is detected.
 Implements rate-limiting to prevent excessive recalculation requests.
+
+Updated 2025-12-22: Uses symbol-level factor calculation (no position-level fallback).
 """
 import asyncio
 from datetime import datetime, timedelta
@@ -12,7 +14,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.logging import get_logger
 from app.db.snapshot_helpers import get_snapshot_data_quality
 from app.calculations.snapshots import create_portfolio_snapshot
-from app.calculations.factors_ridge import calculate_factor_betas_ridge
 from app.calculations.market_beta import calculate_portfolio_market_beta, calculate_portfolio_provider_beta
 
 logger = get_logger(__name__)
@@ -140,27 +141,82 @@ async def _execute_recalculation(db: AsyncSession, portfolio_id: UUID):
         try:
             logger.info(f"Starting background recalculation for portfolio {portfolio_id} (independent session)")
 
-            # 1. Calculate ridge factors
-            logger.info(f"Calculating ridge factors for portfolio {portfolio_id}")
-            ridge_result = await calculate_factor_betas_ridge(
-                db=independent_db,  # Use independent session
-                portfolio_id=portfolio_id,
-                calculation_date=calculation_date,
-                regularization_alpha=1.0,
-                use_delta_adjusted=False,
-                context=None
+            # 1. Calculate factors using symbol-level approach
+            # First ensure symbols have factor betas, then aggregate to portfolio
+            logger.info(f"Calculating factors for portfolio {portfolio_id} via symbol aggregation")
+
+            from app.services.portfolio_factor_service import (
+                get_portfolio_factor_exposures,
+                store_portfolio_factor_exposures
+            )
+            from app.calculations.symbol_factors import (
+                get_uncached_symbols,
+                calculate_symbol_ridge_factors,
+                calculate_symbol_spread_factors,
+                ensure_symbols_in_universe
+            )
+            from app.models.positions import Position
+            from sqlalchemy import select, distinct
+
+            # Get portfolio symbols
+            symbol_stmt = select(distinct(Position.symbol)).where(
+                Position.portfolio_id == portfolio_id,
+                Position.symbol.isnot(None)
+            )
+            symbol_result = await independent_db.execute(symbol_stmt)
+            portfolio_symbols = [row[0] for row in symbol_result.fetchall()]
+
+            # Check which symbols need factor calculation
+            uncached = await get_uncached_symbols(
+                independent_db, portfolio_symbols, calculation_date, 'ridge_regression'
             )
 
-            if ridge_result.get('success'):
+            if uncached:
+                logger.info(f"Calculating factors for {len(uncached)} uncached symbols")
+                # Ensure symbols are in universe
+                await ensure_symbols_in_universe(independent_db, uncached)
+
+                # Calculate factors for uncached symbols
+                for symbol in uncached:
+                    try:
+                        await calculate_symbol_ridge_factors(
+                            independent_db, symbol, calculation_date
+                        )
+                        await calculate_symbol_spread_factors(
+                            independent_db, symbol, calculation_date
+                        )
+                    except Exception as e:
+                        logger.warning(f"Failed to calculate factors for {symbol}: {e}")
+
+                await independent_db.commit()
+
+            # Now aggregate from symbol betas to portfolio
+            factor_result = await get_portfolio_factor_exposures(
+                db=independent_db,
+                portfolio_id=portfolio_id,
+                calculation_date=calculation_date,
+                include_ridge=True,
+                include_spread=True
+            )
+
+            ridge_betas = factor_result.get('ridge_betas', {})
+            spread_betas = factor_result.get('spread_betas', {})
+
+            if ridge_betas or spread_betas:
+                await store_portfolio_factor_exposures(
+                    db=independent_db,
+                    portfolio_id=portfolio_id,
+                    calculation_date=calculation_date,
+                    ridge_betas=ridge_betas,
+                    spread_betas=spread_betas
+                )
+                await independent_db.commit()
                 logger.info(
-                    f"Ridge factors calculated for portfolio {portfolio_id}: "
-                    f"{ridge_result.get('factors_calculated', 0)} factors"
+                    f"Factors calculated for portfolio {portfolio_id}: "
+                    f"{len(ridge_betas)} ridge, {len(spread_betas)} spread factors"
                 )
             else:
-                logger.warning(
-                    f"Ridge factor calculation failed for portfolio {portfolio_id}: "
-                    f"{ridge_result.get('error')}"
-                )
+                logger.warning(f"No factors calculated for portfolio {portfolio_id}")
 
             # 2. Calculate 90-day market beta
             logger.info(f"Calculating 90-day market beta for portfolio {portfolio_id}")

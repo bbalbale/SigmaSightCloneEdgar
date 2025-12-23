@@ -220,6 +220,19 @@ async def calculate_portfolio_spread_betas(
     price_cache=None
 ) -> Dict[str, Any]:
     """
+    DEPRECATED (2025-12-22): Use symbol-level factor calculation instead.
+
+    This position-level calculation is replaced by:
+    - Phase 1.5: symbol_factors.calculate_universe_factors() - pre-computes symbol betas
+    - Phase 6: portfolio_factor_service.get_portfolio_factor_exposures() - aggregates to portfolio
+
+    The new architecture calculates each symbol ONCE (not per-position), providing:
+    - 5x faster batch processing
+    - Consistent betas for same symbol across portfolios
+    - Easier validation against external systems
+
+    ---
+    LEGACY DOCSTRING (for reference):
     Calculate portfolio-level spread factor betas using 180-day OLS regression.
 
     ARCHITECTURE: Position-First with Caching

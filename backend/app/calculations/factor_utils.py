@@ -491,6 +491,11 @@ async def load_portfolio_context(
 #
 # This avoids recalculating the same position factors for positions that
 # appear in multiple portfolios.
+#
+# DEPRECATED (2025-12-22): Position-level caching is replaced by symbol-level caching.
+# Use symbol_factors.py and portfolio_factor_service.py instead.
+# These functions are kept for backwards compatibility but are no longer called
+# by the main batch processing pipeline.
 
 async def bulk_load_cached_position_factors(
     db: AsyncSession,

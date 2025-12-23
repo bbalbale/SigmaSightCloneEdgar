@@ -90,9 +90,10 @@ class UserFundamental(Base):
     fiscal_year: Mapped[int] = mapped_column(Integer, nullable=False)  # e.g., 2025, 2026
     is_estimate: Mapped[bool] = mapped_column(Boolean, default=True)  # True for forward-looking
 
-    # Revenue metrics
+    # Revenue & operating metrics
     revenue: Mapped[Optional[Decimal]] = mapped_column(Numeric(20, 2), nullable=True)
     revenue_growth: Mapped[Optional[Decimal]] = mapped_column(Numeric(8, 4), nullable=True)  # As decimal (0.15 = 15%)
+    operating_expenses: Mapped[Optional[Decimal]] = mapped_column(Numeric(20, 2), nullable=True)
 
     # Profitability metrics
     gross_profit: Mapped[Optional[Decimal]] = mapped_column(Numeric(20, 2), nullable=True)
@@ -100,6 +101,8 @@ class UserFundamental(Base):
 
     ebit: Mapped[Optional[Decimal]] = mapped_column(Numeric(20, 2), nullable=True)
     ebit_margin: Mapped[Optional[Decimal]] = mapped_column(Numeric(8, 4), nullable=True)
+    ebitda: Mapped[Optional[Decimal]] = mapped_column(Numeric(20, 2), nullable=True)
+    ebitda_margin: Mapped[Optional[Decimal]] = mapped_column(Numeric(8, 4), nullable=True)
 
     net_income: Mapped[Optional[Decimal]] = mapped_column(Numeric(20, 2), nullable=True)
     net_margin: Mapped[Optional[Decimal]] = mapped_column(Numeric(8, 4), nullable=True)
@@ -195,10 +198,13 @@ export interface UserFundamental {
   // Metrics
   revenue?: number;
   revenue_growth?: number;
+  operating_expenses?: number;
   gross_profit?: number;
   gross_margin?: number;
   ebit?: number;
   ebit_margin?: number;
+  ebitda?: number;
+  ebitda_margin?: number;
   net_income?: number;
   net_margin?: number;
   eps?: number;
@@ -219,6 +225,9 @@ export interface CreateUserFundamentalRequest {
   symbol: string;
   fiscal_year: number;
   revenue?: number;
+  operating_expenses?: number;
+  ebit?: number;
+  ebitda?: number;
   eps?: number;
   net_income?: number;
   // ... other optional fields
@@ -435,11 +444,11 @@ Before implementation, the following decisions need to be made:
 
 | Option | Fields | Recommendation |
 |--------|--------|----------------|
-| Minimal | EPS, Revenue only | Start here - most impactful for valuation |
-| Standard | + Net Income, FCF | Good balance |
-| Full | All fields (EBIT, Gross Profit, margins) | Maximum flexibility |
+| Minimal | Revenue, Operating Expenses, EBIT, EBITDA | Required baseline per requirements |
+| Standard | + EPS, Net Income | Adds valuation linkage |
+| Full | All fields (Gross Profit, margins, FCF, growth) | Maximum flexibility |
 
-**Recommendation:** Start with **Minimal** (EPS, Revenue) and expand based on user feedback.
+**Recommendation:** Ship **Minimal** (Revenue, Operating Expenses, EBIT, EBITDA) first; add EPS/Net Income next if needed.
 
 #### 6.2 Year Scope
 
