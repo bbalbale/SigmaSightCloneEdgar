@@ -283,11 +283,14 @@ class BatchOrchestrator:
         # Symbol betas are intrinsic to the symbol (not position-specific), so we calculate
         # them once and reuse during portfolio aggregation in Phase 6.
         # =============================================================================
+        # Use the last trading day for symbol-level calculations
+        # Both Phase 1.5 and Phase 1.75 use this same date to ensure factor lookups work
+        final_date = missing_dates[-1]
+
         symbol_factor_result = None
         try:
             from app.calculations.symbol_factors import calculate_universe_factors
 
-            final_date = missing_dates[-1]
             logger.info(f"Phase 1.5: Calculating symbol factors for universe (date={final_date})")
 
             symbol_factor_result = await calculate_universe_factors(
@@ -321,12 +324,13 @@ class BatchOrchestrator:
         # Pre-calculates returns and metrics for all symbols before P&L calculation.
         # P&L calculator can then lookup returns instead of recalculating per position.
         # Also populates symbol_daily_metrics for the Symbol Dashboard.
+        # Uses same final_date as Phase 1.5 to ensure factor lookups work correctly.
         # =============================================================================
         symbol_metrics_result = None
         try:
             from app.services.symbol_metrics_service import calculate_symbol_metrics
 
-            final_date = missing_dates[-1]
+            # Use same final_date as Phase 1.5 (already set above)
             logger.info(f"Phase 1.75: Calculating symbol metrics (date={final_date})")
 
             symbol_metrics_result = await calculate_symbol_metrics(
@@ -345,6 +349,13 @@ class BatchOrchestrator:
             logger.error(f"Phase 1.75 (Symbol Metrics) error: {e}")
             import traceback
             logger.error(f"Traceback: {traceback.format_exc()}")
+            # Store error info for result reporting
+            symbol_metrics_result = {
+                'success': False,
+                'error': str(e),
+                'symbols_updated': 0,
+                'symbols_total': 0
+            }
             # Continue to Phase 2-6 even if symbol metrics fail
             # P&L calculator will calculate returns directly from prices as fallback
 
