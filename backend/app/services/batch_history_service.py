@@ -99,6 +99,7 @@ class BatchHistoryService:
         status: str,
         completed_jobs: int = 0,
         failed_jobs: int = 0,
+        total_jobs: Optional[int] = None,
         phase_durations: Optional[Dict[str, float]] = None,
         error_summary: Optional[Dict[str, Any]] = None,
     ):
@@ -110,9 +111,14 @@ class BatchHistoryService:
             status: Final status ("completed", "failed", "partial")
             completed_jobs: Number of successfully completed jobs
             failed_jobs: Number of failed jobs
+            total_jobs: Total number of jobs (if None, computed from completed + failed)
             phase_durations: Dict of phase names to duration in seconds
             error_summary: Optional error details
         """
+        # Compute total_jobs if not provided
+        if total_jobs is None:
+            total_jobs = completed_jobs + failed_jobs
+
         try:
             loop = asyncio.get_event_loop()
             if loop.is_running():
@@ -122,6 +128,7 @@ class BatchHistoryService:
                         status=status,
                         completed_jobs=completed_jobs,
                         failed_jobs=failed_jobs,
+                        total_jobs=total_jobs,
                         phase_durations=phase_durations or {},
                         error_summary=error_summary,
                     )
@@ -133,6 +140,7 @@ class BatchHistoryService:
                         status=status,
                         completed_jobs=completed_jobs,
                         failed_jobs=failed_jobs,
+                        total_jobs=total_jobs,
                         phase_durations=phase_durations or {},
                         error_summary=error_summary,
                     )
@@ -147,6 +155,7 @@ class BatchHistoryService:
         status: str,
         completed_jobs: int,
         failed_jobs: int,
+        total_jobs: int,
         phase_durations: Dict[str, float],
         error_summary: Optional[Dict[str, Any]],
     ):
@@ -162,6 +171,7 @@ class BatchHistoryService:
                     .values(
                         status=status,
                         completed_at=datetime.utcnow(),
+                        total_jobs=total_jobs,
                         completed_jobs=completed_jobs,
                         failed_jobs=failed_jobs,
                         phase_durations=phase_durations,
@@ -174,7 +184,7 @@ class BatchHistoryService:
                 if result.rowcount > 0:
                     logger.debug(
                         f"[BatchHistory] Recorded batch completion: {batch_run_id} "
-                        f"status={status} completed={completed_jobs} failed={failed_jobs}"
+                        f"status={status} total={total_jobs} completed={completed_jobs} failed={failed_jobs}"
                     )
                 else:
                     logger.warning(
@@ -266,11 +276,21 @@ def record_batch_complete(
     status: str,
     completed_jobs: int = 0,
     failed_jobs: int = 0,
+    total_jobs: Optional[int] = None,
     phase_durations: Optional[Dict[str, float]] = None,
     error_summary: Optional[Dict[str, Any]] = None,
 ):
     """
     Record the completion of a batch run.
+
+    Args:
+        batch_run_id: Unique identifier for the batch run
+        status: Final status ("completed", "failed", "partial")
+        completed_jobs: Number of successfully completed jobs
+        failed_jobs: Number of failed jobs
+        total_jobs: Total number of jobs (if None, computed from completed + failed)
+        phase_durations: Dict of phase names to duration in seconds
+        error_summary: Optional error details
 
     Example usage:
         record_batch_complete(
@@ -291,6 +311,7 @@ def record_batch_complete(
         status=status,
         completed_jobs=completed_jobs,
         failed_jobs=failed_jobs,
+        total_jobs=total_jobs,
         phase_durations=phase_durations,
         error_summary=error_summary,
     )
