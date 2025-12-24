@@ -484,73 +484,6 @@ async def get_batch_history(
         )
 
 
-@router.get("/history/{batch_run_id}")
-async def get_batch_run_details(
-    batch_run_id: str,
-    admin_user: CurrentAdmin = Depends(get_current_admin),
-    db: AsyncSession = Depends(get_db)
-):
-    """
-    Get details of a specific batch run.
-
-    Returns complete information about a batch run including full error details.
-
-    **Path Parameters:**
-    - batch_run_id: The batch run identifier (e.g., "batch_20251222_143000")
-    """
-    from app.models.admin import BatchRunHistory
-
-    try:
-        result = await db.execute(
-            select(BatchRunHistory).where(
-                BatchRunHistory.batch_run_id == batch_run_id
-            )
-        )
-        run = result.scalar_one_or_none()
-
-        if not run:
-            raise HTTPException(
-                status_code=404,
-                detail=f"Batch run '{batch_run_id}' not found"
-            )
-
-        return {
-            "id": str(run.id),
-            "batch_run_id": run.batch_run_id,
-            "triggered_by": run.triggered_by,
-            "started_at": run.started_at.isoformat() if run.started_at else None,
-            "completed_at": run.completed_at.isoformat() if run.completed_at else None,
-            "status": run.status,
-            "jobs": {
-                "total": run.total_jobs,
-                "completed": run.completed_jobs,
-                "failed": run.failed_jobs,
-                "success_rate": (
-                    round(run.completed_jobs / run.total_jobs * 100, 1)
-                    if run.total_jobs > 0
-                    else 100.0
-                )
-            },
-            "duration_seconds": (
-                (run.completed_at - run.started_at).total_seconds()
-                if run.completed_at and run.started_at
-                else None
-            ),
-            "phase_durations": run.phase_durations,
-            "error_summary": run.error_summary,
-            "created_at": run.created_at.isoformat() if run.created_at else None,
-        }
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error fetching batch run details: {e}", exc_info=True)
-        raise HTTPException(
-            status_code=500,
-            detail=f"Error fetching batch run details: {str(e)}"
-        )
-
-
 @router.get("/history/summary")
 async def get_batch_history_summary(
     days: int = Query(30, ge=1, le=90, description="Number of days to summarize"),
@@ -568,6 +501,9 @@ async def get_batch_history_summary(
 
     **Query Parameters:**
     - days: Number of days to summarize (default: 30, max: 90)
+
+    NOTE: This route must be defined BEFORE /history/{batch_run_id} to avoid
+    FastAPI matching "summary" as a batch_run_id parameter.
     """
     from app.models.admin import BatchRunHistory
     from sqlalchemy import func
@@ -639,4 +575,71 @@ async def get_batch_history_summary(
         raise HTTPException(
             status_code=500,
             detail=f"Error fetching batch history summary: {str(e)}"
+        )
+
+
+@router.get("/history/{batch_run_id}")
+async def get_batch_run_details(
+    batch_run_id: str,
+    admin_user: CurrentAdmin = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Get details of a specific batch run.
+
+    Returns complete information about a batch run including full error details.
+
+    **Path Parameters:**
+    - batch_run_id: The batch run identifier (e.g., "batch_20251222_143000")
+    """
+    from app.models.admin import BatchRunHistory
+
+    try:
+        result = await db.execute(
+            select(BatchRunHistory).where(
+                BatchRunHistory.batch_run_id == batch_run_id
+            )
+        )
+        run = result.scalar_one_or_none()
+
+        if not run:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Batch run '{batch_run_id}' not found"
+            )
+
+        return {
+            "id": str(run.id),
+            "batch_run_id": run.batch_run_id,
+            "triggered_by": run.triggered_by,
+            "started_at": run.started_at.isoformat() if run.started_at else None,
+            "completed_at": run.completed_at.isoformat() if run.completed_at else None,
+            "status": run.status,
+            "jobs": {
+                "total": run.total_jobs,
+                "completed": run.completed_jobs,
+                "failed": run.failed_jobs,
+                "success_rate": (
+                    round(run.completed_jobs / run.total_jobs * 100, 1)
+                    if run.total_jobs > 0
+                    else 100.0
+                )
+            },
+            "duration_seconds": (
+                (run.completed_at - run.started_at).total_seconds()
+                if run.completed_at and run.started_at
+                else None
+            ),
+            "phase_durations": run.phase_durations,
+            "error_summary": run.error_summary,
+            "created_at": run.created_at.isoformat() if run.created_at else None,
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error fetching batch run details: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error fetching batch run details: {str(e)}"
         )
