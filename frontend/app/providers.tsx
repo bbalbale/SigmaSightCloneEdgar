@@ -39,6 +39,10 @@ const isPublicRoute = (path: string | null) => {
   if (!path) {
     return false
   }
+  // Admin routes have their own auth system in admin/layout.tsx
+  if (path.startsWith('/admin')) {
+    return true
+  }
   return publicPaths.includes(path)
 }
 
