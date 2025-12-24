@@ -73,7 +73,7 @@ async def clear():
             print(f"    {dt}: {cnt}")
 
     await engine.dispose()
-    print("\n✅ Calculations cleared! Ready for re-run.")
+    print("\n[OK] Calculations cleared! Ready for re-run.")
 
 
 if __name__ == '__main__':
