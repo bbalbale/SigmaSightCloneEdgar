@@ -223,11 +223,11 @@ export default function AIMetricsPage() {
                 <CardContent>
                   <div className="space-y-3">
                     {[
-                      { label: 'P50 (Median)', value: latency?.percentiles.p50 },
-                      { label: 'P75', value: latency?.percentiles.p75 },
-                      { label: 'P90', value: latency?.percentiles.p90 },
-                      { label: 'P95', value: latency?.percentiles.p95 },
-                      { label: 'P99', value: latency?.percentiles.p99 }
+                      { label: 'P50 (Median)', value: latency?.p50_ms },
+                      { label: 'P75', value: latency?.p75_ms },
+                      { label: 'P90', value: latency?.p90_ms },
+                      { label: 'P95', value: latency?.p95_ms },
+                      { label: 'P99', value: latency?.p99_ms }
                     ].map((item) => (
                       <div key={item.label} className="flex items-center justify-between">
                         <span className="text-sm text-slate-400">{item.label}</span>
@@ -241,9 +241,9 @@ export default function AIMetricsPage() {
                   <div className="mt-6 pt-4 border-t border-slate-700">
                     <p className="text-xs text-slate-500 mb-2">Time to First Token</p>
                     <div className="flex items-center justify-between">
-                      <span className="text-sm text-slate-400">P50</span>
+                      <span className="text-sm text-slate-400">Average</span>
                       <span className="text-sm font-mono text-white">
-                        {latency?.first_token.p50 ? `${Math.round(latency.first_token.p50)}ms` : 'N/A'}
+                        {latency?.avg_first_token_ms ? `${Math.round(latency.avg_first_token_ms)}ms` : 'N/A'}
                       </span>
                     </div>
                   </div>
@@ -277,11 +277,11 @@ export default function AIMetricsPage() {
                     </div>
                   </div>
 
-                  {tokens?.daily_usage && tokens.daily_usage.length > 0 && (
+                  {tokens?.daily && tokens.daily.length > 0 && (
                     <div className="mt-4 pt-4 border-t border-slate-700">
                       <p className="text-xs text-slate-500 mb-3">Recent Daily Usage</p>
                       <div className="space-y-2">
-                        {tokens.daily_usage.slice(0, 5).map((day) => (
+                        {tokens.daily.slice(0, 5).map((day) => (
                           <div key={day.date} className="flex items-center justify-between text-xs">
                             <span className="text-slate-400">
                               {new Date(day.date).toLocaleDateString()}
@@ -319,7 +319,7 @@ export default function AIMetricsPage() {
                                 {tool.tool_name}
                               </span>
                               <span className="text-xs text-slate-400">
-                                {tool.count} ({tool.percentage.toFixed(1)}%)
+                                {tool.call_count} ({tool.percentage.toFixed(1)}%)
                               </span>
                             </div>
                             <div className="h-2 bg-slate-700 rounded-full overflow-hidden">
@@ -346,7 +346,7 @@ export default function AIMetricsPage() {
                     Model Usage
                   </CardTitle>
                   <CardDescription className="text-slate-400">
-                    {models?.total_requests || 0} total requests
+                    {models?.models?.reduce((sum, m) => sum + m.request_count, 0) || 0} total requests
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -360,7 +360,7 @@ export default function AIMetricsPage() {
                                 {model.model}
                               </span>
                               <span className="text-xs text-slate-400">
-                                {model.count} ({model.percentage.toFixed(1)}%)
+                                {model.request_count} ({model.percentage.toFixed(1)}%)
                               </span>
                             </div>
                             <div className="h-2 bg-slate-700 rounded-full overflow-hidden">
@@ -397,9 +397,9 @@ export default function AIMetricsPage() {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                {errors?.errors && errors.errors.length > 0 ? (
+                {errors?.breakdown && errors.breakdown.length > 0 ? (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    {errors.errors.map((err) => (
+                    {errors.breakdown.map((err) => (
                       <div
                         key={err.error_type}
                         className="p-3 bg-red-900/20 border border-red-800/50 rounded-lg"
@@ -415,9 +415,9 @@ export default function AIMetricsPage() {
                         <p className="text-xs text-slate-400">
                           {err.percentage.toFixed(1)}% of all errors
                         </p>
-                        {err.samples.length > 0 && (
+                        {err.sample_messages && err.sample_messages.length > 0 && (
                           <p className="text-xs text-slate-500 mt-1 truncate">
-                            {err.samples[0]}
+                            {err.sample_messages[0]}
                           </p>
                         )}
                       </div>

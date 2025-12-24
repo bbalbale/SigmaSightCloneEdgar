@@ -70,64 +70,66 @@ export interface AIMetricsSummary {
 }
 
 export interface AILatencyPercentiles {
-  period_days: number
+  date_range: { start: string; end: string }
   sample_count: number
-  percentiles: {
-    p50: number | null
-    p75: number | null
-    p90: number | null
-    p95: number | null
-    p99: number | null
-  }
-  first_token: {
-    p50: number | null
-    p75: number | null
-    p90: number | null
-    p95: number | null
-    p99: number | null
-  }
+  p50_ms: number | null
+  p75_ms: number | null
+  p90_ms: number | null
+  p95_ms: number | null
+  p99_ms: number | null
+  avg_ms: number | null
+  min_ms: number | null
+  max_ms: number | null
+  avg_first_token_ms: number | null
 }
 
 export interface AITokenUsage {
-  period_days: number
-  daily_usage: {
+  date_range: { start: string; end: string }
+  total_input_tokens: number
+  total_output_tokens: number
+  daily: {
     date: string
-    input_tokens: number
-    output_tokens: number
+    total_input_tokens: number
+    total_output_tokens: number
     total_tokens: number
     request_count: number
+    avg_input_tokens: number | null
+    avg_output_tokens: number | null
   }[]
 }
 
 export interface AIErrorBreakdown {
-  period_days: number
+  date_range: { start: string; end: string }
   total_errors: number
-  errors: {
+  error_rate: number
+  breakdown: {
     error_type: string
     count: number
     percentage: number
-    samples: string[]
+    sample_messages: string[]
   }[]
 }
 
 export interface AIToolUsage {
-  period_days: number
+  date_range: { start: string; end: string }
   total_tool_calls: number
+  requests_with_tools: number
+  avg_tools_per_request: number
   tools: {
     tool_name: string
-    count: number
+    call_count: number
     percentage: number
   }[]
 }
 
 export interface AIModelUsage {
-  period_days: number
-  total_requests: number
+  date_range: { start: string; end: string }
   models: {
     model: string
-    count: number
+    request_count: number
     percentage: number
     avg_latency_ms: number | null
+    avg_tokens: number | null
   }[]
 }
 
