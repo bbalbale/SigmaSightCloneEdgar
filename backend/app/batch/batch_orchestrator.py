@@ -469,12 +469,23 @@ class BatchOrchestrator:
             else:
                 run_sector_analysis = True
 
+        # Generate batch_run_id and record start for history tracking
+        batch_run_id = f"batch_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        triggered_by = os.environ.get("BATCH_TRIGGERED_BY", "admin")
+        record_batch_start(
+            batch_run_id=batch_run_id,
+            triggered_by=triggered_by,
+            total_jobs=1,  # Single-date run = 1 job
+        )
+        start_time = asyncio.get_event_loop().time()
+        result: Dict[str, Any] = {}
+
         try:
             if db is None:
                 analytics_runner.reset_caches()
                 self._sector_analysis_target_date = calculation_date
                 async with AsyncSessionLocal() as session:
-                    return await self._run_sequence_with_session(
+                    result = await self._run_sequence_with_session(
                         session,
                         calculation_date,
                         normalized_portfolio_ids,
@@ -483,7 +494,7 @@ class BatchOrchestrator:
                         force_onboarding,
                     )
             else:
-                return await self._run_sequence_with_session(
+                result = await self._run_sequence_with_session(
                     db,
                     calculation_date,
                     normalized_portfolio_ids,
@@ -491,12 +502,26 @@ class BatchOrchestrator:
                     price_cache,
                     force_onboarding,
                 )
+            return result
         finally:
             # Clear batch run tracker when batch completes (success or failure)
             from app.batch.batch_run_tracker import batch_run_tracker
             batch_run_tracker.complete()
             if db is None:
                 self._sector_analysis_target_date = None
+
+            # Record batch completion to history
+            duration = asyncio.get_event_loop().time() - start_time
+            status = "completed" if result.get('success') else "failed"
+            phase_durations = {"total_duration": round(duration)}
+            record_batch_complete(
+                batch_run_id=batch_run_id,
+                status=status,
+                completed_jobs=1 if result.get('success') else 0,
+                failed_jobs=0 if result.get('success') else 1,
+                phase_durations=phase_durations,
+                error_summary={"errors": result.get('errors', [])} if result.get('errors') else None,
+            )
 
     async def _run_sequence_with_session(
         self,
