@@ -226,6 +226,15 @@ export function EquitySearchTable({
                 <SortableHeader column="factor_quality" align="right">
                   Qual
                 </SortableHeader>
+                <SortableHeader column="factor_growth" align="right">
+                  Grwth
+                </SortableHeader>
+                <SortableHeader column="factor_size" align="right">
+                  Size
+                </SortableHeader>
+                <SortableHeader column="factor_low_vol" align="right">
+                  LowVol
+                </SortableHeader>
               </tr>
             </thead>
             <tbody>
@@ -317,6 +326,51 @@ export function EquitySearchTable({
                     }}
                   >
                     {formatFactor(item.factor_quality)}
+                  </td>
+                  <td
+                    className="px-3 py-2 text-sm text-right font-mono"
+                    style={{
+                      color:
+                        item.factor_growth !== null
+                          ? item.factor_growth > 0
+                            ? 'var(--color-success)'
+                            : item.factor_growth < 0
+                            ? 'var(--color-error)'
+                            : 'var(--text-secondary)'
+                          : 'var(--text-secondary)',
+                    }}
+                  >
+                    {formatFactor(item.factor_growth)}
+                  </td>
+                  <td
+                    className="px-3 py-2 text-sm text-right font-mono"
+                    style={{
+                      color:
+                        item.factor_size !== null
+                          ? item.factor_size > 0
+                            ? 'var(--color-success)'
+                            : item.factor_size < 0
+                            ? 'var(--color-error)'
+                            : 'var(--text-secondary)'
+                          : 'var(--text-secondary)',
+                    }}
+                  >
+                    {formatFactor(item.factor_size)}
+                  </td>
+                  <td
+                    className="px-3 py-2 text-sm text-right font-mono"
+                    style={{
+                      color:
+                        item.factor_low_vol !== null
+                          ? item.factor_low_vol > 0
+                            ? 'var(--color-success)'
+                            : item.factor_low_vol < 0
+                            ? 'var(--color-error)'
+                            : 'var(--text-secondary)'
+                          : 'var(--text-secondary)',
+                    }}
+                  >
+                    {formatFactor(item.factor_low_vol)}
                   </td>
                 </tr>
               ))}
