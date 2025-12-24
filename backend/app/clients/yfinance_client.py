@@ -199,7 +199,7 @@ class YFinanceClient(MarketDataProvider):
                     start=start_date.strftime('%Y-%m-%d'),
                     end=exclusive_end_date.strftime('%Y-%m-%d'),
                     progress=False,
-                    auto_adjust=True,  # Adjust for splits and dividends
+                    auto_adjust=False,  # Use unadjusted prices for consistency
                     threads=False  # Avoid threading issues
                 )
             )
@@ -287,7 +287,7 @@ class YFinanceClient(MarketDataProvider):
                         start=start_date.strftime('%Y-%m-%d'),
                         end=exclusive_end_date.strftime('%Y-%m-%d'),
                         progress=False,
-                        auto_adjust=True,
+                        auto_adjust=False,  # Use unadjusted prices for consistency
                         threads=True,  # Enable threading for batch downloads
                         group_by='ticker'
                     )
