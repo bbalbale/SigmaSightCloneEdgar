@@ -26,15 +26,16 @@ export interface OnboardingFunnel {
 
 export interface OnboardingError {
   error_code: string
+  event_type: string
   count: number
   percentage: number
-  samples: string[]
+  sample_messages: string[]
 }
 
 export interface OnboardingErrors {
-  period_days: number
+  date_range: { start: string; end: string }
   total_errors: number
-  errors: OnboardingError[]
+  breakdown: OnboardingError[]
 }
 
 export interface OnboardingDailyTrend {

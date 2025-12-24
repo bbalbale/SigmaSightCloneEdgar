@@ -262,9 +262,9 @@ export default function OnboardingAnalyticsPage() {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                {errors?.errors && errors.errors.length > 0 ? (
+                {errors?.breakdown && errors.breakdown.length > 0 ? (
                   <div className="space-y-3">
-                    {errors.errors.map((err) => (
+                    {errors.breakdown.map((err) => (
                       <div
                         key={err.error_code}
                         className="flex items-center justify-between p-3 bg-slate-700/50 rounded-lg"
@@ -278,9 +278,9 @@ export default function OnboardingAnalyticsPage() {
                               ({err.percentage.toFixed(1)}%)
                             </span>
                           </div>
-                          {err.samples.length > 0 && (
+                          {err.sample_messages && err.sample_messages.length > 0 && (
                             <p className="text-xs text-slate-400 mt-1 truncate">
-                              {err.samples[0]}
+                              {err.sample_messages[0]}
                             </p>
                           )}
                         </div>
