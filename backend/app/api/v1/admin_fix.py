@@ -13,7 +13,7 @@ from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db, AsyncSessionLocal
-from app.core.dependencies import get_current_user
+from app.core.dependencies import get_validated_user
 from app.models.users import User, Portfolio
 from app.models.snapshots import PortfolioSnapshot
 from app.db.seed_demo_portfolios import create_demo_users, seed_demo_portfolios
@@ -104,7 +104,7 @@ async def _run_fix_all_background(
 @router.post("/clear-calculations")
 async def clear_calculations(
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_validated_user)
 ):
     """
     Clear all derived analytics tables (snapshots, Greeks, factor exposures,
@@ -139,7 +139,7 @@ async def clear_calculations(
 @router.post("/seed-portfolios")
 async def seed_portfolios(
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_validated_user)
 ):
     """
     Seed demo portfolios with corrected June 30, 2025 market data
@@ -185,7 +185,7 @@ async def seed_portfolios(
 
 @router.post("/run-batch")
 async def run_batch(
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_validated_user)
 ):
     """
     Run batch processing with automatic backfill
@@ -215,7 +215,7 @@ async def fix_all(
     background_tasks: BackgroundTasks,
     start_date: Optional[str] = None,
     end_date: Optional[str] = None,
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_validated_user)
 ):
     """
     Complete fix: clear calculations, seed portfolios, run batch processing
@@ -281,7 +281,7 @@ async def fix_all(
 @router.get("/jobs/{job_id}")
 async def get_job_status(
     job_id: str,
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_validated_user)
 ):
     """
     Get the status of a background fix job

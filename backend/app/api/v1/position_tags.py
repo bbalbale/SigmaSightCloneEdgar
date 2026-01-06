@@ -36,7 +36,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.core.dependencies import get_current_user, validate_portfolio_ownership
+from app.core.dependencies import get_validated_user, validate_portfolio_ownership
 from app.models import User, Position
 from app.services.position_tag_service import PositionTagService
 from app.services.tag_service import TagService
@@ -59,7 +59,7 @@ async def assign_tags_to_position(
     position_id: UUID,
     request: AssignTagsToPositionRequest,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_validated_user)
 ):
     """
     Assign one or more tags to a position.
@@ -117,7 +117,7 @@ async def remove_tags_from_position_post(
     position_id: UUID,
     request: RemoveTagsFromPositionRequest,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_validated_user)
 ):
     """
     Remove one or more tags from a position using POST method.
@@ -157,7 +157,7 @@ async def remove_tags_from_position(
     position_id: UUID,
     tag_ids: List[UUID] = Query(..., description="Tag IDs to remove"),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_validated_user)
 ):
     """
     Remove one or more tags from a position.
@@ -195,7 +195,7 @@ async def remove_tags_from_position(
 async def get_position_tags(
     position_id: UUID,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_validated_user)
 ):
     """
     Get all tags assigned to a position.
@@ -236,7 +236,7 @@ async def update_position_tags(
     position_id: UUID,
     request: AssignTagsToPositionRequest,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_validated_user)
 ):
     """
     Update all tags for a position (replaces existing tags).

@@ -11,7 +11,8 @@ from typing import List, Optional, Dict, Any
 from uuid import UUID
 
 from app.database import get_ai_db  # AI memories live in AI database
-from app.core.dependencies import get_current_user, CurrentUser
+from app.core.dependencies import get_validated_user
+from app.models.users import User
 from app.core.logging import get_logger
 from app.agent.services.memory_service import (
     save_memory,
@@ -75,7 +76,7 @@ async def list_memories(
     portfolio_id: Optional[UUID] = Query(default=None, description="Filter by portfolio ID"),
     limit: int = Query(default=50, ge=1, le=100, description="Maximum number of memories to return"),
     db: AsyncSession = Depends(get_ai_db),
-    current_user: CurrentUser = Depends(get_current_user),
+    current_user: User = Depends(get_validated_user),
 ) -> MemoryListResponse:
     """
     List all memories for the current user.
@@ -110,7 +111,7 @@ async def list_memories(
 async def create_memory(
     memory: MemoryCreate,
     db: AsyncSession = Depends(get_ai_db),
-    current_user: CurrentUser = Depends(get_current_user),
+    current_user: User = Depends(get_validated_user),
 ) -> MemoryResponse:
     """
     Create a new memory for the current user.
@@ -175,7 +176,7 @@ async def create_memory(
 async def delete_memory_endpoint(
     memory_id: str,
     db: AsyncSession = Depends(get_ai_db),
-    current_user: CurrentUser = Depends(get_current_user),
+    current_user: User = Depends(get_validated_user),
 ):
     """
     Delete a specific memory by ID.
@@ -206,7 +207,7 @@ async def delete_memory_endpoint(
 @router.delete("/memories", status_code=status.HTTP_200_OK)
 async def delete_all_memories(
     db: AsyncSession = Depends(get_ai_db),
-    current_user: CurrentUser = Depends(get_current_user),
+    current_user: User = Depends(get_validated_user),
 ) -> Dict[str, int]:
     """
     Delete all memories for the current user.
@@ -229,7 +230,7 @@ async def delete_all_memories(
 @router.get("/memories/count", response_model=MemoryCountResponse)
 async def get_memory_count(
     db: AsyncSession = Depends(get_ai_db),
-    current_user: CurrentUser = Depends(get_current_user),
+    current_user: User = Depends(get_validated_user),
 ) -> MemoryCountResponse:
     """
     Get the count of memories for the current user.

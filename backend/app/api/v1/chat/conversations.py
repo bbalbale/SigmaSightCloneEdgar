@@ -8,7 +8,7 @@ from uuid import uuid4, UUID
 from typing import List, Optional
 
 from app.database import get_db
-from app.core.dependencies import get_current_user, CurrentUser
+from app.core.dependencies import get_validated_user
 from app.agent.models.conversations import Conversation, ConversationMessage
 from app.models.users import User, Portfolio
 from app.agent.schemas.chat import (
@@ -31,7 +31,7 @@ async def create_conversation(
     request_body: ConversationCreate,
     request: Request,
     db: AsyncSession = Depends(get_db),
-    current_user: CurrentUser = Depends(get_current_user)
+    current_user: User = Depends(get_validated_user)
 ) -> ConversationResponse:
     """
     Create a new conversation for the current user.
@@ -131,7 +131,7 @@ async def create_conversation(
 async def get_conversation(
     conversation_id: UUID,
     db: AsyncSession = Depends(get_db),
-    current_user: CurrentUser = Depends(get_current_user)
+    current_user: User = Depends(get_validated_user)
 ) -> ConversationResponse:
     """
     Get a specific conversation by ID.
@@ -185,7 +185,7 @@ async def list_conversations(
     limit: int = 10,
     offset: int = 0,
     db: AsyncSession = Depends(get_db),
-    current_user: CurrentUser = Depends(get_current_user)
+    current_user: User = Depends(get_validated_user)
 ) -> List[ConversationResponse]:
     """
     List conversations for the current user.
@@ -233,7 +233,7 @@ async def change_conversation_mode(
     conversation_id: UUID,
     request: ModeChangeRequest,
     db: AsyncSession = Depends(get_db),
-    current_user: CurrentUser = Depends(get_current_user)
+    current_user: User = Depends(get_validated_user)
 ) -> ModeChangeResponse:
     """
     Change the mode of an existing conversation.
@@ -295,7 +295,7 @@ async def change_conversation_mode(
 async def delete_conversation(
     conversation_id: UUID,
     db: AsyncSession = Depends(get_db),
-    current_user: CurrentUser = Depends(get_current_user)
+    current_user: User = Depends(get_validated_user)
 ) -> None:
     """
     Delete a conversation and all its messages.

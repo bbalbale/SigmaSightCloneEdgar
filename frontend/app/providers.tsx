@@ -2,10 +2,10 @@
 
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
-import { authManager } from '@/services/authManager'
+import { useAuth as useClerkAuth, useUser, useClerk } from '@clerk/nextjs'
 import { portfolioResolver } from '@/services/portfolioResolver'
-import { chatAuthService } from '@/services/chatAuthService'
 import { setPortfolioState, clearPortfolioState } from '@/stores/portfolioStore'
+import { setClerkToken, clearClerkToken } from '@/lib/clerkTokenStore'
 import { ThemeProvider } from '@/contexts/ThemeContext'
 
 interface User {
@@ -33,7 +33,8 @@ export function useAuth() {
   return context
 }
 
-const publicPaths = ['/', '/landing', '/login', '/test-user-creation']
+// Public paths that don't require authentication
+const publicPaths = ['/', '/landing', '/login', '/sign-in', '/sign-up', '/test-user-creation']
 
 const isPublicRoute = (path: string | null) => {
   if (!path) {
@@ -43,7 +44,59 @@ const isPublicRoute = (path: string | null) => {
   if (path.startsWith('/admin')) {
     return true
   }
+  // Clerk auth routes
+  if (path.startsWith('/sign-in') || path.startsWith('/sign-up')) {
+    return true
+  }
   return publicPaths.includes(path)
+}
+
+/**
+ * ClerkTokenSync - Syncs Clerk JWT tokens to the global token store
+ * This allows non-React code (like apiClient) to access the current token
+ */
+function ClerkTokenSync() {
+  const { getToken, isSignedIn } = useClerkAuth()
+
+  useEffect(() => {
+    let mounted = true
+    let refreshInterval: ReturnType<typeof setInterval> | null = null
+
+    const syncToken = async () => {
+      if (!mounted) return
+
+      if (isSignedIn) {
+        try {
+          const token = await getToken()
+          if (mounted && token) {
+            // Set token with 55 second expiry (Clerk tokens last 60 seconds)
+            setClerkToken(token, Date.now() + 55000)
+          }
+        } catch (error) {
+          console.warn('Failed to sync Clerk token:', error)
+        }
+      } else {
+        clearClerkToken()
+      }
+    }
+
+    // Initial sync
+    syncToken()
+
+    // Refresh token every 50 seconds (before the 60-second expiry)
+    if (isSignedIn) {
+      refreshInterval = setInterval(syncToken, 50000)
+    }
+
+    return () => {
+      mounted = false
+      if (refreshInterval) {
+        clearInterval(refreshInterval)
+      }
+    }
+  }, [getToken, isSignedIn])
+
+  return null
 }
 
 export function Providers({ children }: { children: React.ReactNode }) {
@@ -52,9 +105,20 @@ export function Providers({ children }: { children: React.ReactNode }) {
   const router = useRouter()
   const pathname = usePathname()
 
+  // Clerk hooks
+  const { isLoaded: isClerkLoaded, isSignedIn } = useClerkAuth()
+  const { user: clerkUser } = useUser()
+  const { signOut } = useClerk()
+
+  // Initialize portfolio when user is authenticated
   const initializePortfolio = useCallback(async () => {
     try {
-      const portfolioId = await portfolioResolver.getUserPortfolioId()
+      // Clear any stale portfolio data from previous sessions
+      // This ensures we don't use wrong portfolio IDs after user change
+      clearPortfolioState()
+      portfolioResolver.clearCache()
+
+      const portfolioId = await portfolioResolver.getUserPortfolioId(true) // force refresh
       if (portfolioId) {
         setPortfolioState(portfolioId)
       }
@@ -63,84 +127,88 @@ export function Providers({ children }: { children: React.ReactNode }) {
     }
   }, [])
 
-  const mapUser = useCallback((authUser: { id: string; email: string; name?: string } | null): User | null => {
-    if (!authUser) {
+  // Map Clerk user to our User interface
+  const mapClerkUser = useCallback((clerkUserData: typeof clerkUser): User | null => {
+    if (!clerkUserData) {
       return null
     }
     return {
-      id: authUser.id,
-      email: authUser.email,
-      fullName: authUser.name || authUser.email,
+      id: clerkUserData.id,
+      email: clerkUserData.primaryEmailAddress?.emailAddress || '',
+      fullName: clerkUserData.fullName || clerkUserData.firstName || clerkUserData.primaryEmailAddress?.emailAddress || '',
       isAdmin: false
     }
   }, [])
 
-  const checkAuth = useCallback(async () => {
-    try {
-      const token = authManager.getAccessToken()
+  // Main auth effect - driven by Clerk state
+  useEffect(() => {
+    // Wait for Clerk to load
+    if (!isClerkLoaded) {
+      return
+    }
 
-      if (!token) {
+    const handleAuth = async () => {
+      if (isSignedIn && clerkUser) {
+        // User is signed in via Clerk
+        setUser(mapClerkUser(clerkUser))
+        await initializePortfolio()
+        setLoading(false)
+      } else {
+        // Not signed in
         setUser(null)
         clearPortfolioState()
         setLoading(false)
-        if (!isPublicRoute(pathname)) {
-          router.push('/login')
-        }
-        return
-      }
 
-      const isValid = await authManager.validateToken(token)
-      if (isValid) {
-        const currentUser = await authManager.getCurrentUser()
-        setUser(mapUser(currentUser))
-        await initializePortfolio()
-      } else {
-        authManager.clearSession()
-        setUser(null)
-        clearPortfolioState()
+        // Redirect to sign-in if on protected route
         if (!isPublicRoute(pathname)) {
-          router.push('/login')
+          router.push('/sign-in')
         }
       }
-    } catch (error) {
-      console.error('Auth check failed:', error)
-      authManager.clearSession()
-      setUser(null)
-      clearPortfolioState()
-    } finally {
-      setLoading(false)
     }
-  }, [initializePortfolio, mapUser, pathname, router])
 
-  useEffect(() => {
-    checkAuth()
-  }, [checkAuth])
+    handleAuth()
+  }, [isClerkLoaded, isSignedIn, clerkUser, mapClerkUser, initializePortfolio, pathname, router])
 
-  const login = useCallback(async (email: string, password: string) => {
-    const response = await chatAuthService.login(email, password)
-    setUser(mapUser(response.user || null))
-    await initializePortfolio()
-    router.push('/command-center')
-  }, [initializePortfolio, mapUser, router])
-
-  const logout = useCallback(async () => {
-    try {
-      await chatAuthService.logout()
-    } finally {
-      authManager.clearSession()
-      setUser(null)
-      clearPortfolioState()
-      portfolioResolver.clearCache()
-      router.push('/login')
-    }
+  // Login function - redirects to Clerk sign-in
+  // (Legacy email/password login is no longer used with Clerk)
+  const login = useCallback(async (_email: string, _password: string) => {
+    // With Clerk, login is handled by the SignIn component
+    // This function is kept for interface compatibility but redirects to Clerk
+    router.push('/sign-in')
   }, [router])
 
+  // Logout function - uses Clerk sign-out
+  const logout = useCallback(async () => {
+    try {
+      // Clear local state first
+      setUser(null)
+      clearPortfolioState()
+      clearClerkToken()
+      portfolioResolver.clearCache()
+
+      // Sign out via Clerk
+      await signOut()
+
+      // Redirect to sign-in
+      router.push('/sign-in')
+    } catch (error) {
+      console.error('Logout failed:', error)
+      // Still redirect even if Clerk signOut fails
+      router.push('/sign-in')
+    }
+  }, [signOut, router])
+
+  // Refresh auth - re-checks Clerk state
   const refreshAuth = useCallback(async () => {
-    await checkAuth()
-  }, [checkAuth])
+    if (isSignedIn && clerkUser) {
+      setUser(mapClerkUser(clerkUser))
+      await initializePortfolio()
+    }
+  }, [isSignedIn, clerkUser, mapClerkUser, initializePortfolio])
 
   return (
     <ThemeProvider>
+      <ClerkTokenSync />
       <AuthContext.Provider
         value={{
           user,
@@ -155,4 +223,3 @@ export function Providers({ children }: { children: React.ReactNode }) {
     </ThemeProvider>
   )
 }
-

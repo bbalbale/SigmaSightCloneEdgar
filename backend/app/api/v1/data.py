@@ -12,15 +12,14 @@ from sqlalchemy import select, and_
 from sqlalchemy.orm import selectinload
 
 from app.database import get_db
-from app.core.dependencies import get_current_user
+from app.core.clerk_auth import get_current_user_clerk
 from app.core.datetime_utils import utc_now, to_utc_iso8601, to_iso_date
-from app.models.users import Portfolio
+from app.models.users import Portfolio, User
 from app.models.tags_v2 import TagV2
 from app.models.positions import Position
 from app.models.position_tags import PositionTag
 from app.models.market_data import MarketDataCache, CompanyProfile
 from app.models.snapshots import PortfolioSnapshot
-from app.schemas.auth import CurrentUser
 from app.core.logging import get_logger
 from app.services.market_data_service import MarketDataService
 from app.services.portfolio_data_service import PortfolioDataService
@@ -34,7 +33,7 @@ router = APIRouter(prefix="/data", tags=["raw-data"])
 
 @router.get("/portfolios")
 async def get_user_portfolios(
-    current_user: CurrentUser = Depends(get_current_user),
+    current_user: User = Depends(get_current_user_clerk),
     db: AsyncSession = Depends(get_db)
 ):
     """
@@ -91,7 +90,7 @@ async def get_portfolio_complete(
     include_timeseries: bool = Query(False, description="Include historical data"),
     include_attrib: bool = Query(False, description="Include attribution data"),
     as_of_date: Optional[date] = Query(None, description="Historical snapshot date"),
-    current_user: CurrentUser = Depends(get_current_user),
+    current_user: User = Depends(get_current_user_clerk),
     db: AsyncSession = Depends(get_db)
 ):
     """
@@ -297,7 +296,7 @@ async def get_portfolio_complete(
 @router.get("/portfolio/{portfolio_id}/snapshot")
 async def get_portfolio_snapshot(
     portfolio_id: UUID,
-    current_user: CurrentUser = Depends(get_current_user),
+    current_user: User = Depends(get_current_user_clerk),
     db: AsyncSession = Depends(get_db)
 ):
     """
@@ -385,7 +384,7 @@ async def get_portfolio_data_quality(
     portfolio_id: UUID,
     check_factors: bool = Query(True, description="Check factor data completeness"),
     check_correlations: bool = Query(True, description="Check correlation feasibility"),
-    current_user: CurrentUser = Depends(get_current_user),
+    current_user: User = Depends(get_current_user_clerk),
     db: AsyncSession = Depends(get_db)
 ):
     """
@@ -523,7 +522,7 @@ async def get_positions_details(
     portfolio_id: Optional[UUID] = Query(None, description="Portfolio UUID"),
     position_ids: Optional[str] = Query(None, description="Comma-separated position IDs"),
     include_closed: bool = Query(False, description="Include closed positions"),
-    current_user: CurrentUser = Depends(get_current_user),
+    current_user: User = Depends(get_current_user_clerk),
     db: AsyncSession = Depends(get_db)
 ):
     """
@@ -733,7 +732,7 @@ async def get_positions_details(
 @router.post("/positions/restore-sector-tags")
 async def restore_sector_tags(
     portfolio_id: UUID = Query(..., description="Portfolio UUID to restore tags for"),
-    current_user: CurrentUser = Depends(get_current_user),
+    current_user: User = Depends(get_current_user_clerk),
     db: AsyncSession = Depends(get_db)
 ):
     """
@@ -801,7 +800,7 @@ async def get_historical_prices(
     lookback_days: int = Query(150, description="Number of trading days"),
     include_factor_etfs: bool = Query(True, description="Include factor ETF prices"),
     date_format: str = Query("iso", description="Date format (iso|unix)"),
-    current_user: CurrentUser = Depends(get_current_user),
+    current_user: User = Depends(get_current_user_clerk),
     db: AsyncSession = Depends(get_db)
 ):
     """
@@ -905,7 +904,7 @@ async def get_benchmark_historical_prices(
     symbol: str,
     lookback_days: int = Query(400, description="Number of calendar days to look back"),
     date_format: str = Query("iso", description="Date format (iso|unix)"),
-    current_user: CurrentUser = Depends(get_current_user),
+    current_user: User = Depends(get_current_user_clerk),
     db: AsyncSession = Depends(get_db)
 ):
     """
@@ -1002,7 +1001,7 @@ async def get_benchmark_historical_prices(
 async def get_market_quotes(
     symbols: str = Query(..., description="Comma-separated list of ticker symbols"),
     include_options: bool = Query(False, description="Include options chains (future)"),
-    current_user: CurrentUser = Depends(get_current_user),
+    current_user: User = Depends(get_current_user_clerk),
     db: AsyncSession = Depends(get_db)
 ):
     """
@@ -1083,7 +1082,7 @@ async def get_market_quotes(
 async def get_factor_etf_prices(
     lookback_days: int = Query(150, description="Number of trading days"),
     factors: Optional[str] = Query(None, description="Comma-separated factor names to filter"),
-    current_user: CurrentUser = Depends(get_current_user),
+    current_user: User = Depends(get_current_user_clerk),
     db: AsyncSession = Depends(get_db)
 ):
     """
@@ -1160,7 +1159,7 @@ async def get_top_positions(
     limit: int = Query(20, le=50, description="Max positions to return"),
     sort_by: str = Query("market_value", regex="^(market_value|weight)$"),
     as_of_date: Optional[str] = Query(None, description="ISO date, max 180d lookback"),
-    current_user: CurrentUser = Depends(get_current_user),
+    current_user: User = Depends(get_current_user_clerk),
     db: AsyncSession = Depends(get_db)
 ):
     """
@@ -1312,7 +1311,7 @@ async def get_company_profiles(
     position_ids: Optional[str] = Query(None, description="Comma-separated position IDs"),
     portfolio_id: Optional[UUID] = Query(None, description="Get profiles for all portfolio symbols"),
     fields: Optional[str] = Query(None, description="Comma-separated fields to include (default: all)"),
-    current_user: CurrentUser = Depends(get_current_user),
+    current_user: User = Depends(get_current_user_clerk),
     db: AsyncSession = Depends(get_db)
 ):
     """

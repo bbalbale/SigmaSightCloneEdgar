@@ -15,7 +15,8 @@ from app.schemas.fundamentals import (
     CashFlowResponse,
     AllStatementsResponse,
 )
-from app.core.dependencies import get_current_user, CurrentUser
+from app.core.clerk_auth import get_current_user_clerk
+from app.models.users import User
 
 logger = logging.getLogger(__name__)
 
@@ -47,7 +48,7 @@ async def get_income_statement(
     symbol: str,
     frequency: str = Query("q", regex="^[qa]$", description="q=quarterly, a=annual"),
     periods: int = Query(12, ge=1, le=16, description="Number of periods to return"),
-    current_user: CurrentUser = Depends(get_current_user),
+    current_user: User = Depends(get_current_user_clerk),
 ):
     """
     Get income statement data for a symbol
@@ -118,7 +119,7 @@ async def get_balance_sheet(
     symbol: str,
     frequency: str = Query("q", regex="^[qa]$", description="q=quarterly, a=annual"),
     periods: int = Query(12, ge=1, le=16, description="Number of periods to return"),
-    current_user: CurrentUser = Depends(get_current_user),
+    current_user: User = Depends(get_current_user_clerk),
 ):
     """
     Get balance sheet data for a symbol
@@ -188,7 +189,7 @@ async def get_cash_flow(
     symbol: str,
     frequency: str = Query("q", regex="^[qa]$", description="q=quarterly, a=annual"),
     periods: int = Query(12, ge=1, le=16, description="Number of periods to return"),
-    current_user: CurrentUser = Depends(get_current_user),
+    current_user: User = Depends(get_current_user_clerk),
 ):
     """
     Get cash flow statement data for a symbol
@@ -260,7 +261,7 @@ async def get_all_statements(
     symbol: str,
     frequency: str = Query("q", regex="^[qa]$", description="q=quarterly, a=annual"),
     periods: int = Query(12, ge=1, le=16, description="Number of periods to return"),
-    current_user: CurrentUser = Depends(get_current_user),
+    current_user: User = Depends(get_current_user_clerk),
 ):
     """
     Get all three financial statements in one call

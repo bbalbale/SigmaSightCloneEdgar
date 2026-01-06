@@ -372,9 +372,24 @@ export class ApiClient {
 export const apiClient = new ApiClient('/api/proxy');
 
 // Add default request interceptor for auth
+// Priority: 1. Clerk token (new auth), 2. localStorage (legacy fallback)
 apiClient.addRequestInterceptor(async (url, config) => {
-  // Get token from localStorage (where authManager stores it)
-  const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
+  let token: string | null = null;
+
+  // Try to get Clerk token first (new auth system)
+  if (typeof window !== 'undefined') {
+    try {
+      const { getClerkToken } = await import('@/lib/clerkTokenStore');
+      token = getClerkToken();
+    } catch {
+      // Clerk token store not available yet
+    }
+  }
+
+  // Fall back to localStorage (legacy auth - for backward compatibility during migration)
+  if (!token && typeof window !== 'undefined') {
+    token = localStorage.getItem('access_token');
+  }
 
   if (token) {
     config.headers = {

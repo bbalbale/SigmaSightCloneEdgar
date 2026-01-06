@@ -13,8 +13,9 @@ from pydantic import BaseModel
 import time
 
 from app.database import get_db
-from app.core.dependencies import get_current_user, validate_portfolio_ownership
-from app.schemas.auth import CurrentUser
+from app.core.dependencies import validate_portfolio_ownership
+from app.core.clerk_auth import get_current_user_clerk
+from app.models.users import User
 from app.models.users import Portfolio
 from app.schemas.analytics import (
     PortfolioOverviewResponse,
@@ -50,7 +51,7 @@ router = APIRouter(prefix="/portfolio", tags=["portfolio-analytics"])
 @router.get("/{portfolio_id}/overview", response_model=PortfolioOverviewResponse)
 async def get_portfolio_overview(
     portfolio_id: UUID,
-    current_user: CurrentUser = Depends(get_current_user),
+    current_user: User = Depends(get_current_user_clerk),
     db: AsyncSession = Depends(get_db)
 ):
     """
@@ -108,7 +109,7 @@ async def get_correlation_matrix(
     lookback_days: int = Query(90, ge=30, le=365, description="Lookback period in days"),
     min_overlap: int = Query(30, ge=10, le=365, description="Minimum overlapping data points"),
     max_symbols: int = Query(25, ge=2, le=50, description="Maximum symbols to include in matrix"),
-    current_user: CurrentUser = Depends(get_current_user),
+    current_user: User = Depends(get_current_user_clerk),
     db: AsyncSession = Depends(get_db),
 ):
     """
@@ -180,7 +181,7 @@ async def get_diversification_score(
     portfolio_id: UUID,
     lookback_days: int = Query(90, ge=30, le=365, description="Lookback period in days"),
     min_overlap: int = Query(30, ge=10, le=365, description="Minimum overlapping data points"),
-    current_user: CurrentUser = Depends(get_current_user),
+    current_user: User = Depends(get_current_user_clerk),
     db: AsyncSession = Depends(get_db),
 ):
     """
@@ -218,7 +219,7 @@ async def get_diversification_score(
 async def get_portfolio_factor_exposures(
     portfolio_id: UUID,
     use_latest_successful: bool = True,  # Default to graceful degradation
-    current_user: CurrentUser = Depends(get_current_user),
+    current_user: User = Depends(get_current_user_clerk),
     db: AsyncSession = Depends(get_db),
 ):
     """
@@ -260,7 +261,7 @@ async def list_position_factor_exposures(
     limit: int = Query(50, ge=1, le=200, description="Number of positions to return"),
     offset: int = Query(0, ge=0, description="Pagination offset"),
     symbols: str | None = Query(None, description="Optional CSV list of symbols to filter"),
-    current_user: CurrentUser = Depends(get_current_user),
+    current_user: User = Depends(get_current_user_clerk),
     db: AsyncSession = Depends(get_db),
 ):
     """
@@ -297,7 +298,7 @@ async def list_position_factor_exposures(
 async def get_stress_test_results(
     portfolio_id: UUID,
     scenarios: str | None = Query(None, description="Optional CSV list of scenario IDs to include"),
-    current_user: CurrentUser = Depends(get_current_user),
+    current_user: User = Depends(get_current_user_clerk),
     db: AsyncSession = Depends(get_db),
 ):
     """
@@ -344,7 +345,7 @@ async def get_stress_test_results(
 async def get_portfolio_risk_metrics(
     portfolio_id: UUID,
     lookback_days: int = Query(90, ge=30, le=252, description="Lookback period in days (30–252)"),
-    current_user: CurrentUser = Depends(get_current_user),
+    current_user: User = Depends(get_current_user_clerk),
     db: AsyncSession = Depends(get_db),
 ):
     """
@@ -389,7 +390,7 @@ async def get_portfolio_risk_metrics(
 @router.get("/{portfolio_id}/sector-exposure", response_model=SectorExposureResponse)
 async def get_sector_exposure(
     portfolio_id: UUID,
-    current_user: CurrentUser = Depends(get_current_user),
+    current_user: User = Depends(get_current_user_clerk),
     db: AsyncSession = Depends(get_db),
 ):
     """
@@ -479,7 +480,7 @@ async def get_sector_exposure(
 @router.get("/{portfolio_id}/concentration", response_model=ConcentrationMetricsResponse)
 async def get_concentration_metrics(
     portfolio_id: UUID,
-    current_user: CurrentUser = Depends(get_current_user),
+    current_user: User = Depends(get_current_user_clerk),
     db: AsyncSession = Depends(get_db),
 ):
     """
@@ -576,7 +577,7 @@ async def get_concentration_metrics(
 @router.get("/{portfolio_id}/volatility", response_model=VolatilityMetricsResponse)
 async def get_volatility_metrics(
     portfolio_id: UUID,
-    current_user: CurrentUser = Depends(get_current_user),
+    current_user: User = Depends(get_current_user_clerk),
     db: AsyncSession = Depends(get_db),
 ):
     """
@@ -672,7 +673,7 @@ async def get_volatility_metrics(
 @router.get("/{portfolio_id}/beta-comparison", response_model=MarketBetaComparisonResponse)
 async def get_market_beta_comparison(
     portfolio_id: UUID,
-    current_user: CurrentUser = Depends(get_current_user),
+    current_user: User = Depends(get_current_user_clerk),
     db: AsyncSession = Depends(get_db),
 ):
     """
@@ -818,7 +819,7 @@ async def get_market_beta_comparison(
 @router.get("/{portfolio_id}/market-beta", response_model=SingleFactorMarketBetaResponse)
 async def get_single_factor_market_beta(
     portfolio_id: UUID,
-    current_user: CurrentUser = Depends(get_current_user),
+    current_user: User = Depends(get_current_user_clerk),
     db: AsyncSession = Depends(get_db),
 ):
     """
@@ -919,7 +920,7 @@ class UpdateEquityRequest(BaseModel):
 async def update_portfolio_equity(
     portfolio_id: UUID,
     request: UpdateEquityRequest,
-    current_user: CurrentUser = Depends(get_current_user),
+    current_user: User = Depends(get_current_user_clerk),
     db: AsyncSession = Depends(get_db)
 ):
     """
@@ -967,7 +968,7 @@ async def update_portfolio_equity(
 @router.get("/{portfolio_id}/beta-calculated-90d", response_model=CalculatedBeta90dResponse)
 async def get_calculated_beta_90d(
     portfolio_id: UUID,
-    current_user: CurrentUser = Depends(get_current_user),
+    current_user: User = Depends(get_current_user_clerk),
     db: AsyncSession = Depends(get_db),
 ):
     """
@@ -1058,7 +1059,7 @@ async def get_calculated_beta_90d(
 @router.get("/{portfolio_id}/beta-provider-1y", response_model=ProviderBeta1yResponse)
 async def get_provider_beta_1y(
     portfolio_id: UUID,
-    current_user: CurrentUser = Depends(get_current_user),
+    current_user: User = Depends(get_current_user_clerk),
     db: AsyncSession = Depends(get_db),
 ):
     """
@@ -1193,7 +1194,7 @@ async def trigger_portfolio_calculations(
     portfolio_id: UUID,
     background_tasks: BackgroundTasks,
     force: bool = Query(False, description="Force run even if batch already running or preprocessing already done"),
-    current_user: CurrentUser = Depends(get_current_user),
+    current_user: User = Depends(get_current_user_clerk),
     db: AsyncSession = Depends(get_db)
 ):
     """
@@ -1321,7 +1322,7 @@ class BatchStatusResponse(BaseModel):
 async def get_batch_status(
     portfolio_id: UUID,
     batch_run_id: str,
-    current_user: CurrentUser = Depends(get_current_user),
+    current_user: User = Depends(get_current_user_clerk),
     db: AsyncSession = Depends(get_db)
 ):
     """

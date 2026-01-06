@@ -8,7 +8,6 @@ from enum import Enum
 from app.config import settings
 from app.clients.base import MarketDataProvider
 from app.clients.fmp_client import FMPClient
-from app.clients.tradefeeds_client import TradeFeedsClient
 from app.clients.yfinance_client import YFinanceClient
 from app.clients.yahooquery_client import YahooQueryClient
 
@@ -70,22 +69,7 @@ class MarketDataFactory:
                 logger.error(f"Failed to initialize FMP client: {str(e)}")
         else:
             logger.warning("FMP_API_KEY not configured, FMP client not available")
-        
-        # Initialize TradeFeeds client if API key is available
-        if settings.TRADEFEEDS_API_KEY:
-            try:
-                self._clients['TradeFeeds'] = TradeFeedsClient(
-                    api_key=settings.TRADEFEEDS_API_KEY,
-                    timeout=settings.TRADEFEEDS_TIMEOUT_SECONDS,
-                    max_retries=settings.TRADEFEEDS_MAX_RETRIES,
-                    rate_limit=settings.TRADEFEEDS_RATE_LIMIT
-                )
-                logger.info("TradeFeeds client initialized successfully")
-            except Exception as e:
-                logger.error(f"Failed to initialize TradeFeeds client: {str(e)}")
-        else:
-            logger.warning("TRADEFEEDS_API_KEY not configured, TradeFeeds client not available")
-        
+
         self._initialized = True
         logger.info(f"Market data factory initialized with {len(self._clients)} clients")
     
@@ -102,22 +86,16 @@ class MarketDataFactory:
         self.initialize()
         
         if data_type == DataType.STOCKS:
-            # Priority: YFinance -> FMP -> TradeFeeds
+            # Priority: YFinance -> FMP
             if settings.USE_YFINANCE and 'YFinance' in self._clients:
                 return self._clients['YFinance']
             elif settings.USE_FMP_FOR_STOCKS and 'FMP' in self._clients:
                 logger.warning("YFinance not available for stocks, falling back to FMP")
                 return self._clients['FMP']
-            elif 'TradeFeeds' in self._clients:
-                logger.warning("YFinance and FMP not available for stocks, falling back to TradeFeeds")
-                return self._clients['TradeFeeds']
-        
+
         elif data_type == DataType.FUNDS:
             if settings.USE_FMP_FOR_FUNDS and 'FMP' in self._clients:
                 return self._clients['FMP']
-            elif 'TradeFeeds' in self._clients:
-                logger.warning("FMP not available for funds, falling back to TradeFeeds")
-                return self._clients['TradeFeeds']
         
         elif data_type == DataType.OPTIONS:
             # Options always use Polygon (handled by existing market data service)
@@ -130,10 +108,10 @@ class MarketDataFactory:
     def get_client(self, provider_name: str) -> Optional[MarketDataProvider]:
         """
         Get a specific client by name
-        
+
         Args:
-            provider_name: Name of the provider ('FMP' or 'TradeFeeds')
-            
+            provider_name: Name of the provider ('YFinance', 'FMP', 'YahooQuery')
+
         Returns:
             MarketDataProvider instance or None
         """

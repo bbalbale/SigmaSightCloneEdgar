@@ -42,8 +42,9 @@ import time
 import asyncio
 
 from app.database import get_db
-from app.core.dependencies import get_current_user, validate_portfolio_ownership
+from app.core.dependencies import get_validated_user, validate_portfolio_ownership
 from app.schemas.auth import CurrentUser
+from app.models.users import User
 from app.models.ai_insights import AIInsight, InsightType, InsightSeverity
 from app.models.users import Portfolio
 from app.agent.models.conversations import Conversation, ConversationMessage
@@ -142,7 +143,7 @@ class MessageResponse(BaseModel):
 @router.post("/generate", response_model=AIInsightResponse, status_code=status.HTTP_201_CREATED)
 async def generate_insight(
     request: GenerateInsightRequest,
-    current_user: CurrentUser = Depends(get_current_user),
+    current_user: User = Depends(get_validated_user),
     db: AsyncSession = Depends(get_db),
     http_request: Request = None,
 ):
@@ -297,7 +298,7 @@ async def list_portfolio_insights(
     days_back: int = Query(30, ge=1, le=365, description="How many days back to fetch"),
     limit: int = Query(20, ge=1, le=100, description="Max number of results"),
     offset: int = Query(0, ge=0, description="Pagination offset"),
-    current_user: CurrentUser = Depends(get_current_user),
+    current_user: User = Depends(get_validated_user),
     db: AsyncSession = Depends(get_db),
 ):
     """
@@ -399,7 +400,7 @@ async def list_portfolio_insights(
 @router.get("/{insight_id}", response_model=AIInsightResponse)
 async def get_insight(
     insight_id: UUID,
-    current_user: CurrentUser = Depends(get_current_user),
+    current_user: User = Depends(get_validated_user),
     db: AsyncSession = Depends(get_db),
 ):
     """
@@ -471,7 +472,7 @@ async def get_insight(
 async def update_insight(
     insight_id: UUID,
     request: UpdateInsightRequest,
-    current_user: CurrentUser = Depends(get_current_user),
+    current_user: User = Depends(get_validated_user),
     db: AsyncSession = Depends(get_db),
 ):
     """
@@ -549,7 +550,7 @@ async def update_insight(
 async def submit_feedback(
     insight_id: UUID,
     request: InsightFeedbackRequest,
-    current_user: CurrentUser = Depends(get_current_user),
+    current_user: User = Depends(get_validated_user),
     db: AsyncSession = Depends(get_db),
 ):
     """
@@ -769,7 +770,7 @@ async def claude_sse_generator(
 @router.post("/chat")
 async def chat_with_claude(
     request: ChatMessageRequest,
-    current_user: CurrentUser = Depends(get_current_user),
+    current_user: User = Depends(get_validated_user),
     db: AsyncSession = Depends(get_db),
     http_request: Request = None
 ):

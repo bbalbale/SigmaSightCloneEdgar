@@ -23,7 +23,8 @@ from typing import Optional
 from uuid import UUID
 
 from app.database import get_db, get_ai_db
-from app.core.dependencies import get_current_user, CurrentUser
+from app.core.dependencies import get_validated_user
+from app.models.users import User
 from app.agent.models.conversations import Conversation, ConversationMessage
 from app.models.ai_models import AIFeedback
 from app.core.logging import get_logger
@@ -92,7 +93,7 @@ async def create_message_feedback(
     background_tasks: BackgroundTasks,
     core_db: AsyncSession = Depends(get_db),
     ai_db: AsyncSession = Depends(get_ai_db),
-    current_user: CurrentUser = Depends(get_current_user),
+    current_user: User = Depends(get_validated_user),
 ) -> FeedbackResponse:
     """
     Submit feedback (rating) on an AI-generated message.
@@ -232,7 +233,7 @@ async def get_message_feedback(
     message_id: UUID,
     core_db: AsyncSession = Depends(get_db),
     ai_db: AsyncSession = Depends(get_ai_db),
-    current_user: CurrentUser = Depends(get_current_user),
+    current_user: User = Depends(get_validated_user),
 ) -> Optional[FeedbackResponse]:
     """
     Get feedback for a specific message (if any).
@@ -303,7 +304,7 @@ async def delete_message_feedback(
     message_id: UUID,
     core_db: AsyncSession = Depends(get_db),
     ai_db: AsyncSession = Depends(get_ai_db),
-    current_user: CurrentUser = Depends(get_current_user),
+    current_user: User = Depends(get_validated_user),
 ):
     """
     Delete feedback for a specific message.

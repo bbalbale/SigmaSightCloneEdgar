@@ -76,7 +76,6 @@ class Settings(BaseSettings):
     
     # New market data providers (Section 1.4.9)
     FMP_API_KEY: str = Field(default="", env="FMP_API_KEY")  # Financial Modeling Prep
-    TRADEFEEDS_API_KEY: str = Field(default="", env="TRADEFEEDS_API_KEY")  # TradeFeeds backup
 
     # YFinance settings (no API key required)
     USE_YFINANCE: bool = Field(default=True, env="USE_YFINANCE")  # Primary provider for stocks
@@ -92,9 +91,6 @@ class Settings(BaseSettings):
     # Provider-specific settings
     FMP_TIMEOUT_SECONDS: int = Field(default=30, env="FMP_TIMEOUT_SECONDS")
     FMP_MAX_RETRIES: int = Field(default=3, env="FMP_MAX_RETRIES")
-    TRADEFEEDS_TIMEOUT_SECONDS: int = Field(default=30, env="TRADEFEEDS_TIMEOUT_SECONDS")
-    TRADEFEEDS_MAX_RETRIES: int = Field(default=3, env="TRADEFEEDS_MAX_RETRIES")
-    TRADEFEEDS_RATE_LIMIT: int = Field(default=30, env="TRADEFEEDS_RATE_LIMIT")  # calls per minute
     
     
     # OpenAI Agent settings
@@ -194,9 +190,27 @@ class Settings(BaseSettings):
 
     # JWT settings
     SECRET_KEY: str = Field(..., env="SECRET_KEY")
-    ALGORITHM: str = "HS256"
+    ALGORITHM: str = Field(default="HS256", env="ALGORITHM")
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
-    
+
+    # Clerk Authentication & Billing (Phase 2)
+    NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: str = Field(default="", env="NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY")
+    CLERK_SECRET_KEY: str = Field(default="", env="CLERK_SECRET_KEY")
+    CLERK_WEBHOOK_SECRET: str = Field(default="", env="CLERK_WEBHOOK_SECRET")
+    CLERK_DOMAIN: str = Field(default="", env="CLERK_DOMAIN")
+    CLERK_AUDIENCE: str = Field(default="sigmasight.io", env="CLERK_AUDIENCE")
+
+    # Invite code enforcement
+    INVITE_CODE_ENABLED: bool = Field(default=True, env="INVITE_CODE_ENABLED")
+
+    # Tier limits (PRD Section 9.1)
+    # Maps Clerk plan keys to feature limits
+    # free_user -> "free", pro_user -> "paid"
+    TIER_LIMITS: dict = {
+        "free": {"max_portfolios": 2, "max_ai_messages": 100},
+        "paid": {"max_portfolios": 10, "max_ai_messages": 1000},
+    }
+
     # CORS settings
     ALLOWED_ORIGINS: List[str] = [
         "http://localhost:3000",  # React dev server
@@ -219,3 +233,23 @@ class Settings(BaseSettings):
 
 # Global settings instance
 settings = Settings()
+
+
+def get_tier_limit(tier: str, feature: str) -> int:
+    """Get the limit for a feature based on user tier.
+
+    Args:
+        tier: User's subscription tier ("free" or "paid")
+        feature: Feature to check ("max_portfolios" or "max_ai_messages")
+
+    Returns:
+        int: The limit value for the feature
+
+    Example:
+        >>> get_tier_limit("free", "max_ai_messages")
+        100
+        >>> get_tier_limit("paid", "max_portfolios")
+        10
+    """
+    tier_limits = settings.TIER_LIMITS.get(tier, settings.TIER_LIMITS["free"])
+    return tier_limits.get(feature, 0)

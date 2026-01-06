@@ -9,11 +9,12 @@ from uuid import uuid4
 
 from app.database import get_db
 from app.core.auth import verify_password, get_password_hash, create_token_response
-from app.core.dependencies import get_current_user
+from app.core.clerk_auth import get_current_user_clerk
 from app.models.users import User, Portfolio
-from app.schemas.auth import UserLogin, UserRegister, TokenResponse, UserResponse, CurrentUser
+from app.schemas.auth import UserLogin, UserRegister, TokenResponse, UserResponse, UserMeResponse
 from app.core.logging import auth_logger
-from app.config import settings
+from app.config import settings, get_tier_limit
+from sqlalchemy import func
 from app.services.activity_tracking_service import (
     track_login_success,
     track_login_error,
@@ -214,15 +215,70 @@ async def register(user_register: UserRegister, request: Request, db: AsyncSessi
         )
 
 
-@router.get("/me", response_model=CurrentUser)
-async def get_current_user_info(current_user: CurrentUser = Depends(get_current_user)):
-    """Get current authenticated user information"""
+@router.get("/me", response_model=UserMeResponse)
+async def get_current_user_info(
+    current_user: User = Depends(get_current_user_clerk),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Get current authenticated user information with entitlements.
+
+    Uses Clerk JWT authentication (not legacy JWT).
+    Returns user info, subscription tier, and usage limits.
+    PRD Reference: Section 15.1.1
+    """
     auth_logger.info(f"User info requested: {current_user.email}")
-    return current_user
+
+    # current_user is already a full User object from Clerk auth
+    user = current_user
+
+    # Get portfolio count
+    portfolio_count_result = await db.execute(
+        select(func.count(Portfolio.id)).where(
+            Portfolio.user_id == user.id,
+            Portfolio.deleted_at.is_(None)
+        )
+    )
+    portfolio_count = portfolio_count_result.scalar() or 0
+
+    # Get first portfolio as default
+    portfolio_result = await db.execute(
+        select(Portfolio).where(
+            Portfolio.user_id == user.id,
+            Portfolio.deleted_at.is_(None)
+        ).limit(1)
+    )
+    first_portfolio = portfolio_result.scalar_one_or_none()
+    default_portfolio_id = first_portfolio.id if first_portfolio else None
+
+    # Get tier limits
+    user_tier = user.tier or "free"
+    max_portfolios = get_tier_limit(user_tier, "max_portfolios")
+    max_ai_messages = get_tier_limit(user_tier, "max_ai_messages")
+    ai_messages_used = user.ai_messages_used or 0
+    ai_messages_remaining = max(0, max_ai_messages - ai_messages_used)
+
+    return UserMeResponse(
+        id=user.id,
+        email=user.email,
+        full_name=user.full_name,
+        is_active=user.is_active,
+        created_at=user.created_at,
+        tier=user_tier,
+        invite_validated=user.invite_validated or False,
+        portfolio_id=default_portfolio_id,
+        portfolio_count=portfolio_count,
+        limits={
+            "max_portfolios": max_portfolios,
+            "max_ai_messages": max_ai_messages,
+            "ai_messages_used": ai_messages_used,
+            "ai_messages_remaining": ai_messages_remaining,
+        }
+    )
 
 
 @router.post("/refresh")
-async def refresh_token(current_user: CurrentUser = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+async def refresh_token(current_user: User = Depends(get_current_user_clerk), db: AsyncSession = Depends(get_db)):
     """Refresh JWT token (returns new token in body AND cookie)"""
     auth_logger.info(f"Token refresh requested: {current_user.email}")
     
@@ -264,7 +320,7 @@ async def refresh_token(current_user: CurrentUser = Depends(get_current_user), d
 async def logout(
     request: Request,
     response: Response,
-    current_user: CurrentUser = Depends(get_current_user)
+    current_user: User = Depends(get_current_user_clerk)
 ):
     """Logout endpoint - clears auth cookie and instructs client to discard token"""
     auth_logger.info(f"Logout requested: {current_user.email}")

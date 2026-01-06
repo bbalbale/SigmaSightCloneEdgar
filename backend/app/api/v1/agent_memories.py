@@ -11,8 +11,8 @@ from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_ai_db  # AI memories live in AI database
-from app.core.dependencies import get_current_user
-from app.schemas.auth import CurrentUser
+from app.core.dependencies import get_validated_user
+from app.models.users import User
 from app.agent.services.memory_service import (
     get_user_memories,
     save_memory,
@@ -81,7 +81,7 @@ async def list_memories(
     scope: Optional[str] = Query(None, description="Filter by scope: 'user' or 'portfolio'"),
     portfolio_id: Optional[str] = Query(None, description="Filter by portfolio ID"),
     limit: int = Query(20, ge=1, le=50, description="Maximum memories to return"),
-    current_user: CurrentUser = Depends(get_current_user),
+    current_user: User = Depends(get_validated_user),
     db: AsyncSession = Depends(get_ai_db),
 ):
     """
@@ -118,7 +118,7 @@ async def list_memories(
 @router.post("", response_model=MemoryCreateResponse)
 async def create_memory(
     request: MemoryCreateRequest,
-    current_user: CurrentUser = Depends(get_current_user),
+    current_user: User = Depends(get_validated_user),
     db: AsyncSession = Depends(get_ai_db),
 ):
     """
@@ -153,7 +153,7 @@ async def create_memory(
 @router.delete("/{memory_id}", response_model=MemoryDeleteResponse)
 async def delete_single_memory(
     memory_id: str,
-    current_user: CurrentUser = Depends(get_current_user),
+    current_user: User = Depends(get_validated_user),
     db: AsyncSession = Depends(get_ai_db),
 ):
     """
@@ -181,7 +181,7 @@ async def delete_single_memory(
 
 @router.delete("", response_model=MemoryDeleteResponse)
 async def delete_all_memories(
-    current_user: CurrentUser = Depends(get_current_user),
+    current_user: User = Depends(get_validated_user),
     db: AsyncSession = Depends(get_ai_db),
 ):
     """
@@ -204,7 +204,7 @@ async def delete_all_memories(
 
 @router.get("/count", response_model=MemoryCountResponse)
 async def get_memory_count(
-    current_user: CurrentUser = Depends(get_current_user),
+    current_user: User = Depends(get_validated_user),
     db: AsyncSession = Depends(get_ai_db),
 ):
     """

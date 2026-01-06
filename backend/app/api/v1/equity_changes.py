@@ -15,7 +15,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.dependencies import get_current_user
+from app.core.dependencies import get_validated_user
 from app.core.logging import get_logger
 from app.database import get_db
 from app.models.equity_changes import EquityChangeType
@@ -38,8 +38,6 @@ router = APIRouter(
     tags=["equity-changes"],
 )
 
-CurrentUser = User
-
 
 def get_service(db: AsyncSession) -> EquityChangeService:
     return EquityChangeService(db)
@@ -53,7 +51,7 @@ async def list_equity_changes(
     start_date: Optional[date] = Query(None),
     end_date: Optional[date] = Query(None),
     include_deleted: bool = Query(False),
-    current_user: CurrentUser = Depends(get_current_user),
+    current_user: User = Depends(get_validated_user),
     db: AsyncSession = Depends(get_db),
 ):
     """List equity changes for a portfolio with pagination."""
@@ -89,7 +87,7 @@ async def list_equity_changes(
 async def create_equity_change(
     portfolio_id: UUID,
     payload: EquityChangeCreateRequest,
-    current_user: CurrentUser = Depends(get_current_user),
+    current_user: User = Depends(get_validated_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Create a contribution or withdrawal for the portfolio."""
@@ -115,7 +113,7 @@ async def get_equity_change_summary(
     portfolio_id: UUID,
     start_date: Optional[date] = Query(None),
     end_date: Optional[date] = Query(None),
-    current_user: CurrentUser = Depends(get_current_user),
+    current_user: User = Depends(get_validated_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Return aggregated equity change metrics for hero cards."""
@@ -162,7 +160,7 @@ async def export_equity_changes(
     format: str = Query("csv"),
     start_date: Optional[date] = Query(None),
     end_date: Optional[date] = Query(None),
-    current_user: CurrentUser = Depends(get_current_user),
+    current_user: User = Depends(get_validated_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Export equity changes (CSV)."""
@@ -227,7 +225,7 @@ async def get_equity_change(
     portfolio_id: UUID,
     equity_change_id: UUID,
     include_deleted: bool = Query(False),
-    current_user: CurrentUser = Depends(get_current_user),
+    current_user: User = Depends(get_validated_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Retrieve a single equity change."""
@@ -251,7 +249,7 @@ async def update_equity_change(
     portfolio_id: UUID,
     equity_change_id: UUID,
     payload: EquityChangeUpdateRequest,
-    current_user: CurrentUser = Depends(get_current_user),
+    current_user: User = Depends(get_validated_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Update an equity change within the edit window."""
@@ -277,7 +275,7 @@ async def update_equity_change(
 async def delete_equity_change(
     portfolio_id: UUID,
     equity_change_id: UUID,
-    current_user: CurrentUser = Depends(get_current_user),
+    current_user: User = Depends(get_validated_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Soft delete an equity change within the 30-day window."""

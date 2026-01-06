@@ -1,12 +1,17 @@
 """
 FastAPI dependencies for authentication and authorization
+
+Includes:
+- Legacy auth (get_current_user) - Uses internal JWT
+- Clerk auth (get_current_user_clerk) - Uses Clerk JWT + JWKS
+- Validated user guard (get_validated_user) - Requires invite validation
 """
 from fastapi import Cookie, Depends, HTTPException, Request, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_
 from uuid import UUID
-from typing import Optional
+from typing import Optional, Annotated
 
 from app.core.auth import verify_token
 from app.database import get_db
@@ -256,5 +261,97 @@ async def resolve_portfolio_id(
     
     default_portfolio_id = portfolios[0].id
     auth_logger.debug(f"Resolved default portfolio for user {current_user.email}: {default_portfolio_id}")
-    
+
     return default_portfolio_id
+
+
+# =============================================================================
+# Clerk Authentication Dependencies (Phase 2)
+# =============================================================================
+
+# Import Clerk auth module (lazy import to avoid circular dependencies)
+def _get_clerk_auth():
+    from app.core.clerk_auth import get_current_user_clerk
+    return get_current_user_clerk
+
+
+async def get_validated_user(
+    db: AsyncSession = Depends(get_db),
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(HTTPBearer(auto_error=False)),
+    clerk_session: Optional[str] = Cookie(None, alias="__session"),
+) -> User:
+    """
+    Combined dependency: Clerk auth + invite validation.
+
+    Use this for protected endpoints that require:
+    1. Valid Clerk JWT authentication
+    2. Validated invite code
+
+    PRD Reference: Section 9.5
+
+    Args:
+        db: Database session
+        credentials: Bearer token from Authorization header
+        clerk_session: JWT from Clerk's __session cookie (SSE fallback)
+
+    Returns:
+        User with validated invite
+
+    Raises:
+        HTTPException 401: If not authenticated
+        HTTPException 403: If invite not validated
+    """
+    # Get Clerk auth dependency
+    get_current_user_clerk = _get_clerk_auth()
+
+    # Authenticate with Clerk
+    user = await get_current_user_clerk(
+        credentials=credentials,
+        clerk_session=clerk_session,
+        db=db
+    )
+
+    # Check invite validation
+    if not user.invite_validated:
+        auth_logger.warning(f"User {user.email} attempted access without invite validation")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={
+                "error": "invite_required",
+                "message": "Please enter your invite code in Settings to access this feature",
+                "redirect": "/settings"
+            }
+        )
+
+    return user
+
+
+# Type alias for validated user dependency (PRD Section 9.5)
+ValidatedUser = Annotated[User, Depends(get_validated_user)]
+
+
+async def get_current_user_clerk_optional(
+    db: AsyncSession = Depends(get_db),
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(HTTPBearer(auto_error=False)),
+    clerk_session: Optional[str] = Cookie(None, alias="__session"),
+) -> Optional[User]:
+    """
+    Optional Clerk authentication dependency.
+
+    Returns None if no valid token provided (doesn't raise).
+    Useful for endpoints that have different behavior for authenticated vs anonymous users.
+    """
+    if not credentials and not clerk_session:
+        return None
+
+    try:
+        get_current_user_clerk = _get_clerk_auth()
+        return await get_current_user_clerk(
+            credentials=credentials,
+            clerk_session=clerk_session,
+            db=db
+        )
+    except HTTPException:
+        return None
+    except Exception:
+        return None

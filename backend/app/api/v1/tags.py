@@ -45,7 +45,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.core.dependencies import get_current_user, validate_portfolio_ownership
+from app.core.dependencies import get_validated_user, validate_portfolio_ownership
 from app.models import User
 from app.services.tag_service import TagService
 from app.services.position_tag_service import PositionTagService
@@ -65,7 +65,7 @@ router = APIRouter(prefix="/tags", tags=["tags"])
 async def create_tag(
     request: CreateTagRequest,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_validated_user)
 ):
     """Create a new tag for the current user"""
     service = TagService(db)
@@ -93,7 +93,7 @@ async def list_tags(
     include_archived: bool = Query(False, description="Include archived tags"),
     include_usage_stats: bool = Query(True, description="Include usage statistics"),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_validated_user)
 ):
     """List all tags for the current user"""
     service = TagService(db)
@@ -124,7 +124,7 @@ async def get_tag(
     tag_id: UUID,
     include_positions: bool = Query(False, description="Include associated positions"),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_validated_user)
 ):
     """Get a specific tag by ID"""
     service = TagService(db)
@@ -146,7 +146,7 @@ async def update_tag(
     tag_id: UUID,
     request: UpdateTagRequest,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_validated_user)
 ):
     """Update a tag"""
     service = TagService(db)
@@ -177,7 +177,7 @@ async def update_tag(
 async def archive_tag(
     tag_id: UUID,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_validated_user)
 ):
     """Archive a tag (soft delete)"""
     service = TagService(db)
@@ -201,7 +201,7 @@ async def archive_tag(
 async def restore_tag(
     tag_id: UUID,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_validated_user)
 ):
     """Restore an archived tag"""
     service = TagService(db)
@@ -224,7 +224,7 @@ async def restore_tag(
 @router.post("/defaults")
 async def create_default_tags(
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_validated_user)
 ):
     """Get or create default tag set for the current user - idempotent operation"""
     service = TagService(db)
@@ -252,7 +252,7 @@ async def get_positions_by_tag(
     tag_id: UUID,
     portfolio_id: Optional[UUID] = Query(None, description="Filter by portfolio"),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_validated_user)
 ):
     """
     Get all positions with a specific tag (new position tagging system).

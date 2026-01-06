@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from app.database import get_db
-from app.api.v1.auth import get_current_user
+from app.core.dependencies import get_validated_user
 from app.models.users import User, Portfolio
 from app.schemas.target_prices import (
     TargetPriceCreate,
@@ -55,7 +55,7 @@ target_price_service = TargetPriceService()
 async def create_target_price(
     portfolio_id: UUID,
     target_price_data: TargetPriceCreate,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_validated_user),
     db: AsyncSession = Depends(get_db)
 ):
     # Verify user owns the portfolio
@@ -98,7 +98,7 @@ async def get_portfolio_target_prices(
     portfolio_id: UUID,
     symbol: Optional[str] = Query(None, description="Filter by specific symbol (case-insensitive)"),
     position_type: Optional[str] = Query(None, description="Filter by position type (LONG, SHORT, LC, LP, SC, SP)"),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_validated_user),
     db: AsyncSession = Depends(get_db)
 ):
     # Verify user owns the portfolio
@@ -134,7 +134,7 @@ async def get_portfolio_target_prices(
 )
 async def get_portfolio_target_summary(
     portfolio_id: UUID,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_validated_user),
     db: AsyncSession = Depends(get_db)
 ):
     # Verify user owns the portfolio
@@ -153,7 +153,7 @@ async def get_portfolio_target_summary(
 @router.get("/target/{target_price_id}", response_model=TargetPriceResponse)
 async def get_target_price(
     target_price_id: UUID,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_validated_user),
     db: AsyncSession = Depends(get_db)
 ):
     """
@@ -174,7 +174,7 @@ async def get_target_price(
 async def update_target_price(
     target_price_id: UUID,
     update_data: TargetPriceUpdate,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_validated_user),
     db: AsyncSession = Depends(get_db)
 ):
     """
@@ -223,7 +223,7 @@ async def update_target_price(
 )
 async def delete_target_price(
     target_price_id: UUID,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_validated_user),
     db: AsyncSession = Depends(get_db)
 ):
     # Get the target price first to verify ownership
@@ -253,7 +253,7 @@ async def delete_target_price(
 async def bulk_create_target_prices(
     portfolio_id: UUID,
     bulk_data: TargetPriceBulkCreate,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_validated_user),
     db: AsyncSession = Depends(get_db)
 ):
     """
@@ -295,7 +295,7 @@ async def bulk_create_target_prices(
 async def bulk_update_target_prices(
     portfolio_id: UUID,
     bulk_update: TargetPriceBulkUpdate,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_validated_user),
     db: AsyncSession = Depends(get_db)
 ):
     # Verify user owns the portfolio
@@ -347,7 +347,7 @@ async def bulk_update_target_prices(
 async def import_target_prices_csv(
     portfolio_id: UUID,
     csv_import: TargetPriceImportCSV,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_validated_user),
     db: AsyncSession = Depends(get_db)
 ):
     """
@@ -399,7 +399,7 @@ async def import_target_prices_csv(
 async def export_target_prices(
     portfolio_id: UUID,
     export_request: TargetPriceExportRequest = Body(default=TargetPriceExportRequest()),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_validated_user),
     db: AsyncSession = Depends(get_db)
 ):
     # Verify user owns the portfolio

@@ -18,9 +18,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import BaseModel, EmailStr, Field
 
 from app.database import get_db
-from app.core.dependencies import get_current_user
+from app.core.dependencies import get_validated_user
+from app.core.clerk_auth import get_current_user_clerk
 from app.models.users import User
 from app.services.onboarding_service import onboarding_service
+from app.config import settings
 from app.core.logging import get_logger
 from app.services.activity_tracking_service import (
     track_register_start,
@@ -70,6 +72,17 @@ class CreatePortfolioResponse(BaseModel):
     total_positions: int
     message: str
     next_step: dict
+
+
+class ValidateInviteRequest(BaseModel):
+    """Invite code validation request (Clerk auth)"""
+    invite_code: str = Field(..., description="Beta invite code")
+
+
+class ValidateInviteResponse(BaseModel):
+    """Invite code validation response"""
+    status: str = "validated"
+    message: str = "Invite code validated successfully"
 
 
 # ==============================================================================
@@ -160,6 +173,96 @@ async def register_user(
         raise
 
 
+def validate_code(submitted_code: str, expected_code: str) -> bool:
+    """
+    Validate invite code with case-insensitive comparison.
+
+    Args:
+        submitted_code: User-submitted invite code
+        expected_code: Expected invite code from settings
+
+    Returns:
+        bool: True if codes match
+    """
+    return submitted_code.strip().upper() == expected_code.strip().upper()
+
+
+@router.post("/validate-invite", response_model=ValidateInviteResponse)
+async def validate_invite_code(
+    request_body: ValidateInviteRequest,
+    request: Request,
+    current_user: User = Depends(get_current_user_clerk),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Validate invite code for Clerk-authenticated users.
+
+    This endpoint is used after Clerk authentication to validate
+    the user's beta invite code. Once validated, the user gains
+    access to protected features.
+
+    Requires Clerk JWT authentication.
+
+    PRD Reference: Section 7.3
+
+    **Errors:**
+    - 400: Invalid invite code
+    - 401: Not authenticated (Clerk JWT required)
+    """
+    from fastapi import HTTPException, status
+    from sqlalchemy import select
+
+    # Log the attempt
+    ip_address = request.client.host if request.client else "unknown"
+    logger.info(
+        f"Invite validation attempt: user={current_user.email}, "
+        f"ip={ip_address}"
+    )
+
+    # Re-query user in the current session to ensure we can persist changes
+    # (current_user from get_current_user_clerk may be from a different session context)
+    user_result = await db.execute(
+        select(User).where(User.id == current_user.id)
+    )
+    user = user_result.scalar_one_or_none()
+
+    if not user:
+        logger.error(f"User not found during invite validation: {current_user.id}")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"error": "user_not_found", "message": "User not found"}
+        )
+
+    # Check if invite code enforcement is disabled
+    if not settings.INVITE_CODE_ENABLED:
+        logger.info(f"Invite enforcement disabled, auto-validating user {user.email}")
+        user.invite_validated = True
+        await db.commit()
+        return ValidateInviteResponse()
+
+    # Validate the invite code
+    if not validate_code(request_body.invite_code, settings.BETA_INVITE_CODE):
+        logger.warning(
+            f"Invalid invite code attempt: user={user.email}, "
+            f"ip={ip_address}, code={request_body.invite_code[:4]}***"
+        )
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "error": "invalid_invite_code",
+                "message": "The invite code you entered is not valid. Please check and try again.",
+            }
+        )
+
+    # Mark user as validated (user is now attached to db session)
+    user.invite_validated = True
+    await db.commit()
+
+    logger.info(f"Invite validated successfully: user={user.email}")
+
+    return ValidateInviteResponse()
+
+
 @router.post("/create-portfolio", response_model=CreatePortfolioResponse, status_code=201)
 async def create_portfolio(
     request: Request,
@@ -169,7 +272,7 @@ async def create_portfolio(
     equity_balance: Decimal = Form(..., description="Total account equity balance"),
     description: Optional[str] = Form(None, description="Optional portfolio description"),
     csv_file: UploadFile = File(..., description="CSV file with positions"),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_validated_user),
     db: AsyncSession = Depends(get_db)
 ):
     """

@@ -21,6 +21,7 @@ from app.api.v1.fundamentals import router as fundamentals_router
 from app.api.v1.equity_search import router as equity_search_router
 from app.api.v1.equity_changes import router as equity_changes_router
 from app.api.v1.agent_memories import router as agent_memories_router
+from app.api.v1.webhooks.clerk import router as clerk_webhook_router
 
 # Create the main v1 router
 api_router = APIRouter(prefix="/v1")
@@ -80,6 +81,9 @@ api_router.include_router(admin_auth_router)
 
 # Agent Memories APIs (/agent/memories/) - AI memory management
 api_router.include_router(agent_memories_router)
+
+# Clerk Webhooks (/webhooks/clerk) - Clerk user/billing events (no auth required)
+api_router.include_router(clerk_webhook_router)
 
 # Legacy placeholder and market-data routers are intentionally not registered in v1.2
 # (See TODO3.md 6.8/6.9 for removal plan and rationale.)

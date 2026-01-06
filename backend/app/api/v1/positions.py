@@ -41,7 +41,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.core.dependencies import get_current_user
+from app.core.dependencies import get_validated_user
 from app.models import User
 from app.services.position_service import PositionService
 from app.schemas.position_schemas import (
@@ -71,7 +71,7 @@ async def create_position(
     request: CreatePositionRequest,
     portfolio_id: UUID = Query(..., description="Portfolio to add position to"),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_validated_user)
 ):
     """
     Create a new position in the specified portfolio.
@@ -124,7 +124,7 @@ async def create_position(
 async def bulk_create_positions(
     request: BulkCreatePositionsRequest,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_validated_user)
 ):
     """
     Bulk create multiple positions in a single transaction.
@@ -185,7 +185,7 @@ async def bulk_create_positions(
 async def get_position(
     position_id: UUID,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_validated_user)
 ):
     """
     Get a single position by ID.
@@ -230,7 +230,7 @@ async def update_position(
     request: UpdatePositionRequest,
     allow_symbol_edit: bool = Query(False, description="Allow symbol editing (< 5 min only)"),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_validated_user)
 ):
     """
     Update position fields.
@@ -290,7 +290,7 @@ async def delete_position(
     position_id: UUID,
     force_hard_delete: bool = Query(False, description="Force hard delete (Reverse Addition)"),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_validated_user)
 ):
     """
     Delete a position (soft or hard delete).
@@ -348,7 +348,7 @@ async def delete_position(
 async def bulk_delete_positions(
     request: BulkDeletePositionsRequest,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_validated_user)
 ):
     """
     Bulk delete multiple positions.
@@ -397,7 +397,7 @@ async def bulk_delete_positions(
 async def validate_symbol(
     symbol: str = Query(..., description="Symbol to validate"),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_validated_user)
 ):
     """
     Validate symbol exists via market data API.
@@ -439,7 +439,7 @@ async def check_duplicate(
     portfolio_id: UUID = Query(..., description="Portfolio to check"),
     symbol: str = Query(..., description="Symbol to check for duplicates"),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_validated_user)
 ):
     """
     Check if symbol already exists in portfolio.
@@ -485,7 +485,7 @@ async def get_tags_for_symbol(
     portfolio_id: UUID = Query(..., description="Portfolio to check"),
     symbol: str = Query(..., description="Symbol to get tags for"),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_validated_user)
 ):
     """
     Get tags from existing positions of same symbol.

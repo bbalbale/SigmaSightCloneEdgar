@@ -35,8 +35,9 @@ from datetime import datetime
 import random
 
 from app.database import get_db
-from app.core.dependencies import get_current_user, CurrentUser
+from app.core.dependencies import get_validated_user
 from app.agent.models.conversations import Conversation, ConversationMessage
+from app.models.users import User
 from app.models.users import Portfolio
 from app.agent.schemas.chat import MessageSend
 from app.agent.schemas.sse import (
@@ -53,6 +54,7 @@ from app.core.logging import get_logger
 from app.config import settings
 from app.database import AsyncSessionLocal, get_ai_session
 from app.services.ai_metrics_service import record_ai_metrics
+from app.services.usage_service import check_and_increment_ai_messages
 
 logger = get_logger(__name__)
 
@@ -131,7 +133,7 @@ async def sse_generator(
     message_text: str,
     conversation: Conversation,
     db: AsyncSession,
-    current_user: CurrentUser,
+    current_user: User,
     request: Request = None,
     ui_context: dict = None
 ) -> AsyncGenerator[str, None]:
@@ -698,7 +700,7 @@ async def send_message(
     http_request: Request,  # FastAPI Request object for headers
     message_data: MessageSend,  # Renamed to avoid confusion
     db: AsyncSession = Depends(get_db),
-    current_user: CurrentUser = Depends(get_current_user)
+    current_user: User = Depends(get_validated_user)
 ) -> StreamingResponse:
     """
     Send a message to a conversation and stream the response via SSE.
@@ -734,7 +736,27 @@ async def send_message(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Not authorized to access this conversation"
             )
-        
+
+        # Check AI message limit (Phase 2 - Clerk Auth/Billing)
+        # Get full User object for tier-based limit checking
+        user_result = await db.execute(
+            select(User).where(User.id == current_user.id)
+        )
+        user = user_result.scalar_one_or_none()
+        if user:
+            allowed, remaining, limit = await check_and_increment_ai_messages(db, user)
+            if not allowed:
+                raise HTTPException(
+                    status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                    detail={
+                        "error": "ai_limit_reached",
+                        "message": f"You've reached your monthly AI message limit ({limit} messages). Upgrade to Pro for more.",
+                        "limit": limit,
+                        "used": limit,
+                        "tier": user.tier,
+                    }
+                )
+
         # Create SSE generator
         # Convert ui_context to dict if present
         ui_context_dict = message_data.ui_context.model_dump(exclude_none=True) if message_data.ui_context else None

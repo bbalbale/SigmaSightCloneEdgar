@@ -2,7 +2,14 @@
  * Centralized Authentication Manager
  * Maintains a single shared session for portfolio + chat features
  * Works alongside chatAuthService, which handles cookie-based chat auth
+ *
+ * CLERK MIGRATION NOTE:
+ * With Clerk auth, tokens are now stored in clerkTokenStore (synced by ClerkTokenSync component).
+ * getAccessToken() checks clerkTokenStore first, then falls back to localStorage for legacy tokens.
+ * This ensures all existing services work with Clerk auth without individual updates.
  */
+
+import { getClerkToken } from '@/lib/clerkTokenStore'
 
 interface AuthUser {
   id: string
@@ -123,9 +130,17 @@ class AuthManager {
   }
 
   /**
-   * Retrieve the current access token (may be expired)
+   * Retrieve the current access token
+   * Checks Clerk token store first (new auth), then falls back to localStorage (legacy)
    */
   getAccessToken(): string | null {
+    // First, check for Clerk token (new auth path)
+    const clerkToken = getClerkToken()
+    if (clerkToken) {
+      return clerkToken
+    }
+
+    // Fall back to legacy localStorage token
     if (!this.session) {
       this.hydrateSession()
     }

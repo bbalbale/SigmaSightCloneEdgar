@@ -6,6 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button'
 import { User, RefreshCw, Zap, AlertCircle, CheckCircle2 } from 'lucide-react'
 import { PortfolioManagement } from '@/components/settings/PortfolioManagement'
+import { AccountBillingSettings } from '@/components/settings/AccountBillingSettings'
 import { MemoryPanel } from '@/components/ai/MemoryPanel'
 import { BriefingSettings } from '@/components/settings/BriefingSettings'
 import { useRecalculateAnalytics } from '@/hooks/useRecalculateAnalytics'
@@ -30,26 +31,8 @@ export function SettingsContainer() {
         <p className="text-muted-foreground mt-2">Manage your account settings and preferences</p>
       </div>
 
-      {/* User Profile Section */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <User className="h-5 w-5" />
-            User Profile
-          </CardTitle>
-          <CardDescription>Your account information</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div>
-            <label className="text-sm font-medium text-muted-foreground">Full Name</label>
-            <p className="text-base mt-1">{user?.fullName || 'N/A'}</p>
-          </div>
-          <div>
-            <label className="text-sm font-medium text-muted-foreground">Email</label>
-            <p className="text-base mt-1">{user?.email || 'N/A'}</p>
-          </div>
-        </CardContent>
-      </Card>
+      {/* Account & Billing Section (Clerk Integration) */}
+      <AccountBillingSettings />
 
       {/* Portfolio Management - Multi-Portfolio Feature (November 3, 2025) */}
       {/* Always show for single portfolio users so they can add more portfolios */}

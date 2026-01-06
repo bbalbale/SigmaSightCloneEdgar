@@ -16,7 +16,8 @@ from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.core.dependencies import get_current_user
+from app.core.dependencies import get_validated_user
+from app.core.clerk_auth import get_current_user_clerk
 from app.core.uuid_strategy import generate_portfolio_uuid
 from app.database import get_db
 from app.models.users import User, Portfolio
@@ -34,6 +35,7 @@ from app.schemas.portfolios import (
 from app.core.logging import get_logger
 from app.core.trading_calendar import get_most_recent_trading_day
 from app.batch.batch_orchestrator import batch_orchestrator
+from app.config import get_tier_limit
 from app.batch.batch_run_tracker import batch_run_tracker, CurrentBatchRun
 from app.core.datetime_utils import utc_now
 
@@ -48,7 +50,7 @@ CurrentUser = User
 @router.post("", response_model=PortfolioResponse, status_code=status.HTTP_201_CREATED)
 async def create_portfolio(
     portfolio_data: PortfolioCreateRequest,
-    current_user: CurrentUser = Depends(get_current_user),
+    current_user: User = Depends(get_validated_user),
     db: AsyncSession = Depends(get_db)
 ):
     """
@@ -69,6 +71,32 @@ async def create_portfolio(
         400: Invalid portfolio data
     """
     try:
+        # Check portfolio limit based on user tier (Phase 2 - Clerk Auth/Billing)
+        # Get user's tier - current_user may be CurrentUser schema or User model
+        user_tier = getattr(current_user, 'tier', 'free') or 'free'
+        max_portfolios = get_tier_limit(user_tier, 'max_portfolios')
+
+        # Count existing portfolios for this user
+        count_result = await db.execute(
+            select(func.count(Portfolio.id)).where(
+                Portfolio.user_id == current_user.id,
+                Portfolio.deleted_at.is_(None)  # Only count non-deleted portfolios
+            )
+        )
+        current_count = count_result.scalar() or 0
+
+        if current_count >= max_portfolios:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail={
+                    "error": "portfolio_limit_reached",
+                    "message": f"You've reached your portfolio limit ({max_portfolios}). Upgrade to Pro for more.",
+                    "limit": max_portfolios,
+                    "current_count": current_count,
+                    "tier": user_tier,
+                }
+            )
+
         # Generate UUID using shared UUIDStrategy (respects DETERMINISTIC_UUIDS setting)
         portfolio_uuid = generate_portfolio_uuid(
             user_id=current_user.id,
@@ -130,7 +158,7 @@ async def create_portfolio(
 @router.get("", response_model=PortfolioListResponse)
 async def list_portfolios(
     include_inactive: bool = False,
-    current_user: CurrentUser = Depends(get_current_user),
+    current_user: User = Depends(get_current_user_clerk),
     db: AsyncSession = Depends(get_db)
 ):
     """
@@ -223,7 +251,7 @@ async def list_portfolios(
 @router.get("/{portfolio_id}", response_model=PortfolioResponse)
 async def get_portfolio(
     portfolio_id: UUID,
-    current_user: CurrentUser = Depends(get_current_user),
+    current_user: User = Depends(get_current_user_clerk),
     db: AsyncSession = Depends(get_db)
 ):
     """
@@ -302,7 +330,7 @@ async def get_portfolio(
 async def update_portfolio(
     portfolio_id: UUID,
     portfolio_data: PortfolioUpdateRequest,
-    current_user: CurrentUser = Depends(get_current_user),
+    current_user: User = Depends(get_validated_user),
     db: AsyncSession = Depends(get_db)
 ):
     """
@@ -405,7 +433,7 @@ async def update_portfolio(
 @router.delete("/{portfolio_id}", response_model=PortfolioDeleteResponse)
 async def delete_portfolio(
     portfolio_id: UUID,
-    current_user: CurrentUser = Depends(get_current_user),
+    current_user: User = Depends(get_validated_user),
     db: AsyncSession = Depends(get_db)
 ):
     """
@@ -494,7 +522,7 @@ async def delete_portfolio(
 async def trigger_portfolio_calculations(
     portfolio_id: UUID,
     background_tasks: BackgroundTasks,
-    current_user: CurrentUser = Depends(get_current_user),
+    current_user: User = Depends(get_validated_user),
     db: AsyncSession = Depends(get_db)
 ):
     """
@@ -591,7 +619,7 @@ async def trigger_portfolio_calculations(
 async def get_portfolio_batch_status(
     portfolio_id: UUID,
     batch_run_id: str,
-    current_user: CurrentUser = Depends(get_current_user),
+    current_user: User = Depends(get_current_user_clerk),
     db: AsyncSession = Depends(get_db)
 ):
     """

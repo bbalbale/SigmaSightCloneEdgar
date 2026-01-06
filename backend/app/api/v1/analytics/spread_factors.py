@@ -19,8 +19,9 @@ from typing import List, Optional
 import time
 
 from app.database import get_db
-from app.core.dependencies import get_current_user, validate_portfolio_ownership
-from app.schemas.auth import CurrentUser
+from app.core.dependencies import validate_portfolio_ownership
+from app.core.clerk_auth import get_current_user_clerk
+from app.models.users import User
 from app.models.market_data import FactorDefinition, FactorExposure
 from app.calculations.factor_interpretation import interpret_spread_beta
 from app.core.logging import get_logger
@@ -53,7 +54,7 @@ class SpreadFactorsResponse(BaseModel):
 @router.get("/{portfolio_id}/spread-factors", response_model=SpreadFactorsResponse)
 async def get_portfolio_spread_factors(
     portfolio_id: UUID,
-    current_user: CurrentUser = Depends(get_current_user),
+    current_user: User = Depends(get_current_user_clerk),
     db: AsyncSession = Depends(get_db),
 ):
     """

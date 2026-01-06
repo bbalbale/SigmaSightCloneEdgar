@@ -1,5 +1,6 @@
-﻿import type { Metadata } from 'next'
+import type { Metadata } from 'next'
 import { Inter } from 'next/font/google'
+import { ClerkProvider } from '@clerk/nextjs'
 import '@/styles/globals.css'
 import '@/styles/theme-utilities.css'
 import { Providers } from './providers'
@@ -29,18 +30,20 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="en" className="h-full dark">
-      <body className={`${inter.variable} font-sans antialiased h-full bg-background text-foreground`}>
-        <Providers>
-          <div className="flex min-h-screen flex-col">
-            <ConditionalNavigationHeader />
-            <main className="flex-1 pb-16 md:pb-0">
-              {children}
-            </main>
-            <BottomNavigation className="md:hidden" />
-          </div>
-        </Providers>
-      </body>
-    </html>
+    <ClerkProvider>
+      <html lang="en" className="h-full dark">
+        <body className={`${inter.variable} font-sans antialiased h-full bg-background text-foreground`}>
+          <Providers>
+            <div className="flex min-h-screen flex-col">
+              <ConditionalNavigationHeader />
+              <main className="flex-1 pb-16 md:pb-0">
+                {children}
+              </main>
+              <BottomNavigation className="md:hidden" />
+            </div>
+          </Providers>
+        </body>
+      </html>
+    </ClerkProvider>
   )
 }

@@ -13,7 +13,7 @@ from decimal import Decimal
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.dependencies import get_current_user
+from app.core.clerk_auth import get_current_user_clerk
 from app.database import get_db
 from app.models.users import User
 from app.services.portfolio_aggregation_service import PortfolioAggregationService
@@ -23,14 +23,11 @@ logger = get_logger(__name__)
 
 router = APIRouter(prefix="/aggregate", tags=["aggregate-analytics"])
 
-# Type alias
-CurrentUser = User
-
 
 @router.get("/overview")
 async def get_aggregate_overview(
     portfolio_ids: Optional[List[UUID]] = Query(None, description="Specific portfolio IDs to aggregate. If None, aggregates all active portfolios."),
-    current_user: CurrentUser = Depends(get_current_user),
+    current_user: User = Depends(get_current_user_clerk),
     db: AsyncSession = Depends(get_db)
 ):
     """
@@ -77,7 +74,7 @@ async def get_aggregate_overview(
 @router.get("/breakdown")
 async def get_portfolio_breakdown(
     portfolio_ids: Optional[List[UUID]] = Query(None),
-    current_user: CurrentUser = Depends(get_current_user),
+    current_user: User = Depends(get_current_user_clerk),
     db: AsyncSession = Depends(get_db)
 ):
     """
@@ -140,7 +137,7 @@ async def get_portfolio_breakdown(
 @router.get("/beta")
 async def get_aggregate_beta(
     portfolio_ids: Optional[List[UUID]] = Query(None),
-    current_user: CurrentUser = Depends(get_current_user),
+    current_user: User = Depends(get_current_user_clerk),
     db: AsyncSession = Depends(get_db)
 ):
     """
@@ -253,7 +250,7 @@ async def get_aggregate_beta(
 @router.get("/volatility")
 async def get_aggregate_volatility(
     portfolio_ids: Optional[List[UUID]] = Query(None),
-    current_user: CurrentUser = Depends(get_current_user),
+    current_user: User = Depends(get_current_user_clerk),
     db: AsyncSession = Depends(get_db)
 ):
     """
@@ -364,7 +361,7 @@ async def get_aggregate_volatility(
 @router.get("/factor-exposures")
 async def get_aggregate_factor_exposures(
     portfolio_ids: Optional[List[UUID]] = Query(None),
-    current_user: CurrentUser = Depends(get_current_user),
+    current_user: User = Depends(get_current_user_clerk),
     db: AsyncSession = Depends(get_db)
 ):
     """
@@ -446,7 +443,7 @@ async def get_aggregate_factor_exposures(
 @router.get("/sector-exposure")
 async def get_aggregate_sector_exposure(
     portfolio_ids: Optional[List[UUID]] = Query(None),
-    current_user: CurrentUser = Depends(get_current_user),
+    current_user: User = Depends(get_current_user_clerk),
     db: AsyncSession = Depends(get_db)
 ):
     """
@@ -568,7 +565,7 @@ async def get_aggregate_sector_exposure(
 @router.get("/concentration")
 async def get_aggregate_concentration(
     portfolio_ids: Optional[List[UUID]] = Query(None),
-    current_user: CurrentUser = Depends(get_current_user),
+    current_user: User = Depends(get_current_user_clerk),
     db: AsyncSession = Depends(get_db)
 ):
     """
@@ -701,7 +698,7 @@ async def get_aggregate_concentration(
 async def get_aggregate_correlation_matrix(
     portfolio_ids: Optional[List[UUID]] = Query(None),
     max_symbols: int = Query(25, description="Maximum symbols to include in matrix"),
-    current_user: CurrentUser = Depends(get_current_user),
+    current_user: User = Depends(get_current_user_clerk),
     db: AsyncSession = Depends(get_db)
 ):
     """
@@ -864,7 +861,7 @@ async def get_aggregate_correlation_matrix(
 @router.get("/stress-test")
 async def get_aggregate_stress_test(
     portfolio_ids: Optional[List[UUID]] = Query(None),
-    current_user: CurrentUser = Depends(get_current_user),
+    current_user: User = Depends(get_current_user_clerk),
     db: AsyncSession = Depends(get_db)
 ):
     """

@@ -4,7 +4,7 @@ User and Portfolio models
 from datetime import datetime
 from decimal import Decimal
 from uuid import uuid4
-from sqlalchemy import String, DateTime, ForeignKey, UniqueConstraint, Index, Numeric, Boolean
+from sqlalchemy import String, DateTime, ForeignKey, UniqueConstraint, Index, Numeric, Boolean, Integer
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from typing import Optional, List
@@ -14,7 +14,7 @@ from app.database import Base
 class User(Base):
     """User model - stores user account information"""
     __tablename__ = "users"
-    
+
     id: Mapped[UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid4)
     email: Mapped[str] = mapped_column(String(255), unique=True, nullable=False, index=True)
     hashed_password: Mapped[str] = mapped_column(String(255), nullable=False)
@@ -22,6 +22,13 @@ class User(Base):
     is_active: Mapped[bool] = mapped_column(default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Clerk Authentication & Billing (Phase 2)
+    clerk_user_id: Mapped[Optional[str]] = mapped_column(String(255), unique=True, nullable=True, index=True)
+    tier: Mapped[str] = mapped_column(String(20), default='free', server_default='free')
+    invite_validated: Mapped[bool] = mapped_column(Boolean, default=False, server_default='false')
+    ai_messages_used: Mapped[int] = mapped_column(Integer, default=0, server_default='0')
+    ai_messages_reset_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow, server_default='now()')
     
     # Relationships
     portfolios: Mapped[List["Portfolio"]] = relationship("Portfolio", back_populates="user", uselist=True, cascade="all, delete-orphan")
