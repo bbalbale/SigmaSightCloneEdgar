@@ -51,6 +51,9 @@ const isPublicRoute = (path: string | null) => {
   return publicPaths.includes(path)
 }
 
+// JWT template name configured in Clerk Dashboard with 1-hour lifetime
+const CLERK_JWT_TEMPLATE = 'sigmasight-session'
+
 /**
  * ClerkTokenSync - Syncs Clerk JWT tokens to the global token store
  * This allows non-React code (like apiClient) to access the current token
@@ -59,9 +62,11 @@ function ClerkTokenSync() {
   const { getToken, isSignedIn } = useClerkAuth()
 
   // Register the token refresh function so non-React code can request fresh tokens
+  // Wrap getToken to always use our custom template
   useEffect(() => {
     if (isSignedIn) {
-      setTokenRefreshFn(getToken)
+      const getTokenWithTemplate = () => getToken({ template: CLERK_JWT_TEMPLATE })
+      setTokenRefreshFn(getTokenWithTemplate)
     } else {
       setTokenRefreshFn(null)
     }
@@ -77,10 +82,11 @@ function ClerkTokenSync() {
 
       if (isSignedIn) {
         try {
-          const token = await getToken()
+          // Use custom JWT template with 1-hour lifetime
+          const token = await getToken({ template: CLERK_JWT_TEMPLATE })
           if (mounted && token) {
-            // Set token with 55 second expiry (Clerk tokens last 60 seconds)
-            setClerkToken(token, Date.now() + 55000)
+            // Set token with 55 minute expiry (template configured for 1 hour)
+            setClerkToken(token, Date.now() + 55 * 60 * 1000)
           }
         } catch (error) {
           console.warn('Failed to sync Clerk token:', error)
@@ -93,9 +99,9 @@ function ClerkTokenSync() {
     // Initial sync
     syncToken()
 
-    // Refresh token every 50 seconds (before the 60-second expiry)
+    // Refresh token every 50 minutes (before the 1-hour expiry)
     if (isSignedIn) {
-      refreshInterval = setInterval(syncToken, 50000)
+      refreshInterval = setInterval(syncToken, 50 * 60 * 1000)
     }
 
     return () => {

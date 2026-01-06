@@ -32,8 +32,8 @@ export function InviteCodeForm({ onSuccess }: InviteCodeFormProps) {
     setError(null)
 
     try {
-      // Get fresh Clerk token to avoid race condition
-      const token = await getToken()
+      // Get fresh Clerk token using custom template with 1-hour lifetime
+      const token = await getToken({ template: 'sigmasight-session' })
       if (!token) {
         setError('Authentication error. Please refresh and try again.')
         setLoading(false)

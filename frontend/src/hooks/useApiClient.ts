@@ -29,6 +29,9 @@
 import { useAuth } from '@clerk/nextjs'
 import { useCallback } from 'react'
 
+// JWT template name configured in Clerk Dashboard with 1-hour lifetime
+const CLERK_JWT_TEMPLATE = 'sigmasight-session'
+
 interface UseApiClientReturn {
   /**
    * Authenticated fetch wrapper - adds Authorization header automatically
@@ -64,7 +67,7 @@ export function useApiClient(): UseApiClientReturn {
    */
   const authFetch = useCallback(
     async (url: string, options?: RequestInit): Promise<Response> => {
-      const token = await getToken()
+      const token = await getToken({ template: CLERK_JWT_TEMPLATE })
 
       const headers: HeadersInit = {
         ...options?.headers,
@@ -87,7 +90,7 @@ export function useApiClient(): UseApiClientReturn {
    * Get headers for manual use (SSE, file uploads, etc.)
    */
   const getAuthHeaders = useCallback(async (): Promise<HeadersInit> => {
-    const token = await getToken()
+    const token = await getToken({ template: CLERK_JWT_TEMPLATE })
     const headers: HeadersInit = {
       'Content-Type': 'application/json',
     }
@@ -101,7 +104,7 @@ export function useApiClient(): UseApiClientReturn {
    * Get token directly
    */
   const getTokenDirect = useCallback(async (): Promise<string | null> => {
-    return await getToken()
+    return await getToken({ template: CLERK_JWT_TEMPLATE })
   }, [getToken])
 
   return {
