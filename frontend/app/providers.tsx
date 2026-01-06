@@ -5,7 +5,7 @@ import { useRouter, usePathname } from 'next/navigation'
 import { useAuth as useClerkAuth, useUser, useClerk } from '@clerk/nextjs'
 import { portfolioResolver } from '@/services/portfolioResolver'
 import { setPortfolioState, clearPortfolioState } from '@/stores/portfolioStore'
-import { setClerkToken, clearClerkToken } from '@/lib/clerkTokenStore'
+import { setClerkToken, clearClerkToken, setTokenRefreshFn } from '@/lib/clerkTokenStore'
 import { ThemeProvider } from '@/contexts/ThemeContext'
 
 interface User {
@@ -57,6 +57,16 @@ const isPublicRoute = (path: string | null) => {
  */
 function ClerkTokenSync() {
   const { getToken, isSignedIn } = useClerkAuth()
+
+  // Register the token refresh function so non-React code can request fresh tokens
+  useEffect(() => {
+    if (isSignedIn) {
+      setTokenRefreshFn(getToken)
+    } else {
+      setTokenRefreshFn(null)
+    }
+    return () => setTokenRefreshFn(null)
+  }, [getToken, isSignedIn])
 
   useEffect(() => {
     let mounted = true

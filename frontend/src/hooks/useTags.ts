@@ -32,11 +32,7 @@ export function useTags(options: UseTagsOptions = {}): UseTagsReturn {
     setError(null)
 
     try {
-      const token = localStorage.getItem('access_token')
-      if (!token) {
-        throw new Error('Not authenticated')
-      }
-
+      // tagsApi uses apiClient which handles Clerk token auth via interceptor
       const fetchedTags = await tagsApi.list(includeArchived)
       setTags(fetchedTags || [])
     } catch (err) {

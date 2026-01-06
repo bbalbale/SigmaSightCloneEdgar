@@ -19,6 +19,7 @@
 import { useAIChatStore } from '@/stores/aiChatStore'
 import type { AIChatMessage } from '@/stores/aiChatStore'
 import { usePortfolioStore } from '@/stores/portfolioStore'
+import { getClerkTokenAsync } from '@/lib/clerkTokenStore'
 
 // Use the Next.js proxy to avoid CORS issues
 // The proxy at /api/proxy forwards to BACKEND_URL configured on the server
@@ -56,7 +57,8 @@ interface CreateConversationResponse {
  * Create a new conversation with portfolio context
  */
 async function createConversation(portfolioId?: string, pageHint?: string, route?: string, portfolioIds?: string[]): Promise<CreateConversationResponse> {
-  const token = localStorage.getItem('access_token')
+  // Get token from Clerk (with auto-refresh if expired)
+  const token = await getClerkTokenAsync()
   if (!token) {
     throw new Error('Not authenticated')
   }
@@ -131,8 +133,8 @@ export async function sendAIMessage(options: SendMessageOptions): Promise<void> 
     }
   }
 
-  // Get auth token from localStorage
-  const token = localStorage.getItem('access_token')
+  // Get auth token from Clerk (with auto-refresh if expired)
+  const token = await getClerkTokenAsync()
   if (!token) {
     const error = 'Not authenticated'
     onError?.(error)

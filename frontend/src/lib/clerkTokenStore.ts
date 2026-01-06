@@ -19,6 +19,7 @@
 
 let _clerkToken: string | null = null
 let _tokenExpiresAt: number | null = null
+let _tokenRefreshFn: (() => Promise<string | null>) | null = null
 
 /**
  * Set the current Clerk token (called from React components)
@@ -28,6 +29,14 @@ let _tokenExpiresAt: number | null = null
 export function setClerkToken(token: string | null, expiresAt?: number): void {
   _clerkToken = token
   _tokenExpiresAt = expiresAt ?? null
+}
+
+/**
+ * Register a token refresh function (called from ClerkTokenSync)
+ * This allows non-React code to trigger token refresh when needed
+ */
+export function setTokenRefreshFn(fn: (() => Promise<string | null>) | null): void {
+  _tokenRefreshFn = fn
 }
 
 /**
@@ -42,6 +51,34 @@ export function getClerkToken(): string | null {
     return null
   }
   return _clerkToken
+}
+
+/**
+ * Get token with automatic refresh if expired (async version for apiClient)
+ * This will attempt to refresh the token if it's expired
+ */
+export async function getClerkTokenAsync(): Promise<string | null> {
+  // First check if we have a valid cached token
+  const cachedToken = getClerkToken()
+  if (cachedToken) {
+    return cachedToken
+  }
+
+  // Token is expired or missing - try to refresh if we have a refresh function
+  if (_tokenRefreshFn) {
+    try {
+      const newToken = await _tokenRefreshFn()
+      if (newToken) {
+        // Update the cache with 55 second expiry
+        setClerkToken(newToken, Date.now() + 55000)
+        return newToken
+      }
+    } catch (error) {
+      console.warn('Failed to refresh Clerk token:', error)
+    }
+  }
+
+  return null
 }
 
 /**

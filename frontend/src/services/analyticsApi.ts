@@ -22,11 +22,7 @@ import type {
   AggregateStressTestResponse,
 } from '@/types/analytics';
 
-function getAuthHeader(): Record<string, string> {
-  if (typeof window === 'undefined') return {};
-  const token = localStorage.getItem('access_token');
-  return token ? { Authorization: `Bearer ${token}` } : {};
-}
+// Note: apiClient handles Clerk token auth via interceptor, no manual auth headers needed
 
 export const analyticsApi = {
   async getOverview(portfolioId: string): Promise<{ data: PortfolioOverviewResponse; url: string }> {
@@ -34,7 +30,6 @@ export const analyticsApi = {
     const url = apiClient.buildUrl(endpoint);
     const data = await apiClient.get<PortfolioOverviewResponse>(endpoint, {
       ...REQUEST_CONFIGS.ANALYTICS_HEAVY,
-      headers: { ...getAuthHeader() },
     });
     return { data, url };
   },
@@ -53,7 +48,6 @@ export const analyticsApi = {
     const url = apiClient.buildUrl(fullEndpoint);
     const data = await apiClient.get<CorrelationMatrixResponse>(fullEndpoint, {
       ...REQUEST_CONFIGS.CALCULATION,
-      headers: { ...getAuthHeader() },
     });
     return { data, url };
   },
@@ -66,7 +60,6 @@ export const analyticsApi = {
     const url = apiClient.buildUrl(endpoint);
     const data = await apiClient.get<DiversificationScoreResponse>(endpoint, {
       ...REQUEST_CONFIGS.STANDARD,
-      headers: { ...getAuthHeader() },
     });
     return { data, url };
   },
@@ -83,7 +76,6 @@ export const analyticsApi = {
     const url = apiClient.buildUrl(endpoint);
     const data = await apiClient.get<PortfolioFactorExposuresResponse>(endpoint, {
       ...REQUEST_CONFIGS.ANALYTICS_HEAVY,
-      headers: { ...getAuthHeader() },
     });
     return { data, url };
   },
@@ -102,7 +94,6 @@ export const analyticsApi = {
     const url = apiClient.buildUrl(fullEndpoint);
     const data = await apiClient.get<PositionFactorExposuresResponse>(fullEndpoint, {
       ...REQUEST_CONFIGS.STANDARD,
-      headers: { ...getAuthHeader() },
     });
     return { data, url };
   },
@@ -120,7 +111,6 @@ export const analyticsApi = {
     const url = apiClient.buildUrl(fullEndpoint);
     const data = await apiClient.get<StressTestResponse>(fullEndpoint, {
       ...REQUEST_CONFIGS.CALCULATION,
-      headers: { ...getAuthHeader() },
     });
     return { data, url };
   },
@@ -133,7 +123,6 @@ export const analyticsApi = {
     const url = apiClient.buildUrl(endpoint);
     const data = await apiClient.get<VolatilityMetricsResponse>(endpoint, {
       ...REQUEST_CONFIGS.STANDARD,
-      headers: { ...getAuthHeader() },
     });
     return { data, url };
   },
@@ -146,7 +135,6 @@ export const analyticsApi = {
     const url = apiClient.buildUrl(endpoint);
     const data = await apiClient.get<SectorExposureResponse>(endpoint, {
       ...REQUEST_CONFIGS.STANDARD,
-      headers: { ...getAuthHeader() },
     });
     return { data, url };
   },
@@ -159,7 +147,6 @@ export const analyticsApi = {
     const url = apiClient.buildUrl(endpoint);
     const data = await apiClient.get<ConcentrationMetricsResponse>(endpoint, {
       ...REQUEST_CONFIGS.STANDARD,
-      headers: { ...getAuthHeader() },
     });
     return { data, url };
   },
@@ -173,7 +160,6 @@ export const analyticsApi = {
     const url = apiClient.buildUrl(endpoint);
     const data = await apiClient.get<AggregateOverviewResponse>(endpoint, {
       ...REQUEST_CONFIGS.STANDARD,
-      headers: { ...getAuthHeader() },
     });
     return { data, url };
   },
@@ -183,7 +169,6 @@ export const analyticsApi = {
     const url = apiClient.buildUrl(endpoint);
     const data = await apiClient.get<AggregateBreakdownResponse>(endpoint, {
       ...REQUEST_CONFIGS.STANDARD,
-      headers: { ...getAuthHeader() },
     });
     return { data, url };
   },
@@ -193,7 +178,6 @@ export const analyticsApi = {
     const url = apiClient.buildUrl(endpoint);
     const data = await apiClient.get<AggregateBetaResponse>(endpoint, {
       ...REQUEST_CONFIGS.STANDARD,
-      headers: { ...getAuthHeader() },
     });
     return { data, url };
   },
@@ -203,7 +187,6 @@ export const analyticsApi = {
     const url = apiClient.buildUrl(endpoint);
     const data = await apiClient.get<AggregateVolatilityResponse>(endpoint, {
       ...REQUEST_CONFIGS.STANDARD,
-      headers: { ...getAuthHeader() },
     });
     return { data, url };
   },
@@ -213,7 +196,6 @@ export const analyticsApi = {
     const url = apiClient.buildUrl(endpoint);
     const data = await apiClient.get<AggregateFactorExposuresResponse>(endpoint, {
       ...REQUEST_CONFIGS.ANALYTICS_HEAVY,
-      headers: { ...getAuthHeader() },
     });
     return { data, url };
   },
@@ -223,7 +205,6 @@ export const analyticsApi = {
     const url = apiClient.buildUrl(endpoint);
     const data = await apiClient.get<AggregateSectorExposureResponse>(endpoint, {
       ...REQUEST_CONFIGS.STANDARD,
-      headers: { ...getAuthHeader() },
     });
     return { data, url };
   },
@@ -233,7 +214,6 @@ export const analyticsApi = {
     const url = apiClient.buildUrl(endpoint);
     const data = await apiClient.get<AggregateConcentrationResponse>(endpoint, {
       ...REQUEST_CONFIGS.STANDARD,
-      headers: { ...getAuthHeader() },
     });
     return { data, url };
   },
@@ -250,7 +230,6 @@ export const analyticsApi = {
     const url = apiClient.buildUrl(endpoint);
     const data = await apiClient.get<AggregateCorrelationMatrixResponse>(endpoint, {
       ...REQUEST_CONFIGS.CALCULATION,
-      headers: { ...getAuthHeader() },
     });
     return { data, url };
   },
@@ -260,7 +239,6 @@ export const analyticsApi = {
     const url = apiClient.buildUrl(endpoint);
     const data = await apiClient.get<AggregateStressTestResponse>(endpoint, {
       ...REQUEST_CONFIGS.CALCULATION,
-      headers: { ...getAuthHeader() },
     });
     return { data, url };
   },

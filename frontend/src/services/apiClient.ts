@@ -377,10 +377,11 @@ apiClient.addRequestInterceptor(async (url, config) => {
   let token: string | null = null;
 
   // Try to get Clerk token first (new auth system)
+  // Use getClerkTokenAsync which will auto-refresh if expired
   if (typeof window !== 'undefined') {
     try {
-      const { getClerkToken } = await import('@/lib/clerkTokenStore');
-      token = getClerkToken();
+      const { getClerkTokenAsync } = await import('@/lib/clerkTokenStore');
+      token = await getClerkTokenAsync();
     } catch {
       // Clerk token store not available yet
     }

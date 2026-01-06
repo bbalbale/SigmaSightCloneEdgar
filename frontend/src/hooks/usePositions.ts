@@ -67,11 +67,6 @@ export function usePositions(options: UsePositionsOptions = {}): UsePositionsRet
     setError(null)
 
     try {
-      const token = localStorage.getItem('access_token')
-      if (!token) {
-        throw new Error('Not authenticated')
-      }
-
       // Build query parameters
       const params = new URLSearchParams({
         portfolio_id: portfolioId
@@ -82,11 +77,9 @@ export function usePositions(options: UsePositionsOptions = {}): UsePositionsRet
       }
 
       // Fetch positions from API
+      // apiClient handles Clerk token auth via interceptor
       const response = await apiClient.get<{ positions: Position[] }>(
-        `/api/v1/data/positions/details?${params.toString()}`,
-        {
-          headers: { Authorization: `Bearer ${token}` }
-        }
+        `/api/v1/data/positions/details?${params.toString()}`
       )
 
       console.log('[usePositions] Raw API response:', response)

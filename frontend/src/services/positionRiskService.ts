@@ -12,11 +12,7 @@
 import { apiClient } from './apiClient'
 import { API_ENDPOINTS } from '@/config/api'
 
-function getAuthHeader(): Record<string, string> {
-  if (typeof window === 'undefined') return {}
-  const token = localStorage.getItem('access_token')
-  return token ? { Authorization: `Bearer ${token}` } : {}
-}
+// Note: apiClient handles Clerk token auth via interceptor, no manual auth headers needed
 
 // Types
 // Factor names must match backend FactorDefinition names in seed_factors.py
@@ -80,13 +76,11 @@ export async function getPositionRiskMetrics(
 
   try {
     // Fetch position factor exposures
+    // apiClient handles auth via Clerk token interceptor
     const factorEndpoint = API_ENDPOINTS.ANALYTICS.POSITIONS_FACTOR_EXPOSURES(portfolioId)
     const factorResponse = await apiClient.get<PositionFactorExposuresResponse>(
       `${factorEndpoint}?symbols=${symbol}`,
-      {
-        headers: { ...getAuthHeader() },
-        timeout: 10000
-      }
+      { timeout: 10000 }
     )
 
     console.log('🔍 Position Risk Service: Factor exposures response', factorResponse)
@@ -121,12 +115,10 @@ export async function getBatchPositionFactorExposures(
   const symbolsParam = symbols.join(',')
 
   try {
+    // apiClient handles auth via Clerk token interceptor
     const response = await apiClient.get<PositionFactorExposuresResponse>(
       `${endpoint}?symbols=${symbolsParam}`,
-      {
-        headers: { ...getAuthHeader() },
-        timeout: 15000
-      }
+      { timeout: 15000 }
     )
 
     const exposuresMap = new Map<string, PositionFactorExposures>()
