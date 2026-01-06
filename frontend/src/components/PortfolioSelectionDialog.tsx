@@ -45,8 +45,8 @@ export function PortfolioSelectionDialog({ trigger }: PortfolioSelectionDialogPr
   const handlePortfolioSelect = (portfolioType: string) => {
     setOpen(false)
 
-    // Navigate to dashboard page (single portfolio per user)
-    router.push('/dashboard')
+    // Navigate to command center (main app entry point)
+    router.push('/command-center')
   }
 
   return (

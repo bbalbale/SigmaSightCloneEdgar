@@ -198,7 +198,9 @@ class Settings(BaseSettings):
     CLERK_SECRET_KEY: str = Field(default="", env="CLERK_SECRET_KEY")
     CLERK_WEBHOOK_SECRET: str = Field(default="", env="CLERK_WEBHOOK_SECRET")
     CLERK_DOMAIN: str = Field(default="", env="CLERK_DOMAIN")
-    CLERK_AUDIENCE: str = Field(default="sigmasight.io", env="CLERK_AUDIENCE")
+    # CLERK_AUDIENCE: Set to your JWT template audience if using custom templates.
+    # Leave empty (default) to skip audience validation for standard Clerk session tokens.
+    CLERK_AUDIENCE: str = Field(default="", env="CLERK_AUDIENCE")
 
     # Invite code enforcement
     INVITE_CODE_ENABLED: bool = Field(default=True, env="INVITE_CODE_ENABLED")
