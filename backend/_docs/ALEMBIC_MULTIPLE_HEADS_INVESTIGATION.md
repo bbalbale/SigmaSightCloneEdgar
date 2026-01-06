@@ -375,7 +375,7 @@ Edit `s5t6u7v8w9x0_add_clerk_auth_columns.py`:
 down_revision = 't6u7v8w9x0y1'  # Old merge migration
 
 # AFTER:
-down_revision = 'u7v8w9x0y1z2'  # Main's new merge migration
+down_revision = 'c4724714f341'  # Main's new merge migration
 ```
 
 ### Step 2.4: Rebase on main
@@ -403,7 +403,7 @@ git push --force-with-lease origin AuthOnboarding
 ```
 AuthOnboarding migration chain (clean, linear):
 
-u7v8w9x0y1z2 (main's merge) ← From main
+c4724714f341 (main's merge) ← From main
         │
         ▼
 s5t6u7v8w9x0 (Clerk auth columns)
@@ -425,9 +425,9 @@ Railway:        Has both heads stamped (fixed earlier)
 
 ### AFTER (Phase 1 + Phase 2 Complete)
 ```
-main:           Single head (u7v8w9x0y1z2)
+main:           Single head (c4724714f341) ✅ DONE
 AuthOnboarding: Clean branch with 2 migrations on top of main's merge
-Railway:        Single head (u7v8w9x0y1z2), ready for AuthOnboarding PR
+Railway:        Single head (c4724714f341) ✅ DONE
 ```
 
 ---
@@ -499,17 +499,17 @@ Require the CI check to pass before merging to `main`. This ensures:
 
 ## Execution Checklist
 
-### Phase 1: Fix Main Branch
+### Phase 1: Fix Main Branch ✅ COMPLETE (2026-01-05)
 - [x] Investigate multiple heads issue
 - [x] Document migration tree and divergence point
 - [x] Verify Railway production schema state
 - [x] Stamp Railway with Chain 1 head (`k8l9m0n1o2p3`)
-- [ ] Switch to main branch
-- [ ] Create merge migration (`u7v8w9x0y1z2`)
-- [ ] Verify single head with `alembic heads`
-- [ ] Commit and push to main
-- [ ] Deploy to Railway
-- [ ] Verify Railway has single head
+- [x] Switch to main branch
+- [x] Create merge migration (`c4724714f341`) - commit `43a61ebd`
+- [x] Verify single head with `alembic heads`
+- [x] Commit and push to main
+- [x] Deploy to Railway
+- [x] Verify Railway has single head (`c4724714f341`)
 
 ### Phase 2: Rebase AuthOnboarding
 - [ ] Switch to AuthOnboarding branch
