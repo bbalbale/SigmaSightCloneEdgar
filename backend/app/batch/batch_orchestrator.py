@@ -88,7 +88,7 @@ class BatchOrchestrator:
         end_date: Optional[date] = None,
         portfolio_ids: Optional[List[str]] = None,
         portfolio_id: Optional[str] = None,  # NEW: Single portfolio mode
-        source: str = "cron",                 # NEW: Entry point tracking
+        source: Optional[str] = None,        # NEW: Entry point tracking (None = auto-detect)
     ) -> Dict[str, Any]:
         """
         Main entry point - automatically detects and fills missing dates.
@@ -106,7 +106,8 @@ class BatchOrchestrator:
             portfolio_ids: Specific portfolios to process (defaults to all).
             portfolio_id: Single portfolio ID for onboarding/settings mode.
                          When provided, enables scoped mode (~40x faster).
-            source: Entry point for tracking ("cron", "onboarding", "settings", "admin")
+            source: Entry point for tracking ("cron", "onboarding", "settings", "admin").
+                   If None, auto-detects based on RAILWAY_ENVIRONMENT ("cron" vs "manual").
 
         Returns:
             Summary of backfill operation.
@@ -174,15 +175,8 @@ class BatchOrchestrator:
         start_time = asyncio.get_event_loop().time()
         analytics_runner.reset_caches()
 
-        # Generate batch run ID and record start (Phase 5 Admin Dashboard)
-        batch_run_id = f"batch_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-        # Use provided source parameter for tracking
+        # Determine triggered_by for batch history (used after confirming work exists)
         triggered_by = source if source else ("cron" if os.environ.get("RAILWAY_ENVIRONMENT") else "manual")
-        record_batch_start(
-            batch_run_id=batch_run_id,
-            triggered_by=triggered_by,
-            total_jobs=0,  # Updated after we know missing dates count
-        )
 
         # Step 1: Determine the date range to process
         async with AsyncSessionLocal() as db:
@@ -248,6 +242,15 @@ class BatchOrchestrator:
 
         logger.info(f"Backfilling {len(missing_dates)} missing dates: {missing_dates[0]} to {missing_dates[-1]}")
 
+        # NOW record batch start - only after confirming there's work to do
+        # This prevents orphaned "running" entries in batch_run_history
+        batch_run_id = f"batch_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        record_batch_start(
+            batch_run_id=batch_run_id,
+            triggered_by=triggered_by,
+            total_jobs=len(missing_dates),
+        )
+
         # =============================================================================
         # STEP 1: Run Phase 1 (Market Data) for ALL dates FIRST
         # This ensures market_data_cache has all prices before we load the price cache
@@ -279,6 +282,7 @@ class BatchOrchestrator:
         # NOTE: In scoped mode, only load portfolio symbols + factor ETFs
         # =============================================================================
         price_cache = None
+        symbols: set = set()  # Initialize to prevent undefined variable if exception occurs
         logger.debug(f"Loading price cache...")
         async with AsyncSessionLocal() as cache_db:
             # Get all symbols from active PUBLIC/OPTIONS positions
@@ -538,6 +542,11 @@ class BatchOrchestrator:
         This is ~40x faster than the old implementation which fetched market data
         for the entire 1,193 symbol universe.
 
+        IMPORTANT: This wrapper handles batch_run_tracker.complete() in a finally
+        block to ensure the tracker is always cleared, even on exceptions.
+        The caller (portfolios.py) calls batch_run_tracker.start(), so we must
+        ensure complete() is called to avoid stuck "running" status.
+
         Args:
             portfolio_id: UUID string of the portfolio to backfill
             end_date: Date to process up to (defaults to most recent trading day)
@@ -545,14 +554,24 @@ class BatchOrchestrator:
         Returns:
             Summary of backfill operation including dates processed and any errors
         """
+        from app.batch.batch_run_tracker import batch_run_tracker
+
         logger.info(f"Portfolio Onboarding Backfill: Delegating to unified function for {portfolio_id}")
 
-        # Delegate to unified function with single-portfolio mode enabled
-        return await self.run_daily_batch_with_backfill(
-            end_date=end_date,
-            portfolio_id=portfolio_id,
-            source="onboarding",
-        )
+        try:
+            # Delegate to unified function with single-portfolio mode enabled
+            result = await self.run_daily_batch_with_backfill(
+                end_date=end_date,
+                portfolio_id=portfolio_id,
+                source="onboarding",
+            )
+            return result
+        finally:
+            # CRITICAL: Always clear batch_run_tracker, even on exception
+            # The caller (portfolios.py) calls batch_run_tracker.start()
+            # We must call complete() to avoid stuck "running" status in UI
+            batch_run_tracker.complete()
+            logger.debug("Batch run tracker cleared (onboarding wrapper)")
 
     async def run_daily_batch_sequence(
         self,
