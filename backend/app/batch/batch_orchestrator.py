@@ -468,7 +468,7 @@ class BatchOrchestrator:
         Returns:
             Summary of backfill operation including dates processed and any errors
         """
-        from app.utils.trading_calendar import get_most_recent_trading_day
+        from app.core.trading_calendar import get_most_recent_trading_day
         from app.batch.batch_run_tracker import batch_run_tracker
 
         logger.info(f"Portfolio Onboarding Backfill: Starting for portfolio {portfolio_id}")
