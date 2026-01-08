@@ -272,6 +272,95 @@ Option B: Add cleanup before script exit
 
 ---
 
+### PHASE 6: Harden batch_run_history Error Handling (LOW)
+
+**Goal**: Ensure `batch_run_history` database rows don't get stuck in "running" status when batch crashes.
+
+**Problem Statement**:
+
+Currently, `run_daily_batch_with_backfill()` has this pattern:
+
+```python
+record_batch_start(batch_run_id, ...)  # Creates DB row: status="running"
+
+# Phase 1, 1.5, 1.75, 2-6 processing...
+# 💥 If crash/timeout/OOM here, DB row stays "running" forever
+
+record_batch_complete(batch_run_id, status="completed")  # Never reached on crash
+```
+
+This is separate from `batch_run_tracker` (in-memory, for UI polling) which we fixed in Phase 5. This is about the **persistent database record** in `batch_run_history` table.
+
+**Impact**:
+- Admin dashboard shows phantom "running" batches
+- Harder to debug - can't distinguish running vs crashed batches
+- Not user-facing (UI uses batch_run_tracker which is fixed)
+
+**Approach**: Wrap batch processing in try/except/finally to ensure `record_batch_complete()` is always called.
+
+**Files to Modify**:
+- `backend/app/batch/batch_orchestrator.py`
+
+**Changes**:
+
+```python
+async def run_daily_batch_with_backfill(...):
+    batch_run_id = None
+    try:
+        # ... date range calculation ...
+
+        batch_run_id = f"batch_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        record_batch_start(batch_run_id, triggered_by=triggered_by, total_jobs=len(missing_dates))
+
+        # ... Phase 1, 1.5, 1.75, 2-6 ...
+
+        record_batch_complete(batch_run_id, status="completed", ...)
+        return result
+
+    except Exception as e:
+        logger.error(f"Batch failed: {e}")
+        if batch_run_id:
+            record_batch_complete(
+                batch_run_id,
+                status="failed",
+                error_summary=str(e)
+            )
+        raise  # Re-raise so caller knows it failed
+```
+
+**Alternative Approach**: Use a context manager for batch lifecycle:
+
+```python
+@asynccontextmanager
+async def batch_run_context(triggered_by: str, total_jobs: int):
+    batch_run_id = f"batch_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+    record_batch_start(batch_run_id, triggered_by, total_jobs)
+    try:
+        yield batch_run_id
+        record_batch_complete(batch_run_id, status="completed", ...)
+    except Exception as e:
+        record_batch_complete(batch_run_id, status="failed", error_summary=str(e))
+        raise
+
+# Usage:
+async with batch_run_context("onboarding", len(missing_dates)) as batch_run_id:
+    # ... all phases ...
+```
+
+**Verification Steps**:
+1. Deploy to Railway
+2. Simulate a crash (e.g., raise exception in Phase 3)
+3. Query `batch_run_history` to confirm:
+   - Crashed batch has `status='failed'`
+   - `error_summary` contains the exception message
+   - `completed_at` timestamp is set
+
+**Priority**: LOW - This is an operational/admin visibility issue, not user-facing. The user-facing UI tracker was fixed in Phase 5.
+
+**Rollback**: Revert the try/except changes if issues arise.
+
+---
+
 ## Manual Catch-Up: DEFERRED
 
 **Decision (Jan 8, 2026)**: Manual catch-up is deferred until after Phase 1 and Phase 2 are deployed.

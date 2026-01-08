@@ -1,9 +1,9 @@
 # Testscotty Batch Processing Fix - Progress Tracker
 
 **Started**: January 8, 2026
-**Goal**: Fix 3 batch processing bugs identified during Testscotty onboarding
+**Goal**: Fix batch processing bugs identified during Testscotty onboarding
 **Working Branch**: main
-**Remote Push**: ✅ Pushed to origin/main (Jan 8, 2026)
+**Remote Push**: Pending (local commits ready)
 
 ---
 
@@ -14,7 +14,25 @@
 | 1 | Fix Phase 1.5 Skipping | ✅ IMPLEMENTED | Pending |
 | 2 | Fix Global Watermark Bug | NOT STARTED | - |
 | 3 | Fix Fire-and-Forget Tasks | NOT STARTED | - |
-| 4 | Add batch_run_tracker Timeout & Cleanup | NOT STARTED | - |
+| 4 | Add batch_run_tracker Timeout & Cleanup | ✅ DONE (earlier) | - |
+| 5 | Unify Batch Functions (REFACTOR) | ✅ IMPLEMENTED | Pending |
+| 6 | Harden batch_run_history Error Handling | NOT STARTED | - |
+
+### Phase 5 Details (January 8, 2026)
+
+**Commits (local, not yet pushed)**:
+- `337e7d39` - docs: Add Phase 5 detailed implementation plan
+- `3ae56503` - feat: Implement Phase 5 unified batch function with symbol scoping
+- `ffb68fa1` - docs: Add code review request for Phase 5
+- `a020f1ca` - fix: Address code review findings (tracker cleanup, history timing, source default)
+
+**Key Changes**:
+- Unified `run_daily_batch_with_backfill()` with `portfolio_id` and `source` params
+- Added `scoped_only` mode for single-portfolio batches (~40x faster)
+- `run_portfolio_onboarding_backfill()` now wraps unified function with try/finally
+- Fixed: batch_run_tracker.complete() always called (prevents stuck UI)
+- Fixed: record_batch_start() only after confirming work exists
+- Fixed: source param defaults to None (preserves manual detection)
 
 ---
 
@@ -402,6 +420,69 @@ async def cleanup_stale_batches():
 
 ---
 
+## Phase 5: Unify Batch Functions (REFACTOR)
+
+### Objective
+Consolidate `run_portfolio_onboarding_backfill()` and `run_daily_batch_with_backfill()` into a single unified function with parameters for different entry points.
+
+### Problem Discovered (January 8, 2026)
+
+During Testscotty3 debugging, we found the batch was processing **ALL 1,193 symbols** in the symbol universe when it only needed **~30 symbols** (13 positions + 17 factor ETFs). This caused:
+- Excessive runtime (~4+ hours estimated vs ~10 minutes expected)
+- Polygon API rate limiting (429 errors)
+- Unnecessary database writes
+
+### Root Cause
+
+When we created `run_portfolio_onboarding_backfill()` as a separate function from `run_daily_batch_with_backfill()`, we:
+1. Created code duplication (two similar functions to maintain)
+2. Did NOT scope the symbol collection to just the portfolio's symbols
+3. Made debugging harder (bugs can exist in one path but not the other)
+
+### Proposed Solution
+
+Create ONE unified `run_batch()` function with parameters:
+
+```python
+async def run_batch(
+    portfolio_id: Optional[str] = None,  # If None, process all portfolios
+    source: str = "cron",                # "cron" | "onboarding" | "settings" | "admin"
+    backfill_mode: bool = True,          # True = historical, False = today only
+    symbols_scope: str = "auto"          # "auto" | "portfolio" | "universe"
+) -> Dict[str, Any]:
+```
+
+**Key behavior**:
+- When `portfolio_id` is provided → only fetch portfolio's symbols + factor ETFs (~30 symbols)
+- When `portfolio_id` is None → fetch entire universe (cron job behavior)
+
+### Implementation Status
+
+**Status**: NOT STARTED - **NEXT PRIORITY**
+
+**Files to Modify**:
+- [ ] `backend/app/batch/batch_orchestrator.py` - Unify functions
+- [ ] `backend/app/api/v1/portfolios.py` - Update to use unified function
+- [ ] `backend/app/api/v1/endpoints/admin_batch.py` - Update to use unified function
+- [ ] `backend/app/batch/scheduler_config.py` - Update cron to use unified function
+
+### Expected Benefits
+1. Single code path = easier debugging
+2. **~40x faster** for single-portfolio batches (30 vs 1,193 symbols)
+3. Consistent behavior across all entry points
+4. Reduced API rate limiting issues
+
+### Import Fix (January 8, 2026)
+
+While debugging, we also fixed a blocking bug:
+- **Bug**: `ImportError: cannot import name 'get_most_recent_trading_day' from 'app.utils.trading_calendar'`
+- **Fix**: Changed import to `from app.core.trading_calendar import get_most_recent_trading_day`
+- **Commit**: `7d8b0e2a` - "fix: Correct import path for get_most_recent_trading_day"
+
+This fix allows the batch to START, but it still runs inefficiently until Phase 5 is implemented.
+
+---
+
 ## Timeline
 
 | Date | Action | Result |
@@ -417,6 +498,10 @@ async def cleanup_stale_batches():
 | 2026-01-08 | Pushed to origin/main | Railway deployment triggered |
 | 2026-01-08 | Testscotty2 verification test | Onboarding batch blocked by stuck batch_run_tracker |
 | 2026-01-08 | Phase 4 added to plan | batch_run_tracker timeout & cleanup |
+| 2026-01-08 | Testscotty3 debugging session | Found ImportError blocking batch start |
+| 2026-01-08 | Import fix deployed | `7d8b0e2a` - Fixed `get_most_recent_trading_day` import path |
+| 2026-01-08 | Batch now runs but inefficient | Processing 1,193 symbols instead of ~30 |
+| 2026-01-08 | Phase 5 added to plan | Unify batch functions for efficiency |
 | | | |
 
 ---
