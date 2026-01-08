@@ -3,7 +3,7 @@
 **Started**: January 8, 2026
 **Goal**: Fix 3 batch processing bugs identified during Testscotty onboarding
 **Working Branch**: main
-**Remote Push**: Pending code review
+**Remote Push**: ✅ Pushed to origin/main (Jan 8, 2026)
 
 ---
 
@@ -142,6 +142,73 @@ GROUP BY p.symbol;
 
 ---
 
+## Testscotty2 Verification Test (January 8, 2026)
+
+### Test Setup
+- **User**: Testscotty2 (elliott.ng+testscotty2@gmail.com)
+- **Portfolio**: Yaphe 5M
+- **Portfolio ID**: `2ecdbdaf-468d-5484-98a1-26943635c829`
+- **Created**: 2026-01-08 19:15:38 UTC
+- **Positions**: 13 (same symbols as original Testscotty)
+
+### Test Results
+
+| Check | Expected | Actual | Status |
+|-------|----------|--------|--------|
+| User created in DB | ✅ | ✅ Created 19:14:43 UTC | ✅ PASS |
+| Portfolio created | ✅ | ✅ Created 19:15:38 UTC | ✅ PASS |
+| Positions imported | 13 | 13 | ✅ PASS |
+| Symbols in `symbol_universe` | 8 new | 8 found | ✅ PASS |
+| Portfolio snapshots | >0 | **0** | ❌ FAIL |
+| Position factor exposures | >0 | **0** | ❌ FAIL |
+| Batch triggered on onboarding | Yes | **No batch record** | ❌ FAIL |
+
+### Root Cause Analysis
+
+**Finding: Stuck batch blocking onboarding**
+
+The `batch_run_tracker` is an **in-memory singleton** that prevents concurrent batch runs:
+
+1. When a batch starts → calls `batch_run_tracker.start()` → sets "running" flag
+2. If another batch tries to start while flag is set → **blocked** (409 conflict)
+3. When batch completes → should call `batch_run_tracker.complete()` → clears flag
+
+**The problem**: A previous batch crashed/hung WITHOUT calling `complete()`, leaving the flag stuck. This blocked the onboarding batch from starting.
+
+**Evidence from Railway DB**:
+```
+=== Batch Run History (since Jan 7) ===
+2026-01-09 01:21:47 | manual | running | completed: None  ← STUCK
+2026-01-07 20:56:52 | admin  | completed | completed: 2026-01-07 21:01:11
+```
+
+**Timeline**:
+| Time (UTC) | Event |
+|------------|-------|
+| 2026-01-07 21:01:11 | Last successful batch completed (original Testscotty) |
+| 2026-01-08 19:15:38 | Yaphe 5M portfolio created |
+| 2026-01-08 19:15:38 | Onboarding batch should have triggered → **BLOCKED or FAILED** |
+| 2026-01-09 01:21:47 | Manual batch triggered → now **STUCK** |
+
+**Why symbols are in universe**: The `ensure_symbols_in_universe()` call may have succeeded before the batch crashed, or there's a separate code path that adds symbols.
+
+### Implications
+
+1. **Phase 1 fix is correct** - the try/finally ensures `batch_run_tracker.complete()` is always called
+2. **But old code was running** - the deployment happened AFTER the portfolio was created, so the old (unfixed) code ran
+3. **Need to clear stuck batch** - before testing again, need to:
+   - Restart Railway service (clears in-memory tracker), OR
+   - Wait for the stuck batch to timeout (if there's a timeout)
+
+### Next Steps
+
+1. [ ] Restart Railway service to clear stuck `batch_run_tracker`
+2. [ ] Manually trigger batch for Yaphe 5M portfolio
+3. [ ] Verify snapshots and factor exposures are created
+4. [ ] Test with a NEW account created AFTER the deployment
+
+---
+
 ## Phase 2: Fix Global Watermark Bug
 
 ### Objective
@@ -240,6 +307,8 @@ LIMIT 10;
 | 2026-01-08 | Code review v2 identified issues | batch_run_tracker cleanup, Phase 1.5 corruption |
 | 2026-01-08 | Phase 1 Part B revised (v3) | Added try/finally, scoped symbol processing |
 | 2026-01-08 | Code review request v3 written | `CODE_REVIEW_REQUEST_BATCH.md` |
+| 2026-01-08 | Pushed to origin/main | Railway deployment triggered |
+| 2026-01-08 | Testscotty2 verification test | Onboarding batch blocked by stuck batch_run_tracker |
 | | | |
 
 ---
