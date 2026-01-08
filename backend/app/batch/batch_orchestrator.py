@@ -86,10 +86,16 @@ class BatchOrchestrator:
         self,
         start_date: Optional[date] = None,
         end_date: Optional[date] = None,
-        portfolio_ids: Optional[List[str]] = None
+        portfolio_ids: Optional[List[str]] = None,
+        portfolio_id: Optional[str] = None,  # NEW: Single portfolio mode
+        source: str = "cron",                 # NEW: Entry point tracking
     ) -> Dict[str, Any]:
         """
         Main entry point - automatically detects and fills missing dates.
+
+        This is the UNIFIED batch function that handles all use cases:
+        1. Cron mode (portfolio_id=None): Process entire symbol universe
+        2. Single-portfolio mode (portfolio_id=X): Process only that portfolio's symbols
 
         If start_date is provided, it is used as the beginning of the backfill period.
         If not, the last successful run date is detected automatically.
@@ -98,6 +104,9 @@ class BatchOrchestrator:
             start_date: Optional date to begin the backfill from.
             end_date: Date to process up to (defaults to today).
             portfolio_ids: Specific portfolios to process (defaults to all).
+            portfolio_id: Single portfolio ID for onboarding/settings mode.
+                         When provided, enables scoped mode (~40x faster).
+            source: Entry point for tracking ("cron", "onboarding", "settings", "admin")
 
         Returns:
             Summary of backfill operation.
@@ -145,6 +154,21 @@ class BatchOrchestrator:
             target_date = end_date
             logger.info("Manual end_date provided: %s", target_date)
 
+        # =============================================================================
+        # SINGLE-PORTFOLIO MODE DETECTION
+        # When portfolio_id is provided, enable scoped mode for ~40x faster processing
+        # =============================================================================
+        is_single_portfolio_mode = portfolio_id is not None
+        scoped_only = is_single_portfolio_mode
+
+        if is_single_portfolio_mode:
+            logger.info(f"Single-portfolio mode: processing portfolio {portfolio_id}")
+            logger.info(f"Entry point: {source}")
+            # Convert single portfolio_id to list format for internal use
+            portfolio_ids = [portfolio_id]
+        else:
+            logger.info(f"Universe mode: processing all portfolios")
+
         logger.info(f"Batch Orchestrator - Backfill to {target_date}")
 
         start_time = asyncio.get_event_loop().time()
@@ -152,7 +176,8 @@ class BatchOrchestrator:
 
         # Generate batch run ID and record start (Phase 5 Admin Dashboard)
         batch_run_id = f"batch_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-        triggered_by = "cron" if os.environ.get("RAILWAY_ENVIRONMENT") else "manual"
+        # Use provided source parameter for tracking
+        triggered_by = source if source else ("cron" if os.environ.get("RAILWAY_ENVIRONMENT") else "manual")
         record_batch_start(
             batch_run_id=batch_run_id,
             triggered_by=triggered_by,
@@ -161,7 +186,30 @@ class BatchOrchestrator:
 
         # Step 1: Determine the date range to process
         async with AsyncSessionLocal() as db:
-            if start_date:
+            if is_single_portfolio_mode and not start_date:
+                # SINGLE-PORTFOLIO MODE: Use portfolio's earliest entry_date
+                earliest_query = select(Position.entry_date).where(
+                    and_(
+                        Position.portfolio_id == UUID(portfolio_id) if isinstance(portfolio_id, str) else portfolio_id,
+                        Position.deleted_at.is_(None),
+                        Position.entry_date.isnot(None)
+                    )
+                ).order_by(Position.entry_date).limit(1)
+                result = await db.execute(earliest_query)
+                earliest_date = result.scalar_one_or_none()
+
+                if earliest_date:
+                    last_run_date = earliest_date - timedelta(days=1)
+                    logger.info(f"Single-portfolio backfill from earliest entry_date: {earliest_date}")
+                else:
+                    logger.warning(f"Portfolio {portfolio_id} has no positions with entry dates")
+                    return {
+                        'success': True,
+                        'message': 'No positions with entry dates found',
+                        'dates_processed': 0,
+                        'portfolio_id': portfolio_id
+                    }
+            elif start_date:
                 last_run_date = start_date - timedelta(days=1)
                 logger.debug(f"Manual start_date: {start_date}")
             else:
@@ -205,6 +253,8 @@ class BatchOrchestrator:
         # This ensures market_data_cache has all prices before we load the price cache
         # =============================================================================
         logger.info(f"Phase 1: Collecting market data for {len(missing_dates)} dates")
+        if scoped_only:
+            logger.info(f"  Scoped mode: only fetching portfolio symbols + factor ETFs (~30 symbols)")
         for i, calc_date in enumerate(missing_dates, 1):
             logger.debug(f"Phase 1: {calc_date} ({i}/{len(missing_dates)})")
             async with AsyncSessionLocal() as db:
@@ -214,7 +264,8 @@ class BatchOrchestrator:
                         lookback_days=365,
                         db=db,
                         portfolio_ids=portfolio_ids,
-                        skip_company_profiles=True  # Company profiles handled in Phase 0
+                        skip_company_profiles=True,  # Company profiles handled in Phase 0
+                        scoped_only=scoped_only,     # NEW: Only portfolio symbols in single-portfolio mode
                     )
                     if not phase1_result.get('success'):
                         logger.warning(f"Phase 1 issues: {calc_date}")
@@ -225,13 +276,14 @@ class BatchOrchestrator:
         # =============================================================================
         # STEP 2: Load price cache AFTER all market data is collected
         # Now the cache will include today's prices from Phase 1
-        # IMPORTANT: Load ALL symbols from market_data_cache for full universe support
+        # NOTE: In scoped mode, only load portfolio symbols + factor ETFs
         # =============================================================================
         price_cache = None
         logger.debug(f"Loading price cache...")
         async with AsyncSessionLocal() as cache_db:
             # Get all symbols from active PUBLIC/OPTIONS positions
             # Skip PRIVATE positions - they don't have market prices
+            # In scoped_only mode, filter to single portfolio
             symbols_stmt = select(Position.symbol).where(
                 and_(
                     Position.deleted_at.is_(None),
@@ -240,20 +292,34 @@ class BatchOrchestrator:
                     Position.investment_class.in_(['PUBLIC', 'OPTIONS'])  # Exclude PRIVATE
                 )
             ).distinct()
+            # Scope to portfolio_ids if provided
+            if portfolio_ids:
+                from uuid import UUID as UUID_type
+                portfolio_uuids = [
+                    UUID_type(pid) if isinstance(pid, str) else pid
+                    for pid in portfolio_ids
+                ]
+                symbols_stmt = symbols_stmt.where(Position.portfolio_id.in_(portfolio_uuids))
             symbols_result = await cache_db.execute(symbols_stmt)
             position_symbols = {row[0] for row in symbols_result.all()}
 
-            # Get ALL symbols from market_data_cache (full universe for Phase 1.5)
-            # This includes S&P 500, Nasdaq 100, Russell 2000, etc.
+            # Get symbols from market_data_cache
+            # SCOPED MODE: Skip universe symbols to avoid loading 1,193 symbols
             from app.models.market_data import MarketDataCache
-            cache_symbols_stmt = select(MarketDataCache.symbol).where(
-                and_(
-                    MarketDataCache.symbol.isnot(None),
-                    MarketDataCache.symbol != ''
-                )
-            ).distinct()
-            cache_symbols_result = await cache_db.execute(cache_symbols_stmt)
-            universe_symbols = {row[0] for row in cache_symbols_result.all()}
+            if scoped_only:
+                universe_symbols: set = set()
+                logger.info(f"  Scoped mode: skipping universe symbols for price cache")
+            else:
+                # Get ALL symbols from market_data_cache (full universe for Phase 1.5)
+                # This includes S&P 500, Nasdaq 100, Russell 2000, etc.
+                cache_symbols_stmt = select(MarketDataCache.symbol).where(
+                    and_(
+                        MarketDataCache.symbol.isnot(None),
+                        MarketDataCache.symbol != ''
+                    )
+                ).distinct()
+                cache_symbols_result = await cache_db.execute(cache_symbols_stmt)
+                universe_symbols = {row[0] for row in cache_symbols_result.all()}
 
             # Add factor ETF symbols for spread factor calculations + IR Beta
             # These are required by app/calculations/factors_spread.py and interest_rate_beta.py
@@ -282,6 +348,7 @@ class BatchOrchestrator:
         # This pre-computes factor betas for the entire universe before portfolio processing.
         # Symbol betas are intrinsic to the symbol (not position-specific), so we calculate
         # them once and reuse during portfolio aggregation in Phase 6.
+        # NOTE: In scoped mode, only calculate for portfolio symbols + factor ETFs
         # =============================================================================
         # Use the last trading day for symbol-level calculations
         # Both Phase 1.5 and Phase 1.75 use this same date to ensure factor lookups work
@@ -291,14 +358,18 @@ class BatchOrchestrator:
         try:
             from app.calculations.symbol_factors import calculate_universe_factors
 
-            logger.info(f"Phase 1.5: Calculating symbol factors for universe (date={final_date})")
+            if scoped_only:
+                logger.info(f"Phase 1.5: Calculating symbol factors for {len(symbols)} scoped symbols (date={final_date})")
+            else:
+                logger.info(f"Phase 1.5: Calculating symbol factors for universe (date={final_date})")
 
             symbol_factor_result = await calculate_universe_factors(
                 calculation_date=final_date,
                 regularization_alpha=1.0,
                 calculate_ridge=True,
                 calculate_spread=True,
-                price_cache=price_cache
+                price_cache=price_cache,
+                symbols=list(symbols) if scoped_only else None,  # Pass symbols in scoped mode
             )
 
             logger.info(
@@ -325,17 +396,22 @@ class BatchOrchestrator:
         # P&L calculator can then lookup returns instead of recalculating per position.
         # Also populates symbol_daily_metrics for the Symbol Dashboard.
         # Uses same final_date as Phase 1.5 to ensure factor lookups work correctly.
+        # NOTE: In scoped mode, only calculate for portfolio symbols + factor ETFs
         # =============================================================================
         symbol_metrics_result = None
         try:
             from app.services.symbol_metrics_service import calculate_symbol_metrics
 
             # Use same final_date as Phase 1.5 (already set above)
-            logger.info(f"Phase 1.75: Calculating symbol metrics (date={final_date})")
+            if scoped_only:
+                logger.info(f"Phase 1.75: Calculating symbol metrics for {len(symbols)} scoped symbols (date={final_date})")
+            else:
+                logger.info(f"Phase 1.75: Calculating symbol metrics (date={final_date})")
 
             symbol_metrics_result = await calculate_symbol_metrics(
                 calculation_date=final_date,
-                price_cache=price_cache
+                price_cache=price_cache,
+                symbols_override=list(symbols) if scoped_only else None,  # Pass symbols in scoped mode
             )
 
             logger.info(
@@ -445,21 +521,22 @@ class BatchOrchestrator:
         end_date: Optional[date] = None
     ) -> Dict[str, Any]:
         """
+        DEPRECATED: This is now a wrapper for the unified run_daily_batch_with_backfill().
+
         Run full backfill for a SINGLE newly onboarded portfolio.
 
-        Unlike run_daily_batch_with_backfill() which uses a global watermark,
-        this method:
-        1. Finds the earliest position entry_date for THIS portfolio specifically
-        2. Processes all trading days from that date to end_date
-        3. Ensures complete historical snapshots and analytics for the new portfolio
+        This method now delegates to run_daily_batch_with_backfill() with:
+        - portfolio_id parameter for single-portfolio scoped mode (~40x faster)
+        - source="onboarding" for entry point tracking
 
-        This is the correct entry point for onboarding new portfolios, as it
-        guarantees full analytics history regardless of the global system state.
+        The unified function automatically:
+        1. Finds the earliest position entry_date for THIS portfolio
+        2. Runs Phase 1 (market data) for ONLY portfolio symbols + factor ETFs
+        3. Runs Phase 1.5 and 1.75 for ONLY portfolio symbols (scoped mode)
+        4. Runs Phases 2-6 for the portfolio
 
-        NOTE: This method does NOT run universe-level Phase 1.5/1.75 calculations
-        because doing so would corrupt global analytics (we only fetch market data
-        for this portfolio's symbols). Instead, it adds the portfolio's symbols to
-        symbol_universe, and the daily cron job will calculate their factor exposures.
+        This is ~40x faster than the old implementation which fetched market data
+        for the entire 1,193 symbol universe.
 
         Args:
             portfolio_id: UUID string of the portfolio to backfill
@@ -468,223 +545,14 @@ class BatchOrchestrator:
         Returns:
             Summary of backfill operation including dates processed and any errors
         """
-        from app.core.trading_calendar import get_most_recent_trading_day
-        from app.batch.batch_run_tracker import batch_run_tracker
+        logger.info(f"Portfolio Onboarding Backfill: Delegating to unified function for {portfolio_id}")
 
-        logger.info(f"Portfolio Onboarding Backfill: Starting for portfolio {portfolio_id}")
-        start_time = asyncio.get_event_loop().time()
-
-        # Initialize result for early returns and exception handling
-        result: Dict[str, Any] = {
-            'success': False,
-            'portfolio_id': portfolio_id,
-            'dates_processed': 0,
-            'error': None
-        }
-
-        try:
-            # Determine target end date
-            target_date = end_date if end_date else get_most_recent_trading_day()
-            logger.info(f"Target end date: {target_date}")
-
-            # Step 1: Find the earliest position entry_date for THIS portfolio
-            async with AsyncSessionLocal() as db:
-                earliest_query = select(Position.entry_date).where(
-                    and_(
-                        Position.portfolio_id == UUID(portfolio_id) if isinstance(portfolio_id, str) else portfolio_id,
-                        Position.deleted_at.is_(None),
-                        Position.entry_date.isnot(None)
-                    )
-                ).order_by(Position.entry_date).limit(1)
-
-                db_result = await db.execute(earliest_query)
-                earliest_position_date = db_result.scalar_one_or_none()
-
-                if not earliest_position_date:
-                    logger.warning(f"Portfolio {portfolio_id} has no positions with entry dates")
-                    return {
-                        'success': True,
-                        'message': 'No positions with entry dates found',
-                        'dates_processed': 0,
-                        'portfolio_id': portfolio_id
-                    }
-
-                logger.info(f"Earliest position entry_date for portfolio: {earliest_position_date}")
-
-            # Step 2: Calculate all trading days from earliest position to target
-            missing_dates = trading_calendar.get_trading_days_between(
-                start_date=earliest_position_date,
-                end_date=target_date
-            )
-
-            if not missing_dates:
-                logger.info(f"No trading days to process between {earliest_position_date} and {target_date}")
-                return {
-                    'success': True,
-                    'message': f'No trading days between {earliest_position_date} and {target_date}',
-                    'dates_processed': 0,
-                    'portfolio_id': portfolio_id
-                }
-
-            logger.info(f"Processing {len(missing_dates)} trading days: {missing_dates[0]} to {missing_dates[-1]}")
-
-            # Generate batch run ID for tracking
-            batch_run_id = f"onboarding_{portfolio_id[:8]}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-            record_batch_start(
-                batch_run_id=batch_run_id,
-                triggered_by="onboarding",
-                total_jobs=len(missing_dates),
-            )
-
-            # Step 3: Run Phase 1 (Market Data) for ALL dates first
-            # This ensures market_data_cache has all prices before analytics
-            portfolio_ids_list = [portfolio_id]
-            logger.info(f"Phase 1: Collecting market data for {len(missing_dates)} dates")
-
-            for i, calc_date in enumerate(missing_dates, 1):
-                logger.debug(f"Phase 1: {calc_date} ({i}/{len(missing_dates)})")
-                async with AsyncSessionLocal() as db:
-                    try:
-                        phase1_result = await market_data_collector.collect_daily_market_data(
-                            calculation_date=calc_date,
-                            lookback_days=365,
-                            db=db,
-                            portfolio_ids=portfolio_ids_list,
-                            skip_company_profiles=True
-                        )
-                        if not phase1_result.get('success'):
-                            logger.warning(f"Phase 1 issues for {calc_date}")
-                    except Exception as e:
-                        logger.error(f"Phase 1 error {calc_date}: {e}")
-
-            # Step 4: Load price cache after all market data collected
-            price_cache = None
-            portfolio_symbols: set = set()
-            async with AsyncSessionLocal() as cache_db:
-                # Get symbols for THIS portfolio only
-                symbols_stmt = select(Position.symbol).where(
-                    and_(
-                        Position.portfolio_id == UUID(portfolio_id) if isinstance(portfolio_id, str) else portfolio_id,
-                        Position.deleted_at.is_(None),
-                        Position.symbol.isnot(None),
-                        Position.symbol != '',
-                        Position.investment_class.in_(['PUBLIC', 'OPTIONS'])
-                    )
-                ).distinct()
-                symbols_result = await cache_db.execute(symbols_stmt)
-                portfolio_symbols = {row[0] for row in symbols_result.all()}
-
-                # Add factor ETF symbols required for calculations
-                factor_etf_symbols = {'VUG', 'VTV', 'MTUM', 'QUAL', 'IWM', 'SPY', 'USMV', 'TLT'}
-                symbols = portfolio_symbols.union(factor_etf_symbols)
-
-                logger.info(f"Price cache: loading {len(symbols)} symbols for portfolio")
-
-                if symbols:
-                    price_cache = PriceCache()
-                    cache_start = missing_dates[0] - timedelta(days=366)
-                    loaded_count = await price_cache.load_date_range(
-                        db=cache_db,
-                        symbols=symbols,
-                        start_date=cache_start,
-                        end_date=missing_dates[-1]
-                    )
-                    logger.debug(f"Price cache loaded: {loaded_count} prices")
-
-            # Step 5: Add portfolio's symbols to symbol_universe (SCOPED - not universe-wide)
-            # NOTE: We do NOT call calculate_universe_factors() here because it operates on
-            # ALL symbols and would corrupt global analytics using stale/missing price data.
-            # The daily cron job will calculate factor exposures for these symbols.
-            final_date = missing_dates[-1]
-            symbol_universe_result = None
-            try:
-                from app.calculations.symbol_factors import ensure_symbols_in_universe
-
-                logger.info(f"Phase 1.5 (scoped): Adding {len(portfolio_symbols)} portfolio symbols to universe")
-                async with AsyncSessionLocal() as db:
-                    await ensure_symbols_in_universe(db, list(portfolio_symbols), final_date)
-                    await db.commit()
-                symbol_universe_result = {
-                    'success': True,
-                    'symbols_added': len(portfolio_symbols),
-                    'note': 'Symbols added to universe; factor exposures will be calculated by daily cron'
-                }
-                logger.info(f"Phase 1.5 (scoped) complete: {len(portfolio_symbols)} symbols added to universe")
-            except Exception as e:
-                logger.error(f"Phase 1.5 (scoped) error: {e}")
-                import traceback
-                logger.error(f"Traceback: {traceback.format_exc()}")
-                symbol_universe_result = {'success': False, 'error': str(e)}
-
-            # Step 6: Skip universe-wide Phase 1.75 (Symbol Metrics)
-            # Same reason as above - would corrupt global metrics with incomplete price data
-            logger.info("Phase 1.75: Skipped (universe-wide metrics handled by daily cron)")
-            symbol_metrics_result = {
-                'success': True,
-                'skipped': True,
-                'note': 'Symbol metrics will be calculated by daily cron to avoid corrupting global data'
-            }
-
-            # Step 7: Run Phases 2-6 for EACH date
-            results = []
-            for i, calc_date in enumerate(missing_dates, 1):
-                logger.debug(f"Phases 2-6: {calc_date} ({i}/{len(missing_dates)})")
-
-                async with AsyncSessionLocal() as db:
-                    phase_result = await self._run_phases_2_through_6(
-                        db=db,
-                        calculation_date=calc_date,
-                        portfolio_ids=portfolio_ids_list,
-                        run_sector_analysis=(calc_date == target_date),
-                        price_cache=price_cache
-                    )
-                    results.append(phase_result)
-
-                    if phase_result['success']:
-                        await self._mark_batch_run_complete(db, calc_date, phase_result)
-
-                    await db.commit()
-
-            duration = int(asyncio.get_event_loop().time() - start_time)
-            success_count = sum(1 for r in results if r['success'])
-            failed_count = len(results) - success_count
-
-            logger.info(
-                f"Portfolio Onboarding Backfill complete: {success_count}/{len(results)} dates in {duration}s"
-            )
-
-            # Record completion
-            overall_success = all(r['success'] for r in results)
-            status = "completed" if overall_success else ("partial" if success_count > 0 else "failed")
-
-            record_batch_complete(
-                batch_run_id=batch_run_id,
-                status=status,
-                completed_jobs=success_count,
-                failed_jobs=failed_count,
-                phase_durations={"total_duration": duration},
-                error_summary=None,
-            )
-
-            result = {
-                'success': overall_success,
-                'portfolio_id': portfolio_id,
-                'dates_processed': len(missing_dates),
-                'date_range': f"{missing_dates[0]} to {missing_dates[-1]}" if missing_dates else None,
-                'duration_seconds': duration,
-                'phase_1_5': symbol_universe_result or {'success': False, 'skipped': True},
-                'phase_1_75': symbol_metrics_result,
-                'results_summary': {
-                    'success': success_count,
-                    'failed': failed_count
-                }
-            }
-            return result
-
-        finally:
-            # Always clear batch run tracker, even on exception
-            batch_run_tracker.complete()
-            logger.debug("Batch run tracker cleared")
+        # Delegate to unified function with single-portfolio mode enabled
+        return await self.run_daily_batch_with_backfill(
+            end_date=end_date,
+            portfolio_id=portfolio_id,
+            source="onboarding",
+        )
 
     async def run_daily_batch_sequence(
         self,
