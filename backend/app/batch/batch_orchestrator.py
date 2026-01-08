@@ -252,6 +252,63 @@ class BatchOrchestrator:
         )
 
         # =============================================================================
+        # PHASE 6 HARDENING: Wrap all processing in try/except to ensure record_batch_complete()
+        # is ALWAYS called, even on crashes/timeouts/OOM. This prevents batch_run_history
+        # rows from getting stuck in "running" status forever.
+        # =============================================================================
+        try:
+            return await self._execute_batch_phases(
+                missing_dates=missing_dates,
+                target_date=target_date,
+                portfolio_ids=portfolio_ids,
+                scoped_only=scoped_only,
+                batch_run_id=batch_run_id,
+            )
+        except Exception as e:
+            # Record batch failure in database history before re-raising
+            logger.error(f"Batch failed with exception: {e}")
+            import traceback
+            logger.error(f"Traceback: {traceback.format_exc()}")
+
+            duration = int(asyncio.get_event_loop().time() - start_time)
+            record_batch_complete(
+                batch_run_id=batch_run_id,
+                status="failed",
+                completed_jobs=0,
+                failed_jobs=len(missing_dates),
+                phase_durations={"total_duration": duration},
+                error_summary={"exception": str(e), "type": type(e).__name__},
+            )
+            raise  # Re-raise so caller knows batch failed
+
+    async def _execute_batch_phases(
+        self,
+        missing_dates: List[date],
+        target_date: date,
+        portfolio_ids: Optional[List[str]],
+        scoped_only: bool,
+        batch_run_id: str,
+    ) -> Dict[str, Any]:
+        """
+        Execute all batch phases (1, 1.5, 1.75, 2-6) for the given date range.
+
+        This is extracted from run_daily_batch_with_backfill() to enable proper
+        try/except handling for Phase 6 hardening. Any exception here will be
+        caught by the caller and recorded as a failed batch in batch_run_history.
+
+        Args:
+            missing_dates: Trading days to process
+            target_date: Final target date
+            portfolio_ids: Portfolio IDs to process (None = all)
+            scoped_only: If True, only process portfolio symbols + factor ETFs
+            batch_run_id: Batch run ID for history tracking
+
+        Returns:
+            Summary of batch operation
+        """
+        start_time = asyncio.get_event_loop().time()
+
+        # =============================================================================
         # STEP 1: Run Phase 1 (Market Data) for ALL dates FIRST
         # This ensures market_data_cache has all prices before we load the price cache
         # =============================================================================

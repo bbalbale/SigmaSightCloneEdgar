@@ -16,7 +16,7 @@
 | 3 | Fix Fire-and-Forget Tasks | NOT STARTED | - |
 | 4 | Add batch_run_tracker Timeout & Cleanup | ✅ DONE (earlier) | - |
 | 5 | Unify Batch Functions (REFACTOR) | ✅ IMPLEMENTED | Pending |
-| 6 | Harden batch_run_history Error Handling | NOT STARTED | - |
+| 6 | Harden batch_run_history Error Handling | ✅ IMPLEMENTED | Pending |
 
 ### Phase 5 Details (January 8, 2026)
 
@@ -33,6 +33,43 @@
 - Fixed: batch_run_tracker.complete() always called (prevents stuck UI)
 - Fixed: record_batch_start() only after confirming work exists
 - Fixed: source param defaults to None (preserves manual detection)
+
+### Phase 6 Details (January 8, 2026)
+
+**Problem Solved**:
+The `batch_run_history` database table could have rows stuck in "running" status forever if:
+- Server crashes (OOM, timeout, unhandled exception)
+- Process killed during batch execution
+- Any uncaught exception between `record_batch_start()` and `record_batch_complete()`
+
+This is separate from the in-memory `batch_run_tracker` (fixed in Phase 5) - this is about the **persistent database record**.
+
+**Solution**:
+Wrapped all batch processing in `run_daily_batch_with_backfill()` with try/except:
+1. Extracted processing logic into new `_execute_batch_phases()` method
+2. On success: `record_batch_complete()` called with status="completed"
+3. On exception: `record_batch_complete()` called with status="failed" before re-raising
+
+**Key Code** (batch_orchestrator.py lines 254-282):
+```python
+try:
+    return await self._execute_batch_phases(...)
+except Exception as e:
+    logger.error(f"Batch failed with exception: {e}")
+    record_batch_complete(
+        batch_run_id=batch_run_id,
+        status="failed",
+        completed_jobs=0,
+        failed_jobs=len(missing_dates),
+        error_summary={"exception": str(e), "type": type(e).__name__},
+    )
+    raise  # Re-raise so caller knows batch failed
+```
+
+**Impact**:
+- Admin dashboard will never show phantom "running" batches
+- Crashed batches now properly marked as "failed" with error details
+- Better debugging: can distinguish running vs crashed batches
 
 ---
 
