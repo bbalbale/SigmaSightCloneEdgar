@@ -285,11 +285,332 @@ Option B: Add cleanup before script exit
 
 ---
 
-## After All 3 Phases Complete
+---
+
+### PHASE 5: Unify Batch Functions (REFACTOR) - DETAILED IMPLEMENTATION PLAN
+
+**Date**: January 8, 2026
+**Author**: Claude Opus 4.5
+**Status**: READY FOR IMPLEMENTATION
+
+---
+
+## Problem Statement
+
+The current architecture has two separate batch functions:
+1. `run_daily_batch_with_backfill()` - Used by cron jobs, processes ALL portfolios
+2. `run_portfolio_onboarding_backfill()` - Used by onboarding/settings, processes ONE portfolio
+
+### Issues Discovered During Testscotty3 Debugging
+
+1. **Critical Bug Fixed**: ImportError on line 471 (`app.utils.trading_calendar` → `app.core.trading_calendar`) - Committed as `7d8b0e2a`
+
+2. **Major Inefficiency**: When `run_portfolio_onboarding_backfill()` runs, it:
+   - Calls `market_data_collector.collect_daily_market_data()` with `portfolio_ids=[portfolio_id]`
+   - BUT `_get_symbol_universe()` adds ALL 1,163 cached symbols (lines 444-452)
+   - Result: Processing 1,193 symbols instead of ~30 needed
+   - Time: ~4 hours instead of ~10 minutes
+   - Rate limiting: Polygon 429 errors
+
+3. **Code Duplication**: Similar logic in both functions with subtle differences
+
+4. **Debugging Complexity**: Bugs can exist in one path but not the other (as we discovered)
+
+---
+
+## Requirements
+
+### Functional Requirements
+
+**FR1: Unified Entry Point**
+- Single function `run_daily_batch_with_backfill()` handles ALL use cases
+- Parameters determine behavior (portfolio scope, source tracking, symbol scope)
+- Deprecate `run_portfolio_onboarding_backfill()` (keep as wrapper initially)
+
+**FR2: Symbol Scoping**
+- When `portfolio_id` is provided:
+  - Phase 1: Collect market data for portfolio symbols + factor ETFs ONLY
+  - Phase 1.5: Calculate factors for portfolio symbols + factor ETFs ONLY
+  - Phase 1.75: Calculate metrics for portfolio symbols + factor ETFs ONLY
+- When `portfolio_id` is None:
+  - Phase 1, 1.5, 1.75: Process entire universe (current cron behavior)
+
+**FR3: Backfill Date Range**
+- When `portfolio_id` is provided:
+  - Use portfolio's earliest position entry_date as start
+  - Backfill from that date to current trading day
+- When `portfolio_id` is None:
+  - Use global watermark (most recent snapshot date)
+  - Backfill from that date to current trading day
+
+**FR4: Analytics After Onboarding**
+After onboarding completes, these analytics MUST be available:
+- Volatility (historical, current, forward/HAR forecast)
+- Portfolio beta
+- Stress test results
+- Factor exposures (5 factors)
+- Correlation matrix (position + factor)
+- Sector exposure analysis
+
+**FR5: Graceful Symbol Handling**
+- When a symbol doesn't exist in any data provider:
+  1. Try YFinance → YahooQuery → Polygon → FMP in order
+  2. If all fail, mark symbol as "unavailable" in logs
+  3. Continue processing other symbols (don't fail entire batch)
+  4. Report unavailable symbols in final summary
+
+**FR6: Source Tracking**
+- Track which entry point triggered the batch:
+  - `source="cron"` - Daily cron job
+  - `source="onboarding"` - New portfolio onboarding
+  - `source="settings"` - User clicked "Recalculate Analytics"
+  - `source="admin"` - Admin dashboard trigger
+- Log source in batch_run_history for debugging
+
+---
+
+## Design
+
+### Unified Function Signature
+
+```python
+async def run_daily_batch_with_backfill(
+    self,
+    start_date: Optional[date] = None,
+    end_date: Optional[date] = None,
+    portfolio_ids: Optional[List[str]] = None,
+    # NEW PARAMETERS:
+    portfolio_id: Optional[str] = None,  # Single portfolio mode
+    source: str = "cron",                # Entry point tracking
+) -> Dict[str, Any]:
+    """
+    Unified batch processing function for all entry points.
+
+    Modes:
+    1. Cron mode (portfolio_id=None): Process entire universe
+    2. Single-portfolio mode (portfolio_id=X): Process only that portfolio's symbols
+
+    Symbol scoping logic:
+    - If portfolio_id is provided → only portfolio symbols + factor ETFs
+    - If portfolio_id is None → entire cached universe + factor ETFs
+
+    Backfill date range:
+    - If portfolio_id is provided → from portfolio's earliest entry_date
+    - If portfolio_id is None → from global watermark (most recent snapshot)
+    """
+```
+
+### Key Implementation Changes
+
+#### 1. `batch_orchestrator.py` - Unified Function
+
+```python
+# Line ~85-440: Modify run_daily_batch_with_backfill()
+
+async def run_daily_batch_with_backfill(
+    self,
+    start_date: Optional[date] = None,
+    end_date: Optional[date] = None,
+    portfolio_ids: Optional[List[str]] = None,
+    portfolio_id: Optional[str] = None,  # NEW: single portfolio mode
+    source: str = "cron",                 # NEW: entry point tracking
+) -> Dict[str, Any]:
+
+    # Determine mode
+    is_single_portfolio_mode = portfolio_id is not None
+
+    if is_single_portfolio_mode:
+        # Convert to list format for internal use
+        portfolio_ids = [portfolio_id]
+
+        # Get portfolio's earliest entry_date for backfill start
+        async with AsyncSessionLocal() as db:
+            earliest_query = select(Position.entry_date).where(
+                and_(
+                    Position.portfolio_id == UUID(portfolio_id),
+                    Position.deleted_at.is_(None),
+                    Position.entry_date.isnot(None)
+                )
+            ).order_by(Position.entry_date).limit(1)
+            result = await db.execute(earliest_query)
+            earliest_date = result.scalar_one_or_none()
+
+            if earliest_date:
+                start_date = earliest_date
+                logger.info(f"Single-portfolio mode: backfill from {earliest_date}")
+
+    # ... rest of function with scoped_only parameter passed to market_data_collector
+```
+
+#### 2. `market_data_collector.py` - Scoped Symbol Universe
+
+```python
+# Line ~407: Modify _get_symbol_universe()
+
+async def _get_symbol_universe(
+    self,
+    db: AsyncSession,
+    calculation_date: date,
+    portfolio_ids: Optional[List[UUID]] = None,
+    scoped_only: bool = False,  # NEW: if True, skip cached universe
+) -> Set[str]:
+    """
+    Get all unique symbols from:
+    1. Active positions (from portfolios)
+    2. Factor ETFs (required for analytics)
+    3. All symbols already in market_data_cache (ONLY if scoped_only=False)
+    """
+    # ... existing position symbols query ...
+
+    # CHANGED: Only add cached universe if NOT in scoped mode
+    if not scoped_only:
+        # Get all symbols already in market_data_cache
+        cached_symbols_query = select(MarketDataCache.symbol).distinct()
+        cached_result = await db.execute(cached_symbols_query)
+        cached_symbols = {
+            normalize_symbol(symbol)
+            for symbol in cached_result.scalars().all()
+            if symbol
+        }
+        logger.info(f"  Cached universe symbols: {len(cached_symbols)}")
+    else:
+        cached_symbols = set()
+        logger.info(f"  Scoped mode: skipping cached universe")
+
+    # ... rest of function ...
+```
+
+#### 3. `market_data_collector.py` - Graceful Symbol Handling
+
+```python
+# Line ~706: Enhance _fetch_with_priority_chain()
+
+async def _fetch_with_priority_chain(
+    self,
+    symbols: List[str],
+    start_date: date,
+    end_date: date
+) -> Tuple[Dict[str, List[Dict]], Dict[str, int]]:
+    """
+    Enhanced with graceful handling for unavailable symbols.
+    """
+    all_data = {}
+    provider_counts = {'yahooquery': 0, 'yfinance': 0, 'fmp': 0, 'polygon': 0}
+    unavailable_symbols = []
+    remaining_symbols = symbols.copy()
+
+    # Try each provider in order...
+    # (existing logic)
+
+    # After all providers tried, log unavailable symbols gracefully
+    if remaining_symbols:
+        unavailable_symbols = remaining_symbols
+        logger.warning(
+            f"Unavailable symbols ({len(unavailable_symbols)}): {unavailable_symbols[:20]}"
+            + (f"... and {len(unavailable_symbols) - 20} more" if len(unavailable_symbols) > 20 else "")
+        )
+        logger.info("These symbols will be skipped; batch continues for available symbols")
+
+    return all_data, provider_counts, unavailable_symbols  # Return unavailable list
+```
+
+#### 4. `portfolios.py` - Update Calculate Endpoint
+
+```python
+# Line ~590: Update /calculate endpoint to use unified function
+
+@router.post("/{portfolio_id}/calculate")
+async def calculate_portfolio(portfolio_id: UUID, ...):
+    # Call unified function with single-portfolio mode
+    result = await batch_orchestrator.run_daily_batch_with_backfill(
+        portfolio_id=str(portfolio_id),
+        source="onboarding"  # or "settings" based on caller
+    )
+```
+
+---
+
+## Files to Modify
+
+| File | Change | Lines (approx) |
+|------|--------|----------------|
+| `batch_orchestrator.py` | Add `portfolio_id` and `source` params to unified function | ~85-440 |
+| `batch_orchestrator.py` | Deprecate `run_portfolio_onboarding_backfill()` (keep as wrapper) | ~442-687 |
+| `market_data_collector.py` | Add `scoped_only` param to `_get_symbol_universe()` | ~407-505 |
+| `market_data_collector.py` | Add `scoped_only` param to `collect_daily_market_data()` | ~95-405 |
+| `market_data_collector.py` | Return unavailable symbols from `_fetch_with_priority_chain()` | ~706-774 |
+| `portfolios.py` | Update `/calculate` to use unified function | ~590-617 |
+
+---
+
+## Implementation Steps
+
+### Step 1: Update `market_data_collector.py`
+1. Add `scoped_only` parameter to `collect_daily_market_data()`
+2. Add `scoped_only` parameter to `_get_symbol_universe()`
+3. When `scoped_only=True`, skip the cached universe (lines 444-452)
+4. Return unavailable symbols from fetch chain
+
+### Step 2: Update `batch_orchestrator.py`
+1. Add `portfolio_id` and `source` parameters to `run_daily_batch_with_backfill()`
+2. Detect single-portfolio mode when `portfolio_id` is provided
+3. In single-portfolio mode:
+   - Calculate backfill start from portfolio's earliest entry_date
+   - Pass `scoped_only=True` to market_data_collector
+   - Pass `scoped_only=True` to Phase 1.5 and 1.75
+4. Convert `run_portfolio_onboarding_backfill()` to wrapper that calls unified function
+
+### Step 3: Update `portfolios.py`
+1. Change `/calculate` endpoint to use unified function with `portfolio_id` and `source`
+
+### Step 4: Test & Verify
+1. Test onboarding flow - should complete in ~5-10 minutes
+2. Test settings "Recalculate Analytics" - same performance
+3. Test cron job - still processes entire universe correctly
+4. Verify analytics available: volatility, beta, stress test, factors, correlations
+
+---
+
+## Expected Performance Improvement
+
+| Metric | Before (Inefficient) | After (Scoped) | Improvement |
+|--------|---------------------|----------------|-------------|
+| Symbols processed | 1,193 | ~30 | 40x fewer |
+| Estimated runtime | 4+ hours | ~10 minutes | 24x faster |
+| API calls | ~1,193 × days | ~30 × days | 40x fewer |
+| Rate limit errors | Many 429s | None expected | Eliminated |
+
+---
+
+## Rollback Plan
+
+If issues arise after deployment:
+1. Revert `batch_orchestrator.py` changes
+2. Revert `market_data_collector.py` changes
+3. Revert `portfolios.py` changes
+4. The `run_portfolio_onboarding_backfill()` wrapper preserves backward compatibility
+
+---
+
+## Success Criteria
+
+| Criteria | Measurement |
+|----------|-------------|
+| Onboarding completes in <15 minutes | Time from trigger to completion |
+| No 429 rate limit errors | Railway logs show no Polygon 429s |
+| All analytics available | Check Testscotty3: vol, beta, stress, factors, correlations |
+| Cron still works | Daily batch processes all portfolios correctly |
+| Single code path | Both flows use same unified function |
+
+---
+
+## After All 5 Phases Complete
 
 1. Verify next cron job catches up all portfolios (Phase 2 auto-backfill)
 2. Re-run batch for Testscotty to verify Phase 1 fix (symbol factors)
 3. Monitor logs for absence of "Task was destroyed" warnings (Phase 3)
+4. Verify batch_run_tracker self-heals after timeout (Phase 4)
+5. Verify single-portfolio batches complete in ~10 minutes (Phase 5)
 
 ---
 
