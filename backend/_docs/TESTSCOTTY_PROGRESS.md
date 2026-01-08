@@ -14,6 +14,7 @@
 | 1 | Fix Phase 1.5 Skipping | ✅ IMPLEMENTED | Pending |
 | 2 | Fix Global Watermark Bug | NOT STARTED | - |
 | 3 | Fix Fire-and-Forget Tasks | NOT STARTED | - |
+| 4 | Add batch_run_tracker Timeout & Cleanup | NOT STARTED | - |
 
 ---
 
@@ -295,6 +296,112 @@ LIMIT 10;
 
 ---
 
+## Phase 4: Add batch_run_tracker Timeout & Cleanup
+
+### Objective
+Make the batch system self-healing when batches crash or hang, eliminating the need for manual Railway restarts.
+
+### Problem Statement
+The `batch_run_tracker` is an in-memory singleton that prevents concurrent batch runs. If a batch crashes without calling `complete()`, the flag stays stuck until server restart, blocking ALL subsequent batches.
+
+**Discovered during**: Testscotty2 verification test (Jan 8, 2026)
+
+### Pre-Fix State
+- `batch_run_tracker` has no timeout mechanism
+- Crashed batches leave tracker stuck indefinitely
+- Only fix is manual Railway restart
+- No automatic cleanup on server startup
+
+### Implementation
+
+**Files to Modify**:
+- `backend/app/batch/batch_run_tracker.py` - Add timeout logic
+- `backend/app/main.py` - Add startup cleanup
+
+**Status**: NOT STARTED
+
+**Changes Required**:
+
+#### Part A: Add Timeout to In-Memory Tracker
+
+```python
+# batch_run_tracker.py
+class BatchRunTracker:
+    def __init__(self, timeout_minutes=30):
+        self._running = False
+        self._started_at = None
+        self._timeout = timedelta(minutes=timeout_minutes)
+
+    def is_running(self) -> bool:
+        if self._running and self._started_at:
+            # Auto-expire if running too long
+            if datetime.utcnow() - self._started_at > self._timeout:
+                logger.warning(f"Batch auto-expired after {self._timeout}")
+                self._running = False
+                return False
+        return self._running
+
+    def start(self):
+        if self.is_running():  # Uses timeout check
+            raise BatchAlreadyRunningError()
+        self._running = True
+        self._started_at = datetime.utcnow()
+
+    def complete(self):
+        self._running = False
+        self._started_at = None
+```
+
+#### Part B: Add Startup Cleanup for Database Records
+
+```python
+# In app startup (main.py or lifespan)
+async def cleanup_stale_batches():
+    """Mark any batch 'running' for >30 min as 'failed'"""
+    async with get_async_session() as db:
+        await db.execute(text("""
+            UPDATE batch_run_history
+            SET status = 'failed',
+                completed_at = NOW(),
+                notes = 'Auto-failed: exceeded 30 minute timeout'
+            WHERE status = 'running'
+            AND started_at < NOW() - INTERVAL '30 minutes'
+        """))
+        await db.commit()
+```
+
+### Design Decisions
+
+1. **Timeout value**: 30 minutes
+   - Longest normal batch run is ~15-20 minutes
+   - 30 minutes gives buffer for slow runs
+   - Can be made configurable via environment variable
+
+2. **Dual approach**:
+   - In-memory timeout: Self-heals during runtime
+   - Startup cleanup: Handles restart scenarios and keeps DB accurate
+
+3. **Logging**: Log when auto-expiring so we can track crash frequency
+
+### Verification Steps
+
+1. [ ] Unit test: Verify tracker auto-expires after timeout
+2. [ ] Integration test: Start batch, kill process, verify new batch can start after timeout
+3. [ ] Startup test: Create stale "running" record, restart server, verify it's marked "failed"
+
+### Post-Fix Verification
+- [ ] Deployed to Railway
+- [ ] Simulated stuck batch (or waited for natural occurrence)
+- [ ] Verified system auto-recovered without restart
+- [ ] Verified stale DB records cleaned up on startup
+
+### Notes
+- This is a **preventive fix** - makes the system resilient to future crashes
+- Combined with Phase 1's try/finally, crashes should be rare
+- But when they do happen, system will self-heal
+
+---
+
 ## Timeline
 
 | Date | Action | Result |
@@ -309,6 +416,7 @@ LIMIT 10;
 | 2026-01-08 | Code review request v3 written | `CODE_REVIEW_REQUEST_BATCH.md` |
 | 2026-01-08 | Pushed to origin/main | Railway deployment triggered |
 | 2026-01-08 | Testscotty2 verification test | Onboarding batch blocked by stuck batch_run_tracker |
+| 2026-01-08 | Phase 4 added to plan | batch_run_tracker timeout & cleanup |
 | | | |
 
 ---
@@ -319,6 +427,7 @@ Before pushing to remote:
 - [x] Phase 1 changes reviewed by AI agent (Claude Opus 4.5)
 - [ ] Phase 2 changes reviewed by AI agent
 - [ ] Phase 3 changes reviewed by AI agent
+- [ ] Phase 4 changes reviewed by AI agent
 - [ ] All verification queries pass on Railway
 - [ ] No regressions in existing functionality
 
@@ -343,5 +452,11 @@ git push origin main
 **Phase 3 Rollback**:
 ```bash
 git revert <phase3-commit-hash>
+git push origin main
+```
+
+**Phase 4 Rollback**:
+```bash
+git revert <phase4-commit-hash>
 git push origin main
 ```
