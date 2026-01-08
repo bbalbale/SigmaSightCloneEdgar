@@ -30,15 +30,16 @@
 ## Phase 1: Fix Phase 1.5 Skipping
 
 ### Objective
-Ensure all batch entry points (admin, onboarding, cron) run Phase 1.5 (Symbol Factors) and Phase 1.75 (Symbol Metrics).
+Ensure all batch entry points (admin, onboarding, cron) run Phase 1.5 (Symbol Factors) and Phase 1.75 (Symbol Metrics), AND ensure new portfolios get full historical snapshots for complete analytics.
 
 ### Pre-Fix State (Railway Production)
 - Testscotty has 13 positions
 - 8 symbols missing from `symbol_universe`: GGIPX, GINDX, GOVT, IAU, IEFA, MUB, NEAIX, VO
 - 0 `position_factor_exposures` for all 13 positions
 - Batch triggered by "admin" via `run_daily_batch_sequence()` which skips Phase 1.5
+- New portfolios only get single-date snapshots (no historical data for P&L trends)
 
-### Implementation
+### Implementation - Part A (batch_orchestrator.py)
 
 **File**: `backend/app/batch/batch_orchestrator.py`
 
@@ -62,6 +63,22 @@ Ensure all batch entry points (admin, onboarding, cron) run Phase 1.5 (Symbol Fa
 - Result dict: lines 559-572
 - Phase 1.5: lines 625-661
 - Phase 1.75: lines 663-697
+
+### Implementation - Part B (portfolios.py)
+
+**File**: `backend/app/api/v1/portfolios.py`
+
+**Status**: ✅ IMPLEMENTED (January 8, 2026)
+
+**Rationale**: New portfolios with new tickers need historical snapshots (not just today's) for full analytics (P&L trends, MTD/YTD returns). Single-date processing only creates one snapshot, leaving analytics incomplete.
+
+**Changes Made**:
+- [x] Changed onboarding batch trigger from `run_daily_batch_sequence()` to `run_daily_batch_with_backfill()`
+- [x] Parameters: `start_date=None` (auto-detect), `end_date=calculation_date`, `portfolio_ids=[portfolio_id]`
+- [x] Added detailed comments explaining why backfill is used for onboarding
+- [x] Verified imports work correctly
+
+**Key Code Location**: lines 590-601
 
 ### Verification Queries
 
@@ -95,8 +112,12 @@ GROUP BY p.symbol;
 - [ ] Verified all 13 positions have `position_factor_exposures`
 
 ### Notes
-- **Design Decision**: Phase 1.5 and 1.75 are non-blocking - they continue to subsequent phases even if they fail. This is consistent with the pattern used in `run_daily_batch_with_backfill()`.
-- **Key Benefit**: Now ALL batch entry points (admin, onboarding, cron) will run Phase 1.5 and 1.75, not just the cron job. This ensures new portfolios get symbol factors immediately during onboarding.
+- **Design Decision (Part A)**: Phase 1.5 and 1.75 are non-blocking - they continue to subsequent phases even if they fail. This is consistent with the pattern used in `run_daily_batch_with_backfill()`.
+- **Design Decision (Part B)**: Onboarding now uses `run_daily_batch_with_backfill()` instead of `run_daily_batch_sequence()`. This ensures new portfolios get:
+  1. Full historical snapshots (auto-detected from earliest position date)
+  2. Phase 1.5 (Symbol Factors) and Phase 1.75 (Symbol Metrics)
+  3. Complete analytics from day one (P&L trends, MTD/YTD returns)
+- **Key Benefit**: Now ALL batch entry points (admin, onboarding, cron) will run Phase 1.5 and 1.75, and onboarding specifically gets full backfill.
 - **Testing Note**: Imports verified locally. Ready for Railway deployment and verification.
 
 ---
@@ -192,7 +213,8 @@ LIMIT 10;
 | Date | Action | Result |
 |------|--------|--------|
 | 2026-01-08 | Initial analysis and plan created | 3 bugs identified |
-| 2026-01-08 | Phase 1 implemented | Added Phase 1.5 and 1.75 to `_run_sequence_with_session()` |
+| 2026-01-08 | Phase 1 Part A implemented | Added Phase 1.5 and 1.75 to `_run_sequence_with_session()` |
+| 2026-01-08 | Phase 1 Part B implemented | Changed onboarding to use `run_daily_batch_with_backfill()` |
 | | | |
 
 ---

@@ -162,17 +162,31 @@ We will fix these issues one at a time, verifying each on Railway before proceed
 
 ### PHASE 1: Fix Phase 1.5 Skipping (CRITICAL)
 
-**Goal**: Ensure all batch entry points run Phase 1.5 (Symbol Factors) and Phase 1.75 (Symbol Metrics).
+**Goal**: Ensure all batch entry points run Phase 1.5 (Symbol Factors) and Phase 1.75 (Symbol Metrics), AND ensure new portfolios get full historical snapshots for complete analytics.
 
-**Approach**: Add Phase 1.5 and 1.75 to `_run_sequence_with_session()` so ALL batch paths include them.
+**Approach (Two Parts)**:
+
+**Part A**: Add Phase 1.5 and 1.75 to `_run_sequence_with_session()` so ALL batch paths include them.
+- This ensures symbol factors are calculated regardless of which entry point triggers the batch.
+
+**Part B**: Change onboarding flow to use `run_daily_batch_with_backfill()` instead of `run_daily_batch_sequence()`.
+- **Rationale**: New portfolios with new tickers need historical snapshots (not just today's) for full analytics (P&L trends, MTD/YTD returns, etc.). Single-date processing only creates one snapshot, leaving analytics incomplete.
+- This ensures new portfolios get backfilled historical data immediately during onboarding.
 
 **Files to Modify**:
-- `backend/app/batch/batch_orchestrator.py`
+- `backend/app/batch/batch_orchestrator.py` (Part A)
+- `backend/app/api/v1/endpoints/portfolios.py` (Part B)
 
 **Changes**:
+
+*Part A (batch_orchestrator.py):*
 1. Add Phase 1.5 call after Phase 1 in `_run_sequence_with_session()`
 2. Add Phase 1.75 call after Phase 1.5 in `_run_sequence_with_session()`
-3. Ensure `ensure_symbols_in_universe()` is called for the portfolio's symbols
+3. Update result dict to include `phase_1_5` and `phase_1_75` keys
+
+*Part B (portfolios.py):*
+1. Change onboarding batch trigger from `run_daily_batch_sequence()` to `run_daily_batch_with_backfill()`
+2. Pass the new portfolio's ID to limit backfill scope
 
 **Verification Steps**:
 1. Deploy to Railway
@@ -181,8 +195,9 @@ We will fix these issues one at a time, verifying each on Railway before proceed
    - 8 missing symbols now in `symbol_universe`
    - All 13 positions have `symbol_factor_exposures`
    - All 13 positions have `position_factor_exposures`
+   - Historical snapshots exist (not just single date)
 
-**Rollback**: Revert the batch_orchestrator.py changes if issues arise.
+**Rollback**: Revert the batch_orchestrator.py and portfolios.py changes if issues arise.
 
 ---
 
