@@ -439,6 +439,237 @@ class BatchOrchestrator:
             'results': results
         }
 
+    async def run_portfolio_onboarding_backfill(
+        self,
+        portfolio_id: str,
+        end_date: Optional[date] = None
+    ) -> Dict[str, Any]:
+        """
+        Run full backfill for a SINGLE newly onboarded portfolio.
+
+        Unlike run_daily_batch_with_backfill() which uses a global watermark,
+        this method:
+        1. Finds the earliest position entry_date for THIS portfolio specifically
+        2. Processes all trading days from that date to end_date
+        3. Ensures complete historical snapshots and analytics for the new portfolio
+
+        This is the correct entry point for onboarding new portfolios, as it
+        guarantees full analytics history regardless of the global system state.
+
+        Args:
+            portfolio_id: UUID string of the portfolio to backfill
+            end_date: Date to process up to (defaults to most recent trading day)
+
+        Returns:
+            Summary of backfill operation including dates processed and any errors
+        """
+        from app.utils.trading_calendar import get_most_recent_trading_day
+
+        logger.info(f"Portfolio Onboarding Backfill: Starting for portfolio {portfolio_id}")
+        start_time = asyncio.get_event_loop().time()
+
+        # Determine target end date
+        target_date = end_date if end_date else get_most_recent_trading_day()
+        logger.info(f"Target end date: {target_date}")
+
+        # Step 1: Find the earliest position entry_date for THIS portfolio
+        async with AsyncSessionLocal() as db:
+            earliest_query = select(Position.entry_date).where(
+                and_(
+                    Position.portfolio_id == UUID(portfolio_id) if isinstance(portfolio_id, str) else portfolio_id,
+                    Position.deleted_at.is_(None),
+                    Position.entry_date.isnot(None)
+                )
+            ).order_by(Position.entry_date).limit(1)
+
+            result = await db.execute(earliest_query)
+            earliest_position_date = result.scalar_one_or_none()
+
+            if not earliest_position_date:
+                logger.warning(f"Portfolio {portfolio_id} has no positions with entry dates")
+                return {
+                    'success': True,
+                    'message': 'No positions with entry dates found',
+                    'dates_processed': 0,
+                    'portfolio_id': portfolio_id
+                }
+
+            logger.info(f"Earliest position entry_date for portfolio: {earliest_position_date}")
+
+        # Step 2: Calculate all trading days from earliest position to target
+        missing_dates = trading_calendar.get_trading_days_between(
+            start_date=earliest_position_date,
+            end_date=target_date
+        )
+
+        if not missing_dates:
+            logger.info(f"No trading days to process between {earliest_position_date} and {target_date}")
+            return {
+                'success': True,
+                'message': f'No trading days between {earliest_position_date} and {target_date}',
+                'dates_processed': 0,
+                'portfolio_id': portfolio_id
+            }
+
+        logger.info(f"Processing {len(missing_dates)} trading days: {missing_dates[0]} to {missing_dates[-1]}")
+
+        # Generate batch run ID for tracking
+        batch_run_id = f"onboarding_{portfolio_id[:8]}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        record_batch_start(
+            batch_run_id=batch_run_id,
+            triggered_by="onboarding",
+            total_jobs=len(missing_dates),
+        )
+
+        # Step 3: Run Phase 1 (Market Data) for ALL dates first
+        # This ensures market_data_cache has all prices before analytics
+        portfolio_ids_list = [portfolio_id]
+        logger.info(f"Phase 1: Collecting market data for {len(missing_dates)} dates")
+
+        for i, calc_date in enumerate(missing_dates, 1):
+            logger.debug(f"Phase 1: {calc_date} ({i}/{len(missing_dates)})")
+            async with AsyncSessionLocal() as db:
+                try:
+                    phase1_result = await market_data_collector.collect_daily_market_data(
+                        calculation_date=calc_date,
+                        lookback_days=365,
+                        db=db,
+                        portfolio_ids=portfolio_ids_list,
+                        skip_company_profiles=True
+                    )
+                    if not phase1_result.get('success'):
+                        logger.warning(f"Phase 1 issues for {calc_date}")
+                except Exception as e:
+                    logger.error(f"Phase 1 error {calc_date}: {e}")
+
+        # Step 4: Load price cache after all market data collected
+        price_cache = None
+        async with AsyncSessionLocal() as cache_db:
+            # Get symbols for THIS portfolio only
+            symbols_stmt = select(Position.symbol).where(
+                and_(
+                    Position.portfolio_id == UUID(portfolio_id) if isinstance(portfolio_id, str) else portfolio_id,
+                    Position.deleted_at.is_(None),
+                    Position.symbol.isnot(None),
+                    Position.symbol != '',
+                    Position.investment_class.in_(['PUBLIC', 'OPTIONS'])
+                )
+            ).distinct()
+            symbols_result = await cache_db.execute(symbols_stmt)
+            portfolio_symbols = {row[0] for row in symbols_result.all()}
+
+            # Add factor ETF symbols required for calculations
+            factor_etf_symbols = {'VUG', 'VTV', 'MTUM', 'QUAL', 'IWM', 'SPY', 'USMV', 'TLT'}
+            symbols = portfolio_symbols.union(factor_etf_symbols)
+
+            logger.info(f"Price cache: loading {len(symbols)} symbols for portfolio")
+
+            if symbols:
+                price_cache = PriceCache()
+                cache_start = missing_dates[0] - timedelta(days=366)
+                loaded_count = await price_cache.load_date_range(
+                    db=cache_db,
+                    symbols=symbols,
+                    start_date=cache_start,
+                    end_date=missing_dates[-1]
+                )
+                logger.debug(f"Price cache loaded: {loaded_count} prices")
+
+        # Step 5: Run Phase 1.5 (Symbol Factors) ONCE for final date
+        final_date = missing_dates[-1]
+        symbol_factor_result = None
+        try:
+            from app.calculations.symbol_factors import calculate_universe_factors
+
+            logger.info(f"Phase 1.5: Calculating symbol factors (date={final_date})")
+            symbol_factor_result = await calculate_universe_factors(
+                calculation_date=final_date,
+                regularization_alpha=1.0,
+                calculate_ridge=True,
+                calculate_spread=True,
+                price_cache=price_cache
+            )
+            logger.info(
+                f"Phase 1.5 complete: {symbol_factor_result['symbols_processed']} symbols processed"
+            )
+        except Exception as e:
+            logger.error(f"Phase 1.5 error: {e}")
+            import traceback
+            logger.error(f"Traceback: {traceback.format_exc()}")
+
+        # Step 6: Run Phase 1.75 (Symbol Metrics) ONCE for final date
+        symbol_metrics_result = None
+        try:
+            from app.services.symbol_metrics_service import calculate_symbol_metrics
+
+            logger.info(f"Phase 1.75: Calculating symbol metrics (date={final_date})")
+            symbol_metrics_result = await calculate_symbol_metrics(
+                calculation_date=final_date,
+                price_cache=price_cache
+            )
+            logger.info(
+                f"Phase 1.75 complete: {symbol_metrics_result['symbols_updated']}/{symbol_metrics_result['symbols_total']} symbols"
+            )
+        except Exception as e:
+            logger.error(f"Phase 1.75 error: {e}")
+            import traceback
+            logger.error(f"Traceback: {traceback.format_exc()}")
+
+        # Step 7: Run Phases 2-6 for EACH date
+        results = []
+        for i, calc_date in enumerate(missing_dates, 1):
+            logger.debug(f"Phases 2-6: {calc_date} ({i}/{len(missing_dates)})")
+
+            async with AsyncSessionLocal() as db:
+                result = await self._run_phases_2_through_6(
+                    db=db,
+                    calculation_date=calc_date,
+                    portfolio_ids=portfolio_ids_list,
+                    run_sector_analysis=(calc_date == target_date),
+                    price_cache=price_cache
+                )
+                results.append(result)
+
+                if result['success']:
+                    await self._mark_batch_run_complete(db, calc_date, result)
+
+                await db.commit()
+
+        duration = int(asyncio.get_event_loop().time() - start_time)
+        success_count = sum(1 for r in results if r['success'])
+        failed_count = len(results) - success_count
+
+        logger.info(
+            f"Portfolio Onboarding Backfill complete: {success_count}/{len(results)} dates in {duration}s"
+        )
+
+        # Record completion
+        overall_success = all(r['success'] for r in results)
+        status = "completed" if overall_success else ("partial" if success_count > 0 else "failed")
+
+        record_batch_complete(
+            batch_run_id=batch_run_id,
+            status=status,
+            completed_jobs=success_count,
+            failed_jobs=failed_count,
+            phase_durations={"total_duration": duration},
+            error_summary=None,
+        )
+
+        return {
+            'success': overall_success,
+            'portfolio_id': portfolio_id,
+            'dates_processed': len(missing_dates),
+            'date_range': f"{missing_dates[0]} to {missing_dates[-1]}" if missing_dates else None,
+            'duration_seconds': duration,
+            'phase_1_5': symbol_factor_result or {'success': False, 'skipped': True},
+            'phase_1_75': symbol_metrics_result or {'success': False, 'skipped': True},
+            'results_summary': {
+                'success': success_count,
+                'failed': failed_count
+            }
+        }
+
     async def run_daily_batch_sequence(
         self,
         calculation_date: date,

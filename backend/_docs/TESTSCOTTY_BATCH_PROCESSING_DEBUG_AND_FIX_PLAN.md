@@ -184,9 +184,18 @@ We will fix these issues one at a time, verifying each on Railway before proceed
 2. Add Phase 1.75 call after Phase 1.5 in `_run_sequence_with_session()`
 3. Update result dict to include `phase_1_5` and `phase_1_75` keys
 
-*Part B (portfolios.py):*
-1. Change onboarding batch trigger from `run_daily_batch_sequence()` to `run_daily_batch_with_backfill()`
-2. Pass the new portfolio's ID to limit backfill scope
+*Part B (batch_orchestrator.py + portfolios.py):*
+1. Create new `run_portfolio_onboarding_backfill(portfolio_id)` method in batch_orchestrator.py
+   - Queries earliest position entry_date for THIS portfolio specifically
+   - Calculates all trading days from that date to today
+   - Runs full batch (Phase 1 → 1.5 → 1.75 → 2-6) for all dates
+   - Bypasses global watermark entirely
+2. Change onboarding trigger in portfolios.py to call `run_portfolio_onboarding_backfill()`
+
+**Why not use `run_daily_batch_with_backfill()`?** (Code review finding)
+- Global backfill short-circuits when cron already ran ("already up to date")
+- Global backfill uses system-wide MAX snapshot date, not per-portfolio
+- New portfolios would get nothing if system is already "up to date"
 
 **Verification Steps**:
 1. Deploy to Railway

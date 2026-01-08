@@ -587,17 +587,17 @@ async def trigger_portfolio_calculations(
             f"(batch_run_id: {batch_run_id}, calculation_date: {calculation_date}, today: {date.today()})"
         )
 
-        # Execute batch processing in background using full backfill
-        # Why backfill instead of single-date sequence?
-        # - New portfolios need historical snapshots for complete analytics (P&L trends, MTD/YTD returns)
-        # - Backfill auto-detects earliest position date and processes all missing trading days
-        # - Single-date processing only creates one snapshot, leaving analytics incomplete
-        # - Backfill includes Phase 1.5 (Symbol Factors) and Phase 1.75 (Symbol Metrics)
+        # Execute batch processing in background using per-portfolio onboarding backfill
+        # Why run_portfolio_onboarding_backfill instead of run_daily_batch_with_backfill?
+        # - run_daily_batch_with_backfill uses GLOBAL watermark (max snapshot across ALL portfolios)
+        # - If cron already ran today, global backfill returns "already up to date" - new portfolio gets nothing
+        # - run_portfolio_onboarding_backfill finds earliest position entry_date for THIS portfolio
+        # - Processes all trading days from that date, guaranteeing complete historical analytics
+        # - Includes Phase 1.5 (Symbol Factors) and Phase 1.75 (Symbol Metrics)
         background_tasks.add_task(
-            batch_orchestrator.run_daily_batch_with_backfill,
-            None,  # start_date - auto-detect based on portfolio's earliest position
-            calculation_date,  # end_date - process up to most recent trading day
-            [str(portfolio_id)]  # portfolio_ids - limit scope to this portfolio only
+            batch_orchestrator.run_portfolio_onboarding_backfill,
+            str(portfolio_id),  # portfolio_id - the specific portfolio to backfill
+            calculation_date  # end_date - process up to most recent trading day
         )
 
         return TriggerCalculationsResponse(

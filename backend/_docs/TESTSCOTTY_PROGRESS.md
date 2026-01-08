@@ -64,21 +64,34 @@ Ensure all batch entry points (admin, onboarding, cron) run Phase 1.5 (Symbol Fa
 - Phase 1.5: lines 625-661
 - Phase 1.75: lines 663-697
 
-### Implementation - Part B (portfolios.py)
+### Implementation - Part B (portfolios.py + new orchestrator method)
 
-**File**: `backend/app/api/v1/portfolios.py`
+**Files**:
+- `backend/app/batch/batch_orchestrator.py` - New `run_portfolio_onboarding_backfill()` method
+- `backend/app/api/v1/portfolios.py` - Updated to use new method
 
-**Status**: ✅ IMPLEMENTED (January 8, 2026)
+**Status**: ✅ IMPLEMENTED (January 8, 2026) - REVISED after code review
 
-**Rationale**: New portfolios with new tickers need historical snapshots (not just today's) for full analytics (P&L trends, MTD/YTD returns). Single-date processing only creates one snapshot, leaving analytics incomplete.
+**Code Review Finding (Critical)**:
+The initial implementation using `run_daily_batch_with_backfill()` had two issues:
+1. **Global watermark short-circuit**: If cron already ran today, returns "already up to date" without processing the new portfolio
+2. **Global start date**: Uses MAX snapshot across ALL portfolios, not per-portfolio earliest position
+
+**Solution**: Created new dedicated method `run_portfolio_onboarding_backfill(portfolio_id)` that:
+1. Queries earliest position `entry_date` for THIS portfolio specifically
+2. Calculates all trading days from that date to today
+3. Runs full batch (Phase 1 → 1.5 → 1.75 → 2-6) for all dates
+4. Bypasses global watermark entirely
 
 **Changes Made**:
-- [x] Changed onboarding batch trigger from `run_daily_batch_sequence()` to `run_daily_batch_with_backfill()`
-- [x] Parameters: `start_date=None` (auto-detect), `end_date=calculation_date`, `portfolio_ids=[portfolio_id]`
-- [x] Added detailed comments explaining why backfill is used for onboarding
+- [x] Created `run_portfolio_onboarding_backfill(portfolio_id, end_date)` in batch_orchestrator.py (lines 442-671)
+- [x] Changed portfolios.py to call `run_portfolio_onboarding_backfill()` instead of `run_daily_batch_with_backfill()`
+- [x] Added detailed comments explaining why per-portfolio backfill is needed
 - [x] Verified imports work correctly
 
-**Key Code Location**: lines 590-601
+**Key Code Locations**:
+- New method: `batch_orchestrator.py` lines 442-671
+- Trigger: `portfolios.py` lines 590-601
 
 ### Verification Queries
 
@@ -113,11 +126,12 @@ GROUP BY p.symbol;
 
 ### Notes
 - **Design Decision (Part A)**: Phase 1.5 and 1.75 are non-blocking - they continue to subsequent phases even if they fail. This is consistent with the pattern used in `run_daily_batch_with_backfill()`.
-- **Design Decision (Part B)**: Onboarding now uses `run_daily_batch_with_backfill()` instead of `run_daily_batch_sequence()`. This ensures new portfolios get:
-  1. Full historical snapshots (auto-detected from earliest position date)
-  2. Phase 1.5 (Symbol Factors) and Phase 1.75 (Symbol Metrics)
-  3. Complete analytics from day one (P&L trends, MTD/YTD returns)
-- **Key Benefit**: Now ALL batch entry points (admin, onboarding, cron) will run Phase 1.5 and 1.75, and onboarding specifically gets full backfill.
+- **Design Decision (Part B - Revised)**: After code review, switched from `run_daily_batch_with_backfill()` to new dedicated `run_portfolio_onboarding_backfill()` method because:
+  1. Global backfill short-circuits when cron already ran (returns "already up to date")
+  2. Global backfill uses system-wide watermark, not per-portfolio dates
+  3. New method guarantees processing regardless of global system state
+- **Key Benefit**: Now ALL batch entry points run Phase 1.5 and 1.75, and onboarding specifically gets full per-portfolio backfill from earliest position date.
+- **Performance Note**: The new onboarding method recalculates symbol factors for the portfolio's symbols. This is intentional to ensure new/uncommon symbols get factor exposures.
 - **Testing Note**: Imports verified locally. Ready for Railway deployment and verification.
 
 ---
@@ -214,7 +228,9 @@ LIMIT 10;
 |------|--------|--------|
 | 2026-01-08 | Initial analysis and plan created | 3 bugs identified |
 | 2026-01-08 | Phase 1 Part A implemented | Added Phase 1.5 and 1.75 to `_run_sequence_with_session()` |
-| 2026-01-08 | Phase 1 Part B implemented | Changed onboarding to use `run_daily_batch_with_backfill()` |
+| 2026-01-08 | Phase 1 Part B implemented (v1) | Changed onboarding to use `run_daily_batch_with_backfill()` |
+| 2026-01-08 | Code review identified issues | Global watermark problems with Part B v1 |
+| 2026-01-08 | Phase 1 Part B revised (v2) | Created `run_portfolio_onboarding_backfill()` method |
 | | | |
 
 ---
