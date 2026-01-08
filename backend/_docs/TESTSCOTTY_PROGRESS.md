@@ -126,12 +126,18 @@ GROUP BY p.symbol;
 
 ### Notes
 - **Design Decision (Part A)**: Phase 1.5 and 1.75 are non-blocking - they continue to subsequent phases even if they fail. This is consistent with the pattern used in `run_daily_batch_with_backfill()`.
-- **Design Decision (Part B - Revised)**: After code review, switched from `run_daily_batch_with_backfill()` to new dedicated `run_portfolio_onboarding_backfill()` method because:
+- **Design Decision (Part B - Revised v2)**: After code review v1, switched from `run_daily_batch_with_backfill()` to new dedicated `run_portfolio_onboarding_backfill()` method because:
   1. Global backfill short-circuits when cron already ran (returns "already up to date")
   2. Global backfill uses system-wide watermark, not per-portfolio dates
   3. New method guarantees processing regardless of global system state
+- **Design Decision (Part B - Revised v3)**: After code review v2:
+  1. Added try/finally to ensure `batch_run_tracker.complete()` always called (prevents 409 errors)
+  2. **REMOVED** universe-wide `calculate_universe_factors()` call - was corrupting global analytics
+  3. **REMOVED** universe-wide `calculate_symbol_metrics()` call - same issue
+  4. Now only calls `ensure_symbols_in_universe()` for portfolio's specific symbols
+  5. Daily cron will calculate factors with complete price cache
+- **Trade-off Accepted**: New portfolios won't have factor exposures immediately. Daily cron calculates them with full data. This is acceptable because data integrity is preserved for all portfolios.
 - **Key Benefit**: Now ALL batch entry points run Phase 1.5 and 1.75, and onboarding specifically gets full per-portfolio backfill from earliest position date.
-- **Performance Note**: The new onboarding method recalculates symbol factors for the portfolio's symbols. This is intentional to ensure new/uncommon symbols get factor exposures.
 - **Testing Note**: Imports verified locally. Ready for Railway deployment and verification.
 
 ---
@@ -231,6 +237,9 @@ LIMIT 10;
 | 2026-01-08 | Phase 1 Part B implemented (v1) | Changed onboarding to use `run_daily_batch_with_backfill()` |
 | 2026-01-08 | Code review identified issues | Global watermark problems with Part B v1 |
 | 2026-01-08 | Phase 1 Part B revised (v2) | Created `run_portfolio_onboarding_backfill()` method |
+| 2026-01-08 | Code review v2 identified issues | batch_run_tracker cleanup, Phase 1.5 corruption |
+| 2026-01-08 | Phase 1 Part B revised (v3) | Added try/finally, scoped symbol processing |
+| 2026-01-08 | Code review request v3 written | `CODE_REVIEW_REQUEST_BATCH.md` |
 | | | |
 
 ---
