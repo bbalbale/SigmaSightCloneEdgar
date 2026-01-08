@@ -533,7 +533,19 @@ class BatchOrchestrator:
         force_onboarding: bool = False,
     ) -> Dict[str, Any]:
         """
-        Run 7-phase sequence with provided session and optional price cache
+        Run 9-phase sequence with provided session and optional price cache
+
+        Phases:
+            0: Company Profile Sync
+            1: Market Data Collection
+            1.5: Symbol Factors (NEW - ensures symbols in universe)
+            1.75: Symbol Metrics (NEW - pre-calculates returns)
+            2: Fundamental Data Collection
+            2.5: Cleanup incomplete snapshots
+            3: P&L & Snapshots
+            4: Position Market Values
+            5: Risk Analytics
+            6: Factor Analysis
 
         Args:
             db: Database session
@@ -549,6 +561,8 @@ class BatchOrchestrator:
             'calculation_date': calculation_date,
             'phase_0': {},
             'phase_1': {},
+            'phase_1_5': {},
+            'phase_1_75': {},
             'phase_2': {},
             'phase_3': {},
             'phase_4': {},
@@ -607,6 +621,80 @@ class BatchOrchestrator:
             logger.error(f"Phase 1 error: {e}")
             result['errors'].append(f"Phase 1 error: {str(e)}")
             return result
+
+        # =============================================================================
+        # Phase 1.5: Calculate Symbol Factors for all symbols
+        # This ensures symbols are added to symbol_universe and have factor exposures
+        # calculated. Critical for new portfolios onboarded via admin/onboarding flow.
+        # =============================================================================
+        try:
+            from app.calculations.symbol_factors import calculate_universe_factors
+
+            logger.info(f"Phase 1.5: Calculating symbol factors for universe (date={calculation_date})")
+
+            symbol_factor_result = await calculate_universe_factors(
+                calculation_date=calculation_date,
+                regularization_alpha=1.0,
+                calculate_ridge=True,
+                calculate_spread=True,
+                price_cache=price_cache
+            )
+
+            result['phase_1_5'] = symbol_factor_result
+
+            logger.info(
+                f"Phase 1.5 complete: {symbol_factor_result['symbols_processed']} symbols, "
+                f"Ridge: {symbol_factor_result['ridge_results']['calculated']} calc / "
+                f"{symbol_factor_result['ridge_results']['cached']} cached, "
+                f"Spread: {symbol_factor_result['spread_results']['calculated']} calc / "
+                f"{symbol_factor_result['spread_results']['cached']} cached"
+            )
+
+            if symbol_factor_result.get('errors'):
+                logger.warning(f"Phase 1.5 had {len(symbol_factor_result['errors'])} errors")
+
+        except Exception as e:
+            logger.error(f"Phase 1.5 (Symbol Factors) error: {e}")
+            import traceback
+            logger.error(f"Traceback: {traceback.format_exc()}")
+            result['phase_1_5'] = {'success': False, 'error': str(e)}
+            # Continue to Phase 1.75 even if symbol factors fail
+
+        # =============================================================================
+        # Phase 1.75: Calculate Symbol Metrics (returns, valuations)
+        # Pre-calculates returns and metrics for all symbols before P&L calculation.
+        # P&L calculator can then lookup returns instead of recalculating per position.
+        # =============================================================================
+        try:
+            from app.services.symbol_metrics_service import calculate_symbol_metrics
+
+            logger.info(f"Phase 1.75: Calculating symbol metrics (date={calculation_date})")
+
+            symbol_metrics_result = await calculate_symbol_metrics(
+                calculation_date=calculation_date,
+                price_cache=price_cache
+            )
+
+            result['phase_1_75'] = symbol_metrics_result
+
+            logger.info(
+                f"Phase 1.75 complete: {symbol_metrics_result['symbols_updated']}/{symbol_metrics_result['symbols_total']} symbols updated"
+            )
+
+            if symbol_metrics_result.get('errors'):
+                logger.warning(f"Phase 1.75 had {len(symbol_metrics_result['errors'])} errors")
+
+        except Exception as e:
+            logger.error(f"Phase 1.75 (Symbol Metrics) error: {e}")
+            import traceback
+            logger.error(f"Traceback: {traceback.format_exc()}")
+            result['phase_1_75'] = {
+                'success': False,
+                'error': str(e),
+                'symbols_updated': 0,
+                'symbols_total': 0
+            }
+            # Continue to Phase 2 even if symbol metrics fail
 
         # Phase 2: Fundamental Data Collection
         # OPTIMIZATION: Only run on current/final date (fundamentals don't change historically)
