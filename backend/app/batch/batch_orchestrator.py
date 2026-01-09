@@ -277,6 +277,7 @@ class BatchOrchestrator:
                 scoped_only=scoped_only,
                 batch_run_id=batch_run_id,
                 progress=progress,  # Track progress for accurate crash reporting
+                force_rerun=force_rerun,
             )
         except (Exception, asyncio.CancelledError) as e:
             # Record batch failure in database history before re-raising
@@ -312,6 +313,7 @@ class BatchOrchestrator:
         scoped_only: bool,
         batch_run_id: str,
         progress: Dict[str, int],
+        force_rerun: bool = False,
     ) -> Dict[str, Any]:
         """
         Execute all batch phases (1, 1.5, 1.75, 2-6) for the given date range.
@@ -329,6 +331,8 @@ class BatchOrchestrator:
             progress: Mutable dict {"completed": N, "failed": N} updated as dates
                      are processed. Allows exception handler to report accurate
                      progress if batch crashes midway.
+            force_rerun: If True, bypass snapshot existence checks and reprocess
+                        all dates. Used to repair partial runs.
 
         Returns:
             Summary of batch operation
