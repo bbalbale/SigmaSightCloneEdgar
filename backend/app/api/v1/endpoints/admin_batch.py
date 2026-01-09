@@ -119,6 +119,15 @@ async def run_batch_processing(
             detail="start_date is required when using force_rerun=true"
         )
 
+    # Validate date parameters are only used with force_rerun
+    # Prevents silent ignoring of user-provided dates
+    if not force_rerun and (start_date or end_date):
+        raise HTTPException(
+            status_code=400,
+            detail="start_date and end_date are only supported with force_rerun=true. "
+                   "Normal batch runs process only the most recent trading day."
+        )
+
     # Create new batch run
     batch_run_id = str(uuid4())
     run = CurrentBatchRun(
