@@ -290,6 +290,352 @@ SELECT * FROM batch_run_history WHERE status = 'running' ORDER BY started_at DES
 
 ---
 
+## A9. The "Why" of the 9-Phase Architecture
+
+### Phase Ordering & Data Dependencies
+
+The batch processing phases **MUST** execute in order. Each phase depends on data produced by earlier phases.
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                        BATCH PHASE DEPENDENCY GRAPH                         │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  Phase 1: Market Data Collection                                            │
+│      │                                                                      │
+│      │ ─── produces: symbol_daily_prices, historical_prices                 │
+│      ▼                                                                      │
+│  Phase 1.5: Symbol Factors (Ridge/Spread Regression)                        │
+│      │                                                                      │
+│      │ ─── requires: historical_prices (from Phase 1)                       │
+│      │ ─── produces: symbol_factor_exposures                                │
+│      ▼                                                                      │
+│  Phase 1.75: Symbol Metrics                                                 │
+│      │                                                                      │
+│      │ ─── requires: historical_prices (from Phase 1)                       │
+│      │ ─── produces: symbol_returns, volatility_metrics                     │
+│      ▼                                                                      │
+│  Phase 2: Portfolio Snapshots                                               │
+│      │                                                                      │
+│      │ ─── requires: symbol_daily_prices (from Phase 1)                     │
+│      │ ─── produces: portfolio_snapshots (daily NAV, P&L)                   │
+│      ▼                                                                      │
+│  Phase 2.5: Position Market Values                                          │
+│      │                                                                      │
+│      │ ─── requires: latest prices (from Phase 1)                           │
+│      │ ─── produces: updated position.market_value                          │
+│      ▼                                                                      │
+│  Phase 3: Position Betas                                                    │
+│      │                                                                      │
+│      │ ─── requires: position.market_value (from Phase 2.5)                 │
+│      │ ─── requires: historical_prices (from Phase 1)                       │
+│      │ ─── produces: position_betas (market, IR)                            │
+│      ▼                                                                      │
+│  Phase 4: Factor Exposures                                                  │
+│      │                                                                      │
+│      │ ─── requires: symbol_factor_exposures (from Phase 1.5)               │
+│      │ ─── requires: position weights (from Phase 2.5)                      │
+│      │ ─── produces: portfolio_factor_exposures                             │
+│      ▼                                                                      │
+│  Phase 5: Volatility Analysis                                               │
+│      │                                                                      │
+│      │ ─── requires: symbol_returns (from Phase 1.75)                       │
+│      │ ─── requires: portfolio_snapshots (from Phase 2)                     │
+│      │ ─── produces: volatility_forecasts (HAR model)                       │
+│      ▼                                                                      │
+│  Phase 6: Correlations                                                      │
+│                                                                             │
+│      ─── requires: historical_prices (from Phase 1)                         │
+│      ─── requires: position weights (from Phase 2.5)                        │
+│      ─── produces: correlation_matrices (position & factor)                 │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### Why Parallelization Would Break Things
+
+**Scenario: Run Phase 4 before Phase 1.5**
+- Phase 4 aggregates `symbol_factor_exposures` to portfolio level
+- If Phase 1.5 hasn't run, `symbol_factor_exposures` table is empty
+- Result: Portfolio shows 0 factor exposure (wrong)
+
+**Scenario: Run Phase 3 before Phase 2.5**
+- Phase 3 calculates position betas using position weights
+- Position weights = `market_value / portfolio_equity`
+- If Phase 2.5 hasn't run, `market_value` is stale
+- Result: Betas calculated with wrong weights (wrong)
+
+**Scenario: Run Phase 2 before Phase 1**
+- Phase 2 creates snapshots using daily prices
+- If Phase 1 hasn't fetched prices, uses stale/missing data
+- Result: Snapshots show incorrect portfolio values (wrong)
+
+### Sub-Phase Naming Explained
+
+| Phase | Why This Number? |
+|-------|------------------|
+| 1.5 | Runs after Phase 1 (prices), before Phase 2 (snapshots) |
+| 1.75 | Runs after 1.5 (factors), before Phase 2 (needs returns) |
+| 2.5 | Runs after Phase 2 (snapshots), before Phase 3 (needs updated values) |
+
+The decimal naming indicates insertion points in the original 6-phase design when we discovered intermediate calculations were needed.
+
+---
+
+## A10. In-Memory vs. Persistent State Boundaries
+
+### State Storage Locations
+
+| State | Storage | Purpose | Lifetime |
+|-------|---------|---------|----------|
+| `batch_run_tracker` | In-memory (Python singleton) | Prevent concurrent batches, track progress | Until server restart |
+| `batch_run_history` | Database (`batch_run_history` table) | Audit trail, historical batch records | Permanent |
+| `status_messages` | In-memory (attached to tracker) | Real-time progress for frontend | Until batch completes |
+| `activity_log` | In-memory (attached to tracker) | Debug/activity feed for frontend | Until batch completes |
+
+### When State Moves from Memory to Database
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                      BATCH LIFECYCLE                            │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  1. batch_run_tracker.start()                                   │
+│     └── In-memory: _running = True, _started_at = now()         │
+│     └── Database: INSERT batch_run_history (status='running')   │
+│                                                                 │
+│  2. During processing (per date/phase)                          │
+│     └── In-memory: status_messages.append(), activity_log.append()
+│     └── Database: (nothing - too slow for tight loops)          │
+│                                                                 │
+│  3. batch_run_tracker.complete() or error handler               │
+│     └── In-memory: _running = False, clear messages             │
+│     └── Database: UPDATE batch_run_history (status='completed') │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### What Happens on Server Restart Mid-Batch
+
+| Scenario | In-Memory State | Database State | Result |
+|----------|-----------------|----------------|--------|
+| Normal completion | Cleared by `complete()` | `status='completed'` | ✅ Correct |
+| Server restart mid-batch | **LOST** (singleton reset) | `status='running'` (stuck) | ⚠️ Stale DB record |
+| Startup cleanup runs | N/A | `status='failed'` (auto-fixed) | ✅ Self-healed |
+
+**Key insight**: The in-memory tracker resets on restart, but the database record remains stuck. This is why we have:
+1. **Startup cleanup** - Marks stale `running` records as `failed`
+2. **30-minute timeout** - In-memory tracker auto-expires if running too long
+
+### Frontend Polling Implications
+
+The frontend polls `GET /api/v1/onboarding/status/{portfolio_id}` which reads from **in-memory tracker**.
+
+**If server restarts during batch**:
+- Tracker resets → endpoint returns `status: "not_found"`
+- Frontend should handle this gracefully (show "Unknown state" or retry)
+- User can manually re-trigger batch via force_rerun
+
+**Design decision**: We accept losing progress bars on restart because:
+1. Restarts are rare (deploys, OOM, crashes)
+2. Adding DB writes for every status update would kill performance
+3. The batch itself is idempotent - rerunning is safe
+
+---
+
+## A11. Scoped Mode Implementation Details
+
+### How Symbol Scoping Works
+
+When `portfolio_id` is provided, the batch fetches **only symbols in that portfolio** + factor ETFs, not the entire 1,193-symbol universe.
+
+**Code location**: `batch_orchestrator.py` → `_get_symbols_for_batch()`
+
+```python
+async def _get_symbols_for_batch(
+    self,
+    db: AsyncSession,
+    portfolio_id: Optional[str] = None,
+    scoped_only: bool = False
+) -> List[str]:
+    """
+    Get symbols to process.
+
+    If scoped_only=True and portfolio_id provided:
+        → Only portfolio's symbols + FACTOR_ETFS (~30 total)
+    Else:
+        → Entire symbol_universe table (~1,193 symbols)
+    """
+    if scoped_only and portfolio_id:
+        # Get symbols from this portfolio's positions only
+        position_symbols = await db.execute(
+            select(distinct(Position.symbol))
+            .where(Position.portfolio_id == portfolio_id)
+            .where(Position.exit_date.is_(None))
+        )
+        symbols = [row[0] for row in position_symbols.fetchall()]
+
+        # Add factor ETFs (needed for factor calculations)
+        symbols.extend(FACTOR_ETFS)  # ~17 ETFs
+        return list(set(symbols))
+    else:
+        # Full universe mode (cron job)
+        universe = await db.execute(select(SymbolUniverse.symbol))
+        return [row[0] for row in universe.fetchall()]
+```
+
+### When Scoped Mode is Used
+
+| Entry Point | `portfolio_id` | `scoped_only` | Symbols Fetched |
+|-------------|----------------|---------------|-----------------|
+| Cron job (daily) | `None` | `False` | ~1,193 (full universe) |
+| Onboarding | `"uuid"` | `True` | ~30 (portfolio + ETFs) |
+| Admin force rerun | `"uuid"` | `True` | ~30 (portfolio + ETFs) |
+| Admin full refresh | `None` | `False` | ~1,193 (full universe) |
+
+### Adding a New Data Source (e.g., Crypto)
+
+If you add a new data source, you **MUST** respect scoped mode:
+
+```python
+# ❌ WRONG - Ignores scoping, fetches everything
+async def fetch_crypto_data():
+    all_cryptos = await get_all_crypto_symbols()  # 10,000+ symbols
+    for symbol in all_cryptos:
+        await fetch_price(symbol)  # Re-introduces the "fetch everything" bug!
+
+# ✅ CORRECT - Respects scoping
+async def fetch_crypto_data(symbols: List[str]):
+    # Only fetch for symbols passed from _get_symbols_for_batch()
+    crypto_symbols = [s for s in symbols if is_crypto(s)]
+    for symbol in crypto_symbols:
+        await fetch_price(symbol)
+```
+
+**Rule**: Any new data collector must accept a `symbols` parameter and only process those symbols.
+
+### Log Evidence of Scoped Mode
+
+When scoped mode is active, you'll see:
+```
+INFO: Scoped mode: skipping cached universe (single-portfolio optimization)
+INFO: Symbol universe for portfolio: 27 symbols
+```
+
+When full universe mode is active:
+```
+INFO: Loading full symbol universe: 1193 symbols
+```
+
+---
+
+## A12. Operational Reset Procedures
+
+### Clearing a Stuck BatchRunTracker (In-Memory)
+
+**Symptom**: New batches fail with 409 Conflict, logs show "Batch already running"
+
+**Option 1 - Wait for auto-expire** (preferred):
+- Tracker auto-expires after 30 minutes
+- Just wait and retry
+
+**Option 2 - Restart Railway service**:
+```bash
+# Via Railway CLI
+railway service restart
+
+# Or via Railway dashboard: click "Restart" on service
+```
+
+**Option 3 - Force complete via admin endpoint** (if available):
+```bash
+curl -X POST "https://sigmasight-be-production.up.railway.app/api/v1/admin/batch/force-complete" \
+  -H "Authorization: Bearer <ADMIN_TOKEN>"
+```
+
+### Clearing Stuck Database Records
+
+**Symptom**: `batch_run_history` shows stale `status='running'` records
+
+**Option 1 - Server restart** (triggers startup cleanup):
+- Startup hook marks stale records as `failed`
+
+**Option 2 - Manual SQL update**:
+```sql
+-- Mark stuck batches as failed
+UPDATE batch_run_history
+SET status = 'failed',
+    completed_at = NOW(),
+    error_summary = '{"reason": "Manually cleared - stuck record"}'
+WHERE status = 'running'
+AND started_at < NOW() - INTERVAL '30 minutes';
+```
+
+### Wiping Portfolio Data for Clean Test Run
+
+**Symptom**: Need to re-test onboarding from scratch
+
+**Step 1 - Delete portfolio data** (keeps user):
+```sql
+-- Get portfolio ID first
+SELECT id FROM portfolios WHERE name = 'Test Portfolio';
+
+-- Delete in dependency order
+DELETE FROM portfolio_snapshots WHERE portfolio_id = '<ID>';
+DELETE FROM factor_exposures WHERE portfolio_id = '<ID>';
+DELETE FROM correlation_calculations WHERE portfolio_id = '<ID>';
+DELETE FROM position_factor_exposures WHERE position_id IN (
+    SELECT id FROM positions WHERE portfolio_id = '<ID>'
+);
+DELETE FROM position_greeks WHERE position_id IN (
+    SELECT id FROM positions WHERE portfolio_id = '<ID>'
+);
+DELETE FROM position_tags WHERE position_id IN (
+    SELECT id FROM positions WHERE portfolio_id = '<ID>'
+);
+DELETE FROM target_prices WHERE position_id IN (
+    SELECT id FROM positions WHERE portfolio_id = '<ID>'
+);
+DELETE FROM positions WHERE portfolio_id = '<ID>';
+DELETE FROM portfolios WHERE id = '<ID>';
+```
+
+**Step 2 - Re-create via onboarding**:
+- Log out and log back in as test user
+- Upload CSV again to trigger onboarding flow
+
+### Full Environment Reset (Nuclear Option)
+
+**⚠️ WARNING: Destroys ALL data**
+
+```bash
+# Local development only
+cd backend
+python scripts/database/reset_and_seed.py reset
+
+# This will:
+# 1. Drop all tables
+# 2. Re-run migrations
+# 3. Seed demo data (3 portfolios, 63 positions)
+```
+
+**For Railway**: Do NOT run this. Instead:
+1. Create new test user via sign-up
+2. Delete individual test portfolios as needed
+3. Use force_rerun to re-process
+
+### Quick Reference: Common Reset Scenarios
+
+| Scenario | Action |
+|----------|--------|
+| Batch stuck, need to run new batch | Wait 30 min OR restart Railway service |
+| Portfolio missing factors | Force rerun with `force_rerun=true` |
+| Need fresh test portfolio | Delete via SQL, re-upload CSV |
+| Stuck `running` DB record | Restart service OR manual SQL update |
+| Complete local reset | `reset_and_seed.py reset` |
+
+---
+
 *End of Agent Handoff Appendix. Detailed progress tracking continues below.*
 
 ---
