@@ -65,7 +65,9 @@ Tested with "testscotty4" (Scott Y 5M) portfolio:
 | 4 | Add batch_run_tracker Timeout & Cleanup | ✅ DONE (earlier) | - |
 | 5 | Unify Batch Functions (REFACTOR) | ✅ IMPLEMENTED | ✅ VERIFIED |
 | 6 | Harden batch_run_history Error Handling | ✅ IMPLEMENTED | ✅ VERIFIED |
-| 7 | Real-Time Onboarding Status Updates | NOT STARTED | - |
+| 7 | Real-Time Onboarding Status Updates | ✅ BACKEND DONE | Frontend pending |
+| 7.1 | Onboarding Status API Endpoint | ✅ IMPLEMENTED | ✅ Pushed to origin |
+| 7.2 | Onboarding Flow: Invite Code Gate | ✅ IMPLEMENTED | Pending push |
 
 ### Phase 5 Details (January 8, 2026)
 
@@ -698,6 +700,71 @@ const POLL_TIMEOUT_MS = 30 * 60000;   // Give up after 30 minutes
 
 ---
 
+### Phase 7.2: Onboarding Flow - Invite Code Gate (January 9, 2026)
+
+**Status**: ✅ IMPLEMENTED (Frontend only - not pushed yet)
+
+**Problem Solved**:
+After Clerk account creation, users were redirected directly to portfolio upload. However, we require invite code validation during the beta period. The invite code entry was buried in the Settings page, which users might not find.
+
+**Solution**: Added a dedicated `/onboarding/invite` page that gates access to the upload page.
+
+**New Onboarding Flow**:
+1. User creates account via Clerk → `/sign-up`
+2. Clerk redirects to → `/onboarding/invite` (NEW)
+3. User enters valid invite code
+4. On success, redirect to → `/onboarding/upload`
+5. User uploads portfolio CSV
+6. Batch processing begins
+
+**Files Changed**:
+
+| File | Change |
+|------|--------|
+| `frontend/app/onboarding/invite/page.tsx` | **NEW** - Invite code gate page |
+| `frontend/app/sign-up/[[...sign-up]]/page.tsx` | Changed `fallbackRedirectUrl` from `/settings` to `/onboarding/invite` |
+| `frontend/.env.local` | Updated comments documenting the flow |
+
+**Key Code** (`app/onboarding/invite/page.tsx`):
+```typescript
+'use client'
+
+import { useRouter } from 'next/navigation'
+import { InviteCodeForm } from '@/components/onboarding/InviteCodeForm'
+
+export default function OnboardingInvitePage() {
+  const router = useRouter()
+
+  const handleInviteSuccess = () => {
+    // After successful invite validation, proceed to portfolio upload
+    router.push('/onboarding/upload')
+  }
+
+  return <InviteCodeForm onSuccess={handleInviteSuccess} />
+}
+```
+
+**Clerk Configuration Fix**:
+Also resolved a Clerk authentication issue where browser showed "Unable to authenticate this browser for your development instance".
+- **Root cause**: Stale browser cookies for Clerk development instance
+- **Fix**: User cleared cookies for `included-chimp-71.clerk.accounts.dev`
+- **Code fix**: Removed legacy `NEXT_PUBLIC_CLERK_AFTER_SIGN_UP_URL` env var that conflicted with `fallbackRedirectUrl` prop
+
+**Future Removal**:
+To remove the invite code requirement in the future, simply change:
+```typescript
+// In app/sign-up/[[...sign-up]]/page.tsx
+fallbackRedirectUrl="/onboarding/upload"  // Skip invite page
+```
+
+**Verification**:
+- ✅ New user account creation works
+- ✅ Redirects to invite code page after sign-up
+- ✅ Invite code validation triggers redirect to upload
+- ✅ CSV upload works and triggers batch processing
+
+---
+
 ## Manual Catch-Up: DEFERRED
 
 **Decision**: Deferred until after Phase 1 and Phase 2 are deployed.
@@ -1211,6 +1278,8 @@ This fix allows the batch to START, but it still runs inefficiently until Phase 
 | 2026-01-08 | Railway verification (testscotty4) | ✅ 254/254 dates in 894s (~15 min), 27 symbols |
 | 2026-01-08 | Phase 7 planned | Real-time onboarding status updates with User/Debug modes |
 | 2026-01-08 | Phase 2 implemented | Hybrid approach: MIN of MAX + per-date filtering |
+| 2026-01-09 | Phase 7.1 implemented | Backend onboarding status endpoint pushed to origin |
+| 2026-01-09 | Phase 7.2 implemented | Frontend invite code gate (local only) |
 | | | |
 
 ---

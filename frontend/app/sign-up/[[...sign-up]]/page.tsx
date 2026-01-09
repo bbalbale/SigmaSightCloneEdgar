@@ -16,7 +16,7 @@ export default function SignUpPage() {
           </p>
         </div>
         <SignUp
-          fallbackRedirectUrl="/settings"
+          fallbackRedirectUrl="/onboarding/invite"
           appearance={{
             baseTheme: dark,
             elements: {
