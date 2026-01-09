@@ -38,7 +38,7 @@ from typing import Dict, List, Any, Optional
 from uuid import UUID, uuid4
 import os
 
-from sqlalchemy import select, and_, desc
+from sqlalchemy import select, and_, desc, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.logging import get_logger
@@ -207,7 +207,8 @@ class BatchOrchestrator:
                 last_run_date = start_date - timedelta(days=1)
                 logger.debug(f"Manual start_date: {start_date}")
             else:
-                last_run_date = await self._get_last_batch_run_date(db)
+                # Pass portfolio_ids to scope watermark to requested portfolios (Code Review Fix #2)
+                last_run_date = await self._get_last_batch_run_date(db, portfolio_ids=portfolio_ids)
                 if last_run_date:
                     logger.debug(f"Last run: {last_run_date}")
                 else:
@@ -518,9 +519,50 @@ class BatchOrchestrator:
         # =============================================================================
         # STEP 3: Run Phases 0, 2-6 for each date (using populated price cache)
         # Phase 1 already completed above, so we skip it in run_daily_batch_sequence
+        #
+        # PHASE 2 FIX (2026-01-08): Per-date portfolio filtering
+        # In cron mode (scoped_only=False), check which portfolios already have
+        # snapshots for each date and skip them to avoid redundant processing.
         # =============================================================================
         results = []
+        dates_skipped = 0
+
+        # PHASE 2 OPTIMIZATION: Cache all active portfolio IDs once before the loop
+        # (Code review recommendation: avoid querying this for every date)
+        all_active_portfolios: Optional[List[str]] = None
+        if not scoped_only and not portfolio_ids:
+            async with AsyncSessionLocal() as cache_db:
+                all_active_portfolios = await self._get_all_active_portfolio_ids(cache_db)
+                logger.debug(f"Cached {len(all_active_portfolios)} active portfolios for per-date filtering")
+
         for i, calc_date in enumerate(missing_dates, 1):
+            # PHASE 2 FIX: Per-date portfolio filtering (only in cron mode)
+            # In scoped mode (single portfolio), always process - no filtering needed
+            if scoped_only:
+                # Single-portfolio mode: use the provided portfolio_ids directly
+                portfolios_to_process = portfolio_ids
+            else:
+                # Cron mode: filter out portfolios that already have snapshots for this date
+                async with AsyncSessionLocal() as filter_db:
+                    portfolios_with_snapshot = await self._get_portfolios_with_snapshot(filter_db, calc_date)
+
+                    if portfolio_ids:
+                        # If specific portfolios requested, filter those
+                        portfolios_to_process = [p for p in portfolio_ids if p not in portfolios_with_snapshot]
+                    else:
+                        # Use cached list of all active portfolios
+                        portfolios_to_process = [p for p in all_active_portfolios if p not in portfolios_with_snapshot]
+
+                    if not portfolios_to_process:
+                        logger.debug(f"Skipping {calc_date}: all portfolios already have snapshots")
+                        dates_skipped += 1
+                        progress["completed"] += 1  # Count as completed (no work needed)
+                        continue
+
+                    skipped_count = len(portfolios_with_snapshot)
+                    if skipped_count > 0:
+                        logger.info(f"Processing {calc_date}: {len(portfolios_to_process)} portfolios need updates ({skipped_count} already have snapshots)")
+
             logger.debug(f"Phases 2-6: {calc_date} ({i}/{len(missing_dates)})")
 
             # Create fresh session for this date
@@ -528,7 +570,7 @@ class BatchOrchestrator:
                 result = await self._run_phases_2_through_6(
                     db=db,
                     calculation_date=calc_date,
-                    portfolio_ids=portfolio_ids,
+                    portfolio_ids=portfolios_to_process,
                     run_sector_analysis=(calc_date == target_date),
                     price_cache=price_cache
                 )
@@ -556,7 +598,11 @@ class BatchOrchestrator:
 
         success_count = sum(1 for r in results if r['success'])
         failed_count = len(results) - success_count
-        logger.info(f"Backfill complete: {success_count}/{len(results)} dates in {duration}s")
+        # PHASE 2 FIX: Include skipped dates in summary
+        if dates_skipped > 0:
+            logger.info(f"Backfill complete: {success_count}/{len(results)} dates processed, {dates_skipped} skipped (already complete) in {duration}s")
+        else:
+            logger.info(f"Backfill complete: {success_count}/{len(results)} dates in {duration}s")
         self._sector_analysis_target_date = None
 
         # Record batch completion (Phase 5 Admin Dashboard)
@@ -1685,35 +1731,86 @@ class BatchOrchestrator:
 
         return normalized
 
-    async def _get_last_batch_run_date(self, db: AsyncSession) -> Optional[date]:
+    async def _get_last_batch_run_date(
+        self,
+        db: AsyncSession,
+        portfolio_ids: Optional[List[str]] = None
+    ) -> Optional[date]:
         """
-        Get the date of the last successful batch run.
+        Get the effective 'last run date' for the system using the Minimum Watermark strategy.
 
-        CRITICAL FIX (2025-11-14): Use the latest SNAPSHOT date, not batch_run_tracking.
+        PHASE 2 FIX (2026-01-08): Use MIN of per-portfolio MAX snapshot dates.
 
-        Why: batch_run_tracking records when a batch STARTED, but if run before market
-        close (e.g., manually at midnight), no snapshots are created (non-trading hours).
-        This causes backfill to skip dates that weren't actually processed.
+        Previous bug: Used global MAX snapshot date, which caused portfolios to fall behind
+        when other portfolios were processed. If Portfolio A was at Jan 7 but Portfolios B-L
+        were at Jan 5, the global MAX (Jan 7) made cron think "all caught up", leaving 11
+        portfolios permanently behind.
 
-        Example bug scenario:
-        - Manual batch run at midnight Nov 13 → batch_run_tracking.run_date = Nov 13
-        - But market hasn't opened → NO snapshots created
-        - Next cron run thinks Nov 13 is done → skips to Nov 14
-        - Nov 14 snapshot uses Nov 10 equity → corruption!
+        Strategy: "The Minimum Watermark"
+        1. Get MAX snapshot_date for EACH portfolio (their individual latest)
+        2. Return the MIN of those dates (the most behind portfolio)
+        3. This ensures we process dates that ANY portfolio is missing
 
-        Solution: Use the LATEST snapshot date across all portfolios as the true
-        "last processed date" since snapshots are only created on actual trading days.
+        CODE REVIEW FIX #1 (2026-01-08): Filter by active portfolios only
+        - Deleted portfolios with old snapshots were dragging the watermark back
+        - Now only considers portfolios where Portfolio.deleted_at IS NULL
+
+        CODE REVIEW FIX #2 (2026-01-08): Respect caller's scope (portfolio_ids)
+        - If portfolio_ids is provided, only consider those portfolios
+        - Prevents manual/scoped runs from being hijacked by unrelated portfolios
+
+        Args:
+            db: Database session
+            portfolio_ids: Optional list of portfolio IDs to scope the watermark calculation.
+                          If None, considers all active portfolios.
+
+        Example:
+        - Portfolio A: max snapshot Jan 7
+        - Portfolio B: max snapshot Jan 5
+        - Portfolio C: max snapshot Jan 5
+        - MIN of MAX = Jan 5 → backfill Jan 6, 7, 8 for portfolios that need it
         """
-        query = select(PortfolioSnapshot.snapshot_date).order_by(
-            desc(PortfolioSnapshot.snapshot_date)
-        ).limit(1)
+        # Build the base subquery: Get MAX snapshot date for each ACTIVE portfolio
+        # CODE REVIEW FIX #1: Join to Portfolio table to filter out deleted portfolios
+        subquery_base = (
+            select(
+                PortfolioSnapshot.portfolio_id,
+                func.max(PortfolioSnapshot.snapshot_date).label('max_date')
+            )
+            .join(Portfolio, Portfolio.id == PortfolioSnapshot.portfolio_id)
+            .where(Portfolio.deleted_at.is_(None))  # Only active portfolios
+        )
+
+        # CODE REVIEW FIX #2: If specific portfolios requested, scope the query
+        if portfolio_ids:
+            # Convert string IDs to UUIDs for the query
+            # CODE REVIEW FIX #3: Gracefully skip invalid IDs (same pattern as _normalize_portfolio_ids)
+            portfolio_uuids = []
+            for pid in portfolio_ids:
+                if isinstance(pid, UUID):
+                    portfolio_uuids.append(pid)
+                else:
+                    try:
+                        portfolio_uuids.append(UUID(str(pid)))
+                    except (TypeError, ValueError):
+                        logger.warning(f"Invalid portfolio ID '{pid}' in watermark query, skipping")
+
+            if portfolio_uuids:
+                subquery_base = subquery_base.where(PortfolioSnapshot.portfolio_id.in_(portfolio_uuids))
+                logger.debug(f"Watermark scoped to {len(portfolio_uuids)} valid portfolios")
+
+        subquery = subquery_base.group_by(PortfolioSnapshot.portfolio_id).subquery()
+
+        # Main query: Get the MIN of those max dates (the most lagging portfolio)
+        query = select(func.min(subquery.c.max_date))
 
         result = await db.execute(query)
-        last_snapshot_date = result.scalar_one_or_none()
+        min_watermark = result.scalar()
 
-        if last_snapshot_date:
-            logger.info(f"Last snapshot date found: {last_snapshot_date}")
-            return last_snapshot_date
+        if min_watermark:
+            scope_desc = f"{len(portfolio_ids)} portfolios" if portfolio_ids else "all active portfolios"
+            logger.info(f"System watermark ({scope_desc}): {min_watermark}")
+            return min_watermark
 
         # Fallback to batch tracking if no snapshots exist (first run ever)
         query_tracking = select(BatchRunTracking).where(
@@ -1738,6 +1835,42 @@ class BatchOrchestrator:
         earliest_date = result.scalar_one_or_none()
 
         return earliest_date
+
+    async def _get_portfolios_with_snapshot(
+        self, db: AsyncSession, snapshot_date: date
+    ) -> set:
+        """
+        Get portfolio IDs that already have a snapshot for the given date.
+
+        PHASE 2 FIX (2026-01-08): Used for per-date filtering to avoid reprocessing
+        portfolios that are already up-to-date for a specific date.
+
+        Args:
+            db: Database session
+            snapshot_date: The date to check for existing snapshots
+
+        Returns:
+            Set of portfolio ID strings that have snapshots for this date
+        """
+        query = select(PortfolioSnapshot.portfolio_id).where(
+            PortfolioSnapshot.snapshot_date == snapshot_date
+        )
+        result = await db.execute(query)
+        return {str(pid) for pid in result.scalars().all()}
+
+    async def _get_all_active_portfolio_ids(self, db: AsyncSession) -> List[str]:
+        """
+        Get all active (non-deleted) portfolio IDs.
+
+        PHASE 2 FIX (2026-01-08): Used to determine which portfolios need processing
+        when no specific portfolio_ids are provided (cron job mode).
+
+        Returns:
+            List of portfolio ID strings for all active portfolios
+        """
+        query = select(Portfolio.id).where(Portfolio.deleted_at.is_(None))
+        result = await db.execute(query)
+        return [str(pid) for pid in result.scalars().all()]
 
     def _phase_status(self, phase_result: Dict[str, Any]) -> str:
         """Normalize phase success payload into a status label."""
