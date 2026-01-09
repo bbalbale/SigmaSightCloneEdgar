@@ -74,7 +74,11 @@ Tested with "testscotty4" (Scott Y 5M) portfolio:
 
 ### Issue #8: Factor Exposure Storage Bug (January 9, 2026)
 
-**Status**: ✅ **FIXED** - Pending Railway verification
+**Status**: ✅ **BOTH BUGS FIXED** - Pending Railway verification
+
+**Code Reviews Received**:
+- **Gemini**: Verified & Approved (recommended logging enhancement, naming consistency check)
+- **Codex**: Identified second bug (signature mismatch) that initial fix missed
 
 **Discovery**: Found during investigation of stress testing warnings showing "No exposure found for shocked factor" for Value, Growth, Momentum, Size, Quality, and Low Volatility factors.
 
@@ -176,10 +180,13 @@ This repeats for every calculation date - factors are never stored.
 - Stress test scenarios show $0 impact for style factors
 - Affects ALL portfolios, not just new ones
 
-**Files to Modify**:
-| File | Line | Change Required |
-|------|------|-----------------|
-| `app/services/portfolio_factor_service.py` | 260-264 | Add `'total_symbols': len(symbols)` to `data_quality` dict |
+**Files Modified**:
+| File | Line | Change Made |
+|------|------|-------------|
+| `app/services/portfolio_factor_service.py` | 261, 466 | ✅ Added `'total_symbols': len(symbols)` to `data_quality` dict |
+| `app/batch/analytics_runner.py` | 595-600 | ✅ Fixed Ridge factors call: `portfolio_betas=ridge_betas`, added `portfolio_equity` |
+| `app/batch/analytics_runner.py` | 674-679 | ✅ Fixed Spread factors call: `portfolio_betas=spread_betas`, added `portfolio_equity` |
+| `app/batch/analytics_runner.py` | 603, 681 | ✅ Changed logger.debug to logger.info for operational visibility |
 
 **Fix** (Option 1 - Add missing key):
 ```python
@@ -1432,7 +1439,9 @@ This fix allows the batch to START, but it still runs inefficiently until Phase 
 | 2026-01-09 | Phase 7.2 implemented | Frontend invite code gate (local only) |
 | 2026-01-09 | Issue #8 discovered | Factor exposure storage bug - key name mismatch |
 | 2026-01-09 | testscotty5 verified | Snapshots current, batch 254/254 in 686s, but only 3 factors |
-| 2026-01-09 | Issue #8 fixed | Added `total_symbols` key to `data_quality` dict in portfolio_factor_service.py |
+| 2026-01-09 | Issue #8 partial fix | Added `total_symbols` key to `data_quality` dict |
+| 2026-01-09 | Code reviews received | Gemini: approved; Codex: found second bug (signature mismatch) |
+| 2026-01-09 | Issue #8 complete fix | Fixed signature mismatch in analytics_runner.py, added logging |
 | | | |
 
 ---

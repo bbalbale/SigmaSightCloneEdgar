@@ -233,3 +233,88 @@ This will remove the `total_symbols` key. The system will revert to the "skip" b
 2. **Logging enhancement**: Should we add a log line when factors are successfully stored (e.g., `logger.info(f"Stored {len(ridge_betas)} Ridge factors for portfolio {portfolio_id}")`)?
 
 3. **Data backfill**: Should we proactively re-run batches for all portfolios to populate the missing factor data, or wait for daily cron to catch up?
+
+---
+
+## Addendum: Second Bug Found During Code Review (January 9, 2026)
+
+### Code Review Results
+
+**Gemini Review**: Verified & Approved
+- Confirmed the fix aligns with project patterns
+- Recommended logging enhancement (implemented)
+- Recommended checking other `data_quality` blocks (checked - no others need changes)
+
+**Codex Review**: Identified Second Bug
+- Even after adding `total_symbols`, the `store_portfolio_factor_exposures()` call would fail
+- The call used wrong kwargs: `ridge_betas=...` and `spread_betas=...`
+- The function signature expects: `portfolio_betas=...` and `portfolio_equity=...`
+- This would raise `TypeError: got an unexpected keyword argument 'ridge_betas'`
+- The TypeError was swallowed by the `except Exception` block
+
+### Second Bug Details
+
+**The call in analytics_runner.py (BEFORE fix)**:
+```python
+await store_portfolio_factor_exposures(
+    db=db,
+    portfolio_id=portfolio_id,
+    calculation_date=calculation_date,
+    ridge_betas=ridge_betas,  # ← WRONG!
+    spread_betas={}  # ← WRONG!
+)
+```
+
+**The function signature**:
+```python
+async def store_portfolio_factor_exposures(
+    db: AsyncSession,
+    portfolio_id: UUID,
+    portfolio_betas: Dict[str, float],  # ← Expected
+    calculation_date: date,
+    portfolio_equity: float  # ← Expected
+)
+```
+
+### Additional Changes Made
+
+**File: `backend/app/batch/analytics_runner.py`**
+
+1. **Fixed Ridge factors call** (lines 595-600):
+```python
+await store_portfolio_factor_exposures(
+    db=db,
+    portfolio_id=portfolio_id,
+    portfolio_betas=ridge_betas,  # ← FIXED
+    calculation_date=calculation_date,
+    portfolio_equity=portfolio_equity  # ← ADDED
+)
+```
+
+2. **Fixed Spread factors call** (lines 674-679):
+```python
+await store_portfolio_factor_exposures(
+    db=db,
+    portfolio_id=portfolio_id,
+    portfolio_betas=spread_betas,  # ← FIXED
+    calculation_date=calculation_date,
+    portfolio_equity=portfolio_equity  # ← ADDED
+)
+```
+
+3. **Added logging enhancement** (lines 603, 681):
+```python
+logger.info(
+    f"Stored {len(ridge_betas)} Ridge factors for portfolio {portfolio_id} "
+    f"({symbols_with_ridge}/{total_symbols} symbols)"
+)
+```
+
+### Updated Checklist
+
+- [x] Bug #1 fixed: Added `total_symbols` to `data_quality` dict
+- [x] Bug #2 fixed: Corrected function call signature in analytics_runner.py
+- [x] Logging enhancement added (logger.debug → logger.info)
+- [x] Both Ridge and Spread factor paths fixed
+- [x] TESTSCOTTY_PROGRESS.md updated with complete fix
+- [ ] Railway verification pending

@@ -587,21 +587,22 @@ class AnalyticsRunner:
                 }
 
             ridge_betas = symbol_result.get('ridge_betas', {})
+            metadata = symbol_result.get('metadata', {})
+            portfolio_equity = metadata.get('portfolio_equity', 0.0)
 
             if ridge_betas:
                 # Store the aggregated portfolio factors
                 await store_portfolio_factor_exposures(
                     db=db,
                     portfolio_id=portfolio_id,
+                    portfolio_betas=ridge_betas,
                     calculation_date=calculation_date,
-                    ridge_betas=ridge_betas,
-                    spread_betas={}
+                    portfolio_equity=portfolio_equity
                 )
 
-                logger.debug(
-                    f"Ridge factors via symbol aggregation: "
-                    f"{symbols_with_ridge}/{total_symbols} symbols, "
-                    f"{len(ridge_betas)} factors"
+                logger.info(
+                    f"Stored {len(ridge_betas)} Ridge factors for portfolio {portfolio_id} "
+                    f"({symbols_with_ridge}/{total_symbols} symbols)"
                 )
                 return {
                     'success': True,
@@ -664,21 +665,22 @@ class AnalyticsRunner:
                 }
 
             spread_betas = symbol_result.get('spread_betas', {})
+            metadata = symbol_result.get('metadata', {})
+            portfolio_equity = metadata.get('portfolio_equity', 0.0)
 
             if spread_betas:
                 # Store the aggregated portfolio factors
                 await store_portfolio_factor_exposures(
                     db=db,
                     portfolio_id=portfolio_id,
+                    portfolio_betas=spread_betas,
                     calculation_date=calculation_date,
-                    ridge_betas={},
-                    spread_betas=spread_betas
+                    portfolio_equity=portfolio_equity
                 )
 
-                logger.debug(
-                    f"Spread factors via symbol aggregation: "
-                    f"{symbols_with_spread}/{total_symbols} symbols, "
-                    f"{len(spread_betas)} factors"
+                logger.info(
+                    f"Stored {len(spread_betas)} Spread factors for portfolio {portfolio_id} "
+                    f"({symbols_with_spread}/{total_symbols} symbols)"
                 )
                 return {
                     'success': True,
