@@ -337,6 +337,8 @@ class BatchOrchestrator:
         Returns:
             Summary of batch operation
         """
+        from app.batch.batch_run_tracker import batch_run_tracker
+
         start_time = asyncio.get_event_loop().time()
 
         # =============================================================================
@@ -346,8 +348,28 @@ class BatchOrchestrator:
         logger.info(f"Phase 1: Collecting market data for {len(missing_dates)} dates")
         if scoped_only:
             logger.info(f"  Scoped mode: only fetching portfolio symbols + factor ETFs (~30 symbols)")
+
+        # Phase 7.1: Start Phase 1 tracking
+        batch_run_tracker.start_phase(
+            phase_id="phase_1",
+            phase_name="Market Data Collection",
+            total=len(missing_dates),
+            unit="dates"
+        )
+
+        # Initialize before loop to prevent UnboundLocalError if first call raises
+        phase1_result = None
+        phase1_symbols_fetched = 0
+        phase1_symbols_failed = 0
+
         for i, calc_date in enumerate(missing_dates, 1):
             logger.debug(f"Phase 1: {calc_date} ({i}/{len(missing_dates)})")
+
+            # Phase 7.1: Update phase progress (show every 5th date to avoid log spam)
+            batch_run_tracker.update_phase_progress("phase_1", i)
+            if i == 1 or i % 5 == 0 or i == len(missing_dates):
+                batch_run_tracker.add_activity(f"Fetching market data for {calc_date}... ({i}/{len(missing_dates)})")
+
             async with AsyncSessionLocal() as db:
                 try:
                     phase1_result = await market_data_collector.collect_daily_market_data(
@@ -360,9 +382,38 @@ class BatchOrchestrator:
                     )
                     if not phase1_result.get('success'):
                         logger.warning(f"Phase 1 issues: {calc_date}")
+
+                    # Track symbol counts from first date (representative)
+                    if i == 1:
+                        phase1_symbols_fetched = phase1_result.get('symbols_fetched', 0)
+                        # Log any failed symbols for the activity feed
+                        if phase1_result.get('failed_symbols'):
+                            for symbol in phase1_result.get('failed_symbols', [])[:5]:
+                                batch_run_tracker.add_activity(
+                                    f"⚠️ {symbol}: Symbol unavailable (delisted or no data)",
+                                    level="warning"
+                                )
+                            phase1_symbols_failed = len(phase1_result.get('failed_symbols', []))
+
                 except Exception as e:
                     logger.error(f"Phase 1 error {calc_date}: {e}")
                     # Continue to next date - we'll try to process what we have
+
+        # Phase 7.1: Complete Phase 1
+        # Handle case where phase1_result is None (all calls failed)
+        if phase1_result:
+            coverage = phase1_result.get('data_coverage_pct', 0)
+            batch_run_tracker.complete_phase(
+                "phase_1",
+                success=True,
+                summary=f"{phase1_symbols_fetched} symbols fetched ({coverage:.1f}% coverage)"
+            )
+        else:
+            batch_run_tracker.complete_phase(
+                "phase_1",
+                success=False,
+                summary="No market data collected"
+            )
 
         # =============================================================================
         # STEP 2: Load price cache AFTER all market data is collected
@@ -446,6 +497,14 @@ class BatchOrchestrator:
         # Both Phase 1.5 and Phase 1.75 use this same date to ensure factor lookups work
         final_date = missing_dates[-1]
 
+        # Phase 7.1: Start Phase 1.5 tracking
+        batch_run_tracker.start_phase(
+            phase_id="phase_1_5",
+            phase_name="Factor Analysis",
+            total=len(symbols),
+            unit="symbols"
+        )
+
         symbol_factor_result = None
         try:
             from app.calculations.symbol_factors import calculate_universe_factors
@@ -475,10 +534,21 @@ class BatchOrchestrator:
             if symbol_factor_result.get('errors'):
                 logger.warning(f"Phase 1.5 had {len(symbol_factor_result['errors'])} errors")
 
+            # Phase 7.1: Complete Phase 1.5
+            batch_run_tracker.complete_phase(
+                "phase_1_5",
+                success=True,
+                summary=f"{symbol_factor_result['symbols_processed']} symbols analyzed"
+            )
+
         except Exception as e:
             logger.error(f"Phase 1.5 (Symbol Factors) error: {e}")
             import traceback
             logger.error(f"Traceback: {traceback.format_exc()}")
+
+            # Phase 7.1: Mark Phase 1.5 as failed but continue
+            batch_run_tracker.complete_phase("phase_1_5", success=False, summary="Error calculating factors")
+
             # Continue to Phase 2-6 even if symbol factors fail
             # Portfolio-level analytics will fall back to position-level calculations
 
@@ -490,6 +560,14 @@ class BatchOrchestrator:
         # Uses same final_date as Phase 1.5 to ensure factor lookups work correctly.
         # NOTE: In scoped mode, only calculate for portfolio symbols + factor ETFs
         # =============================================================================
+        # Phase 7.1: Start Phase 1.75 tracking
+        batch_run_tracker.start_phase(
+            phase_id="phase_1_75",
+            phase_name="Symbol Metrics",
+            total=len(symbols),
+            unit="symbols"
+        )
+
         symbol_metrics_result = None
         try:
             from app.services.symbol_metrics_service import calculate_symbol_metrics
@@ -513,6 +591,13 @@ class BatchOrchestrator:
             if symbol_metrics_result.get('errors'):
                 logger.warning(f"Phase 1.75 had {len(symbol_metrics_result['errors'])} errors")
 
+            # Phase 7.1: Complete Phase 1.75
+            batch_run_tracker.complete_phase(
+                "phase_1_75",
+                success=True,
+                summary=f"{symbol_metrics_result['symbols_updated']} symbols updated"
+            )
+
         except Exception as e:
             logger.error(f"Phase 1.75 (Symbol Metrics) error: {e}")
             import traceback
@@ -524,6 +609,8 @@ class BatchOrchestrator:
                 'symbols_updated': 0,
                 'symbols_total': 0
             }
+            # Phase 7.1: Mark Phase 1.75 as failed but continue
+            batch_run_tracker.complete_phase("phase_1_75", success=False, summary="Error calculating metrics")
             # Continue to Phase 2-6 even if symbol metrics fail
             # P&L calculator will calculate returns directly from prices as fallback
 
@@ -535,6 +622,14 @@ class BatchOrchestrator:
         # In cron mode (scoped_only=False), check which portfolios already have
         # snapshots for each date and skip them to avoid redundant processing.
         # =============================================================================
+        # Phase 7.1: Start Phase 2-6 tracking (combined as "Portfolio Snapshots")
+        batch_run_tracker.start_phase(
+            phase_id="phase_2_6",
+            phase_name="Portfolio Snapshots & Analytics",
+            total=len(missing_dates),
+            unit="dates"
+        )
+
         results = []
         dates_skipped = 0
 
@@ -550,20 +645,30 @@ class BatchOrchestrator:
             # PHASE 2 FIX: Per-date portfolio filtering (only in cron mode)
             # In scoped mode (single portfolio), always process - no filtering needed
             # FORCE_RERUN: When True, bypass filtering to repair partial runs
+            #
+            # CODE REVIEW FIX (2026-01-09): Force rerun must respect caller's portfolio scope.
+            # Previously, force_rerun without scoped_only would process ALL portfolios even
+            # when specific portfolio_ids were provided. Now we always prefer portfolio_ids.
             if scoped_only or force_rerun:
-                # Single-portfolio mode OR force_rerun: use the provided portfolio_ids directly
-                if force_rerun and not scoped_only:
-                    # Force rerun in cron mode: process all active portfolios
-                    if portfolio_ids:
-                        portfolios_to_process = portfolio_ids
-                    else:
-                        if all_active_portfolios is None:
-                            async with AsyncSessionLocal() as cache_db:
-                                all_active_portfolios = await self._get_all_active_portfolio_ids(cache_db)
-                        portfolios_to_process = all_active_portfolios
-                    logger.info(f"FORCE_RERUN: Processing {calc_date} for {len(portfolios_to_process)} portfolios (bypassing snapshot check)")
-                else:
+                # Both scoped mode AND force_rerun bypass per-date snapshot filtering
+                # CRITICAL: Always prefer provided portfolio_ids to respect caller's scope
+                if portfolio_ids:
+                    # Caller specified portfolios - use exactly those (respects scope)
                     portfolios_to_process = portfolio_ids
+                    if force_rerun:
+                        logger.info(f"FORCE_RERUN: Processing {calc_date} for {len(portfolios_to_process)} specified portfolio(s)")
+                elif not scoped_only:
+                    # force_rerun=True but no specific portfolios requested: process all active
+                    # This is the admin "reprocess everything" use case
+                    if all_active_portfolios is None:
+                        async with AsyncSessionLocal() as cache_db:
+                            all_active_portfolios = await self._get_all_active_portfolio_ids(cache_db)
+                    portfolios_to_process = all_active_portfolios
+                    logger.info(f"FORCE_RERUN: Processing {calc_date} for ALL {len(portfolios_to_process)} active portfolios")
+                else:
+                    # scoped_only=True but no portfolio_ids - shouldn't happen, but handle gracefully
+                    logger.warning(f"scoped_only=True but no portfolio_ids provided for {calc_date}")
+                    portfolios_to_process = portfolio_ids  # Will be None/empty
             else:
                 # Cron mode: filter out portfolios that already have snapshots for this date
                 async with AsyncSessionLocal() as filter_db:
@@ -587,6 +692,11 @@ class BatchOrchestrator:
                         logger.info(f"Processing {calc_date}: {len(portfolios_to_process)} portfolios need updates ({skipped_count} already have snapshots)")
 
             logger.debug(f"Phases 2-6: {calc_date} ({i}/{len(missing_dates)})")
+
+            # Phase 7.1: Update phase progress (show every 5th date to avoid log spam)
+            batch_run_tracker.update_phase_progress("phase_2_6", i)
+            if i == 1 or i % 5 == 0 or i == len(missing_dates):
+                batch_run_tracker.add_activity(f"Creating snapshot for {calc_date}... ({i}/{len(missing_dates)})")
 
             # Create fresh session for this date
             async with AsyncSessionLocal() as db:
@@ -621,6 +731,15 @@ class BatchOrchestrator:
 
         success_count = sum(1 for r in results if r['success'])
         failed_count = len(results) - success_count
+
+        # Phase 7.1: Complete Phase 2-6
+        batch_run_tracker.complete_phase(
+            "phase_2_6",
+            success=(failed_count == 0),
+            summary=f"{success_count}/{len(results)} dates processed"
+        )
+        batch_run_tracker.add_activity(f"Batch complete: {success_count} dates processed in {duration}s")
+
         # PHASE 2 FIX: Include skipped dates in summary
         if dates_skipped > 0:
             logger.info(f"Backfill complete: {success_count}/{len(results)} dates processed, {dates_skipped} skipped (already complete) in {duration}s")
@@ -711,6 +830,10 @@ class BatchOrchestrator:
 
         logger.info(f"Portfolio Onboarding Backfill: Delegating to unified function for {portfolio_id}")
 
+        # Phase 7.1: Set portfolio_id for onboarding status tracking
+        batch_run_tracker.set_portfolio_id(portfolio_id)
+
+        batch_success = False
         try:
             # Delegate to unified function with single-portfolio mode enabled
             result = await self.run_daily_batch_with_backfill(
@@ -718,13 +841,22 @@ class BatchOrchestrator:
                 portfolio_id=portfolio_id,
                 source="onboarding",
             )
+            # Check if batch succeeded (all results successful)
+            batch_success = result.get('success', False) or all(
+                r.get('success', False) for r in result.get('results', [])
+            )
             return result
+        except Exception as e:
+            logger.error(f"Portfolio onboarding backfill failed: {e}")
+            batch_success = False
+            raise
         finally:
             # CRITICAL: Always clear batch_run_tracker, even on exception
             # The caller (portfolios.py) calls batch_run_tracker.start()
             # We must call complete() to avoid stuck "running" status in UI
-            batch_run_tracker.complete()
-            logger.debug("Batch run tracker cleared (onboarding wrapper)")
+            # Phase 7.1 Fix: Pass success status so frontend sees "completed"/"failed"
+            batch_run_tracker.complete(success=batch_success)
+            logger.debug(f"Batch run tracker cleared (onboarding wrapper, success={batch_success})")
 
     async def run_daily_batch_sequence(
         self,
@@ -793,7 +925,8 @@ class BatchOrchestrator:
         finally:
             # Clear batch run tracker when batch completes (success or failure)
             from app.batch.batch_run_tracker import batch_run_tracker
-            batch_run_tracker.complete()
+            # Phase 7.1 Fix: Pass success status so frontend sees "completed"/"failed"
+            batch_run_tracker.complete(success=result.get('success', False))
             if db is None:
                 self._sector_analysis_target_date = None
 

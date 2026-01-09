@@ -570,11 +570,14 @@ async def trigger_portfolio_calculations(
             )
 
         # Create new batch run
+        # Set portfolio_id immediately to avoid race condition where frontend polls
+        # before the async background task starts (Phase 7.1 fix)
         batch_run_id = str(uuid4())
         run = CurrentBatchRun(
             batch_run_id=batch_run_id,
             started_at=utc_now(),
-            triggered_by=current_user.email
+            triggered_by=current_user.email,
+            portfolio_id=str(portfolio_id)  # Set immediately for status endpoint
         )
 
         batch_run_tracker.start(run)

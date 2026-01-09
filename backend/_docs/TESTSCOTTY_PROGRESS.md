@@ -404,6 +404,300 @@ class StatusMessage:
 
 ---
 
+### Phase 7.1: Onboarding Wait Experience UX Design (REVISED)
+
+**Added**: January 9, 2026
+**Revised**: January 9, 2026 - Simplified to show real-time activity logs
+**Implemented**: January 9, 2026 - Backend complete, frontend integration pending
+**Context**: Users wait ~15 minutes for batch processing. Show actual progress with streaming log activity.
+
+---
+
+#### Problem Discovered (2026-01-09)
+
+During Universe Test Alpha batch processing, the frontend showed **"authorization failed"** when trying to check status. Investigation revealed:
+
+1. **Root cause**: Frontend was polling admin-only endpoint `/api/v1/admin/batch/run/current`
+2. **Why it failed**: Regular users don't have admin credentials
+3. **Secondary issue**: JWT token likely expired during 1.5+ hour batch run
+
+**Solution implemented**: New endpoint `GET /api/v1/onboarding/status/{portfolio_id}` that:
+- Uses regular Clerk JWT (NOT admin-only)
+- Verifies user owns the portfolio
+- Returns real-time activity log and phase progress
+
+---
+
+#### Core Design Principle
+
+**Show the work as it happens.** Instead of separate "user mode" and "debug mode", display a filtered stream of useful log entries in real-time. Users see phases progress AND the actual activity happening within each phase.
+
+---
+
+#### Onboarding Status Screen Layout
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                                                                 │
+│   🚀 Setting Up Your Portfolio                                  │
+│                                                                 │
+│   Analyzing 254 trading days for 20 positions.                  │
+│   This typically takes 15-20 minutes.                           │
+│                                                                 │
+│   ════════════════════════════════════════════════════════════  │
+│                                                                 │
+│   ✅ Phase 1: Market Data Collection                    45s     │
+│   ✅ Phase 2: Factor Analysis                           12s     │
+│   🔄 Phase 3: Portfolio Snapshots                    3m 24s     │
+│      ████████████████░░░░░░░░░░░░░░  142/254 dates              │
+│   ⏳ Phase 4: Position Betas                                    │
+│   ⏳ Phase 5: Correlations                                      │
+│   ⏳ Phase 6: Final Calculations                                │
+│                                                                 │
+│   ════════════════════════════════════════════════════════════  │
+│                                                                 │
+│   📋 Activity                                                   │
+│   ┌─────────────────────────────────────────────────────────┐   │
+│   │ Fetched AAPL: 254 days of history                       │   │
+│   │ Fetched MSFT: 254 days of history                       │   │
+│   │ ⚠️ HZNP: Symbol unavailable (delisted)                  │   │
+│   │ ⚠️ SGEN: Symbol unavailable (delisted)                  │   │
+│   │ Phase 1 complete: 18/20 symbols (90% coverage)          │   │
+│   │ Calculating factor exposures for 18 symbols...          │   │
+│   │ Phase 2 complete: Factor analysis done                  │   │
+│   │ Creating snapshot for 2024-01-02... (1/254)             │   │
+│   │ Creating snapshot for 2024-01-03... (2/254)             │   │
+│   │ Creating snapshot for 2024-01-04... (3/254)             │   │
+│   │ ... ← auto-scrolls, shows last ~10 entries              │   │
+│   │ Creating snapshot for 2024-06-15... (142/254)           │   │
+│   └─────────────────────────────────────────────────────────┘   │
+│                                                                 │
+│   ⏱️  Elapsed: 4m 21s    📊 Overall: 45% complete               │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**Key differences from original design:**
+- Activity log is **always visible** (no toggle needed)
+- Log entries stream in real-time as processing happens
+- Auto-scrolls to show latest activity
+- Shows last ~10 entries (older entries scroll away)
+- Warnings (⚠️) displayed inline with activity
+
+---
+
+#### Phase Display States
+
+| State | Icon | Color | Description |
+|-------|------|-------|-------------|
+| Pending | ⏳ | Gray | Not started yet |
+| Running | 🔄 | Blue | Currently executing (with spinner) |
+| Completed | ✅ | Green | Finished successfully |
+| Warning | ⚠️ | Yellow | Completed with issues (shown in activity log) |
+| Failed | ❌ | Red | Phase failed (rare - system continues anyway) |
+
+---
+
+#### Activity Log Entry Types
+
+**Include (filter IN):**
+| Entry Type | Example | When Shown |
+|------------|---------|------------|
+| Symbol fetch success | "Fetched AAPL: 254 days of history" | Phase 1 |
+| Symbol unavailable | "⚠️ HZNP: Symbol unavailable (delisted)" | Phase 1 |
+| Phase complete | "Phase 1 complete: 18/20 symbols (90%)" | End of each phase |
+| Date processing | "Creating snapshot for 2024-01-02... (1/254)" | Phase 2 (every 5th date) |
+| Calculation milestone | "Calculating betas for 18 positions..." | Phases 3-6 |
+
+**Exclude (filter OUT):**
+| Entry Type | Reason |
+|------------|--------|
+| Individual date processing (1-4 of 5) | Too noisy - show every 5th |
+| HTTP request logs | Technical noise |
+| Database session logs | Internal detail |
+| Auth/token logs | Security, irrelevant |
+| Duplicate consecutive messages | Redundant |
+
+**Sampling Strategy for Phase 2:**
+- Phase 2 processes 254 dates, showing each would flood the log
+- Show every 5th date: 1, 5, 10, 15... (plus milestones: 50, 100, 150, 200, 250)
+- Always show first and last date
+
+---
+
+#### User-Friendly Phase Names
+
+| Internal Phase | User-Facing Name | Completed Summary |
+|----------------|------------------|-------------------|
+| phase_1 | Market Data Collection | "{n}/{total} symbols (x% coverage)" |
+| phase_1.5 | Factor Analysis | "Factor analysis done" |
+| phase_1.75 | Symbol Metrics | "Metrics computed" |
+| phase_2 | Portfolio Snapshots | "{n} trading days processed" |
+| phase_2.5 | Position Values | "Values updated" |
+| phase_3 | Position Betas | "Betas calculated" |
+| phase_4 | Factor Exposures | "Exposures computed" |
+| phase_5 | Volatility Analysis | "Volatility analyzed" |
+| phase_6 | Correlations | "Correlations complete" |
+
+---
+
+#### Error Handling UX
+
+**Inline Warning (common - symbols unavailable)**
+- Shows as activity log entry: "⚠️ HZNP: Symbol unavailable (delisted)"
+- Processing continues without interruption
+- Final phase summary shows: "18/20 symbols (90% coverage)"
+
+**Extended Wait (>20 min)**
+- Add message below elapsed time: "Taking longer than usual..."
+- No error shown - just informational
+
+**Batch Failure (rare)**
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                                                                 │
+│   ⚠️ Setup Interrupted                                          │
+│                                                                 │
+│   We encountered an issue while setting up your portfolio.      │
+│   Some data may be incomplete.                                  │
+│                                                                 │
+│   Completed: Phases 1-3 (Market Data, Factors, Snapshots)       │
+│   Failed at: Phase 4 (Position Betas)                           │
+│                                                                 │
+│   Your portfolio is available with partial analytics.           │
+│                                                                 │
+│            [ View Portfolio ]    [ Retry Setup ]                │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+#### Completion Screen
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                                                                 │
+│   ✅ Portfolio Setup Complete!                                  │
+│                                                                 │
+│   Your portfolio "Universe Test Alpha" is ready.                │
+│                                                                 │
+│   📊 Summary:                                                   │
+│   • 18 positions analyzed (2 unavailable symbols)               │
+│   • 254 trading days of history                                 │
+│   • Risk metrics, factor exposures, and correlations ready      │
+│                                                                 │
+│   ⏱️  Total time: 14m 32s                                       │
+│                                                                 │
+│                [ View Portfolio Dashboard → ]                   │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+#### API Response Schema (Simplified)
+
+```python
+# GET /api/v1/onboarding/status/{portfolio_id}
+{
+    "portfolio_id": "uuid",
+    "status": "running" | "completed" | "failed" | "not_found",
+    "started_at": "2026-01-08T12:00:00Z",
+    "elapsed_seconds": 223,
+
+    # Overall progress
+    "overall_progress": {
+        "current_phase": "phase_2",
+        "current_phase_name": "Portfolio Snapshots",
+        "phases_completed": 2,
+        "phases_total": 6,
+        "percent_complete": 45
+    },
+
+    # Current phase detail
+    "current_phase_progress": {
+        "current": 120,
+        "total": 254,
+        "unit": "dates"
+    },
+
+    # Activity log entries (last 50, frontend shows ~10)
+    "activity_log": [
+        {
+            "timestamp": "2026-01-08T12:00:05Z",
+            "message": "Fetched AAPL: 254 days of history",
+            "level": "info"  # "info" | "warning" | "error"
+        },
+        {
+            "timestamp": "2026-01-08T12:00:06Z",
+            "message": "⚠️ HZNP: Symbol unavailable (delisted)",
+            "level": "warning"
+        },
+        ...
+    ]
+}
+```
+
+---
+
+#### Polling Strategy
+
+```typescript
+// Simple fixed polling
+const POLL_INTERVAL_MS = 2000;        // Poll every 2 seconds
+const POLL_TIMEOUT_MS = 30 * 60000;   // Give up after 30 minutes
+```
+
+---
+
+#### Implementation Priority (Simplified)
+
+| Item | Priority | Effort | Impact |
+|------|----------|--------|--------|
+| Backend status endpoint with activity log | P0 | Medium | Required for everything |
+| Phase list UI with progress | P0 | Low | Core UX |
+| Activity log display (auto-scroll) | P0 | Low | Real-time feedback |
+| Completion/error screens | P1 | Low | Polish |
+
+---
+
+#### Files to Create/Modify
+
+**Backend**:
+| File | Change |
+|------|--------|
+| `app/batch/batch_run_tracker.py` | Add `activity_log: List[dict]` with `add_activity(message, level)` |
+| `app/batch/batch_orchestrator.py` | Call `add_activity()` at key points (symbol fetch, phase complete, date milestones) |
+| `app/api/v1/onboarding_status.py` | NEW: Simple status endpoint returning above schema |
+| `app/api/v1/router.py` | Register new endpoint |
+
+**Frontend**:
+| File | Change |
+|------|--------|
+| `src/components/onboarding/OnboardingProgress.tsx` | NEW or replace fake animation |
+| `src/hooks/useOnboardingStatus.ts` | NEW: Simple polling hook |
+
+---
+
+#### Implementation Simplifications
+
+1. **Single view mode** - No toggle between user/debug mode. Just show the activity log always.
+
+2. **Fixed polling** - No adaptive intervals. 2-second polling is fine for all phases.
+
+3. **Backend filtering** - Filter log entries server-side before sending. Frontend just renders what it gets.
+
+4. **Capped activity log** - Keep last 50 entries in memory. Frontend shows last ~10 with auto-scroll.
+
+5. **No time estimates** - Just show elapsed time. Avoid "estimated remaining" since it's unreliable.
+
+6. **Inline warnings** - No separate warning state for phases. Warnings appear in activity log.
+
+7. **Minimal state machine** - Just: `not_found` → `running` → `completed|failed`
+
+---
+
 ## Manual Catch-Up: DEFERRED
 
 **Decision**: Deferred until after Phase 1 and Phase 2 are deployed.

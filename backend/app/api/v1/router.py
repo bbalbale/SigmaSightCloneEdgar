@@ -13,6 +13,7 @@ from app.api.v1.positions import router as positions_router
 from app.api.v1.position_tags import router as position_tags_router
 from app.api.v1.insights import router as insights_router
 from app.api.v1.onboarding import router as onboarding_router
+from app.api.v1.onboarding_status import router as onboarding_status_router
 from app.api.v1.endpoints import admin_batch
 from app.api.v1.endpoints import admin_feedback
 from app.api.v1.admin_fix import router as admin_fix_router
@@ -32,6 +33,7 @@ api_router.include_router(auth.router)
 
 # Onboarding APIs (/onboarding/) - user registration and portfolio creation
 api_router.include_router(onboarding_router)
+api_router.include_router(onboarding_status_router, prefix="/onboarding")  # Phase 7.1: status endpoint
 
 # Portfolio Management APIs (/portfolios/) - multi-portfolio CRUD
 api_router.include_router(portfolios.router)
