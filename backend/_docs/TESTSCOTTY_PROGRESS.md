@@ -7,6 +7,51 @@
 
 ---
 
+## Executive Summary (For Non-Engineers)
+
+### What Happened
+When Scott tested the new portfolio onboarding flow ("Testscotty"), we discovered several bugs in the batch processing system that prevented portfolios from getting their analytics calculated properly. Some portfolios were stuck days behind, onboarding was taking 4+ hours instead of minutes, and the system couldn't recover from crashes without manual intervention.
+
+### What We Fixed
+
+| Problem | Impact | Solution | Result |
+|---------|--------|----------|--------|
+| **Onboarding processed ALL 1,193 symbols** instead of just the portfolio's ~30 symbols | 4+ hour processing time, API rate limits hit | Scoped processing to only portfolio symbols | **~15 minutes** (16x faster) |
+| **11 portfolios stuck 2 days behind** | Cron job saw one current portfolio and skipped the rest | Changed to find the "most behind" portfolio and catch everyone up | All portfolios now stay current |
+| **Crashes left system stuck** | No new batches could run until manual server restart | Added automatic timeout and cleanup | System self-heals within 30 minutes |
+| **No visibility into processing** | Users saw fake progress animation | Planned: Real status updates with debug mode | Not yet implemented |
+
+### Business Impact
+
+- **User Experience**: New portfolios now fully process in ~15 minutes instead of 4+ hours
+- **Reliability**: System automatically recovers from crashes - no manual restarts needed
+- **Data Accuracy**: All portfolios stay current, not just the most recently updated one
+- **Operational**: Admin can force-reprocess any date range to fix partial runs
+
+### What's Still To Do
+
+1. **Phase 3**: Fix "fire-and-forget" database writes (medium priority)
+2. **Phase 7**: Real-time status updates during onboarding with debug mode (nice to have)
+
+### Key Commits Deployed
+
+All changes are live on Railway:
+- `98f97246` - Phase 2: Global watermark bug fix (hybrid approach)
+- `058ed9f5` - Force rerun mode for repairing partial batches
+- `f20202ba` - Critical fix: pass force_rerun to _execute_batch_phases
+- `686f4ac2` - Admin batch tracker cleanup and single-date default
+- `e0bea800` - Reject date params without force_rerun (prevent silent ignore)
+
+### Verification
+
+Tested with "testscotty4" (Scott Y 5M) portfolio:
+- ✅ 254 trading days processed successfully
+- ✅ Only 27 symbols fetched (not 1,193)
+- ✅ Completed in 894 seconds (~15 minutes)
+- ✅ All analytics calculated correctly
+
+---
+
 ## Current Status
 
 | Phase | Description | Status | Verified on Railway |
