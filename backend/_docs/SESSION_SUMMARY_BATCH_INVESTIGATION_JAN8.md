@@ -1,8 +1,51 @@
 # Session Summary: Testscotty Batch Processing Investigation
 
 **Date**: January 8, 2026
-**Last Active**: Investigating why batch processing fails for new onboarded portfolios
+**Last Active**: January 8, 2026 (Session 2 - Root cause found and fixed)
 **Investigator**: Claude Opus 4.5
+
+---
+
+## Session 2 Update (January 8, 2026 - 2:30 PM PST)
+
+### Root Cause Found & Fixed
+
+**The actual bug was an ImportError**, not a Railway timeout:
+
+```
+ImportError: cannot import name 'get_most_recent_trading_day' from 'app.utils.trading_calendar'
+```
+
+**Fix Applied**:
+- Changed line 471 of `batch_orchestrator.py`
+- From: `from app.utils.trading_calendar import get_most_recent_trading_day`
+- To: `from app.core.trading_calendar import get_most_recent_trading_day`
+- Commit: `7d8b0e2a`
+
+### Batch Now Runs But Is Inefficient
+
+After the fix, the batch starts successfully but processes **ALL 1,193 symbols** in the universe instead of just Testscotty3's **13 positions + 17 factor ETFs (~30 symbols)**.
+
+**Logs show**:
+```
+Processing 253 trading days: 2025-01-06 to 2026-01-08
+Phase 1: Collecting market data for 253 dates
+Symbol universe: 1193 symbols  ← PROBLEM: Should be ~30
+```
+
+This causes:
+- Estimated runtime: 4+ hours (should be ~10 minutes)
+- Polygon API rate limiting (429 errors)
+- Unnecessary database writes
+
+### Next Priority: Phase 5 - Unify Batch Functions
+
+Decision made to refactor the batch system:
+1. Merge `run_portfolio_onboarding_backfill()` and `run_daily_batch_with_backfill()` into ONE unified function
+2. Add parameter for symbol scoping (portfolio-only vs universe)
+3. Single code path = easier debugging
+
+See `TESTSCOTTY_BATCH_PROCESSING_DEBUG_AND_FIX_PLAN.md` for full Phase 5 plan.
 
 ---
 

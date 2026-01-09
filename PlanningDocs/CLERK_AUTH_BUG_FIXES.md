@@ -65,39 +65,20 @@ Error returned:
 ## Bug #4: Token Refresh May Not Work Reliably in Background
 
 **Priority**: High
-**Status**: Open
+**Status**: ✅ FIXED (2026-01-06)
 
 ### Issue
 The Clerk JWT token (60-second expiry) may expire while user is on Settings page, causing 401 errors when submitting the invite code.
 
-### Evidence
-```
-2026-01-06 19:30:15 - sigmasight.auth - WARNING - Clerk JWT token has expired
-2026-01-06 19:30:15 - sigmasight.database - ERROR - Core database session error: 401: Could not validate credentials
-```
+### Solution Implemented
+Created custom JWT template `sigmasight-session` in Clerk Dashboard with **1-hour lifetime** (3600 seconds).
 
-User reported 401 when entering invite code. The 401 occurred because the JWT expired, not because of invite validation.
+Updated frontend to use the template:
+- `frontend/app/providers.tsx` - ClerkTokenSync uses template, refreshes every 50 min
+- `frontend/src/components/onboarding/InviteCodeForm.tsx` - Uses template
+- `frontend/src/hooks/useApiClient.ts` - All getToken calls use template
 
-### Root Cause
-The frontend `ClerkTokenSync` component refreshes tokens every 50 seconds, but:
-1. Browser tabs in background throttle `setInterval`
-2. If component unmounts, refresh stops
-3. Race conditions between token expiry and refresh
-
-### Files to Investigate
-- `frontend/app/providers.tsx` - `ClerkTokenSync` component (lines 58-110)
-- `frontend/src/lib/clerkTokenStore.ts` - Token storage and refresh
-
-### Suggested Improvements
-1. Add token expiry check before API calls with automatic refresh
-2. Show toast/alert when session expired instead of generic 401
-3. Add visibility change listener to refresh token when tab becomes active
-4. Consider using Clerk's built-in token refresh mechanisms
-
-### Critical Impact: Onboarding Flow
-The onboarding "Analyzing Portfolio" screen polls for status every ~3 seconds. Portfolio analysis can take 2+ minutes (batch processing 1000+ symbols), but JWT tokens expire in 60 seconds. This causes the analysis screen to show a red X even though backend processing completes successfully.
-
-**Workaround**: User must refresh the page to get a new token and see completed state.
+**Commit**: `387c34d6` - feat: Use custom JWT template with 1-hour token lifetime
 
 ---
 

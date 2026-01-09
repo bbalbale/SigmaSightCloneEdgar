@@ -68,6 +68,124 @@ Tested with "testscotty4" (Scott Y 5M) portfolio:
 | 7 | Real-Time Onboarding Status Updates | ✅ BACKEND DONE | Frontend pending |
 | 7.1 | Onboarding Status API Endpoint | ✅ IMPLEMENTED | ✅ Pushed to origin |
 | 7.2 | Onboarding Flow: Invite Code Gate | ✅ IMPLEMENTED | Pending push |
+| 8 | Fix Factor Exposure Storage Bug | 🔴 **BUG FOUND** | Not started |
+
+---
+
+### Issue #8: Factor Exposure Storage Bug (January 9, 2026)
+
+**Status**: 🔴 **BUG FOUND** - Not yet fixed
+
+**Discovery**: Found during investigation of stress testing warnings showing "No exposure found for shocked factor" for Value, Growth, Momentum, Size, Quality, and Low Volatility factors.
+
+**Symptoms**:
+- Stress testing shows: `No exposure found for shocked factor: Value (mapped to Value)`
+- Only 3 factors available instead of 12+ expected
+- Logs show: `[FALLBACK] No complete snapshot found, trying any available factors`
+- Logs show: `[COMPLETE] Total factors after adding snapshot betas: 3`
+- Railway telemetry shows: `"name":"Ridge Factors","success":true,"message":"Skipped: no_public_positions"`
+
+**Root Cause**: Key name mismatch between `analytics_runner.py` and `portfolio_factor_service.py`
+
+**The Bug**:
+
+`analytics_runner.py` (line 572) looks for `total_symbols` in `data_quality`:
+```python
+# _calculate_ridge_factors() and _calculate_spread_factors()
+data_quality = symbol_result.get('data_quality', {})
+total_symbols = data_quality.get('total_symbols', 0)  # ← Looks for 'total_symbols'
+
+# Handle PRIVATE-only portfolios (no public positions)
+if total_symbols == 0:  # ← Always TRUE because key doesn't exist!
+    return {
+        'success': True,
+        'message': 'Skipped: no_public_positions'  # ← This is what Railway logs show
+    }
+```
+
+But `portfolio_factor_service.py` (lines 254-264) puts symbol count in `metadata`, not `data_quality`:
+```python
+# get_portfolio_factor_exposures() returns:
+results = {
+    'metadata': {
+        'unique_symbols': len(symbols),  # ← Symbol count is HERE
+    },
+    'data_quality': {
+        'symbols_with_ridge': 0,
+        'symbols_with_spread': 0,
+        'symbols_missing': 0
+        # ← 'total_symbols' DOES NOT EXIST HERE!
+    }
+}
+```
+
+**What happens**:
+1. `get_portfolio_factor_exposures()` returns symbol count in `metadata.unique_symbols`
+2. `analytics_runner.py` looks for `data_quality.total_symbols` which doesn't exist
+3. `data_quality.get('total_symbols', 0)` returns default value `0`
+4. `if total_symbols == 0:` evaluates to TRUE even when portfolio has 13 PUBLIC positions
+5. Returns `"Skipped: no_public_positions"` and exits early
+6. `store_portfolio_factor_exposures()` is never called
+7. Ridge/Spread factors never stored to `FactorExposure` table
+8. Stress testing finds no factor exposures
+
+**Evidence from Railway Logs** (testscotty5 batch - January 9, 2026):
+```
+telemetry {"name":"Ridge Factors","success":true,"message":"Skipped: no_public_positions"}
+telemetry {"name":"Spread Factors","success":true,"message":"Skipped: no_public_positions"}
+```
+This repeats for every calculation date - factors are never stored.
+
+**Why Market Beta and IR Beta work**: They use separate code paths (`run_provider_beta_job` and `run_interest_rate_beta_job`) that don't rely on `data_quality.total_symbols`.
+
+**Impact**:
+- Ridge factors (Value, Growth, Momentum, Quality, Size, Low Volatility) never stored
+- Spread factors (Growth-Value, Momentum, Size, Quality spreads) never stored
+- Stress test scenarios show $0 impact for style factors
+- Affects ALL portfolios, not just new ones
+
+**Files to Modify**:
+| File | Line | Change Required |
+|------|------|-----------------|
+| `app/services/portfolio_factor_service.py` | 260-264 | Add `'total_symbols': len(symbols)` to `data_quality` dict |
+
+**Fix** (Option 1 - Add missing key):
+```python
+# portfolio_factor_service.py line 260-264
+'data_quality': {
+    'total_symbols': len(symbols),  # ← ADD THIS LINE
+    'symbols_with_ridge': 0,
+    'symbols_with_spread': 0,
+    'symbols_missing': 0
+}
+```
+
+**Fix** (Option 2 - Read from correct location in analytics_runner.py):
+```python
+# analytics_runner.py line 571-572
+metadata = symbol_result.get('metadata', {})
+total_symbols = metadata.get('unique_symbols', 0)  # ← Change to read from metadata
+```
+
+**Recommended**: Option 1 (add the missing key) is cleaner - the key name `total_symbols` in `data_quality` is semantically correct.
+
+**Verification Steps After Fix**:
+1. Deploy fix to Railway
+2. Re-run batch for testscotty5 portfolio
+3. Check Railway logs for:
+   - NO more `"Skipped: no_public_positions"` for Ridge/Spread Factors
+   - Telemetry showing `"success":true` with actual factor storage
+4. Query `FactorExposure` table to confirm 12+ factors stored (not just 3)
+5. Verify stress testing shows non-zero impacts for style factors
+
+**Verification** (testscotty5 - January 9, 2026):
+- ✅ Snapshots current (2026-01-09, 254 trading days)
+- ✅ Batch completed successfully (686s)
+- ❌ Only 3 factors available (should be 12+)
+- ❌ Ridge/Spread factors skipped with "no_public_positions" (false positive)
+- ❌ Stress testing missing factor impacts
+
+---
 
 ### Phase 5 Details (January 8, 2026)
 
@@ -1280,6 +1398,8 @@ This fix allows the batch to START, but it still runs inefficiently until Phase 
 | 2026-01-08 | Phase 2 implemented | Hybrid approach: MIN of MAX + per-date filtering |
 | 2026-01-09 | Phase 7.1 implemented | Backend onboarding status endpoint pushed to origin |
 | 2026-01-09 | Phase 7.2 implemented | Frontend invite code gate (local only) |
+| 2026-01-09 | Issue #8 discovered | Factor exposure storage bug - function signature mismatch |
+| 2026-01-09 | testscotty5 verified | Snapshots current, batch 254/254 in 686s, but only 3 factors |
 | | | |
 
 ---
