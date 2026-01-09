@@ -89,6 +89,7 @@ class BatchOrchestrator:
         portfolio_ids: Optional[List[str]] = None,
         portfolio_id: Optional[str] = None,  # NEW: Single portfolio mode
         source: Optional[str] = None,        # NEW: Entry point tracking (None = auto-detect)
+        force_rerun: bool = False,           # Force reprocess dates even if snapshots exist
     ) -> Dict[str, Any]:
         """
         Main entry point - automatically detects and fills missing dates.
@@ -108,6 +109,9 @@ class BatchOrchestrator:
                          When provided, enables scoped mode (~40x faster).
             source: Entry point for tracking ("cron", "onboarding", "settings", "admin").
                    If None, auto-detects based on RAILWAY_ENVIRONMENT ("cron" vs "manual").
+            force_rerun: If True, bypass snapshot existence checks and reprocess all dates.
+                        Use this to repair partial runs where snapshot exists but later
+                        phases (market values, sector tags, analytics) didn't complete.
 
         Returns:
             Summary of backfill operation.
@@ -169,6 +173,9 @@ class BatchOrchestrator:
             portfolio_ids = [portfolio_id]
         else:
             logger.info(f"Universe mode: processing all portfolios")
+
+        if force_rerun:
+            logger.warning(f"FORCE_RERUN enabled: will reprocess dates even if snapshots exist")
 
         logger.info(f"Batch Orchestrator - Backfill to {target_date}")
 
@@ -538,9 +545,21 @@ class BatchOrchestrator:
         for i, calc_date in enumerate(missing_dates, 1):
             # PHASE 2 FIX: Per-date portfolio filtering (only in cron mode)
             # In scoped mode (single portfolio), always process - no filtering needed
-            if scoped_only:
-                # Single-portfolio mode: use the provided portfolio_ids directly
-                portfolios_to_process = portfolio_ids
+            # FORCE_RERUN: When True, bypass filtering to repair partial runs
+            if scoped_only or force_rerun:
+                # Single-portfolio mode OR force_rerun: use the provided portfolio_ids directly
+                if force_rerun and not scoped_only:
+                    # Force rerun in cron mode: process all active portfolios
+                    if portfolio_ids:
+                        portfolios_to_process = portfolio_ids
+                    else:
+                        if all_active_portfolios is None:
+                            async with AsyncSessionLocal() as cache_db:
+                                all_active_portfolios = await self._get_all_active_portfolio_ids(cache_db)
+                        portfolios_to_process = all_active_portfolios
+                    logger.info(f"FORCE_RERUN: Processing {calc_date} for {len(portfolios_to_process)} portfolios (bypassing snapshot check)")
+                else:
+                    portfolios_to_process = portfolio_ids
             else:
                 # Cron mode: filter out portfolios that already have snapshots for this date
                 async with AsyncSessionLocal() as filter_db:

@@ -318,6 +318,37 @@ if portfolio_uuids:
 
 Now invalid IDs are logged and skipped, allowing the batch to continue with valid IDs.
 
+### Code Review #4 Findings (Idempotency Gap)
+
+**Finding: Partial runs leave portfolios with incomplete analytics**
+> The per-date skip check only considers snapshot existence, not phase completion. If the process crashes after Phase 3 (snapshot creation) but before Phases 4-6 complete, the portfolio remains with stale analytics and no mechanism to self-heal.
+
+**Fix**: Added `force_rerun` mode to bypass snapshot existence checks:
+
+```python
+# In run_daily_batch_with_backfill()
+async def run_daily_batch_with_backfill(
+    self,
+    ...
+    force_rerun: bool = False,  # NEW: Bypass snapshot checks
+) -> Dict[str, Any]:
+```
+
+**Per-date filtering bypass:**
+```python
+if scoped_only or force_rerun:
+    if force_rerun and not scoped_only:
+        # Force rerun in cron mode: process all active portfolios
+        logger.info(f"FORCE_RERUN: Processing {calc_date} for {len(portfolios_to_process)} portfolios")
+```
+
+**Admin endpoint updated:**
+```
+POST /api/v1/admin/batch/run?force_rerun=true&start_date=2026-01-05&end_date=2026-01-08
+```
+
+**Follow-up**: Per-phase completion tracking (self-healing) planned for future implementation.
+
 ---
 
 Please review and provide feedback on the implementation approach, query correctness, and any edge cases that should be addressed.

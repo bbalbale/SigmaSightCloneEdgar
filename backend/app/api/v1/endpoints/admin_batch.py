@@ -47,19 +47,42 @@ async def run_batch_processing(
     background_tasks: BackgroundTasks,
     admin_user: CurrentAdmin = Depends(get_current_admin),
     portfolio_id: Optional[str] = Query(None, description="Specific portfolio ID or all"),
-    force: bool = Query(False, description="Force run even if batch already running")
+    force: bool = Query(False, description="Force run even if batch already running"),
+    force_rerun: bool = Query(False, description="Force reprocess dates even if snapshots exist (repair partial runs)"),
+    start_date: Optional[date] = Query(None, description="Start date for reprocessing (YYYY-MM-DD)"),
+    end_date: Optional[date] = Query(None, description="End date for reprocessing (YYYY-MM-DD, defaults to today)")
 ):
     """
     Trigger batch processing with real-time tracking.
 
     Returns batch_run_id for status polling via GET /admin/batch/run/current.
     Prevents concurrent runs unless force=True.
+
+    **Force Rerun Mode (force_rerun=True):**
+    Use this to repair partial batch runs where snapshots exist but later phases
+    (market values, sector tags, analytics) didn't complete due to crashes/deploys.
+
+    When force_rerun=True:
+    - Bypasses snapshot existence checks
+    - Reprocesses all dates in the specified range
+    - Re-runs ALL phases for each date (Phases 2-6)
+
+    **Date Range:**
+    - start_date: Beginning of reprocess range (required for force_rerun)
+    - end_date: End of reprocess range (defaults to today)
     """
     # Check if batch already running
     if batch_run_tracker.get_current() and not force:
         raise HTTPException(
             status_code=409,
             detail="Batch already running. Use force=true to override."
+        )
+
+    # Validate force_rerun parameters
+    if force_rerun and not start_date:
+        raise HTTPException(
+            status_code=400,
+            detail="start_date is required when using force_rerun=true"
         )
 
     # Create new batch run
@@ -75,27 +98,40 @@ async def run_batch_processing(
     # Get most recent trading day for calculations (handles weekends/holidays)
     calculation_date = get_most_recent_trading_day()
 
+    mode = "FORCE_RERUN" if force_rerun else "normal"
     logger.info(
         f"Admin {admin_user.email} triggered batch run {batch_run_id} "
         f"for portfolio {portfolio_id or 'all'} "
-        f"(calculation_date: {calculation_date}, today: {date.today()})"
+        f"(mode: {mode}, calculation_date: {calculation_date}, today: {date.today()})"
     )
 
+    if force_rerun:
+        logger.warning(
+            f"FORCE_RERUN: Reprocessing dates {start_date} to {end_date or 'today'} "
+            f"(bypassing snapshot checks)"
+        )
+
     # Execute in background with tracking
+    # Use run_daily_batch_with_backfill for proper date range handling
     background_tasks.add_task(
-        batch_orchestrator.run_daily_batch_sequence,
-        calculation_date,  # Use most recent trading day, not today
-        [portfolio_id] if portfolio_id else None,  # portfolio_ids as list
-        None,  # db
-        None,  # run_sector_analysis
-        None,  # price_cache
-        False  # force_onboarding - Admin runs use normal historical logic
+        batch_orchestrator.run_daily_batch_with_backfill,
+        start_date,  # start_date (None = auto-detect from watermark)
+        end_date,    # end_date (None = today)
+        [portfolio_id] if portfolio_id else None,  # portfolio_ids
+        portfolio_id if portfolio_id else None,    # portfolio_id (single mode)
+        "admin",     # source
+        force_rerun  # force_rerun
     )
 
     return {
         "status": "started",
         "batch_run_id": batch_run_id,
         "portfolio_id": portfolio_id or "all",
+        "force_rerun": force_rerun,
+        "date_range": {
+            "start": str(start_date) if start_date else "auto",
+            "end": str(end_date) if end_date else "today"
+        } if force_rerun else None,
         "triggered_by": admin_user.email,
         "timestamp": utc_now(),
         "poll_url": "/api/v1/admin/batch/run/current"
