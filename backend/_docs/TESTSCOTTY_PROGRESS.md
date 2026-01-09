@@ -30,8 +30,11 @@ When Scott tested the new portfolio onboarding flow ("Testscotty"), we discovere
 
 ### What's Still To Do
 
-1. **Phase 3**: Fix "fire-and-forget" database writes (medium priority)
-2. **Phase 7**: Real-time status updates during onboarding with debug mode (nice to have)
+1. **Phase 7**: Real-time status updates during onboarding with debug mode (nice to have)
+
+### Deferred (Low Priority)
+
+1. **Phase 3**: Fix "fire-and-forget" database writes - superseded by Phase 6, only causes log warnings
 
 ### Key Commits Deployed
 
@@ -58,7 +61,7 @@ Tested with "testscotty4" (Scott Y 5M) portfolio:
 |-------|-------------|--------|---------------------|
 | 1 | Fix Phase 1.5 Skipping | ✅ IMPLEMENTED | Pending |
 | 2 | Fix Global Watermark Bug (Hybrid) | ✅ IMPLEMENTED | Pending |
-| 3 | Fix Fire-and-Forget Tasks | NOT STARTED | - |
+| 3 | Fix Fire-and-Forget Tasks | ⏸️ DEFERRED | - |
 | 4 | Add batch_run_tracker Timeout & Cleanup | ✅ DONE (earlier) | - |
 | 5 | Unify Batch Functions (REFACTOR) | ✅ IMPLEMENTED | ✅ VERIFIED |
 | 6 | Harden batch_run_history Error Handling | ✅ IMPLEMENTED | ✅ VERIFIED |
@@ -692,43 +695,31 @@ ORDER BY last_snapshot;
 
 ## Phase 3: Fix Fire-and-Forget Tasks
 
-### Objective
+### Status: ⏸️ DEFERRED (January 8, 2026)
+
+**Decision**: Deferred indefinitely - low priority, superseded by Phase 6.
+
+### Original Objective
 Ensure batch history records are properly persisted and no "Task was destroyed" warnings in logs.
 
-### Pre-Fix State (Railway Production)
+### Why Deferred
+
+Phase 6 already ensures `record_batch_complete()` is **called** in a finally block. Phase 3 was about how that call **executes internally** (fire-and-forget vs awaited).
+
+**Impact analysis**:
+| Scenario | What Happens | Severity |
+|----------|--------------|----------|
+| Normal batch completion | Works fine - task usually finishes | ✅ OK |
+| Server restart during write | Status might stay "running" in DB | Low - rare edge case |
+| Railway redeploy during batch | Might miss final status update | Low - Phase 6 covers this |
+| Log noise | "Task was destroyed" warnings | Cosmetic only |
+
+**Conclusion**: The system works correctly now. Only downside is occasional log warnings and a tiny edge case during deploys (milliseconds window). Not worth the engineering effort.
+
+### Original Pre-Fix State (For Reference)
 - Multiple cron batches show `status="running"` forever
 - "Task was destroyed but it is pending" warnings in logs
 - `batch_history_service.py` uses `asyncio.create_task()` without awaiting
-
-### Implementation
-
-**File**: `backend/app/services/batch_history_service.py`
-
-**Status**: NOT STARTED
-
-**Changes Made**:
-- [ ] TBD
-
-### Verification Queries
-
-```sql
--- Check batch history status after fix
-SELECT batch_run_id, triggered_by, status, started_at, completed_at
-FROM batch_run_history
-ORDER BY started_at DESC
-LIMIT 10;
--- Expected: Recent batches have status="completed" and completed_at set
-```
-
-### Post-Fix Verification
-- [ ] Deployed to Railway
-- [ ] Triggered or waited for a batch run
-- [ ] Verified no "Task was destroyed" warnings in Railway logs
-- [ ] Verified new batches have `completed_at` timestamps
-- [ ] Verified status is "completed" not "running"
-
-### Notes
-(Add any observations, issues, or decisions during implementation)
 
 ---
 
