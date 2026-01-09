@@ -535,12 +535,6 @@ class BatchOrchestrator:
 
                 results.append(result)
 
-                # Update progress tracker for accurate crash reporting
-                if result['success']:
-                    progress["completed"] += 1
-                else:
-                    progress["failed"] += 1
-
                 # Mark as complete in tracking table
                 if result['success']:
                     await self._mark_batch_run_complete(db, calc_date, result)
@@ -549,6 +543,14 @@ class BatchOrchestrator:
                 # (analytics_runner commits internally, but we need final commit before context exits)
                 await db.commit()
                 logger.debug(f"Final commit completed for {calc_date}")
+
+                # Update progress tracker AFTER commit succeeds
+                # This ensures crash reporting is accurate - if commit fails,
+                # we don't incorrectly count this date as completed
+                if result['success']:
+                    progress["completed"] += 1
+                else:
+                    progress["failed"] += 1
 
         duration = int(asyncio.get_event_loop().time() - start_time)
 
