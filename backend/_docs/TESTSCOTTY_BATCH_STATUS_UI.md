@@ -2,7 +2,8 @@
 
 **Document**: TESTSCOTTY_BATCH_STATUS_UI.md
 **Created**: January 9, 2026
-**Status**: Planning
+**Updated**: January 9, 2026 - All design decisions finalized
+**Status**: Ready for Implementation
 **Related**: Phase 7, Phase 7.1 in TESTSCOTTY_PROGRESS.md
 
 ---
@@ -165,10 +166,11 @@ interface OnboardingStatusResponse {
 │                                                                     │
 │   ⏱️  Elapsed: 4m 21s                     📊 Overall: 45% complete  │
 │                                                                     │
-│                        [ 📥 Download Full Log ]                     │
-│                                                                     │
 └─────────────────────────────────────────────────────────────────────┘
 ```
+
+> **Note**: Download Log button intentionally NOT shown on progress screen.
+> It only appears on completion and error screens.
 
 ### 4.2 Completion Screen
 
@@ -223,7 +225,31 @@ interface OnboardingStatusResponse {
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
-### 4.4 Activity Log Filtering
+### 4.4 Status Unavailable Screen (not_found mid-run)
+
+When the status endpoint returns `not_found` during polling (server restart, network issue, etc.):
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                                                                     │
+│   ⚠️ Status Unavailable                                             │
+│                                                                     │
+│   Unable to fetch status updates.                                   │
+│   Your portfolio setup is still running in the background.          │
+│                                                                     │
+│   ══════════════════════════════════════════════════════════════    │
+│                                                                     │
+│              [ 🔄 Refresh Status ]    [ View Portfolio → ]          │
+│                                                                     │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+**Behavior:**
+- Show after 3 consecutive `not_found` responses
+- "Refresh Status" re-polls the endpoint
+- "View Portfolio" navigates to portfolio dashboard to check if setup completed
+
+### 4.5 Activity Log Filtering
 
 **What to Show (filter IN)**:
 | Entry Type | Example | When |
@@ -597,15 +623,80 @@ async def download_onboarding_logs(
 
 ---
 
-## 9. Open Questions
+## 9. Design Decisions (Resolved 2026-01-09)
 
-1. **Log Persistence**: Should we persist full logs to database after batch completion for later retrieval? Or only keep in memory during processing?
+All open questions have been resolved. Below are the finalized design decisions.
 
-2. **Log Retention**: How long should logs be available for download after batch completes?
+### 9.1 UI/UX Decisions
 
-3. **Retry Behavior**: When user clicks "Retry Setup", should we clear previous logs or append to them?
+| Decision | Answer | Rationale |
+|----------|--------|-----------|
+| **Phase display** | Show all 9 phases | Granular progress visibility |
+| **Activity log visibility** | Always visible | No toggle needed, users want to see activity |
+| **Download log button on progress screen** | No | Only show on completion/error screens |
+| **Page route** | `/onboarding/progress?portfolioId=xxx` | Query param approach |
+| **Design system** | Use existing shadcn/ui + Tailwind | Consistency with rest of app |
+| **Flow after upload** | Redirect to progress page | Separate from upload page |
 
-4. **Admin Access**: Should admins be able to view any user's onboarding logs for support purposes?
+### 9.2 Backend/Data Decisions
+
+| Decision | Answer | Rationale |
+|----------|--------|-----------|
+| **Log persistence** | Hybrid (D+): In-memory during run, persist to DB after each phase | Balance of performance and durability |
+| **Log retention** | Persisted in database | Survives restarts, queryable for support |
+| **Authorization** | User + Admin override | Admins can view any user's status for support |
+| **Build log download endpoint** | Yes, build now | Full feature ready at launch |
+
+### 9.3 Retry & Error Handling
+
+| Decision | Answer | Rationale |
+|----------|--------|-----------|
+| **Retry behavior** | Fresh run, keep previous attempt logs | New `attempt_number`, previous logs retained in DB for debugging |
+| **Activity log filtering** | Follow doc spec: every 5th date + milestones (1, 50, 100, 150, 200, 250, last) | Balances visibility and noise |
+| **`not_found` mid-run UX** | Show message + both options: [Refresh] [Check Portfolio] | Gives user choice when status unavailable |
+
+### 9.4 Database Schema for Log Persistence
+
+New table: `onboarding_logs`
+```sql
+CREATE TABLE onboarding_logs (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    portfolio_id UUID NOT NULL REFERENCES portfolios(id),
+    attempt_number INTEGER NOT NULL DEFAULT 1,
+    phase_id VARCHAR(20) NOT NULL,  -- "phase_1", "phase_1.5", etc.
+    logs_json JSONB NOT NULL,       -- Array of log entries for this phase
+    final_status VARCHAR(20),       -- "completed", "failed", NULL if in progress
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE INDEX ix_onboarding_logs_portfolio_id ON onboarding_logs(portfolio_id);
+CREATE INDEX ix_onboarding_logs_portfolio_attempt ON onboarding_logs(portfolio_id, attempt_number);
+```
+
+### 9.5 Additional UI Implementation Details (Resolved 2026-01-09)
+
+| Decision | Answer | Rationale |
+|----------|--------|-----------|
+| **Phase 6 progress unit** | No progress bar, just spinner icon | No granular progress count available |
+| **Elapsed time during running** | Yes, show for all phases | Gives user feedback something is happening |
+| **Phase 1.5/1.75 display** | Show as separate phases | Aligns with backend reporting |
+| **Activity log auto-scroll** | Smart scroll - auto only when at bottom, pause if user scrolls up | Best UX for reading earlier logs |
+| **Timestamps** | UTC everywhere (UI and download) | Consistent format |
+| **Polling control** | No UI control - automatic start/stop | Simpler UX |
+| **Warning phase status** | Map from activity log - show ⚠️ if phase has warning-level entries | Minimal backend change |
+| **Unavailable symbols on summary** | Show full list in expandable section | More visibility without downloading log |
+| **Download button on running screen** | No (already decided) | Only on completion/error screens |
+| **Progress header line** | Derive from backend response, fallback to generic message if unavailable | Accurate when possible, graceful degradation |
+
+### 9.6 Concurrency Limitation (Known)
+
+**Current architecture supports only ONE batch at a time.**
+
+- `batch_run_tracker` has single `_current` field
+- If 10 users onboard simultaneously, only the last one has status visibility
+- This is a known limitation for MVP
+- Future enhancement: Queue-based or per-portfolio tracking
 
 ---
 
