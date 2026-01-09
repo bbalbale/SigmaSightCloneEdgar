@@ -7,6 +7,293 @@
 
 ---
 
+# 🤖 AGENT HANDOFF APPENDIX
+
+> **For AI Coding Agents**: Start here. This section summarizes current state, how to verify, and what's left to do. Read this before diving into the detailed sections below.
+
+**Last Updated**: January 9, 2026, 11:00 PM UTC
+**Handoff From**: Claude Opus 4.5 session
+
+---
+
+## A1. Related Documentation (Cross-Links)
+
+| Document | Purpose | Location |
+|----------|---------|----------|
+| **This File** | Progress tracker, phase details, timeline | `backend/_docs/TESTSCOTTY_PROGRESS.md` |
+| **Session Summary** | Jan 8 investigation findings | `backend/_docs/SESSION_SUMMARY_BATCH_INVESTIGATION_JAN8.md` |
+| **Batch Status UI Design** | Frontend UX spec for status display | `backend/_docs/TESTSCOTTY_BATCH_STATUS_UI.md` |
+| **Issue #8 Code Review** | Factor exposure fix details | `backend/_docs/CODE_REVIEW_REQUEST_ISSUE8_FACTOR_EXPOSURE.md` |
+| **Backend CLAUDE.md** | Overall backend reference | `backend/CLAUDE.md` |
+| **Frontend CLAUDE.md** | Overall frontend reference | `frontend/CLAUDE.md` |
+
+---
+
+## A2. Current System State (as of 2026-01-09 23:00 UTC)
+
+### Deployed to Railway (Production)
+
+| Commit | Description | Deployed | Verified |
+|--------|-------------|----------|----------|
+| `4db1ad63` | Issue #8 fix: Add total_symbols key | ✅ Yes | ⏳ Pending |
+| `fe1f2632` | Issue #8 fix: Signature mismatch + logging | ✅ Yes | ⏳ Pending |
+| `4fd51be8` | AI agent verification instructions | ✅ Yes | N/A (docs) |
+| `bbd87c79` | Batch status UI design doc | ✅ Yes | N/A (docs) |
+| Phase 5 commits | Unified batch function | ✅ Yes | ✅ Verified (testscotty4) |
+| Phase 6 commits | Error handling hardening | ✅ Yes | ✅ Verified (testscotty4) |
+
+### Verification Still Needed
+
+| Item | What to Check | Status |
+|------|---------------|--------|
+| **Issue #8 Factor Storage** | Re-run batch for testscotty5, verify 12+ factors stored | ⏳ **PENDING** |
+| Stress testing | After Issue #8 fix, verify non-zero style factor impacts | ⏳ **PENDING** |
+| Phase 7 frontend | Frontend integration for status UI | ❌ **NOT STARTED** |
+
+### Known Good Reference Points
+
+| Test | Portfolio | Date | Result |
+|------|-----------|------|--------|
+| testscotty4 batch | Scott Y 5M | 2026-01-08 | ✅ 254/254 dates, 27 symbols, 894s |
+| testscotty5 batch | (verify ID) | 2026-01-09 | ✅ Snapshots OK, ❌ Factors need re-run |
+
+---
+
+## A3. Test Accounts Reference
+
+| User | Email | Portfolio Name | Portfolio ID | Purpose | Current State |
+|------|-------|----------------|--------------|---------|---------------|
+| testscotty (original) | elliott.ng+testscotty@gmail.com | Yaphe 5M | `98518c7d-ea23-593b-aaed-9c0be7f3a66f` | Original test | Legacy |
+| testscotty2 | elliott.ng+testscotty2@gmail.com | Yaphe 5M | `2ecdbdaf-468d-5484-98a1-26943635c829` | Phase 1 test | Blocked by stuck tracker |
+| testscotty3 | (check DB) | (check DB) | (check DB) | Import path debug | Used for debugging |
+| testscotty4 | (check DB) | Scott Y 5M | (check DB) | Phase 5/6 verification | ✅ **BASELINE** - use for regression |
+| testscotty5 | (check DB) | (check DB) | (check DB) | Issue #8 verification | ⏳ Needs force rerun |
+
+**To find portfolio IDs**:
+```sql
+SELECT u.email, p.id, p.name, p.created_at
+FROM users u
+JOIN portfolios p ON p.user_id = u.id
+WHERE u.email ILIKE '%scotty%' OR p.name ILIKE '%yaphe%' OR p.name ILIKE '%scott%'
+ORDER BY p.created_at DESC;
+```
+
+---
+
+## A4. Outstanding Work Items (Prioritized)
+
+### Priority 1 - Immediate Verification
+| Task | Description | Blocked By |
+|------|-------------|------------|
+| **Verify Issue #8** | Re-run batch for testscotty5, check factors stored | Nothing - ready now |
+| Check Railway logs | Look for "Stored X Ridge factors" messages | Issue #8 deployment |
+
+### Priority 2 - Frontend Work
+| Task | Description | Design Doc |
+|------|-------------|------------|
+| Phase 7 Frontend | Real-time status UI during onboarding | `TESTSCOTTY_BATCH_STATUS_UI.md` |
+| Log download button | Download full activity log as txt | `TESTSCOTTY_BATCH_STATUS_UI.md` |
+
+### Priority 3 - Deferred/Nice-to-Have
+| Task | Description | Why Deferred |
+|------|-------------|--------------|
+| Phase 3 fire-and-forget | Await db writes properly | Superseded by Phase 6; only causes log warnings |
+| Automated tests | Add tests for batch processing | Time constraints |
+
+---
+
+## A5. Environment & Credentials Runbook
+
+### Railway Access
+
+**Service Name**: `sigmasight-be-production`
+
+**View Logs**:
+```bash
+# Tail live logs
+railway logs -f
+
+# Last 100 lines
+railway logs -n 100
+
+# Filter for batch processing
+railway logs -n 500 | grep -i "batch\|phase\|factor"
+```
+
+**Run Python Script on Railway**:
+```bash
+railway run python -c "print('hello')"
+```
+
+### Trigger Batch Processing
+
+**Option 1 - Admin API** (requires admin JWT):
+```bash
+# Single portfolio, force rerun
+curl -X POST "https://sigmasight-be-production.up.railway.app/api/v1/admin/batch/run" \
+  -H "Authorization: Bearer <ADMIN_TOKEN>" \
+  -H "Content-Type: application/json" \
+  -d '{"portfolio_id": "<PORTFOLIO_ID>", "force_rerun": true}'
+```
+
+**Option 2 - Railway CLI**:
+```bash
+railway run python -c "
+import asyncio
+from app.batch.batch_orchestrator import batch_orchestrator
+
+async def main():
+    result = await batch_orchestrator.run_daily_batch_with_backfill(
+        portfolio_id='<PORTFOLIO_ID>',
+        source='manual',
+        force_rerun=True
+    )
+    print(result)
+
+asyncio.run(main())
+"
+```
+
+**Option 3 - Local Development**:
+```bash
+cd backend
+uv run python -c "
+import asyncio
+from app.batch.batch_orchestrator import batch_orchestrator
+
+async def main():
+    result = await batch_orchestrator.run_daily_batch_with_backfill(
+        portfolio_id='<PORTFOLIO_ID>',
+        source='manual',
+        force_rerun=True
+    )
+    print(result)
+
+asyncio.run(main())
+"
+```
+
+### Database Queries for Verification
+
+**Check factor exposures**:
+```sql
+SELECT factor_name, beta_value, calculation_date
+FROM factor_exposures
+WHERE portfolio_id = '<PORTFOLIO_ID>'
+ORDER BY calculation_date DESC, factor_name
+LIMIT 30;
+```
+
+**Count distinct factors** (should be 12+, not 3):
+```sql
+SELECT COUNT(DISTINCT factor_name) as factor_count
+FROM factor_exposures
+WHERE portfolio_id = '<PORTFOLIO_ID>';
+```
+
+**Check snapshots**:
+```sql
+SELECT snapshot_date, total_value
+FROM portfolio_snapshots
+WHERE portfolio_id = '<PORTFOLIO_ID>'
+ORDER BY snapshot_date DESC
+LIMIT 10;
+```
+
+**Check batch history**:
+```sql
+SELECT id, source, status, started_at, completed_at
+FROM batch_run_history
+ORDER BY started_at DESC
+LIMIT 10;
+```
+
+---
+
+## A6. Force Rerun / Recovery Runbook
+
+### Symptom: Portfolio missing factor exposures
+
+**Diagnosis**:
+```sql
+SELECT COUNT(DISTINCT factor_name) FROM factor_exposures WHERE portfolio_id = '<ID>';
+-- If < 12, factors are missing
+```
+
+**Recovery**:
+```bash
+# Via Admin API
+curl -X POST "https://sigmasight-be-production.up.railway.app/api/v1/admin/batch/run" \
+  -H "Authorization: Bearer <TOKEN>" \
+  -H "Content-Type: application/json" \
+  -d '{"portfolio_id": "<ID>", "force_rerun": true}'
+```
+
+**Verification**:
+1. Check Railway logs for: `Stored X Ridge factors for portfolio <id>`
+2. NO more: `"message":"Skipped: no_public_positions"`
+3. Re-run factor count query - should be 12+
+
+### Symptom: Batch stuck in "running" state
+
+**Diagnosis**:
+```sql
+SELECT * FROM batch_run_history WHERE status = 'running' ORDER BY started_at DESC;
+```
+
+**Recovery**:
+- Wait 30 minutes - system auto-expires stuck batches
+- Or restart Railway service to clear in-memory tracker
+
+### Symptom: Stress testing shows $0 for style factors
+
+**Root Cause**: Issue #8 - factor exposures not stored
+
+**Recovery**: Force rerun batch (see above), then re-test stress endpoint
+
+---
+
+## A7. Design Decisions & Tradeoffs
+
+| Decision | Rationale | Reference |
+|----------|-----------|-----------|
+| **Fix writer not reader** (Issue #8) | `total_symbols` semantically belongs in `data_quality` dict, single point of change | CODE_REVIEW_REQUEST_ISSUE8 |
+| **In-memory status logs** | Only relevant during processing, fast reads, no DB overhead | Phase 7 design |
+| **30-min batch timeout** | Longest normal batch ~15-20 min, gives buffer | Phase 4 |
+| **Polling not SSE** | Simpler, proven pattern, 2s interval acceptable | Phase 7.1 |
+| **Scoped symbol processing** | 44x fewer symbols for single-portfolio batches | Phase 5 |
+| **MIN of MAX watermark** | Find most lagging portfolio, not just check if any is current | Phase 2 |
+| **Deferred Phase 3** | Phase 6 ensures completion call made; fire-and-forget only causes log warnings | Phase 3 section |
+| **force_rerun requires explicit flag** | Prevent accidental reprocessing, date params ignored without flag | `e0bea800` |
+
+---
+
+## A8. Quick Start for New Agent
+
+### If asked to verify Issue #8:
+1. Read "AI Agent Verification Instructions" section below
+2. Trigger force rerun for testscotty5
+3. Check logs for "Stored X Ridge factors"
+4. Query factor_exposures table for 12+ factors
+
+### If asked to implement Phase 7 frontend:
+1. Read `TESTSCOTTY_BATCH_STATUS_UI.md`
+2. Existing backend endpoint: `GET /api/v1/onboarding/status/{portfolio_id}`
+3. New endpoint needed: `GET /api/v1/onboarding/status/{portfolio_id}/logs`
+4. Follow component list in design doc
+
+### If asked about batch processing issues:
+1. Check batch_run_history table for status
+2. Check Railway logs for errors
+3. Use force_rerun to recover
+4. See Runbook section above
+
+---
+
+*End of Agent Handoff Appendix. Detailed progress tracking continues below.*
+
+---
+
 ## Executive Summary (For Non-Engineers)
 
 ### What Happened
