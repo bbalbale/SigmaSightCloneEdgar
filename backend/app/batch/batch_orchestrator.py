@@ -264,8 +264,10 @@ class BatchOrchestrator:
                 scoped_only=scoped_only,
                 batch_run_id=batch_run_id,
             )
-        except Exception as e:
+        except (Exception, asyncio.CancelledError) as e:
             # Record batch failure in database history before re-raising
+            # NOTE: asyncio.CancelledError inherits from BaseException (not Exception)
+            # in Python 3.8+, so we explicitly catch it to handle SIGTERM/deployment restarts
             logger.error(f"Batch failed with exception: {e}")
             import traceback
             logger.error(f"Traceback: {traceback.format_exc()}")
