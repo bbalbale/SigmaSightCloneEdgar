@@ -226,6 +226,118 @@ total_symbols = metadata.get('unique_symbols', 0)  # ← Change to read from met
 
 ---
 
+## 🤖 AI Agent Verification Instructions (Issue #8)
+
+**Status**: Fix deployed to Railway, awaiting verification
+**Commits**: `4db1ad63`, `fe1f2632`
+**Date**: January 9, 2026
+
+### What Was Fixed
+
+Two bugs were preventing Ridge/Spread factor storage:
+1. **Bug #1**: Missing `total_symbols` key in `data_quality` dict caused false "no_public_positions" skip
+2. **Bug #2**: Function signature mismatch - `store_portfolio_factor_exposures()` was called with wrong kwargs
+
+### Step-by-Step Verification
+
+#### Step 1: Trigger Batch Re-run for testscotty5
+
+Option A - Via Railway CLI:
+```bash
+railway run python -c "
+import asyncio
+from app.batch.batch_orchestrator import batch_orchestrator
+
+async def main():
+    result = await batch_orchestrator.run_daily_batch_with_backfill(
+        portfolio_id='<TESTSCOTTY5_PORTFOLIO_ID>',
+        source='manual',
+        force_rerun=True
+    )
+    print(result)
+
+asyncio.run(main())
+"
+```
+
+Option B - Via Admin API (if available):
+```bash
+curl -X POST "https://sigmasight-be-production.up.railway.app/api/v1/admin/batch/run" \
+  -H "Authorization: Bearer <ADMIN_TOKEN>" \
+  -H "Content-Type: application/json" \
+  -d '{"portfolio_id": "<TESTSCOTTY5_PORTFOLIO_ID>", "force_rerun": true}'
+```
+
+#### Step 2: Check Railway Logs
+
+**SUCCESS indicators** (what you SHOULD see):
+```
+Stored 6 Ridge factors for portfolio <id> (X/Y symbols)
+Stored 4 Spread factors for portfolio <id> (X/Y symbols)
+```
+
+**FAILURE indicators** (what you should NOT see anymore):
+```
+"message":"Skipped: no_public_positions"
+```
+
+#### Step 3: Query Database for Factor Count
+
+Run this query to verify factors are stored:
+```sql
+SELECT
+    factor_name,
+    beta_value,
+    calculation_date
+FROM factor_exposures
+WHERE portfolio_id = '<TESTSCOTTY5_PORTFOLIO_ID>'
+ORDER BY calculation_date DESC, factor_name
+LIMIT 20;
+```
+
+**Expected**: 12+ distinct factor names including:
+- Value, Growth, Momentum, Quality, Size, Low_Volatility (Ridge factors)
+- Growth_Value_Spread, Momentum_Spread, Size_Spread, Quality_Spread (Spread factors)
+- Market_Beta, IR_Beta (these already worked)
+
+**Previous (broken)**: Only 3 factors (Market_Beta, IR_Beta, one other)
+
+#### Step 4: Test Stress Testing Endpoint
+
+```bash
+curl "https://sigmasight-be-production.up.railway.app/api/v1/analytics/portfolio/<TESTSCOTTY5_PORTFOLIO_ID>/stress-test" \
+  -H "Authorization: Bearer <TOKEN>"
+```
+
+**Expected**: Non-zero `impact` values for style factors like Value, Growth, Momentum
+
+**Previous (broken)**: `"No exposure found for shocked factor: Value"`
+
+### Success Criteria Checklist
+
+- [ ] Batch completes without "Skipped: no_public_positions" for Ridge/Spread
+- [ ] Railway logs show "Stored X Ridge factors" and "Stored X Spread factors"
+- [ ] Database query returns 12+ distinct factor names (not just 3)
+- [ ] Stress test endpoint returns non-zero impacts for style factors
+
+### If Verification Fails
+
+1. Check Railway logs for any new error messages
+2. Look for TypeError or other exceptions in the except blocks
+3. Report findings back with specific error messages
+
+### Portfolio IDs for Reference
+
+To find testscotty5 portfolio ID:
+```sql
+SELECT id, name, created_at
+FROM portfolios
+WHERE name ILIKE '%scotty%' OR name ILIKE '%yaphe%'
+ORDER BY created_at DESC;
+```
+
+---
+
 ### Phase 5 Details (January 8, 2026)
 
 **Commits (pushed to origin/main)**:
