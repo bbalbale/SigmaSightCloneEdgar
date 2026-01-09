@@ -68,13 +68,13 @@ Tested with "testscotty4" (Scott Y 5M) portfolio:
 | 7 | Real-Time Onboarding Status Updates | ✅ BACKEND DONE | Frontend pending |
 | 7.1 | Onboarding Status API Endpoint | ✅ IMPLEMENTED | ✅ Pushed to origin |
 | 7.2 | Onboarding Flow: Invite Code Gate | ✅ IMPLEMENTED | Pending push |
-| 8 | Fix Factor Exposure Storage Bug | 🔴 **BUG FOUND** | Not started |
+| 8 | Fix Factor Exposure Storage Bug | ✅ IMPLEMENTED | Pending verification |
 
 ---
 
 ### Issue #8: Factor Exposure Storage Bug (January 9, 2026)
 
-**Status**: 🔴 **BUG FOUND** - Not yet fixed
+**Status**: ✅ **FIXED** - Pending Railway verification
 
 **Discovery**: Found during investigation of stress testing warnings showing "No exposure found for shocked factor" for Value, Growth, Momentum, Size, Quality, and Low Volatility factors.
 
@@ -85,7 +85,7 @@ Tested with "testscotty4" (Scott Y 5M) portfolio:
 - Logs show: `[COMPLETE] Total factors after adding snapshot betas: 3`
 - Railway telemetry shows: `"name":"Ridge Factors","success":true,"message":"Skipped: no_public_positions"`
 
-**Root Cause**: Key name mismatch between `analytics_runner.py` and `portfolio_factor_service.py`
+**Root Cause #1**: Key name mismatch between `analytics_runner.py` and `portfolio_factor_service.py`
 
 **The Bug**:
 
@@ -128,6 +128,38 @@ results = {
 6. `store_portfolio_factor_exposures()` is never called
 7. Ridge/Spread factors never stored to `FactorExposure` table
 8. Stress testing finds no factor exposures
+
+**Root Cause #2**: Incorrect call signature when persisting factor exposures
+
+Even when the code reaches the storage step, `analytics_runner._calculate_ridge_factors()` and `_calculate_spread_factors()` call `store_portfolio_factor_exposures()` with keyword arguments that do not exist (`ridge_betas`, `spread_betas`) and omit the required `portfolio_betas` + `portfolio_equity` parameters:
+
+```python
+await store_portfolio_factor_exposures(
+    db=db,
+    portfolio_id=portfolio_id,
+    calculation_date=calculation_date,
+    ridge_betas=ridge_betas,
+    spread_betas={}
+)
+```
+
+The actual signature (portfolio_factor_service.py lines 312-317) expects:
+
+```python
+async def store_portfolio_factor_exposures(
+    db: AsyncSession,
+    portfolio_id: UUID,
+    portfolio_betas: Dict[str, float],
+    calculation_date: date,
+    portfolio_equity: float
+)
+```
+
+Python raises `TypeError: got an unexpected keyword argument 'ridge_betas'`, which is swallowed by the surrounding `except Exception`. Result: ridge/spread rows are never persisted even when symbol coverage is fine. Market/IR beta still appear because they use separate helper functions.
+
+**Fix Plan**:
+1. Fix the data-quality contract: either populate `data_quality['total_symbols'] = len(symbols)` or update `analytics_runner` to read `metadata['unique_symbols']`.
+2. Refactor the storage call to pass a combined `portfolio_betas` dict and the `portfolio_equity` value returned by `get_portfolio_factor_exposures()`.
 
 **Evidence from Railway Logs** (testscotty5 batch - January 9, 2026):
 ```
@@ -1398,8 +1430,9 @@ This fix allows the batch to START, but it still runs inefficiently until Phase 
 | 2026-01-08 | Phase 2 implemented | Hybrid approach: MIN of MAX + per-date filtering |
 | 2026-01-09 | Phase 7.1 implemented | Backend onboarding status endpoint pushed to origin |
 | 2026-01-09 | Phase 7.2 implemented | Frontend invite code gate (local only) |
-| 2026-01-09 | Issue #8 discovered | Factor exposure storage bug - function signature mismatch |
+| 2026-01-09 | Issue #8 discovered | Factor exposure storage bug - key name mismatch |
 | 2026-01-09 | testscotty5 verified | Snapshots current, batch 254/254 in 686s, but only 3 factors |
+| 2026-01-09 | Issue #8 fixed | Added `total_symbols` key to `data_quality` dict in portfolio_factor_service.py |
 | | | |
 
 ---
