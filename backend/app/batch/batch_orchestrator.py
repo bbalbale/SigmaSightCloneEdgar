@@ -255,7 +255,12 @@ class BatchOrchestrator:
         # PHASE 6 HARDENING: Wrap all processing in try/except to ensure record_batch_complete()
         # is ALWAYS called, even on crashes/timeouts/OOM. This prevents batch_run_history
         # rows from getting stuck in "running" status forever.
+        #
+        # Progress tracker: Mutable dict updated by _execute_batch_phases() so the
+        # exception handler knows how many dates completed before the crash.
         # =============================================================================
+        progress = {"completed": 0, "failed": 0}
+
         try:
             return await self._execute_batch_phases(
                 missing_dates=missing_dates,
@@ -263,6 +268,7 @@ class BatchOrchestrator:
                 portfolio_ids=portfolio_ids,
                 scoped_only=scoped_only,
                 batch_run_id=batch_run_id,
+                progress=progress,  # Track progress for accurate crash reporting
             )
         except (Exception, asyncio.CancelledError) as e:
             # Record batch failure in database history before re-raising
@@ -273,13 +279,20 @@ class BatchOrchestrator:
             logger.error(f"Traceback: {traceback.format_exc()}")
 
             duration = int(asyncio.get_event_loop().time() - start_time)
+            # Use actual progress - crash may have happened after some dates succeeded
+            completed = progress["completed"]
+            failed = len(missing_dates) - completed  # Remaining dates count as failed
             record_batch_complete(
                 batch_run_id=batch_run_id,
                 status="failed",
-                completed_jobs=0,
-                failed_jobs=len(missing_dates),
+                completed_jobs=completed,
+                failed_jobs=failed,
                 phase_durations={"total_duration": duration},
-                error_summary={"exception": str(e), "type": type(e).__name__},
+                error_summary={
+                    "exception": str(e),
+                    "type": type(e).__name__,
+                    "crashed_after_dates": completed,
+                },
             )
             raise  # Re-raise so caller knows batch failed
 
@@ -290,6 +303,7 @@ class BatchOrchestrator:
         portfolio_ids: Optional[List[str]],
         scoped_only: bool,
         batch_run_id: str,
+        progress: Dict[str, int],
     ) -> Dict[str, Any]:
         """
         Execute all batch phases (1, 1.5, 1.75, 2-6) for the given date range.
@@ -304,6 +318,9 @@ class BatchOrchestrator:
             portfolio_ids: Portfolio IDs to process (None = all)
             scoped_only: If True, only process portfolio symbols + factor ETFs
             batch_run_id: Batch run ID for history tracking
+            progress: Mutable dict {"completed": N, "failed": N} updated as dates
+                     are processed. Allows exception handler to report accurate
+                     progress if batch crashes midway.
 
         Returns:
             Summary of batch operation
@@ -517,6 +534,12 @@ class BatchOrchestrator:
                 )
 
                 results.append(result)
+
+                # Update progress tracker for accurate crash reporting
+                if result['success']:
+                    progress["completed"] += 1
+                else:
+                    progress["failed"] += 1
 
                 # Mark as complete in tracking table
                 if result['success']:
