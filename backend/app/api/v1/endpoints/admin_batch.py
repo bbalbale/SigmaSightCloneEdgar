@@ -42,6 +42,40 @@ async def _run_market_data_refresh_with_session():
             await session.close()
 
 
+async def _run_admin_batch_with_tracker_cleanup(
+    start_date: Optional[date],
+    end_date: Optional[date],
+    portfolio_ids: Optional[list],
+    portfolio_id: Optional[str],
+    force_rerun: bool,
+):
+    """
+    Wrapper to run batch processing with guaranteed batch_run_tracker cleanup.
+
+    CRITICAL: The caller (admin endpoint) calls batch_run_tracker.start(),
+    so we MUST call batch_run_tracker.complete() in a finally block to prevent
+    the tracker from being stuck "running" forever.
+    """
+    try:
+        result = await batch_orchestrator.run_daily_batch_with_backfill(
+            start_date=start_date,
+            end_date=end_date,
+            portfolio_ids=portfolio_ids,
+            portfolio_id=portfolio_id,
+            source="admin",
+            force_rerun=force_rerun,
+        )
+        logger.info(f"Admin batch completed: {result.get('dates_processed', 0)} dates processed")
+        return result
+    except Exception as e:
+        logger.error(f"Admin batch failed: {e}", exc_info=True)
+        raise
+    finally:
+        # CRITICAL: Always clear batch_run_tracker, even on exception
+        batch_run_tracker.complete()
+        logger.debug("Batch run tracker cleared (admin batch wrapper)")
+
+
 @router.post("/run")
 async def run_batch_processing(
     background_tasks: BackgroundTasks,
@@ -98,29 +132,37 @@ async def run_batch_processing(
     # Get most recent trading day for calculations (handles weekends/holidays)
     calculation_date = get_most_recent_trading_day()
 
-    mode = "FORCE_RERUN" if force_rerun else "normal"
-    logger.info(
-        f"Admin {admin_user.email} triggered batch run {batch_run_id} "
-        f"for portfolio {portfolio_id or 'all'} "
-        f"(mode: {mode}, calculation_date: {calculation_date}, today: {date.today()})"
-    )
-
+    # Determine effective date range
+    # For normal runs (force_rerun=False): default to single-date (most recent trading day)
+    # For force_rerun=True: use provided start_date (required) and end_date
     if force_rerun:
+        effective_start = start_date
+        effective_end = end_date  # None = today
+        mode = "FORCE_RERUN"
         logger.warning(
             f"FORCE_RERUN: Reprocessing dates {start_date} to {end_date or 'today'} "
             f"(bypassing snapshot checks)"
         )
+    else:
+        # Normal mode: single-date processing (most recent trading day)
+        effective_start = calculation_date
+        effective_end = calculation_date
+        mode = "normal (single-date)"
 
-    # Execute in background with tracking
-    # Use run_daily_batch_with_backfill for proper date range handling
+    logger.info(
+        f"Admin {admin_user.email} triggered batch run {batch_run_id} "
+        f"for portfolio {portfolio_id or 'all'} "
+        f"(mode: {mode}, dates: {effective_start} to {effective_end or 'today'})"
+    )
+
+    # Execute in background with tracker cleanup wrapper
     background_tasks.add_task(
-        batch_orchestrator.run_daily_batch_with_backfill,
-        start_date,  # start_date (None = auto-detect from watermark)
-        end_date,    # end_date (None = today)
+        _run_admin_batch_with_tracker_cleanup,
+        effective_start,  # start_date
+        effective_end,    # end_date
         [portfolio_id] if portfolio_id else None,  # portfolio_ids
         portfolio_id if portfolio_id else None,    # portfolio_id (single mode)
-        "admin",     # source
-        force_rerun  # force_rerun
+        force_rerun,      # force_rerun
     )
 
     return {
@@ -129,9 +171,9 @@ async def run_batch_processing(
         "portfolio_id": portfolio_id or "all",
         "force_rerun": force_rerun,
         "date_range": {
-            "start": str(start_date) if start_date else "auto",
-            "end": str(end_date) if end_date else "today"
-        } if force_rerun else None,
+            "start": str(effective_start),
+            "end": str(effective_end) if effective_end else "today"
+        },
         "triggered_by": admin_user.email,
         "timestamp": utc_now(),
         "poll_url": "/api/v1/admin/batch/run/current"
