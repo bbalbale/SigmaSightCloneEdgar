@@ -4,6 +4,7 @@ import { useEffect, useCallback } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { useOnboardingStatus } from '@/hooks/useOnboardingStatus'
 import { usePortfolioStore } from '@/stores/portfolioStore'
+import { onboardingService } from '@/services/onboardingService'
 import { OnboardingProgress } from '@/components/onboarding/OnboardingProgress'
 import { OnboardingComplete } from '@/components/onboarding/OnboardingComplete'
 import { OnboardingError } from '@/components/onboarding/OnboardingError'
@@ -42,7 +43,7 @@ export default function OnboardingProgressPage() {
     'Your Portfolio'
 
   // Hook for polling status
-  const { status, isLoading, error, refetch, notFoundCount } = useOnboardingStatus({
+  const { status, isLoading, error, refetch, shouldShowUnavailable } = useOnboardingStatus({
     portfolioId: portfolioId || '',
     pollInterval: 2000,
     enabled: !!portfolioId,
@@ -65,6 +66,12 @@ export default function OnboardingProgressPage() {
   const handleViewPortfolio = useCallback(() => {
     router.push('/command-center')
   }, [router])
+
+  // Retry calculations - calls triggerCalculations for existing portfolio
+  const handleRetryCalculations = useCallback(async () => {
+    if (!portfolioId) return
+    await onboardingService.triggerCalculations(portfolioId)
+  }, [portfolioId])
 
   // Redirect if no portfolio ID
   useEffect(() => {
@@ -94,12 +101,14 @@ export default function OnboardingProgressPage() {
     )
   }
 
-  // Show unavailable screen after 3 consecutive not_found responses
-  if (notFoundCount >= 3) {
+  // Show unavailable screen after grace period with no running status
+  // Grace period: 10+ seconds AND 5+ not_found responses AND never saw "running"
+  if (shouldShowUnavailable) {
     return (
       <OnboardingStatusUnavailable
         onRefresh={handleRefreshStatus}
         onViewPortfolio={handleViewPortfolio}
+        onRetryCalculations={handleRetryCalculations}
       />
     )
   }

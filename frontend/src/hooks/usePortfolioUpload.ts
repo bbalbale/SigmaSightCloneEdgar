@@ -15,15 +15,6 @@ export interface ValidationError {
   field?: string
 }
 
-export interface UploadResult {
-  portfolio_id: string
-  portfolio_name: string
-  positions_imported: number
-  positions_failed: number
-  total_positions: number
-}
-
-
 interface UsePortfolioUploadReturn {
   uploadState: UploadState
   error: string | null
@@ -79,6 +70,9 @@ export function usePortfolioUpload(): UsePortfolioUploadReturn {
       setBatchRunning(true)
     }
 
+    // Track if portfolio was created (for error handling)
+    let createdPortfolioId: string | null = null
+
     try {
       // PHASE 1: CSV Upload and Portfolio Creation
       const formData = new FormData()
@@ -89,6 +83,7 @@ export function usePortfolioUpload(): UsePortfolioUploadReturn {
       formData.append('csv_file', file)
 
       const uploadResponse = await onboardingService.createPortfolio(formData)
+      createdPortfolioId = uploadResponse.portfolio_id
 
       // Store portfolio ID in Zustand
       setPortfolioState(uploadResponse.portfolio_id, uploadResponse.portfolio_name)
@@ -111,7 +106,16 @@ export function usePortfolioUpload(): UsePortfolioUploadReturn {
       router.push(`/onboarding/progress?portfolioId=${uploadResponse.portfolio_id}`)
 
     } catch (err: unknown) {
-      // Unblock session on error
+      // P0 FIX: If portfolio was created but triggerCalculations failed,
+      // redirect to progress page anyway - it will show error/retry options.
+      // This prevents the 409 "portfolio already exists" loop on retry.
+      if (createdPortfolioId) {
+        console.warn('Portfolio created but triggerCalculations failed, redirecting to progress page')
+        router.push(`/onboarding/progress?portfolioId=${createdPortfolioId}`)
+        return
+      }
+
+      // Unblock session on error (only if we're NOT redirecting)
       if (isInOnboardingSession()) {
         setBatchRunning(false)
       }

@@ -3,7 +3,6 @@
 import { useEffect, useCallback } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { usePortfolioUpload } from '@/hooks/usePortfolioUpload'
-import { usePortfolioStore } from '@/stores/portfolioStore'
 import { PortfolioUploadForm } from '@/components/onboarding/PortfolioUploadForm'
 import { ValidationErrors } from '@/components/onboarding/ValidationErrors'
 import { Loader2 } from 'lucide-react'
@@ -13,9 +12,6 @@ import { Button } from '@/components/ui/button'
 export default function OnboardingUploadPage() {
   const searchParams = useSearchParams()
   const isFromSettings = searchParams?.get('context') === 'settings'
-
-  // Get session cleanup function directly from store for unmount
-  const clearOnboardingSession = usePortfolioStore((state) => state.clearOnboardingSession)
 
   const {
     uploadState,
@@ -35,14 +31,11 @@ export default function OnboardingUploadPage() {
   }, [isFromSettings, startSession])
 
   // Start onboarding session on mount (only for normal onboarding, not from Settings)
+  // Note: Session is NOT cleared on unmount - it persists through redirect to progress page
+  // Session is cleared by: OnboardingComplete (success), logout, or starting a new session
   useEffect(() => {
     initSession()
-
-    // Cleanup: clear entire session on unmount to prevent stale data
-    return () => {
-      clearOnboardingSession()
-    }
-  }, [initSession, clearOnboardingSession])
+  }, [initSession])
 
   // Show validation errors (CSV format issues)
   if (uploadState === 'validation_error' || (validationErrors && validationErrors.length > 0)) {
@@ -61,7 +54,7 @@ export default function OnboardingUploadPage() {
               </div>
               <div>
                 <CardTitle>Uploading Portfolio...</CardTitle>
-                <CardDescription>Validating your CSV file</CardDescription>
+                <CardDescription>Preparing your portfolio for analysis</CardDescription>
               </div>
             </div>
           </CardHeader>

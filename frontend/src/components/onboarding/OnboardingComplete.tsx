@@ -1,10 +1,12 @@
 'use client'
 
+import { useEffect } from 'react'
 import { CheckCircle, ArrowRight } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { DownloadLogButton } from './DownloadLogButton'
 import { OnboardingStatusResponse } from '@/services/onboardingService'
+import { usePortfolioStore } from '@/stores/portfolioStore'
 
 /**
  * Format elapsed seconds to human-readable duration
@@ -37,6 +39,14 @@ export function OnboardingComplete({
   portfolioName = 'Your Portfolio',
   onContinue,
 }: OnboardingCompleteProps) {
+  const clearOnboardingSession = usePortfolioStore((state) => state.clearOnboardingSession)
+
+  // Clear onboarding session when completion screen is shown
+  // This resets batchRunning and clears portfoliosAdded for a clean state
+  useEffect(() => {
+    clearOnboardingSession()
+  }, [clearOnboardingSession])
+
   const elapsedSeconds = status.elapsed_seconds ?? 0
   const phasesCompleted = status.overall_progress?.phases_completed ?? 0
   const phasesTotal = status.overall_progress?.phases_total ?? 0
